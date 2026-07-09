@@ -8,4 +8,5 @@
 ## IconTexture: Interface\Icons\inv_misc_coin_01
 
 Core/Util.lua
+Core/ImportString.lua
 Core/Init.lua
