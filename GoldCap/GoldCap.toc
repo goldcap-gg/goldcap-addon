@@ -1,0 +1,10 @@
+## Interface: 120007
+## Title: GoldCap
+## Notes: Auction tooltips and market data powered by goldcap.gg
+## Author: goldcap.gg
+## Version: @project-version@
+## SavedVariables: GoldCapDB
+## X-Website: https://goldcap.gg
+## IconTexture: Interface\Icons\inv_misc_coin_01
+
+Core/Init.lua

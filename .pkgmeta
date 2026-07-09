@@ -1,0 +1,6 @@
+package-as: GoldCap
+enable-nolib-creation: no
+ignore:
+  - spec
+  - .busted
+  - .luacheckrc
