@@ -7,4 +7,5 @@
 ## X-Website: https://goldcap.gg
 ## IconTexture: Interface\Icons\inv_misc_coin_01
 
+Core/Util.lua
 Core/Init.lua
