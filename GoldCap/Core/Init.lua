@@ -8,7 +8,7 @@ GC.DEFAULTS = {
   settings = { tooltip = true },
 }
 
-GC.slashHandlers = {}
+GC.slashHandlers = GC.slashHandlers or {}
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")

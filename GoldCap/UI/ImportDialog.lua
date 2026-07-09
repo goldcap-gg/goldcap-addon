@@ -1,6 +1,7 @@
 local _, GC = ...
 
 GC.UI = GC.UI or {}
+GC.slashHandlers = GC.slashHandlers or {}
 
 local dialog
 
