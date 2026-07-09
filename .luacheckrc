@@ -14,5 +14,5 @@ read_globals = {
   "SetTooltipMoney", "GetCoinTextureString",
   "GetCVar", "GetRealmName", "time",
   "C_Item", "C_AddOns", "GetAddOnMetadata", "Item",
-  "Enum", "TooltipDataProcessor", "print",
+  "Enum", "TooltipDataProcessor", "print", "ChatFontNormal",
 }

@@ -12,4 +12,5 @@ Core/ImportString.lua
 Core/Data.lua
 Data/MarketData.lua
 UI/Tooltip.lua
+UI/ImportDialog.lua
 Core/Init.lua
