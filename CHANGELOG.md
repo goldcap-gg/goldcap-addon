@@ -1,0 +1,1 @@
+GoldCap/CHANGELOG.md

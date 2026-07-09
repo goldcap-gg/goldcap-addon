@@ -7,11 +7,25 @@ enable-nolib-creation: no
 # move-folders below pulls the real addon content up to the package root.
 # All paths in "ignore" are relative to topdir (the repo root), not to this
 # file's own directory.
+# manual-changelog points at the addon/CHANGELOG.md SYMLINK (-> GoldCap/
+# CHANGELOG.md) rather than the real file, and that symlink is also in the
+# ignore list. Reason: packager resolves the changelog path once, BEFORE
+# move-folders runs. If it resolves to the copy inside the package dir
+# (anything under addon/GoldCap/), move-folders relocates that copy and the
+# recorded path dangles — the GitHub/CurseForge/Wago release-body reads then
+# fail on real tagged releases. Ignoring the symlink forces packager to fall
+# back to the source-tree path (relative to topdir), which survives. The real
+# file still ships inside the zip as GoldCap/CHANGELOG.md via move-folders.
+manual-changelog:
+  filename: addon/CHANGELOG.md
+  markup-type: markdown
 ignore:
+  - addon/CHANGELOG.md
   - addon/spec
   - addon/.busted
   - addon/.luacheckrc
   - addon/.pkgmeta
+  - addon/.release
   - .dockerignore
   - .env.production.example
   - .github
