@@ -36,6 +36,16 @@ describe("ImportString.Parse", function()
     assert.is_nil(r); assert.equal("bad_header", err)
   end)
 
+  it("rejects unknown regions", function()
+    local r, err = GC.ImportString.Parse("GCS1;zz;silvermoon;1;I:1=10")
+    assert.is_nil(r); assert.equal("bad_header", err)
+  end)
+
+  it("rejects uppercase realm slugs", function()
+    local r, err = GC.ImportString.Parse("GCS1;eu;Silvermoon;1;I:1=10")
+    assert.is_nil(r); assert.equal("bad_header", err)
+  end)
+
   it("rejects strings with no items", function()
     local r, err = GC.ImportString.Parse("GCS1;eu;silvermoon;1;W:123")
     assert.is_nil(r); assert.equal("no_items", err)

@@ -11,6 +11,7 @@ function GC.ImportString.Parse(str)
   local region, realm, ts, rest =
     str:match("^GCS1;(%l%l);([%l%d%-]+);(%d+);(.+)$")
   if not region then return nil, "bad_header" end
+  if region ~= "eu" and region ~= "us" then return nil, "bad_header" end
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),
