@@ -9,4 +9,6 @@
 
 Core/Util.lua
 Core/ImportString.lua
+Core/Data.lua
+Data/MarketData.lua
 Core/Init.lua
