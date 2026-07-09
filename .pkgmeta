@@ -1,6 +1,40 @@
 package-as: GoldCap
 enable-nolib-creation: no
+# NOTE on topdir: BigWigsMods/packager requires -t <topdir> to itself be a
+# git checkout root (it checks for "<topdir>/.git"). Since GoldCap.toc lives
+# two levels down (addon/GoldCap/GoldCap.toc) inside this monorepo, topdir
+# must be the repo root ("-t . -m addon/.pkgmeta" in the workflow), and
+# move-folders below pulls the real addon content up to the package root.
+# All paths in "ignore" are relative to topdir (the repo root), not to this
+# file's own directory.
 ignore:
-  - spec
-  - .busted
-  - .luacheckrc
+  - addon/spec
+  - addon/.busted
+  - addon/.luacheckrc
+  - addon/.pkgmeta
+  - .dockerignore
+  - .env.production.example
+  - .github
+  - .gitignore
+  - .nvmrc
+  - AGENTS.md
+  - apps
+  - bruno
+  - Caddyfile
+  - CLAUDE.md
+  - DEPLOY.md
+  - DESIGN_BRIEF.md
+  - docker-compose.dev.yml
+  - docker-compose.yml
+  - docs
+  - Makefile
+  - package.json
+  - packages
+  - pnpm-lock.yaml
+  - pnpm-workspace.yaml
+  - README.md
+  - scripts
+  - tsconfig.base.json
+  - UX_AUDIT.md
+move-folders:
+  GoldCap/addon/GoldCap: GoldCap
