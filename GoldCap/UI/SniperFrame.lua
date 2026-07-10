@@ -325,7 +325,10 @@ local function onBuyClick(row)
     -- Third explicit click: the ONLY path that confirms a commodity purchase, for both the
     -- within-tolerance ("confirm") and raised-price ("requote") prompts. Compliance: a
     -- commodity buy's final confirm always comes from a human click.
-    C_AuctionHouse.ConfirmCommoditiesPurchase()
+    -- Retail 12.0.7 requires (itemID, quantity) matching the StartCommoditiesPurchase call;
+    -- use the frozen purchaseDeal, not row.deal (a rescan may have replaced row.deal).
+    local pd = row.purchaseDeal
+    C_AuctionHouse.ConfirmCommoditiesPurchase(pd.itemID, pd.qty)
     row.purchaseStage = "confirming"
     row.buy:Disable()
     if frame then frame.status:SetText("confirming purchase...") end
