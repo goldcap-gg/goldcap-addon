@@ -64,12 +64,23 @@ end
 function GC.Data.GetWatchlist(fallbackN)
   local imp = db and db.imported
   if not imp then return {} end
-  if imp.watchlist and #imp.watchlist > 0 then return imp.watchlist end
+
+  -- Copy: callers must never mutate persisted SavedVariables state.
+  if imp.watchlist and #imp.watchlist > 0 then
+    local copy = {}
+    for i = 1, #imp.watchlist do copy[i] = imp.watchlist[i] end
+    return copy
+  end
 
   local ids = {}
   for id in pairs(imp.items or {}) do ids[#ids + 1] = id end
-  table.sort(ids, function(a, b) return imp.items[a].m > imp.items[b].m end)
-  local cap = fallbackN or 100
+  -- Tiebreak by id so the top-N boundary is stable across sessions.
+  table.sort(ids, function(a, b)
+    local ma, mb = imp.items[a].m, imp.items[b].m
+    if ma == mb then return a < b end
+    return ma > mb
+  end)
+  local cap = math.max(fallbackN or 100, 0)
   while #ids > cap do table.remove(ids) end
   return ids
 end

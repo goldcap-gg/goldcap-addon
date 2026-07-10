@@ -96,5 +96,28 @@ describe("Data", function()
     it("returns an empty list with no import", function()
       assert.same({}, GC.Data.GetWatchlist())
     end)
+
+    it("returns a copy, not the persisted watchlist", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 10 } }, watchlist = { 5, 1 } })
+      local w = GC.Data.GetWatchlist()
+      w[1] = 999
+      table.remove(w)
+      assert.same({ 5, 1 }, db.imported.watchlist)
+    end)
+
+    it("breaks ties by item id", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [9] = { m = 100 }, [2] = { m = 100 }, [5] = { m = 300 } },
+                            watchlist = {} })
+      assert.same({ 5, 2, 9 }, GC.Data.GetWatchlist())
+    end)
+
+    it("clamps a negative cap to an empty list", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 10 }, [2] = { m = 300 } },
+                            watchlist = {} })
+      assert.same({}, GC.Data.GetWatchlist(-1))
+    end)
   end)
 end)
