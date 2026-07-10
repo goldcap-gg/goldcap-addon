@@ -26,6 +26,13 @@ describe("ImportString.Parse", function()
     assert.equal(10, r.items[1].m)
   end)
 
+  it("tolerates a leading UTF-8 BOM / zero-width byte from browser copy", function()
+    local bom = string.char(239, 187, 191) -- UTF-8 BOM, not matched by %s
+    local r = GC.ImportString.Parse(bom .. "GCS1;eu;dentarg;1;I:1=10")
+    assert.equal("dentarg", r.realm)
+    assert.equal(10, r.items[1].m)
+  end)
+
   it("rejects empty input", function()
     local r, err = GC.ImportString.Parse("")
     assert.is_nil(r); assert.equal("empty", err)

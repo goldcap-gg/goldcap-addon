@@ -7,6 +7,10 @@ function GC.ImportString.Parse(str)
   if #str > GC.ImportString.MAX_LEN then return nil, "too_long" end
   str = str:gsub("%s+", "")
   if #str == 0 then return nil, "empty" end
+  -- Browsers copying a text/plain response often prepend an invisible byte
+  -- (UTF-8 BOM, zero-width space) that gsub("%s+") does not strip; drop any
+  -- leading junk before the GCS1 marker so a clean paste isn't rejected.
+  str = str:match("GCS1;.*") or str
 
   local region, realm, ts, rest =
     str:match("^GCS1;(%l%l);([%l%d%-]+);(%d+);(.+)$")
