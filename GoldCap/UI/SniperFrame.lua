@@ -59,8 +59,12 @@ local commodityPurchase = nil
 -- matching ITEM_SEARCH_RESULTS_UPDATED/COMMODITY_SEARCH_RESULTS_UPDATED arrives.
 -- awaitingKeyInfo: itemID -> row, only populated when GetItemKeyInfo wasn't cached yet and
 -- the requery is waiting on ITEM_KEY_ITEM_INFO_RECEIVED before it can even send the query.
+-- pendingRequerySend: itemID -> true, when the requery is ready to search but the throttle
+-- system was busy (typical right after a Full Scan, which saturates it) so the actual
+-- SendSearchQuery is deferred to the next AUCTION_HOUSE_THROTTLED_SYSTEM_READY.
 local awaitingRequery = {}
 local awaitingKeyInfo = {}
+local pendingRequerySend = {}
 
 GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 
@@ -420,6 +424,13 @@ resolvePurchase = function(row, success, note)
       session.spent = session.spent + deal.unitPrice * deal.qty
       session.estProfit = session.estProfit + deal.profit
       if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
+      -- A full-scan buy resolves against the LIVE deal finishRequery swapped in, not the
+      -- original .stale scanDeals entry -- which still holds the pre-purchase snapshot for
+      -- this itemID (now deduped to one row per item, see FullScan.Evaluate). Drop it so the
+      -- consumed listing doesn't reappear as a ghost row on the next refreshRows().
+      for i = #scanDeals, 1, -1 do
+        if scanDeals[i].itemID == deal.itemID then table.remove(scanDeals, i) end
+      end
     end
   end
 
@@ -469,9 +480,23 @@ end
 -- onBuyClick complete a purchase, unchanged.
 -- ---------------------------------------------------------------------------
 
+-- Issues the fresh live query for a requery, but ONLY when the throttle system is ready.
+-- SendSearchQuery silently no-ops while IsThrottledMessageSystemReady() is false -- which it
+-- routinely is for a beat right after a Full Scan (ReplicateItems saturates the throttle) --
+-- so if we're not ready, park the itemID in pendingRequerySend and let
+-- GC.Sniper.OnThrottleReady flush it. The 8s requery timeout remains the ultimate fallback.
+local function issueRequerySearch(itemID)
+  if driver.isReady() then
+    driver.sendSearch(itemID)
+  else
+    pendingRequerySend[itemID] = true
+  end
+end
+
 local function finishRequery(row, itemID, liveDeal)
   awaitingRequery[itemID] = nil
   awaitingKeyInfo[itemID] = nil
+  pendingRequerySend[itemID] = nil
   if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, ...)
 
   if liveDeal then
@@ -513,7 +538,7 @@ local function startRequery(row, deal)
   -- ITEM_KEY_ITEM_INFO_RECEIVED (GC.Sniper.OnItemKeyInfo below) and retry once from there,
   -- rather than calling driver.sendSearch on a key WoW hasn't resolved yet.
   if driver.getKeyInfo(itemID) then
-    driver.sendSearch(itemID)
+    issueRequerySearch(itemID)
   else
     awaitingKeyInfo[itemID] = row
   end
@@ -528,9 +553,25 @@ function GC.Sniper.OnItemKeyInfo(itemID)
   if row.purchaseStage ~= "requerying" then return end
 
   if driver.getKeyInfo(itemID) then
-    driver.sendSearch(itemID) -- retry: the key is cached now, safe to issue the fresh query
+    issueRequerySearch(itemID) -- retry: the key is cached now, safe to issue the fresh query (throttle permitting)
   else
     finishRequery(row, itemID, nil) -- still uncached after the retry -- give up gracefully
+  end
+end
+
+-- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler for the requery flow. In fullscan mode the
+-- watchlist scanner isn't running (mode gates which one is live), so flushing deferred
+-- requery searches here can't fight the scanner's own throttle-gated send loop; the mode
+-- guard keeps watchlist mode entirely unaffected. Each flushed itemID re-checks it's still
+-- an active requery before sending.
+function GC.Sniper.OnThrottleReady()
+  if mode ~= "fullscan" then return end
+  for itemID in pairs(pendingRequerySend) do
+    pendingRequerySend[itemID] = nil
+    local row = awaitingRequery[itemID]
+    if row and row.purchaseStage == "requerying" then
+      driver.sendSearch(itemID)
+    end
   end
 end
 
@@ -695,6 +736,7 @@ local function resetAllPurchases()
   for k in pairs(activeItemID) do activeItemID[k] = nil end
   for k in pairs(awaitingRequery) do awaitingRequery[k] = nil end
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
+  for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
   commodityPurchase = nil
 end
 

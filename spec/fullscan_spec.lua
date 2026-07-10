@@ -43,6 +43,20 @@ describe("FullScan.Evaluate", function()
     assert.equal(0, #deals)
   end)
 
+  it("dedupes same-itemID rows to the single higher-profit (cheaper) deal", function()
+    -- item 10, mv 1000000: one seller at 700000 (30% off, 250000 profit), one at 500000
+    -- (50% off, 450000 profit). Only the cheaper/higher-profit one survives, so downstream
+    -- itemID-keyed requery state can't collide on the same item.
+    local deals = GC.FullScan.Evaluate({
+      { itemID = 10, count = 1, buyoutStack = 700000 },
+      { itemID = 10, count = 1, buyoutStack = 500000 },
+    }, getValue, cfg, 100)
+    assert.equal(1, #deals)
+    assert.equal(10, deals[1].itemID)
+    assert.equal(500000, deals[1].unitPrice)
+    assert.equal(450000, deals[1].profit)
+  end)
+
   it("sorts by tier rank then profit desc and truncates to cap", function()
     local rows = {
       { itemID = 30, count = 1, buyoutStack = 5000 },        -- 10g mv, 50% off, tiny profit => WATCH

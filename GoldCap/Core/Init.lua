@@ -56,6 +56,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if GC.Sniper.scanner then GC.Sniper.scanner:OnSystemReady() end
+    if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
     local itemID = ...
     if GC.Sniper.scanner then

@@ -5,7 +5,14 @@ GC.FullScan = {}
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
 function GC.FullScan.Evaluate(rows, getValue, cfg, cap)
-  local deals = {}
+  -- Dedupe by itemID, keeping the single BEST (highest-profit) deal per item. A full scan
+  -- can list the same item from several sellers; downstream (SniperFrame's awaitingRequery /
+  -- awaitingKeyInfo) is keyed by itemID, so two .stale rows sharing an itemID would collide
+  -- (a second Buy on a same-item row orphans the first requery). Collapsing to one row per
+  -- item here removes that hazard and also yields a cleaner deals list. First-seen wins on
+  -- an exact profit tie; the final sort's itemID tiebreaker keeps output deterministic
+  -- regardless of the pairs() iteration order below.
+  local bestByItem = {}
   for _, row in ipairs(rows) do
     if row.count and row.count > 0 and row.buyoutStack and row.buyoutStack > 0 then
       local unitPrice = math.floor(row.buyoutStack / row.count)
@@ -13,8 +20,18 @@ function GC.FullScan.Evaluate(rows, getValue, cfg, cap)
         { itemID = row.itemID, isCommodity = false, auctionID = nil,
           unitPrice = unitPrice, qty = row.count },
         getValue(row.itemID), cfg)
-      if deal then deals[#deals + 1] = deal end
+      if deal then
+        local existing = bestByItem[deal.itemID]
+        if not existing or deal.profit > existing.profit then
+          bestByItem[deal.itemID] = deal
+        end
+      end
     end
+  end
+
+  local deals = {}
+  for _, deal in pairs(bestByItem) do
+    deals[#deals + 1] = deal
   end
 
   table.sort(deals, function(a, b)
