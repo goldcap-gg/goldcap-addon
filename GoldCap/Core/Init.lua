@@ -5,7 +5,16 @@ GC.version = getMeta and getMeta(ADDON_NAME, "Version") or "dev"
 
 GC.DEFAULTS = {
   dbVersion = 1,
-  settings = { tooltip = true },
+  settings = {
+    tooltip = true,
+    sniper = {
+      autoOpen = true,
+      sound = true,
+      hotDiscount = 0.40, hotProfit = 5000000,
+      goodDiscount = 0.25, goodProfit = 1000000,
+      watchDiscount = 0.10, suspectDiscount = 0.90,
+    },
+  },
 }
 
 GC.slashHandlers = GC.slashHandlers or {}

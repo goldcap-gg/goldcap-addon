@@ -10,6 +10,7 @@
 Core/Util.lua
 Core/ImportString.lua
 Core/Data.lua
+Core/DealMath.lua
 Data/MarketData.lua
 UI/Tooltip.lua
 UI/ImportDialog.lua
