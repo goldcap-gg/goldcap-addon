@@ -57,19 +57,28 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if GC.Sniper.scanner then GC.Sniper.scanner:OnSystemReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
+    local itemID = ...
     if GC.Sniper.scanner then
-      local itemID = ...
       GC.Sniper.scanner:OnKeyInfo(itemID)
     end
+    if GC.Sniper.OnItemKeyInfo then
+      GC.Sniper.OnItemKeyInfo(itemID)
+    end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
+    local itemKey = ...
     if GC.Sniper.scanner then
-      local itemKey = ...
       GC.Sniper.scanner:OnItemResults(itemKey.itemID)
     end
+    if GC.Sniper.OnItemSearchResults then
+      GC.Sniper.OnItemSearchResults(itemKey.itemID)
+    end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
+    local itemID = ...
     if GC.Sniper.scanner then
-      local itemID = ...
       GC.Sniper.scanner:OnCommodityResults(itemID)
+    end
+    if GC.Sniper.OnCommoditySearchResults then
+      GC.Sniper.OnCommoditySearchResults(itemID)
     end
   elseif event == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
     if GC.Sniper.OnPurchaseCompleted then

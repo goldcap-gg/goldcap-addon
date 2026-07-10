@@ -7,6 +7,7 @@ local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist
 local REQUOTE_MAX_RATIO = 0.05
 local ARM_TIMEOUT_SECONDS = 5
 local BUY_TIMEOUT_SECONDS = 8
+local REQUERY_TIMEOUT_SECONDS = 8
 local FULL_SCAN_COOLDOWN_SECONDS = 15 * 60
 local FULL_SCAN_BATCH_SIZE = 250
 local FULL_SCAN_TICK_DELAY = 0.01
@@ -47,6 +48,19 @@ local fullScanToken = 0
 local pendingAuction = {}
 local activeItemID = {}
 local commodityPurchase = nil
+
+-- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
+-- (ReplicateItems is a point-in-time dump), so the FIRST Buy click on one issues a fresh
+-- SendSearchQuery instead of arming straight off scanDeals. These two tables are keyed by
+-- itemID and live on the FRAME, deliberately separate from the watchlist scanner's own
+-- single-slot `pending` state (Core/Scanner.lua), so a requery in flight can never collide
+-- with -- or get misrouted into -- an unrelated watchlist scan cycle.
+-- awaitingRequery: itemID -> row, from the moment SendSearchQuery is issued until the
+-- matching ITEM_SEARCH_RESULTS_UPDATED/COMMODITY_SEARCH_RESULTS_UPDATED arrives.
+-- awaitingKeyInfo: itemID -> row, only populated when GetItemKeyInfo wasn't cached yet and
+-- the requery is waiting on ITEM_KEY_ITEM_INFO_RECEIVED before it can even send the query.
+local awaitingRequery = {}
+local awaitingKeyInfo = {}
 
 GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 
@@ -250,6 +264,13 @@ end
 local function applyFullScanResults(rowsList, listingCount)
   fullScanBatch = nil
   scanDeals = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
+  -- GC.FullScan.Evaluate reads GetReplicateItemInfo, a point-in-time dump: isCommodity is
+  -- always false there (unresolved) and auctionID is always nil. Mark every deal `.stale`
+  -- so onBuyClick knows to requery live before it will let one arm for purchase, instead of
+  -- ever placing a bid/commodity purchase off this snapshot.
+  for _, deal in ipairs(scanDeals) do
+    deal.stale = true
+  end
   if frame then
     frame.status:SetText(("full scan complete: %d deal%s from %d listings"):format(
       #scanDeals, #scanDeals == 1 and "" or "s", listingCount))
@@ -435,7 +456,103 @@ local function scheduleBuyTimeout(row, deal)
   end)
 end
 
+-- ---------------------------------------------------------------------------
+-- Task-3 buy-after-scan requery: the FIRST Buy click on a `.stale` (full-scan) deal never
+-- arms straight off the scan snapshot. It pins the row ("requerying"), issues a fresh
+-- driver.sendSearch(itemID) (guarding the item key not being cached yet -- see
+-- GC.Sniper.OnItemKeyInfo below), and waits for the matching search-results event.
+-- finishRequery() then either hands the row a real, non-stale live deal ("requeried" --
+-- pinned, button back to "Buy", so the very NEXT click runs onBuyClick's normal first-click
+-- arm path exactly like a watchlist deal) or gives up gracefully ("gone / price changed",
+-- row re-enabled, unpinned). No C_AuctionHouse purchase call is ever reached from this
+-- path -- only PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase inside
+-- onBuyClick complete a purchase, unchanged.
+-- ---------------------------------------------------------------------------
+
+local function finishRequery(row, itemID, liveDeal)
+  awaitingRequery[itemID] = nil
+  awaitingKeyInfo[itemID] = nil
+  if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, ...)
+
+  if liveDeal then
+    setRowDeal(row, liveDeal) -- swaps the row onto the fresh, non-stale deal (real auctionID/unitPrice/qty/isCommodity)
+    row.purchaseStage = "requeried" -- still pinned; NOT armed yet -- the next Buy click arms it
+    resetRowButton(row)
+    if frame then frame.status:SetText("live price confirmed -- click Buy to purchase") end
+  else
+    activeItemID[itemID] = nil
+    row.purchaseStage = nil
+    resetRowButton(row)
+    if frame then frame.status:SetText("gone / price changed") end
+  end
+  refreshRows()
+end
+
+local function scheduleRequeryTimeout(row, deal)
+  C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
+    if row.purchaseStage == "requerying" and row.deal == deal then
+      finishRequery(row, deal.itemID, nil)
+    end
+  end)
+end
+
+local function startRequery(row, deal)
+  local itemID = deal.itemID
+  row.purchaseStage = "requerying"
+  row.purchaseDeal = nil
+  activeItemID[itemID] = true
+  row.buy:Disable()
+  row.buy:SetText("...")
+  if frame then frame.status:SetText("checking live price...") end
+
+  awaitingRequery[itemID] = row
+  scheduleRequeryTimeout(row, deal)
+
+  -- Guard against the item key not being cached: GetItemKeyInfo (via driver.getKeyInfo) can
+  -- return nil for an itemID nothing has queried yet this session. When it does, wait for
+  -- ITEM_KEY_ITEM_INFO_RECEIVED (GC.Sniper.OnItemKeyInfo below) and retry once from there,
+  -- rather than calling driver.sendSearch on a key WoW hasn't resolved yet.
+  if driver.getKeyInfo(itemID) then
+    driver.sendSearch(itemID)
+  else
+    awaitingKeyInfo[itemID] = row
+  end
+end
+
 -- Router functions the Init.lua event frame dispatches into.
+
+function GC.Sniper.OnItemKeyInfo(itemID)
+  local row = awaitingKeyInfo[itemID]
+  if not row then return end -- not something Task-3 requery is waiting on for this item
+  awaitingKeyInfo[itemID] = nil
+  if row.purchaseStage ~= "requerying" then return end
+
+  if driver.getKeyInfo(itemID) then
+    driver.sendSearch(itemID) -- retry: the key is cached now, safe to issue the fresh query
+  else
+    finishRequery(row, itemID, nil) -- still uncached after the retry -- give up gracefully
+  end
+end
+
+function GC.Sniper.OnItemSearchResults(itemID)
+  local row = awaitingRequery[itemID]
+  if not row then return end -- not a Task-3 requery for this item (e.g. the watchlist scanner's own search)
+  local res = driver.itemResult(itemID)
+  local liveDeal = res and GC.DealMath.Evaluate(
+    { itemID = itemID, isCommodity = false, auctionID = res.auctionID, unitPrice = res.unitPrice, qty = res.qty },
+    driver.getValue(itemID), GC.db.settings.sniper)
+  finishRequery(row, itemID, liveDeal)
+end
+
+function GC.Sniper.OnCommoditySearchResults(itemID)
+  local row = awaitingRequery[itemID]
+  if not row then return end -- not a Task-3 requery for this item (e.g. the watchlist scanner's own search)
+  local res = driver.commodityResult(itemID)
+  local liveDeal = res and GC.DealMath.Evaluate(
+    { itemID = itemID, isCommodity = true, unitPrice = res.unitPrice, qty = res.qty },
+    driver.getValue(itemID), GC.db.settings.sniper)
+  finishRequery(row, itemID, liveDeal)
+end
 
 function GC.Sniper.OnPurchaseCompleted(auctionID)
   local row = pendingAuction[auctionID]
@@ -516,8 +633,8 @@ local function onBuyClick(row)
     return
   end
 
-  if row.purchaseStage == "buying" or row.purchaseStage == "confirming" then
-    return -- purchase already in flight; button is disabled but guard anyway
+  if row.purchaseStage == "buying" or row.purchaseStage == "confirming" or row.purchaseStage == "requerying" then
+    return -- purchase (or a Task-3 live-price check) already in flight; button is disabled but guard anyway
   end
 
   if row.purchaseStage == "armed" then
@@ -546,6 +663,18 @@ local function onBuyClick(row)
     return
   end
 
+  -- First click on a `.stale` full-scan deal: the scan snapshot's price/auction may no
+  -- longer be real, so requery live instead of arming off it. Task-3: this is the ONLY new
+  -- branch in onBuyClick; no C_AuctionHouse purchase call is reachable from it. A deal
+  -- reaches here without `.stale` either because it's a watchlist deal (unchanged path,
+  -- arms immediately below) or because it's the live deal finishRequery() just swapped onto
+  -- this row ("requeried" stage falls through the checks above to here) -- in which case
+  -- this click is exactly the normal first arm click, just like any watchlist deal.
+  if deal.stale then
+    startRequery(row, deal)
+    return
+  end
+
   -- First click: arm.
   armRow(row, deal)
 end
@@ -564,6 +693,8 @@ local function resetAllPurchases()
   end
   for k in pairs(pendingAuction) do pendingAuction[k] = nil end
   for k in pairs(activeItemID) do activeItemID[k] = nil end
+  for k in pairs(awaitingRequery) do awaitingRequery[k] = nil end
+  for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   commodityPurchase = nil
 end
 
