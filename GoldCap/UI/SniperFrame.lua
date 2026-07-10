@@ -868,14 +868,16 @@ end
 
 function GC.Sniper.OnAuctionHouseShow()
   -- Build the scanner on the first AH visit regardless of autoOpen, so a later
-  -- manual Toggle + Start has one to drive.
+  -- manual watchlist Start has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
-  -- autoOpen gates the WINDOW: on it auto-appears and auto-scans; off it stays
-  -- hidden until the player opens it via /goldcap sniper (Toggle) and clicks Start.
+  -- autoOpen gates only whether the WINDOW auto-appears. It does NOT auto-start any
+  -- scan: Full Scan is the primary mode (one burst on the player's button press), and
+  -- the continuous watchlist scan is opt-in via its own Start button -- auto-running it
+  -- on every AH visit was the source of the reported AH lag.
   if not GC.db.settings.sniper.autoOpen then return end
   frame = frame or createFrame()
   frame:Show()
-  startScanning()
+  if frame.status then frame.status:SetText("Press Full Scan to find deals.") end
 end
 
 function GC.Sniper.OnAuctionHouseClosed()
