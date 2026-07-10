@@ -2,12 +2,38 @@ require("spec.spec_helper") -- side effect: seeds _G.time for load-time use
 
 describe("TOC load order", function()
   it("loads every TOC file in order and wires slash handlers", function()
-    _G.CreateFrame = function()
-      return {
+    local function stubFrame()
+      local f
+      f = {
         RegisterEvent = function() end,
+        UnregisterEvent = function() end,
         SetScript = function() end,
+        SetSize = function() end,
+        SetPoint = function() end,
+        SetMovable = function() end,
+        EnableMouse = function() end,
+        RegisterForDrag = function() end,
+        Show = function() end,
+        Hide = function() end,
+        IsShown = function() return false end,
+        SetText = function() end,
+        SetTexture = function() end,
+        SetTextColor = function() end,
+        SetJustifyH = function() end,
+        SetWidth = function() end,
+        SetScrollChild = function() end,
+        StartMoving = function() end,
+        StopMovingOrSizing = function() end,
+        CreateFontString = function() return stubFrame() end,
+        CreateTexture = function() return stubFrame() end,
+        TitleText = { SetText = function() end },
       }
+      return f
     end
+    _G.CreateFrame = function()
+      return stubFrame()
+    end
+    _G.UISpecialFrames = _G.UISpecialFrames or {}
     _G.SlashCmdList = {}
     _G.C_AddOns = { GetAddOnMetadata = function() return "test" end }
 
@@ -34,8 +60,13 @@ describe("TOC load order", function()
     assert.is_function(GC.slashHandlers.status)
     assert.is_function(GC.UI.ShowImportDialog)
     assert.is_function(GC.Tooltip.BuildLines)
+    assert.is_function(GC.Scanner.New)
+    assert.is_function(GC.DealMath.Evaluate)
+    assert.is_function(GC.slashHandlers.sniper)
+    assert.is_function(GC.Sniper.Toggle)
 
     _G.CreateFrame = nil
+    _G.UISpecialFrames = nil
     _G.SlashCmdList = nil
     _G.C_AddOns = nil
     _G.GoldCap_MarketData = nil

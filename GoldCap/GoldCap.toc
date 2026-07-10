@@ -15,4 +15,5 @@ Core/Scanner.lua
 Data/MarketData.lua
 UI/Tooltip.lua
 UI/ImportDialog.lua
+UI/SniperFrame.lua
 Core/Init.lua

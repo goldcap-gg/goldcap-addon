@@ -7,7 +7,7 @@ self = false
 files["spec/"] = { std = "lua51+busted" }
 files["addon/spec/"] = { std = "lua51+busted" }
 
-globals = { "GoldCapDB", "GoldCap_MarketData", "SLASH_GOLDCAP1", "SlashCmdList" }
+globals = { "GoldCapDB", "GoldCap_MarketData", "SLASH_GOLDCAP1", "SlashCmdList", "GoldCapSniperFrame" }
 
 read_globals = {
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
@@ -15,4 +15,6 @@ read_globals = {
   "GetCVar", "GetRealmName", "time",
   "C_Item", "C_AddOns", "GetAddOnMetadata", "Item",
   "Enum", "TooltipDataProcessor", "print", "ChatFontNormal",
+  "C_AuctionHouse", "C_Timer", "PlaySound", "SOUNDKIT", "ITEM_QUALITY_COLORS",
+  "CreateFromMixins", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "UISpecialFrames",
 }
