@@ -253,12 +253,15 @@ function GC.Sniper.Toggle()
 end
 
 function GC.Sniper.OnAuctionHouseShow()
-  frame = frame or createFrame()
+  -- Build the scanner on the first AH visit regardless of autoOpen, so a later
+  -- manual Toggle + Start has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
+  -- autoOpen gates the WINDOW: on it auto-appears and auto-scans; off it stays
+  -- hidden until the player opens it via /goldcap sniper (Toggle) and clicks Start.
+  if not GC.db.settings.sniper.autoOpen then return end
+  frame = frame or createFrame()
   frame:Show()
-  if GC.db.settings.sniper.autoOpen then
-    startScanning()
-  end
+  startScanning()
 end
 
 function GC.Sniper.OnAuctionHouseClosed()

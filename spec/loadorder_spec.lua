@@ -65,6 +65,9 @@ describe("TOC load order", function()
     assert.is_function(GC.slashHandlers.sniper)
     assert.is_function(GC.Sniper.Toggle)
 
+    -- exercise real frame construction through the stubbed CreateFrame
+    assert.has_no.errors(function() GC.Sniper.Toggle() end)
+
     _G.CreateFrame = nil
     _G.UISpecialFrames = nil
     _G.SlashCmdList = nil
