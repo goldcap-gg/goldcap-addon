@@ -4,6 +4,9 @@ GC.Sniper = GC.Sniper or {}
 
 local ROW_HEIGHT = 20
 local MAX_ROWS = 20
+local REQUOTE_MAX_RATIO = 0.05
+local ARM_TIMEOUT_SECONDS = 5
+local BUY_TIMEOUT_SECONDS = 8
 
 local TIER_COLOR = {
   HOT = { 1, 0.35, 0.15 },
@@ -19,10 +22,23 @@ local rows = {}        -- pooled row widgets, index 1..MAX_ROWS
 local deals = {}        -- itemID -> latest deal shown for it
 local scanning = false
 
+-- Purchase-flow bookkeeping. A row is "pinned" (activeItemID[itemID] = true) from the
+-- first arming click until the purchase resolves, so refreshRows() never repurposes it
+-- mid-flight. pendingAuction tracks in-flight item (non-commodity) buys by auctionID for
+-- AUCTION_HOUSE_PURCHASE_COMPLETED lookup; commodityPurchase tracks the single in-flight
+-- commodity buy (Blizzard only allows one commodity purchase flow at a time).
+local pendingAuction = {}
+local activeItemID = {}
+local commodityPurchase = nil
+
+GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
+
 local function sortedDeals()
   local list = {}
-  for _, deal in pairs(deals) do
-    list[#list + 1] = deal
+  for itemID, deal in pairs(deals) do
+    if not activeItemID[itemID] then
+      list[#list + 1] = deal
+    end
   end
   table.sort(list, function(a, b)
     local ra, rb = TIER_RANK[a.tier] or 9, TIER_RANK[b.tier] or 9
@@ -55,20 +71,33 @@ local function setRowDeal(row, deal)
   row:Show()
 end
 
+-- Rows mid-purchase (row.purchaseStage set) are pinned in place: refreshRows() leaves
+-- their content untouched instead of repurposing the widget to a different deal out from
+-- under an in-flight click sequence. sortedDeals() already excludes their itemID so no
+-- other row duplicates them.
 local function refreshRows()
   if not frame then return end
   local list = sortedDeals()
+  local li = 1
   for i = 1, MAX_ROWS do
     local row = rows[i]
-    local deal = list[i]
-    if deal then
-      setRowDeal(row, deal)
-    else
-      row.deal = nil
-      row:Hide()
+    if not row.purchaseStage then
+      local deal = list[li]
+      if deal then
+        setRowDeal(row, deal)
+        li = li + 1
+      else
+        row.deal = nil
+        row:Hide()
+      end
     end
   end
 end
+
+-- Forward-declared: driver.onDeal (below) needs to call this for the "row vanished on
+-- rescan" success fallback, but its real definition lives further down alongside the
+-- rest of the purchase-flow helpers.
+local resolvePurchase
 
 -- Live driver bound to C_AuctionHouse; every WoW-API access below is wrapped in a
 -- function so the table itself can be built at file-load with no side effects
@@ -113,6 +142,18 @@ local driver = {
   end,
 
   onDeal = function(deal)
+    -- Fallback success signal for item buys: AUCTION_HOUSE_PURCHASE_COMPLETED is
+    -- UNVERIFIED to actually fire, so if a rescan reports a *different* top auction for
+    -- an itemID we're mid-purchase on, the auction we bid on is gone from the book —
+    -- treat that as a completed snipe.
+    local prior = deals[deal.itemID]
+    if prior and not deal.isCommodity and prior.auctionID and prior.auctionID ~= deal.auctionID then
+      local staleRow = pendingAuction[prior.auctionID]
+      if staleRow then
+        resolvePurchase(staleRow, true, "sniped (listing changed on rescan)")
+      end
+    end
+
     deals[deal.itemID] = deal
     refreshRows()
     if deal.tier == "HOT" and GC.db.settings.sniper.sound then
@@ -141,6 +182,182 @@ local function stopScanning()
   if GC.Sniper.scanner then GC.Sniper.scanner:Stop() end
   scanning = false
   if frame then frame.toggleBtn:SetText("Start") end
+end
+
+-- ---------------------------------------------------------------------------
+-- Purchase flow: two clicks (arm -> confirm) for every buy, a third explicit
+-- click for a raised commodity requote. Every C_AuctionHouse purchase call
+-- below is reached only from a button OnClick (hardware event) or, for the
+-- non-raised-price commodity confirm, from the COMMODITY_PRICE_UPDATED event
+-- that Blizzard's own client fires in direct response to the click-triggered
+-- StartCommoditiesPurchase — never from a timer.
+-- ---------------------------------------------------------------------------
+
+local function resetRowButton(row)
+  row.buy:Enable()
+  row.buy:SetText("Buy")
+  local fs = row.buy.GetFontString and row.buy:GetFontString()
+  if fs then fs:SetTextColor(1, 1, 1) end
+end
+
+resolvePurchase = function(row, success, note)
+  local deal = row.purchaseDeal or row.deal
+  if deal then
+    activeItemID[deal.itemID] = nil
+    if deal.isCommodity then
+      if commodityPurchase == row then commodityPurchase = nil end
+    elseif deal.auctionID then
+      pendingAuction[deal.auctionID] = nil
+    end
+    if success then
+      local session = GC.Sniper.session
+      session.buys = session.buys + 1
+      session.spent = session.spent + deal.unitPrice * deal.qty
+      session.estProfit = session.estProfit + deal.profit
+      if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
+    end
+  end
+
+  row.purchaseStage = nil
+  row.purchaseDeal = nil
+  resetRowButton(row)
+  if frame and note then frame.status:SetText(note) end
+  refreshRows()
+end
+
+local function disarmRow(row, deal)
+  row.purchaseStage = nil
+  activeItemID[deal.itemID] = nil
+  resetRowButton(row)
+end
+
+local function armRow(row, deal)
+  row.purchaseStage = "armed"
+  row.purchaseDeal = nil
+  activeItemID[deal.itemID] = true
+  row.buy:SetText("Confirm")
+  C_Timer.After(ARM_TIMEOUT_SECONDS, function()
+    if row.purchaseStage == "armed" and row.deal == deal then
+      disarmRow(row, deal)
+    end
+  end)
+end
+
+local function scheduleBuyTimeout(row, deal)
+  C_Timer.After(BUY_TIMEOUT_SECONDS, function()
+    if row.purchaseStage == "buying" and row.purchaseDeal == deal then
+      resolvePurchase(row, false, "no purchase confirmation received")
+    end
+  end)
+end
+
+-- Router functions the Init.lua event frame dispatches into.
+
+function GC.Sniper.OnPurchaseCompleted(auctionID)
+  local row = pendingAuction[auctionID]
+  if not row then return end
+  local deal = row.purchaseDeal
+  resolvePurchase(row, true, deal and ("sniped for " .. GetCoinTextureString(deal.unitPrice * deal.qty)) or "purchase complete")
+end
+
+function GC.Sniper.OnCommodityPriceUpdated(_unitPrice, totalPrice)
+  local row = commodityPurchase
+  if not row then return end
+  local deal = row.purchaseDeal
+  if not deal then return end
+
+  if GC.DealMath.PriceIncreaseExceeds(deal.unitPrice * deal.qty, totalPrice, REQUOTE_MAX_RATIO) then
+    -- Price rose beyond tolerance: never auto-confirm. Arm a third, explicit click.
+    row.purchaseStage = "requote"
+    row.buy:Enable()
+    row.buy:SetText("Confirm!")
+    local fs = row.buy.GetFontString and row.buy:GetFontString()
+    if fs then fs:SetTextColor(1, 0.2, 0.2) end
+    if frame then
+      frame.status:SetText(("price rose to %s -- click Confirm to accept"):format(GetCoinTextureString(totalPrice)))
+    end
+  else
+    -- Quote at/below the price accepted on click 2: confirm without demanding a fresh click.
+    C_AuctionHouse.ConfirmCommoditiesPurchase()
+    row.purchaseStage = "confirming"
+    if frame then frame.status:SetText("confirming purchase...") end
+  end
+end
+
+function GC.Sniper.OnCommodityPriceUnavailable()
+  local row = commodityPurchase
+  if not row then return end
+  C_AuctionHouse.CancelCommoditiesPurchase()
+  resolvePurchase(row, false, "commodity price unavailable -- canceled")
+end
+
+function GC.Sniper.OnCommodityPurchaseSucceeded()
+  local row = commodityPurchase
+  if not row then return end
+  local deal = row.purchaseDeal
+  resolvePurchase(row, true, deal and ("bought %d x item %d"):format(deal.qty, deal.itemID) or "purchase complete")
+end
+
+function GC.Sniper.OnCommodityPurchaseFailed()
+  local row = commodityPurchase
+  if not row then return end
+  resolvePurchase(row, false, "commodity purchase failed")
+end
+
+local function onBuyClick(row)
+  local deal = row.deal
+  if not deal then return end
+
+  if row.purchaseStage == "requote" then
+    -- Third explicit click: the only path that may accept a raised commodity price.
+    C_AuctionHouse.ConfirmCommoditiesPurchase()
+    row.purchaseStage = "confirming"
+    row.buy:Disable()
+    if frame then frame.status:SetText("confirming purchase...") end
+    return
+  end
+
+  if row.purchaseStage == "buying" or row.purchaseStage == "confirming" then
+    return -- purchase already in flight; button is disabled but guard anyway
+  end
+
+  if row.purchaseStage == "armed" then
+    -- Second click: fire the real purchase call synchronously, right here in OnClick.
+    row.purchaseStage = "buying"
+    row.purchaseDeal = deal
+    row.buy:Disable()
+    if deal.isCommodity then
+      commodityPurchase = row
+      C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, deal.qty)
+      if frame then frame.status:SetText("buying commodity...") end
+    else
+      pendingAuction[deal.auctionID] = row
+      C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice)
+      if frame then frame.status:SetText("placing bid...") end
+    end
+    scheduleBuyTimeout(row, deal)
+    return
+  end
+
+  -- First click: arm.
+  armRow(row, deal)
+end
+
+-- Cancels/resets any purchase in flight and clears the tracking tables. Used on AH close
+-- so stale disabled buttons or pinned rows never leak into the next Auction House visit.
+local function resetAllPurchases()
+  if not frame then return end
+  for i = 1, MAX_ROWS do
+    local row = rows[i]
+    if row.purchaseStage then
+      row.purchaseStage = nil
+      row.purchaseDeal = nil
+      resetRowButton(row)
+    end
+  end
+  for k in pairs(pendingAuction) do pendingAuction[k] = nil end
+  for k in pairs(activeItemID) do activeItemID[k] = nil end
+  commodityPurchase = nil
 end
 
 local function createRow(parent, index)
@@ -180,12 +397,10 @@ local function createRow(parent, index)
   buy:SetSize(50, 18)
   buy:SetPoint("RIGHT")
   buy:SetText("Buy")
-  buy:SetScript("OnClick", function()
-    local deal = row.deal
-    if not deal then return end
-    -- Two-click purchase + requote guard lands in a later task; `deal` is ready for it here.
-  end)
   row.buy = buy
+  buy:SetScript("OnClick", function()
+    onBuyClick(row)
+  end)
 
   row:Hide()
   return row
@@ -266,6 +481,20 @@ end
 
 function GC.Sniper.OnAuctionHouseClosed()
   stopScanning()
+
+  local session = GC.Sniper.session
+  if session.buys > 0 then
+    GC.Print(("session: %d snipes, spent %s, ~%s est. profit"):format(
+      session.buys, GetCoinTextureString(session.spent), GetCoinTextureString(session.estProfit)))
+    session.buys, session.spent, session.estProfit = 0, 0, 0
+  end
+
+  local scanner = GC.Sniper.scanner
+  if scanner and scanner.scanned > 0 then
+    GC.Print(("scanned %d listings over %d passes"):format(scanner.scanned, scanner.cycles))
+  end
+
+  resetAllPurchases()
   clearDeals() -- next AH visit starts from a clean slate; stale auctions are no longer live
   if frame then frame:Hide() end
 end

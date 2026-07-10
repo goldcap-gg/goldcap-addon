@@ -27,6 +27,11 @@ frame:RegisterEvent("AUCTION_HOUSE_THROTTLED_SYSTEM_READY")
 frame:RegisterEvent("ITEM_KEY_ITEM_INFO_RECEIVED")
 frame:RegisterEvent("ITEM_SEARCH_RESULTS_UPDATED")
 frame:RegisterEvent("COMMODITY_SEARCH_RESULTS_UPDATED")
+frame:RegisterEvent("AUCTION_HOUSE_PURCHASE_COMPLETED")
+frame:RegisterEvent("COMMODITY_PRICE_UPDATED")
+frame:RegisterEvent("COMMODITY_PRICE_UNAVAILABLE")
+frame:RegisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
+frame:RegisterEvent("COMMODITY_PURCHASE_FAILED")
 
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
@@ -63,6 +68,28 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.scanner then
       local itemID = ...
       GC.Sniper.scanner:OnCommodityResults(itemID)
+    end
+  elseif event == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
+    if GC.Sniper.OnPurchaseCompleted then
+      local auctionID = ...
+      GC.Sniper.OnPurchaseCompleted(auctionID)
+    end
+  elseif event == "COMMODITY_PRICE_UPDATED" then
+    if GC.Sniper.OnCommodityPriceUpdated then
+      local unitPrice, totalPrice = ...
+      GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
+    end
+  elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
+    if GC.Sniper.OnCommodityPriceUnavailable then
+      GC.Sniper.OnCommodityPriceUnavailable()
+    end
+  elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
+    if GC.Sniper.OnCommodityPurchaseSucceeded then
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+    end
+  elseif event == "COMMODITY_PURCHASE_FAILED" then
+    if GC.Sniper.OnCommodityPurchaseFailed then
+      GC.Sniper.OnCommodityPurchaseFailed()
     end
   end
 end)
