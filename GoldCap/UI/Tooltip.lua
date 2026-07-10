@@ -28,7 +28,7 @@ local function onTooltip(tooltip, data)
   if not lines then return end
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
-      SetTooltipMoney(tooltip, ln.copper, nil, ln.label .. ":")
+      tooltip:AddDoubleLine(ln.label, GetCoinTextureString(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
     else
       tooltip:AddDoubleLine(ln.left, ln.right, 0.65, 0.82, 1, 1, 1, 1)
     end
