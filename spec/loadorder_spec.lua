@@ -27,6 +27,15 @@ describe("TOC load order", function()
         CreateFontString = function() return stubFrame() end,
         CreateTexture = function() return stubFrame() end,
         TitleText = { SetText = function() end },
+        EnableMouseWheel = function() end,
+        SetVerticalScroll = function() end,
+        GetVerticalScroll = function() return 0 end,
+        GetVerticalScrollRange = function() return 0 end,
+        SetWordWrap = function() end,
+        SetMaxLines = function() end,
+        Enable = function() end,
+        Disable = function() end,
+        GetFontString = function() return nil end,
       }
       return f
     end

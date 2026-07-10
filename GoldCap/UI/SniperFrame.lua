@@ -3,10 +3,14 @@ local _, GC = ...
 GC.Sniper = GC.Sniper or {}
 
 local ROW_HEIGHT = 20
-local MAX_ROWS = 20
+local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
 local REQUOTE_MAX_RATIO = 0.05
 local ARM_TIMEOUT_SECONDS = 5
 local BUY_TIMEOUT_SECONDS = 8
+local FULL_SCAN_COOLDOWN_SECONDS = 15 * 60
+local FULL_SCAN_BATCH_SIZE = 250
+local FULL_SCAN_TICK_DELAY = 0.01
+local FULL_SCAN_SAFETY_SECONDS = 2
 
 local TIER_COLOR = {
   HOT = { 1, 0.35, 0.15 },
@@ -18,9 +22,22 @@ local TIER_COLOR = {
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
 local frame           -- lazily created (see createFrame)
-local rows = {}        -- pooled row widgets, index 1..MAX_ROWS
-local deals = {}        -- itemID -> latest deal shown for it
+local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
+local rows = {}        -- pooled row widgets, grown lazily up to ROW_CAP
+local deals = {}        -- itemID -> latest watchlist deal shown for it (watchlist mode)
+local scanDeals = {}     -- array of deals from the last completed full scan (full-scan mode)
+local mode = "watchlist" -- "watchlist" | "fullscan": which backing store sortedDeals() renders
 local scanning = false
+
+-- Full-scan (ReplicateItems) state. lastFullScanTime enforces a client-side cooldown
+-- (session-only, not persisted -- a /reload resets it, matching the "client-side" scope
+-- of this requirement rather than a saved-variable one). fullScanToken is bumped on every
+-- new scan and on abort so any C_Timer closures from a superseded/aborted scan become
+-- no-ops instead of racing a newer scan's state.
+local lastFullScanTime = 0
+local fullScanWaiting = false -- true from ReplicateItems() until OnReplicateReady handles the event
+local fullScanBatch = nil     -- { rows = {...}, token = n } while batch-iterating; nil when idle
+local fullScanToken = 0
 
 -- Purchase-flow bookkeeping. A row is "pinned" (activeItemID[itemID] = true) from the
 -- first arming click until the purchase resolves, so refreshRows() never repurposes it
@@ -35,6 +52,16 @@ GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 
 local function sortedDeals()
   local list = {}
+  if mode == "fullscan" then
+    -- GC.FullScan.Evaluate already returns tier-rank/profit sorted order; filtering out
+    -- pinned itemIDs preserves that order (no re-sort needed).
+    for _, deal in ipairs(scanDeals) do
+      if not activeItemID[deal.itemID] then
+        list[#list + 1] = deal
+      end
+    end
+    return list
+  end
   for itemID, deal in pairs(deals) do
     if not activeItemID[itemID] then
       list[#list + 1] = deal
@@ -71,18 +98,38 @@ local function setRowDeal(row, deal)
   row:Show()
 end
 
+-- Forward-declared: createRow's real definition lives further down (it needs the row
+-- widget-construction helpers), but refreshRows() (below) must be able to grow the row
+-- pool on demand. Lua resolves an unbound name at closure-creation time, not call time,
+-- so without this forward declaration refreshRows would silently capture a global.
+local createRow
+
 -- Rows mid-purchase (row.purchaseStage set) are pinned in place: refreshRows() leaves
 -- their content untouched instead of repurposing the widget to a different deal out from
 -- under an in-flight click sequence. sortedDeals() already excludes their itemID so no
 -- other row duplicates them.
+--
+-- The row pool grows lazily up to `shown` (itself capped at ROW_CAP) instead of being
+-- pre-built at a fixed size: full scans can return far more deals than the old
+-- watchlist-only 20-row pool ever needed to hold. `shown` also bounds how many entries of
+-- `list` get consumed even if `list` itself is longer (already true for full-scan mode,
+-- since GC.FullScan.Evaluate caps to 100 -- this is just a second belt-and-suspenders cap
+-- local to rendering). The scroll child's height is stamped every refresh so
+-- GetVerticalScrollRange() has something to report once there are more rows than fit.
 local function refreshRows()
   if not frame then return end
   local list = sortedDeals()
+  local shown = math.min(#list, ROW_CAP)
+
+  for i = #rows + 1, shown do
+    rows[i] = createRow(content, i)
+  end
+
   local li = 1
-  for i = 1, MAX_ROWS do
+  for i = 1, #rows do
     local row = rows[i]
     if not row.purchaseStage then
-      local deal = list[li]
+      local deal = (li <= shown) and list[li] or nil
       if deal then
         setRowDeal(row, deal)
         li = li + 1
@@ -92,6 +139,8 @@ local function refreshRows()
       end
     end
   end
+
+  content:SetHeight(math.max(shown, 1) * ROW_HEIGHT)
 end
 
 -- Forward-declared: driver.onDeal (below) needs to call this for the "row vanished on
@@ -171,6 +220,7 @@ end
 
 local function startScanning()
   if not GC.Sniper.scanner then return end
+  mode = "watchlist"
   clearDeals()
   GC.Sniper.scanner:Stop() -- re-Start while a search is in flight drops it silently: always Stop first
   GC.Sniper.scanner:Start(GC.Data.GetWatchlist(100))
@@ -182,6 +232,137 @@ local function stopScanning()
   if GC.Sniper.scanner then GC.Sniper.scanner:Stop() end
   scanning = false
   if frame then frame.toggleBtn:SetText("Start") end
+end
+
+-- ---------------------------------------------------------------------------
+-- Full Scan (C_AuctionHouse.ReplicateItems). Primary control: a one-shot dump of every
+-- current auction, gated by a client-side 15-min cooldown (ReplicateItems is
+-- account-wide-throttled server-side; this just avoids firing it needlessly and gives the
+-- player a status message instead of a silent no-op). GC.Sniper.OnReplicateReady is the
+-- REPLICATE_ITEM_LIST_UPDATE handler Core/Init.lua dispatches into; it batch-iterates
+-- GetReplicateItemInfo over frames (FULL_SCAN_BATCH_SIZE per tick via C_Timer.After) so a
+-- huge AH listing count never hitches a frame, then hands the collected rows to
+-- GC.FullScan.Evaluate. fullScanToken invalidates any in-flight tick/safety-net closures
+-- from a scan that was superseded (a new Full Scan click) or aborted (AH closed) so they
+-- become no-ops instead of racing fresher state.
+-- ---------------------------------------------------------------------------
+
+local function applyFullScanResults(rowsList, listingCount)
+  fullScanBatch = nil
+  scanDeals = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
+  if frame then
+    frame.status:SetText(("full scan complete: %d deal%s from %d listings"):format(
+      #scanDeals, #scanDeals == 1 and "" or "s", listingCount))
+  end
+  refreshRows()
+end
+
+local function fullScanTick(nextIndex, n, rowsAcc, token)
+  if token ~= fullScanToken then return end -- superseded by a newer scan, or aborted
+  local endIndex = math.min(nextIndex + FULL_SCAN_BATCH_SIZE - 1, n - 1)
+  for i = nextIndex, endIndex do
+    -- VERIFIED signature (12.0.7): 18 return values, 0-based index -- name, texture, count,
+    -- qualityID, usable, level, levelType, minBid, minIncrement, buyoutPrice, bidAmount,
+    -- highBidder, bidderFullName, owner, ownerFullName, saleStatus, itemID, hasAllInfo.
+    -- Only count(3)/buyoutPrice(10)/itemID(17) are needed to evaluate a deal --
+    -- hasAllInfo=false still supplies these even before the item name loads async.
+    -- Captured into a table rather than 18 named locals to avoid a wall of unused vars.
+    local info = { C_AuctionHouse.GetReplicateItemInfo(i) }
+    local count, buyoutPrice, itemID = info[3], info[10], info[17]
+    if itemID and count and count > 0 and buyoutPrice and buyoutPrice > 0 then
+      rowsAcc[#rowsAcc + 1] = { itemID = itemID, count = count, buyoutStack = buyoutPrice }
+    end
+  end
+
+  if endIndex >= n - 1 then
+    fullScanBatch = nil
+    applyFullScanResults(rowsAcc, n)
+  else
+    fullScanBatch = { rows = rowsAcc, token = token, lastProgress = time() }
+    if frame then frame.status:SetText(("scanning %d/%d..."):format(endIndex + 1, n)) end
+    C_Timer.After(FULL_SCAN_TICK_DELAY, function()
+      fullScanTick(endIndex + 1, n, rowsAcc, token)
+    end)
+  end
+end
+
+-- Rolling safety net: re-arms itself every FULL_SCAN_SAFETY_SECONDS for as long as the
+-- batch is still progressing, and only force-finishes (with whatever rows were collected so
+-- far) if no tick has advanced within the last window -- i.e. the tick chain has genuinely
+-- stalled. A single one-shot timer from scan start would instead cap EVERY full scan's
+-- total duration at ~2s, which truncates any realm with enough listings that a full,
+-- steadily-progressing scan legitimately takes longer than one window (easily true on a
+-- populated realm at 250 indices/10ms). Bumping the token on force-finish invalidates the
+-- stalled chain so it can't resume later and double-apply results.
+local function fullScanWatchdog(token, n)
+  if not (fullScanBatch and fullScanBatch.token == token) then return end -- already finished/aborted
+  if time() - fullScanBatch.lastProgress >= FULL_SCAN_SAFETY_SECONDS then
+    local pendingRows = fullScanBatch.rows
+    fullScanBatch = nil
+    fullScanToken = fullScanToken + 1
+    applyFullScanResults(pendingRows, n)
+    return
+  end
+  C_Timer.After(FULL_SCAN_SAFETY_SECONDS, function()
+    fullScanWatchdog(token, n)
+  end)
+end
+
+function GC.Sniper.OnReplicateReady()
+  if not fullScanWaiting then return end -- not currently expecting this event; ignore
+  fullScanWaiting = false
+
+  local token = fullScanToken
+  local n = C_AuctionHouse.GetNumReplicateItems() or 0
+  local rowsAcc = {}
+
+  if n == 0 then
+    applyFullScanResults(rowsAcc, 0)
+    return
+  end
+
+  fullScanBatch = { rows = rowsAcc, token = token, lastProgress = time() }
+  fullScanTick(0, n, rowsAcc, token)
+  C_Timer.After(FULL_SCAN_SAFETY_SECONDS, function()
+    fullScanWatchdog(token, n)
+  end)
+end
+
+-- Cancels any full scan in flight (waiting for the ready event, or mid-batch-iteration).
+-- Called on AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep
+-- running once the player has left the Auction House.
+local function abortFullScan()
+  if fullScanWaiting or fullScanBatch then
+    fullScanToken = fullScanToken + 1 -- invalidates any in-flight tick/safety-net closures
+  end
+  fullScanWaiting = false
+  fullScanBatch = nil
+end
+
+local function onFullScanClick()
+  if not frame then return end
+  if not GC.Sniper.scanner then
+    frame.status:SetText("Open the Auction House first.")
+    return
+  end
+
+  local now = time()
+  if lastFullScanTime > 0 then
+    local remaining = FULL_SCAN_COOLDOWN_SECONDS - (now - lastFullScanTime)
+    if remaining > 0 then
+      frame.status:SetText(("full scan on cooldown: %ds remaining"):format(remaining))
+      return
+    end
+  end
+
+  lastFullScanTime = now
+  fullScanToken = fullScanToken + 1
+  fullScanBatch = nil
+  fullScanWaiting = true
+  mode = "fullscan"
+  refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
+  C_AuctionHouse.ReplicateItems()
+  frame.status:SetText("scanning...")
 end
 
 -- ---------------------------------------------------------------------------
@@ -373,7 +554,7 @@ end
 -- so stale disabled buttons or pinned rows never leak into the next Auction House visit.
 local function resetAllPurchases()
   if not frame then return end
-  for i = 1, MAX_ROWS do
+  for i = 1, #rows do
     local row = rows[i]
     if row.purchaseStage then
       row.purchaseStage = nil
@@ -386,7 +567,7 @@ local function resetAllPurchases()
   commodityPurchase = nil
 end
 
-local function createRow(parent, index)
+createRow = function(parent, index)
   local row = CreateFrame("Frame", nil, parent)
   row:SetSize(360, ROW_HEIGHT)
   row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
@@ -400,6 +581,11 @@ local function createRow(parent, index)
   nameText:SetPoint("LEFT", icon, "RIGHT", 4, 0)
   nameText:SetWidth(130)
   nameText:SetJustifyH("LEFT")
+  -- One line only: a wrapped name would grow taller than ROW_HEIGHT and visually overlap
+  -- the row below it. SetWordWrap(false) keeps long names from wrapping; SetMaxLines(1) is
+  -- a belt-and-suspenders cap on top of that.
+  nameText:SetWordWrap(false)
+  nameText:SetMaxLines(1)
   row.nameText = nameText
 
   local tierText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -443,9 +629,19 @@ local function createFrame()
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
   f.TitleText:SetText("GoldCap Sniper")
 
+  -- Full Scan is the primary control (rightmost, larger). The watchlist Start/Stop toggle
+  -- is now secondary: shrunk and anchored to Full Scan's left so it reads as the
+  -- lesser-emphasis option.
+  local fullScanBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  fullScanBtn:SetSize(100, 24)
+  fullScanBtn:SetPoint("TOPRIGHT", -14, -30)
+  fullScanBtn:SetText("Full Scan")
+  fullScanBtn:SetScript("OnClick", onFullScanClick)
+  f.fullScanBtn = fullScanBtn
+
   local toggleBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  toggleBtn:SetSize(80, 22)
-  toggleBtn:SetPoint("TOPRIGHT", -14, -30)
+  toggleBtn:SetSize(56, 18)
+  toggleBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -6, 0)
   toggleBtn:SetText("Start")
   toggleBtn:SetScript("OnClick", function()
     if not GC.Sniper.scanner then
@@ -470,14 +666,18 @@ local function createFrame()
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", 14, -58)
   scroll:SetPoint("BOTTOMRIGHT", -32, 12)
+  scroll:EnableMouseWheel(true)
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local range = self:GetVerticalScrollRange()
+    local target = self:GetVerticalScroll() - delta * ROW_HEIGHT * 3
+    if target < 0 then target = 0 end
+    if target > range then target = range end
+    self:SetVerticalScroll(target)
+  end)
 
-  local content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(360, MAX_ROWS * ROW_HEIGHT)
+  content = CreateFrame("Frame", nil, scroll)
+  content:SetSize(360, ROW_HEIGHT) -- refreshRows() stamps the real height once there are deals to show
   scroll:SetScrollChild(content)
-
-  for i = 1, MAX_ROWS do
-    rows[i] = createRow(content, i)
-  end
 
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
@@ -506,7 +706,11 @@ function GC.Sniper.OnAuctionHouseShow()
 end
 
 function GC.Sniper.OnAuctionHouseClosed()
+  -- Wired from both PLAYER_INTERACTION_MANAGER_FRAME_HIDE and AUCTION_HOUSE_CLOSED (their
+  -- overlap on a given close is unverified in 12.0.7 -- see in-game checklist), so this must
+  -- tolerate being called twice for one AH visit without double-printing or double-crediting.
   stopScanning()
+  abortFullScan()
 
   local session = GC.Sniper.session
   if session.buys > 0 then
@@ -518,6 +722,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   local scanner = GC.Sniper.scanner
   if scanner and scanner.scanned > 0 then
     GC.Print(("scanned %d listings over %d passes"):format(scanner.scanned, scanner.cycles))
+    scanner.scanned = 0
   end
 
   resetAllPurchases()
