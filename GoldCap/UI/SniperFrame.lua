@@ -266,6 +266,7 @@ end
 function GC.Sniper.OnCommodityPriceUpdated(_unitPrice, totalPrice)
   local row = commodityPurchase
   if not row then return end
+  if row.purchaseStage == "confirming" then return end -- third-click confirm already in flight; don't re-enable the button
   local deal = row.purchaseDeal
   if not deal then return end
 
