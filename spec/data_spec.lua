@@ -70,4 +70,31 @@ describe("Data", function()
     GC2.Data.Init({ settings = {} })
     assert.equal("us", GC2.Data.GetStatus().region)
   end)
+
+  describe("watchlist", function()
+    it("persists the watchlist from an import", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 10 } }, watchlist = { 5, 1 } })
+      assert.same({ 5, 1 }, db.imported.watchlist)
+      assert.same({ 5, 1 }, GC.Data.GetWatchlist())
+    end)
+
+    it("falls back to top imported items by value when W is empty", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 10 }, [2] = { m = 300 }, [3] = { m = 20 } },
+                            watchlist = {} })
+      assert.same({ 2, 3, 1 }, GC.Data.GetWatchlist())
+    end)
+
+    it("caps the fallback at fallbackN", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 10 }, [2] = { m = 300 }, [3] = { m = 20 } },
+                            watchlist = {} })
+      assert.same({ 2 }, GC.Data.GetWatchlist(1))
+    end)
+
+    it("returns an empty list with no import", function()
+      assert.same({}, GC.Data.GetWatchlist())
+    end)
+  end)
 end)

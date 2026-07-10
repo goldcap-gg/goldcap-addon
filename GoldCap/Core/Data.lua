@@ -32,6 +32,7 @@ function GC.Data.SetImported(parsed)
     realm = parsed.realm,
     ts = parsed.ts,
     items = parsed.items,
+    watchlist = parsed.watchlist or {},
   }
 end
 
@@ -58,4 +59,17 @@ function GC.Data.GetStatus()
     importedRealm = imp and imp.realm or nil,
     importedCount = countItems(imp and imp.items),
   }
+end
+
+function GC.Data.GetWatchlist(fallbackN)
+  local imp = db and db.imported
+  if not imp then return {} end
+  if imp.watchlist and #imp.watchlist > 0 then return imp.watchlist end
+
+  local ids = {}
+  for id in pairs(imp.items or {}) do ids[#ids + 1] = id end
+  table.sort(ids, function(a, b) return imp.items[a].m > imp.items[b].m end)
+  local cap = fallbackN or 100
+  while #ids > cap do table.remove(ids) end
+  return ids
 end
