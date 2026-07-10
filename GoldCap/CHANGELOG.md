@@ -9,13 +9,14 @@
   import strings, with an in-game paste dialog).
 - Check bundled/imported data freshness and realm coverage with
   `/goldcap status`.
-- **Sniper**: a standalone window that live-scans your watchlist against the
-  Auction House while it's open (auto-appears when you open the AH, or
-  toggle it yourself with `/goldcap sniper`), surfacing tiered deals — HOT,
-  GOOD, WATCH, SUSPECT — with discount and profit already net of the 5%
-  auction house cut. A bait shield flags implausibly steep "discounts" as
-  SUSPECT instead of HOT so scam listings don't bait a snipe. Buying is a
-  deliberate two-click confirm (three clicks for commodities, with a
-  red re-prompt if the price rises past 5% before you confirm) — nothing is
-  ever bought on a single click or automatically. A session summary (snipes,
-  gold spent, estimated profit) prints when you leave the Auction House.
+- **Sniper**: a standalone window (auto-appears when you open the Auction
+  House, or toggle with `/goldcap sniper`). The primary mode is **Full Scan**
+  — press the Full Scan button to pull the entire realm's auction house at
+  once and rank all underpriced items by profit. Full Scans run on a ~15-minute
+  cooldown (Blizzard limit) and show tiered deals (HOT, GOOD, WATCH, SUSPECT)
+  with discount and profit net of the 5% AH cut. When buying a Full Scan deal,
+  the sniper issues a fresh live requote before purchase, so the deal isn't
+  stale. Secondary mode: live watchlist search cycles through ~200 items in
+  real time. Buying is deliberate (two clicks for items, three for commodities
+  with a red re-prompt if price rises >5% before confirm) — nothing automatic.
+  A session summary prints when you leave the AH.
