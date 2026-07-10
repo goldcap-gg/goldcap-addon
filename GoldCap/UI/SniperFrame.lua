@@ -877,7 +877,22 @@ function GC.Sniper.OnAuctionHouseShow()
   if not GC.db.settings.sniper.autoOpen then return end
   frame = frame or createFrame()
   frame:Show()
-  if frame.status then frame.status:SetText("Press Full Scan to find deals.") end
+  -- Re-show the previous Full Scan's deals if they persisted across the AH close. The
+  -- scan snapshot stays valid for the ~15-min cooldown, and buying re-queries the live
+  -- price anyway, so there is no reason to force a re-scan every visit.
+  refreshRows()
+  if frame.status then
+    if mode == "fullscan" and #scanDeals > 0 then
+      local remaining = FULL_SCAN_COOLDOWN_SECONDS - (time() - lastFullScanTime)
+      if lastFullScanTime > 0 and remaining > 0 then
+        frame.status:SetText(("%d deals from your last scan (refresh in %ds)"):format(#scanDeals, remaining))
+      else
+        frame.status:SetText(("%d deals from your last scan -- Full Scan to refresh"):format(#scanDeals))
+      end
+    else
+      frame.status:SetText("Press Full Scan to find deals.")
+    end
+  end
 end
 
 function GC.Sniper.OnAuctionHouseClosed()
