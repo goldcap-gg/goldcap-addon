@@ -113,6 +113,19 @@ describe("Scanner", function()
     assert.equal(0, s.scanned)
   end)
 
+  it("re-alerts a still-live deal after a fresh Start (dedupe resets per scan session)", function()
+    keyInfos[1] = { isCommodity = false }
+    values[1] = { mv = 1000000 }
+    itemResults[1] = { auctionID = 99, unitPrice = 500000, qty = 1 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    s:OnItemResults(1)
+    assert.equal(1, #log.deals)   -- first session alerts
+    s:Start({ 1 })                -- new scan session (simulates AH reopen), same live auction
+    s:OnItemResults(1)
+    assert.equal(2, #log.deals)   -- must re-alert; was 1 before the fix (deduped away)
+  end)
+
   it("stops cleanly and refuses an empty watchlist", function()
     keyInfos[1] = { isCommodity = false }
     local s = GC.Scanner.New(drv, cfg)

@@ -43,6 +43,7 @@ function GC.Scanner.New(driver, dealCfg)
     list = watchlist or {}
     index, pending = 0, nil
     waitingKey = {}
+    alertedAuctions, alertedCommodity = {}, {}
     self.scanned, self.cycles = 0, 0
     running = true
     if #list == 0 then
