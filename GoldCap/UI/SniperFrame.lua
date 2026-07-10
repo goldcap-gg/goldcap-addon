@@ -185,12 +185,15 @@ local function stopScanning()
 end
 
 -- ---------------------------------------------------------------------------
--- Purchase flow: two clicks (arm -> confirm) for every buy, a third explicit
--- click for a raised commodity requote. Every C_AuctionHouse purchase call
--- below is reached only from a button OnClick (hardware event) or, for the
--- non-raised-price commodity confirm, from the COMMODITY_PRICE_UPDATED event
--- that Blizzard's own client fires in direct response to the click-triggered
--- StartCommoditiesPurchase — never from a timer.
+-- Purchase flow. Item buy: two clicks (arm -> PlaceBid). Commodity buy: three
+-- clicks (arm -> StartCommoditiesPurchase -> ConfirmCommoditiesPurchase),
+-- because COMPLIANCE requires the final commodity confirm to ALWAYS come from a
+-- human click regardless of whether the requote rose (matching native WoW's
+-- always-present commodity confirm dialog). Every C_AuctionHouse purchase call
+-- (PlaceBid / StartCommoditiesPurchase / ConfirmCommoditiesPurchase) is reached
+-- ONLY from onBuyClick, the button OnClick closure — never from an event or a
+-- timer. COMMODITY_PRICE_UPDATED only sets a confirm STAGE and re-enables the
+-- button; only ONE commodity purchase may be in flight at a time.
 -- ---------------------------------------------------------------------------
 
 local function resetRowButton(row)
@@ -266,10 +269,15 @@ function GC.Sniper.OnCommodityPriceUpdated(_unitPrice, totalPrice)
   local deal = row.purchaseDeal
   if not deal then return end
 
+  -- COMPLIANCE: a commodity purchase's final ConfirmCommoditiesPurchase() must ALWAYS come
+  -- from a human click (matching native WoW's always-present commodity confirm dialog), so
+  -- BOTH branches only set a confirm STAGE here and re-enable the button; the actual confirm
+  -- call happens later in onBuyClick (the OnClick closure). This handler never completes a
+  -- purchase.
+  row.buy:Enable()
   if GC.DealMath.PriceIncreaseExceeds(deal.unitPrice * deal.qty, totalPrice, REQUOTE_MAX_RATIO) then
-    -- Price rose beyond tolerance: never auto-confirm. Arm a third, explicit click.
+    -- Price rose beyond tolerance: red prompt, awaits an explicit third click.
     row.purchaseStage = "requote"
-    row.buy:Enable()
     row.buy:SetText("Confirm!")
     local fs = row.buy.GetFontString and row.buy:GetFontString()
     if fs then fs:SetTextColor(1, 0.2, 0.2) end
@@ -277,10 +285,14 @@ function GC.Sniper.OnCommodityPriceUpdated(_unitPrice, totalPrice)
       frame.status:SetText(("price rose to %s -- click Confirm to accept"):format(GetCoinTextureString(totalPrice)))
     end
   else
-    -- Quote at/below the price accepted on click 2: confirm without demanding a fresh click.
-    C_AuctionHouse.ConfirmCommoditiesPurchase()
-    row.purchaseStage = "confirming"
-    if frame then frame.status:SetText("confirming purchase...") end
+    -- Within tolerance: neutral prompt, still awaits an explicit third click.
+    row.purchaseStage = "confirm"
+    row.buy:SetText("Confirm")
+    local fs = row.buy.GetFontString and row.buy:GetFontString()
+    if fs then fs:SetTextColor(1, 1, 1) end
+    if frame then
+      frame.status:SetText(("quote %s -- click Confirm to buy"):format(GetCoinTextureString(totalPrice)))
+    end
   end
 end
 
@@ -308,8 +320,10 @@ local function onBuyClick(row)
   local deal = row.deal
   if not deal then return end
 
-  if row.purchaseStage == "requote" then
-    -- Third explicit click: the only path that may accept a raised commodity price.
+  if row.purchaseStage == "confirm" or row.purchaseStage == "requote" then
+    -- Third explicit click: the ONLY path that confirms a commodity purchase, for both the
+    -- within-tolerance ("confirm") and raised-price ("requote") prompts. Compliance: a
+    -- commodity buy's final confirm always comes from a human click.
     C_AuctionHouse.ConfirmCommoditiesPurchase()
     row.purchaseStage = "confirming"
     row.buy:Disable()
@@ -323,6 +337,14 @@ local function onBuyClick(row)
 
   if row.purchaseStage == "armed" then
     -- Second click: fire the real purchase call synchronously, right here in OnClick.
+    if deal.isCommodity and commodityPurchase and commodityPurchase ~= row then
+      -- Only ONE commodity purchase may be in flight at a time; a second would silently
+      -- overwrite commodityPurchase and orphan the first (its confirm, session credit and
+      -- timeout would misattribute). Reject: re-disarm this row and leave the pending one.
+      disarmRow(row, deal)
+      driver.onStatus("finish the pending buy first")
+      return
+    end
     row.purchaseStage = "buying"
     row.purchaseDeal = deal
     row.buy:Disable()
