@@ -60,6 +60,42 @@ describe("DealMath", function()
       local d = GC.DealMath.Evaluate(live(1000000), { mv = 1000000000 }, cfg)
       assert.equal("SUSPECT", d.tier)
     end)
+
+    it("qualifies an exact watch-boundary discount", function()
+      -- mv 100g, price 90g: discount exactly 0.10 (float ratio ~0.09999999999999998)
+      local d = GC.DealMath.Evaluate(live(900000), { mv = 1000000 }, cfg)
+      assert.is_not_nil(d)
+      assert.equal("WATCH", d.tier)
+    end)
+
+    it("tiers HOT on an exact hot-boundary discount with big profit", function()
+      -- mv 20000g, price 12000g: discount exactly 0.40, profit 7000g >= 500g
+      local d = GC.DealMath.Evaluate(live(120000000), { mv = 200000000 }, cfg)
+      assert.equal("HOT", d.tier)
+    end)
+
+    it("tiers GOOD on an exact good-boundary discount", function()
+      -- mv 1000g, price 750g: discount exactly 0.25, profit 200g >= 100g
+      local d = GC.DealMath.Evaluate(live(7500000), { mv = 10000000 }, cfg)
+      assert.equal("GOOD", d.tier)
+    end)
+
+    it("does not flag an exact suspect-boundary discount as SUSPECT", function()
+      -- mv 100g, price 10g: discount exactly 0.90 — strict > rule must not fire
+      local d = GC.DealMath.Evaluate(live(100000), { mv = 1000000 }, cfg)
+      assert.not_equal("SUSPECT", d.tier)
+    end)
+
+    it("carries commodity fields through", function()
+      local d = GC.DealMath.Evaluate(
+        { itemID = 7, isCommodity = true, unitPrice = 500000, qty = 10 },
+        { mv = 1000000 }, cfg)
+      assert.is_true(d.isCommodity)
+      assert.is_nil(d.auctionID)
+      assert.equal(10, d.qty)
+      assert.equal(1000000, d.mv)
+      assert.equal(500000, d.unitPrice)
+    end)
   end)
 
   describe("PriceIncreaseExceeds", function()
@@ -68,6 +104,11 @@ describe("DealMath", function()
     end)
     it("is true over the tolerance", function()
       assert.is_true(GC.DealMath.PriceIncreaseExceeds(1000, 1051, 0.05))
+    end)
+    it("treats a float-exact tolerance as not exceeded", function()
+      -- 700 * 1.15 = 804.99999999999989 in IEEE doubles; 805 is exactly the tolerance
+      assert.is_false(GC.DealMath.PriceIncreaseExceeds(700, 805, 0.15))
+      assert.is_true(GC.DealMath.PriceIncreaseExceeds(700, 806, 0.15))
     end)
   end)
 end)
