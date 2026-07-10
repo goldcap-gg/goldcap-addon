@@ -1,0 +1,127 @@
+local helper = require("spec.spec_helper")
+
+describe("Scanner", function()
+  local GC, drv, log, ready, clock, keyInfos, itemResults, commodityResults, values
+
+  local cfg = {
+    hotDiscount = 0.40, hotProfit = 5000000,
+    goodDiscount = 0.25, goodProfit = 1000000,
+    watchDiscount = 0.10, suspectDiscount = 0.90,
+  }
+
+  before_each(function()
+    GC = helper.loadModule("Core/DealMath.lua")
+    helper.loadModule("Core/Scanner.lua", GC)
+    log = { searches = {}, deals = {}, status = {} }
+    ready, clock = true, 1000
+    keyInfos, itemResults, commodityResults, values = {}, {}, {}, {}
+    drv = {
+      isReady = function() return ready end,
+      sendSearch = function(id) log.searches[#log.searches + 1] = id end,
+      getKeyInfo = function(id) return keyInfos[id] end,
+      itemResult = function(id) return itemResults[id] end,
+      commodityResult = function(id) return commodityResults[id] end,
+      getValue = function(id) return values[id] end,
+      onDeal = function(d) log.deals[#log.deals + 1] = d end,
+      onStatus = function(s) log.status[#log.status + 1] = s end,
+      now = function() return clock end,
+    }
+  end)
+
+  it("sends one search at a time and cycles the list", function()
+    keyInfos[1] = { isCommodity = false }
+    keyInfos[2] = { isCommodity = true }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1, 2 })
+    assert.same({ 1 }, log.searches)
+    s:OnItemResults(1)                -- empty result, just advances
+    assert.same({ 1, 2 }, log.searches)
+    s:OnCommodityResults(2)
+    assert.same({ 1, 2, 1 }, log.searches) -- wrapped around
+  end)
+
+  it("evaluates item results and dedupes by auctionID", function()
+    keyInfos[1] = { isCommodity = false }
+    values[1] = { mv = 1000000 }
+    itemResults[1] = { auctionID = 99, unitPrice = 500000, qty = 1 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    s:OnItemResults(1)
+    s:OnItemResults(1) -- second cycle sees the same auction
+    assert.equal(1, #log.deals)
+    assert.equal("WATCH", log.deals[1].tier) -- 45g profit < 100g GOOD bar
+    assert.equal(99, log.deals[1].auctionID)
+    assert.equal(2, s.scanned)
+  end)
+
+  it("re-alerts a commodity only when its price drops further", function()
+    keyInfos[7] = { isCommodity = true }
+    values[7] = { mv = 1000000 }
+    commodityResults[7] = { unitPrice = 500000, qty = 10 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 7 })
+    s:OnCommodityResults(7)
+    s:OnCommodityResults(7)                    -- same price: no new alert
+    assert.equal(1, #log.deals)
+    commodityResults[7] = { unitPrice = 400000, qty = 5 }
+    s:OnCommodityResults(7)                    -- cheaper: new alert
+    assert.equal(2, #log.deals)
+    assert.is_true(log.deals[2].isCommodity)
+  end)
+
+  it("waits for throttle readiness before sending", function()
+    ready = false
+    keyInfos[1] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    assert.same({}, log.searches)
+    ready = true
+    s:OnSystemReady()
+    assert.same({ 1 }, log.searches)
+  end)
+
+  it("skips uncached keys and resumes them on OnKeyInfo", function()
+    keyInfos[2] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1, 2 })                -- 1 uncached -> waits; 2 sent
+    assert.same({ 2 }, log.searches)
+    s:OnItemResults(2)
+    assert.same({ 2, 2 }, log.searches) -- 1 still waiting, cycles back to 2
+    keyInfos[1] = { isCommodity = false }
+    s:OnKeyInfo(1)                   -- pending on 2: no immediate send
+    assert.same({ 2, 2 }, log.searches)
+    s:OnItemResults(2)
+    assert.equal(1, log.searches[#log.searches]) -- 1 finally scanned
+  end)
+
+  it("recovers a stale pending search on ready", function()
+    keyInfos[1] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    assert.same({ 1 }, log.searches)
+    clock = 1011                     -- > 10s later, response never came
+    s:OnSystemReady()
+    assert.same({ 1, 1 }, log.searches)
+  end)
+
+  it("ignores results for items that are not pending", function()
+    keyInfos[1] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    s:OnItemResults(999)
+    assert.same({ 1 }, log.searches)
+    assert.equal(0, s.scanned)
+  end)
+
+  it("stops cleanly and refuses an empty watchlist", function()
+    keyInfos[1] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    s:Stop()
+    s:OnSystemReady()
+    assert.same({ 1 }, log.searches)
+    local s2 = GC.Scanner.New(drv, cfg)
+    s2:Start({})
+    assert.equal("empty watchlist", log.status[#log.status])
+  end)
+end)
