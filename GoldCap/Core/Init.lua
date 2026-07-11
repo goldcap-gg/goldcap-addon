@@ -13,6 +13,9 @@ GC.DEFAULTS = {
       hotDiscount = 0.40, hotProfit = 5000000,
       goodDiscount = 0.25, goodProfit = 1000000,
       watchDiscount = 0.10, suspectDiscount = 0.90,
+      -- Liquidity floors, sold per day (from a realm import's soldPerDay); only enforced
+      -- against import-sourced values, see DealMath.Evaluate.
+      hotMinSold = 3, goodMinSold = 1,
     },
   },
 }

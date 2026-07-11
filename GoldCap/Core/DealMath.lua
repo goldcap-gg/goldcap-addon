@@ -14,12 +14,22 @@ function GC.DealMath.Evaluate(live, value, cfg)
   local qty = live.qty or 1
   local profit = (math.floor(value.mv * 0.95) - live.unitPrice) * qty
 
+  -- Liquidity gate against thin-market noise: an inflated mv with no real turnover
+  -- otherwise dominates the tier+profit sort. Only an import entry's absent sold/day
+  -- carries meaning ("zero recorded sales in the realm's last 24h"); bundled data has
+  -- no liquidity figure at all, so gating on it would zero out HOT/GOOD for anyone who
+  -- hasn't imported yet -- skip the gate entirely for bundled (or sourceless) values.
+  local gated = value.source == "import"
+  local sold = gated and (value.sold or 0) or nil
+
   local tier
   if discount > cfg.suspectDiscount + EPS then
     tier = "SUSPECT"
-  elseif discount >= cfg.hotDiscount - EPS and profit >= cfg.hotProfit then
+  elseif discount >= cfg.hotDiscount - EPS and profit >= cfg.hotProfit
+      and (not gated or sold >= cfg.hotMinSold - EPS) then
     tier = "HOT"
-  elseif discount >= cfg.goodDiscount - EPS and profit >= cfg.goodProfit then
+  elseif discount >= cfg.goodDiscount - EPS and profit >= cfg.goodProfit
+      and (not gated or sold >= cfg.goodMinSold - EPS) then
     tier = "GOOD"
   else
     tier = "WATCH"

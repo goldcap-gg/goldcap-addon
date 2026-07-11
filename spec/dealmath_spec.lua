@@ -6,6 +6,7 @@ describe("DealMath", function()
     hotDiscount = 0.40, hotProfit = 5000000,
     goodDiscount = 0.25, goodProfit = 1000000,
     watchDiscount = 0.10, suspectDiscount = 0.90,
+    hotMinSold = 3, goodMinSold = 1,
   }
 
   before_each(function()
@@ -95,6 +96,39 @@ describe("DealMath", function()
       assert.equal(10, d.qty)
       assert.equal(1000000, d.mv)
       assert.equal(500000, d.unitPrice)
+    end)
+
+    describe("liquidity gate (import-sourced values only)", function()
+      -- mv 20000g, price 10000g: discount 0.5, profit 9000g -- clears HOT's discount+profit
+      -- bars on its own, so every case below isolates the sold/day gate.
+      local function hotLevel(sold)
+        return { mv = 200000000, source = "import", sold = sold }
+      end
+
+      it("caps a zero-sold import deal below GOOD despite HOT-level discount/profit", function()
+        local d = GC.DealMath.Evaluate(live(100000000), hotLevel(0), cfg)
+        assert.equal("WATCH", d.tier)
+      end)
+
+      it("treats a missing sold figure on an import value as zero", function()
+        local d = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "import" }, cfg)
+        assert.equal("WATCH", d.tier)
+      end)
+
+      it("allows HOT once sold clears hotMinSold", function()
+        local d = GC.DealMath.Evaluate(live(100000000), hotLevel(3), cfg)
+        assert.equal("HOT", d.tier)
+      end)
+
+      it("allows GOOD but denies HOT for a sold figure between the two floors", function()
+        local d = GC.DealMath.Evaluate(live(100000000), hotLevel(1.5), cfg)
+        assert.equal("GOOD", d.tier)
+      end)
+
+      it("skips the gate entirely for bundled values, even with no sold figure", function()
+        local d = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "bundled" }, cfg)
+        assert.equal("HOT", d.tier)
+      end)
     end)
   end)
 
