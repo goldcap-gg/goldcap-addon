@@ -67,7 +67,14 @@ frame:SetScript("OnEvent", function(_, event, ...)
     GoldCapDB = GoldCapDB or {}
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
-    if GC.Data then GC.Data.Init(GC.db) end
+    if GC.Data then
+      GC.Data.Init(GC.db)
+      -- Companion sync (Task A): adopts `GoldCap_AppData` (see the .toc's OptionalDeps)
+      -- over any existing import when it's present and strictly newer -- see
+      -- Core/Data.lua's AdoptAppData for the full contract. Runs after Init above so
+      -- db.imported already reflects the prior session's state to compare against.
+      GC.Data.AdoptAppData()
+    end
     frame:UnregisterEvent("ADDON_LOADED")
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
     local interactionType = ...

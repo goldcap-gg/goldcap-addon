@@ -48,6 +48,7 @@ local function createDialog()
       return
     end
     GC.Data.SetImported(parsed)
+    GC.db.imported.origin = "manual" -- a manual paste always wins the origin marker back from "app"
     local st = GC.Data.GetStatus()
     GC.Print(("imported %d items for %s (%s) — prices are live now.")
       :format(st.importedCount, st.importedRealm, parsed.region))
@@ -70,12 +71,16 @@ GC.slashHandlers.import = function() GC.UI.ShowImportDialog() end
 GC.slashHandlers.status = function()
   local st = GC.Data.GetStatus()
   local now = time()
+  -- importedOrigin is nil for SavedVariables written before the origin marker existed --
+  -- treat that the same as "manual" since every import used to be a manual paste.
+  local originLabel = st.importedOrigin == "app" and "auto-synced" or "manual import"
   GC.Print(("region %s — bundled: %d items (%s), imported: %s"):format(
     st.region,
     st.bundledCount,
     st.bundledTs and st.bundledTs > 0 and GC.Util.FormatAge(now - st.bundledTs) or "none",
     st.importedTs
-      and ("%d items for %s (%s)"):format(st.importedCount, st.importedRealm, GC.Util.FormatAge(now - st.importedTs))
+      and ("%d items for %s (%s, %s)"):format(
+        st.importedCount, st.importedRealm, GC.Util.FormatAge(now - st.importedTs), originLabel)
       or "none"
   ))
 end

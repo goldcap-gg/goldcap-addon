@@ -36,6 +36,36 @@ function GC.Data.SetImported(parsed)
   }
 end
 
+-- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --
+-- see the .toc's OptionalDeps, which loads it before this one when present -- sets
+-- `GoldCap_AppData = { importString = "GCS1;...", writtenAt = <unix ts> }`. This runs that
+-- string through the SAME ImportString.Parse manual import uses (one parser, one validation
+-- path) and only adopts it over whatever's already in db.imported when strictly newer --
+-- ts equality is a no-op, not churn, same "freshest wins" rule manual import follows. A
+-- malformed importString or an absent/malshaped global are both silent no-ops: the companion
+-- is optional and never required for the addon to work standalone. GC.Print is guarded
+-- because it's only defined once Core/Init.lua has loaded (true by the time this runs for
+-- real, at ADDON_LOADED -- see Init.lua -- but not in specs that load Data.lua on its own).
+function GC.Data.AdoptAppData()
+  local appData = _G.GoldCap_AppData
+  if type(appData) ~= "table" or type(appData.importString) ~= "string" then return end
+
+  local parsed = GC.ImportString.Parse(appData.importString)
+  if not parsed then return end
+
+  local existing = db and db.imported
+  if existing and parsed.ts <= existing.ts then return end
+
+  GC.Data.SetImported(parsed)
+  db.imported.origin = "app"
+
+  local age = time() - parsed.ts
+  if age < 0 then age = 0 end -- clock skew must never show a negative age, see importAgeSeconds
+  if GC.Print then
+    GC.Print(("auto-synced data for %s loaded (%s old)"):format(parsed.realm, GC.Util.FormatAge(age)))
+  end
+end
+
 function GC.Data.GetItemValue(itemID)
   local imp = db and db.imported
   local e = imp and imp.items and imp.items[itemID]
@@ -61,6 +91,7 @@ function GC.Data.GetStatus()
     importedTs = imp and imp.ts or nil,
     importedRealm = imp and imp.realm or nil,
     importedCount = countItems(imp and imp.items),
+    importedOrigin = imp and imp.origin or nil,
   }
 end
 

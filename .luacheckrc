@@ -7,7 +7,7 @@ self = false
 files["spec/"] = { std = "lua51+busted" }
 files["addon/spec/"] = { std = "lua51+busted" }
 
-globals = { "GoldCapDB", "GoldCap_MarketData", "SLASH_GOLDCAP1", "SlashCmdList", "GoldCapSniperFrame" }
+globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "SLASH_GOLDCAP1", "SlashCmdList", "GoldCapSniperFrame" }
 
 read_globals = {
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",

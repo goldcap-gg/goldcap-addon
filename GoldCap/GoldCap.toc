@@ -6,6 +6,7 @@
 ## SavedVariables: GoldCapDB
 ## X-Website: https://goldcap.gg
 ## IconTexture: Interface\Icons\inv_misc_coin_01
+## OptionalDeps: GoldCap_AppData
 
 Core/Util.lua
 Core/ImportString.lua

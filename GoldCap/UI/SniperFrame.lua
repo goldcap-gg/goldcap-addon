@@ -342,6 +342,10 @@ end
 local function refreshStaleText()
   if not frame or not frame.staleText then return end
   local age = importAgeSeconds()
+  -- Companion sync (Task A): db.imported.origin == "app" means Core/Data.lua's
+  -- AdoptAppData loaded this data from GoldCap_AppData rather than a manual paste --
+  -- thresholds/colors below are unchanged, only the label differs.
+  local isAppData = GC.db and GC.db.imported and GC.db.imported.origin == "app"
   if not age then
     frame.staleText:SetText("no import -- /goldcap import")
     frame.staleText:SetTextColor(1, 0.3, 0.3)
@@ -349,11 +353,12 @@ local function refreshStaleText()
   elseif age < STALE_YELLOW_SECONDS then
     frame.staleText:Hide()
   elseif age < STALE_RED_SECONDS then
-    frame.staleText:SetText(("import %dh old"):format(math.floor(age / 3600)))
+    local label = isAppData and "auto-synced %dh ago" or "import %dh old"
+    frame.staleText:SetText(label:format(math.floor(age / 3600)))
     frame.staleText:SetTextColor(1, 0.82, 0)
     frame.staleText:Show()
   else
-    frame.staleText:SetText("import stale -- /goldcap import")
+    frame.staleText:SetText(isAppData and "auto-synced data stale -- /goldcap import" or "import stale -- /goldcap import")
     frame.staleText:SetTextColor(1, 0.3, 0.3)
     frame.staleText:Show()
   end
