@@ -17,4 +17,5 @@ read_globals = {
   "Enum", "TooltipDataProcessor", "print", "ChatFontNormal",
   "C_AuctionHouse", "C_Timer", "PlaySound", "SOUNDKIT", "ITEM_QUALITY_COLORS",
   "CreateFromMixins", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "UISpecialFrames",
+  "C_Container", "ItemLocation",
 }

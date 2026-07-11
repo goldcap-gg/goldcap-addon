@@ -5,6 +5,11 @@ GC.version = getMeta and getMeta(ADDON_NAME, "Version") or "dev"
 
 GC.DEFAULTS = {
   dbVersion = 1,
+  -- D: flip queue (Sniper v2 §D) -- see Core/Data.lua's RecordFlip/GetFlips. An empty default
+  -- table is safe against GC.Util.ApplyDefaults: it only fills db.flips in when the persisted
+  -- value isn't already a table, and recursing over an empty table's pairs() is a no-op, so a
+  -- populated SavedVariables array is never touched or truncated on later logins.
+  flips = {},
   settings = {
     tooltip = true,
     sniper = {
@@ -47,6 +52,13 @@ frame:RegisterEvent("COMMODITY_PURCHASE_FAILED")
 frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
 frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_ADDED")
 frame:RegisterEvent("AUCTION_HOUSE_CLOSED")
+-- D: Sell view posting signals (verified against Blizzard_AuctionHouseUI's
+-- AuctionHouseFrameMixin:OnEvent, which reacts to both the same way: AUCTION_HOUSE_AUCTION_CREATED
+-- fires with no addon-usable per-post identity, and AUCTION_HOUSE_POST_ERROR the same -- GC.Sell
+-- correlates either to its own single in-flight post via a local pinned-row slot, not the event
+-- payload).
+frame:RegisterEvent("AUCTION_HOUSE_AUCTION_CREATED")
+frame:RegisterEvent("AUCTION_HOUSE_POST_ERROR")
 
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
@@ -70,6 +82,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if GC.Sniper.scanner then GC.Sniper.scanner:OnSystemReady() end
     if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end
+    -- D: serviced AFTER the scanner and the Sniper's own pendingFullScanStart/pendingBrowsePage/
+    -- pendingRequerySend flush above -- GC.Sell.OnThrottleReady only ever advances its OWN
+    -- sequential quote walk (and even then refuses while GC.Sniper.IsBusy()), so it can never
+    -- steal this throttle-ready tick out from under a scan or a buy requery.
+    if GC.Sell.OnThrottleReady then GC.Sell.OnThrottleReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
     local itemID = ...
     if GC.Sniper.scanner then
@@ -77,6 +94,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.Sniper.OnItemKeyInfo then
       GC.Sniper.OnItemKeyInfo(itemID)
+    end
+    if GC.Sell.OnItemKeyInfo then
+      GC.Sell.OnItemKeyInfo(itemID)
     end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     local itemKey = ...
@@ -86,6 +106,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnItemSearchResults then
       GC.Sniper.OnItemSearchResults(itemKey.itemID)
     end
+    -- D: GC.Sell's own handler only reacts when itemKey.itemID matches its own pending quote
+    -- slot -- see SellFrame.lua's OnItemSearchResults -- so this adds zero crosstalk with the
+    -- scanner's or the buy-requery's unrelated in-flight searches.
+    if GC.Sell.OnItemSearchResults then
+      GC.Sell.OnItemSearchResults(itemKey.itemID)
+    end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
     local itemID = ...
     if GC.Sniper.scanner then
@@ -93,6 +119,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.Sniper.OnCommoditySearchResults then
       GC.Sniper.OnCommoditySearchResults(itemID)
+    end
+    if GC.Sell.OnCommoditySearchResults then
+      GC.Sell.OnCommoditySearchResults(itemID)
     end
   elseif event == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
     if GC.Sniper.OnPurchaseCompleted then
@@ -127,6 +156,14 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "AUCTION_HOUSE_CLOSED" then
     if GC.Sniper.OnAuctionHouseClosed then
       GC.Sniper.OnAuctionHouseClosed()
+    end
+  elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
+    if GC.Sell.OnAuctionCreated then
+      GC.Sell.OnAuctionCreated()
+    end
+  elseif event == "AUCTION_HOUSE_POST_ERROR" then
+    if GC.Sell.OnPostError then
+      GC.Sell.OnPostError()
     end
   end
 end)

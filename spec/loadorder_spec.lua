@@ -48,6 +48,10 @@ describe("TOC load order", function()
         SetFrameLevel = function() end,
         SetColorTexture = function() end,
         SetAllPoints = function() end,
+        -- D (Sniper v2 Sell view): GC.Sell.Attach/renderRows stamp the scroll child's height
+        -- the same way the Deals view's refreshRows always has -- now reachable from
+        -- GC.Sniper.Toggle() too, since it refreshes the Sell tab's rows on every show.
+        SetHeight = function() end,
       }
       return f
     end

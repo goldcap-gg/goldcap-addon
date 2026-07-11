@@ -21,4 +21,7 @@
   cost, market value, discount, estimated resale, and estimated profit before
   anything is purchased — with a red re-prompt if a commodity's price rises
   >5% before you confirm, and Cancel/Esc to back out safely at any point.
-  A session summary prints when you leave the AH.
+  A session summary prints when you leave the AH. A new **Sell** tab tracks
+  every purchase as a flip, shows what's already in your bags versus still
+  in the mail, quotes current lowest prices on demand, and posts a recommended
+  price with one click once the item is in hand.

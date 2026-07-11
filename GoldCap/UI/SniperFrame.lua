@@ -31,6 +31,16 @@ local PRICE_WIDTH = 95
 local PROFIT_WIDTH = 95
 local BUY_WIDTH = 50
 
+-- D: Deals/Sell view switcher tab buttons, and the shared scroll-region geometry the Sell
+-- container is built to fill (see GC.Sell.Attach below) -- named here, once, so createFrame's
+-- own deals `scroll`  and the geometry table handed to GC.Sell.Attach can never drift apart the
+-- way the row/header constants above already guard against for the deals grid itself.
+local TAB_WIDTH = 50
+local TAB_HEIGHT = 18
+local TAB_GAP = 4
+local SCROLL_TOP = -70
+local SCROLL_BOTTOM = 12
+
 local REQUOTE_MAX_RATIO = 0.05
 -- How long a confirmed quote stays clickable in the dialog. Generous on purpose: the player
 -- is reading a grid of numbers, and an older quote is safe on both paths -- an item auction
@@ -61,6 +71,11 @@ local deals = {}        -- itemID -> latest watchlist deal shown for it (watchli
 local scanDeals = {}     -- array of deals from the last completed full scan (full-scan mode)
 local mode = "watchlist" -- "watchlist" | "fullscan": which backing store sortedDeals() renders
 local scanning = false
+
+-- D: top-level Deals/Sell view switcher -- independent of `mode` above (which only picks the
+-- watchlist-vs-full-scan backing store WITHIN the Deals view). Default is "deals"; only
+-- setView (near createFrame) ever changes it.
+local view = "deals"
 
 -- E.2 sortable headers: a click-set override applied on TOP of sortedDeals()'s own order at
 -- render time only -- never mutates `deals` or `scanDeals`, so switching modes, rescanning,
@@ -437,6 +452,17 @@ local driver = {
   now = time,
 }
 
+-- D: keeps the Sell tab's "Sell (N)" badge current. Called after a purchase (a new flip may
+-- now exist), on every AH open (bag counts may have changed since a mailbox visit), and by
+-- SellFrame.lua itself after Post/Remove/a bag-count refresh -- one shared place instead of
+-- every call site re-deriving the label text. Safe to call before the frame/tab exist yet.
+local function updateSellTabLabel()
+  if not frame or not frame.sellTab then return end
+  local n = GC.Sell.SellableCount and GC.Sell.SellableCount() or 0
+  frame.sellTab:SetText(n > 0 and ("Sell (%d)"):format(n) or "Sell")
+end
+GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
+
 local function clearDeals()
   for itemID in pairs(deals) do deals[itemID] = nil end
   refreshRows()
@@ -711,6 +737,10 @@ resolvePurchase = function(row, success, note)
       session.buys = session.buys + 1
       session.spent = session.spent + deal.unitPrice * deal.qty
       session.estProfit = session.estProfit + deal.profit
+      -- D: every successful purchase becomes a flip candidate for the Sell view (Sniper v2
+      -- §D) -- one line, no other change to this flow.
+      GC.Data.RecordFlip(deal)
+      updateSellTabLabel()
       if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
       -- A full-scan buy resolves against the LIVE deal finishRequery swapped in, not the
       -- original .stale scanDeals entry -- which still holds the pre-purchase snapshot for
@@ -936,6 +966,16 @@ function GC.Sniper.OnThrottleReady()
       driver.sendSearch(itemID)
     end
   end
+end
+
+-- D: true while a Full Scan is paging (or queued to start) or any row has a purchase pinned
+-- (armed/requerying/buying/confirming) -- GC.Sell's own quote walker (SellFrame.lua) checks
+-- this before every send and simply refuses/waits while it's true, so the Sell tab's traffic
+-- can never compete with, or queue ahead of, a scan or a buy requery on the shared throttled
+-- message system.
+function GC.Sniper.IsBusy()
+  if scanRunning or pendingFullScanStart or pendingBrowsePage then return true end
+  return next(activeItemID) ~= nil
 end
 
 function GC.Sniper.OnItemSearchResults(itemID)
@@ -1434,6 +1474,30 @@ local function persistWindowGeometry(f)
   cfg.window = { point = point, x = x, y = y, height = f:GetHeight() }
 end
 
+-- D: Deals/Sell view switcher. Full Scan/Live are separate widgets untouched by this and stay
+-- clickable in both views. Sell's own container, rows, and bag-count refresh are entirely
+-- GC.Sell's responsibility (built once by GC.Sell.Attach in createFrame) -- this function only
+-- toggles the Deals-side widgets and the tab buttons' enabled state (a disabled
+-- UIPanelButtonTemplate button doubles as the "this is the active tab" look).
+local function setView(v)
+  if view == v or not frame then return end
+  view = v
+  local isDeals = (v == "deals")
+  if isDeals then
+    frame.scroll:Show()
+    for _, hit in ipairs(frame.dealHeaders) do hit:Show() end
+    frame.dealsTab:Disable()
+    frame.sellTab:Enable()
+    if GC.Sell.Hide then GC.Sell.Hide() end
+  else
+    frame.scroll:Hide()
+    for _, hit in ipairs(frame.dealHeaders) do hit:Hide() end
+    frame.sellTab:Disable()
+    frame.dealsTab:Enable()
+    if GC.Sell.Show then GC.Sell.Show() end
+  end
+end
+
 local function createFrame()
   local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent, "BasicFrameTemplateWithInset")
 
@@ -1473,12 +1537,33 @@ local function createFrame()
   end)
   f.TitleText:SetText("GoldCap Sniper")
 
+  -- D: Deals/Sell view switcher tabs, top-left under the title. staleText (below) starts its
+  -- TOPLEFT past both tabs so a long stale message can never visually collide with them --
+  -- staleText right-justifies within its own span regardless, but this keeps the row's left
+  -- portion unambiguously the tabs' own space rather than relying on that alone.
+  local dealsTab = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  dealsTab:SetSize(TAB_WIDTH, TAB_HEIGHT)
+  dealsTab:SetPoint("TOPLEFT", PANEL_LEFT, -18)
+  dealsTab:SetText("Deals")
+  dealsTab:Disable() -- Deals is the default view; Disable() doubles as the "active tab" look
+  dealsTab:SetScript("OnClick", function() setView("deals") end)
+  f.dealsTab = dealsTab
+
+  local sellTab = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  sellTab:SetSize(TAB_WIDTH + 14, TAB_HEIGHT) -- extra width for the "Sell (NN)" badge text
+  sellTab:SetPoint("LEFT", dealsTab, "RIGHT", TAB_GAP, 0)
+  sellTab:SetText("Sell")
+  sellTab:SetScript("OnClick", function() setView("sell") end)
+  f.sellTab = sellTab
+
+  local tabsWidth = TAB_WIDTH + TAB_GAP + (TAB_WIDTH + 14)
+
   -- B: import staleness. Full width so a long "import stale -- /goldcap import" message
   -- never clips, right-justified so it still reads as sitting on the right; sits between
   -- the title and the Full Scan/Live button row so it never crowds either. Hidden until
   -- refreshStaleText() (called on AH show and after every full scan) says otherwise.
   local staleText = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  staleText:SetPoint("TOPLEFT", PANEL_LEFT, -18)
+  staleText:SetPoint("TOPLEFT", PANEL_LEFT + tabsWidth + 8, -18)
   staleText:SetPoint("TOPRIGHT", -34, -18)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
@@ -1537,10 +1622,15 @@ local function createFrame()
   local tierX = discountX - COLUMN_GAP - TIER_WIDTH
   local itemWidth = tierX - COLUMN_GAP -- spans the icon+name columns
 
+  -- D: every Deals-only header hit-frame collected here so setView (below) can hide/show them
+  -- as a group when the player switches to the Sell tab, without hiding anything Sell-specific.
+  f.dealHeaders = {}
+
   -- sortKey (E.2), when given, makes the header clickable: OnMouseDown sets/toggles the
   -- module-local sortOverride and re-renders. "Item" passes no sortKey and stays inert.
   local function addHeader(text, x, width, justify, tooltipLines, sortKey)
     local hit = CreateFrame("Frame", nil, f)
+    f.dealHeaders[#f.dealHeaders + 1] = hit
     hit:SetSize(width, 14)
     hit:SetPoint("TOPLEFT", PANEL_LEFT + x, HEADER_Y)
 
@@ -1596,8 +1686,8 @@ local function createFrame()
   }, "profit")
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", PANEL_LEFT, -70)
-  scroll:SetPoint("BOTTOMRIGHT", -PANEL_RIGHT_INSET, 12)
+  scroll:SetPoint("TOPLEFT", PANEL_LEFT, SCROLL_TOP)
+  scroll:SetPoint("BOTTOMRIGHT", -PANEL_RIGHT_INSET, SCROLL_BOTTOM)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local range = self:GetVerticalScrollRange()
@@ -1606,6 +1696,7 @@ local function createFrame()
     if target > range then target = range end
     self:SetVerticalScroll(target)
   end)
+  f.scroll = scroll -- D: setView hides/shows this alongside f.dealHeaders for the Sell tab
 
   content = CreateFrame("Frame", nil, scroll)
   content:SetSize(ROW_WIDTH, ROW_HEIGHT) -- refreshRows() stamps the real height once there are deals to show
@@ -1637,6 +1728,18 @@ local function createFrame()
 
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
+  -- D: builds the Sell tab's container, hidden, filling the exact region `scroll` occupies
+  -- above (same PANEL_LEFT/PANEL_RIGHT_INSET/SCROLL_TOP/SCROLL_BOTTOM/ROW_WIDTH/ROW_HEIGHT --
+  -- passed through, never re-declared, so the two views can't silently drift out of alignment).
+  GC.Sell.Attach(f, {
+    panelLeft = PANEL_LEFT,
+    panelRightInset = PANEL_RIGHT_INSET,
+    top = SCROLL_TOP,
+    bottom = SCROLL_BOTTOM,
+    rowWidth = ROW_WIDTH,
+    rowHeight = ROW_HEIGHT,
+  })
+
   return f
 end
 
@@ -1647,6 +1750,10 @@ function GC.Sniper.Toggle()
   else
     frame:Show()
     refreshStaleText() -- B: keep the banner current even if it's been a while since the last AH visit
+    -- D: bag counts (and therefore the Sell tab badge) may be stale from whenever the window
+    -- was last open -- cheap to recompute on every show regardless of which tab is active.
+    GC.Sell.Refresh()
+    updateSellTabLabel()
   end
 end
 
@@ -1671,6 +1778,10 @@ function GC.Sniper.OnAuctionHouseShow()
   -- Scan again for fresher data.
   refreshRows()
   refreshStaleText() -- B: refresh on every AH show, not just once at window creation
+  -- D: bag counts (mail may have been fetched since the last visit) and the Sell tab badge --
+  -- refreshed regardless of which tab is active, same reasoning as GC.Sniper.Toggle() above.
+  GC.Sell.Refresh()
+  updateSellTabLabel()
   if frame.status then
     if mode == "fullscan" and #scanDeals > 0 then
       frame.status:SetText(("%d deals from your last scan -- Full Scan to refresh"):format(#scanDeals))
@@ -1702,5 +1813,8 @@ function GC.Sniper.OnAuctionHouseClosed()
 
   resetAllPurchases()
   clearDeals() -- next AH visit starts from a clean slate; stale auctions are no longer live
+  -- D: abort any in-flight Sell quote walk/post -- neither can safely resume once the AH
+  -- session is gone (same reasoning as resetAllPurchases above for the Deals side).
+  GC.Sell.Reset()
   if frame then frame:Hide() end
 end
