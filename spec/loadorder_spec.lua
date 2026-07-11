@@ -36,6 +36,18 @@ describe("TOC load order", function()
         Enable = function() end,
         Disable = function() end,
         GetFontString = function() return nil end,
+        -- E.2/E.3/E.4 (Sniper v2 UI polish): resize/reposition/texture-fill widget API
+        -- SniperFrame.lua's createFrame/createRow now touch during frame construction.
+        SetResizable = function() end,
+        SetResizeBounds = function() end,
+        StartSizing = function() end,
+        ClearAllPoints = function() end,
+        GetPoint = function() return nil end,
+        GetHeight = function() return 0 end,
+        GetFrameLevel = function() return 1 end,
+        SetFrameLevel = function() end,
+        SetColorTexture = function() end,
+        SetAllPoints = function() end,
       }
       return f
     end

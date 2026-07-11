@@ -2,7 +2,7 @@ local _, GC = ...
 
 GC.Sniper = GC.Sniper or {}
 
-local ROW_HEIGHT = 20
+local ROW_HEIGHT = 22
 local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
 
 -- Frame/row geometry. ROW_WIDTH is derived from FRAME_WIDTH (not hardcoded separately) so
@@ -13,6 +13,10 @@ local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist
 -- both the data rows and the header row that has to line up with them.
 local FRAME_WIDTH = 560
 local FRAME_HEIGHT = 480
+-- E.4: SetResizeBounds' width min/max are both FRAME_WIDTH (see createFrame) -- only height
+-- may change, so the column grid above never has to cope with a resized ROW_WIDTH.
+local RESIZE_MIN_HEIGHT = 300
+local RESIZE_MAX_HEIGHT = 900
 local PANEL_LEFT = 14
 local PANEL_RIGHT_INSET = 32 -- scrollbar gutter reserved by UIPanelScrollFrameTemplate
 local ROW_WIDTH = FRAME_WIDTH - PANEL_LEFT - PANEL_RIGHT_INSET
@@ -57,6 +61,20 @@ local deals = {}        -- itemID -> latest watchlist deal shown for it (watchli
 local scanDeals = {}     -- array of deals from the last completed full scan (full-scan mode)
 local mode = "watchlist" -- "watchlist" | "fullscan": which backing store sortedDeals() renders
 local scanning = false
+
+-- E.2 sortable headers: a click-set override applied on TOP of sortedDeals()'s own order at
+-- render time only -- never mutates `deals` or `scanDeals`, so switching modes, rescanning,
+-- or a purchase resolving never inherits a stale sort or fights with Evaluate's own order.
+-- nil = default (tier rank asc, then profit desc, exactly today's behavior).
+local sortOverride = nil        -- { key = "tier"|"pct"|"price"|"profit", desc = true|false }
+local sortHeaders = {}          -- sortKey -> { label = FontString, base = string }; filled once by createFrame's addHeader calls
+
+-- B: import staleness. Printed once per UI session (not per AH visit) the first time the
+-- import is found stale on AH open -- reset only by /reload, deliberately not tied to a
+-- fresh import landing mid-session (see GC.Sniper.OnAuctionHouseShow).
+local staleWarnedThisSession = false
+local STALE_YELLOW_SECONDS = 6 * 3600
+local STALE_RED_SECONDS = 24 * 3600
 
 -- Full-scan (Auctionator-style incremental browse) state. A full scan pages through
 -- C_AuctionHouse's browse results with SendBrowseQuery + RequestMoreBrowseResults until
@@ -124,6 +142,46 @@ local function sortedDeals()
   return list
 end
 
+-- Raw comparison value per sortable header (E.2). "Item" has no entry -- it's not sortable,
+-- see createFrame's addHeader calls.
+local SORT_VALUE = {
+  tier = function(deal) return TIER_RANK[deal.tier] or 9 end,
+  pct = function(deal) return deal.discount end,
+  price = function(deal) return deal.unitPrice * deal.qty end,
+  profit = function(deal) return deal.profit end,
+}
+
+-- Applies the header-click sort override (if any) on a COPY of `list` -- `list` here is
+-- already sortedDeals()'s own freshly-built array (never the live `deals`/`scanDeals`
+-- tables themselves), and this function copies it again before table.sort besides, so a
+-- sort click can never be observed as having mutated either backing store.
+local function applySortOverride(list)
+  if not sortOverride then return list end
+  local valueOf = SORT_VALUE[sortOverride.key]
+  if not valueOf then return list end -- defensive: onHeaderSortClick never sets an unknown key
+  local desc = sortOverride.desc
+  local copy = {}
+  for i, deal in ipairs(list) do copy[i] = deal end
+  table.sort(copy, function(a, b)
+    local va, vb = valueOf(a), valueOf(b)
+    if va == vb then
+      -- Same tiebreak as the default view, so ties under any override key never look shuffled.
+      local ra, rb = TIER_RANK[a.tier] or 9, TIER_RANK[b.tier] or 9
+      if ra ~= rb then return ra < rb end
+      return a.profit > b.profit
+    end
+    if desc then return va > vb end
+    return va < vb
+  end)
+  return copy
+end
+
+-- The single entry point refreshRows() renders from: sortedDeals()'s own order, with the
+-- header-click override (if any) layered on top.
+local function renderList()
+  return applySortOverride(sortedDeals())
+end
+
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 
 -- GetCoinTextureString's inline coin icons are too wide for a 95px price/profit column once
@@ -145,10 +203,21 @@ local function qtySuffix(deal)
   return ""
 end
 
+-- E.5 falling marker: deal.falling is set by the (parallel) trend/anti-dump gate once it
+-- ships -- absent today, so this renders defensively and is a silent no-op until then. "v"
+-- is the ASCII-safe fallback; swap for a real glyph ("↓") once verified in-game that the
+-- default UI font renders it.
+local function tierLabel(deal)
+  if deal.falling then
+    return deal.tier .. " |cffff4040v|r"
+  end
+  return deal.tier
+end
+
 local function setRowDeal(row, deal)
   row.deal = deal
   local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
-  row.tierText:SetText(deal.tier)
+  row.tierText:SetText(tierLabel(deal))
   row.tierText:SetTextColor(color[1], color[2], color[3])
   row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
   row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
@@ -189,7 +258,7 @@ local createRow
 -- GetVerticalScrollRange() has something to report once there are more rows than fit.
 local function refreshRows()
   if not frame then return end
-  local list = sortedDeals()
+  local list = renderList()
   local shown = math.min(#list, ROW_CAP)
 
   for i = #rows + 1, shown do
@@ -212,6 +281,81 @@ local function refreshRows()
   end
 
   content:SetHeight(math.max(shown, 1) * ROW_HEIGHT)
+end
+
+-- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
+-- active (▼ = descending, ▲ = ascending); every other header falls back to its plain base
+-- text. sortHeaders is populated once by createFrame's addHeader calls. Literal UTF-8 glyphs
+-- (not \xXX escapes -- WoW's client Lua is 5.1, which has no hex string escape) in a file
+-- saved as UTF-8; Lua strings are just byte arrays so this needs no special handling.
+local function updateHeaderSortIndicators()
+  for key, h in pairs(sortHeaders) do
+    if sortOverride and sortOverride.key == key then
+      h.label:SetText(h.base .. (sortOverride.desc and " ▼" or " ▲"))
+    else
+      h.label:SetText(h.base)
+    end
+  end
+end
+
+-- Header OnMouseDown handler (E.2): first click on a column sorts by it descending (biggest
+-- raw value first, see SORT_VALUE); a second click on the SAME column flips to ascending.
+-- Clicking a different column always starts over at descending. Never touches sortedDeals()'s
+-- own backing order -- only renderList()'s copy.
+local function onHeaderSortClick(key)
+  if sortOverride and sortOverride.key == key then
+    sortOverride.desc = not sortOverride.desc
+  else
+    sortOverride = { key = key, desc = true }
+  end
+  updateHeaderSortIndicators()
+  refreshRows()
+end
+
+-- B: import staleness, in seconds since GC.db.imported.ts (nil = never imported this realm).
+local function importAgeSeconds()
+  local ts = GC.db and GC.db.imported and GC.db.imported.ts
+  if not ts then return nil end
+  local age = time() - ts
+  return age < 0 and 0 or age -- a clock skew or bad ts must never show a negative age
+end
+
+-- Refreshes the staleness FontString from the CURRENT import age. Called on AH show and
+-- after every full scan completes (deals are the moment the player is about to act on
+-- prices, so that's when staleness should be freshest), not on a timer -- the age only
+-- matters at those decision points.
+local function refreshStaleText()
+  if not frame or not frame.staleText then return end
+  local age = importAgeSeconds()
+  if not age then
+    frame.staleText:SetText("no import -- /goldcap import")
+    frame.staleText:SetTextColor(1, 0.3, 0.3)
+    frame.staleText:Show()
+  elseif age < STALE_YELLOW_SECONDS then
+    frame.staleText:Hide()
+  elseif age < STALE_RED_SECONDS then
+    frame.staleText:SetText(("import %dh old"):format(math.floor(age / 3600)))
+    frame.staleText:SetTextColor(1, 0.82, 0)
+    frame.staleText:Show()
+  else
+    frame.staleText:SetText("import stale -- /goldcap import")
+    frame.staleText:SetTextColor(1, 0.3, 0.3)
+    frame.staleText:Show()
+  end
+end
+
+-- One chat print per UI session (not per AH visit -- staleWarnedThisSession only resets on
+-- /reload) the first time the import is found stale on AH open.
+local function maybeWarnStale()
+  if staleWarnedThisSession then return end
+  local age = importAgeSeconds()
+  if age and age < STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
+  staleWarnedThisSession = true
+  if age then
+    GC.Print(("your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."):format(math.floor(age / 3600)))
+  else
+    GC.Print("you haven't imported realm prices yet -- prices may be off. Paste a string from goldcap.gg (/goldcap import).")
+  end
 end
 
 -- Forward-declared: driver.onDeal (below) needs to call this for the "row vanished on
@@ -341,6 +485,7 @@ local function applyFullScanResults(rowsList, groupCount)
       #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s"))
   end
   refreshRows()
+  refreshStaleText() -- B: refresh on every completed scan, not just AH open
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -532,6 +677,23 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
   else
     dialog.soldLabel:Hide()
     dialog.soldText:Hide()
+  end
+
+  -- C/E.5 24h trend: only import-sourced values carry trend (and only when the export saw
+  -- a >=5% move), so this line hides itself for everything else -- same Show/Hide pattern
+  -- as Sold/day above.
+  if value and value.trend then
+    dialog.trendLabel:Show()
+    dialog.trendText:Show()
+    dialog.trendText:SetText(("%+d%%"):format(value.trend))
+    if value.trend < 0 then
+      dialog.trendText:SetTextColor(1, 0.3, 0.3)
+    else
+      dialog.trendText:SetTextColor(0.25, 0.85, 0.25)
+    end
+  else
+    dialog.trendLabel:Hide()
+    dialog.trendText:Hide()
   end
 end
 
@@ -934,7 +1096,7 @@ end
 -- never built eagerly alongside the sniper frame itself.
 local function createDialog()
   local d = CreateFrame("Frame", "GoldCapSniperConfirm", UIParent, "BasicFrameTemplateWithInset")
-  d:SetSize(300, 250)
+  d:SetSize(300, 268) -- +18 vs the pre-trend-row size, so the extra grid row never crowds the buttons
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
@@ -956,6 +1118,22 @@ local function createDialog()
   nameText:SetJustifyH("LEFT")
   nameText:SetWordWrap(false)
   d.nameText = nameText
+
+  -- A: hover tooltip over the icon+name header, same as a row (see createRow) -- Texture and
+  -- FontString objects can't take mouse scripts themselves, so this is an invisible Frame
+  -- spanning both, same pattern as createFrame's header "hit" frames.
+  local itemHit = CreateFrame("Frame", nil, d)
+  itemHit:SetPoint("TOPLEFT", icon, "TOPLEFT")
+  itemHit:SetPoint("BOTTOMRIGHT", nameText, "BOTTOMRIGHT")
+  itemHit:EnableMouse(true)
+  itemHit:SetScript("OnEnter", function(self)
+    if not dialog.deal then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetItemByID(dialog.deal.itemID)
+    GameTooltip:Show()
+  end)
+  itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  d.itemHit = itemHit
 
   -- Label/value grid: one row per number the player needs to decide with. updateDialogAmounts
   -- re-stamps the value slots in place as fresher quotes come in -- the grid itself never
@@ -983,12 +1161,14 @@ local function createDialog()
   local _, resaleText = gridRow(5, "Est. resale (after 5% AH cut)")
   local _, profitText = gridRow(6, "Est. profit")
   local soldLabel, soldText = gridRow(7, "Sold/day")
+  local trendLabel, trendText = gridRow(8, "24h trend")
   d.unitPriceText, d.totalCostText, d.mvText = unitPriceText, totalCostText, mvText
   d.discountText, d.resaleText, d.profitText = discountText, resaleText, profitText
   d.soldLabel, d.soldText = soldLabel, soldText
+  d.trendLabel, d.trendText = trendLabel, trendText
 
   local status = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", 16, GRID_TOP - 7 * GRID_ROW - 8)
+  status:SetPoint("TOPLEFT", 16, GRID_TOP - 8 * GRID_ROW - 8)
   status:SetPoint("RIGHT", -16, 0)
   status:SetJustifyH("LEFT")
   status:SetWordWrap(true)
@@ -1124,6 +1304,22 @@ createRow = function(parent, index)
   row:SetSize(ROW_WIDTH, ROW_HEIGHT)
   row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
 
+  -- E.1 zebra + hover: full-width BACKGROUND textures, drawn behind every other row widget
+  -- (including the Buy button) regardless of creation order -- BACKGROUND always renders
+  -- under ARTWORK. The zebra fill alternates by POOL index, not by the deal's position in
+  -- the current sorted view, so it stays visually stable across a resort/rescan instead of
+  -- flickering as rows are reassigned to different deals.
+  local zebra = row:CreateTexture(nil, "BACKGROUND")
+  zebra:SetAllPoints()
+  zebra:SetColorTexture(1, 1, 1, (index % 2 == 1) and 0.08 or 0)
+  row.zebra = zebra
+
+  local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK
+  highlight:SetAllPoints()
+  highlight:SetColorTexture(1, 1, 1, 0.12)
+  highlight:Hide()
+  row.highlight = highlight
+
   local icon = row:CreateTexture(nil, "ARTWORK")
   icon:SetSize(ICON_SIZE, ICON_SIZE)
   icon:SetPoint("LEFT")
@@ -1181,6 +1377,24 @@ createRow = function(parent, index)
   nameText:SetMaxLines(1)
   row.nameText = nameText
 
+  -- A + E.1: hover tooltip and highlight on the row ITSELF, not an overlay on top of the Buy
+  -- button -- a Frame's OnEnter/OnLeave don't consume mouse events, so the button (a separate
+  -- child widget) keeps handling its own clicks exactly as before. row.deal is nil for an
+  -- empty/hidden pooled row (refreshRows clears it before Hide()), so there is nothing to
+  -- show a tooltip for even if a stray event ever reached a hidden frame.
+  row:EnableMouse(true)
+  row:SetScript("OnEnter", function(self)
+    self.highlight:Show()
+    if not self.deal then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetItemByID(self.deal.itemID)
+    GameTooltip:Show()
+  end)
+  row:SetScript("OnLeave", function(self)
+    self.highlight:Hide()
+    GameTooltip:Hide()
+  end)
+
   row:Hide()
   return row
 end
@@ -1196,16 +1410,80 @@ local function setPlainTooltip(widget, text)
   widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- E.3/E.4: validates a saved window table before ever handing it to SetPoint/SetHeight --
+-- corrupted or hand-edited SavedVariables must never be trusted at face value.
+local function isValidSavedWindow(win)
+  return type(win) == "table" and type(win.point) == "string"
+    and type(win.x) == "number" and type(win.y) == "number"
+end
+
+local function clampWindowHeight(h)
+  if h < RESIZE_MIN_HEIGHT then return RESIZE_MIN_HEIGHT end
+  if h > RESIZE_MAX_HEIGHT then return RESIZE_MAX_HEIGHT end
+  return h
+end
+
+-- Persists point/x/y (E.3) and height (E.4) together under one saved-variables key --
+-- called from the frame's own OnDragStop and the resize handle's OnMouseUp, the only two
+-- hardware-driven ways the window's geometry can change.
+local function persistWindowGeometry(f)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if not cfg then return end
+  local point, _, _, x, y = f:GetPoint(1)
+  if not point then return end
+  cfg.window = { point = point, x = x, y = y, height = f:GetHeight() }
+end
+
 local function createFrame()
   local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent, "BasicFrameTemplateWithInset")
-  f:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
-  f:SetPoint("CENTER")
+
+  local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
+  local restoreHeight = FRAME_HEIGHT
+  if isValidSavedWindow(savedWindow) and type(savedWindow.height) == "number" then
+    restoreHeight = clampWindowHeight(savedWindow.height)
+  end
+  f:SetSize(FRAME_WIDTH, restoreHeight)
+
+  -- E.4 height-only resize: matching min AND max width to FRAME_WIDTH is what actually
+  -- prevents a width change -- the column grid (ROW_WIDTH and every header x-offset above)
+  -- is derived from FRAME_WIDTH, so a resized width would desync it from the header row.
+  f:SetResizable(true)
+  f:SetResizeBounds(FRAME_WIDTH, RESIZE_MIN_HEIGHT, FRAME_WIDTH, RESIZE_MAX_HEIGHT)
+
+  -- E.3 window position: ClearAllPoints then either the saved point/x/y (validated, and
+  -- guarded by pcall against a corrupted/hand-edited SavedVariables value) or the original
+  -- CENTER default.
+  f:ClearAllPoints()
+  local restored = false
+  if isValidSavedWindow(savedWindow) then
+    restored = pcall(f.SetPoint, f, savedWindow.point, savedWindow.x, savedWindow.y)
+  end
+  if not restored then
+    f:ClearAllPoints()
+    f:SetPoint("CENTER")
+  end
+
   f:SetMovable(true)
   f:EnableMouse(true)
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  f:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    persistWindowGeometry(self)
+  end)
   f.TitleText:SetText("GoldCap Sniper")
+
+  -- B: import staleness. Full width so a long "import stale -- /goldcap import" message
+  -- never clips, right-justified so it still reads as sitting on the right; sits between
+  -- the title and the Full Scan/Live button row so it never crowds either. Hidden until
+  -- refreshStaleText() (called on AH show and after every full scan) says otherwise.
+  local staleText = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  staleText:SetPoint("TOPLEFT", PANEL_LEFT, -18)
+  staleText:SetPoint("TOPRIGHT", -34, -18)
+  staleText:SetJustifyH("RIGHT")
+  staleText:SetWordWrap(false)
+  staleText:Hide()
+  f.staleText = staleText
 
   -- Full Scan is the primary control (rightmost, larger). The watchlist live-scan toggle
   -- is now secondary: shrunk and anchored to Full Scan's left so it reads as the
@@ -1259,7 +1537,9 @@ local function createFrame()
   local tierX = discountX - COLUMN_GAP - TIER_WIDTH
   local itemWidth = tierX - COLUMN_GAP -- spans the icon+name columns
 
-  local function addHeader(text, x, width, justify, tooltipLines)
+  -- sortKey (E.2), when given, makes the header clickable: OnMouseDown sets/toggles the
+  -- module-local sortOverride and re-renders. "Item" passes no sortKey and stays inert.
+  local function addHeader(text, x, width, justify, tooltipLines, sortKey)
     local hit = CreateFrame("Frame", nil, f)
     hit:SetSize(width, 14)
     hit:SetPoint("TOPLEFT", PANEL_LEFT + x, HEADER_Y)
@@ -1283,6 +1563,14 @@ local function createFrame()
       hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
 
+    if sortKey then
+      hit:EnableMouse(true) -- redundant when tooltipLines already enabled it; harmless otherwise
+      sortHeaders[sortKey] = { label = label, base = text }
+      hit:SetScript("OnMouseDown", function()
+        onHeaderSortClick(sortKey)
+      end)
+    end
+
     return hit
   end
 
@@ -1293,19 +1581,19 @@ local function createFrame()
     "GOOD = solid discount + profit",
     "WATCH = discounted but unproven liquidity or small profit",
     "SUSPECT = discount so extreme it's probably a scam/mispriced-market item",
-  })
+  }, "tier")
   addHeader("%", discountX, DISCOUNT_WIDTH, "LEFT", {
     "Discount",
     "Discount vs market value from your GoldCap import",
-  })
+  }, "pct")
   addHeader("Price", priceX, PRICE_WIDTH, "RIGHT", {
     "Price",
     "Total cost to buy this auction",
-  })
+  }, "price")
   addHeader("Profit", profitX, PROFIT_WIDTH, "RIGHT", {
     "Profit",
     "Estimated resale profit at 95% of market value, whole stack",
-  })
+  }, "profit")
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", PANEL_LEFT, -70)
@@ -1323,6 +1611,30 @@ local function createFrame()
   content:SetSize(ROW_WIDTH, ROW_HEIGHT) -- refreshRows() stamps the real height once there are deals to show
   scroll:SetScrollChild(content)
 
+  -- E.4 drag handle: a small BOTTOMRIGHT grip, sized/positioned to sit in the scrollbar
+  -- gutter (PANEL_RIGHT_INSET) below the scroll frame's own bottom edge, not on top of the
+  -- rows. StartSizing("BOTTOM") + the width-locked bounds above mean only the frame's height
+  -- actually changes as the player drags. Created AFTER scroll (whose built-in scrollbar is
+  -- a child one level deeper) and explicitly raised past it, so the grip always wins the
+  -- corner's mouse-hit test instead of silently losing clicks to the scrollbar's own
+  -- down-arrow button.
+  local resizeHandle = CreateFrame("Button", nil, f)
+  resizeHandle:SetSize(16, 16)
+  resizeHandle:SetPoint("BOTTOMRIGHT", -4, 4)
+  resizeHandle:EnableMouse(true)
+  resizeHandle:SetFrameLevel(scroll:GetFrameLevel() + 10)
+  local grip = resizeHandle:CreateTexture(nil, "OVERLAY")
+  grip:SetAllPoints()
+  grip:SetColorTexture(1, 1, 1, 0.35)
+  resizeHandle:SetScript("OnMouseDown", function()
+    f:StartSizing("BOTTOM")
+  end)
+  resizeHandle:SetScript("OnMouseUp", function()
+    f:StopMovingOrSizing()
+    persistWindowGeometry(f)
+  end)
+  f.resizeHandle = resizeHandle
+
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
   return f
@@ -1334,10 +1646,15 @@ function GC.Sniper.Toggle()
     frame:Hide()
   else
     frame:Show()
+    refreshStaleText() -- B: keep the banner current even if it's been a while since the last AH visit
   end
 end
 
 function GC.Sniper.OnAuctionHouseShow()
+  -- B: independent of autoOpen/window visibility -- the chat warning is meant to reach the
+  -- player even if they keep the sniper window closed.
+  maybeWarnStale()
+
   -- Build the scanner on the first AH visit regardless of autoOpen, so a later
   -- manual watchlist Live click has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
@@ -1353,6 +1670,7 @@ function GC.Sniper.OnAuctionHouseShow()
   -- there is no reason to force a re-scan every visit -- the player can always press Full
   -- Scan again for fresher data.
   refreshRows()
+  refreshStaleText() -- B: refresh on every AH show, not just once at window creation
   if frame.status then
     if mode == "fullscan" and #scanDeals > 0 then
       frame.status:SetText(("%d deals from your last scan -- Full Scan to refresh"):format(#scanDeals))
