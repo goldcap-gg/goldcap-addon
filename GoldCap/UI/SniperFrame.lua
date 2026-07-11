@@ -28,7 +28,12 @@ local PROFIT_WIDTH = 95
 local BUY_WIDTH = 50
 
 local REQUOTE_MAX_RATIO = 0.05
-local ARM_TIMEOUT_SECONDS = 5
+-- How long a confirmed quote stays clickable in the dialog. Generous on purpose: the player
+-- is reading a grid of numbers, and an older quote is safe on both paths -- an item auction
+-- is immutable (PlaceBid either buys at exactly the shown price or fails because the lot is
+-- gone), and a commodity purchase always re-quotes server-side via StartCommoditiesPurchase
+-- before the separate Confirm click (with the >5% requote re-prompt on top).
+local ARM_TIMEOUT_SECONDS = 30
 local BUY_TIMEOUT_SECONDS = 8
 local REQUERY_TIMEOUT_SECONDS = 8
 -- If no browse event arrives within this long after a send (initial query or page
@@ -581,14 +586,17 @@ local function abortRowPurchase(row, note)
   resolvePurchase(row, false, note)
 end
 
--- Same 5s "give up if nobody clicked" window the old row-button arm state used, just
--- reported through the dialog: disables the primary button and leaves an explanatory status
--- instead of silently reverting the row. Cancel is the only way out from here on.
+-- Expires a quote nobody clicked within ARM_TIMEOUT_SECONDS -- but never dead-ends the
+-- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
+-- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
+-- expired -> Refresh -> ready any number of times stays compliant.
 local function scheduleArmTimeout(row, deal)
   C_Timer.After(ARM_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "ready" and row.deal == deal and dialog and dialog.row == row then
-      dialog.primaryBtn:Disable()
-      setDialogStatus("quote expired -- Cancel and retry")
+      row.purchaseStage = "expired"
+      dialog.primaryBtn:Enable()
+      dialog.primaryBtn:SetText("Refresh")
+      setDialogStatus("quote expired -- Refresh to re-check the price", 1, 0.82, 0)
     end
   end)
 end
@@ -605,6 +613,10 @@ local function armReady(row, deal)
   dialog.primaryBtn:Enable()
   dialog.primaryBtn:SetText("Buy")
   updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  -- The dialog's OWN status must flip here -- the requery path otherwise leaves its
+  -- "checking live price..." text up even though the button just enabled, and the player
+  -- reads the stale text right up until the quote expires.
+  setDialogStatus("price confirmed -- click Buy to purchase", 0.25, 0.85, 0.25)
   scheduleArmTimeout(row, deal)
 end
 
@@ -866,6 +878,17 @@ local function onDialogPrimaryClick()
     dialog.primaryBtn:Disable()
     setDialogStatus("confirming purchase...")
     if frame then frame.status:SetText("confirming purchase...") end
+    return
+  end
+
+  if stage == "expired" then
+    -- Refresh: NOT a purchase call -- re-runs the same live requery the dialog opened with,
+    -- so a player who read the numbers past the quote window is never dead-ended into
+    -- Cancel. finishRequery re-arms "ready" with fresh numbers (or closes on gone/changed).
+    dialog.primaryBtn:Disable()
+    dialog.primaryBtn:SetText("Buy")
+    setDialogStatus("checking live price...")
+    startRequery(row, row.deal)
     return
   end
 
