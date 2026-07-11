@@ -26,9 +26,14 @@ function GC.ImportString.Parse(str)
   for section in rest:gmatch("[^;]+") do
     local kind, body = section:match("^(%u):(.+)$")
     if kind == "I" then
-      for id, mv, sold in body:gmatch("(%d+)=(%d+)=?([%d%.]*)") do
+      -- 4th field (trend) is a signed 24h market-value momentum percent; it
+      -- only ever rides alongside a sold figure (see itemToken's comment in
+      -- packages/tsm), so a bare "id=mv" or "id=mv=sold" token still parses
+      -- identically to before this field existed.
+      for id, mv, sold, trend in body:gmatch("(%d+)=(%d+)=?([%d%.]*)=?(%-?%d*)") do
         local entry = { m = tonumber(mv) }
         if sold ~= "" then entry.s = tonumber(sold) end
+        if trend ~= "" then entry.t = tonumber(trend) end
         result.items[tonumber(id)] = entry
         count = count + 1
       end

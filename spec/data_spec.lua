@@ -52,6 +52,24 @@ describe("Data", function()
     assert.equal("bundled", GC.Data.GetItemValue(43).source)
   end)
 
+  it("passes an imported entry's trend through as `trend`", function()
+    GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                          items = { [42] = { m = 4000, t = -12 } }, watchlist = {} })
+    assert.equal(-12, GC.Data.GetItemValue(42).trend)
+  end)
+
+  it("leaves trend nil for an imported entry with no trend field", function()
+    GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                          items = { [42] = { m = 4000 } }, watchlist = {} })
+    assert.is_nil(GC.Data.GetItemValue(42).trend)
+  end)
+
+  it("never surfaces trend for a bundled entry (bundled data has none)", function()
+    -- No import in effect here, so 42 answers from the bundled table (see
+    -- the before_each fixture) -- which has no `t` field to pass through.
+    assert.is_nil(GC.Data.GetItemValue(42).trend)
+  end)
+
   it("persists imports into the db table and reports status", function()
     GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
                           items = { [1] = { m = 1 } }, watchlist = {} })

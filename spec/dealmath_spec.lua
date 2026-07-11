@@ -7,6 +7,7 @@ describe("DealMath", function()
     goodDiscount = 0.25, goodProfit = 1000000,
     watchDiscount = 0.10, suspectDiscount = 0.90,
     hotMinSold = 3, goodMinSold = 1,
+    dumpTrendPct = 10,
   }
 
   before_each(function()
@@ -128,6 +129,68 @@ describe("DealMath", function()
       it("skips the gate entirely for bundled values, even with no sold figure", function()
         local d = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "bundled" }, cfg)
         assert.equal("HOT", d.tier)
+      end)
+    end)
+
+    describe("anti-dump gate (falling trend)", function()
+      -- mv 20000g, price 10000g: discount 0.5, profit 9000g -- clears HOT's
+      -- discount+profit bars on its own (bundled source, so the liquidity
+      -- gate never enters into it), so every case below isolates the trend
+      -- gate.
+      local function bundledLevel(trend)
+        return { mv = 200000000, source = "bundled", trend = trend }
+      end
+
+      it("caps an otherwise-HOT deal to WATCH when trend clears -dumpTrendPct", function()
+        local d = GC.DealMath.Evaluate(live(100000000), bundledLevel(-10), cfg)
+        assert.equal("WATCH", d.tier)
+        assert.is_true(d.falling)
+      end)
+
+      it("caps further below the threshold too", function()
+        local d = GC.DealMath.Evaluate(live(100000000), bundledLevel(-40), cfg)
+        assert.equal("WATCH", d.tier)
+        assert.is_true(d.falling)
+      end)
+
+      it("does not gate a trend just short of the threshold", function()
+        local d = GC.DealMath.Evaluate(live(100000000), bundledLevel(-9), cfg)
+        assert.equal("HOT", d.tier)
+        assert.is_false(d.falling)
+      end)
+
+      it("does not gate a rising (positive) trend", function()
+        local d = GC.DealMath.Evaluate(live(100000000), bundledLevel(25), cfg)
+        assert.equal("HOT", d.tier)
+        assert.is_false(d.falling)
+      end)
+
+      it("passes through (no gate) when trend is missing -- current behavior", function()
+        local d = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "bundled" }, cfg)
+        assert.equal("HOT", d.tier)
+        assert.is_false(d.falling)
+      end)
+
+      it("leaves SUSPECT untouched by a falling trend", function()
+        -- mv 100000g, price 100g: discount 0.999 -- SUSPECT regardless of trend.
+        local d = GC.DealMath.Evaluate(live(1000000), { mv = 1000000000, source = "bundled", trend = -90 }, cfg)
+        assert.equal("SUSPECT", d.tier)
+      end)
+
+      it("composes with the liquidity gate: either one alone denies HOT/GOOD", function()
+        -- Import-sourced, sold clears both floors (would be HOT on its own),
+        -- but a falling trend still caps it to WATCH.
+        local d = GC.DealMath.Evaluate(
+          live(100000000), { mv = 200000000, source = "import", sold = 5, trend = -15 }, cfg)
+        assert.equal("WATCH", d.tier)
+        assert.is_true(d.falling)
+      end)
+
+      it("composes the other way: liquidity gate alone still denies HOT/GOOD despite a rising trend", function()
+        local d = GC.DealMath.Evaluate(
+          live(100000000), { mv = 200000000, source = "import", sold = 0, trend = 25 }, cfg)
+        assert.equal("WATCH", d.tier)
+        assert.is_false(d.falling)
       end)
     end)
   end)

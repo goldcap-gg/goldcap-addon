@@ -16,6 +16,15 @@ GC.DEFAULTS = {
       -- Liquidity floors, sold per day (from a realm import's soldPerDay); only enforced
       -- against import-sourced values, see DealMath.Evaluate.
       hotMinSold = 3, goodMinSold = 1,
+      -- Anti-dump gate (Sniper v2): units are whole percent, matching the
+      -- import string's signed trend field; a deal whose 24h market-value
+      -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
+      dumpTrendPct = 10,
+      -- window: undeclared here on purpose (a nil-valued table field is never actually
+      -- stored, so ApplyDefaults' pairs() walk would just skip it either way). Populated by
+      -- UI/SniperFrame.lua's OnDragStop/resize-handle as { point, x, y, height } once the
+      -- player first drags or resizes the sniper window; read back by createFrame to
+      -- restore position/size, defaulting to CENTER / FRAME_HEIGHT until then.
     },
   },
 }

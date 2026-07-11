@@ -22,14 +22,23 @@ function GC.DealMath.Evaluate(live, value, cfg)
   local gated = value.source == "import"
   local sold = gated and (value.sold or 0) or nil
 
+  -- Anti-dump gate (Sniper v2): a market actively crashing >= dumpTrendPct in
+  -- the last 24h can't be trusted as "cheap" -- the mv itself may already be
+  -- stale and falling, so cap it below GOOD no matter how good today's
+  -- discount/profit look. Missing trend (no import, or the wire format
+  -- omitted it -- see @wowa/tsm's itemToken) means no gate, same as before
+  -- this field existed. Independent of, and composes with, the liquidity
+  -- gate above -- either one alone is enough to deny HOT/GOOD.
+  local falling = value.trend ~= nil and value.trend <= -cfg.dumpTrendPct
+
   local tier
   if discount > cfg.suspectDiscount + EPS then
     tier = "SUSPECT"
   elseif discount >= cfg.hotDiscount - EPS and profit >= cfg.hotProfit
-      and (not gated or sold >= cfg.hotMinSold - EPS) then
+      and (not gated or sold >= cfg.hotMinSold - EPS) and not falling then
     tier = "HOT"
   elseif discount >= cfg.goodDiscount - EPS and profit >= cfg.goodProfit
-      and (not gated or sold >= cfg.goodMinSold - EPS) then
+      and (not gated or sold >= cfg.goodMinSold - EPS) and not falling then
     tier = "GOOD"
   else
     tier = "WATCH"
@@ -45,6 +54,7 @@ function GC.DealMath.Evaluate(live, value, cfg)
     discount = discount,
     profit = profit,
     tier = tier,
+    falling = falling,
   }
 end
 

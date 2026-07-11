@@ -40,7 +40,10 @@ function GC.Data.GetItemValue(itemID)
   local imp = db and db.imported
   local e = imp and imp.items and imp.items[itemID]
   if e then
-    return { mv = e.m, sold = e.s, ts = imp.ts, source = "import" }
+    -- trend (24h market-value momentum) is import-path only: MarketData.lua's
+    -- bundled entries never carry a `t` field (see ImportString.Parse), so
+    -- there's nothing to pass through for the bundled branch below.
+    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import" }
   end
   e = bundled and bundled.items and bundled.items[itemID]
   if e then
