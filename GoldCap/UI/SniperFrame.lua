@@ -31,11 +31,9 @@ local REQUOTE_MAX_RATIO = 0.05
 local ARM_TIMEOUT_SECONDS = 5
 local BUY_TIMEOUT_SECONDS = 8
 local REQUERY_TIMEOUT_SECONDS = 8
-local FULL_SCAN_COOLDOWN_SECONDS = 15 * 60
-local FULL_SCAN_BATCH_SIZE = 250
-local FULL_SCAN_TICK_DELAY = 0.01
-local FULL_SCAN_SAFETY_SECONDS = 2
-local FULL_SCAN_START_TIMEOUT_SECONDS = 10
+-- If no browse event arrives within this long after a send (initial query or page
+-- request), the paging chain is presumed stalled -- see armScanWatchdog.
+local SCAN_WATCHDOG_SECONDS = 15
 
 local TIER_COLOR = {
   HOT = { 1, 0.35, 0.15 },
@@ -54,20 +52,17 @@ local scanDeals = {}     -- array of deals from the last completed full scan (fu
 local mode = "watchlist" -- "watchlist" | "fullscan": which backing store sortedDeals() renders
 local scanning = false
 
--- Full-scan (ReplicateItems) state. lastFullScanTime enforces a client-side cooldown
--- (session-only, not persisted -- a /reload resets it, matching the "client-side" scope
--- of this requirement rather than a saved-variable one). It is stamped only in
--- GC.Sniper.OnReplicateReady, once the server has actually delivered a scan -- NOT at the
--- moment ReplicateItems() is called -- because IsThrottledMessageSystemReady() is routinely
--- false for a beat right after opening the Auction House, and a click that silently no-ops
--- must never burn the 15-minute cooldown. fullScanToken is bumped on every new scan and on
--- abort so any C_Timer closures from a superseded/aborted scan become no-ops instead of
--- racing a newer scan's state.
-local lastFullScanTime = 0
-local fullScanWaiting = false -- true from ReplicateItems() until OnReplicateReady handles the event
-local fullScanBatch = nil     -- { rows = {...}, token = n } while batch-iterating; nil when idle
+-- Full-scan (Auctionator-style incremental browse) state. A full scan pages through
+-- C_AuctionHouse's browse results with SendBrowseQuery + RequestMoreBrowseResults until
+-- HasFullBrowseResults() reports true. Browse queries carry no server-side cooldown -- there
+-- is no timestamp to track, and a scan is always safe to re-run immediately. fullScanToken is
+-- bumped on every new scan and on abort so any C_Timer watchdog closures from a
+-- superseded/aborted scan become no-ops instead of racing a newer scan's state.
+local scanRunning = false          -- true from startFullScan() until the browse pages finish, stall, or the scan is aborted
+local pendingFullScanStart = false -- Full Scan was clicked while the throttle system was busy; GC.Sniper.OnThrottleReady sends the initial query once it clears
+local pendingBrowsePage = false    -- a page (RequestMoreBrowseResults) is due but the throttle system was busy; GC.Sniper.OnThrottleReady sends it once it clears
+local lastBrowseEventAt = 0        -- time() of the last browse-results event seen for the current scan; armScanWatchdog compares this against each send
 local fullScanToken = 0
-local pendingFullScanStart = false -- Full Scan was clicked while the throttle system was busy; GC.Sniper.OnThrottleReady starts the scan once it clears
 
 -- Purchase-flow bookkeeping. A row is "pinned" (activeItemID[itemID] = true) from the
 -- first arming click until the purchase resolves, so refreshRows() never repurposes it
@@ -79,7 +74,8 @@ local activeItemID = {}
 local commodityPurchase = nil
 
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
--- (ReplicateItems is a point-in-time dump), so the FIRST Buy click on one issues a fresh
+-- (a browse result is a per-itemKey aggregate across every seller, not a resolved auction,
+-- and it's a point-in-time snapshot besides), so the FIRST Buy click on one issues a fresh
 -- SendSearchQuery instead of arming straight off scanDeals. These two tables are keyed by
 -- itemID and live on the FRAME, deliberately separate from the watchlist scanner's own
 -- single-slot `pending` state (Core/Scanner.lua), so a requery in flight can never collide
@@ -248,7 +244,7 @@ local driver = {
     -- info.buyoutAmount is the TOTAL price for the whole lot, not a per-unit price (unlike
     -- GetCommoditySearchResultInfo's unitPrice below) -- divide down so GC.DealMath.Evaluate
     -- compares against value.mv (a per-unit market value) correctly, matching how
-    -- FullScan.Evaluate derives unitPrice from GetReplicateItemInfo's own per-lot total.
+    -- FullScan.Evaluate derives unitPrice from a row's per-group buyoutStack total.
     return {
       auctionID = info.auctionID,
       unitPrice = math.floor(info.buyoutAmount / info.quantity),
@@ -313,149 +309,122 @@ local function stopScanning()
 end
 
 -- ---------------------------------------------------------------------------
--- Full Scan (C_AuctionHouse.ReplicateItems). Primary control: a one-shot dump of every
--- current auction, gated by a client-side 15-min cooldown (ReplicateItems is
--- account-wide-throttled server-side; this just avoids firing it needlessly and gives the
--- player a status message instead of a silent no-op). GC.Sniper.OnReplicateReady is the
--- REPLICATE_ITEM_LIST_UPDATE handler Core/Init.lua dispatches into; it batch-iterates
--- GetReplicateItemInfo over frames (FULL_SCAN_BATCH_SIZE per tick via C_Timer.After) so a
--- huge AH listing count never hitches a frame, then hands the collected rows to
--- GC.FullScan.Evaluate. fullScanToken invalidates any in-flight tick/safety-net closures
--- from a scan that was superseded (a new Full Scan click) or aborted (AH closed) so they
--- become no-ops instead of racing fresher state.
+-- Full Scan (Auctionator-style incremental browse). Primary control: pages through the
+-- entire realm auction house via C_AuctionHouse.SendBrowseQuery (an empty search matches
+-- everything) followed by repeated RequestMoreBrowseResults calls until
+-- HasFullBrowseResults() reports true. GC.Sniper.OnBrowseResults/OnBrowseResultsAdded are the
+-- AUCTION_HOUSE_BROWSE_RESULTS_UPDATED/ADDED handlers Core/Init.lua dispatches into; each one
+-- advances the paging state machine by one step. Browse queries carry no server-side
+-- cooldown, so a scan is always safe to re-run immediately -- there is no timestamp to gate
+-- on. fullScanToken invalidates any in-flight watchdog closures from a scan that was
+-- superseded (a new Full Scan click) or aborted (AH closed) so they become no-ops instead of
+-- racing fresher state.
 -- ---------------------------------------------------------------------------
 
-local function applyFullScanResults(rowsList, listingCount)
-  fullScanBatch = nil
+local function applyFullScanResults(rowsList, groupCount)
   scanDeals = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
-  -- GC.FullScan.Evaluate reads GetReplicateItemInfo, a point-in-time dump: isCommodity is
-  -- always false there (unresolved) and auctionID is always nil. Mark every deal `.stale`
-  -- so onBuyClick knows to requery live before it will let one arm for purchase, instead of
-  -- ever placing a bid/commodity purchase off this snapshot.
+  -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
+  -- single resolved auction: isCommodity is unknown here and auctionID is always nil. Mark
+  -- every deal `.stale` so onBuyClick knows to requery live before it will let one arm for
+  -- purchase, instead of ever placing a bid/commodity purchase off the aggregate.
   for _, deal in ipairs(scanDeals) do
     deal.stale = true
   end
   if frame then
-    frame.status:SetText(("full scan complete: %d deal%s from %d listings"):format(
-      #scanDeals, #scanDeals == 1 and "" or "s", listingCount))
+    frame.status:SetText(("full scan complete: %d deal%s from %d item group%s"):format(
+      #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s"))
   end
   refreshRows()
 end
 
-local function fullScanTick(nextIndex, n, rowsAcc, token)
-  if token ~= fullScanToken then return end -- superseded by a newer scan, or aborted
-  local endIndex = math.min(nextIndex + FULL_SCAN_BATCH_SIZE - 1, n - 1)
-  for i = nextIndex, endIndex do
-    -- VERIFIED signature (12.0.7): 18 return values, 0-based index -- name, texture, count,
-    -- qualityID, usable, level, levelType, minBid, minIncrement, buyoutPrice, bidAmount,
-    -- highBidder, bidderFullName, owner, ownerFullName, saleStatus, itemID, hasAllInfo.
-    -- Only count(3)/buyoutPrice(10)/itemID(17) are needed to evaluate a deal --
-    -- hasAllInfo=false still supplies these even before the item name loads async.
-    -- Captured into a table rather than 18 named locals to avoid a wall of unused vars.
-    local info = { C_AuctionHouse.GetReplicateItemInfo(i) }
-    local count, buyoutPrice, itemID = info[3], info[10], info[17]
-    if itemID and count and count > 0 and buyoutPrice and buyoutPrice > 0 then
-      rowsAcc[#rowsAcc + 1] = { itemID = itemID, count = count, buyoutStack = buyoutPrice }
+-- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
+-- If no browse event has landed by the time this fires, the paging chain has genuinely
+-- stalled -- clear scan state instead of leaving the status frozen forever. Browse queries
+-- have no server cooldown, so retrying costs nothing; the status line says so.
+local function armScanWatchdog(token)
+  local sentAt = time()
+  C_Timer.After(SCAN_WATCHDOG_SECONDS, function()
+    if token ~= fullScanToken or not scanRunning then return end -- superseded, aborted, or already finished
+    if lastBrowseEventAt < sentAt then
+      scanRunning = false
+      pendingBrowsePage = false
+      if frame then frame.status:SetText("full scan stalled -- press Full Scan to retry") end
     end
-  end
+  end)
+end
 
-  if endIndex >= n - 1 then
-    fullScanBatch = nil
-    applyFullScanResults(rowsAcc, n)
+local function sendBrowseQuery(token)
+  C_AuctionHouse.SendBrowseQuery({ searchString = "", sorts = {}, filters = {}, itemClassFilters = {} })
+  if frame then frame.status:SetText("scanning auction house...") end
+  armScanWatchdog(token)
+end
+
+local function sendBrowsePage(token)
+  C_AuctionHouse.RequestMoreBrowseResults()
+  armScanWatchdog(token)
+end
+
+-- Requests the next page, but ONLY when the throttle system is ready --
+-- RequestMoreBrowseResults silently no-ops while IsThrottledMessageSystemReady() is false
+-- (routine mid-scan, since a full scan's own traffic saturates the throttle). If busy, park
+-- the request in pendingBrowsePage for GC.Sniper.OnThrottleReady to flush once it clears.
+local function requestNextPage(token)
+  if driver.isReady() then
+    sendBrowsePage(token)
   else
-    fullScanBatch = { rows = rowsAcc, token = token, lastProgress = time() }
-    if frame then frame.status:SetText(("scanning %d/%d..."):format(endIndex + 1, n)) end
-    C_Timer.After(FULL_SCAN_TICK_DELAY, function()
-      fullScanTick(endIndex + 1, n, rowsAcc, token)
-    end)
+    pendingBrowsePage = true
   end
 end
 
--- Rolling safety net: re-arms itself every FULL_SCAN_SAFETY_SECONDS for as long as the
--- batch is still progressing, and only force-finishes (with whatever rows were collected so
--- far) if no tick has advanced within the last window -- i.e. the tick chain has genuinely
--- stalled. A single one-shot timer from scan start would instead cap EVERY full scan's
--- total duration at ~2s, which truncates any realm with enough listings that a full,
--- steadily-progressing scan legitimately takes longer than one window (easily true on a
--- populated realm at 250 indices/10ms). Bumping the token on force-finish invalidates the
--- stalled chain so it can't resume later and double-apply results.
-local function fullScanWatchdog(token, n)
-  if not (fullScanBatch and fullScanBatch.token == token) then return end -- already finished/aborted
-  if time() - fullScanBatch.lastProgress >= FULL_SCAN_SAFETY_SECONDS then
-    local pendingRows = fullScanBatch.rows
-    fullScanBatch = nil
-    fullScanToken = fullScanToken + 1
-    applyFullScanResults(pendingRows, n)
-    return
+-- Shared step for both browse events: a batch of itemKey aggregates arrived (the first
+-- batch on OnBrowseResults, an increment on OnBrowseResultsAdded) -- either it's the final
+-- page (HasFullBrowseResults) and the scan is done, or there's more to fetch.
+local function advanceBrowseScan(token)
+  if C_AuctionHouse.HasFullBrowseResults() then
+    scanRunning = false
+    local browseResults = C_AuctionHouse.GetBrowseResults()
+    applyFullScanResults(GC.FullScan.RowsFromBrowse(browseResults, GC.Data.GetItemValue), #browseResults)
+  else
+    local n = #C_AuctionHouse.GetBrowseResults()
+    if frame then
+      frame.status:SetText(("scanning... %d item group%s"):format(n, n == 1 and "" or "s"))
+    end
+    requestNextPage(token)
   end
-  C_Timer.After(FULL_SCAN_SAFETY_SECONDS, function()
-    fullScanWatchdog(token, n)
-  end)
 end
 
-function GC.Sniper.OnReplicateReady()
-  if not fullScanWaiting then return end -- not currently expecting this event; ignore
-  fullScanWaiting = false
-  lastFullScanTime = time() -- cooldown starts only once the server actually delivered a scan; a click that never got this far burns nothing
-
-  local token = fullScanToken
-  local n = C_AuctionHouse.GetNumReplicateItems() or 0
-  local rowsAcc = {}
-
-  if n == 0 then
-    applyFullScanResults(rowsAcc, 0)
-    return
-  end
-
-  fullScanBatch = { rows = rowsAcc, token = token, lastProgress = time() }
-  fullScanTick(0, n, rowsAcc, token)
-  C_Timer.After(FULL_SCAN_SAFETY_SECONDS, function()
-    fullScanWatchdog(token, n)
-  end)
-end
-
--- Cancels any full scan in flight (waiting for the ready event, or mid-batch-iteration).
--- Called on AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep
--- running once the player has left the Auction House.
+-- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
+-- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
+-- the player has left the Auction House -- browse results die with the AH session anyway.
 local function abortFullScan()
-  if fullScanWaiting or fullScanBatch then
-    fullScanToken = fullScanToken + 1 -- invalidates any in-flight tick/safety-net closures
+  if scanRunning or pendingFullScanStart then
+    fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
   end
-  fullScanWaiting = false
-  fullScanBatch = nil
+  scanRunning = false
   pendingFullScanStart = false
+  pendingBrowsePage = false
 end
 
--- Starts the actual ReplicateItems() pull. Only ever reached once the throttle system is
--- confirmed ready (synchronously from onFullScanClick, or deferred via
--- GC.Sniper.OnThrottleReady when pendingFullScanStart was set) -- ReplicateItems() silently
--- no-ops while C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely
--- the case for a beat right after opening the Auction House. lastFullScanTime is
--- deliberately NOT stamped here; see GC.Sniper.OnReplicateReady.
+-- Starts the actual browse scan. Only ever reached once the throttle system is confirmed
+-- ready (synchronously from onFullScanClick, or deferred via GC.Sniper.OnThrottleReady when
+-- pendingFullScanStart was set) -- SendBrowseQuery silently no-ops while
+-- C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely the case for a
+-- beat right after opening the Auction House.
 local function startFullScan()
   fullScanToken = fullScanToken + 1
-  fullScanBatch = nil
-  fullScanWaiting = true
+  local token = fullScanToken
+  scanRunning = true
+  pendingBrowsePage = false
+  lastBrowseEventAt = 0
   mode = "fullscan"
   refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
-  C_AuctionHouse.ReplicateItems()
-  if frame then frame.status:SetText("requesting full scan from server...") end
 
-  -- Start watchdog: even past the client-side throttle-ready check, ReplicateItems() can
-  -- still fail to trigger REPLICATE_ITEM_LIST_UPDATE (the account-wide server-side throttle
-  -- is a separate gate). If the event hasn't arrived by the time this fires, stop waiting
-  -- instead of leaving the status frozen forever -- the cooldown was never stamped for this
-  -- attempt, so the player can retry immediately.
-  local token = fullScanToken
-  C_Timer.After(FULL_SCAN_START_TIMEOUT_SECONDS, function()
-    if token ~= fullScanToken then return end -- superseded by a newer scan, or aborted
-    if fullScanWaiting and fullScanBatch == nil then
-      fullScanWaiting = false
-      if frame then
-        frame.status:SetText("full scan did not start (server throttle) -- press Full Scan to retry")
-      end
-    end
-  end)
+  if driver.isReady() then
+    sendBrowseQuery(token)
+  else
+    pendingFullScanStart = true
+    if frame then frame.status:SetText("waiting for server... full scan will start automatically") end
+  end
 end
 
 local function onFullScanClick()
@@ -465,23 +434,8 @@ local function onFullScanClick()
     return
   end
 
-  if fullScanWaiting or pendingFullScanStart then
+  if scanRunning or pendingFullScanStart then
     frame.status:SetText("full scan already in progress")
-    return
-  end
-
-  local now = time()
-  if lastFullScanTime > 0 then
-    local remaining = FULL_SCAN_COOLDOWN_SECONDS - (now - lastFullScanTime)
-    if remaining > 0 then
-      frame.status:SetText(("full scan on cooldown: %ds remaining"):format(remaining))
-      return
-    end
-  end
-
-  if not C_AuctionHouse.IsThrottledMessageSystemReady() then
-    pendingFullScanStart = true
-    frame.status:SetText("waiting for server... full scan will start automatically")
     return
   end
 
@@ -580,8 +534,8 @@ end
 
 -- Issues the fresh live query for a requery, but ONLY when the throttle system is ready.
 -- SendSearchQuery silently no-ops while IsThrottledMessageSystemReady() is false -- which it
--- routinely is for a beat right after a Full Scan (ReplicateItems saturates the throttle) --
--- so if we're not ready, park the itemID in pendingRequerySend and let
+-- routinely is for a beat right after a Full Scan (the scan's own browse paging saturates
+-- the throttle) -- so if we're not ready, park the itemID in pendingRequerySend and let
 -- GC.Sniper.OnThrottleReady flush it. The 8s requery timeout remains the ultimate fallback.
 local function issueRequerySearch(itemID)
   if driver.isReady() then
@@ -657,17 +611,38 @@ function GC.Sniper.OnItemKeyInfo(itemID)
   end
 end
 
--- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler with two independent jobs: (1) start a Full
--- Scan that onFullScanClick deferred because ReplicateItems() would have silently no-op'd
--- while the throttle system was busy; (2) flush the requery flow's deferred searches. In
--- fullscan mode the watchlist scanner isn't running (mode gates which one is live), so
--- flushing deferred requery searches here can't fight the scanner's own throttle-gated send
--- loop; the mode guard keeps watchlist mode entirely unaffected. Each flushed itemID
--- re-checks it's still an active requery before sending.
+-- Browse events fire for ANY browse query, not just this addon's Full Scan -- the sniper
+-- window is standalone, so the player can open Blizzard's own Auction House browse tab
+-- mid-scan. Guard on scanRunning so a manual browse never gets mistaken for scan progress
+-- (and, symmetrically, never hijacks an in-flight scan's status/paging once ours already
+-- claimed the running state).
+function GC.Sniper.OnBrowseResults()
+  if not scanRunning then return end -- not our scan; ignore a manual Blizzard AH browse
+  lastBrowseEventAt = time()
+  advanceBrowseScan(fullScanToken)
+end
+
+function GC.Sniper.OnBrowseResultsAdded()
+  if not scanRunning then return end
+  lastBrowseEventAt = time()
+  advanceBrowseScan(fullScanToken)
+end
+
+-- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler with two independent jobs: (1) send whatever
+-- browse step (the initial query, or the next page) startFullScan/advanceBrowseScan
+-- deferred because the throttle system was busy; (2) flush the requery flow's deferred
+-- searches. In fullscan mode the watchlist scanner isn't running (mode gates which one is
+-- live), so flushing deferred requery searches here can't fight the scanner's own
+-- throttle-gated send loop; the mode guard keeps watchlist mode entirely unaffected. Scan
+-- traffic is serviced first (deterministic order), but the requery flush below always runs
+-- regardless of which scan branch fired -- neither queue can starve the other.
 function GC.Sniper.OnThrottleReady()
   if pendingFullScanStart then
     pendingFullScanStart = false
-    startFullScan()
+    sendBrowseQuery(fullScanToken)
+  elseif pendingBrowsePage then
+    pendingBrowsePage = false
+    sendBrowsePage(fullScanToken)
   end
 
   if mode ~= "fullscan" then return end
@@ -954,7 +929,8 @@ local function createFrame()
   fullScanBtn:SetText("Full Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
-    "Snapshot of the entire Auction House. Server allows roughly one scan per 15 minutes.")
+    "Scans the entire Auction House via paged browse queries. Takes roughly 15-60 seconds " ..
+    "on busy realms. No cooldown -- rescan anytime.")
   f.fullScanBtn = fullScanBtn
 
   local toggleBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -1085,18 +1061,14 @@ function GC.Sniper.OnAuctionHouseShow()
   if not GC.db.settings.sniper.autoOpen then return end
   frame = frame or createFrame()
   frame:Show()
-  -- Re-show the previous Full Scan's deals if they persisted across the AH close. The
-  -- scan snapshot stays valid for the ~15-min cooldown, and buying re-queries the live
-  -- price anyway, so there is no reason to force a re-scan every visit.
+  -- Re-show the previous Full Scan's deals if they persisted across the AH close. Buying
+  -- re-queries the live price anyway, and a browse scan has no cooldown to wait out, so
+  -- there is no reason to force a re-scan every visit -- the player can always press Full
+  -- Scan again for fresher data.
   refreshRows()
   if frame.status then
     if mode == "fullscan" and #scanDeals > 0 then
-      local remaining = FULL_SCAN_COOLDOWN_SECONDS - (time() - lastFullScanTime)
-      if lastFullScanTime > 0 and remaining > 0 then
-        frame.status:SetText(("%d deals from your last scan (refresh in %ds)"):format(#scanDeals, remaining))
-      else
-        frame.status:SetText(("%d deals from your last scan -- Full Scan to refresh"):format(#scanDeals))
-      end
+      frame.status:SetText(("%d deals from your last scan -- Full Scan to refresh"):format(#scanDeals))
     else
       frame.status:SetText("Press Full Scan to find deals.")
     end

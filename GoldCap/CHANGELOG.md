@@ -11,9 +11,9 @@
   `/goldcap status`.
 - **Sniper**: a standalone window (auto-appears when you open the Auction
   House, or toggle with `/goldcap sniper`). The primary mode is **Full Scan**
-  — press the Full Scan button to pull the entire realm's auction house at
-  once and rank all underpriced items by profit. Full Scans run on a ~15-minute
-  cooldown (Blizzard limit) and show tiered deals (HOT, GOOD, WATCH, SUSPECT)
+  — press the Full Scan button to page through the entire realm's auction
+  house (roughly 15-60 seconds on busy realms, no cooldown — rescan anytime)
+  and rank all underpriced items by profit as tiered deals (HOT, GOOD, WATCH, SUSPECT)
   with discount and profit net of the 5% AH cut. When buying a Full Scan deal,
   the sniper issues a fresh live requote before purchase, so the deal isn't
   stale. Secondary mode: live watchlist search cycles through ~200 items in

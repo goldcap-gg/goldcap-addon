@@ -35,7 +35,8 @@ frame:RegisterEvent("COMMODITY_PRICE_UPDATED")
 frame:RegisterEvent("COMMODITY_PRICE_UNAVAILABLE")
 frame:RegisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 frame:RegisterEvent("COMMODITY_PURCHASE_FAILED")
-frame:RegisterEvent("REPLICATE_ITEM_LIST_UPDATE")
+frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
+frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_ADDED")
 frame:RegisterEvent("AUCTION_HOUSE_CLOSED")
 
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -106,9 +107,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnCommodityPurchaseFailed then
       GC.Sniper.OnCommodityPurchaseFailed()
     end
-  elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
-    if GC.Sniper.OnReplicateReady then
-      GC.Sniper.OnReplicateReady()
+  elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" then
+    if GC.Sniper.OnBrowseResults then
+      GC.Sniper.OnBrowseResults()
+    end
+  elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
+    if GC.Sniper.OnBrowseResultsAdded then
+      GC.Sniper.OnBrowseResultsAdded()
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
     if GC.Sniper.OnAuctionHouseClosed then

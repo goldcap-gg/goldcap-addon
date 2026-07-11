@@ -71,3 +71,79 @@ describe("FullScan.Evaluate", function()
     assert.equal(10, deals[2].itemID)
   end)
 end)
+
+describe("FullScan.RowsFromBrowse", function()
+  local GC
+  local values = {
+    [100] = { sold = 50 },   -- a day's sold volume bounds the flip qty
+    [200] = {},              -- no sold figure at all (unknown liquidity)
+    [300] = { sold = 5000 }, -- sold volume far past the hard sanity cap
+  }
+  local function getValue(id) return values[id] end
+
+  before_each(function()
+    GC = helper.loadModule("Core/DealMath.lua")
+    helper.loadModule("Core/FullScan.lua", GC)
+  end)
+
+  it("caps estimated qty at a day's sold volume for a commodity-like entry", function()
+    -- totalQuantity (10000) is far above sold (50): flip qty is bounded by what's
+    -- realistically sellable in a day, not by how much is listed.
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 100 }, totalQuantity = 10000, minPrice = 500 },
+    }, getValue)
+    assert.equal(1, #rows)
+    assert.equal(100, rows[1].itemID)
+    assert.equal(50, rows[1].count)
+    assert.equal(500 * 50, rows[1].buyoutStack)
+  end)
+
+  it("falls back to totalQuantity when it is the smaller bound", function()
+    -- Only 30 are actually listed, even though sold/day (50) would allow more -- can't flip
+    -- more than what's on the board.
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 100 }, totalQuantity = 30, minPrice = 500 },
+    }, getValue)
+    assert.equal(30, rows[1].count)
+  end)
+
+  it("collapses to qty 1 when there is no sold figure", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 200 }, totalQuantity = 10000, minPrice = 500 },
+    }, getValue)
+    assert.equal(1, #rows)
+    assert.equal(1, rows[1].count)
+  end)
+
+  it("caps qty at 200 even when sold volume is huge", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 300 }, totalQuantity = 10000, minPrice = 500 },
+    }, getValue)
+    assert.equal(200, rows[1].count)
+  end)
+
+  it("skips zero/nil minPrice and nil-itemID entries", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 100 }, totalQuantity = 10, minPrice = 0 },
+      { itemKey = { itemID = 100 }, totalQuantity = 10, minPrice = nil },
+      { itemKey = {}, totalQuantity = 10, minPrice = 500 },
+      { totalQuantity = 10, minPrice = 500 },
+    }, getValue)
+    assert.equal(0, #rows)
+  end)
+
+  it("feeds Evaluate end-to-end so unitPrice comes out equal to minPrice", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 100 }, totalQuantity = 10000, minPrice = 777 },
+    }, getValue)
+    local cfg = {
+      hotDiscount = 0.40, hotProfit = 5000000,
+      goodDiscount = 0.25, goodProfit = 1000000,
+      watchDiscount = 0.10, suspectDiscount = 0.90,
+    }
+    local marketValues = { [100] = { mv = 2000 } }
+    local deals = GC.FullScan.Evaluate(rows, function(id) return marketValues[id] end, cfg, 100)
+    assert.equal(1, #deals)
+    assert.equal(777, deals[1].unitPrice)
+  end)
+end)

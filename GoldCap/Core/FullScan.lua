@@ -46,3 +46,33 @@ function GC.FullScan.Evaluate(rows, getValue, cfg, cap)
   end
   return deals
 end
+
+-- Auctionator-style incremental browse scan: C_AuctionHouse.GetBrowseResults() returns one
+-- BrowseResultInfo per itemKey, already aggregated across every seller of that item group
+-- (minPrice, totalQuantity), not one row per individual auction the way GetReplicateItemInfo
+-- used to. RowsFromBrowse converts that aggregate shape into the same
+-- { itemID, count, buyoutStack } rows Evaluate already consumes, so both scan sources feed
+-- one evaluation path unchanged.
+function GC.FullScan.RowsFromBrowse(results, getValue)
+  local rows = {}
+  for _, result in ipairs(results) do
+    local itemKey = result.itemKey
+    local itemID = itemKey and itemKey.itemID
+    local minPrice = result.minPrice
+    if itemID and minPrice and minPrice > 0 then
+      -- minPrice is the lowest per-unit buyout across the whole item group, but
+      -- totalQuantity can run into the thousands for a staple commodity -- buying out an
+      -- entire group is never realistic. Bound the flip quantity by a day's sold volume
+      -- (from the goldcap.gg import, when available) instead: that's what's actually
+      -- flippable before the market re-equilibrates. 200 is a hard sanity cap regardless of
+      -- what sold/day says. Items and unknown-liquidity entries carry no sold figure at all,
+      -- so they naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off
+      -- item auction always was.
+      local value = getValue(itemID) or {}
+      local estQty = math.min(result.totalQuantity or 1, math.ceil(value.sold or 1), 200)
+      if estQty < 1 then estQty = 1 end
+      rows[#rows + 1] = { itemID = itemID, count = estQty, buyoutStack = minPrice * estQty }
+    end
+  end
+  return rows
+end
