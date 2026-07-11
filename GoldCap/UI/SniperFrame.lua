@@ -47,6 +47,7 @@ local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
 local rows = {}        -- pooled row widgets, grown lazily up to ROW_CAP
+local dialog           -- the single reusable purchase-confirmation dialog; lazily created (see createDialog)
 local deals = {}        -- itemID -> latest watchlist deal shown for it (watchlist mode)
 local scanDeals = {}     -- array of deals from the last completed full scan (full-scan mode)
 local mode = "watchlist" -- "watchlist" | "fullscan": which backing store sortedDeals() renders
@@ -443,22 +444,90 @@ local function onFullScanClick()
 end
 
 -- ---------------------------------------------------------------------------
--- Purchase flow. Item buy: two clicks (arm -> PlaceBid). Commodity buy: three
--- clicks (arm -> StartCommoditiesPurchase -> ConfirmCommoditiesPurchase),
--- because COMPLIANCE requires the final commodity confirm to ALWAYS come from a
--- human click regardless of whether the requote rose (matching native WoW's
--- always-present commodity confirm dialog). Every C_AuctionHouse purchase call
--- (PlaceBid / StartCommoditiesPurchase / ConfirmCommoditiesPurchase) is reached
--- ONLY from onBuyClick, the button OnClick closure — never from an event or a
--- timer. COMMODITY_PRICE_UPDATED only sets a confirm STAGE and re-enables the
--- button; only ONE commodity purchase may be in flight at a time.
+-- Purchase flow. Clicking a row's Buy button never buys anything itself -- it opens the
+-- single reusable confirmation dialog (createDialog/openDialog below), which shows the
+-- profit math and takes every further click in the sequence on ITS OWN primary button. The
+-- row's Buy button text never changes; only the dialog's does. Blizzard's API still forces
+-- the same click counts as a plain row-button flow would, just relocated onto the dialog:
+--   items:       Buy (opens dialog; kicks a live requery first if the deal is `.stale`) ->
+--                dialog Buy (PlaceBid).
+--   commodities: Buy (opens dialog) -> dialog Buy (StartCommoditiesPurchase) -> waits for
+--                COMMODITY_PRICE_UPDATED -> dialog Confirm (ConfirmCommoditiesPurchase).
+-- Stage machine (row.purchaseStage): nil (idle) -> "requerying" (stale-deal live requote in
+-- flight, no purchase call yet) -> "ready" (dialog open, primary enabled, still no purchase
+-- call) -> "buying" (PlaceBid or StartCommoditiesPurchase issued) -> for commodities only,
+-- "confirm"/"requote" (quote landed, awaiting the explicit Confirm click) -> "confirming"
+-- (ConfirmCommoditiesPurchase issued) -> nil once resolved.
+-- Every C_AuctionHouse purchase call (PlaceBid / StartCommoditiesPurchase /
+-- ConfirmCommoditiesPurchase) is reached ONLY from onDialogPrimaryClick, the dialog's own
+-- primary button's OnClick closure — never from an event or a timer. Event handlers and
+-- timeouts only ever update dialog text or enable/disable its buttons; only ONE commodity
+-- purchase may be in flight at a time.
 -- ---------------------------------------------------------------------------
 
-local function resetRowButton(row)
-  row.buy:Enable()
-  row.buy:SetText("Buy")
-  local fs = row.buy.GetFontString and row.buy:GetFontString()
-  if fs then fs:SetTextColor(1, 1, 1) end
+-- Sets the dialog's status line text and color in one call; color defaults to plain white so
+-- callers only pass r/g/b for an accent (green/red) message.
+local function setDialogStatus(text, r, g, b)
+  if not dialog then return end
+  dialog.status:SetText(text or "")
+  dialog.status:SetTextColor(r or 1, g or 1, b or 1)
+end
+
+-- Item icon + quality-colored name + qty suffix + tier badge, mirroring setRowDeal's async
+-- load pattern but targeting the dialog's own widgets. dialog.deal (not row.deal) is the
+-- identity guard here since the dialog can outlive the row being reassigned.
+local function setDialogHeader(deal)
+  local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
+  dialog.tierText:SetText(deal.tier)
+  dialog.tierText:SetTextColor(color[1], color[2], color[3])
+  dialog.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
+  dialog.icon:SetTexture(nil)
+
+  local item = Item:CreateFromItemID(deal.itemID)
+  item:ContinueOnItemLoad(function()
+    if dialog.deal ~= deal then return end -- dialog moved on before the async load finished
+    dialog.icon:SetTexture(item:GetItemIcon())
+    local quality = item:GetItemQuality()
+    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local label = item:GetItemName() or ("item " .. deal.itemID)
+    dialog.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. qtySuffix(deal))
+  end)
+end
+
+-- Re-stamps every number in the dialog's grid from a (possibly just-updated) unitPrice/
+-- totalCost pair -- deal.mv/qty never change within one purchase flow, only the live price
+-- does (a fresh requery, or a commodity requote), so this is the one place that formula
+-- lives instead of duplicating it at every call site.
+local function updateDialogAmounts(deal, unitPrice, totalCost)
+  local qty = deal.qty
+  local mv = deal.mv
+  local discount = 1 - (unitPrice / mv)
+  local resale = math.floor(mv * 0.95) * qty
+  local profit = resale - totalCost
+
+  dialog.unitPriceText:SetText(formatColumnAmount(unitPrice))
+  dialog.totalCostText:SetText(formatColumnAmount(totalCost))
+  dialog.mvText:SetText(formatColumnAmount(mv))
+  dialog.discountText:SetText(("%d%%"):format(math.floor(discount * 100 + 0.5)))
+  dialog.resaleText:SetText(formatColumnAmount(resale))
+
+  local sign = profit < 0 and "-" or ""
+  dialog.profitText:SetText(sign .. formatColumnAmount(math.abs(profit)))
+  if profit >= 0 then
+    dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
+  else
+    dialog.profitText:SetTextColor(1, 0.3, 0.3)
+  end
+
+  local value = driver.getValue(deal.itemID)
+  if value and value.sold then
+    dialog.soldLabel:Show()
+    dialog.soldText:Show()
+    dialog.soldText:SetText(("%.1f"):format(value.sold))
+  else
+    dialog.soldLabel:Hide()
+    dialog.soldText:Hide()
+  end
 end
 
 resolvePurchase = function(row, success, note)
@@ -488,48 +557,84 @@ resolvePurchase = function(row, success, note)
 
   row.purchaseStage = nil
   row.purchaseDeal = nil
-  resetRowButton(row)
+  if dialog and dialog.row == row then
+    dialog.row = nil
+    dialog:Hide()
+  end
   if frame and note then frame.status:SetText(note) end
   refreshRows()
 end
 
-local function disarmRow(row, deal)
-  row.purchaseStage = nil
-  activeItemID[deal.itemID] = nil
-  resetRowButton(row)
+-- Cancel button / Esc / a Buy click on a different row all fund into this: reset every bit of
+-- bookkeeping for `row`'s purchase without crediting the session. A plain
+-- resolvePurchase(row, false, ...) alone would leave a "requerying" row's
+-- awaitingRequery/awaitingKeyInfo/pendingRequerySend entry dangling (keyed by itemID) --
+-- exactly the kind of leftover that let a late search-results event resolve against this row
+-- again after it's been reused for an unrelated deal.
+local function abortRowPurchase(row, note)
+  local deal = row.purchaseDeal or row.deal
+  if deal then
+    awaitingRequery[deal.itemID] = nil
+    awaitingKeyInfo[deal.itemID] = nil
+    pendingRequerySend[deal.itemID] = nil
+  end
+  resolvePurchase(row, false, note)
 end
 
-local function armRow(row, deal)
-  row.purchaseStage = "armed"
-  row.purchaseDeal = nil
-  activeItemID[deal.itemID] = true
-  row.buy:SetText("Confirm")
+-- Same 5s "give up if nobody clicked" window the old row-button arm state used, just
+-- reported through the dialog: disables the primary button and leaves an explanatory status
+-- instead of silently reverting the row. Cancel is the only way out from here on.
+local function scheduleArmTimeout(row, deal)
   C_Timer.After(ARM_TIMEOUT_SECONDS, function()
-    if row.purchaseStage == "armed" and row.deal == deal then
-      disarmRow(row, deal)
+    if row.purchaseStage == "ready" and row.deal == deal and dialog and dialog.row == row then
+      dialog.primaryBtn:Disable()
+      setDialogStatus("quote expired -- Cancel and retry")
     end
   end)
 end
 
+-- Puts the dialog into the pre-purchase-call "ready" state: numbers reflect the best price
+-- known so far (a watchlist snapshot, or the live quote finishRequery just landed), primary
+-- button reads "Buy" and is enabled, and the ARM_TIMEOUT clock starts. Shared by openDialog
+-- (non-stale deals arm immediately) and finishRequery (stale deals arm once the live requery
+-- resolves) so there is exactly one place that flips this stage on.
+local function armReady(row, deal)
+  row.purchaseStage = "ready"
+  row.purchaseDeal = nil
+  activeItemID[deal.itemID] = true
+  dialog.primaryBtn:Enable()
+  dialog.primaryBtn:SetText("Buy")
+  updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  scheduleArmTimeout(row, deal)
+end
+
+-- Same BUY_TIMEOUT window as before (covers both PlaceBid and StartCommoditiesPurchase
+-- waiting on their respective completion/quote events), but freezes the dialog with an
+-- explanatory status instead of auto-resolving the purchase as failed: PlaceBid's completion
+-- event is UNVERIFIED to always fire, so silently unpinning here could let the player
+-- re-attempt a buy whose bid may in fact still land. The row stays pinned until Cancel.
 local function scheduleBuyTimeout(row, deal)
   C_Timer.After(BUY_TIMEOUT_SECONDS, function()
-    if row.purchaseStage == "buying" and row.purchaseDeal == deal then
-      resolvePurchase(row, false, "no purchase confirmation received")
+    if row.purchaseStage == "buying" and row.purchaseDeal == deal
+        and dialog and dialog.row == row then
+      dialog.primaryBtn:Disable()
+      setDialogStatus("no purchase confirmation received -- Cancel and retry")
     end
   end)
 end
 
 -- ---------------------------------------------------------------------------
 -- Task-3 buy-after-scan requery: the FIRST Buy click on a `.stale` (full-scan) deal never
--- arms straight off the scan snapshot. It pins the row ("requerying"), issues a fresh
--- driver.sendSearch(itemID) (guarding the item key not being cached yet -- see
--- GC.Sniper.OnItemKeyInfo below), and waits for the matching search-results event.
--- finishRequery() then either hands the row a real, non-stale live deal ("requeried" --
--- pinned, button back to "Buy", so the very NEXT click runs onBuyClick's normal first-click
--- arm path exactly like a watchlist deal) or gives up gracefully ("gone / price changed",
--- row re-enabled, unpinned). No C_AuctionHouse purchase call is ever reached from this
--- path -- only PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase inside
--- onBuyClick complete a purchase, unchanged.
+-- arms straight off the scan snapshot. openDialog pins the row ("requerying") and disables
+-- the dialog's primary button, issues a fresh driver.sendSearch(itemID) (guarding the item
+-- key not being cached yet -- see GC.Sniper.OnItemKeyInfo below), and waits for the matching
+-- search-results event. finishRequery() then either hands the row a real, non-stale live
+-- deal and calls armReady (dialog numbers refresh from the live quote, primary button
+-- enables as "Buy" -- the very NEXT click is the real purchase call, exactly like a
+-- watchlist deal) or gives up gracefully ("gone / price changed", dialog closed, row
+-- unpinned). No C_AuctionHouse purchase call is ever reached from this path -- only
+-- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase inside onDialogPrimaryClick
+-- complete a purchase, unchanged.
 -- ---------------------------------------------------------------------------
 
 -- Issues the fresh live query for a requery, but ONLY when the throttle system is ready.
@@ -549,17 +654,23 @@ local function finishRequery(row, itemID, liveDeal)
   awaitingRequery[itemID] = nil
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
-  if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, ...)
+  if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, canceled, ...)
 
   if liveDeal then
     setRowDeal(row, liveDeal) -- swaps the row onto the fresh, non-stale deal (real auctionID/unitPrice/qty/isCommodity)
-    row.purchaseStage = "requeried" -- still pinned; NOT armed yet -- the next Buy click arms it
-    resetRowButton(row)
+    if dialog and dialog.row == row then
+      dialog.deal = liveDeal
+      setDialogHeader(liveDeal) -- tier/qty can shift between the scan snapshot and the live quote; refresh both
+    end
+    armReady(row, liveDeal) -- still pinned; NOT a purchase call -- the next dialog click is the first one
     if frame then frame.status:SetText("live price confirmed -- click Buy to purchase") end
   else
     activeItemID[itemID] = nil
     row.purchaseStage = nil
-    resetRowButton(row)
+    if dialog and dialog.row == row then
+      dialog.row = nil
+      dialog:Hide()
+    end
     if frame then frame.status:SetText("gone / price changed") end
   end
   refreshRows()
@@ -578,8 +689,6 @@ local function startRequery(row, deal)
   row.purchaseStage = "requerying"
   row.purchaseDeal = nil
   activeItemID[itemID] = true
-  row.buy:Disable()
-  row.buy:SetText("...")
   if frame then frame.status:SetText("checking live price...") end
 
   awaitingRequery[itemID] = row
@@ -682,7 +791,7 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
   resolvePurchase(row, true, deal and ("sniped for " .. GetCoinTextureString(deal.unitPrice * deal.qty)) or "purchase complete")
 end
 
-function GC.Sniper.OnCommodityPriceUpdated(_unitPrice, totalPrice)
+function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   local row = commodityPurchase
   if not row then return end
   if row.purchaseStage == "confirming" then return end -- third-click confirm already in flight; don't re-enable the button
@@ -691,25 +800,25 @@ function GC.Sniper.OnCommodityPriceUpdated(_unitPrice, totalPrice)
 
   -- COMPLIANCE: a commodity purchase's final ConfirmCommoditiesPurchase() must ALWAYS come
   -- from a human click (matching native WoW's always-present commodity confirm dialog), so
-  -- BOTH branches only set a confirm STAGE here and re-enable the button; the actual confirm
-  -- call happens later in onBuyClick (the OnClick closure). This handler never completes a
-  -- purchase.
-  row.buy:Enable()
+  -- BOTH branches only set a confirm STAGE and refresh the dialog here; the actual confirm
+  -- call happens later in onDialogPrimaryClick. This handler never completes a purchase.
+  if dialog and dialog.row == row then
+    updateDialogAmounts(deal, unitPrice, totalPrice)
+    dialog.primaryBtn:Enable()
+    dialog.primaryBtn:SetText("Confirm")
+  end
+
   if GC.DealMath.PriceIncreaseExceeds(deal.unitPrice * deal.qty, totalPrice, REQUOTE_MAX_RATIO) then
     -- Price rose beyond tolerance: red prompt, awaits an explicit third click.
     row.purchaseStage = "requote"
-    row.buy:SetText("Confirm!")
-    local fs = row.buy.GetFontString and row.buy:GetFontString()
-    if fs then fs:SetTextColor(1, 0.2, 0.2) end
+    setDialogStatus(("price rose to %s -- click Confirm to accept"):format(GetCoinTextureString(totalPrice)), 1, 0.2, 0.2)
     if frame then
       frame.status:SetText(("price rose to %s -- click Confirm to accept"):format(GetCoinTextureString(totalPrice)))
     end
   else
     -- Within tolerance: neutral prompt, still awaits an explicit third click.
     row.purchaseStage = "confirm"
-    row.buy:SetText("Confirm")
-    local fs = row.buy.GetFontString and row.buy:GetFontString()
-    if fs then fs:SetTextColor(1, 1, 1) end
+    setDialogStatus(("quote %s -- click Confirm to buy"):format(GetCoinTextureString(totalPrice)))
     if frame then
       frame.status:SetText(("quote %s -- click Confirm to buy"):format(GetCoinTextureString(totalPrice)))
     end
@@ -736,72 +845,226 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   resolvePurchase(row, false, "commodity purchase failed")
 end
 
-local function onBuyClick(row)
-  local deal = row.deal
-  if not deal then return end
+-- The dialog's own primary button OnClick -- the ONLY place PlaceBid, StartCommoditiesPurchase
+-- and ConfirmCommoditiesPurchase are ever called. A hardware click on this button is exactly
+-- as synchronous/direct as the old row-button click was; only WHICH widget owns the click
+-- moved.
+local function onDialogPrimaryClick()
+  local row = dialog.row
+  if not row then return end
+  local stage = row.purchaseStage
 
-  if row.purchaseStage == "confirm" or row.purchaseStage == "requote" then
-    -- Third explicit click: the ONLY path that confirms a commodity purchase, for both the
-    -- within-tolerance ("confirm") and raised-price ("requote") prompts. Compliance: a
-    -- commodity buy's final confirm always comes from a human click.
-    -- Retail 12.0.7 requires (itemID, quantity) matching the StartCommoditiesPurchase call;
-    -- use the frozen purchaseDeal, not row.deal (a rescan may have replaced row.deal).
+  if stage == "confirm" or stage == "requote" then
+    -- Third overall click for a commodity deal (dialog-open + Start + this Confirm): the
+    -- ONLY path that finalizes a commodity purchase, for both the within-tolerance
+    -- ("confirm") and raised-price ("requote") prompts. Retail 12.0.7 requires
+    -- (itemID, quantity) matching the StartCommoditiesPurchase call; use the frozen
+    -- purchaseDeal, not row.deal (a rescan may have replaced row.deal).
     local pd = row.purchaseDeal
     C_AuctionHouse.ConfirmCommoditiesPurchase(pd.itemID, pd.qty)
     row.purchaseStage = "confirming"
-    row.buy:Disable()
+    dialog.primaryBtn:Disable()
+    setDialogStatus("confirming purchase...")
     if frame then frame.status:SetText("confirming purchase...") end
     return
   end
 
-  if row.purchaseStage == "buying" or row.purchaseStage == "confirming" or row.purchaseStage == "requerying" then
-    return -- purchase (or a Task-3 live-price check) already in flight; button is disabled but guard anyway
+  if stage ~= "ready" then
+    return -- every other stage's primary button is disabled; guard anyway against a stray click
   end
 
-  if row.purchaseStage == "armed" then
-    -- Second click: fire the real purchase call synchronously, right here in OnClick.
-    if deal.isCommodity and commodityPurchase and commodityPurchase ~= row then
-      -- Only ONE commodity purchase may be in flight at a time; a second would silently
-      -- overwrite commodityPurchase and orphan the first (its confirm, session credit and
-      -- timeout would misattribute). Reject: re-disarm this row and leave the pending one.
-      disarmRow(row, deal)
+  -- Second overall click (first for a plain watchlist deal): fire the real purchase call
+  -- synchronously, right here in OnClick.
+  local deal = row.deal
+  if deal.isCommodity and commodityPurchase and commodityPurchase ~= row then
+    -- Only ONE commodity purchase may be in flight at a time. Unreachable in practice --
+    -- opening a second dialog already refuses/replaces per the guard in onBuyClick -- kept as
+    -- a last-resort guard against orphaning the pending one.
+    setDialogStatus("finish the pending buy first", 1, 0.3, 0.3)
+    driver.onStatus("finish the pending buy first")
+    return
+  end
+
+  row.purchaseStage = "buying"
+  row.purchaseDeal = deal
+  dialog.primaryBtn:Disable()
+  if deal.isCommodity then
+    commodityPurchase = row
+    C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, deal.qty)
+    setDialogStatus("buying commodity...")
+    if frame then frame.status:SetText("buying commodity...") end
+  else
+    pendingAuction[deal.auctionID] = row
+    -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit
+    -- price -- deal.unitPrice is per-unit (see driver.itemResult), so multiply back out by
+    -- qty here, the same unitPrice * qty = total convention resolvePurchase and
+    -- GC.Sniper.OnPurchaseCompleted already use for session accounting and the status line.
+    C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice * deal.qty)
+    setDialogStatus("placing bid...")
+    if frame then frame.status:SetText("placing bid...") end
+  end
+  scheduleBuyTimeout(row, deal)
+end
+
+-- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
+-- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
+-- never built eagerly alongside the sniper frame itself.
+local function createDialog()
+  local d = CreateFrame("Frame", "GoldCapSniperConfirm", UIParent, "BasicFrameTemplateWithInset")
+  d:SetSize(300, 250)
+  d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
+  d:SetPoint("CENTER", frame, "CENTER")
+  d:EnableMouse(true)
+  d.TitleText:SetText("Confirm Purchase")
+
+  local icon = d:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(20, 20)
+  icon:SetPoint("TOPLEFT", 16, -30)
+  d.icon = icon
+
+  local tierText = d:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  tierText:SetPoint("TOPRIGHT", -16, -32)
+  tierText:SetJustifyH("RIGHT")
+  d.tierText = tierText
+
+  local nameText = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  nameText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+  nameText:SetPoint("RIGHT", tierText, "LEFT", -6, 0)
+  nameText:SetJustifyH("LEFT")
+  nameText:SetWordWrap(false)
+  d.nameText = nameText
+
+  -- Label/value grid: one row per number the player needs to decide with. updateDialogAmounts
+  -- re-stamps the value slots in place as fresher quotes come in -- the grid itself never
+  -- grows or reflows.
+  local GRID_TOP = -56
+  local GRID_ROW = 16
+
+  local function gridRow(index, label)
+    local y = GRID_TOP - (index - 1) * GRID_ROW
+    local labelFS = d:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    labelFS:SetPoint("TOPLEFT", 16, y)
+    labelFS:SetJustifyH("LEFT")
+    labelFS:SetText(label)
+
+    local valueFS = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    valueFS:SetPoint("TOPRIGHT", -16, y)
+    valueFS:SetJustifyH("RIGHT")
+    return labelFS, valueFS
+  end
+
+  local _, unitPriceText = gridRow(1, "Unit price")
+  local _, totalCostText = gridRow(2, "Total cost")
+  local _, mvText = gridRow(3, "Market value")
+  local _, discountText = gridRow(4, "Discount")
+  local _, resaleText = gridRow(5, "Est. resale (after 5% AH cut)")
+  local _, profitText = gridRow(6, "Est. profit")
+  local soldLabel, soldText = gridRow(7, "Sold/day")
+  d.unitPriceText, d.totalCostText, d.mvText = unitPriceText, totalCostText, mvText
+  d.discountText, d.resaleText, d.profitText = discountText, resaleText, profitText
+  d.soldLabel, d.soldText = soldLabel, soldText
+
+  local status = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  status:SetPoint("TOPLEFT", 16, GRID_TOP - 7 * GRID_ROW - 8)
+  status:SetPoint("RIGHT", -16, 0)
+  status:SetJustifyH("LEFT")
+  status:SetWordWrap(true)
+  d.status = status
+
+  local cancelBtn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
+  cancelBtn:SetSize(90, 22)
+  cancelBtn:SetPoint("BOTTOMLEFT", 16, 14)
+  cancelBtn:SetText("Cancel")
+  cancelBtn:SetScript("OnClick", function()
+    -- COMPLIANCE: CancelCommoditiesPurchase is safe to call from anywhere (unlike
+    -- Start/Confirm/PlaceBid), but a new call site only ever gets added here -- a real
+    -- hardware click -- and only when a commodity purchase session is actually open
+    -- server-side (Start has been called, Confirm has not).
+    local row = dialog.row
+    if row then
+      local stage = row.purchaseStage
+      if (stage == "buying" or stage == "confirm" or stage == "requote")
+          and row.purchaseDeal and row.purchaseDeal.isCommodity then
+        C_AuctionHouse.CancelCommoditiesPurchase()
+      end
+    end
+    dialog:Hide() -- OnHide below does the actual local-state reset
+  end)
+  d.cancelBtn = cancelBtn
+
+  local primaryBtn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
+  primaryBtn:SetSize(90, 22)
+  primaryBtn:SetPoint("BOTTOMRIGHT", -16, 14)
+  primaryBtn:SetText("Buy")
+  primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
+  d.primaryBtn = primaryBtn
+
+  -- Esc (via UISpecialFrames) just calls Hide() -- same abort as a hardware Cancel click,
+  -- minus the CancelCommoditiesPurchase call above, which is deliberately scoped to the
+  -- Cancel button's own OnClick only (Esc's frame-hide isn't guaranteed to run in that same
+  -- synchronous hardware-click context). A late COMMODITY_PRICE_UPDATED/purchase-result event
+  -- for a since-aborted row is still handled safely -- those handlers key off
+  -- commodityPurchase/pendingAuction, which the reset below already clears.
+  d:SetScript("OnHide", function()
+    local row = dialog.row
+    if not row then return end -- normal close: resolvePurchase already cleared this before hiding
+    dialog.row = nil
+    abortRowPurchase(row, "purchase canceled")
+  end)
+
+  table.insert(UISpecialFrames, "GoldCapSniperConfirm") -- Escape closes the dialog = cancel
+
+  return d
+end
+
+-- Opens the dialog for `row`/`deal`: this is the row Buy button's entire OnClick job now, for
+-- BOTH item and commodity deals, stale or not. Numbers are populated from the snapshot deal
+-- immediately; a `.stale` full-scan deal then kicks the existing Task-3 requery machinery
+-- (dialog stays open, primary disabled) instead of arming right away.
+local function openDialog(row, deal)
+  dialog = dialog or createDialog()
+  dialog.row = row
+  dialog.deal = deal
+  setDialogHeader(deal)
+  updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  dialog:Show()
+
+  if deal.stale then
+    dialog.primaryBtn:Disable()
+    dialog.primaryBtn:SetText("Buy")
+    setDialogStatus("checking live price...")
+    startRequery(row, deal) -- pins the row ("requerying"); finishRequery flips us to "ready"
+  else
+    setDialogStatus("")
+    armReady(row, deal)
+  end
+end
+
+local function onBuyClick(row)
+  local deal = row.deal
+  if not deal then return end
+
+  if dialog and dialog.row == row then
+    dialog:Show() -- already this row's dialog (e.g. it got buried); nothing else to do
+    return
+  end
+
+  if dialog and dialog.row then
+    local otherStage = dialog.row.purchaseStage
+    if otherStage == "buying" or otherStage == "confirm" or otherStage == "requote"
+        or otherStage == "confirming" then
+      -- A purchase call has already been issued for the row the dialog is showing (between
+      -- Start/PlaceBid and its resolution) -- never silently abandon that to open a different
+      -- row's dialog; the player must resolve it or explicitly Cancel first.
       driver.onStatus("finish the pending buy first")
       return
     end
-    row.purchaseStage = "buying"
-    row.purchaseDeal = deal
-    row.buy:Disable()
-    if deal.isCommodity then
-      commodityPurchase = row
-      C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, deal.qty)
-      if frame then frame.status:SetText("buying commodity...") end
-    else
-      pendingAuction[deal.auctionID] = row
-      -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit
-      -- price -- deal.unitPrice is per-unit (see driver.itemResult), so multiply back out by
-      -- qty here, the same unitPrice * qty = total convention resolvePurchase and
-      -- GC.Sniper.OnPurchaseCompleted already use for session accounting and the status line.
-      C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice * deal.qty)
-      if frame then frame.status:SetText("placing bid...") end
-    end
-    scheduleBuyTimeout(row, deal)
-    return
+    -- The other row is only "ready" or "requerying" -- no purchase call in flight yet, so
+    -- it's safe to close its dialog session and let this row take over the single dialog.
+    abortRowPurchase(dialog.row, nil)
   end
 
-  -- First click on a `.stale` full-scan deal: the scan snapshot's price/auction may no
-  -- longer be real, so requery live instead of arming off it. Task-3: this is the ONLY new
-  -- branch in onBuyClick; no C_AuctionHouse purchase call is reachable from it. A deal
-  -- reaches here without `.stale` either because it's a watchlist deal (unchanged path,
-  -- arms immediately below) or because it's the live deal finishRequery() just swapped onto
-  -- this row ("requeried" stage falls through the checks above to here) -- in which case
-  -- this click is exactly the normal first arm click, just like any watchlist deal.
-  if deal.stale then
-    startRequery(row, deal)
-    return
-  end
-
-  -- First click: arm.
-  armRow(row, deal)
+  openDialog(row, deal)
 end
 
 -- Cancels/resets any purchase in flight and clears the tracking tables. Used on AH close
@@ -810,11 +1073,8 @@ local function resetAllPurchases()
   if not frame then return end
   for i = 1, #rows do
     local row = rows[i]
-    if row.purchaseStage then
-      row.purchaseStage = nil
-      row.purchaseDeal = nil
-      resetRowButton(row)
-    end
+    row.purchaseStage = nil
+    row.purchaseDeal = nil
   end
   for k in pairs(pendingAuction) do pendingAuction[k] = nil end
   for k in pairs(activeItemID) do activeItemID[k] = nil end
@@ -822,6 +1082,10 @@ local function resetAllPurchases()
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
   commodityPurchase = nil
+  if dialog then
+    dialog.row = nil
+    dialog:Hide()
+  end
 end
 
 -- Column order left to right: icon | name (flex) | tier | discount | price | profit | buy.

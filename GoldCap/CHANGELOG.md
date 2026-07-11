@@ -17,6 +17,8 @@
   with discount and profit net of the 5% AH cut. When buying a Full Scan deal,
   the sniper issues a fresh live requote before purchase, so the deal isn't
   stale. Secondary mode: live watchlist search cycles through ~200 items in
-  real time. Buying is deliberate (two clicks for items, three for commodities
-  with a red re-prompt if price rises >5% before confirm) — nothing automatic.
+  real time. Buying opens a confirmation window showing unit price, total
+  cost, market value, discount, estimated resale, and estimated profit before
+  anything is purchased — with a red re-prompt if a commodity's price rises
+  >5% before you confirm, and Cancel/Esc to back out safely at any point.
   A session summary prints when you leave the AH.
