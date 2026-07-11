@@ -4,6 +4,29 @@ GC.Sniper = GC.Sniper or {}
 
 local ROW_HEIGHT = 20
 local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
+
+-- Frame/row geometry. ROW_WIDTH is derived from FRAME_WIDTH (not hardcoded separately) so
+-- the row pool (createRow) and the scroll child it lives in (createFrame) can never drift
+-- apart the way they did before -- that drift is exactly what let the Buy button paint over
+-- the profit column. Column widths/gaps below are shared between createRow's per-row
+-- anchors and createFrame's header labels for the same reason: one set of numbers feeding
+-- both the data rows and the header row that has to line up with them.
+local FRAME_WIDTH = 560
+local FRAME_HEIGHT = 480
+local PANEL_LEFT = 14
+local PANEL_RIGHT_INSET = 32 -- scrollbar gutter reserved by UIPanelScrollFrameTemplate
+local ROW_WIDTH = FRAME_WIDTH - PANEL_LEFT - PANEL_RIGHT_INSET
+
+local ICON_SIZE = 16
+local NAME_GAP = 4    -- icon -> name
+local COLUMN_GAP = 6   -- name -> tier -> discount -> price -> profit
+local BUY_GAP = 4     -- profit -> buy; tighter so the button reads as attached to the price it buys
+local TIER_WIDTH = 44
+local DISCOUNT_WIDTH = 40
+local PRICE_WIDTH = 95
+local PROFIT_WIDTH = 95
+local BUY_WIDTH = 50
+
 local REQUOTE_MAX_RATIO = 0.05
 local ARM_TIMEOUT_SECONDS = 5
 local BUY_TIMEOUT_SECONDS = 8
@@ -12,6 +35,7 @@ local FULL_SCAN_COOLDOWN_SECONDS = 15 * 60
 local FULL_SCAN_BATCH_SIZE = 250
 local FULL_SCAN_TICK_DELAY = 0.01
 local FULL_SCAN_SAFETY_SECONDS = 2
+local FULL_SCAN_START_TIMEOUT_SECONDS = 10
 
 local TIER_COLOR = {
   HOT = { 1, 0.35, 0.15 },
@@ -32,13 +56,18 @@ local scanning = false
 
 -- Full-scan (ReplicateItems) state. lastFullScanTime enforces a client-side cooldown
 -- (session-only, not persisted -- a /reload resets it, matching the "client-side" scope
--- of this requirement rather than a saved-variable one). fullScanToken is bumped on every
--- new scan and on abort so any C_Timer closures from a superseded/aborted scan become
--- no-ops instead of racing a newer scan's state.
+-- of this requirement rather than a saved-variable one). It is stamped only in
+-- GC.Sniper.OnReplicateReady, once the server has actually delivered a scan -- NOT at the
+-- moment ReplicateItems() is called -- because IsThrottledMessageSystemReady() is routinely
+-- false for a beat right after opening the Auction House, and a click that silently no-ops
+-- must never burn the 15-minute cooldown. fullScanToken is bumped on every new scan and on
+-- abort so any C_Timer closures from a superseded/aborted scan become no-ops instead of
+-- racing a newer scan's state.
 local lastFullScanTime = 0
 local fullScanWaiting = false -- true from ReplicateItems() until OnReplicateReady handles the event
 local fullScanBatch = nil     -- { rows = {...}, token = n } while batch-iterating; nil when idle
 local fullScanToken = 0
+local pendingFullScanStart = false -- Full Scan was clicked while the throttle system was busy; GC.Sniper.OnThrottleReady starts the scan once it clears
 
 -- Purchase-flow bookkeeping. A row is "pinned" (activeItemID[itemID] = true) from the
 -- first arming click until the purchase resolves, so refreshRows() never repurposes it
@@ -93,14 +122,36 @@ local function sortedDeals()
   return list
 end
 
+local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
+
+-- GetCoinTextureString's inline coin icons are too wide for a 95px price/profit column once
+-- the amount climbs into three-plus digit gold -- collapse anything >= 100g to a plain
+-- "<N>g" instead of letting the icon string overflow the column.
+local function formatColumnAmount(copper)
+  if copper >= GOLD_COMPACT_THRESHOLD then
+    return ("%dg"):format(math.floor(copper / 10000))
+  end
+  return GetCoinTextureString(copper)
+end
+
+-- Dim suffix appended after the (possibly quality-colored) item name; a separate color code
+-- of its own so it never inherits the name's quality color.
+local function qtySuffix(deal)
+  if deal.qty and deal.qty > 1 then
+    return ("|cffaaaaaa x%d|r"):format(deal.qty)
+  end
+  return ""
+end
+
 local function setRowDeal(row, deal)
   row.deal = deal
   local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
   row.tierText:SetText(deal.tier)
   row.tierText:SetTextColor(color[1], color[2], color[3])
   row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
-  row.profitText:SetText(GetCoinTextureString(deal.profit))
-  row.nameText:SetText(("item %d"):format(deal.itemID))
+  row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+  row.profitText:SetText(formatColumnAmount(deal.profit))
+  row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
   row.icon:SetTexture(nil)
 
   local item = Item:CreateFromItemID(deal.itemID)
@@ -110,7 +161,7 @@ local function setRowDeal(row, deal)
     local quality = item:GetItemQuality()
     local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
     local label = item:GetItemName() or ("item " .. deal.itemID)
-    row.nameText:SetText(qc and qc:WrapTextInColorCode(label) or label)
+    row.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. qtySuffix(deal))
   end)
 
   row:Show()
@@ -193,7 +244,16 @@ local driver = {
     local key = C_AuctionHouse.MakeItemKey(itemID)
     local info = C_AuctionHouse.GetItemSearchResultInfo(key, 1)
     if not info or not info.buyoutAmount or info.buyoutAmount == 0 then return nil end
-    return { auctionID = info.auctionID, unitPrice = info.buyoutAmount, qty = info.quantity }
+    if not info.quantity or info.quantity <= 0 then return nil end
+    -- info.buyoutAmount is the TOTAL price for the whole lot, not a per-unit price (unlike
+    -- GetCommoditySearchResultInfo's unitPrice below) -- divide down so GC.DealMath.Evaluate
+    -- compares against value.mv (a per-unit market value) correctly, matching how
+    -- FullScan.Evaluate derives unitPrice from GetReplicateItemInfo's own per-lot total.
+    return {
+      auctionID = info.auctionID,
+      unitPrice = math.floor(info.buyoutAmount / info.quantity),
+      qty = info.quantity,
+    }
   end,
 
   commodityResult = function(itemID)
@@ -249,7 +309,7 @@ end
 local function stopScanning()
   if GC.Sniper.scanner then GC.Sniper.scanner:Stop() end
   scanning = false
-  if frame then frame.toggleBtn:SetText("Start") end
+  if frame then frame.toggleBtn:SetText("Live") end
 end
 
 -- ---------------------------------------------------------------------------
@@ -336,6 +396,7 @@ end
 function GC.Sniper.OnReplicateReady()
   if not fullScanWaiting then return end -- not currently expecting this event; ignore
   fullScanWaiting = false
+  lastFullScanTime = time() -- cooldown starts only once the server actually delivered a scan; a click that never got this far burns nothing
 
   local token = fullScanToken
   local n = C_AuctionHouse.GetNumReplicateItems() or 0
@@ -362,12 +423,50 @@ local function abortFullScan()
   end
   fullScanWaiting = false
   fullScanBatch = nil
+  pendingFullScanStart = false
+end
+
+-- Starts the actual ReplicateItems() pull. Only ever reached once the throttle system is
+-- confirmed ready (synchronously from onFullScanClick, or deferred via
+-- GC.Sniper.OnThrottleReady when pendingFullScanStart was set) -- ReplicateItems() silently
+-- no-ops while C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely
+-- the case for a beat right after opening the Auction House. lastFullScanTime is
+-- deliberately NOT stamped here; see GC.Sniper.OnReplicateReady.
+local function startFullScan()
+  fullScanToken = fullScanToken + 1
+  fullScanBatch = nil
+  fullScanWaiting = true
+  mode = "fullscan"
+  refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
+  C_AuctionHouse.ReplicateItems()
+  if frame then frame.status:SetText("requesting full scan from server...") end
+
+  -- Start watchdog: even past the client-side throttle-ready check, ReplicateItems() can
+  -- still fail to trigger REPLICATE_ITEM_LIST_UPDATE (the account-wide server-side throttle
+  -- is a separate gate). If the event hasn't arrived by the time this fires, stop waiting
+  -- instead of leaving the status frozen forever -- the cooldown was never stamped for this
+  -- attempt, so the player can retry immediately.
+  local token = fullScanToken
+  C_Timer.After(FULL_SCAN_START_TIMEOUT_SECONDS, function()
+    if token ~= fullScanToken then return end -- superseded by a newer scan, or aborted
+    if fullScanWaiting and fullScanBatch == nil then
+      fullScanWaiting = false
+      if frame then
+        frame.status:SetText("full scan did not start (server throttle) -- press Full Scan to retry")
+      end
+    end
+  end)
 end
 
 local function onFullScanClick()
   if not frame then return end
   if not GC.Sniper.scanner then
     frame.status:SetText("Open the Auction House first.")
+    return
+  end
+
+  if fullScanWaiting or pendingFullScanStart then
+    frame.status:SetText("full scan already in progress")
     return
   end
 
@@ -380,14 +479,13 @@ local function onFullScanClick()
     end
   end
 
-  lastFullScanTime = now
-  fullScanToken = fullScanToken + 1
-  fullScanBatch = nil
-  fullScanWaiting = true
-  mode = "fullscan"
-  refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
-  C_AuctionHouse.ReplicateItems()
-  frame.status:SetText("scanning...")
+  if not C_AuctionHouse.IsThrottledMessageSystemReady() then
+    pendingFullScanStart = true
+    frame.status:SetText("waiting for server... full scan will start automatically")
+    return
+  end
+
+  startFullScan()
 end
 
 -- ---------------------------------------------------------------------------
@@ -559,12 +657,19 @@ function GC.Sniper.OnItemKeyInfo(itemID)
   end
 end
 
--- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler for the requery flow. In fullscan mode the
--- watchlist scanner isn't running (mode gates which one is live), so flushing deferred
--- requery searches here can't fight the scanner's own throttle-gated send loop; the mode
--- guard keeps watchlist mode entirely unaffected. Each flushed itemID re-checks it's still
--- an active requery before sending.
+-- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler with two independent jobs: (1) start a Full
+-- Scan that onFullScanClick deferred because ReplicateItems() would have silently no-op'd
+-- while the throttle system was busy; (2) flush the requery flow's deferred searches. In
+-- fullscan mode the watchlist scanner isn't running (mode gates which one is live), so
+-- flushing deferred requery searches here can't fight the scanner's own throttle-gated send
+-- loop; the mode guard keeps watchlist mode entirely unaffected. Each flushed itemID
+-- re-checks it's still an active requery before sending.
 function GC.Sniper.OnThrottleReady()
+  if pendingFullScanStart then
+    pendingFullScanStart = false
+    startFullScan()
+  end
+
   if mode ~= "fullscan" then return end
   for itemID in pairs(pendingRequerySend) do
     pendingRequerySend[itemID] = nil
@@ -697,7 +802,11 @@ local function onBuyClick(row)
       if frame then frame.status:SetText("buying commodity...") end
     else
       pendingAuction[deal.auctionID] = row
-      C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice)
+      -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit
+      -- price -- deal.unitPrice is per-unit (see driver.itemResult), so multiply back out by
+      -- qty here, the same unitPrice * qty = total convention resolvePurchase and
+      -- GC.Sniper.OnPurchaseCompleted already use for session accounting and the status line.
+      C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice * deal.qty)
       if frame then frame.status:SetText("placing bid...") end
     end
     scheduleBuyTimeout(row, deal)
@@ -740,19 +849,68 @@ local function resetAllPurchases()
   commodityPurchase = nil
 end
 
+-- Column order left to right: icon | name (flex) | tier | discount | price | profit | buy.
+-- price/profit/buy are anchored right-to-left off the buy button (profit's RIGHT off buy's
+-- LEFT, price's RIGHT off profit's LEFT, discount's RIGHT off price's LEFT, ...) rather than
+-- given independent fixed offsets, so the Buy button can never again end up painted over a
+-- text column the way it did when profitText's width was chained left-to-right off
+-- discountText with no relationship to where the (separately, flush-right-anchored) buy
+-- button actually sat. nameText is the one flexible widget, anchored on BOTH sides (icon's
+-- RIGHT, tierText's LEFT) so it soaks up whatever space is left over.
 createRow = function(parent, index)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetSize(360, ROW_HEIGHT)
+  row:SetSize(ROW_WIDTH, ROW_HEIGHT)
   row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
 
   local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(16, 16)
+  icon:SetSize(ICON_SIZE, ICON_SIZE)
   icon:SetPoint("LEFT")
   row.icon = icon
 
+  local buy = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+  buy:SetSize(BUY_WIDTH, 18)
+  buy:SetPoint("RIGHT")
+  buy:SetText("Buy")
+  row.buy = buy
+  buy:SetScript("OnClick", function()
+    onBuyClick(row)
+  end)
+
+  local profitText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  profitText:SetPoint("RIGHT", buy, "LEFT", -BUY_GAP, 0)
+  profitText:SetWidth(PROFIT_WIDTH)
+  profitText:SetJustifyH("RIGHT")
+  profitText:SetWordWrap(false)
+  profitText:SetMaxLines(1)
+  row.profitText = profitText
+
+  local priceText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  priceText:SetPoint("RIGHT", profitText, "LEFT", -COLUMN_GAP, 0)
+  priceText:SetWidth(PRICE_WIDTH)
+  priceText:SetJustifyH("RIGHT")
+  priceText:SetWordWrap(false)
+  priceText:SetMaxLines(1)
+  row.priceText = priceText
+
+  local discountText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  discountText:SetPoint("RIGHT", priceText, "LEFT", -COLUMN_GAP, 0)
+  discountText:SetWidth(DISCOUNT_WIDTH)
+  discountText:SetJustifyH("LEFT")
+  discountText:SetWordWrap(false)
+  discountText:SetMaxLines(1)
+  row.discountText = discountText
+
+  local tierText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  tierText:SetPoint("RIGHT", discountText, "LEFT", -COLUMN_GAP, 0)
+  tierText:SetWidth(TIER_WIDTH)
+  tierText:SetJustifyH("LEFT")
+  tierText:SetWordWrap(false)
+  tierText:SetMaxLines(1)
+  row.tierText = tierText
+
   local nameText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  nameText:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-  nameText:SetWidth(130)
+  nameText:SetPoint("LEFT", icon, "RIGHT", NAME_GAP, 0)
+  nameText:SetPoint("RIGHT", tierText, "LEFT", -COLUMN_GAP, 0)
   nameText:SetJustifyH("LEFT")
   -- One line only: a wrapped name would grow taller than ROW_HEIGHT and visually overlap
   -- the row below it. SetWordWrap(false) keeps long names from wrapping; SetMaxLines(1) is
@@ -761,39 +919,24 @@ createRow = function(parent, index)
   nameText:SetMaxLines(1)
   row.nameText = nameText
 
-  local tierText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tierText:SetPoint("LEFT", nameText, "RIGHT", 6, 0)
-  tierText:SetWidth(52)
-  tierText:SetJustifyH("LEFT")
-  row.tierText = tierText
-
-  local discountText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  discountText:SetPoint("LEFT", tierText, "RIGHT", 4, 0)
-  discountText:SetWidth(36)
-  row.discountText = discountText
-
-  local profitText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  profitText:SetPoint("LEFT", discountText, "RIGHT", 4, 0)
-  profitText:SetWidth(90)
-  profitText:SetJustifyH("LEFT")
-  row.profitText = profitText
-
-  local buy = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-  buy:SetSize(50, 18)
-  buy:SetPoint("RIGHT")
-  buy:SetText("Buy")
-  row.buy = buy
-  buy:SetScript("OnClick", function()
-    onBuyClick(row)
-  end)
-
   row:Hide()
   return row
 end
 
+-- Simple single-line tooltip wired to OnEnter/OnLeave; shared by every control below that
+-- just needs a plain hover explanation (no title/body split, no dynamic content).
+local function setPlainTooltip(widget, text)
+  widget:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(text, 1, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
 local function createFrame()
   local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent, "BasicFrameTemplateWithInset")
-  f:SetSize(420, 480)
+  f:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
   f:SetPoint("CENTER")
   f:SetMovable(true)
   f:EnableMouse(true)
@@ -802,7 +945,7 @@ local function createFrame()
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
   f.TitleText:SetText("GoldCap Sniper")
 
-  -- Full Scan is the primary control (rightmost, larger). The watchlist Start/Stop toggle
+  -- Full Scan is the primary control (rightmost, larger). The watchlist live-scan toggle
   -- is now secondary: shrunk and anchored to Full Scan's left so it reads as the
   -- lesser-emphasis option.
   local fullScanBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -810,12 +953,14 @@ local function createFrame()
   fullScanBtn:SetPoint("TOPRIGHT", -14, -30)
   fullScanBtn:SetText("Full Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
+  setPlainTooltip(fullScanBtn,
+    "Snapshot of the entire Auction House. Server allows roughly one scan per 15 minutes.")
   f.fullScanBtn = fullScanBtn
 
   local toggleBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   toggleBtn:SetSize(56, 18)
   toggleBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -6, 0)
-  toggleBtn:SetText("Start")
+  toggleBtn:SetText("Live")
   toggleBtn:SetScript("OnClick", function()
     if not GC.Sniper.scanner then
       f.status:SetText("Open the Auction House first.")
@@ -827,18 +972,81 @@ local function createFrame()
       startScanning()
     end
   end)
+  setPlainTooltip(toggleBtn,
+    "Live scan: continuously re-checks your watchlist for fresh deals. Independent of Full Scan.")
   f.toggleBtn = toggleBtn
 
   local status = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", 14, -34)
+  status:SetPoint("TOPLEFT", PANEL_LEFT, -34)
   status:SetPoint("RIGHT", toggleBtn, "LEFT", -8, 0)
   status:SetJustifyH("LEFT")
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
 
+  -- Column headers: non-scrolling FontStrings parented straight to the frame (never to
+  -- `content`), so they stay put while rows scroll underneath and never become per-row
+  -- widgets themselves. x-offsets are computed from the same width/gap constants createRow
+  -- anchors off of, right-to-left from the buy column, so a header can't silently drift out
+  -- of alignment with the column it labels.
+  local HEADER_Y = -46
+  local buyX = ROW_WIDTH - BUY_WIDTH
+  local profitX = buyX - BUY_GAP - PROFIT_WIDTH
+  local priceX = profitX - COLUMN_GAP - PRICE_WIDTH
+  local discountX = priceX - COLUMN_GAP - DISCOUNT_WIDTH
+  local tierX = discountX - COLUMN_GAP - TIER_WIDTH
+  local itemWidth = tierX - COLUMN_GAP -- spans the icon+name columns
+
+  local function addHeader(text, x, width, justify, tooltipLines)
+    local hit = CreateFrame("Frame", nil, f)
+    hit:SetSize(width, 14)
+    hit:SetPoint("TOPLEFT", PANEL_LEFT + x, HEADER_Y)
+
+    local label = hit:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    label:SetPoint("TOPLEFT")
+    label:SetPoint("BOTTOMRIGHT")
+    label:SetJustifyH(justify)
+    label:SetText(text)
+
+    if tooltipLines then
+      hit:EnableMouse(true)
+      hit:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
+        for i = 2, #tooltipLines do
+          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
+        end
+        GameTooltip:Show()
+      end)
+      hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    return hit
+  end
+
+  addHeader("Item", 0, itemWidth, "LEFT")
+  addHeader("Tier", tierX, TIER_WIDTH, "LEFT", {
+    "Tier",
+    "HOT = big discount + high profit + proven sales/day",
+    "GOOD = solid discount + profit",
+    "WATCH = discounted but unproven liquidity or small profit",
+    "SUSPECT = discount so extreme it's probably a scam/mispriced-market item",
+  })
+  addHeader("%", discountX, DISCOUNT_WIDTH, "LEFT", {
+    "Discount",
+    "Discount vs market value from your GoldCap import",
+  })
+  addHeader("Price", priceX, PRICE_WIDTH, "RIGHT", {
+    "Price",
+    "Total cost to buy this auction",
+  })
+  addHeader("Profit", profitX, PROFIT_WIDTH, "RIGHT", {
+    "Profit",
+    "Estimated resale profit at 95% of market value, whole stack",
+  })
+
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", 14, -58)
-  scroll:SetPoint("BOTTOMRIGHT", -32, 12)
+  scroll:SetPoint("TOPLEFT", PANEL_LEFT, -70)
+  scroll:SetPoint("BOTTOMRIGHT", -PANEL_RIGHT_INSET, 12)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local range = self:GetVerticalScrollRange()
@@ -849,7 +1057,7 @@ local function createFrame()
   end)
 
   content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(360, ROW_HEIGHT) -- refreshRows() stamps the real height once there are deals to show
+  content:SetSize(ROW_WIDTH, ROW_HEIGHT) -- refreshRows() stamps the real height once there are deals to show
   scroll:SetScrollChild(content)
 
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
@@ -868,11 +1076,11 @@ end
 
 function GC.Sniper.OnAuctionHouseShow()
   -- Build the scanner on the first AH visit regardless of autoOpen, so a later
-  -- manual watchlist Start has one to drive.
+  -- manual watchlist Live click has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
   -- autoOpen gates only whether the WINDOW auto-appears. It does NOT auto-start any
   -- scan: Full Scan is the primary mode (one burst on the player's button press), and
-  -- the continuous watchlist scan is opt-in via its own Start button -- auto-running it
+  -- the continuous watchlist scan is opt-in via its own Live button -- auto-running it
   -- on every AH visit was the source of the reported AH lag.
   if not GC.db.settings.sniper.autoOpen then return end
   frame = frame or createFrame()
