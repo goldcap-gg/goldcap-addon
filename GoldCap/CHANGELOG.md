@@ -7,6 +7,10 @@
   one-off items, with a data-age line when the underlying data is stale.
 - Import fresh market data from the website with `/goldcap import` (GCS1
   import strings, with an in-game paste dialog).
+- Or skip manual imports entirely: the **GoldCap Companion** desktop app
+  (goldcap.gg/downloads/) auto-syncs market data into an optional
+  `GoldCap_AppData` addon the game picks up at login//reload; the freshest
+  source wins and manual import keeps working without it.
 - Check bundled/imported data freshness and realm coverage with
   `/goldcap status`.
 - **Sniper**: a standalone window (auto-appears when you open the Auction
