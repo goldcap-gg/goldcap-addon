@@ -104,3 +104,106 @@ function GC.Ledger.MarkUploaded(keys)
   end
   return marked
 end
+
+-- Expiry is bucketed to five minutes so two scans of the SAME mail, taken
+-- minutes apart, land on the same key: daysLeft is a float counting down in
+-- real time, so an unbucketed expiry drifts by seconds on every read.
+local BUCKET_SECONDS = 300
+
+local function expiryBucket(now, daysLeft)
+  return math.floor((now + (daysLeft or 0) * 86400) / BUCKET_SECONDS)
+end
+
+-- Bucketing has one seam: a mail whose expiry sits near a boundary can land in
+-- adjacent buckets on consecutive scans. Rather than widen the bucket (which
+-- would start merging genuinely different sales), try the neighbours too and
+-- reuse an existing row's key when one matches.
+local function keyForMail(fields, bucket)
+  local candidates = {}
+  for _, b in ipairs({ bucket, bucket - 1, bucket + 1 }) do
+    fields.expiresAt = b
+    candidates[#candidates + 1] = GC.Ledger.EntryKey(fields)
+  end
+  local entries = GC.Ledger.GetEntries()
+  for i = 1, #entries do
+    for _, candidate in ipairs(candidates) do
+      if entries[i].key == candidate then return candidate end
+    end
+  end
+  return candidates[1]
+end
+
+--- Walks the inbox and records every auction invoice it can read.
+-- Called on MAIL_SHOW and MAIL_INBOX_UPDATE, i.e. BEFORE the player collects
+-- anything -- a collected mail is gone from the client entirely, so a scan
+-- that waited for collection would record nothing at all.
+-- `api` is injected so this is testable without a running game client.
+-- Returns the number of entries newly created; updates are not counted.
+function GC.Ledger.ScanInbox(api, context, now)
+  if not db then return 0 end
+  now = now or time()
+  local created = 0
+
+  local ok, count = pcall(api.GetInboxNumItems)
+  if not ok or type(count) ~= "number" then return 0 end
+
+  for i = 1, count do
+    -- Per-mail pcall: one malformed invoice must not abort the rest of the
+    -- inbox, and must never surface as a Lua error over the mailbox UI.
+    local readOk, entry = pcall(function()
+      local _, _, sender, _, _, _, daysLeft = api.GetInboxHeaderInfo(i)
+      local invoiceType, itemName, _, bid, buyout, deposit, consignment,
+        moneyDelay, _, _, itemCount = api.GetInboxInvoiceInfo(i)
+
+      if not invoiceType or not itemName then return nil end
+      local isSale = invoiceType == "seller" or invoiceType == "seller_temp_invoice"
+      local isBuy = invoiceType == "buyer"
+      if not isSale and not isBuy then return nil end
+
+      local fields = {
+        sender = sender,
+        itemName = itemName,
+        count = itemCount or 1,
+        bid = bid or 0,
+        buyout = buyout or 0,
+        deposit = deposit or 0,
+        consignment = consignment or 0,
+      }
+      local key = keyForMail(fields, expiryBucket(now, daysLeft))
+
+      -- A buy mail has the item attached, so its id is readable. A sale mail
+      -- has money attached and nothing else -- itemName is all there is.
+      local itemID = nil
+      if isBuy then
+        local _, boughtID = api.GetInboxItem(i)
+        if type(boughtID) == "number" then itemID = boughtID end
+      end
+
+      local pending = invoiceType == "seller_temp_invoice"
+      return {
+        key = key,
+        kind = isSale and "sale" or "buy",
+        source = "mail",
+        itemName = itemName,
+        itemID = itemID,
+        qty = fields.count,
+        -- While pending, the proceeds live in moneyDelay rather than in the
+        -- mail's attached money; once paid, bid carries them.
+        total = pending and (moneyDelay or 0) or (bid or 0),
+        cut = isSale and (consignment or 0) or 0,
+        deposit = deposit or 0,
+        pending = pending,
+        at = now,
+        char = context and context.char or nil,
+        region = context and context.region or nil,
+      }
+    end)
+
+    if readOk and entry then
+      local _, isNew = GC.Ledger.Append(entry)
+      if isNew then created = created + 1 end
+    end
+  end
+
+  return created
+end
