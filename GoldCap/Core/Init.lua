@@ -10,6 +10,11 @@ GC.DEFAULTS = {
   -- value isn't already a table, and recursing over an empty table's pairs() is a no-op, so a
   -- populated SavedVariables array is never touched or truncated on later logins.
   flips = {},
+  -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
+  -- empty table default only fills in when the persisted value isn't already a
+  -- table, so a populated SavedVariables array is never truncated on login.
+  ledger = {},
+  gold = {},
   settings = {
     tooltip = true,
     sniper = {
@@ -59,6 +64,16 @@ frame:RegisterEvent("AUCTION_HOUSE_CLOSED")
 -- payload).
 frame:RegisterEvent("AUCTION_HOUSE_AUCTION_CREATED")
 frame:RegisterEvent("AUCTION_HOUSE_POST_ERROR")
+-- P2 ledger. MAIL_SHOW/MAIL_INBOX_UPDATE are the ONLY chance to read an
+-- invoice: once the player collects a mail it is gone from the client
+-- entirely, so a scan that waited for collection would record nothing.
+-- PLAYER_MONEY drives the gold curve (debounced inside the module);
+-- PLAYER_LOGOUT forces the session's last reading, because SavedVariables are
+-- flushed to disk at exactly that moment.
+frame:RegisterEvent("MAIL_SHOW")
+frame:RegisterEvent("MAIL_INBOX_UPDATE")
+frame:RegisterEvent("PLAYER_MONEY")
+frame:RegisterEvent("PLAYER_LOGOUT")
 
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
@@ -75,6 +90,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- db.imported already reflects the prior session's state to compare against.
       GC.Data.AdoptAppData()
     end
+    if GC.Ledger then GC.Ledger.Init(GC.db) end
     frame:UnregisterEvent("ADDON_LOADED")
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
     local interactionType = ...
@@ -172,6 +188,19 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnPostError then
       GC.Sell.OnPostError()
     end
+  elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
+    if GC.Ledger then
+      GC.Ledger.ScanInbox({
+        GetInboxNumItems = GetInboxNumItems,
+        GetInboxHeaderInfo = GetInboxHeaderInfo,
+        GetInboxInvoiceInfo = GetInboxInvoiceInfo,
+        GetInboxItem = GetInboxItem,
+      }, GC.Ledger.Context())
+    end
+  elseif event == "PLAYER_MONEY" then
+    if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
+  elseif event == "PLAYER_LOGOUT" then
+    if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
   end
 end)
 
@@ -190,6 +219,31 @@ function GC.OnSlash(msg)
 end
 
 GC.slashHandlers.sniper = function() GC.Sniper.Toggle() end
+
+-- A printed recap rather than a frame: the numbers are the deliverable here,
+-- and an untested UI window isn't worth carrying until the web dashboard makes
+-- the same data properly visible.
+GC.slashHandlers.ledger = function()
+  local entries = GC.Ledger and GC.Ledger.GetEntries() or {}
+  local since = time() - 86400
+  local sales, gross, cut, buys, spent = 0, 0, 0, 0, 0
+  for i = 1, #entries do
+    local e = entries[i]
+    if (e.at or 0) >= since then
+      if e.kind == "sale" then
+        sales = sales + 1
+        gross = gross + (e.total or 0)
+        cut = cut + (e.cut or 0)
+      elseif e.kind == "buy" then
+        buys = buys + 1
+        spent = spent + (e.total or 0)
+      end
+    end
+  end
+  GC.Print(("last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent")
+    :format(sales, GetCoinTextureString(gross), GetCoinTextureString(cut),
+      buys, GetCoinTextureString(spent)))
+end
 
 SLASH_GOLDCAP1 = "/goldcap"
 SlashCmdList.GOLDCAP = GC.OnSlash
