@@ -207,3 +207,45 @@ function GC.Ledger.ScanInbox(api, context, now)
 
   return created
 end
+
+local sniperSeq = 0
+
+--- Records a purchase made through the Sniper. Unlike a mail invoice this has
+-- no natural dedupe key -- two identical buys a second apart are two real buys
+-- -- so the key carries a monotonic counter instead of the money fields.
+-- `deal` is DealMath.Evaluate's shape. `mv` is snapshotted because attribution
+-- later needs the market value the deal was JUDGED against, not today's.
+function GC.Ledger.RecordSniperBuy(deal, context, now)
+  if not db then return nil end
+  now = now or time()
+  sniperSeq = sniperSeq + 1
+
+  return (GC.Ledger.Append({
+    key = table.concat({ "snipe", tostring(deal.itemID), tostring(now), tostring(sniperSeq) }, "\1"),
+    kind = "buy",
+    source = "goldcap_sniper",
+    itemID = deal.itemID,
+    qty = deal.qty,
+    total = (deal.unitPrice or 0) * (deal.qty or 0),
+    cut = 0,
+    deposit = 0,
+    pending = false,
+    mv = deal.mv,
+    discount = deal.discount,
+    at = now,
+    char = context and context.char or nil,
+    region = context and context.region or nil,
+  }))
+end
+
+--- "Name-Realm" plus region, for stamping entries. Every lookup is guarded
+-- because specs (and the TOC load-order spec) run with no player present.
+function GC.Ledger.Context()
+  local name = UnitName and UnitName("player") or nil
+  local realm = GetRealmName and GetRealmName() or nil
+  local status = GC.Data and GC.Data.GetStatus and GC.Data.GetStatus() or nil
+  return {
+    char = (name and realm) and (name .. "-" .. realm) or name,
+    region = status and status.region or nil,
+  }
+end

@@ -128,4 +128,66 @@ describe("Ledger store", function()
     assert.has_no.errors(function() fresh.Ledger.Append({ key = "k" }) end)
     assert.same({}, fresh.Ledger.GetEntries())
   end)
+
+  describe("RecordSniperBuy", function()
+    local context = { char = "Belarsa-Dentarg", region = "eu" }
+
+    it("records the buy with the market value it was judged against", function()
+      local entry = GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 20, unitPrice = 12000, mv = 25000, discount = 0.52 },
+        context, 5000)
+
+      assert.equal("buy", entry.kind)
+      -- The whole point of the feature: only a buy tagged here can ever be
+      -- credited to GoldCap when it later sells.
+      assert.equal("goldcap_sniper", entry.source)
+      assert.equal(210930, entry.itemID)
+      assert.equal(20, entry.qty)
+      assert.equal(240000, entry.total)
+      assert.equal(25000, entry.mv)
+      assert.equal(5000, entry.at)
+      assert.equal("Belarsa-Dentarg", entry.char)
+    end)
+
+    it("gives two buys of the same item at the same second distinct keys", function()
+      local deal = { itemID = 210930, qty = 20, unitPrice = 12000, mv = 25000 }
+      local a = GC.Ledger.RecordSniperBuy(deal, context, 5000)
+      local b = GC.Ledger.RecordSniperBuy(deal, context, 5000)
+      -- Sniping the same item twice in one second is ordinary, and collapsing
+      -- the second buy into the first would silently lose real spend.
+      assert.not_equal(a.key, b.key)
+      assert.equal(2, #GC.Ledger.GetEntries())
+    end)
+
+    it("stores a buy with no known market value rather than dropping it", function()
+      local entry = GC.Ledger.RecordSniperBuy(
+        { itemID = 7, qty = 1, unitPrice = 100 }, context, 1)
+      assert.is_nil(entry.mv)
+      assert.equal(100, entry.total)
+    end)
+
+    it("is a no-op before Init instead of erroring mid-purchase", function()
+      local fresh = helper.loadModule("Core/Ledger.lua")
+      assert.has_no.errors(function()
+        fresh.Ledger.RecordSniperBuy({ itemID = 1, qty = 1, unitPrice = 1 }, context, 1)
+      end)
+    end)
+  end)
+
+  describe("Context", function()
+    it("returns a nil-safe shape when there is no player, as under busted", function()
+      assert.has_no.errors(function()
+        local ctx = GC.Ledger.Context()
+        assert.is_table(ctx)
+      end)
+    end)
+
+    it("joins name and realm when the game provides both", function()
+      _G.UnitName = function() return "Belarsa" end
+      _G.GetRealmName = function() return "Dentarg" end
+      local ctx = GC.Ledger.Context()
+      _G.UnitName, _G.GetRealmName = nil, nil
+      assert.equal("Belarsa-Dentarg", ctx.char)
+    end)
+  end)
 end)

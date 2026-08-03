@@ -18,4 +18,7 @@ read_globals = {
   "C_AuctionHouse", "C_Timer", "PlaySound", "SOUNDKIT", "ITEM_QUALITY_COLORS",
   "CreateFromMixins", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "UISpecialFrames",
   "C_Container", "ItemLocation",
+  -- P2 ledger: player identity, gold, and the mailbox invoice API.
+  "UnitName", "GetMoney",
+  "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
 }

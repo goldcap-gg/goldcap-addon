@@ -745,6 +745,10 @@ resolvePurchase = function(row, success, note)
       -- D: every successful purchase becomes a flip candidate for the Sell view (Sniper v2
       -- §D) -- one line, no other change to this flow.
       GC.Data.RecordFlip(deal)
+      -- The ledger's buy side. RecordFlip above is a resale to-do list that self-prunes once
+      -- posted or aged out; this is the permanent record that makes "earned through GoldCap"
+      -- computable later, and it snapshots the market value the deal was judged against.
+      GC.Ledger.RecordSniperBuy(deal, GC.Ledger.Context())
       updateSellTabLabel()
       if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
       -- A full-scan buy resolves against the LIVE deal finishRequery swapped in, not the
