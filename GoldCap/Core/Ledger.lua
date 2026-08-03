@@ -249,3 +249,45 @@ function GC.Ledger.Context()
     region = status and status.region or nil,
   }
 end
+
+-- ~7 months of five-minute samples at typical play rates. The curve exists to
+-- answer "how much of my gold growth does the ledger actually explain", which
+-- needs shape, not resolution.
+GC.Ledger.MAX_GOLD_POINTS = 2000
+local GOLD_MIN_INTERVAL = 300
+
+--- Records a per-character gold reading. Debounced because PLAYER_MONEY fires
+-- on every loot, vendor sale and repair. `force` (used on PLAYER_LOGOUT)
+-- bypasses the interval but NOT the unchanged-amount check: a flat line needs
+-- one point, not one per session.
+function GC.Ledger.RecordGold(copper, context, now, force)
+  if not db or type(copper) ~= "number" then return false end
+  now = now or time()
+  local points = db.gold
+  local char = context and context.char or nil
+
+  local last
+  for i = #points, 1, -1 do
+    if points[i].char == char then last = points[i] break end
+  end
+
+  if last then
+    if last.copper == copper then return false end
+    if not force and (now - (last.at or 0)) < GOLD_MIN_INTERVAL then return false end
+  end
+
+  points[#points + 1] = {
+    at = now,
+    copper = copper,
+    char = char,
+    region = context and context.region or nil,
+  }
+  while #points > GC.Ledger.MAX_GOLD_POINTS do
+    table.remove(points, 1)
+  end
+  return true
+end
+
+function GC.Ledger.GetGold()
+  return (db and db.gold) or {}
+end
