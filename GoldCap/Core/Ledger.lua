@@ -173,10 +173,17 @@ function GC.Ledger.ScanInbox(api, context, now)
 
       -- A buy mail has the item attached, so its id is readable. A sale mail
       -- has money attached and nothing else -- itemName is all there is.
+      --
+      -- GetInboxItem takes (index, itemIndex) and BOTH are required; attachment
+      -- slots are 1-based and an auction buy puts its item in the first one.
+      -- The call gets its own pcall rather than riding the caller's, because
+      -- the id is a nice-to-have: losing it should cost the id, not the whole
+      -- purchase. Sales never reach this branch, which is exactly why a
+      -- failure here looked like "buys are never recorded, sales are fine".
       local itemID = nil
       if isBuy then
-        local _, boughtID = api.GetInboxItem(i)
-        if type(boughtID) == "number" then itemID = boughtID end
+        local gotItem, _, boughtID = pcall(api.GetInboxItem, i, 1)
+        if gotItem and type(boughtID) == "number" then itemID = boughtID end
       end
 
       local pending = invoiceType == "seller_temp_invoice"

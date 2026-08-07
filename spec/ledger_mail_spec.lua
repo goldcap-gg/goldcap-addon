@@ -51,7 +51,13 @@ describe("Ledger inbox scan", function()
           inv.deposit, inv.consignment, inv.moneyDelay, inv.etaHour, inv.etaMin,
           inv.count, inv.commerceAuction
       end,
-      GetInboxItem = function(i)
+      -- Signature is GetInboxItem(index, itemIndex) and BOTH are required in
+      -- the live client. The mock enforces that, because a mock that accepted
+      -- one argument is what let a one-argument call ship: it tested the
+      -- assumption instead of the API.
+      GetInboxItem = function(i, itemIndex)
+        assert(type(i) == "number", "GetInboxItem needs a mail index")
+        assert(type(itemIndex) == "number", "GetInboxItem needs an attachment index")
         local it = mails[i] and mails[i].item
         if not it then return nil end
         return it.name, it.itemID
