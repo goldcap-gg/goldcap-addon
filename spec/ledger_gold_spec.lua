@@ -70,6 +70,36 @@ describe("Ledger gold series", function()
     assert.equal(0, #GC.Ledger.GetGold())
   end)
 
+  it("ignores a zero reading once a real balance is known", function()
+    -- Seen in real SavedVariables: GetMoney() returns 0 when the client has
+    -- not loaded (or has already torn down) the player's money, which is
+    -- exactly what the forced PLAYER_LOGOUT sample catches. A goldmaker's
+    -- curve dropping to zero and back is always that artifact, never an
+    -- event, and one such point makes the coverage figure nonsense.
+    GC.Ledger.RecordGold(2598169166, context, 1000)
+    assert.is_false(GC.Ledger.RecordGold(0, context, 9000))
+    assert.equal(1, #GC.Ledger.GetGold())
+  end)
+
+  it("ignores a zero reading even when forced, which is when it actually happens", function()
+    GC.Ledger.RecordGold(2598169166, context, 1000)
+    assert.is_false(GC.Ledger.RecordGold(0, context, 9000, true))
+    assert.equal(1, #GC.Ledger.GetGold())
+  end)
+
+  it("still records zero as a character's first reading", function()
+    -- A brand-new alt really does have nothing, and refusing to ever start a
+    -- curve at zero would leave it invisible until its first sale.
+    assert.is_true(GC.Ledger.RecordGold(0, { char = "Fresh-Dentarg", region = "eu" }, 1000))
+    assert.equal(1, #GC.Ledger.GetGold())
+  end)
+
+  it("keeps a zero from one character out of another character's history", function()
+    GC.Ledger.RecordGold(500, { char = "Rich-Dentarg", region = "eu" }, 1000)
+    assert.is_true(GC.Ledger.RecordGold(0, { char = "Poor-Dentarg", region = "eu" }, 1010))
+    assert.equal(2, #GC.Ledger.GetGold())
+  end)
+
   it("is a no-op before Init", function()
     local fresh = helper.loadModule("Core/Ledger.lua")
     assert.is_false(fresh.Ledger.RecordGold(1, context, 1))

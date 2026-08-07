@@ -279,6 +279,15 @@ function GC.Ledger.RecordGold(copper, context, now, force)
   end
 
   if last then
+    -- GetMoney() answers 0 when the client hasn't loaded the player's money
+    -- yet, or has already torn it down -- which is precisely what the forced
+    -- PLAYER_LOGOUT sample tends to catch. Observed in real SavedVariables: a
+    -- 259k-gold character logging a single 0 between two identical real
+    -- readings. A curve that dives to zero and back is always that artifact,
+    -- never an event, and one such point flips the dashboard's coverage figure
+    -- from "explains 60%" to a large negative delta. Refused even when forced,
+    -- because forced is when it happens.
+    if copper == 0 and last.copper > 0 then return false end
     if last.copper == copper then return false end
     if not force and (now - (last.at or 0)) < GOLD_MIN_INTERVAL then return false end
   end
