@@ -725,6 +725,12 @@ end
 -- Refuses the confirming click for REQUOTE_ARM_SECONDS, counting down in the label so the
 -- disabled button reads as deliberate rather than broken. The token invalidates a countdown
 -- still in flight when the dialog moves on to a different row or stage.
+--
+-- Invariant: a pending countdown must never repaint a button some other path has taken
+-- ownership of. armLoudConfirm bumps the token when it starts one; every OTHER path that also
+-- sets the primary button's label/enabled state on the row the countdown was armed for --
+-- whether or not that path itself arms a new countdown -- bumps it too, so a tick from an
+-- older arming can never win a race against whoever owns the button now.
 local requoteArmToken = 0
 local function armLoudConfirm(row)
   requoteArmToken = requoteArmToken + 1
@@ -1191,6 +1197,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if severity == "none" then
     row.purchaseStage = "confirm"
     if dialog and dialog.row == row then
+      requoteArmToken = requoteArmToken + 1 -- taking the button back from any pending countdown
       hideRequoteBanner()
       setPrimaryLabel("Confirm")
       dialog.primaryBtn:Enable()
@@ -1217,6 +1224,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
       showRequoteBanner(("PRICE ROSE %.1fx"):format(ratio), detail)
       armLoudConfirm(row)
     else
+      requoteArmToken = requoteArmToken + 1 -- taking the button back from any pending countdown
       hideRequoteBanner()
       setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
       dialog.primaryBtn:Enable()
