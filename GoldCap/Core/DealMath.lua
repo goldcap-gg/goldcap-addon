@@ -62,3 +62,37 @@ function GC.DealMath.PriceIncreaseExceeds(quotedTotal, updatedTotal, maxRatio)
   local threshold = quotedTotal * (1 + maxRatio)
   return updatedTotal > threshold + math.abs(threshold) * EPS
 end
+
+-- The GROSS price to project a resale against, before the 5% AH cut -- callers still apply
+-- their own floor(unit * 0.95). `competing` is GC.Book.Fill's cheapest surviving ask.
+--
+-- You cannot sell above what is already listed, so an mv the visible market broadly
+-- contradicts must not drive the projection: on 2026-08-10 an mv of 195g on an item trading
+-- near 35g turned into a +63,201g "profit" on the confirmation dialog. Clamping to one copper
+-- under the competing ask is the same rule UI/SellFrame.lua already posts at
+-- (`recommended = max(1, quote - 1)`), so the buy screen and the sell screen finally agree.
+-- A legitimate snipe is untouched: the competing ask sits near mv, not far below it.
+function GC.DealMath.SellUnit(mv, competing)
+  if not competing or competing <= 0 then return mv, false, nil end
+  local ratio = mv / competing
+  local ask = competing - 1
+  if ask < 1 then ask = 1 end
+  if ask < mv then return ask, true, ratio end
+  return mv, false, ratio
+end
+
+-- How hard to shout about a price that moved between the quote and the purchase.
+-- Two thresholds on purpose: one alarm that fires on a 6% drift is the mechanism that trains
+-- players to click through it, so the loud treatment is reserved for a rise that changes the
+-- decision. Built on PriceIncreaseExceeds above so both tiers inherit its epsilon contract.
+function GC.DealMath.RequoteSeverity(quotedTotal, updatedTotal, warnRatio, loudRatio)
+  local ratio = (quotedTotal and quotedTotal > 0) and (updatedTotal / quotedTotal) or nil
+  if not ratio then return "none", nil end
+  if GC.DealMath.PriceIncreaseExceeds(quotedTotal, updatedTotal, loudRatio) then
+    return "loud", ratio
+  end
+  if GC.DealMath.PriceIncreaseExceeds(quotedTotal, updatedTotal, warnRatio) then
+    return "warn", ratio
+  end
+  return "none", ratio
+end
