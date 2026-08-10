@@ -42,6 +42,12 @@ local SCROLL_TOP = -70
 local SCROLL_BOTTOM = 12
 
 local REQUOTE_MAX_RATIO = 0.05
+-- How many order-book entries the dialog will read. Purely a bound on work done against
+-- already-fetched results; a purchase never spans anywhere near this many price levels.
+local MAX_BOOK_LEVELS = 100
+-- How far above the live market an imported market value has to sit before the dialog stops
+-- treating it as information and says so.
+local MV_OUTLIER_RATIO = 3
 -- How long a confirmed quote stays clickable in the dialog. Generous on purpose: the player
 -- is reading a grid of numbers, and an older quote is safe on both paths -- an item auction
 -- is immutable (PlaceBid either buys at exactly the shown price or fails because the lot is
@@ -428,6 +434,46 @@ local driver = {
     return { unitPrice = info.unitPrice, qty = info.quantity }
   end,
 
+  -- Reads ALREADY-FETCHED search results only -- never issues a query, so this cannot
+  -- compete with a Full Scan or the Sell tab's quote walker on the throttled message
+  -- system. Capped because a deep commodity book can run to thousands of levels and the
+  -- dialog only ever needs enough to cover one purchase plus the next surviving ask.
+  commodityBook = function(itemID)
+    local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
+    if not n or n <= 0 then return nil end
+    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    local levels = {}
+    for i = 1, n do
+      local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
+      if info and info.unitPrice then
+        levels[#levels + 1] = { unitPrice = info.unitPrice, quantity = info.quantity or 0 }
+      end
+    end
+    if #levels == 0 then return nil end
+    return levels
+  end,
+
+  -- Items are one lot per purchase, so there is nothing to walk: the only thing worth
+  -- knowing is the cheapest OTHER lot, which is what a reseller has to undercut.
+  -- buyoutAmount is the lot TOTAL (see itemResult above), so divide down per unit.
+  itemCompetingUnit = function(itemID, excludeAuctionID)
+    local key = C_AuctionHouse.MakeItemKey(itemID)
+    local n = C_AuctionHouse.GetNumItemSearchResults(key)
+    if not n or n <= 0 then return nil end
+    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    local best
+    for i = 1, n do
+      local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
+      if info and info.auctionID ~= excludeAuctionID
+          and info.buyoutAmount and info.buyoutAmount > 0
+          and info.quantity and info.quantity > 0 then
+        local unit = math.floor(info.buyoutAmount / info.quantity)
+        if not best or unit < best then best = unit end
+      end
+    end
+    return best
+  end,
+
   getValue = GC.Data.GetItemValue,
 
   onStatus = function(text)
@@ -661,6 +707,7 @@ local function setDialogHeader(deal)
   local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
   dialog.tierText:SetText(deal.tier)
   dialog.tierText:SetTextColor(color[1], color[2], color[3])
+  if deal.tier == "SUSPECT" then dialog.suspectNote:Show() else dialog.suspectNote:Hide() end
   dialog.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
   dialog.icon:SetTexture(nil)
 
@@ -675,6 +722,20 @@ local function setDialogHeader(deal)
   end)
 end
 
+-- Snapshots what the live order book says about `deal`, onto the dialog, so every later
+-- re-stamp (a fresh requery, a commodity requote) projects against the same live evidence
+-- instead of against the import alone. nil whenever the book has nothing usable to say.
+local function refreshDialogBook(deal)
+  if not dialog then return end
+  if deal.isCommodity then
+    local levels = driver.commodityBook(deal.itemID)
+    dialog.book = levels and GC.Book.Fill(levels, deal.qty) or nil
+  else
+    local competing = driver.itemCompetingUnit(deal.itemID, deal.auctionID)
+    dialog.book = competing and { competing = competing } or nil
+  end
+end
+
 -- Re-stamps every number in the dialog's grid from a (possibly just-updated) unitPrice/
 -- totalCost pair -- deal.mv/qty never change within one purchase flow, only the live price
 -- does (a fresh requery, or a commodity requote), so this is the one place that formula
@@ -683,7 +744,12 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
   local qty = deal.qty
   local mv = deal.mv
   local discount = 1 - (unitPrice / mv)
-  local resale = math.floor(mv * 0.95) * qty
+  local competing = dialog.book and dialog.book.competing
+  -- The projection can only be as good as its ceiling: you cannot sell above what is
+  -- already listed, so an mv the book contradicts is clamped away here rather than
+  -- multiplied out by qty into a five-figure fiction.
+  local sellUnit, clamped, ratio = GC.DealMath.SellUnit(mv, competing)
+  local resale = math.floor(sellUnit * 0.95) * qty
   local profit = resale - totalCost
 
   dialog.unitPriceText:SetText(formatColumnAmount(unitPrice))
@@ -691,6 +757,23 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
   dialog.mvText:SetText(formatColumnAmount(mv))
   dialog.discountText:SetText(("%d%%"):format(math.floor(discount * 100 + 0.5)))
   dialog.resaleText:SetText(formatColumnAmount(resale))
+
+  if competing then
+    dialog.askLabel:Show()
+    dialog.askText:Show()
+    dialog.askText:SetText(formatColumnAmount(competing))
+  else
+    dialog.askLabel:Hide()
+    dialog.askText:Hide()
+  end
+
+  if clamped and ratio and ratio >= MV_OUTLIER_RATIO then
+    dialog.mvNote:SetText(("Market value %s is %.1fx the live market -- projection ignores it")
+      :format(formatColumnAmount(mv), ratio))
+    dialog.mvNote:Show()
+  else
+    dialog.mvNote:Hide()
+  end
 
   local sign = profit < 0 and "-" or ""
   dialog.profitText:SetText(sign .. formatColumnAmount(math.abs(profit)))
@@ -725,6 +808,21 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
   else
     dialog.trendLabel:Hide()
     dialog.trendText:Hide()
+  end
+end
+
+-- The one place the dialog's numbers get stamped from live evidence. A commodity's real cost
+-- is the whole fill, not the cheapest level the deal was quoted from -- showing it here means
+-- the player sees it before the Buy click instead of as a surprise after it. Items keep their
+-- own exact lot price (see refreshDialogBook), and an unusable book falls back to the deal's
+-- own snapshot, which is what this dialog has always shown.
+local function stampDialogFromBook(deal)
+  refreshDialogBook(deal)
+  local book = dialog.book
+  if deal.isCommodity and book and not book.exhausted then
+    updateDialogAmounts(deal, book.unit, book.total)
+  else
+    updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
   end
 end
 
@@ -813,7 +911,7 @@ local function armReady(row, deal)
   activeItemID[deal.itemID] = true
   dialog.primaryBtn:Enable()
   dialog.primaryBtn:SetText("Buy")
-  updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  stampDialogFromBook(deal)
   -- The dialog's OWN status must flip here -- the requery path otherwise leaves its
   -- "checking live price..." text up even though the button just enabled, and the player
   -- reads the stale text right up until the quote expires.
@@ -1145,7 +1243,7 @@ end
 -- never built eagerly alongside the sniper frame itself.
 local function createDialog()
   local d = CreateFrame("Frame", "GoldCapSniperConfirm", UIParent, "BasicFrameTemplateWithInset")
-  d:SetSize(300, 268) -- +18 vs the pre-trend-row size, so the extra grid row never crowds the buttons
+  d:SetSize(300, 300) -- +32 vs the pre-book size: one more grid row, plus the SUSPECT note
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
@@ -1184,10 +1282,22 @@ local function createDialog()
   itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
   d.itemHit = itemHit
 
+  -- A four-letter yellow tier badge lost to a green five-figure profit on 2026-08-10.
+  -- Said in words, right under the name, it competes on the same terms.
+  local suspectNote = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  suspectNote:SetPoint("TOPLEFT", 16, -50)
+  suspectNote:SetPoint("RIGHT", -16, 0)
+  suspectNote:SetJustifyH("LEFT")
+  suspectNote:SetWordWrap(true)
+  suspectNote:SetTextColor(1, 0.85, 0.1)
+  suspectNote:SetText("a discount this extreme usually means the market value is wrong, not that this is a bargain")
+  suspectNote:Hide()
+  d.suspectNote = suspectNote
+
   -- Label/value grid: one row per number the player needs to decide with. updateDialogAmounts
   -- re-stamps the value slots in place as fresher quotes come in -- the grid itself never
   -- grows or reflows.
-  local GRID_TOP = -56
+  local GRID_TOP = -70
   local GRID_ROW = 16
 
   local function gridRow(index, label)
@@ -1203,21 +1313,33 @@ local function createDialog()
     return labelFS, valueFS
   end
 
-  local _, unitPriceText = gridRow(1, "Unit price")
+  local _, unitPriceText = gridRow(1, "Unit price (avg fill)")
   local _, totalCostText = gridRow(2, "Total cost")
   local _, mvText = gridRow(3, "Market value")
-  local _, discountText = gridRow(4, "Discount")
-  local _, resaleText = gridRow(5, "Est. resale (after 5% AH cut)")
-  local _, profitText = gridRow(6, "Est. profit")
-  local soldLabel, soldText = gridRow(7, "Sold/day")
-  local trendLabel, trendText = gridRow(8, "24h trend")
+  local askLabel, askText = gridRow(4, "Lowest ask after buy")
+  local _, discountText = gridRow(5, "Discount")
+  local _, resaleText = gridRow(6, "Est. resale (after 5% AH cut)")
+  local _, profitText = gridRow(7, "Est. profit")
+  local soldLabel, soldText = gridRow(8, "Sold/day")
+  local trendLabel, trendText = gridRow(9, "24h trend")
   d.unitPriceText, d.totalCostText, d.mvText = unitPriceText, totalCostText, mvText
   d.discountText, d.resaleText, d.profitText = discountText, resaleText, profitText
+  d.askLabel, d.askText = askLabel, askText
   d.soldLabel, d.soldText = soldLabel, soldText
   d.trendLabel, d.trendText = trendLabel, trendText
 
+  -- Sits between the grid and the status line; shown only when the clamp above actually bit.
+  local mvNote = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  mvNote:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 6)
+  mvNote:SetPoint("RIGHT", -16, 0)
+  mvNote:SetJustifyH("LEFT")
+  mvNote:SetWordWrap(true)
+  mvNote:SetTextColor(1, 0.3, 0.3)
+  mvNote:Hide()
+  d.mvNote = mvNote
+
   local status = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", 16, GRID_TOP - 8 * GRID_ROW - 8)
+  status:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 30)
   status:SetPoint("RIGHT", -16, 0)
   status:SetJustifyH("LEFT")
   status:SetWordWrap(true)
@@ -1258,6 +1380,7 @@ local function createDialog()
   -- for a since-aborted row is still handled safely -- those handlers key off
   -- commodityPurchase/pendingAuction, which the reset below already clears.
   d:SetScript("OnHide", function()
+    dialog.book = nil
     local row = dialog.row
     if not row then return end -- normal close: resolvePurchase already cleared this before hiding
     dialog.row = nil
@@ -1278,7 +1401,7 @@ local function openDialog(row, deal)
   dialog.row = row
   dialog.deal = deal
   setDialogHeader(deal)
-  updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  stampDialogFromBook(deal)
   dialog:Show()
 
   if deal.stale then
