@@ -227,11 +227,22 @@ function GC.Ledger.RecordSniperBuy(deal, context, now)
   now = now or time()
   sniperSeq = sniperSeq + 1
 
+  -- The mail twin normally supplies the name, but only if the player opens
+  -- the mailbox with the addon running. Best-effort here: the client has the
+  -- item cached (the Sniper just displayed it), so ask it. nil is fine --
+  -- the server resolves names by id as a fallback.
+  local itemName = deal.itemName
+  if not itemName and C_Item and C_Item.GetItemNameByID then
+    local ok, name = pcall(C_Item.GetItemNameByID, deal.itemID)
+    if ok and type(name) == "string" then itemName = name end
+  end
+
   return (GC.Ledger.Append({
     key = table.concat({ "snipe", tostring(deal.itemID), tostring(now), tostring(sniperSeq) }, "\1"),
     kind = "buy",
     source = "goldcap_sniper",
     itemID = deal.itemID,
+    itemName = itemName,
     qty = deal.qty,
     total = (deal.unitPrice or 0) * (deal.qty or 0),
     cut = 0,

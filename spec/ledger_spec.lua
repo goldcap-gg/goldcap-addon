@@ -172,6 +172,21 @@ describe("Ledger store", function()
         fresh.Ledger.RecordSniperBuy({ itemID = 1, qty = 1, unitPrice = 1 }, context, 1)
       end)
     end)
+
+    it("carries the item name when the client can supply one", function()
+      _G.C_Item = { GetItemNameByID = function() return "Ironclaw Ore" end }
+      local entry = GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 100 }, context, 1)
+      _G.C_Item = nil
+      assert.equal("Ironclaw Ore", entry.itemName)
+    end)
+
+    it("tolerates a client that cannot name the item", function()
+      -- No C_Item under busted -- exactly the degraded in-game case.
+      local entry = GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 100 }, context, 1)
+      assert.is_nil(entry.itemName)
+    end)
   end)
 
   describe("Context", function()
