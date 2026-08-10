@@ -1243,7 +1243,11 @@ end
 -- never built eagerly alongside the sniper frame itself.
 local function createDialog()
   local d = CreateFrame("Frame", "GoldCapSniperConfirm", UIParent, "BasicFrameTemplateWithInset")
-  d:SetSize(300, 300) -- +32 vs the pre-book size: one more grid row, plus the SUSPECT note
+  -- Height is driven by the two wrapped text blocks below the grid (suspectNote, mvNote),
+  -- not by the grid's row count: both routinely wrap to two lines at this width, so the
+  -- budget below the grid has to fit two two-line blocks plus the status line -- shrinking
+  -- this back toward "one row taller" will clip them on exactly the deals they warn about.
+  d:SetSize(300, 348)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
@@ -1297,7 +1301,7 @@ local function createDialog()
   -- Label/value grid: one row per number the player needs to decide with. updateDialogAmounts
   -- re-stamps the value slots in place as fresher quotes come in -- the grid itself never
   -- grows or reflows.
-  local GRID_TOP = -70
+  local GRID_TOP = -88
   local GRID_ROW = 16
 
   local function gridRow(index, label)
@@ -1339,7 +1343,7 @@ local function createDialog()
   d.mvNote = mvNote
 
   local status = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 30)
+  status:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 40)
   status:SetPoint("RIGHT", -16, 0)
   status:SetJustifyH("LEFT")
   status:SetWordWrap(true)
