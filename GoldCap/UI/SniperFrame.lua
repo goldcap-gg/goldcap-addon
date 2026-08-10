@@ -722,36 +722,32 @@ local function showRequoteBanner(head, detail)
   dialog.banner:Show()
 end
 
--- Refuses the confirming click for REQUOTE_ARM_SECONDS, counting down in the label so the
--- disabled button reads as deliberate rather than broken. The token invalidates a countdown
--- still in flight when the dialog moves on to a different row or stage.
+-- Refuses the confirming click for REQUOTE_ARM_SECONDS so a click already on its way when the
+-- alarm fired can't land on it. Red-and-disabled reads as deliberate on its own; there is no
+-- countdown number in the label (a dropped earlier version ticked on a 0.5s interval over a
+-- 1.5s window, which reads as three seconds -- "(3) -> (2) -> (1)" -- for a wait that isn't).
 --
--- Invariant: a pending countdown must never repaint a button some other path has taken
--- ownership of. armLoudConfirm bumps the token when it starts one; every OTHER path that also
--- sets the primary button's label/enabled state on the row the countdown was armed for --
--- whether or not that path itself arms a new countdown -- bumps it too, so a tick from an
--- older arming can never win a race against whoever owns the button now.
+-- Invariant: a stale countdown must never repaint a button some other path has taken
+-- ownership of. Two independent things hold that together: armLoudConfirm bumps the token
+-- every time it arms a NEW countdown, which is what lets an older one notice a fresher one has
+-- since taken over (needed because two consecutive loud requotes both leave row.purchaseStage
+-- at "requote" -- the stage alone can't tell them apart); every OTHER path that moves the row
+-- off "requote" entirely (armReady back to "ready", a resolved purchase, an abort) is instead
+-- caught by the timer's own `row.purchaseStage ~= "requote"` check, no token bump required.
 local requoteArmToken = 0
 local function armLoudConfirm(row)
   requoteArmToken = requoteArmToken + 1
   local token = requoteArmToken
-  local ticks = math.ceil(REQUOTE_ARM_SECONDS / 0.5)
 
   dialog.primaryBtn:Disable()
+  setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
 
-  local function tick(left)
+  C_Timer.After(REQUOTE_ARM_SECONDS, function()
     if token ~= requoteArmToken then return end
     if not dialog or dialog.row ~= row or row.purchaseStage ~= "requote" then return end
-    if left <= 0 then
-      setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
-      dialog.primaryBtn:Enable()
-      return
-    end
-    setPrimaryLabel(("Buy anyway (%d)"):format(left), 1, 0.35, 0.35)
-    C_Timer.After(0.5, function() tick(left - 1) end)
-  end
-
-  tick(ticks)
+    dialog.primaryBtn:Enable()
+    setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
+  end)
 end
 
 -- Sets the dialog's status line text and color in one call; color defaults to plain white so
@@ -829,9 +825,22 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
     dialog.askText:Hide()
   end
 
+  -- Shared caution-note slot below the grid: an mv the book contradicts and an exhausted
+  -- book can't both be true of the same stamp (Book.Fill only ever sets `competing` -- what
+  -- the clamp needs -- on the branch where the walk covered the full quantity), so there is
+  -- never a conflict over which message gets the slot.
+  local exhausted = deal.isCommodity and dialog.book and dialog.book.exhausted
   if clamped and ratio and ratio >= MV_OUTLIER_RATIO then
     dialog.mvNote:SetText(("Market value %s is %.1fx the live market -- projection ignores it")
       :format(formatColumnAmount(mv), ratio))
+    dialog.mvNote:Show()
+  elseif exhausted then
+    -- The visible book ran out before covering the whole purchase: everything past
+    -- dialog.book.filled units is priced off the last known (cheapest) level, not confirmed
+    -- by anything currently on the market -- say so rather than showing a total that looks
+    -- as solid as one the book actually backed.
+    dialog.mvNote:SetText(("Order book only covers %d of %d units -- the rest is priced at the last known level, unconfirmed")
+      :format(dialog.book.filled, qty))
     dialog.mvNote:Show()
   else
     dialog.mvNote:Hide()
@@ -881,11 +890,22 @@ end
 local function stampDialogFromBook(deal)
   refreshDialogBook(deal)
   local book = dialog.book
+  local unitPrice, totalCost
   if deal.isCommodity and book and not book.exhausted then
-    updateDialogAmounts(deal, book.unit, book.total)
+    unitPrice, totalCost = book.unit, book.total
   else
-    updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+    unitPrice, totalCost = deal.unitPrice, deal.unitPrice * deal.qty
   end
+  updateDialogAmounts(deal, unitPrice, totalCost)
+  -- Record what the dialog just put on screen, not the deal's level-1 snapshot. The requote
+  -- alarm (OnCommodityPriceUpdated) compares the server's quote against this baseline, and it
+  -- has to be the number the player is actually looking at: since this dialog started
+  -- averaging the book's fill price, comparing against deal.unitPrice*qty instead means the
+  -- alarm can fire over a gap that only exists between the snapshot and the walk -- exactly
+  -- when the walk has already, calmly, disclosed the true cost. An alarm the player cannot
+  -- reconcile with the figures in front of them is an alarm they learn to dismiss.
+  dialog.stampedUnit = unitPrice
+  dialog.stampedTotal = totalCost
 end
 
 resolvePurchase = function(row, success, note)
@@ -956,7 +976,7 @@ local function scheduleArmTimeout(row, deal)
     if row.purchaseStage == "ready" and row.deal == deal and dialog and dialog.row == row then
       row.purchaseStage = "expired"
       dialog.primaryBtn:Enable()
-      dialog.primaryBtn:SetText("Refresh")
+      setPrimaryLabel("Refresh")
       setDialogStatus("quote expired -- Refresh to re-check the price", 1, 0.82, 0)
     end
   end)
@@ -1190,7 +1210,14 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     updateDialogAmounts(deal, unitPrice, totalPrice)
   end
 
-  local quotedTotal = deal.unitPrice * deal.qty
+  -- Compare against what the dialog actually showed, not the deal's level-1 snapshot (see
+  -- stampDialogFromBook): dialog.stampedTotal is that displayed number, and it is only
+  -- trustworthy while the dialog is still on THIS row -- otherwise fall back to the deal's
+  -- own snapshot rather than measure against a figure that belongs to someone else's deal.
+  local quotedUnit, quotedTotal = deal.unitPrice, deal.unitPrice * deal.qty
+  if dialog and dialog.row == row and dialog.stampedTotal then
+    quotedUnit, quotedTotal = dialog.stampedUnit, dialog.stampedTotal
+  end
   local severity, ratio = GC.DealMath.RequoteSeverity(
     quotedTotal, totalPrice, REQUOTE_WARN_RATIO, REQUOTE_LOUD_RATIO)
 
@@ -1213,8 +1240,12 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- ("price rose to 14,630g") is unanchored -- it was the whole content of this prompt on
   -- 2026-08-10, on a button that said Confirm in both branches, in the same place.
   row.purchaseStage = "requote"
+  -- One formatter for all four numbers: formatColumnAmount already exists to collapse a
+  -- five-figure gold amount to plain text instead of an overflowing coin-icon string, so
+  -- using it here too (instead of GetCoinTextureString for the per-unit pair) keeps the
+  -- banner's one line reading as a single comparison rather than two different number styles.
   local detail = ("%s -> %s per unit    total %s -> %s"):format(
-    GetCoinTextureString(deal.unitPrice), GetCoinTextureString(unitPrice),
+    formatColumnAmount(quotedUnit), formatColumnAmount(unitPrice),
     formatColumnAmount(quotedTotal), formatColumnAmount(totalPrice))
 
   -- Same `dialog.row == row` guard the original branch carried: a late COMMODITY_PRICE_UPDATED
@@ -1226,8 +1257,8 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     else
       requoteArmToken = requoteArmToken + 1 -- taking the button back from any pending countdown
       hideRequoteBanner()
-      setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
       dialog.primaryBtn:Enable()
+      setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
     end
   end
 
@@ -1509,6 +1540,11 @@ local function createDialog()
   -- commodityPurchase/pendingAuction, which the reset below already clears.
   d:SetScript("OnHide", function()
     dialog.book = nil
+    -- The requote baseline (see stampDialogFromBook) must not survive past this dialog
+    -- session -- otherwise a stale stampedUnit/Total from THIS deal could be misread as the
+    -- baseline for whatever the dialog gets reused for next.
+    dialog.stampedUnit = nil
+    dialog.stampedTotal = nil
     local row = dialog.row
     if not row then return end -- normal close: resolvePurchase already cleared this before hiding
     dialog.row = nil
