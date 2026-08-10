@@ -31,8 +31,8 @@
   than multiplied out into a profit you could never collect, and one sitting
   three times or more above the market is named outright. If a commodity's
   price rises before you confirm, the window shows the old and new price per
-  unit and the old and new total, and the confirming button changes from
-  Confirm to Buy anyway. A rise past 25% additionally opens a red banner
+  unit and the old and new total, and the confirming button reads
+  Buy anyway rather than Confirm. A rise past 25% additionally opens a red banner
   stating how many times the quote the new price is, and holds the button
   disabled for a second and a half.
   A session summary prints when you leave the AH. A new **Sell** tab tracks
