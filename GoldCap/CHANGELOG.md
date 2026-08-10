@@ -27,11 +27,14 @@
   discount, the lowest asking price that will still be on the market after you
   buy, estimated resale and estimated profit. The resale estimate is capped by
   that surviving asking price, because you cannot sell above what is already
-  listed: a market value the live market contradicts is called out and ignored
-  rather than multiplied out into a profit you could never collect. If a
-  commodity's price rises before you confirm, the window says by how much per
-  unit and how many times the quote it now is; a rise past 25% turns the window
-  red, renames the button to Buy anyway and holds it disabled for a moment.
+  listed: a market value the live market contradicts is quietly ignored rather
+  than multiplied out into a profit you could never collect, and one sitting
+  three times or more above the market is named outright. If a commodity's
+  price rises before you confirm, the window shows the old and new price per
+  unit and the old and new total, and the confirming button changes from
+  Confirm to Buy anyway. A rise past 25% additionally opens a red banner
+  stating how many times the quote the new price is, and holds the button
+  disabled for a second and a half.
   A session summary prints when you leave the AH. A new **Sell** tab tracks
   every purchase as a flip, shows what's already in your bags versus still
   in the mail, quotes current lowest prices on demand, and posts a recommended
