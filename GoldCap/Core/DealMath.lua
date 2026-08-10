@@ -72,7 +72,16 @@ end
 -- under the competing ask is the same rule UI/SellFrame.lua already posts at
 -- (`recommended = max(1, quote - 1)`), so the buy screen and the sell screen finally agree.
 -- A legitimate snipe is untouched: the competing ask sits near mv, not far below it.
+-- The market value arrives from an import that has been wrong before, and this function
+-- is the last place a bad one can be caught before it reaches a projection.
 function GC.DealMath.SellUnit(mv, competing)
+  -- Guard against non-positive market values: there is no usable projection without one.
+  if not mv or mv <= 0 then
+    if not competing or competing <= 0 then return 1, false, nil end
+    local ask = competing - 1
+    if ask < 1 then ask = 1 end
+    return ask, true, nil
+  end
   if not competing or competing <= 0 then return mv, false, nil end
   local ratio = mv / competing
   local ask = competing - 1
