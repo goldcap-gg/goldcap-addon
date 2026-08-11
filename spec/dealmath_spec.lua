@@ -11,7 +11,8 @@ describe("DealMath", function()
   }
 
   before_each(function()
-    GC = helper.loadModule("Core/DealMath.lua")
+    GC = helper.loadModule("Core/Book.lua")
+    helper.loadModule("Core/DealMath.lua", GC)
   end)
 
   local function live(unitPrice, qty)
@@ -206,6 +207,128 @@ describe("DealMath", function()
       -- 700 * 1.15 = 804.99999999999989 in IEEE doubles; 805 is exactly the tolerance
       assert.is_false(GC.DealMath.PriceIncreaseExceeds(700, 805, 0.15))
       assert.is_true(GC.DealMath.PriceIncreaseExceeds(700, 806, 0.15))
+    end)
+  end)
+
+  describe("SellUnit", function()
+    it("returns the market value untouched without a competing ask", function()
+      local unit, clamped, ratio = GC.DealMath.SellUnit(1000000, nil)
+      assert.equal(1000000, unit)
+      assert.is_false(clamped)
+      assert.is_nil(ratio)
+    end)
+
+    it("keeps the market value when the book is asking more", function()
+      -- mv 100g, cheapest surviving ask 200g: nothing forces a markdown
+      local unit, clamped, ratio = GC.DealMath.SellUnit(1000000, 2000000)
+      assert.equal(1000000, unit)
+      assert.is_false(clamped)
+      assert.equal(0.5, ratio)
+    end)
+
+    it("clamps to one copper under the competing ask", function()
+      -- mv 100g, cheapest surviving ask 40g: you cannot list above 39g99s99c
+      local unit, clamped, ratio = GC.DealMath.SellUnit(1000000, 400000)
+      assert.equal(399999, unit)
+      assert.is_true(clamped)
+      assert.equal(2.5, ratio)
+    end)
+
+    it("leaves a legitimate snipe alone", function()
+      -- mv 20g, the rest of the book sits at 19g50s -- the profit must survive
+      local unit, clamped = GC.DealMath.SellUnit(200000, 195000)
+      assert.equal(194999, unit)
+      assert.is_true(clamped)
+      assert.is_true(unit > 190000)
+    end)
+
+    it("never returns a non-positive price", function()
+      local unit = GC.DealMath.SellUnit(1000000, 1)
+      assert.equal(1, unit)
+    end)
+
+    it("guards against a zero market value without competing ask", function()
+      local unit, _, ratio = GC.DealMath.SellUnit(0, nil)
+      assert.equal(1, unit)
+      assert.is_true(unit > 0)
+      assert.is_nil(ratio)
+    end)
+
+    it("guards against a negative market value without competing ask", function()
+      local unit, _, ratio = GC.DealMath.SellUnit(-100000, nil)
+      assert.equal(1, unit)
+      assert.is_true(unit > 0)
+      assert.is_nil(ratio)
+    end)
+
+    it("guards against a negative market value with competing ask present", function()
+      local unit, clamped, ratio = GC.DealMath.SellUnit(-100000, 500000)
+      assert.is_true(unit > 0)
+      assert.equal(499999, unit)
+      assert.is_true(clamped)
+      assert.is_nil(ratio)
+    end)
+  end)
+
+  describe("RequoteSeverity", function()
+    it("stays quiet within tolerance", function()
+      local severity, ratio = GC.DealMath.RequoteSeverity(1000, 1040, 0.05, 0.25)
+      assert.equal("none", severity)
+      assert.equal(1.04, ratio)
+    end)
+
+    it("warns past the warn ratio", function()
+      assert.equal("warn", (GC.DealMath.RequoteSeverity(1000, 1100, 0.05, 0.25)))
+    end)
+
+    it("goes loud past the loud ratio", function()
+      local severity, ratio = GC.DealMath.RequoteSeverity(1000, 2900, 0.05, 0.25)
+      assert.equal("loud", severity)
+      assert.equal(2.9, ratio)
+    end)
+
+    it("treats an exactly-at-threshold rise as still within tolerance", function()
+      -- matches PriceIncreaseExceeds' own epsilon contract: strictly greater, not >=
+      assert.equal("none", (GC.DealMath.RequoteSeverity(1000000, 1050000, 0.05, 0.25)))
+      assert.equal("warn", (GC.DealMath.RequoteSeverity(1000000, 1250000, 0.05, 0.25)))
+    end)
+
+    it("reports none, and no ratio, without a usable quote", function()
+      local severity, ratio = GC.DealMath.RequoteSeverity(0, 5000, 0.05, 0.25)
+      assert.equal("none", severity)
+      assert.is_nil(ratio)
+    end)
+
+    it("never reports a rise for a price that fell", function()
+      assert.equal("none", (GC.DealMath.RequoteSeverity(1000, 400, 0.05, 0.25)))
+    end)
+  end)
+
+  describe("the 2026-08-10 overpay incident", function()
+    it("does not project a fantasy profit off a market value the book contradicts", function()
+      -- 418 muffins. The import said mv 195g; the realm's book said the item changes
+      -- hands around 35g. The dialog showed +63,201g60s of profit and the owner bought.
+      local G = 10000
+      local book = {
+        { unitPrice = 12 * G, quantity = 30 },
+        { unitPrice = 30 * G, quantity = 200 },
+        { unitPrice = 40 * G, quantity = 500 },
+      }
+
+      local fill = GC.Book.Fill(book, 418)
+      assert.equal(418, fill.filled)
+      assert.equal(40 * G, fill.competing)
+
+      local sellUnit, clamped, ratio = GC.DealMath.SellUnit(195 * G, fill.competing)
+      assert.is_true(clamped)
+      assert.is_true(ratio > 4)
+
+      local profit = math.floor(sellUnit * 0.95) * 418 - fill.total
+      assert.is_true(profit < 3000 * G)
+
+      -- What the unclamped formula produced, for contrast.
+      local fantasy = math.floor(195 * G * 0.95) * 418 - fill.total
+      assert.is_true(fantasy > 60000 * G)
     end)
   end)
 end)

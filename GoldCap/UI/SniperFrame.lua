@@ -41,7 +41,22 @@ local TAB_GAP = 4
 local SCROLL_TOP = -70
 local SCROLL_BOTTOM = 12
 
-local REQUOTE_MAX_RATIO = 0.05
+-- Two tiers on purpose. A single alarm that fires on a 6% drift is exactly what teaches a
+-- player to click through it, so the quiet tier stays where it was and the loud treatment
+-- below is reserved for a rise that changes the decision.
+local REQUOTE_WARN_RATIO = 0.05
+local REQUOTE_LOUD_RATIO = 0.25
+-- How long the loud prompt refuses the confirming click. Long enough that a second click
+-- already on its way lands on a disabled button, short enough not to feel broken.
+local REQUOTE_ARM_SECONDS = 1.5
+local REQUOTE_BANNER_HEIGHT = 46
+local DIALOG_BASE_HEIGHT = 348
+-- How many order-book entries the dialog will read. Purely a bound on work done against
+-- already-fetched results; a purchase never spans anywhere near this many price levels.
+local MAX_BOOK_LEVELS = 100
+-- How far above the live market an imported market value has to sit before the dialog stops
+-- treating it as information and says so.
+local MV_OUTLIER_RATIO = 3
 -- How long a confirmed quote stays clickable in the dialog. Generous on purpose: the player
 -- is reading a grid of numbers, and an older quote is safe on both paths -- an item auction
 -- is immutable (PlaceBid either buys at exactly the shown price or fails because the lot is
@@ -428,6 +443,46 @@ local driver = {
     return { unitPrice = info.unitPrice, qty = info.quantity }
   end,
 
+  -- Reads ALREADY-FETCHED search results only -- never issues a query, so this cannot
+  -- compete with a Full Scan or the Sell tab's quote walker on the throttled message
+  -- system. Capped because a deep commodity book can run to thousands of levels and the
+  -- dialog only ever needs enough to cover one purchase plus the next surviving ask.
+  commodityBook = function(itemID)
+    local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
+    if not n or n <= 0 then return nil end
+    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    local levels = {}
+    for i = 1, n do
+      local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
+      if info and info.unitPrice then
+        levels[#levels + 1] = { unitPrice = info.unitPrice, quantity = info.quantity or 0 }
+      end
+    end
+    if #levels == 0 then return nil end
+    return levels
+  end,
+
+  -- Items are one lot per purchase, so there is nothing to walk: the only thing worth
+  -- knowing is the cheapest OTHER lot, which is what a reseller has to undercut.
+  -- buyoutAmount is the lot TOTAL (see itemResult above), so divide down per unit.
+  itemCompetingUnit = function(itemID, excludeAuctionID)
+    local key = C_AuctionHouse.MakeItemKey(itemID)
+    local n = C_AuctionHouse.GetNumItemSearchResults(key)
+    if not n or n <= 0 then return nil end
+    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    local best
+    for i = 1, n do
+      local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
+      if info and info.auctionID ~= excludeAuctionID
+          and info.buyoutAmount and info.buyoutAmount > 0
+          and info.quantity and info.quantity > 0 then
+        local unit = math.floor(info.buyoutAmount / info.quantity)
+        if not best or unit < best then best = unit end
+      end
+    end
+    return best
+  end,
+
   getValue = GC.Data.GetItemValue,
 
   onStatus = function(text)
@@ -646,6 +701,55 @@ end
 -- purchase may be in flight at a time.
 -- ---------------------------------------------------------------------------
 
+-- Every stage that touches the primary button goes through here, so its colour can never be
+-- left red from a previous requote. Gold is UIPanelButtonTemplate's own text colour.
+local function setPrimaryLabel(text, r, g, b)
+  dialog.primaryBtn:SetText(text)
+  local fs = dialog.primaryBtn:GetFontString()
+  if fs then fs:SetTextColor(r or 1, g or 0.82, b or 0) end
+end
+
+local function hideRequoteBanner()
+  if not dialog then return end
+  dialog.banner:Hide()
+  dialog:SetHeight(DIALOG_BASE_HEIGHT)
+end
+
+local function showRequoteBanner(head, detail)
+  dialog.banner.head:SetText(head)
+  dialog.banner.detail:SetText(detail)
+  dialog:SetHeight(DIALOG_BASE_HEIGHT + REQUOTE_BANNER_HEIGHT)
+  dialog.banner:Show()
+end
+
+-- Refuses the confirming click for REQUOTE_ARM_SECONDS so a click already on its way when the
+-- alarm fired can't land on it. Red-and-disabled reads as deliberate on its own; there is no
+-- countdown number in the label (a dropped earlier version ticked on a 0.5s interval over a
+-- 1.5s window, which reads as three seconds -- "(3) -> (2) -> (1)" -- for a wait that isn't).
+--
+-- Invariant: a stale countdown must never repaint a button some other path has taken
+-- ownership of. Two independent things hold that together: armLoudConfirm bumps the token
+-- every time it arms a NEW countdown, which is what lets an older one notice a fresher one has
+-- since taken over (needed because two consecutive loud requotes both leave row.purchaseStage
+-- at "requote" -- the stage alone can't tell them apart); every OTHER path that moves the row
+-- off "requote" entirely (armReady back to "ready", a resolved purchase, an abort) is instead
+-- caught by the timer's own `row.purchaseStage ~= "requote"` check, no token bump required.
+local requoteArmToken = 0
+local function armLoudConfirm(row)
+  requoteArmToken = requoteArmToken + 1
+  local token = requoteArmToken
+
+  dialog.primaryBtn:Disable()
+  setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
+
+  C_Timer.After(REQUOTE_ARM_SECONDS, function()
+    if token ~= requoteArmToken then return end
+    if not dialog or dialog.row ~= row or row.purchaseStage ~= "requote" then return end
+    dialog.primaryBtn:Enable()
+    setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
+  end)
+end
+
 -- Sets the dialog's status line text and color in one call; color defaults to plain white so
 -- callers only pass r/g/b for an accent (green/red) message.
 local function setDialogStatus(text, r, g, b)
@@ -661,6 +765,7 @@ local function setDialogHeader(deal)
   local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
   dialog.tierText:SetText(deal.tier)
   dialog.tierText:SetTextColor(color[1], color[2], color[3])
+  if deal.tier == "SUSPECT" then dialog.suspectNote:Show() else dialog.suspectNote:Hide() end
   dialog.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
   dialog.icon:SetTexture(nil)
 
@@ -675,6 +780,20 @@ local function setDialogHeader(deal)
   end)
 end
 
+-- Snapshots what the live order book says about `deal`, onto the dialog, so every later
+-- re-stamp (a fresh requery, a commodity requote) projects against the same live evidence
+-- instead of against the import alone. nil whenever the book has nothing usable to say.
+local function refreshDialogBook(deal)
+  if not dialog then return end
+  if deal.isCommodity then
+    local levels = driver.commodityBook(deal.itemID)
+    dialog.book = levels and GC.Book.Fill(levels, deal.qty) or nil
+  else
+    local competing = driver.itemCompetingUnit(deal.itemID, deal.auctionID)
+    dialog.book = competing and { competing = competing } or nil
+  end
+end
+
 -- Re-stamps every number in the dialog's grid from a (possibly just-updated) unitPrice/
 -- totalCost pair -- deal.mv/qty never change within one purchase flow, only the live price
 -- does (a fresh requery, or a commodity requote), so this is the one place that formula
@@ -683,7 +802,12 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
   local qty = deal.qty
   local mv = deal.mv
   local discount = 1 - (unitPrice / mv)
-  local resale = math.floor(mv * 0.95) * qty
+  local competing = dialog.book and dialog.book.competing
+  -- The projection can only be as good as its ceiling: you cannot sell above what is
+  -- already listed, so an mv the book contradicts is clamped away here rather than
+  -- multiplied out by qty into a five-figure fiction.
+  local sellUnit, clamped, ratio = GC.DealMath.SellUnit(mv, competing)
+  local resale = math.floor(sellUnit * 0.95) * qty
   local profit = resale - totalCost
 
   dialog.unitPriceText:SetText(formatColumnAmount(unitPrice))
@@ -691,6 +815,36 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
   dialog.mvText:SetText(formatColumnAmount(mv))
   dialog.discountText:SetText(("%d%%"):format(math.floor(discount * 100 + 0.5)))
   dialog.resaleText:SetText(formatColumnAmount(resale))
+
+  if competing then
+    dialog.askLabel:Show()
+    dialog.askText:Show()
+    dialog.askText:SetText(formatColumnAmount(competing))
+  else
+    dialog.askLabel:Hide()
+    dialog.askText:Hide()
+  end
+
+  -- Shared caution-note slot below the grid: an mv the book contradicts and an exhausted
+  -- book can't both be true of the same stamp (Book.Fill only ever sets `competing` -- what
+  -- the clamp needs -- on the branch where the walk covered the full quantity), so there is
+  -- never a conflict over which message gets the slot.
+  local exhausted = deal.isCommodity and dialog.book and dialog.book.exhausted
+  if clamped and ratio and ratio >= MV_OUTLIER_RATIO then
+    dialog.mvNote:SetText(("Market value %s is %.1fx the live market -- projection ignores it")
+      :format(formatColumnAmount(mv), ratio))
+    dialog.mvNote:Show()
+  elseif exhausted then
+    -- The visible book ran out before covering the whole purchase: everything past
+    -- dialog.book.filled units is priced off the last known (cheapest) level, not confirmed
+    -- by anything currently on the market -- say so rather than showing a total that looks
+    -- as solid as one the book actually backed.
+    dialog.mvNote:SetText(("Order book only covers %d of %d units -- the rest is priced at the last known level, unconfirmed")
+      :format(dialog.book.filled, qty))
+    dialog.mvNote:Show()
+  else
+    dialog.mvNote:Hide()
+  end
 
   local sign = profit < 0 and "-" or ""
   dialog.profitText:SetText(sign .. formatColumnAmount(math.abs(profit)))
@@ -726,6 +880,32 @@ local function updateDialogAmounts(deal, unitPrice, totalCost)
     dialog.trendLabel:Hide()
     dialog.trendText:Hide()
   end
+end
+
+-- The one place the dialog's numbers get stamped from live evidence. A commodity's real cost
+-- is the whole fill, not the cheapest level the deal was quoted from -- showing it here means
+-- the player sees it before the Buy click instead of as a surprise after it. Items keep their
+-- own exact lot price (see refreshDialogBook), and an unusable book falls back to the deal's
+-- own snapshot, which is what this dialog has always shown.
+local function stampDialogFromBook(deal)
+  refreshDialogBook(deal)
+  local book = dialog.book
+  local unitPrice, totalCost
+  if deal.isCommodity and book and not book.exhausted then
+    unitPrice, totalCost = book.unit, book.total
+  else
+    unitPrice, totalCost = deal.unitPrice, deal.unitPrice * deal.qty
+  end
+  updateDialogAmounts(deal, unitPrice, totalCost)
+  -- Record what the dialog just put on screen, not the deal's level-1 snapshot. The requote
+  -- alarm (OnCommodityPriceUpdated) compares the server's quote against this baseline, and it
+  -- has to be the number the player is actually looking at: since this dialog started
+  -- averaging the book's fill price, comparing against deal.unitPrice*qty instead means the
+  -- alarm can fire over a gap that only exists between the snapshot and the walk -- exactly
+  -- when the walk has already, calmly, disclosed the true cost. An alarm the player cannot
+  -- reconcile with the figures in front of them is an alarm they learn to dismiss.
+  dialog.stampedUnit = unitPrice
+  dialog.stampedTotal = totalCost
 end
 
 resolvePurchase = function(row, success, note)
@@ -796,7 +976,7 @@ local function scheduleArmTimeout(row, deal)
     if row.purchaseStage == "ready" and row.deal == deal and dialog and dialog.row == row then
       row.purchaseStage = "expired"
       dialog.primaryBtn:Enable()
-      dialog.primaryBtn:SetText("Refresh")
+      setPrimaryLabel("Refresh")
       setDialogStatus("quote expired -- Refresh to re-check the price", 1, 0.82, 0)
     end
   end)
@@ -812,8 +992,9 @@ local function armReady(row, deal)
   row.purchaseDeal = nil
   activeItemID[deal.itemID] = true
   dialog.primaryBtn:Enable()
-  dialog.primaryBtn:SetText("Buy")
-  updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  hideRequoteBanner()
+  setPrimaryLabel("Buy")
+  stampDialogFromBook(deal)
   -- The dialog's OWN status must flip here -- the requery path otherwise leaves its
   -- "checking live price..." text up even though the button just enabled, and the player
   -- reads the stale text right up until the quote expires.
@@ -1027,24 +1208,67 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- call happens later in onDialogPrimaryClick. This handler never completes a purchase.
   if dialog and dialog.row == row then
     updateDialogAmounts(deal, unitPrice, totalPrice)
-    dialog.primaryBtn:Enable()
-    dialog.primaryBtn:SetText("Confirm")
   end
 
-  if GC.DealMath.PriceIncreaseExceeds(deal.unitPrice * deal.qty, totalPrice, REQUOTE_MAX_RATIO) then
-    -- Price rose beyond tolerance: red prompt, awaits an explicit third click.
-    row.purchaseStage = "requote"
-    setDialogStatus(("price rose to %s -- click Confirm to accept"):format(GetCoinTextureString(totalPrice)), 1, 0.2, 0.2)
-    if frame then
-      frame.status:SetText(("price rose to %s -- click Confirm to accept"):format(GetCoinTextureString(totalPrice)))
-    end
-  else
-    -- Within tolerance: neutral prompt, still awaits an explicit third click.
+  -- Compare against what the dialog actually showed, not the deal's level-1 snapshot (see
+  -- stampDialogFromBook): dialog.stampedTotal is that displayed number, and it is only
+  -- trustworthy while the dialog is still on THIS row -- otherwise fall back to the deal's
+  -- own snapshot rather than measure against a figure that belongs to someone else's deal.
+  local quotedUnit, quotedTotal = deal.unitPrice, deal.unitPrice * deal.qty
+  if dialog and dialog.row == row and dialog.stampedTotal then
+    quotedUnit, quotedTotal = dialog.stampedUnit, dialog.stampedTotal
+  end
+  local severity, ratio = GC.DealMath.RequoteSeverity(
+    quotedTotal, totalPrice, REQUOTE_WARN_RATIO, REQUOTE_LOUD_RATIO)
+
+  if severity == "none" then
     row.purchaseStage = "confirm"
+    if dialog and dialog.row == row then
+      requoteArmToken = requoteArmToken + 1 -- taking the button back from any pending countdown
+      hideRequoteBanner()
+      setPrimaryLabel("Confirm")
+      dialog.primaryBtn:Enable()
+    end
     setDialogStatus(("quote %s -- click Confirm to buy"):format(GetCoinTextureString(totalPrice)))
     if frame then
       frame.status:SetText(("quote %s -- click Confirm to buy"):format(GetCoinTextureString(totalPrice)))
     end
+    return
+  end
+
+  -- The number the player needed and never got: the per-unit comparison. A total alone
+  -- ("price rose to 14,630g") is unanchored -- it was the whole content of this prompt on
+  -- 2026-08-10, on a button that said Confirm in both branches, in the same place.
+  row.purchaseStage = "requote"
+  -- One formatter for all four numbers: formatColumnAmount already exists to collapse a
+  -- five-figure gold amount to plain text instead of an overflowing coin-icon string, so
+  -- using it here too (instead of GetCoinTextureString for the per-unit pair) keeps the
+  -- banner's one line reading as a single comparison rather than two different number styles.
+  local detail = ("%s -> %s per unit    total %s -> %s"):format(
+    formatColumnAmount(quotedUnit), formatColumnAmount(unitPrice),
+    formatColumnAmount(quotedTotal), formatColumnAmount(totalPrice))
+
+  -- Same `dialog.row == row` guard the original branch carried: a late COMMODITY_PRICE_UPDATED
+  -- for a row the dialog has already moved off must never re-arm somebody else's buttons.
+  if dialog and dialog.row == row then
+    if severity == "loud" then
+      showRequoteBanner(("PRICE ROSE %.1fx"):format(ratio), detail)
+      armLoudConfirm(row)
+    else
+      requoteArmToken = requoteArmToken + 1 -- taking the button back from any pending countdown
+      hideRequoteBanner()
+      dialog.primaryBtn:Enable()
+      setPrimaryLabel("Buy anyway", 1, 0.35, 0.35)
+    end
+  end
+
+  if severity == "loud" and GC.db and GC.db.settings and GC.db.settings.sniper.sound then
+    PlaySound(SOUNDKIT.RAID_WARNING)
+  end
+
+  setDialogStatus(detail, 1, 0.3, 0.3)
+  if frame then
+    frame.status:SetText(("price rose %.1fx -- %s"):format(ratio, GetCoinTextureString(totalPrice)))
   end
 end
 
@@ -1097,7 +1321,7 @@ local function onDialogPrimaryClick()
     -- so a player who read the numbers past the quote window is never dead-ended into
     -- Cancel. finishRequery re-arms "ready" with fresh numbers (or closes on gone/changed).
     dialog.primaryBtn:Disable()
-    dialog.primaryBtn:SetText("Buy")
+    setPrimaryLabel("Buy")
     setDialogStatus("checking live price...")
     startRequery(row, row.deal)
     return
@@ -1145,7 +1369,11 @@ end
 -- never built eagerly alongside the sniper frame itself.
 local function createDialog()
   local d = CreateFrame("Frame", "GoldCapSniperConfirm", UIParent, "BasicFrameTemplateWithInset")
-  d:SetSize(300, 268) -- +18 vs the pre-trend-row size, so the extra grid row never crowds the buttons
+  -- Height is driven by the two wrapped text blocks below the grid (suspectNote, mvNote),
+  -- not by the grid's row count: both routinely wrap to two lines at this width, so the
+  -- budget below the grid has to fit two two-line blocks plus the status line -- shrinking
+  -- this back toward "one row taller" will clip them on exactly the deals they warn about.
+  d:SetSize(300, DIALOG_BASE_HEIGHT)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
@@ -1184,10 +1412,22 @@ local function createDialog()
   itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
   d.itemHit = itemHit
 
+  -- A four-letter yellow tier badge lost to a green five-figure profit on 2026-08-10.
+  -- Said in words, right under the name, it competes on the same terms.
+  local suspectNote = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  suspectNote:SetPoint("TOPLEFT", 16, -50)
+  suspectNote:SetPoint("RIGHT", -16, 0)
+  suspectNote:SetJustifyH("LEFT")
+  suspectNote:SetWordWrap(true)
+  suspectNote:SetTextColor(1, 0.85, 0.1)
+  suspectNote:SetText("a discount this extreme usually means the market value is wrong, not that this is a bargain")
+  suspectNote:Hide()
+  d.suspectNote = suspectNote
+
   -- Label/value grid: one row per number the player needs to decide with. updateDialogAmounts
   -- re-stamps the value slots in place as fresher quotes come in -- the grid itself never
   -- grows or reflows.
-  local GRID_TOP = -56
+  local GRID_TOP = -88
   local GRID_ROW = 16
 
   local function gridRow(index, label)
@@ -1203,25 +1443,66 @@ local function createDialog()
     return labelFS, valueFS
   end
 
-  local _, unitPriceText = gridRow(1, "Unit price")
+  local _, unitPriceText = gridRow(1, "Unit price (avg fill)")
   local _, totalCostText = gridRow(2, "Total cost")
   local _, mvText = gridRow(3, "Market value")
-  local _, discountText = gridRow(4, "Discount")
-  local _, resaleText = gridRow(5, "Est. resale (after 5% AH cut)")
-  local _, profitText = gridRow(6, "Est. profit")
-  local soldLabel, soldText = gridRow(7, "Sold/day")
-  local trendLabel, trendText = gridRow(8, "24h trend")
+  local askLabel, askText = gridRow(4, "Lowest ask after buy")
+  local _, discountText = gridRow(5, "Discount")
+  local _, resaleText = gridRow(6, "Est. resale (after 5% AH cut)")
+  local _, profitText = gridRow(7, "Est. profit")
+  local soldLabel, soldText = gridRow(8, "Sold/day")
+  local trendLabel, trendText = gridRow(9, "24h trend")
   d.unitPriceText, d.totalCostText, d.mvText = unitPriceText, totalCostText, mvText
   d.discountText, d.resaleText, d.profitText = discountText, resaleText, profitText
+  d.askLabel, d.askText = askLabel, askText
   d.soldLabel, d.soldText = soldLabel, soldText
   d.trendLabel, d.trendText = trendLabel, trendText
 
+  -- Sits between the grid and the status line; shown only when the clamp above actually bit.
+  local mvNote = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  mvNote:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 6)
+  mvNote:SetPoint("RIGHT", -16, 0)
+  mvNote:SetJustifyH("LEFT")
+  mvNote:SetWordWrap(true)
+  mvNote:SetTextColor(1, 0.3, 0.3)
+  mvNote:Hide()
+  d.mvNote = mvNote
+
   local status = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", 16, GRID_TOP - 8 * GRID_ROW - 8)
+  status:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 40)
   status:SetPoint("RIGHT", -16, 0)
   status:SetJustifyH("LEFT")
   status:SetWordWrap(true)
   d.status = status
+
+  -- Anchored off the BOTTOM, just above the buttons, and hidden by default. Showing it grows
+  -- the dialog by exactly its own height, so the window visibly changes shape rather than
+  -- re-rendering a line of status text inside an unchanged outline -- which is what a player
+  -- running on muscle memory does not notice.
+  local banner = CreateFrame("Frame", nil, d)
+  banner:SetPoint("BOTTOMLEFT", 12, 44)
+  banner:SetPoint("BOTTOMRIGHT", -12, 44)
+  banner:SetHeight(REQUOTE_BANNER_HEIGHT)
+
+  local bannerBg = banner:CreateTexture(nil, "BACKGROUND")
+  bannerBg:SetAllPoints()
+  bannerBg:SetColorTexture(0.45, 0.04, 0.04, 0.9)
+
+  local bannerHead = banner:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  bannerHead:SetPoint("TOPLEFT", 8, -6)
+  bannerHead:SetJustifyH("LEFT")
+  bannerHead:SetTextColor(1, 0.45, 0.45)
+  banner.head = bannerHead
+
+  local bannerDetail = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  bannerDetail:SetPoint("TOPLEFT", bannerHead, "BOTTOMLEFT", 0, -4)
+  bannerDetail:SetPoint("RIGHT", banner, "RIGHT", -8, 0)
+  bannerDetail:SetJustifyH("LEFT")
+  bannerDetail:SetWordWrap(true)
+  banner.detail = bannerDetail
+
+  banner:Hide()
+  d.banner = banner
 
   local cancelBtn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
   cancelBtn:SetSize(90, 22)
@@ -1258,6 +1539,12 @@ local function createDialog()
   -- for a since-aborted row is still handled safely -- those handlers key off
   -- commodityPurchase/pendingAuction, which the reset below already clears.
   d:SetScript("OnHide", function()
+    dialog.book = nil
+    -- The requote baseline (see stampDialogFromBook) must not survive past this dialog
+    -- session -- otherwise a stale stampedUnit/Total from THIS deal could be misread as the
+    -- baseline for whatever the dialog gets reused for next.
+    dialog.stampedUnit = nil
+    dialog.stampedTotal = nil
     local row = dialog.row
     if not row then return end -- normal close: resolvePurchase already cleared this before hiding
     dialog.row = nil
@@ -1276,14 +1563,15 @@ end
 local function openDialog(row, deal)
   dialog = dialog or createDialog()
   dialog.row = row
+  hideRequoteBanner()
   dialog.deal = deal
   setDialogHeader(deal)
-  updateDialogAmounts(deal, deal.unitPrice, deal.unitPrice * deal.qty)
+  stampDialogFromBook(deal)
   dialog:Show()
 
   if deal.stale then
     dialog.primaryBtn:Disable()
-    dialog.primaryBtn:SetText("Buy")
+    setPrimaryLabel("Buy")
     setDialogStatus("checking live price...")
     startRequery(row, deal) -- pins the row ("requerying"); finishRequery flips us to "ready"
   else
@@ -1336,6 +1624,8 @@ local function resetAllPurchases()
   commodityPurchase = nil
   if dialog then
     dialog.row = nil
+    requoteArmToken = requoteArmToken + 1 -- invalidate any countdown still in flight
+    hideRequoteBanner()
     dialog:Hide()
   end
 end

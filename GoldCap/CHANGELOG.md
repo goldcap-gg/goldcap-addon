@@ -21,10 +21,20 @@
   with discount and profit net of the 5% AH cut. When buying a Full Scan deal,
   the sniper issues a fresh live requote before purchase, so the deal isn't
   stale. Secondary mode: live watchlist search cycles through ~200 items in
-  real time. Buying opens a confirmation window showing unit price, total
-  cost, market value, discount, estimated resale, and estimated profit before
-  anything is purchased — with a red re-prompt if a commodity's price rises
-  >5% before you confirm, and Cancel/Esc to back out safely at any point.
+  real time. Buying opens a confirmation window showing what the purchase will really
+  cost — for commodities, the average price across every order-book level the
+  purchase will fill, not just the cheapest one — alongside market value,
+  discount, the lowest asking price that will still be on the market after you
+  buy, estimated resale and estimated profit. The resale estimate is capped by
+  that surviving asking price, because you cannot sell above what is already
+  listed: a market value the live market contradicts is quietly ignored rather
+  than multiplied out into a profit you could never collect, and one sitting
+  three times or more above the market is named outright. If a commodity's
+  price rises before you confirm, the window shows the old and new price per
+  unit and the old and new total, and the confirming button reads
+  Buy anyway rather than Confirm. A rise past 25% additionally opens a red banner
+  stating how many times the quote the new price is, and holds the button
+  disabled for a second and a half.
   A session summary prints when you leave the AH. A new **Sell** tab tracks
   every purchase as a flip, shows what's already in your bags versus still
   in the mail, quotes current lowest prices on demand, and posts a recommended
