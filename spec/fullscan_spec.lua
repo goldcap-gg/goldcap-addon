@@ -147,3 +147,128 @@ describe("FullScan.RowsFromBrowse", function()
     assert.equal(777, deals[1].unitPrice)
   end)
 end)
+
+describe("EvaluateDelta/MergeDeals", function()
+  local GC
+  local settings = {
+    hotDiscount = 0.40, hotProfit = 5000000,
+    goodDiscount = 0.25, goodProfit = 1000000,
+    watchDiscount = 0.10, suspectDiscount = 0.90,
+  }
+
+  before_each(function()
+    GC = helper.loadModule("Core/DealMath.lua")
+    helper.loadModule("Core/FullScan.lua", GC)
+  end)
+
+  -- EvaluateDelta consumes the same { itemID, count, buyoutStack } row shape Evaluate
+  -- already does (what RowsFromBrowse produces), so reuse that shape rather than the raw
+  -- C_AuctionHouse browse-result shape used by the RowsFromBrowse tests above.
+  local function mkBrowseRow(itemID, buyoutStack, count)
+    return { itemID = itemID, count = count or 1, buyoutStack = buyoutStack }
+  end
+
+  local function mkDeal(itemID, unitPrice, overrides)
+    overrides = overrides or {}
+    local deal = {
+      itemID = itemID,
+      isCommodity = false,
+      auctionID = nil,
+      unitPrice = unitPrice,
+      qty = 1,
+      mv = 1000000,
+      discount = 0.5,
+      profit = 100000,
+      tier = "WATCH",
+      falling = false,
+    }
+    for k, v in pairs(overrides) do deal[k] = v end
+    return deal
+  end
+
+  local function findDeal(deals, itemID)
+    for _, deal in ipairs(deals) do
+      if deal.itemID == itemID then return deal end
+    end
+    return nil
+  end
+
+  it("evaluates only rows past fromIndex", function()
+    local values = { [1] = { mv = 200 }, [2] = { mv = 400 }, [3] = { mv = 600 } }
+    local function getValue(id) return values[id] end
+    local rows = { mkBrowseRow(1, 100), mkBrowseRow(2, 100), mkBrowseRow(3, 100) }
+
+    local deals, n = GC.FullScan.EvaluateDelta(rows, 2, getValue, settings)
+    assert.equals(3, n)
+    assert.equals(1, #deals)          -- only item 3 evaluated
+    assert.equals(3, deals[1].itemID)
+  end)
+
+  it("evaluates nothing when fromIndex is already at the end", function()
+    local values = { [1] = { mv = 200 }, [2] = { mv = 400 } }
+    local function getValue(id) return values[id] end
+    local rows = { mkBrowseRow(1, 100), mkBrowseRow(2, 100) }
+
+    local deals, n = GC.FullScan.EvaluateDelta(rows, 2, getValue, settings)
+    assert.equals(2, n)
+    assert.equals(0, #deals)
+  end)
+
+  it("merge dedupes by itemID with the incoming row winning unconditionally", function()
+    local a = { mkDeal(1, 100), mkDeal(2, 300) }
+    local b = { mkDeal(2, 250) }
+    local m = GC.FullScan.MergeDeals(a, b, 100)
+    assert.equals(2, #m)
+    assert.equals(250, findDeal(m, 2).unitPrice)
+  end)
+
+  it("merge lets the incoming row win even when it is pricier", function()
+    -- A second scan pass's fresher row replaces the first pass's cheaper one: the cheap
+    -- listing may already be gone (bought out, requoted, or expired) by the time the new
+    -- pass ran, so keeping it would advertise a lot that no longer exists.
+    local a = { mkDeal(1, 100) }
+    local b = { mkDeal(1, 150) }
+    local m = GC.FullScan.MergeDeals(a, b, 100)
+    assert.equals(1, #m)
+    assert.equals(150, findDeal(m, 1).unitPrice)
+  end)
+
+  it("merge lets the incoming row win even at an identical price", function()
+    local a = { mkDeal(1, 100, { profit = 111 }) }
+    local b = { mkDeal(1, 100, { profit = 222 }) }
+    local m = GC.FullScan.MergeDeals(a, b, 100)
+    assert.equals(1, #m)
+    assert.equals(222, findDeal(m, 1).profit)
+  end)
+
+  it("merge respects cap and final Evaluate equals single-shot", function()
+    -- 5 rows, all past the watch threshold with distinct profit so the sort order is
+    -- unambiguous: item5 (highest profit) ... item1 (lowest).
+    local values = {
+      [1] = { mv = 200 }, [2] = { mv = 400 }, [3] = { mv = 600 },
+      [4] = { mv = 800 }, [5] = { mv = 1000 },
+    }
+    local function getValue(id) return values[id] end
+    local rows = {
+      mkBrowseRow(1, 100), mkBrowseRow(2, 100), mkBrowseRow(3, 100),
+      mkBrowseRow(4, 100), mkBrowseRow(5, 100),
+    }
+
+    -- Stream in two chunks: rows 1-3 arrive first, then rows 4-5.
+    local firstChunk = { rows[1], rows[2], rows[3] }
+    local deals1 = GC.FullScan.EvaluateDelta(firstChunk, 0, getValue, settings)
+    local merged = GC.FullScan.MergeDeals({}, deals1, 100)
+
+    local deals2, n2 = GC.FullScan.EvaluateDelta(rows, 3, getValue, settings)
+    assert.equals(5, n2)
+    merged = GC.FullScan.MergeDeals(merged, deals2, 100)
+
+    local single = GC.FullScan.Evaluate(rows, getValue, settings, 100)
+    assert.same(single, merged)
+
+    -- Cap truncation matches a single-shot capped Evaluate too.
+    local mergedCapped = GC.FullScan.MergeDeals(merged, {}, 2)
+    local singleCapped = GC.FullScan.Evaluate(rows, getValue, settings, 2)
+    assert.same(singleCapped, mergedCapped)
+  end)
+end)
