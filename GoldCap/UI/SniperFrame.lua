@@ -102,6 +102,16 @@ local pendingBrowsePage = false    -- a page (RequestMoreBrowseResults) is due b
 local lastBrowseEventAt = 0        -- time() of the last browse-results event seen for the current scan; armScanWatchdog compares this against each send
 local fullScanToken = 0
 
+-- T6 streaming: deals now surface WHILE the scan pages instead of only once
+-- HasFullBrowseResults() finally goes true. TWO counters, not one, because
+-- GC.FullScan.RowsFromBrowse filters (a browse aggregate with no itemID/minPrice is
+-- dropped), so "raw browse entries seen" and "rows produced from them" are different
+-- lengths -- conflating them would either re-convert already-converted raw entries or skip
+-- some on the next tail slice.
+local streamRows = {}      -- rows (RowsFromBrowse's { itemID, count, buyoutStack } shape) accumulated across every page of the CURRENT scan pass
+local streamRawCount = 0   -- #C_AuctionHouse.GetBrowseResults() already converted into streamRows -- the raw-array watermark
+local streamRowsCount = 0  -- #streamRows already handed to EvaluateDelta -- its fromIndex on the next call
+
 -- Purchase-flow bookkeeping. A row is "pinned" (activeItemID[itemID] = true) from the
 -- first arming click until the purchase resolves, so refreshRows() never repurposes it
 -- mid-flight. pendingAuction tracks in-flight item (non-commodity) buys by auctionID for
@@ -109,6 +119,17 @@ local fullScanToken = 0
 -- commodity buy (Blizzard only allows one commodity purchase flow at a time).
 local pendingAuction = {}
 local activeItemID = {}
+
+-- T6: the pooled row widget currently under the mouse (nil when none). refreshRows() runs
+-- far more often once streaming is wired in (every browse page, not just once at scan end),
+-- so without this a fast click mid-hover could land after a merge reassigned that screen
+-- slot to a different deal. Pinned the same way purchaseStage rows already are: excluded
+-- from sortedDeals()'s output (so the frozen deal doesn't ALSO reappear in some other row)
+-- and skipped by refreshRows()'s re-stamp loop (so its own content never changes underneath
+-- the cursor). Cleared on OnLeave (with an immediate refreshRows() to catch up on whatever
+-- it missed while frozen) and on resetAllPurchases() so an AH close can never leave a stale
+-- pin across sessions.
+local hoveredRow = nil
 local commodityPurchase = nil
 
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
@@ -132,19 +153,24 @@ local pendingRequerySend = {}
 GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 
 local function sortedDeals()
+  -- T6: the hovered row's own deal (if any) is excluded here too, same as an
+  -- activeItemID-pinned one -- refreshRows() below never re-stamps that row, so if its deal
+  -- stayed in `list` it would render TWICE: frozen in its own row and fresh wherever the
+  -- rest of the list now ranks it.
+  local hoveredItemID = hoveredRow and hoveredRow.deal and hoveredRow.deal.itemID
   local list = {}
   if mode == "fullscan" then
     -- GC.FullScan.Evaluate already returns tier-rank/profit sorted order; filtering out
     -- pinned itemIDs preserves that order (no re-sort needed).
     for _, deal in ipairs(scanDeals) do
-      if not activeItemID[deal.itemID] then
+      if not activeItemID[deal.itemID] and deal.itemID ~= hoveredItemID then
         list[#list + 1] = deal
       end
     end
     return list
   end
   for itemID, deal in pairs(deals) do
-    if not activeItemID[itemID] then
+    if not activeItemID[itemID] and itemID ~= hoveredItemID then
       list[#list + 1] = deal
     end
   end
@@ -439,7 +465,10 @@ end
 -- Rows mid-purchase (row.purchaseStage set) are pinned in place: refreshRows() leaves
 -- their content untouched instead of repurposing the widget to a different deal out from
 -- under an in-flight click sequence. sortedDeals() already excludes their itemID so no
--- other row duplicates them.
+-- other row duplicates them. T6: the hovered row (see `hoveredRow` above) is pinned the
+-- same way, for the same reason -- streaming now calls this on every browse page, and the
+-- row under the cursor must not change identity between a click landing and the button
+-- underneath it processing that click.
 --
 -- The row pool grows lazily up to `shown` (itself capped at ROW_CAP) instead of being
 -- pre-built at a fixed size: full scans can return far more deals than the old
@@ -460,7 +489,7 @@ local function refreshRows()
   local li = 1
   for i = 1, #rows do
     local row = rows[i]
-    if not row.purchaseStage then
+    if not row.purchaseStage and row ~= hoveredRow then
       local deal = (li <= shown) and list[li] or nil
       if deal then
         setRowDeal(row, deal)
@@ -734,6 +763,11 @@ local function applyFullScanResults(rowsList, groupCount)
   end
   refreshRows()
   refreshStaleText() -- B: refresh on every completed scan, not just AH open
+  -- T6: the streaming counters only make sense within one scan pass -- the reconcile above
+  -- just replaced scanDeals wholesale from the full rows list, so whatever EvaluateDelta had
+  -- already walked is moot. Reset here (the scan's one completion point) rather than in
+  -- every caller.
+  streamRows, streamRawCount, streamRowsCount = {}, 0, 0
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -778,15 +812,49 @@ end
 -- Shared step for both browse events: a batch of itemKey aggregates arrived (the first
 -- batch on OnBrowseResults, an increment on OnBrowseResultsAdded) -- either it's the final
 -- page (HasFullBrowseResults) and the scan is done, or there's more to fetch.
+--
+-- T6: every call first converts only the NEW raw tail (browseResults[streamRawCount+1 .. n])
+-- into rows and appends it to streamRows. RowsFromBrowse's per-row conversion has no
+-- cross-row state (each row depends only on its own itemID via getValue), so this chunked
+-- concatenation across pages is identical to running RowsFromBrowse once over the whole
+-- browseResults array -- just without re-walking rows a prior page already converted. The
+-- completion branch reuses streamRows for its own full reconcile for the same reason: by the
+-- time HasFullBrowseResults() is true, the tail conversion above has already brought
+-- streamRows fully up to date with browseResults, so there's nothing left to gain from
+-- recomputing it from scratch.
 local function advanceBrowseScan(token)
+  local browseResults = C_AuctionHouse.GetBrowseResults()
+  local n = #browseResults
+
+  if n > streamRawCount then
+    local tail = {}
+    for i = streamRawCount + 1, n do tail[#tail + 1] = browseResults[i] end
+    local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue)
+    for _, row in ipairs(tailRows) do streamRows[#streamRows + 1] = row end
+    streamRawCount = n
+  end
+
   if C_AuctionHouse.HasFullBrowseResults() then
     scanRunning = false
-    local browseResults = C_AuctionHouse.GetBrowseResults()
-    applyFullScanResults(GC.FullScan.RowsFromBrowse(browseResults, GC.Data.GetItemValue), #browseResults)
+    applyFullScanResults(streamRows, n)
   else
-    local n = #C_AuctionHouse.GetBrowseResults()
+    -- Stream: evaluate only the rows added since the last event (EvaluateDelta's fromIndex),
+    -- mark them .stale exactly like the completion reconcile does (still just a per-itemKey
+    -- aggregate, not a resolved auction), and merge into whatever's already on screen --
+    -- MergeDeals' incoming-wins rule means a later page's fresher read of an item replaces an
+    -- earlier one instead of both lingering.
+    local deltaDeals, newRowsCount = GC.FullScan.EvaluateDelta(
+      streamRows, streamRowsCount, GC.Data.GetItemValue, GC.db.settings.sniper)
+    streamRowsCount = newRowsCount
+    for _, deal in ipairs(deltaDeals) do
+      deal.stale = true
+    end
+    scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
+    refreshRows()
+    -- Spec: no page % (Blizzard doesn't expose total pages) -- result count + running deal
+    -- count instead.
     if frame then
-      frame.status:SetText(("scanning... %d item group%s"):format(n, n == 1 and "" or "s"))
+      frame.status:SetText(("scanning… %d results · %d deals"):format(n, #scanDeals))
     end
     requestNextPage(token)
   end
@@ -815,6 +883,7 @@ local function startFullScan()
   scanRunning = true
   pendingBrowsePage = false
   lastBrowseEventAt = 0
+  streamRows, streamRawCount, streamRowsCount = {}, 0, 0 -- T6: fresh pass, fresh streaming state
   mode = "fullscan"
   refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
 
@@ -1818,6 +1887,10 @@ local function resetAllPurchases()
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
   commodityPurchase = nil
+  -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own
+  -- OnLeave, so clear the hover pin here too -- otherwise it could sit pinned to a hidden
+  -- row across the next Auction House session.
+  hoveredRow = nil
   if dialog then
     dialog.row = nil
     requoteArmToken = requoteArmToken + 1 -- invalidate any countdown still in flight
@@ -1927,10 +2000,18 @@ createRow = function(parent, index)
   -- separate child widget) keeps handling its own clicks exactly as before. row.deal is nil
   -- for an empty/hidden pooled row (refreshRows clears it before Hide()), so there is nothing
   -- to show a tooltip for even if a stray event ever reached a hidden frame.
+  --
+  -- T6: OnEnter also claims `hoveredRow` (see its declaration above) so refreshRows() pins
+  -- this row's content for as long as the mouse stays over it -- streaming can call
+  -- refreshRows() many times a second while a scan pages, and without this a merge could
+  -- swap the deal under the cursor between the mouse landing and a click resolving. OnLeave
+  -- releases the pin and immediately calls refreshRows() to catch up on anything it missed
+  -- while frozen -- otherwise a stale row could sit there until the next unrelated refresh.
   row:EnableMouse(true)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
     self.rail:Show()
+    hoveredRow = self
     if not self.deal then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetItemByID(self.deal.itemID)
@@ -1939,6 +2020,10 @@ createRow = function(parent, index)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
     self.rail:Hide()
+    if hoveredRow == self then
+      hoveredRow = nil
+      refreshRows()
+    end
     GameTooltip:Hide()
   end)
 
