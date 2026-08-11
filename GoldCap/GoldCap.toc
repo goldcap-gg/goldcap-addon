@@ -12,6 +12,7 @@ Core/Util.lua
 Core/ImportString.lua
 Core/Data.lua
 Core/Ledger.lua
+Core/Flips.lua
 Core/Book.lua
 Core/DealMath.lua
 Core/Scanner.lua
