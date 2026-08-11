@@ -108,7 +108,12 @@ function T.Chip(parent)
   f.text = f:CreateFontString(nil, "OVERLAY")
   f.text:SetFont(T.FONT_MONO_BOLD, 10 * T.Scale(), "")
   f.text:SetJustifyH("CENTER")
-  f.text:SetPoint("CENTER")
+  -- M14: bounded to the chip's own width (a bare CENTER point has no width limit at all) and
+  -- non-wrapping, so a long label (e.g. "SUSPECT" plus the falling-tier marker) truncates
+  -- inside the chip instead of overflowing into whatever sits to its right.
+  f.text:SetPoint("LEFT", 2, 0)
+  f.text:SetPoint("RIGHT", -2, 0)
+  f.text:SetWordWrap(false)
 
   f.underline = solid(f, "ARTWORK", T.color.border)
   f.underline:SetPoint("BOTTOMLEFT")
@@ -165,7 +170,11 @@ function T.Button(parent, variant)
   local hoverColor = spec.bg and brightened(spec.bg) or T.color.hover
 
   local b = CreateFrame("Button", nil, parent)
-  b:RegisterForClicks("AnyUp")
+  -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
+  -- (row Buy, dialog primary/Confirm) must never let a right- or middle-click reach
+  -- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase; only a left-click OnClick
+  -- may fire.
+  b:RegisterForClicks("LeftButtonUp")
   b.bg = solid(b, "BACKGROUND", base)
   b.bg:SetAllPoints()
 
@@ -183,11 +192,34 @@ function T.Button(parent, variant)
     b.text:SetText(text)
   end
 
+  -- I3: hover-brighten only applies while enabled -- a disabled button (see OnDisable below)
+  -- still receives OnEnter/OnLeave in WoW (that's how a disabled control can still show an
+  -- explanatory tooltip), so without this guard hovering a dimmed/disabled button would
+  -- brighten it right back to looking clickable.
   b:SetScript("OnEnter", function()
+    if not b:IsEnabled() then return end
     b.bg:SetColorTexture(hoverColor[1], hoverColor[2], hoverColor[3], hoverColor[4] or 1)
   end)
   b:SetScript("OnLeave", function()
+    if not b:IsEnabled() then return end
     b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+  end)
+
+  -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
+  -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
+  -- button looking exactly as live/clickable as ever. Dims the background and switches text
+  -- to fgDim; OnEnable restores the variant's own colors. Purely visual -- every call site's
+  -- Enable()/Disable() logic is unchanged, and a caller that sets a custom text color right
+  -- after Enable() (e.g. the red "Buy anyway" requote state) still wins, since that call
+  -- happens synchronously afterward in the same Lua step, before the next render.
+  b:SetScript("OnDisable", function()
+    b.bg:SetAlpha(0.45)
+    b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
+  end)
+  b:SetScript("OnEnable", function()
+    b.bg:SetAlpha(1)
+    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
   end)
 
   return b

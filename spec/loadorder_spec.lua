@@ -57,6 +57,21 @@ describe("TOC load order", function()
         SetFont = function() end,
         GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
         RegisterForClicks = function() end,
+        -- Sniper v3 (SniperFrame.lua T5 chrome rebuild): the purchase dialog now floats via
+        -- its own strata, and persistWindowGeometry reads GetWidth alongside the pre-existing
+        -- GetHeight now that the window is width-resizable too.
+        SetFrameStrata = function() end,
+        GetWidth = function() return 0 end,
+        -- Sniper v3 fix round 1: setPlainTooltip now HookScript's onto fullScanBtn/toggleBtn
+        -- (I4, so it doesn't clobber Theme.Button's own OnEnter/OnLeave hover-brighten) --
+        -- called synchronously during createFrame, so the stub needs it even though the
+        -- registered closures themselves are never invoked by this headless test. IsEnabled/
+        -- SetAlpha back Theme.Button's OnEnter/OnDisable guards (I3) for the same reason --
+        -- exercised only if those closures ever ran, which they don't here, but kept for
+        -- parity with the real Button widget API this file now leans on.
+        HookScript = function() end,
+        IsEnabled = function() return true end,
+        SetAlpha = function() end,
       }
       return f
     end
@@ -66,6 +81,11 @@ describe("TOC load order", function()
     _G.UISpecialFrames = _G.UISpecialFrames or {}
     _G.SlashCmdList = {}
     _G.C_AddOns = { GetAddOnMetadata = function() return "test" end }
+    -- Sniper v3: persistWindowGeometry is wired via hooksecurefunc(frame,
+    -- "StopMovingOrSizing", ...) rather than an OnDragStop/OnMouseUp script, since
+    -- Theme.TitleBar's drag region isn't exposed for a direct script hook -- see
+    -- SniperFrame.lua's createFrame for the full reasoning.
+    _G.hooksecurefunc = _G.hooksecurefunc or function() end
 
     local GC = {}
     local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
@@ -104,5 +124,6 @@ describe("TOC load order", function()
     _G.C_AddOns = nil
     _G.GoldCap_MarketData = nil
     _G.SLASH_GOLDCAP1 = nil
+    _G.hooksecurefunc = nil
   end)
 end)

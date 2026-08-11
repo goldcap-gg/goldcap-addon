@@ -2,55 +2,46 @@ local _, GC = ...
 
 GC.Sniper = GC.Sniper or {}
 
-local ROW_HEIGHT = 22
+local Theme = GC.Theme
+
+local ROW_HEIGHT = Theme.ROW_H
 local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
 
--- Frame/row geometry. ROW_WIDTH is derived from FRAME_WIDTH (not hardcoded separately) so
--- the row pool (createRow) and the scroll child it lives in (createFrame) can never drift
--- apart the way they did before -- that drift is exactly what let the Buy button paint over
--- the profit column. Column widths/gaps below are shared between createRow's per-row
--- anchors and createFrame's header labels for the same reason: one set of numbers feeding
--- both the data rows and the header row that has to line up with them.
-local FRAME_WIDTH = 560
-local FRAME_HEIGHT = 480
--- E.4: SetResizeBounds' width min/max are both FRAME_WIDTH (see createFrame) -- only height
--- may change, so the column grid above never has to cope with a resized ROW_WIDTH.
+-- Sniper v3: window chrome is Theme.Panel + Theme.TitleBar (see createFrame) instead of
+-- BasicFrameTemplateWithInset, and BOTH width and height are now resizable (T5 -- previously
+-- only height could change, which is why the old column grid derived every offset from a
+-- single fixed FRAME_WIDTH). The column grid below is now driven by COLUMNS + anchorColumns:
+-- every fixed-width cell anchors relative to its neighbor (right-to-left off the row/header
+-- container's own RIGHT edge), and the `content`/`header` containers themselves track the
+-- frame's live width via SetPoint, so a resize re-flows the grid with no recompute step
+-- anywhere in this file -- the one thing that DOES need an explicit resync is the ScrollFrame's
+-- scroll child (`content`), which Blizzard's scroll widget requires an explicit SetWidth for
+-- (see createFrame's f:SetScript("OnSizeChanged", ...) -- observed off the window frame
+-- itself, not the ScrollFrame, so it keeps firing even while the ScrollFrame is hidden behind
+-- the Sell tab; M8).
+local FRAME_WIDTH = 640
+local FRAME_HEIGHT = 520
+local RESIZE_MIN_WIDTH = 560
+local RESIZE_MAX_WIDTH = 1100
 local RESIZE_MIN_HEIGHT = 300
 local RESIZE_MAX_HEIGHT = 900
-local PANEL_LEFT = 14
-local PANEL_RIGHT_INSET = 32 -- scrollbar gutter reserved by UIPanelScrollFrameTemplate
-local ROW_WIDTH = FRAME_WIDTH - PANEL_LEFT - PANEL_RIGHT_INSET
 
-local ICON_SIZE = 16
-local NAME_GAP = 4    -- icon -> name
-local COLUMN_GAP = 6   -- name -> tier -> discount -> price -> profit
-local BUY_GAP = 4     -- profit -> buy; tighter so the button reads as attached to the price it buys
-local TIER_WIDTH = 44
-local DISCOUNT_WIDTH = 40
-local PRICE_WIDTH = 95
-local PROFIT_WIDTH = 95
-local BUY_WIDTH = 50
+-- Content-area margins. CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
+-- UIPanelScrollFrameTemplate) has no Theme equivalent -- Theme doesn't know about Blizzard's
+-- scrollbar width -- so it stays a plain named constant, same as before.
+local CONTENT_LEFT = Theme.pad.m
+local CONTENT_RIGHT_GUTTER = 32
 
--- D: Deals/Sell view switcher tab buttons, and the shared scroll-region geometry the Sell
--- container is built to fill (see GC.Sell.Attach below) -- named here, once, so createFrame's
--- own deals `scroll`  and the geometry table handed to GC.Sell.Attach can never drift apart the
--- way the row/header constants above already guard against for the deals grid itself.
-local TAB_WIDTH = 50
-local TAB_HEIGHT = 18
-local TAB_GAP = 4
-local SCROLL_TOP = -70
-local SCROLL_BOTTOM = 12
+local ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
 
--- Two tiers on purpose. A single alarm that fires on a 6% drift is exactly what teaches a
--- player to click through it, so the quiet tier stays where it was and the loud treatment
--- below is reserved for a rise that changes the decision.
+-- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
+-- sortable; the two columns COLUMNS adds for Sniper v3, unit/trend, stay inert like "buy").
 local REQUOTE_WARN_RATIO = 0.05
 local REQUOTE_LOUD_RATIO = 0.25
 -- How long the loud prompt refuses the confirming click. Long enough that a second click
 -- already on its way lands on a disabled button, short enough not to feel broken.
 local REQUOTE_ARM_SECONDS = 1.5
 local REQUOTE_BANNER_HEIGHT = 46
-local DIALOG_BASE_HEIGHT = 348
 -- How many order-book entries the dialog will read. Purely a bound on work done against
 -- already-fetched results; a purchase never spans anywhere near this many price levels.
 local MAX_BOOK_LEVELS = 100
@@ -68,13 +59,6 @@ local REQUERY_TIMEOUT_SECONDS = 8
 -- If no browse event arrives within this long after a send (initial query or page
 -- request), the paging chain is presumed stalled -- see armScanWatchdog.
 local SCAN_WATCHDOG_SECONDS = 15
-
-local TIER_COLOR = {
-  HOT = { 1, 0.35, 0.15 },
-  GOOD = { 0.25, 0.85, 0.25 },
-  WATCH = { 0.65, 0.65, 0.65 },
-  SUSPECT = { 1, 0.85, 0.1 },
-}
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
@@ -97,7 +81,7 @@ local view = "deals"
 -- or a purchase resolving never inherits a stale sort or fights with Evaluate's own order.
 -- nil = default (tier rank asc, then profit desc, exactly today's behavior).
 local sortOverride = nil        -- { key = "tier"|"pct"|"price"|"profit", desc = true|false }
-local sortHeaders = {}          -- sortKey -> { label = FontString, base = string }; filled once by createFrame's addHeader calls
+local sortHeaders = {}          -- sortKey -> { label = FontString, base = string }; filled once by addHeader calls
 
 -- B: import staleness. Printed once per UI session (not per AH visit) the first time the
 -- import is found stale on AH open -- reset only by /reload, deliberately not tied to a
@@ -173,10 +157,15 @@ local function sortedDeals()
 end
 
 -- Raw comparison value per sortable header (E.2). "Item" has no entry -- it's not sortable,
--- see createFrame's addHeader calls.
+-- see the addHeader calls. I6: "unit" (per-unit price) is its OWN sort key, independent of
+-- "price" (total = unit*qty) -- total's own column (COLUMNS "total") is one of the two
+-- responsively-dropped columns (see computeHidden), so without a separate always-visible
+-- sort key, sorting the list by price would become unreachable via the header at any window
+-- width <=724px. "unit" lives on the never-dropped COLUMNS "unit" column instead.
 local SORT_VALUE = {
   tier = function(deal) return TIER_RANK[deal.tier] or 9 end,
   pct = function(deal) return deal.discount end,
+  unit = function(deal) return deal.unitPrice end,
   price = function(deal) return deal.unitPrice * deal.qty end,
   profit = function(deal) return deal.profit end,
 }
@@ -214,9 +203,9 @@ end
 
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 
--- GetCoinTextureString's inline coin icons are too wide for a 95px price/profit column once
--- the amount climbs into three-plus digit gold -- collapse anything >= 100g to a plain
--- "<N>g" instead of letting the icon string overflow the column.
+-- GetCoinTextureString's inline coin icons are too wide for a narrow column once the amount
+-- climbs into three-plus digit gold -- collapse anything >= 100g to a plain "<N>g" instead of
+-- letting the icon string overflow the column.
 local function formatColumnAmount(copper)
   if copper >= GOLD_COMPACT_THRESHOLD then
     return ("%dg"):format(math.floor(copper / 10000))
@@ -244,14 +233,164 @@ local function tierLabel(deal)
   return deal.tier
 end
 
+-- ---------------------------------------------------------------------------
+-- Sniper v3 column grid. One table drives BOTH the header row and every pooled deal row
+-- (createHeaderRow/createRow below) -- widths/order can never drift out of alignment with
+-- each other, and (new for T5) a window WIDTH resize re-flows every column automatically:
+-- anchorColumns chains each fixed column's RIGHT edge to the previous one's LEFT edge (or the
+-- container's own RIGHT edge for the first), right-to-left, off a `container` that itself
+-- tracks the frame's live width -- so nothing here ever needs a recomputed pixel offset.
+--
+-- `optional = true` (total, trend) marks the two columns that responsively drop when the item
+-- (flex) column's own implied width would otherwise fall below its min -- see computeHidden
+-- below. Both stay reachable in the buy dialog's own price grid (unit/total/trend each have
+-- their own grid row there) whenever they're hidden from the list, so no information is lost,
+-- only a glance-at-the-list convenience.
+-- ---------------------------------------------------------------------------
+local COLUMNS = {
+  { key = "item",   flex = true, min = 180 },
+  { key = "tier",   w = 48 },
+  { key = "disc",   w = 56,  num = true, size = 15, bold = true },
+  { key = "unit",   w = 76,  num = true, size = 12 },
+  { key = "total",  w = 84,  num = true, size = 12, optional = true },
+  { key = "profit", w = 84,  num = true, size = 13, bold = true },
+  { key = "trend",  w = 44,  num = true, size = 11, optional = true },
+  { key = "buy",    w = 52 },
+}
+
+-- Anchors every VISIBLE fixed COLUMNS entry's RIGHT edge right-to-left off `container`'s own
+-- RIGHT edge; any entry present in `hidden` (a set of COLUMNS.key -> true) is Hidden and
+-- skipped from the chain entirely -- the next visible column simply anchors past it, so
+-- dropping/restoring a column never leaves a gap-shaped hole. `cellFor(col)` returns the
+-- ALREADY-BUILT widget for `col` (built once, up front -- see buildRowCell/buildHeaderCell)
+-- so re-running this on a resize only re-anchors/shows/hides, never re-creates widgets.
+-- Returns the flex ("item") column's anchor pair -- {frame, point} -- for the caller to anchor
+-- the item content's RIGHT edge to, since item has no single themed cell of its own
+-- (createRow/createHeaderRow build icon+name directly).
+local function anchorColumns(container, hidden, cellFor)
+  local prev, prevPoint = container, "RIGHT"
+  local flexAnchor
+  for i = #COLUMNS, 1, -1 do
+    local col = COLUMNS[i]
+    if col.flex then
+      flexAnchor = { frame = prev, point = prevPoint }
+    else
+      local cell = cellFor(col)
+      if hidden[col.key] then
+        cell:Hide()
+      else
+        cell:Show()
+        cell:ClearAllPoints()
+        cell:SetWidth(col.w)
+        if prevPoint == "RIGHT" then
+          cell:SetPoint("RIGHT", prev, "RIGHT")
+        else
+          cell:SetPoint("RIGHT", prev, "LEFT", -Theme.pad.s, 0)
+        end
+        prev, prevPoint = cell, "LEFT"
+      end
+    end
+  end
+  return flexAnchor
+end
+
+-- Column key -> row widget field name, for the plain numeric cells (tier/buy build their
+-- own typed widgets directly in buildRowCell below).
+local NUM_FIELD = { disc = "discountText", unit = "unitText", total = "priceText", profit = "profitText", trend = "trendText" }
+
+-- Column key -> width, for the few places outside the row/header grid that need to match a
+-- COLUMNS width exactly (M13: the dialog's own tier chip, so it can never drift out of sync
+-- with the list's tier column width).
+local COLUMN_W = {}
+for _, col in ipairs(COLUMNS) do
+  if col.w then COLUMN_W[col.key] = col.w end
+end
+
+-- ---------------------------------------------------------------------------
+-- Sniper v3 responsive column drop. OPTIONAL_KEYS lists the `optional` COLUMNS entries in
+-- table order (total, then trend) -- that order IS the drop priority (data-driven off COLUMNS
+-- itself, not a hard-coded `if col.key == "total"`), and DROP_THRESHOLDS[i] is the item-column
+-- width below which OPTIONAL_KEYS[i] hides. computeHidden recomputes from scratch on every
+-- width sample rather than tracking incremental state, so re-showing a column as the window
+-- grows back is just the same rule read the other way (trend re-appears before total, simply
+-- because it was the last one dropped and its own threshold is the first one no longer failed).
+-- ---------------------------------------------------------------------------
+local OPTIONAL_KEYS, DROP_THRESHOLDS = {}, { 180, 150 }
+for _, col in ipairs(COLUMNS) do
+  if col.optional then OPTIONAL_KEYS[#OPTIONAL_KEYS + 1] = col.key end
+end
+
+-- Fixed pixel budget (every VISIBLE fixed column's width, plus one Theme.pad.s gap per visible
+-- fixed column -- anchorColumns puts exactly one gap in front of each: the outer name-to-
+-- first-column gap for the first one, an inter-column gap for every other one) for the columns
+-- NOT in `hidden`. containerWidth minus this budget IS the item (flex) column's own implied
+-- width: the icon and name both live inside that flex zone, so COLUMNS.item.min is measured
+-- against the whole zone, not the name text alone.
+local function fixedColumnBudget(hidden)
+  local sum, visible = 0, 0
+  for _, col in ipairs(COLUMNS) do
+    if not col.flex and not hidden[col.key] then
+      sum = sum + col.w
+      visible = visible + 1
+    end
+  end
+  return sum + visible * Theme.pad.s
+end
+
+local function computeHidden(containerWidth)
+  local hidden = {}
+  for i, key in ipairs(OPTIONAL_KEYS) do
+    local itemWidth = containerWidth - fixedColumnBudget(hidden)
+    if itemWidth < DROP_THRESHOLDS[i] then
+      hidden[key] = true
+    end
+  end
+  return hidden
+end
+
+local function sameHidden(a, b)
+  for _, key in ipairs(OPTIONAL_KEYS) do
+    if (not a[key]) ~= (not b[key]) then return false end
+  end
+  return true
+end
+
+-- Current drop state, shared by the header row and every pooled deal row -- recomputed by
+-- applyColumnVisibility (below createRow) whenever the scroll/content width changes.
+local hiddenColumns = {}
+
 local function setRowDeal(row, deal)
   row.deal = deal
-  local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
-  row.tierText:SetText(tierLabel(deal))
-  row.tierText:SetTextColor(color[1], color[2], color[3])
+  local color = Theme.tier[deal.tier] or Theme.tier.WATCH
+  row.tierChip:SetLabel(tierLabel(deal), color)
+
   row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
+  row.discountText:SetTextColor(color[1], color[2], color[3])
+
+  row.unitText:SetText(formatColumnAmount(deal.unitPrice))
   row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
   row.profitText:SetText(formatColumnAmount(deal.profit))
+  if deal.profit >= 0 then
+    row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
+  else
+    row.profitText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+  end
+
+  -- Sniper v3 trend column: mirrors the dialog's own value.trend read (updateDialogAmounts)
+  -- -- import-sourced values only, absent for bundled/no-import (dim dash then). Reads
+  -- GC.Data.GetItemValue directly rather than through `driver` -- `driver` (below) isn't
+  -- declared yet at this point in the file, and driver.getValue is that same function anyway.
+  local value = GC.Data.GetItemValue(deal.itemID)
+  if value and value.trend then
+    local glyph = value.trend < 0 and "▼" or "▲"
+    row.trendText:SetText(("%s%d%%"):format(glyph, math.abs(value.trend)))
+    local tc = value.trend < 0 and Theme.color.red or Theme.color.green
+    row.trendText:SetTextColor(tc[1], tc[2], tc[3])
+  else
+    row.trendText:SetText("—")
+    row.trendText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  end
+
   row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
   row.icon:SetTexture(nil)
 
@@ -272,7 +411,30 @@ end
 -- widget-construction helpers), but refreshRows() (below) must be able to grow the row
 -- pool on demand. Lua resolves an unbound name at closure-creation time, not call time,
 -- so without this forward declaration refreshRows would silently capture a global.
-local createRow
+-- layoutRow is forward-declared alongside it for the same reason: applyColumnVisibility
+-- (right below) re-layouts every pooled row on a column-drop change, but its own real
+-- definition (like createRow's) needs the row widget fields built further down. layoutHeaderRow
+-- is forward-declared the same way (M7): applyColumnVisibility calls THIS module-local
+-- directly, never `frame.layoutHeaderRow` -- reading a field off the module-level `frame` var
+-- would let a stray early resize event (frame not yet assigned, or the header not built yet)
+-- silently update `hiddenColumns` ("mark state applied") with nothing around to actually lay
+-- it out; gating on the local being non-nil instead means the state genuinely isn't touched
+-- until there's a real layout function to apply it with.
+local createRow, layoutRow, layoutHeaderRow
+
+-- Re-applies the current responsive column drop to the header and every pooled row --
+-- called from createFrame's f:SetScript("OnSizeChanged", ...) (M8) whenever the window's live
+-- width changes. Recomputes `hiddenColumns` from scratch (see computeHidden) and only touches
+-- widgets when the drop STATE actually changed, so a resize that doesn't cross a threshold
+-- costs nothing beyond the cheap sameHidden comparison.
+local function applyColumnVisibility(containerWidth)
+  if not layoutHeaderRow then return end -- header not built yet (see M7 comment above)
+  local newHidden = computeHidden(containerWidth)
+  if sameHidden(newHidden, hiddenColumns) then return end
+  hiddenColumns = newHidden
+  layoutHeaderRow()
+  for i = 1, #rows do layoutRow(rows[i]) end
+end
 
 -- Rows mid-purchase (row.purchaseStage set) are pinned in place: refreshRows() leaves
 -- their content untouched instead of repurposing the widget to a different deal out from
@@ -315,7 +477,7 @@ end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
 -- active (▼ = descending, ▲ = ascending); every other header falls back to its plain base
--- text. sortHeaders is populated once by createFrame's addHeader calls. Literal UTF-8 glyphs
+-- text. sortHeaders is populated once by the addHeader calls. Literal UTF-8 glyphs
 -- (not \xXX escapes -- WoW's client Lua is 5.1, which has no hex string escape) in a file
 -- saved as UTF-8; Lua strings are just byte arrays so this needs no special handling.
 local function updateHeaderSortIndicators()
@@ -363,18 +525,18 @@ local function refreshStaleText()
   local isAppData = GC.db and GC.db.imported and GC.db.imported.origin == "app"
   if not age then
     frame.staleText:SetText("no import -- /goldcap import")
-    frame.staleText:SetTextColor(1, 0.3, 0.3)
+    frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
   elseif age < STALE_YELLOW_SECONDS then
     frame.staleText:Hide()
   elseif age < STALE_RED_SECONDS then
     local label = isAppData and "auto-synced %dh ago" or "import %dh old"
     frame.staleText:SetText(label:format(math.floor(age / 3600)))
-    frame.staleText:SetTextColor(1, 0.82, 0)
+    frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
     frame.staleText:Show()
   else
     frame.staleText:SetText(isAppData and "auto-synced data stale -- /goldcap import" or "import stale -- /goldcap import")
-    frame.staleText:SetTextColor(1, 0.3, 0.3)
+    frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
   end
 end
@@ -519,7 +681,7 @@ local driver = {
 local function updateSellTabLabel()
   if not frame or not frame.sellTab then return end
   local n = GC.Sell.SellableCount and GC.Sell.SellableCount() or 0
-  frame.sellTab:SetText(n > 0 and ("Sell (%d)"):format(n) or "Sell")
+  frame.sellTab:SetLabel(n > 0 and ("Sell (%d)"):format(n) or "Sell")
 end
 GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
 
@@ -535,13 +697,13 @@ local function startScanning()
   GC.Sniper.scanner:Stop() -- re-Start while a search is in flight drops it silently: always Stop first
   GC.Sniper.scanner:Start(GC.Data.GetWatchlist(100))
   scanning = true
-  if frame then frame.toggleBtn:SetText("Stop") end
+  if frame then frame.toggleBtn:SetLabel("Stop") end
 end
 
 local function stopScanning()
   if GC.Sniper.scanner then GC.Sniper.scanner:Stop() end
   scanning = false
-  if frame then frame.toggleBtn:SetText("Live") end
+  if frame then frame.toggleBtn:SetLabel("Live") end
 end
 
 -- ---------------------------------------------------------------------------
@@ -702,23 +864,24 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Every stage that touches the primary button goes through here, so its colour can never be
--- left red from a previous requote. Gold is UIPanelButtonTemplate's own text colour.
+-- left red from a previous requote. Gold is the dialog's own default text colour
+-- (Theme.Button's "primary" text color is dark-on-gold; this only overrides for the
+-- red "Buy anyway" state and back).
 local function setPrimaryLabel(text, r, g, b)
-  dialog.primaryBtn:SetText(text)
-  local fs = dialog.primaryBtn:GetFontString()
-  if fs then fs:SetTextColor(r or 1, g or 0.82, b or 0) end
+  dialog.primaryBtn:SetLabel(text)
+  dialog.primaryBtn.text:SetTextColor(r or 0.05, g or 0.05, b or 0.06)
 end
 
 local function hideRequoteBanner()
   if not dialog then return end
   dialog.banner:Hide()
-  dialog:SetHeight(DIALOG_BASE_HEIGHT)
+  dialog:SetHeight(dialog.baseHeight)
 end
 
 local function showRequoteBanner(head, detail)
   dialog.banner.head:SetText(head)
   dialog.banner.detail:SetText(detail)
-  dialog:SetHeight(DIALOG_BASE_HEIGHT + REQUOTE_BANNER_HEIGHT)
+  dialog:SetHeight(dialog.baseHeight + REQUOTE_BANNER_HEIGHT)
   dialog.banner:Show()
 end
 
@@ -758,13 +921,12 @@ local function setDialogStatus(text, r, g, b)
   dialog.status:SetTextColor(r or 1, g or 1, b or 1)
 end
 
--- Item icon + quality-colored name + qty suffix + tier badge, mirroring setRowDeal's async
+-- Item icon + quality-colored name + qty suffix + tier chip, mirroring setRowDeal's async
 -- load pattern but targeting the dialog's own widgets. dialog.deal (not row.deal) is the
 -- identity guard here since the dialog can outlive the row being reassigned.
 local function setDialogHeader(deal)
-  local color = TIER_COLOR[deal.tier] or TIER_COLOR.WATCH
-  dialog.tierText:SetText(deal.tier)
-  dialog.tierText:SetTextColor(color[1], color[2], color[3])
+  local color = Theme.tier[deal.tier] or Theme.tier.WATCH
+  dialog.tierChip:SetLabel(deal.tier, color)
   if deal.tier == "SUSPECT" then dialog.suspectNote:Show() else dialog.suspectNote:Hide() end
   dialog.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
   dialog.icon:SetTexture(nil)
@@ -1354,7 +1516,7 @@ local function onDialogPrimaryClick()
   else
     pendingAuction[deal.auctionID] = row
     -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit
-    -- price -- deal.unitPrice is per-unit (see driver.itemResult), so multiply back out by
+    -- price -- deal.unitPrice is per-unit (see driver.itemResult) -- multiply back out by
     -- qty here, the same unitPrice * qty = total convention resolvePurchase and
     -- GC.Sniper.OnPurchaseCompleted already use for session accounting and the status line.
     C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice * deal.qty)
@@ -1364,41 +1526,80 @@ local function onDialogPrimaryClick()
   scheduleBuyTimeout(row, deal)
 end
 
+-- ---------------------------------------------------------------------------
+-- Sniper v3 dialog layout constants. The dialog is split into a TOP-anchored block (title,
+-- item header, grid, notes, status -- every one of these keeps a FIXED offset from the
+-- dialog's TOP edge) and a BOTTOM-anchored block (banner, buttons -- fixed offset from the
+-- dialog's BOTTOM edge). Because `dialog` is positioned by a single CENTER point, growing its
+-- height via SetHeight moves the TOP edge up and the BOTTOM edge down by half the delta each
+-- -- so the two blocks drift apart and the requote banner's fixed offset from the bottom
+-- block lands it in exactly the gap that opened up between them. This is the same mechanism
+-- the pre-Theme dialog used (see hideRequoteBanner/showRequoteBanner); only the pixel budget
+-- below is new, sized for the wider Theme fonts and the added item-header row.
+-- ---------------------------------------------------------------------------
+local DIALOG_WIDTH = 320
+local DIALOG_ICON = 24
+local DIALOG_TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
+local DIALOG_GRID_ROW_H = 17
+local DIALOG_GRID_ROWS = 9 -- unit/total/mv/ask/discount/resale/profit/sold/trend
+-- I5: 36/32 (were 28/18) -- the requote path's status line can wrap to two full lines
+-- ("<unit> -> <unit> per unit    total <total> -> <total>" at DIALOG_WIDTH), and the
+-- suspect/mv notes must never clip a second line either; both budgets sized for two lines
+-- of Theme.Label(d, 11) at this width, not one.
+local DIALOG_NOTE_H = 36   -- reserved height for a 2-line note (suspect/mv) at this width/font
+local DIALOG_STATUS_H = 32
+local DIALOG_PRIMARY_H = 26
+local DIALOG_CANCEL_H = 20
+-- title line + gap + icon/name/chip row + gap + reserved suspect-note block + gap
+local DIALOG_HEADER_H = Theme.pad.m + DIALOG_TITLE_LINE_H + Theme.pad.s + DIALOG_ICON + Theme.pad.s + DIALOG_NOTE_H + Theme.pad.s
+local GRID_TOP = -DIALOG_HEADER_H
+-- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
+-- bottom edge (mirrors GRID_TOP's measured-down-from-top pattern above).
+local DIALOG_CONTROLS_H = Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs + DIALOG_CANCEL_H + Theme.pad.s
+local DIALOG_BASE_HEIGHT = DIALOG_HEADER_H + DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H
+  + DIALOG_NOTE_H + DIALOG_STATUS_H + DIALOG_CONTROLS_H
+
 -- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
 -- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
 -- never built eagerly alongside the sniper frame itself.
 local function createDialog()
-  local d = CreateFrame("Frame", "GoldCapSniperConfirm", UIParent, "BasicFrameTemplateWithInset")
-  -- Height is driven by the two wrapped text blocks below the grid (suspectNote, mvNote),
-  -- not by the grid's row count: both routinely wrap to two lines at this width, so the
-  -- budget below the grid has to fit two two-line blocks plus the status line -- shrinking
-  -- this back toward "one row taller" will clip them on exactly the deals they warn about.
-  d:SetSize(300, DIALOG_BASE_HEIGHT)
+  local d = Theme.Panel(UIParent)
+  -- C1: Theme.Panel creates an UNNAMED frame (CreateFrame("Frame", nil, parent)), but
+  -- UISpecialFrames (below) resolves "GoldCapSniperConfirm" by looking it up as a GLOBAL --
+  -- without this, Escape can't find the dialog at all, so it falls through to hiding the main
+  -- Sniper window instead, and the dialog's own OnHide (which calls abortRowPurchase) never
+  -- fires -- silently orphaning an in-flight purchase's pinned row.
+  _G.GoldCapSniperConfirm = d
+  d.baseHeight = DIALOG_BASE_HEIGHT
+  d:SetSize(DIALOG_WIDTH, d.baseHeight)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
-  d.TitleText:SetText("Confirm Purchase")
+
+  local title = Theme.Label(d, 13)
+  title:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
+  title:SetText("Confirm Purchase")
+  d.title = title
 
   local icon = d:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(20, 20)
-  icon:SetPoint("TOPLEFT", 16, -30)
+  icon:SetSize(DIALOG_ICON, DIALOG_ICON)
+  icon:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -Theme.pad.s)
   d.icon = icon
 
-  local tierText = d:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tierText:SetPoint("TOPRIGHT", -16, -32)
-  tierText:SetJustifyH("RIGHT")
-  d.tierText = tierText
+  local tierChip = Theme.Chip(d)
+  tierChip:SetWidth(COLUMN_W.tier) -- M13: matches the list's own tier column width, not a duplicated literal
+  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + DIALOG_TITLE_LINE_H + Theme.pad.s))
+  d.tierChip = tierChip
 
-  local nameText = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  nameText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-  nameText:SetPoint("RIGHT", tierText, "LEFT", -6, 0)
-  nameText:SetJustifyH("LEFT")
+  local nameText = Theme.Label(d, 12)
+  nameText:SetPoint("LEFT", icon, "RIGHT", Theme.pad.s, 0)
+  nameText:SetPoint("RIGHT", tierChip, "LEFT", -Theme.pad.s, 0)
   nameText:SetWordWrap(false)
   d.nameText = nameText
 
   -- A: hover tooltip over the icon+name header, same as a row (see createRow) -- Texture and
   -- FontString objects can't take mouse scripts themselves, so this is an invisible Frame
-  -- spanning both, same pattern as createFrame's header "hit" frames.
+  -- spanning both, same pattern as createHeaderRow's own header hit-frames.
   local itemHit = CreateFrame("Frame", nil, d)
   itemHit:SetPoint("TOPLEFT", icon, "TOPLEFT")
   itemHit:SetPoint("BOTTOMRIGHT", nameText, "BOTTOMRIGHT")
@@ -1412,34 +1613,30 @@ local function createDialog()
   itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
   d.itemHit = itemHit
 
-  -- A four-letter yellow tier badge lost to a green five-figure profit on 2026-08-10.
-  -- Said in words, right under the name, it competes on the same terms.
-  local suspectNote = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  suspectNote:SetPoint("TOPLEFT", 16, -50)
-  suspectNote:SetPoint("RIGHT", -16, 0)
-  suspectNote:SetJustifyH("LEFT")
+  -- A four-letter yellow tier chip lost to a green five-figure profit on 2026-08-10.
+  -- Said in words, right under the header row, it competes on the same terms.
+  local suspectNote = Theme.Label(d, 11)
+  suspectNote:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -Theme.pad.s)
+  suspectNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   suspectNote:SetWordWrap(true)
-  suspectNote:SetTextColor(1, 0.85, 0.1)
+  suspectNote:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
   suspectNote:SetText("a discount this extreme usually means the market value is wrong, not that this is a bargain")
   suspectNote:Hide()
   d.suspectNote = suspectNote
 
-  -- Label/value grid: one row per number the player needs to decide with. updateDialogAmounts
-  -- re-stamps the value slots in place as fresher quotes come in -- the grid itself never
-  -- grows or reflows.
-  local GRID_TOP = -88
-  local GRID_ROW = 16
-
+  -- Label/value grid: one row per number the player needs to decide with, aligned two-column
+  -- (Theme.Label left, Theme.Num right) -- updateDialogAmounts re-stamps the value slots in
+  -- place as fresher quotes come in; the grid itself never grows or reflows (fixed Y per row,
+  -- same reasoning as GRID_TOP/DIALOG_GRID_ROW_H above: a chained anchor would let a wrapped
+  -- neighbor note reflow rows underneath it).
   local function gridRow(index, label)
-    local y = GRID_TOP - (index - 1) * GRID_ROW
-    local labelFS = d:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    labelFS:SetPoint("TOPLEFT", 16, y)
-    labelFS:SetJustifyH("LEFT")
+    local y = GRID_TOP - (index - 1) * DIALOG_GRID_ROW_H
+    local labelFS = Theme.Label(d, 11)
+    labelFS:SetPoint("TOPLEFT", Theme.pad.m, y)
     labelFS:SetText(label)
 
-    local valueFS = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    valueFS:SetPoint("TOPRIGHT", -16, y)
-    valueFS:SetJustifyH("RIGHT")
+    local valueFS = Theme.Num(d, 12)
+    valueFS:SetPoint("TOPRIGHT", -Theme.pad.m, y)
     return labelFS, valueFS
   end
 
@@ -1459,55 +1656,52 @@ local function createDialog()
   d.trendLabel, d.trendText = trendLabel, trendText
 
   -- Sits between the grid and the status line; shown only when the clamp above actually bit.
-  local mvNote = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  mvNote:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 6)
-  mvNote:SetPoint("RIGHT", -16, 0)
-  mvNote:SetJustifyH("LEFT")
+  local mvNote = Theme.Label(d, 11)
+  mvNote:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
+  mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   mvNote:SetWordWrap(true)
-  mvNote:SetTextColor(1, 0.3, 0.3)
+  mvNote:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
   mvNote:Hide()
   d.mvNote = mvNote
 
-  local status = d:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", 16, GRID_TOP - 9 * GRID_ROW - 40)
-  status:SetPoint("RIGHT", -16, 0)
-  status:SetJustifyH("LEFT")
+  local status = Theme.Label(d, 11)
+  status:SetPoint("TOPLEFT", Theme.pad.m,
+    GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - DIALOG_NOTE_H - Theme.pad.xs)
+  status:SetPoint("RIGHT", -Theme.pad.m, 0)
   status:SetWordWrap(true)
   d.status = status
 
-  -- Anchored off the BOTTOM, just above the buttons, and hidden by default. Showing it grows
-  -- the dialog by exactly its own height, so the window visibly changes shape rather than
-  -- re-rendering a line of status text inside an unchanged outline -- which is what a player
-  -- running on muscle memory does not notice.
-  local banner = CreateFrame("Frame", nil, d)
-  banner:SetPoint("BOTTOMLEFT", 12, 44)
-  banner:SetPoint("BOTTOMRIGHT", -12, 44)
+  -- Anchored off the BOTTOM, above the stacked buttons, and hidden by default. Showing it
+  -- grows the dialog by exactly its own height (see the DIALOG_* block comment above), so the
+  -- window visibly changes shape rather than re-rendering a line of status text inside an
+  -- unchanged outline -- which is what a player running on muscle memory does not notice.
+  local banner = Theme.Panel(d)
   banner:SetHeight(REQUOTE_BANNER_HEIGHT)
+  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DIALOG_CONTROLS_H)
+  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DIALOG_CONTROLS_H)
+  -- Theme.Panel with red bg at 20% alpha: recolor the exposed .bg texture rather than
+  -- reimplementing panel construction -- still built ONLY through the Theme factory.
+  banner.bg:SetColorTexture(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.2)
 
-  local bannerBg = banner:CreateTexture(nil, "BACKGROUND")
-  bannerBg:SetAllPoints()
-  bannerBg:SetColorTexture(0.45, 0.04, 0.04, 0.9)
-
-  local bannerHead = banner:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  bannerHead:SetPoint("TOPLEFT", 8, -6)
-  bannerHead:SetJustifyH("LEFT")
-  bannerHead:SetTextColor(1, 0.45, 0.45)
+  local bannerHead = Theme.Label(banner, 12)
+  bannerHead:SetPoint("TOPLEFT", Theme.pad.s, -Theme.pad.xs)
+  bannerHead:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
   banner.head = bannerHead
 
-  local bannerDetail = banner:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  bannerDetail:SetPoint("TOPLEFT", bannerHead, "BOTTOMLEFT", 0, -4)
-  bannerDetail:SetPoint("RIGHT", banner, "RIGHT", -8, 0)
-  bannerDetail:SetJustifyH("LEFT")
+  local bannerDetail = Theme.Label(banner, 11)
+  bannerDetail:SetPoint("TOPLEFT", bannerHead, "BOTTOMLEFT", 0, -Theme.pad.xs)
+  bannerDetail:SetPoint("RIGHT", -Theme.pad.s, 0)
   bannerDetail:SetWordWrap(true)
   banner.detail = bannerDetail
 
   banner:Hide()
   d.banner = banner
 
-  local cancelBtn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
-  cancelBtn:SetSize(90, 22)
-  cancelBtn:SetPoint("BOTTOMLEFT", 16, 14)
-  cancelBtn:SetText("Cancel")
+  local cancelBtn = Theme.Button(d, "ghost")
+  cancelBtn:SetHeight(DIALOG_CANCEL_H)
+  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetLabel("Cancel")
   cancelBtn:SetScript("OnClick", function()
     -- COMPLIANCE: CancelCommoditiesPurchase is safe to call from anywhere (unlike
     -- Start/Confirm/PlaceBid), but a new call site only ever gets added here -- a real
@@ -1525,10 +1719,12 @@ local function createDialog()
   end)
   d.cancelBtn = cancelBtn
 
-  local primaryBtn = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
-  primaryBtn:SetSize(90, 22)
-  primaryBtn:SetPoint("BOTTOMRIGHT", -16, 14)
-  primaryBtn:SetText("Buy")
+  -- Full-width primary button, bottom-most: the single most-clicked control in this window.
+  local primaryBtn = Theme.Button(d, "primary")
+  primaryBtn:SetHeight(DIALOG_PRIMARY_H)
+  primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
+  primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
+  primaryBtn:SetLabel("Buy")
   primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
   d.primaryBtn = primaryBtn
 
@@ -1630,100 +1826,111 @@ local function resetAllPurchases()
   end
 end
 
--- Column order left to right: icon | name (flex) | tier | discount | price | profit | buy.
--- price/profit/buy are anchored right-to-left off the buy button (profit's RIGHT off buy's
--- LEFT, price's RIGHT off profit's LEFT, discount's RIGHT off price's LEFT, ...) rather than
--- given independent fixed offsets, so the Buy button can never again end up painted over a
--- text column the way it did when profitText's width was chained left-to-right off
--- discountText with no relationship to where the (separately, flush-right-anchored) buy
--- button actually sat. nameText is the one flexible widget, anchored on BOTH sides (icon's
--- RIGHT, tierText's LEFT) so it soaks up whatever space is left over.
+-- ---------------------------------------------------------------------------
+-- Row widgets (Sniper v3): built entirely from COLUMNS + anchorColumns (see above) instead of
+-- the old per-field chain of independent fixed offsets -- one loop positions every fixed
+-- column, and the flex "item" cell (icon + name, built directly rather than via a themed
+-- factory) soaks up whatever width is left between the icon and the first fixed column.
+--
+-- Build (buildRowCell) and layout (layoutRow) are split so a responsive column-drop change
+-- (applyColumnVisibility, above createRow's forward declaration) can re-run JUST the layout
+-- pass -- re-anchoring/showing/hiding the SAME widgets -- on every existing pooled row without
+-- rebuilding anything.
+-- ---------------------------------------------------------------------------
+local function buildRowCell(row, col)
+  if col.key == "tier" then
+    local chip = Theme.Chip(row)
+    row.tierChip = chip
+    return chip
+  elseif col.key == "buy" then
+    local btn = Theme.Button(row, "primary")
+    btn:SetHeight(22)
+    btn:SetLabel("Buy")
+    btn:SetScript("OnClick", function() onBuyClick(row) end)
+    row.buy = btn
+    return btn
+  else
+    local fs = Theme.Num(row, col.size, col.bold)
+    fs:SetWordWrap(false)
+    fs:SetMaxLines(1)
+    row[NUM_FIELD[col.key]] = fs
+    return fs
+  end
+end
+
+layoutRow = function(row)
+  local flexAnchor = anchorColumns(row, hiddenColumns, function(col) return row.cells[col.key] end)
+  -- nameText is the one flexible widget, anchored on BOTH sides (icon's RIGHT, the first
+  -- VISIBLE fixed column's LEFT via flexAnchor) so it soaks up whatever space is left over --
+  -- this can never again drift out of sync with where the Buy button actually sits, since
+  -- every visible fixed column between them is one link in the same anchorColumns chain, and
+  -- a dropped optional column just isn't a link in that chain at all.
+  row.nameText:ClearAllPoints()
+  row.nameText:SetPoint("LEFT", row.icon, "RIGHT", Theme.pad.xs, 0)
+  row.nameText:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
+end
+
 createRow = function(parent, index)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetSize(ROW_WIDTH, ROW_HEIGHT)
-  row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
+  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
+  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * ROW_HEIGHT)
+  row:SetHeight(ROW_HEIGHT)
 
   -- E.1 zebra + hover: full-width BACKGROUND textures, drawn behind every other row widget
   -- (including the Buy button) regardless of creation order -- BACKGROUND always renders
   -- under ARTWORK. The zebra fill alternates by POOL index, not by the deal's position in
   -- the current sorted view, so it stays visually stable across a resort/rescan instead of
   -- flickering as rows are reassigned to different deals.
+  local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
   zebra:SetAllPoints()
-  zebra:SetColorTexture(1, 1, 1, (index % 2 == 1) and 0.08 or 0)
+  zebra:SetColorTexture(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
   row.zebra = zebra
 
+  local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK
   highlight:SetAllPoints()
-  highlight:SetColorTexture(1, 1, 1, 0.12)
+  highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4])
   highlight:Hide()
   row.highlight = highlight
+
+  -- Sniper v3: 2px gold left-rail shown alongside the hover highlight -- the accent that
+  -- marks "this row" beyond the flat highlight wash alone.
+  local rail = row:CreateTexture(nil, "BACKGROUND", nil, 2)
+  rail:SetPoint("TOPLEFT")
+  rail:SetPoint("BOTTOMLEFT")
+  rail:SetWidth(2)
+  rail:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
+  rail:Hide()
+  row.rail = rail
 
   local icon = row:CreateTexture(nil, "ARTWORK")
   icon:SetSize(ICON_SIZE, ICON_SIZE)
   icon:SetPoint("LEFT")
   row.icon = icon
 
-  local buy = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-  buy:SetSize(BUY_WIDTH, 18)
-  buy:SetPoint("RIGHT")
-  buy:SetText("Buy")
-  row.buy = buy
-  buy:SetScript("OnClick", function()
-    onBuyClick(row)
-  end)
-
-  local profitText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  profitText:SetPoint("RIGHT", buy, "LEFT", -BUY_GAP, 0)
-  profitText:SetWidth(PROFIT_WIDTH)
-  profitText:SetJustifyH("RIGHT")
-  profitText:SetWordWrap(false)
-  profitText:SetMaxLines(1)
-  row.profitText = profitText
-
-  local priceText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  priceText:SetPoint("RIGHT", profitText, "LEFT", -COLUMN_GAP, 0)
-  priceText:SetWidth(PRICE_WIDTH)
-  priceText:SetJustifyH("RIGHT")
-  priceText:SetWordWrap(false)
-  priceText:SetMaxLines(1)
-  row.priceText = priceText
-
-  local discountText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  discountText:SetPoint("RIGHT", priceText, "LEFT", -COLUMN_GAP, 0)
-  discountText:SetWidth(DISCOUNT_WIDTH)
-  discountText:SetJustifyH("LEFT")
-  discountText:SetWordWrap(false)
-  discountText:SetMaxLines(1)
-  row.discountText = discountText
-
-  local tierText = row:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  tierText:SetPoint("RIGHT", discountText, "LEFT", -COLUMN_GAP, 0)
-  tierText:SetWidth(TIER_WIDTH)
-  tierText:SetJustifyH("LEFT")
-  tierText:SetWordWrap(false)
-  tierText:SetMaxLines(1)
-  row.tierText = tierText
-
-  local nameText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  nameText:SetPoint("LEFT", icon, "RIGHT", NAME_GAP, 0)
-  nameText:SetPoint("RIGHT", tierText, "LEFT", -COLUMN_GAP, 0)
-  nameText:SetJustifyH("LEFT")
-  -- One line only: a wrapped name would grow taller than ROW_HEIGHT and visually overlap
-  -- the row below it. SetWordWrap(false) keeps long names from wrapping; SetMaxLines(1) is
-  -- a belt-and-suspenders cap on top of that.
+  local nameText = Theme.Label(row, 11)
   nameText:SetWordWrap(false)
   nameText:SetMaxLines(1)
   row.nameText = nameText
 
-  -- A + E.1: hover tooltip and highlight on the row ITSELF, not an overlay on top of the Buy
-  -- button -- a Frame's OnEnter/OnLeave don't consume mouse events, so the button (a separate
-  -- child widget) keeps handling its own clicks exactly as before. row.deal is nil for an
-  -- empty/hidden pooled row (refreshRows clears it before Hide()), so there is nothing to
-  -- show a tooltip for even if a stray event ever reached a hidden frame.
+  row.cells = {}
+  for _, col in ipairs(COLUMNS) do
+    if not col.flex then
+      row.cells[col.key] = buildRowCell(row, col)
+    end
+  end
+  layoutRow(row)
+
+  -- A + E.1: hover tooltip and highlight/rail on the row ITSELF, not an overlay on top of the
+  -- Buy button -- a Frame's OnEnter/OnLeave don't consume mouse events, so the button (a
+  -- separate child widget) keeps handling its own clicks exactly as before. row.deal is nil
+  -- for an empty/hidden pooled row (refreshRows clears it before Hide()), so there is nothing
+  -- to show a tooltip for even if a stray event ever reached a hidden frame.
   row:EnableMouse(true)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
+    self.rail:Show()
     if not self.deal then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetItemByID(self.deal.itemID)
@@ -1731,6 +1938,7 @@ createRow = function(parent, index)
   end)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
+    self.rail:Hide()
     GameTooltip:Hide()
   end)
 
@@ -1740,17 +1948,21 @@ end
 
 -- Simple single-line tooltip wired to OnEnter/OnLeave; shared by every control below that
 -- just needs a plain hover explanation (no title/body split, no dynamic content).
+-- I4: HookScript, not SetScript -- `widget` here is a Theme.Button (fullScanBtn/toggleBtn),
+-- which already owns its own OnEnter/OnLeave for the hover-brighten (see Theme.lua's
+-- T.Button). SetScript would silently REPLACE that handler and kill the hover-brighten
+-- effect; HookScript runs this in addition to it.
 local function setPlainTooltip(widget, text)
-  widget:SetScript("OnEnter", function(self)
+  widget:HookScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(text, 1, 1, 1, 1, true)
     GameTooltip:Show()
   end)
-  widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  widget:HookScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
--- E.3/E.4: validates a saved window table before ever handing it to SetPoint/SetHeight --
--- corrupted or hand-edited SavedVariables must never be trusted at face value.
+-- E.3/E.4: validates a saved window table before ever handing it to SetPoint/SetHeight/
+-- SetWidth -- corrupted or hand-edited SavedVariables must never be trusted at face value.
 local function isValidSavedWindow(win)
   return type(win) == "table" and type(win.point) == "string"
     and type(win.x) == "number" and type(win.y) == "number"
@@ -1762,56 +1974,196 @@ local function clampWindowHeight(h)
   return h
 end
 
--- Persists point/x/y (E.3) and height (E.4) together under one saved-variables key --
--- called from the frame's own OnDragStop and the resize handle's OnMouseUp, the only two
--- hardware-driven ways the window's geometry can change.
+-- T5: width is now resizable too (previously only height could change -- see the FRAME_WIDTH
+-- comment near the top), so the saved geometry needs the same clamp on the other axis.
+local function clampWindowWidth(w)
+  if w < RESIZE_MIN_WIDTH then return RESIZE_MIN_WIDTH end
+  if w > RESIZE_MAX_WIDTH then return RESIZE_MAX_WIDTH end
+  return w
+end
+
+-- Persists point/x/y (E.3) and width+height (E.4, T5) together under one saved-variables key.
+-- Called via hooksecurefunc(frame, "StopMovingOrSizing", ...) in createFrame -- that native
+-- method is the one thing BOTH hardware-driven geometry changes have in common now: dragging
+-- calls it via Theme.TitleBar's own title-bar sub-frame (frame:StartMoving/StopMovingOrSizing,
+-- Theme.lua), and the resize grip calls it directly (see createFrame's resizeHandle). Hooking
+-- the method itself -- rather than an OnDragStop/OnMouseUp script -- means this fires no
+-- matter which of those two hardware paths triggered the change, without needing a reference
+-- to Theme.TitleBar's internal drag region (which Theme.lua doesn't expose).
 local function persistWindowGeometry(f)
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   if not cfg then return end
   local point, _, _, x, y = f:GetPoint(1)
   if not point then return end
-  cfg.window = { point = point, x = x, y = y, height = f:GetHeight() }
+  cfg.window = { point = point, x = x, y = y, width = f:GetWidth(), height = f:GetHeight() }
 end
 
 -- D: Deals/Sell view switcher. Full Scan/Live are separate widgets untouched by this and stay
 -- clickable in both views. Sell's own container, rows, and bag-count refresh are entirely
 -- GC.Sell's responsibility (built once by GC.Sell.Attach in createFrame) -- this function only
--- toggles the Deals-side widgets and the tab buttons' enabled state (a disabled
--- UIPanelButtonTemplate button doubles as the "this is the active tab" look).
+-- toggles the Deals-side widgets and the tab buttons' enabled state. Theme.Button has no
+-- built-in "disabled" look (unlike the old UIPanelButtonTemplate), so the active tab is now
+-- indicated explicitly via its own text color on top of Enable/Disable's functional gating.
+local function setTabActive(btn, active)
+  if active then
+    btn:Disable()
+    btn.text:SetTextColor(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
+  else
+    btn:Enable()
+    btn.text:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
+  end
+end
+
 local function setView(v)
   if view == v or not frame then return end
   view = v
   local isDeals = (v == "deals")
   if isDeals then
     frame.scroll:Show()
-    for _, hit in ipairs(frame.dealHeaders) do hit:Show() end
-    frame.dealsTab:Disable()
-    frame.sellTab:Enable()
+    frame.headerRow:Show()
+    setTabActive(frame.dealsTab, true)
+    setTabActive(frame.sellTab, false)
     if GC.Sell.Hide then GC.Sell.Hide() end
   else
     frame.scroll:Hide()
-    for _, hit in ipairs(frame.dealHeaders) do hit:Hide() end
-    frame.sellTab:Disable()
-    frame.dealsTab:Enable()
+    frame.headerRow:Hide()
+    setTabActive(frame.sellTab, true)
+    setTabActive(frame.dealsTab, false)
     if GC.Sell.Show then GC.Sell.Show() end
   end
 end
 
+-- ---------------------------------------------------------------------------
+-- Chrome (Sniper v3): Theme.Panel + Theme.TitleBar replace BasicFrameTemplateWithInset;
+-- everything below the title bar is stacked top-down with named row-height constants and
+-- Theme.pad gaps instead of ad-hoc absolute offsets.
+-- ---------------------------------------------------------------------------
+local TITLEBAR_H = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
+local TAB_WIDTH = 50
+local TAB_HEIGHT = 18
+local TOOLBAR_BTN_H = 24 -- Full Scan / Live button height
+local HEADER_H = 16      -- column header row height
+
+local function createHeaderRow(f)
+  local header = CreateFrame("Frame", nil, f)
+  header:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, f.headerY)
+  header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, f.headerY)
+  header:SetHeight(HEADER_H)
+  f.headerRow = header -- D: setView shows/hides this alongside f.scroll for the Sell tab
+
+  -- sortKey (E.2), when present, makes the header clickable: OnMouseDown sets/toggles the
+  -- module-local sortOverride and re-renders. Columns without an entry here (item/trend/buy)
+  -- stay inert, exactly as "Item" always was. I6: "unit" is sortable too (its own SORT_VALUE
+  -- key) -- unlike "total", "unit" is never one of the responsively-dropped columns, so it's
+  -- always available as a by-price sort even at window widths where "total" itself is hidden.
+  local SORT_KEY = { tier = "tier", disc = "pct", unit = "unit", total = "price", profit = "profit" }
+  local HEADER_TEXT = { item = "Item", tier = "Tier", disc = "%", unit = "Unit", total = "Price", profit = "Profit", trend = "Trend", buy = "" }
+  local TOOLTIP = {
+    tier = {
+      "Tier",
+      "HOT = big discount + high profit + proven sales/day",
+      "GOOD = solid discount + profit",
+      "WATCH = discounted but unproven liquidity or small profit",
+      "SUSPECT = discount so extreme it's probably a scam/mispriced-market item",
+    },
+    disc = { "Discount", "Discount vs market value from your GoldCap import" },
+    unit = { "Unit price", "Per-unit price of this auction" },
+    total = { "Price", "Total cost to buy this auction" },
+    profit = { "Profit", "Estimated resale profit at 95% of market value, whole stack" },
+  }
+
+  local function buildHeaderCell(col)
+    local hit = CreateFrame("Frame", nil, header)
+    hit:SetHeight(HEADER_H)
+    local baseText = (HEADER_TEXT[col.key] or ""):upper()
+    local label = Theme.Label(hit, 11)
+    label:SetAllPoints()
+    label:SetJustifyH(col.num and "RIGHT" or "LEFT")
+    label:SetText(baseText)
+    hit.label = label
+
+    local tooltipLines = TOOLTIP[col.key]
+    local sortKey = SORT_KEY[col.key]
+    if tooltipLines then
+      hit:EnableMouse(true)
+      hit:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
+        for i = 2, #tooltipLines do
+          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
+        end
+        GameTooltip:Show()
+      end)
+      hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+    if sortKey then
+      -- E.2 + responsive drop: sortHeaders[sortKey] keeps pointing at this label even while
+      -- the column is hidden (hit:Hide() below via anchorColumns), so an active sort on a
+      -- since-hidden column (e.g. "total"/price) stays in full effect -- sortedDeals/
+      -- applySortOverride never look at header visibility -- only its ▼/▲ indicator simply
+      -- isn't visible until the column comes back (updateHeaderSortIndicators still writes to
+      -- the FontString; SetText on a hidden widget is harmless, it just isn't drawn).
+      hit:EnableMouse(true)
+      sortHeaders[sortKey] = { label = label, base = baseText }
+      hit:SetScript("OnMouseDown", function() onHeaderSortClick(sortKey) end)
+    end
+    return hit
+  end
+
+  header.cells = {}
+  for _, col in ipairs(COLUMNS) do
+    if not col.flex then
+      header.cells[col.key] = buildHeaderCell(col)
+    end
+  end
+
+  local itemHit = CreateFrame("Frame", nil, header)
+  itemHit.label = Theme.Label(itemHit, 11)
+  itemHit.label:SetAllPoints()
+  itemHit.label:SetJustifyH("LEFT")
+  itemHit.label:SetText("ITEM")
+
+  -- Re-anchors the visible-only column chain (see anchorColumns) and the item header cell's
+  -- RIGHT edge to match -- callable again on a resize (applyColumnVisibility) without
+  -- rebuilding any header widget. M7: assigned to the module-local `layoutHeaderRow` (forward-
+  -- declared above, alongside createRow/layoutRow), not a field on `f` -- see that
+  -- declaration's comment for why.
+  layoutHeaderRow = function()
+    local flexAnchor = anchorColumns(header, hiddenColumns, function(col) return header.cells[col.key] end)
+    itemHit:ClearAllPoints()
+    itemHit:SetPoint("TOPLEFT", header, "TOPLEFT")
+    itemHit:SetPoint("BOTTOMRIGHT", flexAnchor.frame, "BOTTOMLEFT", -Theme.pad.s, 0)
+  end
+  layoutHeaderRow()
+
+  return header
+end
+
 local function createFrame()
-  local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent, "BasicFrameTemplateWithInset")
+  local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent)
+
+  local panel = Theme.Panel(f)
+  panel:SetAllPoints(f)
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
-  local restoreHeight = FRAME_HEIGHT
-  if isValidSavedWindow(savedWindow) and type(savedWindow.height) == "number" then
-    restoreHeight = clampWindowHeight(savedWindow.height)
+  local restoreWidth, restoreHeight = FRAME_WIDTH, FRAME_HEIGHT
+  if isValidSavedWindow(savedWindow) then
+    if type(savedWindow.width) == "number" then restoreWidth = clampWindowWidth(savedWindow.width) end
+    if type(savedWindow.height) == "number" then restoreHeight = clampWindowHeight(savedWindow.height) end
   end
-  f:SetSize(FRAME_WIDTH, restoreHeight)
+  f:SetSize(restoreWidth, restoreHeight)
 
-  -- E.4 height-only resize: matching min AND max width to FRAME_WIDTH is what actually
-  -- prevents a width change -- the column grid (ROW_WIDTH and every header x-offset above)
-  -- is derived from FRAME_WIDTH, so a resized width would desync it from the header row.
+  -- Sniper v3 responsive column drop: establish the correct drop state up front from the
+  -- window's actual starting width, so the very first header/row layout already reflects it
+  -- instead of waiting for a later resize event (see applyColumnVisibility, and the
+  -- f:SetScript("OnSizeChanged", ...) below that keeps it current afterward -- M8).
+  hiddenColumns = computeHidden(restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER)
+
+  -- T5: BOTH width and height are resizable now (previously only height -- see FRAME_WIDTH's
+  -- own comment above); the column grid no longer needs a fixed width to stay aligned, since
+  -- every column anchors relative to its neighbor (see COLUMNS/anchorColumns).
   f:SetResizable(true)
-  f:SetResizeBounds(FRAME_WIDTH, RESIZE_MIN_HEIGHT, FRAME_WIDTH, RESIZE_MAX_HEIGHT)
+  f:SetResizeBounds(RESIZE_MIN_WIDTH, RESIZE_MIN_HEIGHT, RESIZE_MAX_WIDTH, RESIZE_MAX_HEIGHT)
 
   -- E.3 window position: ClearAllPoints then either the saved point/x/y (validated, and
   -- guarded by pcall against a corrupted/hand-edited SavedVariables value) or the original
@@ -1827,65 +2179,67 @@ local function createFrame()
   end
 
   f:SetMovable(true)
-  f:EnableMouse(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    persistWindowGeometry(self)
-  end)
-  f.TitleText:SetText("GoldCap Sniper")
+  f:EnableMouse(true) -- blocks clicks from passing through to whatever's behind the window
 
-  -- D: Deals/Sell view switcher tabs, top-left under the title. staleText (below) starts its
-  -- TOPLEFT past both tabs so a long stale message can never visually collide with them --
-  -- staleText right-justifies within its own span regardless, but this keeps the row's left
-  -- portion unambiguously the tabs' own space rather than relying on that alone.
-  local dealsTab = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  -- Chrome: Theme.TitleBar owns the drag region (title bar only, not the whole window),
+  -- the close button (outer top-right), and the gear (inboard-left of close).
+  local titleBar = Theme.TitleBar(f, "GoldCap Sniper")
+  f.gearBtn, f.closeBtn = titleBar.gear, titleBar.close
+  -- T10 will wire the settings panel here; an explicit no-op keeps the gear visibly
+  -- clickable (Theme.Button's hover feedback) without doing anything yet.
+  titleBar.gear:SetScript("OnClick", function() end)
+
+  -- hooksecurefunc, not an OnDragStop/OnMouseUp script: see persistWindowGeometry's own
+  -- comment for why the method-hook is what unifies both hardware-driven geometry changes.
+  hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
+
+  -- D: Deals/Sell view switcher tabs, top-left under the title bar.
+  local row1Y = -(TITLEBAR_H + Theme.pad.s)
+  local dealsTab = Theme.Button(f, "ghost")
   dealsTab:SetSize(TAB_WIDTH, TAB_HEIGHT)
-  dealsTab:SetPoint("TOPLEFT", PANEL_LEFT, -18)
-  dealsTab:SetText("Deals")
-  dealsTab:Disable() -- Deals is the default view; Disable() doubles as the "active tab" look
+  dealsTab:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row1Y)
+  dealsTab:SetLabel("Deals")
   dealsTab:SetScript("OnClick", function() setView("deals") end)
   f.dealsTab = dealsTab
 
-  local sellTab = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  local sellTab = Theme.Button(f, "ghost")
   sellTab:SetSize(TAB_WIDTH + 14, TAB_HEIGHT) -- extra width for the "Sell (NN)" badge text
-  sellTab:SetPoint("LEFT", dealsTab, "RIGHT", TAB_GAP, 0)
-  sellTab:SetText("Sell")
+  sellTab:SetPoint("LEFT", dealsTab, "RIGHT", Theme.pad.xs, 0)
+  sellTab:SetLabel("Sell")
   sellTab:SetScript("OnClick", function() setView("sell") end)
   f.sellTab = sellTab
+  setTabActive(dealsTab, true)  -- Deals is the default view
+  setTabActive(sellTab, false)
 
-  local tabsWidth = TAB_WIDTH + TAB_GAP + (TAB_WIDTH + 14)
-
-  -- B: import staleness. Full width so a long "import stale -- /goldcap import" message
-  -- never clips, right-justified so it still reads as sitting on the right; sits between
-  -- the title and the Full Scan/Live button row so it never crowds either. Hidden until
-  -- refreshStaleText() (called on AH show and after every full scan) says otherwise.
-  local staleText = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  staleText:SetPoint("TOPLEFT", PANEL_LEFT + tabsWidth + 8, -18)
-  staleText:SetPoint("TOPRIGHT", -34, -18)
+  -- B: import staleness. Right-justified so it reads as sitting on the right of row 1,
+  -- sharing the row with the Deals/Sell tabs; hidden until refreshStaleText() (called on AH
+  -- show and after every full scan) says otherwise.
+  local staleText = Theme.Label(f, 11)
+  staleText:SetPoint("TOPLEFT", sellTab, "TOPRIGHT", Theme.pad.s, 0)
+  staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row1Y)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
   staleText:Hide()
   f.staleText = staleText
 
-  -- Full Scan is the primary control (rightmost, larger). The watchlist live-scan toggle
-  -- is now secondary: shrunk and anchored to Full Scan's left so it reads as the
-  -- lesser-emphasis option.
-  local fullScanBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  fullScanBtn:SetSize(100, 24)
-  fullScanBtn:SetPoint("TOPRIGHT", -14, -30)
-  fullScanBtn:SetText("Full Scan")
+  -- Row 2: status line (left) + Live/Full Scan (right). Full Scan is the primary control
+  -- (rightmost, primary variant); the watchlist live-scan toggle is secondary (ghost,
+  -- smaller, anchored to Full Scan's left).
+  local row2Y = row1Y - (TAB_HEIGHT + Theme.pad.s)
+  local fullScanBtn = Theme.Button(f, "primary")
+  fullScanBtn:SetSize(100, TOOLBAR_BTN_H)
+  fullScanBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
+  fullScanBtn:SetLabel("Full Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
     "Scans the entire Auction House via paged browse queries. Takes roughly 15-60 seconds " ..
     "on busy realms. No cooldown -- rescan anytime.")
   f.fullScanBtn = fullScanBtn
 
-  local toggleBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  toggleBtn:SetSize(56, 18)
-  toggleBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -6, 0)
-  toggleBtn:SetText("Live")
+  local toggleBtn = Theme.Button(f, "ghost")
+  toggleBtn:SetSize(56, TAB_HEIGHT)
+  toggleBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.xs, 0)
+  toggleBtn:SetLabel("Live")
   toggleBtn:SetScript("OnClick", function()
     if not GC.Sniper.scanner then
       f.status:SetText("Open the Auction House first.")
@@ -1901,92 +2255,23 @@ local function createFrame()
     "Live scan: continuously re-checks your watchlist for fresh deals. Independent of Full Scan.")
   f.toggleBtn = toggleBtn
 
-  local status = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("TOPLEFT", PANEL_LEFT, -34)
-  status:SetPoint("RIGHT", toggleBtn, "LEFT", -8, 0)
+  local status = Theme.Label(f, 11)
+  status:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row2Y)
+  status:SetPoint("RIGHT", toggleBtn, "LEFT", -Theme.pad.s, 0)
   status:SetJustifyH("LEFT")
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
 
-  -- Column headers: non-scrolling FontStrings parented straight to the frame (never to
-  -- `content`), so they stay put while rows scroll underneath and never become per-row
-  -- widgets themselves. x-offsets are computed from the same width/gap constants createRow
-  -- anchors off of, right-to-left from the buy column, so a header can't silently drift out
-  -- of alignment with the column it labels.
-  local HEADER_Y = -46
-  local buyX = ROW_WIDTH - BUY_WIDTH
-  local profitX = buyX - BUY_GAP - PROFIT_WIDTH
-  local priceX = profitX - COLUMN_GAP - PRICE_WIDTH
-  local discountX = priceX - COLUMN_GAP - DISCOUNT_WIDTH
-  local tierX = discountX - COLUMN_GAP - TIER_WIDTH
-  local itemWidth = tierX - COLUMN_GAP -- spans the icon+name columns
+  -- Row 3: column headers, sticky above the scroll area.
+  f.headerY = row2Y - (TOOLBAR_BTN_H + Theme.pad.s)
+  createHeaderRow(f)
 
-  -- D: every Deals-only header hit-frame collected here so setView (below) can hide/show them
-  -- as a group when the player switches to the Sell tab, without hiding anything Sell-specific.
-  f.dealHeaders = {}
-
-  -- sortKey (E.2), when given, makes the header clickable: OnMouseDown sets/toggles the
-  -- module-local sortOverride and re-renders. "Item" passes no sortKey and stays inert.
-  local function addHeader(text, x, width, justify, tooltipLines, sortKey)
-    local hit = CreateFrame("Frame", nil, f)
-    f.dealHeaders[#f.dealHeaders + 1] = hit
-    hit:SetSize(width, 14)
-    hit:SetPoint("TOPLEFT", PANEL_LEFT + x, HEADER_Y)
-
-    local label = hit:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    label:SetPoint("TOPLEFT")
-    label:SetPoint("BOTTOMRIGHT")
-    label:SetJustifyH(justify)
-    label:SetText(text)
-
-    if tooltipLines then
-      hit:EnableMouse(true)
-      hit:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(tooltipLines[1], 1, 0.82, 0)
-        for i = 2, #tooltipLines do
-          GameTooltip:AddLine(tooltipLines[i], 1, 1, 1, true)
-        end
-        GameTooltip:Show()
-      end)
-      hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    end
-
-    if sortKey then
-      hit:EnableMouse(true) -- redundant when tooltipLines already enabled it; harmless otherwise
-      sortHeaders[sortKey] = { label = label, base = text }
-      hit:SetScript("OnMouseDown", function()
-        onHeaderSortClick(sortKey)
-      end)
-    end
-
-    return hit
-  end
-
-  addHeader("Item", 0, itemWidth, "LEFT")
-  addHeader("Tier", tierX, TIER_WIDTH, "LEFT", {
-    "Tier",
-    "HOT = big discount + high profit + proven sales/day",
-    "GOOD = solid discount + profit",
-    "WATCH = discounted but unproven liquidity or small profit",
-    "SUSPECT = discount so extreme it's probably a scam/mispriced-market item",
-  }, "tier")
-  addHeader("%", discountX, DISCOUNT_WIDTH, "LEFT", {
-    "Discount",
-    "Discount vs market value from your GoldCap import",
-  }, "pct")
-  addHeader("Price", priceX, PRICE_WIDTH, "RIGHT", {
-    "Price",
-    "Total cost to buy this auction",
-  }, "price")
-  addHeader("Profit", profitX, PROFIT_WIDTH, "RIGHT", {
-    "Profit",
-    "Estimated resale profit at 95% of market value, whole stack",
-  }, "profit")
+  local scrollTop = f.headerY - (HEADER_H + Theme.pad.xs)
+  local scrollBottom = Theme.pad.m
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", PANEL_LEFT, SCROLL_TOP)
-  scroll:SetPoint("BOTTOMRIGHT", -PANEL_RIGHT_INSET, SCROLL_BOTTOM)
+  scroll:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, scrollTop)
+  scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -CONTENT_RIGHT_GUTTER, scrollBottom)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local range = self:GetVerticalScrollRange()
@@ -1995,47 +2280,66 @@ local function createFrame()
     if target > range then target = range end
     self:SetVerticalScroll(target)
   end)
-  f.scroll = scroll -- D: setView hides/shows this alongside f.dealHeaders for the Sell tab
+  f.scroll = scroll -- D: setView hides/shows this alongside f.headerRow for the Sell tab
 
   content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(ROW_WIDTH, ROW_HEIGHT) -- refreshRows() stamps the real height once there are deals to show
+  content:SetSize(math.max(restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER, 1), ROW_HEIGHT) -- refreshRows() stamps the real height; OnSizeChanged below keeps width live
   scroll:SetScrollChild(content)
+  -- T5/M8: the scroll child's WIDTH is the one piece of the grid Blizzard's ScrollFrame widget
+  -- requires an explicit size for (unlike every row inside it, which anchors relatively) --
+  -- keep it synced to the live content width so a frame resize re-flows the whole grid.
+  -- Observed off `f` (the window frame) rather than `scroll` itself (M8): a ScrollFrame that's
+  -- currently hidden (e.g. the Sell tab is showing, so `scroll:Hide()` -- see setView) is not
+  -- guaranteed to fire its own OnSizeChanged while hidden, which would silently stop the
+  -- Deals grid's column-drop from tracking a resize made while looking at Sell. `f` is never
+  -- hidden while the window is open, so this fires regardless of which tab is active. The
+  -- header's own width tracks the same CONTENT_LEFT/CONTENT_RIGHT_GUTTER margins off `f`
+  -- directly, so the derived contentWidth here is exactly the header's width too -- one number
+  -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
+  f:SetScript("OnSizeChanged", function(_, w)
+    if not w or w <= 0 then return end
+    local contentWidth = math.max(w - CONTENT_LEFT - CONTENT_RIGHT_GUTTER, 1)
+    content:SetWidth(contentWidth)
+    applyColumnVisibility(contentWidth)
+  end)
 
-  -- E.4 drag handle: a small BOTTOMRIGHT grip, sized/positioned to sit in the scrollbar
-  -- gutter (PANEL_RIGHT_INSET) below the scroll frame's own bottom edge, not on top of the
-  -- rows. StartSizing("BOTTOM") + the width-locked bounds above mean only the frame's height
-  -- actually changes as the player drags. Created AFTER scroll (whose built-in scrollbar is
-  -- a child one level deeper) and explicitly raised past it, so the grip always wins the
-  -- corner's mouse-hit test instead of silently losing clicks to the scrollbar's own
-  -- down-arrow button.
+  -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar
+  -- gutter (CONTENT_RIGHT_GUTTER) below the scroll frame's own bottom edge, not on top of the
+  -- rows. StartSizing("BOTTOMRIGHT") (T5: both axes, not just "BOTTOM") + SetResizeBounds
+  -- above are what actually let both width and height change. Created AFTER scroll (whose
+  -- built-in scrollbar is a child one level deeper) and explicitly raised past it, so the
+  -- grip always wins the corner's mouse-hit test instead of silently losing clicks to the
+  -- scrollbar's own down-arrow button.
   local resizeHandle = CreateFrame("Button", nil, f)
   resizeHandle:SetSize(16, 16)
-  resizeHandle:SetPoint("BOTTOMRIGHT", -4, 4)
+  resizeHandle:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -Theme.pad.xs, Theme.pad.xs)
   resizeHandle:EnableMouse(true)
   resizeHandle:SetFrameLevel(scroll:GetFrameLevel() + 10)
   local grip = resizeHandle:CreateTexture(nil, "OVERLAY")
   grip:SetAllPoints()
-  grip:SetColorTexture(1, 1, 1, 0.35)
+  grip:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.35)
   resizeHandle:SetScript("OnMouseDown", function()
-    f:StartSizing("BOTTOM")
+    f:StartSizing("BOTTOMRIGHT")
   end)
   resizeHandle:SetScript("OnMouseUp", function()
-    f:StopMovingOrSizing()
-    persistWindowGeometry(f)
+    f:StopMovingOrSizing() -- persistWindowGeometry runs via the hooksecurefunc above
   end)
   f.resizeHandle = resizeHandle
 
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
   -- D: builds the Sell tab's container, hidden, filling the exact region `scroll` occupies
-  -- above (same PANEL_LEFT/PANEL_RIGHT_INSET/SCROLL_TOP/SCROLL_BOTTOM/ROW_WIDTH/ROW_HEIGHT --
-  -- passed through, never re-declared, so the two views can't silently drift out of alignment).
+  -- above (same CONTENT_LEFT/CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
+  -- never re-declared, so the two views can't silently drift out of alignment). rowWidth is a
+  -- one-time snapshot at the window's CURRENT width -- GC.Sell.Attach only runs once, so
+  -- (like before T5) the Sell tab's own column grid does not re-flow on a window resize; only
+  -- the Deals grid gained that this task.
   GC.Sell.Attach(f, {
-    panelLeft = PANEL_LEFT,
-    panelRightInset = PANEL_RIGHT_INSET,
-    top = SCROLL_TOP,
-    bottom = SCROLL_BOTTOM,
-    rowWidth = ROW_WIDTH,
+    panelLeft = CONTENT_LEFT,
+    panelRightInset = CONTENT_RIGHT_GUTTER,
+    top = scrollTop,
+    bottom = scrollBottom,
+    rowWidth = restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER,
     rowHeight = ROW_HEIGHT,
   })
 

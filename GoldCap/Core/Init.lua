@@ -33,9 +33,13 @@ GC.DEFAULTS = {
       dumpTrendPct = 10,
       -- window: undeclared here on purpose (a nil-valued table field is never actually
       -- stored, so ApplyDefaults' pairs() walk would just skip it either way). Populated by
-      -- UI/SniperFrame.lua's OnDragStop/resize-handle as { point, x, y, height } once the
-      -- player first drags or resizes the sniper window; read back by createFrame to
-      -- restore position/size, defaulting to CENTER / FRAME_HEIGHT until then.
+      -- UI/SniperFrame.lua's persistWindowGeometry as { point, x, y, width, height } (Sniper
+      -- v3: width joined height once the window became width-resizable, not just height) --
+      -- called via hooksecurefunc(frame, "StopMovingOrSizing", ...) rather than an
+      -- OnDragStop/OnMouseUp script, since that one native method covers both the title bar
+      -- drag and the resize-grip drag regardless of which triggered it. Read back by
+      -- createFrame to restore position/size, defaulting to CENTER / FRAME_WIDTH x
+      -- FRAME_HEIGHT until then.
     },
   },
 }
