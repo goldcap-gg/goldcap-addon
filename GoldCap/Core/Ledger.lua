@@ -47,6 +47,10 @@ end
 -- Evicts one row to make space: the oldest ALREADY-UPLOADED row first, because
 -- losing it costs nothing (the server has it), and only when there is no such
 -- row does it fall back to the oldest row overall.
+--
+-- In a live client only the fallback ever runs: nothing marks rows uploaded
+-- today. See MarkUploaded below for why, and for the one channel that could
+-- change it.
 local function evictOne(entries)
   local victim, victimAt
   for i = 1, #entries do
@@ -92,6 +96,22 @@ function GC.Ledger.GetEntries()
   return (db and db.ledger) or {}
 end
 
+--- Marks rows the server has already accepted, so evictOne can drop those
+-- first. Returns how many keys matched a stored row.
+--
+-- NOTHING CALLS THIS IN A LIVE CLIENT. That is not a loose wire: the companion
+-- is the thing that knows what was uploaded, and it cannot write
+-- SavedVariables -- WoW rewrites that file wholesale on logout and would
+-- discard any outside edit -- so it tracks uploads in its own uploaded.json
+-- (companion/src-tauri/src/upload.rs) and the flag here stays unset.
+--
+-- Kept rather than deleted along with evictOne's first branch, because the
+-- channel that would feed it already exists and is already used the other way:
+-- the companion writes GoldCap_AppData/AppData.lua for prices (Core/Data.lua),
+-- and publishing its uploaded keys through the same file would let Init call
+-- this on load. It also only pays off in the one case worth protecting -- the
+-- ledger reaching MAX_ENTRIES while the companion has been away long enough
+-- for the oldest rows to be ones the server has never seen.
 function GC.Ledger.MarkUploaded(keys)
   if not db then return 0 end
   local marked = 0
