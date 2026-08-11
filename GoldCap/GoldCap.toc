@@ -16,6 +16,7 @@ Core/Book.lua
 Core/DealMath.lua
 Core/Scanner.lua
 Core/FullScan.lua
+Core/AutoScan.lua
 Data/MarketData.lua
 UI/Theme.lua
 UI/Tooltip.lua

@@ -19,6 +19,7 @@ GC.DEFAULTS = {
     tooltip = true,
     sniper = {
       autoOpen = true,
+      auto = false,
       sound = true,
       hotDiscount = 0.40, hotProfit = 5000000,
       goodDiscount = 0.25, goodProfit = 1000000,
