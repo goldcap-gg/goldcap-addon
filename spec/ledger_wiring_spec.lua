@@ -44,6 +44,11 @@ describe("Ledger event wiring", function()
     _G.SlashCmdList = {}
     _G.C_AddOns = { GetAddOnMetadata = function() return "test" end }
     _G.GoldCapDB = nil
+    -- Sniper v3 §3: MAIL_SHOW/MAIL_CLOSED now also forward into GC.Sniper.OnMailShow/
+    -- OnMailClosed (Auto's mail pause reason), which calls GetTime() via feedAuto -- this
+    -- spec fires onEvent(nil, "MAIL_SHOW"/"MAIL_CLOSED") directly (a real dispatch, not an
+    -- inert closure), so unlike loadorder_spec's stub the call genuinely happens.
+    _G.GetTime = function() return 0 end
 
     GC = {}
     local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
@@ -68,6 +73,7 @@ describe("Ledger event wiring", function()
     _G.GetInboxNumItems, _G.GetInboxHeaderInfo = nil, nil
     _G.GetInboxInvoiceInfo, _G.GetInboxItem = nil, nil
     _G.GetMoney, _G.GetCoinTextureString, _G.UnitName, _G.GetRealmName = nil, nil, nil, nil
+    _G.GetTime = nil
   end)
 
   it("registers every event the ledger depends on", function()

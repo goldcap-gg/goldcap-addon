@@ -77,6 +77,10 @@ frame:RegisterEvent("AUCTION_HOUSE_POST_ERROR")
 -- flushed to disk at exactly that moment.
 frame:RegisterEvent("MAIL_SHOW")
 frame:RegisterEvent("MAIL_INBOX_UPDATE")
+-- Sniper v3 §3: MAIL_CLOSED has no ledger use (there's nothing left to scan once the mailbox
+-- closes) -- registered purely so the Sniper's Auto mode can resume once the player's done
+-- with mail. MAIL_SHOW is forwarded to the Sniper too, below, alongside its existing ledger use.
+frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
 frame:RegisterEvent("PLAYER_LOGOUT")
 
@@ -201,6 +205,16 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GetInboxInvoiceInfo = GetInboxInvoiceInfo,
         GetInboxItem = GetInboxItem,
       }, GC.Ledger.Context())
+    end
+    -- Sniper v3 §3: forwarded alongside the ledger's own use of this event, not in place of
+    -- it. Only MAIL_SHOW (not the repeated MAIL_INBOX_UPDATE) -- Auto only needs to know mail
+    -- is open, once, the same way OnAuctionHouseShow's ahOpened fires once per AH visit.
+    if event == "MAIL_SHOW" and GC.Sniper.OnMailShow then
+      GC.Sniper.OnMailShow()
+    end
+  elseif event == "MAIL_CLOSED" then
+    if GC.Sniper.OnMailClosed then
+      GC.Sniper.OnMailClosed()
     end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end

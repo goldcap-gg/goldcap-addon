@@ -72,6 +72,35 @@ describe("TOC load order", function()
         HookScript = function() end,
         IsEnabled = function() return true end,
         SetAlpha = function() end,
+        -- Sniper v3 §3 (SniperFrame.lua T7 Auto wiring): the Auto button's "scanning" pulse
+        -- and a pooled row's ping-flash both build a real AnimationGroup/Alpha animation
+        -- synchronously during createFrame/createRow -- unlike the OnClick/OnEnter closures
+        -- above, CreateAnimationGroup's RETURN VALUE is used immediately (SetLooping,
+        -- :CreateAnimation(...):SetFromAlpha(...), etc.), so this needs real methods, not a
+        -- bare no-op. Play/Stop/SetScript are only ever called from deferred closures this
+        -- headless test never invokes, same as HookScript's own targets above, but kept for
+        -- parity with the real AnimationGroup/Animation API this file now leans on.
+        CreateAnimationGroup = function()
+          return {
+            CreateAnimation = function()
+              return {
+                SetFromAlpha = function() end,
+                SetToAlpha = function() end,
+                SetDuration = function() end,
+                SetSmoothing = function() end,
+                SetOrder = function() end,
+                -- fix round 1: createRow's flash animation now targets the highlight
+                -- texture explicitly (SetTarget) rather than owning the group itself.
+                SetTarget = function() end,
+              }
+            end,
+            SetLooping = function() end,
+            SetScript = function() end,
+            Play = function() end,
+            Stop = function() end,
+            IsPlaying = function() return false end,
+          }
+        end,
       }
       return f
     end
@@ -86,6 +115,16 @@ describe("TOC load order", function()
     -- Theme.TitleBar's drag region isn't exposed for a direct script hook -- see
     -- SniperFrame.lua's createFrame for the full reasoning.
     _G.hooksecurefunc = _G.hooksecurefunc or function() end
+    -- Sniper v3 §3: GetTime/PlaySound/SOUNDKIT/C_Timer.NewTicker are all only ever reached
+    -- from deferred closures (the AutoScan ticker, the ping sound, event-driven pause/resume
+    -- feeds) that this headless test -- which only exercises GC.Sniper.Toggle(), never
+    -- OnAuctionHouseShow/Closed or a real browse-results event -- never actually invokes. Set
+    -- defensively anyway, same "kept for parity" reasoning as the stub methods above, so a
+    -- future test that DOES reach one of those paths doesn't have to discover the gap itself.
+    _G.GetTime = _G.GetTime or function() return 0 end
+    _G.PlaySound = _G.PlaySound or function() end
+    _G.SOUNDKIT = _G.SOUNDKIT or { MAP_PING = 3175, RAID_WARNING = 1 }
+    _G.C_Timer = _G.C_Timer or { After = function() end, NewTicker = function() return { Cancel = function() end } end }
 
     local GC = {}
     local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
@@ -125,5 +164,9 @@ describe("TOC load order", function()
     _G.GoldCap_MarketData = nil
     _G.SLASH_GOLDCAP1 = nil
     _G.hooksecurefunc = nil
+    _G.GetTime = nil
+    _G.PlaySound = nil
+    _G.SOUNDKIT = nil
+    _G.C_Timer = nil
   end)
 end)

@@ -18,6 +18,9 @@ read_globals = {
   "C_AuctionHouse", "C_Timer", "PlaySound", "SOUNDKIT", "ITEM_QUALITY_COLORS",
   "CreateFromMixins", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "UISpecialFrames",
   "hooksecurefunc",
+  -- Sniper v3 §3 AutoScan wiring: the machine's own clock domain, and the native AH frame
+  -- whose SearchBar/SetDisplayMode are hooked for player-search detection.
+  "GetTime", "AuctionHouseFrame",
   "C_Container", "ItemLocation",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",

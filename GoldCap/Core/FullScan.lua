@@ -142,3 +142,30 @@ function GC.FullScan.RowsFromBrowse(results, getValue)
   end
   return rows
 end
+
+-- Sniper v3 §3 new-HOT-deal ping: the pure "which of these deals is a genuinely new HOT
+-- listing" question, shared verbatim by BOTH of SniperFrame's ping call sites -- the
+-- streaming per-page merge AND the scan-completion reconcile (fix round 1, I2: a tiny
+-- realm's very first browse event can already report HasFullBrowseResults() == true, so the
+-- completion branch needs its own ping pass too, not just the streaming one -- otherwise
+-- last-page HOTs, and on some realms EVERY HOT deal, never ping at all).
+--
+-- `seen` is a caller-owned set keyed `itemID.."@"..unitPrice`, MUTATED in place: every key
+-- returned here is also marked seen[key]=true before returning, so a second call in the same
+-- scan pass (completion, after streaming already saw and pinged the same deal) never
+-- re-collects it -- and a caller runs both the streaming and completion passes against the
+-- SAME `seen` table for exactly that reason. Callers own resetting `seen` between AH
+-- sessions (SniperFrame does this on ahClosed).
+function GC.FullScan.CollectNewHot(deals, seen)
+  local newly = {}
+  for _, deal in ipairs(deals) do
+    if deal.tier == "HOT" then
+      local key = deal.itemID .. "@" .. deal.unitPrice
+      if not seen[key] then
+        seen[key] = true
+        newly[#newly + 1] = deal
+      end
+    end
+  end
+  return newly
+end

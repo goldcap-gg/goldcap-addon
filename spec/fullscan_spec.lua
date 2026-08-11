@@ -272,3 +272,53 @@ describe("EvaluateDelta/MergeDeals", function()
     assert.same(singleCapped, mergedCapped)
   end)
 end)
+
+-- Sniper v3 §3 ping (fix round 1, I2/I6): pulled out of SniperFrame.lua so both of its call
+-- sites (the streaming per-page merge and the scan-completion reconcile) share one tested
+-- rule instead of two copies that could drift.
+describe("FullScan.CollectNewHot", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/FullScan.lua")
+  end)
+
+  local function mkDeal(itemID, unitPrice, tier)
+    return { itemID = itemID, unitPrice = unitPrice, tier = tier }
+  end
+
+  it("collects an unseen HOT deal and marks its key seen", function()
+    local seen = {}
+    local newly = GC.FullScan.CollectNewHot({ mkDeal(1, 100, "HOT") }, seen)
+    assert.equals(1, #newly)
+    assert.equals(1, newly[1].itemID)
+    assert.is_true(seen["1@100"])
+  end)
+
+  it("skips a HOT deal whose key is already in `seen`", function()
+    local seen = { ["1@100"] = true }
+    local newly = GC.FullScan.CollectNewHot({ mkDeal(1, 100, "HOT") }, seen)
+    assert.equals(0, #newly)
+  end)
+
+  it("ignores non-HOT deals entirely, even unseen ones", function()
+    local seen = {}
+    local newly = GC.FullScan.CollectNewHot({
+      mkDeal(1, 100, "GOOD"), mkDeal(2, 200, "WATCH"), mkDeal(3, 300, "SUSPECT"),
+    }, seen)
+    assert.equals(0, #newly)
+    assert.is_nil(seen["1@100"]) -- non-HOT deals never touch `seen` either
+  end)
+
+  it("returns an empty list for an empty deals array", function()
+    local newly = GC.FullScan.CollectNewHot({}, {})
+    assert.equals(0, #newly)
+  end)
+
+  it("a different price for the same item is a NEW key, even if the old price was seen", function()
+    local seen = { ["1@100"] = true }
+    local newly = GC.FullScan.CollectNewHot({ mkDeal(1, 90, "HOT") }, seen)
+    assert.equals(1, #newly)
+    assert.is_true(seen["1@90"])
+  end)
+end)

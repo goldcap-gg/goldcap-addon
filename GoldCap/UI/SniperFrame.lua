@@ -152,6 +152,31 @@ local pendingRequerySend = {}
 
 GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 
+-- Sniper v3 §3: Core/AutoScan.lua's pure state machine, wired to the real Full Scan
+-- machinery below (actions = { startScan = startFullScan, abortScan = cancelFullScan }) once
+-- those exist -- see the `autoScan = GC.AutoScan.New(...)` assignment further down. Forward-
+-- declared here, same pattern as `resolvePurchase`/`createRow` above and below, so every
+-- call site ABOVE that assignment (applyFullScanResults, armScanWatchdog) can still close
+-- over the same module-local upvalue. autoScanTicker drives m:Tick(GetTime()) at ~4Hz while
+-- the Auction House is open; nil the rest of the time (C_Timer.NewTicker on AH show,
+-- :Cancel() on AH close -- see GC.Sniper.OnAuctionHouseShow/OnAuctionHouseClosed).
+local autoScan
+local autoScanTicker
+-- feedAuto funnels EVERY AutoScan input through one place (instead of bare
+-- `autoScan:Input(...)` calls scattered across the file) so the Auto button's label/pulse
+-- (refreshAutoButton, assigned once the button itself is built in createFrame) can never
+-- drift out of sync with a state transition. Also forward-declared for the same upvalue
+-- reason as autoScan.
+local feedAuto
+local refreshAutoButton
+
+-- New-HOT-deal ping (spec §3): keyed itemID.."@"..unitPrice so a genuinely NEW listing at a
+-- NEW price re-pings even for an item that already had an older HOT listing earlier in the
+-- same AH session, while a recurring listing at the SAME price across rescans never re-pings.
+-- Module-level (not per-scan) and reset only on ahClosed -- see GC.Sniper.OnAuctionHouseClosed
+-- -- so consecutive Full Scans/Auto passes within one AH visit don't spam the same deals.
+local seenHotDeals = {}
+
 local function sortedDeals()
   -- T6: the hovered row's own deal (if any) is excluded here too, same as an
   -- activeItemID-pinned one -- refreshRows() below never re-stamps that row, so if its deal
@@ -386,6 +411,16 @@ end
 local hiddenColumns = {}
 
 local function setRowDeal(row, deal)
+  -- (fix round 1, M3) A pooled row's ping flash must not migrate onto whatever deal gets
+  -- reassigned into this same screen slot on the next refresh -- Stop() doesn't fire
+  -- OnFinished (that only runs on natural completion), so the highlight/alpha reset that
+  -- normally happens there has to be done explicitly here too. Only stops on an itemID
+  -- CHANGE -- the same item re-stamped with a fresher price (still mid-flash) keeps flashing.
+  if row.flashAnim and row.deal and row.deal.itemID ~= deal.itemID then
+    row.flashAnim:Stop()
+    if hoveredRow ~= row then row.highlight:Hide() end
+    row.highlight:SetAlpha(1)
+  end
   row.deal = deal
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
@@ -748,6 +783,45 @@ end
 -- racing fresher state.
 -- ---------------------------------------------------------------------------
 
+-- New-HOT-deal ping (spec §3): 1.5s flash on the row's own hover-highlight texture (E.1's
+-- `row.highlight`), reusing it rather than a dedicated texture. row.flashAnim (built once
+-- per pooled row in createRow) owns an Alpha animation fading from full brightness to 0;
+-- its OnFinished (also wired in createRow) re-hides the highlight unless the row is
+-- genuinely under the mouse right now, so a flash ending mid-hover never fights the real
+-- hover state.
+local function flashRow(row)
+  if not row.flashAnim then return end
+  row.highlight:SetAlpha(1)
+  row.highlight:Show()
+  row.flashAnim:Stop()
+  row.flashAnim:Play()
+end
+
+-- Flashes every surfaced deal's row, if it has one right now, and plays the ping sound ONCE
+-- per merge (fix round 1, M4: only if at least one deal actually matched a visible row --
+-- previously this played unconditionally off a non-empty `newHotDeals`, so a HOT deal that
+-- MergeDeals' own cap truncated away, or that's currently pinned/hovered, still triggered a
+-- sound with nothing on screen to look at). Row lookup is by TABLE IDENTITY against `deal` --
+-- MergeDeals splices deal tables by reference (see FullScan.lua's MergeDeals), so the exact
+-- same table handed to pingNewHotDeals is what refreshRows() (already called by the caller,
+-- just before this) stamped onto whichever pooled row rendered it, if any.
+local function pingNewHotDeals(newHotDeals)
+  local matched = false
+  for _, deal in ipairs(newHotDeals) do
+    for i = 1, #rows do
+      local row = rows[i]
+      if row.deal == deal and row:IsShown() then
+        flashRow(row)
+        matched = true
+        break
+      end
+    end
+  end
+  if matched and GC.db.settings.sniper.sound then
+    PlaySound(SOUNDKIT.MAP_PING or 3175)
+  end
+end
+
 local function applyFullScanResults(rowsList, groupCount)
   scanDeals = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
   -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
@@ -762,12 +836,25 @@ local function applyFullScanResults(rowsList, groupCount)
       #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s"))
   end
   refreshRows()
+  -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
+  -- too, not just the streaming per-page one below -- a tiny realm's very first browse event
+  -- can already report HasFullBrowseResults()==true, so the streaming branch (advanceBrowseScan)
+  -- never runs at all for that pass, and without this every HOT deal on such a realm would
+  -- never ping. GC.FullScan.CollectNewHot shares the SAME seenHotDeals set the streaming
+  -- branch uses, so anything already pinged this pass is correctly skipped here.
+  local pingDeals = GC.FullScan.CollectNewHot(scanDeals, seenHotDeals)
+  if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
   refreshStaleText() -- B: refresh on every completed scan, not just AH open
   -- T6: the streaming counters only make sense within one scan pass -- the reconcile above
   -- just replaced scanDeals wholesale from the full rows list, so whatever EvaluateDelta had
   -- already walked is moot. Reset here (the scan's one completion point) rather than in
   -- every caller.
   streamRows, streamRawCount, streamRowsCount = {}, 0, 0
+  -- Sniper v3 §3: tells AutoScan the scan it started (if it was the one that started this
+  -- one) is done, so it can start its breather countdown toward the next pass. A no-op
+  -- whenever the machine's own state isn't SCANNING -- e.g. a manual "Scan" click while Auto
+  -- is off/paused -- see AutoScan.lua's onScanFinished.
+  feedAuto("scanFinished")
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -781,7 +868,23 @@ local function armScanWatchdog(token)
     if lastBrowseEventAt < sentAt then
       scanRunning = false
       pendingBrowsePage = false
-      if frame then frame.status:SetText("full scan stalled -- press Full Scan to retry") end
+      if frame then
+        -- (fix round 1, M6) "press Full Scan to retry" is dead advice while Auto is armed --
+        -- the feedAuto("scanFinished") below already queues its own breather-delayed retry,
+        -- and the very next Tick/refreshAutoButton call would immediately overwrite a
+        -- "press Full Scan" line with "Auto · scanning" anyway. Pick the text off the
+        -- machine's OWN state (read before feeding scanFinished moves it along).
+        if autoScan and autoScan:State() ~= "OFF" then
+          frame.status:SetText("full scan stalled -- retrying shortly")
+        else
+          frame.status:SetText("full scan stalled -- press Full Scan to retry")
+        end
+      end
+      -- Sniper v3 §3: without this, a stalled Auto-driven scan would leave the machine
+      -- stuck in SCANNING forever (it only ever leaves that state on a scanFinished input) --
+      -- feeding it here lets Auto's breather/settle timers retry on the next pass instead of
+      -- silently hanging with the button stuck on "Auto · scanning".
+      feedAuto("scanFinished")
     end
   end)
 end
@@ -849,8 +952,13 @@ local function advanceBrowseScan(token)
     for _, deal in ipairs(deltaDeals) do
       deal.stale = true
     end
+    -- Sniper v3 §3 ping (fix round 1, I6): GC.FullScan.CollectNewHot is the SAME pure helper
+    -- applyFullScanResults' own completion branch uses, against the same seenHotDeals set --
+    -- see that call site's comment for why both branches need their own pass.
+    local pingDeals = GC.FullScan.CollectNewHot(deltaDeals, seenHotDeals)
     scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
     refreshRows()
+    if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
     -- Spec: no page % (Blizzard doesn't expose total pages) -- result count + running deal
     -- count instead.
     if frame then
@@ -870,6 +978,39 @@ local function abortFullScan()
   scanRunning = false
   pendingFullScanStart = false
   pendingBrowsePage = false
+end
+
+-- AutoScan's `abortScan` action (Core/AutoScan.lua's actions.abortScan, called only while
+-- the machine's own state is SCANNING). Reuses abortFullScan rather than a second parallel
+-- cancel path -- whatever already streamed into scanDeals during the aborted pass is left
+-- exactly as-is (MergeDeals already folded each page in as it arrived; there's nothing to
+-- roll back), only the in-flight pagination itself (throttle-parked requests, the watchdog)
+-- needs clearing. A resumed Auto pass always starts a FRESH scan via startFullScan anyway --
+-- see AutoScan.lua's own comment on why the aborted pass's browse state must be assumed
+-- clobbered.
+--
+-- Status text (fix round 1, M2): actions.abortScan() is called uniformly by AutoScan.lua
+-- with no arguments from three different transitions (any addPause reason, or toggleOff), so
+-- the "why" has to be read back off the machine instead of threaded through as a parameter.
+-- addPause sets reasons[reason]=true BEFORE calling this, and toggleOff clears `reasons` to
+-- {} only AFTER, so PauseReasons() here reliably distinguishes the two: non-empty -> a real
+-- pause (dialog/search/mail -- or "ah"/"tab", which get their own silent case since the
+-- window/AH is going away regardless and a status line nobody can see would be a lie of a
+-- different kind); empty -> this was toggleOff.
+local function cancelFullScan()
+  abortFullScan()
+  if not frame then return end
+  local reasons = autoScan and autoScan:PauseReasons() or {}
+  if reasons.ah or reasons.tab then
+    -- silent: the AH is closing or the window just got hidden -- either way the status line
+    -- is about to become moot, and overwriting it here would just flash text nobody reads.
+    return
+  end
+  if next(reasons) == nil then
+    frame.status:SetText("auto off")
+  else
+    frame.status:SetText("auto: paused")
+  end
 end
 
 -- Starts the actual browse scan. Only ever reached once the throttle system is confirmed
@@ -892,6 +1033,106 @@ local function startFullScan()
   else
     pendingFullScanStart = true
     if frame then frame.status:SetText("waiting for server... full scan will start automatically") end
+  end
+end
+
+-- Sniper v3 §3: assigns the forward-declared `autoScan` local now that both actions it needs
+-- exist. Default timers (2s breather after a finished scan, 1s settle after every pause
+-- reason clears) -- see Core/AutoScan.lua's own DEFAULT_BREATHER/DEFAULT_SETTLE.
+--
+-- startScan is wrapped (fix round 1, I1) rather than passed as bare `startFullScan`: the
+-- machine's own Tick unconditionally sets its state to SCANNING right after calling this
+-- action (see AutoScan.lua), regardless of what the action itself did -- so if a scan is
+-- ALREADY running (a manual "Scan" click already in flight, or pendingFullScanStart still
+-- waiting on the throttle) when Auto arms/resumes, calling startFullScan() again would
+-- clobber that scan's own token/state out from under it. Guarding lets Auto instead silently
+-- "adopt" the already-running scan: its eventual completion still feeds scanFinished (see
+-- applyFullScanResults), which is all the machine needs to correctly continue from there.
+autoScan = GC.AutoScan.New({}, {
+  startScan = function()
+    if scanRunning or pendingFullScanStart then return end
+    startFullScan()
+  end,
+  abortScan = cancelFullScan,
+})
+
+feedAuto = function(event)
+  autoScan:Input(event, GetTime())
+  if refreshAutoButton then refreshAutoButton() end
+end
+
+local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail" }
+-- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
+-- while the player's own search was already live) -- "buying" wins because it's the most
+-- decisive of the three: the player is one click from spending gold. `ah`/`tab` are
+-- deliberately absent -- per spec they render as plain "Auto", not a paused chip, since
+-- neither reflects something the player is actively DOING right now.
+local AUTO_PAUSE_ORDER = { "dialog", "search", "mail" }
+
+local function autoButtonText(state, reasons)
+  if state == "SCANNING" then return "Auto · scanning" end
+  if state == "PAUSED" then
+    for _, reason in ipairs(AUTO_PAUSE_ORDER) do
+      if reasons[reason] then return "Auto · paused: " .. AUTO_PAUSE_LABEL[reason] end
+    end
+  end
+  return "Auto" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+end
+
+-- Re-derives the Auto control's label/on-off look/pulse from the machine's own State()/
+-- PauseReasons() -- called after every feedAuto() input and once per Tick (see the
+-- autoScanTicker set up in GC.Sniper.OnAuctionHouseShow), so the button can never show a
+-- state the machine itself has already moved past. Two overlapping buttons (frame.autoBtnOff
+-- ghost / frame.autoBtnOn primary, built in createFrame), not one button whose colors get
+-- poked at runtime -- Theme.Button's own hover-brighten closures capture their variant's
+-- base/hover colors at construction time (see Theme.lua's T.Button), so repainting a single
+-- button's `.bg` here would just get stomped by the very next OnEnter/OnLeave. Swapping which
+-- of two correctly-built buttons is shown sidesteps that entirely, and keeps the control
+-- clickable in both states (a real :Disable() would also block the click that's supposed to
+-- turn it back on).
+--
+-- `targetFrame` (fix round 1, M1): createFrame calls this with its own local `f` right
+-- before returning, since the module-level `frame` upvalue isn't assigned until AFTER
+-- createFrame() returns (see GC.Sniper.Toggle()/OnAuctionHouseShow's `frame = frame or
+-- createFrame()`) -- without this the very first Auto label paint would have to wait for a
+-- later feedAuto/Tick instead of reflecting the freshly-built window immediately. Every other
+-- caller (the ticker, feedAuto) omits it and falls back to the module-level `frame`.
+refreshAutoButton = function(targetFrame)
+  local f = targetFrame or frame
+  if not f or not f.autoBtnOn then return end
+  local state = autoScan:State()
+  local on = state ~= "OFF"
+  if f.autoBtnOn.lastOn ~= on then
+    f.autoBtnOn.lastOn = on
+    if on then
+      f.autoBtnOff:Hide()
+      f.autoBtnOn:Show()
+    else
+      f.autoBtnOn:Hide()
+      f.autoBtnOff:Show()
+    end
+  end
+
+  -- (fix round 1, I5) Pulse Play/Stop must run regardless of `on` -- previously this sat
+  -- AFTER the off-state early return below, so toggling Auto off (or any other transition
+  -- straight out of SCANNING) left the animation silently playing forever on a now-hidden
+  -- button instead of being Stop()'d.
+  local shouldPulse = (state == "SCANNING")
+  if shouldPulse and not f.autoBtnOn.pulsing then
+    f.autoBtnOn.pulsing = true
+    f.autoBtnOn.pulse:Play()
+  elseif not shouldPulse and f.autoBtnOn.pulsing then
+    f.autoBtnOn.pulsing = false
+    f.autoBtnOn.pulse:Stop()
+    f.autoBtnOn:SetAlpha(1)
+  end
+
+  if not on then return end -- the off button's label never changes ("Auto") -- nothing else to update
+
+  local text = autoButtonText(state, autoScan:PauseReasons())
+  if f.autoBtnOn.lastText ~= text then
+    f.autoBtnOn:SetLabel(text)
+    f.autoBtnOn.lastText = text
   end
 end
 
@@ -1523,6 +1764,52 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   resolvePurchase(row, false, "commodity purchase failed")
 end
 
+-- Sniper v3 §3 pause routers, forwarded from Core/Init.lua's MAIL_SHOW/MAIL_CLOSED dispatch
+-- (MAIL_SHOW is also the P2 ledger's own inbox-scan trigger -- this is a second, independent
+-- forward of the same event, not a replacement). Reading mail and driving the Sniper's own
+-- Full Scan both hammer the throttled message system, so Auto yields for the whole mailbox
+-- visit exactly like it does for a buy dialog or the player's own search.
+function GC.Sniper.OnMailShow()
+  feedAuto("pause:mail")
+end
+
+function GC.Sniper.OnMailClosed()
+  feedAuto("resume:mail")
+end
+
+-- AutoScan pause hooks for the buy-confirmation dialog (spec §3's throttle-priority rule).
+-- Called from openDialog / the dialog's own OnHide below -- future dialog work must keep both
+-- call sites intact. Clearing pendingBrowsePage/pendingFullScanStart on open (regardless of
+-- whether Auto itself is even on) means GC.Sniper.OnThrottleReady's scan-traffic-first order
+-- (see its own comment) can never win a race against the live requery this dialog is about
+-- to issue for a stale deal -- the next ready throttle slot always goes to the player's own
+-- pending purchase, not a parked scan page.
+function GC.Sniper.NotifyDialogOpened()
+  -- (fix round 1, C1) abortFullScan(), not a bare poke at pendingBrowsePage/
+  -- pendingFullScanStart -- those two flags only cover a scan PARKED waiting on the throttle
+  -- system. A scan already mid-paging has scanRunning=true with neither flag set, and the
+  -- machine's own addPause("dialog") (fed below) only aborts a scan it itself started
+  -- (state=="SCANNING") -- a MANUAL "Scan" click is invisible to it. Leaving scanRunning
+  -- stuck true forever (nothing else would ever clear it once the player's own browse query
+  -- starts landing) means: the Scan button stays permanently "already in progress" (dead),
+  -- GC.Sniper.IsBusy() never returns false again (deadlocks GC.Sell's throttle gate), and
+  -- worse -- OnBrowseResults/OnBrowseResultsAdded are gated ONLY on scanRunning, not on whose
+  -- query it was, so the player's own Browse-tab search would get ingested as if it were the
+  -- next page of OUR scan. abortFullScan() clears all of that (and bumps fullScanToken,
+  -- invalidating any in-flight watchdog closure from the aborted pass) regardless of who
+  -- started it.
+  local wasScanning = scanRunning or pendingFullScanStart
+  abortFullScan()
+  if wasScanning and frame then
+    frame.status:SetText("full scan interrupted -- confirm your purchase")
+  end
+  feedAuto("pause:dialog") -- if THIS was an Auto-driven scan, cancelFullScan's own status wins below
+end
+
+function GC.Sniper.NotifyDialogClosed()
+  feedAuto("resume:dialog")
+end
+
 -- The dialog's own primary button OnClick -- the ONLY place PlaceBid, StartCommoditiesPurchase
 -- and ConfirmCommoditiesPurchase are ever called. A hardware click on this button is exactly
 -- as synchronous/direct as the old row-button click was; only WHICH widget owns the click
@@ -1804,6 +2091,10 @@ local function createDialog()
   -- for a since-aborted row is still handled safely -- those handlers key off
   -- commodityPurchase/pendingAuction, which the reset below already clears.
   d:SetScript("OnHide", function()
+    -- Unconditional -- fires whether this close was a resolved purchase, a hardware Cancel,
+    -- or Esc, and regardless of whether `row` below is still set. AutoScan's own "dialog"
+    -- pause reason cares only that the dialog is no longer up, not why.
+    GC.Sniper.NotifyDialogClosed()
     dialog.book = nil
     -- The requote baseline (see stampDialogFromBook) must not survive past this dialog
     -- session -- otherwise a stale stampedUnit/Total from THIS deal could be misread as the
@@ -1833,6 +2124,7 @@ local function openDialog(row, deal)
   setDialogHeader(deal)
   stampDialogFromBook(deal)
   dialog:Show()
+  GC.Sniper.NotifyDialogOpened()
 
   if deal.stale then
     dialog.primaryBtn:Disable()
@@ -1966,6 +2258,33 @@ createRow = function(parent, index)
   highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4])
   highlight:Hide()
   row.highlight = highlight
+
+  -- Sniper v3 §3 ping: 1.5s alpha fade-out flash for a newly-surfaced HOT deal (see
+  -- pingNewHotDeals/flashRow above advanceBrowseScan). Built once per pooled row rather than
+  -- per-flash -- an AnimationGroup is a real object with nontrivial construction cost, and
+  -- rows are reused across scans/passes via the same pool. OnFinished re-hides the highlight
+  -- unless the row is genuinely under the mouse right now (hoveredRow), so a flash that
+  -- finishes mid-hover never fights the real hover state, and resets alpha back to 1 either
+  -- way so a later genuine hover isn't dimmed.
+  --
+  -- (fix round 1, "insurance from cannot-verify") The group is built on the ROW frame
+  -- (`row:CreateAnimationGroup()`), not `highlight:CreateAnimationGroup()` -- Frame is
+  -- unambiguously a supported AnimationGroup owner; Texture's support for the same call
+  -- wasn't independently verified against the live client, so this avoids betting createRow
+  -- (which every pooled row, and therefore refreshRows() itself, depends on) on a Region-API
+  -- gap. SetTarget points the specific Alpha animation at `highlight` instead.
+  local flashAnim = row:CreateAnimationGroup()
+  local flashAlpha = flashAnim:CreateAnimation("Alpha")
+  flashAlpha:SetTarget(highlight)
+  flashAlpha:SetFromAlpha(1)
+  flashAlpha:SetToAlpha(0)
+  flashAlpha:SetDuration(1.5)
+  flashAlpha:SetSmoothing("OUT")
+  flashAnim:SetScript("OnFinished", function()
+    if hoveredRow ~= row then highlight:Hide() end
+    highlight:SetAlpha(1)
+  end)
+  row.flashAnim = flashAnim
 
   -- Sniper v3: 2px gold left-rail shown alongside the hover highlight -- the accent that
   -- marks "this row" beyond the flat highlight wash alone.
@@ -2307,18 +2626,74 @@ local function createFrame()
   staleText:Hide()
   f.staleText = staleText
 
-  -- Row 2: status line (left) + Live/Full Scan (right). Full Scan is the primary control
-  -- (rightmost, primary variant); the watchlist live-scan toggle is secondary (ghost,
-  -- smaller, anchored to Full Scan's left).
+  -- Row 2: status line (left) + Live / Scan / Auto (right). Sniper v3 §3 replaces the old
+  -- standalone "Full Scan" primary button with a split control: Auto (rightmost, the most
+  -- prominent control now -- same slot Full Scan alone used to hold) + Scan (renamed "Full
+  -- Scan", now ghost, still the manual one-shot fallback) to its left; the watchlist
+  -- live-scan toggle stays exactly where it was, further left again.
   local row2Y = row1Y - (TAB_HEIGHT + Theme.pad.s)
-  local fullScanBtn = Theme.Button(f, "primary")
-  fullScanBtn:SetSize(100, TOOLBAR_BTN_H)
-  fullScanBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
-  fullScanBtn:SetLabel("Full Scan")
+  local AUTO_BTN_WIDTH = 148
+
+  -- Auto (spec §3 "[Auto ⏻]"): two overlapping buttons -- ghost "off" look, primary "on"
+  -- look -- swapped via Show/Hide by refreshAutoButton rather than one button repainted at
+  -- runtime; see refreshAutoButton's own comment for why repainting a single Theme.Button
+  -- doesn't survive its own hover-brighten. Both share the same click handler: it only cares
+  -- whether the machine is currently OFF, not which of the two is visible.
+  local autoBtnOff = Theme.Button(f, "ghost")
+  autoBtnOff:SetSize(AUTO_BTN_WIDTH, TOOLBAR_BTN_H)
+  autoBtnOff:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
+  autoBtnOff:SetLabel("Auto")
+  f.autoBtnOff = autoBtnOff
+
+  local autoBtnOn = Theme.Button(f, "primary")
+  autoBtnOn:SetAllPoints(autoBtnOff)
+  autoBtnOn:SetLabel("Auto")
+  autoBtnOn:Hide()
+  f.autoBtnOn = autoBtnOn
+
+  -- "Auto · scanning" pulse: a looping alpha animation on the "on" button itself, Played/
+  -- Stopped only from refreshAutoButton (never here) so a rapid state flap can't stack
+  -- overlapping Plays -- SetLooping("BOUNCE") free-runs forward/back on its own once started.
+  local autoPulse = autoBtnOn:CreateAnimationGroup()
+  autoPulse:SetLooping("BOUNCE")
+  local autoPulseAlpha = autoPulse:CreateAnimation("Alpha")
+  autoPulseAlpha:SetFromAlpha(1)
+  autoPulseAlpha:SetToAlpha(0.55)
+  autoPulseAlpha:SetDuration(0.6)
+  autoPulseAlpha:SetSmoothing("IN_OUT")
+  autoBtnOn.pulse = autoPulse
+
+  local function onAutoToggleClick()
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    if autoScan:State() == "OFF" then
+      if cfg then cfg.auto = true end
+      feedAuto("toggleOn")
+      -- (fix round 1, I4) toggleOn always arms with a clean reason set (AutoScan.lua wipes
+      -- `reasons` on toggleOn), so re-seed "tab" immediately if the window isn't actually up
+      -- -- defensive/unreachable in practice (this button lives INSIDE the window), but kept
+      -- symmetric with the real case in GC.Sniper.OnAuctionHouseShow.
+      if not frame or not frame:IsShown() then feedAuto("tabHidden") end
+    else
+      if cfg then cfg.auto = false end
+      feedAuto("toggleOff")
+    end
+  end
+  autoBtnOff:SetScript("OnClick", onAutoToggleClick)
+  autoBtnOn:SetScript("OnClick", onAutoToggleClick)
+  local autoTooltip =
+    "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, " ..
+    "search the Auction House yourself, or check your mail. Click to toggle."
+  setPlainTooltip(autoBtnOff, autoTooltip)
+  setPlainTooltip(autoBtnOn, autoTooltip)
+
+  local fullScanBtn = Theme.Button(f, "ghost")
+  fullScanBtn:SetSize(64, TOOLBAR_BTN_H)
+  fullScanBtn:SetPoint("RIGHT", autoBtnOff, "LEFT", -Theme.pad.xs, 0)
+  fullScanBtn:SetLabel("Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
-    "Scans the entire Auction House via paged browse queries. Takes roughly 15-60 seconds " ..
-    "on busy realms. No cooldown -- rescan anytime.")
+    "One-shot scan of the entire Auction House via paged browse queries. Takes roughly " ..
+    "15-60 seconds on busy realms. No cooldown -- rescan anytime.")
   f.fullScanBtn = fullScanBtn
 
   local toggleBtn = Theme.Button(f, "ghost")
@@ -2428,6 +2803,25 @@ local function createFrame()
     rowHeight = ROW_HEIGHT,
   })
 
+  -- Sniper v3 §3 sniperTabShown/sniperTabHidden: the Sniper is a standalone floating window,
+  -- not an AH-internal tab, so "the player returned to it" is just this window's own
+  -- Show/Hide -- no separate tab-selection API to hook.
+  --
+  -- (fix round 1, I4 ruling) Auto runs ONLY while the Sniper window itself is shown -- a
+  -- frame that starts hidden and is never shown this session never fires OnHide, so
+  -- GC.Sniper.OnAuctionHouseShow/onAutoToggleClick are what seed the "tab" pause reason for
+  -- that case (a toggleOn while the window doesn't exist/isn't shown yet); this OnShow is
+  -- what always clears it once the window actually appears, whichever path armed it.
+  -- resume:search is fed here too (C3/I3), same defensive rationale as the ahClosed feed
+  -- below: a stuck "search" reason should never survive the player simply looking at the
+  -- Sniper window again, even if Blizzard's own search box never fired OnEditFocusLost.
+  f:SetScript("OnShow", function()
+    feedAuto("tabShown")
+    feedAuto("resume:search")
+  end)
+  f:SetScript("OnHide", function() feedAuto("tabHidden") end)
+
+  refreshAutoButton(f) -- (fix round 1, M1) paint the initial label/visual before the very first Show
   return f
 end
 
@@ -2445,6 +2839,87 @@ function GC.Sniper.Toggle()
   end
 end
 
+local searchHooksInstalled = false
+
+-- Sniper v3 §3 player-search detection. AuctionHouseFrame doesn't exist until
+-- Blizzard_AuctionHouseUI has loaded (first AH visit of the session), so this is called from
+-- GC.Sniper.OnAuctionHouseShow -- by which point the AH frame is guaranteed to exist -- and
+-- installs its hooks exactly once (searchHooksInstalled), never re-hooking on later visits.
+--
+-- Detection rule (documented here since Blizzard exposes no "are the live browse/search
+-- results the player's own" flag to just read):
+--   pause:search  -- fires the instant the player's own search box gains keyboard focus
+--                    (about to type their own query), OR SetDisplayMode reports a mode OTHER
+--                    than Buy/browse (switching to Sell/Auctions within Blizzard's OWN AH
+--                    frame can itself re-issue a browse/search query we don't control).
+--                    Either one means the live browse/search result state might stop being
+--                    OUR scan's at any moment.
+--   resume:search -- fires when the search box loses focus (AND our own Sniper window is
+--                    shown -- window-visible is the closest available proxy for "the
+--                    player's attention is back on the addon", since there's no API to ask
+--                    "are the current results the player's search or ours"), OR when
+--                    SetDisplayMode reports a return to the Buy/browse mode. Resuming is
+--                    deliberately conservative for the same reason a resume always re-issues
+--                    a FRESH browse query regardless of what's currently live (see
+--                    AutoScan.lua): the worst case of resuming "too early" is clobbering
+--                    results the player is still reading.
+--
+-- (fix round 1, C2) `AuctionHouseFrame.SearchBar` may be a plain container Frame whose actual
+-- EditBox child is `.SearchBox` -- HookScript("OnEditFocusGained"/"OnEditFocusLost") on
+-- anything that isn't an EditBox RAISES, which would abort GC.Sniper.OnAuctionHouseShow
+-- mid-function (no ticker, no toggleOn, the window stops auto-opening) since this is called
+-- synchronously from inside it. Resolve the actual box, duck-type it, and wrap both hook
+-- installs in pcall as belt-and-braces against any client-version shape this wasn't verified
+-- against (see the in-game checklist).
+local function installSearchHooks()
+  if searchHooksInstalled or not AuctionHouseFrame then return end
+  searchHooksInstalled = true
+
+  local searchBar = AuctionHouseFrame.SearchBar
+  local box = searchBar and (searchBar.SearchBox or searchBar)
+  if box and (box.SetFocus or (box.GetObjectType and box:GetObjectType() == "EditBox")) then
+    pcall(function()
+      box:HookScript("OnEditFocusGained", function() feedAuto("pause:search") end)
+    end)
+    pcall(function()
+      box:HookScript("OnEditFocusLost", function()
+        if frame and frame:IsShown() then
+          feedAuto("resume:search")
+        end
+      end)
+    end)
+  end
+
+  -- (fix round 1, C3) SetDisplayMode alone previously only ever fed pause:search, with no
+  -- resume counterpart -- a single AH tab click would strand Auto in "paused: searching" for
+  -- the rest of the session. Enum name unverified against the live client (see the in-game
+  -- checklist) -- guarded so a missing/renamed enum degrades to the documented fallback
+  -- instead of erroring.
+  local buyMode = Enum.AuctionHouseDisplayMode and Enum.AuctionHouseDisplayMode.Buy
+  if AuctionHouseFrame.SetDisplayMode then
+    pcall(hooksecurefunc, AuctionHouseFrame, "SetDisplayMode", function(_, newDisplayMode)
+      if buyMode ~= nil then
+        if newDisplayMode == buyMode then
+          feedAuto("resume:search")
+        else
+          feedAuto("pause:search")
+        end
+        return
+      end
+      -- Enum shape not verified: can't tell Buy mode from any other, so pause immediately
+      -- (a mode change COULD be the player driving the AH's own search) and, if our window
+      -- is up, resume after a short defer -- long enough for the mode transition's own query
+      -- to land first -- so one stray SetDisplayMode call can't strand Auto for the session.
+      feedAuto("pause:search")
+      if frame and frame:IsShown() then
+        C_Timer.After(0.5, function()
+          if frame and frame:IsShown() then feedAuto("resume:search") end
+        end)
+      end
+    end)
+  end
+end
+
 function GC.Sniper.OnAuctionHouseShow()
   -- B: independent of autoOpen/window visibility -- the chat warning is meant to reach the
   -- player even if they keep the sniper window closed.
@@ -2453,6 +2928,31 @@ function GC.Sniper.OnAuctionHouseShow()
   -- Build the scanner on the first AH visit regardless of autoOpen, so a later
   -- manual watchlist Live click has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
+
+  -- Sniper v3 §3: the AutoScan ticker only runs while the AH is open (nothing to drive
+  -- otherwise -- SendBrowseQuery would silently no-op with no AH session live). This, the
+  -- search-detection hooks, and the ahOpened/toggleOn feed below all run regardless of
+  -- autoOpen -- toggleOn re-arms the MACHINE here even if autoOpen keeps the window itself
+  -- from appearing, but (fix round 1, I4 ruling) Auto never actually SCANS until the window
+  -- is shown, since toggleOn's own tab-seed just below re-adds "tab" if it isn't up yet.
+  installSearchHooks()
+  autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
+    autoScan:Tick(GetTime())
+    refreshAutoButton()
+  end)
+  feedAuto("ahOpened")
+  if GC.db.settings.sniper.auto then
+    feedAuto("toggleOn") -- re-arms Auto across a /reload or the first AH visit of the session; a no-op once already armed
+    -- toggleOn always arms with a clean reason set (AutoScan.lua wipes `reasons`), so
+    -- re-seed "tab" immediately whenever the window isn't up yet -- autoOpen==false, or this
+    -- is the very first AH visit of the session and the frame hasn't been built at all.
+    -- Whenever the window DOES appear (immediately below if autoOpen, or later via a manual
+    -- GC.Sniper.Toggle()), its own OnShow -> tabShown clears this the normal way.
+    if not frame or not frame:IsShown() then
+      feedAuto("tabHidden")
+    end
+  end
+
   -- autoOpen gates only whether the WINDOW auto-appears. It does NOT auto-start any
   -- scan: Full Scan is the primary mode (one burst on the player's button press), and
   -- the continuous watchlist scan is opt-in via its own Live button -- auto-running it
@@ -2486,6 +2986,22 @@ function GC.Sniper.OnAuctionHouseClosed()
   stopScanning()
   abortFullScan()
 
+  -- Sniper v3 §3: stop driving the machine's clock once there's nothing left for it to
+  -- scan -- both idempotent against the double-call this function already has to tolerate.
+  if autoScanTicker then
+    autoScanTicker:Cancel()
+    autoScanTicker = nil
+  end
+  feedAuto("ahClosed")
+  -- Defensive: Blizzard's search EditBox isn't guaranteed to fire OnEditFocusLost as part of
+  -- the AH frame's own close teardown, and AutoScan.lua's ahClosed handler only ever ADDS the
+  -- "ah" pause reason -- it never clears any other reason already set. A "search"/"mail"
+  -- reason left stuck true would otherwise silently block Auto forever on every future AH
+  -- visit. Whatever the player's own search/mailbox was doing is moot once the AH session
+  -- itself is gone. (fix round 1, C3: resume:mail added for symmetry with resume:search.)
+  feedAuto("resume:search")
+  feedAuto("resume:mail")
+
   local session = GC.Sniper.session
   if session.buys > 0 then
     GC.Print(("session: %d snipes, spent %s, ~%s est. profit"):format(
@@ -2501,6 +3017,10 @@ function GC.Sniper.OnAuctionHouseClosed()
 
   resetAllPurchases()
   clearDeals() -- next AH visit starts from a clean slate; stale auctions are no longer live
+  -- Sniper v3 §3 ping: a HOT listing that pinged this session should be able to ping again
+  -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
+  -- what's worth flagging) -- see seenHotDeals' own declaration.
+  for key in pairs(seenHotDeals) do seenHotDeals[key] = nil end
   -- D: abort any in-flight Sell quote walk/post -- neither can safely resume once the AH
   -- session is gone (same reasoning as resetAllPurchases above for the Deals side).
   GC.Sell.Reset()
