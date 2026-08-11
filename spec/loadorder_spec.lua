@@ -52,6 +52,11 @@ describe("TOC load order", function()
         -- the same way the Deals view's refreshRows always has -- now reachable from
         -- GC.Sniper.Toggle() too, since it refreshes the Sell tab's rows on every show.
         SetHeight = function() end,
+        -- Sniper v3 (Theme.lua): Label/Num fontstrings and Chip/Button custom fonts
+        -- re-font via SetFont; Label reads the native font path via GetFont first.
+        SetFont = function() end,
+        GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
+        RegisterForClicks = function() end,
       }
       return f
     end

@@ -1,0 +1,230 @@
+local _, GC = ...
+
+GC.Theme = GC.Theme or {}
+local T = GC.Theme
+
+T.color = {
+  bg      = { 0.051, 0.055, 0.071 },
+  panel   = { 0.078, 0.086, 0.110 },
+  panelHi = { 0.102, 0.114, 0.141 },
+  border  = { 1, 1, 1, 0.06 },
+  gold    = { 0.831, 0.643, 0.216 },
+  goldHi  = { 0.910, 0.757, 0.353 },
+  fg      = { 0.92, 0.91, 0.89 },
+  fgMuted = { 0.72, 0.71, 0.69 },
+  fgDim   = { 0.55, 0.54, 0.52 },
+  red     = { 0.898, 0.283, 0.302 },
+  green   = { 0.25, 0.85, 0.25 },
+  zebra   = { 1, 1, 1, 0.04 },
+  hover   = { 1, 1, 1, 0.08 },
+}
+
+T.tier = {
+  HOT     = { 1, 0.35, 0.15 },
+  GOOD    = { 0.25, 0.85, 0.25 },
+  WATCH   = { 0.65, 0.65, 0.65 },
+  SUSPECT = { 1, 0.85, 0.1 },
+}
+
+T.pad = { xs = 4, s = 8, m = 12, l = 16 }
+T.ROW_H = 28
+
+T.FONT_MONO = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Regular.ttf"
+T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
+
+local scale, hooks = 1.0, {}
+
+-- Widget-bound re-fonting (Chip/Num fontstrings, created afresh on every row/cell) is
+-- tracked as DATA in a weak-KEYED table, never as a closure. Lua 5.1 (WoW's runtime) has
+-- no ephemeron tables: a weak-keyed table only collects an entry once NOTHING reachable
+-- still points at the key, and that includes the entry's own VALUE. A closure stored as
+-- the value captures the FontString (its key) as an upvalue -- e.g. `function() fs:SetFont(...)
+-- end` -- so the value keeps its own key alive forever and the entry never collects. The
+-- fix is to store a plain data table `{ path, size }` that holds NO reference back to the
+-- FontString (or any parent frame): once nothing else references the FontString, the
+-- weak-keyed entry is free to collect on the next GC cycle. SetScale does the SetFont
+-- call itself, in its own scope, using the stored data.
+local widgetFonts = setmetatable({}, { __mode = "k" })
+
+function T.Scale()
+  return scale
+end
+
+function T.OnRescale(fn)
+  hooks[#hooks + 1] = fn
+end
+
+function T.SetScale(s)
+  scale = math.max(0.9, math.min(1.3, s or 1.0))
+  if GC.db and GC.db.settings and GC.db.settings.sniper then
+    GC.db.settings.sniper.fontScale = scale
+  end
+  for _, fn in ipairs(hooks) do
+    fn(scale)
+  end
+  for fs, info in pairs(widgetFonts) do
+    fs:SetFont(info.path, info.size * scale, "")
+  end
+end
+
+local function solid(parent, layer, c)
+  local tx = parent:CreateTexture(nil, layer)
+  tx:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+  return tx
+end
+
+local function edgeBorder(f, c)
+  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+    local e = solid(f, "BORDER", c)
+    if side == "TOP" or side == "BOTTOM" then
+      e:SetPoint(side .. "LEFT")
+      e:SetPoint(side .. "RIGHT")
+      e:SetHeight(1)
+    else
+      e:SetPoint("TOP" .. side)
+      e:SetPoint("BOTTOM" .. side)
+      e:SetWidth(1)
+    end
+  end
+end
+
+-- Panel: flat dark texture + 1px border.
+function T.Panel(parent)
+  local f = CreateFrame("Frame", nil, parent)
+  f.bg = solid(f, "BACKGROUND", T.color.panel)
+  f.bg:SetAllPoints()
+  edgeBorder(f, T.color.border)
+  return f
+end
+
+-- Chip: solid dark plaque + colored text + colored 1px underline.
+function T.Chip(parent)
+  local f = CreateFrame("Frame", nil, parent)
+  f:SetHeight(16)
+
+  f.bg = solid(f, "BACKGROUND", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
+  f.bg:SetAllPoints()
+
+  f.text = f:CreateFontString(nil, "OVERLAY")
+  f.text:SetFont(T.FONT_MONO_BOLD, 10 * T.Scale(), "")
+  f.text:SetJustifyH("CENTER")
+  f.text:SetPoint("CENTER")
+
+  f.underline = solid(f, "ARTWORK", T.color.border)
+  f.underline:SetPoint("BOTTOMLEFT")
+  f.underline:SetPoint("BOTTOMRIGHT")
+  f.underline:SetHeight(1)
+
+  widgetFonts[f.text] = { path = T.FONT_MONO_BOLD, size = 10 }
+
+  function f:SetLabel(text, colorTable)
+    f.text:SetText(text)
+    local c = colorTable or T.color.fg
+    f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+    f.underline:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+  end
+
+  return f
+end
+
+-- Num: mono font, size*Scale(), RIGHT-justified. Re-fonts on rescale.
+function T.Num(parent, size, bold)
+  local fs = parent:CreateFontString(nil, "OVERLAY")
+  local font = bold and T.FONT_MONO_BOLD or T.FONT_MONO
+  fs:SetFont(font, size * T.Scale(), "")
+  fs:SetJustifyH("RIGHT")
+  widgetFonts[fs] = { path = font, size = size }
+  return fs
+end
+
+-- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified.
+function T.Label(parent, size)
+  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local fontPath, _, flags = fs:GetFont()
+  if fontPath then
+    fs:SetFont(fontPath, size, flags)
+  end
+  fs:SetJustifyH("LEFT")
+  return fs
+end
+
+local function brightened(c)
+  return { math.min(1, c[1] + 0.06), math.min(1, c[2] + 0.06), math.min(1, c[3] + 0.06), c[4] or 1 }
+end
+
+local BUTTON_VARIANTS = {
+  primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
+  ghost   = { bg = nil, text = T.color.fg },
+  danger  = { bg = T.color.red, text = T.color.fg },
+}
+
+-- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
+function T.Button(parent, variant)
+  local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
+  local base = spec.bg or { 0, 0, 0, 0 }
+  local hoverColor = spec.bg and brightened(spec.bg) or T.color.hover
+
+  local b = CreateFrame("Button", nil, parent)
+  b:RegisterForClicks("AnyUp")
+  b.bg = solid(b, "BACKGROUND", base)
+  b.bg:SetAllPoints()
+
+  if not spec.bg then
+    edgeBorder(b, T.color.border)
+  end
+
+  b.text = T.Label(b, 12)
+  b.text:SetJustifyH("CENTER")
+  b.text:ClearAllPoints()
+  b.text:SetPoint("CENTER")
+  b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
+
+  function b:SetLabel(text)
+    b.text:SetText(text)
+  end
+
+  b:SetScript("OnEnter", function()
+    b.bg:SetColorTexture(hoverColor[1], hoverColor[2], hoverColor[3], hoverColor[4] or 1)
+  end)
+  b:SetScript("OnLeave", function()
+    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+  end)
+
+  return b
+end
+
+-- TitleBar: 32px drag region at top of `frame`, title Label 13; close sits at the outer
+-- top-right corner, gear sits immediately inboard (left) of close.
+function T.TitleBar(frame, titleText)
+  local bar = CreateFrame("Frame", nil, frame)
+  bar:SetPoint("TOPLEFT")
+  bar:SetPoint("TOPRIGHT")
+  bar:SetHeight(32)
+  bar:EnableMouse(true)
+  bar:RegisterForDrag("LeftButton")
+  bar:SetScript("OnDragStart", function()
+    frame:StartMoving()
+  end)
+  bar:SetScript("OnDragStop", function()
+    frame:StopMovingOrSizing()
+  end)
+
+  bar.title = T.Label(bar, 13)
+  bar.title:SetPoint("LEFT", bar, "LEFT", T.pad.m, 0)
+  bar.title:SetText(titleText or "")
+
+  local close = T.Button(bar, "ghost")
+  close:SetSize(20, 20)
+  close:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -T.pad.s, -T.pad.xs)
+  close:SetLabel("X")
+  close:SetScript("OnClick", function()
+    frame:Hide()
+  end)
+
+  local gear = T.Button(bar, "ghost")
+  gear:SetSize(20, 20)
+  gear:SetPoint("RIGHT", close, "LEFT", -T.pad.xs, 0)
+  gear:SetLabel("*")
+
+  return { gear = gear, close = close }
+end
