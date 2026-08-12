@@ -178,4 +178,56 @@ describe("Ledger inbox scan", function()
     }
     assert.equal(2, GC.Ledger.ScanInbox(apiFor(mails), context, 1000))
   end)
+
+  -- F2: personal sale rate wiring -- ScanInbox credits GC.Data.RecordSaleEvent once per
+  -- genuinely NEW sale entry, never on the pending->paid UPDATE of the same invoice (Append's
+  -- repeat-key branch). GC.Data is a plain stub here (this spec loads only Core/Ledger.lua),
+  -- exercising the exact defensive `GC.Data and GC.Data.RecordSaleEvent` guard ScanInbox uses.
+  describe("RecordSaleEvent wiring (F2)", function()
+    it("calls GC.Data.RecordSaleEvent once for a newly-recorded sale", function()
+      local calls = {}
+      GC.Data = { RecordSaleEvent = function(name) calls[#calls + 1] = name end }
+      GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
+      assert.same({ "Ironclaw Ore" }, calls)
+    end)
+
+    it("does NOT call it again when a pending sale later matures (same invoice, isNew=false)", function()
+      local calls = {}
+      GC.Data = { RecordSaleEvent = function(name) calls[#calls + 1] = name end }
+      local pending = mail({ invoice = {
+        invoiceType = "seller_temp_invoice", moneyDelay = 500000, etaHour = 1, etaMin = 0,
+      } })
+      GC.Ledger.ScanInbox(apiFor({ pending }), context, 1000)
+      assert.equal(1, #calls)
+
+      local paid = mail({ daysLeft = 30 - (3600 / 86400) })
+      GC.Ledger.ScanInbox(apiFor({ paid }), context, 1000 + 3600)
+      assert.equal(1, #calls) -- still just the one call from the pending sighting
+    end)
+
+    it("does not call it for a buy entry", function()
+      local calls = {}
+      GC.Data = { RecordSaleEvent = function(name) calls[#calls + 1] = name end }
+      local bought = mail({
+        invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+        item = { name = "Ironclaw Ore", itemID = 210930 },
+      })
+      GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+      assert.equal(0, #calls)
+    end)
+
+    it("tolerates GC.Data being absent entirely, the same defensive way Context guards it", function()
+      GC.Data = nil
+      assert.has_no.errors(function()
+        GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
+      end)
+    end)
+
+    it("tolerates GC.Data existing without a RecordSaleEvent function", function()
+      GC.Data = {}
+      assert.has_no.errors(function()
+        GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
+      end)
+    end)
+  end)
 end)

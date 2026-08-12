@@ -54,7 +54,7 @@ describe("Sell quote wiring", function()
     assert.is_truthy(repost:find("GC.QuoteCache.Get(quotes, flip.itemID, time())", 1, true))
     assert.is_truthy(itemResult:find("GC.QuoteCache.Set(quotes, itemID, price, time())", 1, true))
     assert.is_truthy(commodityResult:find("GC.QuoteCache.Set(quotes, itemID, price, time())", 1, true))
-    assert.is_nil(post:find("flip.targetUnit", 1, true))
+    assert.is_nil(post:find("or flip.targetUnit", 1, true))
   end)
 
   it("deletes an old item quote when the live result is empty", function()
@@ -74,6 +74,28 @@ describe("Sell quote wiring", function()
     GC.Sell.OnItemSearchResults(42)
 
     assert.is_nil(GC.QuoteCache.Get(quotes, 42, 101))
+    _G.time = os.time
+  end)
+
+  it("keeps bounded live-book depth on the same fresh quote entry", function()
+    _G.time = function() return 101 end
+    local GC = { Sell = {}, Sniper = { IsBusy = function() return false end } }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+
+    local quotes = getUpvalue(GC.Sell.OnCommoditySearchResults, "quotes")
+    setUpvalue(GC.Sell.OnCommoditySearchResults, "pendingQuote", 42)
+    setUpvalue(GC.Sell.OnCommoditySearchResults, "driver", {
+      commodityResult = function() return 12345 end,
+      commodityBook = function() return { { unitPrice = 12345, quantity = 4 } } end,
+      isReady = function() return false end,
+    })
+
+    GC.Sell.OnCommoditySearchResults(42)
+
+    assert.equal(12345, GC.QuoteCache.Get(quotes, 42, 101))
+    assert.same({ { unitPrice = 12345, quantity = 4 } }, quotes[42].levels)
+    assert.equal(101, quotes[42].at)
     _G.time = os.time
   end)
 
