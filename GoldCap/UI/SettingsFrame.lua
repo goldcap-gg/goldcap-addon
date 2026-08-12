@@ -380,7 +380,11 @@ local function build(sniperFrame)
   end
 
   checkRow("Sound", "sound")
-  checkRow("Auto-scan by default", "auto")
+  -- Final fix wave (item 5): the plain "Auto-scan by default" label read as if toggling it
+  -- would also start/stop a session already in progress -- it only decides whether Auto is
+  -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
+  -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
+  checkRow("Auto-scan by default (next AH visit)", "auto")
 
   local scaleLabel = Theme.Label(panel, 12)
   scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, y)

@@ -1212,8 +1212,20 @@ end
 -- left red from a previous requote. Gold is the dialog's own default text colour
 -- (Theme.Button's "primary" text color is dark-on-gold; this only overrides for the
 -- red "Buy anyway" state and back).
+--
+-- Final fix wave (item 4): the color write is skipped while the button is DISABLED --
+-- previously this ran unconditionally, so e.g. armLoudConfirm's Disable() immediately followed
+-- by setPrimaryLabel("Buy anyway", 1, 0.35, 0.35) overwrote Theme.Button's own OnDisable dim
+-- (fgDim text -- Theme.lua) with bright red text on a button the player can't yet click,
+-- defeating the "this isn't clickable" signal. Text (the label itself) always updates
+-- regardless -- only the color write is gated. Theme.Button's OnEnable (Theme.lua) already
+-- reapplies the variant's own default text color on re-enable, so a call site that enables the
+-- button and THEN calls setPrimaryLabel with a color override (e.g. armLoudConfirm's own timer
+-- callback, or the requote "Buy anyway" branch) still lands the intended color -- IsEnabled()
+-- is true by the time this runs, so the write goes through same as before.
 local function setPrimaryLabel(text, r, g, b)
   dialog.primaryBtn:SetLabel(text)
+  if not dialog.primaryBtn:IsEnabled() then return end
   dialog.primaryBtn.text:SetTextColor(r or 0.05, g or 0.05, b or 0.06)
 end
 
@@ -1637,12 +1649,15 @@ local function maybeStartPrewarm(deal)
   if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
   if deal.prewarm and (GetTime() - deal.prewarm.at) <= PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
   if activeItemID[deal.itemID] then return end -- a purchase (or its own live dialog requery) is already in flight for this item
-  -- fix round 1 I-2: no new search traffic while ANY purchase is mid-flight server-side (not
-  -- just this item's own activeItemID check above), and -- as a bonus -- this is also what
-  -- stops a hover from stealing a throttle slot out from under an actively-paging Full Scan
-  -- (closes fix round 1 M-4: pre-warm was previously reachable mid-scan since scanRunning
-  -- alone isn't reflected in activeItemID).
-  if GC.Sniper.IsBusy() then return end
+  -- Final fix wave (item 2), coordinator ruling restoring spec §4: gate narrowed from
+  -- GC.Sniper.IsBusy() (which also covered a paging Full Scan) to purchase traffic ONLY --
+  -- next(activeItemID) ~= nil is true while ANY purchase is mid-flight server-side (armed/
+  -- requerying/buying/confirming on some row, not necessarily this one), so a pre-warm still
+  -- never competes with a real buy requery on the shared throttled message system. Pre-warm
+  -- MAY fire during a scan now: it's ready-gated (driver.isReady() below, plus the "one
+  -- pre-warm in flight globally" slot), so at worst it costs the scan a single browse-page
+  -- throttle slot for one cycle -- a one-cycle pagination delay, not starvation.
+  if next(activeItemID) ~= nil then return end
   if prewarmItemID then return end -- one pre-warm in flight globally
   if not driver.isReady() then return end -- never parks -- see comment above
 

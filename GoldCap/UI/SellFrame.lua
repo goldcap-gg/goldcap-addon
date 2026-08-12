@@ -687,11 +687,18 @@ end
 -- tooltip when hidden (see createRow's OnEnter below); `market` is one Refresh-prices click
 -- away from being re-quoted, also shown in the tooltip when hidden.
 --
--- Unlike Sniper's Deals grid this is still a ONE-TIME computation (see GC.Sell.Attach), not a
--- live OnSizeChanged re-flow -- Sell's rowWidth remains a snapshot taken once at Attach time
--- (unchanged design from before this task); computeHidden below just makes that one-time
--- snapshot degrade gracefully across whatever width it happens to capture, instead of a single
--- fixed layout that only worked at some widths and not others.
+-- Final fix wave (item 1): this is now a LIVE re-flow, same as Sniper's Deals grid -- rows
+-- anchor TOPLEFT+TOPRIGHT into `content` (not a fixed ROW_WIDTH pin), and `f` (the Sniper
+-- window frame passed into GC.Sell.Attach) is hooked with an OnSizeChanged that resizes
+-- `content`, recomputes hiddenColumns, and re-runs layoutRow/layoutHeaderRow. This genuinely
+-- mirrors SniperFrame.lua's own f:SetScript("OnSizeChanged", ...) + applyColumnVisibility now:
+-- the observed frame is `f` itself, NOT `container` -- `container` is Hidden whenever the Deals
+-- tab is active (see setView), which is exactly the failure mode SniperFrame.lua's own
+-- ~2952-2959 comment documents dodging by observing `f` instead of the (sometimes-hidden)
+-- `scroll` ScrollFrame. GC.Sell.Attach uses f:HookScript (additive), not f:SetScript, so this
+-- never clobbers SniperFrame.lua's own OnSizeChanged handler on the same frame -- both run.
+-- ROW_WIDTH (from geometry.rowWidth) now only seeds the INITIAL hiddenColumns/content-width
+-- before the first resize event, not a permanent snapshot.
 -- ---------------------------------------------------------------------------
 local COLUMNS = {
   { key = "item",   flex = true, min = 150 },
@@ -747,9 +754,10 @@ end
 
 -- fix round 1 (I8): ported from SniperFrame.lua's own OPTIONAL_KEYS/DROP_THRESHOLDS/
 -- fixedColumnBudget/computeHidden (same data-driven-off-COLUMNS approach, same drop-priority-is-
--- table-order rule) -- see that file's own comments for the full reasoning. Computed ONCE here
--- (GC.Sell.Attach, before any row exists), not on a live resize -- Sell's rowWidth is a
--- snapshot, unchanged from before this task.
+-- table-order rule) -- see that file's own comments for the full reasoning. First computed here
+-- in GC.Sell.Attach, before any row exists, from geometry.rowWidth's initial snapshot -- kept
+-- current after that by `f`'s own OnSizeChanged hook (final fix wave, item 1; see that comment
+-- block above), same as SniperFrame.lua's own hiddenColumns.
 local OPTIONAL_KEYS, DROP_THRESHOLDS = {}, { 150, 120 }
 for _, col in ipairs(COLUMNS) do
   if col.optional then OPTIONAL_KEYS[#OPTIONAL_KEYS + 1] = col.key end
@@ -777,9 +785,20 @@ local function computeHidden(containerWidth)
   return hidden
 end
 
--- Set once by GC.Sell.Attach (computeHidden(ROW_WIDTH)) before the header/any row is built;
--- read by layoutRow/header-building below. Module-local rather than a parameter threaded
--- through createRow/buildRowCell, same as SniperFrame.lua's own hiddenColumns.
+-- Final fix wave (item 1): mirrors SniperFrame.lua's own sameHidden -- lets the OnSizeChanged
+-- handler (GC.Sell.Attach) skip re-anchoring the header + every pooled row when a resize
+-- didn't actually cross a drop threshold.
+local function sameHidden(a, b)
+  for _, key in ipairs(OPTIONAL_KEYS) do
+    if (not a[key]) ~= (not b[key]) then return false end
+  end
+  return true
+end
+
+-- Set by GC.Sell.Attach (computeHidden(ROW_WIDTH)) before the header/any row is built, then
+-- kept live by `f`'s OnSizeChanged hook (final fix wave, item 1); read by layoutRow/
+-- layoutHeaderRow. Module-local rather than a parameter threaded through createRow/
+-- buildRowCell, same as SniperFrame.lua's own hiddenColumns.
 local hiddenColumns = {}
 
 local function buildRowCell(row, col)
@@ -927,8 +946,13 @@ end
 
 local function createRow(parent, index)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetSize(ROW_WIDTH, ROW_HEIGHT)
-  row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
+  -- Final fix wave (item 1): TOPLEFT+TOPRIGHT into `parent` (== content), not a fixed
+  -- SetSize(ROW_WIDTH, ...) pin -- mirrors SniperFrame.lua's own createRow exactly, so the row
+  -- tracks content's live width instead of freezing at whatever width existed when the row was
+  -- first pooled.
+  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
+  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * ROW_HEIGHT)
+  row:SetHeight(ROW_HEIGHT)
 
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
@@ -1164,17 +1188,20 @@ end
 -- (the same rectangle SniperFrame.lua's deals `scroll` occupies) -- its own two ghost Refresh
 -- buttons, summary strip, pending-sync hint, static column headers, and pooled-row scroll frame.
 -- geometry.rowWidth/rowHeight are SniperFrame.lua's own ROW_WIDTH/ROW_HEIGHT passed through so
--- the two views' row grids can never drift out of alignment with each other. Unchanged from
--- before this task: GC.Sell.Attach only runs once, so (like before) the Sell tab's own column
--- grid does not re-flow on a window resize; only the Deals grid does.
+-- the two views' row grids can never drift out of alignment with each other. Final fix wave
+-- (item 1): GC.Sell.Attach still only RUNS once, but the column grid it builds is no longer
+-- frozen at that moment's width -- `f:HookScript("OnSizeChanged", ...)` below keeps it live,
+-- same as the Deals grid, so switching to the Sell tab after resizing on Deals shows the
+-- current width's layout, not whatever was current back when Attach ran.
 function GC.Sell.Attach(f, geometry)
   ROW_WIDTH = geometry.rowWidth
   ROW_HEIGHT = geometry.rowHeight
   statusOwner = f
 
-  -- I8: computed ONCE, before the header or any row exists, from whatever width Attach happens
-  -- to capture (see the COLUMNS comment above for why this stays a one-time snapshot, not a
-  -- live OnSizeChanged re-flow). Every buildRowCell/header cell below reads this same table.
+  -- I8: first computed here, before the header or any row exists, from whatever width Attach
+  -- happens to capture -- kept current after that by the OnSizeChanged hook below (final fix
+  -- wave, item 1), not a permanent one-time snapshot anymore. Every buildRowCell/header cell
+  -- below reads this same table.
   hiddenColumns = computeHidden(ROW_WIDTH)
 
   container = CreateFrame("Frame", nil, f)
@@ -1271,11 +1298,21 @@ function GC.Sell.Attach(f, geometry)
       header.cells[col.key] = label
     end
   end
-  local itemFlexAnchor = anchorColumns(header, hiddenColumns, function(col) return header.cells[col.key] end)
   local itemHeader = Theme.Label(header, 11)
-  itemHeader:SetPoint("LEFT")
-  itemHeader:SetPoint("RIGHT", itemFlexAnchor.frame, itemFlexAnchor.point, -Theme.pad.s, 0)
   itemHeader:SetText("ITEM")
+
+  -- Final fix wave (item 1): split out of the one-shot anchor call above into a re-runnable
+  -- function -- mirrors SniperFrame.lua's own layoutHeaderRow exactly. Re-anchors the
+  -- visible-only column chain (anchorColumns) and the item header cell's RIGHT edge to match;
+  -- callable again on a resize (f's OnSizeChanged hook, below) without rebuilding any header
+  -- widget.
+  local function layoutHeaderRow()
+    local flexAnchor = anchorColumns(header, hiddenColumns, function(col) return header.cells[col.key] end)
+    itemHeader:ClearAllPoints()
+    itemHeader:SetPoint("LEFT")
+    itemHeader:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
+  end
+  layoutHeaderRow()
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", 0, HEADER_TOP - HEADER_H - Theme.pad.xs)
@@ -1290,6 +1327,45 @@ function GC.Sell.Attach(f, geometry)
   end)
 
   content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(ROW_WIDTH, ROW_HEIGHT)
+  content:SetSize(ROW_WIDTH, ROW_HEIGHT) -- initial snapshot; f's OnSizeChanged hook below keeps width live from here on
   scroll:SetScrollChild(content)
+
+  -- Final fix wave (item 1): live window-width tracking, genuinely mirroring SniperFrame.lua's
+  -- own f:SetScript("OnSizeChanged", ...) (see UI/SniperFrame.lua ~2945-2959) this time --
+  -- observed off `f` itself, NOT `container`. `container` is Hidden for the entire time the
+  -- Deals tab is showing (see setView), and SniperFrame.lua's own ~2952-2959 comment documents
+  -- exactly this failure mode for its Deals scroll frame: a hidden frame is not guaranteed to
+  -- fire its own OnSizeChanged while hidden, which would silently stop this column-drop from
+  -- tracking a resize made while looking at Deals -- switching to Sell afterward would then
+  -- show a stale layout from whenever `container` was last visible/sized. `f` is never hidden
+  -- while the Sniper window is open, so this fires regardless of which tab is active, same as
+  -- the Deals grid's own handler.
+  --
+  -- f:HookScript, not f:SetScript -- SniperFrame.lua's own createFrame already assigns f's
+  -- OnSizeChanged (the Deals grid's applyColumnVisibility call) before GC.Sell.Attach ever
+  -- runs; HookScript adds this as an ADDITIONAL handler that runs after that one, so neither
+  -- view's resize logic clobbers the other's.
+  --
+  -- contentWidth is computed the same way SniperFrame.lua's own handler derives its
+  -- contentWidth: `f`'s live width minus the same panelLeft/panelRightInset margins
+  -- geometry.rowWidth was originally snapshotted from (== CONTENT_LEFT/CONTENT_RIGHT_GUTTER,
+  -- passed through by SniperFrame.lua's own GC.Sell.Attach call) -- container's anchors use
+  -- those same two margins, so this is exactly what container's own live width would be, without
+  -- depending on container having already resized (or being visible) to read it back.
+  --
+  -- Recomputes hiddenColumns from scratch and only re-lays-out the header + every pooled row
+  -- (postingRow/repostingRow included -- layoutRow only re-anchors cell widgets, it never
+  -- touches which flip a row is showing, so pinned rows' pin semantics survive a re-layout
+  -- untouched) when the drop state actually changed, same sameHidden short-circuit as
+  -- SniperFrame.lua's applyColumnVisibility.
+  f:HookScript("OnSizeChanged", function(_, w)
+    if not w or w <= 0 then return end
+    local contentWidth = math.max(w - geometry.panelLeft - geometry.panelRightInset, 1)
+    content:SetWidth(contentWidth)
+    local newHidden = computeHidden(contentWidth)
+    if sameHidden(newHidden, hiddenColumns) then return end
+    hiddenColumns = newHidden
+    layoutHeaderRow()
+    for i = 1, #rows do layoutRow(rows[i]) end
+  end)
 end

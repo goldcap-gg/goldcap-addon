@@ -143,11 +143,23 @@ function T.Num(parent, size, bold)
 end
 
 -- Label: native font (keeps client glyph fallback for localized/item-name text), LEFT-justified.
+-- Final fix wave (item 3): applies size*T.Scale() at creation (was a bare `size`, so a Label
+-- never actually respected the current scale on first render) AND registers in widgetFonts
+-- (same data-valued-weak-table idiom T.Num already uses -- see that table's own comment for
+-- why the value must never close over `fs`), so SetScale's re-font pass now reaches every
+-- Label too, not just Num/Chip fontstrings.
+--
+-- Deliberately NOT extended to ROW_H (Theme.ROW_H, ~28px) or the dialog's own pixel budgets --
+-- those stay fixed regardless of T.Scale(). At 1.3x a Label's text can get visually tight
+-- against an unscaled row/dialog height; that's an accepted tradeoff here (the in-game
+-- checklist covers verifying it reads fine at the scale extremes), not a bug to fix by also
+-- scaling layout geometry.
 function T.Label(parent, size)
   local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   local fontPath, _, flags = fs:GetFont()
   if fontPath then
-    fs:SetFont(fontPath, size, flags)
+    fs:SetFont(fontPath, size * T.Scale(), flags)
+    widgetFonts[fs] = { path = fontPath, size = size }
   end
   fs:SetJustifyH("LEFT")
   return fs

@@ -7,9 +7,15 @@
   for prices and stats (item names keep rendering with the game's own font,
   including Cyrillic, so nothing turns to boxes). The window now resizes both
   its width and height (not just height), and the deal columns respond to
-  that width: on a narrower window, the total-cost and trend columns tuck
+  that width: on a narrower window, the total-cost and 24h-trend columns tuck
   away first (still one click away, in the buy dialog) before anything
   overlaps.
+- **New Unit and Trend columns on the deals list.** Unit shows the per-auction
+  unit price (sortable on its own, independent of the total-cost column, so
+  it stays reachable even at widths where total is tucked away); Trend shows
+  the item's signed 24h market-value momentum (▲/▼ N%) wherever import data
+  has it, so a deal that's actually been sliding doesn't read the same as one
+  holding steady.
 - **Deals stream in as Full Scan pages, instead of waiting for it to finish.**
   The status line now reads "scanning… N results · K deals" and both numbers
   climb live; a known deal never needs the whole scan to finish before you
@@ -32,8 +38,11 @@
   "Cancel lot?" confirmation showing the deposit you'd spend, a second click
   cancels the old lot and reposts at the new price, so you can never cancel
   a lot by accident. The old **×** remove button is still there for
-  abandoning a flip you don't want to track. A summary strip totals
-  invested/projected/profit across every flip.
+  abandoning a flip you don't want to track. A summary strip totals invested
+  across every flip and projected/profit across *priced* flips — a flip with
+  no owned lot and no fresh quote yet doesn't get a guessed number folded
+  into the total; it's counted instead in a "· N unpriced" indicator next to
+  Profit, so the totals never read as silently contradictory.
 - **Pending-sync hint.** World of Warcraft only writes SavedVariables to
   disk on `/reload` or logout, so a purchase or sale this session doesn't
   reach goldcap.gg's ledger until then. The Sell tab now says so directly —
@@ -45,7 +54,7 @@
   scale slider (0.9–1.3), and a button to reset the window back to its
   default position and size.
 
-## 0.1.0 (unreleased)
+## 0.1.0
 
 - Item tooltips now show goldcap.gg market values for your realm: market
   value plus sold/day for commodities, market value plus listing count for
