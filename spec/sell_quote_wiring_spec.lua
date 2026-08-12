@@ -122,6 +122,49 @@ describe("Sell quote wiring", function()
     _G.time, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil, nil, nil
   end)
 
+  it("disarms an armed repost when its quote expires before cancel confirmation", function()
+    local now, cancelCalls = 100, 0
+    local statusText
+    _G.time = function() return now end
+    _G.C_AuctionHouse = {
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      GetItemKeyInfo = function() return { isCommodity = false } end,
+      CancelAuction = function() cancelCalls = cancelCalls + 1 end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(amount) return tostring(amount) end
+
+    local GC = {
+      Sell = {}, Sniper = { IsBusy = function() return false end },
+      Flips = { CheapestOwnedLot = function() return { auctionID = 7, unitPrice = 20000 } end },
+    }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local onPostClick, onRepostClick, onCancelConfirmClick = actionHandlers(GC)
+    local quotes = getUpvalue(onPostClick, "quotes")
+    local setStatus = getUpvalue(onPostClick, "setStatus")
+    setUpvalue(setStatus, "statusOwner", { status = { SetText = function(_, text) statusText = text end } })
+    GC.QuoteCache.Set(quotes, 42, 20000, now)
+
+    local btn = {
+      Disable = function() end, Enable = function() end, SetLabel = function() end,
+      Hide = function() end, Show = function() end, IsEnabled = function() return true end,
+    }
+    local row = { flip = { itemID = 42, qty = 1 }, actionBtn = btn, cancelBtn = btn }
+
+    onRepostClick(row)
+    assert.equal("armed", row.repostStage)
+    assert.equal(0, cancelCalls)
+
+    now = 111
+    onCancelConfirmClick(row)
+
+    assert.equal(0, cancelCalls)
+    assert.is_nil(row.repostStage)
+    assert.equal("Refresh prices first", statusText)
+    _G.time, _G.C_AuctionHouse, _G.C_Timer, _G.GetCoinTextureString = os.time, nil, nil, nil
+  end)
+
   it("does not confirm a post after its quote expires", function()
     local now, postCalls, confirmCalls = 100, 0, 0
     local statusText
