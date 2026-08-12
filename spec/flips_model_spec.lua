@@ -44,6 +44,12 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.equal(2550, row.profit)
     end)
 
+    it("projects from the supplied live quote, never the flip target", function()
+      local row = GC.Flips.BuildRow(flip({ targetUnit = 999999 }), {}, { unit = 1000 }, {})
+      assert.equal(1000, row.marketUnit)
+      assert.equal(1700, row.profit)
+    end)
+
     it("LISTED: owned lot exists and no fresh quote to compare against", function()
       local row = GC.Flips.BuildRow(flip({ paidUnit = 100, paidTotal = 300, qty = 3 }),
         lots({ itemID = 42, unitPrice = 333 }), nil, {})

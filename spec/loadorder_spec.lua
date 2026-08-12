@@ -198,6 +198,14 @@ describe("TOC load order", function()
     end
     toc:close()
     assert.is_true(#files >= 7)
+    local quoteCacheIndex, flipsIndex
+    for i, rel in ipairs(files) do
+      if rel == "Core/QuoteCache.lua" then quoteCacheIndex = i end
+      if rel == "Core/Flips.lua" then flipsIndex = i end
+    end
+    assert.is_number(quoteCacheIndex)
+    assert.is_number(flipsIndex)
+    assert.is_true(quoteCacheIndex < flipsIndex)
 
     for _, rel in ipairs(files) do
       local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))
@@ -210,6 +218,8 @@ describe("TOC load order", function()
     assert.is_function(GC.UI.ShowImportDialog)
     assert.is_function(GC.Tooltip.BuildLines)
     assert.is_function(GC.Scanner.New)
+    assert.is_function(GC.QuoteCache.Set)
+    assert.is_function(GC.QuoteCache.Get)
     assert.is_function(GC.DealMath.Evaluate)
     assert.is_function(GC.SniperDecision.Evaluate)
     assert.is_function(GC.slashHandlers.sniper)

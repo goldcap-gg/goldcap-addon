@@ -29,7 +29,7 @@ local DASH = "—"
 
 local POST_DURATION = 2 -- 24h; C_AuctionHouse.PostItem/PostCommodity duration enum: 1=12h, 2=24h, 3=48h (verified against warcraft.wiki.gg)
 local POST_TIMEOUT_SECONDS = 8
-local QUOTE_STALE_SECONDS = 10 -- mirrors Core/Scanner.lua's own STALE_SECONDS for a pending search that never got an answer
+local QUOTE_STALE_SECONDS = GC.QuoteCache.MAX_AGE_SECONDS -- pending search timeout; live prices themselves expire through QuoteCache.Get
 local REPOST_ARM_SECONDS = 3    -- brief's "3s window" -- mirrors SniperFrame.lua's REQUOTE_ARM_SECONDS idiom (armLoudConfirm): a click already on its way when the button morphs must not land on the confirm
 local REPOST_DISARM_SECONDS = 10 -- fix round 1 (I1): total window an ARMED-but-unconfirmed repost stays armed before auto-disarming back to idle -- an escape hatch for a player who clicked Repost and then walked away, so the row doesn't sit showing "Cancel lot?" forever
 
@@ -51,13 +51,12 @@ local quoteIndex = 0
 local pendingQuote = nil       -- itemID awaiting its search-results event (nil = idle)
 local pendingQuoteSince = 0
 local awaitingKeyInfo = nil    -- itemID waiting on ITEM_KEY_ITEM_INFO_RECEIVED before its query can even be sent
-local quotes = {}              -- itemID -> last-quoted lowest unit price (session-only; survives an AH close, like Full Scan results do)
+local quotes = {}              -- itemID -> { unit, at }; every consumer must use QuoteCache.Get
 
 -- Owned-lots state (Task 9): C_AuctionHouse.QueryOwnedAuctions({})/GetOwnedAuctions() results,
 -- extracted to the {itemID, unitPrice, auctionID} shape GC.Flips.BuildRow expects. Queried on
 -- tab show and on the ghost Refresh button ONLY -- never in the Auto loop or any other timer --
--- and left alone (not requeried) on every other render, same "persist across a close/reopen"
--- choice as `quotes` above.
+-- and left alone (not requeried) on every other render.
 local ownedLots = {}
 
 -- Task 9 §5: a sale ledger entry never carries itemID (Core/Ledger.lua's ScanInbox -- a sale
@@ -350,7 +349,7 @@ function GC.Sell.OnItemSearchResults(itemID)
   if itemID ~= pendingQuote then return end -- e.g. the watchlist scanner's or the buy-requery's own search; not ours
   pendingQuote = nil
   local price = driver.itemResult(itemID)
-  if price then quotes[itemID] = price end
+  GC.QuoteCache.Set(quotes, itemID, price, time())
   GC.Sell.Refresh()
   advanceQuote()
 end
@@ -359,7 +358,7 @@ function GC.Sell.OnCommoditySearchResults(itemID)
   if itemID ~= pendingQuote then return end
   pendingQuote = nil
   local price = driver.commodityResult(itemID)
-  if price then quotes[itemID] = price end
+  GC.QuoteCache.Set(quotes, itemID, price, time())
   GC.Sell.Refresh()
   advanceQuote()
 end
@@ -396,6 +395,22 @@ end
 local function onPostClick(row)
   local flip = row.flip
   if not flip then return end
+
+  local quote = GC.QuoteCache.Get(quotes, flip.itemID, time())
+  if not quote then
+    -- A confirmation is still a posting action. If the first-click quote aged out while the
+    -- player was reading Blizzard's confirmation state, discard those old arguments rather
+    -- than letting a later click publish at a stale price.
+    if row.postStage == "confirm" then
+      if postingRow == row then postingRow = nil end
+      row.postStage = nil
+      row.pendingPost = nil
+      row.actionBtn:Enable()
+      row.actionBtn:SetLabel("Post")
+    end
+    setStatus("Refresh prices first")
+    return
+  end
 
   if row.postStage == "confirm" then
     -- Second click of a needsConfirmation post: replay the SAME args into ConfirmPostItem/
@@ -437,8 +452,7 @@ local function onPostClick(row)
     return
   end
 
-  local quote = quotes[flip.itemID]
-  local recommended = quote and math.max(1, quote - 1) or flip.targetUnit
+  local recommended = math.max(1, quote - 1)
   -- The AH only accepts whole-silver prices (no copper digit) -- non-zero copper silently
   -- fails the post (verified via warcraft.wiki.gg) -- so round DOWN before the actual API
   -- call, floored at 1 silver.
@@ -551,6 +565,11 @@ local function onRepostClick(row)
     return
   end
 
+  if not GC.QuoteCache.Get(quotes, flip.itemID, time()) then
+    setStatus("Refresh prices first")
+    return
+  end
+
   local lot = GC.Flips.CheapestOwnedLot(flip.itemID, ownedLots)
   if not lot then
     setStatus("no active lot found for this item -- click Refresh")
@@ -605,6 +624,11 @@ local function onCancelConfirmClick(row)
   if row.repostStage ~= "armed" or not row.cancelBtn:IsEnabled() then return end
   local flip = row.flip
   if not flip then return end
+
+  if not GC.QuoteCache.Get(quotes, flip.itemID, time()) then
+    disarmRepost(row, "Refresh prices first")
+    return
+  end
 
   -- I2: re-resolve the cheapest lot right before firing -- ownedLots may have changed since
   -- this row armed (a manual cancel via Blizzard's own AH window, a fresh owned-lots refresh
@@ -1061,7 +1085,7 @@ local function updateSummary(allRows)
 end
 
 -- ---------------------------------------------------------------------------
--- Composition (Task 9 Step 1): db.flips + ownedLots + quotes + ledger sales -> GC.Flips.BuildRow
+-- Composition (Task 9 Step 1): db.flips + ownedLots + fresh quotes + ledger sales -> GC.Flips.BuildRow
 -- per flip -> render. Mirrors SniperFrame.lua's refreshRows exactly for the pin/pool mechanics:
 -- a row mid-Post (postingRow) or mid-Repost (repostingRow) is left untouched instead of being
 -- reassigned out from under an in-flight click sequence; both pinned flips are excluded from
@@ -1079,7 +1103,7 @@ local function renderRows()
   local allRows, rowByFlip = {}, {}
   for _, f in ipairs(flips) do
     local name = resolveItemName(f.itemID)
-    local quote = quotes[f.itemID]
+    local quote = GC.QuoteCache.Get(quotes, f.itemID, time())
     -- I6: sales are matched by name AND narrowed to at-or-after this flip's OWN boughtAt --
     -- without the date floor, an ancient sale of a same-named item could keep a brand-new,
     -- never-yet-posted flip showing SOLD_PENDING forever (name-only matching has no other way
@@ -1162,16 +1186,16 @@ function GC.Sell.Refresh()
 end
 
 -- Called on AH close (SniperFrame.lua's GC.Sniper.OnAuctionHouseClosed) -- neither an in-flight
--- quote walk, a post, nor a repost can safely resume once the AH session is gone. Cached
--- `quotes`/`ownedLots` are deliberately left alone (same "persist across a close/reopen" choice
--- as Full Scan results), since a slightly-stale read is still useful until the player refreshes
--- again.
+-- quote walk, a post, nor a repost can safely resume once the AH session is gone. A quote from
+-- a closed AH session is never actionable in the next one, so clear it; owned-lot data remains
+-- available only as non-actionable display context until it is refreshed.
 function GC.Sell.Reset()
   quoting = false
   quoteQueue = {}
   quoteIndex = 0
   pendingQuote = nil
   awaitingKeyInfo = nil
+  GC.QuoteCache.Clear(quotes)
   if postingRow then
     postingRow.postStage = nil
     postingRow.pendingPost = nil
