@@ -4,7 +4,7 @@ GC.SniperDecision = { VERSION = 1 }
 
 local MAX_EXACT = 9007199254740991
 local SOURCE_MAX_AGE = 7200
-local MAX_ROI_BPS = 100000 -- 1000%; larger edited settings fail closed instead of relaxing.
+local MAXIMUM_ROI = 10 -- 1000%; larger edited settings fail closed instead of relaxing.
 
 local function isFinite(n)
   return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge
@@ -41,18 +41,13 @@ local function safeCeilDiv(n, d)
   return adjusted and math.floor(adjusted / d) or nil
 end
 
-local function requiredProfitFor(entryTotal, minimumProfitCopper, minimumRoiBps)
-  -- Split entryTotal around the divisor so neither multiplication needs to exceed MAX_EXACT.
-  local whole = math.floor(entryTotal / 10000)
-  local remainder = entryTotal % 10000
-  local wholePart = safeMultiply(whole, minimumRoiBps)
-  local remainderProduct = safeMultiply(remainder, minimumRoiBps)
-  if not wholePart or not remainderProduct then return nil end
-  local remainderPart = math.floor(remainderProduct / 10000)
-  local required = safeAdd(wholePart, remainderPart)
-  if not required then return nil end
-  if remainderProduct % 10000 ~= 0 then required = safeAdd(required, 1) end
-  if not required then return nil end
+local function requiredProfitFor(entryTotal, minimumProfitCopper, minimumRoi)
+  -- Preserve the caller's finite numeric ROI exactly as the v1 contract defines it. The
+  -- multiplication is checked before ceil so an edited setting cannot round an unsafe value.
+  local roiProduct = entryTotal * minimumRoi
+  if not isFinite(roiProduct) or roiProduct < 0 or roiProduct > MAX_EXACT then return nil end
+  local required = math.ceil(roiProduct)
+  if not isInteger(required) then return nil end
   return math.max(minimumProfitCopper, required)
 end
 
@@ -73,18 +68,13 @@ local function normalizeConfig(config)
       or not isSignedInteger(profit) or not isFinite(roi) then
     return nil
   end
-  local roiBps = 1000
-  if roi > 0.10 then
-    if roi > MAX_ROI_BPS / 10000 then return nil end
-    roiBps = math.ceil(roi * 10000)
-    if roiBps > MAX_ROI_BPS then return nil end
-  end
+  if roi > MAXIMUM_ROI then return nil end
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
     maxQuantity = clamp(quantity, 1, 200),
     minimumProfitCopper = math.max(profit, 1000000),
-    minimumRoiBps = roiBps,
+    minimumRoi = math.max(roi, 0.10),
   }
 end
 
@@ -317,7 +307,7 @@ function GC.SniperDecision.Evaluate(input)
             local afterEntry = afterCut and safeSubtract(afterCut, entryTotal)
             local stressProfit = afterEntry and safeSubtract(afterEntry, deposit)
             local requiredProfit = requiredProfitFor(
-              entryTotal, config.minimumProfitCopper, config.minimumRoiBps)
+              entryTotal, config.minimumProfitCopper, config.minimumRoi)
             if not requiredProfit then return invalid() end
             if not stressProfit then return invalid() end
             if stressProfit < requiredProfit then

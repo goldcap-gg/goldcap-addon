@@ -194,6 +194,18 @@ describe("SniperDecision", function()
     assert.equal(2000000, result.requiredProfit)
   end)
 
+  it("uses the configured fractional ROI without basis-point rounding", function()
+    local input = validInput()
+    input.live.fixedQuantity = 1
+    input.live.levels = { { unitPrice = 100000000, quantity = 1 }, { unitPrice = 115790528, quantity = 1 } }
+    input.market.stressUnit = 115790527
+    input.config.minimumRoi = 0.10001
+    local result = evaluate(input)
+    assert.equal("SAFE", result.status)
+    assert.equal(10001000, result.stressProfit)
+    assert.equal(10001000, result.requiredProfit)
+  end)
+
   it("enforces a configured profit floor above the safety minimum", function()
     local input = validInput()
     input.live.fixedQuantity = 1
