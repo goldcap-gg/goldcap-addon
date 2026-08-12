@@ -19,7 +19,7 @@ function GC.ImportString.Parse(str)
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),
-    items = {}, watchlist = {},
+    items = {}, verification = {}, watchlist = {},
   }
   local count = 0
 
@@ -36,6 +36,27 @@ function GC.ImportString.Parse(str)
         if trend ~= "" then entry.t = tonumber(trend) end
         result.items[tonumber(id)] = entry
         count = count + 1
+      end
+    elseif kind == "V" then
+      -- Verification tokens are deliberately independent from I tokens. A malformed safety
+      -- record must not hide its matching market value: it simply leaves that item unverified.
+      for token in body:gmatch("[^,]+") do
+        local id, sourceAt, stressUnit, sellThroughBps, liquidityConfidence, currentQty,
+            listings, observations, madBps, flags = token:match(
+              "^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
+        if id then
+          result.verification[tonumber(id)] = {
+            sourceAt = tonumber(sourceAt),
+            stressUnit = tonumber(stressUnit),
+            sellThroughBps = tonumber(sellThroughBps),
+            liquidityConfidence = tonumber(liquidityConfidence),
+            currentQty = tonumber(currentQty),
+            listings = tonumber(listings),
+            observations = tonumber(observations),
+            madBps = tonumber(madBps),
+            flags = tonumber(flags),
+          }
+        end
       end
     elseif kind == "W" then
       for id in body:gmatch("%d+") do

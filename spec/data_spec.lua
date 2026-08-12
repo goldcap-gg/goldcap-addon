@@ -10,6 +10,7 @@ describe("Data", function()
       us = { ts = 1000, items = { [42] = { m = 9999 } } },
     }
     GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ImportString.lua", GC)
     helper.loadModule("Core/Data.lua", GC)
     db = { settings = {} }
     GC.db = db
@@ -56,6 +57,54 @@ describe("Data", function()
     GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
                           items = { [42] = { m = 4000, t = -12 } }, watchlist = {} })
     assert.equal(-12, GC.Data.GetItemValue(42).trend)
+  end)
+
+  it("merges imported verification facts and classifies a verified import as commodity", function()
+    GC.Data.SetImported({
+      region = "eu", realm = "silvermoon", ts = 2000,
+      items = { [42] = { m = 4000, s = 3, t = -2 } },
+      verification = {
+        [42] = {
+          sourceAt = 1999, stressUnit = 3500, sellThroughBps = 7000,
+          liquidityConfidence = 70, currentQty = 20, listings = 3,
+          observations = 12, madBps = 100, flags = 129,
+        },
+      },
+      watchlist = {},
+    })
+
+    local v = GC.Data.GetItemValue(42)
+    assert.equal("region_commodity", v.kind)
+    assert.equal(1999, v.sourceAt)
+    assert.equal(3500, v.stressUnit)
+    assert.equal(7000, v.sellThroughBps)
+    assert.equal(70, v.liquidityConfidence)
+    assert.equal(20, v.currentQty)
+    assert.equal(3, v.listings)
+    assert.equal(12, v.observations)
+    assert.equal(100, v.madBps)
+    assert.is_true(v.estimated)
+  end)
+
+  it("keeps imported legacy entries as realm items and bundled values non-buyable", function()
+    GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                          items = { [42] = { m = 4000 } }, watchlist = {} })
+    assert.equal("realm_item", GC.Data.GetItemValue(42).kind)
+
+    local bundled = GC.Data.GetItemValue(43)
+    assert.equal("realm_item", bundled.kind)
+    assert.is_nil(bundled.sourceAt)
+    assert.is_nil(bundled.stressUnit)
+  end)
+
+  it("persists verification facts when companion app data is adopted", function()
+    _G.GoldCap_AppData = {
+      importString = "GCS1;eu;silvermoon;2000;I:42=4000=3;V:42=1999=3500=7000=70=20=3=12=100=1",
+    }
+    GC.Data.AdoptAppData()
+
+    assert.equal(1999, db.imported.verification[42].sourceAt)
+    assert.is_true(GC.Data.GetItemValue(42).estimated)
   end)
 
   it("leaves trend nil for an imported entry with no trend field", function()

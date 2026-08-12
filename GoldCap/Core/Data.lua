@@ -27,13 +27,19 @@ function GC.Data.Init(database)
 end
 
 function GC.Data.SetImported(parsed)
-  db.imported = {
+  local imported = {
     region = parsed.region,
     realm = parsed.realm,
     ts = parsed.ts,
     items = parsed.items,
     watchlist = parsed.watchlist or {},
   }
+  -- Keep pre-V SavedVariables byte-for-byte shaped as before; a supplied non-empty V section
+  -- is persisted alongside its I records and adopted by the companion through this same path.
+  if parsed.verification and next(parsed.verification) then
+    imported.verification = parsed.verification
+  end
+  db.imported = imported
 end
 
 -- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --
@@ -73,11 +79,30 @@ function GC.Data.GetItemValue(itemID)
     -- trend (24h market-value momentum) is import-path only: MarketData.lua's
     -- bundled entries never carry a `t` field (see ImportString.Parse), so
     -- there's nothing to pass through for the bundled branch below.
-    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import" }
+    local fact = imp.verification and imp.verification[itemID]
+    if fact then
+      return {
+        mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import",
+        kind = "region_commodity",
+        sourceAt = fact.sourceAt,
+        estimated = fact.flags % 2 == 1,
+        stressUnit = fact.stressUnit,
+        sellThroughBps = fact.sellThroughBps,
+        liquidityConfidence = fact.liquidityConfidence,
+        currentQty = fact.currentQty,
+        listings = fact.listings,
+        observations = fact.observations,
+        madBps = fact.madBps,
+      }
+    end
+    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item" }
   end
   e = bundled and bundled.items and bundled.items[itemID]
   if e then
-    return { mv = e.m, sold = e.s, listings = e.l, ts = bundled.ts, source = "bundled" }
+    return {
+      mv = e.m, sold = e.s, listings = e.l, ts = bundled.ts, source = "bundled",
+      kind = e.s and "region_commodity" or "realm_item",
+    }
   end
   return nil
 end

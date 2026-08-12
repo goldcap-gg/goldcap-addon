@@ -31,6 +31,11 @@ GC.DEFAULTS = {
       -- import string's signed trend field; a deal whose 24h market-value
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
       dumpTrendPct = 10,
+      maxCapitalShare = 0.05,
+      maxDailyDemandShare = 0.02,
+      maxQuantity = 200,
+      minimumProfitCopper = 1000000,
+      minimumRoi = 0.10,
       -- Sniper v3 T10: UI-only scale multiplier for Theme's fonts (0.9-1.3), persisted so a
       -- player's chosen text size survives relog. Read back once GC.db exists (see this file's
       -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every

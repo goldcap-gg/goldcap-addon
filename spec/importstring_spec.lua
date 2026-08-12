@@ -104,4 +104,49 @@ describe("ImportString.Parse", function()
       assert.equal(4.0, r.items[3].s); assert.equal(-9, r.items[3].t)
     end)
   end)
+
+  describe("V verification facts", function()
+    it("parses canonical per-item commodity verification facts", function()
+      local r = GC.ImportString.Parse(
+        "GCS1;eu;silvermoon;1751990400;I:42=123400=52.3=-2;V:42=1700000042=600=7000=90=400=6=12=321=1;W:42")
+
+      assert.same({
+        sourceAt = 1700000042, stressUnit = 600, sellThroughBps = 7000,
+        liquidityConfidence = 90, currentQty = 400, listings = 6,
+        observations = 12, madBps = 321, flags = 1,
+      }, r.verification[42])
+    end)
+
+    it("ignores unknown sections and unknown verification flag bits", function()
+      local r = GC.ImportString.Parse(
+        "GCS1;eu;x;1;I:1=10;X:ignored;V:1=2=3=4=5=6=7=8=9=129")
+
+      assert.equal(10, r.items[1].m)
+      assert.equal(129, r.verification[1].flags)
+    end)
+
+    it("skips only malformed V tokens beside valid facts", function()
+      local r = GC.ImportString.Parse(
+        "GCS1;eu;x;1;I:1=10,2=20;V:1=2=3=4=5=6=7=8=9=0,2=bad=3=4=5=6=7=8=9=0")
+
+      assert.equal(10, r.items[1].m)
+      assert.equal(20, r.items[2].m)
+      assert.equal(2, r.verification[1].sourceAt)
+      assert.is_nil(r.verification[2])
+    end)
+
+    it("does not accept a valid V prefix followed by malformed fields", function()
+      local r = GC.ImportString.Parse(
+        "GCS1;eu;x;1;I:1=10,2=20;V:1=2=3=4=5=6=7=8=9=0,2=2=3=4=5=6=7=8=9=0=extra")
+
+      assert.equal(2, r.verification[1].sourceAt)
+      assert.is_nil(r.verification[2])
+    end)
+
+    it("keeps legacy GCS1 imports valid when V is absent", function()
+      local r = GC.ImportString.Parse("GCS1;eu;x;1;I:1=10")
+      assert.equal(10, r.items[1].m)
+      assert.same({}, r.verification)
+    end)
+  end)
 end)
