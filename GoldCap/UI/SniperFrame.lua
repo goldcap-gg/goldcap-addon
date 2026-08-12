@@ -1760,6 +1760,15 @@ function GC.Sniper.IsBusy()
   return next(activeItemID) ~= nil
 end
 
+-- Task 9 fix round 1 (I4): one-line accessor over the existing `ahOpen` local (set true on
+-- OnAuctionHouseShow, false on OnAuctionHouseClosed) -- GC.Sell's requestOwnedAuctions checks
+-- this before ever calling C_AuctionHouse.QueryOwnedAuctions, so a stray owned-lots refresh
+-- (e.g. the tab-show/ghost-Refresh paths firing after the player has already left the AH) can't
+-- issue a query with no live session to answer it.
+function GC.Sniper.IsAHOpen()
+  return ahOpen
+end
+
 -- Shared by both the dialog-requery router branch and the Task 8 pre-warm branch below, so
 -- the two paths always shape a search result into a "liveDeal" the exact same way -- a
 -- deal.prewarm cache and a live finishRequery landing are indistinguishable to

@@ -125,6 +125,13 @@ describe("TOC load order", function()
     _G.PlaySound = _G.PlaySound or function() end
     _G.SOUNDKIT = _G.SOUNDKIT or { MAP_PING = 3175, RAID_WARNING = 1 }
     _G.C_Timer = _G.C_Timer or { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+    -- Sniper v3 Task 9 (SellFrame.lua's rebuilt flips table): GC.Sniper.Toggle()'s show path
+    -- unconditionally calls GC.Sell.Refresh() -> renderRows() -> updateSummary(), which now
+    -- formats the summary strip's invested/projected/profit figures (Theme.Num) even with
+    -- zero flips -- unlike the old bags-vs-mail checklist, which never touched formatAmount
+    -- until there was at least one row. GetCoinTextureString(0) is real WoW-client behavior
+    -- this headless test never needed a stub for before.
+    _G.GetCoinTextureString = _G.GetCoinTextureString or function(amount) return tostring(amount) .. "c" end
 
     local GC = {}
     local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
@@ -168,5 +175,6 @@ describe("TOC load order", function()
     _G.PlaySound = nil
     _G.SOUNDKIT = nil
     _G.C_Timer = nil
+    _G.GetCoinTextureString = nil
   end)
 end)

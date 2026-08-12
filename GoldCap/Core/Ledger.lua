@@ -35,6 +35,20 @@ function GC.Ledger.Init(database)
   db.gold = db.gold or {}
 end
 
+-- Task 9 Step 4b: counts ledger entries genuinely NEW this session (both RecordSniperBuy and
+-- ScanInbox funnel through Append below, so incrementing there covers both without either
+-- caller needing to know about the counter). Deliberately module-local, not persisted --
+-- "this session" means "since the addon loaded", the same window SavedVariables stays
+-- unflushed for (WoW only writes them to disk on /reload or logout), which is exactly the gap
+-- UI/SellFrame.lua's pending-sync hint exists to explain. A dedupe-skipped mailbox re-scan
+-- (Append's repeat-key UPDATE branch) must NOT bump this -- it isn't a new fact reaching the
+-- ledger, just the same invoice being re-read.
+local sessionEventCount = 0
+
+function GC.Ledger.SessionEventCount()
+  return sessionEventCount
+end
+
 local function indexOf(key)
   local entries = db and db.ledger
   if not entries then return nil end
@@ -86,6 +100,7 @@ function GC.Ledger.Append(entry)
   end
 
   entries[#entries + 1] = entry
+  sessionEventCount = sessionEventCount + 1
   while #entries > GC.Ledger.MAX_ENTRIES do
     evictOne(entries)
   end

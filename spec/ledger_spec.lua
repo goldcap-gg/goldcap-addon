@@ -205,4 +205,36 @@ describe("Ledger store", function()
       assert.equal("Belarsa-Dentarg", ctx.char)
     end)
   end)
+
+  -- Task 9 Step 4b: the Sell tab's pending-sync hint reads this counter to explain why
+  -- goldcap.gg hasn't seen this session's buys/sales yet (SavedVariables only flush on
+  -- /reload or logout). before_each above already gives every test a FRESH GC.Ledger module
+  -- (helper.loadModule re-executes the chunk), so sessionEventCount starts at 0 every time.
+  describe("SessionEventCount", function()
+    it("starts at zero on a fresh module load", function()
+      assert.equal(0, GC.Ledger.SessionEventCount())
+    end)
+
+    it("increments once per genuinely new Append", function()
+      GC.Ledger.Append(saleEntry())
+      assert.equal(1, GC.Ledger.SessionEventCount())
+      GC.Ledger.Append(saleEntry({ itemName = "Runed Copper Rod", bid = 999 }))
+      assert.equal(2, GC.Ledger.SessionEventCount())
+    end)
+
+    it("does not increment when a repeat key just updates the stored row", function()
+      GC.Ledger.Append(saleEntry({ pending = true }))
+      assert.equal(1, GC.Ledger.SessionEventCount())
+      -- Same key (same money fields) as above -- a mailbox re-scan of the same invoice, not
+      -- a new fact reaching the ledger.
+      GC.Ledger.Append(saleEntry({ pending = false }))
+      assert.equal(1, GC.Ledger.SessionEventCount())
+    end)
+
+    it("counts a RecordSniperBuy the same way a mail-scanned Append counts", function()
+      local context = { char = "Belarsa-Dentarg", region = "eu" }
+      GC.Ledger.RecordSniperBuy({ itemID = 210930, qty = 1, unitPrice = 100 }, context, 1)
+      assert.equal(1, GC.Ledger.SessionEventCount())
+    end)
+  end)
 end)

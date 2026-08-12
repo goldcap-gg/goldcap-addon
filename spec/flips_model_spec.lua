@@ -148,4 +148,106 @@ describe("Flips row model (Sniper v3 §5)", function()
       end)
     end)
   end)
+
+  -- Task 9 fix round 1 (minor): moved here from UI/SellFrame.lua so they're pure/tested like
+  -- BuildRow/Summary above.
+  describe("ExtractOwnedLots", function()
+    it("uses a commodity's unitPrice as-is", function()
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 42 }, unitPrice = 500, auctionID = 1 } })
+      assert.same({ { itemID = 42, unitPrice = 500, auctionID = 1 } }, result)
+    end)
+
+    it("I3: divides a stacked item lot's buyoutAmount by its quantity", function()
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 7 }, buyoutAmount = 1000, quantity = 5, auctionID = 2 } })
+      assert.equal(200, result[1].unitPrice)
+    end)
+
+    it("treats a missing quantity as 1 (single-item lot, defensive default)", function()
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 7 }, buyoutAmount = 1000, auctionID = 3 } })
+      assert.equal(1000, result[1].unitPrice)
+    end)
+
+    it("treats a zero quantity the same as missing (defensive, never divides by zero)", function()
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 7 }, buyoutAmount = 1000, quantity = 0, auctionID = 4 } })
+      assert.equal(1000, result[1].unitPrice)
+    end)
+
+    it("floors a fractional per-unit split", function()
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 7 }, buyoutAmount = 100, quantity = 3, auctionID = 5 } })
+      assert.equal(33, result[1].unitPrice) -- floor(100/3)
+    end)
+
+    it("drops a lot with no buyout/unitPrice", function()
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 7 }, buyoutAmount = 0, auctionID = 6 } })
+      assert.same({}, result)
+    end)
+
+    it("drops a lot with no itemKey.itemID", function()
+      local result = GC.Flips.ExtractOwnedLots({ { unitPrice = 500, auctionID = 7 } })
+      assert.same({}, result)
+    end)
+
+    it("tolerates a nil auctions argument", function()
+      assert.same({}, GC.Flips.ExtractOwnedLots(nil))
+    end)
+  end)
+
+  describe("CheapestOwnedLot", function()
+    it("picks the lowest-priced lot for the item, with its auctionID", function()
+      local lot = GC.Flips.CheapestOwnedLot(42, {
+        { itemID = 42, unitPrice = 900, auctionID = 1 },
+        { itemID = 42, unitPrice = 400, auctionID = 2 },
+        { itemID = 42, unitPrice = 700, auctionID = 3 },
+        { itemID = 99, unitPrice = 1, auctionID = 4 },
+      })
+      assert.equal(2, lot.auctionID)
+      assert.equal(400, lot.unitPrice)
+    end)
+
+    it("returns nil when there is no lot for the item", function()
+      assert.is_nil(GC.Flips.CheapestOwnedLot(42, {}))
+    end)
+
+    it("tolerates a nil lots argument", function()
+      assert.is_nil(GC.Flips.CheapestOwnedLot(42, nil))
+    end)
+  end)
+
+  describe("SalesForItem", function()
+    local entries = {
+      { kind = "sale", itemName = "Ironclaw Ore", at = 100 },
+      { kind = "sale", itemName = "Ironclaw Ore", at = 50 },
+      { kind = "sale", itemName = "Different Item", at = 200 },
+      { kind = "buy",  itemName = "Ironclaw Ore", at = 300 },
+    }
+
+    it("matches by itemName only", function()
+      local sales = GC.Flips.SalesForItem(entries, "Ironclaw Ore", 0)
+      assert.equal(2, #sales)
+    end)
+
+    it("I6: drops sales recorded before sinceAt (a flip's own boughtAt)", function()
+      local sales = GC.Flips.SalesForItem(entries, "Ironclaw Ore", 80)
+      assert.equal(1, #sales)
+      assert.equal(100, sales[1].at)
+    end)
+
+    it("includes a sale recorded exactly at sinceAt", function()
+      local sales = GC.Flips.SalesForItem(entries, "Ironclaw Ore", 100)
+      assert.equal(1, #sales)
+    end)
+
+    it("ignores non-sale entries even with a matching name", function()
+      local sales = GC.Flips.SalesForItem(entries, "Ironclaw Ore", 300)
+      assert.equal(0, #sales)
+    end)
+
+    it("returns an empty list for a nil itemName", function()
+      assert.same({}, GC.Flips.SalesForItem(entries, nil, 0))
+    end)
+
+    it("tolerates a nil entries argument", function()
+      assert.same({}, GC.Flips.SalesForItem(nil, "Ironclaw Ore", 0))
+    end)
+  end)
 end)

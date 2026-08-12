@@ -69,6 +69,17 @@ frame:RegisterEvent("AUCTION_HOUSE_CLOSED")
 -- payload).
 frame:RegisterEvent("AUCTION_HOUSE_AUCTION_CREATED")
 frame:RegisterEvent("AUCTION_HOUSE_POST_ERROR")
+-- Task 9: fires after C_AuctionHouse.QueryOwnedAuctions({}) resolves (tab show or the Sell
+-- tab's own ghost Refresh button -- see UI/SellFrame.lua) AND after any other change to the
+-- player's own listed lots (a post going through, an in-flight repost's CancelAuction landing).
+-- No payload -- the handler re-reads C_AuctionHouse.GetOwnedAuctions() itself.
+frame:RegisterEvent("OWNED_AUCTIONS_UPDATED")
+-- Task 9 fix round 1 (minor: deterministic post-cancel refresh): AUCTION_CANCELED is not a
+-- documented/stable event on every client build -- RegisterEvent throws for an unknown event
+-- name, which would abort the WHOLE frame's event registration (everything below this line)
+-- mid-list. pcall-guarded so a bad event name only loses this one, optional, refresh signal
+-- instead of the rest of the addon. Dispatched identically to OWNED_AUCTIONS_UPDATED below.
+pcall(function() frame:RegisterEvent("AUCTION_CANCELED") end)
 -- P2 ledger. MAIL_SHOW/MAIL_INBOX_UPDATE are the ONLY chance to read an
 -- invoice: once the player collects a mail it is gone from the client
 -- entirely, so a scan that waited for collection would record nothing.
@@ -196,6 +207,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "AUCTION_HOUSE_POST_ERROR" then
     if GC.Sell.OnPostError then
       GC.Sell.OnPostError()
+    end
+  elseif event == "OWNED_AUCTIONS_UPDATED" or event == "AUCTION_CANCELED" then
+    if GC.Sell.OnOwnedAuctions then
+      GC.Sell.OnOwnedAuctions()
     end
   elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
     if GC.Ledger then
