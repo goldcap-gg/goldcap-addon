@@ -150,13 +150,19 @@ end
 -- default in when the existing value isn't already a table, and recurses over an EMPTY default
 -- table's own pairs(), which is a no-op either way).
 local FLIP_MAX_AGE_SECONDS = 14 * 24 * 3600
+local MAX_EXACT = 9007199254740991
+
+local function isExactInteger(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+      and value == math.floor(value) and value >= 0 and value <= MAX_EXACT
+end
 
 local function isPositiveInteger(value)
-  return type(value) == "number" and value > 0 and value == math.floor(value)
+  return isExactInteger(value) and value > 0
 end
 
 local function isNonNegativeInteger(value)
-  return type(value) == "number" and value >= 0 and value == math.floor(value)
+  return isExactInteger(value)
 end
 
 local function isReasonsArray(reasons)
@@ -177,11 +183,11 @@ function GC.Data.RecordFlip(deal, purchase, now)
   if type(deal) ~= "table" or type(purchase) ~= "table"
       or not isPositiveInteger(deal.itemID) or purchase.itemID ~= deal.itemID
       or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
-      or type(purchase.unitDisplay) ~= "number" or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
+      or not isNonNegativeInteger(purchase.unitDisplay) or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
       or not isPositiveInteger(purchase.decisionVersion) or purchase.decisionStatus ~= "SAFE"
       or not isReasonsArray(purchase.decisionReasons)
       or not isPositiveInteger(purchase.stressUnit)
-      or type(purchase.expectedProfit) ~= "number" or purchase.expectedProfit ~= math.floor(purchase.expectedProfit)
+      or not isNonNegativeInteger(purchase.expectedProfit)
       or not isPositiveInteger(purchase.recommendedQuantity)
       or not isNonNegativeInteger(purchase.sourceAt) then
     return nil

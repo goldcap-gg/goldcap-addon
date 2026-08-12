@@ -272,6 +272,18 @@ describe("SniperDecision", function()
     assert.equal(1, result.quantity)
   end)
 
+  it("displays a fixed requote from its authoritative total, not the book average", function()
+    local input = validInput()
+    input.live.fixedQuantity = 2
+    input.live.quotedTotal = 2100001
+    input.live.levels = { { unitPrice = 1000000, quantity = 2 }, { unitPrice = 4000001, quantity = 1 } }
+    local result = evaluate(input)
+    assert.equal("SAFE", result.computedStatus)
+    assert.equal(2, result.quantity)
+    assert.equal(2100001, result.entryTotal)
+    assert.equal(1050000, result.entryUnitDisplay)
+  end)
+
   it("never lets a fixed quantity bypass the configured 200-unit cap", function()
     local input = validInput()
     input.live.fixedQuantity = 201

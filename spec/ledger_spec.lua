@@ -247,6 +247,29 @@ describe("Ledger store", function()
     it("returns nil for a direct caller that lacks immutable purchase facts", function()
       assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930, qty = 1, unitPrice = 100 }, nil, context, 1))
     end)
+
+    it("rejects non-finite and unsafe direct purchase facts without recording a ledger row", function()
+      local MAX_EXACT = 9007199254740991
+      local cases = {
+        { deal = { itemID = math.huge }, facts = { itemID = math.huge } },
+        { facts = { quantity = math.huge, unitDisplay = 0 } },
+        { facts = { total = -math.huge, unitDisplay = -math.huge } },
+        { facts = { decisionVersion = 0 / 0 } },
+        { facts = { stressUnit = 1.5 } },
+        { facts = { expectedProfit = -1 } },
+        { facts = { recommendedQuantity = math.huge } },
+        { facts = { sourceAt = MAX_EXACT + 1 } },
+      }
+
+      for _, candidate in ipairs(cases) do
+        local deal = candidate.deal or { itemID = 210930, qty = 1, unitPrice = 100 }
+        local facts = purchase(candidate.facts)
+        local ok, entry = pcall(GC.Ledger.RecordSniperBuy, deal, facts, context, 1)
+        assert.is_true(ok)
+        assert.is_nil(entry)
+        assert.equal(0, #GC.Ledger.GetEntries())
+      end
+    end)
   end)
 
   describe("Context", function()

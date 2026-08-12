@@ -325,7 +325,7 @@ function GC.SniperDecision.Evaluate(input)
               sawProfit = true
             else
               selected = {
-                quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = fill.unit,
+                quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
                 competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
                 deposit = deposit, stressProfit = stressProfit, requiredProfit = requiredProfit,
               }

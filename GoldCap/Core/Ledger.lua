@@ -251,13 +251,19 @@ function GC.Ledger.ScanInbox(api, context, now)
 end
 
 local sniperSeq = 0
+local MAX_EXACT = 9007199254740991
+
+local function isExactInteger(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+      and value == math.floor(value) and value >= 0 and value <= MAX_EXACT
+end
 
 local function isPositiveInteger(value)
-  return type(value) == "number" and value > 0 and value == math.floor(value)
+  return isExactInteger(value) and value > 0
 end
 
 local function isNonNegativeInteger(value)
-  return type(value) == "number" and value >= 0 and value == math.floor(value)
+  return isExactInteger(value)
 end
 
 local function isReasonsArray(reasons)
@@ -285,12 +291,12 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
   if type(deal) ~= "table" or type(purchase) ~= "table"
       or not isPositiveInteger(deal.itemID) or purchase.itemID ~= deal.itemID
       or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
-      or type(purchase.unitDisplay) ~= "number" or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
+      or not isNonNegativeInteger(purchase.unitDisplay) or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
       or not isPositiveInteger(purchase.decisionVersion)
       or purchase.decisionStatus ~= "SAFE"
       or not isReasonsArray(purchase.decisionReasons)
       or not isPositiveInteger(purchase.stressUnit)
-      or type(purchase.expectedProfit) ~= "number" or purchase.expectedProfit ~= math.floor(purchase.expectedProfit)
+      or not isNonNegativeInteger(purchase.expectedProfit)
       or not isPositiveInteger(purchase.recommendedQuantity)
       or not isNonNegativeInteger(purchase.sourceAt) then
     return nil

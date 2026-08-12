@@ -72,6 +72,29 @@ describe("Data.Flips (Sniper v2 §D)", function()
       assert.is_nil(GC.Data.RecordFlip({ itemID = 1 }, incomplete, 100))
     end)
 
+    it("rejects non-finite and unsafe direct purchase facts without recording a flip", function()
+      local MAX_EXACT = 9007199254740991
+      local cases = {
+        { deal = { itemID = math.huge }, facts = { itemID = math.huge } },
+        { facts = { quantity = math.huge, unitDisplay = 0 } },
+        { facts = { total = -math.huge, unitDisplay = -math.huge } },
+        { facts = { decisionVersion = 0 / 0 } },
+        { facts = { stressUnit = 1.5 } },
+        { facts = { expectedProfit = -1 } },
+        { facts = { recommendedQuantity = math.huge } },
+        { facts = { sourceAt = MAX_EXACT + 1 } },
+      }
+
+      for _, candidate in ipairs(cases) do
+        local deal = candidate.deal or { itemID = 1 }
+        local facts = purchase(candidate.facts)
+        local ok, flip = pcall(GC.Data.RecordFlip, deal, facts, 100)
+        assert.is_true(ok)
+        assert.is_nil(flip)
+        assert.equal(0, #GC.Data.GetFlips(100))
+      end
+    end)
+
     it("defaults `now` to the current time when omitted", function()
       local realTime = _G.time
       _G.time = function() return 42424242 end
