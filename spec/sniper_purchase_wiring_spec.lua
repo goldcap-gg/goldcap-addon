@@ -44,15 +44,15 @@ describe("Sniper purchase wiring", function()
   it("requires a newly evaluated safe quote, cancels a broken requote, and records one purchase fact", function()
     local text = source()
     local quote = section(text, "function GC.Sniper.OnCommodityPriceUpdated", "function GC.Sniper.OnCommodityPriceUnavailable")
-    local resolve = section(text, "resolvePurchase = function", "-- Cancel button / Esc")
+    local accounting = section(text, "local function recordPurchaseFacts", "local function reportDetachedCommodity")
 
     assert.is_truthy(quote:find("evaluateLive", 1, true))
     assert.is_truthy(quote:find("C_AuctionHouse.CancelCommoditiesPurchase()", 1, true))
     assert.is_truthy(quote:find("requote_broke_safety", 1, true))
     assert.is_truthy(quote:find("drainCommodityPurchase(row)", 1, true))
-    assert.is_truthy(resolve:find("purchase.total", 1, true))
-    assert.is_truthy(resolve:find("GC.Data.RecordFlip(deal, purchase", 1, true))
-    assert.is_truthy(resolve:find("GC.Ledger.RecordSniperBuy(deal, purchase", 1, true))
+    assert.is_truthy(accounting:find("purchase.total", 1, true))
+    assert.is_truthy(accounting:find("GC.Data.RecordFlip(deal, purchase", 1, true))
+    assert.is_truthy(accounting:find("GC.Ledger.RecordSniperBuy(deal, purchase", 1, true))
   end)
 
   it("cancels a sub-five-percent failed requote before any confirm can run", function()
@@ -170,8 +170,11 @@ describe("Sniper purchase wiring", function()
       error("missing upvalue " .. wanted)
     end
 
-    local row = { purchaseStage = "confirming", purchaseToken = 3, purchaseDeal = { itemID = 42, isCommodity = true } }
-    setUpvalue(GC.Sniper.OnCommodityPurchaseSucceeded, "commodityPurchase", { row = row, itemID = 42, token = 3 })
+    local deal = { itemID = 42, isCommodity = true }
+    local row = { purchaseStage = "confirming", purchaseToken = 3, deal = deal, purchaseDeal = deal }
+    setUpvalue(GC.Sniper.OnCommodityPurchaseSucceeded, "commodityPurchase", {
+      row = row, itemID = 42, token = 3, confirmed = true, deal = row.purchaseDeal,
+    })
     GC.Sniper.OnCommodityPurchaseSucceeded()
 
     assert.equal("frozen", row.purchaseStage)
@@ -341,6 +344,21 @@ describe("Sniper purchase wiring", function()
     assert.equal("confirming", row.purchaseStage)
 
     GC.Sniper.OnAuctionHouseClosed()
+
+    -- The pool can be reused in the next AH session before the old, untagged terminal event
+    -- arrives. A late success must settle frozen facts only, never clear this new Check.
+    local newDeal = { itemID = 99, isCommodity = true }
+    local newAttempt = { row = row, itemID = 99, token = 22, deal = newDeal, sent = true }
+    local awaiting = { [99] = newAttempt }
+    local active = { [99] = true }
+    row.deal = newDeal
+    row.purchaseStage = "requerying"
+    row.purchaseToken = 22
+    row.purchaseDeal = nil
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery", awaiting)
+    local resolve = getUpvalue(GC.Sniper.OnCommodityPurchaseSucceeded, "resolvePurchase")
+    setUpvalue(resolve, "activeItemID", active)
+
     GC.Sniper.OnCommodityPurchaseSucceeded()
     GC.Sniper.OnCommodityPurchaseSucceeded() -- duplicate terminal is a no-op
 
@@ -349,6 +367,11 @@ describe("Sniper purchase wiring", function()
     assert.equal(123456, flipPurchase.total)
     assert.equal(1, GC.Sniper.session.buys)
     assert.equal(123456, GC.Sniper.session.spent)
+    assert.equal("requerying", row.purchaseStage)
+    assert.is_true(row.deal == newDeal)
+    assert.equal(22, row.purchaseToken)
+    assert.is_true(awaiting[99] == newAttempt)
+    assert.is_true(active[99])
     _G.time, _G.GetTime, _G.C_AuctionHouse = nil, nil, nil
   end)
 
@@ -376,6 +399,73 @@ describe("Sniper purchase wiring", function()
     GC.Sniper.OnCommoditySearchResults(42)
 
     assert.equal("requerying", row.purchaseStage)
+    _G.C_AuctionHouse = nil
+  end)
+
+  it("settles detached confirmed unavailable and failure without freezing a repooled Check", function()
+    local flipCalls, ledgerCalls = 0, 0
+    _G.C_AuctionHouse = {}
+    local GC = {
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = {
+        GetItemValue = function() return {} end,
+        RecordFlip = function() flipCalls = flipCalls + 1 end,
+      },
+      Ledger = {
+        Context = function() return {} end,
+        RecordSniperBuy = function() ledgerCalls = ledgerCalls + 1 end,
+      },
+      db = { settings = { sniper = {} } },
+    }
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local newDeal = { itemID = 99, isCommodity = true }
+    local row = { deal = newDeal, purchaseStage = "requerying", purchaseToken = 22 }
+    local newAttempt = { row = row, itemID = 99, token = 22, deal = newDeal, sent = true }
+    local awaiting = { [99] = newAttempt }
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery", awaiting)
+    local oldDeal = { itemID = 42, isCommodity = true }
+    local old = { row = row, itemID = 42, token = 9, confirmed = true, deal = oldDeal }
+    setUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "commodityDraining", old)
+
+    GC.Sniper.OnCommodityPriceUnavailable()
+
+    assert.equal("requerying", row.purchaseStage)
+    assert.is_true(row.deal == newDeal)
+    assert.equal(22, row.purchaseToken)
+    assert.is_true(awaiting[99] == newAttempt)
+    assert.equal(0, flipCalls)
+    assert.equal(0, ledgerCalls)
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "commodityDraining"))
+    assert.equal("purchase total unavailable — inspect mailbox", GC.Sniper.detachedCommodityStatus[42].note)
+
+    setUpvalue(GC.Sniper.OnCommodityPurchaseFailed, "commodityDraining", old)
+    GC.Sniper.OnCommodityPurchaseFailed()
+
+    assert.equal("requerying", row.purchaseStage)
+    assert.is_true(row.deal == newDeal)
+    assert.equal(22, row.purchaseToken)
+    assert.is_true(awaiting[99] == newAttempt)
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPurchaseFailed, "commodityDraining"))
+    assert.equal("confirmed commodity purchase failed after AH close", GC.Sniper.detachedCommodityStatus[42].note)
     _G.C_AuctionHouse = nil
   end)
 

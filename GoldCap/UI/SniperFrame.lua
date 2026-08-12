@@ -1411,6 +1411,80 @@ local function purchaseFacts(deal, quote)
   }
 end
 
+-- A confirmed commodity attempt can outlive the AH UI. This item-keyed, non-interactive
+-- status keeps uncertain detached terminals visible to diagnostics/chat without pinning or
+-- mutating a pooled row that may now belong to another Check.
+local detachedCommodityStatus = {}
+GC.Sniper.detachedCommodityStatus = detachedCommodityStatus
+
+local function consumePurchasedDeal(deal)
+  if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
+  -- A full-scan buy resolves against the LIVE deal finishRequery swapped in, not the original
+  -- stale scan entry. Drop that consumed listing so it cannot reappear on the next refresh.
+  for i = #scanDeals, 1, -1 do
+    if scanDeals[i].itemID == deal.itemID then table.remove(scanDeals, i) end
+  end
+end
+
+local function recordPurchaseFacts(deal, purchase)
+  local session = GC.Sniper.session
+  session.buys = session.buys + 1
+  session.spent = session.spent + purchase.total
+  session.estProfit = session.estProfit + purchase.expectedProfit
+  local now = time()
+  -- `purchase` is the one immutable final-quote object shared by both stores.
+  GC.Data.RecordFlip(deal, purchase, now)
+  GC.Ledger.RecordSniperBuy(deal, purchase, GC.Ledger.Context(), now)
+  updateSellTabLabel()
+  consumePurchasedDeal(deal)
+end
+
+local function reportDetachedCommodity(pending, note)
+  local deal = pending and pending.deal
+  local itemID = (deal and deal.itemID) or (pending and pending.itemID)
+  if not itemID then return end
+  detachedCommodityStatus[itemID] = {
+    token = pending.token,
+    deal = deal,
+    quote = pending.quote,
+    note = note,
+  }
+  local text = ("item %d: %s"):format(itemID, note)
+  if frame then frame.status:SetText(text) end
+  if GC.Print then GC.Print(text) end
+end
+
+local function settleDetachedConfirmed(pending, terminal)
+  local deal = pending and pending.deal
+  if terminal == "success" then
+    local purchase = deal and purchaseFacts(deal, pending.quote)
+    if purchase then
+      recordPurchaseFacts(deal, purchase)
+      reportDetachedCommodity(pending, ("bought %d x item %d after AH close"):format(
+        purchase.quantity, deal.itemID))
+      return
+    end
+    reportDetachedCommodity(pending, "purchase total unavailable — inspect mailbox")
+    return
+  end
+  if terminal == "unavailable" then
+    reportDetachedCommodity(pending, "purchase total unavailable — inspect mailbox")
+  else
+    reportDetachedCommodity(pending, "confirmed commodity purchase failed after AH close")
+  end
+end
+
+local function confirmedAttemptOwnsRow(pending)
+  local row = pending and pending.row
+  local deal = pending and pending.deal
+  return row and deal and row.purchaseStage == "confirming"
+    and row.purchaseToken == pending.token
+    and row.purchaseDeal == deal
+    and row.deal == deal
+    and row.quoteSnapshot == pending.quote
+    and pending.itemID == deal.itemID
+end
+
 resolvePurchase = function(row, success, note, purchase, purchaseDeal)
   -- A confirmed commodity attempt can outlive its visible row across an AH close. Its deal is
   -- captured at the hardware Confirm click and must win over a row that was reset/repooled.
@@ -1442,22 +1516,7 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         refreshRows()
         return
       end
-      local session = GC.Sniper.session
-      session.buys = session.buys + 1
-      session.spent = session.spent + purchase.total
-      session.estProfit = session.estProfit + purchase.expectedProfit
-      local now = time()
-      GC.Data.RecordFlip(deal, purchase, now)
-      GC.Ledger.RecordSniperBuy(deal, purchase, GC.Ledger.Context(), now)
-      updateSellTabLabel()
-      if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
-      -- A full-scan buy resolves against the LIVE deal finishRequery swapped in, not the
-      -- original .stale scanDeals entry -- which still holds the pre-purchase snapshot for
-      -- this itemID (now deduped to one row per item, see FullScan.Evaluate). Drop it so the
-      -- consumed listing doesn't reappear as a ghost row on the next refreshRows().
-      for i = #scanDeals, 1, -1 do
-        if scanDeals[i].itemID == deal.itemID then table.remove(scanDeals, i) end
-      end
+      recordPurchaseFacts(deal, purchase)
     end
   end
 
@@ -2027,20 +2086,25 @@ function GC.Sniper.OnCommodityPriceUnavailable()
     local pending = commodityDraining
     commodityDraining = nil
     if pending.confirmed then
-      -- Confirmation reached Blizzard but this event does not prove whether it filled. Freeze
-      -- with no estimated total; the player can inspect the mailbox rather than losing it.
-      resolvePurchase(pending.row, true, "purchase total unavailable — inspect mailbox", nil, pending.deal)
+      -- This tombstone survived AH close. Its row may already be repooled, so freeze/report
+      -- only detached item facts; never estimate a total or mutate an unrelated new Check.
+      settleDetachedConfirmed(pending, "unavailable")
     end
     return -- terminal event for the cancelled/closed attempt, never the next one
   end
   local pending = commodityPurchase
-  local row = pending and pending.row
-  if not row or row.purchaseToken ~= pending.token or row.purchaseDeal == nil then return end
-  if pending.confirmed or row.purchaseStage == "confirming" then
+  if not pending then return end
+  if pending.confirmed then
     commodityPurchase = nil
-    resolvePurchase(row, true, "purchase total unavailable — inspect mailbox", nil, pending.deal)
+    if confirmedAttemptOwnsRow(pending) then
+      resolvePurchase(pending.row, true, "purchase total unavailable — inspect mailbox", nil, pending.deal)
+    else
+      settleDetachedConfirmed(pending, "unavailable")
+    end
     return
   end
+  local row = pending.row
+  if not row or row.purchaseToken ~= pending.token or row.purchaseDeal == nil then return end
   C_AuctionHouse.CancelCommoditiesPurchase()
   resolvePurchase(row, false, "commodity price unavailable -- canceled")
 end
@@ -2050,19 +2114,19 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
     local pending = commodityDraining
     commodityDraining = nil
     if not pending.confirmed then return end
-    local deal = pending.deal
-    local quote = pending.quote
-    local purchase = deal and purchaseFacts(deal, quote)
-    resolvePurchase(pending.row, true,
-      purchase and ("bought %d x item %d"):format(purchase.quantity, deal.itemID)
-        or "purchase total unavailable — inspect mailbox", purchase, deal)
+    settleDetachedConfirmed(pending, "success")
     return
   end
   local pending = commodityPurchase
-  local row = pending and pending.row
-  if not row or row.purchaseToken ~= pending.token or row.purchaseStage ~= "confirming" then return end
-  local deal = pending.deal or row.purchaseDeal
-  local quote = pending.quote or row.quoteSnapshot
+  if not pending or not pending.confirmed then return end
+  if not confirmedAttemptOwnsRow(pending) then
+    commodityPurchase = nil
+    settleDetachedConfirmed(pending, "success")
+    return
+  end
+  local row = pending.row
+  local deal = pending.deal
+  local quote = pending.quote
   if not deal or not quote or quote.token ~= pending.token or quote.itemID ~= pending.itemID
       or not quote.decision or quote.decision.status ~= "SAFE" then
     resolvePurchase(row, true, "purchase total unavailable — inspect mailbox")
@@ -2075,11 +2139,23 @@ end
 
 function GC.Sniper.OnCommodityPurchaseFailed()
   if commodityDraining then
+    local pending = commodityDraining
     commodityDraining = nil
+    if pending.confirmed then settleDetachedConfirmed(pending, "failed") end
     return -- terminal event for the cancelled/closed attempt, never the next one
   end
   local pending = commodityPurchase
-  local row = pending and pending.row
+  if not pending then return end
+  if pending.confirmed then
+    commodityPurchase = nil
+    if confirmedAttemptOwnsRow(pending) then
+      resolvePurchase(pending.row, false, "commodity purchase failed")
+    else
+      settleDetachedConfirmed(pending, "failed")
+    end
+    return
+  end
+  local row = pending.row
   if not row or row.purchaseToken ~= pending.token or row.purchaseDeal == nil then return end
   commodityPurchase = nil
   resolvePurchase(row, false, "commodity purchase failed")
