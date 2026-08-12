@@ -1,5 +1,50 @@
 # GoldCap
 
+## 0.3.0 (unreleased)
+
+- **Sniper redesign, on brand.** The sniper window is rebuilt on goldcap.gg's
+  own visual language — dark panels, gold accents, a bundled monospace font
+  for prices and stats (item names keep rendering with the game's own font,
+  including Cyrillic, so nothing turns to boxes). The window now resizes both
+  its width and height (not just height), and the deal columns respond to
+  that width: on a narrower window, the total-cost and trend columns tuck
+  away first (still one click away, in the buy dialog) before anything
+  overlaps.
+- **Deals stream in as Full Scan pages, instead of waiting for it to finish.**
+  The status line now reads "scanning… N results · K deals" and both numbers
+  climb live; a known deal never needs the whole scan to finish before you
+  can act on it.
+- **Auto mode.** A new `Auto` toggle next to Full Scan runs the scan on a
+  loop by itself — it yields the moment you're buying something, searching
+  the Auction House yourself, or have your mailbox open, and resumes a
+  breath after you're done. A brand-new HOT deal plays an alert ping (if
+  `sniper.sound` is enabled) and flashes its row once, so you don't have to
+  stare at the list.
+- **Hovering a deal pre-warms its buy dialog.** Hover a stale Full Scan row
+  for a moment before clicking Buy, and the confirmation window can open
+  already armed with a fresh price instead of showing "checking live
+  price..." first — the pre-warmed quote is used only if it's still fresh
+  (within 10 seconds) by the time you click.
+- **Sell tab rebuilt as a flips table.** Each flip now shows what you paid,
+  what it's listed at (if anything), the current market price, and your
+  projected profit, with a status (unlisted / listed / undercut / sale
+  pending). An undercut listing gets a **Repost** flow — one click arms a
+  "Cancel lot?" confirmation showing the deposit you'd spend, a second click
+  cancels the old lot and reposts at the new price, so you can never cancel
+  a lot by accident. The old **×** remove button is still there for
+  abandoning a flip you don't want to track. A summary strip totals
+  invested/projected/profit across every flip.
+- **Pending-sync hint.** World of Warcraft only writes SavedVariables to
+  disk on `/reload` or logout, so a purchase or sale this session doesn't
+  reach goldcap.gg's ledger until then. The Sell tab now says so directly —
+  "N events sync to goldcap.gg on /reload or logout" — whenever there's
+  something pending.
+- **In-game settings panel.** A gear icon on the sniper window's title bar
+  opens a panel for the HOT/GOOD discount and sold/day thresholds, the
+  dump-trend cutoff, the sound and auto-scan-by-default toggles, a font
+  scale slider (0.9–1.3), and a button to reset the window back to its
+  default position and size.
+
 ## 0.1.0 (unreleased)
 
 - Item tooltips now show goldcap.gg market values for your realm: market
