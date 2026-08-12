@@ -974,4 +974,93 @@ describe("Sniper purchase wiring", function()
     _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
     _G.time = os.time
   end)
+
+  it("switches Check rows without an intervening Live search or ambiguous replacement result", function()
+    -- Regression target: onBuyClick used abortRowPurchase(old) as a standalone Cancel. That
+    -- synchronously restarted Live before openDialog(new) could register its new Check, so a
+    -- Scanner:Start implementation that sends immediately could inject an untagged search.
+    local timers, authoritativeSends, liveSends = {}, 0, 0
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    _G.C_AuctionHouse = {}
+    _G.GetMoney = function() return 1000000 end
+    _G.time = function() return 100 end
+    _G.GetTime = function() return 100 end
+    local GC = {
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 7 } end },
+      db = { settings = { sniper = {} } },
+      SniperDecision = {
+        Evaluate = function()
+          return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
+        end,
+      },
+    }
+    helper.loadModule("Core/Scanner.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local startRequery = getUpvalue(openDialog, "startRequery")
+    local driver = {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() authoritativeSends = authoritativeSends + 1 end,
+      commodityBook = function() return { { unitPrice = 100, quantity = 1 } } end,
+      commodityResult = function() return { avail = 1 } end,
+    }
+    setUpvalue(startRequery, "driver", driver)
+    setUpvalue(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    GC.Sniper.scanner = GC.Scanner.New({
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      now = function() return 100 end,
+      sendSearch = function() liveSends = liveSends + 1 end,
+      onStatus = function() end,
+    }, {})
+
+    local oldDeal = { itemID = 42, isCommodity = true }
+    local oldRow = { deal = oldDeal, purchaseStage = "requerying", purchaseToken = 1 }
+    local oldAttempt = { row = oldRow, itemID = 42, token = 1, deal = oldDeal, sent = false }
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery", { [42] = oldAttempt })
+    GC.Sniper._pausedLiveRequery = oldAttempt
+    setUpvalue(onBuyClick, "dialog", { row = oldRow, Hide = function() end })
+    setUpvalue(onBuyClick, "openDialog", function(row, deal) startRequery(row, deal) end)
+
+    local newDeal = { itemID = 43, isCommodity = true }
+    local newRow = { deal = newDeal }
+    onBuyClick(newRow)
+
+    assert.equal(0, liveSends)
+    assert.equal(1, authoritativeSends)
+    -- The harness bypasses visual openDialog construction; result ownership itself has no UI
+    -- dependency, so remove the old-row shell before dispatching the real event handler.
+    setUpvalue(onBuyClick, "dialog", nil)
+    GC.Sniper.OnCommoditySearchResults(43)
+    assert.equal("check", newRow.purchaseStage)
+    assert.is_nil(oldRow.purchaseStage)
+    assert.equal(1, liveSends) -- only after the replacement result resolves ownership
+    _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
+    _G.time = os.time
+  end)
 end)

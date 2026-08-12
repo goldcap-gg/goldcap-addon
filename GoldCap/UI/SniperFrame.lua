@@ -891,6 +891,11 @@ end
 -- attempt lives on GC.Sniper so this very large file stays below Lua's 200-local chunk limit;
 -- a result, timeout, or Cancel may resume only the scan it paused, while a manually stopped
 -- scanner stays stopped.
+function GC.Sniper._ResumePausedLiveRequery(attempt)
+  if GC.Sniper._pausedLiveRequery ~= attempt then return end
+  GC.Sniper._pausedLiveRequery = nil
+  if ahOpen and not scanning then startScanning() end
+end
 
 -- ---------------------------------------------------------------------------
 -- Full Scan (Auctionator-style incremental browse). Primary control: pages through the
@@ -1618,7 +1623,7 @@ end
 -- awaitingRequery/awaitingKeyInfo/pendingRequerySend entry dangling (keyed by itemID) --
 -- exactly the kind of leftover that let a late search-results event resolve against this row
 -- again after it's been reused for an unrelated deal.
-local function abortRowPurchase(row, note)
+local function abortRowPurchase(row, note, retainLivePause)
   local deal = row.purchaseDeal or row.deal
   local pending = commodityPurchase
   local requeryAttempt
@@ -1648,10 +1653,7 @@ local function abortRowPurchase(row, note)
   end
   drainCommodityPurchase(row)
   resolvePurchase(row, false, note)
-  if GC.Sniper._pausedLiveRequery == requeryAttempt then
-    GC.Sniper._pausedLiveRequery = nil
-    if ahOpen and not scanning then startScanning() end
-  end
+  if not retainLivePause then GC.Sniper._ResumePausedLiveRequery(requeryAttempt) end
 end
 
 -- Fix 3 (no flash-open-then-close): a listing that's already gone by the time the dialog would
@@ -1881,10 +1883,7 @@ local function finishRequery(attempt, liveDeal)
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
   applyRequeryResult(attempt.row, itemID, liveDeal)
-  if GC.Sniper._pausedLiveRequery == attempt then
-    GC.Sniper._pausedLiveRequery = nil
-    if ahOpen and not scanning then startScanning() end
-  end
+  GC.Sniper._ResumePausedLiveRequery(attempt)
 end
 
 local function scheduleRequeryTimeout(attempt)
@@ -1899,10 +1898,7 @@ local function scheduleRequeryTimeout(attempt)
       pendingRequerySend[itemID] = nil
       if attempt.sent then requeryDraining[itemID] = attempt end
       applyRequeryResult(attempt.row, itemID, nil)
-      if GC.Sniper._pausedLiveRequery == attempt then
-        GC.Sniper._pausedLiveRequery = nil
-        if ahOpen and not scanning then startScanning() end
-      end
+      GC.Sniper._ResumePausedLiveRequery(attempt)
     end
   end)
 end
@@ -3127,6 +3123,12 @@ local function openDialog(row, deal)
     -- SendSearchQuery. applyRequeryResult sets purchaseStage/activeItemID itself (via armReady
     -- or the nil-liveDeal branch), so there is nothing to pre-stage here.
     applyRequeryResult(row, deal.itemID, prewarm.data)
+    -- A different-row handoff may have retained the old Check's Live pause through this
+    -- openDialog call. A pre-warm resolves synchronously and does not call startRequery, so
+    -- release that old owner here instead of leaving Live paused forever.
+    if GC.Sniper._pausedLiveRequery and GC.Sniper._pausedLiveRequery.row ~= row then
+      GC.Sniper._ResumePausedLiveRequery(GC.Sniper._pausedLiveRequery)
+    end
   else
     dialog.primaryBtn:Disable()
     setPrimaryLabel("Check")
@@ -3154,9 +3156,11 @@ local function onBuyClick(row)
       driver.onStatus("finish the pending buy first")
       return
     end
-    -- The other row is only "ready" or "requerying" -- no purchase call in flight yet, so
-    -- it's safe to close its dialog session and let this row take over the single dialog.
-    abortRowPurchase(dialog.row, nil)
+    -- The other row is only "ready" or "requerying" -- no purchase call in flight yet. This
+    -- is a row replacement, not an ordinary Cancel: retain the paused Live intent until
+    -- startRequery can transfer it to the new immutable Check. Resuming here would let
+    -- Scanner:Start emit an untagged search in the gap before openDialog registers the new row.
+    abortRowPurchase(dialog.row, nil, true)
   end
 
   openDialog(row, deal)
