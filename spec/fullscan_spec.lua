@@ -28,6 +28,24 @@ describe("FullScan.Evaluate", function()
     assert.equal(0.5, deals[1].discount)
   end)
 
+  it("marks every aggregate as a CHECK-only live-verification discovery", function()
+    -- A browse aggregate can preserve its old discovery tier for sorting, but it is not a
+    -- resolved purchasable lot. Even a HOT aggregate must therefore be WATCH/Check until a
+    -- live commodity search supplies the book that SniperDecision can evaluate.
+    local deals = GC.FullScan.Evaluate({
+      { itemID = 20, count = 1, buyoutStack = 120000000 }, -- old HOT economics
+      { itemID = 10, count = 1, buyoutStack = 500000 },
+    }, getValue, cfg, 100)
+
+    assert.equal("HOT", deals[1].tier) -- discovery context is retained
+    for _, deal in ipairs(deals) do
+      assert.equal("WATCH", deal.status)
+      assert.equal("live_verification_required", deal.reason)
+      assert.equal("Check", deal.action)
+      assert.is_false(deal.buyable)
+    end
+  end)
+
   it("skips rows with no value, zero count, or zero buyout", function()
     local deals = GC.FullScan.Evaluate({
       { itemID = 999, count = 1, buyoutStack = 100 },   -- no market value

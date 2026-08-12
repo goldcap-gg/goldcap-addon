@@ -44,6 +44,13 @@ local function evaluateFrom(rows, first, getValue, cfg)
           unitPrice = unitPrice, qty = row.count },
         getValue(row.itemID), cfg)
       if deal then
+        -- Browse aggregates are discovery evidence, never a resolved lot or a live
+        -- commodity book. Keep their legacy tier for discovery/sorting, but make the only
+        -- actionable state explicit: the UI must perform a fresh live verification first.
+        deal.status = "WATCH"
+        deal.reason = "live_verification_required"
+        deal.action = "Check"
+        deal.buyable = false
         local existing = bestByItem[deal.itemID]
         if not existing or deal.profit > existing.profit then
           bestByItem[deal.itemID] = deal
