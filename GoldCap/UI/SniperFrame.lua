@@ -887,6 +887,11 @@ local function stopScanning()
   if frame then frame.toggleBtn:SetLabel("Live") end
 end
 
+-- A dialog Check owns the throttled search slot over the optional watchlist loop. Its exact
+-- attempt lives on GC.Sniper so this very large file stays below Lua's 200-local chunk limit;
+-- a result, timeout, or Cancel may resume only the scan it paused, while a manually stopped
+-- scanner stays stopped.
+
 -- ---------------------------------------------------------------------------
 -- Full Scan (Auctionator-style incremental browse). Primary control: pages through the
 -- entire realm auction house via C_AuctionHouse.SendBrowseQuery (an empty search matches
@@ -1616,6 +1621,7 @@ end
 local function abortRowPurchase(row, note)
   local deal = row.purchaseDeal or row.deal
   local pending = commodityPurchase
+  local requeryAttempt
   if pending and pending.row == row and pending.confirmed then
     -- Confirm has already reached Blizzard. Esc/OnHide must not cancel, clear, or unpin that
     -- ownership; only a terminal event (or the retained close tombstone) may settle it.
@@ -1624,6 +1630,7 @@ local function abortRowPurchase(row, note)
   if deal then
     local attempt = awaitingRequery[deal.itemID]
     if attempt and attempt.row == row then
+      requeryAttempt = attempt
       awaitingRequery[deal.itemID] = nil
       awaitingKeyInfo[deal.itemID] = nil
       pendingRequerySend[deal.itemID] = nil
@@ -1641,6 +1648,10 @@ local function abortRowPurchase(row, note)
   end
   drainCommodityPurchase(row)
   resolvePurchase(row, false, note)
+  if GC.Sniper._pausedLiveRequery == requeryAttempt then
+    GC.Sniper._pausedLiveRequery = nil
+    if ahOpen and not scanning then startScanning() end
+  end
 end
 
 -- Fix 3 (no flash-open-then-close): a listing that's already gone by the time the dialog would
@@ -1870,6 +1881,10 @@ local function finishRequery(attempt, liveDeal)
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
   applyRequeryResult(attempt.row, itemID, liveDeal)
+  if GC.Sniper._pausedLiveRequery == attempt then
+    GC.Sniper._pausedLiveRequery = nil
+    if ahOpen and not scanning then startScanning() end
+  end
 end
 
 local function scheduleRequeryTimeout(attempt)
@@ -1884,6 +1899,10 @@ local function scheduleRequeryTimeout(attempt)
       pendingRequerySend[itemID] = nil
       if attempt.sent then requeryDraining[itemID] = attempt end
       applyRequeryResult(attempt.row, itemID, nil)
+      if GC.Sniper._pausedLiveRequery == attempt then
+        GC.Sniper._pausedLiveRequery = nil
+        if ahOpen and not scanning then startScanning() end
+      end
     end
   end)
 end
@@ -1904,6 +1923,17 @@ local function startRequery(row, deal)
   end
   row.purchaseToken = (row.purchaseToken or 0) + 1
   local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false }
+  -- Stop Live before registering or sending the authoritative Check. Init.lua dispatches the
+  -- scanner's throttle-ready hook first, so leaving it active even for this one turn lets it
+  -- consume the only slot and starve a parked Check until it falsely times out as Gone.
+  if GC.Sniper._pausedLiveRequery then
+    -- A replacement Check is already taking over a paused dialog session. Preserve the
+    -- original user's Live intent but hand ownership to the new immutable attempt.
+    GC.Sniper._pausedLiveRequery = attempt
+  elseif scanning then
+    stopScanning()
+    GC.Sniper._pausedLiveRequery = attempt
+  end
   row.purchaseStage = "requerying"
   row.purchaseDeal = nil
   activeItemID[itemID] = true
@@ -2029,15 +2059,20 @@ function GC.Sniper.OnBrowseResultsAdded()
   advanceBrowseScan(fullScanToken)
 end
 
--- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler with two independent jobs: (1) send whatever
--- browse step (the initial query, or the next page) startFullScan/advanceBrowseScan
--- deferred because the throttle system was busy; (2) flush the requery flow's deferred
--- searches. In fullscan mode the watchlist scanner isn't running (mode gates which one is
--- live), so flushing deferred requery searches here can't fight the scanner's own
--- throttle-gated send loop; the mode guard keeps watchlist mode entirely unaffected. Scan
--- traffic is serviced first (deterministic order), but the requery flush below always runs
--- regardless of which scan branch fired -- neither queue can starve the other.
+-- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
+-- the next slot before any optional browse traffic. The Check has already stopped Live in
+-- startRequery, so this works in watchlist mode without a scanner collision; returning after
+-- the send also prevents a full-scan browse request from stealing the same ready turn.
 function GC.Sniper.OnThrottleReady()
+  for itemID, attempt in pairs(pendingRequerySend) do
+    pendingRequerySend[itemID] = nil
+    if isCurrentRequeryAttempt(attempt) then
+      attempt.sent = true
+      driver.sendSearch(itemID)
+      return
+    end
+  end
+
   if pendingFullScanStart then
     pendingFullScanStart = false
     sendBrowseQuery(fullScanToken)
@@ -2046,15 +2081,6 @@ function GC.Sniper.OnThrottleReady()
     sendBrowsePage(fullScanToken)
   end
 
-  if mode ~= "fullscan" then return end
-  for itemID in pairs(pendingRequerySend) do
-    local attempt = pendingRequerySend[itemID]
-    pendingRequerySend[itemID] = nil
-    if isCurrentRequeryAttempt(attempt) then
-      attempt.sent = true
-      driver.sendSearch(itemID)
-    end
-  end
 end
 
 -- D: true while a Full Scan is paging (or queued to start) or any row has a purchase pinned
@@ -3158,6 +3184,7 @@ local function resetAllPurchases()
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
   for k in pairs(requeryDraining) do requeryDraining[k] = nil end
+  GC.Sniper._pausedLiveRequery = nil -- AH close must never revive a prior Live session
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
   -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the
   -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
@@ -3701,6 +3728,10 @@ local function createFrame()
   toggleBtn:SetScript("OnClick", function()
     if not GC.Sniper.scanner then
       f.status:SetText("Open the Auction House first.")
+      return
+    end
+    if GC.Sniper._pausedLiveRequery then
+      f.status:SetText("Live scan pauses while checking the selected listing.")
       return
     end
     if scanning then
