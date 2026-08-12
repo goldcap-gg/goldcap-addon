@@ -243,7 +243,19 @@ function GC.Ledger.ScanInbox(api, context, now)
 
     if readOk and entry then
       local _, isNew = GC.Ledger.Append(entry)
-      if isNew then created = created + 1 end
+      if isNew then
+        created = created + 1
+        -- F2 (personal sale rate): only on isNew, deliberately -- Append's repeat-key branch
+        -- (a Sale Pending invoice maturing into a paid one on a LATER scan of the SAME mail,
+        -- see Append's own comment above) UPDATES the stored row rather than appending a
+        -- second one; crediting a sale event on that update too would double-count one real
+        -- sale as two against GC.Data's postStats denominator. Guarded the same defensive way
+        -- GC.Ledger.Context above guards its own GC.Data reads -- this module has no
+        -- compile-time load-order guarantee that Core/Data.lua has already loaded.
+        if entry.kind == "sale" and GC.Data and GC.Data.RecordSaleEvent then
+          GC.Data.RecordSaleEvent(entry.itemName)
+        end
+      end
     end
   end
 

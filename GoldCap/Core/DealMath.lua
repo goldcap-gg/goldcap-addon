@@ -50,6 +50,11 @@ function GC.DealMath.Evaluate(live, value, cfg)
     auctionID = live.auctionID,
     unitPrice = live.unitPrice,
     qty = qty,
+    -- Fix 1: how much is really out there (a browse-scan's totalQuantity, or a commodity
+    -- book's summed level quantities) -- distinct from `qty`, which is only how much THIS
+    -- deal proposes to buy. nil whenever the caller has no such figure (plain watchlist
+    -- item snapshots never did, and still don't).
+    avail = live.avail,
     mv = value.mv,
     discount = discount,
     profit = profit,

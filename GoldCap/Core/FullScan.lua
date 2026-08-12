@@ -41,7 +41,7 @@ local function evaluateFrom(rows, first, getValue, cfg)
       local unitPrice = math.floor(row.buyoutStack / row.count)
       local deal = GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false, auctionID = nil,
-          unitPrice = unitPrice, qty = row.count },
+          unitPrice = unitPrice, qty = row.count, avail = row.avail },
         getValue(row.itemID), cfg)
       if deal then
         local existing = bestByItem[deal.itemID]
@@ -137,7 +137,14 @@ function GC.FullScan.RowsFromBrowse(results, getValue)
       local value = getValue(itemID) or {}
       local estQty = math.min(result.totalQuantity or 1, math.ceil(value.sold or 1), 200)
       if estQty < 1 then estQty = 1 end
-      rows[#rows + 1] = { itemID = itemID, count = estQty, buyoutStack = minPrice * estQty }
+      -- Fix 1 (honest quantity display): estQty above is a suggested FLIP size, capped well
+      -- below what's actually on the board -- rendering it bare as "x200" reads as the lot
+      -- size, when the market may really hold 1646. `avail` carries the true totalQuantity
+      -- through to the deal (see evaluateFrom below and DealMath.Evaluate) so the UI can show
+      -- "x200 of 1646" instead. nil-safe: a browse result with no totalQuantity at all (should
+      -- not happen given the itemID/minPrice guard above, but the field is not contractually
+      -- required) simply carries no avail, same as an item auction always has.
+      rows[#rows + 1] = { itemID = itemID, count = estQty, buyoutStack = minPrice * estQty, avail = result.totalQuantity }
     end
   end
   return rows
