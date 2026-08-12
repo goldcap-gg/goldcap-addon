@@ -256,6 +256,10 @@ local function isPositiveInteger(value)
   return type(value) == "number" and value > 0 and value == math.floor(value)
 end
 
+local function isNonNegativeInteger(value)
+  return type(value) == "number" and value >= 0 and value == math.floor(value)
+end
+
 local function isReasonsArray(reasons)
   if type(reasons) ~= "table" then return false end
   for i = 1, #reasons do
@@ -288,7 +292,7 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
       or not isPositiveInteger(purchase.stressUnit)
       or type(purchase.expectedProfit) ~= "number" or purchase.expectedProfit ~= math.floor(purchase.expectedProfit)
       or not isPositiveInteger(purchase.recommendedQuantity)
-      or not isPositiveInteger(purchase.sourceAt) then
+      or not isNonNegativeInteger(purchase.sourceAt) then
     return nil
   end
   now = now or time()

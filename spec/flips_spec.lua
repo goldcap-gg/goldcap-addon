@@ -54,6 +54,14 @@ describe("Data.Flips (Sniper v2 §D)", function()
       assert.equal(190000, flip.targetUnit)
     end)
 
+    it("records an upstream-valid zero source timestamp without losing exact cost", function()
+      local flip = GC.Data.RecordFlip({ itemID = 7 }, purchase({
+        itemID = 7, quantity = 2, total = 201, unitDisplay = 100, stressUnit = 190000, sourceAt = 0,
+      }), 0)
+      assert.equal(201, flip.paidTotal)
+      assert.same({ flip }, GC.Data.GetFlips(0))
+    end)
+
     it("returns nil for a direct call without immutable purchase facts", function()
       assert.is_nil(GC.Data.RecordFlip({ itemID = 999, qty = 1, unitPrice = 5000 }, nil, 100))
     end)

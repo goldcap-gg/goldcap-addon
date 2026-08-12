@@ -196,6 +196,14 @@ describe("Ledger store", function()
       assert.equal(4321, entry.sourceAt)
     end)
 
+    it("records an upstream-valid zero source timestamp without losing exact cost", function()
+      local entry = GC.Ledger.RecordSniperBuy({ itemID = 210930, mv = 25000 }, purchase({
+        quantity = 2, total = 201, unitDisplay = 100, recommendedQuantity = 2, sourceAt = 0,
+      }), context, 5000)
+      assert.equal(201, entry.total)
+      assert.equal(0, entry.sourceAt)
+    end)
+
     it("gives two buys of the same item at the same second distinct keys", function()
       local deal = { itemID = 210930, qty = 20, unitPrice = 12000, mv = 25000 }
       local facts = purchase({ quantity = 20, total = 240000, unitDisplay = 12000, recommendedQuantity = 20 })
