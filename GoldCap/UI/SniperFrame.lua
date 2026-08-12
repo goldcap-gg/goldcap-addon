@@ -169,6 +169,10 @@ local awaitingRequery = {}
 local awaitingKeyInfo = {}
 local pendingRequerySend = {}
 local requeryDraining = {}
+-- A row can be waiting only to consume an older untagged result (rather than waiting for a
+-- query of its own). Keep that wait as an exact attempt too, so a retained Live pause has a
+-- concrete lifecycle through the drain fence instead of being orphaned on the early return.
+GC.Sniper._drainWaitRequery = {}
 
 -- Task 8 hover pre-warm. Its OWN pending slot, deliberately separate from awaitingRequery
 -- above -- that table is row-keyed (a dialog is always open for whichever row it tracks) and
@@ -895,6 +899,13 @@ function GC.Sniper._ResumePausedLiveRequery(attempt)
   if GC.Sniper._pausedLiveRequery ~= attempt then return end
   GC.Sniper._pausedLiveRequery = nil
   if ahOpen and not scanning then startScanning() end
+end
+
+function GC.Sniper._FinishDrainWait(itemID, draining)
+  local wait = GC.Sniper._drainWaitRequery[itemID]
+  if not wait or wait.draining ~= draining then return end
+  GC.Sniper._drainWaitRequery[itemID] = nil
+  GC.Sniper._ResumePausedLiveRequery(wait)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1641,6 +1652,11 @@ local function abortRowPurchase(row, note, retainLivePause)
       pendingRequerySend[deal.itemID] = nil
       if attempt.sent then requeryDraining[deal.itemID] = attempt end
     else
+      local wait = GC.Sniper._drainWaitRequery[deal.itemID]
+      if wait and wait.row == row and wait.deal == deal then
+        requeryAttempt = wait
+        GC.Sniper._drainWaitRequery[deal.itemID] = nil
+      end
       awaitingKeyInfo[deal.itemID] = nil
       pendingRequerySend[deal.itemID] = nil
     end
@@ -1905,7 +1921,17 @@ end
 
 local function startRequery(row, deal)
   local itemID = deal.itemID
-  if requeryDraining[itemID] or awaitingRequery[itemID] then
+  local draining = requeryDraining[itemID]
+  if draining or awaitingRequery[itemID] then
+    -- A prior sent search for this item must drain before any new authoritative Check can
+    -- exist. Give only that drain case a distinct wait owner; the old result will clear ONLY
+    -- this wait, never arm this row or revive a newer Check.
+    if draining then
+      row.purchaseToken = (row.purchaseToken or 0) + 1
+      local wait = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, draining = draining }
+      GC.Sniper._drainWaitRequery[itemID] = wait
+      if GC.Sniper._pausedLiveRequery then GC.Sniper._pausedLiveRequery = wait end
+    end
     row.purchaseStage = "check"
     row.purchaseDeal = nil
     activeItemID[itemID] = nil
@@ -2118,7 +2144,9 @@ end
 -- doesn't match, regardless of what the other one does.
 function GC.Sniper.OnItemSearchResults(itemID)
   if requeryDraining[itemID] then
+    local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
+    GC.Sniper._FinishDrainWait(itemID, draining)
     return -- consume the old untagged result before any authoritative Check can restart
   end
   local attempt = awaitingRequery[itemID]
@@ -2140,7 +2168,9 @@ end
 
 function GC.Sniper.OnCommoditySearchResults(itemID)
   if requeryDraining[itemID] then
+    local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
+    GC.Sniper._FinishDrainWait(itemID, draining)
     return -- consume the old untagged result before any authoritative Check can restart
   end
   local attempt = awaitingRequery[itemID]
@@ -3188,6 +3218,7 @@ local function resetAllPurchases()
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
   for k in pairs(requeryDraining) do requeryDraining[k] = nil end
+  for k in pairs(GC.Sniper._drainWaitRequery) do GC.Sniper._drainWaitRequery[k] = nil end
   GC.Sniper._pausedLiveRequery = nil -- AH close must never revive a prior Live session
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
   -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the

@@ -1063,4 +1063,179 @@ describe("Sniper purchase wiring", function()
     _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
     _G.time = os.time
   end)
+
+  it("releases a transferred Live pause exactly once when B's drain fence clears", function()
+    -- Regression target: A→B keeps A's pause owner, but B can be blocked behind a previous
+    -- sent B result. The drain handler used to clear only the fence, leaving Live stranded.
+    local timers, liveSends = {}, 0
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    _G.C_AuctionHouse = {}
+    _G.GetMoney = function() return 1000000 end
+    _G.time = function() return 100 end
+    _G.GetTime = function() return 100 end
+    local GC = {
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 7 } end },
+      db = { settings = { sniper = {} } },
+      SniperDecision = { Evaluate = function() return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } } end },
+    }
+    helper.loadModule("Core/Scanner.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local startRequery = getUpvalue(openDialog, "startRequery")
+    setUpvalue(startRequery, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() error("B must not send before its old result drains") end,
+    })
+    setUpvalue(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    GC.Sniper.scanner = GC.Scanner.New({
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      now = function() return 100 end,
+      sendSearch = function() liveSends = liveSends + 1 end,
+      onStatus = function() end,
+    }, {})
+
+    local aDeal = { itemID = 42, isCommodity = true }
+    local aRow = { deal = aDeal, purchaseStage = "requerying", purchaseToken = 1 }
+    local aAttempt = { row = aRow, itemID = 42, token = 1, deal = aDeal, sent = false }
+    local oldB = { itemID = 43, token = 7, sent = true }
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery", { [42] = aAttempt })
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining", { [43] = oldB })
+    GC.Sniper._pausedLiveRequery = aAttempt
+    setUpvalue(onBuyClick, "dialog", { row = aRow, Hide = function() end })
+    setUpvalue(onBuyClick, "openDialog", function(row, deal)
+      setUpvalue(onBuyClick, "dialog", nil) -- bypass visual construction; exercise ownership only
+      startRequery(row, deal)
+    end)
+
+    local bRow = { deal = { itemID = 43, isCommodity = true } }
+    onBuyClick(bRow)
+    assert.equal("check", bRow.purchaseStage)
+    assert.equal(0, liveSends)
+
+    GC.Sniper.OnCommoditySearchResults(43)
+    assert.equal(1, liveSends)
+    GC.Sniper.OnCommoditySearchResults(43)
+    assert.equal(1, liveSends)
+    assert.equal("check", bRow.purchaseStage)
+
+    -- A late B drain cannot resume a newer Check's owner or treat it as B's result.
+    local newerOwner = { itemID = 99 }
+    local staleDrain = { itemID = 43, token = 8, sent = true }
+    GC.Sniper._pausedLiveRequery = newerOwner
+    GC.Sniper._drainWaitRequery[43] = {
+      row = bRow, itemID = 43, token = 2, deal = bRow.deal, draining = staleDrain,
+    }
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining", { [43] = staleDrain })
+    GC.Sniper.OnCommoditySearchResults(43)
+    assert.is_true(GC.Sniper._pausedLiveRequery == newerOwner)
+    assert.equal(1, liveSends)
+    assert.equal("check", bRow.purchaseStage)
+    _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
+    _G.time = os.time
+  end)
+
+  it("releases a transferred drain-wait owner when B is cancelled before its old result", function()
+    local timers, liveSends = {}, 0
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    _G.C_AuctionHouse = {}
+    _G.GetMoney = function() return 1000000 end
+    _G.time = function() return 100 end
+    _G.GetTime = function() return 100 end
+    local GC = {
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 7 } end },
+      db = { settings = { sniper = {} } },
+      SniperDecision = { Evaluate = function() return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } } end },
+    }
+    helper.loadModule("Core/Scanner.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local startRequery = getUpvalue(openDialog, "startRequery")
+    local createDialog = getUpvalue(openDialog, "createDialog")
+    local abortRowPurchase = getUpvalue(createDialog, "abortRowPurchase")
+    setUpvalue(startRequery, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() error("drain fence must still block B") end,
+    })
+    setUpvalue(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    GC.Sniper.scanner = GC.Scanner.New({
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      now = function() return 100 end,
+      sendSearch = function() liveSends = liveSends + 1 end,
+      onStatus = function() end,
+    }, {})
+
+    local aDeal = { itemID = 42, isCommodity = true }
+    local aRow = { deal = aDeal, purchaseStage = "requerying", purchaseToken = 1 }
+    local aAttempt = { row = aRow, itemID = 42, token = 1, deal = aDeal, sent = false }
+    local oldB = { itemID = 43, token = 7, sent = true }
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery", { [42] = aAttempt })
+    setUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining", { [43] = oldB })
+    GC.Sniper._pausedLiveRequery = aAttempt
+    setUpvalue(onBuyClick, "dialog", { row = aRow, Hide = function() end })
+    setUpvalue(onBuyClick, "openDialog", function(row, deal)
+      setUpvalue(onBuyClick, "dialog", nil)
+      startRequery(row, deal)
+    end)
+
+    local bRow = { deal = { itemID = 43, isCommodity = true } }
+    onBuyClick(bRow)
+    abortRowPurchase(bRow, nil)
+    assert.equal(1, liveSends)
+    GC.Sniper.OnCommoditySearchResults(43)
+    assert.equal(1, liveSends)
+    _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
+    _G.time = os.time
+  end)
 end)
