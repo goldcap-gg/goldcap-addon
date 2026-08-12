@@ -27,6 +27,12 @@ local ROW_WIDTH    -- from geometry (GC.Sell.Attach)
 local ICON_SIZE = 16
 local DASH = "—"
 
+-- Sell-tab upgrade: bounded book read, identical cap to SniperFrame.lua's own MAX_BOOK_LEVELS
+-- (that file's driver.commodityBook/itemCompetingUnit, ~line 47) -- a deep commodity book can
+-- run to thousands of levels and DepthBelow only ever needs enough to answer "how many units
+-- sit below MY price," not the entire book.
+local MAX_BOOK_LEVELS = 100
+
 local POST_DURATION = 2 -- 24h; C_AuctionHouse.PostItem/PostCommodity duration enum: 1=12h, 2=24h, 3=48h (verified against warcraft.wiki.gg)
 local POST_TIMEOUT_SECONDS = 8
 local QUOTE_STALE_SECONDS = 10 -- mirrors Core/Scanner.lua's own STALE_SECONDS for a pending search that never got an answer
@@ -51,7 +57,7 @@ local quoteIndex = 0
 local pendingQuote = nil       -- itemID awaiting its search-results event (nil = idle)
 local pendingQuoteSince = 0
 local awaitingKeyInfo = nil    -- itemID waiting on ITEM_KEY_ITEM_INFO_RECEIVED before its query can even be sent
-local quotes = {}              -- itemID -> last-quoted lowest unit price (session-only; survives an AH close, like Full Scan results do)
+local quotes = {}              -- itemID -> { unit = lowest unit price, levels = bounded book array or nil } (session-only; survives an AH close, like Full Scan results do)
 
 -- Owned-lots state (Task 9): C_AuctionHouse.QueryOwnedAuctions({})/GetOwnedAuctions() results,
 -- extracted to the {itemID, unitPrice, auctionID} shape GC.Flips.BuildRow expects. Queried on
@@ -121,6 +127,48 @@ local driver = {
     if not info then return nil end
     return info.unitPrice
   end,
+
+  -- Sell-tab upgrade ("how many units are listed BELOW my price"): reads ALREADY-FETCHED search
+  -- results only -- SendSearchQuery already ran (advanceQuote above), so this never issues a
+  -- second query and can't compete with anything else on the throttled message system. Mirrors
+  -- SniperFrame.lua's own driver.commodityBook exactly (same MAX_BOOK_LEVELS cap, same
+  -- {unitPrice, quantity} level shape) -- see that file's ~701-724 for the reference idiom this
+  -- was copied from.
+  commodityBook = function(itemID)
+    local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
+    if not n or n <= 0 then return nil end
+    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    local levels = {}
+    for i = 1, n do
+      local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
+      if info and info.unitPrice then
+        levels[#levels + 1] = { unitPrice = info.unitPrice, quantity = info.quantity or 0 }
+      end
+    end
+    if #levels == 0 then return nil end
+    return levels
+  end,
+
+  -- Item-side counterpart to commodityBook above. info.buyoutAmount is the TOTAL price for the
+  -- whole lot (see itemResult's own comment) -- divide down to a per-unit price per level, same
+  -- as SniperFrame.lua's driver.itemCompetingUnit does when it walks this same result set.
+  -- Zero/absent buyouts (a bid-only listing with no instant buyout) are skipped -- DepthBelow
+  -- has no honest unit price to compare those against.
+  itemBook = function(itemID)
+    local key = C_AuctionHouse.MakeItemKey(itemID)
+    local n = C_AuctionHouse.GetNumItemSearchResults(key)
+    if not n or n <= 0 then return nil end
+    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    local levels = {}
+    for i = 1, n do
+      local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
+      if info and info.buyoutAmount and info.buyoutAmount > 0 and info.quantity and info.quantity > 0 then
+        levels[#levels + 1] = { unitPrice = math.floor(info.buyoutAmount / info.quantity), quantity = info.quantity }
+      end
+    end
+    if #levels == 0 then return nil end
+    return levels
+  end,
 }
 
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- mirrors SniperFrame.lua's formatColumnAmount
@@ -140,6 +188,47 @@ local function formatProfitText(copper)
   if copper == nil then return DASH end
   if copper < 0 then return "-" .. formatAmount(-copper) end
   return formatAmount(copper)
+end
+
+-- Sell-tab upgrade: the combined "queue" column's ETA half. Only FAST ("<1d") and STALL (">7d")
+-- get a fixed bound -- OK/SLOW show a rounded day count ("~Nd", round-half-up) since those tiers
+-- span a real range (1-3 / 3-7 days) that a single fixed label would misrepresent. nil (not a
+-- placeholder string) when there's no outlook to describe -- formatQueueText below is what
+-- decides how a nil renders.
+local function etaText(outlook)
+  if not outlook then return nil end
+  if outlook.tier == "FAST" then return "<1d" end
+  if outlook.tier == "STALL" then return ">7d" end
+  return ("~%dd"):format(math.floor(outlook.days + 0.5))
+end
+
+-- The "ahead" half: a bare unit count under 1000, "%.1fk" thousands compaction above it (mirrors
+-- formatAmount's own GOLD_COMPACT_THRESHOLD idea, just for a unit count instead of copper).
+local function compactUnits(n)
+  if n == nil then return nil end
+  if n >= 1000 then
+    return ("%.1fk"):format(n / 1000)
+  end
+  return tostring(n)
+end
+
+-- Combines both halves into the one "234·~2d" / "0·<1d" string the queue column actually shows
+-- -- a middle dot, no spaces (this column is only 76px wide). A wholly-unknown queue (neither
+-- half known) collapses to a single DASH rather than "—·—", which would just read as noise.
+local function formatQueueText(ahead, outlook)
+  local aheadPart, etaPart = compactUnits(ahead), etaText(outlook)
+  if not aheadPart and not etaPart then return DASH end
+  return (aheadPart or DASH) .. "\194\183" .. (etaPart or DASH) -- U+00B7 MIDDLE DOT
+end
+
+local QUEUE_TIER_COLOR = { FAST = "green", OK = "gold", SLOW = "fgDim", STALL = "red" }
+
+-- The whole queue cell is colored by outlook TIER, not by the ahead count -- ahead alone (e.g.
+-- "1.6k units cheaper") says nothing about whether THIS item still sells fast at that price;
+-- outlook is the one number that actually answers "should I worry."
+local function queueColor(outlook)
+  local key = outlook and QUEUE_TIER_COLOR[outlook.tier]
+  return Theme.color[key or "fgDim"]
 end
 
 local function setStatus(text)
@@ -178,12 +267,22 @@ local function findBagSlot(itemID)
   return nil
 end
 
-local function uniqueFlipItemIDs()
+-- Sell-tab upgrade: quotes the UNION of flip itemIDs and currently-known owned-lot itemIDs --
+-- previously flip-only, which meant "Refresh prices" could never populate marketUnit/ahead/
+-- outlook for an orphan row (a lot posted outside GoldCap has no flip record to have been
+-- included via the old flip-only loop), defeating half the point of even showing it.
+local function uniqueQuoteItemIDs()
   local seen, ids = {}, {}
   for _, flip in ipairs(GC.Data.GetFlips()) do
     if not seen[flip.itemID] then
       seen[flip.itemID] = true
       ids[#ids + 1] = flip.itemID
+    end
+  end
+  for _, lot in ipairs(ownedLots) do
+    if not seen[lot.itemID] then
+      seen[lot.itemID] = true
+      ids[#ids + 1] = lot.itemID
     end
   end
   return ids
@@ -310,9 +409,9 @@ local function onRefreshPricesClick()
     setStatus("already refreshing prices...")
     return
   end
-  local ids = uniqueFlipItemIDs()
+  local ids = uniqueQuoteItemIDs()
   if #ids == 0 then
-    setStatus("no flips to quote")
+    setStatus("nothing to quote -- no flips or listed items")
     return
   end
   quoteQueue = ids
@@ -350,7 +449,15 @@ function GC.Sell.OnItemSearchResults(itemID)
   if itemID ~= pendingQuote then return end -- e.g. the watchlist scanner's or the buy-requery's own search; not ours
   pendingQuote = nil
   local price = driver.itemResult(itemID)
-  if price then quotes[itemID] = price end
+  -- Sell-tab upgrade: quotes[itemID] is now { unit, levels } instead of a bare number -- `unit`
+  -- keeps every existing consumer (marketUnit, onPostClick's undercut math) working unchanged;
+  -- `levels` is the bounded book read (driver.itemBook), feeding GC.Flips.DepthBelow's "how many
+  -- units are cheaper than mine" figure. Read unconditionally on ANY level-1 price (even nil --
+  -- itemBook is independent of itemResult's own zero/absent-buyout guard), since a book can
+  -- still be informative even when itemResult itself found nothing usable at level 1.
+  if price then
+    quotes[itemID] = { unit = price, levels = driver.itemBook(itemID) }
+  end
   GC.Sell.Refresh()
   advanceQuote()
 end
@@ -359,7 +466,9 @@ function GC.Sell.OnCommoditySearchResults(itemID)
   if itemID ~= pendingQuote then return end
   pendingQuote = nil
   local price = driver.commodityResult(itemID)
-  if price then quotes[itemID] = price end
+  if price then
+    quotes[itemID] = { unit = price, levels = driver.commodityBook(itemID) }
+  end
   GC.Sell.Refresh()
   advanceQuote()
 end
@@ -437,8 +546,19 @@ local function onPostClick(row)
     return
   end
 
+  -- Cross-reference (design update): this expression is intentionally duplicated rather than
+  -- routed through GC.Flips.RecommendPost -- it's compliance-critical (see the file header's
+  -- "KEPT UNCHANGED" list), so the actual C_AuctionHouse.PostItem/PostCommodity call stays a
+  -- self-contained, auditable expression. It must independently compute to the SAME number
+  -- RecommendPost derives for the row tooltip (createRow's OnEnter, below): RecommendPost's own
+  -- quote-present branch is `max(1, marketUnit - 1)`, identical to this quote-present branch.
+  -- In the NO-quote branch, the tooltip is deliberately fed THIS SAME flip.targetUnit as
+  -- RecommendPost's `mv` argument (not a second, independently-fresh GC.Data.GetItemValue read)
+  -- for exactly this reason -- the two numbers must never visibly disagree. If either expression
+  -- changes, check the other.
   local quote = quotes[flip.itemID]
-  local recommended = quote and math.max(1, quote - 1) or flip.targetUnit
+  local quoteUnit = quote and quote.unit
+  local recommended = quoteUnit and math.max(1, quoteUnit - 1) or flip.targetUnit
   -- The AH only accepts whole-silver prices (no copper digit) -- non-zero copper silently
   -- fails the post (verified via warcraft.wiki.gg) -- so round DOWN before the actual API
   -- call, floored at 1 silver.
@@ -673,45 +793,61 @@ local function onRemoveClick(row)
 end
 
 -- ---------------------------------------------------------------------------
--- Task 9 columns: item(flex) | bought | listed | market | profit | status chip | action | remove.
--- Same COLUMNS-table + anchor-chain idiom as UI/SniperFrame.lua's T5 Deals grid (buildRowCell/
--- anchorColumns there). `remove` is LAST in this array on purpose -- anchorColumns walks
--- COLUMNS back-to-front, so the last fixed entry lands flush against the row's own right edge,
--- i.e. visually furthest right.
+-- Task 9 columns: item(flex) | bought | listed | market | queue | profit | status chip | action
+-- | remove. Same COLUMNS-table + anchor-chain idiom as UI/SniperFrame.lua's T5 Deals grid
+-- (buildRowCell/anchorColumns there). `remove` is LAST in this array on purpose -- anchorColumns
+-- walks COLUMNS back-to-front, so the last fixed entry lands flush against the row's own right
+-- edge, i.e. visually furthest right.
 --
--- fix round 1 (I8): bought/listed/market shrank 76->64px each, and `optional = true` (bought,
--- then market) now ports SniperFrame.lua's OWN computeHidden responsive-drop mechanism -- the
--- grid genuinely didn't fit before this (item-name zone was well under 150px at the DEFAULT
--- 640 window width, not just at the resize floor). Both are individually recoverable without
--- losing information: `bought` still drives the ledger/profit math and shows in the row
--- tooltip when hidden (see createRow's OnEnter below); `market` is one Refresh-prices click
--- away from being re-quoted, also shown in the tooltip when hidden.
+-- Design update (direct player feedback, replacing fix round 1's I8 layout below): "цену всегда
+-- надо знать за сколько мы купили" -- `bought` must NEVER responsive-drop; a player reading this
+-- table needs "what did I pay" on screen at all times, not one tooltip-hover away. So `bought`
+-- lost its `optional` flag entirely -- `market` is now the ONLY responsive-drop column (still
+-- one Refresh-prices click away from being re-quoted, and shown in the row tooltip when hidden,
+-- same as before). `queue` (new: "how many units are listed below my price, and will it sell")
+-- is a single combined column rather than two separate ones -- see formatQueueText/queueColor
+-- above for why: at this window's width there simply isn't room for a 5th always-visible numeric
+-- column, and "234 · ~2d" reads as one fact (competition + ETA) anyway, not two.
 --
--- Final fix wave (item 1): this is now a LIVE re-flow, same as Sniper's Deals grid -- rows
--- anchor TOPLEFT+TOPRIGHT into `content` (not a fixed ROW_WIDTH pin), and `f` (the Sniper
--- window frame passed into GC.Sell.Attach) is hooked with an OnSizeChanged that resizes
--- `content`, recomputes hiddenColumns, and re-runs layoutRow/layoutHeaderRow. This genuinely
--- mirrors SniperFrame.lua's own f:SetScript("OnSizeChanged", ...) + applyColumnVisibility now:
--- the observed frame is `f` itself, NOT `container` -- `container` is Hidden whenever the Deals
--- tab is active (see setView), which is exactly the failure mode SniperFrame.lua's own
--- ~2952-2959 comment documents dodging by observing `f` instead of the (sometimes-hidden)
--- `scroll` ScrollFrame. GC.Sell.Attach uses f:HookScript (additive), not f:SetScript, so this
--- never clobbers SniperFrame.lua's own OnSizeChanged handler on the same frame -- both run.
--- ROW_WIDTH (from geometry.rowWidth) now only seeds the INITIAL hiddenColumns/content-width
--- before the first resize event, not a permanent snapshot.
+-- Arithmetic (mirrors the old I8 comment's own show-your-work style): SniperFrame.lua's
+-- FRAME_WIDTH=640, CONTENT_LEFT=Theme.pad.m=12, CONTENT_RIGHT_GUTTER=32 -> the DEFAULT content
+-- width (geometry.rowWidth) is 640-12-32 = 596px. The seven ALWAYS-visible fixed columns
+-- (bought+listed+queue+profit+status+action+remove = 60+60+76+64+72+60+18 = 410) plus one
+-- Theme.pad.s(8) gap per visible fixed column (7*8=56) sum to a 466px budget, leaving the item
+-- flex zone exactly 596-466 = 130px -- hence COLUMNS.item.min dropping from 150 to 130 below
+-- (names ellipsize instead of clipping mid-glyph past that, and the row tooltip always carries
+-- the item's full, unellipsized name). With `market` also shown (+60w, +1 more pad gap = +68 to
+-- the budget), the item zone would fall to 596-534 = 62px -- well under the 130px floor -- which
+-- is exactly why DROP_THRESHOLDS below is set to 130: `market` auto-hides at the DEFAULT window
+-- width, same net effect as fix round 1's I8 (which dropped BOTH bought and market at 640px),
+-- just achieved with `bought` now permanently pinned instead.
+--
+-- Final fix wave (item 1): this is a LIVE re-flow, same as Sniper's Deals grid -- rows anchor
+-- TOPLEFT+TOPRIGHT into `content` (not a fixed ROW_WIDTH pin), and `f` (the Sniper window frame
+-- passed into GC.Sell.Attach) is hooked with an OnSizeChanged that resizes `content`, recomputes
+-- hiddenColumns, and re-runs layoutRow/layoutHeaderRow. This genuinely mirrors SniperFrame.lua's
+-- own f:SetScript("OnSizeChanged", ...) + applyColumnVisibility now: the observed frame is `f`
+-- itself, NOT `container` -- `container` is Hidden whenever the Deals tab is active (see
+-- setView), which is exactly the failure mode SniperFrame.lua's own ~2952-2959 comment documents
+-- dodging by observing `f` instead of the (sometimes-hidden) `scroll` ScrollFrame. GC.Sell.Attach
+-- uses f:HookScript (additive), not f:SetScript, so this never clobbers SniperFrame.lua's own
+-- OnSizeChanged handler on the same frame -- both run. ROW_WIDTH (from geometry.rowWidth) now
+-- only seeds the INITIAL hiddenColumns/content-width before the first resize event, not a
+-- permanent snapshot.
 -- ---------------------------------------------------------------------------
 local COLUMNS = {
-  { key = "item",   flex = true, min = 150 },
-  { key = "bought", w = 64, num = true, size = 12, optional = true },
-  { key = "listed", w = 64, num = true, size = 12 },
-  { key = "market", w = 64, num = true, size = 12, optional = true },
-  { key = "profit", w = 84, num = true, size = 13, bold = true },
-  { key = "status", w = 88 },
-  { key = "action", w = 64 },
-  { key = "remove", w = 20 },
+  { key = "item",   flex = true, min = 130 },
+  { key = "bought", w = 60, num = true, size = 12 },
+  { key = "listed", w = 60, num = true, size = 12 },
+  { key = "market", w = 60, num = true, size = 12, optional = true },
+  { key = "queue",  w = 76, num = true, size = 11 },
+  { key = "profit", w = 64, num = true, size = 13, bold = true },
+  { key = "status", w = 72 },
+  { key = "action", w = 60 },
+  { key = "remove", w = 18 },
 }
 
-local NUM_FIELD = { bought = "boughtText", listed = "listedText", market = "marketText", profit = "profitText" }
+local NUM_FIELD = { bought = "boughtText", listed = "listedText", market = "marketText", queue = "queueText", profit = "profitText" }
 
 local STATUS_STYLE = {
   UNLISTED     = { label = "UNLISTED",     color = "gold" },
@@ -752,13 +888,17 @@ local function anchorColumns(rowContainer, hidden, cellFor)
   return flexAnchor
 end
 
--- fix round 1 (I8): ported from SniperFrame.lua's own OPTIONAL_KEYS/DROP_THRESHOLDS/
--- fixedColumnBudget/computeHidden (same data-driven-off-COLUMNS approach, same drop-priority-is-
--- table-order rule) -- see that file's own comments for the full reasoning. First computed here
--- in GC.Sell.Attach, before any row exists, from geometry.rowWidth's initial snapshot -- kept
--- current after that by `f`'s own OnSizeChanged hook (final fix wave, item 1; see that comment
--- block above), same as SniperFrame.lua's own hiddenColumns.
-local OPTIONAL_KEYS, DROP_THRESHOLDS = {}, { 150, 120 }
+-- fix round 1 (I8), narrowed by the design update above: ported from SniperFrame.lua's own
+-- OPTIONAL_KEYS/DROP_THRESHOLDS/fixedColumnBudget/computeHidden (same data-driven-off-COLUMNS
+-- approach, same drop-priority-is-table-order rule) -- see that file's own comments for the full
+-- reasoning. `market` is now the only entry in OPTIONAL_KEYS (bought no longer opts in), so
+-- DROP_THRESHOLDS is a single value -- chosen to equal COLUMNS.item.min itself (130): the rule
+-- is simply "hide market the moment keeping it would push the item zone below its own floor,"
+-- which is exactly the arithmetic worked out in the COLUMNS comment block above. First computed
+-- here in GC.Sell.Attach, before any row exists, from geometry.rowWidth's initial snapshot --
+-- kept current after that by `f`'s own OnSizeChanged hook (final fix wave, item 1; see that
+-- comment block above), same as SniperFrame.lua's own hiddenColumns.
+local OPTIONAL_KEYS, DROP_THRESHOLDS = {}, { 130 }
 for _, col in ipairs(COLUMNS) do
   if col.optional then OPTIONAL_KEYS[#OPTIONAL_KEYS + 1] = col.key end
 end
@@ -858,15 +998,43 @@ local function layoutRow(row)
   row.nameText:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
 end
 
+-- Design update: a dim, quality-color-INDEPENDENT suffix after the item name -- its own color
+-- code (mirrors SniperFrame.lua's own qtySuffix idiom exactly) so it never inherits whatever
+-- quality tint the name itself got wrapped in. A flip row is one PURCHASE BATCH (its own
+-- paidUnit) -- per direct player feedback, a player thinks in "150 @ 10g, 200 @ 10.2g," so two
+-- flip rows for the same item need to read as two distinct batches at a glance, not a single
+-- blob. Silent (no suffix) for qty<=1 -- nothing to disambiguate for a one-off purchase.
+local function flipQtySuffix(qty)
+  if qty and qty > 1 then
+    return ("|cffaaaaaa \195\151%d|r"):format(qty) -- U+00D7 MULTIPLICATION SIGN
+  end
+  return ""
+end
+
+-- Orphan counterpart: an aggregate can span several separate lots (GC.Flips.OrphanLotRows sums
+-- them), so this names BOTH the total unit count and how many lots it's spread across --
+-- "×340 (3 lots)" -- since seeing only the qty would leave a player wondering why one itemID's
+-- listedUnit doesn't match every unit they can see in the AH.
+local function orphanQtySuffix(o)
+  if o.lotCount > 1 or o.qty > 1 then
+    return ("|cffaaaaaa \195\151%d (%d lot%s)|r"):format(o.qty, o.lotCount, o.lotCount == 1 and "" or "s")
+  end
+  return ""
+end
+
 -- ---------------------------------------------------------------------------
 -- Stamps every widget in `row` from a (possibly reused) flip + its pre-computed flipRow
 -- (GC.Flips.BuildRow's own return shape) -- mirrors SniperFrame.lua's setRowDeal, including the
 -- async icon/name load's identity guard (`row.flip ~= flip`, same reason as setRowDeal's
--- `row.deal ~= deal`).
+-- `row.deal ~= deal`). `stats` is GC.Data.GetItemValue(flip.itemID) (or nil), threaded through
+-- purely so the row tooltip (createRow's OnEnter) can show Sold/day + feed RecommendPost without
+-- re-deriving it itself.
 -- ---------------------------------------------------------------------------
-local function setRowFlip(row, flip, flipRow)
+local function setRowFlip(row, flip, flipRow, stats)
   row.flip = flip
+  row.orphan = nil -- clears any prior orphan identity this pooled row may have carried (see setRowOrphan) -- orphan-flag guard so the two row kinds can never be confused
   row.flipRow = flipRow -- I8: kept for the row tooltip to show any column hidden by the responsive drop
+  row.stats = stats
   row.status = flipRow.status
   row.postStage = nil
   row.pendingPost = nil
@@ -892,6 +1060,9 @@ local function setRowFlip(row, flip, flipRow)
     row.marketText:SetText(DASH)
   end
 
+  row.queueText:SetText(formatQueueText(flipRow.ahead, flipRow.outlook))
+  setColor(row.queueText, queueColor(flipRow.outlook))
+
   row.profitText:SetText(formatProfitText(flipRow.profit))
   if flipRow.profit == nil then
     setColor(row.profitText, Theme.color.fgDim)
@@ -916,6 +1087,7 @@ local function setRowFlip(row, flip, flipRow)
   row.actionCell:Show()
   row.cancelBtn:Hide()
   row.actionBtn:Show()
+  row.removeBtn:Show() -- restores visibility a prior orphan render (setRowOrphan) may have hidden
   if flipRow.status == "UNDERCUT" then
     row.actionBtn:SetLabel("Repost")
     row.actionBtn:Enable()
@@ -924,7 +1096,7 @@ local function setRowFlip(row, flip, flipRow)
     if countInBags(flip.itemID) > 0 then row.actionBtn:Enable() else row.actionBtn:Disable() end
   end
 
-  row.nameText:SetText(("item %d"):format(flip.itemID))
+  row.nameText:SetText(("item %d"):format(flip.itemID) .. flipQtySuffix(flip.qty))
   row.icon:SetTexture(nil)
   local item = Item:CreateFromItemID(flip.itemID)
   item:ContinueOnItemLoad(function()
@@ -934,11 +1106,76 @@ local function setRowFlip(row, flip, flipRow)
     local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
     local realName = item:GetItemName()
     local label = realName or ("item " .. flip.itemID)
-    row.nameText:SetText(qc and qc:WrapTextInColorCode(label) or label)
+    row.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. flipQtySuffix(flip.qty))
     -- Minor (fix round 1): only cache a REAL name -- the "item <id>" placeholder above is a
     -- display fallback, never a name GC.Flips.SalesForItem could match against a real ledger
     -- sale entry, so caching it would just poison itemNames with a string that can never hit.
     if realName then itemNames[flip.itemID] = realName end
+  end)
+
+  row:Show()
+end
+
+-- ---------------------------------------------------------------------------
+-- Sell-tab upgrade: the read-only counterpart to setRowFlip above, for a lot posted OUTSIDE
+-- GoldCap (GC.Flips.OrphanLotRows + EnrichOrphanRow's own return shape, `o` below). No flip
+-- record exists to derive a cost basis, post, repost, or remove against -- `row.flip` is left
+-- nil (so postingRow/repostingRow/onPostClick/onRepostClick/onRemoveClick's own `if not flip
+-- then return end` guards all no-op harmlessly if somehow reached) and `row.orphan = o` is the
+-- identity this row kind is tracked by instead, checked by createRow's OnEnter and by
+-- setRowFlip's own reset above.
+-- ---------------------------------------------------------------------------
+local function setRowOrphan(row, o, stats)
+  row.flip = nil
+  row.flipRow = nil
+  row.orphan = o
+  row.stats = stats
+  row.status = o.status
+  row.postStage = nil
+  row.pendingPost = nil
+  row.repostStage = nil
+  row.cancelAuctionID = nil
+
+  setColor(row.boughtText, Theme.color.fgDim)
+  row.boughtText:SetText(DASH)
+
+  setColor(row.listedText, Theme.color.fg)
+  row.listedText:SetText(formatAmount(o.listedUnit))
+
+  if o.marketUnit then
+    setColor(row.marketText, Theme.color.fg)
+    row.marketText:SetText(formatAmount(o.marketUnit))
+  else
+    setColor(row.marketText, Theme.color.fgDim)
+    row.marketText:SetText(DASH)
+  end
+
+  row.queueText:SetText(formatQueueText(o.ahead, o.outlook))
+  setColor(row.queueText, queueColor(o.outlook))
+
+  setColor(row.profitText, Theme.color.fgDim)
+  row.profitText:SetText(DASH)
+
+  local style = STATUS_STYLE[o.status] or STATUS_STYLE.LISTED
+  row.statusChip:SetLabel(style.label, Theme.color[style.color])
+
+  -- Orphan v1 scope: no flip record to post/repost against, and cancelling an arbitrary lot the
+  -- addon never posted is out of scope for v1 -- HIDE (not disable) both the action cell and the
+  -- remove button, so the row never implies an action that would silently do nothing.
+  row.actionCell:Hide()
+  row.removeBtn:Hide()
+
+  row.nameText:SetText(("item %d"):format(o.itemID) .. orphanQtySuffix(o))
+  row.icon:SetTexture(nil)
+  local item = Item:CreateFromItemID(o.itemID)
+  item:ContinueOnItemLoad(function()
+    if row.orphan ~= o then return end -- row was repurposed before the async load finished
+    row.icon:SetTexture(item:GetItemIcon())
+    local quality = item:GetItemQuality()
+    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+    local realName = item:GetItemName()
+    local label = realName or ("item " .. o.itemID)
+    row.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. orphanQtySuffix(o))
   end)
 
   row:Show()
@@ -985,25 +1222,69 @@ local function createRow(parent, index)
   layoutRow(row)
 
   -- Whole-row hover: item GameTooltip + highlight, same pattern as SniperFrame.lua's deal rows.
-  -- I8: when the responsive drop has hidden `bought`/`market`, their values are appended here
-  -- instead of just vanishing -- nothing the grid can't fit is actually lost, only a
-  -- glance-at-the-list convenience (same "stays reachable elsewhere" principle SniperFrame.lua's
-  -- own optional columns follow, there via the buy dialog's price grid).
+  -- I8/design update: `market` is the only column left that can responsive-drop (`bought` is
+  -- now always on-screen, so its own former dead-column-value fallback line is gone) -- its
+  -- value is appended here instead of just vanishing when hidden, same "stays reachable
+  -- elsewhere" principle SniperFrame.lua's own optional columns follow. Everything below that
+  -- (batch size, ahead, sold/day, ETA, recommended post) is new -- the queue column's 76px only
+  -- fits a compact "234·~2d" summary, so the full breakdown lives here.
   row:EnableMouse(true)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
-    if not self.flip then return end
+    local itemID = self.flip and self.flip.itemID or (self.orphan and self.orphan.itemID)
+    if not itemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetItemByID(self.flip.itemID)
-    local fr = self.flipRow
+    GameTooltip:SetItemByID(itemID)
+
+    if self.flip then
+      GameTooltip:AddLine(("This batch: %d @ %s each"):format(self.flip.qty, formatAmount(self.flip.paidUnit)), 1, 1, 1)
+    end
+
+    -- fr: whichever row-shape this widget is currently showing (BuildRow's flipRow or
+    -- EnrichOrphanRow's enriched orphan) -- both carry marketUnit/ahead/outlook in the same
+    -- field names, so the rest of this tooltip doesn't need to branch on row kind at all.
+    local fr = self.flipRow or self.orphan
     if fr then
-      if hiddenColumns.bought then
-        GameTooltip:AddLine(("Bought: %s"):format(formatAmount(fr.boughtUnit)), 1, 1, 1)
-      end
       if hiddenColumns.market then
         GameTooltip:AddLine(("Market: %s"):format(fr.marketUnit and formatAmount(fr.marketUnit) or DASH), 1, 1, 1)
       end
+      if fr.ahead ~= nil then
+        GameTooltip:AddLine(("Ahead: %d unit%s cheaper"):format(fr.ahead, fr.ahead == 1 and "" or "s"), 1, 1, 1)
+      end
+      if fr.outlook then
+        GameTooltip:AddLine(("Est. time to sell: ~%dd (queue / daily volume)"):format(math.floor(fr.outlook.days + 0.5)), 1, 1, 1)
+      end
     end
+
+    if self.stats and self.stats.sold then
+      -- "%.1f", not tostring -- matches UI/Tooltip.lua's own "Sold per day" line and
+      -- SniperFrame.lua's buy-dialog soldText, both of which format value.sold the same way.
+      local trendPart = self.stats.trend and (" \194\183 trend %+d%%"):format(self.stats.trend) or ""
+      GameTooltip:AddLine(("Sold/day: %.1f%s"):format(self.stats.sold, trendPart), 1, 1, 1)
+    end
+
+    if self.orphan then
+      GameTooltip:AddLine("posted outside GoldCap -- no cost basis", 1, 0.6, 0.6)
+    end
+
+    -- Design update: "Recommended post" -- flip rows only (see GC.Flips.RecommendPost's own
+    -- comment for why orphans, with no paidUnit, are skipped here). Cross-reference: the `mv`
+    -- argument fed here is `self.flip.targetUnit`, NOT a fresh GC.Data.GetItemValue re-read --
+    -- see onPostClick's own matching cross-reference comment for why that's required for this
+    -- number to never visibly disagree with what a Post click would actually post at.
+    if self.flip then
+      local marketUnit = fr and fr.marketUnit
+      local recommend = GC.Flips.RecommendPost(self.flip.paidUnit, marketUnit, self.flip.targetUnit)
+      if recommend then
+        local why = marketUnit and "1c under ask" or "your recorded target"
+        GameTooltip:AddLine(("Recommended post: %s (%s) \194\183 breakeven %s"):format(
+          formatAmount(recommend.unit), why, recommend.breakeven and formatAmount(recommend.breakeven) or DASH), 1, 1, 1)
+        if recommend.belowCost then
+          GameTooltip:AddLine("market is below your breakeven -- selling now locks a loss", 1, 0.3, 0.3)
+        end
+      end
+    end
+
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
@@ -1019,7 +1300,7 @@ end
 -- Summary strip + pending-sync hint (Task 9 Steps 4/4b).
 -- ---------------------------------------------------------------------------
 
-local function updateSummary(allRows)
+local function updateSummary(allRows, orphanCount)
   if not container or not container.summary then return end
   local s = GC.Flips.Summary(allRows)
 
@@ -1034,13 +1315,19 @@ local function updateSummary(allRows)
   -- T4 review note: projected/profit only fold in rows with a known profit while invested
   -- counts every row -- when some rows have no owned lot AND no fresh quote, the three numbers
   -- would otherwise read as silently contradictory (invested > projected for no visible
-  -- reason). This dim suffix makes the gap legible instead.
+  -- reason). This dim suffix makes the gap legible instead. Sell-tab upgrade: a second clause
+  -- (`orphanCount`, the number of GC.Flips.OrphanLotRows entries -- always excluded from `s`
+  -- itself by GC.Flips.Summary's own boughtUnit==nil guard) rides the same suffix line, since
+  -- both are "here's gold-adjacent stuff INVESTED doesn't (and can't) account for."
   local unpriced = 0
   for _, r in ipairs(allRows) do
     if r.profit == nil then unpriced = unpriced + 1 end
   end
-  if unpriced > 0 then
-    container.summary.profitSuffix:SetText(("· %d unpriced"):format(unpriced))
+  local parts = {}
+  if unpriced > 0 then parts[#parts + 1] = ("%d unpriced"):format(unpriced) end
+  if orphanCount and orphanCount > 0 then parts[#parts + 1] = ("%d listed outside"):format(orphanCount) end
+  if #parts > 0 then
+    container.summary.profitSuffix:SetText("· " .. table.concat(parts, " \194\183 "))
     container.summary.profitSuffix:Show()
   else
     container.summary.profitSuffix:Hide()
@@ -1066,6 +1353,14 @@ end
 -- a row mid-Post (postingRow) or mid-Repost (repostingRow) is left untouched instead of being
 -- reassigned out from under an in-flight click sequence; both pinned flips are excluded from
 -- the pool the same way sortedDeals() excludes an active purchase there.
+--
+-- Sell-tab upgrade: after the ordinary flip rows, GC.Flips.OrphanLotRows(ownedLots, flips) +
+-- EnrichOrphanRow build a SECOND row kind for lots posted outside GoldCap entirely (see that
+-- pair's own comments in Core/Flips.lua). They're appended to the SAME pooled `list` the flip
+-- rows populate -- the orphan-flag check (`entry.orphan`) below is what routes each pooled row
+-- to setRowFlip vs setRowOrphan; a real flip table (from GC.Data.GetFlips()) never carries an
+-- `.orphan` field, so the two row kinds can never be confused with each other even though they
+-- share one pool.
 -- ---------------------------------------------------------------------------
 local function renderRows()
   if not container then return end
@@ -1076,7 +1371,7 @@ local function renderRows()
   -- private `db` upvalue are always the same table reference.
   local entries = GC.Ledger and GC.Ledger.GetEntries() or {}
 
-  local allRows, rowByFlip = {}, {}
+  local allRows, rowByFlip, statsByFlip = {}, {}, {}
   for _, f in ipairs(flips) do
     local name = resolveItemName(f.itemID)
     local quote = quotes[f.itemID]
@@ -1089,12 +1384,27 @@ local function renderRows()
     -- when neither an owned lot nor a fresh quote exists yet. A freshly-bought, never-quoted,
     -- never-posted flip legitimately shows profit "—" rather than a guessed number; the amended
     -- spec (§5) blesses this as the intended behavior, not a gap to fill in here.
-    local flipRow = GC.Flips.BuildRow(f, ownedLots, quote and { unit = quote } or nil, sales)
+    -- Sell-tab upgrade: `quote` is passed straight through (already { unit, levels } or nil --
+    -- see GC.Sell.OnItemSearchResults/OnCommoditySearchResults above), and GC.Data.GetItemValue
+    -- is looked up once here (`stats`) and threaded to both BuildRow (ahead/outlook) and
+    -- setRowFlip (the row tooltip's Sold/day line + RecommendPost's mv fallback).
+    local stats = GC.Data.GetItemValue(f.itemID)
+    local flipRow = GC.Flips.BuildRow(f, ownedLots, quote, sales, stats)
     allRows[#allRows + 1] = flipRow
     rowByFlip[f] = flipRow
+    statsByFlip[f] = stats
   end
 
-  updateSummary(allRows)
+  local orphanRows, statsByOrphan = {}, {}
+  for _, o in ipairs(GC.Flips.OrphanLotRows(ownedLots, flips)) do
+    local quote = quotes[o.itemID]
+    local stats = GC.Data.GetItemValue(o.itemID)
+    local enriched = GC.Flips.EnrichOrphanRow(o, quote, stats)
+    orphanRows[#orphanRows + 1] = enriched
+    statsByOrphan[enriched] = stats
+  end
+
+  updateSummary(allRows, #orphanRows)
 
   local pinnedFlips = {}
   if postingRow and postingRow.flip then pinnedFlips[postingRow.flip] = true end
@@ -1103,6 +1413,9 @@ local function renderRows()
   local list = {}
   for _, f in ipairs(flips) do
     if not pinnedFlips[f] then list[#list + 1] = f end
+  end
+  for _, o in ipairs(orphanRows) do
+    list[#list + 1] = o
   end
 
   local pinnedCount = (postingRow and 1 or 0) + (repostingRow and 1 or 0)
@@ -1115,12 +1428,17 @@ local function renderRows()
   for i = 1, #rows do
     local row = rows[i]
     if row ~= postingRow and row ~= repostingRow then
-      local f = (li <= #list) and list[li] or nil
-      if f then
-        setRowFlip(row, f, rowByFlip[f])
+      local entry = (li <= #list) and list[li] or nil
+      if entry then
+        if entry.orphan then
+          setRowOrphan(row, entry, statsByOrphan[entry])
+        else
+          setRowFlip(row, entry, rowByFlip[entry], statsByFlip[entry])
+        end
         li = li + 1
       else
         row.flip = nil
+        row.orphan = nil
         row:Hide()
       end
     end
@@ -1288,7 +1606,7 @@ function GC.Sell.Attach(f, geometry)
   header:SetPoint("TOPRIGHT", 0, HEADER_TOP)
   header:SetHeight(HEADER_H)
 
-  local HEADER_TEXT = { item = "Item", bought = "Bought", listed = "Listed", market = "Market", profit = "Profit", status = "Status", action = "", remove = "" }
+  local HEADER_TEXT = { item = "Item", bought = "Bought", listed = "Listed", market = "Market", queue = "Queue", profit = "Profit", status = "Status", action = "", remove = "" }
   header.cells = {}
   for _, col in ipairs(COLUMNS) do
     if not col.flex then
