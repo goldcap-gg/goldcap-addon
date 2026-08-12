@@ -165,9 +165,14 @@ function T.Label(parent, size)
   return fs
 end
 
-local function brightened(c)
-  return { math.min(1, c[1] + 0.06), math.min(1, c[2] + 0.06), math.min(1, c[3] + 0.06), c[4] or 1 }
+local function darkened(c)
+  return { c[1] * 0.85, c[2] * 0.85, c[3] * 0.85, c[4] or 1 }
 end
+
+-- Ghost buttons have no fill of their own, so "slightly darker" is a translucent black
+-- film -- NOT T.color.hover's white one, which reads as the button going gray next to the
+-- gold primary variant (the two Auto buttons swap in place, so the mismatch is glaring).
+local GHOST_HOVER = { 0, 0, 0, 0.35 }
 
 local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
@@ -179,7 +184,7 @@ local BUTTON_VARIANTS = {
 function T.Button(parent, variant)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
   local base = spec.bg or { 0, 0, 0, 0 }
-  local hoverColor = spec.bg and brightened(spec.bg) or T.color.hover
+  local hoverColor = spec.bg and darkened(spec.bg) or GHOST_HOVER
 
   local b = CreateFrame("Button", nil, parent)
   -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
@@ -232,6 +237,13 @@ function T.Button(parent, variant)
     b.bg:SetAlpha(1)
     b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
+  end)
+
+  -- Hiding a hovered frame doesn't reliably deliver OnLeave, and the Auto control swaps
+  -- its two overlaid buttons under a stationary cursor -- without this reset the hidden
+  -- button keeps its hover fill and reappears pre-painted (the "stuck gray" look).
+  b:SetScript("OnHide", function()
+    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
   end)
 
   return b

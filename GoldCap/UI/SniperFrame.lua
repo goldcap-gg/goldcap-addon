@@ -2859,8 +2859,10 @@ local function createFrame()
   autoPulse:SetLooping("BOUNCE")
   local autoPulseAlpha = autoPulse:CreateAnimation("Alpha")
   autoPulseAlpha:SetFromAlpha(1)
-  autoPulseAlpha:SetToAlpha(0.55)
-  autoPulseAlpha:SetDuration(0.6)
+  -- 0.8, not lower: dipping the gold fill past ~0.7 over the near-black window desaturates
+  -- it enough to read as the button flipping to gray, not as a scanning heartbeat.
+  autoPulseAlpha:SetToAlpha(0.8)
+  autoPulseAlpha:SetDuration(0.9)
   autoPulseAlpha:SetSmoothing("IN_OUT")
   autoBtnOn.pulse = autoPulse
 
