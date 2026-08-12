@@ -133,20 +133,21 @@ local activeItemID = {}
 -- pin across sessions.
 local hoveredRow = nil
 local commodityPurchase = nil
--- Commodity events do not include an attempt identifier. We only drain a cancellation that
--- happened BEFORE its first price response: that response can still arrive late and must not
--- be attributed to a later start. Once a price response has arrived, Cancel settles that known
--- quote synchronously; retaining a drain after it would deadlock future buys.
+-- Commodity events do not include an attempt identifier. A cancelled purchase therefore owns a
+-- tombstone until a terminal event consumes it (or the AH session resets): a late price update
+-- is not terminal and must never make a later Start safe to attribute its terminal event to.
+-- A confirmed attempt can use the same tombstone across an AH close, carrying its immutable
+-- final quote so a late success can still be recorded exactly rather than guessed.
 local commodityDraining = nil
 
 local function drainCommodityPurchase(row)
   local pending = commodityPurchase
   if pending and pending.row == row then
     commodityPurchase = nil
-    if pending.priceReceived then return end
     commodityDraining = pending
-    -- No event token can prove that a timeout belongs to this attempt. Stay fail-closed until
-    -- the delayed price/terminal event arrives or the Auction House session resets.
+    -- No event token can prove a terminal belongs to this attempt. Stay fail-closed until a
+    -- terminal event arrives or the Auction House session resets, even after a price update.
+    return pending
   end
 end
 
@@ -157,16 +158,17 @@ end
 -- itemID and live on the FRAME, deliberately separate from the watchlist scanner's own
 -- single-slot `pending` state (Core/Scanner.lua), so a requery in flight can never collide
 -- with -- or get misrouted into -- an unrelated watchlist scan cycle.
--- awaitingRequery: itemID -> row, from the moment SendSearchQuery is issued until the
--- matching ITEM_SEARCH_RESULTS_UPDATED/COMMODITY_SEARCH_RESULTS_UPDATED arrives.
--- awaitingKeyInfo: itemID -> row, only populated when GetItemKeyInfo wasn't cached yet and
--- the requery is waiting on ITEM_KEY_ITEM_INFO_RECEIVED before it can even send the query.
--- pendingRequerySend: itemID -> true, when the requery is ready to search but the throttle
--- system was busy (typical right after a Full Scan, which saturates it) so the actual
--- SendSearchQuery is deferred to the next AUCTION_HOUSE_THROTTLED_SYSTEM_READY.
+-- Every value below is the exact immutable attempt table
+-- `{ row, itemID, token, deal, sent }`, never just a row. Search events are untagged, so a
+-- sent attempt that is cancelled or times out moves to requeryDraining until one result event
+-- consumes it; no authoritative same-item Check starts while that fence exists.
+-- awaitingRequery: itemID -> attempt, from the moment the Check starts until its matching
+-- search result arrives. awaitingKeyInfo: itemID -> attempt while item-key info is pending.
+-- pendingRequerySend: itemID -> attempt while throttle readiness is pending.
 local awaitingRequery = {}
 local awaitingKeyInfo = {}
 local pendingRequerySend = {}
+local requeryDraining = {}
 
 -- Task 8 hover pre-warm. Its OWN pending slot, deliberately separate from awaitingRequery
 -- above -- that table is row-keyed (a dialog is always open for whichever row it tracks) and
@@ -174,25 +176,21 @@ local pendingRequerySend = {}
 -- dialog, and the spec caps it at ONE in flight globally, so a single scalar slot is enough
 -- and (critically) keeps the two consumers unambiguous: OnItemSearchResults/
 -- OnCommoditySearchResults key their dialog-arming branch off awaitingRequery[itemID] exactly
--- as before, and separately, independently, check prewarmItemID == itemID for the pre-warm
+-- as before, and separately, independently, check prewarmAttempt.itemID == itemID for the pre-warm
 -- branch -- a stale/duplicate event can resolve either, both, or neither without the two ever
 -- fighting over which one gets to touch the row/dialog (pre-warm's resolver never does).
--- prewarmItemID: the itemID currently being pre-warmed, or nil.
--- prewarmDeal: the exact deal table maybeStartPrewarm was called with -- deal.prewarm gets
+-- prewarmAttempt: the exact item/token/deal query currently being pre-warmed, or nil. Its deal
+-- table receives deal.prewarm only if that exact request receives the result.
 -- stamped onto THIS table when the result lands, never looked up fresh by itemID (a full-scan
 -- rescan can splice a NEW deal table for the same itemID while a pre-warm is still in flight;
 -- stamping the original table, not whatever `deals`/`scanDeals` currently maps the itemID to,
 -- is what "leaving the row does not cancel" means in practice -- the result is only ever
 -- useful to openDialog via THIS row's THIS deal, not some unrelated later snapshot).
-local prewarmItemID = nil
-local prewarmDeal = nil
--- fix round 1 I-1: bumped every time a NEW pre-warm attempt actually sends a query; the
--- attempt's own C_Timer.After fallback closure captures its value at schedule time and only
--- clears prewarmItemID/prewarmDeal if the generation is still current -- distinguishes "my own
--- timeout firing late" from "a later, legitimately-restarted pre-warm for the same itemID",
--- which a bare `prewarmItemID == itemID` check cannot: prewarmItemID cycles back to the same
--- item across separate hover-triggered attempts, itemID values are not unique per attempt.
-local prewarmGen = 0
+-- Pre-warm has the same untagged-result problem. It has no row, but still uses the exact
+-- attempt identity `{ itemID, token, deal, sent }`; retiring a sent warm uses the shared
+-- same-item drain fence before a real Check can issue a new authoritative query.
+local prewarmAttempt = nil
+local prewarmToken = 0
 -- fix round 1 M-3: true only while a real Auction House session is live (set/cleared at the
 -- very top of OnAuctionHouseShow/OnAuctionHouseClosed below). The Sniper window itself can
 -- stay open, or be reopened via /goldcap, with leftover deals from the last visit still
@@ -1413,8 +1411,10 @@ local function purchaseFacts(deal, quote)
   }
 end
 
-resolvePurchase = function(row, success, note, purchase)
-  local deal = row.purchaseDeal or row.deal
+resolvePurchase = function(row, success, note, purchase, purchaseDeal)
+  -- A confirmed commodity attempt can outlive its visible row across an AH close. Its deal is
+  -- captured at the hardware Confirm click and must win over a row that was reset/repooled.
+  local deal = purchaseDeal or row.purchaseDeal or row.deal
   if deal then
     activeItemID[deal.itemID] = nil
     if deal.isCommodity then
@@ -1481,12 +1481,24 @@ end
 -- again after it's been reused for an unrelated deal.
 local function abortRowPurchase(row, note)
   local deal = row.purchaseDeal or row.deal
-  if deal then
-    awaitingRequery[deal.itemID] = nil
-    awaitingKeyInfo[deal.itemID] = nil
-    pendingRequerySend[deal.itemID] = nil
-  end
   local pending = commodityPurchase
+  if pending and pending.row == row and pending.confirmed then
+    -- Confirm has already reached Blizzard. Esc/OnHide must not cancel, clear, or unpin that
+    -- ownership; only a terminal event (or the retained close tombstone) may settle it.
+    return
+  end
+  if deal then
+    local attempt = awaitingRequery[deal.itemID]
+    if attempt and attempt.row == row then
+      awaitingRequery[deal.itemID] = nil
+      awaitingKeyInfo[deal.itemID] = nil
+      pendingRequerySend[deal.itemID] = nil
+      if attempt.sent then requeryDraining[deal.itemID] = attempt end
+    else
+      awaitingKeyInfo[deal.itemID] = nil
+      pendingRequerySend[deal.itemID] = nil
+    end
+  end
   if pending and pending.row == row and not pending.cancelRequested then
     -- CancelCommoditiesPurchase is non-protected; Esc/OnHide must settle an opened server
     -- session too, otherwise a hidden dialog can leave a commodity transaction stranded.
@@ -1566,9 +1578,11 @@ end
 -- explanatory status instead of auto-resolving the purchase as failed: PlaceBid's completion
 -- event is UNVERIFIED to always fire, so silently unpinning here could let the player
 -- re-attempt a buy whose bid may in fact still land. The row stays pinned until Cancel.
-local function scheduleBuyTimeout(row, deal)
+local function scheduleBuyTimeout(row, deal, token)
   C_Timer.After(BUY_TIMEOUT_SECONDS, function()
-    if row.purchaseStage == "buying" and row.purchaseDeal == deal
+    if row.purchaseStage == "buying" and row.purchaseDeal == deal and row.purchaseToken == token
+        and (not deal.isCommodity or (commodityPurchase and commodityPurchase.row == row
+          and commodityPurchase.token == token))
         and dialog and dialog.row == row then
       dialog.primaryBtn:Disable()
       setDialogStatus("no purchase confirmation received -- Cancel and retry")
@@ -1595,11 +1609,20 @@ end
 -- routinely is for a beat right after a Full Scan (the scan's own browse paging saturates
 -- the throttle) -- so if we're not ready, park the itemID in pendingRequerySend and let
 -- GC.Sniper.OnThrottleReady flush it. The 8s requery timeout remains the ultimate fallback.
-local function issueRequerySearch(itemID)
+local function isCurrentRequeryAttempt(attempt)
+  return attempt and awaitingRequery[attempt.itemID] == attempt
+    and attempt.row.purchaseStage == "requerying"
+    and attempt.row.purchaseToken == attempt.token
+    and attempt.row.deal == attempt.deal
+end
+
+local function issueRequerySearch(attempt)
+  if not isCurrentRequeryAttempt(attempt) then return end
   if driver.isReady() then
-    driver.sendSearch(itemID)
+    attempt.sent = true
+    driver.sendSearch(attempt.itemID)
   else
-    pendingRequerySend[itemID] = true
+    pendingRequerySend[attempt.itemID] = attempt
   end
 end
 
@@ -1632,40 +1655,63 @@ local function applyRequeryResult(row, itemID, live)
   refreshRows()
 end
 
-local function finishRequery(row, itemID, liveDeal)
+local function finishRequery(attempt, liveDeal)
+  if not isCurrentRequeryAttempt(attempt) then return end
+  local itemID = attempt.itemID
   awaitingRequery[itemID] = nil
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
-  if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, canceled, ...)
-  applyRequeryResult(row, itemID, liveDeal)
+  applyRequeryResult(attempt.row, itemID, liveDeal)
 end
 
-local function scheduleRequeryTimeout(row, deal)
+local function scheduleRequeryTimeout(attempt)
   C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
-    if row.purchaseStage == "requerying" and row.deal == deal then
-      finishRequery(row, deal.itemID, nil)
+    if isCurrentRequeryAttempt(attempt) then
+      -- The server might still send an untagged result after this timeout. Fence it before
+      -- returning the row to Check, so it cannot become a quote for a subsequent same-item
+      -- click. The player can retry once that old result is consumed (or the AH is reset).
+      local itemID = attempt.itemID
+      awaitingRequery[itemID] = nil
+      awaitingKeyInfo[itemID] = nil
+      pendingRequerySend[itemID] = nil
+      if attempt.sent then requeryDraining[itemID] = attempt end
+      applyRequeryResult(attempt.row, itemID, nil)
     end
   end)
 end
 
 local function startRequery(row, deal)
   local itemID = deal.itemID
+  if requeryDraining[itemID] or awaitingRequery[itemID] then
+    row.purchaseStage = "check"
+    row.purchaseDeal = nil
+    activeItemID[itemID] = nil
+    if dialog and dialog.row == row then
+      dialog.primaryBtn:Enable()
+      setPrimaryLabel("Check")
+    end
+    setDialogStatus("waiting for previous search result to settle", 1, 0.82, 0)
+    if frame then frame.status:SetText("waiting for previous search result to settle") end
+    return
+  end
+  row.purchaseToken = (row.purchaseToken or 0) + 1
+  local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false }
   row.purchaseStage = "requerying"
   row.purchaseDeal = nil
   activeItemID[itemID] = true
   if frame then frame.status:SetText("checking live price...") end
 
-  awaitingRequery[itemID] = row
-  scheduleRequeryTimeout(row, deal)
+  awaitingRequery[itemID] = attempt
+  scheduleRequeryTimeout(attempt)
 
   -- Guard against the item key not being cached: GetItemKeyInfo (via driver.getKeyInfo) can
   -- return nil for an itemID nothing has queried yet this session. When it does, wait for
   -- ITEM_KEY_ITEM_INFO_RECEIVED (GC.Sniper.OnItemKeyInfo below) and retry once from there,
   -- rather than calling driver.sendSearch on a key WoW hasn't resolved yet.
   if driver.getKeyInfo(itemID) then
-    issueRequerySearch(itemID)
+    issueRequerySearch(attempt)
   else
-    awaitingKeyInfo[itemID] = row
+    awaitingKeyInfo[itemID] = attempt
   end
 end
 
@@ -1699,33 +1745,28 @@ local function maybeStartPrewarm(deal)
   -- pre-warm in flight globally" slot), so at worst it costs the scan a single browse-page
   -- throttle slot for one cycle -- a one-cycle pagination delay, not starvation.
   if next(activeItemID) ~= nil then return end
-  if prewarmItemID then return end -- one pre-warm in flight globally
+  if prewarmAttempt then return end -- one pre-warm in flight globally
   if not driver.isReady() then return end -- never parks -- see comment above
 
   local itemID = deal.itemID
+  if requeryDraining[itemID] then return end -- an old untagged result must drain first
   -- Same item-key-not-cached guard startRequery uses, but pre-warm just skips instead of
   -- chasing ITEM_KEY_ITEM_INFO_RECEIVED -- this is a best-effort warm, not a purchase the
   -- player is blocked on; the dialog's own startRequery fallback still does the real,
   -- patient wait if the player clicks Buy before the key is ever resolved.
   if not driver.getKeyInfo(itemID) then return end
 
-  prewarmItemID = itemID
-  prewarmDeal = deal
-  -- fix round 1 I-1: prewarmItemID cycling back to the SAME itemID across two SEPARATE
-  -- pre-warm attempts (hover it, cache expires or gets consumed, hover it again later) means
-  -- an itemID-equality check alone is not enough to tell "my own timeout" apart from "a
-  -- legitimately restarted pre-warm for the same item" -- prewarmGen disambiguates by attempt,
-  -- not by item.
-  prewarmGen = prewarmGen + 1
-  local gen = prewarmGen
+  prewarmToken = prewarmToken + 1
+  local attempt = { itemID = itemID, token = prewarmToken, deal = deal, sent = true }
+  prewarmAttempt = attempt
   driver.sendSearch(itemID)
 
   -- Ultimate fallback so a pre-warm that never gets a matching event (or one whose deal was
   -- superseded before it landed) can't wedge the "one in flight globally" slot shut forever.
   C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
-    if gen == prewarmGen then
-      prewarmItemID = nil
-      prewarmDeal = nil
+    if prewarmAttempt == attempt then
+      prewarmAttempt = nil
+      requeryDraining[itemID] = attempt
     end
   end)
 end
@@ -1738,27 +1779,27 @@ end
 -- activeItemID/purchaseStage -- that is the entire point of this being a separate path from
 -- finishRequery.
 local function resolvePrewarm(itemID, data)
-  if prewarmItemID ~= itemID then return end -- not what we're waiting on (already resolved, timed out, or cleared by a purchase start)
-  local deal = prewarmDeal
-  prewarmItemID = nil
-  prewarmDeal = nil
+  local attempt = prewarmAttempt
+  if not attempt or attempt.itemID ~= itemID then return end
+  local deal = attempt.deal
+  prewarmAttempt = nil
   if deal then
-    deal.prewarm = { data = data, at = GetTime() }
+    deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
   end
 end
 
 -- Router functions the Init.lua event frame dispatches into.
 
 function GC.Sniper.OnItemKeyInfo(itemID)
-  local row = awaitingKeyInfo[itemID]
-  if not row then return end -- not something Task-3 requery is waiting on for this item
+  local attempt = awaitingKeyInfo[itemID]
+  if not attempt then return end -- not something Task-3 requery is waiting on for this item
   awaitingKeyInfo[itemID] = nil
-  if row.purchaseStage ~= "requerying" then return end
+  if not isCurrentRequeryAttempt(attempt) then return end
 
   if driver.getKeyInfo(itemID) then
-    issueRequerySearch(itemID) -- retry: the key is cached now, safe to issue the fresh query (throttle permitting)
+    issueRequerySearch(attempt) -- retry: key is cached now; exact attempt owns the send
   else
-    finishRequery(row, itemID, nil) -- still uncached after the retry -- give up gracefully
+    finishRequery(attempt, nil) -- still uncached after the retry -- give up gracefully
   end
 end
 
@@ -1798,9 +1839,10 @@ function GC.Sniper.OnThrottleReady()
 
   if mode ~= "fullscan" then return end
   for itemID in pairs(pendingRequerySend) do
+    local attempt = pendingRequerySend[itemID]
     pendingRequerySend[itemID] = nil
-    local row = awaitingRequery[itemID]
-    if row and row.purchaseStage == "requerying" then
+    if isCurrentRequeryAttempt(attempt) then
+      attempt.sent = true
       driver.sendSearch(itemID)
     end
   end
@@ -1843,27 +1885,51 @@ local function evaluateLiveCommodityDeal(itemID)
 end
 
 -- Both search-result events can carry EITHER consumer, BOTH, or neither: a dialog-open
--- requery (awaitingRequery[itemID]) and a hover pre-warm (prewarmItemID == itemID) are
+-- requery (awaitingRequery[itemID]) and a hover pre-warm (prewarmAttempt.itemID == itemID) are
 -- independent, separately-keyed waiters on the same underlying SendSearchQuery/
--- COMMODITY-equivalent traffic. openDialog clears prewarmItemID for an itemID the instant it
+-- COMMODITY-equivalent traffic. openDialog retires the matching prewarm attempt for an itemID
 -- starts a real purchase flow for it (see openDialog below), so in practice the two rarely
 -- overlap -- but nothing here depends on that; each branch is a no-op when its own slot
 -- doesn't match, regardless of what the other one does.
 function GC.Sniper.OnItemSearchResults(itemID)
-  local row = awaitingRequery[itemID]
-  local isPrewarm = prewarmItemID == itemID
-  if not row and not isPrewarm then return end -- neither a Task-3 dialog requery nor a Task 8 pre-warm for this item (e.g. the watchlist scanner's own search)
+  if requeryDraining[itemID] then
+    requeryDraining[itemID] = nil
+    return -- consume the old untagged result before any authoritative Check can restart
+  end
+  local attempt = awaitingRequery[itemID]
+  local isPrewarm = prewarmAttempt and prewarmAttempt.itemID == itemID
+  if not attempt and not isPrewarm then return end -- neither a Task-3 dialog requery nor a Task 8 pre-warm for this item (e.g. the watchlist scanner's own search)
+  if attempt and not isCurrentRequeryAttempt(attempt) then
+    -- A newer Check advanced the row token. Do not even inspect this old result: it belongs
+    -- to no current attempt and must not stamp a live decision/cache by coincidence.
+    awaitingRequery[itemID] = nil
+    awaitingKeyInfo[itemID] = nil
+    pendingRequerySend[itemID] = nil
+    if not isPrewarm then return end
+    attempt = nil
+  end
   local liveDeal = evaluateLiveItemDeal(itemID)
-  if row then finishRequery(row, itemID, liveDeal) end
+  if attempt then finishRequery(attempt, liveDeal) end
   if isPrewarm then resolvePrewarm(itemID, liveDeal) end
 end
 
 function GC.Sniper.OnCommoditySearchResults(itemID)
-  local row = awaitingRequery[itemID]
-  local isPrewarm = prewarmItemID == itemID
-  if not row and not isPrewarm then return end -- neither a Task-3 dialog requery nor a Task 8 pre-warm for this item (e.g. the watchlist scanner's own search)
+  if requeryDraining[itemID] then
+    requeryDraining[itemID] = nil
+    return -- consume the old untagged result before any authoritative Check can restart
+  end
+  local attempt = awaitingRequery[itemID]
+  local isPrewarm = prewarmAttempt and prewarmAttempt.itemID == itemID
+  if not attempt and not isPrewarm then return end -- neither a Task-3 dialog requery nor a Task 8 pre-warm for this item (e.g. the watchlist scanner's own search)
+  if attempt and not isCurrentRequeryAttempt(attempt) then
+    awaitingRequery[itemID] = nil
+    awaitingKeyInfo[itemID] = nil
+    pendingRequerySend[itemID] = nil
+    if not isPrewarm then return end
+    attempt = nil
+  end
   local liveDeal = evaluateLiveCommodityDeal(itemID)
-  if row then finishRequery(row, itemID, liveDeal) end
+  if attempt then finishRequery(attempt, liveDeal) end
   if isPrewarm then resolvePrewarm(itemID, liveDeal) end
 end
 
@@ -1876,8 +1942,10 @@ end
 
 function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if commodityDraining then
-    commodityDraining = nil
-    return -- delayed first quote for an aborted attempt; never re-arm a newer one
+    -- Price updates are non-terminal. Keep draining through every one, and re-send Cancel for
+    -- a cancelled server session. A confirmed tombstone must never be cancelled after Confirm.
+    if not commodityDraining.confirmed then C_AuctionHouse.CancelCommoditiesPurchase() end
+    return
   end
   local pending = commodityPurchase
   local row = pending and pending.row
@@ -1900,7 +1968,6 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     C_AuctionHouse.CancelCommoditiesPurchase()
     pending.cancelRequested = true
     drainCommodityPurchase(row)
-    row.purchaseToken = row.purchaseToken + 1
     armCheck(row, deal, nil, "requote_broke_safety — Check again", true)
     return
   end
@@ -1957,26 +2024,45 @@ end
 
 function GC.Sniper.OnCommodityPriceUnavailable()
   if commodityDraining then
+    local pending = commodityDraining
     commodityDraining = nil
+    if pending.confirmed then
+      -- Confirmation reached Blizzard but this event does not prove whether it filled. Freeze
+      -- with no estimated total; the player can inspect the mailbox rather than losing it.
+      resolvePurchase(pending.row, true, "purchase total unavailable — inspect mailbox", nil, pending.deal)
+    end
     return -- terminal event for the cancelled/closed attempt, never the next one
   end
   local pending = commodityPurchase
   local row = pending and pending.row
   if not row or row.purchaseToken ~= pending.token or row.purchaseDeal == nil then return end
+  if pending.confirmed or row.purchaseStage == "confirming" then
+    commodityPurchase = nil
+    resolvePurchase(row, true, "purchase total unavailable — inspect mailbox", nil, pending.deal)
+    return
+  end
   C_AuctionHouse.CancelCommoditiesPurchase()
   resolvePurchase(row, false, "commodity price unavailable -- canceled")
 end
 
 function GC.Sniper.OnCommodityPurchaseSucceeded()
   if commodityDraining then
+    local pending = commodityDraining
     commodityDraining = nil
-    return -- terminal event for the cancelled/closed attempt, never the next one
+    if not pending.confirmed then return end
+    local deal = pending.deal
+    local quote = pending.quote
+    local purchase = deal and purchaseFacts(deal, quote)
+    resolvePurchase(pending.row, true,
+      purchase and ("bought %d x item %d"):format(purchase.quantity, deal.itemID)
+        or "purchase total unavailable — inspect mailbox", purchase, deal)
+    return
   end
   local pending = commodityPurchase
   local row = pending and pending.row
   if not row or row.purchaseToken ~= pending.token or row.purchaseStage ~= "confirming" then return end
-  local deal = row.purchaseDeal
-  local quote = row.quoteSnapshot
+  local deal = pending.deal or row.purchaseDeal
+  local quote = pending.quote or row.quoteSnapshot
   if not deal or not quote or quote.token ~= pending.token or quote.itemID ~= pending.itemID
       or not quote.decision or quote.decision.status ~= "SAFE" then
     resolvePurchase(row, true, "purchase total unavailable — inspect mailbox")
@@ -1984,7 +2070,7 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
   end
   local purchase = purchaseFacts(deal, quote)
   resolvePurchase(row, true, purchase and ("bought %d x item %d"):format(purchase.quantity, deal.itemID)
-    or "purchase total unavailable — inspect mailbox", purchase)
+    or "purchase total unavailable — inspect mailbox", purchase, deal)
 end
 
 function GC.Sniper.OnCommodityPurchaseFailed()
@@ -1995,6 +2081,7 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   local pending = commodityPurchase
   local row = pending and pending.row
   if not row or row.purchaseToken ~= pending.token or row.purchaseDeal == nil then return end
+  commodityPurchase = nil
   resolvePurchase(row, false, "commodity purchase failed")
 end
 
@@ -2066,8 +2153,14 @@ local function onDialogPrimaryClick()
     -- Hardware click only: the event prepares a quote; it never confirms one. The token and
     -- immutable final decision must still be current at this exact click.
     C_AuctionHouse.ConfirmCommoditiesPurchase(quoteSnapshot.itemID, quoteSnapshot.quantity)
+    -- Preserve the immutable server quote/deal with the attempt itself. Dialog hide and AH
+    -- close are UI/session transitions, not proof that a confirmed server purchase vanished.
+    pending.confirmed = true
+    pending.deal = row.purchaseDeal
+    pending.quote = quoteSnapshot
     row.purchaseStage = "confirming"
     dialog.primaryBtn:Disable()
+    dialog.cancelBtn:Disable()
     setDialogStatus("confirming purchase...")
     if frame then frame.status:SetText("confirming purchase...") end
     return
@@ -2143,7 +2236,7 @@ local function onDialogPrimaryClick()
     setDialogStatus("placing bid...")
     if frame then frame.status:SetText("placing bid...") end
   end
-  scheduleBuyTimeout(row, deal)
+  scheduleBuyTimeout(row, deal, token)
 end
 
 -- ---------------------------------------------------------------------------
@@ -2351,12 +2444,9 @@ local function createDialog()
   primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
   d.primaryBtn = primaryBtn
 
-  -- Esc (via UISpecialFrames) just calls Hide() -- same abort as a hardware Cancel click,
-  -- minus the CancelCommoditiesPurchase call above, which is deliberately scoped to the
-  -- Cancel button's own OnClick only (Esc's frame-hide isn't guaranteed to run in that same
-  -- synchronous hardware-click context). A late COMMODITY_PRICE_UPDATED/purchase-result event
-  -- for a since-aborted row is still handled safely -- those handlers key off
-  -- commodityPurchase/pendingAuction, which the reset below already clears.
+  -- Esc (via UISpecialFrames) hides the dialog. Before Confirm that follows the ordinary
+  -- abort path; after Confirm abortRowPurchase deliberately preserves server ownership, so
+  -- Esc can never discard the token/final quote while a terminal event is still possible.
   d:SetScript("OnHide", function()
     -- Unconditional -- fires whether this close was a resolved purchase, a hardware Cancel,
     -- or Esc, and regardless of whether `row` below is still set. AutoScan's own "dialog"
@@ -2386,13 +2476,16 @@ local function openDialog(row, deal)
   -- still in flight for the SAME item is now moot -- release the "one in flight globally" slot
   -- rather than let it linger and (harmlessly, but pointlessly) resolve into a deal.prewarm
   -- cache nobody will ever read. A pre-warm in flight for a DIFFERENT item is untouched.
-  if prewarmItemID == deal.itemID then
-    prewarmItemID = nil
-    prewarmDeal = nil
+  if prewarmAttempt and prewarmAttempt.itemID == deal.itemID then
+    -- Its response is untagged. Retire the warm behind the same drain fence a cancelled Check
+    -- uses before this dialog can issue an authoritative query for the same item.
+    if prewarmAttempt.sent then requeryDraining[deal.itemID] = prewarmAttempt end
+    prewarmAttempt = nil
   end
 
   dialog = dialog or createDialog()
   dialog.row = row
+  dialog.cancelBtn:Enable()
   hideRequoteBanner()
   dialog.deal = deal
   local discovery = { status = deal.status or "WATCH", reasons = { deal.reason or "live_verification_required" } }
@@ -2444,10 +2537,17 @@ local function onBuyClick(row)
   openDialog(row, deal)
 end
 
--- Cancels/resets any purchase in flight and clears the tracking tables. Used on AH close
--- so stale disabled buttons or pinned rows never leak into the next Auction House visit.
+-- Cancels/resets non-confirmed work and clears tracking tables on AH close. A confirmed
+-- commodity purchase becomes a retained tombstone instead: its exact quote may still receive
+-- a late success and must not be silently lost.
 local function resetAllPurchases()
-  if not frame then return end
+  -- This bookkeeping also protects late server events after the visible AH has gone away, so
+  -- it deliberately runs even in a headless/hidden UI state.
+  local confirmed = commodityPurchase
+  if confirmed and confirmed.confirmed then
+    commodityPurchase = nil
+    commodityDraining = confirmed
+  end
   for i = 1, #rows do
     local row = rows[i]
     row.purchaseStage = nil
@@ -2458,14 +2558,16 @@ local function resetAllPurchases()
   for k in pairs(awaitingRequery) do awaitingRequery[k] = nil end
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
+  for k in pairs(requeryDraining) do requeryDraining[k] = nil end
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
-  -- otherwise a leftover prewarmItemID could block every hover pre-warm for the rest of the
+  -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the
   -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
   -- to wait REQUERY_TIMEOUT_SECONDS out when the AH session it belonged to just ended anyway).
-  prewarmItemID = nil
-  prewarmDeal = nil
-  commodityPurchase = nil
-  commodityDraining = nil
+  prewarmAttempt = nil
+  if not (commodityDraining and commodityDraining.confirmed) then
+    commodityPurchase = nil
+    commodityDraining = nil
+  end
   -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own
   -- OnLeave, so clear the hover pin here too -- otherwise it could sit pinned to a hidden
   -- row across the next Auction House session.
