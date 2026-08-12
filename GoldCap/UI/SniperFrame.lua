@@ -1365,7 +1365,7 @@ local function resizeDialogDiagnostics()
   dialog.status:ClearAllPoints()
   dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
   dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
-  dialog.baseHeight = dialog.fixedHeight + height
+  dialog.baseHeight = dialog.fixedHeight + dialog.diagnosticGaps + height
   local bannerVisible = dialog.banner and dialog.banner:IsShown()
   dialog:SetHeight(dialog.baseHeight + (bannerVisible and REQUOTE_BANNER_HEIGHT or 0))
 end
@@ -2391,8 +2391,10 @@ local function createDialog()
   -- fires -- silently orphaning an in-flight purchase's pinned row.
   _G.GoldCapSniperConfirm = d
   d.fixedHeight = DIALOG_FIXED_HEIGHT
+  -- Match the two actual anchors: grid→diagnostic and diagnostic→status.
+  d.diagnosticGaps = Theme.pad.xs + Theme.pad.xs
   d.diagnosticMinimumHeight = DIALOG_DIAGNOSTIC_MIN_H
-  d.baseHeight = d.fixedHeight + d.diagnosticMinimumHeight
+  d.baseHeight = d.fixedHeight + d.diagnosticGaps + d.diagnosticMinimumHeight
   d:SetSize(DIALOG_WIDTH, d.baseHeight)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")

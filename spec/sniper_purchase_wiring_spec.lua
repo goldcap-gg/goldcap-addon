@@ -63,7 +63,7 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(diagnostic:find("table.concat(decision.reasons or {}, \", \")", 1, true))
   end)
 
-  it("expands the dialog for a tall full-reasons diagnostic", function()
+  it("sizes, banners, and shrinks a stateful full-reasons diagnostic", function()
     local GC = {
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
@@ -88,20 +88,33 @@ describe("Sniper purchase wiring", function()
       end
       error("missing upvalue " .. wanted)
     end
-    local stamp = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "stampDialogFromDecision")
+    local priceUpdated = GC.Sniper.OnCommodityPriceUpdated
+    local stamp = getUpvalue(priceUpdated, "stampDialogFromDecision")
+    local showBanner = getUpvalue(priceUpdated, "showRequoteBanner")
+    local hideBanner = getUpvalue(priceUpdated, "hideRequoteBanner")
     local diagnosticHeight, dialogHeight, statusAnchors = nil, nil, {}
     local function textSink()
       return { SetText = function() end, SetTextColor = function() end }
     end
+    local diagnosticText = { text = "" }
+    function diagnosticText:SetText(text) self.text = text end
+    function diagnosticText:GetStringHeight()
+      return #self.text > 200 and 260 or 24 -- simulates wrapped 1.3x-font reason evidence
+    end
+    function diagnosticText:SetHeight(height) diagnosticHeight = height end
+    local banner = {
+      shown = false,
+      head = textSink(),
+      detail = textSink(),
+    }
+    function banner:IsShown() return self.shown end
+    function banner:Show() self.shown = true end
+    function banner:Hide() self.shown = false end
     local fakeDialog = {
-      fixedHeight = 400, diagnosticMinimumHeight = 108,
+      fixedHeight = 400, diagnosticGaps = 4, diagnosticMinimumHeight = 108,
       SetHeight = function(_, height) dialogHeight = height end,
-      banner = { IsShown = function() return false end },
-      diagnosticText = {
-        SetText = function() end,
-        GetStringHeight = function() return 260 end,
-        SetHeight = function(_, height) diagnosticHeight = height end,
-      },
+      banner = banner,
+      diagnosticText = diagnosticText,
       status = {
         ClearAllPoints = function() end,
         SetPoint = function(_, ...) statusAnchors[#statusAnchors + 1] = { ... } end,
@@ -114,14 +127,27 @@ describe("Sniper purchase wiring", function()
     setUpvalue(stamp, "dialog", fakeDialog)
     setUpvalue(stamp, "marketForDecision", function() return {} end)
 
+    local maximalReasons = {}
+    for i = 1, 32 do maximalReasons[i] = ("maximum_length_reason_%02d"):format(i) end
     stamp({ itemID = 42 }, {
       computedStatus = "SAFE", status = "WATCH", buyable = false, quantity = 1,
-      reasons = { string.rep("maximum_length_reason_", 12) },
+      reasons = maximalReasons,
     })
 
     assert.equal(260, diagnosticHeight)
-    assert.equal(660, dialogHeight)
+    assert.equal(664, dialogHeight) -- fixed + diagnostic + grid→diagnostic/status gaps
     assert.same({ "TOPLEFT", fakeDialog.diagnosticText, "BOTTOMLEFT", 0, -2 }, statusAnchors[1])
+
+    showBanner("PRICE ROSE", "still safe")
+    assert.equal(710, dialogHeight) -- banner height stays additive to the measured base
+
+    stamp({ itemID = 42 }, {
+      computedStatus = "WATCH", status = "WATCH", buyable = false, quantity = 1,
+      reasons = { "brief" },
+    })
+    hideBanner()
+    assert.equal(108, diagnosticHeight)
+    assert.equal(512, dialogHeight) -- reused dialog resets to its short diagnostic base
   end)
 
   it("requires a newly evaluated safe quote, cancels a broken requote, and records one purchase fact", function()
