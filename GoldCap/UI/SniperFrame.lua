@@ -1351,6 +1351,25 @@ local function displayDecisionAmount(value)
   return value and formatColumnAmount(value) or "—"
 end
 
+-- The diagnostic is evidence, not a purchase surface. Its height follows the rendered text so
+-- every ordered reason remains visible at the player's current font scale. The buttons and
+-- requote banner stay bottom-anchored; changing baseHeight moves that whole block together.
+local function resizeDialogDiagnostics()
+  local diagnostic = dialog.diagnosticText
+  local measured = type(diagnostic.GetStringHeight) == "function" and diagnostic:GetStringHeight() or nil
+  if type(measured) ~= "number" or measured <= 0 then measured = dialog.diagnosticMinimumHeight end
+  local height = math.max(dialog.diagnosticMinimumHeight, math.ceil(measured))
+  diagnostic:SetHeight(height)
+  dialog.diagnosticHeight = height
+
+  dialog.status:ClearAllPoints()
+  dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
+  dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
+  dialog.baseHeight = dialog.fixedHeight + height
+  local bannerVisible = dialog.banner and dialog.banner:IsShown()
+  dialog:SetHeight(dialog.baseHeight + (bannerVisible and REQUOTE_BANNER_HEIGHT or 0))
+end
+
 -- The dialog is a projection of the immutable decision snapshot, not another pricing model.
 -- The only raw market number is explicitly labelled as a reference; every buy-facing number
 -- comes from SniperDecision's live-book calculation.
@@ -1374,6 +1393,7 @@ local function stampDialogFromDecision(deal, decision)
   dialog.diagnosticText:SetText(("computed=%s public=%s buyable=%s reasons=%s"):format(
     computedStatus, publicStatus, decision.buyable and "yes" or "no",
     diagnosticReasons ~= "" and diagnosticReasons or "none"))
+  resizeDialogDiagnostics()
   dialog.quantityText:SetText(quantity > 0 and tostring(quantity) or "—")
   dialog.unitPriceText:SetText(displayDecisionAmount(average))
   dialog.totalCostText:SetText(displayDecisionAmount(entryTotal))
@@ -2346,9 +2366,7 @@ local DIALOG_GRID_ROWS = 11 -- decision status/qty/entry/exit/profit/reference/l
 -- suspect/mv notes must never clip a second line either; both budgets sized for two lines
 -- of Theme.Label(d, 11) at this width, not one.
 local DIALOG_NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
--- Full ordered reasons are diagnostic evidence, not a call to action. This bounded ten-line
--- block stays readable without creating a new button, arm state, or protected-call path.
-local DIALOG_DIAGNOSTIC_H = 108
+local DIALOG_DIAGNOSTIC_MIN_H = 36
 local DIALOG_STATUS_H = 32
 local DIALOG_PRIMARY_H = 26
 local DIALOG_CANCEL_H = 20
@@ -2358,8 +2376,8 @@ local GRID_TOP = -DIALOG_HEADER_H
 -- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
 -- bottom edge (mirrors GRID_TOP's measured-down-from-top pattern above).
 local DIALOG_CONTROLS_H = Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs + DIALOG_CANCEL_H + Theme.pad.s
-local DIALOG_BASE_HEIGHT = DIALOG_HEADER_H + DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H
-  + DIALOG_DIAGNOSTIC_H + DIALOG_STATUS_H + DIALOG_CONTROLS_H
+local DIALOG_FIXED_HEIGHT = DIALOG_HEADER_H + DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H
+  + DIALOG_STATUS_H + DIALOG_CONTROLS_H
 
 -- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
 -- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
@@ -2372,7 +2390,9 @@ local function createDialog()
   -- Sniper window instead, and the dialog's own OnHide (which calls abortRowPurchase) never
   -- fires -- silently orphaning an in-flight purchase's pinned row.
   _G.GoldCapSniperConfirm = d
-  d.baseHeight = DIALOG_BASE_HEIGHT
+  d.fixedHeight = DIALOG_FIXED_HEIGHT
+  d.diagnosticMinimumHeight = DIALOG_DIAGNOSTIC_MIN_H
+  d.baseHeight = d.fixedHeight + d.diagnosticMinimumHeight
   d:SetSize(DIALOG_WIDTH, d.baseHeight)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
@@ -2470,14 +2490,13 @@ local function createDialog()
   local diagnosticText = Theme.Label(d, 11)
   diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
   diagnosticText:SetPoint("RIGHT", -Theme.pad.m, 0)
-  diagnosticText:SetHeight(DIALOG_DIAGNOSTIC_H)
+  diagnosticText:SetHeight(d.diagnosticMinimumHeight)
   diagnosticText:SetJustifyH("LEFT")
   diagnosticText:SetWordWrap(true)
   d.diagnosticText = diagnosticText
 
   local status = Theme.Label(d, 11)
-  status:SetPoint("TOPLEFT", Theme.pad.m,
-    GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - DIALOG_DIAGNOSTIC_H - Theme.pad.xs)
+  status:SetPoint("TOPLEFT", diagnosticText, "BOTTOMLEFT", 0, -Theme.pad.xs)
   status:SetPoint("RIGHT", -Theme.pad.m, 0)
   status:SetWordWrap(true)
   d.status = status
