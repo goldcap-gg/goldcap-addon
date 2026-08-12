@@ -41,17 +41,36 @@ describe("SniperDecision", function()
   it("exposes the versioned immutable safe decision contract", function()
     local result = evaluate()
     assert.equal(1, GC.SniperDecision.VERSION)
-    assert.equal("SAFE", result.status)
-    assert.is_true(result.buyable)
+    assert.equal("SAFE", result.computedStatus)
+    assert.equal("WATCH", result.status)
+    assert.is_false(result.buyable)
     assert.equal(200, result.quantity)
     assert.equal(200000000, result.entryTotal)
     assert.equal(1000000, result.entryUnitDisplay)
     assert.equal(3000000, result.exitUnit)
   end)
 
+  it("shadows a mathematically SAFE decision while retaining its economic evidence", function()
+    local result = evaluate()
+    assert.is_false(GC.SniperDecision.SAFE_PURCHASES_ENABLED)
+    assert.equal("SAFE", result.computedStatus)
+    assert.equal("WATCH", result.status)
+    assert.is_false(result.buyable)
+    assert.equal("shadow_validation", result.reasons[1])
+  end)
+
+  it("leaves an economic AVOID public and without a shadow reason", function()
+    local input = validInput(); input.market.listings = 2
+    local result = evaluate(input)
+    assert.equal("AVOID", result.computedStatus)
+    assert.equal("AVOID", result.status)
+    assert.is_false(result.buyable)
+    assert.not_equal("shadow_validation", result.reasons[1])
+  end)
+
   it("accepts an import exactly 7200 seconds old", function()
     local result = evaluate()
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
   end)
 
   it("watches an import 7201 seconds old", function()
@@ -64,7 +83,7 @@ describe("SniperDecision", function()
   it("watches sparse 11-observation history but accepts 12", function()
     local sparse = validInput(); sparse.market.observations = 11
     assert.equal("WATCH", evaluate(sparse).status)
-    assert.equal("SAFE", evaluate(validInput()).status)
+    assert.equal("SAFE", evaluate(validInput()).computedStatus)
   end)
 
   it("avoids measured listings below three after live verification", function()
@@ -85,25 +104,25 @@ describe("SniperDecision", function()
     local input = validInput()
     input.market.soldPerDay = 3
     input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 3000001, quantity = 1 } }
-    assert.equal("SAFE", evaluate(input).status)
+    assert.equal("SAFE", evaluate(input).computedStatus)
   end)
 
   it("avoids sell-through below 7000 bps and accepts its exact floor", function()
     local low = validInput(); low.market.sellThroughBps = 6999
     assert.equal("AVOID", evaluate(low).status)
-    assert.equal("SAFE", evaluate(validInput()).status)
+    assert.equal("SAFE", evaluate(validInput()).computedStatus)
   end)
 
   it("avoids confidence below 70 and accepts its exact floor", function()
     local low = validInput(); low.market.liquidityConfidence = 69
     assert.equal("AVOID", evaluate(low).status)
-    assert.equal("SAFE", evaluate(validInput()).status)
+    assert.equal("SAFE", evaluate(validInput()).computedStatus)
   end)
 
   it("avoids a trend at minus ten but not minus nine", function()
     local falling = validInput(); falling.market.trend24hPct = -10
     assert.equal("AVOID", evaluate(falling).status)
-    assert.equal("SAFE", evaluate(validInput()).status)
+    assert.equal("SAFE", evaluate(validInput()).computedStatus)
   end)
 
   it("watches scan candidates, realm items, bundled data, and estimated values", function()
@@ -149,7 +168,7 @@ describe("SniperDecision", function()
     input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 3000001, quantity = 1 } }
     input.walletCopper = 20000000
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(1000000, result.entryTotal)
   end)
 
@@ -167,7 +186,7 @@ describe("SniperDecision", function()
     input.market.soldPerDay = 1000
     input.live.levels = { { unitPrice = 1000000, quantity = 17 }, { unitPrice = 3000001, quantity = 1 } }
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(17, result.quantity)
     assertReason(result, "demand_limit")
   end)
@@ -177,7 +196,7 @@ describe("SniperDecision", function()
     input.live.fixedQuantity = 1
     input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 2105265, quantity = 1 } }
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(105264, result.ahCut)
     assert.equal(1000000, result.stressProfit)
     assert.equal(1000000, result.requiredProfit)
@@ -189,7 +208,7 @@ describe("SniperDecision", function()
     input.live.levels = { { unitPrice = 20000000, quantity = 1 }, { unitPrice = 23157896, quantity = 1 } }
     input.market.stressUnit = 23157895
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(2000000, result.stressProfit)
     assert.equal(2000000, result.requiredProfit)
   end)
@@ -201,7 +220,7 @@ describe("SniperDecision", function()
     input.market.stressUnit = 115790527
     input.config.minimumRoi = 0.10001
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(10001000, result.stressProfit)
     assert.equal(10001000, result.requiredProfit)
   end)
@@ -226,7 +245,7 @@ describe("SniperDecision", function()
       { unitPrice = 3000001, quantity = 1 },
     }
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(2, result.quantity)
     assert.equal(2000001, result.entryTotal)
     assert.equal(1000000, result.entryUnitDisplay)
@@ -249,7 +268,7 @@ describe("SniperDecision", function()
     input.live.quotedTotal = 1100000
     input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 4000001, quantity = 1 } }
     local result = evaluate(input)
-    assert.equal("SAFE", result.status)
+    assert.equal("SAFE", result.computedStatus)
     assert.equal(1, result.quantity)
   end)
 

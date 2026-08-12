@@ -1,6 +1,6 @@
 local _, GC = ...
 
-GC.SniperDecision = { VERSION = 1 }
+GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = false }
 
 local MAX_EXACT = 9007199254740991
 local SOURCE_MAX_AGE = 7200
@@ -135,6 +135,17 @@ end
 
 function GC.SniperDecision.Evaluate(input)
   local out = resultTemplate()
+  -- This is the sole release gate. Keep the economic calculation intact for shadow
+  -- validation, then shape only a mathematically SAFE public result into non-buyable WATCH.
+  local function finalizePublicResult()
+    out.computedStatus = out.status
+    if out.computedStatus == "SAFE" and not GC.SniperDecision.SAFE_PURCHASES_ENABLED then
+      out.status = "WATCH"
+      out.buyable = false
+      table.insert(out.reasons, 1, "shadow_validation")
+    end
+    return out
+  end
   local severity = 0 -- WATCH 1, AVOID 2
   local knownReasons = {}
   local fixed = type(input) == "table" and type(input.live) == "table"
@@ -153,7 +164,7 @@ function GC.SniperDecision.Evaluate(input)
     out.status = "AVOID"
     out.buyable = false
     orderReasons(out.reasons)
-    return out
+    return finalizePublicResult()
   end
   local function invalid()
     add("invalid_input", 2)
@@ -217,7 +228,7 @@ function GC.SniperDecision.Evaluate(input)
     out.status = severity == 2 and "AVOID" or "WATCH"
     out.buyable = false
     orderReasons(out.reasons)
-    return out
+    return finalizePublicResult()
   end
 
   -- Live market-risk gates. Missing metrics are adverse only after an actual live query exists.
@@ -341,12 +352,12 @@ function GC.SniperDecision.Evaluate(input)
     out.status = "SAFE"
     out.buyable = true
     orderReasons(out.reasons)
-    return out
+    return finalizePublicResult()
   end
 
   if fixedRequested then return finalizeFixedFailure() end
   out.status = severity == 1 and "WATCH" or "AVOID"
   out.buyable = false
   orderReasons(out.reasons)
-  return out
+  return finalizePublicResult()
 end

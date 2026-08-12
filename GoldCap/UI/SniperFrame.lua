@@ -1363,7 +1363,12 @@ local function stampDialogFromDecision(deal, decision)
   local sourceAge = market.sourceAt and math.max(0, time() - market.sourceAt) or nil
   local firstReason = decision.reasons and decision.reasons[1] or "live_verification_required"
 
-  dialog.decisionStatusText:SetText(decision.status or "WATCH")
+  local publicStatus = decision.status or "WATCH"
+  if decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
+    dialog.decisionStatusText:SetText("WATCH (computed SAFE)")
+  else
+    dialog.decisionStatusText:SetText(publicStatus)
+  end
   dialog.quantityText:SetText(quantity > 0 and tostring(quantity) or "—")
   dialog.unitPriceText:SetText(displayDecisionAmount(average))
   dialog.totalCostText:SetText(displayDecisionAmount(entryTotal))

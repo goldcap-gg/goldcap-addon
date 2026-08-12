@@ -41,6 +41,19 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(after:find("C_AuctionHouse.PlaceBid", 1, true))
   end)
 
+  it("keeps a shadowed SAFE decision on the Check path", function()
+    local text = source()
+    local arm = section(text, "local function armReady", "local function armCheck")
+    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+
+    -- A shadow result is public WATCH/buyable=false; only that public contract can arm or
+    -- reach a protected WoW call. `computedStatus` is display evidence, never an arm key.
+    assert.is_truthy(arm:find("not decision.buyable or decision.status ~= \"SAFE\"", 1, true))
+    assert.is_nil(arm:find("computedStatus", 1, true))
+    assert.is_truthy(click:find("decision.status ~= \"SAFE\" or not decision.buyable", 1, true))
+    assert.is_nil(click:find("computedStatus", 1, true))
+  end)
+
   it("requires a newly evaluated safe quote, cancels a broken requote, and records one purchase fact", function()
     local text = source()
     local quote = section(text, "function GC.Sniper.OnCommodityPriceUpdated", "function GC.Sniper.OnCommodityPriceUnavailable")
