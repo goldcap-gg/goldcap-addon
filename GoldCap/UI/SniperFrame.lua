@@ -1364,11 +1364,16 @@ local function stampDialogFromDecision(deal, decision)
   local firstReason = decision.reasons and decision.reasons[1] or "live_verification_required"
 
   local publicStatus = decision.status or "WATCH"
+  local computedStatus = decision.computedStatus or publicStatus
+  local diagnosticReasons = table.concat(decision.reasons or {}, ", ")
   if decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
     dialog.decisionStatusText:SetText("WATCH (computed SAFE)")
   else
     dialog.decisionStatusText:SetText(publicStatus)
   end
+  dialog.diagnosticText:SetText(("computed=%s public=%s buyable=%s reasons=%s"):format(
+    computedStatus, publicStatus, decision.buyable and "yes" or "no",
+    diagnosticReasons ~= "" and diagnosticReasons or "none"))
   dialog.quantityText:SetText(quantity > 0 and tostring(quantity) or "—")
   dialog.unitPriceText:SetText(displayDecisionAmount(average))
   dialog.totalCostText:SetText(displayDecisionAmount(entryTotal))
@@ -2340,7 +2345,10 @@ local DIALOG_GRID_ROWS = 11 -- decision status/qty/entry/exit/profit/reference/l
 -- ("<unit> -> <unit> per unit    total <total> -> <total>" at DIALOG_WIDTH), and the
 -- suspect/mv notes must never clip a second line either; both budgets sized for two lines
 -- of Theme.Label(d, 11) at this width, not one.
-local DIALOG_NOTE_H = 36   -- reserved height for a 2-line note (suspect/mv) at this width/font
+local DIALOG_NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
+-- Full ordered reasons are diagnostic evidence, not a call to action. This bounded ten-line
+-- block stays readable without creating a new button, arm state, or protected-call path.
+local DIALOG_DIAGNOSTIC_H = 108
 local DIALOG_STATUS_H = 32
 local DIALOG_PRIMARY_H = 26
 local DIALOG_CANCEL_H = 20
@@ -2351,7 +2359,7 @@ local GRID_TOP = -DIALOG_HEADER_H
 -- bottom edge (mirrors GRID_TOP's measured-down-from-top pattern above).
 local DIALOG_CONTROLS_H = Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs + DIALOG_CANCEL_H + Theme.pad.s
 local DIALOG_BASE_HEIGHT = DIALOG_HEADER_H + DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H
-  + DIALOG_NOTE_H + DIALOG_STATUS_H + DIALOG_CONTROLS_H
+  + DIALOG_DIAGNOSTIC_H + DIALOG_STATUS_H + DIALOG_CONTROLS_H
 
 -- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
 -- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
@@ -2459,9 +2467,17 @@ local function createDialog()
   mvNote:Hide()
   d.mvNote = mvNote
 
+  local diagnosticText = Theme.Label(d, 11)
+  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
+  diagnosticText:SetPoint("RIGHT", -Theme.pad.m, 0)
+  diagnosticText:SetHeight(DIALOG_DIAGNOSTIC_H)
+  diagnosticText:SetJustifyH("LEFT")
+  diagnosticText:SetWordWrap(true)
+  d.diagnosticText = diagnosticText
+
   local status = Theme.Label(d, 11)
   status:SetPoint("TOPLEFT", Theme.pad.m,
-    GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - DIALOG_NOTE_H - Theme.pad.xs)
+    GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - DIALOG_DIAGNOSTIC_H - Theme.pad.xs)
   status:SetPoint("RIGHT", -Theme.pad.m, 0)
   status:SetWordWrap(true)
   d.status = status

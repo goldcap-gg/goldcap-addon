@@ -54,6 +54,15 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(click:find("computedStatus", 1, true))
   end)
 
+  it("renders complete non-actionable shadow diagnostics", function()
+    local text = source()
+    local diagnostic = section(text, "local function stampDialogFromDecision", "local function copyReasons")
+
+    assert.is_truthy(diagnostic:find("dialog.diagnosticText:SetText", 1, true))
+    assert.is_truthy(diagnostic:find("computed=%s public=%s buyable=%s reasons=%s", 1, true))
+    assert.is_truthy(diagnostic:find("table.concat(decision.reasons or {}, \", \")", 1, true))
+  end)
+
   it("requires a newly evaluated safe quote, cancels a broken requote, and records one purchase fact", function()
     local text = source()
     local quote = section(text, "function GC.Sniper.OnCommodityPriceUpdated", "function GC.Sniper.OnCommodityPriceUnavailable")
