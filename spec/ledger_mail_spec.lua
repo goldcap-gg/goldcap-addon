@@ -142,6 +142,7 @@ describe("Ledger inbox scan", function()
     assert.equal("buy", e.kind)
     assert.equal(210930, e.itemID)
     assert.equal(500000, e.total)
+    assert.is_nil(e.decisionVersion) -- mail invoices have no Sniper decision evidence
   end)
 
   it("skips mail that carries no invoice at all", function()

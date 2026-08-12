@@ -151,30 +151,47 @@ end
 -- table's own pairs(), which is a no-op either way).
 local FLIP_MAX_AGE_SECONDS = 14 * 24 * 3600
 
--- Every successful sniper purchase becomes one flip entry: `deal` only needs itemID/qty/
--- unitPrice (the shape SniperFrame's resolvePurchase already has in hand). `now` is
--- injectable for tests; defaults to time() so a live purchase never has to pass it.
--- targetUnit is resale-side math (floor(mv * 0.95), matching DealMath/SniperFrame's own resale
--- formula) evaluated fresh from GC.Data.GetItemValue AT RECORD TIME -- not the deal's own .mv --
--- so a flip's target reflects the freshest market read available, not a possibly-older
--- snapshot the deal was originally evaluated against. Falls back to paidUnit (breakeven-ish,
--- never a loss-looking recommendation out of the gate) when the item has no known value at all.
-function GC.Data.RecordFlip(deal, now)
+local function isPositiveInteger(value)
+  return type(value) == "number" and value > 0 and value == math.floor(value)
+end
+
+local function isReasonsArray(reasons)
+  if type(reasons) ~= "table" then return false end
+  for i = 1, #reasons do
+    if type(reasons[i]) ~= "string" then return false end
+  end
+  return true
+end
+
+-- Every successful protected sniper purchase becomes one flip entry. `purchase` is the immutable
+-- success fact: its total is authoritative, while unitDisplay is only for presentation. The
+-- stress target comes from the decision that permitted the purchase, never from a later market
+-- read or a paid-unit fallback. Invalid legacy/direct calls deliberately record nothing: inventing
+-- a target or reconstructing a total would turn an unknown cost into false accounting.
+function GC.Data.RecordFlip(deal, purchase, now)
   if not db then return nil end -- defensive: mirrors GetItemValue/GetStatus/GetWatchlist above, which all tolerate GC.Data.Init not having run yet
+  if type(deal) ~= "table" or type(purchase) ~= "table"
+      or not isPositiveInteger(deal.itemID) or purchase.itemID ~= deal.itemID
+      or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
+      or type(purchase.unitDisplay) ~= "number" or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
+      or not isPositiveInteger(purchase.decisionVersion) or purchase.decisionStatus ~= "SAFE"
+      or not isReasonsArray(purchase.decisionReasons)
+      or not isPositiveInteger(purchase.stressUnit)
+      or type(purchase.expectedProfit) ~= "number" or purchase.expectedProfit ~= math.floor(purchase.expectedProfit)
+      or not isPositiveInteger(purchase.recommendedQuantity)
+      or not isPositiveInteger(purchase.sourceAt) then
+    return nil
+  end
   now = now or time()
   db.flips = db.flips or {}
 
-  local value = GC.Data.GetItemValue(deal.itemID)
-  local mv = value and value.mv
-  local targetUnit = mv and math.floor(mv * 0.95) or deal.unitPrice
-
   local flip = {
     itemID = deal.itemID,
-    qty = deal.qty,
-    paidUnit = deal.unitPrice,
-    paidTotal = deal.unitPrice * deal.qty,
+    qty = purchase.quantity,
+    paidUnit = purchase.unitDisplay,
+    paidTotal = purchase.total,
     boughtAt = now,
-    targetUnit = targetUnit,
+    targetUnit = purchase.stressUnit,
   }
   db.flips[#db.flips + 1] = flip
   return flip

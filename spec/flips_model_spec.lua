@@ -36,21 +36,21 @@ describe("Flips row model (Sniper v3 §5)", function()
     it("UNLISTED even with a fresh quote, as long as there's no owned lot", function()
       -- marketUnit alone still feeds the profit projection (both terms of
       -- the min() collapse to marketUnit when listedUnit is nil).
-      local row = GC.Flips.BuildRow(flip({ paidUnit = 100, qty = 3 }), {}, { unit = 1000, at = 0 }, {})
+      local row = GC.Flips.BuildRow(flip({ paidUnit = 100, paidTotal = 300, qty = 3 }), {}, { unit = 1000, at = 0 }, {})
       assert.equal("UNLISTED", row.status)
       assert.is_nil(row.listedUnit)
       assert.equal(1000, row.marketUnit)
-      -- basis=1000, 1000*0.95=950, -100=850, *3=2550
+      -- floor(1000 * 3 * 95 / 100) - 300 = 2550
       assert.equal(2550, row.profit)
     end)
 
     it("LISTED: owned lot exists and no fresh quote to compare against", function()
-      local row = GC.Flips.BuildRow(flip({ paidUnit = 100, qty = 3 }),
+      local row = GC.Flips.BuildRow(flip({ paidUnit = 100, paidTotal = 300, qty = 3 }),
         lots({ itemID = 42, unitPrice = 333 }), nil, {})
       assert.equal("LISTED", row.status)
       assert.equal(333, row.listedUnit)
       assert.is_nil(row.marketUnit)
-      -- basis=333, 333*0.95=316.35, -100=216.35, *3=649.05 -> floor 649
+      -- floor(333 * 3 * 95 / 100) - 300 = 649
       assert.equal(649, row.profit)
     end)
 
@@ -79,7 +79,7 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.equal("UNDERCUT", row.status)
       assert.equal(150, row.listedUnit)
       assert.equal(100, row.marketUnit)
-      -- basis=min(150,100)=100, 100*0.95=95, -100=-5, *2=-10
+      -- floor(100 * 2 * 95 / 100) - 200 = -10
       assert.equal(-10, row.profit)
     end)
 
@@ -106,35 +106,58 @@ describe("Flips row model (Sniper v3 §5)", function()
     end)
 
     it("floors a fractional profit toward negative infinity, not toward zero", function()
-      -- basis=99, 99*0.95=94.05, -1=93.05, *1=93.05 -> floor 93 (not 94)
-      local row = GC.Flips.BuildRow(flip({ paidUnit = 1, qty = 1 }),
+      -- floor(99 * 1 * 95 / 100) - 1 = 93
+      local row = GC.Flips.BuildRow(flip({ paidUnit = 1, paidTotal = 1, qty = 1 }),
         lots({ itemID = 42, unitPrice = 99 }), nil, {})
       assert.equal(93, row.profit)
+    end)
+
+    it("subtracts the exact non-divisible purchase total, not display unit times quantity", function()
+      local row = GC.Flips.BuildRow(flip({ qty = 2, paidUnit = 100, paidTotal = 201 }),
+        lots({ itemID = 42, unitPrice = 200 }), nil, {})
+      assert.equal(179, row.profit) -- floor(200 * 2 * 95 / 100) - 201
+    end)
+
+    it("keeps a legacy flip without paidTotal visible but unprojectable", function()
+      local legacy = flip()
+      legacy.paidTotal = nil
+      local row = GC.Flips.BuildRow(legacy, lots({ itemID = 42, unitPrice = 200 }), nil, {})
+      assert.equal("LISTED", row.status)
+      assert.is_nil(row.profit)
+      assert.is_nil(row.paidTotal)
     end)
   end)
 
   describe("Summary", function()
     it("sums invested for every row, known or not", function()
       local rows = {
-        { boughtUnit = 100, qty = 2, profit = nil },
-        { boughtUnit = 50, qty = 3, profit = nil },
+        { boughtUnit = 100, paidTotal = 201, qty = 2, profit = nil },
+        { boughtUnit = 50, paidTotal = 150, qty = 3, profit = nil },
       }
       local s = GC.Flips.Summary(rows)
-      assert.equal(350, s.invested) -- 200 + 150
+      assert.equal(351, s.invested) -- 201 + 150
       assert.equal(0, s.projected)
       assert.equal(0, s.profit)
     end)
 
     it("only folds projected/profit in from rows with a known profit", function()
       local rows = {
-        { boughtUnit = 100, qty = 2, profit = 50 },  -- invested 200, projected 250
-        { boughtUnit = 50, qty = 1, profit = nil },  -- invested 50, contributes nothing else
-        { boughtUnit = 10, qty = 5, profit = -20 },  -- invested 50, projected 30
+        { boughtUnit = 100, paidTotal = 201, qty = 2, profit = 50 },  -- invested 201, projected 251
+        { boughtUnit = 50, paidTotal = 50, qty = 1, profit = nil },   -- invested 50, contributes nothing else
+        { boughtUnit = 10, paidTotal = 50, qty = 5, profit = -20 },   -- invested 50, projected 30
       }
       local s = GC.Flips.Summary(rows)
-      assert.equal(300, s.invested)  -- 200 + 50 + 50
-      assert.equal(280, s.projected) -- 250 + 30
+      assert.equal(301, s.invested)  -- 201 + 50 + 50
+      assert.equal(281, s.projected) -- 251 + 30
       assert.equal(30, s.profit)     -- 50 + (-20)
+    end)
+
+    it("excludes legacy rows with unknown exact cost from monetary totals", function()
+      local s = GC.Flips.Summary({
+        { boughtUnit = 100, qty = 2, paidTotal = nil, profit = nil },
+        { boughtUnit = 100, qty = 2, paidTotal = 201, profit = 9 },
+      })
+      assert.same({ invested = 201, projected = 210, profit = 9 }, s)
     end)
 
     it("returns all zeros for an empty row set", function()

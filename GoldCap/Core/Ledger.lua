@@ -252,13 +252,45 @@ end
 
 local sniperSeq = 0
 
+local function isPositiveInteger(value)
+  return type(value) == "number" and value > 0 and value == math.floor(value)
+end
+
+local function isReasonsArray(reasons)
+  if type(reasons) ~= "table" then return false end
+  for i = 1, #reasons do
+    if type(reasons[i]) ~= "string" then return false end
+  end
+  return true
+end
+
+local function copyReasons(reasons)
+  local copy = {}
+  for i = 1, #reasons do copy[i] = reasons[i] end
+  return copy
+end
+
 --- Records a purchase made through the Sniper. Unlike a mail invoice this has
 -- no natural dedupe key -- two identical buys a second apart are two real buys
 -- -- so the key carries a monotonic counter instead of the money fields.
--- `deal` is DealMath.Evaluate's shape. `mv` is snapshotted because attribution
--- later needs the market value the deal was JUDGED against, not today's.
-function GC.Ledger.RecordSniperBuy(deal, context, now)
+-- `deal` is the discovery context; `purchase` is the immutable successful-purchase fact. Its
+-- exact total is the ledger cost basis, and decision fields are saved under stable camelCase
+-- names for later companion/API persistence.
+function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
   if not db then return nil end
+  if type(deal) ~= "table" or type(purchase) ~= "table"
+      or not isPositiveInteger(deal.itemID) or purchase.itemID ~= deal.itemID
+      or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
+      or type(purchase.unitDisplay) ~= "number" or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
+      or not isPositiveInteger(purchase.decisionVersion)
+      or purchase.decisionStatus ~= "SAFE"
+      or not isReasonsArray(purchase.decisionReasons)
+      or not isPositiveInteger(purchase.stressUnit)
+      or type(purchase.expectedProfit) ~= "number" or purchase.expectedProfit ~= math.floor(purchase.expectedProfit)
+      or not isPositiveInteger(purchase.recommendedQuantity)
+      or not isPositiveInteger(purchase.sourceAt) then
+    return nil
+  end
   now = now or time()
   sniperSeq = sniperSeq + 1
 
@@ -278,13 +310,20 @@ function GC.Ledger.RecordSniperBuy(deal, context, now)
     source = "goldcap_sniper",
     itemID = deal.itemID,
     itemName = itemName,
-    qty = deal.qty,
-    total = (deal.unitPrice or 0) * (deal.qty or 0),
+    qty = purchase.quantity,
+    total = purchase.total,
     cut = 0,
     deposit = 0,
     pending = false,
     mv = deal.mv,
     discount = deal.discount,
+    decisionVersion = purchase.decisionVersion,
+    decisionStatus = purchase.decisionStatus,
+    decisionReasons = copyReasons(purchase.decisionReasons),
+    stressUnit = purchase.stressUnit,
+    expectedProfit = purchase.expectedProfit,
+    recommendedQuantity = purchase.recommendedQuantity,
+    sourceAt = purchase.sourceAt,
     at = now,
     char = context and context.char or nil,
     region = context and context.region or nil,

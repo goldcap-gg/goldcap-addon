@@ -132,9 +132,28 @@ describe("Ledger store", function()
   describe("RecordSniperBuy", function()
     local context = { char = "Belarsa-Dentarg", region = "eu" }
 
+    local function purchase(overrides)
+      local facts = {
+        itemID = 210930,
+        quantity = 1,
+        total = 100,
+        unitDisplay = 100,
+        decisionVersion = 1,
+        decisionStatus = "SAFE",
+        decisionReasons = {},
+        stressUnit = 200,
+        expectedProfit = 50,
+        recommendedQuantity = 1,
+        sourceAt = 4000,
+      }
+      for k, v in pairs(overrides or {}) do facts[k] = v end
+      return facts
+    end
+
     it("records the buy with the market value it was judged against", function()
       local entry = GC.Ledger.RecordSniperBuy(
         { itemID = 210930, qty = 20, unitPrice = 12000, mv = 25000, discount = 0.52 },
+        purchase({ quantity = 20, total = 240000, unitDisplay = 12000, recommendedQuantity = 20 }),
         context, 5000)
 
       assert.equal("buy", entry.kind)
@@ -149,10 +168,39 @@ describe("Ledger store", function()
       assert.equal("Belarsa-Dentarg", entry.char)
     end)
 
+    it("preserves exact purchase cost and every decision fact without mutation", function()
+      local reasons = { "capital_limit", "demand_limit" }
+      local facts = purchase({
+        quantity = 2,
+        total = 201,
+        unitDisplay = 100,
+        decisionVersion = 7,
+        decisionStatus = "SAFE",
+        decisionReasons = reasons,
+        stressUnit = 300,
+        expectedProfit = 99,
+        recommendedQuantity = 2,
+        sourceAt = 4321,
+      })
+      local entry = GC.Ledger.RecordSniperBuy({ itemID = 210930, mv = 25000 }, facts, context, 5000)
+
+      assert.equal(2, entry.qty)
+      assert.equal(201, entry.total)
+      assert.equal(7, entry.decisionVersion)
+      assert.equal("SAFE", entry.decisionStatus)
+      assert.same({ "capital_limit", "demand_limit" }, entry.decisionReasons)
+      assert.not_equal(reasons, entry.decisionReasons)
+      assert.equal(300, entry.stressUnit)
+      assert.equal(99, entry.expectedProfit)
+      assert.equal(2, entry.recommendedQuantity)
+      assert.equal(4321, entry.sourceAt)
+    end)
+
     it("gives two buys of the same item at the same second distinct keys", function()
       local deal = { itemID = 210930, qty = 20, unitPrice = 12000, mv = 25000 }
-      local a = GC.Ledger.RecordSniperBuy(deal, context, 5000)
-      local b = GC.Ledger.RecordSniperBuy(deal, context, 5000)
+      local facts = purchase({ quantity = 20, total = 240000, unitDisplay = 12000, recommendedQuantity = 20 })
+      local a = GC.Ledger.RecordSniperBuy(deal, facts, context, 5000)
+      local b = GC.Ledger.RecordSniperBuy(deal, facts, context, 5000)
       -- Sniping the same item twice in one second is ordinary, and collapsing
       -- the second buy into the first would silently lose real spend.
       assert.not_equal(a.key, b.key)
@@ -161,7 +209,7 @@ describe("Ledger store", function()
 
     it("stores a buy with no known market value rather than dropping it", function()
       local entry = GC.Ledger.RecordSniperBuy(
-        { itemID = 7, qty = 1, unitPrice = 100 }, context, 1)
+        { itemID = 7, qty = 1, unitPrice = 100 }, purchase({ itemID = 7 }), context, 1)
       assert.is_nil(entry.mv)
       assert.equal(100, entry.total)
     end)
@@ -169,14 +217,14 @@ describe("Ledger store", function()
     it("is a no-op before Init instead of erroring mid-purchase", function()
       local fresh = helper.loadModule("Core/Ledger.lua")
       assert.has_no.errors(function()
-        fresh.Ledger.RecordSniperBuy({ itemID = 1, qty = 1, unitPrice = 1 }, context, 1)
+        fresh.Ledger.RecordSniperBuy({ itemID = 1 }, purchase({ itemID = 1, total = 1, unitDisplay = 1 }), context, 1)
       end)
     end)
 
     it("carries the item name when the client can supply one", function()
       _G.C_Item = { GetItemNameByID = function() return "Ironclaw Ore" end }
       local entry = GC.Ledger.RecordSniperBuy(
-        { itemID = 210930, qty = 1, unitPrice = 100 }, context, 1)
+        { itemID = 210930, qty = 1, unitPrice = 100 }, purchase(), context, 1)
       _G.C_Item = nil
       assert.equal("Ironclaw Ore", entry.itemName)
     end)
@@ -184,8 +232,12 @@ describe("Ledger store", function()
     it("tolerates a client that cannot name the item", function()
       -- No C_Item under busted -- exactly the degraded in-game case.
       local entry = GC.Ledger.RecordSniperBuy(
-        { itemID = 210930, qty = 1, unitPrice = 100 }, context, 1)
+        { itemID = 210930, qty = 1, unitPrice = 100 }, purchase(), context, 1)
       assert.is_nil(entry.itemName)
+    end)
+
+    it("returns nil for a direct caller that lacks immutable purchase facts", function()
+      assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930, qty = 1, unitPrice = 100 }, nil, context, 1))
     end)
   end)
 
@@ -233,7 +285,11 @@ describe("Ledger store", function()
 
     it("counts a RecordSniperBuy the same way a mail-scanned Append counts", function()
       local context = { char = "Belarsa-Dentarg", region = "eu" }
-      GC.Ledger.RecordSniperBuy({ itemID = 210930, qty = 1, unitPrice = 100 }, context, 1)
+      GC.Ledger.RecordSniperBuy({ itemID = 210930, qty = 1, unitPrice = 100 }, {
+        itemID = 210930, quantity = 1, total = 100, unitDisplay = 100,
+        decisionVersion = 1, decisionStatus = "SAFE", decisionReasons = {}, stressUnit = 200,
+        expectedProfit = 50, recommendedQuantity = 1, sourceAt = 1,
+      }, context, 1)
       assert.equal(1, GC.Ledger.SessionEventCount())
     end)
   end)

@@ -39,9 +39,10 @@ function GC.Flips.BuildRow(flip, ownedLots, quote, sales)
   local marketUnit = quote and quote.unit or nil
 
   local profit
-  if listedUnit or marketUnit then
+  if (listedUnit or marketUnit) and type(flip.paidTotal) == "number" then
     local basis = math.min(listedUnit or marketUnit, marketUnit or listedUnit)
-    profit = math.floor((basis * 0.95 - flip.paidUnit) * flip.qty)
+    local projectedNet = math.floor(basis * flip.qty * 95 / 100)
+    profit = projectedNet - flip.paidTotal
   end
 
   -- Precedence (spec §5): a pending sale outranks everything else -- it's
@@ -64,6 +65,7 @@ function GC.Flips.BuildRow(flip, ownedLots, quote, sales)
     itemID = flip.itemID,
     qty = flip.qty,
     boughtUnit = flip.paidUnit,
+    paidTotal = flip.paidTotal,
     listedUnit = listedUnit,
     marketUnit = marketUnit,
     profit = profit,
@@ -79,10 +81,12 @@ end
 function GC.Flips.Summary(rows)
   local invested, projected, profit = 0, 0, 0
   for _, row in ipairs(rows or {}) do
-    invested = invested + row.boughtUnit * row.qty
-    if row.profit ~= nil then
+    if type(row.paidTotal) == "number" then
+      invested = invested + row.paidTotal
+    end
+    if row.profit ~= nil and type(row.paidTotal) == "number" then
       profit = profit + row.profit
-      projected = projected + row.boughtUnit * row.qty + row.profit
+      projected = projected + row.paidTotal + row.profit
     end
   end
   return { invested = invested, projected = projected, profit = profit }
