@@ -31,6 +31,11 @@ GC.DEFAULTS = {
       -- import string's signed trend field; a deal whose 24h market-value
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
       dumpTrendPct = 10,
+      -- Sniper v3 T10: UI-only scale multiplier for Theme's fonts (0.9-1.3), persisted so a
+      -- player's chosen text size survives relog. Read back once GC.db exists (see this file's
+      -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every
+      -- change (the settings panel's font-scale slider), not by UI/SettingsFrame.lua directly.
+      fontScale = 1.0,
       -- window: undeclared here on purpose (a nil-valued table field is never actually
       -- stored, so ApplyDefaults' pairs() walk would just skip it either way). Populated by
       -- UI/SniperFrame.lua's persistWindowGeometry as { point, x, y, width, height } (Sniper
@@ -111,6 +116,19 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Data.AdoptAppData()
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    -- Sniper v3 T10: apply the persisted font-scale multiplier as soon as GC.db exists, NOT
+    -- gated on the Sniper window ever being built -- UI/SniperFrame.lua's window frame is
+    -- created lazily (first Toggle()/AH visit), so a player who never opens the Sniper this
+    -- session would otherwise never get their saved scale applied. GC.Theme itself is never
+    -- lazy: UI/Theme.lua loads unconditionally, earlier in the .toc, so GC.Theme.SetScale
+    -- already exists here regardless of whether any UI frame has been constructed yet -- this
+    -- only updates Theme's own module-local scale (there are no live widgets to re-font yet),
+    -- so later widget construction (Theme.Label/Num/Chip/etc. all read the current scale at
+    -- creation time) picks up the right size from the very first frame, with no dependency on
+    -- UI file load order beyond Theme.lua itself already having run.
+    if GC.Theme and GC.db.settings and GC.db.settings.sniper then
+      GC.Theme.SetScale(GC.db.settings.sniper.fontScale)
+    end
     frame:UnregisterEvent("ADDON_LOADED")
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
     local interactionType = ...

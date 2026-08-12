@@ -15,6 +15,15 @@ describe("TOC load order", function()
         RegisterForDrag = function() end,
         Show = function() end,
         Hide = function() end,
+        -- Fix round 1 (T10, C2): hardcoded false, NOT stateful (Show()/Hide() above don't flip
+        -- it). Real WoW frames are shown BY DEFAULT and Show()/Hide() actually toggle IsShown --
+        -- this stub's constant false masks that entirely, which is exactly how C2 (SettingsFrame
+        -- .lua's build() returning an already-visible panel, so the first
+        -- GC.SettingsUI.Toggle() call immediately hid it again) slipped past this test:
+        -- GC.SettingsUI.Toggle()'s two calls in this file both hit the same `else Show()` branch
+        -- regardless of what build() actually left the panel's real shown-state as. Do not treat
+        -- a clean run through this stub as proof of correct IsShown()-branching logic -- that
+        -- needs an in-game check (see task-10-report.md's checklist) or a stateful IsShown stub.
         IsShown = function() return false end,
         SetText = function() end,
         SetTexture = function() end,
@@ -101,11 +110,55 @@ describe("TOC load order", function()
             IsPlaying = function() return false end,
           }
         end,
+        -- Sniper v3 T10 (UI/SettingsFrame.lua): the settings overlay captures Escape directly
+        -- (EnableKeyboard + OnKeyDown, not UISpecialFrames -- see that file's own comment for
+        -- why) rather than closing the whole Sniper window; the stub methods themselves are
+        -- never invoked by this headless test (nothing simulates a keypress), kept for parity
+        -- like HookScript/CreateAnimationGroup above.
+        EnableKeyboard = function() end,
+        SetPropagateKeyboardInput = function() end,
+        -- T10 EditBox widgets (HOT/GOOD discount %, min sold/day, dump-trend cap %): built and
+        -- immediately given an initial value (bindNumberField's `display()` runs synchronously
+        -- during panel construction), so SetAutoFocus/SetMaxLetters/GetFont (existing) and
+        -- SetText (existing) all run for real here, unlike the deferred-only stubs above.
+        -- GetText/ClearFocus back the OnEditFocusLost/OnEscapePressed scripts, which this test
+        -- never triggers -- kept for parity, same reasoning as HookScript's targets.
+        SetAutoFocus = function() end,
+        SetMaxLetters = function() end,
+        GetText = function() return "" end,
+        ClearFocus = function() end,
+        -- T10 CheckButton widgets (Sound / Auto-scan by default): SetChecked runs for real
+        -- (bindCheckbox's display() during construction); GetChecked/SetCheckedTexture back the
+        -- OnClick script this test never fires -- kept for parity.
+        SetChecked = function() end,
+        GetChecked = function() return false end,
+        SetCheckedTexture = function() end,
+        -- T10 Slider widget (font scale): SetOrientation/SetMinMaxValues/SetValueStep/
+        -- SetObeyStepOnDrag/SetThumbTexture/SetValue all run for real during construction
+        -- (bindFontSlider's display() calls SetValue synchronously); GetValue backs the
+        -- OnValueChanged script this test never fires -- kept for parity.
+        SetOrientation = function() end,
+        SetMinMaxValues = function() end,
+        SetValueStep = function() end,
+        SetObeyStepOnDrag = function() end,
+        SetThumbTexture = function() end,
+        SetValue = function() end,
+        GetValue = function() return 0 end,
       }
       return f
     end
-    _G.CreateFrame = function()
-      return stubFrame()
+    -- T10: CreateFrame("Frame", "GoldCapSniperFrame", UIParent) auto-publishes the frame to
+    -- _G[name] in the real client (documented WidgetAPI behavior for any named frame) --
+    -- UI/SettingsFrame.lua's GC.SettingsUI.Toggle() looks the Sniper window up that way rather
+    -- than through a getter exposed from UI/SniperFrame.lua. This stub replicates that one
+    -- piece of real behavior (it previously discarded the name argument entirely, which never
+    -- mattered before nothing looked a frame up by its global name).
+    _G.CreateFrame = function(_, name)
+      local f = stubFrame()
+      if name and name ~= "" then
+        _G[name] = f
+      end
+      return f
     end
     _G.UISpecialFrames = _G.UISpecialFrames or {}
     _G.SlashCmdList = {}
@@ -160,11 +213,18 @@ describe("TOC load order", function()
     assert.is_function(GC.DealMath.Evaluate)
     assert.is_function(GC.slashHandlers.sniper)
     assert.is_function(GC.Sniper.Toggle)
+    assert.is_function(GC.SettingsUI.Toggle)
 
     -- exercise real frame construction through the stubbed CreateFrame
     assert.has_no.errors(function() GC.Sniper.Toggle() end)
+    -- T10: GC.Sniper.Toggle() above publishes _G.GoldCapSniperFrame (see the CreateFrame stub's
+    -- own comment) -- GC.SettingsUI.Toggle() finds it that way and builds+shows the settings
+    -- overlay on this first call, then hides it again on the second (IsShown toggle).
+    assert.has_no.errors(function() GC.SettingsUI.Toggle() end)
+    assert.has_no.errors(function() GC.SettingsUI.Toggle() end)
 
     _G.CreateFrame = nil
+    _G.GoldCapSniperFrame = nil
     _G.UISpecialFrames = nil
     _G.SlashCmdList = nil
     _G.C_AddOns = nil

@@ -2774,9 +2774,10 @@ local function createFrame()
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, "GoldCap Sniper")
   f.gearBtn, f.closeBtn = titleBar.gear, titleBar.close
-  -- T10 will wire the settings panel here; an explicit no-op keeps the gear visibly
-  -- clickable (Theme.Button's hover feedback) without doing anything yet.
-  titleBar.gear:SetScript("OnClick", function() end)
+  -- T10: opens/closes the in-game settings overlay (UI/SettingsFrame.lua) -- built lazily on
+  -- first click, same lazy-construction pattern as this window's own purchase confirm dialog
+  -- (createDialog, below).
+  titleBar.gear:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
 
   -- hooksecurefunc, not an OnDragStop/OnMouseUp script: see persistWindowGeometry's own
   -- comment for why the method-hook is what unifies both hardware-driven geometry changes.

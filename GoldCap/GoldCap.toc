@@ -24,4 +24,5 @@ UI/Tooltip.lua
 UI/ImportDialog.lua
 UI/SniperFrame.lua
 UI/SellFrame.lua
+UI/SettingsFrame.lua
 Core/Init.lua
