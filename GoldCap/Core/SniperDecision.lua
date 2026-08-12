@@ -4,6 +4,7 @@ GC.SniperDecision = { VERSION = 1 }
 
 local MAX_EXACT = 9007199254740991
 local SOURCE_MAX_AGE = 7200
+local MAX_ROI_BPS = 100000 -- 1000%; larger edited settings fail closed instead of relaxing.
 
 local function isFinite(n)
   return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge
@@ -22,6 +23,14 @@ local function safeAdd(a, b)
   return a + b
 end
 
+-- `a` may be a prior signed profit while `b` is always a non-negative exact integer.
+-- The branch avoids constructing an out-of-range intermediate before rejecting it.
+local function safeSubtract(a, b)
+  if a < -MAX_EXACT or a > MAX_EXACT or b < 0 or b > MAX_EXACT then return nil end
+  if a < 0 and b > MAX_EXACT + a then return nil end
+  return a - b
+end
+
 local function safeMultiply(a, b)
   if a ~= 0 and b > math.floor(MAX_EXACT / a) then return nil end
   return a * b
@@ -30,6 +39,21 @@ end
 local function safeCeilDiv(n, d)
   local adjusted = safeAdd(n, d - 1)
   return adjusted and math.floor(adjusted / d) or nil
+end
+
+local function requiredProfitFor(entryTotal, minimumProfitCopper, minimumRoiBps)
+  -- Split entryTotal around the divisor so neither multiplication needs to exceed MAX_EXACT.
+  local whole = math.floor(entryTotal / 10000)
+  local remainder = entryTotal % 10000
+  local wholePart = safeMultiply(whole, minimumRoiBps)
+  local remainderProduct = safeMultiply(remainder, minimumRoiBps)
+  if not wholePart or not remainderProduct then return nil end
+  local remainderPart = math.floor(remainderProduct / 10000)
+  local required = safeAdd(wholePart, remainderPart)
+  if not required then return nil end
+  if remainderProduct % 10000 ~= 0 then required = safeAdd(required, 1) end
+  if not required then return nil end
+  return math.max(minimumProfitCopper, required)
 end
 
 local function clamp(n, low, high)
@@ -49,12 +73,18 @@ local function normalizeConfig(config)
       or not isSignedInteger(profit) or not isFinite(roi) then
     return nil
   end
+  local roiBps = 1000
+  if roi > 0.10 then
+    if roi > MAX_ROI_BPS / 10000 then return nil end
+    roiBps = math.ceil(roi * 10000)
+    if roiBps > MAX_ROI_BPS then return nil end
+  end
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
     maxQuantity = clamp(quantity, 1, 200),
     minimumProfitCopper = math.max(profit, 1000000),
-    minimumRoi = math.max(roi, 0.10),
+    minimumRoiBps = roiBps,
   }
 end
 
@@ -117,6 +147,9 @@ function GC.SniperDecision.Evaluate(input)
   local out = resultTemplate()
   local severity = 0 -- WATCH 1, AVOID 2
   local knownReasons = {}
+  local fixed = type(input) == "table" and type(input.live) == "table"
+    and input.live.fixedQuantity or nil
+  local fixedRequested = fixed ~= nil
   local function add(reason, level)
     if not knownReasons[reason] then
       knownReasons[reason] = true
@@ -124,11 +157,17 @@ function GC.SniperDecision.Evaluate(input)
     end
     if level > severity then severity = level end
   end
-  local function invalid()
-    add("invalid_input", 2)
+  local function finalizeFixedFailure()
+    if fixedRequested and isInteger(fixed) and fixed > 0 then out.quantity = fixed end
+    if fixedRequested then add("requote_broke_safety", 2) end
     out.status = "AVOID"
+    out.buyable = false
     orderReasons(out.reasons)
     return out
+  end
+  local function invalid()
+    add("invalid_input", 2)
+    return finalizeFixedFailure()
   end
 
   if type(input) ~= "table" or type(input.market) ~= "table" or type(input.live) ~= "table"
@@ -160,7 +199,6 @@ function GC.SniperDecision.Evaluate(input)
     return invalid()
   end
 
-  local fixed = live.fixedQuantity
   if fixed ~= nil and (not isInteger(fixed) or fixed <= 0) then return invalid() end
   if live.quotedTotal ~= nil and (not isInteger(live.quotedTotal) or live.quotedTotal <= 0) then
     return invalid()
@@ -185,6 +223,7 @@ function GC.SniperDecision.Evaluate(input)
 
   -- A scan has no actual purchase request: absent proof stays WATCH, never a synthetic book error.
   if not hasLive then
+    if fixedRequested then return finalizeFixedFailure() end
     out.status = severity == 2 and "AVOID" or "WATCH"
     out.buyable = false
     orderReasons(out.reasons)
@@ -210,7 +249,7 @@ function GC.SniperDecision.Evaluate(input)
     add("market_falling", 2)
   end
 
-  local maxWant = fixed or config.maxQuantity
+  local maxWant = math.max(config.maxQuantity, fixed or 0)
   local visible, levelError = preflightLevels(live.levels, maxWant)
   if levelError then return invalid() end
   if #live.levels == 0 or visible <= 0 then
@@ -221,7 +260,7 @@ function GC.SniperDecision.Evaluate(input)
   if stressUnit == nil or stressUnit <= 0 then
     add("stress_exit_missing", 2)
   end
-  local coarseCap = 0
+  local computedCap = 0
   if isFinite(market.soldPerDay) and market.soldPerDay >= 3 and visible then
     local mad = market.madBps or 0
     local stressDiscount = clamp(0.10 + 2 * mad / 10000, 0.10, 0.30)
@@ -229,14 +268,16 @@ function GC.SniperDecision.Evaluate(input)
     local supplyFactor = market.soldPerDay / (market.soldPerDay + stock)
     local demandCap = math.max(1, math.floor(market.soldPerDay * config.maxDailyDemandShare
       * supplyFactor * (1 - stressDiscount)))
-    coarseCap = math.min(demandCap, config.maxQuantity)
+    computedCap = math.min(demandCap, config.maxQuantity)
   end
-  if fixed then coarseCap = fixed end
-  if coarseCap <= 0 then
+  if computedCap <= 0 then
     add("demand_limit", 2)
-  elseif not fixed and coarseCap < config.maxQuantity then
+  elseif not fixed and computedCap < config.maxQuantity then
     add("demand_limit", 0) -- informational: a passing lower quantity remains SAFE
   end
+  if fixed and fixed > computedCap then add("demand_limit", 2) end
+
+  local coarseCap = fixed or computedCap
 
   local budget = math.floor(input.walletCopper * config.maxCapitalShare)
   local selected
@@ -272,13 +313,13 @@ function GC.SniperDecision.Evaluate(input)
           elseif not gross or not ahCut then
             return invalid()
           else
-            local afterCut = gross - ahCut
-            local afterEntry = afterCut - entryTotal
-            local stressProfit = afterEntry - deposit
-            local roiBase = safeMultiply(entryTotal, config.minimumRoi * 100)
-            local requiredProfit = roiBase and safeCeilDiv(roiBase, 100)
+            local afterCut = safeSubtract(gross, ahCut)
+            local afterEntry = afterCut and safeSubtract(afterCut, entryTotal)
+            local stressProfit = afterEntry and safeSubtract(afterEntry, deposit)
+            local requiredProfit = requiredProfitFor(
+              entryTotal, config.minimumProfitCopper, config.minimumRoiBps)
             if not requiredProfit then return invalid() end
-            requiredProfit = math.max(1000000, requiredProfit)
+            if not stressProfit then return invalid() end
             if stressProfit < requiredProfit then
               sawProfit = true
             else
@@ -313,8 +354,7 @@ function GC.SniperDecision.Evaluate(input)
     return out
   end
 
-  if fixed then out.quantity = fixed end
-  if fixed and severity > 0 then add("requote_broke_safety", 2) end
+  if fixedRequested then return finalizeFixedFailure() end
   out.status = severity == 1 and "WATCH" or "AVOID"
   out.buyable = false
   orderReasons(out.reasons)

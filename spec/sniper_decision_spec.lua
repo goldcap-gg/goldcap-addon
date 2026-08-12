@@ -81,6 +81,13 @@ describe("SniperDecision", function()
     assertReason(result, "velocity_too_low")
   end)
 
+  it("accepts the exact sold-per-day floor of three", function()
+    local input = validInput()
+    input.market.soldPerDay = 3
+    input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 3000001, quantity = 1 } }
+    assert.equal("SAFE", evaluate(input).status)
+  end)
+
   it("avoids sell-through below 7000 bps and accepts its exact floor", function()
     local low = validInput(); low.market.sellThroughBps = 6999
     assert.equal("AVOID", evaluate(low).status)
@@ -155,6 +162,16 @@ describe("SniperDecision", function()
     assert.equal(200, evaluate(validInput()).quantity)
   end)
 
+  it("uses the exact two-percent demand formula before the hard cap", function()
+    local input = validInput()
+    input.market.soldPerDay = 1000
+    input.live.levels = { { unitPrice = 1000000, quantity = 17 }, { unitPrice = 3000001, quantity = 1 } }
+    local result = evaluate(input)
+    assert.equal("SAFE", result.status)
+    assert.equal(17, result.quantity)
+    assertReason(result, "demand_limit")
+  end)
+
   it("uses ceiling AH cut and accepts the exact 100g stress-profit boundary", function()
     local input = validInput()
     input.live.fixedQuantity = 1
@@ -164,6 +181,29 @@ describe("SniperDecision", function()
     assert.equal(105264, result.ahCut)
     assert.equal(1000000, result.stressProfit)
     assert.equal(1000000, result.requiredProfit)
+  end)
+
+  it("accepts an exact ten-percent ROI boundary when it exceeds the 100g floor", function()
+    local input = validInput()
+    input.live.fixedQuantity = 1
+    input.live.levels = { { unitPrice = 20000000, quantity = 1 }, { unitPrice = 23157896, quantity = 1 } }
+    input.market.stressUnit = 23157895
+    local result = evaluate(input)
+    assert.equal("SAFE", result.status)
+    assert.equal(2000000, result.stressProfit)
+    assert.equal(2000000, result.requiredProfit)
+  end)
+
+  it("enforces a configured profit floor above the safety minimum", function()
+    local input = validInput()
+    input.live.fixedQuantity = 1
+    input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 392473686, quantity = 1 } }
+    input.market.stressUnit = 392473685
+    input.config.minimumProfitCopper = 500000000
+    local result = evaluate(input)
+    assert.equal("AVOID", result.status)
+    assertReason(result, "stress_profit_below_buffer")
+    assert.equal("requote_broke_safety", result.reasons[#result.reasons])
   end)
 
   it("selects the largest passing quantity using exact book totals", function()
@@ -199,6 +239,61 @@ describe("SniperDecision", function()
     local result = evaluate(input)
     assert.equal("SAFE", result.status)
     assert.equal(1, result.quantity)
+  end)
+
+  it("never lets a fixed quantity bypass the configured 200-unit cap", function()
+    local input = validInput()
+    input.live.fixedQuantity = 201
+    input.live.levels = { { unitPrice = 1000000, quantity = 201 }, { unitPrice = 3000001, quantity = 1 } }
+    local result = evaluate(input)
+    assert.equal("AVOID", result.status)
+    assert.equal(201, result.quantity)
+    assertReason(result, "demand_limit")
+    assert.equal("requote_broke_safety", result.reasons[#result.reasons])
+  end)
+
+  it("never lets a fixed quantity exceed the computed demand cap", function()
+    local input = validInput()
+    input.market.soldPerDay = 100
+    input.live.fixedQuantity = 2
+    input.live.levels = { { unitPrice = 1000000, quantity = 2 }, { unitPrice = 3000001, quantity = 1 } }
+    local result = evaluate(input)
+    assert.equal("AVOID", result.status)
+    assert.equal(2, result.quantity)
+    assertReason(result, "demand_limit")
+    assert.equal("requote_broke_safety", result.reasons[#result.reasons])
+  end)
+
+  it("finalizes a fixed evaluation without live levels as AVOID", function()
+    local input = validInput()
+    input.live.fixedQuantity = 1
+    input.live.levels = nil
+    local result = evaluate(input)
+    assert.equal("AVOID", result.status)
+    assertReason(result, "live_verification_required")
+    assert.equal("requote_broke_safety", result.reasons[#result.reasons])
+  end)
+
+  it("fails closed on overflowing or underflowing profit intermediates", function()
+    local overflow = validInput()
+    overflow.live.fixedQuantity = 2
+    overflow.live.levels = { { unitPrice = 1, quantity = 2 }, { unitPrice = 9007199254740991, quantity = 1 } }
+    overflow.market.stressUnit = 9007199254740991
+    local overflowResult = evaluate(overflow)
+    assertReason(overflowResult, "invalid_input")
+    assert.equal("requote_broke_safety", overflowResult.reasons[#overflowResult.reasons])
+
+    local underflow = validInput()
+    underflow.live.fixedQuantity = 1
+    underflow.live.quotedTotal = 1000000000000000
+    underflow.live.levels = { { unitPrice = 1, quantity = 1 }, { unitPrice = 2, quantity = 1 } }
+    underflow.market.stressUnit = 1
+    underflow.walletCopper = 9007199254740991
+    underflow.config.maxCapitalShare = 0.20
+    underflow.depositForQuantity = function() return 9007199254740991 end
+    local underflowResult = evaluate(underflow)
+    assertReason(underflowResult, "invalid_input")
+    assert.equal("requote_broke_safety", underflowResult.reasons[#underflowResult.reasons])
   end)
 
   it("orders reasons by confidence, market risk, book, capital, and profit", function()
