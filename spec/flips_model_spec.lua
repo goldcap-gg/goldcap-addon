@@ -105,6 +105,55 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.equal("LISTED", row.status)
     end)
 
+    describe("SOLD (F1: posted flips keep their cost basis)", function()
+      it("SOLD when a non-pending sale landed at/after postedAt and no owned lot remains", function()
+        local row = GC.Flips.BuildRow(flip({ posted = true, postedAt = 500 }), {}, nil,
+          { { itemID = 42, kind = "sale", pending = false, at = 500 } })
+        assert.equal("SOLD", row.status)
+      end)
+
+      it("SOLD falls back to boughtAt when the flip was never posted (postedAt nil)", function()
+        local row = GC.Flips.BuildRow(flip({ boughtAt = 100 }), {}, nil,
+          { { itemID = 42, kind = "sale", pending = false, at = 100 } })
+        assert.equal("SOLD", row.status)
+      end)
+
+      it("a sale landing BEFORE postedAt does not count (an earlier, unrelated sale)", function()
+        local row = GC.Flips.BuildRow(flip({ posted = true, postedAt = 500 }), {}, nil,
+          { { itemID = 42, kind = "sale", pending = false, at = 499 } })
+        assert.equal("UNLISTED", row.status)
+      end)
+
+      it("SOLD_PENDING outranks SOLD when both a pending and a landed sale are present", function()
+        local row = GC.Flips.BuildRow(flip({ posted = true, postedAt = 500 }), {}, nil, {
+          { itemID = 42, kind = "sale", pending = false, at = 500 },
+          { itemID = 42, kind = "sale", pending = true, at = 600 },
+        })
+        assert.equal("SOLD_PENDING", row.status)
+      end)
+
+      it("an owned lot blocks SOLD even with a matching landed sale (some OTHER batch sold)", function()
+        local row = GC.Flips.BuildRow(flip({ posted = true, postedAt = 500 }),
+          lots({ itemID = 42, unitPrice = 333 }), nil,
+          { { itemID = 42, kind = "sale", pending = false, at = 500 } })
+        assert.not_equal("SOLD", row.status)
+        assert.equal("LISTED", row.status)
+      end)
+
+      it("UNDERCUT still wins over a landed sale when an owned lot IS present and undercut", function()
+        local row = GC.Flips.BuildRow(flip({ posted = true, postedAt = 500, paidUnit = 100, qty = 2 }),
+          lots({ itemID = 42, unitPrice = 150 }), { unit = 100, at = 0 },
+          { { itemID = 42, kind = "sale", pending = false, at = 500 } })
+        assert.equal("UNDERCUT", row.status)
+      end)
+
+      it("a pending==true sale alone does not satisfy SOLD (that's SOLD_PENDING's job)", function()
+        local row = GC.Flips.BuildRow(flip({ posted = true, postedAt = 500 }), {}, nil,
+          { { itemID = 42, kind = "sale", pending = true, at = 500 } })
+        assert.equal("SOLD_PENDING", row.status)
+      end)
+    end)
+
     it("floors a fractional profit toward negative infinity, not toward zero", function()
       -- basis=99, 99*0.95=94.05, -1=93.05, *1=93.05 -> floor 93 (not 94)
       local row = GC.Flips.BuildRow(flip({ paidUnit = 1, qty = 1 }),
@@ -615,6 +664,133 @@ describe("Flips row model (Sniper v3 §5)", function()
     it("belowCost is false when candidate sits above breakeven", function()
       local r = GC.Flips.RecommendPost(100, 1000, nil)
       assert.is_false(r.belowCost)
+    end)
+
+    describe("mode selection: match vs undercut (F3)", function()
+      it("plain 3-arg call (no opts) still undercuts, mode='undercut'", function()
+        local r = GC.Flips.RecommendPost(50, 100, nil)
+        assert.equal("undercut", r.mode)
+        assert.equal(99, r.unit)
+      end)
+
+      it("mode is nil in the no-quote (mv) fallback branch, even with opts present", function()
+        local r = GC.Flips.RecommendPost(50, nil, 800, { levels = { { unitPrice = 1, quantity = 1 } }, sold = 1000 })
+        assert.is_nil(r.mode)
+        assert.equal(800, r.unit)
+      end)
+
+      it("recommends match when sold covers 2x the cheapest tier's depth", function()
+        -- cheapest tier (unitPrice=100) depth = 5+5=10; sold=20 -> 20 >= 2*10 -> match
+        local levels = {
+          { unitPrice = 100, quantity = 5 }, { unitPrice = 100, quantity = 5 }, { unitPrice = 200, quantity = 50 },
+        }
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 20 })
+        assert.equal("match", r.mode)
+        assert.equal(100, r.unit) -- matches the ask, no -1c undercut
+      end)
+
+      it("boundary: sold exactly 2x tierDepth triggers match", function()
+        local levels = { { unitPrice = 100, quantity = 10 } }
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 20 })
+        assert.equal("match", r.mode)
+      end)
+
+      it("boundary: sold just under 2x tierDepth stays undercut", function()
+        local levels = { { unitPrice = 100, quantity = 10 } }
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 19 })
+        assert.equal("undercut", r.mode)
+        assert.equal(99, r.unit)
+      end)
+
+      it("only counts levels priced exactly at the cheapest tier toward tierDepth", function()
+        -- tierDepth = 3 (only the 100-priced level); sold=6 -> 6 >= 2*3 -> match
+        local levels = { { unitPrice = 100, quantity = 3 }, { unitPrice = 150, quantity = 100 } }
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 6 })
+        assert.equal("match", r.mode)
+      end)
+
+      it("falls back to undercut when opts.levels is missing", function()
+        local r = GC.Flips.RecommendPost(50, 100, nil, { sold = 1000 })
+        assert.equal("undercut", r.mode)
+      end)
+
+      it("falls back to undercut when opts.levels is empty (no levels[1] to read a cheapest price from)", function()
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = {}, sold = 1000 })
+        assert.equal("undercut", r.mode)
+      end)
+
+      it("falls back to undercut when opts.sold is missing", function()
+        local levels = { { unitPrice = 100, quantity = 1 } }
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels })
+        assert.equal("undercut", r.mode)
+      end)
+
+      it("falls back to undercut when opts.sold is zero (never a match with no measured velocity)", function()
+        local levels = { { unitPrice = 100, quantity = 1 } }
+        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 0 })
+        assert.equal("undercut", r.mode)
+      end)
+
+      it("belowCost/breakeven are still computed correctly in match mode", function()
+        local levels = { { unitPrice = 100, quantity = 10 } }
+        local r = GC.Flips.RecommendPost(100, 100, nil, { levels = levels, sold = 1000 })
+        -- breakeven = ceil(100/0.95) = 106; candidate (match) = 100 < 106 -> belowCost
+        assert.equal("match", r.mode)
+        assert.equal(106, r.breakeven)
+        assert.is_true(r.belowCost)
+      end)
+    end)
+  end)
+
+  describe("RepostAdvice (F4)", function()
+    it("returns nil when RecommendPost itself has nothing to recommend", function()
+      assert.is_nil(GC.Flips.RepostAdvice({ paidUnit = 100 }))
+    end)
+
+    it("tolerates a nil args table entirely", function()
+      assert.is_nil(GC.Flips.RepostAdvice(nil))
+    end)
+
+    it("hold/loss when the recommended price would lock a loss", function()
+      local r = GC.Flips.RepostAdvice({ paidUnit = 1000, marketUnit = 10, qty = 1 })
+      assert.equal("hold", r.action)
+      assert.equal("loss", r.reason)
+      assert.is_not_nil(r.rec)
+    end)
+
+    it("hold/slow when the queue at the new (recommended) price is a STALL outlook", function()
+      local r = GC.Flips.RepostAdvice({
+        paidUnit = 10, marketUnit = 100, qty = 100, sold = 1,
+        levels = { { unitPrice = 100, quantity = 1000 } },
+      })
+      -- rec.unit=99 (undercut, tierDepth 1000 vs sold 1 stays undercut); aheadAtNew =
+      -- DepthBelow(levels, 99) = 0 (the 100-priced level is not < 99); days = (0+100)/1 = 100 -> STALL
+      assert.equal("hold", r.action)
+      assert.equal("slow", r.reason)
+    end)
+
+    it("repost when nothing blocks it", function()
+      local r = GC.Flips.RepostAdvice({
+        paidUnit = 10, marketUnit = 100, qty = 1, sold = 1,
+        levels = { { unitPrice = 100, quantity = 1000 } },
+      })
+      -- days = (0+1)/1 = 1 -> tier OK, not STALL
+      assert.equal("repost", r.action)
+      assert.equal(99, r.rec.unit)
+    end)
+
+    it("does not block on missing levels/sold data (treats an unknowable queue as ok-to-repost)", function()
+      local r = GC.Flips.RepostAdvice({ paidUnit = 10, marketUnit = 100, qty = 1 })
+      assert.equal("repost", r.action)
+    end)
+
+    it("loss takes precedence over slow when both would apply", function()
+      local r = GC.Flips.RepostAdvice({
+        paidUnit = 1000, marketUnit = 10, qty = 100, sold = 1,
+        levels = { { unitPrice = 10, quantity = 1000 } },
+      })
+      assert.equal("hold", r.action)
+      assert.equal("loss", r.reason)
     end)
   end)
 end)

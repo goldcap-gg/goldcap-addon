@@ -25,6 +25,28 @@ local function isSoldPending(sales)
   return false
 end
 
+-- F1: true when the lot was bought, posted, sold, and collected -- i.e. a NON-pending sale of
+-- this item has landed at or after the flip's own postedAt (falling back to boughtAt for a flip
+-- that was never posted through the addon, though in practice BuildRow only reaches this branch
+-- once listedUnit is nil, which an UNPOSTED flip already satisfies via UNLISTED further down --
+-- see the precedence comment on BuildRow itself). `listedUnit == nil` is required alongside the
+-- sale match: as long as an owned lot for this item still exists, whatever sold was some OTHER
+-- batch/lot of the same item, not the one this flip is tracking.
+--
+-- Same name-match fuzziness caveat GC.Flips.SalesForItem's own comment documents: `sales` is
+-- matched by item NAME only (a sale mail carries no itemID), so a same-named-but-different item
+-- sale could in principle false-positive here. The `at >= floor` check narrows that window the
+-- same way SalesForItem's own `sinceAt` narrows SOLD_PENDING's -- a sale that landed before this
+-- flip was even posted can never satisfy it.
+local function isSold(sales, flip, listedUnit)
+  if listedUnit ~= nil then return false end
+  local floor = flip.postedAt or flip.boughtAt
+  for _, sale in ipairs(sales or {}) do
+    if not sale.pending and (sale.at or 0) >= (floor or 0) then return true end
+  end
+  return false
+end
+
 --- Builds one Sell-tab row from a recorded flip plus its live context.
 -- Pure: no WoW API calls, no globals besides math -- callers gather
 -- ownedLots/quote/sales beforehand and pass them in.
@@ -59,14 +81,18 @@ function GC.Flips.BuildRow(flip, ownedLots, quote, sales, stats)
     profit = math.floor((basis * 0.95 - flip.paidUnit) * flip.qty)
   end
 
-  -- Precedence (spec §5): a pending sale outranks everything else -- it's
-  -- already sold, nothing left to post or repost. Otherwise an owned lot
-  -- priced above the current lowest ask is UNDERCUT; an owned lot with no
-  -- fresh quote to compare against defaults to LISTED (can't prove it's
-  -- undercut); no owned lot at all is UNLISTED.
+  -- Precedence (spec §5, extended by F1): a pending sale outranks everything else -- it's
+  -- already sold, nothing left to post or repost. Next, SOLD (F1): the lot was bought, posted,
+  -- and has since sold AND been collected -- possible now that GC.Data.GetFlips no longer
+  -- prunes a flip the instant it's posted (see that function's own comment), so a flip can live
+  -- long enough to observe its own sale land. Otherwise an owned lot priced above the current
+  -- lowest ask is UNDERCUT; an owned lot with no fresh quote to compare against defaults to
+  -- LISTED (can't prove it's undercut); no owned lot at all is UNLISTED.
   local status
   if isSoldPending(sales) then
     status = "SOLD_PENDING"
+  elseif isSold(sales, flip, listedUnit) then
+    status = "SOLD"
   elseif listedUnit and marketUnit and listedUnit > marketUnit then
     status = "UNDERCUT"
   elseif listedUnit then
@@ -373,15 +399,105 @@ end
 -- accounted for a second time -- i.e. candidate itself sits below the price where costs are
 -- merely recovered. Surfaced as a loud, separate warning line rather than folded into the main
 -- recommendation text.
-function GC.Flips.RecommendPost(paidUnit, marketUnit, mv)
-  local candidate = marketUnit and math.max(1, marketUnit - 1) or mv or nil
+--
+-- F3 ("match, don't undercut"): `opts = { levels, sold }` (both optional; omitting either falls
+-- straight back to the undercut behavior above). Racing to the bottom 1c at a time is wasted
+-- effort when the CHEAPEST price tier sells out fast enough that being anywhere IN that tier is
+-- enough -- buyers consume the whole tier, not just the single lowest listing, so undercutting
+-- it by 1c buys nothing but a smaller margin. When marketUnit, opts.levels (with a first entry --
+-- levels is assumed pre-sorted ascending, same convention DepthBelow's callers already follow)
+-- and a positive opts.sold are ALL present: tierDepth sums quantity across every level priced
+-- exactly at the book's own cheapest unit price. `opts.sold >= 2 * tierDepth` -- "the whole
+-- cheapest tier turns over in half a day or less at current velocity" -- is a deliberately
+-- coarse rule of thumb, not a probability model: sold/day is a single realm-wide daily figure
+-- (GC.Data.GetItemValue), not a real-time fill-rate feed, so there is no honest way to derive a
+-- sharper threshold from it. When it holds, mode="match" and the candidate becomes marketUnit
+-- itself (no -1c undercut); otherwise (or when the match-mode inputs aren't all available)
+-- mode="undercut", exactly the pre-F3 `max(1, marketUnit - 1)` expression. The no-quote (mv)
+-- fallback branch always leaves mode nil -- there is no ask to match OR undercut, so neither
+-- label applies.
+function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
+  opts = opts or {}
+  local mode, candidate
+
+  if marketUnit and opts.levels and opts.levels[1] and opts.sold and opts.sold > 0 then
+    local cheapest = opts.levels[1].unitPrice
+    local tierDepth = 0
+    for _, lvl in ipairs(opts.levels) do
+      if lvl.unitPrice == cheapest then tierDepth = tierDepth + (lvl.quantity or 0) end
+    end
+    if opts.sold >= 2 * tierDepth then
+      mode, candidate = "match", marketUnit
+    end
+  end
+
+  if not mode then
+    if marketUnit then
+      mode, candidate = "undercut", math.max(1, marketUnit - 1)
+    else
+      candidate = mv or nil
+    end
+  end
+
   if candidate == nil then return nil end
 
   local breakeven = paidUnit and math.ceil(paidUnit / 0.95) or nil
 
   return {
     unit = candidate,
+    mode = mode,
     breakeven = breakeven,
     belowCost = (breakeven ~= nil and candidate < breakeven) or false,
   }
+end
+
+-- ---------------------------------------------------------------------------
+-- F4: repost advice. Blizzard throttles auction cancels (since patch 8.3) -- a blind
+-- cancel-and-repost wastes a share of that limited budget, and can lock in a loss the player
+-- never actually meant to take. GC.Flips.RepostAdvice is a pure pre-flight check UI/SellFrame.lua's
+-- onRepostClick gates the FIRST click of its two-click cancel flow behind (see that file's own
+-- comment on the armed/disarm pattern this reuses).
+-- ---------------------------------------------------------------------------
+
+--- args = { paidUnit, marketUnit, mv, levels, sold, qty }. Returns nil, or
+-- { action = "hold"|"repost", reason = "loss"|"slow" (hold only), rec = <RecommendPost's own
+-- return> }.
+--
+-- rec reuses GC.Flips.RecommendPost with the SAME inputs the row's own Post/tooltip flow already
+-- computes from -- one recommendation, one derivation, reused here rather than re-derived with
+-- its own copy of the match/undercut branching. A nil rec (neither marketUnit nor mv known)
+-- means there is nothing to advise on yet, so RepostAdvice itself returns nil too.
+--
+-- hold/loss: rec.belowCost already means posting AT THE RECOMMENDED PRICE would lock in a loss
+-- -- cancelling the existing (possibly still break-even-or-better) lot to chase that price is
+-- strictly worse than doing nothing, so this check runs FIRST and short-circuits the slow-queue
+-- check below (a losing repost is never merely "slow," it's a straightforwardly bad idea
+-- regardless of how fast it would sell).
+--
+-- hold/slow: estimates the queue the player would actually join AT THE NEW price -- aheadAtNew
+-- via GC.Flips.DepthBelow(levels, rec.unit), nil-safe: an unknown book (levels absent) yields an
+-- unknown queue depth, which is read as "cannot prove this repost is bad" and falls through to
+-- "repost" rather than blocking the player on data GoldCap simply doesn't have yet. That depth
+-- feeds the same GC.Flips.SellOutlook queue-depth/velocity model the row's own ETA already
+-- uses; an outlook.tier of STALL at the NEW price means the deposit/cancel-budget spend would
+-- likely sit unsold for a week-plus -- not worth spending one of a limited number of cancels on.
+--
+-- repost: neither guard fired -- cancelling and reposting at rec.unit is judged worth it.
+function GC.Flips.RepostAdvice(args)
+  args = args or {}
+  local rec = GC.Flips.RecommendPost(args.paidUnit, args.marketUnit, args.mv,
+    { levels = args.levels, sold = args.sold })
+  if not rec then return nil end
+
+  if rec.belowCost then
+    return { action = "hold", reason = "loss", rec = rec }
+  end
+
+  local aheadAtNew = GC.Flips.DepthBelow(args.levels, rec.unit)
+  local outlook = GC.Flips.SellOutlook({ ahead = aheadAtNew, qty = args.qty, sold = args.sold })
+  if outlook and outlook.tier == "STALL" then
+    return { action = "hold", reason = "slow", rec = rec }
+  end
+
+  return { action = "repost", rec = rec }
 end

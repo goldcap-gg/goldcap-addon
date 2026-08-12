@@ -138,4 +138,118 @@ describe("Data", function()
       assert.same({}, GC.Data.GetWatchlist(-1))
     end)
   end)
+
+  describe("post stats / personal sale rate (F2)", function()
+    describe("RecordPostEvent", function()
+      it("creates an entry on first post and counts it", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        assert.equal(1, db.postStats[42].posts)
+        assert.equal(0, db.postStats[42].sales)
+        assert.equal("Ironclaw Ore", db.postStats[42].name)
+      end)
+
+      it("increments posts on repeat calls for the same item", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        assert.equal(2, db.postStats[42].posts)
+      end)
+
+      it("refreshes the cached name when a real name is passed", function()
+        GC.Data.RecordPostEvent(42, "Old Name")
+        GC.Data.RecordPostEvent(42, "New Name")
+        assert.equal("New Name", db.postStats[42].name)
+      end)
+
+      it("keeps the existing name when itemName is nil", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        GC.Data.RecordPostEvent(42, nil)
+        assert.equal("Ironclaw Ore", db.postStats[42].name)
+      end)
+
+      it("is a no-op before GC.Data.Init has ever run", function()
+        local GC2 = helper.loadModule("Core/Data.lua")
+        assert.has_no.errors(function() GC2.Data.RecordPostEvent(1, "x") end)
+      end)
+
+      it("evicts a least-posted entry once the cap is exceeded, keeping heavier-posted entries", function()
+        for i = 1, 500 do
+          GC.Data.RecordPostEvent(i, "item" .. i)
+        end
+        -- Give every item except #500 a second post, so #500 sits as the unambiguous single
+        -- minimum (posts=1) among the first 500 entries -- which of the two posts=1 entries
+        -- (#500 or the freshly-added #501) actually gets evicted is not something this test
+        -- needs to pin down; only that the cap holds and every HEAVIER-posted entry survives.
+        for i = 1, 499 do
+          GC.Data.RecordPostEvent(i, "item" .. i)
+        end
+        GC.Data.RecordPostEvent(501, "item501") -- 501st distinct item -> triggers eviction
+
+        local count = 0
+        for _ in pairs(db.postStats) do count = count + 1 end
+        assert.equal(500, count)
+        for i = 1, 499 do
+          assert.is_not_nil(db.postStats[i])
+          assert.equal(2, db.postStats[i].posts)
+        end
+      end)
+    end)
+
+    describe("RecordSaleEvent", function()
+      it("increments sales for the postStats entry whose name matches", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        GC.Data.RecordSaleEvent("Ironclaw Ore")
+        assert.equal(1, db.postStats[42].sales)
+      end)
+
+      it("counts multiple sales of the same item", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        GC.Data.RecordSaleEvent("Ironclaw Ore")
+        GC.Data.RecordSaleEvent("Ironclaw Ore")
+        assert.equal(2, db.postStats[42].sales)
+      end)
+
+      it("is a silent no-op when no postStats entry matches the name", function()
+        assert.has_no.errors(function() GC.Data.RecordSaleEvent("Never Posted") end)
+      end)
+
+      it("is a silent no-op before any post has ever been recorded (no postStats table yet)", function()
+        assert.has_no.errors(function() GC.Data.RecordSaleEvent("Ironclaw Ore") end)
+      end)
+
+      it("is nil-safe for a nil itemName", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        assert.has_no.errors(function() GC.Data.RecordSaleEvent(nil) end)
+        assert.equal(0, db.postStats[42].sales)
+      end)
+    end)
+
+    describe("GetSaleRate", function()
+      it("returns nil when there is no postStats entry for the item", function()
+        assert.is_nil(GC.Data.GetSaleRate(42))
+      end)
+
+      it("returns nil below the 3-post confidence threshold", function()
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        GC.Data.RecordPostEvent(42, "Ironclaw Ore")
+        assert.is_nil(GC.Data.GetSaleRate(42))
+      end)
+
+      it("answers once posts reaches exactly 3", function()
+        for _ = 1, 3 do GC.Data.RecordPostEvent(42, "Ironclaw Ore") end
+        GC.Data.RecordSaleEvent("Ironclaw Ore")
+        GC.Data.RecordSaleEvent("Ironclaw Ore")
+        local r = GC.Data.GetSaleRate(42)
+        assert.equal(3, r.posts)
+        assert.equal(2, r.sales)
+        assert.equal(2 / 3, r.rate)
+      end)
+
+      it("clamps a rate above 100% (a manual post's sale counted where RecordPostEvent never saw the posting)", function()
+        for _ = 1, 3 do GC.Data.RecordPostEvent(42, "Ironclaw Ore") end
+        for _ = 1, 5 do GC.Data.RecordSaleEvent("Ironclaw Ore") end
+        local r = GC.Data.GetSaleRate(42)
+        assert.equal(1, r.rate)
+      end)
+    end)
+  end)
 end)

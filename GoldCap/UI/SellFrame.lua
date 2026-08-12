@@ -326,6 +326,15 @@ function GC.Sell.OnOwnedAuctions()
   -- Once the cancelled auctionID no longer shows up as this item's cheapest lot, release the pin
   -- and let the row fall back to its normal computed status (UNLISTED once the item lands back
   -- in the mail, same as any other unposted flip).
+  --
+  -- F1 verified: cancelling here does NOT lose the flip's cost basis anymore. The flip stays in
+  -- db.flips through the whole cancel (GC.Data.GetFlips no longer prunes on `f.posted` at all,
+  -- age alone -- see that function's own comment); once GC.Flips.CheapestOwnedLot finds no lot
+  -- for it, BuildRow's own precedence recomputes listedUnit=nil -> status falls through to
+  -- UNLISTED (assuming no pending/landed sale), and the item's Post button lights back up the
+  -- moment it's back in bags -- exactly the "Post again once it's back in your bags" status text
+  -- above already promised, now actually backed by a live flip record instead of an orphan row
+  -- that had already lost its paidUnit.
   if repostingRow and repostingRow.repostStage == "cancelling" then
     local flip = repostingRow.flip
     local stillThere = flip and GC.Flips.CheapestOwnedLot(flip.itemID, ownedLots)
@@ -546,19 +555,27 @@ local function onPostClick(row)
     return
   end
 
-  -- Cross-reference (design update): this expression is intentionally duplicated rather than
-  -- routed through GC.Flips.RecommendPost -- it's compliance-critical (see the file header's
-  -- "KEPT UNCHANGED" list), so the actual C_AuctionHouse.PostItem/PostCommodity call stays a
-  -- self-contained, auditable expression. It must independently compute to the SAME number
-  -- RecommendPost derives for the row tooltip (createRow's OnEnter, below): RecommendPost's own
-  -- quote-present branch is `max(1, marketUnit - 1)`, identical to this quote-present branch.
-  -- In the NO-quote branch, the tooltip is deliberately fed THIS SAME flip.targetUnit as
-  -- RecommendPost's `mv` argument (not a second, independently-fresh GC.Data.GetItemValue read)
-  -- for exactly this reason -- the two numbers must never visibly disagree. If either expression
-  -- changes, check the other.
+  -- Cross-reference (F3, superseding the design-update comment this replaces): F3's "match,
+  -- don't undercut" mode gave GC.Flips.RecommendPost a SECOND candidate-selection branch
+  -- (match vs undercut, see that function's own comment) -- keeping a second, independent copy
+  -- of that branching logic here, duplicated purely so the API call stayed "self-contained,"
+  -- would have turned the old single-line arithmetic duplication into a drift trap: two
+  -- separately-maintained copies of a DECISION, not just two copies of one expression. So this
+  -- now ROUTES THROUGH RecommendPost instead. The compliance boundary is unaffected -- the
+  -- actual C_AuctionHouse.PostItem/PostCommodity/Confirm* call structure, postingRow discipline,
+  -- and needsConfirmation handling below are all untouched; only this price expression changed.
+  -- `stats` is GC.Data.GetItemValue looked up fresh (nil-safe) purely to feed opts.sold; the row
+  -- tooltip (createRow's OnEnter, below) computes `rec` from the identical shape of inputs
+  -- (flip.paidUnit, quote.unit, flip.targetUnit, quote.levels, stats.sold) so the two must never
+  -- visibly disagree -- if either side's inputs change, check the other. Only the whole-silver
+  -- floor + max(100, ...) rounding below stays LOCAL to this function: that's a post-API
+  -- constraint (the AH rejects a non-zero copper digit), not a recommendation concern, so it
+  -- does not belong inside RecommendPost itself.
   local quote = quotes[flip.itemID]
-  local quoteUnit = quote and quote.unit
-  local recommended = quoteUnit and math.max(1, quoteUnit - 1) or flip.targetUnit
+  local stats = GC.Data.GetItemValue(flip.itemID)
+  local rec = GC.Flips.RecommendPost(flip.paidUnit, quote and quote.unit, flip.targetUnit,
+    { levels = quote and quote.levels, sold = stats and stats.sold })
+  local recommended = rec and rec.unit or flip.targetUnit
   -- The AH only accepts whole-silver prices (no copper digit) -- non-zero copper silently
   -- fails the post (verified via warcraft.wiki.gg) -- so round DOWN before the actual API
   -- call, floored at 1 silver.
@@ -596,7 +613,16 @@ function GC.Sell.OnAuctionCreated()
   if not row then return end -- not something we posted (e.g. the player posted manually via Blizzard's own AH window)
   postingRow = nil
   local index = row.flip and currentIndexOf(row.flip)
-  if index then GC.Data.MarkFlipPosted(index) end
+  if index then
+    GC.Data.MarkFlipPosted(index)
+    -- F2: counts this posting toward the item's personal sale-rate stat (GC.Data.GetSaleRate).
+    -- Deliberately gated on the SAME `index` success check as MarkFlipPosted above, not just
+    -- `row.flip` truthiness -- a stray AUCTION_HOUSE_AUCTION_CREATED whose pinned flip has since
+    -- fallen out of db.flips (aged out from under an in-flight post, see currentIndexOf's own
+    -- comment) must not inflate the posts counter for a post GoldCap itself can no longer even
+    -- account for as a flip.
+    GC.Data.RecordPostEvent(row.flip.itemID, resolveItemName(row.flip.itemID))
+  end
   setStatus("posted")
   GC.Sell.Refresh()
 end
@@ -640,6 +666,24 @@ local function estimateDeposit(itemID, qty)
   return nil
 end
 
+-- F4: the rounded day estimate at a WOULD-BE price -- shared by onRepostClick's advice-gate
+-- status line and the row tooltip's advice line (createRow's OnEnter, below) so neither has its
+-- own copy of the DepthBelow+SellOutlook composition. Deliberately recomputes queue depth
+-- against `unit` (GC.Flips.RepostAdvice's `rec.unit`, the price a repost would actually go out
+-- at) rather than reusing the row's own cached `fr.outlook` -- that field describes the queue at
+-- the row's CURRENT (already-undercut) listedUnit, a different price than the one this advice is
+-- about. `trend` is threaded through the same way SellOutlook's other callers do (BuildRow/
+-- EnrichOrphanRow) so a falling/rising market nudges this estimate identically to the row's own
+-- queue column.
+local function repostDaysAt(flip, levels, stats, unit)
+  local aheadAtNew = GC.Flips.DepthBelow(levels, unit)
+  local outlook = GC.Flips.SellOutlook({
+    ahead = aheadAtNew, qty = flip.qty,
+    sold = stats and stats.sold, trend = stats and stats.trend,
+  })
+  return outlook and math.floor(outlook.days + 0.5) or nil
+end
+
 local function showRepostButtons(row, armed)
   if armed then
     row.actionBtn:Hide()
@@ -662,6 +706,43 @@ local function disarmRepost(row, statusText)
   GC.Sell.Refresh()
 end
 
+-- F4: two-click gate in front of the arm step below -- Blizzard throttles auction cancels, so a
+-- blind cancel-and-repost wastes a share of a limited budget. `row.repostAdviceSeen` is reset
+-- every render (setRowFlip, mirroring postStage/repostStage's own per-cycle reset) -- the FIRST
+-- click of a fresh cycle that lands on hold advice stops here (shows the reason, does NOT arm);
+-- the SECOND click (repostAdviceSeen already true) falls through to the normal arm flow below
+-- regardless of what advice says the second time -- player agency is never fully blocked, same
+-- "two clicks max" rule the deposit-burning cancel confirm (onCancelConfirmClick) already
+-- follows. Returns true when the click was consumed by the gate (caller must stop), false when
+-- it's clear to proceed.
+local function gateOnRepostAdvice(row, flip)
+  if row.repostAdviceSeen then return false end
+  row.repostAdviceSeen = true
+
+  local quote = quotes[flip.itemID]
+  local stats = GC.Data.GetItemValue(flip.itemID)
+  local advice = GC.Flips.RepostAdvice({
+    paidUnit = flip.paidUnit,
+    marketUnit = quote and quote.unit,
+    mv = flip.targetUnit,
+    levels = quote and quote.levels,
+    sold = stats and stats.sold,
+    qty = flip.qty,
+  })
+  if not advice or advice.action ~= "hold" then return false end
+
+  local reasonText
+  if advice.reason == "loss" then
+    reasonText = ("reposting now would lock a loss -- breakeven %s"):format(
+      advice.rec.breakeven and formatAmount(advice.rec.breakeven) or DASH)
+  else
+    local days = repostDaysAt(flip, quote and quote.levels, stats, advice.rec.unit)
+    reasonText = ("reposting won't sell soon (~%sd queue)"):format(days or "?")
+  end
+  setStatus(reasonText .. " -- click Repost again to proceed")
+  return true
+end
+
 local function onRepostClick(row)
   local flip = row.flip
   if not flip then return end
@@ -670,6 +751,8 @@ local function onRepostClick(row)
     setStatus("finish the pending repost first")
     return
   end
+
+  if gateOnRepostAdvice(row, flip) then return end
 
   local lot = GC.Flips.CheapestOwnedLot(flip.itemID, ownedLots)
   if not lot then
@@ -854,6 +937,10 @@ local STATUS_STYLE = {
   LISTED       = { label = "LISTED",       color = "fgDim" },
   UNDERCUT     = { label = "UNDERCUT",     color = "red" },
   SOLD_PENDING = { label = "SOLD-PENDING", color = "green" },
+  -- F1: the lot was bought, posted, sold, and collected -- GC.Flips.BuildRow only reaches this
+  -- (see Core/Flips.lua's precedence comment) now that a posted flip is no longer pruned the
+  -- instant it's posted, so it can live long enough to observe its own sale.
+  SOLD         = { label = "SOLD",         color = "green" },
 }
 
 -- Anchors every VISIBLE fixed COLUMNS entry's RIGHT edge right-to-left off `container`'s own
@@ -1040,6 +1127,7 @@ local function setRowFlip(row, flip, flipRow, stats)
   row.pendingPost = nil
   row.repostStage = nil
   row.cancelAuctionID = nil
+  row.repostAdviceSeen = nil -- F4: two-click advice gate resets each render, same per-cycle lifecycle as the fields above
 
   setColor(row.boughtText, Theme.color.fg)
   row.boughtText:SetText(formatAmount(flipRow.boughtUnit))
@@ -1077,13 +1165,20 @@ local function setRowFlip(row, flip, flipRow, stats)
 
   -- fix round 1 (I5): LISTED/SOLD_PENDING used to hide the action button entirely -- wrong for
   -- the common multi-flip-same-item pattern (buy the same item across several Sniper purchases,
-  -- so several flip rows share one itemID). Posting flip #1 (marking IT posted, pruning IT from
-  -- db.flips -- see Core/Data.lua's GetFlips) does NOT mean flips #2/#3's own bought stock is
-  -- posted too; they can easily still have bag stock waiting. A Post button gated purely on
-  -- "is this item's OWN status not already spoken for" would strand that stock behind a hidden
-  -- button until the FIRST lot resolves. So: Post is available whenever there's bag stock,
-  -- regardless of the row's own listed/pending status -- only UNDERCUT changes the button to
-  -- Repost, since that's the one state where posting more stock isn't the right first move.
+  -- so several flip rows share one itemID). Posting flip #1 (marking IT posted -- F1: no longer
+  -- pruning IT from db.flips either, see Core/Data.lua's GetFlips) does NOT mean flips #2/#3's
+  -- own bought stock is posted too; they can easily still have bag stock waiting. A Post button
+  -- gated purely on "is this item's OWN status not already spoken for" would strand that stock
+  -- behind a hidden button until the FIRST lot resolves. So: Post is available whenever there's
+  -- bag stock, regardless of the row's own listed/pending status -- only UNDERCUT changes the
+  -- button to Repost, since that's the one state where posting more stock isn't the right first
+  -- move.
+  --
+  -- F1: SOLD falls into this same "else" branch, deliberately NOT special-cased -- there is
+  -- nothing left to post for THIS batch (it already sold), but I5's own reasoning still applies
+  -- to whatever OTHER bag stock the player is holding for the same item, so the button stays
+  -- Post/enabled-on-bag-stock rather than being unconditionally hidden. It naturally reads as
+  -- disabled once bags are empty, same as every other non-UNDERCUT status.
   row.actionCell:Show()
   row.cancelBtn:Hide()
   row.actionBtn:Show()
@@ -1263,24 +1358,84 @@ local function createRow(parent, index)
       GameTooltip:AddLine(("Sold/day: %.1f%s"):format(self.stats.sold, trendPart), 1, 1, 1)
     end
 
+    -- F2: personal sale rate -- per ITEM, not per flip/lot, so this reads off itemID and is
+    -- shown for both row kinds (flip AND orphan) exactly like the Sold/day line just above.
+    -- GC.Data.GetSaleRate itself returns nil below its own 3-post confidence floor, so no branch
+    -- is needed here beyond the nil check.
+    local saleRate = GC.Data.GetSaleRate(itemID)
+    if saleRate then
+      GameTooltip:AddLine(("Your sale rate: %d%% (%d of %d posts)"):format(
+        math.floor(saleRate.rate * 100 + 0.5), saleRate.sales, saleRate.posts), 1, 1, 1)
+    end
+
     if self.orphan then
       GameTooltip:AddLine("posted outside GoldCap -- no cost basis", 1, 0.6, 0.6)
     end
 
-    -- Design update: "Recommended post" -- flip rows only (see GC.Flips.RecommendPost's own
-    -- comment for why orphans, with no paidUnit, are skipped here). Cross-reference: the `mv`
-    -- argument fed here is `self.flip.targetUnit`, NOT a fresh GC.Data.GetItemValue re-read --
-    -- see onPostClick's own matching cross-reference comment for why that's required for this
-    -- number to never visibly disagree with what a Post click would actually post at.
+    -- F1: SOLD -- the lot already sold and was collected; nothing left to project or recommend
+    -- a price for. Placed ahead of the Recommended-post block below since a sold flip has
+    -- nothing left to recommend, though RecommendPost is still allowed to run for it (harmless,
+    -- and a player may be re-buying the same item) -- this line is purely informational.
+    if self.status == "SOLD" then
+      GameTooltip:AddLine("sale collected -- realized profit lands on goldcap.gg/ledger", 0.6, 1, 0.6)
+    end
+
+    -- Cross-reference: `quote`/`recommend` here must stay in lockstep with onPostClick's own
+    -- `quote`/`rec` -- see that function's own matching cross-reference comment. Design update:
+    -- "Recommended post" -- flip rows only (see GC.Flips.RecommendPost's own comment for why
+    -- orphans, with no paidUnit, are skipped here). The `mv` argument fed here is
+    -- `self.flip.targetUnit`, NOT a fresh GC.Data.GetItemValue re-read, for the same
+    -- never-visibly-disagree-with-Post reason; `sold` comes from `self.stats` (already the
+    -- render-time GC.Data.GetItemValue result setRowFlip cached onto the row, the same value the
+    -- Sold/day line above already shows) rather than a second lookup.
     if self.flip then
+      local quote = quotes[itemID]
       local marketUnit = fr and fr.marketUnit
-      local recommend = GC.Flips.RecommendPost(self.flip.paidUnit, marketUnit, self.flip.targetUnit)
+      local recommend = GC.Flips.RecommendPost(self.flip.paidUnit, marketUnit, self.flip.targetUnit,
+        { levels = quote and quote.levels, sold = self.stats and self.stats.sold })
       if recommend then
-        local why = marketUnit and "1c under ask" or "your recorded target"
+        -- F3: "match, don't undercut" -- when RecommendPost judged the cheapest tier deep
+        -- enough to sell out fast on its own, the reason text switches from the 1c-undercut
+        -- framing to an explanation of why matching (not undercutting) is the better move.
+        local why
+        if recommend.mode == "match" then
+          why = "match the ask -- cheapest tier sells out fast, no need to undercut"
+        elseif marketUnit then
+          why = "1c under ask"
+        else
+          why = "your recorded target"
+        end
         GameTooltip:AddLine(("Recommended post: %s (%s) \194\183 breakeven %s"):format(
           formatAmount(recommend.unit), why, recommend.breakeven and formatAmount(recommend.breakeven) or DASH), 1, 1, 1)
         if recommend.belowCost then
           GameTooltip:AddLine("market is below your breakeven -- selling now locks a loss", 1, 0.3, 0.3)
+        end
+      end
+
+      -- F4: repost advice -- UNDERCUT rows only (an undercut lot is the only state where a
+      -- repost is even offered; see onActionClick). Reuses the identical inputs onRepostClick's
+      -- own gate computes from (gateOnRepostAdvice), so the tooltip line and the click-time gate
+      -- can never disagree about what advice applies.
+      if self.status == "UNDERCUT" then
+        local advice = GC.Flips.RepostAdvice({
+          paidUnit = self.flip.paidUnit,
+          marketUnit = marketUnit,
+          mv = self.flip.targetUnit,
+          levels = quote and quote.levels,
+          sold = self.stats and self.stats.sold,
+          qty = self.flip.qty,
+        })
+        if advice then
+          if advice.reason == "loss" then
+            GameTooltip:AddLine(("reposting now locks a loss -- breakeven %s"):format(
+              advice.rec.breakeven and formatAmount(advice.rec.breakeven) or DASH), 1, 0.3, 0.3)
+          elseif advice.reason == "slow" then
+            local days = repostDaysAt(self.flip, quote and quote.levels, self.stats, advice.rec.unit)
+            GameTooltip:AddLine(("reposting won't sell soon (~%sd queue) -- consider waiting"):format(days or "?"), 1, 0.75, 0.3)
+          else -- action == "repost"
+            local days = repostDaysAt(self.flip, quote and quote.levels, self.stats, advice.rec.unit)
+            GameTooltip:AddLine(("repost worth it -- ~%sd at %s"):format(days or "?", formatAmount(advice.rec.unit)), 0.3, 1, 0.3)
+          end
         end
       end
     end
