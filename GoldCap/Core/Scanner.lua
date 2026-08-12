@@ -100,7 +100,7 @@ function GC.Scanner.New(driver, dealCfg)
       self.scanned = self.scanned + 1
       local deal = GC.DealMath.Evaluate(
         { itemID = itemID, isCommodity = true,
-          unitPrice = res.unitPrice, qty = res.qty },
+          unitPrice = res.unitPrice, qty = res.qty, avail = res.avail },
         driver.getValue(itemID), dealCfg)
       local lowest = alertedCommodity[itemID]
       if deal and (lowest == nil or res.unitPrice < lowest) then

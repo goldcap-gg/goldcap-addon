@@ -40,6 +40,20 @@ describe("DealMath", function()
       assert.equal(7, d.auctionID)
     end)
 
+    -- Fix 1 (honest quantity display): avail (the market's real total, distinct from `qty`,
+    -- the amount this deal proposes to buy) rides through from `live` to the returned deal.
+    it("carries avail through when present on live", function()
+      local d = GC.DealMath.Evaluate(
+        { itemID = 42, isCommodity = false, auctionID = 7, unitPrice = 500000, qty = 2, avail = 1646 },
+        { mv = 1000000 }, cfg)
+      assert.equal(1646, d.avail)
+    end)
+
+    it("leaves avail nil when live carries none", function()
+      local d = GC.DealMath.Evaluate(live(500000, 2), { mv = 1000000 }, cfg)
+      assert.is_nil(d.avail)
+    end)
+
     it("tiers HOT when discount and profit clear the bars", function()
       -- mv 20000g, price 10000g: discount 0.5, profit = 9000g >= 500g
       local d = GC.DealMath.Evaluate(live(100000000), { mv = 200000000 }, cfg)

@@ -70,6 +70,19 @@ describe("FullScan.Evaluate", function()
     assert.equal("WATCH", deals[2].tier)          -- then the higher-profit WATCH (item 10, 45g > item 30's ~4.5g)
     assert.equal(10, deals[2].itemID)
   end)
+
+  -- Fix 1 (honest quantity display): avail rides the row through to the deal untouched.
+  it("carries avail through from the row to the deal", function()
+    local deals = GC.FullScan.Evaluate(
+      { { itemID = 10, count = 5, buyoutStack = 2500000, avail = 1646 } }, getValue, cfg, 100)
+    assert.equal(1646, deals[1].avail)
+  end)
+
+  it("leaves avail nil when the row carries none", function()
+    local deals = GC.FullScan.Evaluate(
+      { { itemID = 10, count = 5, buyoutStack = 2500000 } }, getValue, cfg, 100)
+    assert.is_nil(deals[1].avail)
+  end)
 end)
 
 describe("FullScan.RowsFromBrowse", function()
@@ -96,6 +109,16 @@ describe("FullScan.RowsFromBrowse", function()
     assert.equal(100, rows[1].itemID)
     assert.equal(50, rows[1].count)
     assert.equal(500 * 50, rows[1].buyoutStack)
+  end)
+
+  -- Fix 1 (honest quantity display): avail is the market's REAL total, independent of the
+  -- suggested flip size above -- the "x200 when the market really has 1646" bug this fixes.
+  it("emits avail = totalQuantity alongside the (possibly much smaller) estimated qty", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 100 }, totalQuantity = 1646, minPrice = 500 },
+    }, getValue)
+    assert.equal(1646, rows[1].avail)
+    assert.equal(50, rows[1].count) -- unchanged: still capped by sold/day
   end)
 
   it("falls back to totalQuantity when it is the smaller bound", function()
@@ -202,6 +225,17 @@ describe("EvaluateDelta/MergeDeals", function()
     assert.equals(3, n)
     assert.equals(1, #deals)          -- only item 3 evaluated
     assert.equals(3, deals[1].itemID)
+  end)
+
+  -- Fix 1 (honest quantity display): EvaluateDelta's per-row Evaluate call carries avail
+  -- through exactly like the single-shot Evaluate already does (fullscan_spec above).
+  it("carries avail through EvaluateDelta", function()
+    local values = { [1] = { mv = 200 } }
+    local function getValue(id) return values[id] end
+    local rows = { { itemID = 1, count = 1, buyoutStack = 100, avail = 500 } }
+
+    local deals = GC.FullScan.EvaluateDelta(rows, 0, getValue, settings)
+    assert.equal(500, deals[1].avail)
   end)
 
   it("evaluates nothing when fromIndex is already at the end", function()
