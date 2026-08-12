@@ -56,6 +56,9 @@ local MV_OUTLIER_RATIO = 3
 local ARM_TIMEOUT_SECONDS = 30
 local BUY_TIMEOUT_SECONDS = 8
 local REQUERY_TIMEOUT_SECONDS = 8
+-- Task 8 hover pre-warm: how long a cached deal.prewarm result stays consumable by openDialog
+-- before it's treated as expired (falls back to today's requery-then-arm flow instead).
+local PREWARM_TTL_SECONDS = 10
 -- If no browse event arrives within this long after a send (initial query or page
 -- request), the paging chain is presumed stalled -- see armScanWatchdog.
 local SCAN_WATCHDOG_SECONDS = 15
@@ -149,6 +152,38 @@ local commodityPurchase = nil
 local awaitingRequery = {}
 local awaitingKeyInfo = {}
 local pendingRequerySend = {}
+
+-- Task 8 hover pre-warm. Its OWN pending slot, deliberately separate from awaitingRequery
+-- above -- that table is row-keyed (a dialog is always open for whichever row it tracks) and
+-- can hold many rows worth of state across a session; pre-warm never opens or touches a
+-- dialog, and the spec caps it at ONE in flight globally, so a single scalar slot is enough
+-- and (critically) keeps the two consumers unambiguous: OnItemSearchResults/
+-- OnCommoditySearchResults key their dialog-arming branch off awaitingRequery[itemID] exactly
+-- as before, and separately, independently, check prewarmItemID == itemID for the pre-warm
+-- branch -- a stale/duplicate event can resolve either, both, or neither without the two ever
+-- fighting over which one gets to touch the row/dialog (pre-warm's resolver never does).
+-- prewarmItemID: the itemID currently being pre-warmed, or nil.
+-- prewarmDeal: the exact deal table maybeStartPrewarm was called with -- deal.prewarm gets
+-- stamped onto THIS table when the result lands, never looked up fresh by itemID (a full-scan
+-- rescan can splice a NEW deal table for the same itemID while a pre-warm is still in flight;
+-- stamping the original table, not whatever `deals`/`scanDeals` currently maps the itemID to,
+-- is what "leaving the row does not cancel" means in practice -- the result is only ever
+-- useful to openDialog via THIS row's THIS deal, not some unrelated later snapshot).
+local prewarmItemID = nil
+local prewarmDeal = nil
+-- fix round 1 I-1: bumped every time a NEW pre-warm attempt actually sends a query; the
+-- attempt's own C_Timer.After fallback closure captures its value at schedule time and only
+-- clears prewarmItemID/prewarmDeal if the generation is still current -- distinguishes "my own
+-- timeout firing late" from "a later, legitimately-restarted pre-warm for the same itemID",
+-- which a bare `prewarmItemID == itemID` check cannot: prewarmItemID cycles back to the same
+-- item across separate hover-triggered attempts, itemID values are not unique per attempt.
+local prewarmGen = 0
+-- fix round 1 M-3: true only while a real Auction House session is live (set/cleared at the
+-- very top of OnAuctionHouseShow/OnAuctionHouseClosed below). The Sniper window itself can
+-- stay open, or be reopened via /goldcap, with leftover deals from the last visit still
+-- rendered/hoverable after AH close -- pre-warm must not fire against those (SendSearchQuery
+-- and friends are meaningless, possibly erroring, with no AH session backing them).
+local ahOpen = false
 
 GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 
@@ -1516,12 +1551,14 @@ local function issueRequerySearch(itemID)
   end
 end
 
-local function finishRequery(row, itemID, liveDeal)
-  awaitingRequery[itemID] = nil
-  awaitingKeyInfo[itemID] = nil
-  pendingRequerySend[itemID] = nil
-  if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, canceled, ...)
-
+-- Task 8: the result-shaping tail of what used to be finishRequery's own body, pulled out so
+-- openDialog's pre-warm consume path can arm the SAME way a live requery landing does --
+-- neither caller needs to know or care whether `liveDeal` came from an event that just fired
+-- or from a deal.prewarm cache stamped up to PREWARM_TTL_SECONDS ago; the row/dialog end up in
+-- an identical state either way. Never called directly off an event -- finishRequery (below)
+-- still owns the "is this row still waiting on a requery" guard; this only owns "what do we DO
+-- with a (possibly nil) live result now that we've decided to act on it".
+local function applyRequeryResult(row, itemID, liveDeal)
   if liveDeal then
     setRowDeal(row, liveDeal) -- swaps the row onto the fresh, non-stale deal (real auctionID/unitPrice/qty/isCommodity)
     if dialog and dialog.row == row then
@@ -1540,6 +1577,14 @@ local function finishRequery(row, itemID, liveDeal)
     if frame then frame.status:SetText("gone / price changed") end
   end
   refreshRows()
+end
+
+local function finishRequery(row, itemID, liveDeal)
+  awaitingRequery[itemID] = nil
+  awaitingKeyInfo[itemID] = nil
+  pendingRequerySend[itemID] = nil
+  if row.purchaseStage ~= "requerying" then return end -- stale/late event: reset already ran (AH closed, timed out, canceled, ...)
+  applyRequeryResult(row, itemID, liveDeal)
 end
 
 local function scheduleRequeryTimeout(row, deal)
@@ -1568,6 +1613,81 @@ local function startRequery(row, deal)
     issueRequerySearch(itemID)
   else
     awaitingKeyInfo[itemID] = row
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Task 8: hover pre-warm of the buy requery (spec §4). Row OnEnter (see createRow's OnEnter
+-- below) calls maybeStartPrewarm(self.deal) on every hover; this issues the SAME live query
+-- startRequery would for a `.stale` deal, but into resolvePrewarm instead of finishRequery --
+-- the result lands on deal.prewarm and NOTHING here ever opens, arms, or otherwise touches the
+-- row/dialog. openDialog (below) is the only consumer: a fresh (<= PREWARM_TTL_SECONDS old)
+-- deal.prewarm lets it skip straight to applyRequeryResult instead of calling startRequery, so
+-- the dialog opens already armed. A stale/absent cache falls back to today's flow unchanged.
+-- ---------------------------------------------------------------------------
+
+-- Deliberately does NOT park behind pendingRequerySend the way issueRequerySearch does: a
+-- pre-warm that missed its throttle window is worth nothing later that a fresh one issued on
+-- the next hover wouldn't do better, and letting it queue would risk a parked pre-warm send
+-- winning a throttle slot the T7 OnThrottleReady flush order reserves for scan traffic /
+-- pendingRequerySend first -- simplest and safest is: not ready right now -> skip, hovering
+-- again retries.
+local function maybeStartPrewarm(deal)
+  if not deal or not deal.stale then return end -- only the two-click full-scan flow ever needs this
+  if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
+  if deal.prewarm and (GetTime() - deal.prewarm.at) <= PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
+  if activeItemID[deal.itemID] then return end -- a purchase (or its own live dialog requery) is already in flight for this item
+  -- fix round 1 I-2: no new search traffic while ANY purchase is mid-flight server-side (not
+  -- just this item's own activeItemID check above), and -- as a bonus -- this is also what
+  -- stops a hover from stealing a throttle slot out from under an actively-paging Full Scan
+  -- (closes fix round 1 M-4: pre-warm was previously reachable mid-scan since scanRunning
+  -- alone isn't reflected in activeItemID).
+  if GC.Sniper.IsBusy() then return end
+  if prewarmItemID then return end -- one pre-warm in flight globally
+  if not driver.isReady() then return end -- never parks -- see comment above
+
+  local itemID = deal.itemID
+  -- Same item-key-not-cached guard startRequery uses, but pre-warm just skips instead of
+  -- chasing ITEM_KEY_ITEM_INFO_RECEIVED -- this is a best-effort warm, not a purchase the
+  -- player is blocked on; the dialog's own startRequery fallback still does the real,
+  -- patient wait if the player clicks Buy before the key is ever resolved.
+  if not driver.getKeyInfo(itemID) then return end
+
+  prewarmItemID = itemID
+  prewarmDeal = deal
+  -- fix round 1 I-1: prewarmItemID cycling back to the SAME itemID across two SEPARATE
+  -- pre-warm attempts (hover it, cache expires or gets consumed, hover it again later) means
+  -- an itemID-equality check alone is not enough to tell "my own timeout" apart from "a
+  -- legitimately restarted pre-warm for the same item" -- prewarmGen disambiguates by attempt,
+  -- not by item.
+  prewarmGen = prewarmGen + 1
+  local gen = prewarmGen
+  driver.sendSearch(itemID)
+
+  -- Ultimate fallback so a pre-warm that never gets a matching event (or one whose deal was
+  -- superseded before it landed) can't wedge the "one in flight globally" slot shut forever.
+  C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
+    if gen == prewarmGen then
+      prewarmItemID = nil
+      prewarmDeal = nil
+    end
+  end)
+end
+
+-- The pre-warm result landing (or failing to materialize into a live deal): stamps
+-- deal.prewarm on the EXACT deal table maybeStartPrewarm captured, and releases the "one in
+-- flight" slot. `data` mirrors exactly what finishRequery's own `liveDeal` argument would be
+-- for the same event -- nil means "gone / price changed", handled identically by
+-- applyRequeryResult whenever this cache gets consumed. Never touches row/dialog/
+-- activeItemID/purchaseStage -- that is the entire point of this being a separate path from
+-- finishRequery.
+local function resolvePrewarm(itemID, data)
+  if prewarmItemID ~= itemID then return end -- not what we're waiting on (already resolved, timed out, or cleared by a purchase start)
+  local deal = prewarmDeal
+  prewarmItemID = nil
+  prewarmDeal = nil
+  if deal then
+    deal.prewarm = { data = data, at = GetTime() }
   end
 end
 
@@ -1640,24 +1760,47 @@ function GC.Sniper.IsBusy()
   return next(activeItemID) ~= nil
 end
 
-function GC.Sniper.OnItemSearchResults(itemID)
-  local row = awaitingRequery[itemID]
-  if not row then return end -- not a Task-3 requery for this item (e.g. the watchlist scanner's own search)
+-- Shared by both the dialog-requery router branch and the Task 8 pre-warm branch below, so
+-- the two paths always shape a search result into a "liveDeal" the exact same way -- a
+-- deal.prewarm cache and a live finishRequery landing are indistinguishable to
+-- applyRequeryResult by construction, not by coincidence.
+local function evaluateLiveItemDeal(itemID)
   local res = driver.itemResult(itemID)
-  local liveDeal = res and GC.DealMath.Evaluate(
+  return res and GC.DealMath.Evaluate(
     { itemID = itemID, isCommodity = false, auctionID = res.auctionID, unitPrice = res.unitPrice, qty = res.qty },
     driver.getValue(itemID), GC.db.settings.sniper)
-  finishRequery(row, itemID, liveDeal)
+end
+
+local function evaluateLiveCommodityDeal(itemID)
+  local res = driver.commodityResult(itemID)
+  return res and GC.DealMath.Evaluate(
+    { itemID = itemID, isCommodity = true, unitPrice = res.unitPrice, qty = res.qty },
+    driver.getValue(itemID), GC.db.settings.sniper)
+end
+
+-- Both search-result events can carry EITHER consumer, BOTH, or neither: a dialog-open
+-- requery (awaitingRequery[itemID]) and a hover pre-warm (prewarmItemID == itemID) are
+-- independent, separately-keyed waiters on the same underlying SendSearchQuery/
+-- COMMODITY-equivalent traffic. openDialog clears prewarmItemID for an itemID the instant it
+-- starts a real purchase flow for it (see openDialog below), so in practice the two rarely
+-- overlap -- but nothing here depends on that; each branch is a no-op when its own slot
+-- doesn't match, regardless of what the other one does.
+function GC.Sniper.OnItemSearchResults(itemID)
+  local row = awaitingRequery[itemID]
+  local isPrewarm = prewarmItemID == itemID
+  if not row and not isPrewarm then return end -- neither a Task-3 dialog requery nor a Task 8 pre-warm for this item (e.g. the watchlist scanner's own search)
+  local liveDeal = evaluateLiveItemDeal(itemID)
+  if row then finishRequery(row, itemID, liveDeal) end
+  if isPrewarm then resolvePrewarm(itemID, liveDeal) end
 end
 
 function GC.Sniper.OnCommoditySearchResults(itemID)
   local row = awaitingRequery[itemID]
-  if not row then return end -- not a Task-3 requery for this item (e.g. the watchlist scanner's own search)
-  local res = driver.commodityResult(itemID)
-  local liveDeal = res and GC.DealMath.Evaluate(
-    { itemID = itemID, isCommodity = true, unitPrice = res.unitPrice, qty = res.qty },
-    driver.getValue(itemID), GC.db.settings.sniper)
-  finishRequery(row, itemID, liveDeal)
+  local isPrewarm = prewarmItemID == itemID
+  if not row and not isPrewarm then return end -- neither a Task-3 dialog requery nor a Task 8 pre-warm for this item (e.g. the watchlist scanner's own search)
+  local liveDeal = evaluateLiveCommodityDeal(itemID)
+  if row then finishRequery(row, itemID, liveDeal) end
+  if isPrewarm then resolvePrewarm(itemID, liveDeal) end
 end
 
 function GC.Sniper.OnPurchaseCompleted(auctionID)
@@ -2114,9 +2257,21 @@ end
 
 -- Opens the dialog for `row`/`deal`: this is the row Buy button's entire OnClick job now, for
 -- BOTH item and commodity deals, stale or not. Numbers are populated from the snapshot deal
--- immediately; a `.stale` full-scan deal then kicks the existing Task-3 requery machinery
--- (dialog stays open, primary disabled) instead of arming right away.
+-- immediately; a `.stale` full-scan deal then either consumes a fresh Task 8 pre-warm cache
+-- (dialog opens already armed -- no requery in flight, primary enabled straight away) or kicks
+-- the existing Task-3 requery machinery (dialog stays open, primary disabled) instead of
+-- arming right away.
 local function openDialog(row, deal)
+  -- This IS "purchase start" for `deal`'s itemID: from here on the row is about to be pinned
+  -- (via startRequery or armReady, both below) for this purchase attempt, so any pre-warm
+  -- still in flight for the SAME item is now moot -- release the "one in flight globally" slot
+  -- rather than let it linger and (harmlessly, but pointlessly) resolve into a deal.prewarm
+  -- cache nobody will ever read. A pre-warm in flight for a DIFFERENT item is untouched.
+  if prewarmItemID == deal.itemID then
+    prewarmItemID = nil
+    prewarmDeal = nil
+  end
+
   dialog = dialog or createDialog()
   dialog.row = row
   hideRequoteBanner()
@@ -2126,7 +2281,15 @@ local function openDialog(row, deal)
   dialog:Show()
   GC.Sniper.NotifyDialogOpened()
 
-  if deal.stale then
+  local prewarm = deal.prewarm
+  deal.prewarm = nil -- consumed either way below: a hit is used once, a miss/expiry is discarded so it can't be read again next open
+  if deal.stale and prewarm and (GetTime() - prewarm.at) <= PREWARM_TTL_SECONDS then
+    -- Task 8: feed the cached result into the exact same tail finishRequery uses to arm the
+    -- button -- the dialog opens already armed, no "checking live price..." beat, no second
+    -- SendSearchQuery. applyRequeryResult sets purchaseStage/activeItemID itself (via armReady
+    -- or the nil-liveDeal branch), so there is nothing to pre-stage here.
+    applyRequeryResult(row, deal.itemID, prewarm.data)
+  elseif deal.stale then
     dialog.primaryBtn:Disable()
     setPrimaryLabel("Buy")
     setDialogStatus("checking live price...")
@@ -2178,6 +2341,12 @@ local function resetAllPurchases()
   for k in pairs(awaitingRequery) do awaitingRequery[k] = nil end
   for k in pairs(awaitingKeyInfo) do awaitingKeyInfo[k] = nil end
   for k in pairs(pendingRequerySend) do pendingRequerySend[k] = nil end
+  -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
+  -- otherwise a leftover prewarmItemID could block every hover pre-warm for the rest of the
+  -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
+  -- to wait REQUERY_TIMEOUT_SECONDS out when the AH session it belonged to just ended anyway).
+  prewarmItemID = nil
+  prewarmDeal = nil
   commodityPurchase = nil
   -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own
   -- OnLeave, so clear the hover pin here too -- otherwise it could sit pinned to a hidden
@@ -2326,12 +2495,19 @@ createRow = function(parent, index)
   -- swap the deal under the cursor between the mouse landing and a click resolving. OnLeave
   -- releases the pin and immediately calls refreshRows() to catch up on anything it missed
   -- while frozen -- otherwise a stale row could sit there until the next unrelated refresh.
+  --
+  -- Task 8: OnEnter is also the hover pre-warm trigger (maybeStartPrewarm no-ops instantly
+  -- unless self.deal is `.stale`, idle, and the throttle system is ready) -- deliberately NOT
+  -- undone on OnLeave, unlike the hover pin above: leaving the row mid-query doesn't cancel
+  -- anything, the result is still cached on the deal for whichever row/dialog eventually reads
+  -- it.
   row:EnableMouse(true)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
     self.rail:Show()
     hoveredRow = self
     if not self.deal then return end
+    maybeStartPrewarm(self.deal)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetItemByID(self.deal.itemID)
     GameTooltip:Show()
@@ -2921,6 +3097,11 @@ local function installSearchHooks()
 end
 
 function GC.Sniper.OnAuctionHouseShow()
+  -- Task 8 fix round 1 M-3: flips first, unconditionally -- everything below (including an
+  -- early-return path this function doesn't have today, but might grow) must see the AH
+  -- session as live before any of it runs.
+  ahOpen = true
+
   -- B: independent of autoOpen/window visibility -- the chat warning is meant to reach the
   -- player even if they keep the sniper window closed.
   maybeWarnStale()
@@ -2980,6 +3161,12 @@ function GC.Sniper.OnAuctionHouseShow()
 end
 
 function GC.Sniper.OnAuctionHouseClosed()
+  -- Task 8 fix round 1 M-3: flips first, unconditionally -- idempotent across the double-call
+  -- this function already has to tolerate (see below), and must be false before
+  -- resetAllPurchases/anything else runs so no code below it could observe a stale "AH still
+  -- open" read.
+  ahOpen = false
+
   -- Wired from both PLAYER_INTERACTION_MANAGER_FRAME_HIDE and AUCTION_HOUSE_CLOSED (their
   -- overlap on a given close is unverified in 12.0.7 -- see in-game checklist), so this must
   -- tolerate being called twice for one AH visit without double-printing or double-crediting.
