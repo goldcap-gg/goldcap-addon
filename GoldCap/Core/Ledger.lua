@@ -246,6 +246,12 @@ function GC.Ledger.ScanInbox(api, context, now)
       if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then
         GC.Acquisitions.ReconcileBuy(stored)
       end
+      -- Append updates an existing seller invoice in place when "Sale Pending" matures. Run
+      -- reconciliation for every stored sale row so the exact paid total can be consumed once;
+      -- ReconcileSale itself refuses pending and already-consumed evidence without mutation.
+      if stored.kind == "sale" and GC.Acquisitions and GC.Acquisitions.ReconcileSale then
+        GC.Acquisitions.ReconcileSale(stored)
+      end
       if isNew then
         created = created + 1
         -- F2 (personal sale rate): only on isNew, deliberately -- Append's repeat-key branch

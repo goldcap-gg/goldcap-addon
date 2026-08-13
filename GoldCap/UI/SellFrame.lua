@@ -73,6 +73,7 @@ local ownedLots = {}
 -- itemID -> name as it becomes available (both the synchronous best-effort lookup in
 -- resolveItemName below and the async icon/name load in setRowFlip keep it current).
 local itemNames = {}
+local resolveItemName
 
 -- Posting state: only ONE post may be in flight addon-wide (mirrors SniperFrame's single
 -- in-flight commodityPurchase slot) -- AUCTION_HOUSE_AUCTION_CREATED/AUCTION_HOUSE_POST_ERROR
@@ -321,6 +322,16 @@ end
 function GC.Sell.OnOwnedAuctions()
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or nil
   ownedLots = GC.Flips.ExtractOwnedLots(auctions)
+  if type(auctions) == "table" and GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition then
+    local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+    for _, lot in ipairs(ownedLots) do
+      local itemName = resolveItemName(lot.itemID)
+      if itemName then
+        GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName,
+          context and context.char, context and context.region, time())
+      end
+    end
+  end
 
   -- A repost's cancel step has no dedicated "cancel confirmed" event (C_AuctionHouse.CancelAuction
   -- just issues the request) -- this refresh is how the flow actually learns the lot is gone.
@@ -361,7 +372,7 @@ end
 -- for nearly every item that's ever had its icon/tooltip drawn this session), so
 -- GC.Flips.SalesForItem matching doesn't have to wait on the row's own async icon/name load
 -- most of the time.
-local function resolveItemName(itemID)
+resolveItemName = function(itemID)
   local cached = itemNames[itemID]
   if cached then return cached end
   if C_Item and C_Item.GetItemNameByID then
@@ -601,6 +612,13 @@ local function onPostClick(row)
   local location = ItemLocation:CreateFromBagAndSlot(bag, slot)
 
   postingRow = row
+  local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+  row.acquisitionPost = {
+    positionKey = GC.Acquisitions and GC.Acquisitions.PositionKey
+      and GC.Acquisitions.PositionKey(flip.itemID, C_AuctionHouse.MakeItemKey(flip.itemID), keyInfo.isCommodity),
+    itemID = flip.itemID, itemName = resolveItemName(flip.itemID), quantity = qty,
+    character = context and context.char, region = context and context.region,
+  }
   row.postStage = "posting"
   row.actionBtn:Disable()
   setStatus("posting...")
@@ -640,6 +658,12 @@ function GC.Sell.OnAuctionCreated()
     -- account for as a flip.
     GC.Data.RecordPostEvent(row.flip.itemID, resolveItemName(row.flip.itemID))
   end
+  local post = row.acquisitionPost
+  row.acquisitionPost = nil
+  if post and GC.Acquisitions and GC.Acquisitions.RecordPost then
+    GC.Acquisitions.RecordPost(post.positionKey, post.itemID, post.itemName, post.character,
+      post.region, post.quantity, time())
+  end
   setStatus("posted")
   GC.Sell.Refresh()
 end
@@ -650,6 +674,7 @@ function GC.Sell.OnPostError()
   postingRow = nil
   row.postStage = nil
   row.pendingPost = nil
+  row.acquisitionPost = nil
   row.actionBtn:Enable()
   row.actionBtn:SetLabel("Post")
   setStatus("posting failed -- check the item and try again")

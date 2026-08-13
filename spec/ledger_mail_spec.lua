@@ -122,6 +122,28 @@ describe("Ledger inbox scan", function()
     assert.equal(500000, e.total)
   end)
 
+  it("consumes a paid seller invoice once only after its pending row matures", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 210930,
+      positionKey = "commodity:210930", itemName = "Ironclaw Ore", quantity = 20, total = 400000,
+      acquiredAt = 900, evidenceKey = "buy:1", character = context.char, region = context.region })
+    GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore", context.char, context.region, 20, 950)
+    local pending = mail({ invoice = {
+      invoiceType = "seller_temp_invoice", moneyDelay = 500000, etaHour = 1, etaMin = 0,
+    } })
+
+    GC.Ledger.ScanInbox(apiFor({ pending }), context, 1000)
+    assert.equal(20, batch.remainingQty)
+    assert.equal(0, #GC.Acquisitions.GetRealized(context))
+
+    local paid = mail({ daysLeft = 30 - (3600 / 86400) })
+    GC.Ledger.ScanInbox(apiFor({ paid }), context, 4600)
+    assert.equal(0, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+
+    GC.Ledger.ScanInbox(apiFor({ paid }), context, 4610)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
   it("does not re-add the same mail when the inbox refreshes minutes later", function()
     GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
     -- MAIL_INBOX_UPDATE fires constantly; four minutes of drift must not push

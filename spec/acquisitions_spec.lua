@@ -346,4 +346,63 @@ describe("Acquisition store", function()
     assert.is_false(GC.Acquisitions.HasEvidence("mail:ambiguous"))
     assert.equal(3, #GC.Acquisitions.GetAll())
   end)
+
+  it("assigns one paid sale to its single scoped position and consumes FIFO once", function()
+    local first = record({ itemName = "Ironclaw Ore", quantity = 10, total = 1000, evidenceKey = "buy:1" })
+    local second = record({ itemName = "Ironclaw Ore", quantity = 10, total = 1000,
+      acquiredAt = 101, evidenceKey = "buy:2" })
+    GC.Acquisitions.RecordPost("commodity:42", 42, "Ironclaw Ore", context.char, context.region, 20, 150)
+    local sale = { key = "sale:1", kind = "sale", source = "mail", itemName = "Ironclaw Ore",
+      qty = 5, total = 1000, at = 200, char = context.char, region = context.region, pending = false }
+
+    local applied = GC.Acquisitions.ReconcileSale(sale)
+    assert.same({ status = "applied", positionKey = "commodity:42", quantity = 5,
+      cost = 500, proceeds = 1000, profit = 500 }, applied)
+    assert.equal(5, first.remainingQty)
+    assert.equal(10, second.remainingQty)
+    assert.is_true(first.consumedEvidenceKeys["sale:1"])
+    assert.equal("duplicate", GC.Acquisitions.ReconcileSale(sale).status)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
+  it("does not mistake same-name batches in separate positions for one sale candidate", function()
+    record({ itemID = 1, positionKey = "item:1:0:0:0", itemName = "Shared Name", evidenceKey = "buy:1" })
+    record({ itemID = 2, positionKey = "item:2:0:0:0", itemName = "Shared Name", evidenceKey = "buy:2" })
+    GC.Acquisitions.RecordPost("item:1:0:0:0", 1, "Shared Name", context.char, context.region, 2, 100)
+    GC.Acquisitions.RecordPost("item:2:0:0:0", 2, "Shared Name", context.char, context.region, 2, 100)
+
+    local result = GC.Acquisitions.ReconcileSale({ key = "sale:ambiguous", kind = "sale", source = "mail",
+      itemName = "Shared Name", qty = 1, total = 100, at = 200,
+      char = context.char, region = context.region, pending = false })
+    assert.equal("unresolved", result.status)
+    assert.equal("ambiguous_name", result.reason)
+  end)
+
+  it("requires observed scoped activity at or before an exact-character paid sale", function()
+    local batch = record({ itemName = "Ironclaw Ore", quantity = 2, total = 200 })
+    local sale = { key = "sale:early", kind = "sale", source = "mail", itemName = "Ironclaw Ore",
+      qty = 1, total = 100, at = 200, char = context.char, region = context.region, pending = false }
+    assert.equal("unresolved", GC.Acquisitions.ReconcileSale(sale).status)
+    GC.Acquisitions.ObserveOwnedPosition("commodity:42", 42, "Ironclaw Ore", context.char, context.region, 300)
+    assert.equal("unresolved", GC.Acquisitions.ReconcileSale(sale).status)
+    sale.key, sale.at, sale.char = "sale:wrong-character", 400, "B-R"
+    assert.equal("unresolved", GC.Acquisitions.ReconcileSale(sale).status)
+    assert.equal(2, batch.remainingQty)
+  end)
+
+  it("never consumes on disappearance and rejects insufficient sales atomically", function()
+    local batch = record({ itemName = "Ironclaw Ore", quantity = 2, total = 201 })
+    GC.Acquisitions.ObserveOwnedPosition("commodity:42", 42, "Ironclaw Ore", context.char, context.region, 100)
+    local sale = { key = "sale:too-many", kind = "sale", source = "mail", itemName = "Ironclaw Ore",
+      qty = 3, total = 300, at = 200, char = context.char, region = context.region, pending = false }
+    assert.equal("unresolved", GC.Acquisitions.ReconcileSale(sale).status)
+    assert.equal(2, batch.remainingQty)
+    assert.equal(201, batch.remainingTotal)
+    assert.equal(0, #GC.Acquisitions.GetRealized(context))
+  end)
+
+  it("keeps active batches beyond fourteen days without inferring a sale", function()
+    record({ itemName = "Ironclaw Ore", acquiredAt = 0 })
+    assert.equal(1, #GC.Acquisitions.GetActive(context))
+  end)
 end)

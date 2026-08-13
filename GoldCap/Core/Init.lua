@@ -13,6 +13,7 @@ GC.DEFAULTS = {
   acquisitions = {},
   acquisitionPending = {},
   acquisitionRealized = {},
+  acquisitionActivity = {},
   acquisitionSeq = 0,
   acquisitionPendingSeq = 0,
   acquisitionVersion = 0,

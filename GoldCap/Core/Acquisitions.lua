@@ -20,6 +20,16 @@ local function isStringOrNil(value)
   return value == nil or type(value) == "string"
 end
 
+local function isNonEmptyString(value)
+  return type(value) == "string" and value ~= ""
+end
+
+local function isSignedExactInteger(value)
+  return type(value) == "number" and value == value and value ~= math.huge
+    and value ~= -math.huge and value == math.floor(value)
+    and value >= -MAX_EXACT and value <= MAX_EXACT
+end
+
 local function safeAdd(left, right)
   if not isExactInteger(left) or not isExactInteger(right) or left > MAX_EXACT - right then
     return nil
@@ -89,6 +99,7 @@ end
 
 local function hasEvidence(key)
   if not key or not db then return false end
+  if db.acquisitionConsumptionEvidence and db.acquisitionConsumptionEvidence[key] then return true end
   for _, batch in ipairs(db.acquisitions) do
     if batch.evidenceKeys and batch.evidenceKeys[key] then return true end
     if batch.mailEvidenceKey == key then return true end
@@ -245,6 +256,7 @@ function GC.Acquisitions.Init(database)
   db.acquisitions = type(db.acquisitions) == "table" and db.acquisitions or {}
   db.acquisitionPending = type(db.acquisitionPending) == "table" and db.acquisitionPending or {}
   db.acquisitionRealized = type(db.acquisitionRealized) == "table" and db.acquisitionRealized or {}
+  db.acquisitionActivity = type(db.acquisitionActivity) == "table" and db.acquisitionActivity or {}
   db.acquisitionConsumptionEvidence = type(db.acquisitionConsumptionEvidence) == "table"
     and db.acquisitionConsumptionEvidence or {}
   db.acquisitionSeq = isExactInteger(db.acquisitionSeq) and db.acquisitionSeq or 0
@@ -390,6 +402,117 @@ end
 
 function GC.Acquisitions.HasEvidence(key)
   return hasEvidence(key)
+end
+
+local function validActivityArgs(positionKey, itemID, itemName, character, region, at)
+  return type(positionKey) == "string" and positionKey ~= "" and isPositiveInteger(itemID)
+    and isNonEmptyString(itemName) and isNonEmptyString(character) and isNonEmptyString(region)
+    and isExactInteger(at)
+end
+
+local function recordActivity(positionKey, itemID, itemName, character, region, at, quantity)
+  if not db or not validActivityArgs(positionKey, itemID, itemName, character, region, at) then return nil end
+  if quantity ~= nil and not isPositiveInteger(quantity) then return nil end
+  local context = { char = character, region = region }
+  local scopeKey = GC.Acquisitions.ScopeKey(positionKey, context)
+  if not scopeKey then return nil end
+  local activity = db.acquisitionActivity[scopeKey]
+  if activity then
+    if activity.itemID ~= itemID or activity.itemName ~= itemName
+        or activity.character ~= character or activity.region ~= region
+        or not isExactInteger(activity.firstSeenAt) then return nil end
+    activity.firstSeenAt = math.min(activity.firstSeenAt, at)
+  else
+    activity = { scopeKey = scopeKey, positionKey = positionKey, itemID = itemID,
+      itemName = itemName, character = character, region = region, firstSeenAt = at }
+    db.acquisitionActivity[scopeKey] = activity
+  end
+  activity.lastSeenAt = isExactInteger(activity.lastSeenAt) and math.max(activity.lastSeenAt, at) or at
+  if quantity then
+    activity.lastPostedAt = isExactInteger(activity.lastPostedAt) and math.max(activity.lastPostedAt, at) or at
+    activity.lastPostedQty = quantity
+  end
+  return activity
+end
+
+-- Records positive evidence that a scoped position exists or was posted. It intentionally never
+-- interprets a later missing owned-auctions result as a sale; paid seller mail is the sole sale
+-- evidence that can consume a batch.
+function GC.Acquisitions.ObserveOwnedPosition(positionKey, itemID, itemName, character, region, at)
+  return recordActivity(positionKey, itemID, itemName, character, region, at)
+end
+
+function GC.Acquisitions.RecordPost(positionKey, itemID, itemName, character, region, quantity, at)
+  return recordActivity(positionKey, itemID, itemName, character, region, at, quantity)
+end
+
+local function validSaleEntry(entry)
+  return type(entry) == "table" and entry.kind == "sale" and entry.source == "mail"
+    and isNonEmptyString(entry.key) and isNonEmptyString(entry.itemName)
+    and isPositiveInteger(entry.qty) and isPositiveInteger(entry.total) and isExactInteger(entry.at)
+    and isNonEmptyString(entry.char) and isNonEmptyString(entry.region) and entry.pending == false
+end
+
+local function unresolved(reason)
+  return { status = "unresolved", reason = reason }
+end
+
+-- A seller invoice carries a name, never a trustworthy item id. Resolve it only through a
+-- single scoped position with prior owned/post evidence, then consume that position's batches
+-- atomically in FIFO order. No candidate or quantity failure mutates SavedVariables.
+function GC.Acquisitions.ReconcileSale(entry)
+  if not db or type(entry) ~= "table" then return unresolved("invalid_sale") end
+  if type(entry.key) == "string" and db.acquisitionConsumptionEvidence[entry.key] then
+    return { status = "duplicate" }
+  end
+  if entry.pending == true then return unresolved("pending") end
+  if not validSaleEntry(entry) then return unresolved("invalid_sale") end
+  if GC.Acquisitions.HasEvidence(entry.key) then return unresolved("duplicate_evidence") end
+
+  local context = { char = entry.char, region = entry.region }
+  local candidates = {}
+  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+    if batch.positionKey and batch.itemName == entry.itemName then
+      local scopeKey = GC.Acquisitions.ScopeKey(batch.positionKey, context)
+      local activity = scopeKey and db.acquisitionActivity[scopeKey] or nil
+      if activity and activity.positionKey == batch.positionKey and activity.itemName == entry.itemName
+          and activity.character == entry.char and activity.region == entry.region
+          and isExactInteger(activity.firstSeenAt) and activity.firstSeenAt <= entry.at then
+        local candidate = candidates[scopeKey]
+        if not candidate then
+          candidate = { positionKey = batch.positionKey, scopeKey = scopeKey, batches = {}, quantity = 0 }
+          candidates[scopeKey] = candidate
+        end
+        local quantity = safeAdd(candidate.quantity, batch.remainingQty)
+        if not quantity then return unresolved("invalid_quantity") end
+        candidate.quantity = quantity
+        candidate.batches[#candidate.batches + 1] = batch
+      end
+    end
+  end
+
+  local candidate, count
+  for _, value in pairs(candidates) do candidate, count = value, (count or 0) + 1 end
+  if count == nil then return unresolved("no_position") end
+  if count ~= 1 then return unresolved("ambiguous_name") end
+  if candidate.quantity < entry.qty then return unresolved("insufficient_quantity") end
+
+  local allocation = allocationFor(candidate.batches, entry.qty)
+  if not allocation or allocation.coverage ~= "COMPLETE" or not isExactInteger(allocation.knownCost) then
+    return unresolved("insufficient_quantity")
+  end
+  local profit = entry.total - allocation.knownCost
+  if not isSignedExactInteger(profit) then return unresolved("invalid_profit") end
+  local realized = { key = entry.key, evidenceKey = entry.key, scopeKey = candidate.scopeKey,
+    positionKey = candidate.positionKey, itemName = entry.itemName, character = entry.char,
+    region = entry.region, quantity = entry.qty, cost = allocation.knownCost,
+    proceeds = entry.total, profit = profit, at = entry.at }
+
+  local consumed = GC.Acquisitions.Consume(candidate.positionKey, entry.qty, entry.key, entry.at, context)
+  if not consumed or consumed.cost ~= realized.cost then return unresolved("consume_failed") end
+  db.acquisitionRealized[#db.acquisitionRealized + 1] = realized
+  return { status = "applied", positionKey = candidate.positionKey, quantity = entry.qty,
+    cost = realized.cost, proceeds = entry.total, profit = profit }
 end
 
 --- Converts the unscoped pre-acquisition flip queue without ever pruning or
