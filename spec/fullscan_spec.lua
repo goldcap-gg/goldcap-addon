@@ -374,3 +374,58 @@ describe("FullScan.CollectNewHot", function()
     assert.is_true(seen["1@90"])
   end)
 end)
+
+describe("FullScan.ApplyLiveObservation", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/FullScan.lua")
+  end)
+
+  local function deal(itemID, tier, profit, unitPrice)
+    return {
+      itemID = itemID,
+      tier = tier,
+      profit = profit,
+      unitPrice = unitPrice,
+      qty = 1,
+    }
+  end
+
+  local function find(deals, itemID)
+    for _, candidate in ipairs(deals) do
+      if candidate.itemID == itemID then return candidate end
+    end
+    return nil
+  end
+
+  it("replaces exactly one candidate even when the live price rises", function()
+    local first = deal(10, "GOOD", 500, 100)
+    local untouched = deal(20, "WATCH", 200, 300)
+    local raised = deal(10, "WATCH", 250, 150)
+
+    local updated = GC.FullScan.ApplyLiveObservation({ first, untouched }, 10, raised, 100)
+
+    assert.equal(2, #updated)
+    assert.is_true(find(updated, 10) == raised)
+    assert.is_true(find(updated, 20) == untouched)
+  end)
+
+  it("removes only the observed item when it is no longer a deal", function()
+    local keep = deal(20, "WATCH", 200, 300)
+    local updated = GC.FullScan.ApplyLiveObservation({ deal(10, "GOOD", 500, 100), keep }, 10, nil, 100)
+
+    assert.equal(1, #updated)
+    assert.is_nil(find(updated, 10))
+    assert.is_true(updated[1] == keep)
+  end)
+
+  it("re-adds a removed target and preserves comparator order and cap", function()
+    local watch = deal(20, "WATCH", 200, 300)
+    local hot = deal(10, "HOT", 900, 80)
+    local updated = GC.FullScan.ApplyLiveObservation({ watch }, 10, hot, 2)
+
+    assert.same({ hot, watch }, updated)
+    assert.same({ hot }, GC.FullScan.ApplyLiveObservation(updated, 30, deal(30, "GOOD", 800, 90), 1))
+  end)
+end)

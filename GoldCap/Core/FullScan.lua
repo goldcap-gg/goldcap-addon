@@ -120,6 +120,21 @@ function GC.FullScan.MergeDeals(existing, incoming, cap)
   return merged
 end
 
+function GC.FullScan.ApplyLiveObservation(existingDeals, itemID, liveDeal, cap)
+  local updated = {}
+  for _, deal in ipairs(existingDeals) do
+    if deal.itemID ~= itemID then
+      updated[#updated + 1] = deal
+    end
+  end
+  if liveDeal then
+    updated[#updated + 1] = liveDeal
+  end
+  table.sort(updated, compareDeals)
+  truncate(updated, cap)
+  return updated
+end
+
 -- Auctionator-style incremental browse scan: C_AuctionHouse.GetBrowseResults() returns one
 -- BrowseResultInfo per itemKey, already aggregated across every seller of that item group
 -- (minPrice, totalQuantity), not one row per individual auction the way GetReplicateItemInfo
