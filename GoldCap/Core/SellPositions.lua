@@ -12,6 +12,11 @@ end
 
 local function positive(value) return exact(value) and value > 0 end
 
+local function exactSigned(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+    and value == math.floor(value) and value >= -MAX_EXACT and value <= MAX_EXACT
+end
+
 local function add(left, right)
   if not exact(left) or not exact(right) or left > MAX_EXACT - right then return nil end
   return left + right
@@ -119,7 +124,8 @@ local function compatibleBatch(batch, context)
 end
 
 local function stableLotOrder(left, right)
-  if left.firstSeenAt ~= right.firstSeenAt then return left.firstSeenAt < right.firstSeenAt end
+  local leftSeenAt, rightSeenAt = left.firstSeenAt or 0, right.firstSeenAt or 0
+  if leftSeenAt ~= rightSeenAt then return leftSeenAt < rightSeenAt end
   return left.auctionID < right.auctionID
 end
 
@@ -156,20 +162,40 @@ end
 
 local function addBatch(position, batch)
   position.batches[#position.batches + 1] = batch
-  position.trackedQty = add(position.trackedQty, batch.remainingQty) or position.trackedQty
-  position.sources[batch.source or "unknown"] = add(position.sources[batch.source or "unknown"] or 0,
-    batch.remainingQty) or position.sources[batch.source or "unknown"]
+  local trackedQty = add(position.trackedQty, batch.remainingQty)
+  local source = batch.source or "unknown"
+  local sourceQty = add(position.sources[source] or 0, batch.remainingQty)
+  if not trackedQty or not sourceQty then
+    position.invalid = true
+    position.trackedQty, position.sources[source] = nil, nil
+    return
+  end
+  position.trackedQty, position.sources[source] = trackedQty, sourceQty
 end
 
 local function addLot(position, ownedLot)
   position.ownedLots[#position.ownedLots + 1] = ownedLot
-  position.listedQty = add(position.listedQty, ownedLot.quantity) or position.listedQty
+  local listedQty = add(position.listedQty, ownedLot.quantity)
   local value = valueFor(ownedLot.quantity, ownedLot.unitPrice)
-  position.listedValue = value and add(position.listedValue, value) or position.listedValue
+  local listedValue = value and add(position.listedValue, value)
+  if not listedQty or not listedValue then
+    position.invalid = true
+    position.listedQty, position.listedValue = nil, nil
+    return
+  end
+  position.listedQty, position.listedValue = listedQty, listedValue
 end
 
 local function decoratePosition(position, quotes, statsByItemID, now)
   table.sort(position.ownedLots, stableLotOrder)
+  local fresh, display, age = quoteInfo(quotes, position.itemID, now)
+  position.freshMarketUnit, position.displayMarketUnit, position.quoteAge = fresh, display, age
+  if position.invalid then
+    position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
+    position.coverage, position.projectedNet, position.profit = "UNKNOWN", nil, nil
+    position.status, position.ahead, position.outlook = "NO_COST", nil, nil
+    return
+  end
   position.exposureQty = position.listedQty > 0 and position.listedQty or position.trackedQty
   local allocation = position.exposureQty > 0 and GC.Acquisitions.Allocate(position.batches, position.exposureQty)
   if allocation then
@@ -178,9 +204,6 @@ local function decoratePosition(position, quotes, statsByItemID, now)
     position.coverage = allocation.knownQty == 0 and "UNKNOWN"
       or allocation.knownQty < position.exposureQty and "PARTIAL" or "COMPLETE"
   end
-  local fresh, display, age = quoteInfo(quotes, position.itemID, now)
-  position.freshMarketUnit, position.displayMarketUnit, position.quoteAge = fresh, display, age
-
   local projected = 0
   if position.listedQty > 0 then
     for _, ownedLot in ipairs(position.ownedLots) do
@@ -243,6 +266,7 @@ function GC.SellPositions.Build(args)
         and (not ownedLot.character or (ownedLot.character == context.char and ownedLot.region == context.region)) then
       local lot = {}
       for key, value in pairs(ownedLot) do lot[key] = value end
+      lot.firstSeenAt = ownedLot.firstSeenAt or 0
       lotsByItem[itemID] = lotsByItem[itemID] or {}
       lotsByItem[itemID][#lotsByItem[itemID] + 1] = lot
       addLot(positionFor(positions, positionKey, itemID, context), lot)
@@ -267,7 +291,7 @@ end
 function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
-  if type(position) ~= "table" or not positive(position.trackedQty) then return nil, "no_tracked_quantity" end
+  if type(position) ~= "table" or position.invalid or not positive(position.trackedQty) then return nil, "no_tracked_quantity" end
   if type(bagState) ~= "table" or bagState.itemID ~= position.itemID or not positive(bagState.exactQty) then
     return nil, "missing_bag_quantity"
   end
@@ -287,7 +311,7 @@ end
 function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
-  if type(position) ~= "table" then return nil, "missing_position" end
+  if type(position) ~= "table" or position.invalid then return nil, "missing_position" end
   for _, ownedLot in ipairs(position.ownedLots or {}) do
     if ownedLot.auctionID == auctionID then
       if not ownedLot.allocation or ownedLot.allocation.coverage ~= "COMPLETE" then return nil, "incomplete_cost" end
@@ -300,19 +324,18 @@ function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
 end
 
 function GC.SellPositions.Summary(positions)
-  local invested, projected, profit = 0, 0, 0
+  local invested, projected = 0, 0
   for _, position in ipairs(positions or {}) do
     if position.coverage ~= "COMPLETE" then
       return { invested = nil, projected = nil, profit = nil }
     end
     invested = add(invested, position.knownCost)
     if not invested then return { invested = nil, projected = nil, profit = nil } end
-    if projected ~= nil and position.projectedNet ~= nil and position.profit ~= nil then
-      projected, profit = add(projected, position.projectedNet), add(profit, position.profit)
-      if not projected or not profit then projected, profit = nil, nil end
-    else
-      projected, profit = nil, nil
-    end
+    if projected == nil or position.projectedNet == nil then projected = nil
+    else projected = add(projected, position.projectedNet) end
   end
+  if projected == nil then return { invested = invested, projected = nil, profit = nil } end
+  local profit = projected - invested
+  if not exactSigned(profit) then return { invested = nil, projected = nil, profit = nil } end
   return { invested = invested, projected = projected, profit = profit }
 end

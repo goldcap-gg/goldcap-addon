@@ -189,6 +189,68 @@ describe("Sell positions", function()
     assert.is_nil(summary.profit)
   end)
 
+  it("keeps a complete losing position's signed profit in the summary", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 1, 200, 1) },
+      ownedLots = { lot("commodity:42", 1, 100, 1) } })[1]
+    local summary = GC.SellPositions.Summary({ p })
+    assert.equal(200, summary.invested)
+    assert.equal(95, summary.projected)
+    assert.equal(-105, summary.profit)
+  end)
+
+  it("sums multiple complete positions including losses into a signed exact profit", function()
+    local summary = GC.SellPositions.Summary({
+      { coverage = "COMPLETE", knownCost = 200, projectedNet = 95, profit = -105 },
+      { coverage = "COMPLETE", knownCost = 30, projectedNet = 95, profit = 65 },
+    })
+    assert.same({ invested = 230, projected = 190, profit = -40 }, summary)
+  end)
+
+  it("fails closed when batch tracked and source quantities overflow exact accounting", function()
+    local max = 9007199254740991
+    local p = build({ acquisitions = {
+      batch("acq:1", "goldcap", max, max, 1), batch("acq:2", "goldcap", 1, 1, 2),
+    }, ownedLots = { lot("commodity:42", 1, 1, 1) } })[1]
+    assert.not_equal("COMPLETE", p.coverage)
+    assert.is_nil(p.trackedQty)
+    assert.is_nil(p.sources.goldcap)
+    assert.is_nil(p.projectedNet)
+    assert.is_nil(GC.SellPositions.BuildRepostPlan(p, 1, 1))
+  end)
+
+  it("fails closed when owned-lot quantities, values, or FIFO skip ranges overflow", function()
+    local max = 9007199254740991
+    local first = lot("commodity:42", max, 1, 1, 1)
+    local second = lot("commodity:42", 1, 1, 2, nil)
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", max, max, 1) },
+      ownedLots = { first, second } })[1]
+    assert.not_equal("COMPLETE", p.coverage)
+    assert.is_nil(p.listedValue)
+    assert.is_nil(GC.SellPositions.BuildRepostPlan(p, 1, 1))
+    assert.is_nil(GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 1 }, 1))
+  end)
+
+  it("returns an unknown summary when complete cost aggregation would overflow", function()
+    local max = 9007199254740991
+    local summary = GC.SellPositions.Summary({
+      { coverage = "COMPLETE", knownCost = max, projectedNet = max },
+      { coverage = "COMPLETE", knownCost = 1, projectedNet = 1 },
+    })
+    assert.same({ invested = nil, projected = nil, profit = nil }, summary)
+  end)
+
+  it("normalizes missing lot timestamps for stable FIFO sorting without mutating input", function()
+    local undated = lot("commodity:42", 1, 100, 2, nil)
+    undated.firstSeenAt = nil
+    local dated = lot("commodity:42", 1, 100, 1, 1)
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
+      ownedLots = { dated, undated } })[1]
+    assert.equal(2, p.ownedLots[1].auctionID)
+    assert.equal(1, p.ownedLots[2].auctionID)
+    assert.is_nil(undated.firstSeenAt)
+    assert.is_nil(undated.allocation)
+  end)
+
   it("reserves listed FIFO quantity before allocating an exact post quantity", function()
     local p = build({ acquisitions = {
       batch("acq:1", "goldcap", 2, 101, 1), batch("acq:2", "manual", 2, 400, 2),
