@@ -97,14 +97,15 @@ function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
 end
 
 local function quoteInfo(quotes, itemID, now)
-  local quote = quotes and quotes[itemID]
+  local quote = GC.QuoteCache.Latest(quotes, itemID)
   if type(quote) == "number" and positive(quote) then
     return quote, quote, nil
   end
   if type(quote) ~= "table" or not positive(quote.unit) then return nil, nil, nil end
-  local age = exact(now) and exact(quote.at) and now - quote.at or nil
-  local fresh = quote.stale ~= true and (quote.fresh == true
-    or (age ~= nil and age >= 0 and age <= QUOTE_MAX_AGE))
+  local age = GC.QuoteCache.Age(quotes, itemID, now)
+  local freshQuote = GC.QuoteCache.Fresh(quotes, itemID, now)
+  local fresh = freshQuote == quote and quote.stale ~= true and (quote.fresh == true
+    or (age ~= nil and age <= QUOTE_MAX_AGE))
   return fresh and quote.unit or nil, quote.unit, age
 end
 

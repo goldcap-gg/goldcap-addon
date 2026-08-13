@@ -35,7 +35,7 @@ local MAX_BOOK_LEVELS = 100
 
 local POST_DURATION = 2 -- 24h; C_AuctionHouse.PostItem/PostCommodity duration enum: 1=12h, 2=24h, 3=48h (verified against warcraft.wiki.gg)
 local POST_TIMEOUT_SECONDS = 8
-local QUOTE_STALE_SECONDS = GC.QuoteCache.MAX_AGE_SECONDS -- pending search timeout; live prices themselves expire through QuoteCache.Get
+local QUOTE_STALE_SECONDS = GC.QuoteCache.MAX_AGE_SECONDS -- pending search timeout; live prices themselves expire through QuoteCache.Fresh
 local REPOST_ARM_SECONDS = 3    -- brief's "3s window" -- mirrors SniperFrame.lua's REQUOTE_ARM_SECONDS idiom (armLoudConfirm): a click already on its way when the button morphs must not land on the confirm
 local REPOST_DISARM_SECONDS = 10 -- fix round 1 (I1): total window an ARMED-but-unconfirmed repost stays armed before auto-disarming back to idle -- an escape hatch for a player who clicked Repost and then walked away, so the row doesn't sit showing "Cancel lot?" forever
 
@@ -525,7 +525,8 @@ local function onPostClick(row)
   local flip = row.flip
   if not flip then return end
 
-  local freshUnit = GC.QuoteCache.Get(quotes, flip.itemID, time())
+  local freshQuote = GC.QuoteCache.Fresh(quotes, flip.itemID, time())
+  local freshUnit = freshQuote and freshQuote.unit
   if not freshUnit then
     -- A confirmation is still a posting action. If the first-click quote aged out while the
     -- player was reading Blizzard's confirmation state, discard those old arguments rather
@@ -598,9 +599,9 @@ local function onPostClick(row)
   -- floor + max(100, ...) rounding below stays LOCAL to this function: that's a post-API
   -- constraint (the AH rejects a non-zero copper digit), not a recommendation concern, so it
   -- does not belong inside RecommendPost itself.
-  -- QuoteCache.Get above both proves freshness and purges stale entries before the depth
-  -- metadata is consulted. A posting recommendation must never revive an expired quote.
-  local quote = quotes[flip.itemID]
+  -- QuoteCache.Fresh above proves freshness before the depth metadata is consulted. A posting
+  -- recommendation must never revive an expired quote.
+  local quote = freshQuote
   local stats = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(flip.itemID)
   local rec = GC.Flips and GC.Flips.RecommendPost and GC.Flips.RecommendPost(flip.paidUnit, quote and quote.unit, flip.targetUnit,
     { levels = quote and quote.levels, sold = stats and stats.sold })
@@ -797,7 +798,7 @@ local function onRepostClick(row)
     return
   end
 
-  if not GC.QuoteCache.Get(quotes, flip.itemID, time()) then
+  if not GC.QuoteCache.Fresh(quotes, flip.itemID, time()) then
     setStatus("Refresh prices first")
     return
   end
@@ -858,7 +859,7 @@ local function onCancelConfirmClick(row)
   local flip = row.flip
   if not flip then return end
 
-  if not GC.QuoteCache.Get(quotes, flip.itemID, time()) then
+  if not GC.QuoteCache.Fresh(quotes, flip.itemID, time()) then
     disarmRepost(row, "Refresh prices first")
     return
   end
@@ -1583,8 +1584,9 @@ local function renderRows()
   local allRows, rowByFlip, statsByFlip = {}, {}, {}
   for _, f in ipairs(flips) do
     local name = resolveItemName(f.itemID)
-    local freshUnit = GC.QuoteCache.Get(quotes, f.itemID, time())
-    local quote = freshUnit and quotes[f.itemID] or nil
+    local displayQuote = GC.QuoteCache.Latest(quotes, f.itemID)
+    local freshQuote = GC.QuoteCache.Fresh(quotes, f.itemID, time())
+    local quote = freshQuote
     -- I6: sales are matched by name AND narrowed to at-or-after this flip's OWN boughtAt --
     -- without the date floor, an ancient sale of a same-named item could keep a brand-new,
     -- never-yet-posted flip showing SOLD_PENDING forever (name-only matching has no other way
@@ -1600,6 +1602,8 @@ local function renderRows()
     -- setRowFlip (the row tooltip's Sold/day line + RecommendPost's mv fallback).
     local stats = GC.Data.GetItemValue(f.itemID)
     local flipRow = GC.Flips.BuildRow(f, ownedLots, quote, sales, stats)
+    flipRow.displayMarketUnit = displayQuote and displayQuote.unit or nil
+    flipRow.quoteAge = GC.QuoteCache.Age(quotes, f.itemID, time())
     allRows[#allRows + 1] = flipRow
     rowByFlip[f] = flipRow
     statsByFlip[f] = stats
@@ -1607,10 +1611,13 @@ local function renderRows()
 
   local orphanRows, statsByOrphan = {}, {}
   for _, o in ipairs(GC.Flips.OrphanLotRows(ownedLots, flips)) do
-    local freshUnit = GC.QuoteCache.Get(quotes, o.itemID, time())
-    local quote = freshUnit and quotes[o.itemID] or nil
+    local displayQuote = GC.QuoteCache.Latest(quotes, o.itemID)
+    local freshQuote = GC.QuoteCache.Fresh(quotes, o.itemID, time())
+    local quote = freshQuote
     local stats = GC.Data.GetItemValue(o.itemID)
     local enriched = GC.Flips.EnrichOrphanRow(o, quote, stats)
+    enriched.displayMarketUnit = displayQuote and displayQuote.unit or nil
+    enriched.quoteAge = GC.QuoteCache.Age(quotes, o.itemID, time())
     orphanRows[#orphanRows + 1] = enriched
     statsByOrphan[enriched] = stats
   end

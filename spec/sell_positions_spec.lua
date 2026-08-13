@@ -29,6 +29,7 @@ describe("Sell positions", function()
   before_each(function()
     GC = helper.loadModule("Core/Acquisitions.lua")
     GC = helper.loadModule("Core/Flips.lua", GC)
+    GC = helper.loadModule("Core/QuoteCache.lua", GC)
     GC = helper.loadModule("Core/SellPositions.lua", GC)
   end)
 
@@ -116,6 +117,7 @@ describe("Sell positions", function()
       quotes = { [42] = { unit = 100, at = 0 } }, now = 11 })[1]
     assert.equal(100, stale.displayMarketUnit)
     assert.is_nil(stale.freshMarketUnit)
+    assert.equal(11, stale.quoteAge)
     assert.equal(475, stale.projectedNet)
     local fresh = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
       ownedLots = { lot("commodity:42", 1, 300, 1), lot("commodity:42", 1, 200, 2) },
@@ -135,6 +137,25 @@ describe("Sell positions", function()
       quotes = { [42] = { unit = 200, at = 0 } }, now = 11 })[1]
     assert.is_nil(p.projectedNet)
     assert.is_nil(p.profit)
+  end)
+
+  it("never authorizes stale display data for post or repost plans", function()
+    local unlisted = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
+      quotes = { [42] = { unit = 200, at = 0 } }, now = 11 })[1]
+    local listed = build({ acquisitions = { batch("acq:2", "goldcap", 1, 100, 1) },
+      ownedLots = { lot("commodity:42", 1, 200, 1) },
+      quotes = { [42] = { unit = 150, at = 0 } }, now = 11 })[1]
+
+    assert.equal(200, unlisted.displayMarketUnit)
+    assert.is_nil(unlisted.freshMarketUnit)
+    assert.is_nil(unlisted.projectedNet)
+    assert.is_nil(GC.SellPositions.BuildPostPlan(unlisted, { itemID = 42, exactQty = 1 },
+      { unit = unlisted.displayMarketUnit, at = 0 }))
+    assert.equal(150, listed.displayMarketUnit)
+    assert.is_nil(listed.freshMarketUnit)
+    assert.equal(190, listed.projectedNet)
+    assert.is_nil(GC.SellPositions.BuildRepostPlan(listed, 1,
+      { unit = listed.displayMarketUnit, at = 0 }))
   end)
 
   it("never treats a contradictory fresh-marked stale display quote as fresh", function()
