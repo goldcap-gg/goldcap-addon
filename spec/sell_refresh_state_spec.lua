@@ -51,7 +51,7 @@ describe("Sell refresh state fence", function()
     return GC
   end
 
-  after_each(function() _G.time, _G.C_AuctionHouse = os.time, nil end)
+  after_each(function() _G.time, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil end)
 
   it("waits for item key info and then sends that same key once", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
@@ -113,5 +113,51 @@ describe("Sell refresh state fence", function()
     GC.Sniper.IsAHOpen = function() return false end
     GC.Sell.Refresh()
     assert.equal("Auction House is not open", status[#status])
+  end)
+
+  it("uses a real request timer to tombstone a sent quote without throttle activity", function()
+    local now, sent, cache, timers, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    assert.equal(1, #timers)
+    timers[1]()
+    assert.equal("error", refreshState(GC).phase)
+    assert.equal("Refresh failed", status[#status])
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    GC.Sell.OnItemSearchResults(42)
+    assert.is_nil(cache[42])
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42, 42 }, sent.keys)
+  end)
+
+  it("fails closed for an empty search result and clears only that key", function()
+    local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, { [7] = 999 }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local driver = upvalue(advance, "driver")
+    driver.item = function() return nil end
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
+    assert.equal("error", refreshState(GC).phase)
+    assert.is_nil(cache[42])
+    assert.equal(999, cache[7])
+    assert.equal("Refresh failed", status[#status])
+  end)
+
+  it("makes an old request timer and result inert after Reset", function()
+    local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal(1, #timers)
+    GC.Sell.Reset()
+    timers[1]()
+    GC.Sell.OnItemSearchResults(42)
+    assert.equal("idle", refreshState(GC).phase)
+    assert.is_nil(cache[42])
   end)
 end)

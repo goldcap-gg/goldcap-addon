@@ -63,6 +63,23 @@ describe("Sell protected action state", function()
     assert.is_true(refreshed)
   end)
 
+  it("routes a stale post through the Refresh open-AH guard", function()
+    local owned, protected, status = 0, 0, {}
+    _G.C_AuctionHouse = {
+      QueryOwnedAuctions = function() owned = owned + 1 end,
+      PostCommodity = function() protected = protected + 1 end,
+    }
+    local GC = { Sell = {}, Sniper = { IsAHOpen = function() return false end },
+      QuoteCache = { Fresh = function() return nil end }, SellPositions = {} }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+    local post = handlers(GC)
+    post({ position = position(), action = button() })
+    assert.equal(0, owned)
+    assert.equal(0, protected)
+    assert.equal("Auction House is not open", status[#status])
+  end)
+
   it("fails closed for a malformed Fresh quote before building a post", function()
     local calls = 0
     _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1 end }

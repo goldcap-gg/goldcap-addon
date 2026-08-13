@@ -125,6 +125,47 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_true(header.cells.market.shown)
   end)
 
+  it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
+    local function assertRow(width, market)
+      local GC = load(width, { calls = {} })
+      GC.SellViewModel.Expansion = function()
+        return { note = "FIFO allocations", batches = { { source = "goldcap", remainingQty = 1 } },
+          ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 10 } } }
+      end
+      local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 1,
+        knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" }
+      local rows, container = topRows(GC, { p })
+      local header
+      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      local row = rows[1]
+      assert.equal(market, row.cells.market.shown)
+      assert.is_nil(row.cells.queue)
+      assert.is_nil(row.cells.action)
+      assert.equal(row.cells.expand, row.cells.status.points[1].relative)
+      assert.equal(row.cells.status, row.cells.profit.points[1].relative)
+      if market then
+        assert.equal(row.cells.profit, row.cells.market.points[1].relative)
+        assert.equal(row.cells.market, row.cells.listed.points[1].relative)
+      else
+        assert.equal(row.cells.profit, row.cells.listed.points[1].relative)
+      end
+      assert.equal(row.cells.listed, row.cells.cost.points[1].relative)
+      assert.equal(row.cells.cost, row.cells.item.points[2].relative)
+      assert.equal(header.cells.expand, header.cells.status.points[1].relative)
+      rows[1].scripts.OnClick(rows[1])
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      local content = upvalue(render, "content")
+      assert.equal(width, content.width)
+      assert.equal(4 * 24, content.height)
+      assert.equal("detail", rows[2].kind)
+      assert.equal("batch", rows[3].kind)
+      assert.equal("lot", rows[4].kind)
+    end
+    assertRow(500, false)
+    assertRow(620, false)
+    assertRow(760, true)
+  end)
+
   it("opens Set cost for listed partial and unknown orphan positions", function()
     local record = { calls = {} }
     local GC = load(620, record)

@@ -26,6 +26,7 @@ local container, content, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
 local expanded, filterMode = {}, "all"
 local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil, drain = {} }
+local quoteTimeoutToken = 0
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
 
@@ -170,6 +171,24 @@ local function finishQuoteWalk()
   renderRows()
 end
 
+local function failPendingQuote(pending)
+  if refresh.pending ~= pending or pending.generation ~= refresh.generation then return end
+  refresh.drain[pending.kind .. ":" .. pending.itemID] = pending.generation
+  quotes[pending.itemID] = nil
+  refresh.pending = nil
+  refresh.phase = "error"
+  setStatus("Refresh failed")
+end
+
+local function scheduleQuoteTimeout(pending)
+  if not (C_Timer and C_Timer.After) then return end
+  quoteTimeoutToken = quoteTimeoutToken + 1
+  local token = quoteTimeoutToken
+  C_Timer.After(QUOTE_STALE_SECONDS, function()
+    if token == quoteTimeoutToken then failPendingQuote(pending) end
+  end)
+end
+
 local function advanceQuote()
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
   if refresh.pending then return end
@@ -191,6 +210,7 @@ local function advanceQuote()
     refresh.phase = "waiting_result"
     setStatus(("Pricing %d/%d…"):format(refresh.index, #refresh.queue))
     driver.send(itemID)
+    scheduleQuoteTimeout(refresh.pending)
   else
     refresh.awaiting, refresh.phase = itemID, "waiting_key"
   end
@@ -244,11 +264,7 @@ end
 
 function GC.Sell.OnThrottleReady()
   if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then
-    local pending = refresh.pending
-    refresh.drain[pending.kind .. ":" .. pending.itemID] = pending.generation
-    refresh.pending = nil
-    refresh.phase = "error"
-    setStatus("Refresh failed")
+    failPendingQuote(refresh.pending)
     return
   end
   advanceQuote()
@@ -267,6 +283,10 @@ local function quoteResolved(kind, itemID, unit, levels)
   end
   local pending = refresh.pending
   if not pending or pending.kind ~= kind or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
+  if not exact(unit) or unit <= 0 then
+    failPendingQuote(pending)
+    return
+  end
   refresh.pending = nil
   refresh.phase = "pricing"
   GC.QuoteCache.Set(quotes, itemID, unit, time())
@@ -334,12 +354,8 @@ local function liveBagState(position, requiredQty)
     bag = matchedBag, slot = matchedSlot, stackQty = matchedStack }
 end
 
-local function startQuoteRefreshFor(position)
-  if refresh.phase == "idle" or refresh.phase == "done" or refresh.phase == "error" then
-    refresh.generation = refresh.generation + 1
-    refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = { position.itemID }, 0, "pricing", nil, nil
-    advanceQuote()
-  end
+local function startQuoteRefreshFor(_)
+  GC.Sell.Refresh()
 end
 
 local function currentPosition(positionKey)
@@ -371,7 +387,7 @@ local function onPostClick(row)
       postingRow, postingPin = nil, nil
       restorePostRow(row)
     end
-    startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return
+    startQuoteRefreshFor(position); return
   end
   if postingRow and postingRow ~= row then
     setStatus("Finish the pending post first")
@@ -385,7 +401,7 @@ local function onPostClick(row)
         or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit then
       postingRow, postingPin = nil, nil
       restorePostRow(row)
-      startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return
+      startQuoteRefreshFor(position); return
     end
     row.postStage = "confirming"; row.action:Disable(); setStatus("Posting…")
     if pin.isCommodity then
@@ -458,7 +474,7 @@ local function onRepostClick(row, auctionID)
       restoreRepostRow(row)
       repostingRow, repostPin = nil, nil
     end
-    startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return
+    startQuoteRefreshFor(position); return
   end
   if repostingRow and repostingRow ~= row then setStatus("Finish the pending repost first"); return end
   if row.repostStage == "armed" then
@@ -787,6 +803,7 @@ function GC.Sell.Reset()
   refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting, refresh.drain = "idle", {}, 0, nil, nil, {}
   GC.QuoteCache.Clear(quotes)
   postTimeoutToken = (postTimeoutToken or 0) + 1
+  quoteTimeoutToken = quoteTimeoutToken + 1
   repostArmToken = (repostArmToken or 0) + 1
   restorePostRow(postingRow)
   restoreRepostRow(repostingRow)
