@@ -10,6 +10,12 @@ GC.DEFAULTS = {
   -- value isn't already a table, and recursing over an empty table's pairs() is a no-op, so a
   -- populated SavedVariables array is never touched or truncated on later logins.
   flips = {},
+  acquisitions = {},
+  acquisitionPending = {},
+  acquisitionRealized = {},
+  acquisitionSeq = 0,
+  acquisitionPendingSeq = 0,
+  acquisitionVersion = 0,
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.
@@ -112,6 +118,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     GoldCapDB = GoldCapDB or {}
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
+    if GC.Acquisitions then GC.Acquisitions.Init(GC.db) end
     if GC.Data then
       GC.Data.Init(GC.db)
       -- Companion sync (Task A): adopts `GoldCap_AppData` (see the .toc's OptionalDeps)
