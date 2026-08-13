@@ -20,6 +20,54 @@ local function isStringOrNil(value)
   return value == nil or type(value) == "string"
 end
 
+local function safeAdd(left, right)
+  if not isExactInteger(left) or not isExactInteger(right) or left > MAX_EXACT - right then
+    return nil
+  end
+  return left + right
+end
+
+-- Computes floor(left * right / denominator) without ever constructing the
+-- product. SavedVariables numbers are exact only through MAX_EXACT, so a
+-- direct multiply can wrap on Lua integer builds or round on double builds.
+local function mulDivFloor(left, right, denominator)
+  if not isExactInteger(left) or not isExactInteger(right)
+      or not isPositiveInteger(denominator) then return nil end
+
+  local whole = math.floor(left / denominator)
+  local remainder = left - whole * denominator
+  local bits = {}
+  while right > 0 do
+    bits[#bits + 1] = right % 2
+    right = math.floor(right / 2)
+  end
+
+  local quotient, current = 0, 0
+  local function addModulo(value)
+    local untilWrap = denominator - value
+    if current >= untilWrap then
+      current = current - untilWrap
+      return 1
+    end
+    current = current + value
+    return 0
+  end
+
+  for i = #bits, 1, -1 do
+    quotient = safeAdd(quotient, quotient)
+    if not quotient then return nil end
+    local carry = addModulo(current)
+    if bits[i] == 1 then
+      quotient = safeAdd(quotient, whole)
+      if not quotient then return nil end
+      carry = carry + addModulo(remainder)
+    end
+    quotient = safeAdd(quotient, carry)
+    if not quotient then return nil end
+  end
+  return quotient
+end
+
 local function sequenceFor(id)
   local value = type(id) == "string" and id:match("^acq:(%d+)$") or nil
   return value and tonumber(value) or 0
@@ -51,11 +99,39 @@ local function hasEvidence(key)
   return false
 end
 
+local function activeWithEvidence(key)
+  if not key or not db then return nil end
+  for _, batch in ipairs(db.acquisitions) do
+    if (batch.evidenceKeys and batch.evidenceKeys[key]) or batch.mailEvidenceKey == key then
+      return batch
+    end
+  end
+  return nil
+end
+
+local function pendingWithEvidence(key)
+  if not key or not db then return nil end
+  for index, pending in ipairs(db.acquisitionPending) do
+    if (pending.evidenceKeys and pending.evidenceKeys[key]) or pending.mailEvidenceKey == key then
+      return pending, index
+    end
+  end
+  return nil
+end
+
+local function pendingMatchesExactRecord(pending, args)
+  return pending.itemID == args.itemID and pending.quantity == args.quantity
+    and (not pending.positionKey or not args.positionKey or pending.positionKey == args.positionKey)
+    and (not pending.character or not args.character or pending.character == args.character)
+    and (not pending.region or not args.region or pending.region == args.region)
+end
+
 local function takeCost(batch, qty)
   local beforeQty = batch.remainingQty
   local cost = (qty == beforeQty)
     and batch.remainingTotal
-    or math.floor(batch.remainingTotal * qty / beforeQty)
+    or mulDivFloor(batch.remainingTotal, qty, beforeQty)
+  if not isExactInteger(cost) then return nil end
   batch.remainingQty = beforeQty - qty
   batch.remainingTotal = batch.remainingTotal - cost
   return cost
@@ -78,14 +154,18 @@ local function allocationFor(batches, quantity)
       local qty = math.min(quantity - result.knownQty, batch.remainingQty)
       local state = copyBatchState(batch)
       local cost = takeCost(state, qty)
+      if cost == nil then return nil end
+      local knownQty = safeAdd(result.knownQty, qty)
+      local knownCost = safeAdd(result.knownCost, cost)
+      if not knownQty or not knownCost then return nil end
       result.allocations[#result.allocations + 1] = {
         batchID = batch.id,
         quantity = qty,
         cost = cost,
         source = batch.source,
       }
-      result.knownQty = result.knownQty + qty
-      result.knownCost = result.knownCost + cost
+      result.knownQty = knownQty
+      result.knownCost = knownCost
     end
   end
 
@@ -146,15 +226,19 @@ function GC.Acquisitions.Record(args)
   end
   if args.evidenceKey == "" then return nil, false end
 
+  local pending, pendingIndex
   if args.evidenceKey then
-    for _, batch in ipairs(db.acquisitions) do
-      if batch.evidenceKeys and batch.evidenceKeys[args.evidenceKey] then return batch, false end
-    end
+    local existing = activeWithEvidence(args.evidenceKey)
+    if existing then return existing, false end
+    pending, pendingIndex = pendingWithEvidence(args.evidenceKey)
+    if pending and not pendingMatchesExactRecord(pending, args) then return nil, false end
   end
 
-  db.acquisitionSeq = db.acquisitionSeq + 1
+  local sequence = safeAdd(db.acquisitionSeq, 1)
+  if not sequence then return nil, false end
+  db.acquisitionSeq = sequence
   local batch = {
-    id = "acq:" .. db.acquisitionSeq,
+    id = "acq:" .. sequence,
     source = args.source,
     itemID = args.itemID,
     positionKey = args.positionKey,
@@ -172,6 +256,14 @@ function GC.Acquisitions.Record(args)
     mailEvidenceKey = nil,
     consumedEvidenceKeys = {},
   }
+  if pending then
+    batch.positionKey = batch.positionKey or pending.positionKey
+    batch.itemName = batch.itemName or pending.itemName
+    batch.character = batch.character or pending.character
+    batch.region = batch.region or pending.region
+    batch.promotedPendingID = pending.id
+    table.remove(db.acquisitionPending, pendingIndex)
+  end
   if args.evidenceKey then batch.evidenceKeys[args.evidenceKey] = true end
   db.acquisitions[#db.acquisitions + 1] = batch
   return batch, true
@@ -187,13 +279,15 @@ function GC.Acquisitions.RecordPending(args)
     return nil, false
   end
   if args.evidenceKey then
-    for _, pending in ipairs(db.acquisitionPending) do
-      if pending.evidenceKeys and pending.evidenceKeys[args.evidenceKey] then return pending, false end
-    end
+    if activeWithEvidence(args.evidenceKey) then return nil, false end
+    local pending = pendingWithEvidence(args.evidenceKey)
+    if pending then return pending, false end
   end
-  db.acquisitionPendingSeq = db.acquisitionPendingSeq + 1
+  local sequence = safeAdd(db.acquisitionPendingSeq, 1)
+  if not sequence then return nil, false end
+  db.acquisitionPendingSeq = sequence
   local pending = {
-    id = "pending:" .. db.acquisitionPendingSeq,
+    id = "pending:" .. sequence,
     itemID = args.itemID,
     positionKey = args.positionKey,
     itemName = args.itemName,
@@ -225,6 +319,7 @@ end
 function GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, evidenceKey)
   if type(deal) ~= "table" or type(purchase) ~= "table" then return nil, false end
   local itemID = purchase.itemID or deal.itemID
+  if not isPositiveInteger(itemID) then return nil, false end
   return GC.Acquisitions.Record({
     source = "goldcap", itemID = itemID,
     positionKey = GC.Acquisitions.PositionKey(itemID, deal.itemKey, deal.isCommodity),
@@ -284,7 +379,9 @@ end
 
 function GC.Acquisitions.AllocateRange(batches, skippedQty, quantity)
   if not isExactInteger(skippedQty) or not isPositiveInteger(quantity) then return nil end
-  local through = allocationFor(batches, skippedQty + quantity)
+  local throughQuantity = safeAdd(skippedQty, quantity)
+  if not throughQuantity then return nil end
+  local through = allocationFor(batches, throughQuantity)
   local skipped = skippedQty == 0 and {
     allocations = {}, knownQty = 0, knownCost = 0,
   } or allocationFor(batches, skippedQty)
@@ -292,9 +389,12 @@ function GC.Acquisitions.AllocateRange(batches, skippedQty, quantity)
 
   local before = {}
   for _, allocation in ipairs(skipped.allocations) do before[allocation.batchID] = allocation end
+  local knownQty = through.knownQty - skipped.knownQty
+  local knownCost = through.knownCost - skipped.knownCost
+  if not isExactInteger(knownQty) or not isExactInteger(knownCost) then return nil end
   local result = {
-    allocations = {}, knownQty = through.knownQty - skipped.knownQty,
-    knownCost = through.knownCost - skipped.knownCost,
+    allocations = {}, knownQty = knownQty,
+    knownCost = knownCost,
     requestedQty = quantity, coverage = "MISSING",
   }
   for _, allocation in ipairs(through.allocations) do
@@ -324,34 +424,36 @@ function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context
     return nil
   end
   local eligible = {}
-  local available = 0
   for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
     if batch.positionKey == positionKey then
       eligible[#eligible + 1] = batch
-      available = available + batch.remainingQty
       if batch.consumedEvidenceKeys and batch.consumedEvidenceKeys[evidenceKey] then return nil end
     end
   end
-  if available < quantity then return nil end
+  local plan = allocationFor(eligible, quantity)
+  if not plan or plan.coverage ~= "COMPLETE" then return nil end
 
-  local remaining, cost, allocations = quantity, 0, {}
-  for _, batch in ipairs(eligible) do
-    if remaining == 0 then break end
-    local qty = math.min(remaining, batch.remainingQty)
-    local taken = takeCost(batch, qty)
-    batch.consumedEvidenceKeys[evidenceKey] = true
-    allocations[#allocations + 1] = { batchID = batch.id, quantity = qty, cost = taken,
-      source = batch.source }
-    remaining = remaining - qty
-    cost = cost + taken
+  local byID, updates = {}, {}
+  for _, batch in ipairs(eligible) do byID[batch.id] = batch end
+  for _, allocation in ipairs(plan.allocations) do
+    local batch = byID[allocation.batchID]
+    local state = batch and copyBatchState(batch) or nil
+    local taken = state and takeCost(state, allocation.quantity) or nil
+    if taken ~= allocation.cost then return nil end
+    updates[#updates + 1] = { batch = batch, state = state }
+  end
+  for _, update in ipairs(updates) do
+    update.batch.remainingQty = update.state.remainingQty
+    update.batch.remainingTotal = update.state.remainingTotal
+    update.batch.consumedEvidenceKeys[evidenceKey] = true
   end
   db.acquisitionConsumptionEvidence[evidenceKey] = true
   return {
     evidenceKey = evidenceKey,
     scopeKey = GC.Acquisitions.ScopeKey(positionKey, context),
     quantity = quantity,
-    cost = cost,
+    cost = plan.knownCost,
     at = at,
-    allocations = allocations,
+    allocations = plan.allocations,
   }
 end

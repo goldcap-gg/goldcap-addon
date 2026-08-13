@@ -37,12 +37,44 @@ describe("Acquisition store", function()
     assert.not_equal(first.id, second.id)
   end)
 
+  it("promotes matching pending evidence only when exact cost arrives", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      quantity = 2, completedAt = 100, character = context.char, region = context.region,
+      reason = "exact total unavailable", evidenceKey = "purchase:1" })
+    local batch, isNew = record({ evidenceKey = "purchase:1" })
+    assert.is_true(isNew)
+    assert.equal(200, batch.originalTotal)
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(pending.id, batch.promotedPendingID)
+  end)
+
+  it("never creates a pending duplicate for active purchase evidence", function()
+    record({ evidenceKey = "purchase:1" })
+    local pending, isNew = GC.Acquisitions.RecordPending({ itemID = 42,
+      positionKey = "commodity:42", quantity = 2, completedAt = 100,
+      character = context.char, region = context.region,
+      reason = "exact total unavailable", evidenceKey = "purchase:1" })
+    assert.is_nil(pending)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+  end)
+
+  it("rejects malformed GoldCap commodity wrappers without throwing", function()
+    local ok, batch, isNew = pcall(GC.Acquisitions.RecordGoldCap,
+      { isCommodity = true }, { itemID = "not-an-id", quantity = 1, total = 1 }, context, 1, "bad")
+    assert.is_true(ok)
+    assert.is_nil(batch)
+    assert.is_false(isNew)
+  end)
+
   it("rejects invalid exact facts without changing the store", function()
     local max = 9007199254740991
     local cases = {
       { itemID = 0 / 0 }, { quantity = math.huge }, { total = -math.huge },
       { quantity = 1.5 }, { total = -1 }, { quantity = 0 }, { total = 0 },
-      { itemID = max + 1 }, { source = "guessed" }, { acquiredAt = -1 },
+      { itemID = max + 1 }, { quantity = max + 1 }, { total = max + 1 },
+      { source = "guessed" }, { acquiredAt = -1 },
     }
     for _, overrides in ipairs(cases) do
       local ok, batch = pcall(record, overrides)
@@ -92,6 +124,40 @@ describe("Acquisition store", function()
     assert.equal(33, allocation.knownCost)
     assert.equal(3, batch.remainingQty)
     assert.equal(100, batch.remainingTotal)
+  end)
+
+  it("keeps maximum-boundary partial allocation and range costs exact", function()
+    local max = 9007199254740991
+    local batch = record({ quantity = max, total = max, evidenceKey = "max:allocate" })
+    local partial = GC.Acquisitions.Allocate({ batch }, max - 1)
+    assert.equal(max - 1, partial.knownQty)
+    assert.equal(max - 1, partial.knownCost)
+    assert.equal(max, batch.remainingQty)
+    assert.equal(max, batch.remainingTotal)
+
+    local range = GC.Acquisitions.AllocateRange({ batch }, max - 1, 1)
+    assert.equal("COMPLETE", range.coverage)
+    assert.equal(1, range.knownQty)
+    assert.equal(1, range.knownCost)
+  end)
+
+  it("keeps maximum-boundary consumption exact and rejects unsafe aggregate availability atomically", function()
+    local max = 9007199254740991
+    local batch = record({ quantity = max, total = max, evidenceKey = "max:consume" })
+    local consumed = GC.Acquisitions.Consume("commodity:42", max - 1, "sale:max", 1, context)
+    assert.equal(max - 1, consumed.cost)
+    assert.equal(1, batch.remainingQty)
+    assert.equal(1, batch.remainingTotal)
+    assert.truthy(GC.Acquisitions.Consume("commodity:42", 1, "sale:last", 2, context))
+
+    local first = record({ quantity = max - 1, total = max, evidenceKey = "max:first" })
+    local second = record({ quantity = 1, total = max, evidenceKey = "max:second" })
+    assert.is_nil(GC.Acquisitions.Allocate({ first, second }, max))
+    assert.is_nil(GC.Acquisitions.Consume("commodity:42", max, "sale:overflow", 3, context))
+    assert.equal(max - 1, first.remainingQty)
+    assert.equal(max, first.remainingTotal)
+    assert.equal(1, second.remainingQty)
+    assert.equal(max, second.remainingTotal)
   end)
 
   it("scopes otherwise identical batches to their owning character", function()
