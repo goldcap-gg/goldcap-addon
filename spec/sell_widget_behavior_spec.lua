@@ -324,4 +324,18 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("position", rows[1].kind)
     assert.equal("detail", rows[2].kind)
   end)
+
+  it("renders a direct RecommendPost decision with its exact unit and mode", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {}, ownedLots = {},
+        recommendation = { unit = 199, mode = "undercut", belowCost = false } }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 1,
+        knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "UNLISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("Post (undercut) @ 199", rows[2].cells.status.text)
+  end)
 end)

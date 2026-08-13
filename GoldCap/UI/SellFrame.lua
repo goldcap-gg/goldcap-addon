@@ -66,9 +66,12 @@ local function recommendationText(recommendation)
   local action = recommendation.action
   if type(action) ~= "string" or action == "" then action = "post" end
   action = action:sub(1, 1):upper() .. action:sub(2)
-  local unit = recommendation.rec and recommendation.rec.unit
-  local reason = type(recommendation.reason) == "string" and recommendation.reason or nil
+  local nested = recommendation.rec
+  local unit = nested and nested.unit or recommendation.unit
+  local reason = type(recommendation.reason) == "string" and recommendation.reason
+    or (type(recommendation.mode) == "string" and recommendation.mode or nil)
   local suffix = unit and (" @ " .. formatCell(unit)) or ""
+  if recommendation.belowCost then reason = reason and (reason .. " · below cost") or "below cost" end
   return action .. (reason and (" (" .. reason .. ")") or "") .. suffix
 end
 

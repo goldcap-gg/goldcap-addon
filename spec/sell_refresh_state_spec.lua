@@ -160,4 +160,19 @@ describe("Sell refresh state fence", function()
     assert.equal("idle", refreshState(GC).phase)
     assert.is_nil(cache[42])
   end)
+
+  it("observes commodity and variant owned lots with the exact active scope", function()
+    local now, sent, cache, observed = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.NormalizeOwnedLots = function()
+      return { { itemID = 42, positionKey = "commodity:42" }, { itemID = 7, positionKey = "item:7:100:3:0" } }
+    end
+    GC.Acquisitions = { ObserveOwnedPosition = function(...) observed[#observed + 1] = { ... } end }
+    GC.Ledger = { Context = function() return { char = "A-R", region = "eu" } end }
+    GC.Sell.OnOwnedAuctions()
+    assert.same({
+      { "commodity:42", 42, "Item 42", "A-R", "eu", 100 },
+      { "item:7:100:3:0", 7, "Item 7", "A-R", "eu", 100 },
+    }, observed)
+  end)
 end)

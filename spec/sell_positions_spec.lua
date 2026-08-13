@@ -150,6 +150,34 @@ describe("Sell positions", function()
     assert.equal(149, p.recommendation.rec.unit)
   end)
 
+  it("carries a direct RecommendPost decision for unlisted exact stock and no fallback without a quote", function()
+    local advised = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
+      quotes = { [42] = { unit = 150, at = 9, levels = { { unitPrice = 150, quantity = 3 } } } },
+      statsByItemID = { [42] = { sold = 5 } } })[1]
+    assert.equal(149, advised.recommendation.unit)
+    assert.equal("undercut", advised.recommendation.mode)
+    assert.equal(5, advised.soldPerDay)
+    local noQuote = build({ acquisitions = { batch("acq:2", "goldcap", 1, 100, 1) } })[1]
+    assert.is_nil(noQuote.recommendation)
+  end)
+
+  it("keeps every batch and owned lot alongside bounded queue facts", function()
+    local p = build({ acquisitions = {
+      batch("acq:1", "goldcap", 1, 100, 1), batch("acq:2", "manual", 2, 400, 2),
+    }, ownedLots = { lot("commodity:42", 1, 180, 11, 1), lot("commodity:42", 2, 220, 12, 2) },
+      quotes = { [42] = { unit = 150, at = 9, levels = { { unitPrice = 120, quantity = 3 }, { unitPrice = 180, quantity = 4 } } } },
+      statsByItemID = { [42] = { sold = 2 } } })[1]
+    assert.equal(2, #p.batches)
+    assert.equal(2, #p.ownedLots)
+    assert.equal(3, p.ahead)
+    assert.equal(2, p.soldPerDay)
+    assert.equal(3, p.outlook.days)
+    assert.equal(11, p.ownedLots[1].auctionID)
+    assert.equal(12, p.ownedLots[2].auctionID)
+    assert.equal("hold", p.recommendation.action)
+    assert.equal("loss", p.recommendation.reason)
+  end)
+
   it("never authorizes stale display data for post or repost plans", function()
     local unlisted = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
       quotes = { [42] = { unit = 200, at = 0 } }, now = 11 })[1]
