@@ -25,7 +25,7 @@ local COLUMNS = {
 local container, content, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
 local expanded, filterMode = {}, "all"
-local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil }
+local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil, drain = {} }
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
 
@@ -140,7 +140,7 @@ end
 local function renderRows() end
 
 local function finishQuoteWalk()
-  refresh.phase = "idle"
+  refresh.phase = "done"
   refresh.pending, refresh.awaiting = nil, nil
   setStatus("Updated just now")
   renderRows()
@@ -154,10 +154,17 @@ local function advanceQuote()
   if not driver.isReady() then return end
   local itemID = refresh.awaiting or refresh.queue[refresh.index + 1]
   if driver.keyInfo(itemID) then
+    local info = driver.keyInfo(itemID)
+    local kind = info.isCommodity and "commodity" or "item"
+    if refresh.drain[kind .. ":" .. itemID] then
+      refresh.phase = "error"
+      setStatus("Refresh waiting for prior result")
+      return
+    end
     refresh.awaiting = nil
     refresh.index = refresh.index + 1
-    refresh.pending = { itemID = itemID, generation = refresh.generation, at = time() }
-    refresh.phase = "pricing"
+    refresh.pending = { itemID = itemID, kind = kind, generation = refresh.generation, at = time() }
+    refresh.phase = "waiting_result"
     setStatus(("Pricing %d/%d…"):format(refresh.index, #refresh.queue))
     driver.send(itemID)
   else
@@ -211,7 +218,14 @@ function GC.Sell.OnOwnedAuctions()
 end
 
 function GC.Sell.OnThrottleReady()
-  if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then refresh.pending = nil end
+  if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then
+    local pending = refresh.pending
+    refresh.drain[pending.kind .. ":" .. pending.itemID] = pending.generation
+    refresh.pending = nil
+    refresh.phase = "error"
+    setStatus("Refresh failed")
+    return
+  end
   advanceQuote()
 end
 
@@ -219,10 +233,17 @@ function GC.Sell.OnItemKeyInfo(itemID)
   if refresh.phase == "waiting_key" and refresh.awaiting == itemID then advanceQuote() end
 end
 
-local function quoteResolved(itemID, unit, levels)
+local function quoteResolved(kind, itemID, unit, levels)
+  local drainKey = kind .. ":" .. itemID
+  if refresh.drain[drainKey] then
+    refresh.drain[drainKey] = nil
+    if refresh.phase == "error" then refresh.phase = "idle" end
+    return
+  end
   local pending = refresh.pending
-  if not pending or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
+  if not pending or pending.kind ~= kind or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
   refresh.pending = nil
+  refresh.phase = "pricing"
   GC.QuoteCache.Set(quotes, itemID, unit, time())
   if unit and quotes[itemID] then quotes[itemID].levels = levels end
   composePositions()
@@ -230,8 +251,8 @@ local function quoteResolved(itemID, unit, levels)
   advanceQuote()
 end
 
-function GC.Sell.OnItemSearchResults(itemID) quoteResolved(itemID, driver.item(itemID), driver.itemLevels(itemID)) end
-function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved(itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
+function GC.Sell.OnItemSearchResults(itemID) quoteResolved("item", itemID, driver.item(itemID), driver.itemLevels(itemID)) end
+function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
 
 local function freshQuote(position)
   local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time())
@@ -287,7 +308,7 @@ local function liveBagState(position)
 end
 
 local function startQuoteRefreshFor(position)
-  if refresh.phase == "idle" then
+  if refresh.phase == "idle" or refresh.phase == "done" or refresh.phase == "error" then
     refresh.generation = refresh.generation + 1
     refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = { position.itemID }, 0, "pricing", nil, nil
     advanceQuote()
@@ -678,7 +699,7 @@ function GC.Sell.Show()
 end
 function GC.Sell.Hide() if container then container:Hide() end end
 function GC.Sell.Refresh()
-  if refresh.phase ~= "idle" then return end
+  if refresh.phase ~= "idle" and refresh.phase ~= "done" and refresh.phase ~= "error" then return end
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.pending, refresh.awaiting, refresh.queue, refresh.index = "owned", nil, nil, {}, 0
   setStatus("Refreshing listings…")
@@ -689,7 +710,7 @@ function GC.Sell.Refresh()
 end
 function GC.Sell.Reset()
   refresh.generation = refresh.generation + 1
-  refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting = "idle", {}, 0, nil, nil
+  refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting, refresh.drain = "idle", {}, 0, nil, nil, {}
   GC.QuoteCache.Clear(quotes)
   postTimeoutToken = (postTimeoutToken or 0) + 1
   repostArmToken = (repostArmToken or 0) + 1
