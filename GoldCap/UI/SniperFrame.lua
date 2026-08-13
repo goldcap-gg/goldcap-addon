@@ -3935,9 +3935,8 @@ local function createFrame()
   -- D: builds the Sell tab's container, hidden, filling the exact region `scroll` occupies
   -- above (same CONTENT_LEFT/CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
   -- never re-declared, so the two views can't silently drift out of alignment). rowWidth is a
-  -- one-time snapshot at the window's CURRENT width -- GC.Sell.Attach only runs once, so
-  -- (like before T5) the Sell tab's own column grid does not re-flow on a window resize; only
-  -- the Deals grid gained that this task.
+  -- Initial geometry for the Sell ledger.  SellFrame keeps its own responsive column layout
+  -- current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
     panelLeft = CONTENT_LEFT,
     panelRightInset = CONTENT_RIGHT_GUTTER,
