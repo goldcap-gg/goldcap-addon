@@ -129,6 +129,32 @@ describe("Ledger event wiring", function()
     assert.equal(1, #GC.Ledger.GetEntries())
   end)
 
+  it("reconciles the stored seller row only when its pending mailbox update becomes paid", function()
+    GC.Ledger.Context = function() return { char = "Belarsa-Dentarg", region = "eu" } end
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42,
+      positionKey = "commodity:42", itemName = "Ironclaw Ore", quantity = 20, total = 400000,
+      acquiredAt = 900, evidenceKey = "buy:1", character = "Belarsa-Dentarg", region = "eu" })
+    GC.Acquisitions.RecordPost("commodity:42", 42, "Ironclaw Ore", "Belarsa-Dentarg", "eu", 20, 950)
+    local pending = true
+    _G.GetInboxNumItems = function() return 1 end
+    _G.GetInboxHeaderInfo = function()
+      return nil, nil, "Auction House", "Auction successful", 0, 0, 30
+    end
+    _G.GetInboxInvoiceInfo = function()
+      return pending and "seller_temp_invoice" or "seller", "Ironclaw Ore", "Buyerguy",
+        500000, 500000, 1000, 25000, 500000, 1, 0, 20, true
+    end
+    _G.GetInboxItem = function() return nil end
+
+    onEvent(nil, "MAIL_SHOW")
+    assert.equal(20, batch.remainingQty)
+    pending = false
+    onEvent(nil, "MAIL_INBOX_UPDATE")
+
+    assert.equal(0, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized({ char = "Belarsa-Dentarg", region = "eu" }))
+  end)
+
   it("does not blow up on a mailbox the API refuses to describe", function()
     _G.GetInboxNumItems = function() error("throttled") end
     assert.has_no.errors(function() onEvent(nil, "MAIL_SHOW") end)

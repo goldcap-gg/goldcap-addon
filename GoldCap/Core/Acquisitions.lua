@@ -508,8 +508,9 @@ function GC.Acquisitions.ReconcileSale(entry)
     region = entry.region, quantity = entry.qty, cost = allocation.knownCost,
     proceeds = entry.total, profit = profit, at = entry.at }
 
-  local consumed = GC.Acquisitions.Consume(candidate.positionKey, entry.qty, entry.key, entry.at, context)
-  if not consumed or consumed.cost ~= realized.cost then return unresolved("consume_failed") end
+  local consumed = GC.Acquisitions.Consume(candidate.positionKey, entry.qty, entry.key, entry.at,
+    context, allocation)
+  if not consumed then return unresolved("consume_failed") end
   db.acquisitionRealized[#db.acquisitionRealized + 1] = realized
   return { status = "applied", positionKey = candidate.positionKey, quantity = entry.qty,
     cost = realized.cost, proceeds = entry.total, profit = profit }
@@ -692,31 +693,39 @@ function GC.Acquisitions.AllocateRange(batches, skippedQty, quantity)
   return result
 end
 
-function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context)
+function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context, prevalidatedPlan)
   if not db or type(positionKey) ~= "string" or not isPositiveInteger(quantity)
       or type(evidenceKey) ~= "string" or evidenceKey == "" or not isExactInteger(at)
       or not validContext(context) or db.acquisitionConsumptionEvidence[evidenceKey] then
     return nil
   end
-  local eligible = {}
+  local eligible, byID = {}, {}
   for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
     if batch.positionKey == positionKey then
       eligible[#eligible + 1] = batch
+      byID[batch.id] = batch
       if batch.consumedEvidenceKeys and batch.consumedEvidenceKeys[evidenceKey] then return nil end
     end
   end
-  local plan = allocationFor(eligible, quantity)
+  local plan = prevalidatedPlan or allocationFor(eligible, quantity)
   if not plan or plan.coverage ~= "COMPLETE" then return nil end
 
-  local byID, updates = {}, {}
-  for _, batch in ipairs(eligible) do byID[batch.id] = batch end
+  local plannedQty, plannedCost, usedBatchIDs = 0, 0, {}
+  local updates = {}
   for _, allocation in ipairs(plan.allocations) do
     local batch = byID[allocation.batchID]
+    if usedBatchIDs[allocation.batchID] or not isPositiveInteger(allocation.quantity)
+        or not isExactInteger(allocation.cost) then return nil end
+    usedBatchIDs[allocation.batchID] = true
     local state = batch and copyBatchState(batch) or nil
     local taken = state and takeCost(state, allocation.quantity) or nil
     if taken ~= allocation.cost then return nil end
+    plannedQty = safeAdd(plannedQty, allocation.quantity)
+    plannedCost = safeAdd(plannedCost, allocation.cost)
+    if not plannedQty or not plannedCost then return nil end
     updates[#updates + 1] = { batch = batch, state = state }
   end
+  if plannedQty ~= quantity or plannedCost ~= plan.knownCost then return nil end
   for _, update in ipairs(updates) do
     update.batch.remainingQty = update.state.remainingQty
     update.batch.remainingTotal = update.state.remainingTotal
@@ -727,7 +736,7 @@ function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context
     evidenceKey = evidenceKey,
     scopeKey = GC.Acquisitions.ScopeKey(positionKey, context),
     quantity = quantity,
-    cost = plan.knownCost,
+    cost = plannedCost,
     at = at,
     allocations = plan.allocations,
   }

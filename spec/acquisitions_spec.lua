@@ -405,4 +405,23 @@ describe("Acquisition store", function()
     record({ itemName = "Ironclaw Ore", acquiredAt = 0 })
     assert.equal(1, #GC.Acquisitions.GetActive(context))
   end)
+
+  it("consumes only the prevalidated named batches, not older same-position stock", function()
+    local unrelated = record({ itemName = "Other Name", quantity = 1, total = 1000,
+      evidenceKey = "buy:other", acquiredAt = 1 })
+    local named = record({ itemName = "Ironclaw Ore", quantity = 1, total = 100,
+      evidenceKey = "buy:named", acquiredAt = 2 })
+    GC.Acquisitions.ObserveOwnedPosition("commodity:42", 42, "Ironclaw Ore", context.char, context.region, 10)
+
+    local result = GC.Acquisitions.ReconcileSale({ key = "sale:exact-set", kind = "sale", source = "mail",
+      itemName = "Ironclaw Ore", qty = 1, total = 500, at = 20,
+      char = context.char, region = context.region, pending = false })
+
+    assert.same({ status = "applied", positionKey = "commodity:42", quantity = 1,
+      cost = 100, proceeds = 500, profit = 400 }, result)
+    assert.equal(1, unrelated.remainingQty)
+    assert.equal(1000, unrelated.remainingTotal)
+    assert.equal(0, named.remainingQty)
+    assert.equal(0, named.remainingTotal)
+  end)
 end)

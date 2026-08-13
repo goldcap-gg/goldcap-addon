@@ -225,6 +225,120 @@ describe("Sell quote wiring", function()
     _G.time, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil, nil, nil
   end)
 
+  it("observes commodity and exact item-variant owned positions in the current character scope", function()
+    local observed = {}
+    _G.time = function() return 777 end
+    _G.C_Item = { GetItemNameByID = function(itemID) return itemID == 42 and "Ore" or "Variant" end }
+    _G.C_AuctionHouse = { GetOwnedAuctions = function() return { { itemID = 42 }, { itemID = 7 } } end }
+    local GC = {
+      Sell = {}, Sniper = {}, Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Flips = { ExtractOwnedLots = function()
+        return {
+          { itemID = 42, itemKey = { itemID = 42 }, isCommodity = true, quantity = 2 },
+          { itemID = 7, itemKey = { itemID = 7, itemLevel = 447, itemSuffix = 3, battlePetSpeciesID = 0 },
+            isCommodity = false, quantity = 1 },
+        }
+      end },
+      Acquisitions = {
+        PositionKey = function(itemID, itemKey, isCommodity)
+          if isCommodity then return "commodity:" .. itemID end
+          return ("item:%d:%d:%d:%d"):format(itemID, itemKey.itemLevel, itemKey.itemSuffix, itemKey.battlePetSpeciesID)
+        end,
+        ObserveOwnedPosition = function(...) observed[#observed + 1] = { ... } end,
+      },
+    }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+
+    GC.Sell.OnOwnedAuctions()
+
+    assert.same({
+      { "commodity:42", 42, "Ore", "A-R", "eu", 777 },
+      { "item:7:447:3:0", 7, "Variant", "A-R", "eu", 777 },
+    }, observed)
+    _G.time, _G.C_Item, _G.C_AuctionHouse = os.time, nil, nil
+  end)
+
+  it("records only the position key pinned at a successful hardware-click post", function()
+    local recorded, now = {}, 100
+    _G.time = function() return now end
+    _G.C_Item = { GetItemNameByID = function() return "Variant" end }
+    _G.C_Container = {
+      GetContainerNumSlots = function() return 1 end,
+      GetContainerItemInfo = function() return { itemID = 42, stackCount = 1 } end,
+    }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return {} end }
+    _G.C_AuctionHouse = {
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      GetItemKeyInfo = function() return { isCommodity = false } end,
+      PostItem = function() return false end,
+    }
+    _G.C_Timer = { After = function() end }
+    local flip = { itemID = 42, qty = 1 }
+    local GC = {
+      Sell = {}, Sniper = {},
+      QuoteCache = nil,
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Data = { GetFlips = function() return { flip } end, MarkFlipPosted = function() end,
+        RecordPostEvent = function() end, GetItemValue = function() end },
+      Acquisitions = { RecordPost = function(...) recorded[#recorded + 1] = { ... } end },
+    }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local onPostClick = actionHandlers(GC)
+    local quotes = getUpvalue(onPostClick, "quotes")
+    GC.QuoteCache.Set(quotes, 42, 20000, now)
+    local btn = { Disable = function() end, Enable = function() end, SetLabel = function() end }
+    local row = { flip = flip, position = { positionKey = "item:42:447:3:0" }, actionBtn = btn }
+
+    onPostClick(row)
+    GC.Sell.OnAuctionCreated()
+
+    assert.same({ { "item:42:447:3:0", 42, "Variant", "A-R", "eu", 1, 100 } }, recorded)
+    _G.time, _G.C_Item, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil, nil, nil, nil
+  end)
+
+  it("clears a pinned post without recording it on post error or auction-house reset", function()
+    local recorded, now = {}, 100
+    _G.time = function() return now end
+    _G.C_Item = { GetItemNameByID = function() return "Variant" end }
+    _G.C_Container = {
+      GetContainerNumSlots = function() return 1 end,
+      GetContainerItemInfo = function() return { itemID = 42, stackCount = 1 } end,
+    }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return {} end }
+    _G.C_AuctionHouse = {
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      GetItemKeyInfo = function() return { isCommodity = false } end,
+      PostItem = function() return false end,
+    }
+    _G.C_Timer = { After = function() end }
+    local flip = { itemID = 42, qty = 1 }
+    local GC = {
+      Sell = {}, Sniper = {}, Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Data = { GetFlips = function() return { flip } end, MarkFlipPosted = function() end,
+        RecordPostEvent = function() end, GetItemValue = function() end },
+      Acquisitions = { RecordPost = function(...) recorded[#recorded + 1] = { ... } end },
+    }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local onPostClick = actionHandlers(GC)
+    local quotes = getUpvalue(onPostClick, "quotes")
+    GC.QuoteCache.Set(quotes, 42, 20000, now)
+    local btn = { Disable = function() end, Enable = function() end, SetLabel = function() end }
+    local row = { flip = flip, position = { positionKey = "item:42:447:3:0" }, actionBtn = btn }
+
+    onPostClick(row)
+    GC.Sell.OnPostError()
+    GC.Sell.OnAuctionCreated()
+    onPostClick(row)
+    GC.Sell.Reset()
+    GC.Sell.OnAuctionCreated()
+
+    assert.same({}, recorded)
+    _G.time, _G.C_Item, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil, nil, nil, nil
+  end)
+
   it("clears sell quotes when the auction house closes", function()
     local GC = { Sell = {} }
     helper.loadModule("Core/QuoteCache.lua", GC)

@@ -327,7 +327,9 @@ function GC.Sell.OnOwnedAuctions()
     for _, lot in ipairs(ownedLots) do
       local itemName = resolveItemName(lot.itemID)
       if itemName then
-        GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName,
+        local positionKey = GC.Acquisitions.PositionKey
+          and GC.Acquisitions.PositionKey(lot.itemID, lot.itemKey, lot.isCommodity)
+        GC.Acquisitions.ObserveOwnedPosition(positionKey, lot.itemID, itemName,
           context and context.char, context and context.region, time())
       end
     end
@@ -532,6 +534,7 @@ local function onPostClick(row)
       if postingRow == row then postingRow = nil end
       row.postStage = nil
       row.pendingPost = nil
+      row.acquisitionPost = nil
       row.actionBtn:Enable()
       row.actionBtn:SetLabel("Post")
     end
@@ -613,12 +616,12 @@ local function onPostClick(row)
 
   postingRow = row
   local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
-  row.acquisitionPost = {
-    positionKey = GC.Acquisitions and GC.Acquisitions.PositionKey
-      and GC.Acquisitions.PositionKey(flip.itemID, C_AuctionHouse.MakeItemKey(flip.itemID), keyInfo.isCommodity),
-    itemID = flip.itemID, itemName = resolveItemName(flip.itemID), quantity = qty,
+  local positionKey = (row.postPlan and row.postPlan.positionKey)
+    or (row.position and row.position.positionKey)
+  row.acquisitionPost = positionKey and {
+    positionKey = positionKey, itemID = flip.itemID, itemName = resolveItemName(flip.itemID), quantity = qty,
     character = context and context.char, region = context and context.region,
-  }
+  } or nil
   row.postStage = "posting"
   row.actionBtn:Disable()
   setStatus("posting...")
@@ -1701,6 +1704,7 @@ function GC.Sell.Reset()
   if postingRow then
     postingRow.postStage = nil
     postingRow.pendingPost = nil
+    postingRow.acquisitionPost = nil
     postingRow = nil
   end
   if repostingRow then
