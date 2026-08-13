@@ -288,6 +288,20 @@ describe("Acquisition store", function()
     assert.is_true(GC.Acquisitions.GetAll()[2].evidenceKeys["mail:two"])
   end)
 
+  it("creates a new mail batch when an identical older batch is exhausted", function()
+    local exhausted = record({ total = 201, evidenceKey = "old:buy" })
+    assert.truthy(GC.Acquisitions.Consume("commodity:42", 2, "sale:old", 101, context))
+    assert.equal(0, exhausted.remainingQty)
+    assert.equal(0, exhausted.remainingTotal)
+
+    GC.Acquisitions.ReconcileBuy({ key = "mail:new", kind = "buy", source = "mail",
+      itemID = 42, qty = 2, total = 201, at = 200, char = "A-R", region = "eu" })
+
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.is_nil(exhausted.evidenceKeys["mail:new"])
+    assert.is_true(GC.Acquisitions.GetAll()[2].evidenceKeys["mail:new"])
+  end)
+
   it("only enriches an unowned legacy batch through an exact mail reconciliation", function()
     GC.Acquisitions.MigrateLegacy({ { itemID = 42, qty = 2, paidTotal = 201, boughtAt = 100 } }, {})
     local batch = GC.Acquisitions.GetAll()[1]

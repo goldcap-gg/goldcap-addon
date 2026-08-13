@@ -448,10 +448,13 @@ function GC.Acquisitions.ReconcileBuy(entry)
   if not db or not validBuyEntry(entry) or entry.source ~= "mail" then return nil, false end
   local existing = activeWithEvidence(entry.key)
   if existing then return existing, false end
+  local resolved = pendingWithEvidence(entry.key)
+  if resolved then return resolved, false end
 
   local hasItemID = isPositiveInteger(entry.itemID)
   local function activeMatch(batch)
-    if batch.mailEvidenceKey then return false end
+    if batch.mailEvidenceKey or not isPositiveInteger(batch.remainingQty)
+        or not isExactInteger(batch.remainingTotal) then return false end
     if hasItemID then return compatible(batch, entry) end
     return compatibleByName(batch, entry, batch.originalQty, batch.originalTotal)
   end

@@ -158,6 +158,22 @@ describe("Ledger inbox scan", function()
     assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys[GC.Ledger.GetEntries()[1].key])
   end)
 
+  it("does not create an auction-house batch when repeat mail already resolved pending evidence", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 210930, quantity = 20,
+      completedAt = 999, character = context.char, region = context.region,
+      reason = "exact total unavailable" })
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010)
+
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
+    assert.equal(GC.Ledger.GetEntries()[1].key, pending.mailEvidenceKey)
+  end)
+
   it("skips mail that carries no invoice at all", function()
     local plain = mail()
     plain.invoice = nil
