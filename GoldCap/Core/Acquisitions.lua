@@ -74,7 +74,8 @@ local function sequenceFor(id)
 end
 
 local function lessByFIFO(left, right)
-  local leftAt, rightAt = left.acquiredAt or 0, right.acquiredAt or 0
+  local leftAt = left.acquiredAt or left.completedAt or 0
+  local rightAt = right.acquiredAt or right.completedAt or 0
   if leftAt ~= rightAt then return leftAt < rightAt end
   return sequenceFor(left.id) < sequenceFor(right.id)
 end
@@ -124,6 +125,50 @@ local function pendingMatchesExactRecord(pending, args)
     and (not pending.positionKey or not args.positionKey or pending.positionKey == args.positionKey)
     and (not pending.character or not args.character or pending.character == args.character)
     and (not pending.region or not args.region or pending.region == args.region)
+end
+
+local function compatible(batch, entry)
+  return batch.itemID == entry.itemID
+    and batch.originalQty == entry.qty
+    and batch.originalTotal == entry.total
+    and (not entry.char or not batch.character or entry.char == batch.character)
+    and (not entry.region or not batch.region or entry.region == batch.region)
+end
+
+local function compatiblePending(pending, entry)
+  return pending.itemID == entry.itemID and pending.quantity == entry.qty
+    and (not entry.char or not pending.character or entry.char == pending.character)
+    and (not entry.region or not pending.region or entry.region == pending.region)
+end
+
+local function compatibleByName(candidate, entry, quantity, total)
+  return candidate.itemName == entry.itemName and quantity == entry.qty and total == entry.total
+    and (not entry.char or not candidate.character or entry.char == candidate.character)
+    and (not entry.region or not candidate.region or entry.region == candidate.region)
+end
+
+local function oldestCompatible(candidates, predicate)
+  local oldest
+  for _, candidate in ipairs(candidates or {}) do
+    if predicate(candidate) and (not oldest or lessByFIFO(candidate, oldest)) then oldest = candidate end
+  end
+  return oldest
+end
+
+local function validBuyEntry(entry)
+  return type(entry) == "table" and entry.kind == "buy" and type(entry.key) == "string"
+    and entry.key ~= "" and isPositiveInteger(entry.qty) and isPositiveInteger(entry.total)
+    and isExactInteger(entry.at) and isStringOrNil(entry.char) and isStringOrNil(entry.region)
+    and isStringOrNil(entry.itemName)
+end
+
+local function attachMailEvidence(batch, entry)
+  batch.evidenceKeys = type(batch.evidenceKeys) == "table" and batch.evidenceKeys or {}
+  batch.evidenceKeys[entry.key] = true
+  batch.mailEvidenceKey = entry.key
+  batch.character = batch.character or entry.char
+  batch.region = batch.region or entry.region
+  return batch
 end
 
 local function takeCost(batch, qty)
@@ -320,7 +365,7 @@ function GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, evidenceKey
   if type(deal) ~= "table" or type(purchase) ~= "table" then return nil, false end
   local itemID = purchase.itemID or deal.itemID
   if not isPositiveInteger(itemID) then return nil, false end
-  return GC.Acquisitions.Record({
+  local batch, isNew = GC.Acquisitions.Record({
     source = "goldcap", itemID = itemID,
     positionKey = GC.Acquisitions.PositionKey(itemID, deal.itemKey, deal.isCommodity),
     itemName = deal.itemName, quantity = purchase.quantity, total = purchase.total,
@@ -331,6 +376,8 @@ function GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, evidenceKey
     },
     character = context and context.char or nil, region = context and context.region or nil,
   })
+  if batch and evidenceKey then batch.sniperEvidenceKey = evidenceKey end
+  return batch, isNew
 end
 
 function GC.Acquisitions.RecordManual(args)
@@ -339,6 +386,108 @@ function GC.Acquisitions.RecordManual(args)
   for key, value in pairs(args) do fields[key] = value end
   fields.source = "manual"
   return GC.Acquisitions.Record(fields)
+end
+
+function GC.Acquisitions.HasEvidence(key)
+  return hasEvidence(key)
+end
+
+--- Converts the unscoped pre-acquisition flip queue without ever pruning or
+-- deleting it. Ledger rows are separately durable evidence: repeated passes
+-- may attach newly-arrived rows, but acquisitionVersion prevents a second flip
+-- import on an upgraded SavedVariables file.
+function GC.Acquisitions.MigrateLegacy(flips, ledger)
+  if not db then return end
+
+  local importingFlips = db.acquisitionVersion < 1
+  if importingFlips then
+    for _, flip in ipairs(flips or {}) do
+      if type(flip) == "table" then
+        GC.Acquisitions.Record({
+          source = "goldcap", itemID = flip.itemID, quantity = flip.qty,
+          total = flip.paidTotal, acquiredAt = flip.boughtAt,
+          targetUnit = flip.targetUnit,
+        })
+      end
+    end
+  end
+
+  for _, entry in ipairs(ledger or {}) do
+    if validBuyEntry(entry) and entry.source == "goldcap_sniper" then
+      local matched = activeWithEvidence(entry.key)
+      if not matched then
+        matched = oldestCompatible(db.acquisitions, function(batch)
+          return batch.source == "goldcap" and not batch.sniperEvidenceKey
+            and compatible(batch, entry) and batch.acquiredAt == entry.at
+        end)
+        if matched then
+          matched.evidenceKeys[entry.key] = true
+          matched.sniperEvidenceKey = entry.key
+          matched.character = matched.character or entry.char
+          matched.region = matched.region or entry.region
+        else
+          matched = GC.Acquisitions.Record({
+            source = "goldcap", itemID = entry.itemID, itemName = entry.itemName,
+            quantity = entry.qty, total = entry.total, acquiredAt = entry.at,
+            evidenceKey = entry.key, character = entry.char, region = entry.region,
+          })
+          if matched then matched.sniperEvidenceKey = entry.key end
+        end
+      end
+    elseif validBuyEntry(entry) and entry.source == "mail" then
+      GC.Acquisitions.ReconcileBuy(entry)
+    end
+  end
+  if importingFlips then db.acquisitionVersion = 1 end
+end
+
+--- Reconciles one stored buyer-mail ledger row. Mail evidence is one-to-one:
+-- a key already present wins before any compatibility search, and a compatible
+-- batch may only receive its first mail key.
+function GC.Acquisitions.ReconcileBuy(entry)
+  if not db or not validBuyEntry(entry) or entry.source ~= "mail" then return nil, false end
+  local existing = activeWithEvidence(entry.key)
+  if existing then return existing, false end
+
+  local hasItemID = isPositiveInteger(entry.itemID)
+  local function activeMatch(batch)
+    if batch.mailEvidenceKey then return false end
+    if hasItemID then return compatible(batch, entry) end
+    return compatibleByName(batch, entry, batch.originalQty, batch.originalTotal)
+  end
+  local function pendingMatch(pending)
+    if pending.mailEvidenceKey then return false end
+    if hasItemID then return compatiblePending(pending, entry) end
+    return compatibleByName(pending, entry, pending.quantity, entry.total)
+  end
+
+  if not hasItemID then
+    if type(entry.itemName) ~= "string" or entry.itemName == "" then return nil, false end
+    local candidates = {}
+    for _, batch in ipairs(db.acquisitions) do
+      if activeMatch(batch) then candidates[#candidates + 1] = batch end
+    end
+    for _, pending in ipairs(db.acquisitionPending) do
+      if pendingMatch(pending) then candidates[#candidates + 1] = pending end
+    end
+    if #candidates ~= 1 then return nil, false end
+    if candidates[1].originalTotal then return attachMailEvidence(candidates[1], entry), true end
+    return GC.Acquisitions.ResolvePending(candidates[1].id, entry.key)
+  end
+
+  local batch = oldestCompatible(db.acquisitions, activeMatch)
+  if batch then return attachMailEvidence(batch, entry), true end
+
+  local pending = oldestCompatible(db.acquisitionPending, pendingMatch)
+  if pending then return GC.Acquisitions.ResolvePending(pending.id, entry.key) end
+
+  batch = GC.Acquisitions.Record({
+    source = "auction_house", itemID = entry.itemID, itemName = entry.itemName,
+    quantity = entry.qty, total = entry.total, acquiredAt = entry.at,
+    evidenceKey = entry.key, character = entry.char, region = entry.region,
+  })
+  if batch then batch.mailEvidenceKey = entry.key end
+  return batch, batch ~= nil
 end
 
 function GC.Acquisitions.GetAll()

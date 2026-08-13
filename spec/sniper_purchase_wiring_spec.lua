@@ -162,6 +162,7 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(accounting:find("purchase.total", 1, true))
     assert.is_truthy(accounting:find("GC.Data.RecordFlip(deal, purchase", 1, true))
     assert.is_truthy(accounting:find("GC.Ledger.RecordSniperBuy(deal, purchase", 1, true))
+    assert.is_truthy(accounting:find("GC.Acquisitions.RecordGoldCap(deal, purchase", 1, true))
   end)
 
   it("cancels a sub-five-percent failed requote before any confirm can run", function()
@@ -385,8 +386,12 @@ describe("Sniper purchase wiring", function()
       },
       Ledger = {
         Context = function() return {} end,
-        RecordSniperBuy = function(_, purchase) ledgerPurchase = purchase end,
+        RecordSniperBuy = function(_, purchase) ledgerPurchase = purchase; return { key = "snipe:42" } end,
       },
+      Acquisitions = { RecordGoldCap = function(_, purchase, _, _, key)
+        assert.equal("snipe:42", key)
+        assert.is_true(purchase == ledgerPurchase)
+      end },
       Sell = { Reset = function() end, SellableCount = function() return 0 end },
       Print = function() end,
       db = { settings = { sniper = {} } },

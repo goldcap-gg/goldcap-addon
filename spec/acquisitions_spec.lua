@@ -193,4 +193,125 @@ describe("Acquisition store", function()
     assert.equal("MISSING", allocation.coverage)
     assert.equal(0, allocation.knownQty)
   end)
+
+  it("migrates one flip and its sniper ledger twin into one goldcap batch", function()
+    local flips = { { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
+      boughtAt = 500, targetUnit = 180 } }
+    local ledger = { { key = "snipe:42", kind = "buy", source = "goldcap_sniper",
+      itemID = 42, qty = 2, total = 201, at = 500, char = "A-R", region = "eu" } }
+
+    db.flips, db.ledger = flips, ledger
+    GC.Acquisitions.MigrateLegacy(db.flips, db.ledger)
+    GC.Acquisitions.MigrateLegacy(flips, ledger)
+
+    local all = GC.Acquisitions.GetAll()
+    assert.equal(1, #all)
+    assert.equal("goldcap", all[1].source)
+    assert.is_true(all[1].evidenceKeys["snipe:42"])
+    assert.equal("A-R", all[1].character)
+    assert.equal("eu", all[1].region)
+    assert.same(flips[1], db.flips[1])
+    assert.same(ledger[1], db.ledger[1])
+  end)
+
+  it("migrates every valid flip, skips invalid rows, and imports unmatched sniper evidence", function()
+    local flips = {
+      { itemID = 42, qty = 2, paidTotal = 201, boughtAt = 500, targetUnit = 180 },
+      { itemID = 43, qty = 1, paidTotal = 90, boughtAt = 510, targetUnit = 120 },
+      { itemID = 0, qty = 1, paidTotal = 1, boughtAt = 1 },
+    }
+    local ledger = {
+      { key = "snipe:42", kind = "buy", source = "goldcap_sniper", itemID = 42,
+        qty = 2, total = 201, at = 500 },
+      { key = "snipe:44", kind = "buy", source = "goldcap_sniper", itemID = 44,
+        qty = 1, total = 75, at = 520 },
+    }
+
+    GC.Acquisitions.MigrateLegacy(flips, ledger)
+    assert.equal(3, #GC.Acquisitions.GetAll())
+    assert.equal(1, db.acquisitionVersion)
+    assert.is_true(GC.Acquisitions.HasEvidence("snipe:42"))
+    assert.is_true(GC.Acquisitions.HasEvidence("snipe:44"))
+  end)
+
+  it("does not re-import flips after migration but does import a later unmatched sniper row", function()
+    local flips = { { itemID = 42, qty = 2, paidTotal = 201, boughtAt = 500 } }
+    local ledger = {}
+    GC.Acquisitions.MigrateLegacy(flips, ledger)
+    flips[#flips + 1] = { itemID = 43, qty = 1, paidTotal = 90, boughtAt = 510 }
+    ledger[#ledger + 1] = { key = "snipe:44", kind = "buy", source = "goldcap_sniper",
+      itemID = 44, qty = 1, total = 75, at = 520 }
+    GC.Acquisitions.MigrateLegacy(flips, ledger)
+
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.equal(42, GC.Acquisitions.GetAll()[1].itemID)
+    assert.equal(44, GC.Acquisitions.GetAll()[2].itemID)
+  end)
+
+  it("attaches buyer mail to one compatible active batch without replacing its source", function()
+    local goldcap = record({ source = "goldcap", total = 201, acquiredAt = 100,
+      evidenceKey = "snipe:42" })
+    GC.Acquisitions.ReconcileBuy({ key = "mail:42", kind = "buy", source = "mail",
+      itemID = 42, qty = 2, total = 201, at = 200, char = "A-R", region = "eu" })
+
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal("goldcap", goldcap.source)
+    assert.is_true(goldcap.evidenceKeys["mail:42"])
+    assert.equal("mail:42", goldcap.mailEvidenceKey)
+  end)
+
+  it("resolves the oldest compatible pending observation before creating a mail batch", function()
+    local first = GC.Acquisitions.RecordPending({ itemID = 42, quantity = 2, completedAt = 50,
+      character = "A-R", region = "eu", reason = "missing total" })
+    GC.Acquisitions.RecordPending({ itemID = 42, quantity = 2, completedAt = 60,
+      character = "A-R", region = "eu", reason = "missing total" })
+
+    GC.Acquisitions.ReconcileBuy({ key = "mail:pending", kind = "buy", source = "mail",
+      itemID = 42, qty = 2, total = 201, at = 100, char = "A-R", region = "eu" })
+
+    assert.equal("mail:pending", first.mailEvidenceKey)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(2, #GC.Acquisitions.GetPending())
+  end)
+
+  it("creates one auction-house batch for a repeat mail key and separate batches for distinct keys", function()
+    local entry = { key = "mail:one", kind = "buy", source = "mail", itemID = 42,
+      qty = 2, total = 201, at = 100, char = "A-R", region = "eu" }
+    GC.Acquisitions.ReconcileBuy(entry)
+    GC.Acquisitions.ReconcileBuy(entry)
+    GC.Acquisitions.ReconcileBuy({ key = "mail:two", kind = "buy", source = "mail", itemID = 42,
+      qty = 2, total = 201, at = 101, char = "A-R", region = "eu" })
+
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.equal("auction_house", GC.Acquisitions.GetAll()[1].source)
+    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys["mail:one"])
+    assert.is_true(GC.Acquisitions.GetAll()[2].evidenceKeys["mail:two"])
+  end)
+
+  it("only enriches an unowned legacy batch through an exact mail reconciliation", function()
+    GC.Acquisitions.MigrateLegacy({ { itemID = 42, qty = 2, paidTotal = 201, boughtAt = 100 } }, {})
+    local batch = GC.Acquisitions.GetAll()[1]
+    GC.Acquisitions.ReconcileBuy({ key = "mail:wrong", kind = "buy", source = "mail",
+      itemID = 42, qty = 1, total = 201, at = 200, char = "A-R", region = "eu" })
+    assert.is_nil(batch.character)
+    GC.Acquisitions.ReconcileBuy({ key = "mail:right", kind = "buy", source = "mail",
+      itemID = 42, qty = 2, total = 201, at = 200, char = "A-R", region = "eu" })
+    assert.equal("A-R", batch.character)
+    assert.equal("eu", batch.region)
+  end)
+
+  it("reconciles an id-less mail only when its item name identifies one candidate", function()
+    record({ itemName = "Copper Ore", total = 201, evidenceKey = "first" })
+    GC.Acquisitions.ReconcileBuy({ key = "mail:name", kind = "buy", source = "mail",
+      itemName = "Copper Ore", qty = 2, total = 201, at = 200, char = "A-R", region = "eu" })
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys["mail:name"])
+
+    record({ itemName = "Tin Ore", total = 201, evidenceKey = "second", acquiredAt = 101 })
+    record({ itemName = "Tin Ore", total = 201, evidenceKey = "third", acquiredAt = 102 })
+    GC.Acquisitions.ReconcileBuy({ key = "mail:ambiguous", kind = "buy", source = "mail",
+      itemName = "Tin Ore", qty = 2, total = 201, at = 201, char = "A-R", region = "eu" })
+    assert.is_false(GC.Acquisitions.HasEvidence("mail:ambiguous"))
+    assert.equal(3, #GC.Acquisitions.GetAll())
+  end)
 end)

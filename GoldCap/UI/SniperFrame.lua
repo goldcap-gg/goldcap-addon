@@ -1588,8 +1588,12 @@ local function recordPurchaseFacts(deal, purchase)
   session.estProfit = session.estProfit + purchase.expectedProfit
   local now = time()
   -- `purchase` is the one immutable final-quote object shared by both stores.
+  local context = GC.Ledger.Context()
+  local ledgerEntry = GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
   GC.Data.RecordFlip(deal, purchase, now)
-  GC.Ledger.RecordSniperBuy(deal, purchase, GC.Ledger.Context(), now)
+  if GC.Acquisitions and GC.Acquisitions.RecordGoldCap then
+    GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, ledgerEntry and ledgerEntry.key or nil)
+  end
   updateSellTabLabel()
   consumePurchasedDeal(deal)
 end

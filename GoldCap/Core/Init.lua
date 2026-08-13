@@ -118,7 +118,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
     GoldCapDB = GoldCapDB or {}
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
-    if GC.Acquisitions then GC.Acquisitions.Init(GC.db) end
     if GC.Data then
       GC.Data.Init(GC.db)
       -- Companion sync (Task A): adopts `GoldCap_AppData` (see the .toc's OptionalDeps)
@@ -128,6 +127,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Data.AdoptAppData()
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    if GC.Acquisitions then
+      GC.Acquisitions.Init(GC.db)
+      GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
+    end
     -- Sniper v3 T10: apply the persisted font-scale multiplier as soon as GC.db exists, NOT
     -- gated on the Sniper window ever being built -- UI/SniperFrame.lua's window frame is
     -- created lazily (first Toggle()/AH visit), so a player who never opens the Sniper this

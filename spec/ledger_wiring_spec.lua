@@ -88,6 +88,22 @@ describe("Ledger event wiring", function()
     assert.is_table(_G.GoldCapDB.gold)
   end)
 
+  it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
+    local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
+      boughtAt = 500, targetUnit = 180 }
+    local mail = { key = "mail:42", kind = "buy", source = "mail", itemID = 42,
+      qty = 2, total = 201, at = 600, char = "Belarsa-Dentarg", region = "eu" }
+    _G.GoldCapDB = { flips = { flip }, ledger = { mail } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.same(flip, _G.GoldCapDB.flips[1])
+    assert.same(mail, _G.GoldCapDB.ledger[1])
+    assert.equal(1, _G.GoldCapDB.acquisitionVersion)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys["mail:42"])
+  end)
+
   it("records a sale when the mailbox opens", function()
     _G.UnitName = function() return "Belarsa" end
     _G.GetRealmName = function() return "Dentarg" end

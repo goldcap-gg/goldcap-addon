@@ -242,7 +242,10 @@ function GC.Ledger.ScanInbox(api, context, now)
     end)
 
     if readOk and entry then
-      local _, isNew = GC.Ledger.Append(entry)
+      local stored, isNew = GC.Ledger.Append(entry)
+      if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then
+        GC.Acquisitions.ReconcileBuy(stored)
+      end
       if isNew then
         created = created + 1
         -- F2 (personal sale rate): only on isNew, deliberately -- Append's repeat-key branch

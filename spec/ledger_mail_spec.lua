@@ -66,8 +66,10 @@ describe("Ledger inbox scan", function()
   end
 
   before_each(function()
-    GC = helper.loadModule("Core/Ledger.lua")
+    GC = helper.loadModule("Core/Acquisitions.lua")
+    helper.loadModule("Core/Ledger.lua", GC)
     db = {}
+    GC.Acquisitions.Init(db)
     GC.Ledger.Init(db)
     context = { char = "Belarsa-Dentarg", region = "eu" }
   end)
@@ -143,6 +145,17 @@ describe("Ledger inbox scan", function()
     assert.equal(210930, e.itemID)
     assert.equal(500000, e.total)
     assert.is_nil(e.decisionVersion) -- mail invoices have no Sniper decision evidence
+  end)
+
+  it("reconciles a repeated buyer-mail ledger update into one acquisition", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010)
+
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys[GC.Ledger.GetEntries()[1].key])
   end)
 
   it("skips mail that carries no invoice at all", function()
