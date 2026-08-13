@@ -97,6 +97,7 @@ describe("Sell widget geometry and manual cost", function()
 
   after_each(function()
     _G.CreateFrame, _G.time, _G.GetCoinTextureString = nil, os.time, nil
+    _G.C_AuctionHouse, _G.ItemLocation, _G.C_Container, _G.C_Item = nil, nil, nil, nil
   end)
 
   it("anchors header cells through real Regions and only shows MARKET wide", function()
@@ -173,6 +174,68 @@ describe("Sell widget geometry and manual cost", function()
     assert.same({ itemID = 42, positionKey = "commodity:42", itemName = "Ore", quantity = 2, total = 6,
       acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
     assert.equal(1, refreshes)
+  end)
+
+  it("invalidates a formerly valid manual total before Confirm", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL", exposureQty = 2, knownQty = 0, sources = {} },
+    })
+    rows[1].action.scripts.OnClick()
+    local dialog, confirm = container.costDialog
+    for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
+    dialog.quantity:SetText("2"); dialog.quantity.scripts.OnTextChanged()
+    dialog.unit:SetText("3"); dialog.unit.scripts.OnTextChanged()
+    assert.equal("6", dialog.total:GetText())
+    dialog.unit:SetText("1.5"); dialog.unit.scripts.OnTextChanged()
+    assert.equal("", dialog.total:GetText())
+    assert.equal("Enter an exact positive cost", dialog.error.text)
+    confirm.scripts.OnClick()
+    assert.equal(0, #record.calls)
+  end)
+
+  it("completes Set cost from a zero-tracked unknown position", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    local refreshed = 0
+    GC.Sell.Refresh = function() refreshed = refreshed + 1 end
+    local rows, container = topRows(GC, {
+      { itemID = 7, itemName = "Odd", positionKey = "item:7:1:0:0", coverage = "UNKNOWN", exposureQty = 1, knownQty = 0, trackedQty = 0, listedQty = 1, sources = {} },
+    })
+    rows[1].action.scripts.OnClick()
+    local dialog, confirm = container.costDialog
+    for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
+    dialog.total:SetText("9"); dialog.total.scripts.OnTextChanged()
+    confirm.scripts.OnClick()
+    assert.same({ itemID = 7, positionKey = "item:7:1:0:0", itemName = "Odd", quantity = 1, total = 9,
+      acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
+    assert.equal(1, refreshed)
+  end)
+
+  it("disarms a posting row when a rerender cannot prove the pinned position identity", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    local quote = { unit = 200, at = 77 }
+    GC.QuoteCache.Fresh = function() return quote end
+    GC.SellPositions.BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "scope", itemID = 42, quantity = 1, unitPrice = 200 } end
+    _G.C_AuctionHouse = { PostCommodity = function() return false end }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return {} end }
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "scope", coverage = "COMPLETE", exposureQty = 1,
+      knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" }
+    local rows = topRows(GC, { p })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local post = upvalue(render, "onPostClick")
+    set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    post(rows[1])
+    assert.equal("posting", rows[1].postStage)
+    set(render, "positions", { { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "scope", coverage = "COMPLETE", exposureQty = 1,
+      knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" } })
+    render()
+    assert.is_nil(rows[1].postStage)
+    assert.equal("Post", rows[1].action.label)
+    assert.is_true(rows[1].action.enabled)
   end)
 
   it("renders expansion facts and filters the top-level summary once", function()
