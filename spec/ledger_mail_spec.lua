@@ -174,6 +174,22 @@ describe("Ledger inbox scan", function()
     assert.equal(GC.Ledger.GetEntries()[1].key, pending.mailEvidenceKey)
   end)
 
+  it("reconciles an unknown pending quantity only through the exact buyer mail", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 210930,
+      completedAt = 999, character = context.char, region = context.region,
+      reason = "quantity unavailable" })
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010)
+
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(GC.Ledger.GetEntries()[1].key, pending.mailEvidenceKey)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
+  end)
+
   it("skips mail that carries no invoice at all", function()
     local plain = mail()
     plain.invoice = nil

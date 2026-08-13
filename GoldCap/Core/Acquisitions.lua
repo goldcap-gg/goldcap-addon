@@ -121,7 +121,7 @@ local function pendingWithEvidence(key)
 end
 
 local function pendingMatchesExactRecord(pending, args)
-  return pending.itemID == args.itemID and pending.quantity == args.quantity
+  return pending.itemID == args.itemID and (pending.quantity == nil or pending.quantity == args.quantity)
     and (not pending.positionKey or not args.positionKey or pending.positionKey == args.positionKey)
     and (not pending.character or not args.character or pending.character == args.character)
     and (not pending.region or not args.region or pending.region == args.region)
@@ -136,7 +136,7 @@ local function compatible(batch, entry)
 end
 
 local function compatiblePending(pending, entry)
-  return pending.itemID == entry.itemID and pending.quantity == entry.qty
+  return pending.itemID == entry.itemID and (pending.quantity == nil or pending.quantity == entry.qty)
     and (not entry.char or not pending.character or entry.char == pending.character)
     and (not entry.region or not pending.region or entry.region == pending.region)
 end
@@ -316,7 +316,7 @@ end
 
 function GC.Acquisitions.RecordPending(args)
   if not db or type(args) ~= "table" or not isPositiveInteger(args.itemID)
-      or not isPositiveInteger(args.quantity) or not isExactInteger(args.completedAt)
+      or (args.quantity ~= nil and not isPositiveInteger(args.quantity)) or not isExactInteger(args.completedAt)
       or not isStringOrNil(args.positionKey) or not isStringOrNil(args.itemName)
       or not isStringOrNil(args.character) or not isStringOrNil(args.region)
       or type(args.reason) ~= "string" or args.reason == ""

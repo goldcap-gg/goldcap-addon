@@ -38,7 +38,7 @@ local function nextAttemptID()
 end
 
 local function recordPending(attempt, reason)
-  if not attempt or not isPositiveInteger(attempt.itemID) or not isPositiveInteger(attempt.quantity) then
+  if not attempt or not isPositiveInteger(attempt.itemID) then
     return
   end
   local context = attempt.context or currentContext()
@@ -85,7 +85,11 @@ local function ownsAuction(auctionID)
 end
 
 local function onCommodityStart(itemID, quantity)
-  if ownsCommodity(itemID, quantity) or not isPositiveInteger(itemID) or not isPositiveInteger(quantity) then
+  if ownsCommodity(itemID, quantity) then
+    commodityAttempt = nil
+    return
+  end
+  if not isPositiveInteger(itemID) or not isPositiveInteger(quantity) then
     return
   end
   local attempt = {
@@ -102,6 +106,10 @@ local function onCommodityStart(itemID, quantity)
 end
 
 local function onCommodityConfirm(itemID, quantity)
+  if ownsCommodity(itemID, quantity) then
+    commodityAttempt = nil
+    return
+  end
   local attempt = commodityAttempt
   if not attempt then return end
   if attempt.itemID ~= itemID or attempt.quantity ~= quantity then
@@ -114,8 +122,9 @@ end
 local function onPlaceBid(auctionID, total)
   if ownsAuction(auctionID) then return end
   local result = itemResults[auctionID]
-  if not result or not isPositiveInteger(result.itemID) or not isPositiveInteger(result.quantity) then return end
-  local exact = result.identityComplete and isPositiveInteger(result.total) and result.total == total
+  if not result or not isPositiveInteger(result.itemID) then return end
+  local exact = result.identityComplete and isPositiveInteger(result.quantity)
+    and isPositiveInteger(result.total) and result.total == total
   local attempt = {
     attemptID = nextAttemptID(), auctionID = auctionID, itemID = result.itemID,
     quantity = result.quantity, positionKey = result.positionKey,
@@ -174,11 +183,15 @@ end
 
 function GC.PurchaseCapture.OnCommodityPriceUpdated(_, totalPrice)
   local attempt = commodityAttempt
-  if attempt and isPositiveInteger(totalPrice) then attempt.finalTotal = totalPrice end
+  if attempt and not attempt.confirmed and isPositiveInteger(totalPrice) then attempt.finalTotal = totalPrice end
 end
 
 function GC.PurchaseCapture.OnCommodityPriceUnavailable()
-  if commodityAttempt and not commodityAttempt.confirmed then commodityAttempt = nil end
+  local attempt = commodityAttempt
+  commodityAttempt = nil
+  if attempt and attempt.confirmed then
+    recordPending(attempt, "commodity purchase price unavailable")
+  end
 end
 
 function GC.PurchaseCapture.OnCommodityPurchaseSucceeded()

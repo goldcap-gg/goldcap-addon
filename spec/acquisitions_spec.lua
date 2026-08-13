@@ -60,6 +60,24 @@ describe("Acquisition store", function()
     assert.equal(0, #GC.Acquisitions.GetPending())
   end)
 
+  it("keeps an unknown pending quantity unresolved until exact mail evidence arrives", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, completedAt = 100,
+      character = context.char, region = context.region, reason = "quantity unavailable",
+      evidenceKey = "purchase:unknown-quantity" })
+    assert.truthy(pending)
+    assert.is_nil(pending.quantity)
+    assert.equal(0, #GC.Acquisitions.GetActive(context))
+
+    local entry = { key = "mail:unknown-quantity", kind = "buy", source = "mail",
+      itemID = 42, qty = 2, total = 201, at = 200, char = context.char, region = context.region }
+    GC.Acquisitions.ReconcileBuy(entry)
+    GC.Acquisitions.ReconcileBuy(entry)
+
+    assert.equal("mail:unknown-quantity", pending.mailEvidenceKey)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
+  end)
+
   it("rejects malformed GoldCap commodity wrappers without throwing", function()
     local ok, batch, isNew = pcall(GC.Acquisitions.RecordGoldCap,
       { isCommodity = true }, { itemID = "not-an-id", quantity = 1, total = 1 }, context, 1, "bad")

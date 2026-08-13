@@ -98,6 +98,35 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal("commodity:42", pending.positionKey)
   end)
 
+  it("does not use a quote that arrives after commodity confirmation", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
+  end)
+
+  it("keeps a confirmed unavailable commodity as one pending observation", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUnavailable()
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
+  end)
+
+  it("drops an unconfirmed unavailable commodity without pending evidence", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUnavailable()
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+  end)
+
   it("keeps two identical sequential commodity purchases distinct", function()
     for _ = 1, 2 do
       fire("StartCommoditiesPurchase", 42, 3)
@@ -171,6 +200,18 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(1, #GC.Acquisitions.GetPending())
   end)
 
+  it("keeps an item completion with unknown quantity as pending evidence", function()
+    results[1] = { auctionID = 9001, buyoutAmount = 100000 }
+    GC.PurchaseCapture.OnItemSearchResults({ itemID = 77, itemLevel = 10,
+      itemSuffix = 0, battlePetSpeciesID = 0 })
+    fire("PlaceBid", 9001, 100000)
+    GC.PurchaseCapture.OnPurchaseCompleted(9001)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    local pending = GC.Acquisitions.GetPending()[1]
+    assert.equal(77, pending.itemID)
+    assert.is_nil(pending.quantity)
+  end)
+
   it("ignores every GoldCap-owned purchase hook", function()
     ownsCommodity = true
     fire("StartCommoditiesPurchase", 42, 3)
@@ -182,6 +223,27 @@ describe("Passive normal-AH purchase capture", function()
     fire("PlaceBid", 9001, 100000)
     GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
     GC.PurchaseCapture.OnPurchaseCompleted(9001)
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+  end)
+
+  it("invalidates a stale passive commodity attempt when GoldCap owns the later lifecycle", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    ownsCommodity = true
+    fire("StartCommoditiesPurchase", 42, 3)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+  end)
+
+  it("invalidates a passive commodity attempt when GoldCap owns confirm", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    ownsCommodity = true
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
     assert.equal(0, #GC.Acquisitions.GetAll())
     assert.equal(0, #GC.Acquisitions.GetPending())
   end)
