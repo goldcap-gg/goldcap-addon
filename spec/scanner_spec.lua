@@ -12,7 +12,7 @@ describe("Scanner", function()
   before_each(function()
     GC = helper.loadModule("Core/DealMath.lua")
     helper.loadModule("Core/Scanner.lua", GC)
-    log = { searches = {}, deals = {}, status = {} }
+    log = { searches = {}, deals = {}, observations = {}, events = {}, status = {} }
     ready, clock = true, 1000
     keyInfos, itemResults, commodityResults, values = {}, {}, {}, {}
     drv = {
@@ -22,10 +22,17 @@ describe("Scanner", function()
       itemResult = function(id) return itemResults[id] end,
       commodityResult = function(id) return commodityResults[id] end,
       getValue = function(id) return values[id] end,
-      onDeal = function(d) log.deals[#log.deals + 1] = d end,
       onStatus = function(s) log.status[#log.status + 1] = s end,
       now = function() return clock end,
     }
+    drv.onDeal = function(deal)
+      log.deals[#log.deals + 1] = deal
+      log.events[#log.events + 1] = "deal"
+    end
+    drv.onObservation = function(itemID, deal)
+      log.observations[#log.observations + 1] = { itemID = itemID, deal = deal }
+      log.events[#log.events + 1] = "observation"
+    end
   end)
 
   it("sends one search at a time and cycles the list", function()
@@ -124,6 +131,57 @@ describe("Scanner", function()
     s:Start({ 1 })                -- new scan session (simulates AH reopen), same live auction
     s:OnItemResults(1)
     assert.equal(2, #log.deals)   -- must re-alert; was 1 before the fix (deduped away)
+  end)
+
+  it("publishes every consumed result while preserving lower-price-only alerts", function()
+    keyInfos[7] = { isCommodity = true }
+    values[7] = { mv = 1000000 }
+    commodityResults[7] = { unitPrice = 500000, qty = 10 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 7 })
+
+    s:OnCommodityResults(7)
+    commodityResults[7] = { unitPrice = 600000, qty = 10 }
+    s:OnCommodityResults(7)
+    commodityResults[7] = nil
+    s:OnCommodityResults(7)
+
+    assert.equal(3, #log.observations)
+    assert.equal(500000, log.observations[1].deal.unitPrice)
+    assert.equal(600000, log.observations[2].deal.unitPrice)
+    assert.is_nil(log.observations[3].deal)
+    assert.equal(1, #log.deals)
+    assert.same({ "deal", "observation" }, { log.events[1], log.events[2] })
+  end)
+
+  it("publishes nil when a fetched listing no longer passes deal filters", function()
+    keyInfos[1] = { isCommodity = false }
+    values[1] = { mv = 1000000 }
+    itemResults[1] = { auctionID = 99, unitPrice = 950000, qty = 1 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    s:OnItemResults(1)
+
+    assert.equal(1, #log.observations)
+    assert.equal(1, log.observations[1].itemID)
+    assert.is_nil(log.observations[1].deal)
+    assert.equal(0, #log.deals)
+  end)
+
+  it("resumes the same monitor without resetting its alert dedupe", function()
+    keyInfos[1] = { isCommodity = false }
+    values[1] = { mv = 1000000 }
+    itemResults[1] = { auctionID = 99, unitPrice = 500000, qty = 1 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    s:OnItemResults(1)
+    s:Stop()
+    s:Resume()
+    s:OnItemResults(1)
+
+    assert.equal(2, #log.observations)
+    assert.equal(1, #log.deals)
+    assert.same({ 1, 1, 1, 1 }, log.searches)
   end)
 
   it("stops cleanly and refuses an empty watchlist", function()

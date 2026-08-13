@@ -60,6 +60,16 @@ function GC.Scanner.New(driver, dealCfg)
     driver.onStatus("stopped")
   end
 
+  function obj:Resume()
+    if running then return end
+    if #list == 0 then
+      driver.onStatus("empty watchlist")
+      return
+    end
+    running = true
+    advance()
+  end
+
   function obj:OnSystemReady()
     if pending and driver.now() - pendingSince > STALE_SECONDS then
       pending = nil
@@ -78,9 +88,10 @@ function GC.Scanner.New(driver, dealCfg)
     if itemID ~= pending then return end
     pending = nil
     local res = driver.itemResult(itemID)
+    local deal
     if res then
       self.scanned = self.scanned + 1
-      local deal = GC.DealMath.Evaluate(
+      deal = GC.DealMath.Evaluate(
         { itemID = itemID, isCommodity = false, auctionID = res.auctionID,
           unitPrice = res.unitPrice, qty = res.qty },
         driver.getValue(itemID), dealCfg)
@@ -89,6 +100,7 @@ function GC.Scanner.New(driver, dealCfg)
         driver.onDeal(deal)
       end
     end
+    if driver.onObservation then driver.onObservation(itemID, deal) end
     advance()
   end
 
@@ -96,9 +108,10 @@ function GC.Scanner.New(driver, dealCfg)
     if itemID ~= pending then return end
     pending = nil
     local res = driver.commodityResult(itemID)
+    local deal
     if res then
       self.scanned = self.scanned + 1
-      local deal = GC.DealMath.Evaluate(
+      deal = GC.DealMath.Evaluate(
         { itemID = itemID, isCommodity = true,
           unitPrice = res.unitPrice, qty = res.qty, avail = res.avail },
         driver.getValue(itemID), dealCfg)
@@ -108,6 +121,7 @@ function GC.Scanner.New(driver, dealCfg)
         driver.onDeal(deal)
       end
     end
+    if driver.onObservation then driver.onObservation(itemID, deal) end
     advance()
   end
 
