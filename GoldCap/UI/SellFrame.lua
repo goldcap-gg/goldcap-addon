@@ -234,7 +234,9 @@ function GC.Sell.OnItemSearchResults(itemID) quoteResolved(itemID, driver.item(i
 function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved(itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
 
 local function freshQuote(position)
-  return GC.QuoteCache.Fresh(quotes, position.itemID, time())
+  local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time())
+  if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
+  return quote
 end
 
 local function normalizedPositionKey(itemID, link)
@@ -249,6 +251,8 @@ local function normalizedPositionKey(itemID, link)
   end
   local actualID = tonumber(fields[2])
   if actualID ~= itemID then return nil end
+  local bonusCount = tonumber(fields[14])
+  if #fields < 14 or bonusCount == nil or bonusCount ~= 0 then return nil end
   local level = C_Item and C_Item.GetDetailedItemLevelInfo and C_Item.GetDetailedItemLevelInfo(link)
   local suffix = tonumber(fields[8])
   if type(level) ~= "number" or suffix == nil then return nil end
@@ -362,7 +366,8 @@ local function onPostClick(row)
   if not info.isCommodity and not buyout then setStatus("Cannot post this position"); return end
   local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
   postingRow = row
-  postingPin = { positionKey = plan.positionKey, itemID = plan.itemID, quantity = plan.quantity,
+  postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
+    variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout }
   row.postStage = "posting"; row.action:Disable(); setStatus("Posting…")
@@ -387,11 +392,17 @@ local function onRepostClick(row, auctionID)
   if row.repostStage == "armed" then
     if not row.repostReady then return end
     local pin = repostPin
+    if not (C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots) then
+      repostingRow, repostPin = nil, nil; row.repostStage = nil; row.action:Enable(); row.action:SetLabel("Repost")
+      setStatus("Repost confirmation expired")
+      return
+    end
+    ownedLots = GC.SellPositions.NormalizeOwnedLots(C_AuctionHouse.GetOwnedAuctions() or {}, time())
     composePositions()
     local livePosition = currentPosition(pin.positionKey)
     local current
     for _, candidate in ipairs(livePosition and livePosition.ownedLots or {}) do
-      if candidate.auctionID == pin.auctionID and candidate.quantity == pin.quantity then current = candidate break end
+      if candidate.auctionID == pin.auctionID and candidate.quantity == pin.quantity and candidate.unitPrice == pin.listedUnit then current = candidate break end
     end
     local plan = current and GC.SellPositions.BuildRepostPlan(livePosition, pin.auctionID, { unit = quote.unit, fresh = true })
     if not plan or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
@@ -415,8 +426,11 @@ local function onRepostClick(row, auctionID)
   end
   local plan = GC.SellPositions.BuildRepostPlan(position, auctionID, { unit = quote.unit, fresh = true })
   if not plan then setStatus("Cannot repost this lot") return end
-  repostingRow, repostPin = row, { positionKey = plan.positionKey, auctionID = plan.auctionID,
-    quantity = plan.quantity, quoteAt = quote.at, quoteUnit = quote.unit }
+  local lot
+  for _, candidate in ipairs(position.ownedLots or {}) do if candidate.auctionID == plan.auctionID then lot = candidate break end end
+  if not lot then setStatus("Cannot repost this lot"); return end
+  repostingRow, repostPin = row, { scopeKey = plan.scopeKey, positionKey = plan.positionKey, auctionID = plan.auctionID,
+    quantity = plan.quantity, listedUnit = lot.unitPrice, quoteAt = quote.at, quoteUnit = quote.unit }
   row.repostStage, row.repostReady = "armed", false
   row.action:Disable(); row.action:SetLabel("Cancel lot?")
   setStatus("Cancel this lot and lose its deposit — click again to confirm")
@@ -443,6 +457,9 @@ function GC.Sell.OnAuctionCreated()
     GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), scope.char, scope.region, pin.quantity, time())
   end
   postTimeoutToken = (postTimeoutToken or 0) + 1
+  row.postStage = nil
+  row.action:Enable()
+  row.action:SetLabel("Post")
   postingRow, postingPin = nil, nil
   GC.Sell.Refresh()
 end
