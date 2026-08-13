@@ -60,7 +60,7 @@ describe("Acquisition store", function()
     assert.equal(0, #GC.Acquisitions.GetPending())
   end)
 
-  it("keeps an unknown pending quantity unresolved until exact mail evidence arrives", function()
+  it("promotes an unknown pending quantity when exact mail evidence arrives", function()
     local pending = GC.Acquisitions.RecordPending({ itemID = 42, completedAt = 100,
       character = context.char, region = context.region, reason = "quantity unavailable",
       evidenceKey = "purchase:unknown-quantity" })
@@ -73,9 +73,13 @@ describe("Acquisition store", function()
     GC.Acquisitions.ReconcileBuy(entry)
     GC.Acquisitions.ReconcileBuy(entry)
 
-    assert.equal("mail:unknown-quantity", pending.mailEvidenceKey)
-    assert.equal(0, #GC.Acquisitions.GetAll())
-    assert.equal(1, #GC.Acquisitions.GetPending())
+    local promoted = GC.Acquisitions.GetAll()[1]
+    assert.equal("mail:unknown-quantity", promoted.mailEvidenceKey)
+    assert.equal(pending.id, promoted.promotedPendingID)
+    assert.equal(2, promoted.originalQty)
+    assert.equal(201, promoted.originalTotal)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
   end)
 
   it("rejects malformed GoldCap commodity wrappers without throwing", function()
@@ -278,7 +282,7 @@ describe("Acquisition store", function()
     assert.equal("mail:42", goldcap.mailEvidenceKey)
   end)
 
-  it("resolves the oldest compatible pending observation before creating a mail batch", function()
+  it("promotes the oldest compatible pending observation before creating another mail batch", function()
     local first = GC.Acquisitions.RecordPending({ itemID = 42, quantity = 2, completedAt = 50,
       character = "A-R", region = "eu", reason = "missing total" })
     GC.Acquisitions.RecordPending({ itemID = 42, quantity = 2, completedAt = 60,
@@ -287,9 +291,63 @@ describe("Acquisition store", function()
     GC.Acquisitions.ReconcileBuy({ key = "mail:pending", kind = "buy", source = "mail",
       itemID = 42, qty = 2, total = 201, at = 100, char = "A-R", region = "eu" })
 
-    assert.equal("mail:pending", first.mailEvidenceKey)
-    assert.equal(0, #GC.Acquisitions.GetAll())
-    assert.equal(2, #GC.Acquisitions.GetPending())
+    assert.equal(first.id, GC.Acquisitions.GetAll()[1].promotedPendingID)
+    assert.equal("mail:pending", GC.Acquisitions.GetAll()[1].mailEvidenceKey)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending())
+  end)
+
+  it("[FINAL C2] atomically promotes exact buyer mail into one active batch", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = nil, quantity = 2, completedAt = 50, character = context.char,
+      region = context.region, reason = "missing total", evidenceKey = "capture:pending" })
+    local entry = { key = "mail:promote", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Ironclaw Ore", qty = 2, total = 201, at = 100,
+      char = context.char, region = context.region }
+
+    local promoted, isNew = GC.Acquisitions.ReconcileBuy(entry)
+    assert.is_true(isNew)
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal("auction_house", promoted.source)
+    assert.equal(pending.id, promoted.promotedPendingID)
+    assert.equal("commodity:42", promoted.positionKey)
+    assert.equal("Ironclaw Ore", promoted.itemName)
+    assert.equal(50, promoted.acquiredAt)
+    assert.equal(2, promoted.originalQty)
+    assert.equal(201, promoted.originalTotal)
+    assert.is_true(promoted.evidenceKeys["capture:pending"])
+    assert.is_true(promoted.evidenceKeys["mail:promote"])
+    assert.equal("mail:promote", promoted.mailEvidenceKey)
+
+    local repeated, repeatedNew = GC.Acquisitions.ReconcileBuy(entry)
+    assert.equal(promoted, repeated)
+    assert.is_false(repeatedNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL C2] promotes legacy mail-linked pending rows and keeps invalid promotion atomic", function()
+    local legacy = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      quantity = 2, completedAt = 50, character = context.char, region = context.region,
+      reason = "missing total", evidenceKey = "capture:legacy" })
+    legacy.mailEvidenceKey = "mail:legacy"
+    legacy.evidenceKeys["mail:legacy"] = true
+
+    local promoted = GC.Acquisitions.ReconcileBuy({ key = "mail:legacy", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Ironclaw Ore", qty = 2, total = 201, at = 100,
+      char = context.char, region = context.region })
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(legacy.id, promoted.promotedPendingID)
+
+    local invalid = GC.Acquisitions.RecordPending({ itemID = 43, positionKey = "commodity:43",
+      quantity = 1, completedAt = 60, character = context.char, region = context.region,
+      reason = "missing total", evidenceKey = "capture:invalid" })
+    assert.is_nil(GC.Acquisitions.ReconcileBuy({ key = "mail:invalid", kind = "buy", source = "mail",
+      itemID = 43, itemName = "Bad", qty = 1, total = 0, at = 101,
+      char = context.char, region = context.region }))
+    assert.equal(invalid, GC.Acquisitions.GetPending()[1])
+    assert.equal(1, #GC.Acquisitions.GetAll())
   end)
 
   it("creates one auction-house batch for a repeat mail key and separate batches for distinct keys", function()
@@ -332,12 +390,36 @@ describe("Acquisition store", function()
     assert.equal("eu", batch.region)
   end)
 
-  it("reconciles an id-less mail only when its item name identifies one candidate", function()
+  it("enriches a matching active batch name but never promotes a different scope", function()
+    local active = record({ itemName = nil, total = 201, evidenceKey = "capture:active" })
+    GC.Acquisitions.ReconcileBuy({ key = "mail:active", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Copper Ore", qty = 2, total = 201, at = 200,
+      char = context.char, region = context.region })
+    assert.equal("Copper Ore", active.itemName)
+    assert.is_true(active.evidenceKeys["mail:active"])
+
+    local pending = GC.Acquisitions.RecordPending({ itemID = 43, positionKey = "commodity:43",
+      quantity = 1, completedAt = 50, character = context.char, region = context.region,
+      reason = "missing total", evidenceKey = "capture:scoped" })
+    GC.Acquisitions.ReconcileBuy({ key = "mail:unscoped", kind = "buy", source = "mail",
+      itemID = 43, itemName = "Tin Ore", qty = 1, total = 90, at = 200 })
+    assert.equal(pending, GC.Acquisitions.GetPending()[1])
+    assert.is_false(GC.Acquisitions.HasEvidence("mail:unscoped"))
+
+    GC.Acquisitions.ReconcileBuy({ key = "mail:other-scope", kind = "buy", source = "mail",
+      itemID = 43, itemName = "Tin Ore", qty = 1, total = 90, at = 201,
+      char = "B-R", region = "us" })
+    assert.equal(pending, GC.Acquisitions.GetPending()[1])
+    assert.equal(1, #GC.Acquisitions.GetActive({ char = context.char, region = context.region }))
+    assert.equal(1, #GC.Acquisitions.GetActive({ char = "B-R", region = "us" }))
+  end)
+
+  it("keeps id-less buyer mail unresolved even when its name has one candidate", function()
     record({ itemName = "Copper Ore", total = 201, evidenceKey = "first" })
     GC.Acquisitions.ReconcileBuy({ key = "mail:name", kind = "buy", source = "mail",
       itemName = "Copper Ore", qty = 2, total = 201, at = 200, char = "A-R", region = "eu" })
     assert.equal(1, #GC.Acquisitions.GetAll())
-    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys["mail:name"])
+    assert.is_nil(GC.Acquisitions.GetAll()[1].evidenceKeys["mail:name"])
 
     record({ itemName = "Tin Ore", total = 201, evidenceKey = "second", acquiredAt = 101 })
     record({ itemName = "Tin Ore", total = 201, evidenceKey = "third", acquiredAt = 102 })
@@ -406,8 +488,8 @@ describe("Acquisition store", function()
     assert.equal(1, #GC.Acquisitions.GetActive(context))
   end)
 
-  it("consumes only the prevalidated named batches, not older same-position stock", function()
-    local unrelated = record({ itemName = "Other Name", quantity = 1, total = 1000,
+  it("[FINAL C3] selects one activity position then consumes all of its batches regardless of cached names", function()
+    local unnamed = record({ itemName = nil, quantity = 1, total = 1000,
       evidenceKey = "buy:other", acquiredAt = 1 })
     local named = record({ itemName = "Ironclaw Ore", quantity = 1, total = 100,
       evidenceKey = "buy:named", acquiredAt = 2 })
@@ -418,10 +500,29 @@ describe("Acquisition store", function()
       char = context.char, region = context.region, pending = false })
 
     assert.same({ status = "applied", positionKey = "commodity:42", quantity = 1,
-      cost = 100, proceeds = 500, profit = 400 }, result)
-    assert.equal(1, unrelated.remainingQty)
-    assert.equal(1000, unrelated.remainingTotal)
-    assert.equal(0, named.remainingQty)
-    assert.equal(0, named.remainingTotal)
+      cost = 1000, proceeds = 500, profit = -500 }, result)
+    assert.equal(0, unnamed.remainingQty)
+    assert.equal(0, unnamed.remainingTotal)
+    assert.equal(1, named.remainingQty)
+    assert.equal(100, named.remainingTotal)
+    assert.equal("duplicate", GC.Acquisitions.ReconcileSale({ key = "sale:exact-set", kind = "sale",
+      source = "mail", itemName = "Ironclaw Ore", qty = 1, total = 500, at = 20,
+      char = context.char, region = context.region, pending = false }).status)
+  end)
+
+  it("fails closed when persisted activity item identity disagrees with its position", function()
+    local batch = record({ itemName = nil, quantity = 1, total = 100,
+      evidenceKey = "buy:activity-corrupt" })
+    local scopeKey = GC.Acquisitions.ScopeKey("commodity:42", context)
+    db.acquisitionActivity[scopeKey] = { scopeKey = scopeKey, positionKey = "commodity:42",
+      itemID = 99, itemName = "Ironclaw Ore", character = context.char,
+      region = context.region, firstSeenAt = 10 }
+
+    local result = GC.Acquisitions.ReconcileSale({ key = "sale:activity-corrupt",
+      kind = "sale", source = "mail", itemName = "Ironclaw Ore", qty = 1,
+      total = 200, at = 20, char = context.char, region = context.region, pending = false })
+    assert.equal("unresolved", result.status)
+    assert.equal(1, batch.remainingQty)
+    assert.equal(0, #GC.Acquisitions.GetRealized(context))
   end)
 end)

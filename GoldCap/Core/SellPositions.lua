@@ -131,8 +131,10 @@ local function stableLotOrder(left, right)
 end
 
 local function stablePositionOrder(left, right)
-  if left.scopeKey ~= right.scopeKey then return left.scopeKey < right.scopeKey end
-  return left.positionKey < right.positionKey
+  local leftScope = left.scopeKey or left.unresolvedKey or ""
+  local rightScope = right.scopeKey or right.unresolvedKey or ""
+  if leftScope ~= rightScope then return leftScope < rightScope end
+  return (left.positionKey or left.unresolvedKey or "") < (right.positionKey or right.unresolvedKey or "")
 end
 
 local function positionFor(positions, key, itemID, context)
@@ -143,7 +145,9 @@ local function positionFor(positions, key, itemID, context)
     batches = {}, sources = {}, trackedQty = 0, listedQty = 0, exposureQty = 0,
     allocations = {}, knownQty = 0, knownCost = 0, coverage = "UNKNOWN", ownedLots = {},
     listedValue = 0, freshMarketUnit = nil, displayMarketUnit = nil, quoteAge = nil,
-    projectedNet = nil, profit = nil, status = "UNLISTED", ahead = nil, outlook = nil }
+    projectedNet = nil, profit = nil, status = "UNLISTED", ahead = nil, outlook = nil,
+    pendingAcquisitions = {}, pendingQty = 0, sellerEvidence = {},
+    facts = { soldPending = false, pendingPurchase = false, undercut = false } }
   positions[key] = position
   return position
 end
@@ -172,6 +176,23 @@ local function addBatch(position, batch)
     return
   end
   position.trackedQty, position.sources[source] = trackedQty, sourceQty
+  position.itemName = position.itemName or batch.itemName
+end
+
+local function addPending(position, pending)
+  position.pendingAcquisitions[#position.pendingAcquisitions + 1] = pending
+  position.facts.pendingPurchase = true
+  position.itemName = position.itemName or pending.itemName
+  if pending.quantity ~= nil then
+    local pendingQty = add(position.pendingQty, pending.quantity)
+    local sourceQty = add(position.sources.auction_house or 0, pending.quantity)
+    if not pendingQty or not sourceQty then
+      position.invalid = true
+      position.pendingQty, position.sources.auction_house = nil, nil
+      return
+    end
+    position.pendingQty, position.sources.auction_house = pendingQty, sourceQty
+  end
 end
 
 local function addLot(position, ownedLot)
@@ -197,7 +218,16 @@ local function decoratePosition(position, quotes, statsByItemID, now)
     position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, nil
     return
   end
-  position.exposureQty = position.listedQty > 0 and position.listedQty or position.trackedQty
+  local accountedExposure = position.listedQty > 0 and position.listedQty or position.trackedQty
+  position.accountedExposureQty = accountedExposure
+  position.exposureQty = add(accountedExposure, position.pendingQty or 0)
+  if not position.exposureQty then
+    position.invalid = true
+    position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
+    position.coverage, position.projectedNet, position.profit = "UNKNOWN", nil, nil
+    position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, nil
+    return
+  end
   local allocation = position.exposureQty > 0 and GC.Acquisitions.Allocate(position.batches, position.exposureQty)
   if allocation then
     position.allocations, position.knownQty, position.knownCost = allocation.allocations,
@@ -205,14 +235,16 @@ local function decoratePosition(position, quotes, statsByItemID, now)
     position.coverage = allocation.knownQty == 0 and "UNKNOWN"
       or allocation.knownQty < position.exposureQty and "PARTIAL" or "COMPLETE"
   end
-  local projected = 0
+  local projected
   if position.listedQty > 0 then
+    local gross = 0
     for _, ownedLot in ipairs(position.ownedLots) do
       local unit = fresh and math.min(ownedLot.unitPrice, fresh) or ownedLot.unitPrice
-      local net = netFor(ownedLot.quantity, unit)
-      projected = net and add(projected, net) or nil
-      if not projected then break end
+      local value = valueFor(ownedLot.quantity, unit)
+      gross = value and add(gross, value) or nil
+      if not gross then break end
     end
+    projected = gross and mulDivFloor(gross, 95, 100) or nil
   elseif fresh then
     projected = netFor(position.exposureQty, fresh)
   else
@@ -225,10 +257,14 @@ local function decoratePosition(position, quotes, statsByItemID, now)
   for _, ownedLot in ipairs(position.ownedLots) do
     if not cheapestListedUnit or ownedLot.unitPrice < cheapestListedUnit then cheapestListedUnit = ownedLot.unitPrice end
   end
+  position.facts.undercut = position.listedQty > 0 and fresh ~= nil
+    and cheapestListedUnit ~= nil and cheapestListedUnit > fresh
   if position.coverage ~= "COMPLETE" then
-    position.status = "NO_COST"
-  elseif position.listedQty > 0 and fresh and cheapestListedUnit > fresh then
+    position.status = position.coverage == "PARTIAL" and "PARTIAL_COST" or "NO_COST"
+  elseif position.facts.undercut then
     position.status = "UNDERCUT"
+  elseif position.facts.soldPending then
+    position.status = "SOLD_PENDING"
   elseif position.listedQty > 0 then
     position.status = "LISTED"
   else
@@ -262,7 +298,7 @@ function GC.SellPositions.Build(args)
   local context = args.context
   if type(context) ~= "table" or type(context.char) ~= "string" or context.char == ""
       or type(context.region) ~= "string" or context.region == "" then return {} end
-  local scoped, lotsByItem, positions = {}, {}, {}
+  local scoped, lotsByItem, positions, unresolvedRows = {}, {}, {}, {}
   for _, batch in ipairs(args.acquisitions or {}) do
     if compatibleBatch(batch, context) then
       scoped[batch.itemID] = scoped[batch.itemID] or {}
@@ -287,7 +323,90 @@ function GC.SellPositions.Build(args)
     local target = uniqueVariants(batches, lotsByItem[itemID] or {})
     for _, batch in ipairs(batches) do
       local positionKey = batch.positionKey or target
-      if positionKey then addBatch(positionFor(positions, positionKey, itemID, context), batch) end
+      if positionKey then
+        addBatch(positionFor(positions, positionKey, itemID, context), batch)
+      else
+        unresolvedRows[#unresolvedRows + 1] = {
+          unresolved = true, protectedAction = false,
+          unresolvedKey = "unassigned-acquisition:" .. tostring(batch.id or #unresolvedRows + 1),
+          unresolvedKind = "unassigned_acquisition", itemID = batch.itemID,
+          itemName = batch.itemName, character = context.char, region = context.region,
+          batches = { batch }, pendingAcquisitions = {}, ownedLots = {}, allocations = {},
+          sources = { [batch.source or "unknown"] = batch.remainingQty },
+          trackedQty = 0, listedQty = 0, exposureQty = batch.remainingQty,
+          knownQty = batch.remainingQty, knownCost = batch.remainingTotal,
+          listedValue = 0, coverage = "UNKNOWN", projectedNet = nil, profit = nil,
+          status = "REPAIR_IDENTITY", facts = { unassignedAcquisition = true },
+        }
+      end
+    end
+  end
+
+
+  for _, pending in ipairs(args.pendingAcquisitions or {}) do
+    if type(pending) == "table" and pending.character == context.char and pending.region == context.region
+        and positive(pending.itemID) then
+      local target = pending.positionKey or uniqueVariants(scoped[pending.itemID] or {}, lotsByItem[pending.itemID] or {})
+      if target then
+        addPending(positionFor(positions, target, pending.itemID, context), pending)
+      else
+        unresolvedRows[#unresolvedRows + 1] = {
+          unresolved = true, protectedAction = false,
+          unresolvedKey = "pending-purchase:" .. tostring(pending.id or #unresolvedRows + 1),
+          unresolvedKind = "pending_purchase", itemID = pending.itemID,
+          itemName = pending.itemName, character = context.char, region = context.region,
+          batches = {}, pendingAcquisitions = { pending }, ownedLots = {}, allocations = {},
+          sources = type(pending.quantity) == "number" and { auction_house = pending.quantity } or {},
+          trackedQty = 0, pendingQty = pending.quantity or 0, listedQty = 0,
+          exposureQty = pending.quantity or 0, knownQty = 0, knownCost = 0,
+          listedValue = 0, coverage = "UNKNOWN", projectedNet = nil, profit = nil,
+          status = "REPAIR_PURCHASE", facts = { pendingPurchase = true },
+        }
+      end
+    end
+  end
+
+  local activities = {}
+  for _, activity in pairs(args.activities or {}) do
+    if type(activity) == "table" and activity.character == context.char and activity.region == context.region
+        and type(activity.positionKey) == "string" and activity.positionKey ~= ""
+        and positive(activity.itemID) and type(activity.itemName) == "string" and activity.itemName ~= ""
+        and exact(activity.firstSeenAt) then
+      activities[#activities + 1] = activity
+    end
+  end
+  for _, evidence in ipairs(args.sellerEvidence or {}) do
+    if type(evidence) == "table" and evidence.kind == "sale" and evidence.source == "mail"
+        and evidence.char == context.char and evidence.region == context.region
+        and type(evidence.key) == "string" and evidence.key ~= ""
+        and type(evidence.itemName) == "string" and evidence.itemName ~= "" and exact(evidence.at) then
+      local matchedByScope = {}
+      for _, activity in ipairs(activities) do
+        if activity.itemName == evidence.itemName and activity.firstSeenAt <= evidence.at then
+          matchedByScope[activity.scopeKey or GC.Acquisitions.ScopeKey(activity.positionKey, context)] = activity
+        end
+      end
+      local matched, count
+      for _, activity in pairs(matchedByScope) do matched, count = activity, (count or 0) + 1 end
+      if evidence.pending == true and count == 1 then
+        local position = positionFor(positions, matched.positionKey, matched.itemID, context)
+        position.itemName = position.itemName or matched.itemName
+        position.facts.soldPending = true
+        position.sellerEvidence[#position.sellerEvidence + 1] = evidence
+      else
+        unresolvedRows[#unresolvedRows + 1] = {
+          unresolved = true, protectedAction = false,
+          unresolvedKey = "seller-evidence:" .. evidence.key,
+          unresolvedKind = count and count > 1 and "ambiguous_sale"
+            or (evidence.pending == true and "pending_sale" or "paid_sale"),
+          itemName = evidence.itemName, character = context.char, region = context.region,
+          batches = {}, pendingAcquisitions = {}, sellerEvidence = { evidence },
+          ownedLots = {}, allocations = {}, sources = {}, trackedQty = 0,
+          listedQty = 0, exposureQty = evidence.qty or 0, knownQty = 0, knownCost = 0,
+          listedValue = 0, coverage = "UNKNOWN", projectedNet = nil, profit = nil,
+          status = "REPAIR_SALE", facts = { unresolvedSale = true },
+        }
+      end
     end
   end
   local result = {}
@@ -295,6 +414,7 @@ function GC.SellPositions.Build(args)
     decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now)
     result[#result + 1] = position
   end
+  for _, unresolvedPosition in ipairs(unresolvedRows) do result[#result + 1] = unresolvedPosition end
   table.sort(result, stablePositionOrder)
   return result
 end
@@ -302,7 +422,10 @@ end
 function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
-  if type(position) ~= "table" or position.invalid or not positive(position.trackedQty) then return nil, "no_tracked_quantity" end
+  if type(position) ~= "table" or position.unresolved or position.protectedAction == false
+      or position.invalid or not positive(position.trackedQty) then
+    return nil, "no_tracked_quantity"
+  end
   if type(bagState) ~= "table" or bagState.itemID ~= position.itemID or not positive(bagState.exactQty) then
     return nil, "missing_bag_quantity"
   end
@@ -322,7 +445,8 @@ end
 function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
-  if type(position) ~= "table" or position.invalid then return nil, "missing_position" end
+  if type(position) ~= "table" or position.unresolved or position.protectedAction == false
+      or position.invalid then return nil, "missing_position" end
   for _, ownedLot in ipairs(position.ownedLots or {}) do
     if ownedLot.auctionID == auctionID then
       if not ownedLot.allocation or ownedLot.allocation.coverage ~= "COMPLETE" then return nil, "incomplete_cost" end
@@ -335,18 +459,24 @@ function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
 end
 
 function GC.SellPositions.Summary(positions)
-  local invested, projected = 0, 0
+  local invested, listedValue, projected = 0, 0, 0
+  local complete = true
   for _, position in ipairs(positions or {}) do
-    if position.coverage ~= "COMPLETE" then
-      return { invested = nil, projected = nil, profit = nil }
-    end
-    invested = add(invested, position.knownCost)
-    if not invested then return { invested = nil, projected = nil, profit = nil } end
-    if projected == nil or position.projectedNet == nil then projected = nil
+    if position.coverage ~= "COMPLETE" then complete = false end
+    invested = invested ~= nil and add(invested, position.knownCost) or nil
+    listedValue = listedValue ~= nil and add(listedValue, position.listedValue) or nil
+    if not complete or projected == nil or position.projectedNet == nil then projected = nil
     else projected = add(projected, position.projectedNet) end
   end
-  if projected == nil then return { invested = invested, projected = nil, profit = nil } end
+  if not invested or not listedValue then
+    return { invested = invested, listedValue = listedValue, projected = nil, profit = nil }
+  end
+  if not complete or projected == nil then
+    return { invested = invested, listedValue = listedValue, projected = nil, profit = nil }
+  end
   local profit = projected - invested
-  if not exactSigned(profit) then return { invested = nil, projected = nil, profit = nil } end
-  return { invested = invested, projected = projected, profit = profit }
+  if not exactSigned(profit) then
+    return { invested = invested, listedValue = listedValue, projected = nil, profit = nil }
+  end
+  return { invested = invested, listedValue = listedValue, projected = projected, profit = profit }
 end

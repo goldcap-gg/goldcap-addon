@@ -26,7 +26,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:Disable() self.enabled = false end
     function value:SetJustifyH() end
     function value:SetWordWrap() end
-    function value:SetTextColor() end
+    function value:SetTextColor(...) self.color = { ... } end
     function value:SetAutoFocus() end
     function value:SetScrollChild(child) self.scrollChild = child end
     return value
@@ -501,5 +501,62 @@ describe("Sell widget geometry and manual cost", function()
     })
     rows[1].scripts.OnClick(rows[1])
     assert.equal("", rows[2].cells.status.text)
+  end)
+
+  it("[FINAL I4] recomposes at the first quote expiry, ages display, and fences Reset", function()
+    local now, timers = { value = 100 }, {}
+    _G.time = function() return now.value end
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local GC = load(620, { calls = {} })
+    _G.time = function() return now.value end
+    helper.loadModule("Core/Acquisitions.lua", GC)
+    helper.loadModule("Core/Flips.lua", GC)
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("Core/SellPositions.lua", GC)
+    GC.Acquisitions.Init({})
+    GC.Acquisitions.Record({ source = "goldcap", itemID = 42, positionKey = "commodity:42",
+      itemName = "Unlisted", quantity = 1, total = 100, acquiredAt = 1,
+      evidenceKey = "buy:42", character = "A-R", region = "eu" })
+    GC.Acquisitions.Record({ source = "goldcap", itemID = 43, positionKey = "commodity:43",
+      itemName = "Listed", quantity = 1, total = 100, acquiredAt = 1,
+      evidenceKey = "buy:43", character = "A-R", region = "eu" })
+
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local compose = upvalue(GC.Sell.SellableCount, "composePositions")
+    local owned = upvalue(compose, "ownedLots")
+    owned[1] = { itemID = 43, positionKey = "commodity:43", quantity = 1,
+      unitPrice = 200, auctionID = 7, firstSeenAt = 1 }
+    local quotes = upvalue(compose, "quotes")
+    quotes[42], quotes[43] = { unit = 150, at = 100 }, { unit = 150, at = 100 }
+    compose()
+    render()
+
+    local rows = upvalue(render, "rows")
+    assert.equal("150", rows[1].cells.market.text)
+    assert.equal("42", tostring(rows[1].position.itemID))
+    assert.equal(1, #timers)
+    assert.equal(11, timers[1].seconds)
+
+    now.value = 111
+    timers[1].callback()
+    rows = upvalue(render, "rows")
+    local byItem = {}
+    for _, row in ipairs(rows) do if row.kind == "position" then byItem[row.position.itemID] = row end end
+    assert.equal(11, byItem[42].position.quoteAge)
+    assert.equal("150 · stale 11s", byItem[42].cells.market.text)
+    assert.equal("Unknown", byItem[42].cells.profit.text)
+    assert.same({ .5, .5, .5, 1 }, byItem[42].cells.market.color)
+    assert.equal(190, byItem[43].position.projectedNet)
+
+    now.value = 200
+    quotes[42] = { unit = 160, at = 200 }
+    compose()
+    render()
+    local resetTimer = timers[#timers]
+    GC.Sell.Reset()
+    resetTimer.callback()
+    assert.equal("", tostring(quotes[42] or ""))
   end)
 end)

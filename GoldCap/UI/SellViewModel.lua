@@ -65,7 +65,17 @@ function GC.SellViewModel.SourceText(position)
 end
 
 function GC.SellViewModel.CostText(position)
-  if not position or position.coverage ~= "COMPLETE" then return "Set cost" end
+  if not position then return "Unknown" end
+  if position.unresolved then
+    return type(position.knownCost) == "number" and position.knownCost > 0
+      and (tostring(position.knownCost) .. " · identity unresolved") or "Unknown"
+  end
+  if position.coverage ~= "COMPLETE" then
+    local known = type(position.knownCost) == "number" and position.knownCost or 0
+    local knownQty = type(position.knownQty) == "number" and position.knownQty or 0
+    local exposureQty = type(position.exposureQty) == "number" and position.exposureQty or 0
+    return ("%d · %d/%d covered"):format(known, knownQty, exposureQty)
+  end
   return position.knownCost
 end
 
@@ -103,10 +113,22 @@ function GC.SellViewModel.Expansion(position)
     batch.totalCost = batch.totalCost or batch.remainingTotal
     batch.evidence = evidenceLabel(batch)
   end
+  local facts = {}
+  if position.facts and position.facts.pendingPurchase then facts[#facts + 1] = "purchase pending exact cost" end
+  if position.facts and position.facts.undercut then facts[#facts + 1] = "undercut" end
+  if position.facts and position.facts.soldPending then facts[#facts + 1] = "sale proceeds pending" end
+  if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = "paid sale unresolved" end
+  if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = "sale name ambiguous" end
+  if position.unresolvedKind == "unassigned_acquisition" then facts[#facts + 1] = "item variant unresolved" end
+  if position.unresolvedKind == "pending_purchase" then facts[#facts + 1] = "purchase identity unresolved" end
   return {
     positionKey = position.positionKey, coverage = position.coverage, batches = batches,
     ownedLots = copy(position.ownedLots), quoteAge = position.quoteAge, ahead = position.ahead,
     sold = position.soldPerDay, days = position.outlook and position.outlook.days,
     recommendation = position.recommendation, note = "FIFO allocations",
+    coverageText = ("%d/%d covered"):format(position.knownQty or 0, position.exposureQty or 0),
+    pendingAcquisitions = copy(position.pendingAcquisitions),
+    sellerEvidence = copy(position.sellerEvidence), facts = position.facts,
+    factsText = #facts > 0 and table.concat(facts, " · ") or nil,
   }
 end

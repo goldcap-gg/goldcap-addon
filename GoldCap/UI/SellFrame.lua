@@ -30,6 +30,7 @@ local quoteTimeoutToken = 0
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
 local renderGeneration = 0
+local quoteExpiryGeneration = 0
 
 local function restorePostRow(row)
   if not row then return end
@@ -182,28 +183,66 @@ end
 local driver = quoteDriver()
 
 local function composePositions()
+  local scope = context()
   local stats = {}
   for _, lot in ipairs(ownedLots) do
     stats[lot.itemID] = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(lot.itemID) or nil
   end
-  local batches = GC.Acquisitions and GC.Acquisitions.GetActive and GC.Acquisitions.GetActive(context()) or {}
+  local batches = GC.Acquisitions and GC.Acquisitions.GetActive and GC.Acquisitions.GetActive(scope) or {}
   for _, batch in ipairs(batches) do
     stats[batch.itemID] = stats[batch.itemID] or (GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(batch.itemID) or nil)
   end
-  positions = GC.SellPositions.Build({ acquisitions = batches, ownedLots = ownedLots,
-    quotes = quotes, statsByItemID = stats, context = context(), now = time() })
-  for _, position in ipairs(positions) do position.itemName = itemName(position.itemID) end
+  local pending = GC.Acquisitions and GC.Acquisitions.GetPending and GC.Acquisitions.GetPending(scope) or {}
+  local activities = GC.Acquisitions and GC.Acquisitions.GetActivities and GC.Acquisitions.GetActivities(scope) or {}
+  local consumed = {}
+  for _, realized in ipairs(GC.Acquisitions and GC.Acquisitions.GetRealized and GC.Acquisitions.GetRealized(scope) or {}) do
+    if realized.evidenceKey then consumed[realized.evidenceKey] = true end
+  end
+  local sellerEvidence = {}
+  for _, entry in ipairs(GC.Ledger and GC.Ledger.GetEntries and GC.Ledger.GetEntries() or {}) do
+    if entry.kind == "sale" and entry.source == "mail" and entry.char == scope.char
+        and entry.region == scope.region and not consumed[entry.key] then
+      sellerEvidence[#sellerEvidence + 1] = entry
+    end
+  end
+  positions = GC.SellPositions.Build({ acquisitions = batches, pendingAcquisitions = pending,
+    activities = activities, sellerEvidence = sellerEvidence, ownedLots = ownedLots,
+    quotes = quotes, statsByItemID = stats, context = scope, now = time() })
+  for _, position in ipairs(positions) do
+    if position.itemID and not position.itemName then position.itemName = itemName(position.itemID) end
+  end
 end
 
 local function uniqueQuoteItemIDs()
   local seen, result = {}, {}
   for _, position in ipairs(positions) do
-    if not seen[position.itemID] then seen[position.itemID], result[#result + 1] = true, position.itemID end
+    if not position.unresolved and position.itemID and not seen[position.itemID] then
+      seen[position.itemID], result[#result + 1] = true, position.itemID
+    end
   end
   return result
 end
 
 local function renderRows() end
+
+local function scheduleQuoteExpiry()
+  quoteExpiryGeneration = quoteExpiryGeneration + 1
+  local token = quoteExpiryGeneration
+  if not (C_Timer and C_Timer.After) then return end
+  local delay
+  for _, position in ipairs(positions) do
+    if position.freshMarketUnit and type(position.quoteAge) == "number" then
+      local remaining = QUOTE_STALE_SECONDS - position.quoteAge + 1
+      if remaining > 0 and (not delay or remaining < delay) then delay = remaining end
+    end
+  end
+  if not delay then return end
+  C_Timer.After(delay, function()
+    if token ~= quoteExpiryGeneration then return end
+    composePositions()
+    renderRows()
+  end)
+end
 
 local function finishQuoteWalk()
   refresh.phase = "done"
@@ -761,7 +800,10 @@ local function createRow(parent)
   row.action:SetPoint("RIGHT", row.cells.status, "RIGHT", 0, 0)
   row.action:Hide()
   row:SetScript("OnClick", function(self)
-    if self.kind == "position" then expanded[self.position.positionKey] = not expanded[self.position.positionKey]; renderRows() end
+    if self.kind == "position" and type(self.position.positionKey) == "string" then
+      expanded[self.position.positionKey] = not expanded[self.position.positionKey]
+      renderRows()
+    end
   end)
   return row
 end
@@ -771,14 +813,14 @@ local function summaryFor(filtered)
   for _, position in ipairs(filtered) do
     if position.coverage == "PARTIAL" then partial = partial + 1 end
     if position.coverage == "UNKNOWN" then unknown = unknown + 1 end
-    if position.coverage ~= "COMPLETE" or not exact(position.knownCost) or not exact(position.listedValue) then
-      knownCost, listedValue = nil, nil
-    elseif knownCost ~= nil then
-      knownCost, listedValue = safeAdd(knownCost, position.knownCost), safeAdd(listedValue, position.listedValue)
-    end
+    if not exact(position.knownCost) then knownCost = nil
+    elseif knownCost ~= nil then knownCost = safeAdd(knownCost, position.knownCost) end
+    if not exact(position.listedValue) then listedValue = nil
+    elseif listedValue ~= nil then listedValue = safeAdd(listedValue, position.listedValue) end
   end
   local raw = GC.SellPositions.Summary(filtered)
-  return GC.SellViewModel.SummaryText({ knownCost = raw.invested or knownCost, listedValue = listedValue,
+  return GC.SellViewModel.SummaryText({ knownCost = raw.invested or knownCost,
+    listedValue = raw.listedValue or listedValue,
     profit = raw.profit, partialCount = partial, unknownCount = unknown })
 end
 
@@ -824,19 +866,27 @@ renderRows = function()
         row.cells.item:SetText((p.itemName or "Item") .. "\n" .. GC.SellViewModel.SourceText(p))
         row.cells.cost:SetText(formatCell(GC.SellViewModel.CostText(p)))
         row.cells.listed:SetText(formatCell(p.listedValue))
-        row.cells.market:SetText(formatCell(p.displayMarketUnit))
+        local marketText = formatCell(p.displayMarketUnit)
+        if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
+          marketText = marketText .. (" · stale %ds"):format(p.quoteAge)
+        end
+        row.cells.market:SetText(marketText)
+        setColor(row.cells.market, p.displayMarketUnit and not p.freshMarketUnit
+          and Theme.color.fgDim or Theme.color.fg)
         row.cells.profit:SetText(formatCell(GC.SellViewModel.ProfitText(p)))
-        row.cells.status:SetText(p.status == "NO_COST" and "Set cost" or p.status)
+        row.cells.status:SetText(p.status == "NO_COST" and "NO COST"
+          or p.status == "PARTIAL_COST" and "PARTIAL COST" or p.status)
         row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
-        if p.coverage ~= "COMPLETE" then
+        if p.coverage ~= "COMPLETE" and not p.unresolved and type(p.positionKey) == "string" then
           row.action:SetLabel("Set cost"); row.action:Show(); row.action:SetScript("OnClick", function() openCostDialog(p) end)
         else
           row.action:Hide()
         end
       elseif entry.kind == "detail" then
         local d = entry.detail
-        row.cells.item:SetText(("  %s · quote %ss · ahead %s · sold/day %s · ETA %s"):format(d.note,
-          d.quoteAge or "?", d.ahead or "?", d.sold or "?", d.days and ("~" .. math.floor(d.days + 0.5) .. "d") or "?"))
+        row.cells.item:SetText(("  %s · quote %ss · ahead %s · sold/day %s · ETA %s%s"):format(d.note,
+          d.quoteAge or "?", d.ahead or "?", d.sold or "?", d.days and ("~" .. math.floor(d.days + 0.5) .. "d") or "?",
+          d.factsText and (" · " .. d.factsText) or ""))
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
@@ -875,6 +925,7 @@ renderRows = function()
     end
   end
   content:SetHeight(math.max(1, #entries) * ROW_HEIGHT)
+  scheduleQuoteExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
 
@@ -894,6 +945,7 @@ end
 function GC.Sell.Hide() if container then container:Hide() end end
 function GC.Sell.Refresh()
   if refresh.phase ~= "idle" and refresh.phase ~= "done" and refresh.phase ~= "error" then return end
+  quoteExpiryGeneration = quoteExpiryGeneration + 1
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.pending, refresh.awaiting, refresh.queue, refresh.index = "owned", nil, nil, {}, 0
   setStatus("Refreshing listings…")
@@ -913,6 +965,7 @@ function GC.Sell.Reset()
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting = "idle", {}, 0, nil, nil
   GC.QuoteCache.Clear(quotes)
+  quoteExpiryGeneration = quoteExpiryGeneration + 1
   quoteTimeoutToken = quoteTimeoutToken + 1
   disarmPost()
   disarmRepost()

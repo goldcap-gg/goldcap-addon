@@ -152,12 +152,6 @@ local function compatiblePending(pending, entry)
     and (not entry.region or not pending.region or entry.region == pending.region)
 end
 
-local function compatibleByName(candidate, entry, quantity, total)
-  return candidate.itemName == entry.itemName and quantity == entry.qty and total == entry.total
-    and (not entry.char or not candidate.character or entry.char == candidate.character)
-    and (not entry.region or not candidate.region or entry.region == candidate.region)
-end
-
 local function oldestCompatible(candidates, predicate)
   local oldest
   for _, candidate in ipairs(candidates or {}) do
@@ -179,6 +173,7 @@ local function attachMailEvidence(batch, entry)
   batch.mailEvidenceKey = entry.key
   batch.character = batch.character or entry.char
   batch.region = batch.region or entry.region
+  batch.itemName = batch.itemName or entry.itemName
   return batch
 end
 
@@ -319,6 +314,13 @@ function GC.Acquisitions.Record(args)
     batch.character = batch.character or pending.character
     batch.region = batch.region or pending.region
     batch.promotedPendingID = pending.id
+    for key, present in pairs(type(pending.evidenceKeys) == "table" and pending.evidenceKeys or {}) do
+      if present then batch.evidenceKeys[key] = true end
+    end
+    if pending.mailEvidenceKey then
+      batch.evidenceKeys[pending.mailEvidenceKey] = true
+      batch.mailEvidenceKey = pending.mailEvidenceKey
+    end
     table.remove(db.acquisitionPending, pendingIndex)
   end
   if args.evidenceKey then batch.evidenceKeys[args.evidenceKey] = true end
@@ -470,24 +472,33 @@ function GC.Acquisitions.ReconcileSale(entry)
   if GC.Acquisitions.HasEvidence(entry.key) then return unresolved("duplicate_evidence") end
 
   local context = { char = entry.char, region = entry.region }
-  local candidates = {}
+  local activeByScope = {}
   for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
-    if batch.positionKey and batch.itemName == entry.itemName then
+    if batch.positionKey then
       local scopeKey = GC.Acquisitions.ScopeKey(batch.positionKey, context)
-      local activity = scopeKey and db.acquisitionActivity[scopeKey] or nil
-      if activity and activity.positionKey == batch.positionKey and activity.itemName == entry.itemName
-          and activity.character == entry.char and activity.region == entry.region
-          and isExactInteger(activity.firstSeenAt) and activity.firstSeenAt <= entry.at then
-        local candidate = candidates[scopeKey]
-        if not candidate then
-          candidate = { positionKey = batch.positionKey, scopeKey = scopeKey, batches = {}, quantity = 0 }
-          candidates[scopeKey] = candidate
-        end
-        local quantity = safeAdd(candidate.quantity, batch.remainingQty)
-        if not quantity then return unresolved("invalid_quantity") end
-        candidate.quantity = quantity
-        candidate.batches[#candidate.batches + 1] = batch
+      local candidate = activeByScope[scopeKey]
+      if not candidate then
+        candidate = { positionKey = batch.positionKey, scopeKey = scopeKey,
+          itemID = batch.itemID, batches = {}, quantity = 0 }
+        activeByScope[scopeKey] = candidate
+      elseif candidate.itemID ~= batch.itemID then
+        return unresolved("invalid_position")
       end
+      local quantity = safeAdd(candidate.quantity, batch.remainingQty)
+      if not quantity then return unresolved("invalid_quantity") end
+      candidate.quantity = quantity
+      candidate.batches[#candidate.batches + 1] = batch
+    end
+  end
+
+  local candidates = {}
+  for scopeKey, activity in pairs(db.acquisitionActivity) do
+    local candidate = activeByScope[scopeKey]
+    if candidate and activity.positionKey == candidate.positionKey and activity.itemID == candidate.itemID
+        and activity.itemName == entry.itemName
+        and activity.character == entry.char and activity.region == entry.region
+        and isExactInteger(activity.firstSeenAt) and activity.firstSeenAt <= entry.at then
+      candidates[scopeKey] = candidate
     end
   end
 
@@ -570,43 +581,79 @@ end
 -- batch may only receive its first mail key.
 function GC.Acquisitions.ReconcileBuy(entry)
   if not db or not validBuyEntry(entry) or entry.source ~= "mail" then return nil, false end
+  if not isNonEmptyString(entry.char) or not isNonEmptyString(entry.region) then return nil, false end
   local existing = activeWithEvidence(entry.key)
-  if existing then return existing, false end
-  local resolved = pendingWithEvidence(entry.key)
-  if resolved then return resolved, false end
+  if existing then
+    existing.itemName = existing.itemName or entry.itemName
+    return existing, false
+  end
+  local resolved, resolvedIndex = pendingWithEvidence(entry.key)
 
   local hasItemID = isPositiveInteger(entry.itemID)
+  -- A buyer invoice without its attachment item ID cannot authoritatively
+  -- select an acquisition position. Keep the immutable ledger row visible for
+  -- repair; exact name-only matches are still guesses and must not mutate cost.
+  if not hasItemID then return nil, false end
   local function activeMatch(batch)
     if batch.mailEvidenceKey or not isPositiveInteger(batch.remainingQty)
         or not isExactInteger(batch.remainingTotal) then return false end
-    if hasItemID then return compatible(batch, entry) end
-    return compatibleByName(batch, entry, batch.originalQty, batch.originalTotal)
+    return compatible(batch, entry)
   end
   local function pendingMatch(pending)
-    if pending.mailEvidenceKey then return false end
-    if hasItemID then return compatiblePending(pending, entry) end
-    return compatibleByName(pending, entry, pending.quantity, entry.total)
+    if pending.mailEvidenceKey and pending.mailEvidenceKey ~= entry.key then return false end
+    return compatiblePending(pending, entry)
   end
 
-  if not hasItemID then
-    if type(entry.itemName) ~= "string" or entry.itemName == "" then return nil, false end
-    local candidates = {}
-    for _, batch in ipairs(db.acquisitions) do
-      if activeMatch(batch) then candidates[#candidates + 1] = batch end
+
+  local function promote(pending, pendingIndex)
+    if not pending or not pendingIndex or not pendingMatch(pending) then return nil, false end
+    for key, present in pairs(type(pending.evidenceKeys) == "table" and pending.evidenceKeys or {}) do
+      if present and activeWithEvidence(key) then return nil, false end
     end
-    for _, pending in ipairs(db.acquisitionPending) do
-      if pendingMatch(pending) then candidates[#candidates + 1] = pending end
+    if pending.mailEvidenceKey and pending.mailEvidenceKey ~= entry.key
+        and activeWithEvidence(pending.mailEvidenceKey) then return nil, false end
+
+    local wasLinked = (pending.evidenceKeys and pending.evidenceKeys[entry.key])
+      or pending.mailEvidenceKey == entry.key
+    local batch, isNew = GC.Acquisitions.Record({
+      source = "auction_house", itemID = entry.itemID, positionKey = pending.positionKey,
+      itemName = entry.itemName or pending.itemName, quantity = entry.qty, total = entry.total,
+      acquiredAt = pending.completedAt, evidenceKey = entry.key,
+      character = pending.character or entry.char, region = pending.region or entry.region,
+    })
+    if not batch or not isNew then return nil, false end
+    if not wasLinked then
+      -- Record could not discover this pending through the new mail key. Only
+      -- now that the exact batch exists do we merge its attempt evidence and
+      -- retire the pending row, preserving atomic failure semantics.
+      for key, present in pairs(type(pending.evidenceKeys) == "table" and pending.evidenceKeys or {}) do
+        if present then batch.evidenceKeys[key] = true end
+      end
+      if pending.mailEvidenceKey then batch.evidenceKeys[pending.mailEvidenceKey] = true end
+      batch.positionKey = batch.positionKey or pending.positionKey
+      batch.itemName = batch.itemName or pending.itemName
+      batch.character = batch.character or pending.character
+      batch.region = batch.region or pending.region
+      batch.promotedPendingID = pending.id
+      table.remove(db.acquisitionPending, pendingIndex)
     end
-    if #candidates ~= 1 then return nil, false end
-    if candidates[1].originalTotal then return attachMailEvidence(candidates[1], entry), true end
-    return GC.Acquisitions.ResolvePending(candidates[1].id, entry.key)
+    batch.evidenceKeys[entry.key] = true
+    batch.mailEvidenceKey = entry.key
+    batch.itemName = batch.itemName or entry.itemName
+    return batch, true
   end
+
+  if resolved then return promote(resolved, resolvedIndex) end
 
   local batch = oldestCompatible(db.acquisitions, activeMatch)
   if batch then return attachMailEvidence(batch, entry), true end
 
   local pending = oldestCompatible(db.acquisitionPending, pendingMatch)
-  if pending then return GC.Acquisitions.ResolvePending(pending.id, entry.key) end
+  if pending then
+    for index, candidate in ipairs(db.acquisitionPending) do
+      if candidate == pending then return promote(pending, index) end
+    end
+  end
 
   batch = GC.Acquisitions.Record({
     source = "auction_house", itemID = entry.itemID, itemName = entry.itemName,
@@ -633,8 +680,28 @@ function GC.Acquisitions.GetActive(context)
   return sortedBatches(active)
 end
 
-function GC.Acquisitions.GetPending()
-  return (db and db.acquisitionPending) or {}
+function GC.Acquisitions.GetPending(context)
+  if not db then return {} end
+  if not context then return db.acquisitionPending end
+  if not validContext(context) then return {} end
+  local pending = {}
+  for _, row in ipairs(db.acquisitionPending) do
+    if row.character == context.char and row.region == context.region then pending[#pending + 1] = row end
+  end
+  return pending
+end
+
+function GC.Acquisitions.GetActivities(context)
+  if not db then return {} end
+  local activities = {}
+  for _, activity in pairs(db.acquisitionActivity) do
+    if not context or (validContext(context)
+        and activity.character == context.char and activity.region == context.region) then
+      activities[#activities + 1] = activity
+    end
+  end
+  table.sort(activities, function(left, right) return (left.scopeKey or "") < (right.scopeKey or "") end)
+  return activities
 end
 
 function GC.Acquisitions.GetRealized(context)

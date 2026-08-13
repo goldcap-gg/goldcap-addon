@@ -17,6 +17,8 @@ GC.DEFAULTS = {
   acquisitionSeq = 0,
   acquisitionPendingSeq = 0,
   acquisitionVersion = 0,
+  mailOccurrences = {},
+  mailOccurrenceSeq = 0,
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.

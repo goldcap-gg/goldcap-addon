@@ -3,6 +3,7 @@ local _, GC = ...
 GC.Ledger = {}
 
 local db
+local MAX_EXACT = 9007199254740991
 
 -- Roughly a year of active goldmaking at a few dozen mails a day, and far below
 -- the size at which SavedVariables writes start costing a noticeable logout
@@ -33,6 +34,18 @@ function GC.Ledger.Init(database)
   db = database
   db.ledger = db.ledger or {}
   db.gold = db.gold or {}
+  db.mailOccurrences = type(db.mailOccurrences) == "table" and db.mailOccurrences or {}
+  db.mailOccurrenceSeq = type(db.mailOccurrenceSeq) == "number"
+    and db.mailOccurrenceSeq == math.floor(db.mailOccurrenceSeq)
+    and db.mailOccurrenceSeq >= 0 and db.mailOccurrenceSeq <= MAX_EXACT
+    and db.mailOccurrenceSeq or 0
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if type(occurrence.sequence) == "number" and occurrence.sequence == math.floor(occurrence.sequence)
+        and occurrence.sequence >= 0 and occurrence.sequence <= MAX_EXACT
+        and occurrence.sequence > db.mailOccurrenceSeq then
+      db.mailOccurrenceSeq = occurrence.sequence
+    end
+  end
 end
 
 -- Task 9 Step 4b: counts ledger entries genuinely NEW this session (both RecordSniperBuy and
@@ -56,6 +69,14 @@ local function indexOf(key)
     if entries[i].key == key then return i end
   end
   return nil
+end
+
+local function compatibleKeyOwner(stored, entry)
+  if type(stored) ~= "table" or type(entry) ~= "table" then return false end
+  if stored.kind ~= nil and entry.kind ~= nil and stored.kind ~= entry.kind then return false end
+  if stored.char ~= nil and entry.char ~= nil and stored.char ~= entry.char then return false end
+  if stored.region ~= nil and entry.region ~= nil and stored.region ~= entry.region then return false end
+  return true
 end
 
 -- Evicts one row to make space: the oldest ALREADY-UPLOADED row first, because
@@ -87,12 +108,15 @@ end
 -- MAIL_INBOX_UPDATE until the player collects it, and a Sale Pending row
 -- legitimately changes once, when the money lands.
 function GC.Ledger.Append(entry)
-  if not db then return entry, false end
+  if not db or type(entry) ~= "table" or type(entry.key) ~= "string" or entry.key == "" then
+    return entry, false, "invalid_entry"
+  end
   local entries = db.ledger
 
   local existing = indexOf(entry.key)
   if existing then
     local stored = entries[existing]
+    if not compatibleKeyOwner(stored, entry) then return stored, false, "incompatible_key" end
     for k, v in pairs(entry) do stored[k] = v end
     -- The row's contents changed, so any prior upload is now out of date.
     stored.uploaded = nil
@@ -146,26 +170,84 @@ end
 local BUCKET_SECONDS = 300
 
 local function expiryBucket(now, daysLeft)
-  return math.floor((now + (daysLeft or 0) * 86400) / BUCKET_SECONDS)
+  if type(now) ~= "number" or now ~= now or now == math.huge or now == -math.huge
+      or now < 0 or now > MAX_EXACT
+      or type(daysLeft) ~= "number" or daysLeft ~= daysLeft
+      or daysLeft == math.huge or daysLeft == -math.huge or daysLeft < 0 then return nil end
+  local expiresAt = now + daysLeft * 86400
+  if expiresAt ~= expiresAt or expiresAt == math.huge or expiresAt > MAX_EXACT then return nil end
+  return math.floor(expiresAt / BUCKET_SECONDS)
 end
 
--- Bucketing has one seam: a mail whose expiry sits near a boundary can land in
--- adjacent buckets on consecutive scans. Rather than widen the bucket (which
--- would start merging genuinely different sales), try the neighbours too and
--- reuse an existing row's key when one matches.
-local function keyForMail(fields, bucket)
-  local candidates = {}
-  for _, b in ipairs({ bucket, bucket - 1, bucket + 1 }) do
-    fields.expiresAt = b
-    candidates[#candidates + 1] = GC.Ledger.EntryKey(fields)
-  end
-  local entries = GC.Ledger.GetEntries()
-  for i = 1, #entries do
-    for _, candidate in ipairs(candidates) do
-      if entries[i].key == candidate then return candidate end
+local function valueFingerprint(fields)
+  local copy = {}
+  for key, value in pairs(fields) do copy[key] = value end
+  copy.expiresAt = 0
+  return GC.Ledger.EntryKey(copy)
+end
+
+local function scopedMailIdentity(fields, context, invoiceClass)
+  return table.concat({ tostring(context and context.region or ""),
+    tostring(context and context.char or ""), invoiceClass, valueFingerprint(fields) }, "\1")
+end
+
+local function occurrenceMatches(occurrence, identity, bucket)
+  return type(occurrence) == "table" and occurrence.identity == identity
+    and type(occurrence.expiryBucket) == "number"
+    and math.abs(occurrence.expiryBucket - bucket) <= 1
+    and type(occurrence.key) == "string" and occurrence.key ~= ""
+end
+
+-- Identical invoices are indistinguishable to the live API. Persist a stable
+-- occurrence slot for each one, then pair the N live occurrences one-to-one
+-- with those slots on every scan. The scope and invoice class are part of the
+-- identity, so equal buyer/seller values or another character can never alias.
+local function keyForMail(fields, bucket, context, invoiceClass, used)
+  if not bucket then return nil end
+  local identity = scopedMailIdentity(fields, context, invoiceClass)
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if not used[occurrence.key] and occurrenceMatches(occurrence, identity, bucket) then
+      local storedIndex = indexOf(occurrence.key)
+      local stored = storedIndex and db.ledger[storedIndex] or nil
+      local probe = { kind = invoiceClass, char = context and context.char, region = context and context.region }
+      if not stored or compatibleKeyOwner(stored, probe) then
+        used[occurrence.key] = true
+        return occurrence.key
+      end
     end
   end
-  return candidates[1]
+
+  -- Upgrade compatibility: the first occurrence may already exist under the
+  -- legacy value-only key. Adopt it once when its persisted scope/class is
+  -- compatible, then give any identical neighbour a new durable slot.
+  local legacyCandidates = {}
+  for _, adjacent in ipairs({ bucket, bucket - 1, bucket + 1 }) do
+    fields.expiresAt = adjacent
+    legacyCandidates[GC.Ledger.EntryKey(fields)] = true
+  end
+  local key
+  for _, stored in ipairs(db.ledger) do
+    if legacyCandidates[stored.key] and not used[stored.key]
+        and compatibleKeyOwner(stored, { kind = invoiceClass,
+          char = context and context.char, region = context and context.region }) then
+      key = stored.key
+      break
+    end
+  end
+
+  if type(db.mailOccurrenceSeq) ~= "number" or db.mailOccurrenceSeq ~= math.floor(db.mailOccurrenceSeq)
+      or db.mailOccurrenceSeq < 0 or db.mailOccurrenceSeq >= MAX_EXACT then return nil end
+  db.mailOccurrenceSeq = db.mailOccurrenceSeq + 1
+  local sequence = db.mailOccurrenceSeq
+  if not key then
+    key = table.concat({ "mail", identity, tostring(bucket), tostring(sequence) }, "\1")
+  end
+  db.mailOccurrences[#db.mailOccurrences + 1] = { key = key, identity = identity,
+    expiryBucket = bucket, invoiceClass = invoiceClass,
+    char = context and context.char or nil, region = context and context.region or nil,
+    sequence = sequence }
+  used[key] = true
+  return key
 end
 
 --- Walks the inbox and records every auction invoice it can read.
@@ -175,9 +257,12 @@ end
 -- `api` is injected so this is testable without a running game client.
 -- Returns the number of entries newly created; updates are not counted.
 function GC.Ledger.ScanInbox(api, context, now)
-  if not db then return 0 end
+  if not db or type(context) ~= "table"
+      or type(context.char) ~= "string" or context.char == ""
+      or type(context.region) ~= "string" or context.region == "" then return 0 end
   now = now or time()
   local created = 0
+  local usedOccurrences = {}
 
   local ok, count = pcall(api.GetInboxNumItems)
   if not ok or type(count) ~= "number" then return 0 end
@@ -204,7 +289,10 @@ function GC.Ledger.ScanInbox(api, context, now)
         deposit = deposit or 0,
         consignment = consignment or 0,
       }
-      local key = keyForMail(fields, expiryBucket(now, daysLeft))
+      local invoiceClass = isSale and "sale" or "buy"
+      local key = keyForMail(fields, expiryBucket(now, daysLeft), context, invoiceClass,
+        usedOccurrences)
+      if not key then return nil end
 
       -- A buy mail has the item attached, so its id is readable. A sale mail
       -- has money attached and nothing else -- itemName is all there is.
@@ -242,7 +330,9 @@ function GC.Ledger.ScanInbox(api, context, now)
     end)
 
     if readOk and entry then
-      local stored, isNew = GC.Ledger.Append(entry)
+      local stored, isNew, appendError = GC.Ledger.Append(entry)
+      if appendError then stored = nil end
+      if stored then
       if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then
         GC.Acquisitions.ReconcileBuy(stored)
       end
@@ -265,6 +355,7 @@ function GC.Ledger.ScanInbox(api, context, now)
           GC.Data.RecordSaleEvent(entry.itemName)
         end
       end
+      end
     end
   end
 
@@ -272,7 +363,6 @@ function GC.Ledger.ScanInbox(api, context, now)
 end
 
 local sniperSeq = 0
-local MAX_EXACT = 9007199254740991
 
 local function isExactInteger(value)
   return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge

@@ -85,6 +85,78 @@ describe("Sell positions", function()
     assert.is_nil(p.profit)
   end)
 
+  it("[FINAL I2] applies the auction cut once to aggregate multi-lot gross", function()
+    local tiny = build({ acquisitions = { batch("acq:1", "goldcap", 2, 1, 1) },
+      ownedLots = { lot("commodity:42", 1, 1, 1), lot("commodity:42", 1, 1, 2) } })[1]
+    assert.equal(1, tiny.projectedNet)
+
+    local normal = build({ acquisitions = { batch("acq:2", "goldcap", 5, 100, 1) },
+      ownedLots = { lot("commodity:42", 2, 101, 1), lot("commodity:42", 3, 202, 2) } })[1]
+    assert.equal(math.floor((2 * 101 + 3 * 202) * 95 / 100), normal.projectedNet)
+
+    local max = 9007199254740991
+    local overflow = build({ acquisitions = { batch("acq:max", "goldcap", 2, 2, 1) },
+      ownedLots = { lot("commodity:42", 1, max, 1), lot("commodity:42", 1, 1, 2) } })[1]
+    assert.is_nil(overflow.projectedNet)
+    assert.is_nil(overflow.profit)
+  end)
+
+  it("[FINAL I1] keeps pending and unresolved evidence visible without inventing a position", function()
+    local active = batch("acq:1", "goldcap", 1, 100, 1)
+    active.itemName = "Sold Ore"
+    local soldPending = build({ acquisitions = { active }, activities = {
+      { scopeKey = "eu\1A-R\1commodity:42", positionKey = "commodity:42", itemID = 42,
+        itemName = "Sold Ore", character = "A-R", region = "eu", firstSeenAt = 1 },
+    }, sellerEvidence = {
+      { key = "sale:pending", kind = "sale", source = "mail", itemName = "Sold Ore",
+        qty = 1, total = 150, at = 5, char = "A-R", region = "eu", pending = true },
+    } })
+    assert.equal(1, #soldPending)
+    assert.equal("SOLD_PENDING", soldPending[1].status)
+    assert.is_true(soldPending[1].facts.soldPending)
+    assert.equal(1, soldPending[1].trackedQty)
+
+    local unassigned = batch("acq:item-only", "auction_house", 1, 75, 1, nil, nil, 77)
+    unassigned.positionKey = nil
+    local unresolved = build({ acquisitions = { unassigned }, pendingAcquisitions = {
+      { id = "pending:1", itemID = 88, quantity = 2, completedAt = 2,
+        character = "A-R", region = "eu", reason = "missing identity" },
+    }, activities = {
+      { scopeKey = "eu\1A-R\1item:1:0:0:0", positionKey = "item:1:0:0:0", itemID = 1,
+        itemName = "Shared", character = "A-R", region = "eu", firstSeenAt = 1 },
+      { scopeKey = "eu\1A-R\1item:2:0:0:0", positionKey = "item:2:0:0:0", itemID = 2,
+        itemName = "Shared", character = "A-R", region = "eu", firstSeenAt = 1 },
+    }, sellerEvidence = {
+      { key = "sale:paid-unresolved", kind = "sale", source = "mail", itemName = "No Activity",
+        qty = 1, total = 100, at = 5, char = "A-R", region = "eu", pending = false },
+      { key = "sale:ambiguous", kind = "sale", source = "mail", itemName = "Shared",
+        qty = 1, total = 100, at = 5, char = "A-R", region = "eu", pending = false },
+    } })
+    local kinds = {}
+    for _, position in ipairs(unresolved) do
+      assert.is_nil(position.positionKey)
+      assert.is_true(position.unresolved)
+      assert.is_false(position.protectedAction)
+      kinds[position.unresolvedKind] = (kinds[position.unresolvedKind] or 0) + 1
+      assert.is_nil(GC.SellPositions.BuildPostPlan(position, { itemID = position.itemID, exactQty = 1 }, 100))
+      assert.is_nil(GC.SellPositions.BuildRepostPlan(position, 1, 100))
+    end
+    assert.equal(1, kinds.pending_purchase)
+    assert.equal(1, kinds.unassigned_acquisition)
+    assert.equal(1, kinds.paid_sale)
+    assert.equal(1, kinds.ambiguous_sale)
+
+    local resolvable = batch("acq:item-only", "auction_house", 1, 75, 1, nil, nil, 77)
+    resolvable.positionKey = nil
+    local resolved = build({ acquisitions = { resolvable }, ownedLots = {
+      { itemID = 77, positionKey = "item:77:10:0:0", quantity = 1,
+        unitPrice = 100, auctionID = 9, firstSeenAt = 1 },
+    } })
+    assert.equal(1, #resolved)
+    assert.equal("item:77:10:0:0", resolved[1].positionKey)
+    assert.equal(75, resolved[1].knownCost)
+  end)
+
   it("keeps same-item variants and per-lot listing prices separate", function()
     local variants = build({ acquisitions = {
       batch("acq:1", "goldcap", 1, 100, 1, nil, nil, 42, "item:42:10:0:0"),
@@ -233,12 +305,14 @@ describe("Sell positions", function()
     assert.equal(90, summary.profit)
   end)
 
-  it("returns an unknown summary when an included position lacks complete cost", function()
+  it("[FINAL I3] retains independently known partial cost and listed value in mixed summaries", function()
     local complete = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
       ownedLots = { lot("commodity:42", 1, 200, 1) } })[1]
-    local incomplete = { coverage = "PARTIAL", knownCost = 10, profit = nil, projectedNet = nil }
+    local incomplete = { coverage = "PARTIAL", knownQty = 1, exposureQty = 2,
+      knownCost = 10, listedValue = 50, profit = nil, projectedNet = nil }
     local summary = GC.SellPositions.Summary({ complete, incomplete })
-    assert.is_nil(summary.invested)
+    assert.equal(110, summary.invested)
+    assert.equal(250, summary.listedValue)
     assert.is_nil(summary.projected)
     assert.is_nil(summary.profit)
   end)
@@ -262,10 +336,10 @@ describe("Sell positions", function()
 
   it("sums multiple complete positions including losses into a signed exact profit", function()
     local summary = GC.SellPositions.Summary({
-      { coverage = "COMPLETE", knownCost = 200, projectedNet = 95, profit = -105 },
-      { coverage = "COMPLETE", knownCost = 30, projectedNet = 95, profit = 65 },
+      { coverage = "COMPLETE", knownCost = 200, listedValue = 0, projectedNet = 95, profit = -105 },
+      { coverage = "COMPLETE", knownCost = 30, listedValue = 0, projectedNet = 95, profit = 65 },
     })
-    assert.same({ invested = 230, projected = 190, profit = -40 }, summary)
+    assert.same({ invested = 230, listedValue = 0, projected = 190, profit = -40 }, summary)
   end)
 
   it("fails closed when batch tracked and source quantities overflow exact accounting", function()
@@ -295,10 +369,10 @@ describe("Sell positions", function()
   it("returns an unknown summary when complete cost aggregation would overflow", function()
     local max = 9007199254740991
     local summary = GC.SellPositions.Summary({
-      { coverage = "COMPLETE", knownCost = max, projectedNet = max },
-      { coverage = "COMPLETE", knownCost = 1, projectedNet = 1 },
+      { coverage = "COMPLETE", knownCost = max, listedValue = max, projectedNet = max },
+      { coverage = "COMPLETE", knownCost = 1, listedValue = 1, projectedNet = 1 },
     })
-    assert.same({ invested = nil, projected = nil, profit = nil }, summary)
+    assert.same({ invested = nil, listedValue = nil, projected = nil, profit = nil }, summary)
   end)
 
   it("normalizes missing lot timestamps for stable FIFO sorting without mutating input", function()

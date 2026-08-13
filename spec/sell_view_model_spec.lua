@@ -29,6 +29,13 @@ describe("Sell view model", function()
     assert.same({ partial, unknown }, GC.SellViewModel.Filter({ partial, unknown, complete }, "missing_cost"))
   end)
 
+  it("[FINAL I3] shows exact partial known cost with coverage while Set cost stays separate", function()
+    local partial = { coverage = "PARTIAL", knownCost = 101, knownQty = 2, exposureQty = 5 }
+    assert.equal("101 · 2/5 covered", GC.SellViewModel.CostText(partial))
+    local expansion = GC.SellViewModel.Expansion(partial)
+    assert.equal("2/5 covered", expansion.coverageText)
+  end)
+
   it("exposes every batch, owned lot, and position detail without changing FIFO data", function()
     local position = {
       positionKey = "commodity:42", coverage = "PARTIAL", quoteAge = 3, ahead = 4,
