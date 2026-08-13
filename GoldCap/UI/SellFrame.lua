@@ -470,6 +470,7 @@ local function openCostDialog(position)
   local missing = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
   if missing < 1 then return end
   dialog.position, dialog.maximum = position, missing
+  dialog.submitted = false
   dialog.quantity:SetText("1")
   dialog.unit:SetText("")
   dialog.total:SetText("")
@@ -478,15 +479,16 @@ local function openCostDialog(position)
 end
 
 local function confirmCostDialog(dialog)
+  if dialog.submitted then return end
   local quantity, total = dialogNumber(dialog.quantity), dialogNumber(dialog.total)
   if not quantity or quantity < 1 then return setDialogError(dialog, "Enter a whole quantity") end
   if quantity > dialog.maximum then return setDialogError(dialog, "Quantity exceeds missing units") end
-  if not total or total < 1 then return setDialogError(dialog, "Enter an exact positive cost") end
+  if not exact(total) or total < 1 then return setDialogError(dialog, "Enter an exact positive cost") end
   local position, scope = dialog.position, context()
   local batch = GC.Acquisitions.RecordManual({ itemID = position.itemID, positionKey = position.positionKey,
     itemName = position.itemName, quantity = quantity, total = total, acquiredAt = time(),
     character = scope and scope.char, region = scope and scope.region })
-  if batch then dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, "Enter an exact positive cost") end
+  if batch then dialog.submitted = true; dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, "Enter an exact positive cost") end
 end
 
 local function shownColumns()
@@ -715,7 +717,15 @@ function GC.Sell.Attach(f, geometry)
   local confirm = Theme.Button(dialog, "primary"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
   dialog.unit:SetScript("OnTextChanged", function()
     local q, unit = dialogNumber(dialog.quantity), dialogNumber(dialog.unit)
-    if not dialog.editingTotal and q and unit and q > 0 and unit > 0 then dialog.total:SetText(tostring(q * unit)) end
+    if not dialog.editingTotal and q and unit and q > 0 and unit > 0 then
+      local total = safeMultiply(q, unit)
+      if not total then
+        dialog.total:SetText("")
+        return setDialogError(dialog, "Enter an exact positive cost")
+      end
+      setDialogError(dialog)
+      dialog.total:SetText(tostring(total))
+    end
   end)
   dialog.quantity:SetScript("OnTextChanged", function()
     local quantity = dialogNumber(dialog.quantity)
