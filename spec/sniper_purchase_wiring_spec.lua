@@ -806,8 +806,9 @@ describe("Sniper purchase wiring", function()
     _G.GetMoney = function() return 1000000 end
     _G.time = function() return 100 end
     _G.GetTime = function() return 100 end
-    local scanner = { starts = 0, stops = 0 }
+    local scanner = { starts = 0, resumes = 0, stops = 0, scanned = 0 }
     function scanner:Start() self.starts = self.starts + 1 end
+    function scanner:Resume() self.resumes = self.resumes + 1 end
     function scanner:Stop() self.stops = self.stops + 1 end
     local GC = {
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
@@ -847,8 +848,7 @@ describe("Sniper purchase wiring", function()
     local startRequery = getUpvalue(openDialog, "startRequery")
     local createDialog = getUpvalue(openDialog, "createDialog")
     local abortRowPurchase = getUpvalue(createDialog, "abortRowPurchase")
-    local createFrame = getUpvalue(GC.Sniper.Toggle, "createFrame")
-    local startScanning = getUpvalue(createFrame, "startScanning")
+    local startScanning = getUpvalue(GC.Sniper._StartLiveMode, "startScanning")
     local driver = {
       isReady = function() return ready end,
       getKeyInfo = function() return { isCommodity = true } end,
@@ -872,16 +872,17 @@ describe("Sniper purchase wiring", function()
     GC.Sniper.OnThrottleReady()
     GC.Sniper.OnCommoditySearchResults(42)
     assert.equal(1, sends)
-    assert.equal(2, scanner.starts)
+    assert.equal(1, scanner.starts)
+    assert.equal(1, scanner.resumes)
 
     ready = false
     startRequery(row, deal)
     abortRowPurchase(row, nil)
-    assert.equal(3, scanner.starts)
+    assert.equal(2, scanner.resumes)
 
     startRequery(row, deal)
     timers[#timers]()
-    assert.equal(4, scanner.starts)
+    assert.equal(3, scanner.resumes)
     _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
     _G.time = os.time
   end)
@@ -893,8 +894,9 @@ describe("Sniper purchase wiring", function()
     _G.GetMoney = function() return 1000000 end
     _G.time = function() return 100 end
     _G.GetTime = function() return 100 end
-    local scanner = { starts = 0, stops = 0, scanned = 0 }
+    local scanner = { starts = 0, resumes = 0, stops = 0, scanned = 0 }
     function scanner:Start() self.starts = self.starts + 1 end
+    function scanner:Resume() self.resumes = self.resumes + 1 end
     function scanner:Stop() self.stops = self.stops + 1 end
     local GC = {
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
@@ -936,7 +938,7 @@ describe("Sniper purchase wiring", function()
     local openDialog = getUpvalue(onBuyClick, "openDialog")
     local startRequery = getUpvalue(openDialog, "startRequery")
     local createFrame = getUpvalue(GC.Sniper.Toggle, "createFrame")
-    local startScanning = getUpvalue(createFrame, "startScanning")
+    local startScanning = getUpvalue(GC.Sniper._StartLiveMode, "startScanning")
     local stopScanning = getUpvalue(createFrame, "stopScanning")
     local driver = {
       isReady = function() return ready end,
@@ -959,6 +961,7 @@ describe("Sniper purchase wiring", function()
     GC.Sniper.OnThrottleReady()
     GC.Sniper.OnCommoditySearchResults(42)
     assert.equal(1, scanner.starts)
+    assert.equal(0, scanner.resumes)
 
     -- A Live session that an AH close terminates may not be revived by its delayed Check.
     ready = false
@@ -971,6 +974,7 @@ describe("Sniper purchase wiring", function()
     GC.Sniper.OnThrottleReady()
     GC.Sniper.OnCommoditySearchResults(43)
     assert.equal(2, scanner.starts)
+    assert.equal(0, scanner.resumes)
     _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
     _G.time = os.time
   end)
@@ -1038,6 +1042,10 @@ describe("Sniper purchase wiring", function()
       sendSearch = function() liveSends = liveSends + 1 end,
       onStatus = function() end,
     }, {})
+    GC.Sniper.scanner:Start({ 7 })
+    GC.Sniper.scanner:Stop()
+    GC.Sniper._liveTargets = { 7 }
+    liveSends = 0
 
     local oldDeal = { itemID = 42, isCommodity = true }
     local oldRow = { deal = oldDeal, purchaseStage = "requerying", purchaseToken = 1 }
@@ -1119,6 +1127,10 @@ describe("Sniper purchase wiring", function()
       sendSearch = function() liveSends = liveSends + 1 end,
       onStatus = function() end,
     }, {})
+    GC.Sniper.scanner:Start({ 7 })
+    GC.Sniper.scanner:Stop()
+    GC.Sniper._liveTargets = { 7 }
+    liveSends = 0
 
     local aDeal = { itemID = 42, isCommodity = true }
     local aRow = { deal = aDeal, purchaseStage = "requerying", purchaseToken = 1 }
@@ -1215,6 +1227,10 @@ describe("Sniper purchase wiring", function()
       sendSearch = function() liveSends = liveSends + 1 end,
       onStatus = function() end,
     }, {})
+    GC.Sniper.scanner:Start({ 7 })
+    GC.Sniper.scanner:Stop()
+    GC.Sniper._liveTargets = { 7 }
+    liveSends = 0
 
     local aDeal = { itemID = 42, isCommodity = true }
     local aRow = { deal = aDeal, purchaseStage = "requerying", purchaseToken = 1 }

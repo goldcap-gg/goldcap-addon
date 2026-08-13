@@ -1,6 +1,8 @@
 local _, GC = ...
 
 GC.Sniper = GC.Sniper or {}
+GC.Sniper._liveTargets = {}
+GC.Sniper._liveTracksScanDeals = false
 
 local Theme = GC.Theme
 
@@ -728,6 +730,14 @@ end
 -- rest of the purchase-flow helpers.
 local resolvePurchase
 
+function GC.Sniper._CurrentLiveDeal(itemID)
+  if not GC.Sniper._liveTracksScanDeals then return deals[itemID] end
+  for _, deal in ipairs(scanDeals) do
+    if deal.itemID == itemID then return deal end
+  end
+  return nil
+end
+
 -- Live driver bound to C_AuctionHouse; every WoW-API access below is wrapped in a
 -- function so the table itself can be built at file-load with no side effects
 -- (required for the headless busted load-order spec).
@@ -841,7 +851,7 @@ local driver = {
     -- UNVERIFIED to actually fire, so if a rescan reports a *different* top auction for
     -- an itemID we're mid-purchase on, the auction we bid on is gone from the book —
     -- treat that as a completed snipe.
-    local prior = deals[deal.itemID]
+    local prior = GC.Sniper._CurrentLiveDeal(deal.itemID)
     if prior and not deal.isCommodity and prior.auctionID and prior.auctionID ~= deal.auctionID then
       local staleRow = pendingAuction[prior.auctionID]
       if staleRow then
@@ -849,11 +859,20 @@ local driver = {
       end
     end
 
-    deals[deal.itemID] = deal
+    if not GC.Sniper._liveTracksScanDeals then deals[deal.itemID] = deal end
     refreshRows()
     if deal.tier == "HOT" and GC.db.settings.sniper.sound then
       PlaySound(SOUNDKIT.RAID_WARNING, "Master")
     end
+  end,
+
+  onObservation = function(itemID, deal)
+    if GC.Sniper._liveTracksScanDeals then
+      scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, ROW_CAP)
+    else
+      deals[itemID] = deal
+    end
+    refreshRows()
   end,
 
   now = time,
@@ -877,10 +896,33 @@ end
 
 local function startScanning()
   if not GC.Sniper.scanner then return end
-  mode = "watchlist"
-  clearDeals()
+
+  GC.Sniper._liveTargets = {}
+  GC.Sniper._liveTracksScanDeals = #scanDeals > 0
+  if GC.Sniper._liveTracksScanDeals then
+    local seen = {}
+    for _, deal in ipairs(scanDeals) do
+      local itemID = deal.itemID
+      if itemID and not seen[itemID] and #GC.Sniper._liveTargets < ROW_CAP then
+        seen[itemID] = true
+        GC.Sniper._liveTargets[#GC.Sniper._liveTargets + 1] = itemID
+      end
+    end
+  else
+    GC.Sniper._liveTargets = GC.Data.GetWatchlist(100)
+  end
+
+  mode = GC.Sniper._liveTracksScanDeals and "fullscan" or "watchlist"
   GC.Sniper.scanner:Stop() -- re-Start while a search is in flight drops it silently: always Stop first
-  GC.Sniper.scanner:Start(GC.Data.GetWatchlist(100))
+  GC.Sniper.scanner:Start(GC.Sniper._liveTargets)
+  scanning = #GC.Sniper._liveTargets > 0
+  if frame then frame.toggleBtn:SetLabel(scanning and "Stop" or "Live") end
+  refreshRows()
+end
+
+function GC.Sniper._ResumeLiveScanner()
+  if not GC.Sniper.scanner or #GC.Sniper._liveTargets == 0 then return end
+  GC.Sniper.scanner:Resume()
   scanning = true
   if frame then frame.toggleBtn:SetLabel("Stop") end
 end
@@ -898,7 +940,7 @@ end
 function GC.Sniper._ResumePausedLiveRequery(attempt)
   if GC.Sniper._pausedLiveRequery ~= attempt then return end
   GC.Sniper._pausedLiveRequery = nil
-  if ahOpen and not scanning then startScanning() end
+  if ahOpen and not scanning then GC.Sniper._ResumeLiveScanner() end
 end
 
 function GC.Sniper._FinishDrainWait(itemID, draining)
@@ -1157,6 +1199,7 @@ end
 -- C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely the case for a
 -- beat right after opening the Auction House.
 local function startFullScan()
+  if scanning then stopScanning() end
   fullScanToken = fullScanToken + 1
   local token = fullScanToken
   scanRunning = true
@@ -1197,6 +1240,16 @@ autoScan = GC.AutoScan.New({}, {
 feedAuto = function(event)
   autoScan:Input(event, GetTime())
   if refreshAutoButton then refreshAutoButton() end
+end
+
+function GC.Sniper._StartLiveMode()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if autoScan:State() ~= "OFF" then
+    if cfg then cfg.auto = false end
+    feedAuto("toggleOff")
+  end
+  abortFullScan()
+  startScanning()
 end
 
 local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail" }
@@ -3726,6 +3779,7 @@ local function createFrame()
   local function onAutoToggleClick()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
     if autoScan:State() == "OFF" then
+      if scanning then stopScanning() end
       if cfg then cfg.auto = true end
       feedAuto("toggleOn")
       -- (fix round 1, I4) toggleOn always arms with a clean reason set (AutoScan.lua wipes
@@ -3772,11 +3826,12 @@ local function createFrame()
     if scanning then
       stopScanning()
     else
-      startScanning()
+      GC.Sniper._StartLiveMode()
     end
   end)
   setPlainTooltip(toggleBtn,
-    "Live scan: continuously re-checks your watchlist for fresh deals. Independent of Full Scan.")
+    "Live: continuously re-checks the deals found by Auto/Scan without clearing the list. " ..
+    "If no scan results exist, it monitors your imported watchlist.")
   f.toggleBtn = toggleBtn
 
   local status = Theme.Label(f, 11)
@@ -4059,6 +4114,8 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- overlap on a given close is unverified in 12.0.7 -- see in-game checklist), so this must
   -- tolerate being called twice for one AH visit without double-printing or double-crediting.
   stopScanning()
+  for i = #GC.Sniper._liveTargets, 1, -1 do GC.Sniper._liveTargets[i] = nil end
+  GC.Sniper._liveTracksScanDeals = false
   abortFullScan()
 
   -- Sniper v3 §3: stop driving the machine's clock once there's nothing left for it to
