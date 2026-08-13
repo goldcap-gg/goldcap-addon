@@ -139,6 +139,17 @@ describe("Sell positions", function()
     assert.is_nil(p.profit)
   end)
 
+  it("carries measured outlook and a pure recommendation rather than a status label", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
+      ownedLots = { lot("commodity:42", 2, 200, 1) },
+      quotes = { [42] = { unit = 150, at = 9, levels = { { unitPrice = 100, quantity = 3 } } } },
+      statsByItemID = { [42] = { sold = 4 } } })[1]
+    assert.equal(3, p.ahead)
+    assert.equal(4, p.soldPerDay)
+    assert.equal("repost", p.recommendation.action)
+    assert.equal(149, p.recommendation.rec.unit)
+  end)
+
   it("never authorizes stale display data for post or repost plans", function()
     local unlisted = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
       quotes = { [42] = { unit = 200, at = 0 } }, now = 11 })[1]

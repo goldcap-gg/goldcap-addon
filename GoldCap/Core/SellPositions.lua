@@ -194,7 +194,7 @@ local function decoratePosition(position, quotes, statsByItemID, now)
   if position.invalid then
     position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
     position.coverage, position.projectedNet, position.profit = "UNKNOWN", nil, nil
-    position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, "Set cost"
+    position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, nil
     return
   end
   position.exposureQty = position.listedQty > 0 and position.listedQty or position.trackedQty
@@ -240,14 +240,14 @@ local function decoratePosition(position, quotes, statsByItemID, now)
   position.soldPerDay = stats and stats.sold or nil
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
     sold = stats and stats.sold, trend = stats and stats.trend })
-  if position.coverage ~= "COMPLETE" then
-    position.recommendation = "Set cost"
-  elseif position.listedQty > 0 and position.status == "UNDERCUT" then
-    position.recommendation = "Repost"
-  elseif position.listedQty > 0 then
-    position.recommendation = "Hold"
+  if position.coverage == "COMPLETE" and position.listedQty > 0 then
+    position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.exposureQty),
+      marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty })
+  elseif position.coverage == "COMPLETE" then
+    position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
+      fresh, nil, { levels = levels, sold = position.soldPerDay })
   else
-    position.recommendation = "Post"
+    position.recommendation = nil
   end
 
   local skipped = 0

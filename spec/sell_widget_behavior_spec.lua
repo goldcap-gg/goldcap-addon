@@ -174,4 +174,50 @@ describe("Sell widget geometry and manual cost", function()
       acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
     assert.equal(1, refreshes)
   end)
+
+  it("renders expansion facts and filters the top-level summary once", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    GC.SellViewModel.Filter = function(values, mode)
+      if mode == "goldcap" then return { values[1] } end
+      return values
+    end
+    GC.SellViewModel.SummaryText = function(summary) return summary end
+    GC.SellViewModel.Expansion = function()
+      return {
+        note = "FIFO allocations", quoteAge = 7, ahead = 3, sold = 4, days = 1.25,
+        recommendation = { action = "repost", rec = { unit = 149 } },
+        batches = { { source = "goldcap", acquiredAt = 4, originalQty = 5, remainingQty = 2,
+          allocatedQty = 2, unitCost = 50, totalCost = 100, evidence = "Auction 9" } },
+        ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } },
+      }
+    end
+    GC.SellPositions.Summary = function(values)
+      if #values == 1 then return { invested = 100, projected = 95, profit = -5 } end
+      return { invested = 130, projected = 150, profit = 20 }
+    end
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 2,
+        knownQty = 2, knownCost = 100, listedValue = 400, sources = { goldcap = 2 }, status = "LISTED" },
+      { itemID = 7, itemName = "Other", positionKey = "commodity:7", coverage = "COMPLETE", exposureQty = 1,
+        knownQty = 1, knownCost = 30, listedValue = 50, sources = { auction_house = 1 }, status = "LISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    rows = upvalue(render, "rows")
+    assert.equal("detail", rows[2].kind)
+    assert.match("quote 7s · ahead 3 · sold/day 4 · ETA ~1d", rows[2].cells.item.text)
+    assert.equal("Repost @ 149", rows[2].cells.status.text)
+    assert.match("goldcap · at 4 · 5 original / 2 left / 2 FIFO", rows[3].cells.item.text)
+    assert.equal("100", rows[3].cells.cost.text)
+    assert.equal("400", rows[4].cells.listed.text)
+    for _, child in ipairs(container.children) do
+      if child.label == "GC" then child.scripts.OnClick() end
+    end
+    assert.equal("100", container.summary.cost.text)
+    assert.equal("400", container.summary.listed.text)
+    assert.equal("-5", container.summary.profit.text)
+    assert.equal("position", rows[1].kind)
+    assert.equal("detail", rows[2].kind)
+  end)
 end)

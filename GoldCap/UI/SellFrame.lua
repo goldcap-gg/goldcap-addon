@@ -47,6 +47,18 @@ local function formatCell(value)
   return type(value) == "number" and formatAmount(value) or tostring(value or "")
 end
 
+local function recommendationText(recommendation)
+  if type(recommendation) == "string" then return recommendation end
+  if type(recommendation) ~= "table" then return "" end
+  local action = recommendation.action
+  if type(action) ~= "string" or action == "" then action = "post" end
+  action = action:sub(1, 1):upper() .. action:sub(2)
+  local unit = recommendation.rec and recommendation.rec.unit
+  local reason = type(recommendation.reason) == "string" and recommendation.reason or nil
+  local suffix = unit and (" @ " .. formatCell(unit)) or ""
+  return action .. (reason and (" (" .. reason .. ")") or "") .. suffix
+end
+
 local function exact(value)
   return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
     and value == math.floor(value) and value >= 0 and value <= MAX_EXACT
@@ -646,7 +658,7 @@ renderRows = function()
         row.cells.item:SetText(("  %s · quote %ss · ahead %s · sold/day %s · ETA %s"):format(d.note,
           d.quoteAge or "?", d.ahead or "?", d.sold or "?", d.days and ("~" .. math.floor(d.days + 0.5) .. "d") or "?"))
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
-        row.cells.profit:SetText(""); row.cells.status:SetText(d.recommendation or ""); row.cells.expand:SetText("")
+        row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
       elseif entry.kind == "batch" then
         row.cells.item:SetText(("  %s · at %s · %d original / %d left / %d FIFO · unit %s · %s"):format(entry.batch.source or "manual",

@@ -56,4 +56,20 @@ describe("Sell view model", function()
     assert.equal(50, position.batches[1].unitCost)
     assert.not_equal(position.batches[1], expanded.batches[1])
   end)
+
+  it("does not mutate a deep position input through any pure view method", function()
+    local position = { positionKey = "commodity:42", coverage = "COMPLETE", sources = { goldcap = 1 },
+      batches = { { id = "a", remainingQty = 1, remainingTotal = 10, evidenceKeys = { x = true } } },
+      ownedLots = { { auctionID = 1, quantity = 1, allocation = { allocations = { { batchID = "a", quantity = 1 } } } } },
+      allocations = { { batchID = "a", quantity = 1 } }, outlook = { days = 1 }, recommendation = { action = "repost", rec = { unit = 9 } } }
+    local snapshot = { positionKey = "commodity:42", coverage = "COMPLETE", sources = { goldcap = 1 },
+      batches = { { id = "a", remainingQty = 1, remainingTotal = 10, evidenceKeys = { x = true } } },
+      ownedLots = { { auctionID = 1, quantity = 1, allocation = { allocations = { { batchID = "a", quantity = 1 } } } } },
+      allocations = { { batchID = "a", quantity = 1 } }, outlook = { days = 1 }, recommendation = { action = "repost", rec = { unit = 9 } } }
+    GC.SellViewModel.Filter({ position }, "all")
+    GC.SellViewModel.SourceText(position); GC.SellViewModel.CostText(position); GC.SellViewModel.ProfitText(position)
+    GC.SellViewModel.SummaryText({ knownCost = 10, listedValue = 12, profit = 2 })
+    GC.SellViewModel.Expansion(position)
+    assert.same(snapshot, position)
+  end)
 end)
