@@ -7,6 +7,8 @@ local ROW_HEIGHT, ROW_WIDTH
 local SELL_BAGS = { 0, 1, 2, 3, 4, 5 }
 local POST_DURATION = 2
 local QUOTE_STALE_SECONDS = (GC.QuoteCache and GC.QuoteCache.MAX_AGE_SECONDS) or 10
+local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 3, 10
+local MAX_EXACT = 9007199254740991
 
 -- The positions module owns all accounting and action-plan decisions.  This file only joins
 -- live AH observations, a cached quote stream, and widgets around that single model.
@@ -23,9 +25,9 @@ local COLUMNS = {
 local container, content, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
 local expanded, filterMode = {}, "all"
-local quoting, refreshPending = false, false
-local quoteQueue, quoteIndex, pendingQuote, pendingQuoteSince, awaitingKeyInfo = {}, 0, nil, 0, nil
-local postingPlan, pendingPost
+local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil }
+local postingRow, postingPin, postTimeoutToken
+local repostingRow, repostPin, repostArmToken = nil, nil, 0
 
 local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
@@ -45,6 +47,21 @@ local function formatCell(value)
   return type(value) == "number" and formatAmount(value) or tostring(value or "")
 end
 
+local function exact(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+    and value == math.floor(value) and value >= 0 and value <= MAX_EXACT
+end
+
+local function safeAdd(left, right)
+  if not exact(left) or not exact(right) or left > MAX_EXACT - right then return nil end
+  return left + right
+end
+
+local function safeMultiply(left, right)
+  if not exact(left) or not exact(right) or (left ~= 0 and right > math.floor(MAX_EXACT / left)) then return nil end
+  return left * right
+end
+
 local function context()
   return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
 end
@@ -58,6 +75,18 @@ local function itemName(itemID)
 end
 
 local function quoteDriver()
+  local function boundedLevels(itemID, commodity)
+    local levels, count = {}, commodity and C_AuctionHouse.GetNumCommoditySearchResults(itemID)
+      or C_AuctionHouse.GetNumItemSearchResults(C_AuctionHouse.MakeItemKey(itemID))
+    for i = 1, math.min(count or 0, 100) do
+      local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
+        or C_AuctionHouse.GetItemSearchResultInfo(C_AuctionHouse.MakeItemKey(itemID), i)
+      local unit = info and (commodity and info.unitPrice
+        or (info.buyoutAmount and info.quantity and info.quantity > 0 and math.floor(info.buyoutAmount / info.quantity)))
+      if unit and unit > 0 then levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0 } end
+    end
+    return #levels > 0 and levels or nil
+  end
   return {
     isReady = function() return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady() end,
     keyInfo = function(itemID)
@@ -80,6 +109,8 @@ local function quoteDriver()
       local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, 1)
       return info and info.unitPrice or nil
     end,
+    itemLevels = function(itemID) return boundedLevels(itemID, false) end,
+    commodityLevels = function(itemID) return boundedLevels(itemID, true) end,
   }
 end
 local driver = quoteDriver()
@@ -109,36 +140,39 @@ end
 local function renderRows() end
 
 local function finishQuoteWalk()
-  quoting = false
+  refresh.phase = "idle"
+  refresh.pending, refresh.awaiting = nil, nil
   setStatus("Updated just now")
   renderRows()
 end
 
 local function advanceQuote()
-  if not quoting or pendingQuote or awaitingKeyInfo then return end
-  if quoteIndex >= #quoteQueue then return finishQuoteWalk() end
+  if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
+  if refresh.pending then return end
+  if refresh.index >= #refresh.queue then return finishQuoteWalk() end
   if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then return end
   if not driver.isReady() then return end
-  quoteIndex = quoteIndex + 1
-  local itemID = quoteQueue[quoteIndex]
+  local itemID = refresh.awaiting or refresh.queue[refresh.index + 1]
   if driver.keyInfo(itemID) then
-    pendingQuote, pendingQuoteSince = itemID, time()
-    setStatus(("Pricing %d/%d…"):format(quoteIndex, #quoteQueue))
+    refresh.awaiting = nil
+    refresh.index = refresh.index + 1
+    refresh.pending = { itemID = itemID, generation = refresh.generation, at = time() }
+    refresh.phase = "pricing"
+    setStatus(("Pricing %d/%d…"):format(refresh.index, #refresh.queue))
     driver.send(itemID)
   else
-    awaitingKeyInfo = itemID
+    refresh.awaiting, refresh.phase = itemID, "waiting_key"
   end
 end
 
 local function beginQuoteWalk()
-  quoteQueue, quoteIndex, quoting = uniqueQuoteItemIDs(), 0, true
-  if #quoteQueue == 0 then return finishQuoteWalk() end
+  refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = uniqueQuoteItemIDs(), 0, "pricing", nil, nil
+  if #refresh.queue == 0 then return finishQuoteWalk() end
   advanceQuote()
 end
 
 local function requestOwnedAuctions()
-  if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions
-      and (not GC.Sniper or not GC.Sniper.IsAHOpen or GC.Sniper.IsAHOpen()) then
+  if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen() then
     C_AuctionHouse.QueryOwnedAuctions({})
     return true
   end
@@ -148,8 +182,7 @@ end
 local function onOwnedAuctionsReady()
   composePositions()
   renderRows()
-  if refreshPending then
-    refreshPending = false
+  if refresh.phase == "owned" then
     beginQuoteWalk()
   end
 end
@@ -163,152 +196,261 @@ function GC.Sell.OnOwnedAuctions()
       GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName(lot.itemID), scope.char, scope.region, time())
     end
   end
+  if repostingRow and repostPin then
+    local stillOwned
+    for _, lot in ipairs(ownedLots) do
+      if lot.positionKey == repostPin.positionKey and lot.auctionID == repostPin.auctionID and lot.quantity == repostPin.quantity then stillOwned = true break end
+    end
+    if not stillOwned then
+      repostArmToken = repostArmToken + 1
+      repostingRow, repostPin = nil, nil
+      setStatus("Lot cancelled; wait for it to return to bags")
+    end
+  end
   onOwnedAuctionsReady()
 end
 
 function GC.Sell.OnThrottleReady()
-  if pendingQuote and time() - pendingQuoteSince > QUOTE_STALE_SECONDS then pendingQuote = nil end
+  if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then refresh.pending = nil end
   advanceQuote()
 end
 
 function GC.Sell.OnItemKeyInfo(itemID)
-  if awaitingKeyInfo == itemID then awaitingKeyInfo = nil; advanceQuote() end
+  if refresh.phase == "waiting_key" and refresh.awaiting == itemID then advanceQuote() end
 end
 
-local function quoteResolved(itemID, unit)
-  if itemID ~= pendingQuote then return end
-  pendingQuote = nil
+local function quoteResolved(itemID, unit, levels)
+  local pending = refresh.pending
+  if not pending or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
+  refresh.pending = nil
   GC.QuoteCache.Set(quotes, itemID, unit, time())
+  if unit and quotes[itemID] then quotes[itemID].levels = levels end
   composePositions()
   renderRows()
   advanceQuote()
 end
 
-function GC.Sell.OnItemSearchResults(itemID) quoteResolved(itemID, driver.item(itemID)) end
-function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved(itemID, driver.commodity(itemID)) end
+function GC.Sell.OnItemSearchResults(itemID) quoteResolved(itemID, driver.item(itemID), driver.itemLevels(itemID)) end
+function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved(itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
 
-local function freshPlanQuote(position)
-  local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time())
-  return quote and { unit = quote.unit, fresh = true } or nil
+local function freshQuote(position)
+  return GC.QuoteCache.Fresh(quotes, position.itemID, time())
 end
 
 local function normalizedPositionKey(itemID, link)
-  if type(link) ~= "string" then return nil end
-  local actualID = tonumber(link:match("item:(%d+)"))
+  if type(link) ~= "string" or link:find("battlepet:", 1, true) then return nil end
+  local payload = link:match("|H(item:[^|]+)|h") or link:match("^(item:.-)$")
+  if not payload then return nil end
+  local fields, start = {}, 1
+  while true do
+    local colon = payload:find(":", start, true)
+    if not colon then fields[#fields + 1] = payload:sub(start); break end
+    fields[#fields + 1], start = payload:sub(start, colon - 1), colon + 1
+  end
+  local actualID = tonumber(fields[2])
   if actualID ~= itemID then return nil end
   local level = C_Item and C_Item.GetDetailedItemLevelInfo and C_Item.GetDetailedItemLevelInfo(link)
-  local fields, n = {}, 0
-  for part in link:gmatch("[^:|]+") do n = n + 1; fields[n] = part end
   local suffix = tonumber(fields[8])
-  local pet = tonumber(link:match("battlepet:(%d+)")) or 0
   if type(level) ~= "number" or suffix == nil then return nil end
-  return ("item:%d:%d:%d:%d"):format(itemID, math.floor(level), suffix, pet)
+  return ("item:%d:%d:%d:%d"):format(itemID, math.floor(level), suffix, 0)
 end
 
 local function liveBagState(position)
-  local total, matched, matchedBag, matchedSlot = 0, 0, nil, nil
+  local total, matchedBag, matchedSlot, matchedStack = 0, nil, nil, nil
   for _, bag in ipairs(SELL_BAGS) do
     local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
     for slot = 1, slots do
       local info = C_Container.GetContainerItemInfo(bag, slot)
       if info and info.itemID == position.itemID then
         local qty = info.stackCount or 1
-        if position.positionKey:match("^commodity:") then
-          if not matchedBag then matchedBag, matchedSlot, total = bag, slot, qty end
-          matched = matched + qty
+        if exact(qty) and qty > 0 and position.positionKey:match("^commodity:") then
+          total = safeAdd(total, qty)
+          if not total then return { itemID = position.itemID, exactQty = nil } end
+          if not matchedBag then matchedBag, matchedSlot, matchedStack = bag, slot, qty end
         else
           local link = C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)
-          if normalizedPositionKey(position.itemID, link) == position.positionKey then
-            if not matchedBag then matchedBag, matchedSlot, total = bag, slot, qty end
-            matched = matched + qty
+          if exact(qty) and qty > 0 and normalizedPositionKey(position.itemID, link) == position.positionKey then
+            total = safeAdd(total, qty)
+            if not total then return { itemID = position.itemID, exactQty = nil } end
+            if not matchedBag then matchedBag, matchedSlot, matchedStack = bag, slot, qty end
           end
         end
       end
     end
   end
-  return { itemID = position.itemID, exactQty = total, positionKey = matched > 0 and position.positionKey or nil,
-    bag = matchedBag, slot = matchedSlot }
+  return { itemID = position.itemID, exactQty = total, positionKey = matchedBag and position.positionKey or nil,
+    bag = matchedBag, slot = matchedSlot, stackQty = matchedStack }
 end
 
 local function startQuoteRefreshFor(position)
-  if not quoting then
-    quoteQueue, quoteIndex, quoting = { position.itemID }, 0, true
+  if refresh.phase == "idle" then
+    refresh.generation = refresh.generation + 1
+    refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = { position.itemID }, 0, "pricing", nil, nil
     advanceQuote()
   end
 end
 
-local function protectedPost(plan, bagState, row)
-  local bag, slot = bagState.bag, bagState.slot
-  if not bag then setStatus("No exact bag item") return end
-  local location, info = ItemLocation:CreateFromBagAndSlot(bag, slot), driver.keyInfo(plan.itemID)
-  if not info then setStatus("No exact auction key") return end
-  postingPlan = plan
-  local needsConfirmation
-  if info.isCommodity then
-    needsConfirmation = C_AuctionHouse.PostCommodity(location, POST_DURATION, plan.quantity, plan.unitPrice)
-  else
-    needsConfirmation = C_AuctionHouse.PostItem(location, POST_DURATION, plan.quantity, nil, plan.unitPrice * plan.quantity)
+local function currentPosition(positionKey)
+  for _, position in ipairs(positions) do
+    if position.positionKey == positionKey then return position end
   end
-  if needsConfirmation then
-    pendingPost = { positionKey = plan.positionKey, location = location, isCommodity = info.isCommodity,
-      quantity = plan.quantity, unitPrice = plan.unitPrice }
-    row.action:SetLabel("Confirm")
-  end
-  setStatus("Posting…")
+  return nil
+end
+
+local function schedulePostTimeout(row)
+  if not (C_Timer and C_Timer.After) then return end
+  postTimeoutToken = (postTimeoutToken or 0) + 1
+  local token = postTimeoutToken
+  C_Timer.After(POST_TIMEOUT_SECONDS, function()
+    if token == postTimeoutToken and postingRow == row
+        and (row.postStage == "posting" or row.postStage == "confirm" or row.postStage == "confirming") then
+      postingRow, postingPin = nil, nil
+      row.postStage = nil; row.action:Enable(); row.action:SetLabel("Post")
+      setStatus("Posting timed out")
+    end
+  end)
 end
 
 local function onPostClick(row)
   local position = row.position
-  local quote = freshPlanQuote(position)
-  if not quote then startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return end
-  if postingPlan and postingPlan.positionKey ~= position.positionKey then
+  local quote = freshQuote(position)
+  if not quote then
+    if postingRow == row then
+      postingRow, postingPin = nil, nil
+      row.postStage = nil; row.action:Enable(); row.action:SetLabel("Post")
+    end
+    startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return
+  end
+  if postingRow and postingRow ~= row then
     setStatus("Finish the pending post first")
     return
   end
-  if pendingPost and pendingPost.positionKey == position.positionKey then
-    local pending = pendingPost
-    pendingPost = nil
-    if pending.isCommodity then
-      C_AuctionHouse.ConfirmPostCommodity(pending.location, POST_DURATION, pending.quantity, pending.unitPrice)
-    else
-      C_AuctionHouse.ConfirmPostItem(pending.location, POST_DURATION, pending.quantity, nil, pending.unitPrice * pending.quantity)
+  if postingRow == row and row.postStage ~= "confirm" then return end
+  if row.postStage == "confirm" then
+    local pin = postingPin
+    if not pin or pin.positionKey ~= position.positionKey or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit then
+      postingRow, postingPin = nil, nil
+      row.postStage = nil; row.action:Enable(); row.action:SetLabel("Post")
+      startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return
     end
-    setStatus("Posting…")
+    row.postStage = "confirming"; row.action:Disable(); setStatus("Posting…")
+    if pin.isCommodity then
+      C_AuctionHouse.ConfirmPostCommodity(pin.location, POST_DURATION, pin.quantity, pin.unitPrice)
+    else
+      C_AuctionHouse.ConfirmPostItem(pin.location, POST_DURATION, pin.quantity, nil, pin.buyout)
+    end
     return
   end
   local bagState = liveBagState(position)
-  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, quote)
+  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true })
   if not plan then
-    if reason == "stale_quote" then startQuoteRefreshFor(position) end
     setStatus(reason == "ambiguous_variant" and "No exact bag variant" or "Cannot post this position")
     return
   end
-  protectedPost(plan, bagState, row)
+  if not bagState.bag or not bagState.stackQty or plan.quantity > bagState.stackQty then
+    setStatus("No exact bag stack")
+    return
+  end
+  local info = driver.keyInfo(plan.itemID)
+  if not info or not ItemLocation or not ItemLocation.CreateFromBagAndSlot then setStatus("No exact auction key"); return end
+  if (info.isCommodity and not (C_AuctionHouse and C_AuctionHouse.PostCommodity))
+      or (not info.isCommodity and not (C_AuctionHouse and C_AuctionHouse.PostItem)) then
+    setStatus("Posting unavailable")
+    return
+  end
+  local buyout = not info.isCommodity and safeMultiply(plan.unitPrice, plan.quantity) or nil
+  if not info.isCommodity and not buyout then setStatus("Cannot post this position"); return end
+  local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
+  postingRow = row
+  postingPin = { positionKey = plan.positionKey, itemID = plan.itemID, quantity = plan.quantity,
+    quoteAt = quote.at, quoteUnit = quote.unit, location = location, isCommodity = info.isCommodity,
+    unitPrice = plan.unitPrice, buyout = buyout }
+  row.postStage = "posting"; row.action:Disable(); setStatus("Posting…")
+  local needsConfirmation
+  if info.isCommodity then
+    needsConfirmation = C_AuctionHouse.PostCommodity(location, POST_DURATION, plan.quantity, plan.unitPrice)
+  else
+    needsConfirmation = C_AuctionHouse.PostItem(location, POST_DURATION, plan.quantity, nil, buyout)
+  end
+  if needsConfirmation then
+    row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel("Confirm")
+    setStatus("Click Confirm to post")
+  end
+  schedulePostTimeout(row)
 end
 
 local function onRepostClick(row, auctionID)
   local position = row.position
-  local quote = freshPlanQuote(position)
+  local quote = freshQuote(position)
   if not quote then startQuoteRefreshFor(position); setStatus("Pricing 0/1…"); return end
-  local plan = GC.SellPositions.BuildRepostPlan(position, auctionID, quote)
+  if repostingRow and repostingRow ~= row then setStatus("Finish the pending repost first"); return end
+  if row.repostStage == "armed" then
+    if not row.repostReady then return end
+    local pin = repostPin
+    composePositions()
+    local livePosition = currentPosition(pin.positionKey)
+    local current
+    for _, candidate in ipairs(livePosition and livePosition.ownedLots or {}) do
+      if candidate.auctionID == pin.auctionID and candidate.quantity == pin.quantity then current = candidate break end
+    end
+    local plan = current and GC.SellPositions.BuildRepostPlan(livePosition, pin.auctionID, { unit = quote.unit, fresh = true })
+    if not plan or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
+      repostingRow, repostPin = nil, nil; row.repostStage = nil; row.action:Enable(); row.action:SetLabel("Repost")
+      setStatus("Repost confirmation expired")
+      return
+    end
+    row.repostStage = "cancelling"; row.action:Disable()
+    C_AuctionHouse.CancelAuction(plan.auctionID)
+    setStatus("Cancelling lot…")
+    if C_Timer and C_Timer.After then
+      local token = repostArmToken
+      C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
+        if token == repostArmToken and repostingRow == row and row.repostStage == "cancelling" then
+          repostingRow, repostPin = nil, nil; row.repostStage = nil; row.action:Enable(); row.action:SetLabel("Repost")
+          setStatus("Cancel timed out")
+        end
+      end)
+    end
+    return
+  end
+  local plan = GC.SellPositions.BuildRepostPlan(position, auctionID, { unit = quote.unit, fresh = true })
   if not plan then setStatus("Cannot repost this lot") return end
-  C_AuctionHouse.CancelAuction(plan.auctionID)
-  setStatus("Cancelling lot…")
+  repostingRow, repostPin = row, { positionKey = plan.positionKey, auctionID = plan.auctionID,
+    quantity = plan.quantity, quoteAt = quote.at, quoteUnit = quote.unit }
+  row.repostStage, row.repostReady = "armed", false
+  row.action:Disable(); row.action:SetLabel("Cancel lot?")
+  setStatus("Cancel this lot and lose its deposit — click again to confirm")
+  repostArmToken = repostArmToken + 1
+  local token = repostArmToken
+  if C_Timer and C_Timer.After then
+    C_Timer.After(REPOST_ARM_SECONDS, function()
+      if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then row.repostReady = true; row.action:Enable() end
+    end)
+    C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
+      if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then
+        repostingRow, repostPin = nil, nil; row.repostStage = nil; row.action:Enable(); row.action:SetLabel("Repost")
+        setStatus("Repost confirmation expired")
+      end
+    end)
+  end
 end
 
 function GC.Sell.OnAuctionCreated()
-  if not postingPlan then return end
+  local pin, row = postingPin, postingRow
+  if not pin or not row then return end
   local scope = context()
   if GC.Acquisitions and GC.Acquisitions.RecordPost and scope then
-    GC.Acquisitions.RecordPost(postingPlan.positionKey, postingPlan.itemID, itemName(postingPlan.itemID),
-      scope.char, scope.region, postingPlan.quantity, time())
+    GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), scope.char, scope.region, pin.quantity, time())
   end
-  postingPlan, pendingPost = nil, nil
+  postTimeoutToken = (postTimeoutToken or 0) + 1
+  postingRow, postingPin = nil, nil
   GC.Sell.Refresh()
 end
 
 function GC.Sell.OnPostError()
-  postingPlan, pendingPost = nil, nil
+  if postingRow then postingRow.postStage = nil; postingRow.action:Enable(); postingRow.action:SetLabel("Post") end
+  postTimeoutToken = (postTimeoutToken or 0) + 1
+  postingRow, postingPin = nil, nil
   setStatus("Posting failed")
   GC.Sell.Refresh()
 end
@@ -361,8 +503,14 @@ local function layoutCells(row)
   for i = #cols, 1, -1 do
     local column, cell = cols[i], row.cells[cols[i].key]
     cell:ClearAllPoints()
-    if column.flex then cell:SetPoint("LEFT", row, "LEFT", 2, 0); cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
-    else cell:SetPoint("RIGHT", right, "RIGHT", 0, 0); cell:SetWidth(column.w); right = cell end
+    if column.flex then
+      cell:SetPoint("LEFT", row, "LEFT", 2, 0)
+      cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
+    else
+      cell:SetWidth(column.w)
+      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, 0)
+      right = cell
+    end
     cell:Show()
   end
   for _, column in ipairs(COLUMNS) do if column.optional and not (ROW_WIDTH and ROW_WIDTH >= 700) then row.cells[column.key]:Hide() end end
@@ -394,8 +542,11 @@ local function summaryFor(filtered)
   for _, position in ipairs(filtered) do
     if position.coverage == "PARTIAL" then partial = partial + 1 end
     if position.coverage == "UNKNOWN" then unknown = unknown + 1 end
-    knownCost = knownCost + (position.knownCost or 0)
-    listedValue = listedValue + (position.listedValue or 0)
+    if position.coverage ~= "COMPLETE" or not exact(position.knownCost) or not exact(position.listedValue) then
+      knownCost, listedValue = nil, nil
+    elseif knownCost ~= nil then
+      knownCost, listedValue = safeAdd(knownCost, position.knownCost), safeAdd(listedValue, position.listedValue)
+    end
   end
   local raw = GC.SellPositions.Summary(filtered)
   return GC.SellViewModel.SummaryText({ knownCost = raw.invested or knownCost, listedValue = listedValue,
@@ -404,8 +555,8 @@ end
 
 local function updateSummary(filtered)
   local text = summaryFor(filtered)
-  container.summary.cost:SetText(formatAmount(text.knownCost))
-  container.summary.listed:SetText(formatAmount(text.listedValue))
+  container.summary.cost:SetText(formatCell(text.knownCost))
+  container.summary.listed:SetText(formatCell(text.listedValue))
   container.summary.profit:SetText(type(text.profit) == "number" and formatAmount(text.profit) or text.profit)
   setColor(container.summary.profit, type(text.profit) == "number" and text.profit < 0 and Theme.color.red or Theme.color.green)
 end
@@ -430,7 +581,9 @@ renderRows = function()
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   for i, row in ipairs(rows) do
     local entry = entries[i]
-    if not entry then row:Hide()
+    if row == postingRow or row == repostingRow then
+      row:Show()
+    elseif not entry then row:Hide()
     else
       row:Show(); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
@@ -443,7 +596,11 @@ renderRows = function()
         row.cells.profit:SetText(formatCell(GC.SellViewModel.ProfitText(p)))
         row.cells.status:SetText(p.status == "NO_COST" and "Set cost" or p.status)
         row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
-        row.action:Hide()
+        if p.coverage ~= "COMPLETE" then
+          row.action:SetLabel("Set cost"); row.action:Show(); row.action:SetScript("OnClick", function() openCostDialog(p) end)
+        else
+          row.action:Hide()
+        end
       elseif entry.kind == "detail" then
         local d = entry.detail
         row.cells.item:SetText(("  %s · quote %ss · ahead %s · sold/day %s · ETA %s"):format(d.note,
@@ -467,13 +624,18 @@ renderRows = function()
         row.cells.item:SetText(("  Unlisted ×%d"):format((p.trackedQty or 0) - (p.listedQty or 0)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if p.coverage == "COMPLETE" then
-          row.cells.status:SetText("Ready to post")
-          row.action:SetLabel("Post"); row.action:SetScript("OnClick", function() onPostClick(row) end)
+          local bagState = liveBagState(p)
+          if bagState.bag and bagState.exactQty and bagState.exactQty > 0 then
+            row.cells.status:SetText("Ready to post")
+            row.action:SetLabel("Post"); row.action:SetScript("OnClick", function() onPostClick(row) end); row.action:Show()
+          else
+            row.cells.status:SetText("Exact bag item required")
+            row.action:Hide()
+          end
         else
           row.cells.status:SetText("Missing cost")
-          row.action:SetLabel("Set cost"); row.action:SetScript("OnClick", function() openCostDialog(p) end)
+          row.action:SetLabel("Set cost"); row.action:SetScript("OnClick", function() openCostDialog(p) end); row.action:Show()
         end
-        row.action:Show()
       end
       layoutCells(row)
     end
@@ -497,24 +659,34 @@ function GC.Sell.Show()
 end
 function GC.Sell.Hide() if container then container:Hide() end end
 function GC.Sell.Refresh()
-  refreshPending = true
+  if refresh.phase ~= "idle" then return end
+  refresh.generation = refresh.generation + 1
+  refresh.phase, refresh.pending, refresh.awaiting, refresh.queue, refresh.index = "owned", nil, nil, {}, 0
   setStatus("Refreshing listings…")
-  if not requestOwnedAuctions() then onOwnedAuctionsReady() end
+  if not requestOwnedAuctions() then
+    refresh.phase = "idle"
+    setStatus("Auction House is not open")
+  end
 end
 function GC.Sell.Reset()
-  quoting, refreshPending, quoteQueue, quoteIndex, pendingQuote, awaitingKeyInfo = false, false, {}, 0, nil, nil
+  refresh.generation = refresh.generation + 1
+  refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting = "idle", {}, 0, nil, nil
   GC.QuoteCache.Clear(quotes)
-  postingPlan, pendingPost = nil, nil
+  postTimeoutToken = (postTimeoutToken or 0) + 1
+  repostArmToken = (repostArmToken or 0) + 1
+  if postingRow then postingRow.postStage = nil; postingRow.action:Enable(); postingRow.action:SetLabel("Post") end
+  if repostingRow then repostingRow.repostStage = nil; repostingRow.action:Enable(); repostingRow.action:SetLabel("Repost") end
+  postingRow, postingPin, repostingRow, repostPin = nil, nil, nil, nil
 end
 
 function GC.Sell.Attach(f, geometry)
   ROW_WIDTH, ROW_HEIGHT, statusOwner = geometry.rowWidth, geometry.rowHeight, f
   container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
-  local refresh = Theme.Button(container, "ghost")
-  refresh:SetSize(72, 20); refresh:SetPoint("TOPRIGHT"); refresh:SetLabel("Refresh"); refresh:SetScript("OnClick", GC.Sell.Refresh)
+  local refreshButton = Theme.Button(container, "ghost")
+  refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh"); refreshButton:SetScript("OnClick", GC.Sell.Refresh)
   local labels = { all = "All", goldcap = "GC", auction_house = "AH", missing_cost = "Missing cost" }
-  local previous = refresh
+  local previous = refreshButton
   for _, mode in ipairs({ "all", "goldcap", "auction_house", "missing_cost" }) do
     local button = Theme.Button(container, "ghost")
     button:SetSize(mode == "missing_cost" and 82 or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
@@ -529,13 +701,15 @@ function GC.Sell.Attach(f, geometry)
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(header, 10); cell:SetText(({ item = "ITEM", cost = "COST", listed = "LISTED", market = "MARKET", profit = "PROFIT", status = "STATUS", expand = "" })[column.key]); header.cells[column.key] = cell
   end
-  local headerRow = { cells = header.cells }
-  layoutCells(headerRow)
+  layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 130); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   dialog.quantity, dialog.unit, dialog.total = CreateFrame("EditBox", nil, dialog, "InputBoxTemplate"), CreateFrame("EditBox", nil, dialog, "InputBoxTemplate"), CreateFrame("EditBox", nil, dialog, "InputBoxTemplate")
-  for i, edit in ipairs({ dialog.quantity, dialog.unit, dialog.total }) do edit:SetSize(70, 20); edit:SetPoint("TOPLEFT", 12 + (i - 1) * 82, -26); edit:SetAutoFocus(false) end
+  for i, field in ipairs({ { dialog.quantity, "Quantity" }, { dialog.unit, "Unit cost" }, { dialog.total, "Total cost" } }) do
+    local label = Theme.Label(dialog, 10); label:SetPoint("TOPLEFT", 12 + (i - 1) * 82, -12); label:SetText(field[2])
+    field[1]:SetSize(70, 20); field[1]:SetPoint("TOPLEFT", 12 + (i - 1) * 82, -26); field[1]:SetAutoFocus(false)
+  end
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, -55); setColor(dialog.error, Theme.color.red)
   local cancel = Theme.Button(dialog, "ghost"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
   local confirm = Theme.Button(dialog, "primary"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
@@ -559,6 +733,6 @@ function GC.Sell.Attach(f, geometry)
     end
   end)
   f:HookScript("OnSizeChanged", function(_, width)
-    ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset); content:SetWidth(ROW_WIDTH); layoutCells(headerRow); renderRows()
+    ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset); content:SetWidth(ROW_WIDTH); layoutCells(header); renderRows()
   end)
 end

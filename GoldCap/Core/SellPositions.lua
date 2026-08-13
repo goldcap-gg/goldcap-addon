@@ -194,7 +194,7 @@ local function decoratePosition(position, quotes, statsByItemID, now)
   if position.invalid then
     position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
     position.coverage, position.projectedNet, position.profit = "UNKNOWN", nil, nil
-    position.status, position.ahead, position.outlook = "NO_COST", nil, nil
+    position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, "Set cost"
     return
   end
   position.exposureQty = position.listedQty > 0 and position.listedQty or position.trackedQty
@@ -237,8 +237,18 @@ local function decoratePosition(position, quotes, statsByItemID, now)
   local levels = type(quotes and quotes[position.itemID]) == "table" and quotes[position.itemID].levels or nil
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
   local stats = statsByItemID and statsByItemID[position.itemID]
+  position.soldPerDay = stats and stats.sold or nil
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
     sold = stats and stats.sold, trend = stats and stats.trend })
+  if position.coverage ~= "COMPLETE" then
+    position.recommendation = "Set cost"
+  elseif position.listedQty > 0 and position.status == "UNDERCUT" then
+    position.recommendation = "Repost"
+  elseif position.listedQty > 0 then
+    position.recommendation = "Hold"
+  else
+    position.recommendation = "Post"
+  end
 
   local skipped = 0
   for _, ownedLot in ipairs(position.ownedLots) do

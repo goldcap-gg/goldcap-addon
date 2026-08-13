@@ -86,7 +86,7 @@ function GC.SellViewModel.Expansion(position)
   return {
     positionKey = position.positionKey, coverage = position.coverage, batches = batches,
     ownedLots = copy(position.ownedLots), quoteAge = position.quoteAge, ahead = position.ahead,
-    sold = position.outlook and position.outlook.sold, days = position.outlook and position.outlook.days,
-    recommendation = position.recommendation or position.status, note = "FIFO allocations",
+    sold = position.soldPerDay, days = position.outlook and position.outlook.days,
+    recommendation = position.recommendation, note = "FIFO allocations",
   }
 end
