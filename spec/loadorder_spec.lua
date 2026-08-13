@@ -198,13 +198,14 @@ describe("TOC load order", function()
     end
     toc:close()
     assert.is_true(#files >= 7)
-    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex
+    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex, sellPositionsIndex
     for i, rel in ipairs(files) do
       if rel == "Core/Acquisitions.lua" then acquisitionsIndex = i end
       if rel == "Core/PurchaseCapture.lua" then purchaseCaptureIndex = i end
       if rel == "Core/Ledger.lua" then ledgerIndex = i end
       if rel == "Core/QuoteCache.lua" then quoteCacheIndex = i end
       if rel == "Core/Flips.lua" then flipsIndex = i end
+      if rel == "Core/SellPositions.lua" then sellPositionsIndex = i end
     end
     assert.is_number(acquisitionsIndex)
     assert.is_number(purchaseCaptureIndex)
@@ -214,6 +215,8 @@ describe("TOC load order", function()
     assert.is_number(quoteCacheIndex)
     assert.is_number(flipsIndex)
     assert.is_true(quoteCacheIndex < flipsIndex)
+    assert.is_number(sellPositionsIndex)
+    assert.is_true(flipsIndex < sellPositionsIndex)
 
     for _, rel in ipairs(files) do
       local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))
@@ -231,6 +234,9 @@ describe("TOC load order", function()
     assert.is_function(GC.Acquisitions.Init)
     assert.is_function(GC.Acquisitions.Record)
     assert.is_function(GC.Acquisitions.Allocate)
+    assert.is_function(GC.SellPositions.Build)
+    assert.is_function(GC.SellPositions.BuildPostPlan)
+    assert.is_function(GC.SellPositions.BuildRepostPlan)
     assert.is_function(GC.PurchaseCapture.Init)
     assert.is_function(GC.DealMath.Evaluate)
     assert.is_function(GC.SniperDecision.Evaluate)

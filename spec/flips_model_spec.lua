@@ -294,8 +294,19 @@ describe("Flips row model (Sniper v3 §5)", function()
   -- BuildRow/Summary above.
   describe("ExtractOwnedLots", function()
     it("uses a commodity's unitPrice as-is", function()
-      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 42 }, unitPrice = 500, quantity = 3, auctionID = 1 } })
-      assert.same({ { itemID = 42, unitPrice = 500, auctionID = 1, quantity = 3 } }, result)
+      local itemKey = { itemID = 42 }
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = itemKey, isCommodity = true,
+        unitPrice = 500, quantity = 3, auctionID = 1 } })
+      assert.same({ { itemID = 42, itemKey = itemKey, isCommodity = true,
+        unitPrice = 500, auctionID = 1, quantity = 3 } }, result)
+    end)
+
+    it("preserves a normal lot's exact item variant for position accounting", function()
+      local itemKey = { itemID = 7, itemLevel = 447, itemSuffix = 3, battlePetSpeciesID = 0 }
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = itemKey, buyoutAmount = 1000,
+        quantity = 1, auctionID = 8, isCommodity = false } })
+      assert.same(itemKey, result[1].itemKey)
+      assert.is_false(result[1].isCommodity)
     end)
 
     it("I3: divides a stacked item lot's buyoutAmount by its quantity", function()

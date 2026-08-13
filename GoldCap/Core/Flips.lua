@@ -247,7 +247,8 @@ function GC.Flips.ExtractOwnedLots(auctions)
     end
     if itemID and unitPrice then
       local quantity = (a.quantity and a.quantity > 0) and a.quantity or 1
-      lots[#lots + 1] = { itemID = itemID, unitPrice = unitPrice, auctionID = a.auctionID, quantity = quantity }
+      lots[#lots + 1] = { itemID = itemID, itemKey = a.itemKey, isCommodity = a.isCommodity == true,
+        unitPrice = unitPrice, auctionID = a.auctionID, quantity = quantity }
     end
   end
   return lots
