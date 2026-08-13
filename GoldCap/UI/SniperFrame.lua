@@ -940,7 +940,13 @@ end
 function GC.Sniper._ResumePausedLiveRequery(attempt)
   if GC.Sniper._pausedLiveRequery ~= attempt then return end
   GC.Sniper._pausedLiveRequery = nil
-  if ahOpen and not scanning then GC.Sniper._ResumeLiveScanner() end
+  -- An exact Check owner may retire its Live pause only when no browse/Auto mode has claimed
+  -- traffic in the meantime. A manual Scan can begin while Check is open; resuming Scanner
+  -- into that browse session would create competing throttled searches.
+  if ahOpen and not scanning and not scanRunning and not pendingFullScanStart
+      and not pendingBrowsePage and autoScan:State() == "OFF" then
+    GC.Sniper._ResumeLiveScanner()
+  end
 end
 
 function GC.Sniper._FinishDrainWait(itemID, draining)

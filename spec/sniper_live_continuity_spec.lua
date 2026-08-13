@@ -165,6 +165,41 @@ describe("Sniper Auto-to-Live continuity", function()
     assert.same({ 10, 20 }, ids(getUpvalue(h.startScanning, "scanDeals")))
   end)
 
+  it("does not resume paused Live after Scan takes browse traffic ownership", function()
+    _G.C_AuctionHouse = { IsThrottledMessageSystemReady = function() return false end }
+    local h = loadHarness()
+    setUpvalue(h.GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    h.startScanning()
+    h.stopScanning()
+    local attempt = { itemID = 91 }
+    h.GC.Sniper._pausedLiveRequery = attempt
+
+    h.startFullScan()
+    h.GC.Sniper._ResumePausedLiveRequery(attempt)
+
+    assert.equal(0, h.resumeCount())
+    assert.equal(1, #h.starts)
+    _G.C_AuctionHouse = nil
+  end)
+
+  it("does not resume paused Live after Auto takes scan ownership", function()
+    _G.GetTime = function() return 100 end
+    local h = loadHarness()
+    local feedAuto = getUpvalue(h.startLiveMode, "feedAuto")
+    setUpvalue(h.GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    h.startScanning()
+    h.stopScanning()
+    local attempt = { itemID = 91 }
+    h.GC.Sniper._pausedLiveRequery = attempt
+
+    feedAuto("toggleOn")
+    h.GC.Sniper._ResumePausedLiveRequery(attempt)
+
+    assert.equal(0, h.resumeCount())
+    assert.equal(1, #h.starts)
+    _G.GetTime = nil
+  end)
+
   it("stops Auto before Live and stops Live before browse traffic", function()
     _G.GetTime = function() return 100 end
     _G.C_AuctionHouse = { IsThrottledMessageSystemReady = function() return false end }
