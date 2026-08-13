@@ -761,11 +761,10 @@ end
 -- "two clicks max" rule the deposit-burning cancel confirm (onCancelConfirmClick) already
 -- follows. Returns true when the click was consumed by the gate (caller must stop), false when
 -- it's clear to proceed.
-local function gateOnRepostAdvice(row, flip)
+local function gateOnRepostAdvice(row, flip, quote)
   if row.repostAdviceSeen then return false end
   row.repostAdviceSeen = true
 
-  local quote = quotes[flip.itemID]
   local stats = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(flip.itemID)
   local advice = GC.Flips and GC.Flips.RepostAdvice and GC.Flips.RepostAdvice({
     paidUnit = flip.paidUnit,
@@ -798,11 +797,12 @@ local function onRepostClick(row)
     return
   end
 
-  if not GC.QuoteCache.Fresh(quotes, flip.itemID, time()) then
+  local freshQuote = GC.QuoteCache.Fresh(quotes, flip.itemID, time())
+  if not freshQuote then
     setStatus("Refresh prices first")
     return
   end
-  if gateOnRepostAdvice(row, flip) then return end
+  if gateOnRepostAdvice(row, flip, freshQuote) then return end
 
   local lot = GC.Flips.CheapestOwnedLot(flip.itemID, ownedLots)
   if not lot then

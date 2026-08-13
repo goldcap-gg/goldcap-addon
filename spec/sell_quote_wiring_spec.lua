@@ -115,6 +115,7 @@ describe("Sell quote wiring", function()
       CancelAuction = function() cancelCalls = cancelCalls + 1 end,
     }
     _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(amount) return tostring(amount) end
 
     local GC = {
       Sell = {}, Sniper = { IsBusy = function() return false end },
@@ -141,7 +142,95 @@ describe("Sell quote wiring", function()
     assert.equal("Refresh prices first", statusText)
     assert.equal(0, postCalls)
     assert.equal(0, cancelCalls)
-    _G.time, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer = os.time, nil, nil, nil, nil
+    _G.time, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer, _G.GetCoinTextureString = os.time, nil, nil, nil, nil, nil
+  end)
+
+  it("keeps malformed and contradictory quotes away from every protected sell call", function()
+    local postCalls, confirmCalls, cancelCalls = 0, 0, 0
+    _G.time = function() return 100 end
+    _G.C_Container = {
+      GetContainerNumSlots = function() return 1 end,
+      GetContainerItemInfo = function() return { itemID = 42, stackCount = 1 } end,
+    }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return {} end }
+    _G.C_AuctionHouse = {
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      GetItemKeyInfo = function() return { isCommodity = false } end,
+      PostItem = function() postCalls = postCalls + 1 end,
+      ConfirmPostItem = function() confirmCalls = confirmCalls + 1 end,
+      CancelAuction = function() cancelCalls = cancelCalls + 1 end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(amount) return tostring(amount) end
+
+    local GC = {
+      Sell = {}, Sniper = { IsBusy = function() return false end },
+      Flips = { CheapestOwnedLot = function() return { auctionID = 7, unitPrice = 20000 } end },
+    }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local onPostClick, onRepostClick, onCancelConfirmClick = actionHandlers(GC)
+    local quotes = getUpvalue(onPostClick, "quotes")
+    local btn = {
+      Disable = function() end, Enable = function() end, SetLabel = function() end,
+      Hide = function() end, Show = function() end, IsEnabled = function() return true end,
+    }
+
+    for _, quote in ipairs({ { unit = 20000.5, at = 100 }, { unit = 20000, at = 100, fresh = true, stale = true } }) do
+      quotes[42] = quote
+      local row = { flip = { itemID = 42, qty = 1 }, actionBtn = btn, cancelBtn = btn }
+      onPostClick(row)
+      row.postStage, row.pendingPost = "confirm", { isCommodity = false }
+      onPostClick(row)
+      onRepostClick(row)
+      row.repostStage, row.cancelAuctionID = "armed", 7
+      onCancelConfirmClick(row)
+    end
+
+    assert.equal(0, postCalls)
+    assert.equal(0, confirmCalls)
+    assert.equal(0, cancelCalls)
+    _G.time, _G.C_Container, _G.ItemLocation, _G.C_AuctionHouse, _G.C_Timer, _G.GetCoinTextureString = os.time, nil, nil, nil, nil, nil
+  end)
+
+  it("uses the Fresh repost snapshot instead of a raw cache entry for advice and arming", function()
+    local adviceArgs
+    _G.time = function() return 100 end
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(amount) return tostring(amount) end
+    _G.C_AuctionHouse = {
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      GetItemKeyInfo = function() return { isCommodity = false } end,
+    }
+    local GC = {
+      Sell = {}, Sniper = { IsBusy = function() return false end },
+      Flips = {
+        CheapestOwnedLot = function() return { auctionID = 7, unitPrice = 20000 } end,
+        RepostAdvice = function(args) adviceArgs = args; return { action = "repost" } end,
+      },
+    }
+    helper.loadModule("Core/QuoteCache.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local _, onRepostClick = actionHandlers(GC)
+    local quotes = getUpvalue(onRepostClick, "quotes")
+    local snapshot = { unit = 20000, at = 100, levels = { { unitPrice = 20000, quantity = 1 } } }
+    quotes[42] = snapshot
+    GC.QuoteCache.Fresh = function()
+      quotes[42] = { unit = 1, at = 100, stale = true }
+      return snapshot
+    end
+    local btn = {
+      Disable = function() end, Enable = function() end, SetLabel = function() end,
+      Hide = function() end, Show = function() end, IsEnabled = function() return true end,
+    }
+
+    local row = { flip = { itemID = 42, qty = 1 }, actionBtn = btn, cancelBtn = btn }
+    onRepostClick(row)
+
+    assert.equal(20000, adviceArgs.marketUnit)
+    assert.same(snapshot.levels, adviceArgs.levels)
+    assert.equal("armed", row.repostStage)
+    _G.time, _G.C_Timer, _G.GetCoinTextureString, _G.C_AuctionHouse = os.time, nil, nil, nil
   end)
 
   it("disarms an armed repost when its quote expires before cancel confirmation", function()
