@@ -20,6 +20,11 @@ describe("Sell protected action state", function()
   end
 
   local function handlers(GC)
+    GC.Ledger = GC.Ledger or { Context = function() return { char = "A-R", region = "eu" } end }
+    GC.Acquisitions = GC.Acquisitions or {}
+    GC.Acquisitions.ScopeKey = GC.Acquisitions.ScopeKey or function(positionKey, scope)
+      return table.concat({ scope.region, scope.char, positionKey }, "\1")
+    end
     local render = upvalue(GC.Sell.Attach, "renderRows")
     return upvalue(render, "onPostClick"), upvalue(render, "onRepostClick")
   end
@@ -37,8 +42,9 @@ describe("Sell protected action state", function()
   end
 
   local function position()
-    return { itemID = 42, positionKey = "commodity:42", trackedQty = 1, listedQty = 0,
-      ownedLots = { { auctionID = 7, quantity = 1 } } }
+    return { itemID = 42, positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+      character = "A-R", region = "eu", trackedQty = 1, listedQty = 0,
+      ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 200 } } }
   end
 
   before_each(function()
@@ -84,7 +90,8 @@ describe("Sell protected action state", function()
     local calls = 0
     _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1 end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 0, at = 100 } end }, SellPositions = {
-      BuildPostPlan = function() return { positionKey = "commodity:42", itemID = 42, quantity = 1, unitPrice = 1 } end,
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 1, unitPrice = 1 } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
@@ -104,13 +111,14 @@ describe("Sell protected action state", function()
     }
     local quote = { unit = 200, at = 100 }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
-      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
+      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row); post(row); post(row)
     assert.equal(1, postCalls)
     assert.equal(1, confirmCalls)
@@ -127,12 +135,13 @@ describe("Sell protected action state", function()
       GetContainerItemInfo = function(_, slot) return stacks[slot] end,
     }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
-      BuildPostPlan = function() return { positionKey = "commodity:42", itemID = 42, quantity = 5, unitPrice = 200 } end,
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 5, unitPrice = 200 } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    post({ position = position(), action = button() })
+    post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
     assert.same({ 42, 2, 5, 200 }, calls[1])
   end)
 
@@ -147,13 +156,14 @@ describe("Sell protected action state", function()
     _G.C_Item = { GetDetailedItemLevelInfo = function() return 100 end }
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
-      BuildPostPlan = function() return { positionKey = "item:42:100:7:0", itemID = 42, quantity = 3, unitPrice = 200 } end,
+      BuildPostPlan = function() return { positionKey = "item:42:100:7:0",
+        scopeKey = "eu\1A-R\1item:42:100:7:0", itemID = 42, quantity = 3, unitPrice = 200 } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
-    local p = position(); p.positionKey = "item:42:100:7:0"
-    post({ position = p, action = button() })
+    local p = position(); p.positionKey = "item:42:100:7:0"; p.scopeKey = "eu\1A-R\1item:42:100:7:0"
+    post({ position = p, action = button(), renderEntryID = "entry:post:variant" })
     assert.equal(2, calls[1][1].slot)
     assert.equal(2, calls[1][2])
     assert.equal(3, calls[1][3])
@@ -174,7 +184,7 @@ describe("Sell protected action state", function()
     set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
-    local row = { position = p, action = button() }
+    local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
     post(row)
     GC.Sell.OnAuctionCreated()
     assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100 }, records[1])
@@ -197,7 +207,7 @@ describe("Sell protected action state", function()
     set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
-    local row = { position = p, action = button() }
+    local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
     post(row)
     scope = { char = "B-R", region = "us" }
     GC.Sell.OnAuctionCreated()
@@ -214,9 +224,78 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    local p = position(); p.scopeKey = "mine"
+    local p = position()
     post({ position = p, action = button() })
     assert.equal(0, calls)
+  end)
+
+  it("[C3] rejects current-context scope drift before the first protected Post call", function()
+    local calls, records = 0, 0
+    _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1; return false end }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "B-R", region = "us" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+        RecordPost = function() records = records + 1 end,
+      },
+      QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+      SellPositions = {
+        BuildPostPlan = function()
+          return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+            itemID = 42, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
+    post({ position = p, action = button(), renderEntryID = "entry:post:42" })
+    assert.equal(0, calls)
+    assert.equal(0, records)
+  end)
+
+  it("[C3] fails closed and restores the exact pin when ConfirmPost is unavailable", function()
+    local postCalls, records = 0, 0
+    local quote = { unit = 200, at = 100 }
+    _G.C_AuctionHouse = {
+      PostCommodity = function() postCalls = postCalls + 1; return true end,
+    }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+        RecordPost = function() records = records + 1 end,
+      },
+      QuoteCache = { Fresh = function() return quote end },
+      SellPositions = {
+        BuildPostPlan = function()
+          return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+            itemID = 42, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
+    local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
+    post(row)
+    local ok = pcall(post, row)
+    assert.is_true(ok)
+    assert.equal(1, postCalls)
+    assert.equal(0, records)
+    assert.is_nil(row.postStage)
+    assert.equal("Post", row.action.label)
+    assert.is_true(row.action.enabled)
   end)
 
   it("clears a confirmation pin when the fresh quote changes", function()
@@ -225,14 +304,15 @@ describe("Sell protected action state", function()
       ConfirmPostCommodity = function() confirms = confirms + 1 end }
     local quote = { unit = 200, at = 100 }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
-      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
+      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     set(post, "startQuoteRefreshFor", function() refreshes = refreshes + 1 end)
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row)
     quote = { unit = 201, at = 101 }
     post(row)
@@ -244,13 +324,14 @@ describe("Sell protected action state", function()
     local records = 0
     _G.C_AuctionHouse = { PostCommodity = function() return false end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end, Clear = function() end }, SellPositions = {
-      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
+      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
     }, Acquisitions = { RecordPost = function() records = records + 1 end } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local post = handlers(GC)
     set(post, "liveBagState", function() return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" } end)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
     post(row)
     assert.is_false(row.action.enabled)
     GC.Sell.Reset()
@@ -265,14 +346,15 @@ describe("Sell protected action state", function()
     local quote = { unit = 200, at = 100 }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
       BuildRepostPlan = function(_, auctionID, fresh)
-        return { positionKey = "commodity:42", auctionID = auctionID, quantity = 1, unitPrice = fresh.unit }
+        return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+          itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = fresh.unit }
       end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     set(repost, "currentPosition", function() return position() end)
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     assert.equal(0, cancelCalls)
     row.repostReady = true
@@ -283,11 +365,12 @@ describe("Sell protected action state", function()
 
   it("disarms an armed repost immediately when its confirmation quote is stale", function()
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
-      BuildRepostPlan = function(_, auctionID) return { positionKey = "commodity:42", auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
+      BuildRepostPlan = function(_, auctionID) return { positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     GC.QuoteCache.Fresh = function() return nil end
     repost(row, 7)
@@ -303,15 +386,18 @@ describe("Sell protected action state", function()
       GetOwnedAuctions = function() return { { auctionID = 7 } } end,
     }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
-      BuildRepostPlan = function(p, auctionID) return { positionKey = "commodity:42", scopeKey = p.scopeKey, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
-      NormalizeOwnedLots = function() return { { positionKey = "commodity:42", auctionID = 7, quantity = 1 } } end,
+      BuildRepostPlan = function(p, auctionID) return { positionKey = "commodity:42", scopeKey = p.scopeKey,
+        itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
+      NormalizeOwnedLots = function() return {
+        { positionKey = "commodity:42", itemID = 42, auctionID = 7, quantity = 1, unitPrice = 200 },
+      } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     set(repost, "currentPosition", function() return { positionKey = "commodity:42", scopeKey = "other", ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 1 } } } end)
     local p = position(); p.scopeKey = "mine"
-    local row = { position = p, action = button() }
+    local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7); row.repostReady = true; repost(row, 7)
     assert.equal(0, cancels)
     assert.is_nil(row.repostStage)
@@ -320,13 +406,14 @@ describe("Sell protected action state", function()
   it("restores an armed repost row when its owned lot disappears", function()
     _G.C_AuctionHouse = { GetOwnedAuctions = function() return {} end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
-      BuildRepostPlan = function(_, auctionID) return { positionKey = "commodity:42", auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
+      BuildRepostPlan = function(_, auctionID) return { positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
       NormalizeOwnedLots = function() return {} end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(GC.Sell.OnOwnedAuctions, "onOwnedAuctionsReady", function() end)
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     GC.Sell.OnOwnedAuctions()
     assert.is_nil(row.repostStage)
@@ -342,14 +429,17 @@ describe("Sell protected action state", function()
     }
     local quote = { unit = 200, at = 100 }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
-      BuildRepostPlan = function(_, auctionID, fresh) return { positionKey = "commodity:42", auctionID = auctionID, quantity = 1, unitPrice = fresh.unit } end,
-      NormalizeOwnedLots = function() return { { positionKey = "commodity:42", auctionID = 7, quantity = 1 } } end,
+      BuildRepostPlan = function(_, auctionID, fresh) return { positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = fresh.unit } end,
+      NormalizeOwnedLots = function() return {
+        { positionKey = "commodity:42", itemID = 42, auctionID = 7, quantity = 1, unitPrice = 200 },
+      } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
     set(repost, "composePositions", function() end)
     set(repost, "currentPosition", function() return position() end)
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     row.repostReady = true
     repost(row, 7)
@@ -362,16 +452,316 @@ describe("Sell protected action state", function()
     local cancels = 0
     _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }
     local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end, Clear = function() end }, SellPositions = {
-      BuildRepostPlan = function(_, auctionID, fresh) return { positionKey = "commodity:42", auctionID = auctionID, quantity = 1, unitPrice = fresh.unit } end,
+      BuildRepostPlan = function(_, auctionID, fresh) return { positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = fresh.unit } end,
     } }
     helper.loadModule("UI/SellFrame.lua", GC)
     local _, repost = handlers(GC)
-    local row = { position = position(), action = button() }
+    local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
     repost(row, 7)
     assert.equal("armed", row.repostStage)
     GC.Sell.Reset()
     assert.is_nil(row.repostStage); assert.equal("Repost", row.action.label); assert.is_true(row.action.enabled)
     assert.equal(0, cancels)
+  end)
+
+  it("[C4] disarms the previous exact Repost pin when a different row is clicked", function()
+    local cancels = 0
+    _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+      },
+      QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+      SellPositions = {
+        BuildRepostPlan = function(p, auctionID)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, auctionID = auctionID,
+            itemID = p.itemID, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local _, repost = handlers(GC)
+    local first = { itemID = 42, positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+      ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 220 } } }
+    local second = { itemID = 43, positionKey = "commodity:43", scopeKey = "eu\1A-R\1commodity:43",
+      ownedLots = { { auctionID = 8, quantity = 1, unitPrice = 230 } } }
+    local firstRow = { position = first, action = button(), renderEntryID = "entry:lot:7" }
+    local secondRow = { position = second, action = button(), renderEntryID = "entry:lot:8" }
+    repost(firstRow, 7)
+    assert.equal("armed", firstRow.repostStage)
+    repost(secondRow, 8)
+    assert.is_nil(firstRow.repostStage)
+    assert.equal("Repost", firstRow.action.label)
+    assert.is_true(firstRow.action.enabled)
+    assert.is_nil(secondRow.repostStage)
+    assert.equal(0, cancels)
+  end)
+
+  it("[C4] rejects changed live lot fields and a missing Cancel API", function()
+    for _, case in ipairs({ { name = "changed unit", unit = 201, withAPI = true },
+      { name = "missing API", unit = 200, withAPI = false } }) do
+      local cancels = 0
+      _G.C_AuctionHouse = {
+        GetOwnedAuctions = function() return { { auctionID = 7 } } end,
+        CancelAuction = case.withAPI and function() cancels = cancels + 1 end or nil,
+      }
+      local GC = {
+        Sell = {},
+        Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+        Acquisitions = {
+          ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+        },
+        QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+        SellPositions = {
+          BuildRepostPlan = function(p, auctionID)
+            return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+              auctionID = auctionID, quantity = 1, unitPrice = 200 }
+          end,
+          NormalizeOwnedLots = function()
+            return { { positionKey = "commodity:42", itemID = 42, auctionID = 7,
+              quantity = 1, unitPrice = case.unit } }
+          end,
+        },
+      }
+      helper.loadModule("UI/SellFrame.lua", GC)
+      local _, repost = handlers(GC)
+      set(repost, "composePositions", function() end)
+      set(repost, "currentPosition", function()
+        local p = position()
+        p.ownedLots[1].unitPrice = case.unit
+        return p
+      end)
+      local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
+      repost(row, 7)
+      row.repostReady = true
+      repost(row, 7)
+      assert.equal(0, cancels, case.name)
+      assert.is_nil(row.repostStage, case.name)
+      assert.equal("Repost", row.action.label, case.name)
+      assert.is_true(row.action.enabled, case.name)
+    end
+  end)
+
+  it("[C4] rejects a Repost plan redirected from the clicked auction", function()
+    local cancels = 0
+    _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+      },
+      QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+      SellPositions = {
+        BuildRepostPlan = function(p)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+            auctionID = 8, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local _, repost = handlers(GC)
+    local p = position()
+    p.ownedLots[2] = { auctionID = 8, quantity = 1, unitPrice = 200 }
+    local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
+    repost(row, 7)
+    assert.is_nil(row.repostStage)
+    assert.equal(0, cancels)
+  end)
+
+  it("[C6] OnPostError disarms Repost and makes its timer callbacks inert", function()
+    local cancels, refreshes, timers = 0, 0, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+      },
+      QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+      SellPositions = {
+        BuildRepostPlan = function(p, auctionID)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, auctionID = auctionID,
+            itemID = p.itemID, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    local _, repost = handlers(GC)
+    local p = position()
+    p.scopeKey = "eu\1A-R\1commodity:42"
+    p.ownedLots[1].unitPrice = 220
+    local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
+    repost(row, 7)
+    assert.equal(2, #timers)
+    GC.Sell.OnPostError()
+    assert.is_nil(row.repostStage)
+    assert.equal("Repost", row.action.label)
+    assert.is_true(row.action.enabled)
+    for _, callback in ipairs(timers) do callback() end
+    assert.equal(0, cancels)
+    assert.equal(1, refreshes)
+  end)
+
+  it("[C6] post timeout restores the exact row and prevents later activity", function()
+    local calls, records, timers = 0, 0, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1; return false end }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+        RecordPost = function() records = records + 1 end,
+      },
+      QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+      SellPositions = {
+        BuildPostPlan = function()
+          return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+            itemID = 42, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    local quote = { unit = 200, at = 100 }
+    GC.QuoteCache.Fresh = function() return quote end
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
+    post(row)
+    assert.equal("posting", row.postStage)
+    assert.equal(1, #timers)
+    timers[1]()
+    assert.is_nil(row.postStage)
+    assert.equal("Post", row.action.label)
+    assert.is_true(row.action.enabled)
+    GC.Sell.OnAuctionCreated()
+    assert.equal(1, calls)
+    assert.equal(0, records)
+  end)
+
+  it("[C6] OnPostError restores Post and invalidates its timer and activity pin", function()
+    local records, refreshes, timers = 0, 0, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_AuctionHouse = { PostCommodity = function() return false end }
+    local quote = { unit = 200, at = 100 }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+        RecordPost = function() records = records + 1 end,
+      },
+      QuoteCache = { Fresh = function() return quote end },
+      SellPositions = {
+        BuildPostPlan = function()
+          return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+            itemID = 42, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local row = { position = position(), action = button(), renderEntryID = "entry:post:42" }
+    post(row)
+    GC.Sell.OnPostError()
+    assert.is_nil(row.postStage)
+    assert.equal("Post", row.action.label)
+    assert.is_true(row.action.enabled)
+    for _, callback in ipairs(timers) do callback() end
+    GC.Sell.OnAuctionCreated()
+    assert.equal(0, records)
+    assert.equal(1, refreshes)
+  end)
+
+  it("[C6] Repost arm and expiry timers restore without cancelling", function()
+    local cancels, timers = 0, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+      },
+      QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+      SellPositions = {
+        BuildRepostPlan = function(p, auctionID)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+            auctionID = auctionID, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local _, repost = handlers(GC)
+    local row = { position = position(), action = button(), renderEntryID = "entry:lot:7" }
+    repost(row, 7)
+    assert.equal("armed", row.repostStage)
+    assert.is_false(row.action.enabled)
+    timers[1]()
+    assert.is_true(row.repostReady)
+    assert.is_true(row.action.enabled)
+    timers[2]()
+    assert.is_nil(row.repostStage)
+    assert.equal("Repost", row.action.label)
+    assert.is_true(row.action.enabled)
+    assert.equal(0, cancels)
+  end)
+
+  it("[C6] rejects malformed, pet, and overflowing bag identity with zero protected calls", function()
+    local fixtures = {
+      { name = "malformed", key = "item:42:100:7:0", link = "item:42:broken", stacks = { 1 } },
+      { name = "pet", key = "item:42:100:7:0", link = "battlepet:42:1:1:1:1:1", stacks = { 1 } },
+      { name = "overflow", key = "commodity:42", stacks = { 9007199254740991, 1 } },
+    }
+    for _, fixture in ipairs(fixtures) do
+      local calls = 0
+      _G.C_AuctionHouse = {
+        PostCommodity = function() calls = calls + 1 end,
+        PostItem = function() calls = calls + 1 end,
+      }
+      _G.C_Container = {
+        GetContainerNumSlots = function(bag) return bag == 0 and #fixture.stacks or 0 end,
+        GetContainerItemInfo = function(_, slot) return { itemID = 42, stackCount = fixture.stacks[slot] } end,
+        GetContainerItemLink = function() return fixture.link end,
+      }
+      _G.C_Item = { GetDetailedItemLevelInfo = function() return 100 end }
+      local GC = {
+        Sell = {},
+        Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+        Acquisitions = {
+          ScopeKey = function(positionKey, scope) return table.concat({ scope.region, scope.char, positionKey }, "\1") end,
+        },
+        QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end },
+        SellPositions = {
+          BuildPostPlan = function(p)
+            return { positionKey = p.positionKey, scopeKey = p.scopeKey,
+              itemID = 42, quantity = 1, unitPrice = 200 }
+          end,
+        },
+      }
+      helper.loadModule("UI/SellFrame.lua", GC)
+      local post = handlers(GC)
+      set(post, "driver", { keyInfo = function() return { isCommodity = fixture.key == "commodity:42" } end })
+      local p = position()
+      p.positionKey = fixture.key
+      p.scopeKey = "eu\1A-R\1" .. fixture.key
+      post({ position = p, action = button(), renderEntryID = "entry:" .. fixture.name })
+      assert.equal(0, calls, fixture.name)
+    end
   end)
 
   it("keeps exact commodity stack aggregate and rejects bonus-bearing normal links", function()

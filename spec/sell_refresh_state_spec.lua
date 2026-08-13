@@ -161,6 +161,43 @@ describe("Sell refresh state fence", function()
     assert.is_nil(cache[42])
   end)
 
+  it("[I1] drains pre-Reset request A before same-key request B can proceed", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+
+    GC.Sell.Reset()
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    assert.equal("draining", refreshState(GC).phase)
+
+    GC.Sell.OnItemSearchResults(42)
+    assert.is_nil(cache[42])
+    assert.same({ 42, 42 }, sent.keys)
+    assert.equal("waiting_result", refreshState(GC).phase)
+
+    GC.Sell.OnItemSearchResults(42)
+    assert.equal(111, cache[42])
+    assert.equal("done", refreshState(GC).phase)
+  end)
+
+  it("[I1] lets the next same-key run send after an invalid terminal was consumed", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local driver = upvalue(advance, "driver")
+    driver.item = function() return nil end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
+    assert.equal("error", refreshState(GC).phase)
+    assert.same({ 42 }, sent.keys)
+
+    driver.item = function() return 111 end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42, 42 }, sent.keys)
+    assert.equal("waiting_result", refreshState(GC).phase)
+  end)
+
   it("observes commodity and variant owned lots with the exact active scope", function()
     local now, sent, cache, observed = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)

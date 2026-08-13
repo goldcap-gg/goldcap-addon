@@ -170,8 +170,10 @@ describe("Sell widget geometry and manual cost", function()
     local record = { calls = {} }
     local GC = load(620, record)
     local rows, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
-      { itemID = 7, itemName = "Odd", positionKey = "item:7:1:0:0", coverage = "UNKNOWN", exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 10, sources = {} },
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
+      { itemID = 7, itemName = "Odd", positionKey = "item:7:1:0:0", scopeKey = "eu\1A-R\1item:7:1:0:0",
+        coverage = "UNKNOWN", exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 10, sources = {} },
     })
     assert.equal("Set cost", rows[1].action.label)
     rows[1].action.scripts.OnClick()
@@ -186,7 +188,8 @@ describe("Sell widget geometry and manual cost", function()
     local refreshes = 0
     GC.Sell.Refresh = function() refreshes = refreshes + 1 end
     local rows, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
     })
     rows[1].action.scripts.OnClick()
     local dialog, confirm = container.costDialog
@@ -221,7 +224,8 @@ describe("Sell widget geometry and manual cost", function()
     local record = { calls = {} }
     local GC = load(620, record)
     local rows, container = topRows(GC, {
-      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL", exposureQty = 2, knownQty = 0, sources = {} },
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        coverage = "PARTIAL", exposureQty = 2, knownQty = 0, sources = {} },
     })
     rows[1].action.scripts.OnClick()
     local dialog, confirm = container.costDialog
@@ -236,13 +240,69 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(0, #record.calls)
   end)
 
+  it("[C2] recomputes a unit-derived manual total when quantity changes", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    local refreshes = 0
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+        scopeKey = "eu\1A-R\1commodity:42", exposureQty = 2, knownQty = 0, sources = {} },
+    })
+    rows[1].action.scripts.OnClick()
+    local dialog, confirm = container.costDialog
+    for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
+
+    dialog.quantity:SetText("2"); dialog.quantity.scripts.OnTextChanged()
+    dialog.unit:SetText("3"); dialog.unit.scripts.OnTextChanged()
+    assert.equal("6", dialog.total:GetText())
+    dialog.quantity:SetText("1"); dialog.quantity.scripts.OnTextChanged()
+    assert.equal("3", dialog.total:GetText())
+
+    dialog.quantity:SetText("9"); dialog.quantity.scripts.OnTextChanged()
+    assert.equal("2", dialog.quantity:GetText())
+    assert.equal("6", dialog.total:GetText())
+
+    dialog.total:SetText("5"); dialog.total.scripts.OnTextChanged()
+    assert.equal("2", dialog.unit:GetText())
+    dialog.quantity:SetText("1"); dialog.quantity.scripts.OnTextChanged()
+    assert.equal("5", dialog.total:GetText())
+    assert.equal("5", dialog.unit:GetText())
+
+    confirm.scripts.OnClick(); confirm.scripts.OnClick()
+    assert.same({ itemID = 42, positionKey = "commodity:42", itemName = "Ore", quantity = 1, total = 5,
+      acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
+    assert.equal(1, #record.calls)
+    assert.equal(1, refreshes)
+  end)
+
+  it("[C2] rejects manual confirmation after its acquisition scope changes", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", coverage = "UNKNOWN",
+        exposureQty = 1, knownQty = 0, sources = {} },
+    })
+    rows[1].action.scripts.OnClick()
+    local dialog, confirm = container.costDialog
+    for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
+    dialog.total:SetText("5"); dialog.total.scripts.OnTextChanged()
+    GC.Ledger.Context = function() return { char = "B-R", region = "us" } end
+    confirm.scripts.OnClick()
+    assert.equal(0, #record.calls)
+    assert.is_true(dialog.shown)
+  end)
+
   it("completes Set cost from a zero-tracked unknown position", function()
     local record = { calls = {} }
     local GC = load(620, record)
     local refreshed = 0
     GC.Sell.Refresh = function() refreshed = refreshed + 1 end
     local rows, container = topRows(GC, {
-      { itemID = 7, itemName = "Odd", positionKey = "item:7:1:0:0", coverage = "UNKNOWN", exposureQty = 1, knownQty = 0, trackedQty = 0, listedQty = 1, sources = {} },
+      { itemID = 7, itemName = "Odd", positionKey = "item:7:1:0:0",
+        scopeKey = "eu\1A-R\1item:7:1:0:0", coverage = "UNKNOWN",
+        exposureQty = 1, knownQty = 0, trackedQty = 0, listedQty = 1, sources = {} },
     })
     rows[1].action.scripts.OnClick()
     local dialog, confirm = container.costDialog
@@ -259,10 +319,12 @@ describe("Sell widget geometry and manual cost", function()
     local GC = load(620, record)
     local quote = { unit = 200, at = 77 }
     GC.QuoteCache.Fresh = function() return quote end
-    GC.SellPositions.BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "scope", itemID = 42, quantity = 1, unitPrice = 200 } end
+    GC.SellPositions.BuildPostPlan = function() return { positionKey = "commodity:42",
+      scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = 200 } end
     _G.C_AuctionHouse = { PostCommodity = function() return false end }
     _G.ItemLocation = { CreateFromBagAndSlot = function() return {} end }
-    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "scope", coverage = "COMPLETE", exposureQty = 1,
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+      scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 1,
       knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" }
     local rows = topRows(GC, { p })
     local render = upvalue(GC.Sell.Attach, "renderRows")
@@ -271,7 +333,8 @@ describe("Sell widget geometry and manual cost", function()
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     post(rows[1])
     assert.equal("posting", rows[1].postStage)
-    set(render, "positions", { { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "scope", coverage = "COMPLETE", exposureQty = 1,
+    set(render, "positions", { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+      scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 1,
       knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" } })
     render()
     assert.is_nil(rows[1].postStage)
@@ -290,7 +353,7 @@ describe("Sell widget geometry and manual cost", function()
     GC.SellViewModel.Expansion = function()
       return {
         note = "FIFO allocations", quoteAge = 7, ahead = 3, sold = 4, days = 1.25,
-        recommendation = { action = "repost", rec = { unit = 149 } },
+        recommendation = { action = "repost", rec = { unit = 149, breakeven = 106 } },
         batches = { { source = "goldcap", acquiredAt = 4, originalQty = 5, remainingQty = 2,
           allocatedQty = 2, unitCost = 50, totalCost = 100, evidence = "Auction 9" } },
         ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } },
@@ -311,7 +374,7 @@ describe("Sell widget geometry and manual cost", function()
     rows = upvalue(render, "rows")
     assert.equal("detail", rows[2].kind)
     assert.match("quote 7s · ahead 3 · sold/day 4 · ETA ~1d", rows[2].cells.item.text)
-    assert.equal("Repost @ 149", rows[2].cells.status.text)
+    assert.equal("Repost @ 149 · breakeven 106", rows[2].cells.status.text)
     assert.match("goldcap · at 4 · 5 original / 2 left / 2 FIFO", rows[3].cells.item.text)
     assert.equal("100", rows[3].cells.cost.text)
     assert.equal("400", rows[4].cells.listed.text)
@@ -337,5 +400,49 @@ describe("Sell widget geometry and manual cost", function()
     })
     rows[1].scripts.OnClick(rows[1])
     assert.equal("Post (undercut) @ 199", rows[2].cells.status.text)
+  end)
+
+  it("[I2] renders semantic evidence, owned unit and total, and breakeven", function()
+    local GC = load(620, { calls = {} })
+    helper.loadModule("UI/SellViewModel.lua", GC)
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 2, trackedQty = 2, listedQty = 2, knownQty = 2, knownCost = 100,
+        listedValue = 400, sources = { goldcap = 1, auction_house = 1 }, status = "LISTED",
+        recommendation = { unit = 199, mode = "undercut", breakeven = 106 },
+        batches = {
+          { id = "a", source = "goldcap", originalQty = 1, remainingQty = 1, remainingTotal = 50,
+            sniperEvidenceKey = "capture:1" },
+          { id = "b", source = "auction_house", originalQty = 1, remainingQty = 1, remainingTotal = 50,
+            mailEvidenceKey = "mail:2" },
+          { id = "c", source = "manual", originalQty = 1, remainingQty = 1, remainingTotal = 50 },
+          { id = "d", source = "auction_house", originalQty = 1, remainingQty = 1, remainingTotal = 50 },
+        },
+        allocations = { { batchID = "a", quantity = 1 }, { batchID = "b", quantity = 1 } },
+        ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } },
+      },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    assert.match("captured", rows[3].cells.item.text)
+    assert.match("mail%-confirmed", rows[4].cells.item.text)
+    assert.match("manual", rows[5].cells.item.text)
+    assert.match("unknown evidence", rows[6].cells.item.text)
+    assert.equal("Post (undercut) @ 199 · breakeven 106", rows[2].cells.status.text)
+    assert.match("unit 200", rows[7].cells.item.text)
+    assert.equal("400", rows[7].cells.listed.text)
+  end)
+
+  it("[I2] renders no recommendation when none is available", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {}, ownedLots = {}, recommendation = nil }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0,
+        sources = {}, status = "UNLISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("", rows[2].cells.status.text)
   end)
 end)

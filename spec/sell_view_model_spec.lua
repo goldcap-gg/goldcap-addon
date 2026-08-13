@@ -34,7 +34,7 @@ describe("Sell view model", function()
       positionKey = "commodity:42", coverage = "PARTIAL", quoteAge = 3, ahead = 4,
       outlook = { days = 2, tier = "OK" }, recommendation = "Post", batches = {
         { source = "goldcap", acquiredAt = 10, originalQty = 3, remainingQty = 2,
-          allocatedQty = 1, unitCost = 50, totalCost = 100, evidence = "Sniper buy" },
+          allocatedQty = 1, unitCost = 50, totalCost = 100, sniperEvidenceKey = "capture:1" },
       }, ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 99 } },
     }
     local expanded = GC.SellViewModel.Expansion(position)
@@ -46,7 +46,7 @@ describe("Sell view model", function()
     assert.equal(1, expanded.batches[1].allocatedQty)
     assert.equal(50, expanded.batches[1].unitCost)
     assert.equal(100, expanded.batches[1].totalCost)
-    assert.equal("Sniper buy", expanded.batches[1].evidence)
+    assert.equal("captured", expanded.batches[1].evidence)
     assert.equal(7, expanded.ownedLots[1].auctionID)
     assert.equal(3, expanded.quoteAge)
     assert.equal(4, expanded.ahead)
@@ -71,5 +71,18 @@ describe("Sell view model", function()
     GC.SellViewModel.SummaryText({ knownCost = 10, listedValue = 12, profit = 2 })
     GC.SellViewModel.Expansion(position)
     assert.same(snapshot, position)
+  end)
+
+  it("[I2] maps internal acquisition evidence to stable semantic labels", function()
+    local expanded = GC.SellViewModel.Expansion({ batches = {
+      { source = "goldcap", remainingQty = 1, remainingTotal = 1, sniperEvidenceKey = "capture:1" },
+      { source = "auction_house", remainingQty = 1, remainingTotal = 1, mailEvidenceKey = "mail:2" },
+      { source = "manual", remainingQty = 1, remainingTotal = 1 },
+      { source = "auction_house", remainingQty = 1, remainingTotal = 1 },
+    } })
+    assert.equal("captured", expanded.batches[1].evidence)
+    assert.equal("mail-confirmed", expanded.batches[2].evidence)
+    assert.equal("manual", expanded.batches[3].evidence)
+    assert.equal("unknown evidence", expanded.batches[4].evidence)
   end)
 end)

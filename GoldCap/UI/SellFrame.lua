@@ -29,6 +29,7 @@ local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending
 local quoteTimeoutToken = 0
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
+local renderGeneration = 0
 
 local function restorePostRow(row)
   if not row then return end
@@ -40,6 +41,20 @@ local function restoreRepostRow(row)
   if not row then return end
   row.repostStage, row.repostReady = nil, nil
   if row.action then row.action:Enable(); row.action:SetLabel("Repost") end
+end
+
+local function disarmPost()
+  local row = postingRow
+  postingRow, postingPin = nil, nil
+  postTimeoutToken = (postTimeoutToken or 0) + 1
+  restorePostRow(row)
+end
+
+local function disarmRepost()
+  local row = repostingRow
+  repostingRow, repostPin = nil, nil
+  repostArmToken = (repostArmToken or 0) + 1
+  restoreRepostRow(row)
 end
 
 local function setStatus(text)
@@ -68,11 +83,13 @@ local function recommendationText(recommendation)
   action = action:sub(1, 1):upper() .. action:sub(2)
   local nested = recommendation.rec
   local unit = nested and nested.unit or recommendation.unit
+  local breakeven = nested and nested.breakeven or recommendation.breakeven
   local reason = type(recommendation.reason) == "string" and recommendation.reason
     or (type(recommendation.mode) == "string" and recommendation.mode or nil)
   local suffix = unit and (" @ " .. formatCell(unit)) or ""
   if recommendation.belowCost then reason = reason and (reason .. " · below cost") or "below cost" end
-  return action .. (reason and (" (" .. reason .. ")") or "") .. suffix
+  local floor = breakeven and (" · breakeven " .. formatCell(breakeven)) or ""
+  return action .. (reason and (" (" .. reason .. ")") or "") .. suffix .. floor
 end
 
 local function exact(value)
@@ -92,6 +109,27 @@ end
 
 local function context()
   return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+end
+
+local function activeScope(position)
+  local scope = context()
+  if type(position) ~= "table" or type(position.positionKey) ~= "string"
+      or type(scope) ~= "table" or type(scope.char) ~= "string" or scope.char == ""
+      or type(scope.region) ~= "string" or scope.region == "" then return nil, nil end
+  local scopeKey
+  if GC.Acquisitions and GC.Acquisitions.ScopeKey then
+    scopeKey = GC.Acquisitions.ScopeKey(position.positionKey, scope)
+  else
+    scopeKey = table.concat({ scope.region, scope.char, position.positionKey }, "\1")
+  end
+  if scopeKey ~= position.scopeKey then return nil, nil end
+  return scope, scopeKey
+end
+
+local function exactRenderEntry(row, pin)
+  return row and pin and type(row.renderEntryID) == "string" and row.renderEntryID ~= ""
+    and row.renderEntryID == pin.renderEntryID and pin.row == row and pin.action == row.action
+    and pin.position == row.position
 end
 
 local function itemName(itemID)
@@ -174,9 +212,14 @@ local function finishQuoteWalk()
   renderRows()
 end
 
-local function failPendingQuote(pending)
+local function failPendingQuote(pending, awaitTerminal)
   if refresh.pending ~= pending or pending.generation ~= refresh.generation then return end
-  refresh.drain[pending.kind .. ":" .. pending.itemID] = pending.generation
+  if awaitTerminal then
+    refresh.drain[pending.kind .. ":" .. pending.itemID] = {
+      abandonedGeneration = pending.generation,
+      terminals = 1,
+    }
+  end
   quotes[pending.itemID] = nil
   refresh.pending = nil
   refresh.phase = "error"
@@ -188,7 +231,7 @@ local function scheduleQuoteTimeout(pending)
   quoteTimeoutToken = quoteTimeoutToken + 1
   local token = quoteTimeoutToken
   C_Timer.After(QUOTE_STALE_SECONDS, function()
-    if token == quoteTimeoutToken then failPendingQuote(pending) end
+    if token == quoteTimeoutToken then failPendingQuote(pending, true) end
   end)
 end
 
@@ -202,8 +245,10 @@ local function advanceQuote()
   if driver.keyInfo(itemID) then
     local info = driver.keyInfo(itemID)
     local kind = info.isCommodity and "commodity" or "item"
-    if refresh.drain[kind .. ":" .. itemID] then
-      refresh.phase = "error"
+    local tombstone = refresh.drain[kind .. ":" .. itemID]
+    if tombstone then
+      tombstone.resumeGeneration = refresh.generation
+      refresh.phase = "draining"
       setStatus("Refresh waiting for prior result")
       return
     end
@@ -251,14 +296,21 @@ function GC.Sell.OnOwnedAuctions()
     end
   end
   if repostingRow and repostPin then
-    local stillOwned
-    for _, lot in ipairs(ownedLots) do
-      if lot.positionKey == repostPin.positionKey and lot.auctionID == repostPin.auctionID and lot.quantity == repostPin.quantity then stillOwned = true break end
+    local pinnedScope, scopeKey = activeScope(repostPin.position)
+    local stillOwned = pinnedScope and scopeKey == repostPin.scopeKey
+    if stillOwned then
+      stillOwned = false
+      for _, lot in ipairs(ownedLots) do
+        if lot.positionKey == repostPin.positionKey and lot.itemID == repostPin.itemID
+            and lot.auctionID == repostPin.auctionID and lot.quantity == repostPin.quantity
+            and lot.unitPrice == repostPin.listedUnit then
+          stillOwned = true
+          break
+        end
+      end
     end
     if not stillOwned then
-      repostArmToken = repostArmToken + 1
-      restoreRepostRow(repostingRow)
-      repostingRow, repostPin = nil, nil
+      disarmRepost()
       setStatus("Lot cancelled; wait for it to return to bags")
     end
   end
@@ -267,7 +319,7 @@ end
 
 function GC.Sell.OnThrottleReady()
   if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then
-    failPendingQuote(refresh.pending)
+    failPendingQuote(refresh.pending, true)
     return
   end
   advanceQuote()
@@ -279,15 +331,24 @@ end
 
 local function quoteResolved(kind, itemID, unit, levels)
   local drainKey = kind .. ":" .. itemID
-  if refresh.drain[drainKey] then
-    refresh.drain[drainKey] = nil
-    if refresh.phase == "error" then refresh.phase = "idle" end
+  local tombstone = refresh.drain[drainKey]
+  if tombstone then
+    tombstone.terminals = tombstone.terminals - 1
+    local resume = tombstone.terminals <= 0 and tombstone.resumeGeneration == refresh.generation
+      and refresh.phase == "draining"
+    if tombstone.terminals <= 0 then refresh.drain[drainKey] = nil end
+    if resume then
+      refresh.phase = "pricing"
+      advanceQuote()
+    elseif refresh.phase == "error" then
+      refresh.phase = "idle"
+    end
     return
   end
   local pending = refresh.pending
   if not pending or pending.kind ~= kind or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
   if not exact(unit) or unit <= 0 then
-    failPendingQuote(pending)
+    failPendingQuote(pending, false)
     return
   end
   refresh.pending = nil
@@ -375,8 +436,7 @@ local function schedulePostTimeout(row)
   C_Timer.After(POST_TIMEOUT_SECONDS, function()
     if token == postTimeoutToken and postingRow == row
         and (row.postStage == "posting" or row.postStage == "confirm" or row.postStage == "confirming") then
-      postingRow, postingPin = nil, nil
-      restorePostRow(row)
+      disarmPost()
       setStatus("Posting timed out")
     end
   end)
@@ -386,10 +446,7 @@ local function onPostClick(row)
   local position = row.position
   local quote = freshQuote(position)
   if not quote then
-    if postingRow == row then
-      postingRow, postingPin = nil, nil
-      restorePostRow(row)
-    end
+    if postingRow == row then disarmPost() end
     startQuoteRefreshFor(position); return
   end
   if postingRow and postingRow ~= row then
@@ -399,12 +456,23 @@ local function onPostClick(row)
   if postingRow == row and row.postStage ~= "confirm" then return end
   if row.postStage == "confirm" then
     local pin = postingPin
-    if not pin or pin.row ~= row or pin.action ~= row.action or pin.position ~= position
+    local scope, scopeKey = activeScope(position)
+    local sameQuote = pin and quote == pin.quote and quote.at == pin.quoteAt and quote.unit == pin.quoteUnit
+    local checkedTotal = pin and safeMultiply(pin.unitPrice, pin.quantity) or nil
+    local confirmAvailable = pin and C_AuctionHouse
+      and ((pin.isCommodity and C_AuctionHouse.ConfirmPostCommodity)
+        or (not pin.isCommodity and C_AuctionHouse.ConfirmPostItem))
+    if not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
         or pin.positionKey ~= position.positionKey or pin.scopeKey ~= position.scopeKey
-        or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit then
-      postingRow, postingPin = nil, nil
-      restorePostRow(row)
-      startQuoteRefreshFor(position); return
+        or pin.itemID ~= position.itemID or pin.variantKey ~= position.positionKey
+        or not exact(pin.quantity) or pin.quantity <= 0 or not exact(pin.unitPrice) or pin.unitPrice <= 0
+        or not checkedTotal or checkedTotal ~= pin.total
+        or (not pin.isCommodity and pin.buyout ~= checkedTotal)
+        or not sameQuote or not confirmAvailable then
+      disarmPost()
+      if not sameQuote then startQuoteRefreshFor(position)
+      else setStatus("Post confirmation expired") end
+      return
     end
     row.postStage = "confirming"; row.action:Disable(); setStatus("Posting…")
     if pin.isCommodity then
@@ -420,7 +488,10 @@ local function onPostClick(row)
     setStatus(reason == "ambiguous_variant" and "No exact bag variant" or "Cannot post this position")
     return
   end
-  if plan.positionKey ~= position.positionKey or plan.scopeKey ~= position.scopeKey or plan.itemID ~= position.itemID
+  local scope, scopeKey = activeScope(position)
+  if not scope or type(row.renderEntryID) ~= "string" or row.renderEntryID == ""
+      or plan.positionKey ~= position.positionKey or plan.scopeKey ~= position.scopeKey
+      or plan.scopeKey ~= scopeKey or plan.itemID ~= position.itemID
       or not exact(plan.quantity) or plan.quantity <= 0 or not exact(plan.unitPrice) or plan.unitPrice <= 0 then
     setStatus("Cannot post this position")
     return
@@ -447,13 +518,12 @@ local function onPostClick(row)
     end
   end
   local location = not info.isCommodity and ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot) or nil
-  local scope = context()
   postingRow = row
   postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
-    position = position, character = scope and scope.char or position.character, region = scope and scope.region or position.region }
+    position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
   row.postStage = "posting"; row.action:Disable(); setStatus("Posting…")
   local needsConfirmation
   if info.isCommodity then
@@ -470,21 +540,34 @@ end
 
 local function onRepostClick(row, auctionID)
   local position = row.position
+  if repostingRow and repostingRow ~= row then
+    disarmRepost()
+    setStatus("Previous repost selection cleared")
+    return
+  end
   local quote = freshQuote(position)
   if not quote then
-    if repostingRow == row then
-      repostArmToken = repostArmToken + 1
-      restoreRepostRow(row)
-      repostingRow, repostPin = nil, nil
-    end
+    if repostingRow == row then disarmRepost() end
     startQuoteRefreshFor(position); return
   end
-  if repostingRow and repostingRow ~= row then setStatus("Finish the pending repost first"); return end
   if row.repostStage == "armed" then
     if not row.repostReady then return end
     local pin = repostPin
+    if not exactRenderEntry(row, pin) then
+      disarmRepost()
+      setStatus("Repost confirmation expired")
+      return
+    end
+    local scope, scopeKey = pin and activeScope(pin.position) or nil, nil
+    if scope then
+      if GC.Acquisitions and GC.Acquisitions.ScopeKey then
+        scopeKey = GC.Acquisitions.ScopeKey(pin.positionKey, scope)
+      else
+        scopeKey = table.concat({ scope.region, scope.char, pin.positionKey }, "\1")
+      end
+    end
     if not (C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots) then
-      repostingRow, repostPin = nil, nil; restoreRepostRow(row)
+      disarmRepost()
       setStatus("Repost confirmation expired")
       return
     end
@@ -492,15 +575,20 @@ local function onRepostClick(row, auctionID)
     composePositions()
     local livePosition = currentPosition(pin.positionKey)
     local current
-    for _, candidate in ipairs(livePosition and livePosition.scopeKey == pin.scopeKey and livePosition.ownedLots or {}) do
+    for _, candidate in ipairs(livePosition and livePosition.scopeKey == pin.scopeKey
+        and livePosition.itemID == pin.itemID and livePosition.ownedLots or {}) do
       if candidate.auctionID == pin.auctionID and candidate.quantity == pin.quantity and candidate.unitPrice == pin.listedUnit then current = candidate break end
     end
     local plan = current and GC.SellPositions.BuildRepostPlan(livePosition, pin.auctionID, { unit = quote.unit, fresh = true })
-    if not pin or pin.row ~= row or pin.action ~= row.action or pin.position ~= position
+    if not exactRenderEntry(row, pin) or not scope or scopeKey ~= pin.scopeKey
+        or pin.position ~= position or pin.positionKey ~= position.positionKey
+        or pin.scopeKey ~= position.scopeKey or pin.itemID ~= position.itemID
         or not plan or plan.positionKey ~= pin.positionKey or plan.scopeKey ~= pin.scopeKey
+        or plan.itemID ~= pin.itemID or plan.auctionID ~= pin.auctionID
+        or plan.quantity ~= pin.quantity or plan.unitPrice ~= pin.quoteUnit
         or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit
         or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
-      repostingRow, repostPin = nil, nil; restoreRepostRow(row)
+      disarmRepost()
       setStatus("Repost confirmation expired")
       return
     end
@@ -511,7 +599,7 @@ local function onRepostClick(row, auctionID)
       local token = repostArmToken
       C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
         if token == repostArmToken and repostingRow == row and row.repostStage == "cancelling" then
-          repostingRow, repostPin = nil, nil; restoreRepostRow(row)
+          disarmRepost()
           setStatus("Cancel timed out")
         end
       end)
@@ -519,13 +607,26 @@ local function onRepostClick(row, auctionID)
     return
   end
   local plan = GC.SellPositions.BuildRepostPlan(position, auctionID, { unit = quote.unit, fresh = true })
-  if not plan or plan.positionKey ~= position.positionKey or plan.scopeKey ~= position.scopeKey then setStatus("Cannot repost this lot") return end
+  local scope, scopeKey = activeScope(position)
+  if not plan or not scope or type(row.renderEntryID) ~= "string" or row.renderEntryID == ""
+      or plan.positionKey ~= position.positionKey or plan.scopeKey ~= position.scopeKey
+      or plan.scopeKey ~= scopeKey or plan.itemID ~= position.itemID
+      or not exact(plan.auctionID) or plan.auctionID <= 0 or plan.auctionID ~= auctionID
+      or not exact(plan.quantity) or plan.quantity <= 0
+      or not exact(plan.unitPrice) or plan.unitPrice <= 0 then
+    setStatus("Cannot repost this lot")
+    return
+  end
   local lot
   for _, candidate in ipairs(position.ownedLots or {}) do if candidate.auctionID == plan.auctionID then lot = candidate break end end
-  if not lot then setStatus("Cannot repost this lot"); return end
+  if not lot or lot.quantity ~= plan.quantity or not exact(lot.unitPrice) or lot.unitPrice <= 0 then
+    setStatus("Cannot repost this lot")
+    return
+  end
   repostingRow, repostPin = row, { scopeKey = plan.scopeKey, positionKey = plan.positionKey, auctionID = plan.auctionID,
-    quantity = plan.quantity, listedUnit = lot.unitPrice, quoteAt = quote.at, quoteUnit = quote.unit,
-    quote = quote, row = row, action = row.action, position = position }
+    itemID = plan.itemID, quantity = plan.quantity, listedUnit = lot.unitPrice,
+    quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, row = row, action = row.action,
+    position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
   row.repostStage, row.repostReady = "armed", false
   row.action:Disable(); row.action:SetLabel("Cancel lot?")
   setStatus("Cancel this lot and lose its deposit — click again to confirm")
@@ -537,7 +638,7 @@ local function onRepostClick(row, auctionID)
     end)
     C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
       if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then
-        repostingRow, repostPin = nil, nil; restoreRepostRow(row)
+        disarmRepost()
         setStatus("Repost confirmation expired")
       end
     end)
@@ -547,19 +648,21 @@ end
 function GC.Sell.OnAuctionCreated()
   local pin, row = postingPin, postingRow
   if not pin or not row then return end
-  if GC.Acquisitions and GC.Acquisitions.RecordPost and pin.character and pin.region then
+  local valid = exactRenderEntry(row, pin) and (row.postStage == "posting" or row.postStage == "confirming")
+    and pin.positionKey == row.position.positionKey and pin.scopeKey == row.position.scopeKey
+    and pin.itemID == row.position.itemID and exact(pin.quantity) and pin.quantity > 0
+    and exact(pin.total) and pin.total > 0 and type(pin.character) == "string" and pin.character ~= ""
+    and type(pin.region) == "string" and pin.region ~= ""
+  if valid and GC.Acquisitions and GC.Acquisitions.RecordPost then
     GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), pin.character, pin.region, pin.quantity, time())
   end
-  postTimeoutToken = (postTimeoutToken or 0) + 1
-  restorePostRow(row)
-  postingRow, postingPin = nil, nil
+  disarmPost()
   GC.Sell.Refresh()
 end
 
 function GC.Sell.OnPostError()
-  restorePostRow(postingRow)
-  postTimeoutToken = (postTimeoutToken or 0) + 1
-  postingRow, postingPin = nil, nil
+  disarmPost()
+  disarmRepost()
   setStatus("Posting failed")
   GC.Sell.Refresh()
 end
@@ -584,7 +687,7 @@ local function openCostDialog(position)
   local missing = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
   if missing < 1 then return end
   dialog.position, dialog.maximum = position, missing
-  dialog.submitted = false
+  dialog.submitted, dialog.costMode, dialog.syncing = false, nil, false
   dialog.quantity:SetText("1")
   dialog.unit:SetText("")
   dialog.total:SetText("")
@@ -598,7 +701,17 @@ local function confirmCostDialog(dialog)
   if not quantity or quantity < 1 then return setDialogError(dialog, "Enter a whole quantity") end
   if quantity > dialog.maximum then return setDialogError(dialog, "Quantity exceeds missing units") end
   if not total then return setDialogError(dialog, "Enter an exact positive cost") end
-  local position, scope = dialog.position, context()
+  if dialog.costMode == "unit" then
+    local unit = dialogExactPositive(dialog.unit)
+    if not unit or safeMultiply(quantity, unit) ~= total then
+      return setDialogError(dialog, "Enter an exact positive cost")
+    end
+  elseif dialog.costMode ~= "total" then
+    return setDialogError(dialog, "Enter an exact positive cost")
+  end
+  local position = dialog.position
+  local scope = activeScope(position)
+  if not scope then return setDialogError(dialog, "Position scope changed") end
   local batch = GC.Acquisitions.RecordManual({ itemID = position.itemID, positionKey = position.positionKey,
     itemName = position.itemName, quantity = quantity, total = total, acquiredAt = time(),
     character = scope and scope.char, region = scope and scope.region })
@@ -677,26 +790,12 @@ local function updateSummary(filtered)
   setColor(container.summary.profit, type(text.profit) == "number" and text.profit < 0 and Theme.color.red or Theme.color.green)
 end
 
-local function visiblePinnedPosition(filtered, row, pin)
-  if not row or not pin or pin.row ~= row or pin.action ~= row.action or pin.position ~= row.position then return false end
-  for _, position in ipairs(filtered) do
-    if position == pin.position and position.positionKey == pin.positionKey and position.scopeKey == pin.scopeKey then return true end
-  end
-  return false
-end
-
 renderRows = function()
   if not container then return end
+  renderGeneration = renderGeneration + 1
   local filtered = GC.SellViewModel.Filter(positions, filterMode)
-  if postingRow and not visiblePinnedPosition(filtered, postingRow, postingPin) then
-    restorePostRow(postingRow)
-    postingRow, postingPin = nil, nil
-  end
-  if repostingRow and not visiblePinnedPosition(filtered, repostingRow, repostPin) then
-    repostArmToken = repostArmToken + 1
-    restoreRepostRow(repostingRow)
-    repostingRow, repostPin = nil, nil
-  end
+  if postingRow then disarmPost() end
+  if repostingRow then disarmRepost() end
   updateSummary(filtered)
   local entries = {}
   for _, position in ipairs(filtered) do
@@ -714,13 +813,13 @@ renderRows = function()
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   for i, row in ipairs(rows) do
     local entry = entries[i]
-    if row == postingRow or row == repostingRow then
-      row:Show()
-    elseif not entry then row:Hide()
+    if not entry then row.renderEntryID = nil; row:Hide()
     else
       row:Show(); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       local p = entry.position
+      local lotID = entry.lot and entry.lot.auctionID or 0
+      row.renderEntryID = table.concat({ renderGeneration, i, entry.kind, p.scopeKey or "", p.positionKey or "", lotID }, ":")
       if entry.kind == "position" then
         row.cells.item:SetText((p.itemName or "Item") .. "\n" .. GC.SellViewModel.SourceText(p))
         row.cells.cost:SetText(formatCell(GC.SellViewModel.CostText(p)))
@@ -749,8 +848,10 @@ renderRows = function()
         row.cells.profit:SetText(""); row.cells.status:SetText("FIFO"); row.cells.expand:SetText("")
         row.action:Hide()
       elseif entry.kind == "lot" then
-        row.cells.item:SetText(("  Auction %s · ×%d"):format(entry.lot.auctionID, entry.lot.quantity))
-        row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(entry.lot.unitPrice * entry.lot.quantity))
+        local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
+        row.cells.item:SetText(("  Auction %s · ×%d · unit %s"):format(entry.lot.auctionID,
+          entry.lot.quantity, formatCell(entry.lot.unitPrice)))
+        row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
         row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.status:SetText("Repost"); row.cells.expand:SetText("")
         row.action:SetLabel("Repost"); row.action:Show(); row.action:SetScript("OnClick", function() onRepostClick(row, entry.lot.auctionID) end)
       else
@@ -802,15 +903,19 @@ function GC.Sell.Refresh()
   end
 end
 function GC.Sell.Reset()
+  local pending = refresh.pending
+  if pending then
+    refresh.drain[pending.kind .. ":" .. pending.itemID] = {
+      abandonedGeneration = pending.generation,
+      terminals = 1,
+    }
+  end
   refresh.generation = refresh.generation + 1
-  refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting, refresh.drain = "idle", {}, 0, nil, nil, {}
+  refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting = "idle", {}, 0, nil, nil
   GC.QuoteCache.Clear(quotes)
-  postTimeoutToken = (postTimeoutToken or 0) + 1
   quoteTimeoutToken = quoteTimeoutToken + 1
-  repostArmToken = (repostArmToken or 0) + 1
-  restorePostRow(postingRow)
-  restoreRepostRow(repostingRow)
-  postingRow, postingPin, repostingRow, repostPin = nil, nil, nil, nil
+  disarmPost()
+  disarmRepost()
 end
 
 function GC.Sell.Attach(f, geometry)
@@ -847,41 +952,68 @@ function GC.Sell.Attach(f, geometry)
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, -55); setColor(dialog.error, Theme.color.red)
   local cancel = Theme.Button(dialog, "ghost"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
   local confirm = Theme.Button(dialog, "primary"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
+  local function syncText(edit, text)
+    dialog.syncing = true
+    edit:SetText(text)
+    dialog.syncing = false
+  end
   dialog.unit:SetScript("OnTextChanged", function()
-    if dialog.editingTotal then return end
+    if dialog.syncing then return end
+    dialog.costMode = "unit"
     local q, unit = dialogExactPositive(dialog.quantity), dialogExactPositive(dialog.unit)
     if not q or not unit then
-      dialog.total:SetText("")
+      syncText(dialog.total, "")
       return setDialogError(dialog, "Enter an exact positive cost")
     end
     local total = safeMultiply(q, unit)
     if not total then
-      dialog.total:SetText("")
+      syncText(dialog.total, "")
       return setDialogError(dialog, "Enter an exact positive cost")
     end
     setDialogError(dialog)
-    dialog.total:SetText(tostring(total))
+    syncText(dialog.total, tostring(total))
   end)
   dialog.quantity:SetScript("OnTextChanged", function()
+    if dialog.syncing then return end
     local quantity = dialogExactPositive(dialog.quantity)
     if not quantity then
-      dialog.unit:SetText(""); dialog.total:SetText("")
+      if dialog.costMode == "unit" then syncText(dialog.total, "")
+      elseif dialog.costMode == "total" then syncText(dialog.unit, "")
+      else syncText(dialog.unit, ""); syncText(dialog.total, "") end
       return setDialogError(dialog, "Enter a whole quantity")
     end
     if dialog.maximum then
       local clamped = math.max(1, math.min(dialog.maximum, quantity))
-      if clamped ~= quantity then dialog.quantity:SetText(tostring(clamped)) end
+      if clamped ~= quantity then syncText(dialog.quantity, tostring(clamped)); quantity = clamped end
+    end
+    if dialog.costMode == "unit" then
+      local unit = dialogExactPositive(dialog.unit)
+      local total = unit and safeMultiply(quantity, unit)
+      if not total then
+        syncText(dialog.total, "")
+        return setDialogError(dialog, "Enter an exact positive cost")
+      end
+      syncText(dialog.total, tostring(total))
+      setDialogError(dialog)
+    elseif dialog.costMode == "total" then
+      local total = dialogExactPositive(dialog.total)
+      if not total then
+        syncText(dialog.unit, "")
+        return setDialogError(dialog, "Enter an exact positive cost")
+      end
+      syncText(dialog.unit, tostring(math.floor(total / quantity)))
+      setDialogError(dialog)
     end
   end)
   dialog.total:SetScript("OnTextChanged", function()
+    if dialog.syncing then return end
+    dialog.costMode = "total"
     local q, total = dialogExactPositive(dialog.quantity), dialogExactPositive(dialog.total)
     if not q or not total then
-      dialog.editingTotal = true; dialog.unit:SetText(""); dialog.editingTotal = false
+      syncText(dialog.unit, "")
       return setDialogError(dialog, "Enter an exact positive cost")
     end
-    dialog.editingTotal = true
-    dialog.unit:SetText(tostring(math.floor(total / q)))
-    dialog.editingTotal = false
+    syncText(dialog.unit, tostring(math.floor(total / q)))
     setDialogError(dialog)
   end)
   f:HookScript("OnSizeChanged", function(_, width)

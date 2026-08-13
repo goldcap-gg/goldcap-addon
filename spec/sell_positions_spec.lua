@@ -148,6 +148,7 @@ describe("Sell positions", function()
     assert.equal(4, p.soldPerDay)
     assert.equal("repost", p.recommendation.action)
     assert.equal(149, p.recommendation.rec.unit)
+    assert.equal(106, p.recommendation.rec.breakeven)
   end)
 
   it("carries a direct RecommendPost decision for unlisted exact stock and no fallback without a quote", function()
@@ -156,6 +157,7 @@ describe("Sell positions", function()
       statsByItemID = { [42] = { sold = 5 } } })[1]
     assert.equal(149, advised.recommendation.unit)
     assert.equal("undercut", advised.recommendation.mode)
+    assert.equal(106, advised.recommendation.breakeven)
     assert.equal(5, advised.soldPerDay)
     local noQuote = build({ acquisitions = { batch("acq:2", "goldcap", 1, 100, 1) } })[1]
     assert.is_nil(noQuote.recommendation)

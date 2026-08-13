@@ -19,6 +19,26 @@ local function copy(values)
   return result
 end
 
+local function evidenceLabel(batch)
+  if batch.source == "manual" then return "manual" end
+  if type(batch.mailEvidenceKey) == "string" and batch.mailEvidenceKey ~= "" then return "mail-confirmed" end
+  local captured
+  for key, present in pairs(type(batch.evidenceKeys) == "table" and batch.evidenceKeys or {}) do
+    if present and type(key) == "string" then
+      if key:match("^mail:") then return "mail-confirmed" end
+      captured = true
+    end
+  end
+  if type(batch.sniperEvidenceKey) == "string" and batch.sniperEvidenceKey ~= "" or captured then
+    return "captured"
+  end
+  if batch.evidence == "captured" or batch.evidence == "mail-confirmed"
+      or batch.evidence == "manual" or batch.evidence == "unknown evidence" then
+    return batch.evidence
+  end
+  return "unknown evidence"
+end
+
 function GC.SellViewModel.Filter(positions, mode)
   local filtered = {}
   for _, position in ipairs(positions or {}) do
@@ -81,7 +101,7 @@ function GC.SellViewModel.Expansion(position)
     batch.unitCost = batch.unitCost or (batch.remainingQty and batch.remainingQty > 0
       and math.floor((batch.remainingTotal or 0) / batch.remainingQty))
     batch.totalCost = batch.totalCost or batch.remainingTotal
-    batch.evidence = batch.evidence or batch.sniperEvidenceKey or batch.mailEvidenceKey or "Recorded"
+    batch.evidence = evidenceLabel(batch)
   end
   return {
     positionKey = position.positionKey, coverage = position.coverage, batches = batches,
