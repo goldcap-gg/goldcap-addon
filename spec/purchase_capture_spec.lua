@@ -108,6 +108,17 @@ describe("Passive normal-AH purchase capture", function()
     assert.equal(1, #GC.Acquisitions.GetPending())
   end)
 
+  it("freezes the exact pre-confirm commodity total", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(200, 601)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(301, GC.Acquisitions.GetAll()[1].originalTotal)
+  end)
+
   it("keeps a confirmed unavailable commodity as one pending observation", function()
     fire("StartCommoditiesPurchase", 42, 3)
     GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
@@ -233,6 +244,18 @@ describe("Passive normal-AH purchase capture", function()
     ownsCommodity = true
     fire("StartCommoditiesPurchase", 42, 3)
     fire("ConfirmCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
+    assert.equal(0, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+  end)
+
+  it("invalidates a stale passive commodity attempt on owned start alone", function()
+    fire("StartCommoditiesPurchase", 42, 3)
+    GC.PurchaseCapture.OnCommodityPriceUpdated(100, 301)
+    fire("ConfirmCommoditiesPurchase", 42, 3)
+    ownsCommodity = true
+    fire("StartCommoditiesPurchase", 42, 3)
+    ownsCommodity = false
     GC.PurchaseCapture.OnCommodityPurchaseSucceeded()
     assert.equal(0, #GC.Acquisitions.GetAll())
     assert.equal(0, #GC.Acquisitions.GetPending())
