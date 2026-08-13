@@ -12,6 +12,7 @@ Core/Util.lua
 Core/ImportString.lua
 Core/Data.lua
 Core/Acquisitions.lua
+Core/PurchaseCapture.lua
 Core/Ledger.lua
 Core/QuoteCache.lua
 Core/Flips.lua

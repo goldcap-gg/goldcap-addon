@@ -131,6 +131,19 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Acquisitions.Init(GC.db)
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
     end
+    if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then
+      GC.PurchaseCapture.Init({
+        hooksecurefunc = hooksecurefunc,
+        getNumItemSearchResults = function(itemKey) return C_AuctionHouse.GetNumItemSearchResults(itemKey) end,
+        getItemSearchResultInfo = function(itemKey, index)
+          return C_AuctionHouse.GetItemSearchResultInfo(itemKey, index)
+        end,
+        time = time,
+        after = function(seconds, callback)
+          if C_Timer and C_Timer.After then C_Timer.After(seconds, callback) end
+        end,
+      }, GC.Ledger and GC.Ledger.Context or nil)
+    end
     -- Sniper v3 T10: apply the persisted font-scale multiplier as soon as GC.db exists, NOT
     -- gated on the Sniper window ever being built -- UI/SniperFrame.lua's window frame is
     -- created lazily (first Toggle()/AH visit), so a player who never opens the Sniper this
@@ -154,6 +167,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
       GC.Sniper.OnAuctionHouseClosed()
+      if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if GC.Sniper.scanner then GC.Sniper.scanner:OnSystemReady() end
@@ -188,6 +202,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnItemSearchResults then
       GC.Sell.OnItemSearchResults(itemKey.itemID)
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnItemSearchResults(itemKey) end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
     local itemID = ...
     if GC.Sniper.scanner then
@@ -204,23 +219,28 @@ frame:SetScript("OnEvent", function(_, event, ...)
       local auctionID = ...
       GC.Sniper.OnPurchaseCompleted(auctionID)
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnPurchaseCompleted(...) end
   elseif event == "COMMODITY_PRICE_UPDATED" then
     if GC.Sniper.OnCommodityPriceUpdated then
       local unitPrice, totalPrice = ...
       GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUpdated(...) end
   elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
     if GC.Sniper.OnCommodityPriceUnavailable then
       GC.Sniper.OnCommodityPriceUnavailable()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUnavailable() end
   elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
     if GC.Sniper.OnCommodityPurchaseSucceeded then
       GC.Sniper.OnCommodityPurchaseSucceeded()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseSucceeded() end
   elseif event == "COMMODITY_PURCHASE_FAILED" then
     if GC.Sniper.OnCommodityPurchaseFailed then
       GC.Sniper.OnCommodityPurchaseFailed()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseFailed() end
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" then
     if GC.Sniper.OnBrowseResults then
       GC.Sniper.OnBrowseResults()
@@ -233,6 +253,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnAuctionHouseClosed then
       GC.Sniper.OnAuctionHouseClosed()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     if GC.Sell.OnAuctionCreated then
       GC.Sell.OnAuctionCreated()

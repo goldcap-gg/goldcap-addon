@@ -198,14 +198,17 @@ describe("TOC load order", function()
     end
     toc:close()
     assert.is_true(#files >= 7)
-    local acquisitionsIndex, ledgerIndex, quoteCacheIndex, flipsIndex
+    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex
     for i, rel in ipairs(files) do
       if rel == "Core/Acquisitions.lua" then acquisitionsIndex = i end
+      if rel == "Core/PurchaseCapture.lua" then purchaseCaptureIndex = i end
       if rel == "Core/Ledger.lua" then ledgerIndex = i end
       if rel == "Core/QuoteCache.lua" then quoteCacheIndex = i end
       if rel == "Core/Flips.lua" then flipsIndex = i end
     end
     assert.is_number(acquisitionsIndex)
+    assert.is_number(purchaseCaptureIndex)
+    assert.is_true(acquisitionsIndex < purchaseCaptureIndex)
     assert.is_number(ledgerIndex)
     assert.is_true(acquisitionsIndex < ledgerIndex)
     assert.is_number(quoteCacheIndex)
@@ -228,6 +231,7 @@ describe("TOC load order", function()
     assert.is_function(GC.Acquisitions.Init)
     assert.is_function(GC.Acquisitions.Record)
     assert.is_function(GC.Acquisitions.Allocate)
+    assert.is_function(GC.PurchaseCapture.Init)
     assert.is_function(GC.DealMath.Evaluate)
     assert.is_function(GC.SniperDecision.Evaluate)
     assert.is_function(GC.slashHandlers.sniper)

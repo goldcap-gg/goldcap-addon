@@ -2258,6 +2258,21 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
   resolvePurchase(row, true, deal and ("sniped for " .. GetCoinTextureString(deal.unitPrice * deal.qty)) or "purchase complete")
 end
 
+-- Read-only ownership checks used by Core/PurchaseCapture.lua's post-call observers. The
+-- Sniper installs its in-flight state immediately before issuing its hardware-click purchase
+-- call, so the passive hook can identify our call without issuing or changing any AH action.
+function GC.Sniper.OwnsCommodityPurchase(itemID, quantity)
+  local pending = commodityPurchase
+  if not pending or pending.itemID ~= itemID then return false end
+  if quantity == nil then return true end
+  local decision = pending.row and pending.row.decisionSnapshot
+  return decision and decision.quantity == quantity or false
+end
+
+function GC.Sniper.OwnsAuctionPurchase(auctionID)
+  return pendingAuction[auctionID] ~= nil
+end
+
 function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if commodityDraining then
     -- Price updates are non-terminal. Keep draining through every one, and re-send Cancel for
