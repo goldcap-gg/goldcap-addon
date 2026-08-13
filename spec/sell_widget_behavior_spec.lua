@@ -342,6 +342,63 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_true(rows[1].action.enabled)
   end)
 
+  it("[round5 rerender] disarms an armed Repost when its pooled row shifts to another auction", function()
+    local cancels, activity, timers = 0, 0, {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }
+    local GC = load(620, { calls = {} })
+    local quote = { unit = 200, at = 77 }
+    GC.QuoteCache.Fresh = function() return quote end
+    GC.Acquisitions.RecordPost = function() activity = activity + 1 end
+    GC.SellPositions.BuildRepostPlan = function(p, auctionID)
+      return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+        auctionID = auctionID, quantity = 1, unitPrice = 200 }
+    end
+    GC.SellViewModel.Filter = function(values, mode)
+      if mode == "auction_house" then return { values[2] } end
+      return values
+    end
+    GC.SellViewModel.Expansion = function(p)
+      return { note = "FIFO allocations", batches = {}, ownedLots = p.ownedLots }
+    end
+    local first = { itemID = 42, itemName = "First", positionKey = "commodity:42",
+      scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 1,
+      trackedQty = 1, listedQty = 1, knownQty = 1, knownCost = 100, listedValue = 220,
+      sources = { goldcap = 1 }, status = "LISTED",
+      ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 220 } } }
+    local second = { itemID = 43, itemName = "Second", positionKey = "commodity:43",
+      scopeKey = "eu\1A-R\1commodity:43", coverage = "COMPLETE", exposureQty = 1,
+      trackedQty = 1, listedQty = 1, knownQty = 1, knownCost = 100, listedValue = 230,
+      sources = { auction_house = 1 }, status = "LISTED",
+      ownedLots = { { auctionID = 8, quantity = 1, unitPrice = 230 } } }
+    local rows, container = topRows(GC, { first, second })
+
+    rows[2].scripts.OnClick(rows[2])
+    rows[1].scripts.OnClick(rows[1])
+    local firstLotRow = rows[3]
+    assert.equal(7, firstLotRow.lot.auctionID)
+    local staleClick = firstLotRow.action.scripts.OnClick
+    firstLotRow.action.scripts.OnClick()
+    assert.equal("armed", firstLotRow.repostStage)
+    assert.equal(0, cancels)
+
+    for _, child in ipairs(container.children) do
+      if child.label == "AH" then child.scripts.OnClick() end
+    end
+    assert.equal(8, firstLotRow.lot.auctionID)
+    assert.is_nil(firstLotRow.repostStage)
+    assert.equal("Repost", firstLotRow.action.label)
+    assert.is_true(firstLotRow.action.enabled)
+
+    for _, callback in ipairs(timers) do callback() end
+    staleClick()
+    GC.Sell.OnAuctionCreated()
+    assert.equal(0, cancels)
+    assert.equal(0, activity)
+    assert.equal(8, firstLotRow.lot.auctionID)
+    assert.is_nil(firstLotRow.repostStage)
+  end)
+
   it("renders expansion facts and filters the top-level summary once", function()
     local record = { calls = {} }
     local GC = load(620, record)

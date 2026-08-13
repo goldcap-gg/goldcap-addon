@@ -54,7 +54,7 @@ describe("Sell protected action state", function()
   end)
 
   after_each(function()
-    _G.time, _G.ItemLocation, _G.C_Timer, _G.C_AuctionHouse, _G.C_Container, _G.C_Item = os.time, nil, nil, nil, nil, nil
+    _G.time, _G.GetTime, _G.ItemLocation, _G.C_Timer, _G.C_AuctionHouse, _G.C_Container, _G.C_Item = os.time, nil, nil, nil, nil, nil, nil
   end)
 
   it("does not call protected post APIs for a stale quote", function()
@@ -721,6 +721,139 @@ describe("Sell protected action state", function()
     assert.equal(0, cancels)
   end)
 
+  it("[round5 close] routes real Sniper AH close through real Sell cleanup and preserves its drain fence", function()
+    local calls = { post = 0, confirm = 0, cancel = 0, activity = 0, cacheSet = 0, cacheClear = 0 }
+    local sent, timers = {}, {}
+    _G.GetTime = function() return 100 end
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_AuctionHouse = {
+      QueryOwnedAuctions = function() end,
+      GetOwnedAuctions = function() return { { auctionID = 7 } } end,
+      PostCommodity = function() calls.post = calls.post + 1; return false end,
+      ConfirmPostCommodity = function() calls.confirm = calls.confirm + 1 end,
+      CancelAuction = function() calls.cancel = calls.cancel + 1 end,
+    }
+    local quote = { unit = 200, at = 100 }
+    local postPosition = position()
+    postPosition.ownedLots = {}
+    local repostPosition = { itemID = 43, itemName = "Lot", positionKey = "commodity:43",
+      scopeKey = "eu\1A-R\1commodity:43", character = "A-R", region = "eu",
+      trackedQty = 1, listedQty = 1,
+      ownedLots = { { positionKey = "commodity:43", itemID = 43,
+        auctionID = 7, quantity = 1, unitPrice = 220 } } }
+    local GC = {
+      Sell = {},
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 },
+        tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function()
+        return { Input = function() end, State = function() return "OFF" end,
+          PauseReasons = function() return {} end, Tick = function() end }
+      end },
+      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return {} end },
+      db = { settings = { sniper = {} } },
+      SniperDecision = { Evaluate = function() return {} end },
+      Print = function() end,
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope)
+          return table.concat({ scope.region, scope.char, positionKey }, "\1")
+        end,
+        GetActive = function() return {} end,
+        RecordPost = function() calls.activity = calls.activity + 1 end,
+      },
+      QuoteCache = {
+        MAX_AGE_SECONDS = 10,
+        Fresh = function() return quote end,
+        Set = function() calls.cacheSet = calls.cacheSet + 1 end,
+        Clear = function() calls.cacheClear = calls.cacheClear + 1 end,
+      },
+      SellViewModel = {},
+      SellPositions = {
+        NormalizeOwnedLots = function() return repostPosition.ownedLots end,
+        Build = function() return { postPosition, repostPosition } end,
+        BuildPostPlan = function(p)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+            quantity = 1, unitPrice = 200 }
+        end,
+        BuildRepostPlan = function(p, auctionID)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+            auctionID = auctionID, quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+    set(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    local post, repost = handlers(GC)
+    local refreshDriver = {
+      isReady = function() return true end,
+      keyInfo = function() return { isCommodity = true } end,
+      send = function(itemID) sent[#sent + 1] = itemID end,
+      commodity = function() return 111 end,
+      commodityLevels = function() return nil end,
+      item = function() return nil end,
+      itemLevels = function() return nil end,
+    }
+    set(post, "driver", refreshDriver)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
+        itemID = 42, positionKey = "commodity:42" }
+    end)
+
+    GC.Sell.Refresh()
+    GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent)
+    local refresh = upvalue(GC.Sell.OnThrottleReady, "refresh")
+    local sentGeneration = refresh.generation
+    assert.equal("waiting_result", refresh.phase)
+    assert.is_table(refresh.pending)
+
+    local postAction = button(); postAction:SetLabel("Post")
+    local postRow = { position = postPosition, action = postAction, renderEntryID = "entry:post:42" }
+    local repostAction = button(); repostAction:SetLabel("Repost")
+    local repostRow = { position = repostPosition, action = repostAction, renderEntryID = "entry:lot:7" }
+    post(postRow)
+    repost(repostRow, 7)
+    assert.equal("posting", postRow.postStage)
+    assert.equal("armed", repostRow.repostStage)
+    assert.equal(1, calls.post)
+    assert.equal(0, calls.cancel)
+
+    GC.Sniper.OnAuctionHouseClosed()
+
+    assert.is_nil(postRow.postStage)
+    assert.equal("Post", postRow.action.label)
+    assert.is_true(postRow.action.enabled)
+    assert.is_nil(repostRow.repostStage)
+    assert.equal("Repost", repostRow.action.label)
+    assert.is_true(repostRow.action.enabled)
+    assert.equal(sentGeneration + 1, refresh.generation)
+    assert.equal("idle", refresh.phase)
+    assert.is_nil(refresh.pending)
+    assert.equal(1, refresh.drain["commodity:42"].terminals)
+    local afterClose = { post = calls.post, confirm = calls.confirm,
+      cancel = calls.cancel, activity = calls.activity }
+    for _, callback in ipairs(timers) do callback() end
+    GC.Sell.OnAuctionCreated()
+    assert.equal("idle", refresh.phase)
+    assert.equal(1, refresh.drain["commodity:42"].terminals)
+    assert.same(afterClose, { post = calls.post, confirm = calls.confirm,
+      cancel = calls.cancel, activity = calls.activity })
+
+    set(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    GC.Sell.Refresh()
+    GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent)
+    assert.equal("draining", refresh.phase)
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.equal(0, calls.cacheSet)
+    assert.same({ 42, 42 }, sent)
+    assert.equal("waiting_result", refresh.phase)
+    assert.equal(1, calls.cacheClear)
+    assert.same(afterClose, { post = calls.post, confirm = calls.confirm,
+      cancel = calls.cancel, activity = calls.activity })
+  end)
+
   it("[C6] rejects malformed, pet, and overflowing bag identity with zero protected calls", function()
     local fixtures = {
       { name = "malformed", key = "item:42:100:7:0", link = "item:42:broken", stacks = { 1 } },
@@ -780,6 +913,66 @@ describe("Sell protected action state", function()
     assert.equal(5, liveBagState(post)({ itemID = 42, positionKey = "commodity:42" }).exactQty)
     local normal = liveBagState(post)({ itemID = 42, positionKey = "item:42:100:7:0" })
     assert.is_nil(normal.bag)
+  end)
+
+  it("[round5 bonus] rejects a bonus-bearing normal bag link through the loaded Post handler", function()
+    local calls = { postItem = 0, postCommodity = 0, confirmItem = 0, confirmCommodity = 0,
+      activity = 0, cache = 0 }
+    local status = {}
+    _G.C_AuctionHouse = {
+      PostItem = function() calls.postItem = calls.postItem + 1 end,
+      PostCommodity = function() calls.postCommodity = calls.postCommodity + 1 end,
+      ConfirmPostItem = function() calls.confirmItem = calls.confirmItem + 1 end,
+      ConfirmPostCommodity = function() calls.confirmCommodity = calls.confirmCommodity + 1 end,
+    }
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 1 or 0 end,
+      GetContainerItemInfo = function() return { itemID = 42, stackCount = 2 } end,
+      GetContainerItemLink = function() return "item:42:0:0:0:0:0:7:0:0:0:0:0:1:999" end,
+    }
+    _G.C_Item = { GetDetailedItemLevelInfo = function() return 100 end }
+    local quote = { unit = 200, at = 100 }
+    local GC = {
+      Sell = {},
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
+      Acquisitions = {
+        ScopeKey = function(positionKey, scope)
+          return table.concat({ scope.region, scope.char, positionKey }, "\1")
+        end,
+        RecordPost = function() calls.activity = calls.activity + 1 end,
+      },
+      QuoteCache = {
+        Fresh = function() return quote end,
+        Set = function() calls.cache = calls.cache + 1 end,
+        Clear = function() calls.cache = calls.cache + 1 end,
+      },
+      SellPositions = {
+        BuildPostPlan = function(p)
+          return { positionKey = p.positionKey, scopeKey = p.scopeKey, itemID = p.itemID,
+            quantity = 1, unitPrice = 200 }
+        end,
+      },
+    }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "driver", { keyInfo = function() return { isCommodity = false } end })
+    set(post, "setStatus", function(text) status[#status + 1] = text end)
+    local p = position()
+    p.positionKey = "item:42:100:7:0"
+    p.scopeKey = "eu\1A-R\1item:42:100:7:0"
+    local action = button()
+    action:SetLabel("Post")
+    local row = { position = p, action = action, renderEntryID = "entry:post:bonus" }
+
+    post(row)
+    GC.Sell.OnAuctionCreated()
+
+    assert.same({ postItem = 0, postCommodity = 0, confirmItem = 0, confirmCommodity = 0,
+      activity = 0, cache = 0 }, calls)
+    assert.is_nil(row.postStage)
+    assert.equal("Post", row.action.label)
+    assert.is_true(row.action.enabled)
+    assert.equal("No exact bag stack", status[#status])
   end)
 
   it("accepts a normal identity with empty fixed link fields", function()
