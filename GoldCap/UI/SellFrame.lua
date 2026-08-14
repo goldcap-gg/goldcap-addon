@@ -31,6 +31,7 @@ local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
 local renderGeneration = 0
 local quoteExpiryGeneration = 0
+local manualRepairNonce = 0
 
 local function restorePostRow(row)
   if not row then return end
@@ -332,6 +333,25 @@ function GC.Sell.OnOwnedAuctions()
   if GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition and scope then
     for _, lot in ipairs(ownedLots) do
       GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName(lot.itemID), scope.char, scope.region, time())
+    end
+    -- Pure composition is allowed to display a currently unique variant, but
+    -- it must never make that inference durable.  The controller has the
+    -- current owned-lot evidence and has just persisted matching activity, so
+    -- it may ask the explicit fail-closed binding API to bind an item-only
+    -- legacy batch only when every candidate and activity agrees on one key.
+    if GC.Acquisitions.BindItemOnly and GC.Acquisitions.GetActive then
+      for _, batch in ipairs(GC.Acquisitions.GetActive(scope)) do
+        if not batch.positionKey then
+          local candidates = {}
+          for _, lot in ipairs(ownedLots) do
+            if lot.itemID == batch.itemID then
+              candidates[#candidates + 1] = { positionKey = lot.positionKey, itemID = lot.itemID,
+                character = scope.char, region = scope.region }
+            end
+          end
+          if #candidates > 0 then GC.Acquisitions.BindItemOnly(batch.id, candidates, scope) end
+        end
+      end
     end
   end
   if repostingRow and repostPin then
@@ -721,11 +741,39 @@ local function dialogExactPositive(edit)
   return exact(value) and value > 0 and value or nil
 end
 
+local function pendingRepairFor(position, scope)
+  local pending = position and position.pendingAcquisitions
+  if type(pending) ~= "table" or #pending ~= 1 or type(scope) ~= "table" then return nil end
+  local row = pending[1]
+  if type(row) ~= "table" or type(row.id) ~= "string" or row.id == ""
+      or row.itemID ~= position.itemID or row.positionKey ~= position.positionKey
+      or row.character ~= scope.char or row.region ~= scope.region
+      or not exact(row.quantity) or row.quantity <= 0 then
+    return nil
+  end
+  return row
+end
+
+local function canSetCost(position)
+  if not position or position.unresolved or type(position.positionKey) ~= "string" then return false end
+  local pending = position.pendingAcquisitions
+  if type(pending) ~= "table" or #pending == 0 then return true end
+  local scope = activeScope(position)
+  return pendingRepairFor(position, scope) ~= nil
+end
+
 local function openCostDialog(position)
   local dialog = container.costDialog
   local missing = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
   if missing < 1 then return end
-  dialog.position, dialog.maximum = position, missing
+  local scope = activeScope(position)
+  local pending = pendingRepairFor(position, scope)
+  if type(position.pendingAcquisitions) == "table" and #position.pendingAcquisitions > 0 and not pending then return end
+  if pending then missing = math.min(missing, pending.quantity) end
+  dialog.position, dialog.maximum, dialog.pendingRepair = position, missing, pending
+  manualRepairNonce = manualRepairNonce + 1
+  dialog.repairID = pending and table.concat({ "manual-repair", pending.id, tostring(time()),
+    tostring(manualRepairNonce) }, "\1") or nil
   dialog.submitted, dialog.costMode, dialog.syncing = false, nil, false
   dialog.quantity:SetText("1")
   dialog.unit:SetText("")
@@ -751,9 +799,21 @@ local function confirmCostDialog(dialog)
   local position = dialog.position
   local scope = activeScope(position)
   if not scope then return setDialogError(dialog, "Position scope changed") end
-  local batch = GC.Acquisitions.RecordManual({ itemID = position.itemID, positionKey = position.positionKey,
-    itemName = position.itemName, quantity = quantity, total = total, acquiredAt = time(),
-    character = scope and scope.char, region = scope and scope.region })
+  local batch
+  if dialog.pendingRepair then
+    local pending = pendingRepairFor(position, scope)
+    if not pending or pending.id ~= dialog.pendingRepair.id or not dialog.repairID
+        or not (GC.Acquisitions and GC.Acquisitions.RepairPendingManual) then
+      return setDialogError(dialog, "Position scope changed")
+    end
+    batch = GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = dialog.repairID,
+      itemID = position.itemID, positionKey = position.positionKey, itemName = position.itemName,
+      quantity = quantity, total = total, acquiredAt = time(), character = scope.char, region = scope.region })
+  else
+    batch = GC.Acquisitions.RecordManual({ itemID = position.itemID, positionKey = position.positionKey,
+      itemName = position.itemName, quantity = quantity, total = total, acquiredAt = time(),
+      character = scope.char, region = scope.region })
+  end
   if batch then dialog.submitted = true; dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, "Enter an exact positive cost") end
 end
 
@@ -877,16 +937,24 @@ renderRows = function()
         row.cells.status:SetText(p.status == "NO_COST" and "NO COST"
           or p.status == "PARTIAL_COST" and "PARTIAL COST" or p.status)
         row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
-        if p.coverage ~= "COMPLETE" and not p.unresolved and type(p.positionKey) == "string" then
+        if p.coverage ~= "COMPLETE" and canSetCost(p) then
           row.action:SetLabel("Set cost"); row.action:Show(); row.action:SetScript("OnClick", function() openCostDialog(p) end)
         else
           row.action:Hide()
         end
       elseif entry.kind == "detail" then
         local d = entry.detail
-        row.cells.item:SetText(("  %s · quote %ss · ahead %s · sold/day %s · ETA %s%s"):format(d.note,
-          d.quoteAge or "?", d.ahead or "?", d.sold or "?", d.days and ("~" .. math.floor(d.days + 0.5) .. "d") or "?",
+        local quoteText
+        if d.displayMarketUnit ~= nil then
+          quoteText = ("market %s · %s · age %ss"):format(formatCell(d.displayMarketUnit),
+            d.marketState or "unavailable", d.quoteAge or "?")
+        else
+          quoteText = ("quote %ss"):format(d.quoteAge or "?")
+        end
+        row.cells.item:SetText(("  %s · %s · ahead %s · sold/day %s · ETA %s%s"):format(d.note,
+          quoteText, d.ahead or "?", d.sold or "?", d.days and ("~" .. math.floor(d.days + 0.5) .. "d") or "?",
           d.factsText and (" · " .. d.factsText) or ""))
+        setColor(row.cells.item, d.marketStale and Theme.color.fgDim or Theme.color.fg)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
@@ -916,9 +984,12 @@ renderRows = function()
             row.cells.status:SetText("Exact bag item required")
             row.action:Hide()
           end
-        else
+        elseif canSetCost(p) then
           row.cells.status:SetText("Missing cost")
           row.action:SetLabel("Set cost"); row.action:SetScript("OnClick", function() openCostDialog(p) end); row.action:Show()
+        else
+          row.cells.status:SetText("Pending repair needs one exact invoice")
+          row.action:Hide()
         end
       end
       layoutCells(row)

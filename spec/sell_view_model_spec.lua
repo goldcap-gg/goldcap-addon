@@ -80,6 +80,24 @@ describe("Sell view model", function()
     assert.same(snapshot, position)
   end)
 
+  it("[WAVE2 I4] exposes the display quote with an explicit fresh or stale state", function()
+    local fresh = GC.SellViewModel.Expansion({ displayMarketUnit = 12345, freshMarketUnit = 12345,
+      quoteAge = 3 })
+    assert.equal(12345, fresh.displayMarketUnit)
+    assert.equal("fresh", fresh.marketState)
+    assert.is_true(fresh.marketFresh)
+    assert.is_false(fresh.marketStale)
+    assert.equal(3, fresh.quoteAge)
+
+    local stale = GC.SellViewModel.Expansion({ displayMarketUnit = 12345, freshMarketUnit = nil,
+      quoteAge = 11 })
+    assert.equal(12345, stale.displayMarketUnit)
+    assert.equal("stale", stale.marketState)
+    assert.is_false(stale.marketFresh)
+    assert.is_true(stale.marketStale)
+    assert.equal(11, stale.quoteAge)
+  end)
+
   it("[I2] maps internal acquisition evidence to stable semantic labels", function()
     local expanded = GC.SellViewModel.Expansion({ batches = {
       { source = "goldcap", remainingQty = 1, remainingTotal = 1, sniperEvidenceKey = "capture:1" },

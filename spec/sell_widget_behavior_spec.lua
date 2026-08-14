@@ -52,6 +52,7 @@ describe("Sell widget geometry and manual cost", function()
 
   local function load(width, record)
     made = {}
+    record.calls, record.repairs = record.calls or {}, record.repairs or {}
     _G.CreateFrame = function(kind, _, parent)
       local value = region(kind, parent)
       made[#made + 1] = value
@@ -77,7 +78,10 @@ describe("Sell widget geometry and manual cost", function()
         Expansion = function() return { batches = {}, ownedLots = {}, note = "FIFO allocations" } end,
       },
       SellPositions = { Summary = function() return { invested = nil, projected = nil, profit = nil } end },
-      Acquisitions = { RecordManual = function(args) record.calls[#record.calls + 1] = args; return {} end },
+      Acquisitions = {
+        RecordManual = function(args) record.calls[#record.calls + 1] = args; return {} end,
+        RepairPendingManual = function(args) record.repairs[#record.repairs + 1] = args; return {} end,
+      },
       Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
     }
     helper.loadModule("UI/SellFrame.lua", GC)
@@ -314,6 +318,29 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(1, refreshed)
   end)
 
+  it("[WAVE2 I1] repairs the one displayed pending evidence by exact ID instead of inferring generic manual cost", function()
+    local record = { calls = {}, repairs = {} }
+    local GC = load(620, record)
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        coverage = "UNKNOWN", exposureQty = 2, knownQty = 0, knownCost = 0, listedValue = 0,
+        pendingAcquisitions = { { id = "pending:9", itemID = 42, positionKey = "commodity:42",
+          quantity = 2, character = "A-R", region = "eu" } }, sources = {} },
+    })
+    rows[1].action.scripts.OnClick()
+    local dialog, confirm = container.costDialog
+    for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
+    dialog.total:SetText("9"); dialog.total.scripts.OnTextChanged()
+    confirm.scripts.OnClick()
+
+    assert.equal(0, #record.calls)
+    assert.equal(1, #record.repairs)
+    assert.equal("pending:9", record.repairs[1].pendingID)
+    assert.equal("commodity:42", record.repairs[1].positionKey)
+    assert.equal("A-R", record.repairs[1].character)
+    assert.equal("eu", record.repairs[1].region)
+  end)
+
   it("disarms a posting row when a rerender cannot prove the pinned position identity", function()
     local record = { calls = {} }
     local GC = load(620, record)
@@ -503,7 +530,29 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("", rows[2].cells.status.text)
   end)
 
-  it("[FINAL I4] recomposes at the first quote expiry, ages display, and fences Reset", function()
+  it("[WAVE2 I4] renders a fresh quote price and age in the visible default-width expansion", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function(position)
+      return { note = "FIFO allocations", batches = {}, ownedLots = {},
+        displayMarketUnit = position.displayMarketUnit, quoteAge = position.quoteAge,
+        marketState = position.marketState, marketFresh = position.marketFresh,
+        marketStale = position.marketStale }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
+        displayMarketUnit = 150, freshMarketUnit = 150, quoteAge = 3,
+        marketState = "fresh", marketFresh = true, marketStale = false, status = "UNLISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    rows = upvalue(render, "rows")
+    assert.equal("detail", rows[2].kind)
+    assert.match("market 150 · fresh · age 3s", rows[2].cells.item.text)
+    assert.same({ 1, 1, 1, 1 }, rows[2].cells.item.color)
+  end)
+
+  it("[WAVE2 I4] keeps a visible stale quote after timer recomposition and never acts on it", function()
     local now, timers = { value = 100 }, {}
     _G.time = function() return now.value end
     _G.C_Timer = { After = function(seconds, callback)
@@ -515,6 +564,7 @@ describe("Sell widget geometry and manual cost", function()
     helper.loadModule("Core/Flips.lua", GC)
     helper.loadModule("Core/QuoteCache.lua", GC)
     helper.loadModule("Core/SellPositions.lua", GC)
+    helper.loadModule("UI/SellViewModel.lua", GC)
     GC.Acquisitions.Init({})
     GC.Acquisitions.Record({ source = "goldcap", itemID = 42, positionKey = "commodity:42",
       itemName = "Unlisted", quantity = 1, total = 100, acquiredAt = 1,
@@ -538,9 +588,18 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("42", tostring(rows[1].position.itemID))
     assert.equal(1, #timers)
     assert.equal(11, timers[1].seconds)
+    rows[1].scripts.OnClick(rows[1])
+    rows = upvalue(render, "rows")
+    local freshDetail
+    for _, row in ipairs(rows) do
+      if row.kind == "detail" and row.position.itemID == 42 then freshDetail = row end
+    end
+    assert.match("market 150 · fresh · age 0s", freshDetail.cells.item.text)
+    assert.same({ 1, 1, 1, 1 }, freshDetail.cells.item.color)
 
     now.value = 111
-    timers[1].callback()
+    assert.equal(2, #timers) -- the expansion render fences the older expiry callback
+    timers[#timers].callback()
     rows = upvalue(render, "rows")
     local byItem = {}
     for _, row in ipairs(rows) do if row.kind == "position" then byItem[row.position.itemID] = row end end
@@ -549,6 +608,33 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Unknown", byItem[42].cells.profit.text)
     assert.same({ .5, .5, .5, 1 }, byItem[42].cells.market.color)
     assert.equal(190, byItem[43].position.projectedNet)
+    local staleDetail
+    for _, row in ipairs(rows) do
+      if row.kind == "detail" and row.position.itemID == 42 then staleDetail = row end
+    end
+    assert.match("market 150 · stale · age 11s", staleDetail.cells.item.text)
+    assert.same({ .5, .5, .5, 1 }, staleDetail.cells.item.color)
+
+    local listedPosition
+    for _, row in ipairs(rows) do
+      if row.kind == "position" and row.position.itemID == 43 then listedPosition = row end
+    end
+    listedPosition.scripts.OnClick(listedPosition)
+    rows = upvalue(render, "rows")
+    local listedLot
+    for _, row in ipairs(rows) do
+      if row.kind == "lot" and row.position.itemID == 43 then listedLot = row end
+    end
+    local refreshes, protectedCalls = 0, 0
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    _G.C_AuctionHouse = {
+      CancelAuction = function() protectedCalls = protectedCalls + 1 end,
+      PostCommodity = function() protectedCalls = protectedCalls + 1 end,
+      PostItem = function() protectedCalls = protectedCalls + 1 end,
+    }
+    listedLot.action.scripts.OnClick()
+    assert.equal(1, refreshes)
+    assert.equal(0, protectedCalls)
 
     now.value = 200
     quotes[42] = { unit = 160, at = 200 }

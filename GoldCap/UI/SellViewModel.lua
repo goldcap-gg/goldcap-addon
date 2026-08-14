@@ -100,6 +100,9 @@ end
 
 function GC.SellViewModel.Expansion(position)
   position = position or {}
+  local marketFresh = position.displayMarketUnit ~= nil and position.freshMarketUnit ~= nil
+  local marketStale = position.displayMarketUnit ~= nil and not marketFresh
+  local marketState = marketFresh and "fresh" or marketStale and "stale" or "unavailable"
   local allocated = {}
   for _, allocation in ipairs(position.allocations or {}) do
     allocated[allocation.batchID] = (allocated[allocation.batchID] or 0) + (allocation.quantity or 0)
@@ -123,7 +126,9 @@ function GC.SellViewModel.Expansion(position)
   if position.unresolvedKind == "pending_purchase" then facts[#facts + 1] = "purchase identity unresolved" end
   return {
     positionKey = position.positionKey, coverage = position.coverage, batches = batches,
-    ownedLots = copy(position.ownedLots), quoteAge = position.quoteAge, ahead = position.ahead,
+    ownedLots = copy(position.ownedLots), displayMarketUnit = position.displayMarketUnit,
+    marketState = marketState, marketFresh = marketFresh, marketStale = marketStale,
+    quoteAge = position.quoteAge, ahead = position.ahead,
     sold = position.soldPerDay, days = position.outlook and position.outlook.days,
     recommendation = position.recommendation, note = "FIFO allocations",
     coverageText = ("%d/%d covered"):format(position.knownQty or 0, position.exposureQty or 0),

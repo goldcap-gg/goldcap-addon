@@ -253,6 +253,100 @@ describe("Ledger inbox scan", function()
     assert.is_true(GC.Ledger.GetEntries()[2].pending)
   end)
 
+  it("[WAVE2 C1] retires a buyer occurrence only after a complete absent inbox snapshot", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local firstKey = GC.Ledger.GetEntries()[1].key
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({}), context, 1010))
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.not_equal(firstKey, GC.Ledger.GetEntries()[2].key)
+  end)
+
+  it("[WAVE2 C1] never retires a buyer occurrence after an incomplete or malformed inbox snapshot", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local incomplete = apiFor({ bought })
+    incomplete.GetInboxNumItems = function() error("inbox unavailable") end
+    assert.equal(0, GC.Ledger.ScanInbox(incomplete, context, 1010))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+
+    local malformed = apiFor({ bought })
+    malformed.GetInboxInvoiceInfo = function() error("invoice unreadable") end
+    assert.equal(0, GC.Ledger.ScanInbox(malformed, context, 1030))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1040))
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE2 C1] keeps paid seller twins monotonic when a later snapshot reverses their order", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 210930,
+      positionKey = "commodity:210930", itemName = "Ironclaw Ore", quantity = 2, total = 200,
+      acquiredAt = 900, evidenceKey = "buy:wave2-sellers", character = context.char, region = context.region })
+    GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore",
+      context.char, context.region, 2, 950)
+
+    local pending = mail({ invoice = { invoiceType = "seller_temp_invoice",
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25,
+      moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    local twin = mail({ invoice = { invoiceType = "seller_temp_invoice",
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25,
+      moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ pending, twin }), context, 1000))
+
+    local paid = mail({ daysLeft = 30 - (3600 / 86400), invoice = {
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25 } })
+    local stillPending = mail({ daysLeft = 30 - (3600 / 86400), invoice = {
+      invoiceType = "seller_temp_invoice", count = 1, bid = 500, buyout = 500,
+      deposit = 0, consignment = 25, moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ paid, stillPending }), context, 4600))
+    local paidKey
+    for _, entry in ipairs(GC.Ledger.GetEntries()) do if entry.pending == false then paidKey = entry.key end end
+    assert.is_truthy(paidKey)
+    assert.equal(1, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ stillPending, paid }), context, 4610))
+    local paidRow
+    for _, entry in ipairs(GC.Ledger.GetEntries()) do if entry.key == paidKey then paidRow = entry end end
+    assert.is_false(paidRow.pending)
+    assert.equal(1, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
+  it("[WAVE2 C1] keeps a repeated complete multiset snapshot idempotent", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local twin = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ bought, twin }), context, 1000))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ twin, bought }), context, 1010))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, twin }), context, 1020))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE2 C1 regression] fails closed without mutating a malformed persisted occurrence", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    db.mailOccurrences[#db.mailOccurrences + 1] = { key = "corrupt", identity = "corrupt",
+      char = context.char, region = context.region }
+
+    local result
+    assert.has_no.errors(function() result = GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010) end)
+    assert.equal(0, result)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.is_nil(db.mailOccurrences[2].present)
+  end)
+
   it("fails closed on malformed expiry and an unsafe occurrence sequence", function()
     local broken = mail()
     broken.daysLeft = 0 / 0

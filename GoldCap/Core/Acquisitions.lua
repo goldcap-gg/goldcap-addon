@@ -402,6 +402,138 @@ function GC.Acquisitions.RecordManual(args)
   return GC.Acquisitions.Record(fields)
 end
 
+local function pendingByID(id)
+  for index, pending in ipairs(db and db.acquisitionPending or {}) do
+    if pending.id == id then return pending, index end
+  end
+  return nil
+end
+
+local function exactRepairMatches(batch, args)
+  return batch and batch.source == "manual" and batch.repairedPendingID == args.pendingID
+    and batch.itemID == args.itemID and batch.positionKey == args.positionKey
+    and batch.originalQty == args.quantity and batch.originalTotal == args.total
+    and batch.character == args.character and batch.region == args.region
+end
+
+-- Converts an exact quantity of one persisted unresolved purchase into manual
+-- cost.  The repair key is an audit identity supplied by the dialog/caller:
+-- replaying it returns the original batch, while a different key is a distinct
+-- explicit repair.  Every validation precedes Record(), so a bad quantity,
+-- scope, or identity leaves both the pending evidence and active basis alone.
+function GC.Acquisitions.RepairPendingManual(args)
+  if not db or type(args) ~= "table" or not isNonEmptyString(args.pendingID)
+      or not isNonEmptyString(args.repairID) or not isPositiveInteger(args.itemID)
+      or not isNonEmptyString(args.positionKey) or not isStringOrNil(args.itemName)
+      or not isPositiveInteger(args.quantity) or not isPositiveInteger(args.total)
+      or not isExactInteger(args.acquiredAt) or not isNonEmptyString(args.character)
+      or not isNonEmptyString(args.region) then
+    return nil, false
+  end
+
+  local repeated = activeWithEvidence(args.repairID)
+  if repeated then
+    return exactRepairMatches(repeated, args) and repeated or nil, false
+  end
+  if hasEvidence(args.repairID) then return nil, false end
+
+  local pending, pendingIndex = pendingByID(args.pendingID)
+  if not pending or not isPositiveInteger(pending.quantity) or pending.itemID ~= args.itemID
+      or pending.positionKey ~= args.positionKey or pending.character ~= args.character
+      or pending.region ~= args.region or args.quantity > pending.quantity
+      or (pending.itemName and args.itemName and pending.itemName ~= args.itemName) then
+    return nil, false
+  end
+
+  local batch, isNew = GC.Acquisitions.Record({ source = "manual", itemID = args.itemID,
+    positionKey = args.positionKey, itemName = args.itemName or pending.itemName,
+    quantity = args.quantity, total = args.total, acquiredAt = args.acquiredAt,
+    evidenceKey = args.repairID, character = args.character, region = args.region })
+  if not batch or not isNew then return nil, false end
+
+  batch.repairedPendingID, batch.repairEvidenceKey = pending.id, args.repairID
+  pending.repairEvidenceKeys = type(pending.repairEvidenceKeys) == "table"
+    and pending.repairEvidenceKeys or {}
+  pending.repairEvidenceKeys[args.repairID] = true
+  if args.quantity == pending.quantity then
+    table.remove(db.acquisitionPending, pendingIndex)
+  else
+    pending.quantity = pending.quantity - args.quantity
+  end
+  return batch, true
+end
+
+local function batchByID(id)
+  for _, batch in ipairs(db and db.acquisitions or {}) do
+    if batch.id == id then return batch end
+  end
+  return nil
+end
+
+local function positionKeyMatchesItem(positionKey, itemID)
+  if positionKey == ("commodity:%d"):format(itemID) then return true end
+  if type(positionKey) ~= "string" then return false end
+  local matchedID, itemLevel, itemSuffix, petSpecies = positionKey:match("^item:(%d+):(-?%d+):(-?%d+):(-?%d+)$")
+  return matchedID == tostring(itemID) and isExactInteger(tonumber(itemLevel))
+    and isSignedExactInteger(tonumber(itemSuffix)) and isExactInteger(tonumber(petSpecies))
+end
+
+local function uniqueBoundVariant(batch, candidates, context)
+  if type(candidates) ~= "table" then return nil end
+  local candidateKey
+  for _, candidate in ipairs(candidates) do
+    if type(candidate) ~= "table" or candidate.itemID ~= batch.itemID
+        or candidate.character ~= context.char or candidate.region ~= context.region
+        or not positionKeyMatchesItem(candidate.positionKey, batch.itemID) then
+      return nil
+    end
+    if candidateKey and candidateKey ~= candidate.positionKey then return nil end
+    candidateKey = candidate.positionKey
+  end
+  if not candidateKey then return nil end
+
+  -- Current owned evidence enters the store through ObserveOwnedPosition.
+  -- Require all durable scoped activity evidence for this item to agree too:
+  -- a caller cannot hide a second known variant by passing just the convenient
+  -- candidate to this explicit binding API.
+  local activityKey
+  for _, activity in pairs(db.acquisitionActivity or {}) do
+    if activity.character == context.char and activity.region == context.region
+        and activity.itemID == batch.itemID then
+      if not positionKeyMatchesItem(activity.positionKey, batch.itemID)
+          or not isNonEmptyString(activity.itemName) or not isExactInteger(activity.firstSeenAt) then
+        return nil
+      end
+      if activityKey and activityKey ~= activity.positionKey then return nil end
+      activityKey = activity.positionKey
+    end
+  end
+  if activityKey ~= candidateKey then return nil end
+  return candidateKey
+end
+
+-- Item-only migrated evidence has no safe variant identity on its own.  This
+-- is intentionally explicit and persisted: pure Sell composition may display
+-- a uniquely compatible live variant, but only this API turns that fact into a
+-- position key that a later exact sale may consume.
+function GC.Acquisitions.BindItemOnly(batchID, candidates, context)
+  if not db or not isNonEmptyString(batchID) or not validContext(context) then return nil, false end
+  local batch = batchByID(batchID)
+  if not batch or batch.character ~= context.char or batch.region ~= context.region
+      or not isPositiveInteger(batch.itemID) or not isPositiveInteger(batch.remainingQty)
+      or not isExactInteger(batch.remainingTotal) then
+    return nil, false
+  end
+  local positionKey = uniqueBoundVariant(batch, candidates, context)
+  if not positionKey then return nil, false end
+  if batch.positionKey then return batch.positionKey == positionKey and batch or nil, false end
+  batch.positionKey = positionKey
+  batch.positionBinding = { positionKey = positionKey, itemID = batch.itemID,
+    character = context.char, region = context.region,
+    scopeKey = GC.Acquisitions.ScopeKey(positionKey, context) }
+  return batch, true
+end
+
 function GC.Acquisitions.HasEvidence(key)
   return hasEvidence(key)
 end

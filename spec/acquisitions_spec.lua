@@ -525,4 +525,139 @@ describe("Acquisition store", function()
     assert.equal(1, batch.remainingQty)
     assert.equal(0, #GC.Acquisitions.GetRealized(context))
   end)
+
+  it("[WAVE2 I1] repairs one full pending purchase into one exact manual batch without doubled exposure", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 2, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:repair-full" })
+    local repair = GC.Acquisitions.RepairPendingManual
+    assert.equal("function", type(repair))
+    if type(repair) ~= "function" then return end
+    local args = { pendingID = pending.id, repairID = "manual-repair:full", itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 2, total = 201,
+      acquiredAt = 200, character = context.char, region = context.region }
+
+    local batch, isNew = repair(args)
+    assert.is_true(isNew)
+    assert.equal("manual", batch.source)
+    assert.equal(pending.id, batch.repairedPendingID)
+    assert.equal(2, batch.originalQty)
+    assert.is_true(batch.evidenceKeys[args.repairID])
+    assert.equal(0, #GC.Acquisitions.GetPending(context))
+    assert.equal(1, #GC.Acquisitions.GetActive(context))
+    assert.equal(2, GC.Acquisitions.GetActive(context)[1].remainingQty)
+
+    local repeated, repeatedNew = repair(args)
+    assert.equal(batch, repeated)
+    assert.is_false(repeatedNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending(context))
+  end)
+
+  it("[WAVE2 I1] partially repairs only the exact pending row and rejects invalid or scope-drifted repair", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:repair-partial" })
+    local repair = GC.Acquisitions.RepairPendingManual
+    assert.equal("function", type(repair))
+    if type(repair) ~= "function" then return end
+    local partial = repair({ pendingID = pending.id, repairID = "manual-repair:partial", itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 2, total = 200,
+      acquiredAt = 200, character = context.char, region = context.region })
+    assert.truthy(partial)
+    assert.equal(2, partial.originalQty)
+    assert.equal(3, GC.Acquisitions.GetPending(context)[1].quantity)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+
+    assert.is_nil(repair({ pendingID = pending.id, repairID = "manual-repair:invalid", itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 4, total = 400,
+      acquiredAt = 201, character = context.char, region = context.region }))
+    assert.is_nil(repair({ pendingID = pending.id, repairID = "manual-repair:drift", itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 1, total = 100,
+      acquiredAt = 202, character = "B-R", region = "us" }))
+    assert.equal(3, GC.Acquisitions.GetPending(context)[1].quantity)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE2 I1] durably binds one item-only batch to one scoped variant before its later exact sale", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+      evidenceKey = "legacy:item-only", character = context.char, region = context.region })
+    local positionKey = "item:42:10:0:0"
+    GC.Acquisitions.ObserveOwnedPosition(positionKey, 42, "Copper Ore", context.char, context.region, 10)
+    local bind = GC.Acquisitions.BindItemOnly
+    assert.equal("function", type(bind))
+    if type(bind) ~= "function" then return end
+    local bound, isNew = bind(batch.id, {
+      { positionKey = positionKey, itemID = 42, character = context.char, region = context.region },
+    }, context)
+    assert.is_true(isNew)
+    assert.equal(positionKey, bound.positionKey)
+    assert.equal(positionKey, GC.Acquisitions.GetActive(context)[1].positionKey)
+
+    local sale = GC.Acquisitions.ReconcileSale({ key = "sale:bound-item-only", kind = "sale", source = "mail",
+      itemName = "Copper Ore", qty = 1, total = 150, at = 20, char = context.char,
+      region = context.region, pending = false })
+    assert.equal("applied", sale.status)
+    assert.equal(positionKey, sale.positionKey)
+    assert.equal(0, batch.remainingQty)
+  end)
+
+  it("[WAVE2 I1] never binds item-only evidence across variants or scopes and leaves its sale unresolved", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+      evidenceKey = "legacy:ambiguous-item-only", character = context.char, region = context.region })
+    local first, second = "item:42:10:0:0", "item:42:20:0:0"
+    GC.Acquisitions.ObserveOwnedPosition(first, 42, "Copper Ore", context.char, context.region, 10)
+    GC.Acquisitions.ObserveOwnedPosition(second, 42, "Copper Ore", context.char, context.region, 10)
+    local bind = GC.Acquisitions.BindItemOnly
+    assert.equal("function", type(bind))
+    if type(bind) ~= "function" then return end
+    assert.is_nil(bind(batch.id, {
+      { positionKey = first, itemID = 42, character = context.char, region = context.region },
+      { positionKey = second, itemID = 42, character = context.char, region = context.region },
+    }, context))
+    assert.is_nil(batch.positionKey)
+    local sale = GC.Acquisitions.ReconcileSale({ key = "sale:ambiguous-item-only", kind = "sale", source = "mail",
+      itemName = "Copper Ore", qty = 1, total = 150, at = 20, char = context.char,
+      region = context.region, pending = false })
+    assert.equal("unresolved", sale.status)
+    assert.equal("no_position", sale.reason)
+    assert.equal(1, batch.remainingQty)
+
+    local crossScope = GC.Acquisitions.Record({ source = "auction_house", itemID = 43, positionKey = nil,
+      itemName = "Tin Ore", quantity = 1, total = 100, acquiredAt = 101,
+      evidenceKey = "legacy:cross-scope-item-only", character = context.char, region = context.region })
+    assert.is_nil(bind(crossScope.id, {
+      { positionKey = "item:43:10:0:0", itemID = 43, character = "B-R", region = "us" },
+    }, context))
+    assert.is_nil(crossScope.positionKey)
+  end)
+
+  it("[WAVE2 I1 regression] refuses to bind a retired item-only batch", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+      evidenceKey = "legacy:retired-item-only", character = context.char, region = context.region })
+    local positionKey = "item:42:10:0:0"
+    GC.Acquisitions.ObserveOwnedPosition(positionKey, 42, "Copper Ore", context.char, context.region, 10)
+    batch.remainingQty, batch.remainingTotal = 0, 0
+
+    assert.is_nil(GC.Acquisitions.BindItemOnly(batch.id, {
+      { positionKey = positionKey, itemID = 42, character = context.char, region = context.region },
+    }, context))
+    assert.is_nil(batch.positionKey)
+  end)
+
+  it("[WAVE2 I1 regression] refuses a malformed item-variant identity", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+      evidenceKey = "legacy:malformed-item-only", character = context.char, region = context.region })
+    local malformed = "item:42:not-a-level:0:0"
+    GC.Acquisitions.ObserveOwnedPosition(malformed, 42, "Copper Ore", context.char, context.region, 10)
+
+    assert.is_nil(GC.Acquisitions.BindItemOnly(batch.id, {
+      { positionKey = malformed, itemID = 42, character = context.char, region = context.region },
+    }, context))
+    assert.is_nil(batch.positionKey)
+  end)
 end)
