@@ -407,15 +407,18 @@ local function commitOccurrencePlan(plan, context)
 end
 
 local function readInboxMail(api, index, context, now)
-  local headerOk, _, _, sender, _, _, _, daysLeft = pcall(api.GetInboxHeaderInfo, index)
+  local headerOk, _, _, sender, _, _, _, daysLeft, _, _, _, _, canReply = pcall(api.GetInboxHeaderInfo, index)
   if not headerOk then return nil, "incomplete" end
   local invoiceOk, invoiceType, itemName, _, bid, buyout, deposit, consignment,
     moneyDelay, _, _, itemCount = pcall(api.GetInboxInvoiceInfo, index)
   if not invoiceOk then return nil, "incomplete" end
-  if not invoiceType then return nil, "ignored" end
   local isSale = invoiceType == "seller" or invoiceType == "seller_temp_invoice"
   local isBuy = invoiceType == "buyer"
-  if not isSale and not isBuy then return nil, "ignored" end
+  if not isSale and not isBuy then
+    -- canReply is the locale-independent ordinary-mail signal. Anything else
+    -- is unreadable rather than positively non-AH and cannot retire evidence.
+    return nil, canReply == true and "ignored" or "incomplete"
+  end
 
   local fields = { sender = sender, itemName = itemName, count = itemCount or 1,
     bid = bid or 0, buyout = buyout or 0, deposit = deposit or 0,

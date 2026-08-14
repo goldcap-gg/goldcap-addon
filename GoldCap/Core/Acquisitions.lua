@@ -5,6 +5,12 @@ GC.Acquisitions = {}
 local db
 local MAX_EXACT = 9007199254740991
 local SOURCES = { goldcap = true, auction_house = true, manual = true }
+local migrateLegacyRepairGroups
+local validRepairGroup
+local repairGroupEvidenceState
+local repairGroupOwnsEvidence
+local repairGroupClaimsPending
+local sameMailEvidence
 
 local function isExactInteger(value)
   return type(value) == "number" and value == value and value ~= math.huge
@@ -108,6 +114,7 @@ local function hasEvidence(key)
     if pending.evidenceKeys and pending.evidenceKeys[key] then return true end
     if pending.mailEvidenceKey == key then return true end
   end
+  if repairGroupOwnsEvidence and repairGroupOwnsEvidence(key) then return true end
   return false
 end
 
@@ -254,6 +261,11 @@ function GC.Acquisitions.Init(database)
   db.acquisitionActivity = type(db.acquisitionActivity) == "table" and db.acquisitionActivity or {}
   db.acquisitionConsumptionEvidence = type(db.acquisitionConsumptionEvidence) == "table"
     and db.acquisitionConsumptionEvidence or {}
+  -- Repair groups are introduced after pending repairs already existed.  Leave
+  -- a non-table value intact so reconciliation can fail closed instead of
+  -- silently discarding corrupted SavedVariables evidence.
+  local needsRepairGroupMigration = db.acquisitionRepairGroups == nil
+  if needsRepairGroupMigration then db.acquisitionRepairGroups = {} end
   db.acquisitionSeq = isExactInteger(db.acquisitionSeq) and db.acquisitionSeq or 0
   db.acquisitionPendingSeq = isExactInteger(db.acquisitionPendingSeq)
     and db.acquisitionPendingSeq or 0
@@ -264,6 +276,7 @@ function GC.Acquisitions.Init(database)
     batch.consumedEvidenceKeys = type(batch.consumedEvidenceKeys) == "table"
       and batch.consumedEvidenceKeys or {}
   end
+  if needsRepairGroupMigration and migrateLegacyRepairGroups then migrateLegacyRepairGroups() end
 end
 
 function GC.Acquisitions.Record(args)
@@ -280,6 +293,7 @@ function GC.Acquisitions.Record(args)
 
   local pending, pendingIndex
   if args.evidenceKey then
+    if repairGroupOwnsEvidence and repairGroupOwnsEvidence(args.evidenceKey) then return nil, false end
     local existing = activeWithEvidence(args.evidenceKey)
     if existing then return existing, false end
     pending, pendingIndex = pendingWithEvidence(args.evidenceKey)
@@ -338,6 +352,7 @@ function GC.Acquisitions.RecordPending(args)
     return nil, false
   end
   if args.evidenceKey then
+    if repairGroupOwnsEvidence and repairGroupOwnsEvidence(args.evidenceKey) then return nil, false end
     if activeWithEvidence(args.evidenceKey) then return nil, false end
     local pending = pendingWithEvidence(args.evidenceKey)
     if pending then return pending, false end
@@ -365,6 +380,7 @@ end
 function GC.Acquisitions.ResolvePending(id, evidenceKey)
   if not db or type(id) ~= "string" or type(evidenceKey) ~= "string" or evidenceKey == ""
       or hasEvidence(evidenceKey) then return nil, false end
+  if repairGroupClaimsPending and repairGroupClaimsPending(id) then return nil, false end
   for _, pending in ipairs(db.acquisitionPending) do
     if pending.id == id then
       if pending.mailEvidenceKey then return nil, false end
@@ -404,9 +420,390 @@ end
 
 local function pendingByID(id)
   for index, pending in ipairs(db and db.acquisitionPending or {}) do
-    if pending.id == id then return pending, index end
+    if type(pending) == "table" and pending.id == id then return pending, index end
   end
   return nil
+end
+
+local function batchByID(id)
+  for _, batch in ipairs(db and db.acquisitions or {}) do
+    if type(batch) == "table" and batch.id == id then return batch end
+  end
+  return nil
+end
+
+local function positionKeyMatchesItem(positionKey, itemID)
+  if positionKey == ("commodity:%d"):format(itemID) then return true end
+  if type(positionKey) ~= "string" then return false end
+  local matchedID, itemLevel, itemSuffix, petSpecies = positionKey:match("^item:(%d+):(-?%d+):(-?%d+):(-?%d+)$")
+  return matchedID == tostring(itemID) and isExactInteger(tonumber(itemLevel))
+    and isSignedExactInteger(tonumber(itemSuffix)) and isExactInteger(tonumber(petSpecies))
+end
+
+local function validStoredActivity(mapKey, activity)
+  if not isNonEmptyString(mapKey) or type(activity) ~= "table"
+      or not isPositiveInteger(activity.itemID)
+      or not positionKeyMatchesItem(activity.positionKey, activity.itemID)
+      or not isNonEmptyString(activity.itemName) or not isNonEmptyString(activity.character)
+      or not isNonEmptyString(activity.region) or not isExactInteger(activity.firstSeenAt)
+      or (activity.lastSeenAt ~= nil and not isExactInteger(activity.lastSeenAt))
+      or (activity.lastPostedAt ~= nil and not isExactInteger(activity.lastPostedAt))
+      or (activity.lastPostedQty ~= nil and not isPositiveInteger(activity.lastPostedQty)) then
+    return nil
+  end
+  local scopeKey = GC.Acquisitions.ScopeKey(activity.positionKey,
+    { char = activity.character, region = activity.region })
+  if not scopeKey or activity.scopeKey ~= scopeKey or mapKey ~= scopeKey then return nil end
+  return scopeKey
+end
+
+local function validEvidenceKeys(keys)
+  if type(keys) ~= "table" then return false end
+  for key, present in pairs(keys) do
+    if not isNonEmptyString(key) or present ~= true then return false end
+  end
+  return true
+end
+
+local function copyEvidenceKeys(keys)
+  local copy = {}
+  for key, present in pairs(keys or {}) do
+    if present then copy[key] = true end
+  end
+  return copy
+end
+
+local function sameEvidenceKeys(left, right)
+  if not validEvidenceKeys(left) or not validEvidenceKeys(right) then return false end
+  for key in pairs(left) do
+    if right[key] ~= true then return false end
+  end
+  for key in pairs(right) do
+    if left[key] ~= true then return false end
+  end
+  return true
+end
+
+local function matchingPendingForGroup(group)
+  local pending, pendingIndex, matches
+  for index, candidate in ipairs(db and db.acquisitionPending or {}) do
+    if type(candidate) == "table" and candidate.id == group.pendingID then
+      pending, pendingIndex, matches = candidate, index, (matches or 0) + 1
+    end
+  end
+  if matches ~= 1 then return nil end
+  return pending, pendingIndex
+end
+
+validRepairGroup = function(groupKey, group)
+  if not isNonEmptyString(groupKey) or type(group) ~= "table" or group.pendingID ~= groupKey
+      or not isPositiveInteger(group.itemID) or not positionKeyMatchesItem(group.positionKey, group.itemID)
+      or not isStringOrNil(group.itemName) or not isPositiveInteger(group.originalQty)
+      or not isExactInteger(group.completedAt) or not isNonEmptyString(group.character)
+      or not isNonEmptyString(group.region) or not validEvidenceKeys(group.completionEvidenceKeys)
+      or type(group.repairs) ~= "table" or type(group.mailEvidenceKeys) ~= "table"
+      or type(group.mailEvidence) ~= "table" then
+    return nil
+  end
+
+  local repairedQty, repairedTotal, repairIDs, repairBatchIDs, repairCount = 0, 0, {}, {}, 0
+  for _, repair in ipairs(group.repairs) do
+    repairCount = repairCount + 1
+    if type(repair) ~= "table" or not isNonEmptyString(repair.repairID)
+        or not isNonEmptyString(repair.batchID) or not isPositiveInteger(repair.quantity)
+        or not isPositiveInteger(repair.total) or repairIDs[repair.repairID]
+        or repairBatchIDs[repair.batchID] then
+      return nil
+    end
+    repairIDs[repair.repairID], repairBatchIDs[repair.batchID] = true, true
+    repairedQty, repairedTotal = safeAdd(repairedQty, repair.quantity), safeAdd(repairedTotal, repair.total)
+    local batch = batchByID(repair.batchID)
+    if not repairedQty or not repairedTotal or not batch or batch.source ~= "manual"
+        or batch.repairedPendingID ~= group.pendingID or batch.repairEvidenceKey ~= repair.repairID
+        or batch.itemID ~= group.itemID or batch.positionKey ~= group.positionKey
+        or batch.originalQty ~= repair.quantity or batch.originalTotal ~= repair.total
+        or batch.character ~= group.character or batch.region ~= group.region
+        or type(batch.evidenceKeys) ~= "table" or batch.evidenceKeys[repair.repairID] ~= true
+        or (group.itemName and batch.itemName and group.itemName ~= batch.itemName) then
+      return nil
+    end
+  end
+  for index in pairs(group.repairs) do
+    if not isPositiveInteger(index) or index > repairCount then return nil end
+  end
+  if repairCount == 0 or group.repairedQty ~= repairedQty or group.repairedTotal ~= repairedTotal
+      or repairedQty > group.originalQty then
+    return nil
+  end
+  local markedCount = 0
+  for _, batch in ipairs(db and db.acquisitions or {}) do
+    if type(batch) == "table" and batch.repairedPendingID == group.pendingID then
+      if batch.source ~= "manual" or not isNonEmptyString(batch.repairEvidenceKey)
+          or not repairBatchIDs[batch.id] then
+        return nil
+      end
+      markedCount = markedCount + 1
+    end
+  end
+  if markedCount ~= repairCount then return nil end
+
+  local mailCount, mailRecord
+  for key, present in pairs(group.mailEvidenceKeys) do
+    if not isNonEmptyString(key) or present ~= true or type(group.mailEvidence[key]) ~= "table" then
+      return nil
+    end
+    local evidence = group.mailEvidence[key]
+    if evidence.key ~= key or evidence.source ~= "mail" or evidence.kind ~= "buy"
+        or evidence.itemID ~= group.itemID or evidence.qty ~= group.originalQty
+        or not isPositiveInteger(evidence.total) or not isExactInteger(evidence.at)
+        or evidence.char ~= group.character or evidence.region ~= group.region
+        or not isStringOrNil(evidence.itemName) then
+      return nil
+    end
+    if group.itemName and evidence.itemName and group.itemName ~= evidence.itemName then return nil end
+    mailCount, mailRecord = (mailCount or 0) + 1, evidence
+  end
+  for key in pairs(group.mailEvidence) do
+    if group.mailEvidenceKeys[key] ~= true then return nil end
+  end
+  if (mailCount or 0) > 1 then return nil end
+
+  local remainingQty = group.originalQty - repairedQty
+  local pending, pendingIndex = matchingPendingForGroup(group)
+  if mailCount then
+    local mailBatch = isNonEmptyString(group.mailBatchID) and batchByID(group.mailBatchID) or nil
+    if pending or not mailBatch then return nil end
+    if remainingQty == 0 then
+      if mailRecord.total ~= repairedTotal or not repairBatchIDs[group.mailBatchID]
+          or type(mailBatch.evidenceKeys) ~= "table"
+          or mailBatch.evidenceKeys[mailRecord.key] ~= true then
+        return nil
+      end
+    else
+      local residualTotal = mailRecord.total - repairedTotal
+      if not isPositiveInteger(residualTotal) or mailBatch.source ~= "auction_house"
+          or mailBatch.promotedPendingID ~= group.pendingID or mailBatch.itemID ~= group.itemID
+          or mailBatch.positionKey ~= group.positionKey or mailBatch.originalQty ~= remainingQty
+          or mailBatch.originalTotal ~= residualTotal or mailBatch.character ~= group.character
+          or mailBatch.region ~= group.region or type(mailBatch.evidenceKeys) ~= "table"
+          or mailBatch.evidenceKeys[mailRecord.key] ~= true then
+        return nil
+      end
+    end
+  elseif remainingQty == 0 then
+    if pending then return nil end
+  else
+    if not pending or not isPositiveInteger(pending.quantity) or pending.quantity ~= remainingQty
+        or pending.itemID ~= group.itemID or pending.positionKey ~= group.positionKey
+        or pending.character ~= group.character or pending.region ~= group.region
+        or pending.completedAt ~= group.completedAt
+        or pending.mailEvidenceKey ~= nil
+        or not sameEvidenceKeys(pending.evidenceKeys, group.completionEvidenceKeys)
+        or (pending.itemName and group.itemName and pending.itemName ~= group.itemName) then
+      return nil
+    end
+  end
+  return {
+    group = group, remainingQty = remainingQty, pending = pending,
+    pendingIndex = pendingIndex, mailEvidence = mailRecord,
+  }
+end
+
+local function invalidRepairGroupClaimsEvidence(group, key)
+  if type(group) ~= "table" then return false end
+  if type(group.completionEvidenceKeys) == "table" and group.completionEvidenceKeys[key] ~= nil then
+    return true
+  end
+  if type(group.mailEvidenceKeys) == "table" and group.mailEvidenceKeys[key] ~= nil then return true end
+  if type(group.mailEvidence) == "table" and group.mailEvidence[key] ~= nil then return true end
+  if type(group.repairs) == "table" then
+    for _, repair in pairs(group.repairs) do
+      if type(repair) == "table" and repair.repairID == key then return true end
+    end
+  end
+  return false
+end
+
+-- Group evidence is authoritative even when its group can no longer be
+-- validated.  A corrupt claimant must block a replay rather than allowing a
+-- generic pending/acquisition record to duplicate the original event.
+repairGroupEvidenceState = function(key)
+  if not isNonEmptyString(key) then return "NONE" end
+  local groups = db and db.acquisitionRepairGroups
+  if groups == nil then return "NONE" end
+  if type(groups) ~= "table" then return "BLOCKED" end
+  local owned = false
+  for groupKey, group in pairs(db.acquisitionRepairGroups) do
+    local state = validRepairGroup(groupKey, group)
+    if state then
+      if state.group.completionEvidenceKeys[key] or state.group.mailEvidenceKeys[key] then owned = true end
+      for _, repair in ipairs(state.group.repairs) do
+        if repair.repairID == key then owned = true end
+      end
+    elseif invalidRepairGroupClaimsEvidence(group, key) then
+      return "BLOCKED"
+    end
+  end
+  return owned and "OWNED" or "NONE"
+end
+
+repairGroupOwnsEvidence = function(key)
+  return repairGroupEvidenceState(key) ~= "NONE"
+end
+
+repairGroupClaimsPending = function(id)
+  local groups = db and db.acquisitionRepairGroups
+  if groups == nil then return false end
+  if type(groups) ~= "table" then return true end
+  if groups[id] ~= nil then return true end
+  for _, group in pairs(groups) do
+    if type(group) == "table" and group.pendingID == id then return true end
+  end
+  return false
+end
+
+-- Every repair marker on an acquisition is a reverse reference into the group
+-- store.  Group validation proves the forward fields; this pass prevents an
+-- orphaned or multiply claimed allocation from falling through to generic
+-- buyer-mail creation after the group entry is deleted or corrupted.
+local function validRepairGroupAllocations()
+  if type(db and db.acquisitionRepairGroups) ~= "table"
+      or type(db.acquisitions) ~= "table" then return false end
+  local claimed = {}
+  for groupKey, group in pairs(db.acquisitionRepairGroups) do
+    local state = validRepairGroup(groupKey, group)
+    if not state then return false end
+    for _, repair in ipairs(state.group.repairs) do
+      local batch = batchByID(repair.batchID)
+      if not batch or claimed[batch] then return false end
+      claimed[batch] = true
+    end
+  end
+  local acquisitionCount = 0
+  for index, batch in pairs(db.acquisitions) do
+    acquisitionCount = acquisitionCount + 1
+    if not isPositiveInteger(index) or type(batch) ~= "table"
+        or ((batch.repairedPendingID ~= nil or batch.repairEvidenceKey ~= nil)
+          and not claimed[batch]) then
+      return false
+    end
+  end
+  for index = 1, acquisitionCount do
+    if db.acquisitions[index] == nil then return false end
+  end
+  return true
+end
+
+local function repairGroupForMail(entry)
+  if type(db.acquisitionRepairGroups) ~= "table" or not validRepairGroupAllocations() then
+    return nil, "BLOCKED"
+  end
+  local found
+  for groupKey, group in pairs(db.acquisitionRepairGroups) do
+    local state = validRepairGroup(groupKey, group)
+    if not state then return nil, "BLOCKED" end
+    local candidate = state.group
+    -- An already-absorbed group is auditable for its own exact mail key but
+    -- cannot reserve a later, distinct buyer invoice with the same shape.
+    if not state.mailEvidence and candidate.itemID == entry.itemID
+        and candidate.character == entry.char and candidate.region == entry.region then
+      if candidate.originalQty ~= entry.qty
+          or (candidate.itemName and entry.itemName and candidate.itemName ~= entry.itemName) then
+        return nil, "BLOCKED"
+      end
+      if found then return nil, "BLOCKED" end
+      found = state
+    end
+  end
+  return found, found and "EXACT" or "NONE"
+end
+
+-- Group-owned mail must validate the group and the complete original ledger
+-- entry before the ordinary active-batch shortcut can return it.
+local function repairGroupMailForEntry(entry)
+  if type(db.acquisitionRepairGroups) ~= "table" then return nil, "BLOCKED" end
+  local found
+  for groupKey, group in pairs(db.acquisitionRepairGroups) do
+    local state = validRepairGroup(groupKey, group)
+    if not state then return nil, "BLOCKED" end
+    if state.mailEvidence and state.mailEvidence.key == entry.key then
+      if found or not sameMailEvidence(state.mailEvidence, entry) then return nil, "BLOCKED" end
+      found = state
+    end
+  end
+  return found, found and "EXACT" or "NONE"
+end
+
+-- Pre-group repairs already persist a batch marker and, for partial repairs,
+-- the residual pending row. Rebuild only metadata from that exact evidence;
+-- anything that cannot be proven leaves an invalid sentinel so mail cannot
+-- fall through into a duplicate full batch after an upgrade.
+migrateLegacyRepairGroups = function()
+  local store = db and db.acquisitionRepairGroups
+  if type(store) ~= "table" then return end
+  local groups, invalid = {}, false
+  for _, batch in ipairs(db.acquisitions or {}) do
+    if type(batch) == "table" and batch.source == "manual" and batch.repairedPendingID ~= nil then
+      local pendingID = batch.repairedPendingID
+      if not isNonEmptyString(pendingID) or not isNonEmptyString(batch.repairEvidenceKey)
+          or not isPositiveInteger(batch.itemID) or not positionKeyMatchesItem(batch.positionKey, batch.itemID)
+          or not isStringOrNil(batch.itemName) or not isPositiveInteger(batch.originalQty)
+          or not isPositiveInteger(batch.originalTotal) or not isExactInteger(batch.acquiredAt)
+          or not isNonEmptyString(batch.character) or not isNonEmptyString(batch.region) then
+        invalid = true
+      else
+        local group = groups[pendingID]
+        if not group then
+          group = { pendingID = pendingID, itemID = batch.itemID, positionKey = batch.positionKey,
+            itemName = batch.itemName, character = batch.character, region = batch.region,
+            completedAt = batch.acquiredAt, completionEvidenceKeys = {}, repairs = {},
+            repairedQty = 0, repairedTotal = 0, mailEvidenceKeys = {}, mailEvidence = {} }
+          groups[pendingID] = group
+        end
+        if group.itemID ~= batch.itemID or group.positionKey ~= batch.positionKey
+            or group.character ~= batch.character or group.region ~= batch.region
+            or (group.itemName and batch.itemName and group.itemName ~= batch.itemName) then
+          invalid = true
+        else
+          group.itemName = group.itemName or batch.itemName
+          group.completedAt = math.min(group.completedAt, batch.acquiredAt)
+          group.repairedQty = safeAdd(group.repairedQty, batch.originalQty)
+          group.repairedTotal = safeAdd(group.repairedTotal, batch.originalTotal)
+          if not group.repairedQty or not group.repairedTotal then
+            invalid = true
+          else
+            group.repairs[#group.repairs + 1] = { repairID = batch.repairEvidenceKey,
+              batchID = batch.id, quantity = batch.originalQty, total = batch.originalTotal }
+          end
+        end
+      end
+    end
+  end
+  for pendingID, group in pairs(groups) do
+    local pending = pendingByID(pendingID)
+    if pending then
+      if not isPositiveInteger(pending.quantity) or pending.itemID ~= group.itemID
+          or pending.positionKey ~= group.positionKey or pending.character ~= group.character
+          or pending.region ~= group.region or not isExactInteger(pending.completedAt)
+          or not isStringOrNil(pending.itemName) or not validEvidenceKeys(pending.evidenceKeys)
+          or (group.itemName and pending.itemName and group.itemName ~= pending.itemName) then
+        invalid = true
+      else
+        group.itemName = group.itemName or pending.itemName
+        group.completedAt = pending.completedAt
+        group.completionEvidenceKeys = copyEvidenceKeys(pending.evidenceKeys)
+        group.originalQty = safeAdd(group.repairedQty, pending.quantity)
+      end
+    else
+      -- A full legacy repair has no remaining pending row from which to prove
+      -- its original quantity or completion evidence. Keep the group invalid
+      -- instead of inventing facts that could admit duplicate buyer mail.
+      invalid = true
+    end
+    if not group.originalQty or not validRepairGroup(pendingID, group) then invalid = true end
+    store[pendingID] = group
+  end
+  if invalid then store["__invalid_legacy_repair_group"] = false end
 end
 
 local function exactRepairMatches(batch, args)
@@ -427,13 +824,21 @@ function GC.Acquisitions.RepairPendingManual(args)
       or not isNonEmptyString(args.positionKey) or not isStringOrNil(args.itemName)
       or not isPositiveInteger(args.quantity) or not isPositiveInteger(args.total)
       or not isExactInteger(args.acquiredAt) or not isNonEmptyString(args.character)
-      or not isNonEmptyString(args.region) then
+      or not isNonEmptyString(args.region) or not positionKeyMatchesItem(args.positionKey, args.itemID)
+      or type(db.acquisitionRepairGroups) ~= "table" then
     return nil, false
   end
 
+  local existingGroup = db.acquisitionRepairGroups[args.pendingID]
+  local groupState = existingGroup and validRepairGroup(args.pendingID, existingGroup) or nil
+  if existingGroup and not groupState then return nil, false end
   local repeated = activeWithEvidence(args.repairID)
   if repeated then
-    return exactRepairMatches(repeated, args) and repeated or nil, false
+    if not groupState or not exactRepairMatches(repeated, args) then return nil, false end
+    for _, repair in ipairs(groupState.group.repairs) do
+      if repair.repairID == args.repairID and repair.batchID == repeated.id then return repeated, false end
+    end
+    return nil, false
   end
   if hasEvidence(args.repairID) then return nil, false end
 
@@ -441,7 +846,24 @@ function GC.Acquisitions.RepairPendingManual(args)
   if not pending or not isPositiveInteger(pending.quantity) or pending.itemID ~= args.itemID
       or pending.positionKey ~= args.positionKey or pending.character ~= args.character
       or pending.region ~= args.region or args.quantity > pending.quantity
+      or not positionKeyMatchesItem(pending.positionKey, pending.itemID)
+      or not isStringOrNil(pending.itemName) or not isExactInteger(pending.completedAt)
+      or not validEvidenceKeys(pending.evidenceKeys)
       or (pending.itemName and args.itemName and pending.itemName ~= args.itemName) then
+    return nil, false
+  end
+
+  local group = groupState and groupState.group or {
+    pendingID = pending.id, itemID = pending.itemID, positionKey = pending.positionKey,
+    itemName = pending.itemName, originalQty = pending.quantity, completedAt = pending.completedAt,
+    character = pending.character, region = pending.region,
+    completionEvidenceKeys = copyEvidenceKeys(pending.evidenceKeys), repairs = {},
+    repairedQty = 0, repairedTotal = 0, mailEvidenceKeys = {}, mailEvidence = {},
+  }
+  if group.itemName and args.itemName and group.itemName ~= args.itemName then return nil, false end
+  local repairedQty, repairedTotal = safeAdd(group.repairedQty, args.quantity), safeAdd(group.repairedTotal, args.total)
+  if not repairedQty or not repairedTotal or repairedQty > group.originalQty
+      or pending.quantity ~= group.originalQty - group.repairedQty then
     return nil, false
   end
 
@@ -452,6 +874,11 @@ function GC.Acquisitions.RepairPendingManual(args)
   if not batch or not isNew then return nil, false end
 
   batch.repairedPendingID, batch.repairEvidenceKey = pending.id, args.repairID
+  group.itemName = group.itemName or args.itemName or pending.itemName
+  group.repairs[#group.repairs + 1] = { repairID = args.repairID, batchID = batch.id,
+    quantity = args.quantity, total = args.total }
+  group.repairedQty, group.repairedTotal = repairedQty, repairedTotal
+  db.acquisitionRepairGroups[pending.id] = group
   pending.repairEvidenceKeys = type(pending.repairEvidenceKeys) == "table"
     and pending.repairEvidenceKeys or {}
   pending.repairEvidenceKeys[args.repairID] = true
@@ -461,21 +888,6 @@ function GC.Acquisitions.RepairPendingManual(args)
     pending.quantity = pending.quantity - args.quantity
   end
   return batch, true
-end
-
-local function batchByID(id)
-  for _, batch in ipairs(db and db.acquisitions or {}) do
-    if batch.id == id then return batch end
-  end
-  return nil
-end
-
-local function positionKeyMatchesItem(positionKey, itemID)
-  if positionKey == ("commodity:%d"):format(itemID) then return true end
-  if type(positionKey) ~= "string" then return false end
-  local matchedID, itemLevel, itemSuffix, petSpecies = positionKey:match("^item:(%d+):(-?%d+):(-?%d+):(-?%d+)$")
-  return matchedID == tostring(itemID) and isExactInteger(tonumber(itemLevel))
-    and isSignedExactInteger(tonumber(itemSuffix)) and isExactInteger(tonumber(petSpecies))
 end
 
 local function uniqueBoundVariant(batch, candidates, context)
@@ -496,14 +908,12 @@ local function uniqueBoundVariant(batch, candidates, context)
   -- Require all durable scoped activity evidence for this item to agree too:
   -- a caller cannot hide a second known variant by passing just the convenient
   -- candidate to this explicit binding API.
+  if type(db.acquisitionActivity) ~= "table" then return nil end
   local activityKey
-  for _, activity in pairs(db.acquisitionActivity or {}) do
+  for mapKey, activity in pairs(db.acquisitionActivity) do
+    if not validStoredActivity(mapKey, activity) then return nil end
     if activity.character == context.char and activity.region == context.region
         and activity.itemID == batch.itemID then
-      if not positionKeyMatchesItem(activity.positionKey, batch.itemID)
-          or not isNonEmptyString(activity.itemName) or not isExactInteger(activity.firstSeenAt) then
-        return nil
-      end
       if activityKey and activityKey ~= activity.positionKey then return nil end
       activityKey = activity.positionKey
     end
@@ -540,6 +950,7 @@ end
 
 local function validActivityArgs(positionKey, itemID, itemName, character, region, at)
   return type(positionKey) == "string" and positionKey ~= "" and isPositiveInteger(itemID)
+    and positionKeyMatchesItem(positionKey, itemID)
     and isNonEmptyString(itemName) and isNonEmptyString(character) and isNonEmptyString(region)
     and isExactInteger(at)
 end
@@ -552,7 +963,7 @@ local function recordActivity(positionKey, itemID, itemName, character, region, 
   if not scopeKey then return nil end
   local activity = db.acquisitionActivity[scopeKey]
   if activity then
-    if activity.itemID ~= itemID or activity.itemName ~= itemName
+    if not validStoredActivity(scopeKey, activity) or activity.itemID ~= itemID or activity.itemName ~= itemName
         or activity.character ~= character or activity.region ~= region
         or not isExactInteger(activity.firstSeenAt) then return nil end
     activity.firstSeenAt = math.min(activity.firstSeenAt, at)
@@ -623,8 +1034,10 @@ function GC.Acquisitions.ReconcileSale(entry)
     end
   end
 
+  if type(db.acquisitionActivity) ~= "table" then return unresolved("invalid_activity") end
   local candidates = {}
   for scopeKey, activity in pairs(db.acquisitionActivity) do
+    if not validStoredActivity(scopeKey, activity) then return unresolved("invalid_activity") end
     local candidate = activeByScope[scopeKey]
     if candidate and activity.positionKey == candidate.positionKey and activity.itemID == candidate.itemID
         and activity.itemName == entry.itemName
@@ -708,26 +1121,100 @@ function GC.Acquisitions.MigrateLegacy(flips, ledger)
   if importingFlips then db.acquisitionVersion = 1 end
 end
 
+local function copyMailEvidence(entry)
+  return { key = entry.key, kind = entry.kind, source = entry.source, itemID = entry.itemID,
+    itemName = entry.itemName, qty = entry.qty, total = entry.total, at = entry.at,
+    char = entry.char, region = entry.region }
+end
+
+sameMailEvidence = function(stored, entry)
+  return stored and stored.key == entry.key and stored.kind == entry.kind
+    and stored.source == entry.source and stored.itemID == entry.itemID
+    and stored.itemName == entry.itemName and stored.qty == entry.qty
+    and stored.total == entry.total and stored.at == entry.at
+    and stored.char == entry.char and stored.region == entry.region
+end
+
+-- Reconciles mail against the durable identity created by RepairPendingManual.
+-- The entire group is validated before Record() or table.remove(), so corrupt
+-- state can never fall through to the generic full-mail batch path.
+local function reconcileRepairGroup(state, entry)
+  local group = state.group
+  if state.mailEvidence then
+    if not sameMailEvidence(state.mailEvidence, entry) then return nil, false end
+    return batchByID(group.mailBatchID), false
+  end
+
+  if state.remainingQty == 0 then
+    if group.repairedTotal ~= entry.total then return nil, false end
+    if activeWithEvidence(entry.key) or pendingWithEvidence(entry.key) then return nil, false end
+    local batch = batchByID(group.repairs[1].batchID)
+    if not batch then return nil, false end
+    attachMailEvidence(batch, entry)
+    group.mailEvidenceKeys[entry.key] = true
+    group.mailEvidence[entry.key] = copyMailEvidence(entry)
+    group.mailBatchID = batch.id
+    return batch, false
+  end
+
+  local residualQty = state.remainingQty
+  local repairedAndResidual = safeAdd(group.repairedQty, residualQty)
+  local residualTotal = entry.total - group.repairedTotal
+  if repairedAndResidual ~= entry.qty or residualTotal <= 0 or not isPositiveInteger(residualTotal)
+      or not state.pending or not state.pendingIndex then
+    return nil, false
+  end
+  for key, present in pairs(group.completionEvidenceKeys) do
+    if present and activeWithEvidence(key) then return nil, false end
+  end
+  if pendingWithEvidence(entry.key) then return nil, false end
+
+  local residual, isNew = GC.Acquisitions.Record({ source = "auction_house", itemID = group.itemID,
+    positionKey = group.positionKey, itemName = entry.itemName or group.itemName,
+    quantity = residualQty, total = residualTotal, acquiredAt = group.completedAt,
+    evidenceKey = entry.key, character = group.character, region = group.region })
+  if not residual or not isNew then return nil, false end
+
+  residual.promotedPendingID = group.pendingID
+  for key, present in pairs(group.completionEvidenceKeys) do
+    if present then residual.evidenceKeys[key] = true end
+  end
+  residual.mailEvidenceKey = entry.key
+  group.mailEvidenceKeys[entry.key] = true
+  group.mailEvidence[entry.key] = copyMailEvidence(entry)
+  group.mailBatchID = residual.id
+  table.remove(db.acquisitionPending, state.pendingIndex)
+  return residual, true
+end
+
 --- Reconciles one stored buyer-mail ledger row. Mail evidence is one-to-one:
 -- a key already present wins before any compatibility search, and a compatible
 -- batch may only receive its first mail key.
 function GC.Acquisitions.ReconcileBuy(entry)
   if not db or not validBuyEntry(entry) or entry.source ~= "mail" then return nil, false end
   if not isNonEmptyString(entry.char) or not isNonEmptyString(entry.region) then return nil, false end
+  if not validRepairGroupAllocations() then return nil, false end
+  local groupMail, groupMailState = repairGroupMailForEntry(entry)
+  if groupMailState == "BLOCKED" then return nil, false end
+  if groupMailState == "EXACT" then return reconcileRepairGroup(groupMail, entry) end
+  if repairGroupOwnsEvidence(entry.key) then return nil, false end
+  local hasItemID = isPositiveInteger(entry.itemID)
+  -- A buyer invoice without its attachment item ID cannot authoritatively
+  -- select an acquisition position. Keep the immutable ledger row visible for
+  -- repair; exact name-only matches are still guesses and must not mutate cost.
+  if not hasItemID then return nil, false end
+  local repairGroup, repairGroupState = repairGroupForMail(entry)
+  if repairGroupState == "BLOCKED" then return nil, false end
+  if repairGroupState == "EXACT" then return reconcileRepairGroup(repairGroup, entry) end
   local existing = activeWithEvidence(entry.key)
   if existing then
     existing.itemName = existing.itemName or entry.itemName
     return existing, false
   end
   local resolved, resolvedIndex = pendingWithEvidence(entry.key)
-
-  local hasItemID = isPositiveInteger(entry.itemID)
-  -- A buyer invoice without its attachment item ID cannot authoritatively
-  -- select an acquisition position. Keep the immutable ledger row visible for
-  -- repair; exact name-only matches are still guesses and must not mutate cost.
-  if not hasItemID then return nil, false end
   local function activeMatch(batch)
-    if batch.mailEvidenceKey or not isPositiveInteger(batch.remainingQty)
+    if batch.mailEvidenceKey or batch.repairedPendingID ~= nil or batch.repairEvidenceKey ~= nil
+        or not isPositiveInteger(batch.remainingQty)
         or not isExactInteger(batch.remainingTotal) then return false end
     return compatible(batch, entry)
   end
@@ -824,11 +1311,11 @@ function GC.Acquisitions.GetPending(context)
 end
 
 function GC.Acquisitions.GetActivities(context)
-  if not db then return {} end
+  if not db or type(db.acquisitionActivity) ~= "table" then return {} end
   local activities = {}
-  for _, activity in pairs(db.acquisitionActivity) do
-    if not context or (validContext(context)
-        and activity.character == context.char and activity.region == context.region) then
+  for scopeKey, activity in pairs(db.acquisitionActivity) do
+    if validStoredActivity(scopeKey, activity) and (not context or (validContext(context)
+        and activity.character == context.char and activity.region == context.region)) then
       activities[#activities + 1] = activity
     end
   end

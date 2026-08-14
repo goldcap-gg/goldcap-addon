@@ -7,6 +7,7 @@ describe("Ledger inbox scan", function()
   local function mail(overrides)
     local m = {
       sender = "Auction House",
+      subject = "Auction successful",
       daysLeft = 30,
       invoice = {
         invoiceType = "seller",
@@ -40,9 +41,10 @@ describe("Ledger inbox scan", function()
       GetInboxHeaderInfo = function(i)
         local m = mails[i]
         if not m then return nil end
-        -- Mirrors the live return order for the fields we read:
-        -- packageIcon, stationeryIcon, sender, subject, money, CODAmount, daysLeft
-        return nil, nil, m.sender, "Auction successful", 0, 0, m.daysLeft
+        -- Mirrors the complete live return order through canReply, which is
+        -- the locale-independent ordinary-mail signal for unreadable invoices.
+        return nil, nil, m.sender, m.subject, 0, 0, m.daysLeft, m.item ~= nil,
+          false, false, false, m.canReply
       end,
       GetInboxInvoiceInfo = function(i)
         local inv = mails[i] and mails[i].invoice
@@ -281,6 +283,87 @@ describe("Ledger inbox scan", function()
     malformed.GetInboxInvoiceInfo = function() error("invoice unreadable") end
     assert.equal(0, GC.Ledger.ScanInbox(malformed, context, 1030))
     assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1040))
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE3 C1] retains a readable buyer occurrence across an AH-like nil invoice row", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local unreadable = mail()
+    unreadable.invoice = nil
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local key = GC.Ledger.GetEntries()[1].key
+    local generation = db.mailOccurrenceGeneration
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ unreadable }), context, 1010))
+    assert.equal(generation, db.mailOccurrenceGeneration)
+    assert.is_true(db.mailOccurrences[1].present)
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(key, GC.Ledger.GetEntries()[1].key)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE3 C1] fails closed for AH-like empty and unknown invoice types", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local key = GC.Ledger.GetEntries()[1].key
+    local generation = db.mailOccurrenceGeneration
+
+    for _, invoiceType in ipairs({ "", "not-an-auction-invoice" }) do
+      local unreadable = mail({ invoice = { invoiceType = invoiceType } })
+      assert.equal(0, GC.Ledger.ScanInbox(apiFor({ unreadable }), context, 1010))
+      assert.equal(generation, db.mailOccurrenceGeneration)
+      assert.is_true(db.mailOccurrences[1].present)
+    end
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(key, GC.Ledger.GetEntries()[1].key)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE3 C1] ignores positively ordinary non-AH mail while retiring absence", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local ordinary = mail({ sender = "Guildmate", subject = "Hello", canReply = true })
+    ordinary.invoice.invoiceType = nil
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local firstKey = GC.Ledger.GetEntries()[1].key
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ ordinary }), context, 1010))
+    assert.is_false(db.mailOccurrences[1].present)
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.not_equal(firstKey, GC.Ledger.GetEntries()[2].key)
+  end)
+
+  it("[WAVE3 C1 fix1] fails closed for unknown localized headers without canReply", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local key = GC.Ledger.GetEntries()[1].key
+    local generation = db.mailOccurrenceGeneration
+
+    local function assertUnreadable(canReply)
+      local unreadable = mail({ sender = "Дом аукциона", subject = "Успешный аукцион",
+        canReply = canReply, invoice = { invoiceType = "unknown-invoice" } })
+      assert.equal(0, GC.Ledger.ScanInbox(apiFor({ unreadable }), context, 1010))
+      assert.equal(generation, db.mailOccurrenceGeneration)
+      assert.is_true(db.mailOccurrences[1].present)
+      assert.equal(1, #GC.Ledger.GetEntries())
+      assert.equal(1, #GC.Acquisitions.GetAll())
+    end
+    assertUnreadable(false)
+    assertUnreadable(nil)
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(key, GC.Ledger.GetEntries()[1].key)
     assert.equal(1, #GC.Ledger.GetEntries())
     assert.equal(1, #GC.Acquisitions.GetAll())
   end)

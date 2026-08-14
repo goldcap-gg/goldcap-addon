@@ -660,4 +660,590 @@ describe("Acquisition store", function()
     }, context))
     assert.is_nil(batch.positionKey)
   end)
+
+  it("[FINAL I1] reconciles exact buyer mail after a partial repair without duplicate exposure", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:partial" })
+    local repaired = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:partial", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 2, total = 200, acquiredAt = 101,
+      character = context.char, region = context.region }))
+    local entry = { key = "mail:partial", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region }
+
+    -- Simulate an upgrade from the earlier manual-repair format, which had
+    -- repair batches and a reduced pending row but no durable group map.
+    db.acquisitionRepairGroups = nil
+    GC.Acquisitions.Init(db)
+    local residual, isNew = GC.Acquisitions.ReconcileBuy(entry)
+    assert.is_true(isNew)
+    assert.equal(0, #GC.Acquisitions.GetPending(context))
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.equal(5, GC.Acquisitions.GetActive(context)[1].remainingQty
+      + GC.Acquisitions.GetActive(context)[2].remainingQty)
+    assert.equal(5, repaired.originalQty + residual.originalQty)
+    assert.equal(500, repaired.originalTotal + residual.originalTotal)
+    assert.is_true(residual.evidenceKeys[entry.key])
+
+    local repeated, repeatedNew = GC.Acquisitions.ReconcileBuy(entry)
+    assert.equal(residual, repeated)
+    assert.is_false(repeatedNew)
+    assert.equal(2, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1] retains a full repair group and rejects inconsistent or corrupt buyer mail", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:full" })
+    local repaired = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:full", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, total = 500, acquiredAt = 101,
+      character = context.char, region = context.region }))
+    GC.Acquisitions.Init(db)
+    assert.is_table(db.acquisitionRepairGroups)
+    if type(db.acquisitionRepairGroups) ~= "table" then return end
+    assert.is_table(db.acquisitionRepairGroups[pending.id])
+    if type(db.acquisitionRepairGroups[pending.id]) ~= "table" then return end
+
+    local entry = { key = "mail:full", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region }
+    local matched, isNew = GC.Acquisitions.ReconcileBuy(entry)
+    assert.equal(repaired, matched)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_true(db.acquisitionRepairGroups[pending.id].mailEvidenceKeys[entry.key])
+
+    db = {}
+    GC.Acquisitions.Init(db)
+    pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:inconsistent",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+      total = 400, acquiredAt = 101, character = context.char, region = context.region }))
+    assert.is_nil(GC.Acquisitions.ReconcileBuy({ key = "mail:inconsistent", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region }))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+
+    db.acquisitionRepairGroups[pending.id].repairedQty = 6
+    assert.is_nil(GC.Acquisitions.ReconcileBuy({ key = "mail:corrupt", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Copper Ore", qty = 5, total = 400, at = 103,
+      char = context.char, region = context.region }))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1] rejects a repair when its pending or request position belongs to another item", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:99",
+      itemName = "Copper Ore", quantity = 1, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" })
+    local repaired, isNew = GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:wrong-position", itemID = 42, positionKey = "commodity:99",
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 101,
+      character = context.char, region = context.region })
+
+    assert.is_nil(repaired)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetPending(context))
+    assert.equal(0, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1] fails closed without mutation when an activity entry is not a table", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+      evidenceKey = "legacy:bad-activity", character = context.char, region = context.region })
+    db.acquisitionActivity[GC.Acquisitions.ScopeKey("item:42:10:0:0", context)] = true
+
+    local ok, bound, isNew = pcall(GC.Acquisitions.BindItemOnly, batch.id, {
+      { positionKey = "item:42:10:0:0", itemID = 42, character = context.char, region = context.region },
+    }, context)
+    assert.is_true(ok)
+    assert.is_nil(bound)
+    assert.is_false(isNew)
+    assert.is_nil(batch.positionKey)
+  end)
+
+  it("[FINAL I1] fails closed for wrong activity keys or scope keys and leaves sale unresolved", function()
+    local function assertRejectedActivity(activityKey, activity)
+      db = {}
+      GC.Acquisitions.Init(db)
+      local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+        itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+        evidenceKey = activityKey, character = context.char, region = context.region })
+      db.acquisitionActivity[activityKey] = activity
+
+      local bound, isNew = GC.Acquisitions.BindItemOnly(batch.id, {
+        { positionKey = "item:42:10:0:0", itemID = 42, character = context.char, region = context.region },
+      }, context)
+      assert.is_nil(bound)
+      assert.is_false(isNew)
+      assert.is_nil(batch.positionKey)
+      local sale = GC.Acquisitions.ReconcileSale({ key = "sale:" .. activityKey, kind = "sale", source = "mail",
+        itemName = "Copper Ore", qty = 1, total = 150, at = 20, char = context.char,
+        region = context.region, pending = false })
+      assert.equal("unresolved", sale.status)
+      assert.equal(1, batch.remainingQty)
+    end
+
+    local expectedScope = GC.Acquisitions.ScopeKey("item:42:10:0:0", context)
+    local activity = { scopeKey = expectedScope, positionKey = "item:42:10:0:0", itemID = 42,
+      itemName = "Copper Ore", character = context.char, region = context.region, firstSeenAt = 10 }
+    assertRejectedActivity("wrong-map-key", activity)
+    activity.scopeKey = "wrong-scope-key"
+    assertRejectedActivity(expectedScope, activity)
+  end)
+
+  it("[FINAL I1] binds one valid activity store and consumes its later sale exactly once", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42, positionKey = nil,
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 100,
+      evidenceKey = "legacy:valid-activity", character = context.char, region = context.region })
+    local positionKey = "item:42:10:0:0"
+    assert.truthy(GC.Acquisitions.ObserveOwnedPosition(positionKey, 42, "Copper Ore", context.char,
+      context.region, 10))
+
+    local bound, isNew = GC.Acquisitions.BindItemOnly(batch.id, {
+      { positionKey = positionKey, itemID = 42, character = context.char, region = context.region },
+    }, context)
+    assert.equal(batch, bound)
+    assert.is_true(isNew)
+    local entry = { key = "sale:valid-activity", kind = "sale", source = "mail", itemName = "Copper Ore",
+      qty = 1, total = 150, at = 20, char = context.char, region = context.region, pending = false }
+    assert.equal("applied", GC.Acquisitions.ReconcileSale(entry).status)
+    assert.equal(0, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+    assert.equal("duplicate", GC.Acquisitions.ReconcileSale(entry).status)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
+  it("[FINAL I1 C1] blocks quantity or name mismatches against an unresolved repair group", function()
+    local function repairPartial(key)
+      db = {}
+      GC.Acquisitions.Init(db)
+      local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+        itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+        region = context.region, reason = "exact total unavailable", evidenceKey = key }))
+      assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = key .. ":repair",
+        itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 2,
+        total = 200, acquiredAt = 101, character = context.char, region = context.region }))
+    end
+
+    repairPartial("capture:c1-quantity")
+    local blocked, isNew = GC.Acquisitions.ReconcileBuy({ key = "mail:c1-quantity", kind = "buy",
+      source = "mail", itemID = 42, itemName = "Copper Ore", qty = 4, total = 400, at = 102,
+      char = context.char, region = context.region })
+    assert.is_nil(blocked)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending(context))
+
+    repairPartial("capture:c1-name")
+    blocked, isNew = GC.Acquisitions.ReconcileBuy({ key = "mail:c1-name", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Tin Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region })
+    assert.is_nil(blocked)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(1, #GC.Acquisitions.GetPending(context))
+  end)
+
+  it("[FINAL I1 C2] treats every valid repair-group evidence key as globally authoritative", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:c2" }))
+    assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:c2",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+      total = 500, acquiredAt = 101, character = context.char, region = context.region }))
+
+    assert.is_true(GC.Acquisitions.HasEvidence("capture:c2"))
+    assert.is_true(GC.Acquisitions.HasEvidence("repair:c2"))
+    local replayed, isNew = GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:c2" })
+    assert.is_nil(replayed)
+    assert.is_false(isNew)
+    assert.is_nil(GC.Acquisitions.Record({ source = "manual", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 1, total = 100, acquiredAt = 102,
+      character = context.char, region = context.region, evidenceKey = "capture:c2" }))
+
+    assert(GC.Acquisitions.ReconcileBuy({ key = "mail:c2", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 103, char = context.char,
+      region = context.region }))
+    assert.is_true(GC.Acquisitions.HasEvidence("mail:c2"))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending(context))
+  end)
+
+  it("[FINAL I1 C3] rejects incomplete repair evidence, mismatched completion evidence, and ungrouped repair batches", function()
+    local function repairPartial(key)
+      db = {}
+      GC.Acquisitions.Init(db)
+      local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+        itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+        region = context.region, reason = "exact total unavailable", evidenceKey = key }))
+      local batch = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+        repairID = key .. ":repair", itemID = 42, positionKey = "commodity:42",
+        itemName = "Copper Ore", quantity = 2, total = 200, acquiredAt = 101,
+        character = context.char, region = context.region }))
+      return pending, batch
+    end
+    local function mail(key)
+      return { key = key, kind = "buy", source = "mail", itemID = 42, itemName = "Copper Ore",
+        qty = 5, total = 500, at = 102, char = context.char, region = context.region }
+    end
+
+    local _, repaired = repairPartial("capture:c3-batch")
+    repaired.evidenceKeys["capture:c3-batch:repair"] = nil
+    assert.is_nil(GC.Acquisitions.ReconcileBuy(mail("mail:c3-batch")))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+
+    local pending = repairPartial("capture:c3-completion")
+    pending.evidenceKeys["capture:c3-extra"] = true
+    assert.is_nil(GC.Acquisitions.ReconcileBuy(mail("mail:c3-completion")))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+
+    pending = repairPartial("capture:c3-ungrouped")
+    local extra = assert(GC.Acquisitions.Record({ source = "manual", itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 1, total = 100,
+      acquiredAt = 102, character = context.char, region = context.region,
+      evidenceKey = "repair:c3-ungrouped" }))
+    extra.repairedPendingID, extra.repairEvidenceKey = pending.id, "repair:c3-ungrouped"
+    assert.is_nil(GC.Acquisitions.ReconcileBuy(mail("mail:c3-ungrouped")))
+    assert.equal(2, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1 I1] leaves a legacy repair with no pending identity fail-closed", function()
+    local repaired = assert(GC.Acquisitions.Record({ source = "manual", itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 2, total = 200,
+      acquiredAt = 100, character = context.char, region = context.region,
+      evidenceKey = "repair:i1-legacy" }))
+    repaired.repairedPendingID, repaired.repairEvidenceKey = "pending:legacy", "repair:i1-legacy"
+    db.acquisitionRepairGroups = nil
+    GC.Acquisitions.Init(db)
+
+    local matched, isNew = GC.Acquisitions.ReconcileBuy({ key = "mail:i1-legacy", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Copper Ore", qty = 5, total = 500, at = 101,
+      char = context.char, region = context.region })
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1 I2] permits a distinct same-shape buyer mail after a repair group is absorbed", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:i2",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+      total = 500, acquiredAt = 101, character = context.char, region = context.region }))
+    local first = { key = "mail:i2-first", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102, char = context.char,
+      region = context.region }
+    assert(GC.Acquisitions.ReconcileBuy(first))
+
+    local second, isNew = GC.Acquisitions.ReconcileBuy({ key = "mail:i2-second", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Copper Ore", qty = 5, total = 500, at = 103,
+      char = context.char, region = context.region })
+    assert.is_true(isNew)
+    assert.equal("auction_house", second.source)
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.equal(10, GC.Acquisitions.GetActive(context)[1].remainingQty
+      + GC.Acquisitions.GetActive(context)[2].remainingQty)
+  end)
+
+  it("[FINAL I1 I3] validates group-owned mail before returning its linked active batch", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:i3",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+      total = 500, acquiredAt = 101, character = context.char, region = context.region }))
+    local entry = { key = "mail:i3", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102, char = context.char,
+      region = context.region }
+    assert(GC.Acquisitions.ReconcileBuy(entry))
+
+    local changed = { key = entry.key, kind = entry.kind, source = entry.source, itemID = entry.itemID,
+      itemName = entry.itemName, qty = entry.qty, total = 501, at = entry.at,
+      char = entry.char, region = entry.region }
+    local matched, isNew = GC.Acquisitions.ReconcileBuy(changed)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+
+    db.acquisitionRepairGroups[pending.id].repairedQty = 6
+    assert.is_nil(GC.Acquisitions.ReconcileBuy(entry))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1 R2 C1] blocks a full repair group when its buyer-mail key already has an active or pending owner", function()
+    local function fullRepair(key)
+      db = {}
+      GC.Acquisitions.Init(db)
+      local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+        itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+        region = context.region, reason = "exact total unavailable" }))
+      local repair = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = key .. ":repair",
+        itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+        total = 500, acquiredAt = 101, character = context.char, region = context.region }))
+      return pending, repair
+    end
+    local function entry(key)
+      return { key = key, kind = "buy", source = "mail", itemID = 42, itemName = "Copper Ore",
+        qty = 5, total = 500, at = 102, char = context.char, region = context.region }
+    end
+
+    local pending, repair = fullRepair("mail:r2-active")
+    local active = assert(GC.Acquisitions.Record({ source = "manual", itemID = 43,
+      positionKey = "commodity:43", itemName = "Tin Ore", quantity = 1, total = 100,
+      acquiredAt = 101, character = context.char, region = context.region, evidenceKey = "mail:r2-active" }))
+    local matched, isNew = GC.Acquisitions.ReconcileBuy(entry("mail:r2-active"))
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.is_true(active.evidenceKeys["mail:r2-active"])
+    assert.is_nil(repair.evidenceKeys["mail:r2-active"])
+    assert.is_nil(db.acquisitionRepairGroups[pending.id].mailEvidenceKeys["mail:r2-active"])
+    assert.equal(2, #GC.Acquisitions.GetAll())
+
+    repair = select(2, fullRepair("mail:r2-pending"))
+    local otherPending = assert(GC.Acquisitions.RecordPending({ itemID = 43, positionKey = "commodity:43",
+      itemName = "Tin Ore", quantity = 1, completedAt = 101, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "mail:r2-pending" }))
+    matched, isNew = GC.Acquisitions.ReconcileBuy(entry("mail:r2-pending"))
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.is_true(otherPending.evidenceKeys["mail:r2-pending"])
+    assert.is_nil(repair.evidenceKeys["mail:r2-pending"])
+    assert.equal(1, #GC.Acquisitions.GetPending(context))
+    assert.equal(1, otherPending.quantity)
+  end)
+
+  it("[FINAL I1 R2 C2] blocks replay of a completion key claimed by a corrupt repair group", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable", evidenceKey = "capture:r2-corrupt" }))
+    assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:r2-corrupt",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+      total = 500, acquiredAt = 101, character = context.char, region = context.region }))
+    db.acquisitionRepairGroups[pending.id].repairedQty = 6
+
+    local ok, replayed, isNew = pcall(GC.Acquisitions.RecordPending, { itemID = 42,
+      positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5, completedAt = 100,
+      character = context.char, region = context.region, reason = "exact total unavailable",
+      evidenceKey = "capture:r2-corrupt" })
+    assert.is_true(ok)
+    assert.is_nil(replayed)
+    assert.is_false(isNew)
+    assert.is_true(GC.Acquisitions.HasEvidence("capture:r2-corrupt"))
+    assert.equal(0, #GC.Acquisitions.GetPending(context))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1 R2 I1] excludes resolved repair allocations from generic buyer-mail matching", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 2, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:r2-resolved",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 1,
+      total = 100, acquiredAt = 101, character = context.char, region = context.region }))
+    assert(GC.Acquisitions.ReconcileBuy({ key = "mail:r2-resolve", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 2, total = 200, at = 102, char = context.char,
+      region = context.region }))
+
+    local second, isNew = GC.Acquisitions.ReconcileBuy({ key = "mail:r2-distinct", kind = "buy", source = "mail",
+      itemID = 42, itemName = "Copper Ore", qty = 1, total = 100, at = 103,
+      char = context.char, region = context.region })
+    assert.is_true(isNew)
+    assert.equal("auction_house", second.source)
+    assert.equal(3, #GC.Acquisitions.GetAll())
+    assert.equal(3, GC.Acquisitions.GetActive(context)[1].remainingQty
+      + GC.Acquisitions.GetActive(context)[2].remainingQty
+      + GC.Acquisitions.GetActive(context)[3].remainingQty)
+  end)
+
+  it("[FINAL I1 R2 I2] refuses grouped pending mail markers and preserves a corrupt pre-existing marker", function()
+    local function partialRepair(key)
+      db = {}
+      GC.Acquisitions.Init(db)
+      local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+        itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+        region = context.region, reason = "exact total unavailable" }))
+      assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = key .. ":repair",
+        itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 2,
+        total = 200, acquiredAt = 101, character = context.char, region = context.region }))
+      return pending
+    end
+    local function buyer(key)
+      return { key = key, kind = "buy", source = "mail", itemID = 42, itemName = "Copper Ore",
+        qty = 5, total = 500, at = 102, char = context.char, region = context.region }
+    end
+
+    local pending = partialRepair("mail:r2-resolve")
+    local marked, isNew = GC.Acquisitions.ResolvePending(pending.id, "mail:r2-marker")
+    assert.is_nil(marked)
+    assert.is_false(isNew)
+    assert.is_nil(pending.mailEvidenceKey)
+    assert.equal(3, pending.quantity)
+
+    pending = partialRepair("mail:r2-corrupt-marker")
+    pending.mailEvidenceKey = "mail:r2-old-marker"
+    local matched
+    matched, isNew = GC.Acquisitions.ReconcileBuy(buyer("mail:r2-corrupt-marker"))
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal("mail:r2-old-marker", pending.mailEvidenceKey)
+    assert.equal(3, pending.quantity)
+    assert.equal(1, #GC.Acquisitions.GetPending(context))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL I1 R2 I3] rejects a full group whose stored mail total differs from repaired cost", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    local repair = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = "repair:r2-total",
+      itemID = 42, positionKey = "commodity:42", itemName = "Copper Ore", quantity = 5,
+      total = 500, acquiredAt = 101, character = context.char, region = context.region }))
+    local entry = { key = "mail:r2-total", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102, char = context.char,
+      region = context.region }
+    assert(GC.Acquisitions.ReconcileBuy(entry))
+    db.acquisitionRepairGroups[pending.id].mailEvidence[entry.key].total = 400
+
+    local changed = { key = entry.key, kind = entry.kind, source = entry.source, itemID = entry.itemID,
+      itemName = entry.itemName, qty = entry.qty, total = 400, at = entry.at,
+      char = entry.char, region = entry.region }
+    local matched, isNew = GC.Acquisitions.ReconcileBuy(changed)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(5, repair.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE3 I1 fix3] blocks an orphan repairedPendingID marker from generic buyer-mail fallback", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    local repair = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:fix3-pending", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, total = 500, acquiredAt = 101,
+      character = context.char, region = context.region }))
+    repair.repairEvidenceKey = nil
+    db.acquisitionRepairGroups[pending.id] = nil
+
+    local entry = { key = "mail:fix3-pending", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102, char = context.char,
+      region = context.region }
+    local ok, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, entry)
+    assert.is_true(ok)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(5, GC.Acquisitions.GetAll()[1].remainingQty)
+    assert.is_nil(repair.mailEvidenceKey)
+    assert.is_nil(repair.evidenceKeys[entry.key])
+    assert.is_false(GC.Acquisitions.HasEvidence(entry.key))
+  end)
+
+  it("[WAVE3 I1 fix3] blocks an orphan repairEvidenceKey marker from generic buyer-mail fallback", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    local repair = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:fix3-evidence", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, total = 500, acquiredAt = 101,
+      character = context.char, region = context.region }))
+    repair.repairedPendingID = nil
+    db.acquisitionRepairGroups[pending.id] = nil
+
+    local entry = { key = "mail:fix3-evidence", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102, char = context.char,
+      region = context.region }
+    local ok, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, entry)
+    assert.is_true(ok)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(5, GC.Acquisitions.GetAll()[1].remainingQty)
+    assert.is_nil(repair.mailEvidenceKey)
+    assert.is_nil(repair.evidenceKeys[entry.key])
+    assert.is_false(GC.Acquisitions.HasEvidence(entry.key))
+  end)
+
+  it("[WAVE3 I1 fix4] blocks a sparse index-2 repairedPendingID orphan before buyer-mail fallback", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    local repair = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:fix4-sparse", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, total = 500, acquiredAt = 101,
+      character = context.char, region = context.region }))
+    repair.repairEvidenceKey = nil
+    db.acquisitionRepairGroups[pending.id] = nil
+    db.acquisitions[2] = repair
+    db.acquisitions[1] = nil
+    local sequenceBefore = db.acquisitionSeq
+
+    local entry = { key = "mail:fix4-sparse", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region }
+    local ok, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, entry)
+    assert.is_true(ok)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(sequenceBefore, db.acquisitionSeq)
+    assert.is_nil(db.acquisitions[1])
+    assert.equal(repair, db.acquisitions[2])
+    assert.is_nil(repair.mailEvidenceKey)
+    assert.is_nil(repair.evidenceKeys[entry.key])
+    assert.is_false(GC.Acquisitions.HasEvidence(entry.key))
+  end)
+
+  it("[WAVE3 I1 fix4] blocks a dictionary repairEvidenceKey orphan before buyer-mail fallback", function()
+    local pending = assert(GC.Acquisitions.RecordPending({ itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, completedAt = 100, character = context.char,
+      region = context.region, reason = "exact total unavailable" }))
+    local repair = assert(GC.Acquisitions.RepairPendingManual({ pendingID = pending.id,
+      repairID = "repair:fix4-dictionary", itemID = 42, positionKey = "commodity:42",
+      itemName = "Copper Ore", quantity = 5, total = 500, acquiredAt = 101,
+      character = context.char, region = context.region }))
+    repair.repairedPendingID = nil
+    db.acquisitionRepairGroups[pending.id] = nil
+    db.acquisitions["dictionary-orphan"] = repair
+    db.acquisitions[1] = nil
+    local sequenceBefore = db.acquisitionSeq
+
+    local entry = { key = "mail:fix4-dictionary", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region }
+    local ok, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, entry)
+    assert.is_true(ok)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.equal(sequenceBefore, db.acquisitionSeq)
+    assert.is_nil(db.acquisitions[1])
+    assert.equal(repair, db.acquisitions["dictionary-orphan"])
+    assert.is_nil(repair.mailEvidenceKey)
+    assert.is_nil(repair.evidenceKeys[entry.key])
+    assert.is_false(GC.Acquisitions.HasEvidence(entry.key))
+  end)
+
+  it("[WAVE3 I1 fix4] rejects a dense non-table acquisition without throwing or accounting mutation", function()
+    db.acquisitions[1] = true
+    local entry = { key = "mail:fix4-non-table", kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = context.char, region = context.region }
+
+    local ok, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, entry)
+    assert.is_true(ok)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+    assert.is_true(db.acquisitions[1])
+    assert.equal(0, db.acquisitionSeq)
+    assert.equal(0, #db.acquisitionPending)
+    assert.equal(0, #db.acquisitionRealized)
+    assert.is_nil(next(db.acquisitionConsumptionEvidence))
+  end)
 end)
