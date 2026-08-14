@@ -361,7 +361,11 @@ local function build(sniperFrame)
 
   local PCT = { min = 1, max = 90, toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end }
   local WALLET_PCT = { min = 1, max = 20, toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end }
+  local GOLD = { min = 1, max = 100000,
+    toUI = function(v) return v / 10000 end,
+    toStorage = function(v) return v * 10000 end }
   fieldRow("Max wallet per buy %", "maxCapitalShare", WALLET_PCT)
+  fieldRow("Min profit per buy (gold)", "minimumProfitCopper", GOLD)
   fieldRow("HOT min discount %", "hotDiscount", PCT)
   fieldRow("GOOD min discount %", "goodDiscount", PCT)
   fieldRow("HOT min sold/day", "hotMinSold", { min = 0, max = 1000 })

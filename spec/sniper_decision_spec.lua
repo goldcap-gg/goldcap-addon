@@ -33,6 +33,10 @@ describe("SniperDecision", function()
     end)())
   end
 
+  local function assertNoReason(result, reason)
+    for _, got in ipairs(result.reasons) do assert.not_equal(reason, got) end
+  end
+
   before_each(function()
     GC = helper.loadModule("Core/Book.lua")
     helper.loadModule("Core/SniperDecision.lua", GC)
@@ -251,6 +255,46 @@ describe("SniperDecision", function()
     assert.equal(1000000, result.entryUnitDisplay)
   end)
 
+  it("accepts a small high-return flip and chooses the quantity with the highest stress profit", function()
+    local input = validInput()
+    input.live.levels = {
+      { unitPrice = 301700, quantity = 1 },
+      { unitPrice = 450200, quantity = 1126 },
+    }
+    input.market.marketValue = 466454
+    input.market.stressUnit = 450199
+    input.config.minimumProfitCopper = 50000
+    input.config.maxQuantity = 200
+    input.walletCopper = 213290000
+    input.depositForQuantity = function(quantity) return quantity * 1000 end
+
+    local result = evaluate(input)
+
+    assert.equal("SAFE", result.computedStatus)
+    assert.equal(1, result.quantity)
+    assert.equal(301700, result.entryTotal)
+    assert.equal(124989, result.stressProfit)
+    assert.equal(50000, result.requiredProfit)
+  end)
+
+  it("does not report capital_limit when an affordable quantity exists but misses profit", function()
+    local input = validInput()
+    input.live.levels = {
+      { unitPrice = 1000000, quantity = 1 },
+      { unitPrice = 1000001, quantity = 1 },
+      { unitPrice = 3000001, quantity = 1 },
+    }
+    input.config.maxQuantity = 2
+    input.config.minimumProfitCopper = 50000
+    input.walletCopper = 30000000 -- five-percent budget is 1,500,000 copper
+
+    local result = evaluate(input)
+
+    assert.equal("AVOID", result.computedStatus)
+    assertReason(result, "stress_profit_below_buffer")
+    assertNoReason(result, "capital_limit")
+  end)
+
   it("fails a sub-five-percent requote that crosses safety, with the fixed quantity retained", function()
     local input = validInput()
     input.live.fixedQuantity = 1
@@ -350,10 +394,11 @@ describe("SniperDecision", function()
   it("clamps edited safety floors and fails closed for invalid input", function()
     local floors = validInput()
     floors.live.fixedQuantity = 1
-    floors.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 2105265, quantity = 1 } }
+    floors.live.levels = { { unitPrice = 50000, quantity = 1 }, { unitPrice = 1000001, quantity = 1 } }
+    floors.market.stressUnit = 1000000
     floors.config.minimumProfitCopper = -1
     floors.config.minimumRoi = -1
-    assert.equal(1000000, evaluate(floors).requiredProfit)
+    assert.equal(10000, evaluate(floors).requiredProfit)
 
     local invalid = validInput(); invalid.config.minimumProfitCopper = "bad"
     assertReason(evaluate(invalid), "invalid_input")

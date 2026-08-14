@@ -44,7 +44,8 @@ GC.DEFAULTS = {
       maxCapitalShare = 0.05,
       maxDailyDemandShare = 0.02,
       maxQuantity = 200,
-      minimumProfitCopper = 1000000,
+      minimumProfitCopper = 50000,
+      profitFloorVersion = 1,
       minimumRoi = 0.10,
       -- Sniper v3 T10: UI-only scale multiplier for Theme's fonts (0.9-1.3), persisted so a
       -- player's chosen text size survives relog. Read back once GC.db exists (see this file's
@@ -115,6 +116,16 @@ frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
 frame:RegisterEvent("PLAYER_LOGOUT")
 
+local function migrateSniperProfitFloor(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.profitFloorVersion ~= nil then return end
+  -- The old 100g value was implicit and had no settings control. Move only that exact legacy
+  -- default; preserve any manually edited value. ApplyDefaults stamps the version for new DBs.
+  if sniper.minimumProfitCopper == 1000000 then sniper.minimumProfitCopper = 50000 end
+  sniper.profitFloorVersion = 1
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -125,6 +136,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       frame:UnregisterEvent("ADDON_LOADED")
       return
     end
+    migrateSniperProfitFloor(GoldCapDB)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
     if GC.Data then

@@ -73,7 +73,7 @@ local function normalizeConfig(config)
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
     maxQuantity = clamp(quantity, 1, 200),
-    minimumProfitCopper = math.max(profit, 1000000),
+    minimumProfitCopper = math.max(profit, 10000),
     minimumRoi = math.max(roi, 0.10),
   }
 end
@@ -282,7 +282,7 @@ function GC.SniperDecision.Evaluate(input)
 
   local budget = math.floor(input.walletCopper * config.maxCapitalShare)
   local selected
-  local sawCapital, sawProfit, sawExhausted, sawCompeting = false, false, false, false
+  local sawCapital, sawAffordable, sawProfit, sawExhausted, sawCompeting = false, false, false, false, false
   local start, finish = fixed and fixed or 1, coarseCap
   for quantity = start, finish do
     local fill = GC.Book and GC.Book.Fill and GC.Book.Fill(live.levels, quantity)
@@ -292,11 +292,12 @@ function GC.SniperDecision.Evaluate(input)
       sawExhausted = true
     elseif not isInteger(fill.total) or not isInteger(fill.unit) then
       return invalid()
-    elseif not fill.competing or not isInteger(fill.competing) or fill.competing <= 0 then
-      sawCompeting = true
     else
       local entryTotal = live.quotedTotal or fill.total
-      if entryTotal > budget then
+      if entryTotal <= budget then sawAffordable = true end
+      if not fill.competing or not isInteger(fill.competing) or fill.competing <= 0 then
+        sawCompeting = true
+      elseif entryTotal > budget then
         sawCapital = true
       else
         local exitUnit = math.min(stressUnit or 0, fill.competing - 1)
@@ -324,11 +325,13 @@ function GC.SniperDecision.Evaluate(input)
             if stressProfit < requiredProfit then
               sawProfit = true
             else
-              selected = {
-                quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
-                competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
-                deposit = deposit, stressProfit = stressProfit, requiredProfit = requiredProfit,
-              }
+              if not selected or stressProfit > selected.stressProfit then
+                selected = {
+                  quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
+                  competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
+                  deposit = deposit, stressProfit = stressProfit, requiredProfit = requiredProfit,
+                }
+              end
             end
           end
         end
@@ -339,10 +342,8 @@ function GC.SniperDecision.Evaluate(input)
   if not selected then
     if sawExhausted and not knownReasons.book_missing then add("book_exhausted", 2) end
     if sawCompeting then add("competing_ask_missing", 2) end
-    if sawCapital then add("capital_limit", 2) end
+    if sawCapital and not sawAffordable then add("capital_limit", 2) end
     if sawProfit then add("stress_profit_below_buffer", 2) end
-  elseif sawCapital then
-    add("capital_limit", 0) -- informational: the selected quantity still passes
   end
 
   if selected then

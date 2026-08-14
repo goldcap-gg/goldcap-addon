@@ -88,6 +88,24 @@ describe("Ledger event wiring", function()
     assert.is_table(_G.GoldCapDB.gold)
   end)
 
+  it("migrates the old implicit 100g sniper floor to the new 5g default once", function()
+    _G.GoldCapDB = { settings = { sniper = { minimumProfitCopper = 1000000 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(50000, _G.GoldCapDB.settings.sniper.minimumProfitCopper)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.profitFloorVersion)
+  end)
+
+  it("preserves a custom sniper profit floor while versioning the setting", function()
+    _G.GoldCapDB = { settings = { sniper = { minimumProfitCopper = 2500000 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(2500000, _G.GoldCapDB.settings.sniper.minimumProfitCopper)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.profitFloorVersion)
+  end)
+
   it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
     local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
       boughtAt = 500, targetUnit = 180 }

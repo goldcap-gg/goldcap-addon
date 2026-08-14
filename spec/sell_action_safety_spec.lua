@@ -105,6 +105,14 @@ describe("Sell protected action state", function()
   it("pins a post once and confirms exactly once from the same quote snapshot", function()
     local postCalls, confirmCalls = 0, 0
     local postArgs, confirmArgs
+    local location = { bag = 0, slot = 1 }
+    _G.ItemLocation = {
+      CreateFromBagAndSlot = function(_, bag, slot)
+        assert.equal(0, bag)
+        assert.equal(1, slot)
+        return location
+      end,
+    }
     _G.C_AuctionHouse = {
       PostCommodity = function(...) postCalls = postCalls + 1; postArgs = { ... }; return true end,
       ConfirmPostCommodity = function(...) confirmCalls = confirmCalls + 1; confirmArgs = { ... } end,
@@ -122,12 +130,16 @@ describe("Sell protected action state", function()
     post(row); post(row); post(row)
     assert.equal(1, postCalls)
     assert.equal(1, confirmCalls)
-    assert.same({ 42, 2, 1, 200 }, postArgs)
-    assert.same({ 42, 2, 1, 200 }, confirmArgs)
+    assert.equal(location, postArgs[1])
+    assert.equal(location, confirmArgs[1])
+    assert.same({ 2, 1, 200 }, { postArgs[2], postArgs[3], postArgs[4] })
+    assert.same({ 2, 1, 200 }, { confirmArgs[2], confirmArgs[3], confirmArgs[4] })
   end)
 
   it("posts a commodity aggregate with commodity API arguments", function()
     local calls = {}
+    local location = { bag = 0, slot = 1 }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return location end }
     _G.C_AuctionHouse = { PostCommodity = function(...) calls[#calls + 1] = { ... }; return false end }
     local stacks = { [1] = { itemID = 42, stackCount = 2 }, [2] = { itemID = 42, stackCount = 3 } }
     _G.C_Container = {
@@ -142,7 +154,56 @@ describe("Sell protected action state", function()
     local post = handlers(GC)
     set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
     post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
-    assert.same({ 42, 2, 5, 200 }, calls[1])
+    assert.equal(location, calls[1][1])
+    assert.same({ 2, 5, 200 }, { calls[1][2], calls[1][3], calls[1][4] })
+  end)
+
+  it("fails closed when a commodity bag slot cannot produce an ItemLocation", function()
+    local calls = 0
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return nil end }
+    _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1 end }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 1, unitPrice = 200 } end,
+    } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
+        itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    post({ position = position(), action = button(), renderEntryID = "entry:post:no-location" })
+    assert.equal(0, calls)
+  end)
+
+  it("rejects commodity confirmation after the pinned bag slot changes", function()
+    local confirms = 0
+    _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    _G.C_AuctionHouse = {
+      PostCommodity = function() return true end,
+      ConfirmPostCommodity = function() confirms = confirms + 1 end,
+    }
+    local quote = { unit = 200, at = 100 }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 1, unitPrice = 200 } end,
+    } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    local bagState = { bag = 0, slot = 1, stackQty = 1, exactQty = 1,
+      itemID = 42, positionKey = "commodity:42" }
+    set(post, "liveBagState", function() return bagState end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local row = { position = position(), action = button(), renderEntryID = "entry:post:moved" }
+
+    post(row)
+    bagState = { bag = 0, slot = 2, stackQty = 1, exactQty = 1,
+      itemID = 42, positionKey = "commodity:42" }
+    post(row)
+
+    assert.equal(0, confirms)
+    assert.is_nil(row.postStage)
   end)
 
   it("posts a normal variant from a later stack that holds the full plan", function()

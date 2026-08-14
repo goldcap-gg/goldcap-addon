@@ -527,6 +527,7 @@ local function onPostClick(row)
   if row.postStage == "confirm" then
     local pin = postingPin
     local scope, scopeKey = activeScope(position)
+    local bagState = pin and liveBagState(position, pin.isCommodity and nil or pin.quantity) or nil
     local sameQuote = pin and quote == pin.quote and quote.at == pin.quoteAt and quote.unit == pin.quoteUnit
     local checkedTotal = pin and safeMultiply(pin.unitPrice, pin.quantity) or nil
     local confirmAvailable = pin and C_AuctionHouse
@@ -536,6 +537,9 @@ local function onPostClick(row)
         or pin.positionKey ~= position.positionKey or pin.scopeKey ~= position.scopeKey
         or pin.itemID ~= position.itemID or pin.variantKey ~= position.positionKey
         or not exact(pin.quantity) or pin.quantity <= 0 or not exact(pin.unitPrice) or pin.unitPrice <= 0
+        or not pin.location or not bagState or bagState.itemID ~= pin.itemID
+        or bagState.positionKey ~= pin.variantKey or bagState.bag ~= pin.bag or bagState.slot ~= pin.slot
+        or not exact(bagState.exactQty) or bagState.exactQty < pin.quantity
         or not checkedTotal or checkedTotal ~= pin.total
         or (not pin.isCommodity and pin.buyout ~= checkedTotal)
         or not sameQuote or not confirmAvailable then
@@ -546,7 +550,7 @@ local function onPostClick(row)
     end
     row.postStage = "confirming"; row.action:Disable(); setStatus("Posting…")
     if pin.isCommodity then
-      C_AuctionHouse.ConfirmPostCommodity(pin.itemID, POST_DURATION, pin.quantity, pin.unitPrice)
+      C_AuctionHouse.ConfirmPostCommodity(pin.location, POST_DURATION, pin.quantity, pin.unitPrice)
     else
       C_AuctionHouse.ConfirmPostItem(pin.location, POST_DURATION, pin.quantity, nil, pin.buyout)
     end
@@ -580,14 +584,19 @@ local function onPostClick(row)
     setStatus("No exact bag stack")
     return
   end
+  if not ItemLocation or not ItemLocation.CreateFromBagAndSlot or not bagState.bag or not bagState.slot then
+    setStatus("No exact bag stack")
+    return
+  end
   if not info.isCommodity then
     bagState = liveBagState(position, plan.quantity)
-    if not ItemLocation or not ItemLocation.CreateFromBagAndSlot or not bagState.bag or not bagState.stackQty or bagState.stackQty < plan.quantity then
+    if not bagState.bag or not bagState.slot or not bagState.stackQty or bagState.stackQty < plan.quantity then
       setStatus("No exact bag stack")
       return
     end
   end
-  local location = not info.isCommodity and ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot) or nil
+  local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
+  if not location then setStatus("No exact bag stack"); return end
   postingRow = row
   postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
@@ -597,7 +606,7 @@ local function onPostClick(row)
   row.postStage = "posting"; row.action:Disable(); setStatus("Posting…")
   local needsConfirmation
   if info.isCommodity then
-    needsConfirmation = C_AuctionHouse.PostCommodity(plan.itemID, POST_DURATION, plan.quantity, plan.unitPrice)
+    needsConfirmation = C_AuctionHouse.PostCommodity(location, POST_DURATION, plan.quantity, plan.unitPrice)
   else
     needsConfirmation = C_AuctionHouse.PostItem(location, POST_DURATION, plan.quantity, nil, buyout)
   end
