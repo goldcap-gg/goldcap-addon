@@ -312,10 +312,11 @@ end
 
 local function requestOwnedAuctions()
   if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen() then
+    if not driver.isReady() then return false, true end
     C_AuctionHouse.QueryOwnedAuctions({})
-    return true
+    return true, false
   end
-  return false
+  return false, false
 end
 
 local function onOwnedAuctionsReady()
@@ -377,6 +378,16 @@ function GC.Sell.OnOwnedAuctions()
 end
 
 function GC.Sell.OnThrottleReady()
+  if refresh.phase == "waiting_owned" then
+    local sent, waiting = requestOwnedAuctions()
+    if sent then
+      refresh.phase = "owned"
+    elseif not waiting then
+      refresh.phase = "idle"
+      setStatus("Auction House is not open")
+    end
+    return
+  end
   if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then
     failPendingQuote(refresh.pending, true)
     return
@@ -1025,7 +1036,11 @@ function GC.Sell.Refresh()
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.pending, refresh.awaiting, refresh.queue, refresh.index = "owned", nil, nil, {}, 0
   setStatus("Refreshing listings…")
-  if not requestOwnedAuctions() then
+  local sent, waiting = requestOwnedAuctions()
+  if waiting then
+    refresh.phase = "waiting_owned"
+    setStatus("Waiting for Auction House…")
+  elseif not sent then
     refresh.phase = "idle"
     setStatus("Auction House is not open")
   end

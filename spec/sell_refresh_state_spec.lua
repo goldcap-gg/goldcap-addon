@@ -99,13 +99,15 @@ describe("Sell refresh state fence", function()
 
   it("waits for throttle and fails closed when the auction house is unavailable", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
-    local ready = false
+    local ready = true
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
     local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
     local driver = upvalue(advance, "driver")
     driver.isReady = function() return ready end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
-    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.Refresh()
+    ready = false
+    GC.Sell.OnOwnedAuctions()
     assert.same({}, sent.keys)
     ready = true; GC.Sell.OnThrottleReady()
     assert.same({ 42 }, sent.keys)
@@ -113,6 +115,47 @@ describe("Sell refresh state fence", function()
     GC.Sniper.IsAHOpen = function() return false end
     GC.Sell.Refresh()
     assert.equal("Auction House is not open", status[#status])
+  end)
+
+  it("parks the cold-start owned-auction refresh until throttle-ready and sends it once", function()
+    local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    local ready = false
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local driver = upvalue(advance, "driver")
+    driver.isReady = function() return ready end
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+
+    GC.Sell.Refresh()
+    assert.equal(0, sent.owned)
+    assert.equal("waiting_owned", refreshState(GC).phase)
+    assert.equal("Waiting for Auction House…", status[#status])
+
+    ready = true
+    GC.Sell.OnThrottleReady()
+    assert.equal(1, sent.owned)
+    assert.equal("owned", refreshState(GC).phase)
+
+    GC.Sell.OnThrottleReady()
+    assert.equal(1, sent.owned)
+  end)
+
+  it("cancels a parked cold-start refresh before a later throttle-ready event", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local ready = false
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local driver = upvalue(advance, "driver")
+    driver.isReady = function() return ready end
+
+    GC.Sell.Refresh()
+    assert.equal(0, sent.owned)
+    GC.Sell.Reset()
+
+    ready = true
+    GC.Sell.OnThrottleReady()
+    assert.equal(0, sent.owned)
+    assert.equal("idle", refreshState(GC).phase)
   end)
 
   it("uses a real request timer to tombstone a sent quote without throttle activity", function()
