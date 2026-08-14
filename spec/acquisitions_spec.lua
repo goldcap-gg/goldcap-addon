@@ -1246,4 +1246,56 @@ describe("Acquisition store", function()
     assert.equal(0, #db.acquisitionRealized)
     assert.is_nil(next(db.acquisitionConsumptionEvidence))
   end)
+
+  local function assertMalformedStartupFailsClosed(acquisitions, mailKey)
+    local loaded = helper.loadModule("Core/Acquisitions.lua")
+    local database = { acquisitions = acquisitions }
+    local originalAcquisitions = database.acquisitions
+
+    local initOK = pcall(loaded.Acquisitions.Init, database)
+    assert.is_true(initOK)
+    assert.equal(originalAcquisitions, database.acquisitions)
+    local databaseFieldCount = 0
+    for _ in pairs(database) do databaseFieldCount = databaseFieldCount + 1 end
+    assert.equal(1, databaseFieldCount)
+    assert.is_nil(database.acquisitionPending)
+    assert.is_nil(database.acquisitionRealized)
+    assert.is_nil(database.acquisitionActivity)
+    assert.is_nil(database.acquisitionConsumptionEvidence)
+    assert.is_nil(database.acquisitionRepairGroups)
+    assert.is_nil(database.acquisitionSeq)
+    assert.is_nil(database.acquisitionPendingSeq)
+    assert.is_nil(database.acquisitionVersion)
+    for _, row in pairs(acquisitions) do
+      if type(row) == "table" then
+        assert.is_nil(row.evidenceKeys)
+        assert.is_nil(row.consumedEvidenceKeys)
+      end
+    end
+
+    local reconcileOK, matched, isNew = pcall(loaded.Acquisitions.ReconcileBuy, {
+      key = mailKey, kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = "A-R", region = "eu",
+    })
+    assert.is_true(reconcileOK)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+  end
+
+  it("[WAVE3 I1 fix5] fails closed at startup for a dense non-table acquisition row", function()
+    assertMalformedStartupFailsClosed({ true }, "mail:fix5-non-table")
+  end)
+
+  it("[WAVE3 I1 fix5] fails closed at startup for a sparse acquisition store", function()
+    assertMalformedStartupFailsClosed({ [2] = {
+      id = "acq:2", repairedPendingID = "pending:fix5-sparse",
+    } }, "mail:fix5-sparse")
+  end)
+
+  it("[WAVE3 I1 fix5] fails closed at startup for a dictionary acquisition store", function()
+    assertMalformedStartupFailsClosed({ ["dictionary-orphan"] = {
+      id = "acq:2", repairEvidenceKey = "repair:fix5-dictionary",
+    } }, "mail:fix5-dictionary")
+  end)
 end)

@@ -192,4 +192,53 @@ describe("Ledger event wiring", function()
     assert.is_string(printed)
     assert.truthy(printed:find("last 24h"))
   end)
+
+  local function assertMalformedLoadedStartupFailsClosed(acquisitions, mailKey)
+    local database = { acquisitions = acquisitions }
+    local originalAcquisitions = database.acquisitions
+    _G.GoldCapDB = database
+
+    local loadedOK = pcall(onEvent, nil, "ADDON_LOADED", "GoldCap")
+    assert.is_true(loadedOK)
+    assert.equal(database, _G.GoldCapDB)
+    assert.equal(originalAcquisitions, database.acquisitions)
+    local databaseFieldCount = 0
+    for _ in pairs(database) do databaseFieldCount = databaseFieldCount + 1 end
+    assert.equal(1, databaseFieldCount)
+    assert.is_nil(database.acquisitionPending)
+    assert.is_nil(database.acquisitionRepairGroups)
+    assert.is_nil(database.acquisitionConsumptionEvidence)
+    assert.is_nil(database.acquisitionVersion)
+    for _, row in pairs(acquisitions) do
+      if type(row) == "table" then
+        assert.is_nil(row.evidenceKeys)
+        assert.is_nil(row.consumedEvidenceKeys)
+      end
+    end
+
+    local reconcileOK, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, {
+      key = mailKey, kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = "A-R", region = "eu",
+    })
+    assert.is_true(reconcileOK)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+  end
+
+  it("[WAVE3 I1 fix5] aborts loaded startup for a dense non-table acquisition row", function()
+    assertMalformedLoadedStartupFailsClosed({ true }, "mail:fix5-loaded-non-table")
+  end)
+
+  it("[WAVE3 I1 fix5] aborts loaded startup for a sparse acquisition store", function()
+    assertMalformedLoadedStartupFailsClosed({ [2] = {
+      id = "acq:2", repairedPendingID = "pending:fix5-loaded-sparse",
+    } }, "mail:fix5-loaded-sparse")
+  end)
+
+  it("[WAVE3 I1 fix5] aborts loaded startup for a dictionary acquisition store", function()
+    assertMalformedLoadedStartupFailsClosed({ ["dictionary-orphan"] = {
+      id = "acq:2", repairEvidenceKey = "repair:fix5-loaded-dictionary",
+    } }, "mail:fix5-loaded-dictionary")
+  end)
 end)

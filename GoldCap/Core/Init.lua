@@ -120,6 +120,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local name = ...
     if name ~= ADDON_NAME then return end
     GoldCapDB = GoldCapDB or {}
+    local acquisitionsInitialized = not GC.Acquisitions or GC.Acquisitions.Init(GoldCapDB)
+    if not acquisitionsInitialized then
+      frame:UnregisterEvent("ADDON_LOADED")
+      return
+    end
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
     if GC.Data then
@@ -132,7 +137,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     if GC.Acquisitions then
-      GC.Acquisitions.Init(GC.db)
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
     end
     if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then

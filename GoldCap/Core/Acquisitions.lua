@@ -252,9 +252,23 @@ function GC.Acquisitions.ScopeKey(positionKey, context)
   return table.concat({ context.region, context.char, positionKey }, "\1")
 end
 
+local function validAcquisitionStoreShape(acquisitions)
+  if type(acquisitions) ~= "table" then return false end
+  local acquisitionCount = 0
+  for index, batch in pairs(acquisitions) do
+    acquisitionCount = acquisitionCount + 1
+    if not isPositiveInteger(index) or type(batch) ~= "table" then return false end
+  end
+  for index = 1, acquisitionCount do
+    if rawget(acquisitions, index) == nil then return false end
+  end
+  return true
+end
+
 function GC.Acquisitions.Init(database)
   db = database
-  if type(db) ~= "table" then return end
+  if type(db) ~= "table" then return false end
+  if db.acquisitions ~= nil and not validAcquisitionStoreShape(db.acquisitions) then return false end
   db.acquisitions = type(db.acquisitions) == "table" and db.acquisitions or {}
   db.acquisitionPending = type(db.acquisitionPending) == "table" and db.acquisitionPending or {}
   db.acquisitionRealized = type(db.acquisitionRealized) == "table" and db.acquisitionRealized or {}
@@ -277,6 +291,7 @@ function GC.Acquisitions.Init(database)
       and batch.consumedEvidenceKeys or {}
   end
   if needsRepairGroupMigration and migrateLegacyRepairGroups then migrateLegacyRepairGroups() end
+  return true
 end
 
 function GC.Acquisitions.Record(args)
@@ -668,7 +683,7 @@ end
 -- buyer-mail creation after the group entry is deleted or corrupted.
 local function validRepairGroupAllocations()
   if type(db and db.acquisitionRepairGroups) ~= "table"
-      or type(db.acquisitions) ~= "table" then return false end
+      or not validAcquisitionStoreShape(db.acquisitions) then return false end
   local claimed = {}
   for groupKey, group in pairs(db.acquisitionRepairGroups) do
     local state = validRepairGroup(groupKey, group)
@@ -679,17 +694,11 @@ local function validRepairGroupAllocations()
       claimed[batch] = true
     end
   end
-  local acquisitionCount = 0
-  for index, batch in pairs(db.acquisitions) do
-    acquisitionCount = acquisitionCount + 1
-    if not isPositiveInteger(index) or type(batch) ~= "table"
-        or ((batch.repairedPendingID ~= nil or batch.repairEvidenceKey ~= nil)
-          and not claimed[batch]) then
+  for _, batch in pairs(db.acquisitions) do
+    if (batch.repairedPendingID ~= nil or batch.repairEvidenceKey ~= nil)
+        and not claimed[batch] then
       return false
     end
-  end
-  for index = 1, acquisitionCount do
-    if db.acquisitions[index] == nil then return false end
   end
   return true
 end
