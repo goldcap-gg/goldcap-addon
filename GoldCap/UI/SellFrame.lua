@@ -14,11 +14,11 @@ local MAX_EXACT = 9007199254740991
 -- live AH observations, a cached quote stream, and widgets around that single model.
 local COLUMNS = {
   { key = "item", flex = true, min = 190 },
-  { key = "cost", w = 82, num = true },
-  { key = "listed", w = 72, num = true },
+  { key = "cost", w = 88, num = true },
+  { key = "listed", w = 88, num = true },
   { key = "market", w = 72, num = true, optional = true },
-  { key = "profit", w = 76, num = true, bold = true },
-  { key = "status", w = 92 },
+  { key = "profit", w = 82, num = true, bold = true },
+  { key = "status", w = 98 },
   { key = "expand", w = 22 },
 }
 
@@ -851,13 +851,13 @@ local function createRow(parent)
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(row, column.key == "item" and 12 or 11)
     cell:SetJustifyH(column.num and "RIGHT" or "LEFT")
+    cell:SetWordWrap(false)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
-  row.cells.item:SetWordWrap(false)
   row.action = Theme.Button(row, "ghost")
-  row.action:SetSize(54, 18)
-  row.action:SetPoint("RIGHT", row.cells.status, "RIGHT", 0, 0)
+  row.action:SetSize(72, 18)
+  row.action:SetPoint("CENTER", row.cells.status, "CENTER", 0, 0)
   row.action:Hide()
   row:SetScript("OnClick", function(self)
     if self.kind == "position" and type(self.position.positionKey) == "string" then
@@ -866,6 +866,13 @@ local function createRow(parent)
     end
   end)
   return row
+end
+
+local function showRowAction(row, label, onClick)
+  row.cells.status:SetText("")
+  row.action:SetLabel(label)
+  if onClick then row.action:SetScript("OnClick", onClick) end
+  row.action:Show()
 end
 
 local function summaryFor(filtered)
@@ -938,7 +945,7 @@ renderRows = function()
           or p.status == "PARTIAL_COST" and "PARTIAL COST" or p.status)
         row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
         if p.coverage ~= "COMPLETE" and canSetCost(p) then
-          row.action:SetLabel("Set cost"); row.action:Show(); row.action:SetScript("OnClick", function() openCostDialog(p) end)
+          showRowAction(row, "Set cost", function() openCostDialog(p) end)
         else
           row.action:Hide()
         end
@@ -971,22 +978,20 @@ renderRows = function()
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
         row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.status:SetText("Repost"); row.cells.expand:SetText("")
-        row.action:SetLabel("Repost"); row.action:Show(); row.action:SetScript("OnClick", function() onRepostClick(row, entry.lot.auctionID) end)
+        showRowAction(row, "Repost", function() onRepostClick(row, entry.lot.auctionID) end)
       else
         row.cells.item:SetText(("  Unlisted ×%d"):format((p.trackedQty or 0) - (p.listedQty or 0)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if p.coverage == "COMPLETE" then
           local bagState = liveBagState(p)
           if bagState.bag and bagState.exactQty and bagState.exactQty > 0 then
-            row.cells.status:SetText("Ready to post")
-            row.action:SetLabel("Post"); row.action:SetScript("OnClick", function() onPostClick(row) end); row.action:Show()
+            showRowAction(row, "Post", function() onPostClick(row) end)
           else
             row.cells.status:SetText("Exact bag item required")
             row.action:Hide()
           end
         elseif canSetCost(p) then
-          row.cells.status:SetText("Missing cost")
-          row.action:SetLabel("Set cost"); row.action:SetScript("OnClick", function() openCostDialog(p) end); row.action:Show()
+          showRowAction(row, "Set cost", function() openCostDialog(p) end)
         else
           row.cells.status:SetText("Pending repair needs one exact invoice")
           row.action:Hide()
@@ -1050,7 +1055,7 @@ function GC.Sell.Attach(f, geometry)
   refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh"); refreshButton:SetScript("OnClick", GC.Sell.Refresh)
   local labels = { all = "All", goldcap = "GC", auction_house = "AH", missing_cost = "Missing cost" }
   local previous = refreshButton
-  for _, mode in ipairs({ "all", "goldcap", "auction_house", "missing_cost" }) do
+  for _, mode in ipairs({ "missing_cost", "auction_house", "goldcap", "all" }) do
     local button = Theme.Button(container, "ghost")
     button:SetSize(mode == "missing_cost" and 82 or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
     button:SetScript("OnClick", function() filterMode = mode; renderRows() end); previous = button
@@ -1062,7 +1067,7 @@ function GC.Sell.Attach(f, geometry)
   end
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -60); header:SetPoint("TOPRIGHT", 0, -60); header:SetHeight(16); header.cells = {}
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Label(header, 10); cell:SetText(({ item = "ITEM", cost = "COST", listed = "LISTED", market = "MARKET", profit = "PROFIT", status = "STATUS", expand = "" })[column.key]); header.cells[column.key] = cell
+    local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST", listed = "LISTED", market = "MARKET", profit = "PROFIT", status = "STATUS", expand = "" })[column.key]); header.cells[column.key] = cell
   end
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")

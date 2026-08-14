@@ -25,7 +25,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:Enable() self.enabled = true end
     function value:Disable() self.enabled = false end
     function value:SetJustifyH() end
-    function value:SetWordWrap() end
+    function value:SetWordWrap(enabled) self.wordWrap = enabled end
     function value:SetTextColor(...) self.color = { ... } end
     function value:SetAutoFocus() end
     function value:SetScrollChild(child) self.scrollChild = child end
@@ -127,6 +127,46 @@ describe("Sell widget geometry and manual cost", function()
     local _, wideContainer = topRows(wide, {})
     for _, child in ipairs(wideContainer.children) do if child.cells then header = child break end end
     assert.is_true(header.cells.market.shown)
+  end)
+
+  it("orders Sell filters from broad to specific before Refresh", function()
+    local GC = load(620, { calls = {} })
+    local _, container = topRows(GC, {})
+    local buttons = {}
+    for _, child in ipairs(container.children) do
+      if child.label then buttons[child.label] = child end
+    end
+    assert.equal(buttons.Refresh, buttons["Missing cost"].points[1].relative)
+    assert.equal(buttons["Missing cost"], buttons.AH.points[1].relative)
+    assert.equal(buttons.AH, buttons.GC.points[1].relative)
+    assert.equal(buttons.GC, buttons.All.points[1].relative)
+  end)
+
+  it("keeps every fixed-width Sell cell on one line", function()
+    local GC = load(620, { calls = {} })
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 168898, sources = {}, status = "LISTED" },
+    })
+    local header
+    for _, child in ipairs(container.children) do if child.cells then header = child break end end
+    for _, key in ipairs({ "cost", "listed", "market", "profit", "status", "expand" }) do
+      assert.is_false(header.cells[key].wordWrap, key)
+      assert.is_false(rows[1].cells[key].wordWrap, key)
+    end
+  end)
+
+  it("uses the status slot exclusively for a visible row action", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
+    })
+    assert.equal("Set cost", rows[1].action.label)
+    assert.equal("", rows[1].cells.status.text)
+    assert.equal("CENTER", rows[1].action.points[1].point)
+    assert.equal(rows[1].cells.status, rows[1].action.points[1].relative)
+    assert.equal("CENTER", rows[1].action.points[1].relativePoint)
   end)
 
   it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
