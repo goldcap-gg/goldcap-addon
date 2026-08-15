@@ -56,6 +56,9 @@ describe("TOC load order", function()
         GetFrameLevel = function() return 1 end,
         SetFrameLevel = function() end,
         SetColorTexture = function() end,
+        -- Theme.Button's hover is a HIGHLIGHT-layer texture drawn by the engine rather than an
+        -- OnEnter/OnLeave repaint, and it sets an additive blend at construction time.
+        SetBlendMode = function() end,
         SetAllPoints = function() end,
         -- D (Sniper v2 Sell view): GC.Sell.Attach/renderRows stamp the scroll child's height
         -- the same way the Deals view's refreshRows always has -- now reachable from

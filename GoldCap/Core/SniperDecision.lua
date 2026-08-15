@@ -161,6 +161,17 @@ function GC.SniperDecision.Evaluate(input)
       knownReasons[reason] = true
       out.reasons[#out.reasons + 1] = reason
     end
+    -- Level 0 reasons are notes, not refusals -- `demand_limit` is added at level 0 purely to
+    -- say "the quantity chosen is below your maximum", which is normal. Reason ordering puts it
+    -- ahead of the gate that actually refused, so a caller showing reasons[1] as THE reason
+    -- shows a note while the real one hides further down. Record which are merely informational
+    -- so a headline can skip them; the ordered list itself stays complete and unchanged.
+    if level == 0 then
+      out.informational = out.informational or {}
+      out.informational[reason] = true
+    elseif out.informational then
+      out.informational[reason] = nil -- a later hard hit on the same reason outranks the note
+    end
     if level > severity then severity = level end
   end
   local function finalizeFixedFailure()

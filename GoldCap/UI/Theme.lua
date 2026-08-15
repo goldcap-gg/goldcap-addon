@@ -167,19 +167,9 @@ function T.Label(parent, size)
   return fs
 end
 
--- Hover always LIGHTENS, for every variant. An earlier revision darkened instead, to stop a
--- white film reading as "gray" beside the gold primary; on a panel this dark that overshot the
--- other way -- hovering the gold Auto button turned it nearly black, which reads as disabled
--- rather than as the thing under your cursor. Lightening both variants keeps the direction
--- consistent (the two Auto buttons swap in place, so they must agree) and keeps a hovered
--- control looking live.
-local function lightened(c)
-  return { c[1] + (1 - c[1]) * 0.18, c[2] + (1 - c[2]) * 0.18, c[3] + (1 - c[3]) * 0.18, c[4] or 1 }
-end
-
--- Ghost buttons have no fill of their own, so their hover IS the fill: a gold wash, the same
--- accent the hovered row uses, so "under the cursor" always looks like one thing in this UI.
-local GHOST_HOVER = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.22 }
+-- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
+-- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
+local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
 
 local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
@@ -196,7 +186,7 @@ function T.Button(parent, variant)
   -- by Show/Hide -- and that swap is what made it flicker, miss hovers, and reappear painted in
   -- a stale state under a stationary cursor.
   local b = CreateFrame("Button", nil, parent)
-  local base, hoverColor
+  local base
   -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
   -- (row Buy, dialog primary/Confirm) must never let a right- or middle-click reach
   -- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase; only a left-click OnClick
@@ -204,6 +194,21 @@ function T.Button(parent, variant)
   b:RegisterForClicks("LeftButtonUp")
   b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
   b.bg:SetAllPoints()
+
+  -- Hover is a HIGHLIGHT-layer texture, not an OnEnter/OnLeave repaint. The engine draws that
+  -- layer for exactly as long as the cursor is over the button and stops on its own, the same
+  -- way UIPanelButtonTemplate works -- so a hover cannot be missed, cannot stick, and cannot
+  -- survive the frame being hidden under a stationary cursor. Painting it by hand is what made
+  -- these buttons feel broken: OnLeave is not delivered reliably when a frame is hidden or
+  -- swapped, leaving a button stuck in the hovered fill or repainted for a state it had left.
+  --
+  -- One additive gold wash for every variant, rather than a per-variant colour: additive keeps
+  -- it readable over a gold fill and over bare panel alike, and "the cursor is here" should
+  -- look like one thing everywhere in this UI.
+  b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
+  b.highlightTexture:SetAllPoints()
+  b.highlightTexture:SetBlendMode("ADD")
+  b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
 
   -- The border is drawn for every variant, at the variant's own strength: a ghost button needs
   -- it to have an edge at all, and a filled one keeps its shape while the fill is dimmed by
@@ -224,26 +229,11 @@ function T.Button(parent, variant)
   function b:SetVariant(name)
     spec = BUTTON_VARIANTS[name] or BUTTON_VARIANTS.ghost
     base = spec.bg or { 0, 0, 0, 0 }
-    hoverColor = spec.bg and lightened(spec.bg) or GHOST_HOVER
-    local hovered = b.IsMouseOver and b:IsMouseOver() and b:IsEnabled()
-    local paint = hovered and hoverColor or base
-    b.bg:SetColorTexture(paint[1], paint[2], paint[3], paint[4] or 1)
+    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
   end
   b:SetVariant(variant)
 
-  -- I3: hover-brighten only applies while enabled -- a disabled button (see OnDisable below)
-  -- still receives OnEnter/OnLeave in WoW (that's how a disabled control can still show an
-  -- explanatory tooltip), so without this guard hovering a dimmed/disabled button would
-  -- brighten it right back to looking clickable.
-  b:SetScript("OnEnter", function()
-    if not b:IsEnabled() then return end
-    b.bg:SetColorTexture(hoverColor[1], hoverColor[2], hoverColor[3], hoverColor[4] or 1)
-  end)
-  b:SetScript("OnLeave", function()
-    if not b:IsEnabled() then return end
-    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
-  end)
 
   -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
   -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
@@ -255,17 +245,15 @@ function T.Button(parent, variant)
   b:SetScript("OnDisable", function()
     b.bg:SetAlpha(0.45)
     b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
+    -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
+    -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
+    b.highlightTexture:SetAlpha(0)
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
     b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-  end)
-
-  -- Hiding a hovered frame doesn't reliably deliver OnLeave, so a button that goes away under
-  -- a stationary cursor would keep its hover fill and reappear pre-painted.
-  b:SetScript("OnHide", function()
-    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    b.highlightTexture:SetAlpha(1)
   end)
 
   return b

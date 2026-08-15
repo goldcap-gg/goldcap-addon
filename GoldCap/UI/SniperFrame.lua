@@ -1507,7 +1507,19 @@ local function stampDialogFromDecision(deal, decision)
   local entryTotal = decision.entryTotal
   local average = entryTotal and quantity > 0 and math.floor(entryTotal / quantity) or nil
   local sourceAge = market.sourceAt and math.max(0, time() - market.sourceAt) or nil
-  local firstReason = decision.reasons and decision.reasons[1] or "live_verification_required"
+  -- The headline names the first reason that actually REFUSED, skipping the informational ones
+  -- SniperDecision marks. `demand_limit` is added as a note whenever the chosen quantity is
+  -- below the player's maximum, which is ordinary, and it sorts ahead of the gate that really
+  -- refused -- so reasons[1] showed "demand_limit" while stress_profit_below_buffer, the actual
+  -- answer, sat further down the list. The full ordered list below is unchanged.
+  local firstReason
+  for _, reason in ipairs(decision.reasons or {}) do
+    if not (decision.informational and decision.informational[reason]) then
+      firstReason = reason
+      break
+    end
+  end
+  firstReason = firstReason or (decision.reasons and decision.reasons[1]) or "live_verification_required"
 
   local publicStatus = decision.status or "WATCH"
   local computedStatus = decision.computedStatus or publicStatus

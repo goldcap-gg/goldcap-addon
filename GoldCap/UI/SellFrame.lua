@@ -158,9 +158,24 @@ local function quoteDriver()
         or C_AuctionHouse.GetItemSearchResultInfo(C_AuctionHouse.MakeItemKey(itemID), i)
       local unit = info and (commodity and info.unitPrice
         or (info.buyoutAmount and info.quantity and info.quantity > 0 and math.floor(info.buyoutAmount / info.quantity)))
-      if unit and unit > 0 then levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0 } end
+      if unit and unit > 0 then
+        levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0,
+          ownerItem = info.containsOwnerItem == true, ownerQty = info.numOwnerItems }
+      end
     end
     return #levels > 0 and levels or nil
+  end
+
+  local function competingOrOwnUnit(levels)
+    if not levels then return nil end
+    local competing = GC.SellPositions.CheapestCompetingUnit(levels)
+    if competing then return competing end
+    local own
+    for i = 1, #levels do
+      local unit = levels[i].unitPrice
+      if type(unit) == "number" and unit > 0 and (own == nil or unit < own) then own = unit end
+    end
+    return own
   end
   return {
     isReady = function() return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady() end,
@@ -176,13 +191,18 @@ local function quoteDriver()
         C_AuctionHouse.SendSearchQuery(key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
       end
     end,
+    -- Both price against the cheapest level somebody ELSE is selling at. Reading level 1 blind
+    -- means pricing against your own auction the moment you are the cheapest seller, so every
+    -- Post/Repost undercut the previous one and the price walked down against nobody. Sharing a
+    -- level with real competitors still counts -- see SellPositions.CheapestCompetingUnit.
+    --
+    -- With no competition at all the fallback is the player's OWN cheapest listing: holding the
+    -- current price is the honest answer there, where undercutting would just resume the walk.
     item = function(itemID)
-      local info = C_AuctionHouse.GetItemSearchResultInfo(C_AuctionHouse.MakeItemKey(itemID), 1)
-      return info and info.buyoutAmount and info.quantity and info.quantity > 0 and math.floor(info.buyoutAmount / info.quantity) or nil
+      return competingOrOwnUnit(boundedLevels(itemID, false))
     end,
     commodity = function(itemID)
-      local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, 1)
-      return info and info.unitPrice or nil
+      return competingOrOwnUnit(boundedLevels(itemID, true))
     end,
     itemLevels = function(itemID) return boundedLevels(itemID, false) end,
     commodityLevels = function(itemID) return boundedLevels(itemID, true) end,

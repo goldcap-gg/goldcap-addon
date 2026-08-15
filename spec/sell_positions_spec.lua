@@ -450,4 +450,58 @@ describe("Sell positions", function()
     assert.is_nil(plan)
     assert.equal("incomplete_cost", reason)
   end)
+
+  -- Pricing a sale off the cheapest row in the book prices it off the player's own auction as
+  -- soon as they are the cheapest, so every repost walks their own price down against nobody.
+  describe("CheapestCompetingUnit", function()
+    it("ignores the player's own listings and returns the cheapest real competitor", function()
+      assert.equal(60000, GC.SellPositions.CheapestCompetingUnit({
+        { unitPrice = 55000, quantity = 240, ownerQty = 240, ownerItem = true },
+        { unitPrice = 60000, quantity = 100 },
+        { unitPrice = 65000, quantity = 2684 },
+      }))
+    end)
+
+    -- The owner's real case: 110 competitor units already sat at 5g50s and his 130 joined the
+    -- same price point. Matching that price was correct -- posting above it would have queued
+    -- his stock behind someone else's -- so a shared level must still count as competition.
+    it("keeps a level the player shares with real competitors", function()
+      assert.equal(55000, GC.SellPositions.CheapestCompetingUnit({
+        { unitPrice = 55000, quantity = 240, ownerQty = 130, ownerItem = true },
+        { unitPrice = 60000, quantity = 100 },
+      }))
+    end)
+
+    it("skips a level that is entirely the player's own", function()
+      assert.equal(60000, GC.SellPositions.CheapestCompetingUnit({
+        { unitPrice = 55000, quantity = 130, ownerQty = 130, ownerItem = true },
+        { unitPrice = 60000, quantity = 100 },
+      }))
+    end)
+
+    -- Without a count the level cannot be split, so it is skipped: erring high costs a match,
+    -- erring low restarts the undercut spiral.
+    it("skips an unsplittable owner level when the API reports no count", function()
+      assert.equal(60000, GC.SellPositions.CheapestCompetingUnit({
+        { unitPrice = 55000, quantity = 300, ownerItem = true },
+        { unitPrice = 60000, quantity = 10 },
+      }))
+    end)
+
+    it("returns nothing when the player is the only seller", function()
+      assert.is_nil(GC.SellPositions.CheapestCompetingUnit({
+        { unitPrice = 55000, quantity = 240, ownerQty = 240, ownerItem = true },
+      }))
+      assert.is_nil(GC.SellPositions.CheapestCompetingUnit({}))
+      assert.is_nil(GC.SellPositions.CheapestCompetingUnit(nil))
+    end)
+
+    it("is not fooled by an unsorted book or an invalid price", function()
+      assert.equal(60000, GC.SellPositions.CheapestCompetingUnit({
+        { unitPrice = 90000, quantity = 5 },
+        { unitPrice = 0, quantity = 5 },
+        { unitPrice = 60000, quantity = 5 },
+      }))
+    end)
+  end)
 end)

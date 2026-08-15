@@ -480,3 +480,40 @@ function GC.SellPositions.Summary(positions)
   end
   return { invested = invested, listedValue = listedValue, projected = projected, profit = profit }
 end
+
+-- Cheapest unit price in the book at which somebody OTHER than the player is selling.
+--
+-- Pricing a sale off `GetCommoditySearchResultInfo(itemID, 1)` prices it off the player's own
+-- listing the moment they are the cheapest seller, so each Post/Repost undercuts the previous
+-- one and the price walks down against nobody.
+--
+-- Sharing a price level with real competitors is the common case and must still count: the
+-- commodity API aggregates a whole price point into one row, but reports numOwnerItems
+-- alongside the total, so the player's own units can be subtracted and the level kept whenever
+-- anything is left. Only a level that is entirely the player's own is skipped.
+--
+-- When the API reports containsOwnerItem without a count, the level cannot be split, and it is
+-- skipped. That errs high -- a genuine competitor sharing the price goes unmatched, costing a
+-- sale at worst -- where erring low restarts the spiral this exists to stop.
+function GC.SellPositions.CheapestCompetingUnit(levels)
+  if type(levels) ~= "table" then return nil end
+  local best
+  for i = 1, #levels do
+    local level = levels[i]
+    if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
+      local quantity = type(level.quantity) == "number" and level.quantity or 0
+      local ownerQty
+      if type(level.ownerQty) == "number" then
+        ownerQty = level.ownerQty
+      elseif level.ownerItem == true then
+        ownerQty = quantity -- unsplittable: treat the level as entirely the player's own
+      else
+        ownerQty = 0
+      end
+      if quantity - ownerQty > 0 and (best == nil or level.unitPrice < best) then
+        best = level.unitPrice
+      end
+    end
+  end
+  return best
+end
