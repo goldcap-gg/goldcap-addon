@@ -61,6 +61,13 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(diagnostic:find("dialog.diagnosticText:SetText", 1, true))
     assert.is_truthy(diagnostic:find("computed=%s public=%s buyable=%s reasons=%s", 1, true))
     assert.is_truthy(diagnostic:find("table.concat(decision.reasons or {}, \", \")", 1, true))
+
+    -- The item ID leads the diagnostic. The dialog's own header cannot carry it: setDialogHeader
+    -- writes "item <id>" only until Item:ContinueOnItemLoad overwrites it with the localized
+    -- name. A name is not an identity -- tiered reagents share one name across several IDs
+    -- (Argentleaf is both 236776 and 236777), so a shadow observation recorded from the name
+    -- alone cannot be attributed to an item after the fact.
+    assert.is_truthy(diagnostic:find("item=%d computed=%s public=%s buyable=%s reasons=%s", 1, true))
   end)
 
   it("sizes, banners, and shrinks a stateful full-reasons diagnostic", function()
@@ -148,6 +155,10 @@ describe("Sniper purchase wiring", function()
     hideBanner()
     assert.equal(108, diagnosticHeight)
     assert.equal(512, dialogHeight) -- reused dialog resets to its short diagnostic base
+
+    -- Behavioural counterpart to the source-text check above: the ID actually reaches the
+    -- rendered evidence line, for the exact deal the dialog was stamped from.
+    assert.equal("item=42 computed=WATCH public=WATCH buyable=no reasons=brief", diagnosticText.text)
   end)
 
   it("requires a newly evaluated safe quote, cancels a broken requote, and records one purchase fact", function()

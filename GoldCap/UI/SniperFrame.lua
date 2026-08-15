@@ -1512,8 +1512,13 @@ local function stampDialogFromDecision(deal, decision)
   else
     dialog.decisionStatusText:SetText(publicStatus)
   end
-  dialog.diagnosticText:SetText(("computed=%s public=%s buyable=%s reasons=%s"):format(
-    computedStatus, publicStatus, decision.buyable and "yes" or "no",
+  -- The item ID leads the line because this diagnostic is the only place it survives: the
+  -- header shows "item <id>" for exactly as long as Item:ContinueOnItemLoad takes to replace
+  -- it with the localized name, and a name is not an identity -- tiered reagents share one
+  -- name across several IDs. Without this, a shadow observation transcribed from the dialog
+  -- cannot be attributed to an item afterwards.
+  dialog.diagnosticText:SetText(("item=%d computed=%s public=%s buyable=%s reasons=%s"):format(
+    deal.itemID, computedStatus, publicStatus, decision.buyable and "yes" or "no",
     diagnosticReasons ~= "" and diagnosticReasons or "none"))
   resizeDialogDiagnostics()
   dialog.stampedUnit = average
@@ -4172,7 +4177,12 @@ function GC.Sniper.OnAuctionHouseClosed()
   end
 
   resetAllPurchases()
-  clearDeals() -- next AH visit starts from a clean slate; stale auctions are no longer live
+  -- Clears the live/watchlist `deals` map ONLY. A completed full scan's `scanDeals` array is
+  -- deliberately left intact and re-renders on the next AH visit -- see OnAuctionHouseShow's
+  -- own comment for why (a browse scan has no cooldown, and every buy re-quotes live anyway).
+  -- So this is not "a clean slate": what a closed AH guarantees is that no purchase or Sell
+  -- state survives (resetAllPurchases above, GC.Sell.Reset below), not that the board is empty.
+  clearDeals()
   -- Sniper v3 §3 ping: a HOT listing that pinged this session should be able to ping again
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
   -- what's worth flagging) -- see seenHotDeals' own declaration.
