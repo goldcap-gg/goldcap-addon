@@ -36,6 +36,10 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetColorTexture(...) self.colorTexture = { ... } end
     function value:SetTexture(path) self.texture = path end
     function value:SetTexCoord(...) self.texCoord = { ... } end
+    function value:SetFrameStrata(strata) self.strata = strata end
+    function value:SetFrameLevel(level) self.level = level end
+    function value:GetFrameLevel() return self.level or 0 end
+    function value:EnableMouse(enabled) self.mouseEnabled = enabled end
     return value
   end
 
@@ -70,7 +74,7 @@ describe("Sell widget geometry and manual cost", function()
     local theme = {
       color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
         zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
-        gold = { 0.83, 0.64, 0.22 } },
+        gold = { 0.83, 0.64, 0.22 }, panel = { 0.078, 0.086, 0.110 } },
       Label = function(parent) return region("FontString", parent) end,
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return region("Button", parent) end,

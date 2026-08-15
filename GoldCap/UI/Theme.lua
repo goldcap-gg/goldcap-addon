@@ -16,7 +16,9 @@ T.color = {
   red     = { 0.898, 0.283, 0.302 },
   green   = { 0.25, 0.85, 0.25 },
   zebra   = { 1, 1, 1, 0.04 },
-  hover   = { 1, 1, 1, 0.08 },
+  -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
+  -- reads as "grayer", while a gold wash reads as "this is the row you are on".
+  hover   = { 0.831, 0.643, 0.216, 0.16 },
 }
 
 T.tier = {
@@ -175,9 +177,9 @@ local function lightened(c)
   return { c[1] + (1 - c[1]) * 0.18, c[2] + (1 - c[2]) * 0.18, c[3] + (1 - c[3]) * 0.18, c[4] or 1 }
 end
 
--- Ghost buttons have no fill of their own, so their hover IS the fill: a faint white lift,
--- strong enough to be unmistakable on the near-black panel without becoming a gray plate.
-local GHOST_HOVER = { 1, 1, 1, 0.12 }
+-- Ghost buttons have no fill of their own, so their hover IS the fill: a gold wash, the same
+-- accent the hovered row uses, so "under the cursor" always looks like one thing in this UI.
+local GHOST_HOVER = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.22 }
 
 local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },

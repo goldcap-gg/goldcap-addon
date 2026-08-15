@@ -517,6 +517,8 @@ local function onPostClick(row)
   local quote = freshQuote(position)
   if not quote then
     if postingRow == row then disarmPost() end
+    -- Same silent first click as Repost had: without this the button looks broken.
+    setStatus("Fetching a fresh price for this item — press Post again in a moment")
     startQuoteRefreshFor(position); return
   end
   if postingRow and postingRow ~= row then
@@ -627,6 +629,9 @@ local function onRepostClick(row, auctionID)
   local quote = freshQuote(position)
   if not quote then
     if repostingRow == row then disarmRepost() end
+    -- Previously this refreshed the quote and returned in silence, so a first click looked like
+    -- a dead button. Say what is happening; the click that follows is the one that arms.
+    setStatus("Fetching a fresh price for this lot — press Repost again in a moment")
     startQuoteRefreshFor(position); return
   end
   if row.repostStage == "armed" then
@@ -1037,7 +1042,17 @@ renderRows = function()
         row.cells.item:SetText(("  Auction %s · ×%d · unit %s"):format(entry.lot.auctionID,
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
-        row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.status:SetText("Repost"); row.cells.expand:SetText("")
+        -- What Repost will actually list at. BuildRepostPlan prices a repost at exactly the
+        -- fresh quote unit, so showing that quote here answers "at what price?" before the
+        -- player commits to cancelling a live auction and eating its deposit.
+        if p.displayMarketUnit and p.freshMarketUnit then
+          row.cells.market:SetText("→ " .. formatCell(p.displayMarketUnit))
+          setColor(row.cells.market, Theme.color.gold)
+        else
+          row.cells.market:SetText("→ needs price")
+          setColor(row.cells.market, Theme.color.fgDim)
+        end
+        row.cells.profit:SetText(""); row.cells.status:SetText(""); row.cells.expand:SetText("")
         showRowAction(row, "Repost", function() onRepostClick(row, entry.lot.auctionID) end)
       else
         row.cells.item:SetText(("  Unlisted ×%d"):format((p.trackedQty or 0) - (p.listedQty or 0)))
@@ -1045,6 +1060,14 @@ renderRows = function()
         if p.coverage == "COMPLETE" then
           local bagState = liveBagState(p)
           if bagState.bag and bagState.exactQty and bagState.exactQty > 0 then
+            -- Same question as Repost: say what it will post at before it is clicked.
+            if p.displayMarketUnit and p.freshMarketUnit then
+              row.cells.market:SetText("→ " .. formatCell(p.displayMarketUnit))
+              setColor(row.cells.market, Theme.color.gold)
+            else
+              row.cells.market:SetText("→ needs price")
+              setColor(row.cells.market, Theme.color.fgDim)
+            end
             showRowAction(row, "Post", function() onPostClick(row) end)
           else
             row.cells.status:SetText("Exact bag item required")
@@ -1158,6 +1181,27 @@ function GC.Sell.Attach(f, geometry)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 130); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
+  -- The template was carried but never given a backdrop, a strata or a frame level, so this
+  -- opened as bare floating widgets: the rows underneath showed straight through it, its own
+  -- error text collided with them, and clicks aimed at the dialog landed on whatever row sat
+  -- behind. Give it a real surface, lift it above the list, and let it swallow its own mouse.
+  dialog:SetFrameStrata("DIALOG")
+  dialog:SetFrameLevel((container:GetFrameLevel() or 0) + 50)
+  dialog:EnableMouse(true)
+  local dialogBG = dialog:CreateTexture(nil, "BACKGROUND")
+  dialogBG:SetAllPoints()
+  local pc = Theme.color.panel
+  dialogBG:SetColorTexture(pc[1], pc[2], pc[3], 0.98)
+  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+    local edge = dialog:CreateTexture(nil, "BORDER")
+    local gc2 = Theme.color.gold
+    edge:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.5)
+    if side == "TOP" or side == "BOTTOM" then
+      edge:SetPoint(side .. "LEFT"); edge:SetPoint(side .. "RIGHT"); edge:SetHeight(1)
+    else
+      edge:SetPoint("TOP" .. side); edge:SetPoint("BOTTOM" .. side); edge:SetWidth(1)
+    end
+  end
   dialog.quantity, dialog.unit, dialog.total = CreateFrame("EditBox", nil, dialog, "InputBoxTemplate"), CreateFrame("EditBox", nil, dialog, "InputBoxTemplate"), CreateFrame("EditBox", nil, dialog, "InputBoxTemplate")
   for i, field in ipairs({ { dialog.quantity, "Quantity" }, { dialog.unit, "Unit cost" }, { dialog.total, "Total cost" } }) do
     local label = Theme.Label(dialog, 10); label:SetPoint("TOPLEFT", 12 + (i - 1) * 82, -12); label:SetText(field[2])
