@@ -849,17 +849,49 @@ local function confirmCostDialog(dialog)
   if batch then dialog.submitted = true; dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, "Enter an exact positive cost") end
 end
 
+-- The item name is the one column that must stay readable: every other cell is a number that
+-- also lives in the tooltip or the expansion, but a row whose name is "Aze..." is useless.
+-- `min` on the flex column was declared and never honoured, so the name silently collapsed to
+-- nothing as soon as the fixed columns outgrew the window. Shed load-bearing weight in order
+-- instead: the listed total (already in the summary), then squeeze the advice text, then drop
+-- it entirely (the action button carries the same guidance on its tooltip), and only then the
+-- cost per unit (which the expansion spells out per purchase).
+local ITEM_MIN = 200
+local STATUS_MIN = 110
+local columnWidth = {}
+
 local function shownColumns()
-  local shown, wide = {}, ROW_WIDTH and ROW_WIDTH >= 700
-  for _, column in ipairs(COLUMNS) do
-    if not column.optional or wide then shown[#shown + 1] = column end
+  local width = ROW_WIDTH or 0
+  local dropped = {}
+  columnWidth = {}
+
+  local function remaining()
+    local total = 0
+    for _, column in ipairs(COLUMNS) do
+      if not column.flex and not dropped[column.key] then
+        total = total + (columnWidth[column.key] or column.w) + 2
+      end
+    end
+    return width - total
   end
-  return shown
+
+  if width > 0 then
+    if remaining() < ITEM_MIN then dropped.listed = true end
+    if remaining() < ITEM_MIN then columnWidth.status = STATUS_MIN end
+    if remaining() < ITEM_MIN then dropped.status = true; columnWidth.status = nil end
+    if remaining() < ITEM_MIN then dropped.cost = true end
+  end
+
+  local shown = {}
+  for _, column in ipairs(COLUMNS) do
+    if not dropped[column.key] then shown[#shown + 1] = column end
+  end
+  return shown, dropped
 end
 
 local function layoutCells(row)
   local right = row
-  local cols = shownColumns()
+  local cols, dropped = shownColumns()
   for i = #cols, 1, -1 do
     local column, cell = cols[i], row.cells[cols[i].key]
     cell:ClearAllPoints()
@@ -869,13 +901,15 @@ local function layoutCells(row)
       cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
       cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
     else
-      cell:SetWidth(column.w)
+      cell:SetWidth(columnWidth[column.key] or column.w)
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, 0)
       right = cell
     end
     cell:Show()
   end
-  for _, column in ipairs(COLUMNS) do if column.optional and not (ROW_WIDTH and ROW_WIDTH >= 700) then row.cells[column.key]:Hide() end end
+  for _, column in ipairs(COLUMNS) do
+    if dropped[column.key] then row.cells[column.key]:Hide() end
+  end
 end
 
 -- Keyed by the label the button currently carries. Every one of these either spends gold or

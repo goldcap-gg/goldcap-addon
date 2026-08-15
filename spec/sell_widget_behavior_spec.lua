@@ -120,30 +120,40 @@ describe("Sell widget geometry and manual cost", function()
   -- MARKET is now unconditional and LISTED is the column that drops on a narrow window: the
   -- market price drives every decision on this screen, while the listed total is already
   -- reported in the summary above the list.
-  it("anchors header cells through real Regions and only shows LISTED wide", function()
+  -- The name column has a floor, and the layout sheds columns to keep it: the listed total
+  -- first (the summary already reports it), then the advice text (the action button repeats it
+  -- on hover). MARKET, PROFIT and the action survive every width, because they are what a
+  -- decision on this screen is made from.
+  it("sheds columns from the least load-bearing end to keep the item name readable", function()
     local record = { calls = {} }
-    local narrow = load(500, record)
+    local narrow = load(620, record)
     local _, narrowContainer = topRows(narrow, {})
     local narrowHeader
     for _, child in ipairs(narrowContainer.children) do if child.cells then narrowHeader = child break end end
     assert.is_false(narrowHeader.cells.listed.shown)
+    assert.is_false(narrowHeader.cells.status.shown)
     assert.is_true(narrowHeader.cells.market.shown)
-    local GC = load(620, record)
+    assert.is_true(narrowHeader.cells.profit.shown)
+    assert.equal(narrowHeader.cells.expand, narrowHeader.cells.action.points[1].relative)
+    assert.equal(narrowHeader.cells.action, narrowHeader.cells.profit.points[1].relative)
+    assert.equal(narrowHeader.cells.profit, narrowHeader.cells.market.points[1].relative)
+    assert.equal(narrowHeader.cells.market, narrowHeader.cells.cost.points[1].relative)
+    assert.equal(narrowHeader.cells.cost, narrowHeader.cells.item.points[2].relative)
+
+    local GC = load(1100, record)
     local _, container = topRows(GC, {})
     local header
     for _, child in ipairs(container.children) do if child.cells then header = child break end end
     assert.is_nil(header.cells.queue)
-    assert.is_false(header.cells.listed.shown)
+    assert.is_true(header.cells.listed.shown)
+    assert.is_true(header.cells.status.shown)
     assert.equal(header.cells.expand, header.cells.action.points[1].relative)
     assert.equal(header.cells.action, header.cells.status.points[1].relative)
     assert.equal(header.cells.status, header.cells.profit.points[1].relative)
     assert.equal(header.cells.profit, header.cells.market.points[1].relative)
-    assert.equal(header.cells.market, header.cells.cost.points[1].relative)
+    assert.equal(header.cells.market, header.cells.listed.points[1].relative)
+    assert.equal(header.cells.listed, header.cells.cost.points[1].relative)
     assert.equal(header.cells.cost, header.cells.item.points[2].relative)
-    local wide = load(760, record)
-    local _, wideContainer = topRows(wide, {})
-    for _, child in ipairs(wideContainer.children) do if child.cells then header = child break end end
-    assert.is_true(header.cells.listed.shown)
   end)
 
   it("orders Sell filters from broad to specific before Refresh", function()
@@ -202,16 +212,18 @@ describe("Sell widget geometry and manual cost", function()
       for _, child in ipairs(container.children) do if child.cells then header = child break end end
       local row = rows[1]
       assert.equal(listed, row.cells.listed.shown)
+      assert.equal(listed, row.cells.status.shown)
       assert.is_true(row.cells.market.shown)
       assert.is_nil(row.cells.queue)
       assert.equal(row.cells.expand, row.cells.action.points[1].relative)
-      assert.equal(row.cells.action, row.cells.status.points[1].relative)
-      assert.equal(row.cells.status, row.cells.profit.points[1].relative)
       if listed then
+        assert.equal(row.cells.action, row.cells.status.points[1].relative)
+        assert.equal(row.cells.status, row.cells.profit.points[1].relative)
         assert.equal(row.cells.profit, row.cells.market.points[1].relative)
         assert.equal(row.cells.market, row.cells.listed.points[1].relative)
         assert.equal(row.cells.listed, row.cells.cost.points[1].relative)
       else
+        assert.equal(row.cells.action, row.cells.profit.points[1].relative)
         assert.equal(row.cells.profit, row.cells.market.points[1].relative)
         assert.equal(row.cells.market, row.cells.cost.points[1].relative)
       end
@@ -232,9 +244,10 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("What you paid", rows[5].cells.item.text:gsub("^%s+", ""))
       assert.equal("batch", rows[6].kind)
     end
-    assertRow(500, false)
+    -- 700 and 620 both land past the advice column being shed; 1100 keeps every column.
+    assertRow(700, false)
     assertRow(620, false)
-    assertRow(760, true)
+    assertRow(1100, true)
   end)
 
   it("opens Set cost for listed partial and unknown orphan positions", function()
