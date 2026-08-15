@@ -190,31 +190,47 @@ local BUTTON_VARIANTS = {
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
 function T.Button(parent, variant)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
-  local base = spec.bg or { 0, 0, 0, 0 }
-  local hoverColor = spec.bg and lightened(spec.bg) or GHOST_HOVER
-
+  -- Held on the button, not captured as upvalues, so SetVariant below can genuinely change how
+  -- a live button looks. Capturing them made a repaint impossible: the next OnEnter/OnLeave
+  -- would stomp it back, which is why the Auto control used to be two overlaid buttons swapped
+  -- by Show/Hide -- and that swap is what made it flicker, miss hovers, and reappear painted in
+  -- a stale state under a stationary cursor.
   local b = CreateFrame("Button", nil, parent)
+  local base, hoverColor
   -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
   -- (row Buy, dialog primary/Confirm) must never let a right- or middle-click reach
   -- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase; only a left-click OnClick
   -- may fire.
   b:RegisterForClicks("LeftButtonUp")
-  b.bg = solid(b, "BACKGROUND", base)
+  b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
   b.bg:SetAllPoints()
 
-  if not spec.bg then
-    edgeBorder(b, T.color.border)
-  end
+  -- The border is drawn for every variant, at the variant's own strength: a ghost button needs
+  -- it to have an edge at all, and a filled one keeps its shape while the fill is dimmed by
+  -- OnDisable. Drawing it only for ghost meant a button that changed variant lost its outline.
+  edgeBorder(b, T.color.border)
 
   b.text = T.Label(b, 12)
   b.text:SetJustifyH("CENTER")
   b.text:ClearAllPoints()
   b.text:SetPoint("CENTER")
-  b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
 
   function b:SetLabel(text)
     b.text:SetText(text)
   end
+
+  -- Switches a live button between variants. One control with two looks, rather than two
+  -- controls taking turns being hidden.
+  function b:SetVariant(name)
+    spec = BUTTON_VARIANTS[name] or BUTTON_VARIANTS.ghost
+    base = spec.bg or { 0, 0, 0, 0 }
+    hoverColor = spec.bg and lightened(spec.bg) or GHOST_HOVER
+    local hovered = b.IsMouseOver and b:IsMouseOver() and b:IsEnabled()
+    local paint = hovered and hoverColor or base
+    b.bg:SetColorTexture(paint[1], paint[2], paint[3], paint[4] or 1)
+    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
+  end
+  b:SetVariant(variant)
 
   -- I3: hover-brighten only applies while enabled -- a disabled button (see OnDisable below)
   -- still receives OnEnter/OnLeave in WoW (that's how a disabled control can still show an
@@ -246,9 +262,8 @@ function T.Button(parent, variant)
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
   end)
 
-  -- Hiding a hovered frame doesn't reliably deliver OnLeave, and the Auto control swaps
-  -- its two overlaid buttons under a stationary cursor -- without this reset the hidden
-  -- button keeps its hover fill and reappears pre-painted (the "stuck gray" look).
+  -- Hiding a hovered frame doesn't reliably deliver OnLeave, so a button that goes away under
+  -- a stationary cursor would keep its hover fill and reappear pre-painted.
   b:SetScript("OnHide", function()
     b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
   end)

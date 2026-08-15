@@ -1302,17 +1302,19 @@ local function autoButtonText(state, reasons)
   return "Auto" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
 end
 
--- Re-derives the Auto control's label/on-off look/pulse from the machine's own State()/
--- PauseReasons() -- called after every feedAuto() input and once per Tick (see the
--- autoScanTicker set up in GC.Sniper.OnAuctionHouseShow), so the button can never show a
--- state the machine itself has already moved past. Two overlapping buttons (frame.autoBtnOff
--- ghost / frame.autoBtnOn primary, built in createFrame), not one button whose colors get
--- poked at runtime -- Theme.Button's own hover-brighten closures capture their variant's
--- base/hover colors at construction time (see Theme.lua's T.Button), so repainting a single
--- button's `.bg` here would just get stomped by the very next OnEnter/OnLeave. Swapping which
--- of two correctly-built buttons is shown sidesteps that entirely, and keeps the control
--- clickable in both states (a real :Disable() would also block the click that's supposed to
--- turn it back on).
+-- Re-derives the Auto control's label and look from the machine's own State()/PauseReasons()
+-- -- called after every feedAuto() input and once per Tick (see the autoScanTicker set up in
+-- GC.Sniper.OnAuctionHouseShow), so the button can never show a state the machine itself has
+-- already moved past.
+--
+-- ONE button with two variants, not two overlaid buttons swapped by Show/Hide. The swap was
+-- there because Theme.Button used to capture its colors at construction, making a repaint
+-- impossible; Theme.Button:SetVariant now exists, so the swap can go. It was the direct cause
+-- of the control feeling broken: hiding a frame under a stationary cursor does not reliably
+-- deliver OnLeave or OnEnter, so hovers were missed and the button that came back was painted
+-- for a state it was no longer in. The scanning alpha pulse went with it -- on a near-black
+-- panel it read as the button dimming to grey rather than as a heartbeat, which is exactly the
+-- "it goes black" the owner reported. Scanning is said in words instead.
 --
 -- `targetFrame` (fix round 1, M1): createFrame calls this with its own local `f` right
 -- before returning, since the module-level `frame` upvalue isn't assigned until AFTER
@@ -1322,40 +1324,17 @@ end
 -- caller (the ticker, feedAuto) omits it and falls back to the module-level `frame`.
 refreshAutoButton = function(targetFrame)
   local f = targetFrame or frame
-  if not f or not f.autoBtnOn then return end
+  if not f or not f.autoBtn then return end
   local state = autoScan:State()
   local on = state ~= "OFF"
-  if f.autoBtnOn.lastOn ~= on then
-    f.autoBtnOn.lastOn = on
-    if on then
-      f.autoBtnOff:Hide()
-      f.autoBtnOn:Show()
-    else
-      f.autoBtnOn:Hide()
-      f.autoBtnOff:Show()
-    end
+  if f.autoBtn.lastOn ~= on then
+    f.autoBtn.lastOn = on
+    f.autoBtn:SetVariant(on and "primary" or "ghost")
   end
-
-  -- (fix round 1, I5) Pulse Play/Stop must run regardless of `on` -- previously this sat
-  -- AFTER the off-state early return below, so toggling Auto off (or any other transition
-  -- straight out of SCANNING) left the animation silently playing forever on a now-hidden
-  -- button instead of being Stop()'d.
-  local shouldPulse = (state == "SCANNING")
-  if shouldPulse and not f.autoBtnOn.pulsing then
-    f.autoBtnOn.pulsing = true
-    f.autoBtnOn.pulse:Play()
-  elseif not shouldPulse and f.autoBtnOn.pulsing then
-    f.autoBtnOn.pulsing = false
-    f.autoBtnOn.pulse:Stop()
-    f.autoBtnOn:SetAlpha(1)
-  end
-
-  if not on then return end -- the off button's label never changes ("Auto") -- nothing else to update
-
-  local text = autoButtonText(state, autoScan:PauseReasons())
-  if f.autoBtnOn.lastText ~= text then
-    f.autoBtnOn:SetLabel(text)
-    f.autoBtnOn.lastText = text
+  local text = on and autoButtonText(state, autoScan:PauseReasons()) or "Auto"
+  if f.autoBtn.lastText ~= text then
+    f.autoBtn:SetLabel(text)
+    f.autoBtn.lastText = text
   end
 end
 
@@ -3806,31 +3785,11 @@ local function createFrame()
   -- runtime; see refreshAutoButton's own comment for why repainting a single Theme.Button
   -- doesn't survive its own hover-brighten. Both share the same click handler: it only cares
   -- whether the machine is currently OFF, not which of the two is visible.
-  local autoBtnOff = Theme.Button(f, "ghost")
-  autoBtnOff:SetSize(AUTO_BTN_WIDTH, TOOLBAR_BTN_H)
-  autoBtnOff:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
-  autoBtnOff:SetLabel("Auto")
-  f.autoBtnOff = autoBtnOff
-
-  local autoBtnOn = Theme.Button(f, "primary")
-  autoBtnOn:SetAllPoints(autoBtnOff)
-  autoBtnOn:SetLabel("Auto")
-  autoBtnOn:Hide()
-  f.autoBtnOn = autoBtnOn
-
-  -- "Auto · scanning" pulse: a looping alpha animation on the "on" button itself, Played/
-  -- Stopped only from refreshAutoButton (never here) so a rapid state flap can't stack
-  -- overlapping Plays -- SetLooping("BOUNCE") free-runs forward/back on its own once started.
-  local autoPulse = autoBtnOn:CreateAnimationGroup()
-  autoPulse:SetLooping("BOUNCE")
-  local autoPulseAlpha = autoPulse:CreateAnimation("Alpha")
-  autoPulseAlpha:SetFromAlpha(1)
-  -- 0.8, not lower: dipping the gold fill past ~0.7 over the near-black window desaturates
-  -- it enough to read as the button flipping to gray, not as a scanning heartbeat.
-  autoPulseAlpha:SetToAlpha(0.8)
-  autoPulseAlpha:SetDuration(0.9)
-  autoPulseAlpha:SetSmoothing("IN_OUT")
-  autoBtnOn.pulse = autoPulse
+  local autoBtn = Theme.Button(f, "ghost")
+  autoBtn:SetSize(AUTO_BTN_WIDTH, TOOLBAR_BTN_H)
+  autoBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
+  autoBtn:SetLabel("Auto")
+  f.autoBtn = autoBtn
 
   local function onAutoToggleClick()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
@@ -3848,17 +3807,15 @@ local function createFrame()
       feedAuto("toggleOff")
     end
   end
-  autoBtnOff:SetScript("OnClick", onAutoToggleClick)
-  autoBtnOn:SetScript("OnClick", onAutoToggleClick)
+  autoBtn:SetScript("OnClick", onAutoToggleClick)
   local autoTooltip =
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, " ..
     "search the Auction House yourself, or check your mail. Click to toggle."
-  setPlainTooltip(autoBtnOff, autoTooltip)
-  setPlainTooltip(autoBtnOn, autoTooltip)
+  setPlainTooltip(autoBtn, autoTooltip)
 
   local fullScanBtn = Theme.Button(f, "ghost")
   fullScanBtn:SetSize(64, TOOLBAR_BTN_H)
-  fullScanBtn:SetPoint("RIGHT", autoBtnOff, "LEFT", -Theme.pad.xs, 0)
+  fullScanBtn:SetPoint("RIGHT", autoBtn, "LEFT", -Theme.pad.xs, 0)
   fullScanBtn:SetLabel("Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
