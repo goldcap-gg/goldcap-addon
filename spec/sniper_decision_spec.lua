@@ -46,17 +46,31 @@ describe("SniperDecision", function()
     local result = evaluate()
     assert.equal(1, GC.SniperDecision.VERSION)
     assert.equal("SAFE", result.computedStatus)
-    assert.equal("WATCH", result.status)
-    assert.is_false(result.buyable)
+    assert.equal("SAFE", result.status)
+    assert.is_true(result.buyable)
     assert.equal(200, result.quantity)
     assert.equal(200000000, result.entryTotal)
     assert.equal(1000000, result.entryUnitDisplay)
     assert.equal(3000000, result.exitUnit)
   end)
 
-  it("shadows a mathematically SAFE decision while retaining its economic evidence", function()
+  -- Activation branch: the release gate is open. The economic calculation is untouched by the
+  -- flag -- only the final shaping in finalizePublicResult differs -- so both states are
+  -- asserted here against the same fixture, and the shadow behaviour must remain intact and
+  -- reachable by flipping the constant back.
+  it("publishes a mathematically SAFE decision once purchases are enabled", function()
     local result = evaluate()
-    assert.is_false(GC.SniperDecision.SAFE_PURCHASES_ENABLED)
+    assert.is_true(GC.SniperDecision.SAFE_PURCHASES_ENABLED)
+    assert.equal("SAFE", result.computedStatus)
+    assert.equal("SAFE", result.status)
+    assert.is_true(result.buyable)
+    assertNoReason(result, "shadow_validation")
+  end)
+
+  it("still shadows a mathematically SAFE decision whenever purchases are disabled", function()
+    -- before_each reloads the module, so this mutation cannot leak into another example.
+    GC.SniperDecision.SAFE_PURCHASES_ENABLED = false
+    local result = evaluate()
     assert.equal("SAFE", result.computedStatus)
     assert.equal("WATCH", result.status)
     assert.is_false(result.buyable)

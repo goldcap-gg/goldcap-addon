@@ -1,6 +1,11 @@
 local _, GC = ...
 
-GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = false }
+-- ACTIVATION BRANCH. Owner-authorized on 2026-08-16 after the first computed SAFE was observed
+-- in shadow (item 236775, evidence in
+-- docs/superpowers/reports/2026-08-12-verified-sniper-shadow-checklist.md). With this true a
+-- mathematically SAFE decision reaches the player as buyable and a hardware click can complete
+-- a real purchase. Setting it back to false is the rollback, and it is a one-word change.
+GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = true }
 
 local MAX_EXACT = 9007199254740991
 local SOURCE_MAX_AGE = 7200
