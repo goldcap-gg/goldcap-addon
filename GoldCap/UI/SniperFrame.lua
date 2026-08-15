@@ -149,6 +149,24 @@ local function drainCommodityPurchase(row)
     commodityDraining = pending
     -- No event token can prove a terminal belongs to this attempt. Stay fail-closed until a
     -- terminal event arrives or the Auction House session resets, even after a price update.
+    --
+    -- Except that CancelCommoditiesPurchase produces none of the three terminal events, so an
+    -- unconfirmed cancellation used to hold this tombstone until the player happened to close
+    -- the Auction House -- and every commodity buy in between was refused with "waiting for
+    -- previous commodity purchase to settle". Retire it on a timer instead. This is safe only
+    -- because the attempt is unconfirmed: ConfirmCommoditiesPurchase was never called, so no
+    -- gold moved and no late event can credit a purchase to a later row. The worst a
+    -- misattributed late event can now do is cancel a fresh attempt, which is the fail-safe
+    -- direction. A CONFIRMED tombstone is never retired here -- its late success must land.
+    -- 10s, written inline rather than as a named constant: this chunk is at Lua's 200-local
+    -- ceiling. Longer than BUY_TIMEOUT_SECONDS so a real terminal event still lands first.
+    if not pending.confirmed then
+      C_Timer.After(10, function()
+        if commodityDraining == pending and not pending.confirmed then
+          commodityDraining = nil
+        end
+      end)
+    end
     return pending
   end
 end

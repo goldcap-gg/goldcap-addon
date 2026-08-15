@@ -268,6 +268,103 @@ describe("Sniper purchase wiring", function()
     _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
   end)
 
+  -- CancelCommoditiesPurchase produces none of the three terminal events that consume a
+  -- tombstone, so before this an unconfirmed cancellation blocked every later commodity buy
+  -- with "waiting for previous commodity purchase to settle" until the player happened to close
+  -- the Auction House. An unconfirmed attempt never called ConfirmCommoditiesPurchase, so no
+  -- gold can have moved and no late event can credit a purchase to the wrong row -- retiring it
+  -- on a timer is safe. A CONFIRMED tombstone still waits forever: its late success must land.
+  it("retires an unconfirmed drain tombstone on its own timer, but never a confirmed one", function()
+    local cancelCalls, timers = 0, {}
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() end,
+      GetNumCommoditySearchResults = function() return 2 end,
+      GetCommoditySearchResultInfo = function(_, index)
+        if index == 1 then return { unitPrice = 1000000, quantity = 1 } end
+        return { unitPrice = 2105265, quantity = 1 }
+      end,
+    }
+    _G.C_Timer = { After = function(delay, fn) timers[#timers + 1] = { delay = delay, fn = fn } end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+
+    local GC = {
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function()
+        return {
+          mv = 3000000, kind = "region_commodity", source = "import", sourceAt = 92800,
+          stressUnit = 2105264, sold = 100000, sellThroughBps = 7000,
+          liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12,
+          madBps = 0, trend = -9,
+        }
+      end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7,
+      purchaseDeal = { itemID = 42, isCommodity = true },
+      decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1 },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+    GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- breaks safety -> cancel + drain
+    assert.equal(1, cancelCalls)
+    local draining = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
+    assert.is_table(draining)
+    assert.is_falsy(draining.confirmed)
+
+    -- Other timers (arm timeouts and the like) are scheduled along the same path; each is run
+    -- under pcall so an unrelated one cannot decide this example's outcome either way.
+    local function runTimers()
+      for _, timer in ipairs(timers) do pcall(timer.fn) end
+    end
+    runTimers()
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+
+    -- The retirement must be bound to the exact tombstone it was scheduled for: replaying those
+    -- same callbacks against a later CONFIRMED tombstone must leave it completely alone.
+    local confirmedTombstone = { row = {}, itemID = 42, token = 11, confirmed = true }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", confirmedTombstone)
+    runTimers()
+    assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == confirmedTombstone)
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+  end)
+
   it("freezes a commodity success without a matching final quote instead of estimating a purchase", function()
     local flipCalls, ledgerCalls = 0, 0
     _G.C_AuctionHouse = {}
