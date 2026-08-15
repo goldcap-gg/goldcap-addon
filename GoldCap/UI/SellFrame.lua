@@ -852,7 +852,9 @@ local function layoutCells(row)
     local column, cell = cols[i], row.cells[cols[i].key]
     cell:ClearAllPoints()
     if column.flex then
-      cell:SetPoint("LEFT", row, "LEFT", 2, 0)
+      -- row.itemInset leaves room for the icon on a position row, and indents a child row so
+      -- the hierarchy is carried by layout instead of by leading spaces in the string.
+      cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
       cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
     else
       cell:SetWidth(column.w)
@@ -867,6 +869,44 @@ end
 local function createRow(parent)
   local row = CreateFrame("Button", nil, parent)
   row:SetHeight(ROW_HEIGHT)
+
+  -- Sell rows carried no banding, no hover feedback and no rule between them, so a screenful
+  -- of positions read as one undifferentiated block -- and an expanded position's children were
+  -- distinguishable only by two leading spaces in their text. Same treatment as the Deals list:
+  -- BACKGROUND zebra, a highlight above it, a hairline at the bottom edge, and an item icon so
+  -- rows are scannable by shape rather than by reading every name.
+  local zc = Theme.color.zebra
+  row.zebra = row:CreateTexture(nil, "BACKGROUND")
+  row.zebra:SetAllPoints()
+  row.zebra:SetColorTexture(zc[1], zc[2], zc[3], 0)
+  row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+  row.highlight:SetAllPoints()
+  local hc = Theme.color.hover
+  row.highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4] or 0.08)
+  row.highlight:Hide()
+  row.divider = row:CreateTexture(nil, "ARTWORK")
+  row.divider:SetHeight(1)
+  row.divider:SetPoint("BOTTOMLEFT", 0, 0)
+  row.divider:SetPoint("BOTTOMRIGHT", 0, 0)
+  local bc = Theme.color.border
+  row.divider:SetColorTexture(bc[1], bc[2], bc[3], bc[4] or 0.06)
+  -- Child rows (batch/detail/lot) get a gold spine at the left edge instead of a bottom rule,
+  -- so an expanded group reads as one bracketed unit rather than as more top-level rows.
+  row.spine = row:CreateTexture(nil, "ARTWORK")
+  row.spine:SetWidth(2)
+  row.spine:SetPoint("TOPLEFT", 0, 0)
+  row.spine:SetPoint("BOTTOMLEFT", 0, 0)
+  local gc = Theme.color.gold
+  row.spine:SetColorTexture(gc[1], gc[2], gc[3], 0.45)
+  row.spine:Hide()
+  row.icon = row:CreateTexture(nil, "ARTWORK")
+  row.icon:SetSize(18, 18)
+  row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
+  row.icon:Hide()
+  row:SetScript("OnEnter", function(self) self.highlight:Show() end)
+  row:SetScript("OnLeave", function(self) self.highlight:Hide() end)
+
   row.cells = {}
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(row, column.key == "item" and 12 or 11)
@@ -1017,6 +1057,26 @@ renderRows = function()
           row.action:Hide()
         end
       end
+      -- Banding, hierarchy and the icon are decided here, after the cells are filled, because
+      -- only `entry.kind` distinguishes a position from one of its expanded children.
+      local zc2 = Theme.color.zebra
+      row.zebra:SetColorTexture(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
+      if entry.kind == "position" then
+        row.itemInset = 26
+        row.spine:Hide()
+        row.divider:Show()
+        local icon = nil
+        if p.itemID and C_Item and C_Item.GetItemIconByID then
+          local ok, texture = pcall(C_Item.GetItemIconByID, p.itemID)
+          icon = ok and texture or nil
+        end
+        if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
+      else
+        row.itemInset = 34
+        row.icon:Hide()
+        row.spine:Show()
+        row.divider:Hide() -- a group's children are bracketed by the spine, not sliced by rules
+      end
       layoutCells(row)
     end
   end
@@ -1090,6 +1150,7 @@ function GC.Sell.Attach(f, geometry)
     local value = Theme.Num(container, 14, true); value:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -1); container.summary[stat[1]] = value
   end
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -60); header:SetPoint("TOPRIGHT", 0, -60); header:SetHeight(16); header.cells = {}
+  header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST", listed = "LISTED", market = "MARKET", profit = "PROFIT", status = "STATUS", expand = "" })[column.key]); header.cells[column.key] = cell
   end

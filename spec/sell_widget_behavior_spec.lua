@@ -29,6 +29,13 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetTextColor(...) self.color = { ... } end
     function value:SetAutoFocus() end
     function value:SetScrollChild(child) self.scrollChild = child end
+    -- Rows own textures now (zebra banding, hover highlight, the bottom rule, the child spine
+    -- and the item icon), so the double has to hand back regions for them like the real API.
+    function value:CreateTexture(_, layer) local t = region("Texture", self); t.layer = layer; return t end
+    function value:SetAllPoints(relative) self.allPoints = relative or self.parent end
+    function value:SetColorTexture(...) self.colorTexture = { ... } end
+    function value:SetTexture(path) self.texture = path end
+    function value:SetTexCoord(...) self.texCoord = { ... } end
     return value
   end
 
@@ -61,7 +68,9 @@ describe("Sell widget geometry and manual cost", function()
     _G.time = function() return 77 end
     _G.GetCoinTextureString = function(n) return tostring(n) end
     local theme = {
-      color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 } },
+      color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
+        zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
+        gold = { 0.83, 0.64, 0.22 } },
       Label = function(parent) return region("FontString", parent) end,
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return region("Button", parent) end,

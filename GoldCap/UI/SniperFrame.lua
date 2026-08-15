@@ -255,19 +255,34 @@ local function sortedDeals()
   -- stayed in `list` it would render TWICE: frozen in its own row and fresh wherever the
   -- rest of the list now ranks it.
   local hoveredItemID = hoveredRow and hoveredRow.deal and hoveredRow.deal.itemID
+  -- Same reasoning, second case: refreshRows() also skips any row carrying a purchaseStage, so
+  -- an open Check/Buy freezes that row on its deal. activeItemID is NOT a substitute here --
+  -- armCheck deliberately releases the pin (so a second Check can be started) while leaving
+  -- purchaseStage set, and that is exactly the window in which the item rendered twice.
+  -- Built inline rather than as a file-level helper: this chunk is at Lua's 200-local ceiling.
+  local frozen = nil
+  for i = 1, #rows do
+    local frozenDeal = rows[i].purchaseStage and (rows[i].purchaseDeal or rows[i].deal) or nil
+    if frozenDeal and frozenDeal.itemID then
+      frozen = frozen or {}
+      frozen[frozenDeal.itemID] = true
+    end
+  end
   local list = {}
   if mode == "fullscan" then
     -- GC.FullScan.Evaluate already returns tier-rank/profit sorted order; filtering out
     -- pinned itemIDs preserves that order (no re-sort needed).
     for _, deal in ipairs(scanDeals) do
-      if not activeItemID[deal.itemID] and deal.itemID ~= hoveredItemID then
+      if not activeItemID[deal.itemID] and deal.itemID ~= hoveredItemID
+          and not (frozen and frozen[deal.itemID]) then
         list[#list + 1] = deal
       end
     end
     return list
   end
   for itemID, deal in pairs(deals) do
-    if not activeItemID[itemID] and itemID ~= hoveredItemID then
+    if not activeItemID[itemID] and itemID ~= hoveredItemID
+        and not (frozen and frozen[itemID]) then
       list[#list + 1] = deal
     end
   end

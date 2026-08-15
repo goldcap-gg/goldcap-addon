@@ -165,14 +165,19 @@ function T.Label(parent, size)
   return fs
 end
 
-local function darkened(c)
-  return { c[1] * 0.85, c[2] * 0.85, c[3] * 0.85, c[4] or 1 }
+-- Hover always LIGHTENS, for every variant. An earlier revision darkened instead, to stop a
+-- white film reading as "gray" beside the gold primary; on a panel this dark that overshot the
+-- other way -- hovering the gold Auto button turned it nearly black, which reads as disabled
+-- rather than as the thing under your cursor. Lightening both variants keeps the direction
+-- consistent (the two Auto buttons swap in place, so they must agree) and keeps a hovered
+-- control looking live.
+local function lightened(c)
+  return { c[1] + (1 - c[1]) * 0.18, c[2] + (1 - c[2]) * 0.18, c[3] + (1 - c[3]) * 0.18, c[4] or 1 }
 end
 
--- Ghost buttons have no fill of their own, so "slightly darker" is a translucent black
--- film -- NOT T.color.hover's white one, which reads as the button going gray next to the
--- gold primary variant (the two Auto buttons swap in place, so the mismatch is glaring).
-local GHOST_HOVER = { 0, 0, 0, 0.35 }
+-- Ghost buttons have no fill of their own, so their hover IS the fill: a faint white lift,
+-- strong enough to be unmistakable on the near-black panel without becoming a gray plate.
+local GHOST_HOVER = { 1, 1, 1, 0.12 }
 
 local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
@@ -184,7 +189,7 @@ local BUTTON_VARIANTS = {
 function T.Button(parent, variant)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
   local base = spec.bg or { 0, 0, 0, 0 }
-  local hoverColor = spec.bg and darkened(spec.bg) or GHOST_HOVER
+  local hoverColor = spec.bg and lightened(spec.bg) or GHOST_HOVER
 
   local b = CreateFrame("Button", nil, parent)
   -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
