@@ -1176,6 +1176,10 @@ function GC.Sell.Attach(f, geometry)
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST", listed = "LISTED", market = "MARKET", profit = "PROFIT", status = "STATUS", expand = "" })[column.key]); header.cells[column.key] = cell
+    -- Headings must sit over their own numbers. createRow right-aligns every numeric cell, but
+    -- these were left at the default left alignment, so each heading floated to the left edge
+    -- of a right-aligned column and every value looked like it belonged to the column after it.
+    cell:SetJustifyH(column.num and "RIGHT" or "LEFT")
   end
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")
