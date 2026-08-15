@@ -367,3 +367,62 @@ function GC.SniperDecision.Evaluate(input)
   orderReasons(out.reasons)
   return finalizePublicResult()
 end
+
+-- Discovery-time screen. A browse aggregate has no order book, so Evaluate cannot run on it --
+-- but the import facts alone already decide several gates, and a row failing one of those can
+-- never become buyable however the live book turns out. Running it at scan time is what stops
+-- the deals list advertising rows whose only possible outcome is an AVOID after the player has
+-- spent a click discovering it.
+--
+-- Deliberately mirrors Evaluate's own thresholds and reason names by living in this file --
+-- a second copy of "70% sell-through" somewhere else would drift the day one of them moves.
+--
+-- Only HARD (severity 2) gates are screened. Staleness and an estimated market value also
+-- block SAFE, but they apply to every row at once and clear on the next sync, so screening on
+-- them would empty the list instead of explaining it; the import-age banner already reports it.
+function GC.SniperDecision.PreScreen(market, config)
+  if type(market) ~= "table" or type(config) ~= "table" then return { "invalid_input" } end
+  local reasons = {}
+  local function add(reason) reasons[#reasons + 1] = reason end
+
+  if market.listings == nil or market.listings < 3 then add("listings_too_low") end
+  if market.soldPerDay == nil then
+    add("velocity_missing")
+  elseif market.soldPerDay < 3 then
+    add("velocity_too_low")
+  end
+  if market.sellThroughBps == nil or market.sellThroughBps < 7000 then add("sell_through_too_low") end
+  if market.liquidityConfidence == nil or market.liquidityConfidence < 70 then add("liquidity_confidence_low") end
+  if market.trend24hPct ~= nil and market.trend24hPct <= -10 then add("market_falling") end
+  if market.stressUnit == nil or market.stressUnit <= 0 then add("stress_exit_missing") end
+
+  -- No demand-cap screen here, deliberately. Evaluate's cap is floored at 1
+  -- (`math.max(1, ...)`), so it can only reach zero when soldPerDay is missing or under 3 --
+  -- which the velocity gates above already catch. The other way `demand_limit` appears is a
+  -- player typing a quantity larger than the cap, which needs a live book to know.
+  orderReasons(reasons)
+  return reasons
+end
+
+-- The one mapping from a stored import fact to the market table Evaluate and PreScreen read.
+-- Both the dialog and the scan need it, and two copies would drift the first time a field is
+-- renamed on the import side.
+function GC.SniperDecision.MarketFromValue(value)
+  value = value or {}
+  return {
+    kind = value.kind,
+    source = value.source,
+    sourceAt = value.sourceAt,
+    marketValue = value.mv,
+    estimated = value.estimated,
+    stressUnit = value.stressUnit,
+    soldPerDay = value.sold,
+    sellThroughBps = value.sellThroughBps,
+    liquidityConfidence = value.liquidityConfidence,
+    currentQty = value.currentQty,
+    listings = value.listings,
+    observations = value.observations,
+    madBps = value.madBps,
+    trend24hPct = value.trend,
+  }
+end

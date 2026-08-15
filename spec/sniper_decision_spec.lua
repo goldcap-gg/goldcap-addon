@@ -420,4 +420,63 @@ describe("SniperDecision", function()
     unsafe.live.levels = { { unitPrice = 9007199254740992, quantity = 1 }, { unitPrice = 9007199254740993, quantity = 1 } }
     assertReason(evaluate(unsafe), "invalid_input")
   end)
+
+  -- Discovery rows carry no order book, so most of Evaluate cannot run on them. But the market
+  -- facts that come from the import decide several gates outright, and a row failing one of
+  -- those can never become buyable no matter how the live book looks. PreScreen answers that
+  -- much from the same thresholds, so the scan can stop advertising rows whose only possible
+  -- outcome is an AVOID after the player has spent a click finding out.
+  describe("PreScreen", function()
+    local function screenable(overrides)
+      local market = {
+        sourceAt = 92800, stressUnit = 3000000, soldPerDay = 100000, sellThroughBps = 7000,
+        liquidityConfidence = 70, currentQty = 0, listings = 3, madBps = 0, trend24hPct = -9,
+      }
+      for key, value in pairs(overrides or {}) do market[key] = value end
+      return market
+    end
+    local config = { maxDailyDemandShare = 0.02, maxQuantity = 200 }
+
+    local function screen(overrides)
+      return GC.SniperDecision.PreScreen(screenable(overrides), config)
+    end
+
+    it("clears a market that passes every gate decidable without a book", function()
+      assert.same({}, screen())
+    end)
+
+    it("names each hard gate a discovery row can never pass", function()
+      assert.same({ "listings_too_low" }, screen({ listings = 2 }))
+      assert.same({ "velocity_too_low" }, screen({ soldPerDay = 2 }))
+      local noVelocity = screenable(); noVelocity.soldPerDay = nil
+      assert.same({ "velocity_missing" }, GC.SniperDecision.PreScreen(noVelocity, config))
+      assert.same({ "sell_through_too_low" }, screen({ sellThroughBps = 6999 }))
+      assert.same({ "liquidity_confidence_low" }, screen({ liquidityConfidence = 69 }))
+      assert.same({ "market_falling" }, screen({ trend24hPct = -10 }))
+      assert.same({ "stress_exit_missing" }, screen({ stressUnit = 0 }))
+    end)
+
+    it("orders several failures the same way Evaluate does", function()
+      assert.same({ "listings_too_low", "sell_through_too_low" },
+        screen({ listings = 1, sellThroughBps = 100 }))
+    end)
+
+    -- Staleness is transient and applies to every row at once: emptying the whole list would
+    -- hide the market rather than explain it, and the import-age banner already says so.
+    it("does not screen out a row for a stale or estimated import", function()
+      assert.same({}, screen({ sourceAt = 1 }))
+      assert.same({}, screen({ estimated = true }))
+    end)
+
+    -- Evaluate floors its demand cap at 1, so the cap alone can never make a row hopeless; the
+    -- only way it reaches zero is a velocity the gates above already reject.
+    it("leaves a thin but qualifying market alone rather than inventing a demand limit", function()
+      assert.same({}, screen({ soldPerDay = 3, currentQty = 100000000 }))
+    end)
+
+    it("fails closed on input it cannot read", function()
+      assert.same({ "invalid_input" }, GC.SniperDecision.PreScreen(nil, config))
+      assert.same({ "invalid_input" }, GC.SniperDecision.PreScreen(screenable(), nil))
+    end)
+  end)
 end)

@@ -76,7 +76,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return {} end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -213,6 +217,8 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -313,6 +319,8 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -376,7 +384,11 @@ describe("Sniper purchase wiring", function()
       Ledger = { RecordSniperBuy = function() ledgerCalls = ledgerCalls + 1 end },
       db = { settings = { sniper = {} } },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -409,7 +421,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -454,7 +470,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -504,7 +524,11 @@ describe("Sniper purchase wiring", function()
       Print = function() end,
       db = { settings = { sniper = {} } },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local row = {
@@ -604,7 +628,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function setUpvalue(fn, wanted, value)
       for i = 1, math.huge do
@@ -640,7 +668,11 @@ describe("Sniper purchase wiring", function()
       },
       db = { settings = { sniper = {} } },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function setUpvalue(fn, wanted, value)
       for i = 1, math.huge do
@@ -699,7 +731,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function getUpvalue(fn, wanted)
       for i = 1, math.huge do
@@ -756,7 +792,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function setUpvalue(fn, wanted, value)
       for i = 1, math.huge do
@@ -795,7 +835,11 @@ describe("Sniper purchase wiring", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function getUpvalue(fn, wanted)
       for i = 1, math.huge do
@@ -861,6 +905,8 @@ describe("Sniper purchase wiring", function()
         end,
       },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -934,6 +980,8 @@ describe("Sniper purchase wiring", function()
         end,
       },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1025,6 +1073,8 @@ describe("Sniper purchase wiring", function()
       Print = function() end,
       session = { buys = 0 },
     }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1114,6 +1164,8 @@ describe("Sniper purchase wiring", function()
       },
     }
     helper.loadModule("Core/Scanner.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1202,6 +1254,8 @@ describe("Sniper purchase wiring", function()
       SniperDecision = { Evaluate = function() return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } } end },
     }
     helper.loadModule("Core/Scanner.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1300,6 +1354,8 @@ describe("Sniper purchase wiring", function()
       SniperDecision = { Evaluate = function() return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } } end },
     }
     helper.loadModule("Core/Scanner.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)

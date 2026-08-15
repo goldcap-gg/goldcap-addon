@@ -35,14 +35,25 @@ end
 -- Evaluate walks the whole thing (first = 1) -- same per-row body either way.
 local function evaluateFrom(rows, first, getValue, cfg)
   local bestByItem = {}
+  local screened = 0
   for i = first, #rows do
     local row = rows[i]
     if row.count and row.count > 0 and row.buyoutStack and row.buyoutStack > 0 then
       local unitPrice = math.floor(row.buyoutStack / row.count)
+      local value = getValue(row.itemID)
+      -- Discovery used to advertise rows the decision engine could never approve: the player
+      -- clicked Check on a market whose sell-through or velocity already ruled it out, and
+      -- only then learned it was hopeless. Those gates need no order book, so apply them here
+      -- and keep the list to rows a Check can actually pass.
+      local blocked = GC.SniperDecision and GC.SniperDecision.PreScreen
+        and GC.SniperDecision.PreScreen(GC.SniperDecision.MarketFromValue(value), cfg) or {}
+      if #blocked > 0 then
+        screened = screened + 1
+      else
       local deal = GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false, auctionID = nil,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },
-        getValue(row.itemID), cfg)
+        value, cfg)
       if deal then
         -- Browse aggregates are discovery evidence, never a resolved lot or a live
         -- commodity book. Keep their legacy tier for discovery/sorting, but make the only
@@ -56,6 +67,7 @@ local function evaluateFrom(rows, first, getValue, cfg)
           bestByItem[deal.itemID] = deal
         end
       end
+      end
     end
   end
 
@@ -63,14 +75,16 @@ local function evaluateFrom(rows, first, getValue, cfg)
   for _, deal in pairs(bestByItem) do
     deals[#deals + 1] = deal
   end
-  return deals
+  return deals, screened
 end
 
+-- Returns the deals plus how many rows the pre-screen removed, so the UI can report the number
+-- instead of silently presenting a shorter list as if it were everything.
 function GC.FullScan.Evaluate(rows, getValue, cfg, cap)
-  local deals = evaluateFrom(rows, 1, getValue, cfg)
+  local deals, screened = evaluateFrom(rows, 1, getValue, cfg)
   table.sort(deals, compareDeals)
   truncate(deals, cap)
-  return deals
+  return deals, screened
 end
 
 -- Streaming counterpart to Evaluate: only rows[fromIndex+1 ..] are evaluated (deduped by
@@ -88,9 +102,9 @@ end
 -- MergeDeals' incoming-wins rule (below) only matters once a *second* pass starts merging
 -- fresher rows over the first pass's results.
 function GC.FullScan.EvaluateDelta(rows, fromIndex, getValue, cfg)
-  local deals = evaluateFrom(rows, fromIndex + 1, getValue, cfg)
+  local deals, screened = evaluateFrom(rows, fromIndex + 1, getValue, cfg)
   table.sort(deals, compareDeals)
-  return deals, #rows
+  return deals, #rows, screened
 end
 
 -- Combines a previously-merged deal set with a newly-evaluated page. Dedupes by itemID

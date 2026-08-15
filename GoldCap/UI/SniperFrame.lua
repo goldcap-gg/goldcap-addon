@@ -719,23 +719,9 @@ end
 -- The decision engine owns every purchase-safety judgement. Keep the raw Data shape at this
 -- one boundary so a UI caller cannot accidentally make a tier/profit calculation authoritative.
 local function marketForDecision(itemID)
-  local value = GC.Data.GetItemValue(itemID) or {}
-  return {
-    kind = value.kind,
-    source = value.source,
-    sourceAt = value.sourceAt,
-    marketValue = value.mv,
-    estimated = value.estimated,
-    stressUnit = value.stressUnit,
-    soldPerDay = value.sold,
-    sellThroughBps = value.sellThroughBps,
-    liquidityConfidence = value.liquidityConfidence,
-    currentQty = value.currentQty,
-    listings = value.listings,
-    observations = value.observations,
-    madBps = value.madBps,
-    trend24hPct = value.trend,
-  }
+  -- One mapping, in SniperDecision, shared with the scan's pre-screen: a second copy here
+  -- would drift the first time a field is renamed on the import side.
+  return GC.SniperDecision.MarketFromValue(GC.Data.GetItemValue(itemID))
 end
 
 local function depositFor(itemID, quantity)
@@ -1042,7 +1028,9 @@ local function pingNewHotDeals(newHotDeals)
 end
 
 local function applyFullScanResults(rowsList, groupCount)
-  scanDeals = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
+  local screened
+  scanDeals, screened = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
+  GC.Sniper._screenedCount = screened or 0
   -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
   -- single resolved auction: isCommodity is unknown here and auctionID is always nil. Mark
   -- every deal `.stale` so onBuyClick knows to requery live before it will let one arm for
@@ -1051,8 +1039,13 @@ local function applyFullScanResults(rowsList, groupCount)
     deal.stale = true
   end
   if frame then
-    frame.status:SetText(("full scan complete: %d deal%s from %d item group%s"):format(
-      #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s"))
+    -- Name the rows the pre-screen removed rather than presenting a shorter list as if it were
+    -- the whole market: a player who cannot see the number cannot tell a quiet market from a
+    -- strict filter.
+    local hidden = (GC.Sniper._screenedCount or 0) > 0
+      and (", %d hidden as unsellable"):format(GC.Sniper._screenedCount) or ""
+    frame.status:SetText(("full scan complete: %d deal%s from %d item group%s%s"):format(
+      #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
