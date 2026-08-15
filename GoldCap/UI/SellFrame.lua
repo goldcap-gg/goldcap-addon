@@ -12,13 +12,20 @@ local MAX_EXACT = 9007199254740991
 
 -- The positions module owns all accounting and action-plan decisions.  This file only joins
 -- live AH observations, a cached quote stream, and widgets around that single model.
+-- Per-unit framing: a seller reasons in "what did one cost me, what does one fetch, what do I
+-- clear on one", not in position totals -- the totals already sit in the summary above the list.
+-- `status` carries the recommendation (what to do and at what price) and `action` owns the
+-- button. They used to be one column, with the button drawn over the text, which destroyed the
+-- only place the target price was ever shown. `listed` is the optional one now: its total is in
+-- the summary, whereas the market price is what every decision on this screen turns on.
 local COLUMNS = {
-  { key = "item", flex = true, min = 190 },
-  { key = "cost", w = 88, num = true },
-  { key = "listed", w = 88, num = true },
-  { key = "market", w = 72, num = true, optional = true },
-  { key = "profit", w = 82, num = true, bold = true },
-  { key = "status", w = 98 },
+  { key = "item", flex = true, min = 200 },
+  { key = "cost", w = 92, num = true },
+  { key = "listed", w = 88, num = true, optional = true },
+  { key = "market", w = 92, num = true },
+  { key = "profit", w = 96, num = true, bold = true },
+  { key = "status", w = 176 },
+  { key = "action", w = 88 },
   { key = "expand", w = 22 },
 }
 
@@ -871,6 +878,15 @@ local function layoutCells(row)
   for _, column in ipairs(COLUMNS) do if column.optional and not (ROW_WIDTH and ROW_WIDTH >= 700) then row.cells[column.key]:Hide() end end
 end
 
+-- Keyed by the label the button currently carries. Every one of these either spends gold or
+-- destroys a deposit, so none of them should be a word a player has to guess at.
+local ACTION_HELP = {
+  ["Set cost"] = { "Set cost", { "Tell GoldCap what you actually paid for these units.", "It will not invent a cost from the market price, so profit stays unknown until you enter one." } },
+  ["Post"] = { "Post", { "Lists the units sitting in your bags at the price shown under WHAT TO DO.", "The price is re-checked against the live Auction House immediately before anything is listed; if it has moved, the post is abandoned rather than sent at a stale price." } },
+  ["Repost"] = { "Repost", { "Cancels this live auction and lists it again at the current market price.", "Cancelling forfeits the deposit on the old auction, so this asks for a second click to confirm.", "Worth doing when someone has undercut you; not worth it if the price barely moved." } },
+  ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction and immediately relists it at the shown price.", "The deposit on the cancelled auction is lost. The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
+}
+
 local function createRow(parent)
   local row = CreateFrame("Button", nil, parent)
   row:SetHeight(ROW_HEIGHT)
@@ -909,8 +925,20 @@ local function createRow(parent)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
-  row:SetScript("OnEnter", function(self) self.highlight:Show() end)
-  row:SetScript("OnLeave", function(self) self.highlight:Hide() end)
+  row:SetScript("OnEnter", function(self)
+    self.highlight:Show()
+    -- Rows are pooled and rebound every render, so the item tooltip is wired once here and
+    -- reads whatever position the row currently holds. Hooking it per render would stack.
+    if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
+      GameTooltip:Show()
+    end
+  end)
+  row:SetScript("OnLeave", function(self)
+    self.highlight:Hide()
+    if GameTooltip then GameTooltip:Hide() end
+  end)
 
   row.cells = {}
   for _, column in ipairs(COLUMNS) do
@@ -921,9 +949,25 @@ local function createRow(parent)
   end
   row.cells.item:SetJustifyH("LEFT")
   row.action = Theme.Button(row, "ghost")
-  row.action:SetSize(72, 18)
-  row.action:SetPoint("CENTER", row.cells.status, "CENTER", 0, 0)
+  row.action:SetSize(84, 18)
+  -- Its own column. Anchored over `status` it covered the recommendation text, which is where
+  -- the price and the breakeven are written.
+  row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
   row.action:Hide()
+  -- Wired once on the pooled button; the text is chosen at hover time from the label it
+  -- currently carries, so it always describes the action actually on offer.
+  if row.action.HookScript then
+    row.action:HookScript("OnEnter", function(self)
+      if not GameTooltip then return end
+      local help = ACTION_HELP[self.label] or ACTION_HELP[(self.label or ""):gsub("%s*%(.*", "")]
+      if not help then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(help[1], 1, 0.82, 0)
+      for _, line in ipairs(help[2]) do GameTooltip:AddLine(line, 0.85, 0.85, 0.85, true) end
+      GameTooltip:Show()
+    end)
+    row.action:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  end
   row:SetScript("OnClick", function(self)
     if self.kind == "position" and type(self.position.positionKey) == "string" then
       expanded[self.position.positionKey] = not expanded[self.position.positionKey]
@@ -933,8 +977,36 @@ local function createRow(parent)
   return row
 end
 
+-- Explanatory tooltip on any frame. Guarded for busted, where no WoW globals exist.
+local function explain(frame, title, body)
+  if not frame or not frame.SetScript then return end
+  -- HookScript, never SetScript: Theme.Button owns OnEnter/OnLeave for its hover fill, and
+  -- replacing those would leave buttons stuck in whichever state they were painted in.
+  local hook = frame.HookScript and "HookScript" or "SetScript"
+  frame[hook](frame, "OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(title, 1, 0.82, 0)
+    for _, line in ipairs(body) do GameTooltip:AddLine(line, 0.85, 0.85, 0.85, true) end
+    GameTooltip:Show()
+  end)
+  frame[hook](frame, "OnLeave", function()
+    if GameTooltip then GameTooltip:Hide() end
+  end)
+end
+
+local HEADER_HELP = {
+  cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price." } },
+  listed = { "Listed value", { "What your live auctions for this item add up to at their current asking price." } },
+  market = { "Market per unit", { "The current going price for one unit, from a live Auction House query.", "Greyed out means the quote has aged; Post and Repost refresh it before they act." } },
+  profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete -- fill it in with Set cost." } },
+  status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
+}
+
 local function showRowAction(row, label, onClick)
-  row.cells.status:SetText("")
+  -- Deliberately does NOT clear `status` any more: that cell holds the recommendation -- what
+  -- to do, at what unit price, and the breakeven under it -- and blanking it was the reason a
+  -- player could never tell what a Post or Repost was about to charge.
   row.action:SetLabel(label)
   if onClick then row.action:SetScript("OnClick", onClick) end
   row.action:Show()
@@ -977,11 +1049,21 @@ renderRows = function()
     if expanded[position.positionKey] then
       local detail = GC.SellViewModel.Expansion(position)
       entries[#entries + 1] = { kind = "detail", position = position, detail = detail }
-      for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
+      -- What you are selling comes before what you paid: the listings are the thing a player
+      -- acts on, the purchase history is only there to justify the cost number.
+      local unlisted = (position.trackedQty or 0) - (position.listedQty or 0)
+      if #detail.ownedLots > 0 or unlisted > 0 then
+        entries[#entries + 1] = { kind = "group", position = position, title = "On the Auction House" }
+      end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
-      if (position.trackedQty or 0) > (position.listedQty or 0) then
+      if unlisted > 0 then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
+      if #detail.batches > 0 then
+        entries[#entries + 1] = { kind = "group", position = position, title = "What you paid",
+          hint = "Sales are costed from your oldest units first" }
+      end
+      for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
     end
   end
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
@@ -995,8 +1077,21 @@ renderRows = function()
       local lotID = entry.lot and entry.lot.auctionID or 0
       row.renderEntryID = table.concat({ renderGeneration, i, entry.kind, p.scopeKey or "", p.positionKey or "", lotID }, ":")
       if entry.kind == "position" then
-        row.cells.item:SetText((p.itemName or "Item") .. "\n" .. GC.SellViewModel.SourceText(p))
-        row.cells.cost:SetText(formatCell(GC.SellViewModel.CostText(p)))
+        -- Second line answers "how many of these do I have, and where are they" -- the question
+        -- a seller actually asks. Where each unit came from stays available on the tooltip.
+        local listedQty, trackedQty = p.listedQty or 0, p.trackedQty or 0
+        local stockParts = {}
+        if trackedQty - listedQty > 0 then stockParts[#stockParts + 1] = ("×%d in bags"):format(trackedQty - listedQty) end
+        if listedQty > 0 then stockParts[#stockParts + 1] = ("×%d listed"):format(listedQty) end
+        row.cells.item:SetText((p.itemName or "Item") .. "\n"
+          .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p)))
+        -- Cost per unit, not the position total: it is the number that compares against the
+        -- market price in the very next column. An incomplete basis says so in words below.
+        local unitCost = nil
+        if p.coverage == "COMPLETE" and exact(p.knownCost) and exact(p.knownQty) and p.knownQty > 0 then
+          unitCost = math.floor(p.knownCost / p.knownQty)
+        end
+        row.cells.cost:SetText(unitCost and formatCell(unitCost) or "—")
         row.cells.listed:SetText(formatCell(p.listedValue))
         local marketText = formatCell(p.displayMarketUnit)
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
@@ -1006,8 +1101,17 @@ renderRows = function()
         setColor(row.cells.market, p.displayMarketUnit and not p.freshMarketUnit
           and Theme.color.fgDim or Theme.color.fg)
         row.cells.profit:SetText(formatCell(GC.SellViewModel.ProfitText(p)))
-        row.cells.status:SetText(p.status == "NO_COST" and "NO COST"
-          or p.status == "PARTIAL_COST" and "PARTIAL COST" or p.status)
+        -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
+        -- This column now says what to do about it, in a sentence, or names what is missing.
+        local knownQty, exposureQty = p.knownQty or 0, p.exposureQty or 0
+        if p.coverage ~= "COMPLETE" then
+          row.cells.status:SetText(("Cost unknown for %d of %d"):format(
+            math.max(0, exposureQty - knownQty), exposureQty))
+          setColor(row.cells.status, Theme.color.fgDim)
+        else
+          row.cells.status:SetText(recommendationText(p.recommendation))
+          setColor(row.cells.status, Theme.color.fg)
+        end
         row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
         if p.coverage ~= "COMPLETE" and canSetCost(p) then
           showRowAction(row, "Set cost", function() openCostDialog(p) end)
@@ -1023,23 +1127,55 @@ renderRows = function()
         else
           quoteText = ("quote %ss"):format(d.quoteAge or "?")
         end
-        row.cells.item:SetText(("  %s · %s · ahead %s · sold/day %s · ETA %s%s"):format(d.note,
-          quoteText, d.ahead or "?", d.sold or "?", d.days and ("~" .. math.floor(d.days + 0.5) .. "d") or "?",
+        -- d.note used to lead with "FIFO allocations", naming the accounting rule rather than
+        -- telling the player anything. What matters here is how the market looks right now and
+        -- how long the stock will take to clear.
+        row.cells.item:SetText(("  %s · %s ahead of you · sells %s/day · clears in %s%s"):format(
+          quoteText, d.ahead or "?", d.sold or "?",
+          d.days and ("~" .. math.floor(d.days + 0.5) .. " days") or "?",
           d.factsText and (" · " .. d.factsText) or ""))
         setColor(row.cells.item, d.marketStale and Theme.color.fgDim or Theme.color.fg)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
+      elseif entry.kind == "group" then
+        row.cells.item:SetText("  " .. entry.title)
+        setColor(row.cells.item, Theme.color.gold)
+        row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
+        row.cells.profit:SetText(""); row.cells.expand:SetText("")
+        row.cells.status:SetText(entry.hint or "")
+        setColor(row.cells.status, Theme.color.fgDim)
+        row.action:Hide()
       elseif entry.kind == "batch" then
-        row.cells.item:SetText(("  %s · at %s · %d original / %d left / %d FIFO · unit %s · %s"):format(entry.batch.source or "manual",
-          entry.batch.acquiredAt or "?", entry.batch.originalQty or entry.batch.quantity or 0,
-          entry.batch.remainingQty or 0, entry.batch.allocatedQty or 0, formatCell(entry.batch.unitCost), entry.batch.evidence or "Recorded"))
-        row.cells.cost:SetText(formatCell(entry.batch.totalCost)); row.cells.listed:SetText(""); row.cells.market:SetText("")
-        row.cells.profit:SetText(""); row.cells.status:SetText("FIFO"); row.cells.expand:SetText("")
+        -- Was "goldcap · at 1786831966 · 5 original / 2 left / 2 FIFO · unit 100 · captured".
+        -- A raw epoch and the allocator's internal counters are not facts a seller can use; how
+        -- many, when, at what price and from where are.
+        local when = "?"
+        local acquiredAt = entry.batch.acquiredAt
+        if type(acquiredAt) == "number" and _G.date then
+          local ok, formatted = pcall(_G.date, "%d %b", acquiredAt)
+          if ok and type(formatted) == "string" then when = formatted end
+        elseif acquiredAt ~= nil then
+          when = tostring(acquiredAt)
+        end
+        local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House", manual = "entered by hand" })[entry.batch.source] or (entry.batch.source or "manual")
+        -- The evidence word stays: it is how the player knows whether that cost is a confirmed
+        -- invoice or a guess, which is exactly the thing this whole tab refuses to fake.
+        row.cells.item:SetText(("  ×%d bought %s at %s each · %s · %s"):format(
+          entry.batch.originalQty or entry.batch.quantity or 0, when,
+          formatCell(entry.batch.unitCost), sourceLabel, entry.batch.evidence or "unknown evidence"))
+        row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
+        row.cells.profit:SetText("")
+        row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
+          and ("%d still unsold"):format(entry.batch.remainingQty) or "all sold")
+        setColor(row.cells.status, Theme.color.fgDim)
+        row.cells.expand:SetText("")
         row.action:Hide()
       elseif entry.kind == "lot" then
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
-        row.cells.item:SetText(("  Auction %s · ×%d · unit %s"):format(entry.lot.auctionID,
+        -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to
+        -- a player, so it moves to the tooltip and the row says what is actually listed.
+        row.cells.item:SetText(("  ×%d listed at %s each"):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
         -- What Repost will actually list at. BuildRepostPlan prices a repost at exactly the
@@ -1052,10 +1188,13 @@ renderRows = function()
           row.cells.market:SetText("→ needs price")
           setColor(row.cells.market, Theme.color.fgDim)
         end
-        row.cells.profit:SetText(""); row.cells.status:SetText(""); row.cells.expand:SetText("")
+        row.cells.profit:SetText("")
+        row.cells.status:SetText(recommendationText(p.recommendation))
+        setColor(row.cells.status, Theme.color.fg)
+        row.cells.expand:SetText("")
         showRowAction(row, "Repost", function() onRepostClick(row, entry.lot.auctionID) end)
       else
-        row.cells.item:SetText(("  Unlisted ×%d"):format((p.trackedQty or 0) - (p.listedQty or 0)))
+        row.cells.item:SetText(("  ×%d in your bags, not listed"):format((p.trackedQty or 0) - (p.listedQty or 0)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if p.coverage == "COMPLETE" then
           local bagState = liveBagState(p)
@@ -1068,9 +1207,12 @@ renderRows = function()
               row.cells.market:SetText("→ needs price")
               setColor(row.cells.market, Theme.color.fgDim)
             end
+            row.cells.status:SetText(recommendationText(p.recommendation))
+            setColor(row.cells.status, Theme.color.fg)
             showRowAction(row, "Post", function() onPostClick(row) end)
           else
-            row.cells.status:SetText("Exact bag item required")
+            row.cells.status:SetText("Item must be in your bags to post")
+            setColor(row.cells.status, Theme.color.fgDim)
             row.action:Hide()
           end
         elseif canSetCost(p) then
@@ -1175,11 +1317,21 @@ function GC.Sell.Attach(f, geometry)
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -60); header:SetPoint("TOPRIGHT", 0, -60); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST", listed = "LISTED", market = "MARKET", profit = "PROFIT", status = "STATUS", expand = "" })[column.key]); header.cells[column.key] = cell
+    local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
     -- Headings must sit over their own numbers. createRow right-aligns every numeric cell, but
     -- these were left at the default left alignment, so each heading floated to the left edge
     -- of a right-aligned column and every value looked like it belonged to the column after it.
     cell:SetJustifyH(column.num and "RIGHT" or "LEFT")
+    -- A FontString cannot take mouse scripts, so each heading gets an invisible hit frame over
+    -- it. Every column here is a number a seller has to trust, so each one explains itself
+    -- instead of expecting a one-word heading to carry the meaning.
+    local help = HEADER_HELP[column.key]
+    if help then
+      local hit = CreateFrame("Frame", nil, header)
+      hit:SetAllPoints(cell)
+      hit:EnableMouse(true)
+      explain(hit, help[1], help[2])
+    end
   end
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")

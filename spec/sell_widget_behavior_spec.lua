@@ -117,29 +117,33 @@ describe("Sell widget geometry and manual cost", function()
     _G.C_AuctionHouse, _G.ItemLocation, _G.C_Container, _G.C_Item = nil, nil, nil, nil
   end)
 
-  it("anchors header cells through real Regions and only shows MARKET wide", function()
+  -- MARKET is now unconditional and LISTED is the column that drops on a narrow window: the
+  -- market price drives every decision on this screen, while the listed total is already
+  -- reported in the summary above the list.
+  it("anchors header cells through real Regions and only shows LISTED wide", function()
     local record = { calls = {} }
     local narrow = load(500, record)
     local _, narrowContainer = topRows(narrow, {})
     local narrowHeader
     for _, child in ipairs(narrowContainer.children) do if child.cells then narrowHeader = child break end end
-    assert.is_false(narrowHeader.cells.market.shown)
+    assert.is_false(narrowHeader.cells.listed.shown)
+    assert.is_true(narrowHeader.cells.market.shown)
     local GC = load(620, record)
     local _, container = topRows(GC, {})
     local header
     for _, child in ipairs(container.children) do if child.cells then header = child break end end
     assert.is_nil(header.cells.queue)
-    assert.is_false(header.cells.market.shown)
-    assert.equal(header.cells.expand, header.cells.status.points[1].relative)
+    assert.is_false(header.cells.listed.shown)
+    assert.equal(header.cells.expand, header.cells.action.points[1].relative)
+    assert.equal(header.cells.action, header.cells.status.points[1].relative)
     assert.equal(header.cells.status, header.cells.profit.points[1].relative)
-    assert.equal(header.cells.profit, header.cells.listed.points[1].relative)
-    assert.equal(header.cells.listed, header.cells.cost.points[1].relative)
+    assert.equal(header.cells.profit, header.cells.market.points[1].relative)
+    assert.equal(header.cells.market, header.cells.cost.points[1].relative)
     assert.equal(header.cells.cost, header.cells.item.points[2].relative)
-    assert.is_nil(header.cells.action)
     local wide = load(760, record)
     local _, wideContainer = topRows(wide, {})
     for _, child in ipairs(wideContainer.children) do if child.cells then header = child break end end
-    assert.is_true(header.cells.market.shown)
+    assert.is_true(header.cells.listed.shown)
   end)
 
   it("orders Sell filters from broad to specific before Refresh", function()
@@ -169,21 +173,23 @@ describe("Sell widget geometry and manual cost", function()
     end
   end)
 
-  it("uses the status slot exclusively for a visible row action", function()
+  -- The action button gets its own column, and `status` keeps saying what is wrong or what to
+  -- do. Drawing the button over `status` is what used to erase that sentence.
+  it("keeps the row action in its own column beside the advice text", function()
     local GC = load(620, { calls = {} })
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
         coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
     })
     assert.equal("Set cost", rows[1].action.label)
-    assert.equal("", rows[1].cells.status.text)
+    assert.equal("Cost unknown for 2 of 5", rows[1].cells.status.text)
     assert.equal("CENTER", rows[1].action.points[1].point)
-    assert.equal(rows[1].cells.status, rows[1].action.points[1].relative)
+    assert.equal(rows[1].cells.action, rows[1].action.points[1].relative)
     assert.equal("CENTER", rows[1].action.points[1].relativePoint)
   end)
 
   it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
-    local function assertRow(width, market)
+    local function assertRow(width, listed)
       local GC = load(width, { calls = {} })
       GC.SellViewModel.Expansion = function()
         return { note = "FIFO allocations", batches = { { source = "goldcap", remainingQty = 1 } },
@@ -195,28 +201,36 @@ describe("Sell widget geometry and manual cost", function()
       local header
       for _, child in ipairs(container.children) do if child.cells then header = child break end end
       local row = rows[1]
-      assert.equal(market, row.cells.market.shown)
+      assert.equal(listed, row.cells.listed.shown)
+      assert.is_true(row.cells.market.shown)
       assert.is_nil(row.cells.queue)
-      assert.is_nil(row.cells.action)
-      assert.equal(row.cells.expand, row.cells.status.points[1].relative)
+      assert.equal(row.cells.expand, row.cells.action.points[1].relative)
+      assert.equal(row.cells.action, row.cells.status.points[1].relative)
       assert.equal(row.cells.status, row.cells.profit.points[1].relative)
-      if market then
+      if listed then
         assert.equal(row.cells.profit, row.cells.market.points[1].relative)
         assert.equal(row.cells.market, row.cells.listed.points[1].relative)
+        assert.equal(row.cells.listed, row.cells.cost.points[1].relative)
       else
-        assert.equal(row.cells.profit, row.cells.listed.points[1].relative)
+        assert.equal(row.cells.profit, row.cells.market.points[1].relative)
+        assert.equal(row.cells.market, row.cells.cost.points[1].relative)
       end
-      assert.equal(row.cells.listed, row.cells.cost.points[1].relative)
       assert.equal(row.cells.cost, row.cells.item.points[2].relative)
-      assert.equal(header.cells.expand, header.cells.status.points[1].relative)
+      assert.equal(header.cells.expand, header.cells.action.points[1].relative)
       rows[1].scripts.OnClick(rows[1])
       local render = upvalue(GC.Sell.Attach, "renderRows")
       local content = upvalue(render, "content")
       assert.equal(width, content.width)
-      assert.equal(4 * 24, content.height)
+      -- Six rows now: the expansion is split into two labelled groups, listings before
+      -- purchase history, because the listings are the part a player acts on.
+      assert.equal(6 * 24, content.height)
       assert.equal("detail", rows[2].kind)
-      assert.equal("batch", rows[3].kind)
+      assert.equal("group", rows[3].kind)
+      assert.equal("On the Auction House", rows[3].cells.item.text:gsub("^%s+", ""))
       assert.equal("lot", rows[4].kind)
+      assert.equal("group", rows[5].kind)
+      assert.equal("What you paid", rows[5].cells.item.text:gsub("^%s+", ""))
+      assert.equal("batch", rows[6].kind)
     end
     assertRow(500, false)
     assertRow(620, false)
@@ -455,7 +469,8 @@ describe("Sell widget geometry and manual cost", function()
 
     rows[2].scripts.OnClick(rows[2])
     rows[1].scripts.OnClick(rows[1])
-    local firstLotRow = rows[3]
+    -- rows[3] is the "On the Auction House" group heading now; the lot follows it.
+    local firstLotRow = rows[4]
     assert.equal(7, firstLotRow.lot.auctionID)
     local staleClick = firstLotRow.action.scripts.OnClick
     firstLotRow.action.scripts.OnClick()
@@ -510,11 +525,19 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     assert.equal("detail", rows[2].kind)
-    assert.match("quote 7s · ahead 3 · sold/day 4 · ETA ~1d", rows[2].cells.item.text)
+    -- Plain-language detail line: market state, competition, velocity and time to clear. It no
+    -- longer opens by naming the allocation rule, which told a seller nothing.
+    assert.match("quote 7s · 3 ahead of you · sells 4/day · clears in ~1 days", rows[2].cells.item.text)
     assert.equal("Repost @ 149 · breakeven 106", rows[2].cells.status.text)
-    assert.match("goldcap · at 4 · 5 original / 2 left / 2 FIFO", rows[3].cells.item.text)
-    assert.equal("100", rows[3].cells.cost.text)
+    -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
+    assert.equal("group", rows[3].kind)
     assert.equal("400", rows[4].cells.listed.text)
+    assert.equal("group", rows[5].kind)
+    -- No epoch, no allocator counters: how many, when, at what price, from where.
+    assert.match("×5 bought .+ at 50 each · GoldCap", rows[6].cells.item.text)
+    assert.equal("50", rows[6].cells.cost.text)
+    assert.equal("100", rows[6].cells.listed.text)
+    assert.equal("2 still unsold", rows[6].cells.status.text)
     for _, child in ipairs(container.children) do
       if child.label == "GC" then child.scripts.OnClick() end
     end
@@ -560,13 +583,15 @@ describe("Sell widget geometry and manual cost", function()
       },
     })
     rows[1].scripts.OnClick(rows[1])
-    assert.match("captured", rows[3].cells.item.text)
-    assert.match("mail%-confirmed", rows[4].cells.item.text)
-    assert.match("manual", rows[5].cells.item.text)
-    assert.match("unknown evidence", rows[6].cells.item.text)
+    -- Listings first, then purchases, each behind its own heading: rows[3] heading, rows[4] the
+    -- lot, rows[5] heading, rows[6..9] the four batches.
     assert.equal("Post (undercut) @ 199 · breakeven 106", rows[2].cells.status.text)
-    assert.match("unit 200", rows[7].cells.item.text)
-    assert.equal("400", rows[7].cells.listed.text)
+    assert.match("×2 listed at 200 each", rows[4].cells.item.text)
+    assert.equal("400", rows[4].cells.listed.text)
+    assert.match("captured", rows[6].cells.item.text)
+    assert.match("mail%-confirmed", rows[7].cells.item.text)
+    assert.match("manual", rows[8].cells.item.text)
+    assert.match("unknown evidence", rows[9].cells.item.text)
   end)
 
   it("[I2] renders no recommendation when none is available", function()

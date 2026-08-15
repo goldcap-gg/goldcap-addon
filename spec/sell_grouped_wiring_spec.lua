@@ -10,11 +10,16 @@ describe("Grouped Sell wiring", function()
     local text = source()
     assert.is_truthy(text:find("GC.SellPositions.Build", 1, true))
     assert.is_truthy(text:find("expanded[position.positionKey]", 1, true))
-    assert.is_truthy(text:find('{ key = "cost", w = 88, num = true }', 1, true))
-    assert.is_truthy(text:find('{ key = "listed", w = 88, num = true }', 1, true))
-    assert.is_truthy(text:find('{ key = "market", w = 72, num = true, optional = true }', 1, true))
-    assert.is_truthy(text:find('{ key = "profit", w = 82, num = true, bold = true }', 1, true))
-    assert.is_truthy(text:find('{ key = "status", w = 98 }', 1, true))
+    -- Per-unit columns, plus a dedicated `action` column. The button used to be drawn on top of
+    -- `status`, which erased the recommendation -- the only place the target price is written.
+    -- `listed` is the optional column now: its total is already in the summary, while the market
+    -- price is what every decision on this screen turns on.
+    assert.is_truthy(text:find('{ key = "cost", w = 92, num = true }', 1, true))
+    assert.is_truthy(text:find('{ key = "listed", w = 88, num = true, optional = true }', 1, true))
+    assert.is_truthy(text:find('{ key = "market", w = 92, num = true }', 1, true))
+    assert.is_truthy(text:find('{ key = "profit", w = 96, num = true, bold = true }', 1, true))
+    assert.is_truthy(text:find('{ key = "status", w = 176 }', 1, true))
+    assert.is_truthy(text:find('{ key = "action", w = 88 }', 1, true))
     assert.is_nil(text:find("BuildRow", 1, true))
     assert.is_nil(text:find("OrphanLotRows", 1, true))
   end)
