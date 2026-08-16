@@ -78,7 +78,11 @@ describe("Sell refresh state fence", function()
     assert.same({ 42 }, sent.keys)
     now.value = 111
     GC.Sell.OnThrottleReady()
-    assert.equal("error", refreshState(GC).phase)
+    -- One item failing is not the pass failing. It used to park the machine in
+    -- "error" and stop, so with a tab full of bag stock the items further down
+    -- the queue were never reached. The pass carries on; with nothing else
+    -- queued here it simply finishes. The drain fence below is unchanged.
+    assert.equal("done", refreshState(GC).phase)
     GC.Sell.Refresh()
     assert.same({ 42 }, sent.keys)
     GC.Sell.OnItemSearchResults(42)
@@ -205,8 +209,8 @@ describe("Sell refresh state fence", function()
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
     fire(10)
-    assert.equal("error", refreshState(GC).phase)
-    assert.equal("Refresh failed", status[#status])
+    assert.equal("done", refreshState(GC).phase)
+    assert.equal("Prices up to date · 1 did not answer", status[#status])
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
     GC.Sell.OnItemSearchResults(42)
@@ -223,10 +227,13 @@ describe("Sell refresh state fence", function()
     driver.item = function() return nil end
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
-    assert.equal("error", refreshState(GC).phase)
+    -- An answer that came back empty means there is genuinely nothing on sale,
+    -- so this key's stale quote goes -- unlike a timeout, which teaches nothing
+    -- and leaves any quote already on hand to age visibly.
+    assert.equal("done", refreshState(GC).phase)
     assert.is_nil(cache[42])
     assert.equal(999, cache[7])
-    assert.equal("Refresh failed", status[#status])
+    assert.equal("Prices up to date · 1 did not answer", status[#status])
   end)
 
   it("makes an old request timer and result inert after Reset", function()
@@ -271,7 +278,7 @@ describe("Sell refresh state fence", function()
     local driver = upvalue(advance, "driver")
     driver.item = function() return nil end
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions(); GC.Sell.OnItemSearchResults(42)
-    assert.equal("error", refreshState(GC).phase)
+    assert.equal("done", refreshState(GC).phase)
     assert.same({ 42 }, sent.keys)
 
     driver.item = function() return 111 end

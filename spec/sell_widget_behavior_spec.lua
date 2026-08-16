@@ -182,6 +182,30 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_nil(captured)
   end)
 
+  -- "I pressed Refresh but I cannot tell whether it is running." The status line
+  -- it writes to lives in the Sniper's toolbar, at the far left of a different
+  -- row -- a window's width from the button that was just pressed. Same distance
+  -- that made Scan look dead.
+  it("shows its own progress on the Refresh button", function()
+    local GC = load(620, { calls = {} })
+    local _, container = topRows(GC, {})
+    local button
+    for _, child in ipairs(container.children) do
+      if child.label == "Refresh" then button = child end
+    end
+    assert.is_not_nil(button)
+
+    local setStatus = upvalue(GC.Sell.Refresh, "setStatus")
+    local state = upvalue(GC.Sell.OnThrottleReady, "refresh")
+    state.phase, state.queue, state.index = "waiting_result", { 1, 2, 3 }, 2
+    setStatus("Pricing 2/3…")
+    assert.equal("2/3", button.label)
+
+    state.phase = "done"
+    setStatus("Prices up to date")
+    assert.equal("Refresh", button.label)
+  end)
+
   it("orders Sell filters from broad to specific before Refresh", function()
     local GC = load(620, { calls = {} })
     local _, container = topRows(GC, {})

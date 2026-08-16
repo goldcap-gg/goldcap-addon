@@ -104,8 +104,34 @@ local function disarmRepost()
   flushDeferredRender()
 end
 
+-- The status line lives in the Sniper's toolbar, at the far left of a different
+-- row from the Refresh button -- a window's width away from what was just
+-- pressed. That is the same distance that made Scan look dead. So the button
+-- carries the state too, and the progress with it: "Pricing 3/24" answers "is it
+-- running" without the player having to hunt for a line of text.
+local function paintRefreshButton()
+  local button = container and container.refreshButton
+  if not button then return end
+  local phase = refresh.phase
+  local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
+  local label = "Refresh"
+  if busy then
+    label = (#refresh.queue > 0 and refresh.index > 0)
+      and ("%d/%d"):format(refresh.index, #refresh.queue) or "…"
+  end
+  if button.lastLabel ~= label then
+    button.lastLabel = label
+    button:SetLabel(label)
+  end
+  if button.lastBusy ~= busy then
+    button.lastBusy = busy
+    if button.SetVariant then button:SetVariant(busy and "active" or "ghost") end
+  end
+end
+
 local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
+  paintRefreshButton()
 end
 
 local function setColor(fontString, color)
@@ -307,11 +333,17 @@ local function uniqueQuoteItemIDs()
       actionable[#actionable + 1] = position
     end
   end
-  -- Value is what a stale price costs you here: mispricing a 200-unit stack of
-  -- ore matters more than mispricing one leftover flask. Falls back to the
-  -- listed total for a position that is only on the auction house.
-  local weight = {}
+  -- Ordered by NEED, not by value. Ordering by value starved the tail: a row
+  -- that had just been priced sorted to the front of the very next pass, ahead
+  -- of rows that had never been priced at all, so the bottom of a long list
+  -- never got asked about. Never-priced first, then oldest quote first, and only
+  -- then by value -- which still decides between two equally stale rows, because
+  -- a stale price on a 200-unit stack of ore costs more than one on a lone flask.
+  local need, weight = {}, {}
   for index, position in ipairs(actionable) do
+    local age = position.quoteAge
+    need[position] = (position.displayMarketUnit == nil or type(age) ~= "number")
+      and math.huge or age
     local unit = position.freshMarketUnit or position.displayMarketUnit
     local qty = position.bagQty or 0
     weight[position] = (unit and qty > 0 and unit * qty)
@@ -319,6 +351,7 @@ local function uniqueQuoteItemIDs()
     position.__walkOrder = index
   end
   table.sort(actionable, function(left, right)
+    if need[left] ~= need[right] then return need[left] > need[right] end
     if weight[left] ~= weight[right] then return weight[left] > weight[right] end
     return left.__walkOrder < right.__walkOrder
   end)
@@ -392,26 +425,51 @@ local function markProgress()
   refresh.progressAt = time()
 end
 
+-- Forward-declared: skipPendingQuote below has to be able to carry the pass on
+-- to the next item, and advanceQuote's real definition needs the walk state it
+-- sits above.
+local advanceQuote
+
 local function finishQuoteWalk()
   refresh.phase = "done"
   refresh.pending, refresh.awaiting = nil, nil
-  setStatus("Prices up to date")
+  local skipped = refresh.skipped or 0
+  setStatus(skipped > 0
+    and ("Prices up to date · %d did not answer"):format(skipped)
+    or "Prices up to date")
   renderRows()
   scheduleNextWalk()
 end
 
-local function failPendingQuote(pending, awaitTerminal)
+-- One item failing is not the pass failing.
+--
+-- This used to park the whole machine in "error" and stop, so a single item that
+-- did not answer within the request window ended the pass -- and with a tab full
+-- of bag stock, the automatic repeat then restarted from the top and hit the
+-- same item again. Items further down the queue were never reached at all, which
+-- is why most rows sat with no market price no matter how long you waited.
+--
+-- `timedOut` distinguishes the two failures. A timeout taught us nothing, so any
+-- quote already on hand is kept and left to age visibly; an answer that came
+-- back empty or nonsensical means there is genuinely nothing on sale, and the
+-- stale quote must go rather than be presented as current.
+local function skipPendingQuote(pending, timedOut)
   if refresh.pending ~= pending or pending.generation ~= refresh.generation then return end
-  if awaitTerminal then
+  if timedOut then
+    -- A late terminal event for this request must still be consumed rather than
+    -- credited to whatever the walk is asking about by then.
     refresh.drain[pending.kind .. ":" .. pending.itemID] = {
       abandonedGeneration = pending.generation,
       terminals = 1,
     }
+  else
+    quotes[pending.itemID] = nil
   end
-  quotes[pending.itemID] = nil
   refresh.pending = nil
-  refresh.phase = "error"
-  setStatus("Refresh failed")
+  refresh.skipped = (refresh.skipped or 0) + 1
+  refresh.phase = "pricing"
+  markProgress()
+  advanceQuote()
 end
 
 local function scheduleQuoteTimeout(pending)
@@ -419,7 +477,7 @@ local function scheduleQuoteTimeout(pending)
   quoteTimeoutToken = quoteTimeoutToken + 1
   local token = quoteTimeoutToken
   C_Timer.After(QUOTE_STALE_SECONDS, function()
-    if token == quoteTimeoutToken then failPendingQuote(pending, true) end
+    if token == quoteTimeoutToken then skipPendingQuote(pending, true) end
   end)
 end
 
@@ -448,7 +506,7 @@ local function armPhaseWatchdog()
   C_Timer.After(PHASE_WATCHDOG_SECONDS, tick)
 end
 
-local function advanceQuote()
+advanceQuote = function()
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
   if refresh.pending then return end
   if refresh.index >= #refresh.queue then return finishQuoteWalk() end
@@ -487,6 +545,7 @@ end
 
 local function beginQuoteWalk()
   refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = uniqueQuoteItemIDs(), 0, "pricing", nil, nil
+  refresh.skipped = 0
   if #refresh.queue == 0 then return finishQuoteWalk() end
   advanceQuote()
 end
@@ -593,7 +652,7 @@ function GC.Sell.OnThrottleReady()
     return
   end
   if refresh.pending and time() - refresh.pending.at > QUOTE_STALE_SECONDS then
-    failPendingQuote(refresh.pending, true)
+    skipPendingQuote(refresh.pending, true)
     return
   end
   advanceQuote()
@@ -622,7 +681,7 @@ local function quoteResolved(kind, itemID, unit, levels)
   local pending = refresh.pending
   if not pending or pending.kind ~= kind or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
   if not exact(unit) or unit <= 0 then
-    failPendingQuote(pending, false)
+    skipPendingQuote(pending, false)
     return
   end
   refresh.pending = nil
@@ -797,7 +856,12 @@ local function onPostClick(row)
   local quote = freshQuote(position)
   if not quote then
     if postingRow == row then disarmPost() end
-    -- Same silent first click as Repost had: without this the button looks broken.
+    -- Same silent first click as Repost had: without this the button looks
+    -- broken. The status line alone is not enough -- it sits in the Sniper's
+    -- toolbar, a window's width from the button that was just pressed -- so the
+    -- button says it too. The next render restores the label once the price
+    -- lands, which is one query away now rather than a whole pass.
+    if row.action then row.action:SetLabel("Pricing…") end
     setStatus("Fetching a fresh price for this item — press Post again in a moment")
     startQuoteRefreshFor(position); return
   end
@@ -1446,7 +1510,7 @@ renderRows = function()
         end
         row.cells.cost:SetText(unitCost and formatCell(unitCost) or "—")
         row.cells.listed:SetText(formatCell(p.listedValue))
-        local marketText = formatCell(p.displayMarketUnit)
+        local marketText = p.displayMarketUnit and formatCell(p.displayMarketUnit) or "—"
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
           marketText = marketText .. (" · stale %ds"):format(p.quoteAge)
         end
@@ -1717,6 +1781,7 @@ function GC.Sell.Attach(f, geometry)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
   local refreshButton = Theme.Button(container, "ghost")
   refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh")
+  container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
   -- -- and every press would take the stand-aside path that exists for the timer.
