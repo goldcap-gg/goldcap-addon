@@ -192,6 +192,11 @@ function T.Button(parent, variant)
   -- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase; only a left-click OnClick
   -- may fire.
   b:RegisterForClicks("LeftButtonUp")
+  -- Required, not decorative: the HIGHLIGHT layer below is shown and hidden by the engine only
+  -- on a mouse-enabled frame ("Setting Frame:EnableMouse() causes HIGHLIGHT to show/hide as the
+  -- cursor hovers the Frame" -- warcraft.wiki.gg/wiki/Layer). Without it the hover silently
+  -- never appears.
+  b:EnableMouse(true)
   b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
   b.bg:SetAllPoints()
 
