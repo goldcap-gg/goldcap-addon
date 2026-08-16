@@ -423,7 +423,11 @@ describe("Deals background verification", function()
 
     assert.is_false(api.verdicts[1].buyable)
     assert.equal("AVOID", api.verdicts[1].status)
-    assert.equal(0, #api.renderList())
+    -- The gold Buy is gone, which was the point. The ROW is not: they asked about this one.
+    api.refreshRows()
+    assert.equal(1, #api.renderList())
+    assert.equal("AVOID", api.rows[1].buy.label)
+    assert.equal("ghost", api.rows[1].buy.variant)
   end)
 
   it("stays silent when the player ran the Check themselves", function()
@@ -449,6 +453,60 @@ describe("Deals background verification", function()
     local text = file:read("*a")
     file:close()
     assert.is_truthy(text:find("stampVerdict(deal, live, true)", 1, true))
+  end)
+
+  -- Answering "what about this one?" by making it vanish is not an answer. The background
+  -- walk prunes rows nobody asked about; a row the player opened stays put and says what the
+  -- Check said, whatever the toggle is set to.
+  it("keeps a row the player checked themselves, even when it is refused", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d, deal(2, 200) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+
+    local list = api.renderList()
+    assert.equal(2, #list)
+    assert.equal(1, list[1].itemID)
+    -- It is not hidden, so it is not part of the number that explains a shorter list.
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    api.refreshRows()
+    assert.equal("AVOID", api.rows[1].buy.label)
+  end)
+
+  it("does not let a background re-check quietly hide what the player kept", function()
+    local api = loadSniper(avoid)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+    assert.equal(1, #api.renderList())
+
+    -- 30s later the walk re-checks it (it is still on screen) and gets the same refusal.
+    tickAt(api, 140)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.equal(1, #api.renderList())
+  end)
+
+  it("stops keeping it once the asking price moves -- that is a different offer", function()
+    local api = loadSniper(avoid)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+
+    board(api, { deal(1, 90) }) -- somebody undercut: a new price is a new question
+    assert.equal(1, #api.renderList())
+    tickAt(api, 102)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.equal(0, #api.renderList()) -- checked in the background, refused, pruned
   end)
 
   it("throws every verdict away when the auction house closes", function()

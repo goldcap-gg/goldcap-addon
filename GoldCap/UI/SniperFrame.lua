@@ -422,7 +422,9 @@ local function renderList()
   for i = 1, #list do
     local deal = list[i]
     local verdict = verdictFor(deal)
-    if verdict and not verdict.buyable then
+    -- `manual` rows are never pruned -- see stampVerdict. And they are not counted either:
+    -- this number exists to explain a list that got shorter, and they did not shorten it.
+    if verdict and not verdict.buyable and not verdict.manual then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -2273,14 +2275,23 @@ end
 --
 -- Called from every pre-warm landing, hover ones included: a hover already pays for the query,
 -- so there is no reason for it not to leave a verdict behind.
--- `quiet` suppresses the ping without suppressing the record. Used by the Check the player ran
--- themselves: the ping exists to say "something became buyable while you were not looking", and
--- somebody staring at the dialog they just opened is looking. Ringing there only dilutes what
--- the sound means the rest of the time.
-stampVerdict = function(deal, data, quiet)
+-- `manual` marks a verdict the player asked for by clicking Check, and it changes two things.
+--
+-- It does not ring: the ping exists to say "something became buyable while you were not
+-- looking", and somebody reading the dialog they just opened is looking.
+--
+-- And the row is never pruned from the list, however the Check turned out. Answering "what
+-- about this one?" by making it disappear is not an answer -- the row stays, wearing the
+-- engine's own word for the refusal, which is strictly more than it said before. Pruning is
+-- for rows nobody asked about. It survives the background walk's own re-checks (a kept row is
+-- still on screen, so it still gets re-checked) but not a price change: a new asking price is
+-- a new question, and nobody has asked it yet.
+stampVerdict = function(deal, data, manual)
   if not deal or not deal.itemID then return end
   local previous = verdicts[deal.itemID]
-  local wasBuyable = previous and previous.unitPrice == deal.unitPrice and previous.buyable
+  local samePrice = previous and previous.unitPrice == deal.unitPrice
+  local wasBuyable = samePrice and previous.buyable
+  local kept = manual or (samePrice and previous.manual) or nil
   local decision = data and data.decision
   local buyable = (decision and decision.buyable and decision.status == "SAFE"
     and data.isCommodity) and true or false
@@ -2293,12 +2304,12 @@ stampVerdict = function(deal, data, quiet)
     reason = GC.SniperDecision.ReasonText(token or "live_verification_required")
   end
   verdicts[deal.itemID] = {
-    unitPrice = deal.unitPrice, at = GetTime(),
+    unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
     buyable = buyable, status = status, reason = reason,
   }
   refreshRows()
 
-  if quiet or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
   -- Find the row by the SAME key the verdict itself is filed under -- item and asking price --
   -- and NOT by table identity the way pingNewHotDeals does. That difference is the whole bug
   -- behind "the Buy button appeared but it never made a sound": identity is right for a HOT
