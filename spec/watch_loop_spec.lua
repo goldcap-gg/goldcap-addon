@@ -94,7 +94,7 @@ describe("Watch loop", function()
       for i = 1, #list do copy[i] = list[i] end
       started[#started + 1] = copy
     end
-    function watch:Stop() end
+    function watch:Stop() self.stopped = (self.stopped or 0) + 1 end
     function watch:OnSystemReady() sent[#sent + 1] = "watch" end
     GC.Sniper.scanner = watch
 
@@ -173,5 +173,36 @@ describe("Watch loop", function()
     GC.Sniper.OnAuctionHouseClosed()
     assert.same({}, GC.Sniper._churn)
     assert.same({ 42 }, GC.db.settings.sniper.watchPins)
+  end)
+
+  it("does not restart the loop when a re-rank leaves membership unchanged", function()
+    local GC, started = load()
+    GC.Sniper._churn = {}
+    -- Two items both clear MIN_CHURN and tie on count (3); Select's tiebreak after count is
+    -- `at` (recency) descending, so seeding item 20 with the later seq range ranks it first.
+    for price = 1, 3 do GC.WatchSet.Observe(GC.Sniper._churn, { { itemID = 10, unitPrice = price } }, price) end
+    for price = 4, 6 do GC.WatchSet.Observe(GC.Sniper._churn, { { itemID = 20, unitPrice = price } }, price) end
+    GC.Sniper._RefreshWatchSet()
+    assert.same({ { 20, 10 } }, started)             -- sanity: confirms the order this test depends on
+
+    -- A fresh, distinct price for item 10 (currently ranked second) bumps its count past
+    -- item 20's, so Select now ranks 10 first -- same two members, different order.
+    GC.WatchSet.Observe(GC.Sniper._churn, { { itemID = 10, unitPrice = 99 } }, 7)
+    GC.Sniper._RefreshWatchSet()
+    assert.equal(1, #started)                        -- membership unchanged; reordering must not restart
+  end)
+
+  it("stops the loop when the set goes empty, rather than starting on an empty list", function()
+    local GC, started = load()
+    local scanner = GC.Sniper.scanner
+    GC.db.settings.sniper.watchPins = { 42 }
+    GC.Sniper._churn = {}
+    GC.Sniper._RefreshWatchSet()
+    assert.same({ { 42 } }, started)                 -- loop started on the pin
+
+    GC.db.settings.sniper.watchPins = {}
+    GC.Sniper._RefreshWatchSet()
+    assert.equal(1, #started)                        -- Start was not called again with an empty list
+    assert.equal(1, scanner.stopped)                  -- the scanner was told to stop instead
   end)
 end)

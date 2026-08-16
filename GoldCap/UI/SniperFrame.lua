@@ -1059,18 +1059,19 @@ local function clearDeals()
   refreshRows()
 end
 
--- The Live scan loop no longer has a way to start.
---
--- Its button is gone (see createFrame), and nothing else called startScanning,
--- so `scanning` is now permanently false and _liveTargets permanently empty.
--- Read every `if scanning` below with that in mind: those branches exist to
--- yield the single throttled search slot to a Check, and there is now nothing
--- to yield it from.
+-- The Live scan loop no longer has a manual way to start -- its button is gone (see
+-- createFrame), and nothing calls startScanning, so `scanning` itself is still permanently
+-- false. But `_liveTargets` is no longer permanently empty: GC.Sniper._RefreshWatchSet
+-- populates it from the watch set (churn + pins) and starts the scanner on it whenever
+-- membership changes. Read every `if scanning` below with the manual path in mind: those
+-- branches exist to yield the single throttled search slot to a Check, and there is still
+-- nothing manual to yield it from -- the watch loop's own contention for that slot goes
+-- through the arbiter (GC.Sniper._GrantWatchSlot), not through `scanning`.
 --
 -- What is deliberately NOT removed: GC.Sniper.scanner itself, which Core/Init.lua
 -- still feeds events to, and the pause/resume pair, which the Check requery path
 -- calls unconditionally. startRequery sends its own search and only pauses the
--- scanner as a courtesy, so with the loop stopped the whole Check flow is
+-- scanner as a courtesy, so with the manual loop stopped the whole Check flow is
 -- unchanged apart from a contention it no longer has. Restoring Live means
 -- restoring one function and one button, not untangling this.
 function GC.Sniper._ResumeLiveScanner()
@@ -1215,10 +1216,19 @@ end
 function GC.Sniper._RefreshWatchSet()
   local targets = GC.WatchSet.Select(GC.Sniper._churn, GC.Sniper._WatchPins(), LIM.WATCH_SET_SIZE)
   local current = GC.Sniper._liveTargets
+  -- Membership, not order. Select ranks by recency among other things, so a fresh observation
+  -- on an ALREADY-watched item can re-rank it without changing who is watched -- and treating
+  -- that as a change would restart the scanner, wiping alertedCommodity/alertedAuctions and
+  -- re-arming an alert for every lot that has been sitting there untouched. Order genuinely
+  -- does not matter: the poll is round-robin and visits every member either way. Returning
+  -- without touching `current` is deliberate too -- the scanner is actively indexing into that
+  -- exact table, so there is nothing to gain from reshuffling it underneath the index.
   local same = #targets == #current
   if same then
+    local have = {}
+    for i = 1, #current do have[current[i]] = true end
     for i = 1, #targets do
-      if targets[i] ~= current[i] then same = false; break end
+      if not have[targets[i]] then same = false; break end
     end
   end
   if same then return end
