@@ -244,8 +244,8 @@ describe("Scanner", function()
     s:OnSystemReady()
     assert.is_false(s:Wants())       -- query in flight
 
-    s:OnCommodityResults(1)
     allowed = false
+    s:OnCommodityResults(1)
     assert.is_true(s:Wants())        -- answered, hungry again
 
     s:Stop()

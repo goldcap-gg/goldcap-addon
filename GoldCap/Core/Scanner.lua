@@ -114,7 +114,7 @@ function GC.Scanner.New(driver, dealCfg)
       end
     end
     if driver.onObservation then driver.onObservation(itemID, deal) end
-    if not driver.mayScan then advance() end
+    advance()
   end
 
   function obj:OnCommodityResults(itemID)
@@ -145,7 +145,7 @@ function GC.Scanner.New(driver, dealCfg)
       end
     end
     if driver.onObservation then driver.onObservation(itemID, deal) end
-    if not driver.mayScan then advance() end
+    advance()
   end
 
   return obj
