@@ -1256,7 +1256,21 @@ renderRows = function()
         row.cells.expand:SetText("")
         showRowAction(row, "Repost", function() onRepostClick(row, entry.lot.auctionID) end)
       else
-        row.cells.item:SetText(("  ×%d in your bags, not listed"):format((p.trackedQty or 0) - (p.listedQty or 0)))
+        -- "In your bags" used to be inferred as tracked minus listed, which is an accounting
+        -- leftover, not a measurement: whenever GoldCap had not seen one of the player's own
+        -- auctions, the difference was announced as sitting in their bags when it was in fact on
+        -- the Auction House. The real bag count is available -- it already gates the Post button
+        -- below -- so state it, and when the two disagree say what is unaccounted for instead of
+        -- picking one and presenting it as fact.
+        local unlistedQty = (p.trackedQty or 0) - (p.listedQty or 0)
+        local unlistedBagState = liveBagState(p)
+        local inBags = unlistedBagState and unlistedBagState.bag and unlistedBagState.exactQty or nil
+        if exact(inBags) and inBags ~= unlistedQty then
+          row.cells.item:SetText(("  ×%d in your bags · %d more owned, listed or already sold"):format(
+            inBags, unlistedQty - inBags))
+        else
+          row.cells.item:SetText(("  ×%d in your bags, not listed"):format(unlistedQty))
+        end
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if p.coverage == "COMPLETE" then
           local bagState = liveBagState(p)
