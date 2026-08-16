@@ -568,7 +568,16 @@ local function setRowDeal(row, deal)
     local quality = item:GetItemQuality()
     local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
     local label = item:GetItemName() or ("item " .. deal.itemID)
-    row.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. qtySuffix(deal))
+    -- Reagent quality in front of the name. Two tiers of the same reagent are
+    -- separate itemIDs and so already price separately -- this is identification,
+    -- not arithmetic, but on a list of ores and herbs it is the difference
+    -- between reading a row and guessing at it.
+    local named = (qc and qc:WrapTextInColorCode(label) or label)
+    if Theme.QualityMarkup then
+      local pip = Theme.QualityMarkup(deal.itemID, 12)
+      if pip ~= "" then named = pip .. " " .. named end
+    end
+    row.nameText:SetText(named .. qtySuffix(deal))
   end)
 
   row:Show()
@@ -3669,7 +3678,18 @@ local function createHeaderRow(f)
     disc = { "Discount", "Discount vs market value from your GoldCap import" },
     unit = { "Unit price", "Per-unit price of this auction" },
     total = { "Price", "Total cost to buy this auction" },
-    profit = { "Profit", "Estimated resale profit at 95% of market value, whole stack" },
+    -- What this column is NOT is the point. It is a lead, computed from an
+    -- imported market value and a suggested lot size, before anything has looked
+    -- at the live order book. Check does look, and routinely returns AVOID on a
+    -- row showing thousands of gold -- because the stress exit (what the book
+    -- would actually absorb) is a different, smaller number than 95% of market
+    -- value, and because the amount you may safely buy is capped by how fast the
+    -- item really sells. Saying so here is cheaper than a player learning it by
+    -- being surprised.
+    profit = { "Profit",
+      "A lead, not a promise: resale at 95% of the imported market value, for the lot size shown beside the item.",
+      "Check re-derives it against the live order book before any gold moves, and often lands lower — or refuses outright.",
+      "Sort by it to decide what to Check first, not to decide what to buy." },
   }
 
   local function buildHeaderCell(col)

@@ -306,3 +306,48 @@ function T.TitleBar(frame, titleText)
 
   return { gear = gear, close = close }
 end
+
+-- Reagent quality, as the game itself draws it.
+--
+-- Two decisions worth keeping. The art is the client's own atlas
+-- (`Professions-ChatIcon-Quality-Tier1`..`Tier5`), never a downloaded image --
+-- addons cannot fetch over the network, and a wow.zamimg.com URL is only an
+-- extract of an atlas the client already has. And the tier itself comes from
+-- C_TradeSkillUI.GetItemReagentQualityByItemInfo, a client API, rather than from
+-- the goldcap.gg import: the server's own tier column is populated by a script
+-- somebody has to remember to run, so a freshly patched reagent would show no
+-- pip for weeks. The client always knows.
+--
+-- Rendered as a `|A:atlas:h:w|a` escape inside the label rather than as its own
+-- texture region, so it costs no layout in either the deals list or the Sell tab
+-- -- two row systems with entirely different anchoring rules.
+local QUALITY_ATLAS = {
+  "Professions-ChatIcon-Quality-Tier1",
+  "Professions-ChatIcon-Quality-Tier2",
+  "Professions-ChatIcon-Quality-Tier3",
+  "Professions-ChatIcon-Quality-Tier4",
+  "Professions-ChatIcon-Quality-Tier5",
+}
+
+--- The quality of `itemID` as an inline atlas escape, or "" when the item has no
+-- quality tier (most items do not) or the API is unavailable (a headless test,
+-- or a client old enough to predate reagent quality).
+function T.QualityMarkup(itemID, size)
+  if type(itemID) ~= "number" then return "" end
+  local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
+  if not api then return "" end
+  local ok, quality = pcall(api, itemID)
+  if not ok or type(quality) ~= "number" then return "" end
+  local atlas = QUALITY_ATLAS[quality]
+  if not atlas then return "" end
+  size = size or 14
+  return ("|A:%s:%d:%d|a"):format(atlas, size, size)
+end
+
+--- `name` with its quality pip in front, or `name` unchanged. Convenience so a
+-- caller never has to remember the trailing space.
+function T.WithQuality(name, itemID, size)
+  local markup = T.QualityMarkup(itemID, size)
+  if markup == "" then return name end
+  return markup .. " " .. tostring(name)
+end

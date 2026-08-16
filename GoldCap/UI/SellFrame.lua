@@ -1344,7 +1344,13 @@ renderRows = function()
         local stockParts = {}
         if bagQty > 0 then stockParts[#stockParts + 1] = ("×%d in bags"):format(bagQty) end
         if listedQty > 0 then stockParts[#stockParts + 1] = ("×%d listed"):format(listedQty) end
-        row.cells.item:SetText((p.itemName or "Item") .. "\n"
+        -- The quality pip goes in the label rather than beside it: this row and
+        -- the Sniper's deal row anchor their cells completely differently, and an
+        -- inline atlas escape needs no layout in either. Empty for the vast
+        -- majority of items, which have no quality tier at all.
+        local named = Theme.WithQuality and Theme.WithQuality(p.itemName or "Item", p.itemID)
+          or (p.itemName or "Item")
+        row.cells.item:SetText(named .. "\n"
           .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p)))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.

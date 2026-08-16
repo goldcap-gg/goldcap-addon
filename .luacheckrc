@@ -22,6 +22,9 @@ read_globals = {
   -- whose SearchBar/SetDisplayMode are hooked for player-search detection.
   "GetTime", "AuctionHouseFrame",
   "C_Container", "ItemLocation",
+  -- Reagent quality (Dragonflight+). The client is the authority on an item's
+  -- tier; the goldcap.gg import is not -- see UI/Theme.lua's QualityMarkup.
+  "C_TradeSkillUI",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
