@@ -2567,6 +2567,24 @@ local function onDialogPrimaryClick()
     setDialogStatus("confirming purchase...")
     if frame then frame.status:SetText("confirming purchase...") end
     if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call already issued -- box/quick-fill must stay greyed out
+    -- The confirming stage had no timeout at all: both buttons are disabled here, so if the
+    -- server's terminal event never arrived the dialog sat on "confirming purchase..." with no
+    -- way out. 15s, written inline because this chunk is at Lua's 200-local ceiling.
+    --
+    -- What this may NOT do is resolve the purchase. ConfirmCommoditiesPurchase has already been
+    -- called, so gold may well have moved; marking it failed or freeing the row for a retry
+    -- could buy the same lot twice. The attempt stays confirmed and owned -- a late success
+    -- still settles through the tombstone -- and the only thing that changes is that the player
+    -- is told what happened and can close the window.
+    local confirmedToken = pending.token
+    if C_Timer and C_Timer.After then
+    C_Timer.After(20, function()
+      if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
+      if not (dialog and dialog.row == row) then return end
+      dialog.cancelBtn:Enable()
+      setDialogStatus("no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it.", 1, 0.82, 0)
+    end)
+    end
     return
   end
 
