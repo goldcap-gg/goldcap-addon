@@ -23,6 +23,7 @@ Core/SniperDecision.lua
 Core/DealMath.lua
 Core/Scanner.lua
 Core/FullScan.lua
+Core/WatchSet.lua
 Core/AutoScan.lua
 Data/MarketData.lua
 UI/Theme.lua
