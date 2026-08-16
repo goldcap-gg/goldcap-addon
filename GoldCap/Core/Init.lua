@@ -38,6 +38,12 @@ GC.DEFAULTS = {
       autoOpen = true,
       auto = false,
       sound = true,
+      -- Whether the deals list shows rows the background live check has refused. Off by
+      -- default: the point of checking in the background is that the list stops offering
+      -- flips a Check has already ruled out. Owned by the Deals toolbar's own toggle (see
+      -- UI/SniperFrame.lua's verifyBtn), which is also where the count of hidden rows lives,
+      -- so a shorter list always arrives with the number that explains it.
+      showRefused = false,
       hotDiscount = 0.40, hotProfit = 5000000,
       goodDiscount = 0.25, goodProfit = 1000000,
       watchDiscount = 0.10, suspectDiscount = 0.90,

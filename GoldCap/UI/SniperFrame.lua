@@ -68,6 +68,18 @@ LIM.PREWARM_TTL_SECONDS = 10
 -- If no browse event arrives within this long after a send (initial query or page
 -- request), the paging chain is presumed stalled -- see armScanWatchdog.
 LIM.SCAN_WATCHDOG_SECONDS = 15
+-- Background verification (tickAutoVerify): how far down the visible list to check, how often
+-- a row already carrying a verdict is checked again, and how long a SAFE verdict may go
+-- unrefreshed before the row stops advertising it. Deliberately small: the scan, the Sell
+-- tab's pricing walk and this all share one throttled search slot, and the Sell tab is the
+-- one that starves first when something greedy runs.
+LIM.VERIFY_TOP_ROWS = 8
+LIM.VERIFY_INTERVAL_SECONDS = 30
+LIM.VERIFY_TRUST_SECONDS = 120
+-- The verify walk runs off the same 0.25s ticker as everything else, but the walk itself
+-- sorts and filters the whole deals list -- once a second is far more often than a 30s
+-- re-check cadence can consume, and four times a second is just wasted work.
+LIM.VERIFY_WALK_SECONDS = 1
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
@@ -250,6 +262,34 @@ local refreshAutoButton
 -- refreshAutoButton rather than hooked into all six places scanRunning changes,
 -- so a transition can never be added without the button following it.
 local refreshScanButton
+-- Assigned once the refused-rows toggle exists (createFrame). Forward-declared for the same
+-- reason the two above are: refreshRows() re-stamps its count on every render, and that runs
+-- long before the button is built.
+local refreshVerifyButton
+-- Assigned below (it needs refreshRows and flashRow), forward-declared because
+-- applyRequeryResult -- which sits above it -- must record what a real Check just found, or a
+-- row could sit there advertising a background verdict the player has since disproved.
+local stampVerdict
+
+-- Background verification. itemID -> { unitPrice, at, buyable, status, reason }: what a live
+-- Check said about this item the last time one was run for it in the background.
+--
+-- Keyed by itemID and held HERE rather than stamped on the deal table, because a scan pass
+-- replaces every deal table wholesale (FullScan.MergeDeals: the incoming row wins
+-- unconditionally), which would throw away a verdict that is still perfectly true. `unitPrice`
+-- is what keeps carrying it forward honest: the same item at a different asking price was
+-- never verified, so verdictFor refuses to match it.
+--
+-- This is a rendering hint and nothing more. It never arms, approves or shortcuts a purchase
+-- -- clicking a row still runs the same live Check it always did (openDialog -> startRequery),
+-- and the purchase calls themselves are protected and reachable only from a hardware click.
+local verdicts = {}
+-- How many of the rows the current render WOULD have shown carry a refusal. Recomputed by
+-- renderList on every render and displayed by the toolbar toggle, so a shorter list always
+-- comes with the number that explains it.
+local refusedCount = 0
+-- GetTime() before which tickAutoVerify does not walk the list again -- see LIM.VERIFY_WALK_SECONDS.
+local verifyWalkAt = 0
 
 -- New-HOT-deal ping (spec §3): keyed itemID.."@"..unitPrice so a genuinely NEW listing at a
 -- NEW price re-pings even for an item that already had an older HOT listing earlier in the
@@ -342,10 +382,54 @@ local function applySortOverride(list)
   return copy
 end
 
+-- Whether refused rows are currently shown. Default is hidden -- the whole point of verifying
+-- in the background is that the list stops offering flips a Check has already ruled out.
+local function showRefused()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (cfg and cfg.showRefused) and true or false
+end
+
+-- The verdict that applies to `deal` RIGHT NOW, or nil if it has none.
+--
+-- Two ways a stored verdict stops applying. A price change voids it outright: what was checked
+-- was this item at that asking price, and a fresher scan quoting a different one was never
+-- verified. And a SAFE verdict that has gone LIM.VERIFY_TRUST_SECONDS without a refresh stops
+-- being advertised -- the row falls back to plain "Check" rather than keep a gold Buy button up
+-- on a claim nothing has re-tested. A REFUSAL does not expire that way: refusals come from
+-- demand and velocity limits that do not move in two minutes, and expiring them would flicker
+-- hidden rows back into the list every couple of minutes for no new information.
+local function verdictFor(deal)
+  local v = deal and deal.itemID and verdicts[deal.itemID]
+  if not v then return nil end
+  if v.unitPrice ~= deal.unitPrice then return nil end
+  if v.buyable and (GetTime() - v.at) > LIM.VERIFY_TRUST_SECONDS then return nil end
+  return v
+end
+
 -- The single entry point refreshRows() renders from: sortedDeals()'s own order, with the
--- header-click override (if any) layered on top.
+-- header-click override (if any) layered on top, and rows a background Check has refused
+-- filtered out (unless the toolbar toggle says otherwise).
+--
+-- The filter is what makes the verify walk work its way DOWN the list: a refused row leaves,
+-- the row beneath it moves into the top LIM.VERIFY_TOP_ROWS, and gets checked in its turn. The
+-- count it leaves behind in `refusedCount` is not optional -- a silently shorter list is its
+-- own lie, so the toolbar carries the number and the switch to see them.
 local function renderList()
-  return applySortOverride(sortedDeals())
+  local list = applySortOverride(sortedDeals())
+  local show = showRefused()
+  local kept = {}
+  refusedCount = 0
+  for i = 1, #list do
+    local deal = list[i]
+    local verdict = verdictFor(deal)
+    if verdict and not verdict.buyable then
+      refusedCount = refusedCount + 1
+      if show then kept[#kept + 1] = deal end
+    else
+      kept[#kept + 1] = deal
+    end
+  end
+  return kept
 end
 
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
@@ -527,7 +611,23 @@ local function setRowDeal(row, deal)
     row.highlight:SetAlpha(1)
   end
   row.deal = deal
-  row.buy:SetLabel(deal.action or "Check")
+  -- What the background Check found, if anything. Gold "Buy" is reserved for a row a live
+  -- Check has actually approved; an unverified row is a plain ghost "Check", exactly the
+  -- two-click flow it always was. Neither label changes what the click DOES: openDialog still
+  -- re-verifies live before anything can arm, so an aged hint can only cost a beat, never gold.
+  local verdict = verdictFor(deal)
+  if verdict and verdict.buyable then
+    row.buy:SetLabel("Buy")
+    row.buy:SetVariant("primary")
+  elseif verdict then
+    -- Only reachable with the toolbar toggle showing refused rows; the status is the engine's
+    -- own word for it, and the row tooltip (createRow's OnEnter) carries the reason.
+    row.buy:SetLabel(verdict.status or "Avoid")
+    row.buy:SetVariant("ghost")
+  else
+    row.buy:SetLabel(deal.action or "Check")
+    row.buy:SetVariant("ghost")
+  end
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
 
@@ -652,6 +752,10 @@ local function refreshRows()
   end
 
   content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
+  -- renderList() just recomputed refusedCount for exactly this list -- publish it in the same
+  -- breath, so the number beside the list can never describe a different render than the one
+  -- on screen. (The 0.25s ticker also calls it, for the window's first paint.)
+  if refreshVerifyButton then refreshVerifyButton() end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -1943,6 +2047,11 @@ local function applyRequeryResult(row, itemID, live)
     end
     if frame then frame.status:SetText("gone / price changed") end
   end
+  -- The Check the player just ran is the most authoritative thing anyone knows about this
+  -- item, so it replaces whatever the background walk had recorded. Without this, cancelling
+  -- out of a dialog that said AVOID would drop the player back onto a row still wearing the
+  -- gold Buy button an older background verdict had earned it.
+  stampVerdict(deal, live)
   refreshRows()
 end
 
@@ -2100,8 +2209,15 @@ end
 -- winning a throttle slot the T7 OnThrottleReady flush order reserves for scan traffic /
 -- pendingRequerySend first -- simplest and safest is: not ready right now -> skip, hovering
 -- again retries.
-local function maybeStartPrewarm(deal)
-  if not deal or not deal.stale then return end -- only the two-click full-scan flow ever needs this
+-- `auto` marks the background-verification caller (tickAutoVerify below). It relaxes exactly
+-- one guard: the `.stale` requirement, which exists because a hover pre-warm is only ever
+-- useful to openDialog's own stale-deal shortcut. Background verification wants a verdict for
+-- whatever the player is looking at, stale or not. Relaxed explicitly rather than by deleting
+-- the guard: today every deal on the board comes from the full scan and is therefore stale, so
+-- deleting it would look correct and quietly make the auto path depend on that staying true.
+local function maybeStartPrewarm(deal, auto)
+  if not deal then return end
+  if not auto and not deal.stale then return end -- hover pre-warm only helps the two-click full-scan flow
   if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
   if deal.prewarm and (GetTime() - deal.prewarm.at) <= LIM.PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
   if activeItemID[deal.itemID] then return end -- a purchase (or its own live dialog requery) is already in flight for this item
@@ -2140,20 +2256,107 @@ local function maybeStartPrewarm(deal)
   end)
 end
 
+-- Records what the live query just said about `deal`, re-renders the list around it, and rings
+-- once on the transition into buyable.
+--
+-- `data` is exactly the liveDeal shape finishRequery/applyRequeryResult consume, so `buyable`
+-- here is armReady's own gate verbatim (SAFE + buyable + commodity) -- one place decides what
+-- "you can buy this" means, and this is not a second one. nil data means the listing is gone.
+--
+-- Called from every pre-warm landing, hover ones included: a hover already pays for the query,
+-- so there is no reason for it not to leave a verdict behind.
+stampVerdict = function(deal, data)
+  if not deal or not deal.itemID then return end
+  local previous = verdicts[deal.itemID]
+  local wasBuyable = previous and previous.unitPrice == deal.unitPrice and previous.buyable
+  local decision = data and data.decision
+  local buyable = (decision and decision.buyable and decision.status == "SAFE"
+    and data.isCommodity) and true or false
+  local status, reason
+  if not data then
+    status, reason = "Gone", "listing gone -- bought out or repriced"
+  else
+    status = decision and decision.status or "WATCH"
+    local token = decision and decision.reasons and decision.reasons[1]
+    reason = GC.SniperDecision.ReasonText(token or "live_verification_required")
+  end
+  verdicts[deal.itemID] = {
+    unitPrice = deal.unitPrice, at = GetTime(),
+    buyable = buyable, status = status, reason = reason,
+  }
+  refreshRows()
+
+  if not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  -- Same row lookup pingNewHotDeals uses, and for the same reason: by TABLE IDENTITY against
+  -- the deal, after the refreshRows above has had its chance to put it on screen. No row, no
+  -- sound -- a ping with nothing to look at is noise.
+  for i = 1, #rows do
+    local row = rows[i]
+    if row.deal == deal and row:IsShown() then
+      flashRow(row)
+      if GC.db and GC.db.settings and GC.db.settings.sniper.sound then
+        PlaySound(SOUNDKIT.READY_CHECK or SOUNDKIT.MAP_PING or 3175, "Master")
+      end
+      return
+    end
+  end
+end
+
 -- The pre-warm result landing (or failing to materialize into a live deal): stamps
--- deal.prewarm on the EXACT deal table maybeStartPrewarm captured, and releases the "one in
--- flight" slot. `data` mirrors exactly what finishRequery's own `liveDeal` argument would be
--- for the same event -- nil means "gone / price changed", handled identically by
--- applyRequeryResult whenever this cache gets consumed. Never touches row/dialog/
--- activeItemID/purchaseStage -- that is the entire point of this being a separate path from
--- finishRequery.
+-- deal.prewarm on the EXACT deal table maybeStartPrewarm captured, records the verdict, and
+-- releases the "one in flight" slot. `data` mirrors exactly what finishRequery's own `liveDeal`
+-- argument would be for the same event -- nil means "gone / price changed", handled identically
+-- by applyRequeryResult whenever this cache gets consumed.
+--
+-- Never touches row.purchaseStage/activeItemID/the dialog -- that is still the entire point of
+-- this being a separate path from finishRequery. stampVerdict below it re-renders the list,
+-- which is a read of the same purchase state, never a write to it.
 local function resolvePrewarm(itemID, data)
   local attempt = prewarmAttempt
   if not attempt or attempt.itemID ~= itemID then return end
   local deal = attempt.deal
   prewarmAttempt = nil
-  if deal then
-    deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
+  if not deal then return end
+  deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
+  stampVerdict(deal, data)
+end
+
+-- ---------------------------------------------------------------------------
+-- Background verification. The player asked for automatic BUYING; that cannot be built and
+-- deliberately is not. Purchase calls (StartCommoditiesPurchase, ConfirmCommoditiesPurchase,
+-- PlaceBid) are protected: the client runs them only out of a hardware input handler, and
+-- automating gameplay actions violates the Terms of Use besides
+-- (spec/sniper_purchase_wiring_spec.lua asserts that statically, on purpose).
+--
+-- What IS buildable is everything except the final click. This runs the same live query a
+-- Check runs, on the handful of rows the player is actually looking at, so the list carries
+-- real verdicts instead of thirty identical Check clicks. The click that spends gold stays
+-- exactly where it was.
+-- ---------------------------------------------------------------------------
+local function tickAutoVerify()
+  if not ahOpen then return end
+  if view ~= "deals" then return end -- the Sell tab is up; verifying what nobody is reading just costs throttle
+  if not frame or not frame:IsShown() then return end
+  if prewarmAttempt then return end -- one query in flight globally, shared with the hover pre-warm
+  if GC.Sniper.IsSearchCritical() then return end -- a Check or a purchase owns the search slot
+
+  local now = GetTime()
+  if now < verifyWalkAt then return end
+  verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+
+  local list = renderList()
+  local limit = math.min(#list, LIM.VERIFY_TOP_ROWS)
+  for i = 1, limit do
+    local deal = list[i]
+    -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
+    -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
+    -- may have moved underneath it since.
+    local v = verdicts[deal.itemID]
+    if not (v and v.unitPrice == deal.unitPrice
+        and (now - v.at) < LIM.VERIFY_INTERVAL_SECONDS) then
+      maybeStartPrewarm(deal, true)
+      return -- one query per walk at most; the next one picks up where this left off
+    end
   end
 end
 
@@ -3553,6 +3756,18 @@ createRow = function(parent, index)
     maybeStartPrewarm(self.deal)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetItemByID(self.deal.itemID)
+    -- What the background check found, in words. A refused row that the toolbar toggle has
+    -- brought back into view is otherwise a status code and nothing else.
+    local verdict = verdictFor(self.deal)
+    if verdict then
+      GameTooltip:AddLine(" ")
+      if verdict.buyable then
+        GameTooltip:AddLine("GoldCap: checked live -- safe to buy", 0.25, 0.85, 0.25)
+      else
+        GameTooltip:AddLine(("GoldCap: %s -- %s"):format(verdict.status or "refused",
+          verdict.reason or "live verification required"), 1, 0.82, 0)
+      end
+    end
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
@@ -3909,6 +4124,47 @@ local function createFrame()
     "15-60 seconds on busy realms. No cooldown -- rescan anytime.")
   f.fullScanBtn = fullScanBtn
 
+  -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
+  -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
+  -- nothing explaining it is its own lie -- this is the number and the switch. One button with
+  -- two variants (never two swapped by Show/Hide), per addon/AGENTS.md.
+  local verifyBtn = Theme.Button(f, "ghost")
+  verifyBtn:SetSize(92, CH.BTN_H)
+  verifyBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.xs, 0)
+  verifyBtn:SetLabel("Hidden: 0")
+  verifyBtn:SetScript("OnClick", function()
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    if not cfg then return end
+    cfg.showRefused = not showRefused()
+    refreshRows() -- re-renders and, through it, re-labels this button
+  end)
+  setPlainTooltip(verifyBtn,
+    "GoldCap checks the top rows against the live auction house in the background, about " ..
+    "every 30 seconds. Rows the check refuses are hidden -- this is how many. Click to show " ..
+    "them; the row's own Check still explains why. Buying always stays a click you make.")
+  f.verifyBtn = verifyBtn
+
+  -- Re-derives the toggle's label and look from `refusedCount`, which renderList recomputes on
+  -- every render. Same contract as refreshAutoButton/refreshScanButton: driven off the 0.25s
+  -- ticker and off refreshRows, rather than hooked into every place a verdict can land, so a
+  -- new path cannot silently leave a stale number on screen.
+  refreshVerifyButton = function(target)
+    local owner = target or frame
+    local btn = owner and owner.verifyBtn
+    if not btn then return end
+    local show = showRefused()
+    local text = (show and "Refused: %d" or "Hidden: %d"):format(refusedCount)
+    if btn.lastText ~= text then
+      btn:SetLabel(text)
+      btn.lastText = text
+    end
+    if btn.lastOn ~= show then
+      btn.lastOn = show
+      btn:SetVariant(show and "active" or "ghost")
+    end
+  end
+  refreshVerifyButton(f)
+
   -- The "Live" button is gone. It started a second, narrower scan loop over the
   -- items the last Full Scan had turned up (or, failing that, the imported
   -- watchlist), which is a real capability -- but Auto is strictly broader: it
@@ -3923,7 +4179,7 @@ local function createFrame()
 
   local status = Theme.Label(f, 11)
   status:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row2Y)
-  status:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.s, 0)
+  status:SetPoint("RIGHT", verifyBtn, "LEFT", -Theme.pad.s, 0)
   status:SetJustifyH("LEFT")
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
@@ -4165,6 +4421,10 @@ function GC.Sniper.OnAuctionHouseShow()
     autoScan:Tick(GetTime())
     refreshAutoButton()
     refreshScanButton()
+    -- Background verification rides the same clock, for the same reason the two buttons above
+    -- do: one place drives it, so it cannot be forgotten by a path that changes state.
+    tickAutoVerify()
+    refreshVerifyButton()
   end)
   feedAuto("ahOpened")
   if GC.db.settings.sniper.auto then
@@ -4260,6 +4520,13 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
   -- what's worth flagging) -- see seenHotDeals' own declaration.
   for key in pairs(seenHotDeals) do seenHotDeals[key] = nil end
+  -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live
+  -- order book, and there is no live order book once the session is gone. scanDeals survives
+  -- the close on purpose (see OnAuctionHouseShow) -- its verdicts must not, or the next visit
+  -- opens with gold Buy buttons vouched for by a market nobody has looked at since.
+  for itemID in pairs(verdicts) do verdicts[itemID] = nil end
+  refusedCount = 0
+  verifyWalkAt = 0
   -- D: abort any in-flight Sell quote walk/post -- neither can safely resume once the AH
   -- session is gone (same reasoning as resetAllPurchases above for the Deals side).
   GC.Sell.Reset()
