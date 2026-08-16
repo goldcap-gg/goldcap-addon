@@ -2223,6 +2223,21 @@ function GC.Sniper.IsBusy()
   return next(activeItemID) ~= nil
 end
 
+-- Whether something the PLAYER is waiting on owns the throttled search slot: a
+-- Check requery, or a purchase in flight. Short-lived, and nothing else may take
+-- the slot out from under it.
+--
+-- Deliberately narrower than IsBusy, which also counts the full browse scan. The
+-- Sell tab used to stand aside for IsBusy, and under Auto the browse scan runs
+-- back to back with a two-second breather forever -- so the Sell tab could never
+-- price anything at all, and Refresh looked hung until a reload happened to
+-- catch a gap. A background convenience does not get to starve the screen the
+-- player is actually looking at; the scan may run slightly slower for it, and
+-- its own watchdog and Auto's retry already cover a disturbed pass.
+function GC.Sniper.IsSearchCritical()
+  return next(activeItemID) ~= nil
+end
+
 -- Task 9 fix round 1 (I4): one-line accessor over the existing `ahOpen` local (set true on
 -- OnAuctionHouseShow, false on OnAuctionHouseClosed) -- GC.Sell's requestOwnedAuctions checks
 -- this before ever calling C_AuctionHouse.QueryOwnedAuctions, so a stray owned-lots refresh

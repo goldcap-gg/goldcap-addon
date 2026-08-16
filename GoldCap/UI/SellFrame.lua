@@ -520,12 +520,16 @@ advanceQuote = function()
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
   if refresh.pending then return end
   if refresh.index >= #refresh.queue then return finishQuoteWalk() end
-  if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then
-    -- Yielding to a scan or a purchase is the walk working correctly, not the
-    -- walk stalling. Without this the watchdog would eventually declare "the
-    -- Auction House did not answer" while the Sniper was busy using it.
+  -- Yields to a Check or a purchase -- short, and the player is waiting on it --
+  -- but NOT to the background full scan. Under Auto that scan never stops, and
+  -- standing aside for it meant the Sell tab priced nothing at all while Auto
+  -- was on: Refresh looked hung until a reload happened to catch a gap.
+  local blocking = GC.Sniper and (GC.Sniper.IsSearchCritical or GC.Sniper.IsBusy)
+  if blocking and blocking() then
+    -- Yielding is the walk working correctly, not stalling, so the watchdog must
+    -- not read it as an unanswered request.
     markProgress()
-    setStatus("Waiting for the scan to finish…")
+    setStatus("Waiting for the purchase to finish…")
     return
   end
   if not driver.isReady() then return end

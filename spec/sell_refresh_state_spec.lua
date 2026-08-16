@@ -128,6 +128,33 @@ describe("Sell refresh state fence", function()
     assert.equal(1, sent.owned)
   end)
 
+  -- Reported from the game: "refresh hangs, works after a reload, and it happens
+  -- when auto scan is on". Under Auto the full browse scan runs back to back
+  -- with a two-second breather forever, and the walk stood aside for IsBusy --
+  -- which counts that scan. So the Sell tab priced nothing at all while Auto was
+  -- on, and Refresh only ever worked when a reload happened to catch a gap.
+  it("prices through a background scan, and only yields to a purchase", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local critical = false
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sniper.IsBusy = function() return true end -- a full scan is always running
+    GC.Sniper.IsSearchCritical = function() return critical end
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    assert.equal("waiting_result", refreshState(GC).phase)
+
+    -- A purchase does own the slot, and is short.
+    critical = true
+    GC.Sell.OnCommoditySearchResults(42)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+
+    critical = false
+    GC.Sell.OnThrottleReady()
+    assert.same({ 42, 42 }, sent.keys)
+  end)
+
   it("waits for throttle and fails closed when the auction house is unavailable", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local ready = true
