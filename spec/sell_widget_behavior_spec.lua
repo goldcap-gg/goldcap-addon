@@ -446,7 +446,15 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("eu", record.repairs[1].region)
   end)
 
-  it("disarms a posting row when a rerender cannot prove the pinned position identity", function()
+  -- Was: "disarms a posting row when a rerender cannot prove the pinned position
+  -- identity". A render used to answer an armed post by cancelling it, which is
+  -- the wrong half of the trade -- the player is one click from confirming, and
+  -- the tab now re-prices itself every few seconds, so that cancellation went
+  -- from occasional to certain. The render is held instead. Safety is unchanged:
+  -- the confirm path re-reads the bag live, re-checks the scope, and re-checks
+  -- the quote identity, so a stale position table can only supply keys that are
+  -- all verified again before any gold moves. Both arms are timeout-bounded.
+  it("holds a rerender while a post is armed, and runs it once the arm clears", function()
     local record = { calls = {} }
     local GC = load(620, record)
     local quote = { unit = 200, at = 77 }
@@ -469,6 +477,11 @@ describe("Sell widget geometry and manual cost", function()
       scopeKey = "eu\1A-R\1commodity:42", coverage = "COMPLETE", exposureQty = 1,
       knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "LISTED" } })
     render()
+    assert.equal("posting", rows[1].postStage)
+
+    -- The post resolves (here: the auction house reports it failed), which
+    -- disarms the row and flushes the render that was held.
+    GC.Sell.OnPostError()
     assert.is_nil(rows[1].postStage)
     assert.equal("Post", rows[1].action.label)
     assert.is_true(rows[1].action.enabled)
@@ -518,6 +531,14 @@ describe("Sell widget geometry and manual cost", function()
     for _, child in ipairs(container.children) do
       if child.label == "Listed" then child.scripts.OnClick() end
     end
+    -- The filter change cannot repoint this pooled row at auction 8 while the row
+    -- is armed on auction 7 -- which is the hazard the old behaviour answered by
+    -- cancelling the arm. Holding the render answers it at the source: the row
+    -- never moves, so nothing can carry the arm to a different auction.
+    assert.equal(7, firstLotRow.lot.auctionID)
+    assert.equal("armed", firstLotRow.repostStage)
+
+    GC.Sell.OnPostError() -- disarms, and flushes the render the filter asked for
     assert.equal(8, firstLotRow.lot.auctionID)
     assert.is_nil(firstLotRow.repostStage)
     assert.equal("Repost", firstLotRow.action.label)

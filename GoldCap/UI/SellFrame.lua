@@ -67,6 +67,11 @@ local manualRepairNonce = 0
 -- from a bag link; composePositions only ever calls it at runtime.
 local scanBagStock
 
+-- Forward-declared here rather than further down: disarmPost/disarmRepost below
+-- need to flush a render that was deferred while a purchase was armed.
+local function renderRows() end
+local deferredRender = false
+
 local function restorePostRow(row)
   if not row then return end
   row.postStage = nil
@@ -79,11 +84,16 @@ local function restoreRepostRow(row)
   if row.action then row.action:Enable(); row.action:SetLabel("Repost") end
 end
 
+local function flushDeferredRender()
+  if deferredRender and not postingRow and not repostingRow then renderRows() end
+end
+
 local function disarmPost()
   local row = postingRow
   postingRow, postingPin = nil, nil
   postTimeoutToken = (postTimeoutToken or 0) + 1
   restorePostRow(row)
+  flushDeferredRender()
 end
 
 local function disarmRepost()
@@ -91,6 +101,7 @@ local function disarmRepost()
   repostingRow, repostPin = nil, nil
   repostArmToken = (repostArmToken or 0) + 1
   restoreRepostRow(row)
+  flushDeferredRender()
 end
 
 local function setStatus(text)
@@ -320,8 +331,6 @@ local function uniqueQuoteItemIDs()
   end
   return result
 end
-
-local function renderRows() end
 
 local function scheduleQuoteExpiry()
   quoteExpiryGeneration = quoteExpiryGeneration + 1
@@ -1337,11 +1346,21 @@ end
 
 renderRows = function()
   if not container then return end
+  -- A post or repost that is armed is waiting on the player's confirming click,
+  -- and the pin proving that click belongs to it is bound to a pooled row. A
+  -- render rebinds those rows, so this used to answer by CANCELLING the
+  -- confirmation the player was one click away from giving. That was already
+  -- wrong; the tab now re-prices itself every few seconds, which made it certain.
+  -- Hold the render instead. Both arms are timeout-bounded, so it cannot be held
+  -- indefinitely, and disarmPost/disarmRepost flush whatever was deferred.
+  if postingRow or repostingRow then
+    deferredRender = true
+    return
+  end
+  deferredRender = false
   renderGeneration = renderGeneration + 1
   local filtered = GC.SellViewModel.Filter(positions, filterMode)
   if GC.SellViewModel.Order then filtered = GC.SellViewModel.Order(filtered) end
-  if postingRow then disarmPost() end
-  if repostingRow then disarmRepost() end
   updateSummary(filtered)
   local entries = {}
   for _, position in ipairs(filtered) do
