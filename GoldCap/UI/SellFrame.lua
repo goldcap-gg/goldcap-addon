@@ -1618,7 +1618,13 @@ function GC.Sell.Attach(f, geometry)
   container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
   local refreshButton = Theme.Button(container, "ghost")
-  refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh"); refreshButton:SetScript("OnClick", GC.Sell.Refresh)
+  refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh")
+  -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
+  -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
+  -- -- and every press would take the stand-aside path that exists for the timer.
+  -- The button would have gone on doing nothing, which is the bug this argument
+  -- was added to fix.
+  refreshButton:SetScript("OnClick", function() GC.Sell.Refresh() end)
   local labels = { all = "All", goldcap = "GC", missing_cost = "Missing cost",
     sellable = "In bags", listed = "Listed" }
   local widths = { missing_cost = 82, sellable = 56, listed = 52, all = 36, goldcap = 36 }

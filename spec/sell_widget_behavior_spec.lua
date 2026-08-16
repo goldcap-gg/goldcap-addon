@@ -156,6 +156,25 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(header.cells.cost, header.cells.item.points[2].relative)
   end)
 
+  -- OnClick hands its handler (self, button, down). Passing GC.Sell.Refresh
+  -- straight in meant the button arrived as the `automatic` flag -- truthy -- and
+  -- every press took the stand-aside path that exists for the self-driven repeat.
+  -- The button would have gone on doing nothing, which is the bug that flag was
+  -- added to fix.
+  it("presses Refresh as a real press, not as the automatic repeat", function()
+    local GC = load(620, { calls = {} })
+    -- Counted separately from the captured argument: the argument this asserts on
+    -- is nil, and `seen[#seen + 1] = nil` stores nothing at all.
+    local presses, captured = 0, "unset"
+    GC.Sell.Refresh = function(automatic) presses = presses + 1; captured = automatic end
+    local _, container = topRows(GC, {})
+    for _, child in ipairs(container.children) do
+      if child.label == "Refresh" then child.scripts.OnClick(child, "LeftButton", false) end
+    end
+    assert.equal(1, presses)
+    assert.is_nil(captured)
+  end)
+
   it("orders Sell filters from broad to specific before Refresh", function()
     local GC = load(620, { calls = {} })
     local _, container = topRows(GC, {})
