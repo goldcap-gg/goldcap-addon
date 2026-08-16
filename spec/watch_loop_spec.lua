@@ -105,6 +105,11 @@ describe("Watch loop", function()
     set(GC.Sniper.OnItemKeyInfo, "driver", {
       isReady = function() return true end,
       mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan,
+      -- The real callback, not a stub: this is the implementation under test for the
+      -- "stamps a watched item's verdict" case below, and it reaches back into the shared
+      -- `driver` upvalue (via evaluateLiveCommodityDeal) for the commodityBook/commodityResult
+      -- stubs set on THIS same table, same as every other closure in this chunk does.
+      onObservation = upvalue(GC.Sniper.OnItemKeyInfo, "driver").onObservation,
       getKeyInfo = function() return { isCommodity = true } end,
       sendSearch = function(itemID) searched[#searched + 1] = itemID end,
       commodityBook = function() return { { unitPrice = 100, quantity = 50 } } end,
@@ -204,5 +209,27 @@ describe("Watch loop", function()
     GC.Sniper._RefreshWatchSet()
     assert.equal(1, #started)                        -- Start was not called again with an empty list
     assert.equal(1, scanner.stopped)                  -- the scanner was told to stop instead
+  end)
+
+  it("stamps a watched item's verdict from the poll, with no extra query", function()
+    local GC = load()
+    GC.db.settings.sniper.watchPins = { 42 }
+    GC.Sniper._RefreshWatchSet()
+    local observe = upvalue(GC.Sniper.OnItemKeyInfo, "driver").onObservation
+    -- A live commodity book is already fetched by the poll; the decision engine says SAFE.
+    decision = { status = "SAFE", buyable = true, quantity = 5, reasons = {} }
+    observe(42, { itemID = 42, unitPrice = 100, qty = 5, isCommodity = true })
+    local verdicts = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "tickAutoVerify"), "verdicts")
+    assert.is_true(verdicts[42].buyable)
+    assert.same({}, searched)          -- not one additional SendSearchQuery
+  end)
+
+  it("does not spend verification budget on an item the loop is already watching", function()
+    local GC = load()
+    GC.db.settings.sniper.watchPins = { 42 }
+    GC.Sniper._RefreshWatchSet()
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(42, 100), deal(43, 200) })
+    tickAt(GC, 101)
+    assert.same({ 43 }, searched)      -- 42 is watched; the walk skips straight past it
   end)
 end)

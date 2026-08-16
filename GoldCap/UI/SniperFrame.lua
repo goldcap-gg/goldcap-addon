@@ -288,6 +288,10 @@ local refreshVerifyButton
 -- applyRequeryResult -- which sits above it -- must record what a real Check just found, or a
 -- row could sit there advertising a background verdict the player has since disproved.
 local stampVerdict
+-- Forward-declared for the same reason as stampVerdict above: driver.onObservation is built
+-- far above this function's real definition, so the closure needs the local to already exist
+-- at closure-creation time or it would silently bind the global of this name (nil) instead.
+local evaluateLiveCommodityDeal
 
 -- Background verification. itemID -> { unitPrice, at, buyable, status, reason }: what a live
 -- Check said about this item the last time one was run for it in the background.
@@ -1037,6 +1041,13 @@ local driver = {
     else
       deals[itemID] = deal
     end
+    -- The poll has just pulled this item's live book, which is exactly what a verdict is
+    -- computed from -- so compute it here, for nothing. A watched item therefore never costs
+    -- tickAutoVerify a query, and the ring it may produce goes through the one shared
+    -- transition path rather than a second notion of "buyable".
+    if deal and GC.Sniper._IsWatched(itemID) then
+      stampVerdict(deal, evaluateLiveCommodityDeal(itemID))
+    end
     refreshRows()
   end,
 
@@ -1208,6 +1219,13 @@ end
 function GC.Sniper._WatchPins()
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   return (cfg and cfg.watchPins) or {}
+end
+
+function GC.Sniper._IsWatched(itemID)
+  for i = 1, #GC.Sniper._liveTargets do
+    if GC.Sniper._liveTargets[i] == itemID then return true end
+  end
+  return false
 end
 
 -- Recomputes the target list and restarts the loop ONLY if membership actually changed.
@@ -2077,7 +2095,7 @@ local function availableFromLevels(levels)
   return total > 0 and total or nil
 end
 
-local function evaluateLiveCommodityDeal(itemID)
+evaluateLiveCommodityDeal = function(itemID)
   local levels = driver.commodityBook(itemID)
   if not levels then return nil end
   local result = driver.commodityResult(itemID)
@@ -2454,17 +2472,21 @@ local function tickAutoVerify()
   local limit = math.min(#list, LIM.VERIFY_TOP_ROWS)
   for i = 1, limit do
     local deal = list[i]
-    -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
-    -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
-    -- may have moved underneath it since.
-    local v = verdicts[deal.itemID]
-    if not (v and v.unitPrice == deal.unitPrice
-        and (now - v.at) < LIM.VERIFY_INTERVAL_SECONDS) then
-      -- Stop on a query actually going out -- one per walk at most. A row that DECLINED to
-      -- send is not progress and must not end the walk: its blocker may never clear (an
-      -- uncached item key, the drain fence), and treating it as work in flight is what let one
-      -- row at the top hold the whole list hostage. Move on and check the next one.
-      if maybeStartPrewarm(deal, true) then return end
+    -- Already covered by the watch loop, which re-reads its live book far more often than
+    -- this walk could. Spending a slot here would buy nothing and starve an unwatched row.
+    if not GC.Sniper._IsWatched(deal.itemID) then
+      -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
+      -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
+      -- may have moved underneath it since.
+      local v = verdicts[deal.itemID]
+      if not (v and v.unitPrice == deal.unitPrice
+          and (now - v.at) < LIM.VERIFY_INTERVAL_SECONDS) then
+        -- Stop on a query actually going out -- one per walk at most. A row that DECLINED to
+        -- send is not progress and must not end the walk: its blocker may never clear (an
+        -- uncached item key, the drain fence), and treating it as work in flight is what let one
+        -- row at the top hold the whole list hostage. Move on and check the next one.
+        if maybeStartPrewarm(deal, true) then return end
+      end
     end
   end
 end
