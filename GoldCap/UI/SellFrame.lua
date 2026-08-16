@@ -354,9 +354,31 @@ local function onOwnedAuctionsReady()
   end
 end
 
+-- GetOwnedAuctions does not report whether an auction is a commodity, so keyForLot saw
+-- isCommodity = nil and filed every owned lot under an item-style key built from itemKey's
+-- item level. A commodity bought as `commodity:12363` therefore listed itself as
+-- `item:12363:10:0:0`: two positions for one item, the purchase holding no listings and the
+-- listing holding no cost. On screen that read as "x5 in your bags, not listed" while the
+-- Blizzard auctions panel showed those same five on sale.
+--
+-- GetItemKeyInfo is the authority on that flag -- the quote driver above already relies on it --
+-- so classify here, where the API is reachable, and leave NormalizeOwnedLots pure.
+local function classifyOwnedAuctions(auctions)
+  if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return auctions end
+  for _, auction in ipairs(auctions or {}) do
+    if auction.isCommodity == nil and auction.itemKey then
+      local ok, info = pcall(C_AuctionHouse.GetItemKeyInfo, auction.itemKey)
+      if ok and type(info) == "table" and info.isCommodity ~= nil then
+        auction.isCommodity = info.isCommodity
+      end
+    end
+  end
+  return auctions
+end
+
 function GC.Sell.OnOwnedAuctions()
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
-  ownedLots = GC.SellPositions.NormalizeOwnedLots(auctions, time())
+  ownedLots = GC.SellPositions.NormalizeOwnedLots(classifyOwnedAuctions(auctions), time())
   local scope = context()
   if GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition and scope then
     for _, lot in ipairs(ownedLots) do
@@ -682,7 +704,8 @@ local function onRepostClick(row, auctionID)
       setStatus("Repost confirmation expired")
       return
     end
-    ownedLots = GC.SellPositions.NormalizeOwnedLots(C_AuctionHouse.GetOwnedAuctions() or {}, time())
+    ownedLots = GC.SellPositions.NormalizeOwnedLots(
+      classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
     composePositions()
     local livePosition = currentPosition(pin.positionKey)
     local current
