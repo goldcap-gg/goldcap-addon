@@ -287,6 +287,41 @@ describe("Ledger inbox scan", function()
     assert.equal(1, #GC.Acquisitions.GetAll())
   end)
 
+  -- WoW streams mail data: right after MAIL_SHOW some rows have no header or invoice loaded
+  -- yet, and on a busy mailbox at least one is unreadable nearly every scan. Aborting the whole
+  -- pass on that meant a readable sale sitting beside it was never recorded -- the owner's
+  -- SavedVariables held exactly one mail-sourced entry, days old, while every sale went
+  -- unrecorded. Absence still needs a complete snapshot; presence does not.
+  it("records a readable invoice even when another mail in the inbox is unreadable", function()
+    local sold = mail({ invoice = { invoiceType = "seller", consignment = 500, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local unreadable = mail()
+    unreadable.invoice = nil
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ unreadable, sold }), context, 1000))
+    local entries = GC.Ledger.GetEntries()
+    assert.equal(1, #entries)
+    assert.equal("sale", entries[1].kind)
+  end)
+
+  it("never retires an occurrence on a partial snapshot, even while recording from it", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local generation = db.mailOccurrenceGeneration
+
+    local sold = mail({ invoice = { invoiceType = "seller", consignment = 500, deposit = 0 },
+      item = { name = "Mireslush Hide", itemID = 210931 } })
+    local unreadable = mail()
+    unreadable.invoice = nil
+
+    -- The bought mail is absent from this pass, but the pass is partial, so its occurrence must
+    -- not be retired and the generation must not advance -- while the sale is still recorded.
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ unreadable, sold }), context, 1010))
+    assert.equal(generation, db.mailOccurrenceGeneration)
+    assert.equal(2, #GC.Ledger.GetEntries())
+  end)
+
   it("[WAVE3 C1] retains a readable buyer occurrence across an AH-like nil invoice row", function()
     local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
       item = { name = "Ironclaw Ore", itemID = 210930 } })

@@ -465,15 +465,25 @@ function GC.Ledger.ScanInbox(api, context, now)
   local ok, count = pcall(api.GetInboxNumItems)
   if not ok or not exactNonNegative(count) then return 0 end
 
-  local mails = {}
+  -- An unreadable row no longer discards the whole pass. WoW streams mail data, so immediately
+  -- after MAIL_SHOW some rows have neither header nor invoice loaded yet; on a busy mailbox at
+  -- least one is unreadable on nearly every scan, and aborting meant a perfectly readable sale
+  -- sitting beside it was never recorded. That is how a ledger ends up holding one mail-sourced
+  -- entry from days ago while every sale since went missing.
+  --
+  -- The all-or-nothing rule was protecting one specific thing -- occurrence reconciliation,
+  -- which infers a mail is GONE from its absence and cannot do that from a partial view. So
+  -- that step, and only that step, still requires a complete snapshot. Recording an invoice we
+  -- positively read is safe either way: it is evidence of presence, not of absence.
+  local mails, complete = {}, true
   for index = 1, count do
     local mail, state = readInboxMail(api, index, context, now)
-    if state == "incomplete" then return 0 end
+    if state == "incomplete" then complete = false end
     if mail then mail.index = index; mails[#mails + 1] = mail end
   end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
-  commitOccurrencePlan(plan, context)
+  if complete then commitOccurrencePlan(plan, context) end
 
   local created = 0
   for _, mail in ipairs(plan.mails) do
