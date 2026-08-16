@@ -254,12 +254,43 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.projectedNet = projected
   if position.coverage == "COMPLETE" and projected ~= nil then position.profit = projected - position.knownCost end
 
+  local levels = type(quotes and quotes[position.itemID]) == "table" and quotes[position.itemID].levels or nil
+  local marketStats = statsByItemID and statsByItemID[position.itemID]
+  position.marketValue = marketStats and marketStats.mv or nil
+  position.soldPerDay = marketStats and marketStats.sold or nil
+  -- The imported market value. Fetched all along for its sold/day and trend, and
+  -- its price ignored -- which is how a single cheap lot became both the price
+  -- GoldCap recommended and the price Post listed at. It is not the price; it is
+  -- the sanity check on the price. See GC.Flips.PostFloor.
+  position.postFloor = GC.Flips.PostFloor({ marketUnit = fresh, mv = position.marketValue,
+    levels = levels, sold = position.soldPerDay })
+
   local cheapestListedUnit
   for _, ownedLot in ipairs(position.ownedLots) do
     if not cheapestListedUnit or ownedLot.unitPrice < cheapestListedUnit then cheapestListedUnit = ownedLot.unitPrice end
   end
   position.facts.undercut = position.listedQty > 0 and fresh ~= nil
     and cheapestListedUnit ~= nil and cheapestListedUnit > fresh
+  -- The expensive direction, which had no name and no warning until it cost
+  -- real gold twice: your own listing sits far BELOW what the item is worth.
+  -- `undercut` above is the cheap direction -- somebody else is under you, and
+  -- the worst case is that you wait. This one is money leaving, and it happens
+  -- silently, because a listing posted against a thin cheap lot looks perfectly
+  -- normal until that lot clears and the book springs back.
+  --
+  -- Measured against the better of two references, because they fail in
+  -- opposite directions. The live competing ask is hard evidence -- if others
+  -- are asking 92g and you are asking 18g, you are giving it away, full stop --
+  -- but it collapses to your own price when you are the only seller, which is
+  -- exactly the Sanguithorn shape. The imported market value covers that, and is
+  -- in turn the one that can be stale. Taking the higher of the two means an
+  -- alarm needs only one of them to be right.
+  local reference = math.max(fresh or 0, position.marketValue or 0)
+  local valueFloor = reference > 0
+    and math.floor(reference * (GC.Flips.UNDERPRICE_FLOOR or 0.75)) or nil
+  position.facts.underpriced = position.listedQty > 0 and valueFloor ~= nil
+    and cheapestListedUnit ~= nil and cheapestListedUnit < valueFloor
+  position.underpricedUnit = position.facts.underpriced and cheapestListedUnit or nil
   if position.coverage ~= "COMPLETE" then
     position.status = position.coverage == "PARTIAL" and "PARTIAL_COST" or "NO_COST"
   elseif position.facts.undercut then
@@ -271,24 +302,22 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   else
     position.status = "UNLISTED"
   end
-  local levels = type(quotes and quotes[position.itemID]) == "table" and quotes[position.itemID].levels or nil
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
-  local stats = statsByItemID and statsByItemID[position.itemID]
-  position.soldPerDay = stats and stats.sold or nil
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
-    sold = stats and stats.sold, trend = stats and stats.trend })
+    sold = marketStats and marketStats.sold, trend = marketStats and marketStats.trend })
   if position.coverage == "COMPLETE" and position.listedQty > 0 then
     position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.exposureQty),
-      marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty })
+      marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty,
+      floor = position.postFloor })
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
-      fresh, nil, { levels = levels, sold = position.soldPerDay })
+      fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
     -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
     -- degrades to exactly that on a nil paidUnit, rather than inventing a cost from the market.
-    position.recommendation = GC.Flips.RecommendPost(nil, fresh, nil,
-      { levels = levels, sold = position.soldPerDay })
+    position.recommendation = GC.Flips.RecommendPost(nil, fresh, position.marketValue,
+      { levels = levels, sold = position.soldPerDay, floor = position.postFloor })
   else
     position.recommendation = nil
   end
@@ -480,6 +509,14 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   end
   local quantity = bagState.exactQty
   if quantity <= 0 then return nil, "no_unlisted_quantity" end
+  -- The displayed recommendation and the price Post actually used were two
+  -- different numbers: the plan took the raw cheapest competing ask. Apply the
+  -- floor here as well, so what is listed is what was shown. It can only ever
+  -- RAISE the price, so the freshness contract above is untouched -- a stale
+  -- floor cannot cause an underpriced sale, which is the failure that matters.
+  if positive(position.postFloor) and position.postFloor > unit then
+    unit = position.postFloor
+  end
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,

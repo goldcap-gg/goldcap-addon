@@ -652,7 +652,8 @@ describe("Sell widget geometry and manual cost", function()
         knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "UNLISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    assert.equal("Post (undercut) @ 199", rows[2].cells.status.text)
+    -- The internal mode name is not shown; "undercut" told a player nothing.
+    assert.equal("Post (undercutting) @ 199", rows[2].cells.status.text)
   end)
 
   it("[I2] renders semantic evidence, owned unit and total, and breakeven", function()
@@ -678,7 +679,7 @@ describe("Sell widget geometry and manual cost", function()
     rows[1].scripts.OnClick(rows[1])
     -- Listings first, then purchases, each behind its own heading: rows[3] heading, rows[4] the
     -- lot, rows[5] heading, rows[6..9] the four batches.
-    assert.equal("Post (undercut) @ 199 · breakeven 106", rows[2].cells.status.text)
+    assert.equal("Post (undercutting) @ 199 · breakeven 106", rows[2].cells.status.text)
     assert.match("×2 listed at 200 each", rows[4].cells.item.text)
     assert.equal("400", rows[4].cells.listed.text)
     assert.match("captured", rows[6].cells.item.text)

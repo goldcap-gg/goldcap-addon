@@ -148,6 +148,14 @@ local function formatCell(value)
   return type(value) == "number" and formatAmount(value) or tostring(value or "")
 end
 
+-- Mode names are internal. "Post (floor) @ 15g" tells a player nothing about
+-- why the number is not the price they can see in the auction house.
+local MODE_TEXT = {
+  floor = "holding above a thin cheap lot",
+  match = "matching the cheapest",
+  undercut = "undercutting",
+}
+
 local function recommendationText(recommendation)
   if type(recommendation) == "string" then return recommendation end
   if type(recommendation) ~= "table" then return "" end
@@ -157,8 +165,10 @@ local function recommendationText(recommendation)
   local nested = recommendation.rec
   local unit = nested and nested.unit or recommendation.unit
   local breakeven = nested and nested.breakeven or recommendation.breakeven
+  local mode = type(recommendation.mode) == "string" and recommendation.mode or nil
+  local nestedMode = nested and type(nested.mode) == "string" and nested.mode or nil
   local reason = type(recommendation.reason) == "string" and recommendation.reason
-    or (type(recommendation.mode) == "string" and recommendation.mode or nil)
+    or MODE_TEXT[mode or nestedMode or ""] or mode or nestedMode
   local suffix = unit and (" @ " .. formatCell(unit)) or ""
   if recommendation.belowCost then reason = reason and (reason .. " · below cost") or "below cost" end
   local floor = breakeven and (" · breakeven " .. formatCell(breakeven)) or ""
@@ -1393,7 +1403,10 @@ end
 local HEADER_HELP = {
   cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price." } },
   listed = { "Listed value", { "What your live auctions for this item add up to at their current asking price." } },
-  market = { "Market per unit", { "The current going price for one unit, from a live Auction House query.", "Greyed out means the quote has aged; Post and Repost refresh it before they act." } },
+  market = { "Market per unit", {
+    "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
+    "It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",
+    "Greyed out means the quote has aged; Post and Repost refresh it before they act." } },
   profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete -- fill it in with Set cost." } },
   status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
 }
@@ -1529,7 +1542,17 @@ renderRows = function()
         -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
         -- This column now says what to do about it, in a sentence, or names what is missing.
         local knownQty, exposureQty = p.knownQty or 0, p.exposureQty or 0
-        if p.recommendation then
+        if p.facts and p.facts.underpriced then
+          -- Money leaving, silently. A listing posted against a thin cheap lot
+          -- looks ordinary until that lot clears and the book springs back --
+          -- which is how five Arcane Crystals bought at 70g ended up on sale at
+          -- 18g against a 92g market. This is the one thing on the row that has
+          -- to be read before anything else, so it takes the column and the
+          -- alarm colour, and the advice moves aside for it.
+          row.cells.status:SetText(("Listed at %s — far below market. Repost."):format(
+            formatCell(p.underpricedUnit)))
+          setColor(row.cells.status, Theme.color.red)
+        elseif p.recommendation then
           row.cells.status:SetText(recommendationText(p.recommendation))
           setColor(row.cells.status, Theme.color.fg)
         elseif bagQty > 0 then

@@ -419,6 +419,58 @@ end
 -- mode="undercut", exactly the pre-F3 `max(1, marketUnit - 1)` expression. The no-quote (mv)
 -- fallback branch always leaves mode nil -- there is no ask to match OR undercut, so neither
 -- label applies.
+-- How far below the item's market value a live ask may sit before it stops being
+-- a price and starts being noise. Ordinary undercutting runs a few percent; a
+-- quarter off is not a market, it is one seller in a hurry.
+GC.Flips.UNDERPRICE_FLOOR = 0.75
+
+--- The lowest price worth posting at, or nil if the book can be believed as-is.
+--
+-- Exists because of a real loss: Sanguithorn was posted at 7g against a market
+-- value of 20g, because a single lot sat at 7g and the Sell tab's entire notion
+-- of "market" was the cheapest competing ask. Matching that lot handed away two
+-- thirds of the item's worth to beat one seller who was about to clear anyway.
+--
+-- The two numbers answer different questions. The cheapest ask is what you must
+-- beat to sell *now*; the market value is what the thing is *worth*. When they
+-- agree, the ask wins and nothing here applies. When the ask is far below, one
+-- of them is wrong, and depth decides which: a day's worth of supply under the
+-- floor is a genuine price move and the book is believed; a lot or two is noise
+-- and the floor holds.
+--
+-- The asymmetry is deliberate. Holding above a thin undercut costs a deposit and
+-- some waiting -- the cheap lot sells, then yours does. Chasing it costs the
+-- difference, in gold, immediately and irreversibly.
+--
+-- args = { marketUnit (the cheapest competing ask), mv, levels, sold }.
+-- Returns floor, qtyBelowFloor -- or nil when the book needs no correcting.
+function GC.Flips.PostFloor(args)
+  args = args or {}
+  local mv, ask = args.mv, args.marketUnit
+  if type(mv) ~= "number" or mv <= 0 then return nil end
+  local floor = math.floor(mv * GC.Flips.UNDERPRICE_FLOOR)
+  if floor <= 0 then return nil end
+  if type(ask) ~= "number" or ask >= floor then return nil end
+
+  local below = 0
+  for _, level in ipairs(args.levels or {}) do
+    local unit = type(level.unitPrice) == "number" and level.unitPrice or nil
+    if unit and unit < floor then
+      local quantity = type(level.quantity) == "number" and level.quantity or 0
+      -- The player's own units are not competition and must not be counted as
+      -- evidence that the market has moved -- same reasoning as
+      -- SellPositions.CheapestCompetingUnit.
+      local ownerQty = type(level.ownerQty) == "number" and level.ownerQty
+        or (level.ownerItem == true and quantity) or 0
+      below = below + math.max(0, quantity - ownerQty)
+    end
+  end
+
+  local sold = type(args.sold) == "number" and args.sold or nil
+  if sold and sold > 0 and below >= sold then return nil, below end
+  return floor, below
+end
+
 function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   opts = opts or {}
   local mode, candidate
@@ -443,6 +495,13 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   end
 
   if candidate == nil then return nil end
+
+  -- Never recommend below the floor. See GC.Flips.PostFloor for why a live ask
+  -- can be worth ignoring, and what it cost to learn that.
+  local floor = opts.floor
+  if type(floor) == "number" and floor > 0 and candidate < floor then
+    mode, candidate = "floor", floor
+  end
 
   local breakeven = paidUnit and math.ceil(paidUnit / 0.95) or nil
 
@@ -489,7 +548,7 @@ end
 function GC.Flips.RepostAdvice(args)
   args = args or {}
   local rec = GC.Flips.RecommendPost(args.paidUnit, args.marketUnit, args.mv,
-    { levels = args.levels, sold = args.sold })
+    { levels = args.levels, sold = args.sold, floor = args.floor })
   if not rec then return nil end
 
   if rec.belowCost then
