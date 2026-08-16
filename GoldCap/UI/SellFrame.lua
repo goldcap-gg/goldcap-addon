@@ -1060,8 +1060,31 @@ local function pendingRepairFor(position, scope)
   return row
 end
 
+-- How many units the player is holding that GoldCap cannot put a cost against.
+--
+-- This used to be `exposureQty - knownQty`, and exposureQty counts tracked
+-- purchases and live listings -- it knows nothing about the bags. For anything
+-- GoldCap never bought that difference is zero, so Set cost returned before it
+-- showed the dialog and the button was simply dead. Bag stock is exactly the
+-- case the tab now exists to serve, and it is also the case most likely to need
+-- a cost typed in by hand.
+--
+-- Held = what is listed plus what is in the bags, or the accounting exposure,
+-- whichever is larger. The two disagree while an observation lags, and the
+-- larger is the safe one here: offering to cost a unit that turns out not to
+-- exist is a correctable mistake, refusing to cost one that does is the bug.
+local function uncostedQty(position)
+  if type(position) ~= "table" then return 0 end
+  local physical = (position.listedQty or 0) + (position.bagQty or 0)
+  local held = math.max(position.exposureQty or 0, physical)
+  return math.max(0, held - (position.knownQty or 0))
+end
+
 local function canSetCost(position)
   if not position or position.unresolved or type(position.positionKey) ~= "string" then return false end
+  -- Not offered where it would do nothing. A button that opens no dialog is
+  -- indistinguishable from a broken one, which is how this defect presented.
+  if uncostedQty(position) < 1 then return false end
   local pending = position.pendingAcquisitions
   if type(pending) ~= "table" or #pending == 0 then return true end
   local scope = activeScope(position)
@@ -1070,7 +1093,7 @@ end
 
 local function openCostDialog(position)
   local dialog = container.costDialog
-  local missing = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
+  local missing = uncostedQty(position)
   if missing < 1 then return end
   local scope = activeScope(position)
   local pending = pendingRepairFor(position, scope)
@@ -1467,7 +1490,7 @@ renderRows = function()
         -- stock to act on; the expansion carries it in either case.
         if bagQty > 0 then
           showRowAction(row, "Post", function() onPostClick(row) end)
-        elseif p.coverage ~= "COMPLETE" and canSetCost(p) then
+        elseif canSetCost(p) then
           showRowAction(row, "Set cost", function() openCostDialog(p) end)
         else
           row.action:Hide()
@@ -1586,7 +1609,12 @@ renderRows = function()
           row.cells.status:SetText("")
           setColor(row.cells.status, Theme.color.fgDim)
         end
-        if p.coverage ~= "COMPLETE" and canSetCost(p) then
+        -- Gated on canSetCost alone, not on the coverage label. A position that
+        -- is COMPLETE against its tracked purchases can still hold uncosted
+        -- stock -- five units bought through GoldCap and two hundred farmed is
+        -- the ordinary case -- and the coverage flag would have hidden the
+        -- button for exactly those.
+        if canSetCost(p) then
           showRowAction(row, "Set cost", function() openCostDialog(p) end)
         else
           row.action:Hide()

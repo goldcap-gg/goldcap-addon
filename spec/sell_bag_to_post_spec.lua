@@ -178,4 +178,48 @@ describe("Sell tab, bags to Post", function()
     assert.equal(246, row.position.bagQty)
     assert.equal("Auction House is not open", root.status.text)
   end)
+  -- Set cost did nothing at all on bag stock: openCostDialog sized "how many
+  -- units still need a cost" from exposureQty, which counts tracked purchases
+  -- and live listings and knows nothing about the bags. For anything GoldCap
+  -- never bought that number is zero, so the function returned before showing
+  -- the dialog and the button looked dead.
+  it("opens Set cost for bag stock GoldCap never bought", function()
+    compose()
+    local row = positionRow()
+    local openCostDialog = upvalue(render, "openCostDialog")
+    local dialog = upvalue(render, "container").costDialog
+    dialog.shown = false
+    openCostDialog(row.position)
+    assert.is_true(dialog.shown)
+    assert.equal(246, dialog.maximum)
+  end)
+
+  it("offers Set cost only where it would do something", function()
+    compose()
+    local row = positionRow()
+    local canSetCost = upvalue(render, "canSetCost")
+    assert.is_true(canSetCost(row.position))
+    -- Nothing held, nothing to cost: the button must not be offered at all,
+    -- rather than offered and silently inert.
+    assert.is_false(canSetCost({ positionKey = "commodity:1", exposureQty = 0,
+      knownQty = 0, bagQty = 0, listedQty = 0 }))
+  end)
+  it("still offers Set cost when only part of the stock is costed", function()
+    -- Five bought through GoldCap, the rest farmed. Coverage reads COMPLETE
+    -- against the tracked purchase, and gating the button on that label hid it
+    -- for exactly the case that needs it most.
+    GC.Acquisitions.Record({ source = "goldcap", itemID = 23427,
+      positionKey = "commodity:23427", itemName = "Eternium Ore", quantity = 5,
+      total = 60000, acquiredAt = 1, evidenceKey = "buy:1",
+      character = "Owner-Dentarg", region = "eu" })
+    compose()
+    local row = positionRow()
+    assert.equal("COMPLETE", row.position.coverage)
+    local openCostDialog = upvalue(render, "openCostDialog")
+    local dialog = upvalue(render, "container").costDialog
+    dialog.shown = false
+    openCostDialog(row.position)
+    assert.is_true(dialog.shown)
+    assert.equal(241, dialog.maximum) -- 246 held, 5 of them costed
+  end)
 end)
