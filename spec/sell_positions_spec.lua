@@ -33,6 +33,17 @@ describe("Sell positions", function()
     GC = helper.loadModule("Core/SellPositions.lua", GC)
   end)
 
+  -- The wiring, not just the capability. The first attempt at this fix worked in a spec that
+  -- handed Build raw batches and did nothing at all in the client, because the client's own
+  -- call site filters spent batches out before Build ever sees them.
+  it("[wiring] the Sell tab actually supplies identity evidence to Build", function()
+    local file = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
+    local text = file:read("*a")
+    file:close()
+    assert.is_truthy(text:find("GC.Acquisitions.GetIdentityEvidence(scope)", 1, true))
+    assert.is_truthy(text:find("identityEvidence = identityEvidence", 1, true))
+  end)
+
   it("normalizes every owned auction into an independently priced position lot", function()
     local lots = GC.SellPositions.NormalizeOwnedLots({
       { itemKey = { itemID = 42 }, isCommodity = true, quantity = 2, unitPrice = 90, auctionID = 2 },
@@ -117,6 +128,39 @@ describe("Sell positions", function()
     assert.is_nil(positions[1].unresolved)
     assert.equal("commodity:42", positions[1].positionKey)
     assert.equal(5, positions[1].trackedQty)
+  end)
+
+  -- The real caller never hands Build a spent batch: GC.Acquisitions.GetActive drops it. So the
+  -- evidence has to arrive by its own route, or the fix above is dead code in production --
+  -- which is exactly what shipped the first time.
+  it("adopts an identity supplied separately when the caller filtered the spent batch away", function()
+    local keyless = batch("acq:keyless", "auction_house", 5, 500, 2)
+    keyless.positionKey = nil
+    local positions = build({
+      acquisitions = { keyless },                       -- as GetActive would hand them over
+      identityEvidence = { { itemID = 42, positionKey = "commodity:42" } },
+    })
+
+    assert.equal(1, #positions)
+    assert.is_nil(positions[1].unresolved)
+    assert.equal("commodity:42", positions[1].positionKey)
+  end)
+
+  it("still refuses to guess when supplied identities disagree", function()
+    local keyless = batch("acq:keyless", "auction_house", 5, 500, 2)
+    keyless.positionKey = nil
+    local positions = build({
+      acquisitions = { keyless },
+      identityEvidence = {
+        { itemID = 42, positionKey = "commodity:42" },
+        { itemID = 42, positionKey = "item:42:23:0:0" },
+      },
+    })
+    local unresolved = 0
+    for _, position in ipairs(positions) do
+      if position.unresolved then unresolved = unresolved + 1 end
+    end
+    assert.equal(1, unresolved)
   end)
 
   it("still refuses to guess when the sold-out batches disagree with each other", function()

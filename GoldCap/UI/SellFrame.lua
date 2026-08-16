@@ -317,7 +317,13 @@ local function composePositions()
       sellerEvidence[#sellerEvidence + 1] = entry
     end
   end
-  positions = GC.SellPositions.Build({ acquisitions = batches, pendingAcquisitions = pending,
+  -- Identity evidence travels separately from `batches`: GetActive drops a batch the moment it
+  -- is sold out, and taking the item's auction identity from that same list is what orphaned
+  -- every keyless batch of a fully-sold item into its own repair row.
+  local identityEvidence = GC.Acquisitions and GC.Acquisitions.GetIdentityEvidence
+    and GC.Acquisitions.GetIdentityEvidence(scope) or {}
+  positions = GC.SellPositions.Build({ acquisitions = batches, identityEvidence = identityEvidence,
+    pendingAcquisitions = pending,
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = ownedLots,
     bagStock = bagStock, quotes = quotes, statsByItemID = stats, context = scope, now = time(),
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })

@@ -1308,6 +1308,27 @@ function GC.Acquisitions.GetActive(context)
   return sortedBatches(active)
 end
 
+-- Every batch in scope that ever carried a position key, INCLUDING ones sold down to nothing.
+--
+-- GetActive above answers "what do I still hold", and it is right to drop a spent batch. But
+-- SellPositions also needs the answer to a different question -- what IS this item on the
+-- auction house -- and it was reading that off GetActive's output too. So when an item's last
+-- keyed batch sold out, its identity evidence vanished with the stock, and every remaining
+-- keyless batch became its own REPAIR_IDENTITY row: fourteen rows for one herb. Only the
+-- key and the item matter here, so that is all this returns.
+function GC.Acquisitions.GetIdentityEvidence(context)
+  if not db or not validContext(context) then return {} end
+  local evidence = {}
+  for _, batch in ipairs(db.acquisitions) do
+    if batch.character == context.char and batch.region == context.region
+        and isPositiveInteger(batch.itemID)
+        and type(batch.positionKey) == "string" and batch.positionKey ~= "" then
+      evidence[#evidence + 1] = { itemID = batch.itemID, positionKey = batch.positionKey }
+    end
+  end
+  return evidence
+end
+
 function GC.Acquisitions.GetPending(context)
   if not db then return {} end
   if not context then return db.acquisitionPending end

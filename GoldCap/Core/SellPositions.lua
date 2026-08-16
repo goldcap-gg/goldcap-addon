@@ -374,6 +374,17 @@ function GC.SellPositions.Build(args)
   -- including ones sold down to nothing. `scoped` stays what it was -- only batches with stock
   -- left -- because that is what the accounting below is about. See identityBatch.
   local known = {}
+  -- Supplied separately because the caller's own batch list is already filtered to what is
+  -- still held (GC.Acquisitions.GetActive), so a spent batch's key never arrives by that route
+  -- -- which is exactly how the evidence went missing. Callers that hand over raw batches are
+  -- still covered by the identityBatch pass below.
+  for _, record in ipairs(args.identityEvidence or {}) do
+    if type(record) == "table" and positive(record.itemID)
+        and type(record.positionKey) == "string" and record.positionKey ~= "" then
+      known[record.itemID] = known[record.itemID] or {}
+      known[record.itemID][#known[record.itemID] + 1] = record
+    end
+  end
   for _, batch in ipairs(args.acquisitions or {}) do
     if identityBatch(batch, context) then
       known[batch.itemID] = known[batch.itemID] or {}
