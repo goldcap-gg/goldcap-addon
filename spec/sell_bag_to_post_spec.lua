@@ -166,4 +166,16 @@ describe("Sell tab, bags to Post", function()
     compose()
     assert.same({ 23427 }, walk())
   end)
+  it("shows bag stock away from an auctioneer, where the server cannot be asked", function()
+    -- No auction house session: requestOwnedAuctions refuses, the pricing walk
+    -- never starts, and the tab used to answer with an empty list and a line of
+    -- text -- while the answer to "what could I sell" sat in the player's bags.
+    GC.Sniper = { IsAHOpen = function() return false end }
+    GC.Sell.Refresh()
+    rows = upvalue(render, "rows")
+    local row = positionRow()
+    assert.is_not_nil(row)
+    assert.equal(246, row.position.bagQty)
+    assert.equal("Auction House is not open", root.status.text)
+  end)
 end)

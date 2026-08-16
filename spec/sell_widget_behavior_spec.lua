@@ -90,7 +90,14 @@ describe("Sell widget geometry and manual cost", function()
         SummaryText = function(summary) return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown" } end,
         Expansion = function() return { batches = {}, ownedLots = {}, note = "FIFO allocations" } end,
       },
-      SellPositions = { Summary = function() return { invested = nil, projected = nil, profit = nil } end },
+      SellPositions = {
+        Summary = function() return { invested = nil, projected = nil, profit = nil } end,
+        -- Refresh composes from the bags before it asks the server anything, so
+        -- the tab shows what you could sell even away from an auctioneer. Tests
+        -- that drive Refresh therefore need a Build; those that assert on rows
+        -- they injected by hand stub Refresh out instead.
+        Build = function() return {} end,
+      },
       Acquisitions = {
         RecordManual = function(args) record.calls[#record.calls + 1] = args; return {} end,
         RepairPendingManual = function(args) record.repairs[#record.repairs + 1] = args; return {} end,
@@ -480,7 +487,9 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("posting", rows[1].postStage)
 
     -- The post resolves (here: the auction house reports it failed), which
-    -- disarms the row and flushes the render that was held.
+    -- disarms the row and flushes the render that was held. Refresh is stubbed
+    -- out: this is about the disarm, not about recomposing from the bags.
+    GC.Sell.Refresh = function() end
     GC.Sell.OnPostError()
     assert.is_nil(rows[1].postStage)
     assert.equal("Post", rows[1].action.label)
@@ -538,6 +547,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(7, firstLotRow.lot.auctionID)
     assert.equal("armed", firstLotRow.repostStage)
 
+    GC.Sell.Refresh = function() end -- see above: this is about the disarm
     GC.Sell.OnPostError() -- disarms, and flushes the render the filter asked for
     assert.equal(8, firstLotRow.lot.auctionID)
     assert.is_nil(firstLotRow.repostStage)

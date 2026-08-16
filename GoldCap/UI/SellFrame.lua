@@ -1653,6 +1653,13 @@ function GC.Sell.Refresh(automatic)
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.queue, refresh.index = "owned", {}, 0
   markProgress()
+  -- Draw what is already known before asking the server anything. Bag contents
+  -- need no auction house at all, and every path below can fail -- the auction
+  -- house not being open being the ordinary one. Without this, opening the Sell
+  -- tab anywhere but at an auctioneer showed an empty list and a line of text,
+  -- when the answer to "what could I sell" was sitting in the player's bags.
+  composePositions()
+  renderRows()
   setStatus(automatic and "Checking prices…" or "Refreshing listings…")
   local sent, waiting = requestOwnedAuctions()
   if waiting then
