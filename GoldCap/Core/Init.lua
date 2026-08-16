@@ -203,12 +203,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
-    if GC.Sniper.scanner then GC.Sniper.scanner:OnSystemReady() end
+    -- The scanner is NOT woken here any more. It is one of two background consumers of a
+    -- single search slot, and calling it first meant it took every slot ahead of the browse
+    -- scan -- see UI/SniperFrame.lua's OnThrottleReady, which now owns that decision. Result
+    -- routing (OnKeyInfo/OnItemResults/OnCommodityResults below) stays here: that is delivery,
+    -- not allocation.
     if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end
-    -- D: serviced AFTER the scanner and the Sniper's own pendingFullScanStart/pendingBrowsePage/
-    -- pendingRequerySend flush above -- GC.Sell.OnThrottleReady only ever advances its OWN
-    -- sequential quote walk (and even then refuses while GC.Sniper.IsBusy()), so it can never
-    -- steal this throttle-ready tick out from under a scan or a buy requery.
     if GC.Sell.OnThrottleReady then GC.Sell.OnThrottleReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
     local itemID = ...

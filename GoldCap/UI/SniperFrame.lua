@@ -251,6 +251,15 @@ GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 -- :Cancel() on AH close -- see GC.Sniper.OnAuctionHouseShow/OnAuctionHouseClosed).
 local autoScan
 local autoScanTicker
+-- Slot arbiter. The browse scan and the watch loop are both BACKGROUND consumers of one
+-- throttled search slot; `watchTurn` alternates between them so speeding up watching cannot
+-- silently stop discovery. Starts true so the watch loop takes the first contested slot -- it
+-- is the latency-sensitive one, and the browse scan is a marathon either way.
+local watchTurn = true
+-- True only for the instant a grant is open. Core/Scanner.lua's advance() reads this through
+-- driver.mayScan and will not send outside it, which is what stops it chaining result -> send
+-- straight past the arbiter.
+local watchGrant = false
 -- feedAuto funnels EVERY AutoScan input through one place (instead of bare
 -- `autoScan:Input(...)` calls scattered across the file) so the Auto button's label/pulse
 -- (refreshAutoButton, assigned once the button itself is built in createFrame) can never
@@ -887,6 +896,10 @@ end
 local driver = {
   isReady = function()
     return C_AuctionHouse.IsThrottledMessageSystemReady()
+  end,
+
+  mayScan = function()
+    return watchGrant
   end,
 
   getKeyInfo = function(itemID)
@@ -2430,11 +2443,25 @@ function GC.Sniper.OnBrowseResultsAdded()
   advanceBrowseScan(fullScanToken)
 end
 
+-- Hands the watch loop exactly one send. The grant is a window, not a flag the scanner keeps:
+-- advance() runs synchronously inside OnSystemReady, so opening the window around that one
+-- call is what bounds the loop to a single query per turn.
+function GC.Sniper._GrantWatchSlot()
+  local scanner = GC.Sniper.scanner
+  if not scanner or not scanner.Wants or not scanner:Wants() then return false end
+  watchGrant = true
+  scanner:OnSystemReady()
+  watchGrant = false
+  return true
+end
+
 -- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
 -- the next slot before any optional browse traffic. The Check has already stopped Live in
 -- startRequery, so this works in watchlist mode without a scanner collision; returning after
 -- the send also prevents a full-scan browse request from stealing the same ready turn.
 function GC.Sniper.OnThrottleReady()
+  -- A parked Check wins outright, exactly as before: a player is waiting on it, and it has
+  -- already stopped the loop as a courtesy besides.
   for itemID, attempt in pairs(pendingRequerySend) do
     pendingRequerySend[itemID] = nil
     if isCurrentRequeryAttempt(attempt) then
@@ -2444,14 +2471,32 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
+  -- Starting a pass is not a background page -- it is the one send that makes the scan exist
+  -- at all, and delaying it just leaves the scan idle. It keeps its place ahead of the split.
   if pendingFullScanStart then
     pendingFullScanStart = false
     sendBrowseQuery(fullScanToken)
-  elseif pendingBrowsePage then
+    return
+  end
+
+  -- The even split, between the only two consumers that are genuinely optional.
+  local scanner = GC.Sniper.scanner
+  local watchWants = (scanner and scanner.Wants and scanner:Wants()) and true or false
+  if not watchWants and not pendingBrowsePage then return end
+
+  -- Alternate only while BOTH are hungry. If one has nothing to do the other takes the slot:
+  -- a split that manufactures idle slots is worse than no split at all.
+  local giveWatch = watchWants
+  if watchWants and pendingBrowsePage then giveWatch = watchTurn end
+
+  if giveWatch then
+    watchTurn = false
+    GC.Sniper._GrantWatchSlot()
+  else
+    watchTurn = true
     pendingBrowsePage = false
     sendBrowsePage(fullScanToken)
   end
-
 end
 
 -- D: true while a Full Scan is paging (or queued to start) or any row has a purchase pinned
