@@ -8,7 +8,11 @@ local _, GC = ...
 GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = true }
 
 local MAX_EXACT = 9007199254740991
-local SOURCE_MAX_AGE = 7200
+-- Three hours, calibrated to the upstream rather than picked round. Blizzard republishes
+-- commodity data roughly once an hour, so a two-hour limit left no room for a single missed
+-- ingest cycle and refused ordinary healthy data. Three tolerates one missed cycle and still
+-- catches what this gate exists for: a dead Companion, an abandoned session, a day-old import.
+local SOURCE_MAX_AGE = 10800
 local MAXIMUM_ROI = 10 -- 1000%; larger edited settings fail closed instead of relaxing.
 
 local function isFinite(n)
@@ -133,7 +137,7 @@ local REASON_TEXT = {
   live_verification_required = "Needs a live price check before it can be bought.",
   realm_item_unverified = "This is a realm item, and GoldCap only verifies commodity prices.",
   bundled_data_unverified = "Priced from bundled sample data, not from your realm.",
-  source_stale = "The price data is over two hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads.",
+  source_stale = "The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads.",
   market_value_estimated = "The market value is an estimate, not a measurement.",
   price_history_sparse = "Too little price history to trust the value.",
   listings_too_low = "Too few sellers to read a real price.",

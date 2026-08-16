@@ -86,16 +86,25 @@ describe("SniperDecision", function()
     assert.not_equal("shadow_validation", result.reasons[1])
   end)
 
-  it("accepts an import exactly 7200 seconds old", function()
-    local result = evaluate()
-    assert.equal("SAFE", result.computedStatus)
+  -- Three hours, calibrated to the upstream: Blizzard republishes commodity data roughly once
+  -- an hour, so anything under two hours left no room for a single missed ingest cycle and the
+  -- gate fired on ordinary healthy data. Three tolerates exactly one missed cycle and still
+  -- rejects what this gate is for -- a dead Companion, an abandoned session, a day-old import.
+  it("accepts an import exactly 10800 seconds old", function()
+    local input = validInput(); input.market.sourceAt = 89200
+    assert.equal("SAFE", evaluate(input).computedStatus)
   end)
 
-  it("watches an import 7201 seconds old", function()
-    local input = validInput(); input.market.sourceAt = 92799
+  it("watches an import 10801 seconds old", function()
+    local input = validInput(); input.market.sourceAt = 89199
     local result = evaluate(input)
     assert.equal("WATCH", result.status)
     assertReason(result, "source_stale")
+  end)
+
+  it("still accepts a two-hour-old import", function()
+    local input = validInput(); input.market.sourceAt = 92800
+    assert.equal("SAFE", evaluate(input).computedStatus)
   end)
 
   it("watches sparse 11-observation history but accepts 12", function()
