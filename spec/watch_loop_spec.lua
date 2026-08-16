@@ -267,4 +267,16 @@ describe("Watch loop", function()
     local realRenderList = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows"), "renderList")
     assert.equal(0, upvalue(realRenderList, "refusedCount"))   -- a pin does not shorten the list
   end)
+
+  it("measures how long a full pass over the set actually took", function()
+    local GC = load()
+    GC.db.settings.sniper.watchPins = { 1, 2 }
+    GC.Sniper._RefreshWatchSet()
+    assert.is_nil(GC.Sniper._cycleSeconds)
+
+    now = 100; GC.Sniper._GrantWatchSlot()
+    now = 101; GC.Sniper._GrantWatchSlot()
+    now = 104; GC.Sniper._GrantWatchSlot()      -- back to the top: one full pass took 4s
+    assert.equal(4, GC.Sniper._cycleSeconds)
+  end)
 end)

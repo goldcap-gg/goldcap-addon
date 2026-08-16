@@ -1324,6 +1324,12 @@ function GC.Sniper._RefreshWatchSet()
   for i = #current, 1, -1 do current[i] = nil end
   for i = 1, #targets do current[i] = targets[i] end
 
+  -- A different set is a different measurement: the pass the loop was timing no longer visits
+  -- the same members, so its partial count means nothing against the new one.
+  GC.Sniper._passStartedAt = GetTime()
+  GC.Sniper._grants = 0
+  GC.Sniper._cycleSeconds = nil
+
   if not GC.Sniper.scanner then return end
   if #current == 0 then
     GC.Sniper.scanner:Stop()
@@ -2638,6 +2644,23 @@ function GC.Sniper._GrantWatchSlot()
   -- reasoning that already pcall-guards AuctionHouseTab.Install.
   pcall(scanner.OnSystemReady, scanner)
   watchGrant = false
+  -- Cycle time is MEASURED, never estimated: this project has not measured Blizzard's throttle
+  -- interval and will not invent one. Count grants against the set size; every time the count
+  -- wraps, one full pass has completed and its wall-clock is the number the UI shows.
+  -- A wrap is the loop landing back on the item it started this pass on, which takes one MORE
+  -- grant than the set has members (n grants visit every member once; the (n+1)th repeats the
+  -- first) -- ">=" here would stamp every pass one grant short, permanently, not just the
+  -- first. The grant that detects the wrap is also the first grant of the next pass, so the
+  -- count restarts at 1 for it rather than 0. Counted even if the pcall above just swallowed a
+  -- throw: the arbiter still spent this turn on the watch loop, and that is what is being
+  -- timed -- not whether the scanner's own bookkeeping succeeded.
+  GC.Sniper._grants = (GC.Sniper._grants or 0) + 1
+  if #GC.Sniper._liveTargets > 0 and GC.Sniper._grants > #GC.Sniper._liveTargets then
+    local started = GC.Sniper._passStartedAt
+    if started then GC.Sniper._cycleSeconds = GetTime() - started end
+    GC.Sniper._passStartedAt = GetTime()
+    GC.Sniper._grants = 1
+  end
   return true
 end
 
@@ -4449,6 +4472,14 @@ local function createFrame()
       and ("Last result: %ds ago"):format(math.floor(GetTime() - newest))
       or "Last result: none yet this visit", 0.7, 0.7, 0.7)
     GameTooltip:AddLine(("Refused so far: %d"):format(refusedCount), 0.7, 0.7, 0.7)
+    local watched = #GC.Sniper._liveTargets
+    if watched > 0 then
+      GameTooltip:AddLine(("Watching closely: %d item%s"):format(watched, watched == 1 and "" or "s"),
+        0.7, 0.7, 0.7)
+      GameTooltip:AddLine(GC.Sniper._cycleSeconds
+        and ("Full pass over them: %.1fs"):format(GC.Sniper._cycleSeconds)
+        or "Full pass over them: measuring...", 0.7, 0.7, 0.7)
+    end
     GameTooltip:Show()
   end)
   verifyBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
