@@ -374,6 +374,34 @@ describe("Deals background verification", function()
     assert.equal(1, #sounds)
   end)
 
+  it("will not ring twice for the same item inside the floor", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200) })
+
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.equal(1, #sounds)
+
+    -- The cheap lot is bought, the price recovers, a new one appears -- a genuine second
+    -- transition, five seconds later. Worth showing, not worth a second bell.
+    board(api, { deal(1, 95), deal(2, 200) })
+    tickAt(api, 106)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.equal(1, #sounds)
+    assert.equal("Buy", api.rows[1].buy.label)   -- still shown, just not announced
+
+    -- A DIFFERENT item is never muted by its neighbour.
+    tickAt(api, 107)
+    api.GC.Sniper.OnCommoditySearchResults(2)
+    assert.equal(2, #sounds)
+
+    -- And past the floor the same item may ring again.
+    board(api, { deal(1, 90), deal(2, 200) })
+    tickAt(api, 140)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.equal(3, #sounds)
+  end)
+
   it("keeps quiet when the sound setting is off", function()
     local api = loadSniper(safe)
     api.GC.db.settings.sniper.sound = false

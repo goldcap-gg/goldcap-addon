@@ -8,6 +8,9 @@ GC.Sniper._liveTracksScanDeals = false
 -- than as module locals: this chunk is at Lua's 200-local ceiling, and a field costs nothing.
 GC.Sniper._churn = {}
 GC.Sniper._churnSeq = 0
+-- itemID -> GetTime() of the last ring stampVerdict rang for it. Same "field, not a local"
+-- reasoning as _churn above.
+GC.Sniper._rangAt = {}
 
 local Theme = GC.Theme
 
@@ -89,6 +92,10 @@ LIM.VERIFY_WALK_SECONDS = 1
 -- what shrinks if the cycle proves too slow -- the split only decides who goes first among
 -- however many targets there are.
 LIM.WATCH_SET_SIZE = 10
+-- Per-item floor between rings (stampVerdict): a churning watched item can transition into
+-- buyable several times a minute, and every one of those is worth SHOWING, but not worth a
+-- separate bell each time. See stampVerdict's own comment for why this is per item, not global.
+LIM.RING_FLOOR_SECONDS = 30
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
@@ -2399,6 +2406,12 @@ stampVerdict = function(deal, data, manual)
   refreshRows()
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  -- Per ITEM, never a global mute. A watched item whose floor is reset every few seconds is a
+  -- real sequence of opportunities and every one of them still SHOWS -- but a bell every five
+  -- seconds stops carrying information, and two different items must never silence each other.
+  local rang = GC.Sniper._rangAt[deal.itemID]
+  if rang and (GetTime() - rang) < LIM.RING_FLOOR_SECONDS then return end
+  GC.Sniper._rangAt[deal.itemID] = GetTime()
   -- Find the row by the SAME key the verdict itself is filed under -- item and asking price --
   -- and NOT by table identity the way pingNewHotDeals does. That difference is the whole bug
   -- behind "the Buy button appeared but it never made a sound": identity is right for a HOT
@@ -4725,6 +4738,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- live in SavedVariables.
   for itemID in pairs(GC.Sniper._churn) do GC.Sniper._churn[itemID] = nil end
   GC.Sniper._churnSeq = 0
+  for itemID in pairs(GC.Sniper._rangAt) do GC.Sniper._rangAt[itemID] = nil end
   -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live
   -- order book, and there is no live order book once the session is gone. scanDeals survives
   -- the close on purpose (see OnAuctionHouseShow) -- its verdicts must not, or the next visit
