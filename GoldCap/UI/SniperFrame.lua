@@ -4015,6 +4015,12 @@ local function createFrame()
   return f
 end
 
+-- Whether the addon window is up. Read by UI/AuctionHouseTab.lua so the tab it
+-- draws on Blizzard's auction house never claims a state the window is not in.
+function GC.Sniper.IsWindowShown()
+  return frame ~= nil and frame:IsShown()
+end
+
 function GC.Sniper.Toggle()
   frame = frame or createFrame()
   if frame:IsShown() then
@@ -4026,6 +4032,9 @@ function GC.Sniper.Toggle()
     -- was last open -- cheap to recompute on every show regardless of which tab is active.
     GC.Sell.Refresh()
     updateSellTabLabel()
+  end
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.Refresh then
+    pcall(GC.AuctionHouseTab.Refresh)
   end
 end
 
@@ -4131,6 +4140,12 @@ function GC.Sniper.OnAuctionHouseShow()
   -- from appearing, but (fix round 1, I4 ruling) Auto never actually SCANS until the window
   -- is shown, since toggleOn's own tab-seed just below re-adds "tab" if it isn't up yet.
   installSearchHooks()
+  -- Same guarantee installSearchHooks carries: this runs synchronously inside
+  -- this function, so it must not be able to raise. AuctionHouseTab.Install is
+  -- pcall-guarded end to end, and pcall'd again here rather than trusted.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.Install then
+    pcall(GC.AuctionHouseTab.Install)
+  end
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
     autoScan:Tick(GetTime())
     refreshAutoButton()
