@@ -329,7 +329,7 @@ function GC.OnSlash(msg)
   if handler then
     handler()
   else
-    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper")
+    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger")
   end
 end
 
@@ -358,6 +358,44 @@ GC.slashHandlers.ledger = function()
   GC.Print(("last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent")
     :format(sales, GetCoinTextureString(gross), GetCoinTextureString(cut),
       buys, GetCoinTextureString(spent)))
+end
+
+-- "What did that actually sell for?" had no answer anywhere in the addon. The
+-- ledger recorded every sale invoice and only ever reported them as a 24h total,
+-- which cannot tell you the price of one item -- and the mail carrying the
+-- invoice is gone from the client the moment it is collected, so afterwards
+-- this store is the only record that exists.
+--
+-- `total` is what the buyer paid; `cut` is the auction house's consignment,
+-- already deducted from what arrived. Per-unit is what a seller compares against
+-- a market price, so it leads.
+GC.slashHandlers.sales = function()
+  local entries = GC.Ledger and GC.Ledger.GetEntries() or {}
+  local sales = {}
+  for i = 1, #entries do
+    local e = entries[i]
+    if e.kind == "sale" and (e.itemName or "") ~= "" then sales[#sales + 1] = e end
+  end
+  table.sort(sales, function(left, right) return (left.at or 0) > (right.at or 0) end)
+  if #sales == 0 then
+    GC.Print("no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices")
+    return
+  end
+  GC.Print("recent sales (newest first):")
+  for i = 1, math.min(#sales, 15) do
+    local sale = sales[i]
+    local qty = (type(sale.qty) == "number" and sale.qty > 0) and sale.qty or 1
+    local total = sale.total or 0
+    local when = "?"
+    if type(sale.at) == "number" and _G.date then
+      local ok, formatted = pcall(_G.date, "%d %b %H:%M", sale.at)
+      if ok then when = formatted end
+    end
+    GC.Print((" %s  %s  x%d at %s each  (%s total, %s cut)%s"):format(
+      when, sale.itemName, qty, GetCoinTextureString(math.floor(total / qty)),
+      GetCoinTextureString(total), GetCoinTextureString(sale.cut or 0),
+      sale.pending and "  [not yet paid out]" or ""))
+  end
 end
 
 SLASH_GOLDCAP1 = "/goldcap"

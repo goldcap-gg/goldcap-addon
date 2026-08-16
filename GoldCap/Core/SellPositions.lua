@@ -74,11 +74,32 @@ local function keyForLot(auction)
   return GC.Acquisitions.PositionKey(itemID, itemKeyFor(auction), isCommodity), itemID, isCommodity
 end
 
+-- The unit price of one of the player's own live auctions.
+--
+-- This divided buyoutAmount by the stack size unconditionally, which is right
+-- for an item auction and wrong for a commodity -- and every reagent, ore, herb
+-- and flask a seller posts is a commodity. Five Arcane Crystals posted at 92g12s
+-- each were reported as listed at 18g42s40c, because 921200/5 = 184240, and
+-- every number downstream inherited it: the projected proceeds, and therefore a
+-- profit of -52g49s72c on a position that was actually making 17g51s a unit.
+--
+-- Commodities are priced per unit throughout this API -- PostCommodity takes a
+-- unit price, GetCommoditySearchResultInfo returns one -- and buyoutAmount
+-- follows suit. An item auction carries the total for the whole stack.
+--
+-- Fails toward NOT dividing when the kind is unknown. GetOwnedAuctions does not
+-- report isCommodity itself (see classifyOwnedAuctions in UI/SellFrame.lua), so
+-- unknown is a real state, and for a genuine item auction the divisor is almost
+-- always 1 anyway -- in retail, anything that stacks IS a commodity. Dividing on
+-- a guess understates the price, which reads as selling far below market and
+-- would have the player cancel a perfectly good listing.
 local function lotUnit(auction)
   if positive(auction.unitPrice) then return auction.unitPrice end
-  local qty = positive(auction.quantity) and auction.quantity or 1
-  if positive(auction.buyoutAmount) then return math.floor(auction.buyoutAmount / qty) end
-  return nil
+  if not positive(auction.buyoutAmount) then return nil end
+  if auction.isCommodity == false and positive(auction.quantity) and auction.quantity > 1 then
+    return math.floor(auction.buyoutAmount / auction.quantity)
+  end
+  return auction.buyoutAmount
 end
 
 function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
