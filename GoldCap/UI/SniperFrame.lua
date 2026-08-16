@@ -4,6 +4,11 @@ GC.Sniper = GC.Sniper or {}
 GC.Sniper._liveTargets = {}
 GC.Sniper._liveTracksScanDeals = false
 
+-- Churn observations and the resulting target list live on GC.Sniper as table fields rather
+-- than as module locals: this chunk is at Lua's 200-local ceiling, and a field costs nothing.
+GC.Sniper._churn = {}
+GC.Sniper._churnSeq = 0
+
 local Theme = GC.Theme
 
 -- Window and row geometry, folded into one table for the same reason DG below
@@ -80,6 +85,10 @@ LIM.VERIFY_TRUST_SECONDS = 120
 -- sorts and filters the whole deals list -- once a second is far more often than a 30s
 -- re-check cadence can consume, and four times a second is just wasted work.
 LIM.VERIFY_WALK_SECONDS = 1
+-- How many items the dormant poll loop watches at once. This, not the arbiter's split, is
+-- what shrinks if the cycle proves too slow -- the split only decides who goes first among
+-- however many targets there are.
+LIM.WATCH_SET_SIZE = 10
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
@@ -1154,6 +1163,9 @@ local function applyFullScanResults(rowsList, groupCount)
   local screened
   scanDeals, screened = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
   GC.Sniper._screenedCount = screened or 0
+  GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
+  GC.WatchSet.Observe(GC.Sniper._churn, scanDeals, GC.Sniper._churnSeq)
+  GC.Sniper._RefreshWatchSet()
   -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
   -- single resolved auction: isCommodity is unknown here and auctionID is always nil. Mark
   -- every deal `.stale` so onBuyClick knows to requery live before it will let one arm for
@@ -1190,6 +1202,39 @@ local function applyFullScanResults(rowsList, groupCount)
   -- whenever the machine's own state isn't SCANNING -- e.g. a manual "Scan" click while Auto
   -- is off/paused -- see AutoScan.lua's onScanFinished.
   feedAuto("scanFinished")
+end
+
+function GC.Sniper._WatchPins()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (cfg and cfg.watchPins) or {}
+end
+
+-- Recomputes the target list and restarts the loop ONLY if membership actually changed.
+-- Restarting is not free: Scanner:Start wipes alertedCommodity/alertedAuctions, so a needless
+-- restart re-arms every alert and would ring for lots that have been sitting there all along.
+function GC.Sniper._RefreshWatchSet()
+  local targets = GC.WatchSet.Select(GC.Sniper._churn, GC.Sniper._WatchPins(), LIM.WATCH_SET_SIZE)
+  local current = GC.Sniper._liveTargets
+  local same = #targets == #current
+  if same then
+    for i = 1, #targets do
+      if targets[i] ~= current[i] then same = false; break end
+    end
+  end
+  if same then return end
+
+  for i = #current, 1, -1 do current[i] = nil end
+  for i = 1, #targets do current[i] = targets[i] end
+
+  if not GC.Sniper.scanner then return end
+  if #current == 0 then
+    GC.Sniper.scanner:Stop()
+    return
+  end
+  -- Observations rewrite the full-scan list in place (FullScan.ApplyLiveObservation) rather
+  -- than the watchlist map -- the board the player is looking at is scanDeals.
+  GC.Sniper._liveTracksScanDeals = true
+  GC.Sniper.scanner:Start(current)
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -1291,6 +1336,9 @@ local function advanceBrowseScan(token)
     -- applyFullScanResults' own completion branch uses, against the same seenHotDeals set --
     -- see that call site's comment for why both branches need their own pass.
     local pingDeals = GC.FullScan.CollectNewHot(deltaDeals, seenHotDeals)
+    GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
+    GC.WatchSet.Observe(GC.Sniper._churn, deltaDeals, GC.Sniper._churnSeq)
+    GC.Sniper._RefreshWatchSet()
     scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
     refreshRows()
     if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
@@ -4640,6 +4688,11 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
   -- what's worth flagging) -- see seenHotDeals' own declaration.
   for key in pairs(seenHotDeals) do seenHotDeals[key] = nil end
+  -- What the addon worked out for itself is a claim about a live market and does not survive
+  -- the session, exactly like a verdict. Pins do: they are a standing instruction, and they
+  -- live in SavedVariables.
+  for itemID in pairs(GC.Sniper._churn) do GC.Sniper._churn[itemID] = nil end
+  GC.Sniper._churnSeq = 0
   -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live
   -- order book, and there is no live order book once the session is gone. scanDeals survives
   -- the close on purpose (see OnAuctionHouseShow) -- its verdicts must not, or the next visit
