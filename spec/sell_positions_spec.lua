@@ -44,6 +44,76 @@ describe("Sell positions", function()
     assert.is_truthy(text:find("identityEvidence = identityEvidence", 1, true))
   end)
 
+  local function activity(positionKey, itemID, itemName, at)
+    return { positionKey = positionKey, itemID = itemID or 42, itemName = itemName or "Herb",
+      firstSeenAt = at or 1, character = context.char, region = context.region,
+      scopeKey = table.concat({ context.region, context.char, positionKey }, "\1") }
+  end
+
+  local function sale(itemName, at, pending)
+    return { kind = "sale", source = "mail", char = context.char, region = context.region,
+      key = "mail:" .. (itemName or "Herb") .. ":" .. tostring(at or 5),
+      itemName = itemName or "Herb", at = at or 5, pending = pending, qty = 1 }
+  end
+
+  -- A paid sale is the NORMAL end of owning something, not an anomaly. The merge branch used to
+  -- require `pending == true`, so every settled sale fell through to a REPAIR_SALE row with no
+  -- itemID, no icon and no numbers -- and they accumulate forever, because nothing ever makes a
+  -- paid sale pending again.
+  it("attaches a settled sale to its position instead of filing a repair row", function()
+    local positions = build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      sellerEvidence = { sale("Herb", 5, false) },
+    })
+
+    assert.equal(1, #positions)
+    assert.is_nil(positions[1].unresolved)
+    assert.equal(1, #positions[1].sellerEvidence)
+    -- ...and it must not be mislabelled as still awaiting payment.
+    assert.is_not_true(positions[1].facts.soldPending)
+  end)
+
+  -- Two activity rows for ONE item, differing only in commodity-vs-item form, is bookkeeping
+  -- damage rather than a real question about which item was sold. When the purchase record
+  -- proves which key is the item's real identity, that settles it.
+  it("resolves a sale whose only ambiguity is a stale duplicate key", function()
+    local positions = build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      identityEvidence = { { itemID = 42, positionKey = "commodity:42" } },
+      activities = {
+        activity("commodity:42", 42, "Herb", 1),
+        activity("item:42:23:0:0", 42, "Herb", 1),
+      },
+      sellerEvidence = { sale("Herb", 5, false) },
+    })
+
+    local unresolved = 0
+    for _, position in ipairs(positions) do
+      if position.unresolved then unresolved = unresolved + 1 end
+    end
+    assert.equal(0, unresolved)
+  end)
+
+  -- But a genuine variant question stays a question. Two different item variants of one itemID
+  -- are two different things to sell, and guessing between them misreports what a sale earned.
+  it("still refuses a sale split across two genuine variants", function()
+    local positions = build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1, nil, nil, nil, "item:42:23:0:0") },
+      activities = {
+        activity("item:42:23:0:0", 42, "Herb", 1),
+        activity("item:42:80:0:0", 42, "Herb", 1),
+      },
+      sellerEvidence = { sale("Herb", 5, false) },
+    })
+
+    local ambiguous = 0
+    for _, position in ipairs(positions) do
+      if position.unresolvedKind == "ambiguous_sale" then ambiguous = ambiguous + 1 end
+    end
+    assert.equal(1, ambiguous)
+  end)
+
   it("normalizes every owned auction into an independently priced position lot", function()
     local lots = GC.SellPositions.NormalizeOwnedLots({
       { itemKey = { itemID = 42 }, isCommodity = true, quantity = 2, unitPrice = 90, auctionID = 2 },

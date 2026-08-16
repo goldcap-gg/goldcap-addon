@@ -498,10 +498,43 @@ function GC.SellPositions.Build(args)
       end
       local matched, count
       for _, activity in pairs(matchedByScope) do matched, count = activity, (count or 0) + 1 end
-      if evidence.pending == true and count == 1 then
+      -- An item is EITHER a commodity or a variant item; it cannot be both. So an activity set
+      -- holding `commodity:X` alongside `item:X:...` for one itemID is a contradiction -- one
+      -- of them is stale bookkeeping, not a real question about what was sold. When the
+      -- purchase record proves which form is right (known[itemID], see above), that settles it.
+      --
+      -- Deliberately narrower than "one proven key wins". `item:X:23:0:0` and `item:X:80:0:0`
+      -- do not contradict each other: they are two genuine variants of one itemID, two
+      -- different things to sell, and choosing between them on the strength of having bought
+      -- only one would misreport what the sale earned. That case still gets a repair row.
+      if count and count > 1 then
+        local proven = uniqueVariants(known[matched.itemID] or {}, {})
+        local provenIsCommodity = proven and proven:find("^commodity:") ~= nil
+        local contradicts = false
+        for _, activity in pairs(matchedByScope) do
+          local key = activity.positionKey
+          if proven and type(key) == "string" and key ~= proven
+              and (key:find("^commodity:") ~= nil) ~= provenIsCommodity then
+            contradicts = true
+          end
+        end
+        if contradicts then
+          local narrowed, narrowedCount
+          for _, activity in pairs(matchedByScope) do
+            if activity.positionKey == proven then
+              narrowed, narrowedCount = activity, (narrowedCount or 0) + 1
+            end
+          end
+          if narrowedCount == 1 then matched, count = narrowed, 1 end
+        end
+      end
+      -- A settled sale is the NORMAL end of owning something. Requiring `pending` here meant
+      -- every paid sale fell through to a repair row with no itemID, no icon and no numbers --
+      -- and nothing ever makes a paid sale pending again, so they accumulated forever.
+      if count == 1 then
         local position = positionFor(positions, matched.positionKey, matched.itemID, context)
         position.itemName = position.itemName or matched.itemName
-        position.facts.soldPending = true
+        if evidence.pending == true then position.facts.soldPending = true end
         position.sellerEvidence[#position.sellerEvidence + 1] = evidence
       else
         unresolvedRows[#unresolvedRows + 1] = {
