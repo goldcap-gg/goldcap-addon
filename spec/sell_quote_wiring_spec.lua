@@ -9,7 +9,11 @@ describe("Sell quote and action wiring", function()
   it("only derives rows from positions and keeps latest quotes display-only", function()
     local text = source()
     assert.is_truthy(text:find("GC.SellPositions.Build({", 1, true))
-    assert.is_truthy(text:find("GC.QuoteCache.Fresh(quotes, position.itemID, time())", 1, true))
+    -- A Sell quote is judged against the tab's own window, not the Sniper's 10s:
+    -- a purchase commits gold against one price point, a listing competes over
+    -- hours, and a 10s window made Post unclickable.
+    assert.is_truthy(text:find(
+      "GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
     assert.is_truthy(text:find("GC.QuoteCache.Set(quotes, itemID, unit, time())", 1, true))
     assert.is_nil(text:find("GC.Data.GetFlips", 1, true))
   end)

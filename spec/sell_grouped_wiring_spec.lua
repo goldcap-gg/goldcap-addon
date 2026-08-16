@@ -26,7 +26,7 @@ describe("Grouped Sell wiring", function()
 
   it("uses one owned-auctions refresh followed by the sequential quote walk", function()
     local text = source()
-    local refresh = assert(text:match("function GC%.Sell%.Refresh%(%)(.-)function GC%.Sell%.Reset"))
+    local refresh = assert(text:match("function GC%.Sell%.Refresh%(automatic%)(.-)function GC%.Sell%.Reset"))
     assert.is_truthy(refresh:find("requestOwnedAuctions()", 1, true))
     assert.is_truthy(refresh:find("refresh.phase", 1, true))
     assert.is_truthy(text:find("Refreshing listings…", 1, true))

@@ -163,10 +163,16 @@ describe("Sell widget geometry and manual cost", function()
     for _, child in ipairs(container.children) do
       if child.label then buttons[child.label] = child end
     end
+    -- "AH" used to sit here as a provenance filter (units GoldCap watched arrive
+    -- by mail), which reads as "my auctions" and is not what it did. The two
+    -- cuts a seller actually wants are what is in the bags and what is already
+    -- up for sale.
     assert.equal(buttons.Refresh, buttons["Missing cost"].points[1].relative)
-    assert.equal(buttons["Missing cost"], buttons.AH.points[1].relative)
-    assert.equal(buttons.AH, buttons.GC.points[1].relative)
+    assert.equal(buttons["Missing cost"], buttons.Listed.points[1].relative)
+    assert.equal(buttons.Listed, buttons["In bags"].points[1].relative)
+    assert.equal(buttons["In bags"], buttons.GC.points[1].relative)
     assert.equal(buttons.GC, buttons.All.points[1].relative)
+    assert.is_nil(buttons.AH)
   end)
 
   it("keeps every fixed-width Sell cell on one line", function()
@@ -462,7 +468,7 @@ describe("Sell widget geometry and manual cost", function()
         auctionID = auctionID, quantity = 1, unitPrice = 200 }
     end
     GC.SellViewModel.Filter = function(values, mode)
-      if mode == "auction_house" then return { values[2] } end
+      if mode == "listed" then return { values[2] } end
       return values
     end
     GC.SellViewModel.Expansion = function(p)
@@ -491,7 +497,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(0, cancels)
 
     for _, child in ipairs(container.children) do
-      if child.label == "AH" then child.scripts.OnClick() end
+      if child.label == "Listed" then child.scripts.OnClick() end
     end
     assert.equal(8, firstLotRow.lot.auctionID)
     assert.is_nil(firstLotRow.repostStage)
@@ -678,7 +684,11 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("150", rows[1].cells.market.text)
     assert.equal("42", tostring(rows[1].position.itemID))
     assert.equal(1, #timers)
-    assert.equal(11, timers[1].seconds)
+    -- Wakes when the quote actually expires. The Sell tab treats a quote as good
+    -- for SELL_QUOTE_ACTION_AGE (45s), not the Sniper's 10s: a listing competes
+    -- over hours, and a 10s window made Post unclickable because pricing the tab
+    -- took longer than the quote lasted.
+    assert.equal(46, timers[1].seconds)
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
     local freshDetail
@@ -688,14 +698,14 @@ describe("Sell widget geometry and manual cost", function()
     assert.match("market 150 · fresh · age 0s", freshDetail.cells.item.text)
     assert.same({ 1, 1, 1, 1 }, freshDetail.cells.item.color)
 
-    now.value = 111
+    now.value = 151
     assert.equal(2, #timers) -- the expansion render fences the older expiry callback
     timers[#timers].callback()
     rows = upvalue(render, "rows")
     local byItem = {}
     for _, row in ipairs(rows) do if row.kind == "position" then byItem[row.position.itemID] = row end end
-    assert.equal(11, byItem[42].position.quoteAge)
-    assert.equal("150 · stale 11s", byItem[42].cells.market.text)
+    assert.equal(51, byItem[42].position.quoteAge)
+    assert.equal("150 · stale 51s", byItem[42].cells.market.text)
     assert.equal("Unknown", byItem[42].cells.profit.text)
     assert.same({ .5, .5, .5, 1 }, byItem[42].cells.market.color)
     assert.equal(190, byItem[43].position.projectedNet)
@@ -703,7 +713,7 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "detail" and row.position.itemID == 42 then staleDetail = row end
     end
-    assert.match("market 150 · stale · age 11s", staleDetail.cells.item.text)
+    assert.match("market 150 · stale · age 51s", staleDetail.cells.item.text)
     assert.same({ .5, .5, .5, 1 }, staleDetail.cells.item.color)
 
     local listedPosition
@@ -723,8 +733,15 @@ describe("Sell widget geometry and manual cost", function()
       PostCommodity = function() protectedCalls = protectedCalls + 1 end,
       PostItem = function() protectedCalls = protectedCalls + 1 end,
     }
+    GC.Sniper = { IsAHOpen = function() return true end, IsBusy = function() return false end }
     listedLot.action.scripts.OnClick()
-    assert.equal(1, refreshes)
+    -- A stale quote re-prices THIS item, not the whole tab. The old behaviour ran
+    -- the full Refresh: owned auctions, then every priced row, one throttled round
+    -- trip each -- so the "press it again in a moment" the button promised could be
+    -- a minute away, by which point this item's quote had aged out again and the
+    -- next click started another walk. That loop is why Post could not be pressed.
+    assert.equal(0, refreshes)
+    assert.same({ 43 }, upvalue(GC.Sell.OnThrottleReady, "refresh").queue)
     assert.equal(0, protectedCalls)
 
     now.value = 200

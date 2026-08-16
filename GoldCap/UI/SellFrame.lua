@@ -9,6 +9,23 @@ local POST_DURATION = 2
 local QUOTE_STALE_SECONDS = (GC.QuoteCache and GC.QuoteCache.MAX_AGE_SECONDS) or 10
 local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 3, 10
 local MAX_EXACT = 9007199254740991
+-- How old a quote may be and still back a Post or a Repost.
+--
+-- The Sniper's 10s window is right for a purchase: it commits gold against one
+-- price point. A listing competes over hours, and 10s made Post effectively
+-- unclickable -- pricing the whole tab takes longer than that, so by the time
+-- the walk finished the first row's quote had already expired, and clicking Post
+-- only ever started another walk. Wide enough that a click lands, narrow enough
+-- that the price on screen is the price you get.
+local SELL_QUOTE_ACTION_AGE = 45
+-- Gap between automatic re-pricing passes while the tab is open and the auction
+-- house is up. Prices stay live on their own instead of waiting for Refresh --
+-- which is also why PROFIT / UNIT no longer reads Unknown until you press it.
+local WALK_REPEAT_SECONDS = 5
+-- A phase that answers no event is a wedge: Refresh used to refuse to run while
+-- one was in flight, so a single unanswered owned-auctions query or item-key
+-- lookup made the button dead for the rest of the session.
+local PHASE_WATCHDOG_SECONDS = 15
 
 -- The positions module owns all accounting and action-plan decisions.  This file only joins
 -- live AH observations, a cached quote stream, and widgets around that single model.
@@ -31,14 +48,24 @@ local COLUMNS = {
 
 local container, content, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
+local bagStock = {}
+local sessionCommodityKind = {}
+-- Still "all": hiding the player's live listings behind a filter to answer "what
+-- can I list" would trade one blind spot for another. What changed is the order
+-- -- everything postable now sorts to the top (see SellViewModel.Order) -- and a
+-- Sellable chip for narrowing to it deliberately.
 local expanded, filterMode = {}, "all"
 local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil, drain = {} }
 local quoteTimeoutToken = 0
+local walkRepeatToken, watchdogToken = 0, 0
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
 local renderGeneration = 0
 local quoteExpiryGeneration = 0
 local manualRepairNonce = 0
+-- Defined below, once normalizedPositionKey exists to derive an auction identity
+-- from a bag link; composePositions only ever calls it at runtime.
+local scanBagStock
 
 local function restorePostRow(row)
   if not row then return end
@@ -212,9 +239,14 @@ local driver = quoteDriver()
 
 local function composePositions()
   local scope = context()
+  if scanBagStock then scanBagStock() end
   local stats = {}
   for _, lot in ipairs(ownedLots) do
     stats[lot.itemID] = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(lot.itemID) or nil
+  end
+  for _, stock in ipairs(bagStock) do
+    stats[stock.itemID] = stats[stock.itemID]
+      or (GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(stock.itemID) or nil)
   end
   local batches = GC.Acquisitions and GC.Acquisitions.GetActive and GC.Acquisitions.GetActive(scope) or {}
   for _, batch in ipairs(batches) do
@@ -235,7 +267,8 @@ local function composePositions()
   end
   positions = GC.SellPositions.Build({ acquisitions = batches, pendingAcquisitions = pending,
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = ownedLots,
-    quotes = quotes, statsByItemID = stats, context = scope, now = time() })
+    bagStock = bagStock, quotes = quotes, statsByItemID = stats, context = scope, now = time(),
+    quoteMaxAge = SELL_QUOTE_ACTION_AGE })
   for _, position in ipairs(positions) do
     if position.itemID and not position.itemName then position.itemName = itemName(position.itemID) end
   end
@@ -260,7 +293,10 @@ local function scheduleQuoteExpiry()
   local delay
   for _, position in ipairs(positions) do
     if position.freshMarketUnit and type(position.quoteAge) == "number" then
-      local remaining = QUOTE_STALE_SECONDS - position.quoteAge + 1
+      -- Must be the same window the rest of the tab treats as fresh. Left at the
+      -- Sniper's 10s it would wake while the quote was still good and then never
+      -- wake again, so a quote that HAD gone stale kept rendering as current.
+      local remaining = SELL_QUOTE_ACTION_AGE - position.quoteAge + 1
       if remaining > 0 and (not delay or remaining < delay) then delay = remaining end
     end
   end
@@ -272,11 +308,50 @@ local function scheduleQuoteExpiry()
   end)
 end
 
+local function tabIsLive()
+  return container ~= nil and container.IsShown and container:IsShown()
+    and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+end
+
+-- Keeps the prices on screen live instead of frozen at whatever the last button
+-- press fetched. Without it the market column ages out and PROFIT / UNIT falls
+-- back to Unknown until the player presses Refresh, which is the sort of chore a
+-- program should not be delegating.
+local function scheduleNextWalk()
+  walkRepeatToken = walkRepeatToken + 1
+  local token = walkRepeatToken
+  if not (C_Timer and C_Timer.After) then return end
+  C_Timer.After(WALK_REPEAT_SECONDS, function()
+    if token ~= walkRepeatToken or not tabIsLive() then return end
+    if refresh.phase ~= "done" and refresh.phase ~= "idle" and refresh.phase ~= "error" then return end
+    GC.Sell.Refresh(true)
+  end)
+end
+
+-- Let go of a request we are no longer waiting for, leaving a tombstone so its
+-- late terminal event is consumed rather than mistaken for the next run's.
+local function abandonInFlightQuote()
+  local pending = refresh.pending
+  if pending then
+    refresh.drain[pending.kind .. ":" .. pending.itemID] = {
+      abandonedGeneration = pending.generation,
+      terminals = 1,
+    }
+  end
+  refresh.pending, refresh.awaiting = nil, nil
+  quoteTimeoutToken = quoteTimeoutToken + 1
+end
+
+local function markProgress()
+  refresh.progressAt = time()
+end
+
 local function finishQuoteWalk()
   refresh.phase = "done"
   refresh.pending, refresh.awaiting = nil, nil
-  setStatus("Updated just now")
+  setStatus("Prices up to date")
   renderRows()
+  scheduleNextWalk()
 end
 
 local function failPendingQuote(pending, awaitTerminal)
@@ -302,6 +377,31 @@ local function scheduleQuoteTimeout(pending)
   end)
 end
 
+-- Three of the refresh phases wait on an event that is not guaranteed to arrive:
+-- an owned-auctions query, an item-key lookup, and a drain waiting for the
+-- terminal of a request that already timed out. Each one used to hold the
+-- machine in a phase Refresh refused to leave, so a single unanswered call made
+-- the button dead until the player logged out. This lets the phase go.
+local function armPhaseWatchdog()
+  watchdogToken = watchdogToken + 1
+  local token = watchdogToken
+  if not (C_Timer and C_Timer.After) then return end
+  local function tick()
+    if token ~= watchdogToken then return end
+    local phase = refresh.phase
+    if phase == "idle" or phase == "done" or phase == "error" then return end
+    if time() - (refresh.progressAt or 0) >= PHASE_WATCHDOG_SECONDS then
+      abandonInFlightQuote()
+      refresh.phase = "error"
+      setStatus("Auction House did not answer — press Refresh")
+      scheduleNextWalk()
+      return
+    end
+    C_Timer.After(PHASE_WATCHDOG_SECONDS, tick)
+  end
+  C_Timer.After(PHASE_WATCHDOG_SECONDS, tick)
+end
+
 local function advanceQuote()
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
   if refresh.pending then return end
@@ -323,6 +423,7 @@ local function advanceQuote()
     refresh.index = refresh.index + 1
     refresh.pending = { itemID = itemID, kind = kind, generation = refresh.generation, at = time() }
     refresh.phase = "waiting_result"
+    markProgress()
     setStatus(("Pricing %d/%d…"):format(refresh.index, #refresh.queue))
     driver.send(itemID)
     scheduleQuoteTimeout(refresh.pending)
@@ -347,6 +448,7 @@ local function requestOwnedAuctions()
 end
 
 local function onOwnedAuctionsReady()
+  markProgress()
   composePositions()
   renderRows()
   if refresh.phase == "owned" then
@@ -472,6 +574,7 @@ local function quoteResolved(kind, itemID, unit, levels)
   end
   refresh.pending = nil
   refresh.phase = "pricing"
+  markProgress()
   GC.QuoteCache.Set(quotes, itemID, unit, time())
   if unit and quotes[itemID] then quotes[itemID].levels = levels end
   composePositions()
@@ -483,7 +586,7 @@ function GC.Sell.OnItemSearchResults(itemID) quoteResolved("item", itemID, drive
 function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
 
 local function freshQuote(position)
-  local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time())
+  local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)
   if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
   return quote
 end
@@ -506,6 +609,56 @@ local function normalizedPositionKey(itemID, link)
   local suffix = tonumber(fields[8])
   if type(level) ~= "number" or suffix == nil then return nil end
   return ("item:%d:%d:%d:%d"):format(itemID, math.floor(level), suffix, 0)
+end
+
+-- Whether an item sells as a commodity decides its whole auction identity, and
+-- GetItemKeyInfo is the only authority on it -- but it is only reachable while
+-- the auction house is open, and the Sell tab is useful standing anywhere. So
+-- the answer is remembered in SavedVariables the first time it is learned, and
+-- an item nobody has ever classified is left out rather than filed under a
+-- guessed key. Guessing is what split one item into two positions before.
+local function commodityKindCache()
+  if GC.db then
+    GC.db.commodityByItem = type(GC.db.commodityByItem) == "table" and GC.db.commodityByItem or {}
+    return GC.db.commodityByItem
+  end
+  return sessionCommodityKind
+end
+
+local function classifyBagItem(itemID, link)
+  local cache = commodityKindCache()
+  local isCommodity = cache[itemID]
+  if isCommodity == nil and C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey then
+    local ok, info = pcall(function() return C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID)) end)
+    if ok and type(info) == "table" and info.isCommodity ~= nil then
+      isCommodity = info.isCommodity == true
+      cache[itemID] = isCommodity
+    end
+  end
+  if isCommodity == true then return ("commodity:%d"):format(itemID), true end
+  if isCommodity == false then return normalizedPositionKey(itemID, link), false end
+  return nil, nil
+end
+
+scanBagStock = function()
+  if not GC.BagStock then bagStock = {} return end
+  bagStock = GC.BagStock.Scan({
+    numSlots = function(bag)
+      return C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
+    end,
+    itemInfo = function(bag, slot)
+      if not (C_Container and C_Container.GetContainerItemInfo) then return nil end
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if type(info) ~= "table" then return nil end
+      return {
+        itemID = info.itemID, stackCount = info.stackCount, isBound = info.isBound,
+        hasNoValue = info.hasNoValue, itemName = info.itemName,
+        hyperlink = info.hyperlink
+          or (C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)) or nil,
+      }
+    end,
+    classify = classifyBagItem,
+  }, SELL_BAGS)
 end
 
 local function liveBagState(position, requiredQty)
@@ -537,8 +690,33 @@ local function liveBagState(position, requiredQty)
     bag = matchedBag, slot = matchedSlot, stackQty = matchedStack }
 end
 
-local function startQuoteRefreshFor(_)
-  GC.Sell.Refresh()
+-- Post and Repost both need a quote fresher than they have. This used to call
+-- the full Refresh, which re-queried the owned auctions and then every priced
+-- item in the tab, one throttled round trip at a time -- so the "press it again
+-- in a moment" the button promised could be a minute away, by which point the
+-- quote for THIS item had aged out again and the next click started another
+-- walk. That loop is why Post could not be pressed at all.
+--
+-- One item, one query. If a walk is already running the item is spliced in as
+-- its next step rather than restarting anything.
+local function startQuoteRefreshFor(position)
+  local itemID = type(position) == "table" and position.itemID or nil
+  if not itemID then return GC.Sell.Refresh() end
+  if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then
+    setStatus("Auction House is not open")
+    return
+  end
+  if refresh.phase == "idle" or refresh.phase == "done" or refresh.phase == "error" then
+    refresh.generation = refresh.generation + 1
+    refresh.queue, refresh.index = { itemID }, 0
+    refresh.pending, refresh.awaiting = nil, nil
+    refresh.phase = "pricing"
+    setStatus("Checking this item's price…")
+    advanceQuote()
+  else
+    table.insert(refresh.queue, math.min(refresh.index + 1, #refresh.queue + 1), itemID)
+    setStatus("Checking this item's price…")
+  end
 end
 
 local function currentPosition(positionKey)
@@ -959,7 +1137,7 @@ end
 -- destroys a deposit, so none of them should be a word a player has to guess at.
 local ACTION_HELP = {
   ["Set cost"] = { "Set cost", { "Tell GoldCap what you actually paid for these units.", "It will not invent a cost from the market price, so profit stays unknown until you enter one." } },
-  ["Post"] = { "Post", { "Lists the units sitting in your bags at the price shown under WHAT TO DO.", "The price is re-checked against the live Auction House immediately before anything is listed; if it has moved, the post is abandoned rather than sent at a stale price." } },
+  ["Post"] = { "Post", { "Lists what is sitting in your bags at the price shown under WHAT TO DO.", "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.", "It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it.", "The price is re-checked against the live Auction House immediately before anything is listed; if it has moved, the post is abandoned rather than sent at a stale price." } },
   ["Repost"] = { "Repost", { "Cancels this live auction and lists it again at the current market price.", "Cancelling forfeits the deposit on the old auction, so this asks for a second click to confirm.", "Worth doing when someone has undercut you; not worth it if the price barely moved." } },
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction and immediately relists it at the shown price.", "The deposit on the cancelled auction is lost. The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
 }
@@ -1117,6 +1295,7 @@ renderRows = function()
   if not container then return end
   renderGeneration = renderGeneration + 1
   local filtered = GC.SellViewModel.Filter(positions, filterMode)
+  if GC.SellViewModel.Order then filtered = GC.SellViewModel.Order(filtered) end
   if postingRow then disarmPost() end
   if repostingRow then disarmRepost() end
   updateSummary(filtered)
@@ -1128,12 +1307,12 @@ renderRows = function()
       entries[#entries + 1] = { kind = "detail", position = position, detail = detail }
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
-      local unlisted = (position.trackedQty or 0) - (position.listedQty or 0)
-      if #detail.ownedLots > 0 or unlisted > 0 then
+      local inBags = position.bagQty or 0
+      if #detail.ownedLots > 0 or inBags > 0 then
         entries[#entries + 1] = { kind = "group", position = position, title = "On the Auction House" }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
-      if unlisted > 0 then
+      if inBags > 0 then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
       if #detail.batches > 0 then
@@ -1156,9 +1335,14 @@ renderRows = function()
       if entry.kind == "position" then
         -- Second line answers "how many of these do I have, and where are they" -- the question
         -- a seller actually asks. Where each unit came from stays available on the tooltip.
-        local listedQty, trackedQty = p.listedQty or 0, p.trackedQty or 0
+        -- The bag count is now measured, not inferred. It used to be tracked
+        -- minus listed -- an accounting leftover that announced stock as "in
+        -- your bags" whenever GoldCap had not seen one of the player's own
+        -- auctions, and that showed nothing at all for anything GoldCap never
+        -- bought, which was most of what a seller actually has to sell.
+        local listedQty, bagQty = p.listedQty or 0, p.bagQty or 0
         local stockParts = {}
-        if trackedQty - listedQty > 0 then stockParts[#stockParts + 1] = ("×%d in bags"):format(trackedQty - listedQty) end
+        if bagQty > 0 then stockParts[#stockParts + 1] = ("×%d in bags"):format(bagQty) end
         if listedQty > 0 then stockParts[#stockParts + 1] = ("×%d listed"):format(listedQty) end
         row.cells.item:SetText((p.itemName or "Item") .. "\n"
           .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p)))
@@ -1189,16 +1373,32 @@ renderRows = function()
         -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
         -- This column now says what to do about it, in a sentence, or names what is missing.
         local knownQty, exposureQty = p.knownQty or 0, p.exposureQty or 0
-        if p.coverage ~= "COMPLETE" then
+        if p.recommendation then
+          row.cells.status:SetText(recommendationText(p.recommendation))
+          setColor(row.cells.status, Theme.color.fg)
+        elseif bagQty > 0 then
+          -- The advice column is not the place to report bookkeeping when the
+          -- player is holding sellable stock: say what is missing to price it.
+          row.cells.status:SetText("Waiting for a live price")
+          setColor(row.cells.status, Theme.color.fgDim)
+        elseif p.coverage ~= "COMPLETE" then
           row.cells.status:SetText(("Cost unknown for %d of %d"):format(
             math.max(0, exposureQty - knownQty), exposureQty))
           setColor(row.cells.status, Theme.color.fgDim)
         else
-          row.cells.status:SetText(recommendationText(p.recommendation))
+          row.cells.status:SetText("")
           setColor(row.cells.status, Theme.color.fg)
         end
         row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
-        if p.coverage ~= "COMPLETE" and canSetCost(p) then
+        -- Post is the point of this screen, so it lives on the row itself. It
+        -- used to be reachable only by expanding the position and finding a
+        -- sub-row, and only for stock GoldCap had a receipt for -- which is why
+        -- the honest answer to "what can I list" was "go use the Blizzard tab".
+        -- Set cost is bookkeeping and stays available whenever there is no
+        -- stock to act on; the expansion carries it in either case.
+        if bagQty > 0 then
+          showRowAction(row, "Post", function() onPostClick(row) end)
+        elseif p.coverage ~= "COMPLETE" and canSetCost(p) then
           showRowAction(row, "Set cost", function() openCostDialog(p) end)
         else
           row.action:Hide()
@@ -1285,39 +1485,41 @@ renderRows = function()
         -- the Auction House. The real bag count is available -- it already gates the Post button
         -- below -- so state it, and when the two disagree say what is unaccounted for instead of
         -- picking one and presenting it as fact.
-        local unlistedQty = (p.trackedQty or 0) - (p.listedQty or 0)
-        local unlistedBagState = liveBagState(p)
-        local inBags = unlistedBagState and unlistedBagState.bag and unlistedBagState.exactQty or nil
-        if exact(inBags) and inBags ~= unlistedQty then
-          row.cells.item:SetText(("  ×%d in your bags · %d more owned, listed or already sold"):format(
-            inBags, unlistedQty - inBags))
+        -- Post moved up to the position row, so this line's job is now to say
+        -- exactly what one click would list, and how much would be left behind.
+        -- A normal item posts from ONE bag stack (PostItem pins a single
+        -- ItemLocation), so a split stack cannot all go at once; a commodity
+        -- aggregates across the bags and can.
+        local inBags = p.bagQty or 0
+        local bagState = liveBagState(p)
+        local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
+        if postable > 0 and postable < inBags then
+          row.cells.item:SetText(("  ×%d in your bags · Post lists %d of them, the largest stack"):format(
+            inBags, postable))
+        elseif postable > 0 then
+          row.cells.item:SetText(("  ×%d in your bags, ready to list"):format(postable))
         else
-          row.cells.item:SetText(("  ×%d in your bags, not listed"):format(unlistedQty))
+          row.cells.item:SetText(("  ×%d in your bags · no stack GoldCap can identify exactly"):format(inBags))
         end
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
-        if p.coverage == "COMPLETE" then
-          local bagState = liveBagState(p)
-          if bagState.bag and bagState.exactQty and bagState.exactQty > 0 then
-            -- Same question as Repost: say what it will post at before it is clicked.
-            if p.displayMarketUnit and p.freshMarketUnit then
-              row.cells.market:SetText("→ " .. formatCell(p.displayMarketUnit))
-              setColor(row.cells.market, Theme.color.gold)
-            else
-              row.cells.market:SetText("→ needs price")
-              setColor(row.cells.market, Theme.color.fgDim)
-            end
-            row.cells.status:SetText(recommendationText(p.recommendation))
-            setColor(row.cells.status, Theme.color.fg)
-            showRowAction(row, "Post", function() onPostClick(row) end)
+        if postable > 0 then
+          -- Say what Post will charge before it is clicked.
+          if p.displayMarketUnit and p.freshMarketUnit then
+            row.cells.market:SetText("→ " .. formatCell(p.displayMarketUnit))
+            setColor(row.cells.market, Theme.color.gold)
           else
-            row.cells.status:SetText("Item must be in your bags to post")
-            setColor(row.cells.status, Theme.color.fgDim)
-            row.action:Hide()
+            row.cells.market:SetText("→ needs price")
+            setColor(row.cells.market, Theme.color.fgDim)
           end
-        elseif canSetCost(p) then
+          row.cells.status:SetText(recommendationText(p.recommendation))
+          setColor(row.cells.status, Theme.color.fg)
+        else
+          row.cells.status:SetText("")
+          setColor(row.cells.status, Theme.color.fgDim)
+        end
+        if p.coverage ~= "COMPLETE" and canSetCost(p) then
           showRowAction(row, "Set cost", function() openCostDialog(p) end)
         else
-          row.cells.status:SetText("Pending repair needs one exact invoice")
           row.action:Hide()
         end
       end
@@ -1349,11 +1551,15 @@ renderRows = function()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
 
+-- The number on the Sell tab. It counted positions whose tracked purchases
+-- outran their known listings -- an accounting difference, not a count of
+-- anything a player can act on. It now counts items sitting in the bags that
+-- the auction house would accept, which is what "Sell (9)" reads as.
 function GC.Sell.SellableCount()
   composePositions()
   local n = 0
   for _, position in ipairs(positions) do
-    if (position.trackedQty or 0) > (position.listedQty or 0) then n = n + 1 end
+    if (position.bagQty or 0) > 0 then n = n + 1 end
   end
   return n
 end
@@ -1363,12 +1569,22 @@ function GC.Sell.Show()
   GC.Sell.Refresh()
 end
 function GC.Sell.Hide() if container then container:Hide() end end
-function GC.Sell.Refresh()
-  if refresh.phase ~= "idle" and refresh.phase ~= "done" and refresh.phase ~= "error" then return end
+-- `automatic` marks the self-driven repeat below, which politely stands aside
+-- for anything already in flight. A press of the button does not: it means "do
+-- it now", and refusing while a phase was set is what made the button dead.
+-- Whatever was in flight is let go of behind a drain tombstone, exactly the way
+-- Reset already did it, so a late terminal event is consumed rather than
+-- credited to this run.
+function GC.Sell.Refresh(automatic)
+  if automatic and refresh.phase ~= "idle" and refresh.phase ~= "done" and refresh.phase ~= "error" then
+    return
+  end
+  abandonInFlightQuote()
   quoteExpiryGeneration = quoteExpiryGeneration + 1
   refresh.generation = refresh.generation + 1
-  refresh.phase, refresh.pending, refresh.awaiting, refresh.queue, refresh.index = "owned", nil, nil, {}, 0
-  setStatus("Refreshing listings…")
+  refresh.phase, refresh.queue, refresh.index = "owned", {}, 0
+  markProgress()
+  setStatus(automatic and "Checking prices…" or "Refreshing listings…")
   local sent, waiting = requestOwnedAuctions()
   if waiting then
     refresh.phase = "waiting_owned"
@@ -1377,20 +1593,16 @@ function GC.Sell.Refresh()
     refresh.phase = "idle"
     setStatus("Auction House is not open")
   end
+  armPhaseWatchdog()
 end
 function GC.Sell.Reset()
-  local pending = refresh.pending
-  if pending then
-    refresh.drain[pending.kind .. ":" .. pending.itemID] = {
-      abandonedGeneration = pending.generation,
-      terminals = 1,
-    }
-  end
+  abandonInFlightQuote()
   refresh.generation = refresh.generation + 1
-  refresh.phase, refresh.queue, refresh.index, refresh.pending, refresh.awaiting = "idle", {}, 0, nil, nil
+  refresh.phase, refresh.queue, refresh.index = "idle", {}, 0
   GC.QuoteCache.Clear(quotes)
   quoteExpiryGeneration = quoteExpiryGeneration + 1
-  quoteTimeoutToken = quoteTimeoutToken + 1
+  walkRepeatToken = walkRepeatToken + 1
+  watchdogToken = watchdogToken + 1
   disarmPost()
   disarmRepost()
 end
@@ -1401,11 +1613,16 @@ function GC.Sell.Attach(f, geometry)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
   local refreshButton = Theme.Button(container, "ghost")
   refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh"); refreshButton:SetScript("OnClick", GC.Sell.Refresh)
-  local labels = { all = "All", goldcap = "GC", auction_house = "AH", missing_cost = "Missing cost" }
+  local labels = { all = "All", goldcap = "GC", missing_cost = "Missing cost",
+    sellable = "In bags", listed = "Listed" }
+  local widths = { missing_cost = 82, sellable = 56, listed = 52, all = 36, goldcap = 36 }
   local previous = refreshButton
-  for _, mode in ipairs({ "missing_cost", "auction_house", "goldcap", "all" }) do
+  -- "AH" was a provenance filter (units GoldCap saw arrive by mail) sitting
+  -- where a player expected "my auctions". The two useful cuts of this list are
+  -- what is in the bags and what is already up; provenance stays on the tooltip.
+  for _, mode in ipairs({ "missing_cost", "listed", "sellable", "goldcap", "all" }) do
     local button = Theme.Button(container, "ghost")
-    button:SetSize(mode == "missing_cost" and 82 or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
+    button:SetSize(widths[mode] or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
     button:SetScript("OnClick", function() filterMode = mode; renderRows() end); previous = button
   end
   container.summary = {}

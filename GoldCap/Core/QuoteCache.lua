@@ -30,10 +30,15 @@ local function validEntry(cache, itemID, now)
   return quote
 end
 
-function GC.QuoteCache.Fresh(cache, itemID, now)
+-- `maxAge` overrides MAX_AGE_SECONDS for one call. The Sniper's 10s window exists because a
+-- purchase is decided against a single price point and a stale one loses gold; a Sell-side quote
+-- backs a *listing*, which competes over hours, so the Sell tab passes a wider window rather than
+-- making Post unclickable for want of a quote that expired between the query and the click.
+function GC.QuoteCache.Fresh(cache, itemID, now, maxAge)
   local quote = validEntry(cache, itemID, now)
+  local limit = type(maxAge) == "number" and maxAge > 0 and maxAge or GC.QuoteCache.MAX_AGE_SECONDS
   if not quote or quote.stale == true or quote.fresh == false
-      or now - quote.at > GC.QuoteCache.MAX_AGE_SECONDS then return nil end
+      or now - quote.at > limit then return nil end
   return quote
 end
 

@@ -45,12 +45,59 @@ function GC.SellViewModel.Filter(positions, mode)
     local include = mode == "all" or mode == nil
     if mode == "missing_cost" then
       include = position.coverage == "PARTIAL" or position.coverage == "UNKNOWN"
+    elseif mode == "sellable" then
+      include = type(position.bagQty) == "number" and position.bagQty > 0
+    elseif mode == "listed" then
+      include = type(position.listedQty) == "number" and position.listedQty > 0
     elseif SOURCE_LABELS[mode] then
       include = type(position.sources) == "table" and (position.sources[mode] or 0) > 0
     end
     if include then filtered[#filtered + 1] = position end
   end
   return filtered
+end
+
+-- Reading order, not storage order. SellPositions.Build sorts by scope and
+-- position key, which is stable and completely meaningless to a seller: it put
+-- an item you can list right now below thirty rows of finished business.
+--
+-- Rank, then value within rank:
+--   0  in your bags AND priced -- one click from being listed
+--   1  in your bags, price not in yet
+--   2  everything else, in the order Build produced it
+--
+-- Deliberately only three ranks. Sorting the remainder by how much is listed or
+-- how recently it sold is a preference, not an answer, and every reshuffle of
+-- rows a player is not acting on costs them their place on the screen.
+local function rankOf(position)
+  local inBags = type(position.bagQty) == "number" and position.bagQty > 0
+  if not inBags then return 2 end
+  return position.freshMarketUnit and 0 or 1
+end
+
+local function weightOf(position)
+  local unit = position.freshMarketUnit or position.displayMarketUnit
+  local qty = (type(position.bagQty) == "number" and position.bagQty or 0)
+  if unit and qty > 0 then return unit * qty end
+  return 0
+end
+
+function GC.SellViewModel.Order(positions)
+  local ordered, rank, weight = {}, {}, {}
+  for index, position in ipairs(positions or {}) do
+    ordered[index] = position
+    rank[position], weight[position] = rankOf(position), weightOf(position)
+  end
+  -- Ties fall back to the incoming order, which Build already made stable, so a
+  -- re-render never reshuffles rows under the cursor.
+  local original = {}
+  for index, position in ipairs(ordered) do original[position] = index end
+  table.sort(ordered, function(left, right)
+    if rank[left] ~= rank[right] then return rank[left] < rank[right] end
+    if weight[left] ~= weight[right] then return weight[left] > weight[right] end
+    return original[left] < original[right]
+  end)
+  return ordered
 end
 
 function GC.SellViewModel.SourceText(position)

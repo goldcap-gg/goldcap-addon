@@ -110,4 +110,66 @@ describe("Sell view model", function()
     assert.equal("manual", expanded.batches[3].evidence)
     assert.equal("unknown evidence", expanded.batches[4].evidence)
   end)
+  describe("Filter", function()
+    local rows = {
+      { positionKey = "a", bagQty = 5, listedQty = 0, coverage = "UNKNOWN" },
+      { positionKey = "b", bagQty = 0, listedQty = 2, coverage = "COMPLETE" },
+      { positionKey = "c", bagQty = 0, listedQty = 0, coverage = "PARTIAL" },
+    }
+
+    local function keys(filtered)
+      local out = {}
+      for i, row in ipairs(filtered) do out[i] = row.positionKey end
+      return out
+    end
+
+    it("narrows to what is in the bags", function()
+      assert.same({ "a" }, keys(GC.SellViewModel.Filter(rows, "sellable")))
+    end)
+
+    it("narrows to what is already up for sale", function()
+      assert.same({ "b" }, keys(GC.SellViewModel.Filter(rows, "listed")))
+    end)
+
+    it("still narrows to incomplete cost", function()
+      assert.same({ "a", "c" }, keys(GC.SellViewModel.Filter(rows, "missing_cost")))
+    end)
+  end)
+
+  -- Build sorts by scope and position key, which is stable and means nothing to a
+  -- seller: it put an item you could list right now below thirty rows of finished
+  -- business, which is most of why the answer to "what can I sell" was invisible.
+  describe("Order", function()
+    local function keys(ordered)
+      local out = {}
+      for i, row in ipairs(ordered) do out[i] = row.positionKey end
+      return out
+    end
+
+    it("lifts postable stock over everything else, priced first", function()
+      assert.same({ "priced", "unpriced", "listed", "idle" }, keys(GC.SellViewModel.Order({
+        { positionKey = "listed", listedQty = 3, listedValue = 900 },
+        { positionKey = "unpriced", bagQty = 2 },
+        { positionKey = "idle" },
+        { positionKey = "priced", bagQty = 1, freshMarketUnit = 10 },
+      })))
+    end)
+
+    it("puts the most valuable postable stack first", function()
+      assert.same({ "big", "small" }, keys(GC.SellViewModel.Order({
+        { positionKey = "small", bagQty = 1, freshMarketUnit = 100 },
+        { positionKey = "big", bagQty = 50, freshMarketUnit = 100 },
+      })))
+    end)
+
+    it("leaves everything it is not ranking exactly where it was", function()
+      -- Reshuffling rows a player is not acting on costs them their place on the
+      -- screen for no gain, so ties fall back to the incoming order.
+      assert.same({ "z", "m", "a" }, keys(GC.SellViewModel.Order({
+        { positionKey = "z", listedQty = 1, listedValue = 5 },
+        { positionKey = "m" },
+        { positionKey = "a", listedQty = 9, listedValue = 900 },
+      })))
+    end)
+  end)
 end)

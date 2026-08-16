@@ -16,6 +16,7 @@ Core/PurchaseCapture.lua
 Core/Ledger.lua
 Core/QuoteCache.lua
 Core/Flips.lua
+Core/BagStock.lua
 Core/SellPositions.lua
 Core/Book.lua
 Core/SniperDecision.lua

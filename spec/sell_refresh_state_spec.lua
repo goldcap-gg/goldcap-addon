@@ -82,11 +82,11 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 42 }, sent.keys)
   end)
 
-  it("prices one commodity request, rejects overlap, and reports exact progress", function()
+  it("prices one commodity request and reports exact progress", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
-    GC.Sell.Refresh(); GC.Sell.Refresh()
+    GC.Sell.Refresh()
     assert.equal(1, sent.owned)
     GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
@@ -94,7 +94,29 @@ describe("Sell refresh state fence", function()
     GC.Sell.OnCommoditySearchResults(42)
     assert.equal(222, cache[42])
     assert.equal("done", refreshState(GC).phase)
-    assert.equal("Updated just now", status[#status])
+    assert.equal("Prices up to date", status[#status])
+  end)
+
+  -- Pressing the button means "do it now". It used to refuse while any phase
+  -- other than idle/done/error was set, and three of those phases wait on an
+  -- event that can simply never arrive -- an owned-auctions query, an item-key
+  -- lookup, a drain -- so one unanswered call made Refresh dead for the session.
+  it("a second press restarts the run instead of being swallowed", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sell.Refresh()
+    assert.equal("owned", refreshState(GC).phase)
+    GC.Sell.Refresh()
+    assert.equal(2, sent.owned)
+    assert.equal("owned", refreshState(GC).phase)
+  end)
+
+  it("the automatic repeat stands aside for a run already in flight", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sell.Refresh()
+    GC.Sell.Refresh(true)
+    assert.equal(1, sent.owned)
   end)
 
   it("waits for throttle and fails closed when the auction house is unavailable", function()
@@ -160,13 +182,24 @@ describe("Sell refresh state fence", function()
 
   it("uses a real request timer to tombstone a sent quote without throttle activity", function()
     local now, sent, cache, timers, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}, {}
-    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    -- Delay-keyed, not index-keyed: Refresh also arms a phase watchdog now (a
+    -- phase that answers no event used to wedge the button for good), so "the
+    -- request timer" has to be identified by the window it waits, not by being
+    -- the only timer anyone registered.
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local function fire(seconds)
+      for index = #timers, 1, -1 do
+        if timers[index].seconds == seconds then return timers[index].callback() end
+      end
+      error("no timer waiting " .. tostring(seconds) .. "s")
+    end
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
     set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
     assert.same({ 42 }, sent.keys)
-    assert.equal(1, #timers)
-    timers[1]()
+    fire(10)
     assert.equal("error", refreshState(GC).phase)
     assert.equal("Refresh failed", status[#status])
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
@@ -193,12 +226,13 @@ describe("Sell refresh state fence", function()
 
   it("makes an old request timer and result inert after Reset", function()
     local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
-    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
     GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
-    assert.equal(1, #timers)
     GC.Sell.Reset()
-    timers[1]()
+    for _, timer in ipairs(timers) do timer.callback() end
     GC.Sell.OnItemSearchResults(42)
     assert.equal("idle", refreshState(GC).phase)
     assert.is_nil(cache[42])

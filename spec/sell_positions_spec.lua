@@ -397,12 +397,71 @@ describe("Sell positions", function()
     assert.equal("acq:2", plan.allocations[1].batchID)
   end)
 
-  it("caps post quantity to exact unlisted tracking and exact matching bag quantity", function()
+  -- Posts what is in the bags, not what GoldCap has a receipt for. Listed units
+  -- are on the auction house and not in the bags, so the bag count already IS
+  -- "everything not yet listed" -- the old min(tracked - listed, bags) capped a
+  -- real 9-unit stack at the 3 units GoldCap happened to know the price of, and
+  -- refused outright for anything it had never seen bought.
+  it("posts the whole bag quantity and reports how much of it is costed", function()
     local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) },
       ownedLots = { lot("commodity:42", 2, 200, 1) } })[1]
     local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 9 }, 250)
+    assert.equal(9, plan.quantity)
+    -- Three of the nine are covered by the tracked purchase, so the cost of this
+    -- post is not known exactly and is reported as unknown rather than guessed.
+    assert.is_false(plan.costKnown)
+    assert.is_nil(plan.cost)
+  end)
+
+  it("costs a post exactly when every unit of it is covered", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) },
+      ownedLots = { lot("commodity:42", 2, 200, 1) } })[1]
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 3 }, 250)
     assert.equal(3, plan.quantity)
+    assert.is_true(plan.costKnown)
     assert.equal(300, plan.cost)
+  end)
+
+  it("posts untracked bag stock that GoldCap never bought", function()
+    local p = build({ bagStock = { { positionKey = "commodity:42", itemID = 42,
+      itemName = "Ore", quantity = 40, isCommodity = true } } })[1]
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 40 }, 250)
+    assert.equal(40, plan.quantity)
+    assert.is_false(plan.costKnown)
+    assert.equal(250, plan.unitPrice)
+  end)
+
+  -- Everything farmed, crafted, milled or bought before GoldCap existed. It used
+  -- to be invisible here: a position existed only if GoldCap had a purchase
+  -- receipt for it or the player already had it listed.
+  it("builds a position out of bag stock alone and still advises a price", function()
+    local p = build({
+      bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 40,
+        isCommodity = true } },
+      quotes = { [42] = { unit = 500, at = 10 } },
+      statsByItemID = { [42] = { sold = 100 } },
+      now = 10,
+    })[1]
+    assert.equal(40, p.bagQty)
+    assert.equal("Ore", p.itemName)
+    assert.equal(500, p.freshMarketUnit)
+    -- No cost basis means no breakeven and no below-cost warning, rather than a
+    -- cost invented from the market price.
+    assert.is_not_nil(p.recommendation)
+    assert.is_nil(p.recommendation.breakeven)
+    assert.is_false(p.recommendation.belowCost)
+  end)
+
+  it("folds bag stock into the position its purchases and listings already share", function()
+    local p = build({
+      acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) },
+      ownedLots = { lot("commodity:42", 2, 200, 1) },
+      bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 9, isCommodity = true } },
+    })
+    assert.equal(1, #p)
+    assert.equal(9, p[1].bagQty)
+    assert.equal(2, p[1].listedQty)
+    assert.equal(5, p[1].trackedQty)
   end)
 
   it("fails closed on an ambiguous normal-item bag variant", function()
@@ -445,10 +504,13 @@ describe("Sell positions", function()
   end)
 
   it("fails malformed post positions closed instead of matching a missing variant key", function()
+    -- No position key at all. The caller proves a plan belongs to the clicked row
+    -- by comparing keys, and nil == nil passes that check, so this has to fail
+    -- here rather than be caught downstream.
     local plan, reason = GC.SellPositions.BuildPostPlan({ itemID = 42, trackedQty = 1,
       listedQty = 0, batches = {} }, { itemID = 42, exactQty = 1 }, 150)
     assert.is_nil(plan)
-    assert.equal("incomplete_cost", reason)
+    assert.equal("missing_position_key", reason)
   end)
 
   -- Pricing a sale off the cheapest row in the book prices it off the player's own auction as

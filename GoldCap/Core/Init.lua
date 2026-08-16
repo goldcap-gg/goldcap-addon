@@ -20,6 +20,13 @@ GC.DEFAULTS = {
   mailOccurrences = {},
   mailOccurrenceSeq = 0,
   mailOccurrenceGeneration = 0,
+  -- itemID -> true/false, "does this item sell as a commodity". Learned from
+  -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
+  -- open, and remembered because the Sell tab lists bag stock wherever the player
+  -- is standing. Getting this wrong files one item under two position keys (see
+  -- UI/SellFrame.lua's classifyBagItem), so an unknown item is left out rather
+  -- than guessed at. Same empty-table ApplyDefaults contract as `flips` above.
+  commodityByItem = {},
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.

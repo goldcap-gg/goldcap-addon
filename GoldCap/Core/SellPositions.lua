@@ -96,16 +96,16 @@ function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
   return lots
 end
 
-local function quoteInfo(quotes, itemID, now)
+local function quoteInfo(quotes, itemID, now, maxAge)
   local quote = GC.QuoteCache.Latest(quotes, itemID)
   if type(quote) == "number" and positive(quote) then
     return quote, quote, nil
   end
   if type(quote) ~= "table" or not positive(quote.unit) then return nil, nil, nil end
   local age = GC.QuoteCache.Age(quotes, itemID, now)
-  local freshQuote = GC.QuoteCache.Fresh(quotes, itemID, now)
+  local freshQuote = GC.QuoteCache.Fresh(quotes, itemID, now, maxAge)
   local fresh = freshQuote == quote and quote.stale ~= true and (quote.fresh == true
-    or (age ~= nil and age <= QUOTE_MAX_AGE))
+    or (age ~= nil and age <= (maxAge or QUOTE_MAX_AGE)))
   return fresh and quote.unit or nil, quote.unit, age
 end
 
@@ -144,6 +144,7 @@ local function positionFor(positions, key, itemID, context)
     scopeKey = GC.Acquisitions.ScopeKey(key, context), character = context.char, region = context.region,
     batches = {}, sources = {}, trackedQty = 0, listedQty = 0, exposureQty = 0,
     allocations = {}, knownQty = 0, knownCost = 0, coverage = "UNKNOWN", ownedLots = {},
+    bagQty = 0, bagStacks = {},
     listedValue = 0, freshMarketUnit = nil, displayMarketUnit = nil, quoteAge = nil,
     projectedNet = nil, profit = nil, status = "UNLISTED", ahead = nil, outlook = nil,
     pendingAcquisitions = {}, pendingQty = 0, sellerEvidence = {},
@@ -208,9 +209,9 @@ local function addLot(position, ownedLot)
   position.listedQty, position.listedValue = listedQty, listedValue
 end
 
-local function decoratePosition(position, quotes, statsByItemID, now)
+local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge)
   table.sort(position.ownedLots, stableLotOrder)
-  local fresh, display, age = quoteInfo(quotes, position.itemID, now)
+  local fresh, display, age = quoteInfo(quotes, position.itemID, now, quoteMaxAge)
   position.freshMarketUnit, position.displayMarketUnit, position.quoteAge = fresh, display, age
   if position.invalid then
     position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
@@ -282,6 +283,12 @@ local function decoratePosition(position, quotes, statsByItemID, now)
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
       fresh, nil, { levels = levels, sold = position.soldPerDay })
+  elseif positive(position.bagQty) and fresh then
+    -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
+    -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
+    -- degrades to exactly that on a nil paidUnit, rather than inventing a cost from the market.
+    position.recommendation = GC.Flips.RecommendPost(nil, fresh, nil,
+      { levels = levels, sold = position.soldPerDay })
   else
     position.recommendation = nil
   end
@@ -319,6 +326,25 @@ function GC.SellPositions.Build(args)
       addLot(positionFor(positions, positionKey, itemID, context), lot)
     end
   end
+  -- Bag stock joins the same position table as purchases and listings, so an item that is
+  -- partly bought, partly listed and partly farmed reads as ONE row rather than three. It is
+  -- deliberately kept out of uniqueVariants below: that inference binds a legacy item-only
+  -- batch to a variant key durably, and a bag's contents are too transient to justify a
+  -- permanent accounting decision.
+  for _, stock in ipairs(args.bagStock or {}) do
+    if type(stock) == "table" and type(stock.positionKey) == "string" and stock.positionKey ~= ""
+        and positive(stock.itemID) and positive(stock.quantity) then
+      local position = positionFor(positions, stock.positionKey, stock.itemID, context)
+      local bagQty = add(position.bagQty or 0, stock.quantity)
+      if bagQty then
+        position.bagQty = bagQty
+        position.bagStacks = stock.stacks or position.bagStacks
+        position.bagIsCommodity = stock.isCommodity == true
+      end
+      position.itemName = position.itemName or stock.itemName
+    end
+  end
+
   for itemID, batches in pairs(scoped) do
     local target = uniqueVariants(batches, lotsByItem[itemID] or {})
     for _, batch in ipairs(batches) do
@@ -411,7 +437,7 @@ function GC.SellPositions.Build(args)
   end
   local result = {}
   for _, position in pairs(positions) do
-    decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now)
+    decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now, args.quoteMaxAge)
     result[#result + 1] = position
   end
   for _, unresolvedPosition in ipairs(unresolvedRows) do result[#result + 1] = unresolvedPosition end
@@ -419,12 +445,31 @@ function GC.SellPositions.Build(args)
   return result
 end
 
+-- What Post will actually list, priced at the fresh quote.
+--
+-- This used to refuse anything GoldCap could not fully cost: a position needed a tracked
+-- purchase (`trackedQty`), and its allocation had to come back COMPLETE, or Post was withheld.
+-- That made the Sell tab useless for the majority of a seller's stock -- everything farmed,
+-- crafted, milled, or acquired before the addon existed -- and it was the wrong instinct
+-- anyway. Not knowing what something cost is a reason to report the profit as unknown, not a
+-- reason to refuse to sell it. Cost coverage is now reported (`costKnown`) instead of enforced.
+--
+-- The quantity is the bag quantity, full stop. Listed units are on the auction house and not in
+-- the bags, so "what is in the bags" is already exactly "what is not yet listed" -- the old
+-- min(trackedQty - listedQty, bags) capped a real 200-unit stack at the 5 units GoldCap happened
+-- to have a receipt for.
 function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
   if type(position) ~= "table" or position.unresolved or position.protectedAction == false
-      or position.invalid or not positive(position.trackedQty) then
+      or position.invalid then
     return nil, "no_tracked_quantity"
+  end
+  -- Without a key there is nothing for the caller to check the plan against:
+  -- onPostClick proves a plan belongs to the clicked row by comparing keys, and
+  -- nil == nil would sail straight through that comparison.
+  if type(position.positionKey) ~= "string" or position.positionKey == "" then
+    return nil, "missing_position_key"
   end
   if type(bagState) ~= "table" or bagState.itemID ~= position.itemID or not positive(bagState.exactQty) then
     return nil, "missing_bag_quantity"
@@ -433,13 +478,13 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
       and bagState.positionKey ~= position.positionKey then
     return nil, "ambiguous_variant"
   end
-  local unlisted = position.trackedQty - position.listedQty
-  local quantity = math.min(math.max(0, unlisted), bagState.exactQty)
+  local quantity = bagState.exactQty
   if quantity <= 0 then return nil, "no_unlisted_quantity" end
-  local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty, quantity)
-  if not allocation or allocation.coverage ~= "COMPLETE" then return nil, "incomplete_cost" end
+  local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
+  local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
-    quantity = quantity, cost = allocation.knownCost, allocations = allocation.allocations, unitPrice = unit }
+    quantity = quantity, cost = complete and allocation.knownCost or nil, costKnown = complete,
+    allocations = allocation and allocation.allocations or {}, unitPrice = unit }
 end
 
 function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
