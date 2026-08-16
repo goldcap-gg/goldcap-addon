@@ -309,19 +309,24 @@ end
 
 -- Reagent quality, as the game itself draws it.
 --
--- Two decisions worth keeping. The art is the client's own atlas
--- (`Professions-ChatIcon-Quality-Tier1`..`Tier5`), never a downloaded image --
--- addons cannot fetch over the network, and a wow.zamimg.com URL is only an
--- extract of an atlas the client already has. And the tier itself comes from
--- C_TradeSkillUI.GetItemReagentQualityByItemInfo, a client API, rather than from
--- the goldcap.gg import: the server's own tier column is populated by a script
--- somebody has to remember to run, so a freshly patched reagent would show no
--- pip for weeks. The client always knows.
+-- The first attempt hardcoded `Professions-ChatIcon-Quality-Tier1..5`, which are
+-- the Dragonflight diamonds. The client draws something else now, so the list
+-- showed two diamonds beside an item whose own tooltip showed a different mark
+-- entirely -- the addon disagreeing with the game about the same item.
 --
--- Rendered as a `|A:atlas:h:w|a` escape inside the label rather than as its own
--- texture region, so it costs no layout in either the deals list or the Sell tab
--- -- two row systems with entirely different anchoring rules.
-local QUALITY_ATLAS = {
+-- The lesson is not "use the newer atlas names". It is that an atlas name is art
+-- and art is versioned, so hardcoding one means being wrong again at the next
+-- expansion. The tooltip already renders the correct icon for whatever build is
+-- running, and C_TooltipInfo hands us that tooltip as data with its escape
+-- sequences intact -- so the icon is lifted from there and rescaled, and this
+-- file never needs to know what the art is called.
+--
+-- Matching is on the atlas NAME, never on the label beside it: atlas names are
+-- not localised and the label is. "quality" or "tier" covers every naming the
+-- art has used so far; a client that matches neither shows no pip at all, which
+-- is honest -- an absent mark costs nothing, a wrong one contradicts the game.
+local QUALITY_CACHE = {}
+local LEGACY_QUALITY_ATLAS = {
   "Professions-ChatIcon-Quality-Tier1",
   "Professions-ChatIcon-Quality-Tier2",
   "Professions-ChatIcon-Quality-Tier3",
@@ -329,16 +334,50 @@ local QUALITY_ATLAS = {
   "Professions-ChatIcon-Quality-Tier5",
 }
 
+local function atlasFromTooltip(itemID)
+  if not (C_TooltipInfo and C_TooltipInfo.GetItemByID) then return nil end
+  local ok, data = pcall(C_TooltipInfo.GetItemByID, itemID)
+  if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+  for _, line in ipairs(data.lines) do
+    for _, text in ipairs({ line.leftText, line.rightText }) do
+      if type(text) == "string" then
+        for atlas in text:gmatch("|A:([^:|]+):") do
+          local name = atlas:lower()
+          if name:find("quality", 1, true) or name:find("tier", 1, true) then return atlas end
+        end
+      end
+    end
+  end
+  return nil
+end
+
+local function atlasForQuality(itemID, quality)
+  local cached = QUALITY_CACHE[itemID]
+  if cached ~= nil then return cached ~= false and cached or nil end
+  local atlas = atlasFromTooltip(itemID)
+  if not atlas then
+    -- The tooltip may simply not be cached client-side yet, which is temporary,
+    -- so nothing is remembered in that case -- only a resolved answer is.
+    local legacy = LEGACY_QUALITY_ATLAS[quality]
+    if legacy and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(legacy) then
+      QUALITY_CACHE[itemID] = legacy
+      return legacy
+    end
+    return nil
+  end
+  QUALITY_CACHE[itemID] = atlas
+  return atlas
+end
+
 --- The quality of `itemID` as an inline atlas escape, or "" when the item has no
--- quality tier (most items do not) or the API is unavailable (a headless test,
--- or a client old enough to predate reagent quality).
+-- quality tier (most items do not) or the client will not say what to draw.
 function T.QualityMarkup(itemID, size)
   if type(itemID) ~= "number" then return "" end
   local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
   if not api then return "" end
   local ok, quality = pcall(api, itemID)
   if not ok or type(quality) ~= "number" then return "" end
-  local atlas = QUALITY_ATLAS[quality]
+  local atlas = atlasForQuality(itemID, quality)
   if not atlas then return "" end
   size = size or 14
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
