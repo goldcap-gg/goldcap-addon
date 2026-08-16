@@ -1329,7 +1329,10 @@ refreshAutoButton = function(targetFrame)
   local on = state ~= "OFF"
   if f.autoBtn.lastOn ~= on then
     f.autoBtn.lastOn = on
-    f.autoBtn:SetVariant(on and "primary" or "ghost")
+    -- `active`, not `primary`: primary is dark text on a gold fill, so the label is only legible
+    -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
+    -- button. `active` carries the on-state in gold text, which cannot become unreadable.
+    f.autoBtn:SetVariant(on and "active" or "ghost")
   end
   local text = on and autoButtonText(state, autoScan:PauseReasons()) or "Auto"
   if f.autoBtn.lastText ~= text then

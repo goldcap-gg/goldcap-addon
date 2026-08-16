@@ -171,8 +171,15 @@ end
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
 local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
 
+-- `primary` is dark-on-gold, which is only legible while the gold fill is actually painted.
+-- That is fine for a button built primary and left that way (the dialog's Buy/Confirm), but it
+-- is a trap for a control that toggles: the Auto button was showing near-black text on a fill
+-- that had not gone gold, leaving the label all but invisible. `active` states the same "this
+-- is on" with gold TEXT over a faint gold tint, so the label survives no matter what the fill
+-- is doing -- there is no state in which it becomes unreadable.
 local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
+  active  = { bg = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.16 }, text = T.color.goldHi },
   ghost   = { bg = nil, text = T.color.fg },
   danger  = { bg = T.color.red, text = T.color.fg },
 }
