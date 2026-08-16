@@ -79,6 +79,23 @@ describe("Search slot arbiter", function()
     assert.same({ "page", "page", "page", "watch", "watch" }, sent)
   end)
 
+  it("stands the watch loop down when the Deals view is not on screen, so Sell isn't starved", function()
+    local GC = load()
+    set(GC.Sniper.OnThrottleReady, "view", "sell")
+    for _ = 1, 3 do
+      set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+      GC.Sniper.OnThrottleReady()
+    end
+    -- With the watch loop stood down, browse paging alone takes every slot -- none go to
+    -- "watch", and none are left idle for GC.Sell.OnThrottleReady to starve on next.
+    assert.same({ "page", "page", "page" }, sent)
+
+    set(GC.Sniper.OnThrottleReady, "view", "deals")
+    set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "page", "page", "page", "watch" }, sent) -- watch resumes once Deals is back up
+  end)
+
   it("gives a parked Check the slot ahead of both", function()
     local GC = load()
     local searched = {}

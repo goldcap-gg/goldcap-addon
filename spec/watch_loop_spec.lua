@@ -23,7 +23,7 @@ describe("Watch loop", function()
 
   local function widget()
     local w = {}
-    function w:SetText() end
+    function w:SetText(t) self.text = t end
     function w:SetTextColor() end
     function w:SetTexture() end
     function w:SetLabel(label) self.label = label end
@@ -68,7 +68,7 @@ describe("Watch loop", function()
     local GC = {
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 },
         tier = { HOT = { 1, 1, 1 }, GOOD = { 1, 1, 1 }, WATCH = { 1, 1, 1 } },
-        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 } } },
+        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fg = { 0.92, 0.91, 0.89 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
         PauseReasons = function() return {} end, Tick = function() end } end },
       Data = { GetItemValue = function() return { mv = 200, soldPerDay = 50 } end,
@@ -252,6 +252,35 @@ describe("Watch loop", function()
     assert.equal(43, list[1].itemID)
     assert.equal(42, list[2].itemID)      -- pins sit below every deal
     assert.is_true(list[2].pinPlaceholder)
+  end)
+
+  it("does not render a fabricated price for a placeholder pin nothing has observed yet", function()
+    local GC = load()
+    GC.Sniper._TogglePin(42)
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", {})
+    -- Fresh session: `_lastPrice` has no entry for 42, exactly as after an AH close/reopen.
+    -- The old code rendered unitPrice/total as a formatted 0-copper price here.
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    refreshRows()
+    local rows = upvalue(refreshRows, "rows")
+    assert.equal(1, #rows)
+    assert.equal(42, rows[1].deal.itemID)
+    assert.is_true(rows[1].deal.pinPlaceholder)
+    assert.equal("—", rows[1].unitText.text)
+    assert.equal("—", rows[1].priceText.text)
+  end)
+
+  it("renders a real price once a placeholder pin has an observation", function()
+    local GC = load()
+    GC.Sniper._TogglePin(42)
+    local observe = upvalue(GC.Sniper.OnItemKeyInfo, "driver").onObservation
+    observe(42, nil) -- no qualifying deal, but the poll saw a live price
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", {})
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    refreshRows()
+    local rows = upvalue(refreshRows, "rows")
+    assert.equal(1, #rows)
+    assert.are_not.equal("—", rows[1].unitText.text)
   end)
 
   it("never hides a pinned row, whatever the Check said", function()

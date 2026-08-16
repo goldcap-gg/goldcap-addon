@@ -111,6 +111,20 @@ describe("Scanner", function()
     assert.same({ 1, 1 }, log.searches)
   end)
 
+  it("reports itself hungry once a pending search goes stale, so the arbiter can recover it", function()
+    keyInfos[1] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    assert.same({ 1 }, log.searches)
+    assert.is_false(s:Wants())        -- query in flight, not stale yet
+
+    clock = 1011                      -- > STALE_SECONDS later, response never came
+    assert.is_true(s:Wants())         -- stale pending must not count as pending
+
+    s:OnSystemReady()
+    assert.same({ 1, 1 }, log.searches) -- granted the slot, a NEW search went out
+  end)
+
   it("ignores results for items that are not pending", function()
     keyInfos[1] = { isCommodity = false }
     local s = GC.Scanner.New(drv, cfg)

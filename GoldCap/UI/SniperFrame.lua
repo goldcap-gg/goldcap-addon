@@ -494,8 +494,13 @@ local function renderList()
       if kept[i].itemID == itemID then present = true; break end
     end
     if not present then
-      kept[#kept + 1] = { itemID = itemID, pinPlaceholder = true, unitPrice = lastSeenPrice(itemID) or 0,
-        qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check" }
+      local lastPrice = lastSeenPrice(itemID)
+      -- `_lastPrice` is wiped on every AH close (see OnAuctionHouseClosed), so a fresh session
+      -- has no observation for a pin nothing has polled yet. `unitPrice = 0` stays the sentinel
+      -- in the table -- `priceUnknown` is what setRowDeal checks before it will render that as
+      -- a real number, so a session-old pin never shows a fabricated 0-copper price.
+      kept[#kept + 1] = { itemID = itemID, pinPlaceholder = true, unitPrice = lastPrice or 0,
+        qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
     end
   end
   return kept
@@ -714,8 +719,21 @@ local function setRowDeal(row, deal)
   row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
   row.discountText:SetTextColor(color[1], color[2], color[3])
 
-  row.unitText:SetText(formatColumnAmount(deal.unitPrice))
-  row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+  -- A placeholder pin with nothing observed yet has no price to show -- deal.unitPrice is only
+  -- the sentinel 0 kept in the table for callers that need a number. Rendering it through
+  -- formatColumnAmount would print a literal 0-copper price nothing polled, so it gets the same
+  -- dimmed em-dash the trend column below already uses for its own unknown state.
+  if deal.priceUnknown then
+    row.unitText:SetText("—")
+    row.unitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    row.priceText:SetText("—")
+    row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  else
+    row.unitText:SetText(formatColumnAmount(deal.unitPrice))
+    row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+    row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+  end
   row.profitText:SetText(formatColumnAmount(deal.profit))
   if deal.profit >= 0 then
     row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
@@ -1095,9 +1113,10 @@ driver = {
 
     if not GC.Sniper._liveTracksScanDeals then deals[deal.itemID] = deal end
     refreshRows()
-    if deal.tier == "HOT" and GC.db.settings.sniper.sound then
-      PlaySound(SOUNDKIT.RAID_WARNING, "Master")
-    end
+    -- No PlaySound here, deliberately. A DealMath tier is a lead, not a promise -- ringing is
+    -- the verdict path's job: stampVerdict rings on the transition into buyable, once, floored
+    -- 30 seconds per item. Doing it here as well would ring on every "HOT" poll result with
+    -- neither the verdict gate nor that floor in the way.
   end,
 
   onObservation = function(itemID, deal)
@@ -2349,9 +2368,15 @@ local function startRequery(row, deal)
   end
   row.purchaseToken = (row.purchaseToken or 0) + 1
   local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false }
-  -- Stop Live before registering or sending the authoritative Check. Init.lua dispatches the
-  -- scanner's throttle-ready hook first, so leaving it active even for this one turn lets it
-  -- consume the only slot and starve a parked Check until it falsely times out as Gone.
+  -- Stop Live before registering or sending the authoritative Check. This comment used to claim
+  -- Init.lua dispatches the scanner's throttle-ready hook first, which stopped being true once
+  -- the slot arbiter (GC.Sniper.OnThrottleReady/_GrantWatchSlot) took over allocation: a parked
+  -- Check now wins its slot outright through the arbiter regardless of this branch. `scanning`
+  -- itself is permanently false besides -- the Live button that used to flip it true is gone
+  -- (see the comment above GC.Sniper._ResumeLiveScanner) -- so the `elseif scanning` arm below
+  -- is retained-but-unreachable, not removed: `scanning` is still read in several other places
+  -- in this file (e.g. the pause/resume pair the Check requery path calls unconditionally), and
+  -- restoring Live means restoring one function and one button, not untangling those reads.
   if GC.Sniper._pausedLiveRequery then
     -- A replacement Check is already taking over a paused dialog session. Preserve the
     -- original user's Live intent but hand ownership to the new immutable attempt.
@@ -2691,9 +2716,13 @@ function GC.Sniper.OnThrottleReady()
     return
   end
 
-  -- The even split, between the only two consumers that are genuinely optional.
+  -- The even split, between the only two consumers that are genuinely optional. The watch poll
+  -- stands down when the Deals view is not the one on screen, exactly as tickAutoVerify already
+  -- does (it early-returns on `view ~= "deals"`): polling for a screen nobody is looking at was
+  -- never the point, and the Sell tab is the consumer that starves first when the watch loop
+  -- treats every ready tick as its own.
   local scanner = GC.Sniper.scanner
-  local watchWants = (scanner and scanner.Wants and scanner:Wants()) and true or false
+  local watchWants = (scanner and scanner.Wants and view == "deals" and scanner:Wants()) and true or false
   if not watchWants and not pendingBrowsePage then return end
 
   -- Alternate only while BOTH are hungry. If one has nothing to do the other takes the slot:
@@ -4744,6 +4773,12 @@ function GC.Sniper.OnAuctionHouseShow()
   -- Build the scanner on the first AH visit regardless of autoOpen, so a later
   -- manual watchlist Live click has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
+  -- A pin persists in SavedVariables across an AH close, but `_liveTargets` does not -- it is
+  -- wiped in OnAuctionHouseClosed like every other live claim. Without this call, a pin made
+  -- last session (or with Auto off, which is the only other thing that used to reach
+  -- _RefreshWatchSet) sits inert until a scan happens to run: nothing polls it. Must come
+  -- after the scanner is built just above, or there is nothing for the refresh to Start.
+  GC.Sniper._RefreshWatchSet()
 
   -- Sniper v3 §3: the AutoScan ticker only runs while the AH is open (nothing to drive
   -- otherwise -- SendBrowseQuery would silently no-op with no AH session live). This, the

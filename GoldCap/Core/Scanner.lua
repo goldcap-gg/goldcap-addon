@@ -80,7 +80,13 @@ function GC.Scanner.New(driver, dealCfg)
   -- know that WITHOUT granting one, so an even split does not hand turns to a loop with
   -- nothing to do (and so a slot is never left idle when only one consumer is hungry).
   function obj:Wants()
-    return running and pending == nil and #list > 0
+    if not running or #list == 0 then return false end
+    -- A pending query that has outlived STALE_SECONDS is not a query any more, it is a lost
+    -- one. Reporting "not hungry" here is what made OnSystemReady's own stale-recovery
+    -- unreachable: the arbiter only ever calls it when Wants() is true, so a single dropped
+    -- result used to wedge the loop for the rest of the session.
+    if pending and (driver.now() - pendingSince) <= STALE_SECONDS then return false end
+    return true
   end
 
   function obj:OnSystemReady()
