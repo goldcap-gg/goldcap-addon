@@ -36,7 +36,12 @@ describe("Sell refresh state fence", function()
       },
       SellPositions = {
         NormalizeOwnedLots = function() return {} end,
-        Build = function() return { { itemID = 42, positionKey = "commodity:42" } } end,
+        -- bagQty matters: the pricing walk only asks the server about positions
+        -- there is something to do with -- stock in the bags, or a live listing
+        -- that could be reposted. A full inventory is easily sixty sellable
+        -- stacks and the walk repeats, so pricing rows nobody will act on would
+        -- crowd out the Sniper's own scans.
+        Build = function() return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } } end,
       },
     }
     helper.loadModule("UI/SellFrame.lua", GC)

@@ -797,6 +797,9 @@ describe("Sell protected action state", function()
     local quote = { unit = 200, at = 100 }
     local postPosition = position()
     postPosition.ownedLots = {}
+    -- Matches the liveBagState stub further down: this item IS in the bags, and
+    -- the pricing walk only asks about positions there is something to do with.
+    postPosition.bagQty = 1
     local repostPosition = { itemID = 43, itemName = "Lot", positionKey = "commodity:43",
       scopeKey = "eu\1A-R\1commodity:43", character = "A-R", region = "eu",
       trackedQty = 1, listedQty = 1,

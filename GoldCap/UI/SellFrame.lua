@@ -274,11 +274,48 @@ local function composePositions()
   end
 end
 
+-- Which items the pricing walk asks the server about.
+--
+-- This used to be every position, which was fine when a position only existed
+-- for something GoldCap had bought. Now that the tab knows what is in the bags,
+-- a full inventory is easily sixty sellable stacks -- and the walk repeats. Sixty
+-- throttled round trips on a loop would crowd out the Sniper's own scans and the
+-- player's own searches, for prices on rows nobody is going to act on.
+--
+-- So: only what can be acted on (stock in the bags, or a live listing that could
+-- be reposted), most valuable first, and capped. Everything else keeps whatever
+-- quote it already has and shows its age honestly.
+local QUOTE_WALK_CAP = 24
+
 local function uniqueQuoteItemIDs()
-  local seen, result = {}, {}
+  local actionable = {}
   for _, position in ipairs(positions) do
-    if not position.unresolved and position.itemID and not seen[position.itemID] then
+    local inBags = type(position.bagQty) == "number" and position.bagQty > 0
+    local listed = type(position.listedQty) == "number" and position.listedQty > 0
+    if not position.unresolved and position.itemID and (inBags or listed) then
+      actionable[#actionable + 1] = position
+    end
+  end
+  -- Value is what a stale price costs you here: mispricing a 200-unit stack of
+  -- ore matters more than mispricing one leftover flask. Falls back to the
+  -- listed total for a position that is only on the auction house.
+  local weight = {}
+  for index, position in ipairs(actionable) do
+    local unit = position.freshMarketUnit or position.displayMarketUnit
+    local qty = position.bagQty or 0
+    weight[position] = (unit and qty > 0 and unit * qty)
+      or (type(position.listedValue) == "number" and position.listedValue) or 0
+    position.__walkOrder = index
+  end
+  table.sort(actionable, function(left, right)
+    if weight[left] ~= weight[right] then return weight[left] > weight[right] end
+    return left.__walkOrder < right.__walkOrder
+  end)
+  local seen, result = {}, {}
+  for _, position in ipairs(actionable) do
+    if not seen[position.itemID] then
       seen[position.itemID], result[#result + 1] = true, position.itemID
+      if #result >= QUOTE_WALK_CAP then break end
     end
   end
   return result
@@ -406,7 +443,14 @@ local function advanceQuote()
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
   if refresh.pending then return end
   if refresh.index >= #refresh.queue then return finishQuoteWalk() end
-  if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then return end
+  if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then
+    -- Yielding to a scan or a purchase is the walk working correctly, not the
+    -- walk stalling. Without this the watchdog would eventually declare "the
+    -- Auction House did not answer" while the Sniper was busy using it.
+    markProgress()
+    setStatus("Waiting for the scan to finish…")
+    return
+  end
   if not driver.isReady() then return end
   local itemID = refresh.awaiting or refresh.queue[refresh.index + 1]
   if driver.keyInfo(itemID) then
