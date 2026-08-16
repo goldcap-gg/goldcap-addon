@@ -245,6 +245,69 @@ describe("Deals background verification", function()
     assert.same({ 1 }, sent)
   end)
 
+  -- The walk used to `return` the moment it picked a candidate, whether or not a query
+  -- actually went out. Two of maybeStartPrewarm's own gates never clear on their own -- an
+  -- item whose key the client has not cached yet, and one parked behind the untagged-result
+  -- drain fence -- so a single unsendable row at the top starved every row beneath it for the
+  -- rest of the session. That is what "it only works sometimes" was.
+  it("gets past a row it cannot send and checks the ones under it", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200), deal(3, 300) })
+    set(api.GC.Sniper.OnItemKeyInfo, "driver", {
+      isReady = function() return true end,
+      -- The client has no item-key info for 1 yet. A pre-warm cannot chase it (only the
+      -- dialog's own patient startRequery does), so this row is unsendable right now.
+      getKeyInfo = function(itemID) return itemID ~= 1 and { isCommodity = true } or nil end,
+      sendSearch = function(itemID) sent[#sent + 1] = itemID end,
+      commodityBook = function() return { { unitPrice = 100, quantity = 50 } } end,
+      commodityResult = function() return { unitPrice = 100, qty = 50, avail = 50 } end,
+      itemResult = function() return nil end,
+    })
+
+    tickAt(api, 101)
+    assert.same({ 2 }, sent)
+    api.GC.Sniper.OnCommoditySearchResults(2)
+    tickAt(api, 102)
+    assert.same({ 2, 3 }, sent)
+  end)
+
+  it("does not spend its once-a-second turn on a throttle that was not ready", function()
+    local ready = false
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100) })
+    set(api.GC.Sniper.OnItemKeyInfo, "driver", {
+      isReady = function() return ready end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function(itemID) sent[#sent + 1] = itemID end,
+      commodityBook = function() return { { unitPrice = 100, quantity = 50 } } end,
+      commodityResult = function() return { unitPrice = 100, qty = 50, avail = 50 } end,
+      itemResult = function() return nil end,
+    })
+
+    tickAt(api, 101) -- throttle busy: the scan is paging, which under Auto is most of the time
+    assert.same({}, sent)
+
+    ready = true
+    tickAt(api, 101.25) -- the very next tick, not a second later
+    assert.same({ 1 }, sent)
+  end)
+
+  it("rings even though a scan page replaced the deal table under the query", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100) })
+    tickAt(api, 101)
+    assert.same({ 1 }, sent)
+
+    -- Streaming re-evaluates on every browse page, and MergeDeals splices in FRESH tables.
+    -- Same item, same asking price, different table -- which is all it took to lose the ping.
+    board(api, { deal(1, 100) })
+    api.refreshRows()
+
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.equal("Buy", api.rows[1].buy.label)
+    assert.equal(1, #sounds)
+  end)
+
   it("marks a SAFE commodity result buyable and puts Buy on the row", function()
     local api = loadSniper(safe)
     local d = deal(1, 100)
@@ -361,6 +424,31 @@ describe("Deals background verification", function()
     assert.is_false(api.verdicts[1].buyable)
     assert.equal("AVOID", api.verdicts[1].status)
     assert.equal(0, #api.renderList())
+  end)
+
+  it("stays silent when the player ran the Check themselves", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "SAFE", buyable = true, quantity = 5, reasons = {} } }, true)
+
+    -- The verdict is recorded -- that is the point of routing the Check through here -- but
+    -- the ping means "something became buyable while you were not looking". The player is
+    -- looking: they clicked Check and the dialog is open in front of them.
+    assert.is_true(api.verdicts[1].buyable)
+    assert.equal("Buy", api.rows[1].buy.label)
+    assert.equal(0, #sounds)
+
+    -- ...and the Check path is the one that asks for the silence. (armReady's dialog surface
+    -- is far too wide to drive headlessly; this is the one line that wires the two together.)
+    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local text = file:read("*a")
+    file:close()
+    assert.is_truthy(text:find("stampVerdict(deal, live, true)", 1, true))
   end)
 
   it("throws every verdict away when the auction house closes", function()

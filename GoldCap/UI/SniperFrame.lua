@@ -2051,7 +2051,7 @@ local function applyRequeryResult(row, itemID, live)
   -- item, so it replaces whatever the background walk had recorded. Without this, cancelling
   -- out of a dialog that said AVOID would drop the player back onto a row still wearing the
   -- gold Buy button an older background verdict had earned it.
-  stampVerdict(deal, live)
+  stampVerdict(deal, live, true)
   refreshRows()
 end
 
@@ -2215,6 +2215,13 @@ end
 -- whatever the player is looking at, stale or not. Relaxed explicitly rather than by deleting
 -- the guard: today every deal on the board comes from the full scan and is therefore stale, so
 -- deleting it would look correct and quietly make the auto path depend on that staying true.
+--
+-- **Returns true only if a query actually went out.** Eleven of the twelve paths through this
+-- function are declines, and two of them never clear on their own: an item whose key the
+-- client has not cached (a pre-warm may not chase ITEM_KEY_ITEM_INFO_RECEIVED the way
+-- startRequery does) and one parked behind the untagged-result drain fence. A caller that
+-- cannot tell "sent" from "declined" treats a permanently unsendable row as work in progress
+-- -- which is exactly how one bad row at the top of the list starved every row beneath it.
 local function maybeStartPrewarm(deal, auto)
   if not deal then return end
   if not auto and not deal.stale then return end -- hover pre-warm only helps the two-click full-scan flow
@@ -2254,6 +2261,7 @@ local function maybeStartPrewarm(deal, auto)
       requeryDraining[itemID] = attempt
     end
   end)
+  return true
 end
 
 -- Records what the live query just said about `deal`, re-renders the list around it, and rings
@@ -2265,7 +2273,11 @@ end
 --
 -- Called from every pre-warm landing, hover ones included: a hover already pays for the query,
 -- so there is no reason for it not to leave a verdict behind.
-stampVerdict = function(deal, data)
+-- `quiet` suppresses the ping without suppressing the record. Used by the Check the player ran
+-- themselves: the ping exists to say "something became buyable while you were not looking", and
+-- somebody staring at the dialog they just opened is looking. Ringing there only dilutes what
+-- the sound means the rest of the time.
+stampVerdict = function(deal, data, quiet)
   if not deal or not deal.itemID then return end
   local previous = verdicts[deal.itemID]
   local wasBuyable = previous and previous.unitPrice == deal.unitPrice and previous.buyable
@@ -2286,13 +2298,20 @@ stampVerdict = function(deal, data)
   }
   refreshRows()
 
-  if not buyable or wasBuyable then return end -- ping the transition only, never every re-check
-  -- Same row lookup pingNewHotDeals uses, and for the same reason: by TABLE IDENTITY against
-  -- the deal, after the refreshRows above has had its chance to put it on screen. No row, no
-  -- sound -- a ping with nothing to look at is noise.
+  if quiet or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  -- Find the row by the SAME key the verdict itself is filed under -- item and asking price --
+  -- and NOT by table identity the way pingNewHotDeals does. That difference is the whole bug
+  -- behind "the Buy button appeared but it never made a sound": identity is right for a HOT
+  -- ping, which fires within one merge of the tables it was handed, but a verdict outlives the
+  -- table it was measured on. Streaming re-evaluates on every browse page and MergeDeals
+  -- splices in FRESH tables each time, so by the time a query came back the row was usually
+  -- carrying an equal-but-different table, no row matched, and the ping was dropped on the
+  -- floor. Row-not-on-screen must still mean no sound -- a ping with nothing to look at is
+  -- noise -- but "not on screen" has to mean what the player sees, not what Lua allocated.
   for i = 1, #rows do
     local row = rows[i]
-    if row.deal == deal and row:IsShown() then
+    if row.deal and row.deal.itemID == deal.itemID
+        and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
       flashRow(row)
       if GC.db and GC.db.settings and GC.db.settings.sniper.sound then
         PlaySound(SOUNDKIT.READY_CHECK or SOUNDKIT.MAP_PING or 3175, "Master")
@@ -2339,6 +2358,11 @@ local function tickAutoVerify()
   if not frame or not frame:IsShown() then return end
   if prewarmAttempt then return end -- one query in flight globally, shared with the hover pre-warm
   if GC.Sniper.IsSearchCritical() then return end -- a Check or a purchase owns the search slot
+  -- Checked BEFORE the once-a-second gate below, and deliberately so. Under Auto the browse
+  -- scan is paging almost continuously, so the throttled system is unready most of the time --
+  -- letting a busy moment consume the walk's turn meant the walk mostly ran during the
+  -- fraction of a second it could do nothing, and the next opening a whole second away.
+  if not driver.isReady() then return end
 
   local now = GetTime()
   if now < verifyWalkAt then return end
@@ -2354,8 +2378,11 @@ local function tickAutoVerify()
     local v = verdicts[deal.itemID]
     if not (v and v.unitPrice == deal.unitPrice
         and (now - v.at) < LIM.VERIFY_INTERVAL_SECONDS) then
-      maybeStartPrewarm(deal, true)
-      return -- one query per walk at most; the next one picks up where this left off
+      -- Stop on a query actually going out -- one per walk at most. A row that DECLINED to
+      -- send is not progress and must not end the walk: its blocker may never clear (an
+      -- uncached item key, the drain fence), and treating it as work in flight is what let one
+      -- row at the top hold the whole list hostage. Move on and check the next one.
+      if maybeStartPrewarm(deal, true) then return end
     end
   end
 end
@@ -4138,10 +4165,36 @@ local function createFrame()
     cfg.showRefused = not showRefused()
     refreshRows() -- re-renders and, through it, re-labels this button
   end)
-  setPlainTooltip(verifyBtn,
-    "GoldCap checks the top rows against the live auction house in the background, about " ..
-    "every 30 seconds. Rows the check refuses are hidden -- this is how many. Click to show " ..
-    "them; the row's own Check still explains why. Buying always stays a click you make.")
+  -- A live tooltip rather than setPlainTooltip's fixed text. "It seems to work sometimes" is
+  -- not a report anyone can act on, and the walk is invisible by nature -- so it says what it
+  -- has actually done: how many of the rows it is responsible for carry a verdict, and how
+  -- long ago the last one landed. A stalled walk shows up here as a number that stops moving.
+  verifyBtn:HookScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Background check", 1, 1, 1)
+    GameTooltip:AddLine("GoldCap re-checks the top " .. LIM.VERIFY_TOP_ROWS ..
+      " rows against the live auction house about every " .. LIM.VERIFY_INTERVAL_SECONDS ..
+      "s. Rows it refuses are hidden. Buying always stays a click you make.", 1, 1, 1, true)
+
+    local list = renderList()
+    local checked, newest = 0, nil
+    for i = 1, math.min(#list, LIM.VERIFY_TOP_ROWS) do
+      local v = verdicts[list[i].itemID]
+      if v and v.unitPrice == list[i].unitPrice then
+        checked = checked + 1
+        if not newest or v.at > newest then newest = v.at end
+      end
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(("Checked: %d of the top %d on screen"):format(
+      checked, math.min(#list, LIM.VERIFY_TOP_ROWS)), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(newest
+      and ("Last result: %ds ago"):format(math.floor(GetTime() - newest))
+      or "Last result: none yet this visit", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(("Refused so far: %d"):format(refusedCount), 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+  end)
+  verifyBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
   f.verifyBtn = verifyBtn
 
   -- Re-derives the toggle's label and look from `refusedCount`, which renderList recomputes on
