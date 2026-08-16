@@ -6,13 +6,16 @@ GC.Sniper._liveTracksScanDeals = false
 
 local Theme = GC.Theme
 
-local ROW_HEIGHT = Theme.ROW_H
-local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
+-- Window and row geometry, folded into one table for the same reason DG below
+-- is: this chunk is at Lua's 200-local ceiling exactly.
+local WIN = {}
+WIN.ROW_HEIGHT = Theme.ROW_H
+WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
 
 -- Sniper v3: window chrome is Theme.Panel + Theme.TitleBar (see createFrame) instead of
 -- BasicFrameTemplateWithInset, and BOTH width and height are now resizable (T5 -- previously
 -- only height could change, which is why the old column grid derived every offset from a
--- single fixed FRAME_WIDTH). The column grid below is now driven by COLUMNS + anchorColumns:
+-- single fixed WIN.FRAME_WIDTH). The column grid below is now driven by COLUMNS + anchorColumns:
 -- every fixed-width cell anchors relative to its neighbor (right-to-left off the row/header
 -- container's own RIGHT edge), and the `content`/`header` containers themselves track the
 -- frame's live width via SetPoint, so a resize re-flows the grid with no recompute step
@@ -21,32 +24,34 @@ local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist
 -- (see createFrame's f:SetScript("OnSizeChanged", ...) -- observed off the window frame
 -- itself, not the ScrollFrame, so it keeps firing even while the ScrollFrame is hidden behind
 -- the Sell tab; M8).
-local FRAME_WIDTH = 640
-local FRAME_HEIGHT = 520
-local RESIZE_MIN_WIDTH = 560
-local RESIZE_MAX_WIDTH = 1100
-local RESIZE_MIN_HEIGHT = 300
-local RESIZE_MAX_HEIGHT = 900
+WIN.FRAME_WIDTH = 640
+WIN.FRAME_HEIGHT = 520
+WIN.RESIZE_MIN_WIDTH = 560
+WIN.RESIZE_MAX_WIDTH = 1100
+WIN.RESIZE_MIN_HEIGHT = 300
+WIN.RESIZE_MAX_HEIGHT = 900
 
--- Content-area margins. CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
+-- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
 -- UIPanelScrollFrameTemplate) has no Theme equivalent -- Theme doesn't know about Blizzard's
 -- scrollbar width -- so it stays a plain named constant, same as before.
-local CONTENT_LEFT = Theme.pad.m
-local CONTENT_RIGHT_GUTTER = 32
+WIN.CONTENT_LEFT = Theme.pad.m
+WIN.CONTENT_RIGHT_GUTTER = 32
 
-local ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
+WIN.ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
 
 -- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
 -- sortable; the two columns COLUMNS adds for Sniper v3, unit/trend, stay inert like "buy").
-local REQUOTE_WARN_RATIO = 0.05
-local REQUOTE_LOUD_RATIO = 0.25
+-- Timeouts, ratios and caps. Same reason as WIN above.
+local LIM = {}
+LIM.REQUOTE_WARN_RATIO = 0.05
+LIM.REQUOTE_LOUD_RATIO = 0.25
 -- How long the loud prompt refuses the confirming click. Long enough that a second click
 -- already on its way lands on a disabled button, short enough not to feel broken.
-local REQUOTE_ARM_SECONDS = 1.5
-local REQUOTE_BANNER_HEIGHT = 46
+LIM.REQUOTE_ARM_SECONDS = 1.5
+LIM.REQUOTE_BANNER_HEIGHT = 46
 -- How many order-book entries the dialog will read. Purely a bound on work done against
 -- already-fetched results; a purchase never spans anywhere near this many price levels.
-local MAX_BOOK_LEVELS = 100
+LIM.MAX_BOOK_LEVELS = 100
 -- How far above the live market an imported market value has to sit before the dialog stops
 -- treating it as information and says so.
 -- How long a confirmed quote stays clickable in the dialog. Generous on purpose: the player
@@ -54,21 +59,21 @@ local MAX_BOOK_LEVELS = 100
 -- is immutable (PlaceBid either buys at exactly the shown price or fails because the lot is
 -- gone), and a commodity purchase always re-quotes server-side via StartCommoditiesPurchase
 -- before the separate Confirm click (with the >5% requote re-prompt on top).
-local ARM_TIMEOUT_SECONDS = 30
-local BUY_TIMEOUT_SECONDS = 8
-local REQUERY_TIMEOUT_SECONDS = 8
+LIM.ARM_TIMEOUT_SECONDS = 30
+LIM.BUY_TIMEOUT_SECONDS = 8
+LIM.REQUERY_TIMEOUT_SECONDS = 8
 -- Task 8 hover pre-warm: how long a cached deal.prewarm result stays consumable by openDialog
 -- before it's treated as expired (falls back to today's requery-then-arm flow instead).
-local PREWARM_TTL_SECONDS = 10
+LIM.PREWARM_TTL_SECONDS = 10
 -- If no browse event arrives within this long after a send (initial query or page
 -- request), the paging chain is presumed stalled -- see armScanWatchdog.
-local SCAN_WATCHDOG_SECONDS = 15
+LIM.SCAN_WATCHDOG_SECONDS = 15
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
-local rows = {}        -- pooled row widgets, grown lazily up to ROW_CAP
+local rows = {}        -- pooled row widgets, grown lazily up to WIN.ROW_CAP
 local dialog           -- the single reusable purchase-confirmation dialog; lazily created (see createDialog)
 local deals = {}        -- itemID -> latest watchlist deal shown for it (watchlist mode)
 local scanDeals = {}     -- array of deals from the last completed full scan (full-scan mode)
@@ -91,8 +96,8 @@ local sortHeaders = {}          -- sortKey -> { label = FontString, base = strin
 -- import is found stale on AH open -- reset only by /reload, deliberately not tied to a
 -- fresh import landing mid-session (see GC.Sniper.OnAuctionHouseShow).
 local staleWarnedThisSession = false
-local STALE_YELLOW_SECONDS = 6 * 3600
-local STALE_RED_SECONDS = 24 * 3600
+LIM.STALE_YELLOW_SECONDS = 6 * 3600
+LIM.STALE_RED_SECONDS = 24 * 3600
 
 -- Full-scan (Auctionator-style incremental browse) state. A full scan pages through
 -- C_AuctionHouse's browse results with SendBrowseQuery + RequestMoreBrowseResults until
@@ -159,7 +164,7 @@ local function drainCommodityPurchase(row)
     -- misattributed late event can now do is cancel a fresh attempt, which is the fail-safe
     -- direction. A CONFIRMED tombstone is never retired here -- its late success must land.
     -- 10s, written inline rather than as a named constant: this chunk is at Lua's 200-local
-    -- ceiling. Longer than BUY_TIMEOUT_SECONDS so a real terminal event still lands first.
+    -- ceiling. Longer than LIM.BUY_TIMEOUT_SECONDS so a real terminal event still lands first.
     if not pending.confirmed then
       C_Timer.After(10, function()
         if commodityDraining == pending and not pending.confirmed then
@@ -606,7 +611,7 @@ end
 -- row under the cursor must not change identity between a click landing and the button
 -- underneath it processing that click.
 --
--- The row pool grows lazily up to `shown` (itself capped at ROW_CAP) instead of being
+-- The row pool grows lazily up to `shown` (itself capped at WIN.ROW_CAP) instead of being
 -- pre-built at a fixed size: full scans can return far more deals than the old
 -- watchlist-only 20-row pool ever needed to hold. `shown` also bounds how many entries of
 -- `list` get consumed even if `list` itself is longer (already true for full-scan mode,
@@ -616,7 +621,7 @@ end
 local function refreshRows()
   if not frame then return end
   local list = renderList()
-  local shown = math.min(#list, ROW_CAP)
+  local shown = math.min(#list, WIN.ROW_CAP)
 
   for i = #rows + 1, shown do
     rows[i] = createRow(content, i)
@@ -637,7 +642,7 @@ local function refreshRows()
     end
   end
 
-  content:SetHeight(math.max(shown, 1) * ROW_HEIGHT)
+  content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -692,9 +697,9 @@ local function refreshStaleText()
     frame.staleText:SetText("no import -- /goldcap import")
     frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
-  elseif age < STALE_YELLOW_SECONDS then
+  elseif age < LIM.STALE_YELLOW_SECONDS then
     frame.staleText:Hide()
-  elseif age < STALE_RED_SECONDS then
+  elseif age < LIM.STALE_RED_SECONDS then
     local label = isAppData and "auto-synced %dh ago" or "import %dh old"
     frame.staleText:SetText(label:format(math.floor(age / 3600)))
     frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
@@ -711,7 +716,7 @@ end
 local function maybeWarnStale()
   if staleWarnedThisSession then return end
   local age = importAgeSeconds()
-  if age and age < STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
+  if age and age < LIM.STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
   staleWarnedThisSession = true
   if age then
     GC.Print(("your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."):format(math.floor(age / 3600)))
@@ -806,13 +811,13 @@ local driver = {
     -- Fix 1: info.quantity above is only level 1's own stock (what a purchase quote is built
     -- from) -- `avail` is the market's real depth, summed across every fetched price level, so
     -- the row/dialog can show "x<qty> of <avail>" instead of implying the level-1 quantity is
-    -- all there is. Same bounded MAX_BOOK_LEVELS idiom driver.commodityBook uses below, kept as
+    -- all there is. Same bounded LIM.MAX_BOOK_LEVELS idiom driver.commodityBook uses below, kept as
     -- its own small loop rather than calling commodityBook itself: this only needs a running
     -- total, not the per-level array GC.Book.Fill consumes.
     local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
     local avail
     if n and n > 0 then
-      if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+      if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
       avail = 0
       for i = 1, n do
         local levelInfo = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
@@ -830,7 +835,7 @@ local driver = {
   commodityBook = function(itemID)
     local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
     if not n or n <= 0 then return nil end
-    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
     local levels = {}
     for i = 1, n do
       local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
@@ -849,7 +854,7 @@ local driver = {
     local key = C_AuctionHouse.MakeItemKey(itemID)
     local n = C_AuctionHouse.GetNumItemSearchResults(key)
     if not n or n <= 0 then return nil end
-    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
     local best
     for i = 1, n do
       local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
@@ -891,7 +896,7 @@ local driver = {
 
   onObservation = function(itemID, deal)
     if GC.Sniper._liveTracksScanDeals then
-      scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, ROW_CAP)
+      scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, WIN.ROW_CAP)
     else
       deals[itemID] = deal
     end
@@ -1065,7 +1070,7 @@ end
 -- have no server cooldown, so retrying costs nothing; the status line says so.
 local function armScanWatchdog(token)
   local sentAt = time()
-  C_Timer.After(SCAN_WATCHDOG_SECONDS, function()
+  C_Timer.After(LIM.SCAN_WATCHDOG_SECONDS, function()
     if token ~= fullScanToken or not scanRunning then return end -- superseded, aborted, or already finished
     if lastBrowseEventAt < sentAt then
       scanRunning = false
@@ -1411,11 +1416,11 @@ end
 local function showRequoteBanner(head, detail)
   dialog.banner.head:SetText(head)
   dialog.banner.detail:SetText(detail)
-  dialog:SetHeight(dialog.baseHeight + REQUOTE_BANNER_HEIGHT)
+  dialog:SetHeight(dialog.baseHeight + LIM.REQUOTE_BANNER_HEIGHT)
   dialog.banner:Show()
 end
 
--- Refuses the confirming click for REQUOTE_ARM_SECONDS so a click already on its way when the
+-- Refuses the confirming click for LIM.REQUOTE_ARM_SECONDS so a click already on its way when the
 -- alarm fired can't land on it. Red-and-disabled reads as deliberate on its own; there is no
 -- countdown number in the label (a dropped earlier version ticked on a 0.5s interval over a
 -- 1.5s window, which reads as three seconds -- "(3) -> (2) -> (1)" -- for a wait that isn't).
@@ -1435,7 +1440,7 @@ local function armLoudConfirm(row)
   dialog.primaryBtn:Disable()
   setPrimaryLabel("Confirm", 1, 0.35, 0.35)
 
-  C_Timer.After(REQUOTE_ARM_SECONDS, function()
+  C_Timer.After(LIM.REQUOTE_ARM_SECONDS, function()
     if token ~= requoteArmToken then return end
     if not dialog or dialog.row ~= row or row.purchaseStage ~= "requote" then return end
     dialog.primaryBtn:Enable()
@@ -1494,7 +1499,7 @@ local function resizeDialogDiagnostics()
   dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
   dialog.baseHeight = dialog.fixedHeight + dialog.diagnosticGaps + height
   local bannerVisible = dialog.banner and dialog.banner:IsShown()
-  dialog:SetHeight(dialog.baseHeight + (bannerVisible and REQUOTE_BANNER_HEIGHT or 0))
+  dialog:SetHeight(dialog.baseHeight + (bannerVisible and LIM.REQUOTE_BANNER_HEIGHT or 0))
 end
 
 -- Forward declarations for the quantity controls. Their definitions are intentionally below
@@ -1810,12 +1815,12 @@ local function showGoneState(row, message)
   end
 end
 
--- Expires a quote nobody clicked within ARM_TIMEOUT_SECONDS -- but never dead-ends the
+-- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
 -- expired -> Refresh -> ready any number of times stays compliant.
 local function scheduleArmTimeout(row, deal, decision)
-  C_Timer.After(ARM_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.ARM_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "ready" and row.deal == deal and row.decisionSnapshot == decision
         and dialog and dialog.row == row then
       row.purchaseStage = "expired"
@@ -1938,7 +1943,7 @@ end
 -- event is UNVERIFIED to always fire, so silently unpinning here could let the player
 -- re-attempt a buy whose bid may in fact still land. The row stays pinned until Cancel.
 local function scheduleBuyTimeout(row, deal, token)
-  C_Timer.After(BUY_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.BUY_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "buying" and row.purchaseDeal == deal and row.purchaseToken == token
         and (not deal.isCommodity or (commodityPurchase and commodityPurchase.row == row
           and commodityPurchase.token == token))
@@ -1997,7 +2002,7 @@ local function finishRequery(attempt, liveDeal)
 end
 
 local function scheduleRequeryTimeout(attempt)
-  C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.REQUERY_TIMEOUT_SECONDS, function()
     if isCurrentRequeryAttempt(attempt) then
       -- The server might still send an untagged result after this timeout. Fence it before
       -- returning the row to Check, so it cannot become a quote for a subsequent same-item
@@ -2075,7 +2080,7 @@ end
 -- below) calls maybeStartPrewarm(self.deal) on every hover; this issues the SAME live query
 -- startRequery would for a `.stale` deal, but into resolvePrewarm instead of finishRequery --
 -- the result lands on deal.prewarm and NOTHING here ever opens, arms, or otherwise touches the
--- row/dialog. openDialog (below) is the only consumer: a fresh (<= PREWARM_TTL_SECONDS old)
+-- row/dialog. openDialog (below) is the only consumer: a fresh (<= LIM.PREWARM_TTL_SECONDS old)
 -- deal.prewarm lets it skip straight to applyRequeryResult instead of calling startRequery, so
 -- the dialog opens already armed. A stale/absent cache falls back to today's flow unchanged.
 -- ---------------------------------------------------------------------------
@@ -2089,7 +2094,7 @@ end
 local function maybeStartPrewarm(deal)
   if not deal or not deal.stale then return end -- only the two-click full-scan flow ever needs this
   if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
-  if deal.prewarm and (GetTime() - deal.prewarm.at) <= PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
+  if deal.prewarm and (GetTime() - deal.prewarm.at) <= LIM.PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
   if activeItemID[deal.itemID] then return end -- a purchase (or its own live dialog requery) is already in flight for this item
   -- Final fix wave (item 2), coordinator ruling restoring spec §4: gate narrowed from
   -- GC.Sniper.IsBusy() (which also covered a paging Full Scan) to purchase traffic ONLY --
@@ -2118,7 +2123,7 @@ local function maybeStartPrewarm(deal)
 
   -- Ultimate fallback so a pre-warm that never gets a matching event (or one whose deal was
   -- superseded before it landed) can't wedge the "one in flight globally" slot shut forever.
-  C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.REQUERY_TIMEOUT_SECONDS, function()
     if prewarmAttempt == attempt then
       prewarmAttempt = nil
       requeryDraining[itemID] = attempt
@@ -2352,7 +2357,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
 
   local severity, ratio = GC.DealMath.RequoteSeverity(
-    decision.entryTotal, totalPrice, REQUOTE_WARN_RATIO, REQUOTE_LOUD_RATIO)
+    decision.entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
   if severity == "none" then
     row.purchaseStage = "confirm"
     -- Fix 2: the server's own live quote can exceed what's in the player's bags even when the
@@ -2696,7 +2701,7 @@ end
 
 -- Sums a raw commodity order-book's level quantities (driver.commodityBook's own shape,
 -- cached as dialog.bookLevels by the same live query that produced the decision) -- the total currently listed across every
--- level the dialog fetched (bounded by MAX_BOOK_LEVELS, same cap driver.commodityBook itself
+-- level the dialog fetched (bounded by LIM.MAX_BOOK_LEVELS, same cap driver.commodityBook itself
 -- applies).
 local function sumLevelQty(levels)
   local total = 0
@@ -2853,35 +2858,41 @@ end
 -- the pre-Theme dialog used (see hideRequoteBanner/showRequoteBanner); only the pixel budget
 -- below is new, sized for the wider Theme fonts and the added item-header row.
 -- ---------------------------------------------------------------------------
-local DIALOG_WIDTH = 320
-local DIALOG_ICON = 24
-local DIALOG_TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
-local DIALOG_GRID_ROW_H = 17
+-- One table, not seventeen top-level locals. A Lua chunk may hold 200 of those
+-- and this file sits at exactly 200: adding a single new one fails at load with
+-- "too many local variables". The dialog's geometry is the largest cluster of
+-- pure constants here, so folding it buys the most room per line changed --
+-- see addon/AGENTS.md.
+local DG = {}
+DG.WIDTH = 320
+DG.ICON = 24
+DG.TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
+DG.GRID_ROW_H = 17
 -- Quantity and quick-fill precede the ten immutable decision/evidence fields below.
-local DIALOG_GRID_ROWS = 12
+DG.GRID_ROWS = 12
 -- Fix 2 quick-fill row geometry: four small ghost buttons sharing grid row 2 (right under the
 -- Quantity row) -- they don't fit alongside that row's own label + "of N" + edit box on one
 -- 296px-wide line, so they get their own row instead of crowding it.
-local QTY_QUICKFILL_H = 16
-local QTY_QUICKFILL_W = 34
-local QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
+DG.QTY_QUICKFILL_H = 16
+DG.QTY_QUICKFILL_W = 34
+DG.QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
 -- I5: 36/32 (were 28/18) -- the requote path's status line can wrap to two full lines
--- ("<unit> -> <unit> per unit    total <total> -> <total>" at DIALOG_WIDTH), and the
+-- ("<unit> -> <unit> per unit    total <total> -> <total>" at DG.WIDTH), and the
 -- suspect/mv notes must never clip a second line either; both budgets sized for two lines
 -- of Theme.Label(d, 11) at this width, not one.
-local DIALOG_NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
-local DIALOG_DIAGNOSTIC_MIN_H = 36
-local DIALOG_STATUS_H = 32
-local DIALOG_PRIMARY_H = 26
-local DIALOG_CANCEL_H = 20
+DG.NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
+DG.DIAGNOSTIC_MIN_H = 36
+DG.STATUS_H = 32
+DG.PRIMARY_H = 26
+DG.CANCEL_H = 20
 -- title line + gap + icon/name/chip row + gap + reserved suspect-note block + gap
-local DIALOG_HEADER_H = Theme.pad.m + DIALOG_TITLE_LINE_H + Theme.pad.s + DIALOG_ICON + Theme.pad.s + DIALOG_NOTE_H + Theme.pad.s
-local GRID_TOP = -DIALOG_HEADER_H
+DG.HEADER_H = Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s + DG.ICON + Theme.pad.s + DG.NOTE_H + Theme.pad.s
+DG.GRID_TOP = -DG.HEADER_H
 -- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
--- bottom edge (mirrors GRID_TOP's measured-down-from-top pattern above).
-local DIALOG_CONTROLS_H = Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs + DIALOG_CANCEL_H + Theme.pad.s
-local DIALOG_FIXED_HEIGHT = DIALOG_HEADER_H + DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H
-  + DIALOG_STATUS_H + DIALOG_CONTROLS_H
+-- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
+DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
+DG.FIXED_HEIGHT = DG.HEADER_H + DG.GRID_ROWS * DG.GRID_ROW_H
+  + DG.STATUS_H + DG.CONTROLS_H
 
 -- Fix 2: a bordered box with a recolorable border, for the Quantity EditBox's focus ring.
 -- Duplicated from SettingsFrame.lua's own private `borderedBox` (that one is a file-local
@@ -2939,7 +2950,7 @@ local function makeQtyEditBox(parent, width, height)
   eb:SetAutoFocus(false)
   eb:SetNumeric(true)
   eb:SetJustifyH("CENTER")
-  eb:SetMaxLetters(6) -- nothing plausible (even a full MAX_BOOK_LEVELS-deep book) needs more digits
+  eb:SetMaxLetters(6) -- nothing plausible (even a full LIM.MAX_BOOK_LEVELS-deep book) needs more digits
   eb:SetFont(Theme.FONT_MONO, 12 * Theme.Scale(), "")
   eb:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
   eb:SetScript("OnEscapePressed", eb.ClearFocus)
@@ -2973,12 +2984,12 @@ local function createDialog()
   -- Sniper window instead, and the dialog's own OnHide (which calls abortRowPurchase) never
   -- fires -- silently orphaning an in-flight purchase's pinned row.
   _G.GoldCapSniperConfirm = d
-  d.fixedHeight = DIALOG_FIXED_HEIGHT
+  d.fixedHeight = DG.FIXED_HEIGHT
   -- Match the two actual anchors: grid→diagnostic and diagnostic→status.
   d.diagnosticGaps = Theme.pad.xs + Theme.pad.xs
-  d.diagnosticMinimumHeight = DIALOG_DIAGNOSTIC_MIN_H
+  d.diagnosticMinimumHeight = DG.DIAGNOSTIC_MIN_H
   d.baseHeight = d.fixedHeight + d.diagnosticGaps + d.diagnosticMinimumHeight
-  d:SetSize(DIALOG_WIDTH, d.baseHeight)
+  d:SetSize(DG.WIDTH, d.baseHeight)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
@@ -2989,13 +3000,13 @@ local function createDialog()
   d.title = title
 
   local icon = d:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(DIALOG_ICON, DIALOG_ICON)
+  icon:SetSize(DG.ICON, DG.ICON)
   icon:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -Theme.pad.s)
   d.icon = icon
 
   local tierChip = Theme.Chip(d)
   tierChip:SetWidth(COLUMN_W.tier) -- M13: matches the list's own tier column width, not a duplicated literal
-  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + DIALOG_TITLE_LINE_H + Theme.pad.s))
+  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s))
   d.tierChip = tierChip
 
   local nameText = Theme.Label(d, 12)
@@ -3034,10 +3045,10 @@ local function createDialog()
   -- Label/value grid: one row per number the player needs to decide with, aligned two-column
   -- (Theme.Label left, Theme.Num right) -- updateDialogAmounts re-stamps the value slots in
   -- place as fresher quotes come in; the grid itself never grows or reflows (fixed Y per row,
-  -- same reasoning as GRID_TOP/DIALOG_GRID_ROW_H above: a chained anchor would let a wrapped
+  -- same reasoning as DG.GRID_TOP/DG.GRID_ROW_H above: a chained anchor would let a wrapped
   -- neighbor note reflow rows underneath it).
   local function gridRow(index, label)
-    local y = GRID_TOP - (index - 1) * DIALOG_GRID_ROW_H
+    local y = DG.GRID_TOP - (index - 1) * DG.GRID_ROW_H
     local labelFS = Theme.Label(d, 11)
     labelFS:SetPoint("TOPLEFT", Theme.pad.m, y)
     labelFS:SetText(label)
@@ -3054,8 +3065,8 @@ local function createDialog()
   qtyLotText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   d.qtyLotText = qtyLotText
 
-  local qtyBox = makeQtyEditBox(d, 64, DIALOG_GRID_ROW_H - 3)
-  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, GRID_TOP - 1)
+  local qtyBox = makeQtyEditBox(d, 64, DG.GRID_ROW_H - 3)
+  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, DG.GRID_TOP - 1)
   d.qtyBox = qtyBox
 
   local qtyOfLabel = Theme.Label(d, 11) -- dim "of N" -- shown when the true available qty is known
@@ -3097,14 +3108,14 @@ local function createDialog()
   -- how every numeric grid column already anchors off the dialog's right edge.
   local quickFillBtns = {}
   local prevBtn
-  for i = #QTY_QUICKFILL_PCTS, 1, -1 do
-    local pct = QTY_QUICKFILL_PCTS[i]
+  for i = #DG.QTY_QUICKFILL_PCTS, 1, -1 do
+    local pct = DG.QTY_QUICKFILL_PCTS[i]
     local btn = Theme.Button(d, "ghost")
-    btn:SetSize(QTY_QUICKFILL_W, QTY_QUICKFILL_H)
+    btn:SetSize(DG.QTY_QUICKFILL_W, DG.QTY_QUICKFILL_H)
     if prevBtn then
       btn:SetPoint("TOPRIGHT", prevBtn, "TOPLEFT", -Theme.pad.xs, 0)
     else
-      btn:SetPoint("TOPRIGHT", -Theme.pad.m, GRID_TOP - DIALOG_GRID_ROW_H)
+      btn:SetPoint("TOPRIGHT", -Theme.pad.m, DG.GRID_TOP - DG.GRID_ROW_H)
     end
     btn:SetLabel(pct .. "%")
     btn:SetScript("OnClick", function() applyQuickFillQty(pct) end)
@@ -3130,7 +3141,7 @@ local function createDialog()
 
   -- Sits between the grid and the status line; shown only when the clamp above actually bit.
   local mvNote = Theme.Label(d, 11)
-  mvNote:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
+  mvNote:SetPoint("TOPLEFT", Theme.pad.m, DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs)
   mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   mvNote:SetWordWrap(true)
   mvNote:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
@@ -3138,7 +3149,7 @@ local function createDialog()
   d.mvNote = mvNote
 
   local diagnosticText = Theme.Label(d, 11)
-  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
+  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs)
   diagnosticText:SetPoint("RIGHT", -Theme.pad.m, 0)
   diagnosticText:SetHeight(d.diagnosticMinimumHeight)
   diagnosticText:SetJustifyH("LEFT")
@@ -3156,9 +3167,9 @@ local function createDialog()
   -- window visibly changes shape rather than re-rendering a line of status text inside an
   -- unchanged outline -- which is what a player running on muscle memory does not notice.
   local banner = Theme.Panel(d)
-  banner:SetHeight(REQUOTE_BANNER_HEIGHT)
-  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DIALOG_CONTROLS_H)
-  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DIALOG_CONTROLS_H)
+  banner:SetHeight(LIM.REQUOTE_BANNER_HEIGHT)
+  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
+  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H)
   -- Theme.Panel with red bg at 20% alpha: recolor the exposed .bg texture rather than
   -- reimplementing panel construction -- still built ONLY through the Theme factory.
   banner.bg:SetColorTexture(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.2)
@@ -3178,9 +3189,9 @@ local function createDialog()
   d.banner = banner
 
   local cancelBtn = Theme.Button(d, "ghost")
-  cancelBtn:SetHeight(DIALOG_CANCEL_H)
-  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs)
-  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetHeight(DG.CANCEL_H)
+  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
   cancelBtn:SetLabel("Cancel")
   cancelBtn:SetScript("OnClick", function()
     -- COMPLIANCE: CancelCommoditiesPurchase is safe to call from anywhere (unlike
@@ -3203,7 +3214,7 @@ local function createDialog()
 
   -- Full-width primary button, bottom-most: the single most-clicked control in this window.
   local primaryBtn = Theme.Button(d, "primary")
-  primaryBtn:SetHeight(DIALOG_PRIMARY_H)
+  primaryBtn:SetHeight(DG.PRIMARY_H)
   primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
   primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
   primaryBtn:SetLabel("Buy")
@@ -3274,7 +3285,7 @@ local function openDialog(row, deal)
 
   local prewarm = deal.prewarm
   deal.prewarm = nil -- consumed either way below: a hit is used once, a miss/expiry is discarded so it can't be read again next open
-  if deal.stale and prewarm and (GetTime() - prewarm.at) <= PREWARM_TTL_SECONDS then
+  if deal.stale and prewarm and (GetTime() - prewarm.at) <= LIM.PREWARM_TTL_SECONDS then
     -- Task 8: feed the cached result into the exact same tail finishRequery uses to arm the
     -- button -- the dialog opens already armed, no "checking live price..." beat, no second
     -- SendSearchQuery. applyRequeryResult sets purchaseStage/activeItemID itself (via armReady
@@ -3350,7 +3361,7 @@ local function resetAllPurchases()
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
   -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the
   -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
-  -- to wait REQUERY_TIMEOUT_SECONDS out when the AH session it belonged to just ended anyway).
+  -- to wait LIM.REQUERY_TIMEOUT_SECONDS out when the AH session it belonged to just ended anyway).
   prewarmAttempt = nil
   if not (commodityDraining and commodityDraining.confirmed) then
     commodityPurchase = nil
@@ -3414,9 +3425,9 @@ end
 
 createRow = function(parent, index)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
-  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * ROW_HEIGHT)
-  row:SetHeight(ROW_HEIGHT)
+  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * WIN.ROW_HEIGHT)
+  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * WIN.ROW_HEIGHT)
+  row:SetHeight(WIN.ROW_HEIGHT)
 
   -- E.1 zebra + hover: full-width BACKGROUND textures, drawn behind every other row widget
   -- (including the Buy button) regardless of creation order -- BACKGROUND always renders
@@ -3474,7 +3485,7 @@ createRow = function(parent, index)
   row.rail = rail
 
   local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(ICON_SIZE, ICON_SIZE)
+  icon:SetSize(WIN.ICON_SIZE, WIN.ICON_SIZE)
   icon:SetPoint("LEFT")
   row.icon = icon
 
@@ -3557,16 +3568,16 @@ local function isValidSavedWindow(win)
 end
 
 local function clampWindowHeight(h)
-  if h < RESIZE_MIN_HEIGHT then return RESIZE_MIN_HEIGHT end
-  if h > RESIZE_MAX_HEIGHT then return RESIZE_MAX_HEIGHT end
+  if h < WIN.RESIZE_MIN_HEIGHT then return WIN.RESIZE_MIN_HEIGHT end
+  if h > WIN.RESIZE_MAX_HEIGHT then return WIN.RESIZE_MAX_HEIGHT end
   return h
 end
 
--- T5: width is now resizable too (previously only height could change -- see the FRAME_WIDTH
+-- T5: width is now resizable too (previously only height could change -- see the WIN.FRAME_WIDTH
 -- comment near the top), so the saved geometry needs the same clamp on the other axis.
 local function clampWindowWidth(w)
-  if w < RESIZE_MIN_WIDTH then return RESIZE_MIN_WIDTH end
-  if w > RESIZE_MAX_WIDTH then return RESIZE_MAX_WIDTH end
+  if w < WIN.RESIZE_MIN_WIDTH then return WIN.RESIZE_MIN_WIDTH end
+  if w > WIN.RESIZE_MAX_WIDTH then return WIN.RESIZE_MAX_WIDTH end
   return w
 end
 
@@ -3626,17 +3637,18 @@ end
 -- everything below the title bar is stacked top-down with named row-height constants and
 -- Theme.pad gaps instead of ad-hoc absolute offsets.
 -- ---------------------------------------------------------------------------
-local TITLEBAR_H = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
-local TAB_WIDTH = 50
-local TAB_HEIGHT = 18
-local TOOLBAR_BTN_H = 24 -- Full Scan / Live button height
-local HEADER_H = 16      -- column header row height
+local CH = {}
+CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
+CH.TAB_W = 50
+CH.TAB_H = 18
+CH.BTN_H = 24 -- Full Scan / Live button height
+CH.HEADER = 16      -- column header row height
 
 local function createHeaderRow(f)
   local header = CreateFrame("Frame", nil, f)
-  header:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, f.headerY)
-  header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, f.headerY)
-  header:SetHeight(HEADER_H)
+  header:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, f.headerY)
+  header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, f.headerY)
+  header:SetHeight(CH.HEADER)
   f.headerRow = header -- D: setView shows/hides this alongside f.scroll for the Sell tab
 
   -- sortKey (E.2), when present, makes the header clickable: OnMouseDown sets/toggles the
@@ -3662,7 +3674,7 @@ local function createHeaderRow(f)
 
   local function buildHeaderCell(col)
     local hit = CreateFrame("Frame", nil, header)
-    hit:SetHeight(HEADER_H)
+    hit:SetHeight(CH.HEADER)
     local baseText = (HEADER_TEXT[col.key] or ""):upper()
     local label = Theme.Label(hit, 11)
     label:SetAllPoints()
@@ -3734,7 +3746,7 @@ local function createFrame()
   panel:SetAllPoints(f)
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
-  local restoreWidth, restoreHeight = FRAME_WIDTH, FRAME_HEIGHT
+  local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT
   if isValidSavedWindow(savedWindow) then
     if type(savedWindow.width) == "number" then restoreWidth = clampWindowWidth(savedWindow.width) end
     if type(savedWindow.height) == "number" then restoreHeight = clampWindowHeight(savedWindow.height) end
@@ -3745,13 +3757,13 @@ local function createFrame()
   -- window's actual starting width, so the very first header/row layout already reflects it
   -- instead of waiting for a later resize event (see applyColumnVisibility, and the
   -- f:SetScript("OnSizeChanged", ...) below that keeps it current afterward -- M8).
-  hiddenColumns = computeHidden(restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER)
+  hiddenColumns = computeHidden(restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER)
 
-  -- T5: BOTH width and height are resizable now (previously only height -- see FRAME_WIDTH's
+  -- T5: BOTH width and height are resizable now (previously only height -- see WIN.FRAME_WIDTH's
   -- own comment above); the column grid no longer needs a fixed width to stay aligned, since
   -- every column anchors relative to its neighbor (see COLUMNS/anchorColumns).
   f:SetResizable(true)
-  f:SetResizeBounds(RESIZE_MIN_WIDTH, RESIZE_MIN_HEIGHT, RESIZE_MAX_WIDTH, RESIZE_MAX_HEIGHT)
+  f:SetResizeBounds(WIN.RESIZE_MIN_WIDTH, WIN.RESIZE_MIN_HEIGHT, WIN.RESIZE_MAX_WIDTH, WIN.RESIZE_MAX_HEIGHT)
 
   -- E.3 window position: ClearAllPoints then either the saved point/x/y (validated, and
   -- guarded by pcall against a corrupted/hand-edited SavedVariables value) or the original
@@ -3783,16 +3795,16 @@ local function createFrame()
   hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
 
   -- D: Deals/Sell view switcher tabs, top-left under the title bar.
-  local row1Y = -(TITLEBAR_H + Theme.pad.s)
+  local row1Y = -(CH.TITLEBAR + Theme.pad.s)
   local dealsTab = Theme.Button(f, "ghost")
-  dealsTab:SetSize(TAB_WIDTH, TAB_HEIGHT)
-  dealsTab:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row1Y)
+  dealsTab:SetSize(CH.TAB_W, CH.TAB_H)
+  dealsTab:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row1Y)
   dealsTab:SetLabel("Deals")
   dealsTab:SetScript("OnClick", function() setView("deals") end)
   f.dealsTab = dealsTab
 
   local sellTab = Theme.Button(f, "ghost")
-  sellTab:SetSize(TAB_WIDTH + 14, TAB_HEIGHT) -- extra width for the "Sell (NN)" badge text
+  sellTab:SetSize(CH.TAB_W + 14, CH.TAB_H) -- extra width for the "Sell (NN)" badge text
   sellTab:SetPoint("LEFT", dealsTab, "RIGHT", Theme.pad.xs, 0)
   sellTab:SetLabel("Sell")
   sellTab:SetScript("OnClick", function() setView("sell") end)
@@ -3805,7 +3817,7 @@ local function createFrame()
   -- show and after every full scan) says otherwise.
   local staleText = Theme.Label(f, 11)
   staleText:SetPoint("TOPLEFT", sellTab, "TOPRIGHT", Theme.pad.s, 0)
-  staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row1Y)
+  staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row1Y)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
   staleText:Hide()
@@ -3816,7 +3828,7 @@ local function createFrame()
   -- prominent control now -- same slot Full Scan alone used to hold) + Scan (renamed "Full
   -- Scan", now ghost, still the manual one-shot fallback) to its left; the watchlist
   -- live-scan toggle stays exactly where it was, further left again.
-  local row2Y = row1Y - (TAB_HEIGHT + Theme.pad.s)
+  local row2Y = row1Y - (CH.TAB_H + Theme.pad.s)
   local AUTO_BTN_WIDTH = 148
 
   -- Auto (spec §3 "[Auto ⏻]"): two overlapping buttons -- ghost "off" look, primary "on"
@@ -3825,8 +3837,8 @@ local function createFrame()
   -- doesn't survive its own hover-brighten. Both share the same click handler: it only cares
   -- whether the machine is currently OFF, not which of the two is visible.
   local autoBtn = Theme.Button(f, "ghost")
-  autoBtn:SetSize(AUTO_BTN_WIDTH, TOOLBAR_BTN_H)
-  autoBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
+  autoBtn:SetSize(AUTO_BTN_WIDTH, CH.BTN_H)
+  autoBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row2Y)
   autoBtn:SetLabel("Auto")
   f.autoBtn = autoBtn
 
@@ -3853,7 +3865,7 @@ local function createFrame()
   setPlainTooltip(autoBtn, autoTooltip)
 
   local fullScanBtn = Theme.Button(f, "ghost")
-  fullScanBtn:SetSize(64, TOOLBAR_BTN_H)
+  fullScanBtn:SetSize(64, CH.BTN_H)
   fullScanBtn:SetPoint("RIGHT", autoBtn, "LEFT", -Theme.pad.xs, 0)
   fullScanBtn:SetLabel("Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
@@ -3875,26 +3887,26 @@ local function createFrame()
   -- rows it produces are still the ones a Full Scan feeds.
 
   local status = Theme.Label(f, 11)
-  status:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row2Y)
+  status:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row2Y)
   status:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.s, 0)
   status:SetJustifyH("LEFT")
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
 
   -- Row 3: column headers, sticky above the scroll area.
-  f.headerY = row2Y - (TOOLBAR_BTN_H + Theme.pad.s)
+  f.headerY = row2Y - (CH.BTN_H + Theme.pad.s)
   createHeaderRow(f)
 
-  local scrollTop = f.headerY - (HEADER_H + Theme.pad.xs)
+  local scrollTop = f.headerY - (CH.HEADER + Theme.pad.xs)
   local scrollBottom = Theme.pad.m
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, scrollTop)
-  scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -CONTENT_RIGHT_GUTTER, scrollBottom)
+  scroll:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, scrollTop)
+  scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WIN.CONTENT_RIGHT_GUTTER, scrollBottom)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local range = self:GetVerticalScrollRange()
-    local target = self:GetVerticalScroll() - delta * ROW_HEIGHT * 3
+    local target = self:GetVerticalScroll() - delta * WIN.ROW_HEIGHT * 3
     if target < 0 then target = 0 end
     if target > range then target = range end
     self:SetVerticalScroll(target)
@@ -3902,7 +3914,7 @@ local function createFrame()
   f.scroll = scroll -- D: setView hides/shows this alongside f.headerRow for the Sell tab
 
   content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(math.max(restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER, 1), ROW_HEIGHT) -- refreshRows() stamps the real height; OnSizeChanged below keeps width live
+  content:SetSize(math.max(restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER, 1), WIN.ROW_HEIGHT) -- refreshRows() stamps the real height; OnSizeChanged below keeps width live
   scroll:SetScrollChild(content)
   -- T5/M8: the scroll child's WIDTH is the one piece of the grid Blizzard's ScrollFrame widget
   -- requires an explicit size for (unlike every row inside it, which anchors relatively) --
@@ -3912,18 +3924,18 @@ local function createFrame()
   -- guaranteed to fire its own OnSizeChanged while hidden, which would silently stop the
   -- Deals grid's column-drop from tracking a resize made while looking at Sell. `f` is never
   -- hidden while the window is open, so this fires regardless of which tab is active. The
-  -- header's own width tracks the same CONTENT_LEFT/CONTENT_RIGHT_GUTTER margins off `f`
+  -- header's own width tracks the same WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER margins off `f`
   -- directly, so the derived contentWidth here is exactly the header's width too -- one number
   -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
   f:SetScript("OnSizeChanged", function(_, w)
     if not w or w <= 0 then return end
-    local contentWidth = math.max(w - CONTENT_LEFT - CONTENT_RIGHT_GUTTER, 1)
+    local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER, 1)
     content:SetWidth(contentWidth)
     applyColumnVisibility(contentWidth)
   end)
 
   -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar
-  -- gutter (CONTENT_RIGHT_GUTTER) below the scroll frame's own bottom edge, not on top of the
+  -- gutter (WIN.CONTENT_RIGHT_GUTTER) below the scroll frame's own bottom edge, not on top of the
   -- rows. StartSizing("BOTTOMRIGHT") (T5: both axes, not just "BOTTOM") + SetResizeBounds
   -- above are what actually let both width and height change. Created AFTER scroll (whose
   -- built-in scrollbar is a child one level deeper) and explicitly raised past it, so the
@@ -3948,17 +3960,17 @@ local function createFrame()
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
   -- D: builds the Sell tab's container, hidden, filling the exact region `scroll` occupies
-  -- above (same CONTENT_LEFT/CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
+  -- above (same WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
   -- never re-declared, so the two views can't silently drift out of alignment). rowWidth is a
   -- Initial geometry for the Sell ledger.  SellFrame keeps its own responsive column layout
   -- current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
-    panelLeft = CONTENT_LEFT,
-    panelRightInset = CONTENT_RIGHT_GUTTER,
+    panelLeft = WIN.CONTENT_LEFT,
+    panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
     top = scrollTop,
     bottom = scrollBottom,
-    rowWidth = restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER,
-    rowHeight = ROW_HEIGHT,
+    rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
+    rowHeight = WIN.ROW_HEIGHT,
   })
 
   -- Sniper v3 §3 sniperTabShown/sniperTabHidden: the Sniper is a standalone floating window,
