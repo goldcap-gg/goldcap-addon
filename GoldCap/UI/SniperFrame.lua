@@ -241,6 +241,10 @@ local autoScanTicker
 -- reason as autoScan.
 local feedAuto
 local refreshAutoButton
+-- Assigned below, once the button exists. Driven off the same 0.25s ticker as
+-- refreshAutoButton rather than hooked into all six places scanRunning changes,
+-- so a transition can never be added without the button following it.
+local refreshScanButton
 
 -- New-HOT-deal ping (spec §3): keyed itemID.."@"..unitPrice so a genuinely NEW listing at a
 -- NEW price re-pings even for an item that already had an older HOT listing earlier in the
@@ -913,43 +917,29 @@ local function clearDeals()
   refreshRows()
 end
 
-local function startScanning()
-  if not GC.Sniper.scanner then return end
-
-  GC.Sniper._liveTargets = {}
-  GC.Sniper._liveTracksScanDeals = #scanDeals > 0
-  if GC.Sniper._liveTracksScanDeals then
-    local seen = {}
-    for _, deal in ipairs(scanDeals) do
-      local itemID = deal.itemID
-      if itemID and not seen[itemID] and #GC.Sniper._liveTargets < ROW_CAP then
-        seen[itemID] = true
-        GC.Sniper._liveTargets[#GC.Sniper._liveTargets + 1] = itemID
-      end
-    end
-  else
-    GC.Sniper._liveTargets = GC.Data.GetWatchlist(100)
-  end
-
-  mode = GC.Sniper._liveTracksScanDeals and "fullscan" or "watchlist"
-  GC.Sniper.scanner:Stop() -- re-Start while a search is in flight drops it silently: always Stop first
-  GC.Sniper.scanner:Start(GC.Sniper._liveTargets)
-  scanning = #GC.Sniper._liveTargets > 0
-  if frame then frame.toggleBtn:SetLabel(scanning and "Stop" or "Live") end
-  refreshRows()
-end
-
+-- The Live scan loop no longer has a way to start.
+--
+-- Its button is gone (see createFrame), and nothing else called startScanning,
+-- so `scanning` is now permanently false and _liveTargets permanently empty.
+-- Read every `if scanning` below with that in mind: those branches exist to
+-- yield the single throttled search slot to a Check, and there is now nothing
+-- to yield it from.
+--
+-- What is deliberately NOT removed: GC.Sniper.scanner itself, which Core/Init.lua
+-- still feeds events to, and the pause/resume pair, which the Check requery path
+-- calls unconditionally. startRequery sends its own search and only pauses the
+-- scanner as a courtesy, so with the loop stopped the whole Check flow is
+-- unchanged apart from a contention it no longer has. Restoring Live means
+-- restoring one function and one button, not untangling this.
 function GC.Sniper._ResumeLiveScanner()
   if not GC.Sniper.scanner or #GC.Sniper._liveTargets == 0 then return end
   GC.Sniper.scanner:Resume()
   scanning = true
-  if frame then frame.toggleBtn:SetLabel("Stop") end
 end
 
 local function stopScanning()
   if GC.Sniper.scanner then GC.Sniper.scanner:Stop() end
   scanning = false
-  if frame then frame.toggleBtn:SetLabel("Live") end
 end
 
 -- A dialog Check owns the throttled search slot over the optional watchlist loop. Its exact
@@ -1274,16 +1264,6 @@ feedAuto = function(event)
   if refreshAutoButton then refreshAutoButton() end
 end
 
-function GC.Sniper._StartLiveMode()
-  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
-  if autoScan:State() ~= "OFF" then
-    if cfg then cfg.auto = false end
-    feedAuto("toggleOff")
-  end
-  abortFullScan()
-  startScanning()
-end
-
 local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail" }
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
@@ -1341,6 +1321,26 @@ refreshAutoButton = function(targetFrame)
   end
 end
 
+-- Scan did its work in silence. The status line said "scanning auction
+-- house..." but it sits at the far left of the toolbar, a window's width away
+-- from the button that was just pressed, and the button itself did not move --
+-- so the honest read of a press was "nothing happened". Same class of defect as
+-- the Repost that refreshed a quote and returned without saying so.
+--
+-- The button now carries its own state, the way Auto already does.
+refreshScanButton = function(targetFrame)
+  local f = targetFrame or frame
+  if not f or not f.fullScanBtn then return end
+  local busy = scanRunning or pendingFullScanStart
+  if f.fullScanBtn.lastBusy == busy then return end
+  f.fullScanBtn.lastBusy = busy
+  f.fullScanBtn:SetLabel(busy and "Scanning…" or "Scan")
+  -- `active`, not `primary`, and not Disable(): a disabled button reads as
+  -- broken, and the click while busy has something useful to say (see
+  -- onFullScanClick). Same reasoning as the Auto button's on-state.
+  f.fullScanBtn:SetVariant(busy and "active" or "ghost")
+end
+
 local function onFullScanClick()
   if not frame then return end
   if not GC.Sniper.scanner then
@@ -1353,7 +1353,9 @@ local function onFullScanClick()
     return
   end
 
+  frame.status:SetText("starting full scan...")
   startFullScan()
+  refreshScanButton()
 end
 
 -- ---------------------------------------------------------------------------
@@ -3860,33 +3862,21 @@ local function createFrame()
     "15-60 seconds on busy realms. No cooldown -- rescan anytime.")
   f.fullScanBtn = fullScanBtn
 
-  local toggleBtn = Theme.Button(f, "ghost")
-  toggleBtn:SetSize(56, TAB_HEIGHT)
-  toggleBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.xs, 0)
-  toggleBtn:SetLabel("Live")
-  toggleBtn:SetScript("OnClick", function()
-    if not GC.Sniper.scanner then
-      f.status:SetText("Open the Auction House first.")
-      return
-    end
-    if GC.Sniper._pausedLiveRequery then
-      f.status:SetText("Live scan pauses while checking the selected listing.")
-      return
-    end
-    if scanning then
-      stopScanning()
-    else
-      GC.Sniper._StartLiveMode()
-    end
-  end)
-  setPlainTooltip(toggleBtn,
-    "Live: continuously re-checks the deals found by Auto/Scan without clearing the list. " ..
-    "If no scan results exist, it monitors your imported watchlist.")
-  f.toggleBtn = toggleBtn
+  -- The "Live" button is gone. It started a second, narrower scan loop over the
+  -- items the last Full Scan had turned up (or, failing that, the imported
+  -- watchlist), which is a real capability -- but Auto is strictly broader: it
+  -- re-browses the whole auction house on a loop and finds everything Live would,
+  -- plus everything Live's fixed target list could not. The two also fought each
+  -- other -- starting Live forcibly switched Auto off -- with nothing in the
+  -- interface saying so, which left two adjacent buttons that could not be told
+  -- apart. Scan (once) and Auto (continuously) is the whole story.
+  --
+  -- The scanner itself stays: the Check flow pauses and resumes it, and the deal
+  -- rows it produces are still the ones a Full Scan feeds.
 
   local status = Theme.Label(f, 11)
   status:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row2Y)
-  status:SetPoint("RIGHT", toggleBtn, "LEFT", -Theme.pad.s, 0)
+  status:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.s, 0)
   status:SetJustifyH("LEFT")
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
@@ -4112,6 +4102,7 @@ function GC.Sniper.OnAuctionHouseShow()
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
     autoScan:Tick(GetTime())
     refreshAutoButton()
+    refreshScanButton()
   end)
   feedAuto("ahOpened")
   if GC.db.settings.sniper.auto then

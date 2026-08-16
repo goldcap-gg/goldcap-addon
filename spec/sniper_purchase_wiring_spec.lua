@@ -958,190 +958,6 @@ describe("Sniper purchase wiring", function()
     _G.time = os.time
   end)
 
-  it("pauses Live for a Check and resumes only after resolution, cancel, or timeout", function()
-    local timers, sends, ready = {}, 0, false
-    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
-    _G.C_AuctionHouse = {}
-    _G.GetMoney = function() return 1000000 end
-    _G.time = function() return 100 end
-    _G.GetTime = function() return 100 end
-    local scanner = { starts = 0, resumes = 0, stops = 0, scanned = 0 }
-    function scanner:Start() self.starts = self.starts + 1 end
-    function scanner:Resume() self.resumes = self.resumes + 1 end
-    function scanner:Stop() self.stops = self.stops + 1 end
-    local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
-      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
-      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 42 } end },
-      db = { settings = { sniper = {} } },
-      SniperDecision = {
-        Evaluate = function()
-          return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
-        end,
-      },
-    }
-    helper.loadModule("Core/Book.lua", GC)
-    helper.loadModule("Core/SniperDecision.lua", GC)
-    helper.loadModule("UI/SniperFrame.lua", GC)
-
-    local function getUpvalue(fn, wanted)
-      for i = 1, math.huge do
-        local name, value = debug.getupvalue(fn, i)
-        if not name then break end
-        if name == wanted then return value end
-      end
-      error("missing upvalue " .. wanted)
-    end
-    local function setUpvalue(fn, wanted, value)
-      for i = 1, math.huge do
-        local name = debug.getupvalue(fn, i)
-        if not name then break end
-        if name == wanted then debug.setupvalue(fn, i, value); return end
-      end
-      error("missing upvalue " .. wanted)
-    end
-    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
-    local refreshRows = getUpvalue(clearDeals, "refreshRows")
-    local createRow = getUpvalue(refreshRows, "createRow")
-    local buildRowCell = getUpvalue(createRow, "buildRowCell")
-    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
-    local openDialog = getUpvalue(onBuyClick, "openDialog")
-    local startRequery = getUpvalue(openDialog, "startRequery")
-    local createDialog = getUpvalue(openDialog, "createDialog")
-    local abortRowPurchase = getUpvalue(createDialog, "abortRowPurchase")
-    local startScanning = getUpvalue(GC.Sniper._StartLiveMode, "startScanning")
-    local driver = {
-      isReady = function() return ready end,
-      getKeyInfo = function() return { isCommodity = true } end,
-      sendSearch = function() sends = sends + 1 end,
-      commodityBook = function() return { { unitPrice = 100, quantity = 1 } } end,
-      commodityResult = function() return { avail = 1 } end,
-    }
-    setUpvalue(startRequery, "driver", driver)
-    setUpvalue(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
-    GC.Sniper.scanner = scanner
-    startScanning()
-    assert.equal(1, scanner.starts)
-    assert.equal(1, scanner.stops) -- startScanning deliberately clears its own old pass first
-
-    local deal = { itemID = 42, isCommodity = true }
-    local row = { deal = deal }
-    startRequery(row, deal)
-    assert.equal(2, scanner.stops)
-
-    ready = true
-    GC.Sniper.OnThrottleReady()
-    GC.Sniper.OnCommoditySearchResults(42)
-    assert.equal(1, sends)
-    assert.equal(1, scanner.starts)
-    assert.equal(1, scanner.resumes)
-
-    ready = false
-    startRequery(row, deal)
-    abortRowPurchase(row, nil)
-    assert.equal(2, scanner.resumes)
-
-    startRequery(row, deal)
-    timers[#timers]()
-    assert.equal(3, scanner.resumes)
-    _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
-    _G.time = os.time
-  end)
-
-  it("does not revive a manually stopped or closed-AH Live scan after a Check", function()
-    local timers, ready = {}, false
-    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
-    _G.C_AuctionHouse = {}
-    _G.GetMoney = function() return 1000000 end
-    _G.time = function() return 100 end
-    _G.GetTime = function() return 100 end
-    local scanner = { starts = 0, resumes = 0, stops = 0, scanned = 0 }
-    function scanner:Start() self.starts = self.starts + 1 end
-    function scanner:Resume() self.resumes = self.resumes + 1 end
-    function scanner:Stop() self.stops = self.stops + 1 end
-    local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
-      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
-      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 42 } end },
-      db = { settings = { sniper = {} } },
-      SniperDecision = {
-        Evaluate = function()
-          return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
-        end,
-      },
-      Sell = { Reset = function() end },
-      Print = function() end,
-      session = { buys = 0 },
-    }
-    helper.loadModule("Core/Book.lua", GC)
-    helper.loadModule("Core/SniperDecision.lua", GC)
-    helper.loadModule("UI/SniperFrame.lua", GC)
-
-    local function getUpvalue(fn, wanted)
-      for i = 1, math.huge do
-        local name, value = debug.getupvalue(fn, i)
-        if not name then break end
-        if name == wanted then return value end
-      end
-      error("missing upvalue " .. wanted)
-    end
-    local function setUpvalue(fn, wanted, value)
-      for i = 1, math.huge do
-        local name = debug.getupvalue(fn, i)
-        if not name then break end
-        if name == wanted then debug.setupvalue(fn, i, value); return end
-      end
-      error("missing upvalue " .. wanted)
-    end
-    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
-    local refreshRows = getUpvalue(clearDeals, "refreshRows")
-    local createRow = getUpvalue(refreshRows, "createRow")
-    local buildRowCell = getUpvalue(createRow, "buildRowCell")
-    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
-    local openDialog = getUpvalue(onBuyClick, "openDialog")
-    local startRequery = getUpvalue(openDialog, "startRequery")
-    local createFrame = getUpvalue(GC.Sniper.Toggle, "createFrame")
-    local startScanning = getUpvalue(GC.Sniper._StartLiveMode, "startScanning")
-    local stopScanning = getUpvalue(createFrame, "stopScanning")
-    local driver = {
-      isReady = function() return ready end,
-      getKeyInfo = function() return { isCommodity = true } end,
-      sendSearch = function() end,
-      commodityBook = function() return { { unitPrice = 100, quantity = 1 } } end,
-      commodityResult = function() return { avail = 1 } end,
-    }
-    setUpvalue(startRequery, "driver", driver)
-    setUpvalue(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
-    GC.Sniper.scanner = scanner
-
-    -- The player explicitly stopped Live before this Check: resolution must not invent it.
-    startScanning()
-    stopScanning()
-    local stoppedDeal = { itemID = 42, isCommodity = true }
-    local stoppedRow = { deal = stoppedDeal }
-    startRequery(stoppedRow, stoppedDeal)
-    ready = true
-    GC.Sniper.OnThrottleReady()
-    GC.Sniper.OnCommoditySearchResults(42)
-    assert.equal(1, scanner.starts)
-    assert.equal(0, scanner.resumes)
-
-    -- A Live session that an AH close terminates may not be revived by its delayed Check.
-    ready = false
-    startScanning()
-    local closeDeal = { itemID = 43, isCommodity = true }
-    local closeRow = { deal = closeDeal }
-    startRequery(closeRow, closeDeal)
-    GC.Sniper.OnAuctionHouseClosed()
-    ready = true
-    GC.Sniper.OnThrottleReady()
-    GC.Sniper.OnCommoditySearchResults(43)
-    assert.equal(2, scanner.starts)
-    assert.equal(0, scanner.resumes)
-    _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
-    _G.time = os.time
-  end)
-
   it("switches Check rows without an intervening Live search or ambiguous replacement result", function()
     -- Regression target: onBuyClick used abortRowPurchase(old) as a standalone Cancel. That
     -- synchronously restarted Live before openDialog(new) could register its new Check, so a
@@ -1420,6 +1236,84 @@ describe("Sniper purchase wiring", function()
     assert.equal(1, liveSends)
     GC.Sniper.OnCommoditySearchResults(43)
     assert.equal(1, liveSends)
+    _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
+    _G.time = os.time
+  end)
+  -- Replaces two tests that pinned the Live pause/resume dance around a Check.
+  -- Live is gone (Auto is strictly broader and the two fought each other with
+  -- nothing in the interface saying so), so the scanner loop never runs and a
+  -- Check has no contention to yield to. What still has to hold is that the Check
+  -- sends its own search exactly once and touches the scanner not at all.
+  it("checks a listing without starting or resuming the retired Live loop", function()
+    local timers, sends, ready = {}, 0, false
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    _G.C_AuctionHouse = {}
+    _G.GetMoney = function() return 1000000 end
+    _G.time = function() return 100 end
+    _G.GetTime = function() return 100 end
+    local scanner = { starts = 0, resumes = 0, stops = 0, scanned = 0 }
+    function scanner:Start() self.starts = self.starts + 1 end
+    function scanner:Resume() self.resumes = self.resumes + 1 end
+    function scanner:Stop() self.stops = self.stops + 1 end
+    local GC = {
+      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 42 } end },
+      db = { settings = { sniper = {} } },
+      SniperDecision = {
+        Evaluate = function()
+          return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
+        end,
+      },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local startRequery = getUpvalue(openDialog, "startRequery")
+    local driver = {
+      isReady = function() return ready end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() sends = sends + 1 end,
+      commodityBook = function() return { { unitPrice = 100, quantity = 1 } } end,
+      commodityResult = function() return { avail = 1 } end,
+    }
+    setUpvalue(startRequery, "driver", driver)
+    setUpvalue(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
+    GC.Sniper.scanner = scanner
+
+    local deal = { itemID = 42, isCommodity = true }
+    startRequery({ deal = deal }, deal)
+    ready = true
+    GC.Sniper.OnThrottleReady()
+    GC.Sniper.OnCommoditySearchResults(42)
+
+    assert.equal(1, sends)
+    assert.equal(0, scanner.starts)
+    assert.equal(0, scanner.stops)
+    assert.equal(0, scanner.resumes)
     _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
     _G.time = os.time
   end)
