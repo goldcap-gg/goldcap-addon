@@ -1910,7 +1910,11 @@ local function applyRequeryResult(row, itemID, live)
       armReady(row, deal, decision, live.levels)
       if frame then frame.status:SetText("live safety confirmed -- click Buy to purchase") end
     else
-      armCheck(row, deal, decision, decision.reasons[1] or "live_verification_required", false)
+      -- A sentence, not the engine's token: "source_stale" names the gate, it does not tell the
+      -- player that the import is two hours old and that a Companion sync needs a /reload to be
+      -- seen. The token itself is still on the reason line and in the diagnostic above it.
+      armCheck(row, deal, decision,
+        GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
     end
   else
     showGoneState(row, "listing gone -- already bought out or price changed")

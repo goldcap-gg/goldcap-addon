@@ -121,6 +121,45 @@ local function resultTemplate()
   }
 end
 
+-- The set of reasons the engine can return, and the sentence each one shows a player. Kept
+-- beside REASON_ORDER so a new gate cannot be added without deciding both its rank and its
+-- explanation; the spec walks REASONS and fails if any is unexplained.
+--
+-- A bare token tells the player what the engine calls the problem. It has to say what to do:
+-- "source_stale" is useless, "the price data is over two hours old" plus how to refresh it is
+-- an instruction.
+GC.SniperDecision.REASONS = {}
+local REASON_TEXT = {
+  live_verification_required = "Needs a live price check before it can be bought.",
+  realm_item_unverified = "This is a realm item, and GoldCap only verifies commodity prices.",
+  bundled_data_unverified = "Priced from bundled sample data, not from your realm.",
+  source_stale = "The price data is over two hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads.",
+  market_value_estimated = "The market value is an estimate, not a measurement.",
+  price_history_sparse = "Too little price history to trust the value.",
+  listings_too_low = "Too few sellers to read a real price.",
+  velocity_missing = "No sales data for this item.",
+  velocity_too_low = "Sells too rarely -- you would be holding it for a long time.",
+  sell_through_too_low = "Too little of what is listed actually sells.",
+  liquidity_confidence_low = "The liquidity data is not reliable enough to act on.",
+  market_falling = "The price is falling; buying into it is how you get stuck.",
+  book_missing = "No live listings came back for this item.",
+  book_exhausted = "Not enough units on the Auction House to fill that quantity.",
+  competing_ask_missing = "Nothing left to sell against after this buy, so there is no exit price.",
+  deposit_missing = "The Auction House would not quote a deposit, so the cost is unknown.",
+  capital_limit = "Costs more than your per-buy wallet limit allows.",
+  demand_limit = "Quantity is capped by how fast this item actually sells.",
+  stress_exit_missing = "No safe resale price could be worked out.",
+  stress_profit_below_buffer = "The profit does not clear your minimum once the 5% cut and deposit are paid.",
+  invalid_input = "The data for this item is malformed, so GoldCap refuses to guess.",
+  requote_broke_safety = "The price moved and the trade is no longer safe.",
+  shadow_validation = "Purchases are turned off in this build.",
+}
+
+function GC.SniperDecision.ReasonText(reason)
+  if type(reason) ~= "string" then return "" end
+  return REASON_TEXT[reason] or reason
+end
+
 local REASON_ORDER = {
   live_verification_required = 10, realm_item_unverified = 11, bundled_data_unverified = 12,
   source_stale = 13, market_value_estimated = 14, price_history_sparse = 15,
@@ -131,6 +170,9 @@ local REASON_ORDER = {
   stress_exit_missing = 50, stress_profit_below_buffer = 51,
   invalid_input = 60, requote_broke_safety = 70,
 }
+
+for reason in pairs(REASON_ORDER) do GC.SniperDecision.REASONS[reason] = true end
+GC.SniperDecision.REASONS.shadow_validation = true
 
 local function orderReasons(reasons)
   table.sort(reasons, function(a, b)

@@ -479,4 +479,28 @@ describe("SniperDecision", function()
       assert.same({ "invalid_input" }, GC.SniperDecision.PreScreen(screenable(), nil))
     end)
   end)
+
+  -- A refusal shown as a bare token ("source_stale") tells a player what the engine calls the
+  -- problem, not what to do about it. The dialog needs a sentence, and it has to come from the
+  -- same file that owns the reasons so a new gate cannot ship without one.
+  describe("ReasonText", function()
+    it("explains every reason the engine can return", function()
+      for reason in pairs(GC.SniperDecision.REASONS) do
+        local text = GC.SniperDecision.ReasonText(reason)
+        assert.is_string(text, reason)
+        assert.is_true(#text > 0, reason)
+        assert.not_equal(reason, text, reason)
+      end
+    end)
+
+    it("names the remedy for a stale import rather than the symptom", function()
+      local text = GC.SniperDecision.ReasonText("source_stale")
+      assert.is_truthy(text:lower():find("reload", 1, true))
+    end)
+
+    it("falls back to the raw reason it does not know", function()
+      assert.equal("mystery_gate", GC.SniperDecision.ReasonText("mystery_gate"))
+      assert.equal("", GC.SniperDecision.ReasonText(nil))
+    end)
+  end)
 end)
