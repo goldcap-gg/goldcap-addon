@@ -44,6 +44,10 @@ GC.DEFAULTS = {
       -- UI/SniperFrame.lua's verifyBtn), which is also where the count of hidden rows lives,
       -- so a shorter list always arrives with the number that explains it.
       showRefused = false,
+      -- Items the owner has asked the watch loop to poll closely, in their own order. A
+      -- standing instruction, so unlike the loop's own churn observations it survives the
+      -- session. Same empty-table ApplyDefaults contract as `flips`.
+      watchPins = {},
       hotDiscount = 0.40, hotProfit = 5000000,
       goodDiscount = 0.25, goodProfit = 1000000,
       watchDiscount = 0.10, suspectDiscount = 0.90,

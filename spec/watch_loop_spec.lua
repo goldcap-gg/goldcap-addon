@@ -232,4 +232,39 @@ describe("Watch loop", function()
     tickAt(GC, 101)
     assert.same({ 43 }, searched)      -- 42 is watched; the walk skips straight past it
   end)
+
+  it("pins and unpins an item, and remembers it", function()
+    local GC = load()
+    GC.Sniper._TogglePin(42)
+    assert.same({ 42 }, GC.db.settings.sniper.watchPins)
+    assert.is_true(GC.Sniper._IsWatched(42))
+    GC.Sniper._TogglePin(42)
+    assert.same({}, GC.db.settings.sniper.watchPins)
+  end)
+
+  it("keeps a pinned row visible when it stops being a deal", function()
+    local GC = load()
+    GC.Sniper._TogglePin(42)
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(43, 200) })
+    -- 42 has dropped out of the deals list entirely, but the pin must stay reachable.
+    local list = renderList(GC)
+    assert.equal(2, #list)
+    assert.equal(43, list[1].itemID)
+    assert.equal(42, list[2].itemID)      -- pins sit below every deal
+    assert.is_true(list[2].pinPlaceholder)
+  end)
+
+  it("never hides a pinned row, whatever the Check said", function()
+    local GC = load()
+    GC.Sniper._TogglePin(42)
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(42, 100) })
+    local verdicts = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "tickAutoVerify"), "verdicts")
+    verdicts[42] = { unitPrice = 100, at = 100, buyable = false, status = "AVOID", reason = "x" }
+    assert.equal(1, #renderList(GC))
+    -- `renderList` here is this file's own wrapper (see its declaration above), which closes
+    -- only over the `upvalue` debug helper -- its own refusedCount is the MODULE's renderList,
+    -- reached the same way the wrapper itself reaches it.
+    local realRenderList = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows"), "renderList")
+    assert.equal(0, upvalue(realRenderList, "refusedCount"))   -- a pin does not shorten the list
+  end)
 end)

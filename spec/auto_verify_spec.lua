@@ -33,6 +33,8 @@ describe("Deals background verification", function()
     function w:SetTexture() end
     function w:SetLabel(label) self.label = label end
     function w:SetVariant(name) self.variant = name end
+    function w:Enable() self.enabled = true end
+    function w:Disable() self.enabled = false end
     return w
   end
 
@@ -49,6 +51,7 @@ describe("Deals background verification", function()
     function row:Show() self.shown = true end
     function row:Hide() self.shown = false end
     function row:IsShown() return self.shown end
+    function row:SetAlpha(a) self.alpha = a end
     return row
   end
 

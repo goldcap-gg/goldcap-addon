@@ -11,6 +11,10 @@ GC.Sniper._churnSeq = 0
 -- itemID -> GetTime() of the last ring stampVerdict rang for it. Same "field, not a local"
 -- reasoning as _churn above.
 GC.Sniper._rangAt = {}
+-- itemID -> the last live unit price any observation reported for it, so a pinned placeholder
+-- (renderList) can show a real number instead of a dash. Same "field, not a local" reasoning
+-- as _churn above.
+GC.Sniper._lastPrice = {}
 
 local Theme = GC.Theme
 
@@ -418,6 +422,20 @@ local function showRefused()
   return (cfg and cfg.showRefused) and true or false
 end
 
+local function isPinned(itemID)
+  for _, pin in ipairs(GC.Sniper._WatchPins()) do
+    if pin == itemID then return true end
+  end
+  return false
+end
+
+-- The last unit price any observation reported for this item, so a pinned placeholder shows a
+-- real number rather than a dash. Filled by driver.onObservation; nil until the loop has been
+-- round the set once, which is why the placeholder must tolerate 0.
+local function lastSeenPrice(itemID)
+  return GC.Sniper._lastPrice[itemID]
+end
+
 -- The verdict that applies to `deal` RIGHT NOW, or nil if it has none.
 --
 -- Two ways a stored verdict stops applying. A price change voids it outright: what was checked
@@ -451,13 +469,33 @@ local function renderList()
   for i = 1, #list do
     local deal = list[i]
     local verdict = verdictFor(deal)
+    -- A pin that is currently a deal is exempt from the refused-rows filter outright -- no
+    -- capacity condition attached. `_IsWatched` alone would be wrong here: it is only true for
+    -- items that made the poll set's CAPACITY cut, and a pin squeezed out by capacity is still
+    -- a pin.
+    local pinned = isPinned(deal.itemID)
     -- `manual` rows are never pruned -- see stampVerdict. And they are not counted either:
     -- this number exists to explain a list that got shorter, and they did not shorten it.
-    if verdict and not verdict.buyable and not verdict.manual then
+    if verdict and not verdict.buyable and not verdict.manual and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
       kept[#kept + 1] = deal
+    end
+  end
+
+  -- A pin whose item is no longer a deal still gets a row -- dimmed, below everything, with
+  -- its live price and no profit. Without this a pin is a roach motel: ApplyLiveObservation
+  -- drops an item that stops qualifying, and an invisible pin cannot be right-clicked off.
+  -- It is also the thing worth watching: what the item you are watching costs right now.
+  for _, itemID in ipairs(GC.Sniper._WatchPins()) do
+    local present = false
+    for i = 1, #kept do
+      if kept[i].itemID == itemID then present = true; break end
+    end
+    if not present then
+      kept[#kept + 1] = { itemID = itemID, pinPlaceholder = true, unitPrice = lastSeenPrice(itemID) or 0,
+        qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check" }
     end
   end
   return kept
@@ -647,17 +685,28 @@ local function setRowDeal(row, deal)
   -- two-click flow it always was. Neither label changes what the click DOES: openDialog still
   -- re-verifies live before anything can arm, so an aged hint can only cost a beat, never gold.
   local verdict = verdictFor(deal)
-  if verdict and verdict.buyable then
-    row.buy:SetLabel("Buy")
-    row.buy:SetVariant("primary")
-  elseif verdict then
-    -- Only reachable with the toolbar toggle showing refused rows; the status is the engine's
-    -- own word for it, and the row tooltip (createRow's OnEnter) carries the reason.
-    row.buy:SetLabel(verdict.status or "Avoid")
+  if deal.pinPlaceholder then
+    -- Nothing to buy here -- this is a pin that has fallen out of the deals list, not a deal --
+    -- so the row says so plainly instead of falling through into the verdict/label logic below.
+    row.buy:SetLabel("Watching")
     row.buy:SetVariant("ghost")
+    row.buy:Disable()
+    row:SetAlpha(0.55)
   else
-    row.buy:SetLabel(deal.action or "Check")
-    row.buy:SetVariant("ghost")
+    row:SetAlpha(1)
+    row.buy:Enable()
+    if verdict and verdict.buyable then
+      row.buy:SetLabel("Buy")
+      row.buy:SetVariant("primary")
+    elseif verdict then
+      -- Only reachable with the toolbar toggle showing refused rows; the status is the engine's
+      -- own word for it, and the row tooltip (createRow's OnEnter) carries the reason.
+      row.buy:SetLabel(verdict.status or "Avoid")
+      row.buy:SetVariant("ghost")
+    else
+      row.buy:SetLabel(deal.action or "Check")
+      row.buy:SetVariant("ghost")
+    end
   end
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
@@ -913,7 +962,16 @@ end
 -- Live driver bound to C_AuctionHouse; every WoW-API access below is wrapped in a
 -- function so the table itself can be built at file-load with no side effects
 -- (required for the headless busted load-order spec).
-local driver = {
+--
+-- Forward-declared, then filled by a plain `driver = {...}` assignment below rather than
+-- `local driver = {...}` in one step: onObservation (a field of this same literal) needs to
+-- call driver.commodityResult, and a name first bound by the `local` statement that CONTAINS
+-- the literal is not in scope until that statement finishes -- referenced from inside the
+-- literal it would resolve to an unset global instead. Splitting the declaration from the
+-- assignment (same idiom as resolvePurchase/stampVerdict/evaluateLiveCommodityDeal above) puts
+-- `driver` in scope before the closures that capture it are even parsed.
+local driver
+driver = {
   isReady = function()
     return C_AuctionHouse.IsThrottledMessageSystemReady()
   end,
@@ -1055,6 +1113,11 @@ local driver = {
     if deal and GC.Sniper._IsWatched(itemID) then
       stampVerdict(deal, evaluateLiveCommodityDeal(itemID))
     end
+    -- The live price this observation just fetched, independent of whether it qualified as a
+    -- deal (DealMath.Evaluate above returns nil `deal` for a price that isn't cheap enough --
+    -- which is exactly the state a pin sits in most of the time). See lastSeenPrice.
+    local live = driver.commodityResult(itemID)
+    if live and live.unitPrice then GC.Sniper._lastPrice[itemID] = live.unitPrice end
     refreshRows()
   end,
 
@@ -1270,6 +1333,26 @@ function GC.Sniper._RefreshWatchSet()
   -- than the watchlist map -- the board the player is looking at is scanDeals.
   GC.Sniper._liveTracksScanDeals = true
   GC.Sniper.scanner:Start(current)
+end
+
+-- Adds or removes a pin, persists it, and refreshes both the watch set (so the loop starts
+-- polling it -- or stops, if nothing else keeps it alive) and the rendered list (so a newly
+-- pinned/unpinned row shows up or drops its placeholder immediately, not on the next tick).
+function GC.Sniper._TogglePin(itemID)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if not cfg or not itemID then return end
+  cfg.watchPins = cfg.watchPins or {}
+  for i = 1, #cfg.watchPins do
+    if cfg.watchPins[i] == itemID then
+      table.remove(cfg.watchPins, i)
+      GC.Sniper._RefreshWatchSet()
+      refreshRows()
+      return
+    end
+  end
+  cfg.watchPins[#cfg.watchPins + 1] = itemID
+  GC.Sniper._RefreshWatchSet()
+  refreshRows()
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -2487,7 +2570,9 @@ local function tickAutoVerify()
     local deal = list[i]
     -- Already covered by the watch loop, which re-reads its live book far more often than
     -- this walk could. Spending a slot here would buy nothing and starve an unwatched row.
-    if not GC.Sniper._IsWatched(deal.itemID) then
+    -- A placeholder is skipped too -- there is nothing to buy and its unitPrice may be 0, so
+    -- verifying one would burn a search slot and stamp a verdict keyed to a meaningless price.
+    if not GC.Sniper._IsWatched(deal.itemID) and not deal.pinPlaceholder then
       -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
       -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
       -- may have moved underneath it since.
@@ -3955,6 +4040,9 @@ createRow = function(parent, index)
           verdict.reason or "live verification required"), 1, 0.82, 0)
       end
     end
+    GameTooltip:AddLine(isPinned(self.deal.itemID)
+      and "Right-click to stop watching this item"
+      or "Right-click to watch this item closely", 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
@@ -3965,6 +4053,15 @@ createRow = function(parent, index)
       refreshRows()
     end
     GameTooltip:Hide()
+  end)
+
+  -- Right-click pins. The row is a Frame with mouse already enabled and no click handler of
+  -- its own, and the Buy button consumes only LeftButtonUp (Theme.Button's RegisterForClicks),
+  -- so this reaches nothing else -- in particular it cannot touch the purchase path.
+  if row.RegisterForClicks then row:RegisterForClicks("RightButtonUp") end
+  row:SetScript("OnMouseUp", function(self, button)
+    if button ~= "RightButton" or not self.deal then return end
+    GC.Sniper._TogglePin(self.deal.itemID)
   end)
 
   row:Hide()
@@ -4739,6 +4836,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   for itemID in pairs(GC.Sniper._churn) do GC.Sniper._churn[itemID] = nil end
   GC.Sniper._churnSeq = 0
   for itemID in pairs(GC.Sniper._rangAt) do GC.Sniper._rangAt[itemID] = nil end
+  for itemID in pairs(GC.Sniper._lastPrice) do GC.Sniper._lastPrice[itemID] = nil end
   -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live
   -- order book, and there is no live order book once the session is gone. scanDeals survives
   -- the close on purpose (see OnAuctionHouseShow) -- its verdicts must not, or the next visit
