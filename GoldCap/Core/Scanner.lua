@@ -121,13 +121,23 @@ function GC.Scanner.New(driver, dealCfg)
     if itemID ~= pending then return end
     pending = nil
     local res = driver.commodityResult(itemID)
+    local value = driver.getValue(itemID)
     local deal
     if res then
+      -- A price back at or above market means the cheap lot that earned the last alert is
+      -- gone. Forget the floor: without this the ratchet only ever descends, so after the
+      -- first cheap lot is bought the next one has to beat a price nobody is asking any more,
+      -- and an hour of watching one item goes completely silent. Runs whether or not this
+      -- observation is itself a deal -- at market it will not be one, and that is the case
+      -- that matters.
+      if value and value.mv and res.unitPrice >= value.mv then
+        alertedCommodity[itemID] = nil
+      end
       self.scanned = self.scanned + 1
       deal = GC.DealMath.Evaluate(
         { itemID = itemID, isCommodity = true,
           unitPrice = res.unitPrice, qty = res.qty, avail = res.avail },
-        driver.getValue(itemID), dealCfg)
+        value, dealCfg)
       local lowest = alertedCommodity[itemID]
       if deal and (lowest == nil or res.unitPrice < lowest) then
         alertedCommodity[itemID] = res.unitPrice

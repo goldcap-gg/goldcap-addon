@@ -251,4 +251,39 @@ describe("Scanner", function()
     s:Stop()
     assert.is_false(s:Wants())
   end)
+
+  it("alerts again once the price has recovered to market", function()
+    keyInfos[1] = { isCommodity = true }
+    values[1] = { mv = 1000, soldPerDay = 50 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+
+    commodityResults[1] = { unitPrice = 400, qty = 5, avail = 5 } -- 60% under market
+    s:OnCommodityResults(1)
+    assert.equal(1, #log.deals)
+
+    -- The cheap lot is bought out and the book returns to market. No deal, no alert -- but
+    -- this observation must clear the remembered floor.
+    commodityResults[1] = { unitPrice = 1000, qty = 5, avail = 5 }
+    s:OnSystemReady(); s:OnCommodityResults(1)
+    assert.equal(1, #log.deals)
+
+    -- A new cheap lot, ABOVE the old alerted floor of 400 but still a genuine deal.
+    commodityResults[1] = { unitPrice = 500, qty = 5, avail = 5 }
+    s:OnSystemReady(); s:OnCommodityResults(1)
+    assert.equal(2, #log.deals)
+  end)
+
+  it("still refuses to re-alert the same standing lot", function()
+    keyInfos[1] = { isCommodity = true }
+    values[1] = { mv = 1000, soldPerDay = 50 }
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+
+    commodityResults[1] = { unitPrice = 400, qty = 5, avail = 5 }
+    s:OnCommodityResults(1)
+    s:OnSystemReady(); s:OnCommodityResults(1)
+    s:OnSystemReady(); s:OnCommodityResults(1)
+    assert.equal(1, #log.deals)
+  end)
 end)
