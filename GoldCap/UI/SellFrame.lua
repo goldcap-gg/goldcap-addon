@@ -1154,7 +1154,15 @@ renderRows = function()
         row.cells.market:SetText(marketText)
         setColor(row.cells.market, p.displayMarketUnit and not p.freshMarketUnit
           and Theme.color.fgDim or Theme.color.fg)
-        row.cells.profit:SetText(formatCell(GC.SellViewModel.ProfitText(p)))
+        -- Per unit, to match the two columns it is compared against. The view model reports the
+        -- position total; showing that under a "/ UNIT" heading turned a loss of under a gold
+        -- per unit into a headline "-128g".
+        local profit = GC.SellViewModel.ProfitText(p)
+        if type(profit) == "number" and exact(p.knownQty) and p.knownQty > 0 then
+          local perUnit = profit / p.knownQty
+          profit = perUnit >= 0 and math.floor(perUnit) or -math.floor(-perUnit)
+        end
+        row.cells.profit:SetText(formatCell(profit))
         -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
         -- This column now says what to do about it, in a sentence, or names what is missing.
         local knownQty, exposureQty = p.knownQty or 0, p.exposureQty or 0
