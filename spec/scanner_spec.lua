@@ -195,4 +195,60 @@ describe("Scanner", function()
     s2:Start({})
     assert.equal("empty watchlist", log.status[#log.status])
   end)
+
+  it("sends nothing while the arbiter withholds the slot", function()
+    keyInfos[1] = { isCommodity = true }
+    local allowed = false
+    drv.mayScan = function() return allowed end
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    assert.same({}, log.searches)
+
+    s:OnSystemReady()
+    assert.same({}, log.searches)
+
+    allowed = true
+    s:OnSystemReady()
+    assert.same({ 1 }, log.searches)
+  end)
+
+  it("does not chain a second send off its own result", function()
+    keyInfos[1] = { isCommodity = true }
+    keyInfos[2] = { isCommodity = true }
+    local allowed = true
+    drv.mayScan = function() return allowed end
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1, 2 })
+    assert.same({ 1 }, log.searches)
+
+    allowed = false
+    s:OnCommodityResults(1)          -- result lands; the tail advance must not send
+    assert.same({ 1 }, log.searches)
+
+    allowed = true
+    s:OnSystemReady()
+    assert.same({ 1, 2 }, log.searches)
+  end)
+
+  it("reports whether it wants a slot", function()
+    keyInfos[1] = { isCommodity = true }
+    local allowed = false
+    drv.mayScan = function() return allowed end
+    local s = GC.Scanner.New(drv, cfg)
+    assert.is_false(s:Wants())       -- not started
+
+    s:Start({ 1 })
+    assert.is_true(s:Wants())        -- started, nothing in flight
+
+    allowed = true
+    s:OnSystemReady()
+    assert.is_false(s:Wants())       -- query in flight
+
+    s:OnCommodityResults(1)
+    allowed = false
+    assert.is_true(s:Wants())        -- answered, hungry again
+
+    s:Stop()
+    assert.is_false(s:Wants())
+  end)
 end)

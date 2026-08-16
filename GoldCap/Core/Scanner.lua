@@ -19,6 +19,12 @@ function GC.Scanner.New(driver, dealCfg)
   local function advance()
     if not running or pending then return end
     if not driver.isReady() then return end
+    -- The slot arbiter's veto. Checked HERE rather than at each call site because advance() is
+    -- reached three ways -- a readiness event, the tail of a result handler, and Resume() --
+    -- and the result tail is the one that would otherwise chain send after send straight past
+    -- the arbiter. An absent mayScan means "no arbiter", which is what every other caller and
+    -- every older spec expects.
+    if driver.mayScan and not driver.mayScan() then return end
     local n = #list
     if n == 0 then return end
     for _ = 1, n do
@@ -70,6 +76,13 @@ function GC.Scanner.New(driver, dealCfg)
     advance()
   end
 
+  -- Whether this scanner would send if it were handed a slot right now. The arbiter needs to
+  -- know that WITHOUT granting one, so an even split does not hand turns to a loop with
+  -- nothing to do (and so a slot is never left idle when only one consumer is hungry).
+  function obj:Wants()
+    return running and pending == nil and #list > 0
+  end
+
   function obj:OnSystemReady()
     if pending and driver.now() - pendingSince > STALE_SECONDS then
       pending = nil
@@ -101,7 +114,7 @@ function GC.Scanner.New(driver, dealCfg)
       end
     end
     if driver.onObservation then driver.onObservation(itemID, deal) end
-    advance()
+    if not driver.mayScan then advance() end
   end
 
   function obj:OnCommodityResults(itemID)
@@ -122,7 +135,7 @@ function GC.Scanner.New(driver, dealCfg)
       end
     end
     if driver.onObservation then driver.onObservation(itemID, deal) end
-    advance()
+    if not driver.mayScan then advance() end
   end
 
   return obj
