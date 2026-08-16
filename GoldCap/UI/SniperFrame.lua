@@ -4107,11 +4107,17 @@ createRow = function(parent, index)
     GameTooltip:Hide()
   end)
 
-  -- Right-click pins. The row is a Frame with mouse already enabled and no click handler of
-  -- its own, and the Buy button consumes only LeftButtonUp (Theme.Button's RegisterForClicks),
-  -- so this reaches nothing else -- in particular it cannot touch the purchase path.
-  if row.RegisterForClicks then row:RegisterForClicks("RightButtonUp") end
-  row:SetScript("OnMouseUp", function(self, button)
+  -- Right-click pins. OnMouseDOWN, not OnMouseUp, and not RegisterForClicks: `row` is a plain
+  -- Frame, so it has no RegisterForClicks at all (that is a Button method -- the guarded call
+  -- that used to sit here was a no-op dressed up as intent), and the pattern this file already
+  -- proves works on a mouse-enabled Frame is the column headers' own
+  -- `hit:SetScript("OnMouseDown", ...)`. The first attempt used OnMouseUp and did not fire from
+  -- a trackpad two-finger tap.
+  --
+  -- Firing on the press is fine HERE and only here: pinning is a reversible view preference,
+  -- not a purchase. Nothing on this path may ever reach a protected call, which is why the Buy
+  -- button keeps its own LeftButtonUp handler and is untouched by this.
+  row:SetScript("OnMouseDown", function(self, button)
     if button ~= "RightButton" or not self.deal then return end
     GC.Sniper._TogglePin(self.deal.itemID)
   end)

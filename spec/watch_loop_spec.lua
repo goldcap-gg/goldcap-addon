@@ -233,6 +233,28 @@ describe("Watch loop", function()
     assert.same({ 43 }, searched)      -- 42 is watched; the walk skips straight past it
   end)
 
+  -- The binding, not just the toggle. The first version hung the pin on OnMouseUp plus a
+  -- guarded RegisterForClicks -- and `row` is a plain Frame, which has no RegisterForClicks at
+  -- all, so that call was decoration. A trackpad two-finger tap never pinned anything. The
+  -- pattern this file already proves works on a mouse-enabled Frame is the column headers'
+  -- OnMouseDown.
+  it("[wiring] pins from OnMouseDown on the row, the way the headers already do", function()
+    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local text = file:read("*a")
+    file:close()
+    local from = assert(text:find("-- Right-click pins.", 1, true))
+    local to = assert(text:find("row:Hide()", from, true))
+    local binding = text:sub(from, to)
+
+    assert.is_truthy(binding:find('row:SetScript("OnMouseDown"', 1, true))
+    assert.is_truthy(binding:find('button ~= "RightButton"', 1, true))
+    assert.is_truthy(binding:find("GC.Sniper._TogglePin", 1, true))
+    -- The dead guard must not come back (the comment may NAME it; the call must not exist),
+    -- and neither must a protected call on this path.
+    assert.is_nil(binding:find("row:RegisterForClicks(", 1, true))
+    assert.is_nil(binding:find("C_AuctionHouse", 1, true))
+  end)
+
   it("pins and unpins an item, and remembers it", function()
     local GC = load()
     GC.Sniper._TogglePin(42)
