@@ -2450,15 +2450,26 @@ function GC.Sniper._GrantWatchSlot()
   local scanner = GC.Sniper.scanner
   if not scanner or not scanner.Wants or not scanner:Wants() then return false end
   watchGrant = true
-  scanner:OnSystemReady()
+  -- pcall, not a bare call. If the scanner throws, the `watchGrant = false` below would never
+  -- run and Scanner.advance()'s veto would stay permanently open -- the watch loop would then
+  -- take every ready tick for the rest of the session, which is the exact failure this arbiter
+  -- exists to prevent. And OnThrottleReady is a shared handler: Init.lua runs
+  -- GC.Sell.OnThrottleReady() right after it, so an escaping error takes the Sell tab's quote
+  -- walk down too. The error is deliberately swallowed rather than surfaced -- a broken
+  -- optional poll must not break the throttle chain a purchase Check depends on, the same
+  -- reasoning that already pcall-guards AuctionHouseTab.Install.
+  pcall(scanner.OnSystemReady, scanner)
   watchGrant = false
   return true
 end
 
 -- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
--- the next slot before any optional browse traffic. The Check has already stopped Live in
--- startRequery, so this works in watchlist mode without a scanner collision; returning after
--- the send also prevents a full-scan browse request from stealing the same ready turn.
+-- the next slot before any optional browse traffic, exactly as before -- the Check has already
+-- stopped Live in startRequery, so this works in watchlist mode without a scanner collision.
+-- Starting a Full Scan pass is next, keeping its place ahead of everything optional. What's
+-- left after those two is the split this task adds: the watch loop and browse paging are the
+-- only two consumers that are genuinely optional, so they alternate turns while both are
+-- hungry, and whichever one is hungry alone takes the slot outright so no slot goes idle.
 function GC.Sniper.OnThrottleReady()
   -- A parked Check wins outright, exactly as before: a player is waiting on it, and it has
   -- already stopped the loop as a courtesy besides.

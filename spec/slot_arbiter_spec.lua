@@ -104,4 +104,12 @@ describe("Search slot arbiter", function()
     assert.is_true(seenInside)            -- inside its grant
     assert.is_false(mayScan())            -- and closed again straight after
   end)
+
+  it("does not wedge the gate open when the scanner throws", function()
+    local GC = load()
+    local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan
+    GC.Sniper.scanner.OnSystemReady = function() error("scanner blew up") end
+    GC.Sniper._GrantWatchSlot()
+    assert.is_false(mayScan())
+  end)
 end)
