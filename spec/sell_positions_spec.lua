@@ -101,6 +101,40 @@ describe("Sell positions", function()
     assert.is_nil(overflow.profit)
   end)
 
+  -- Selling out is not amnesia. `compatibleBatch` filters batches down to what is still HELD,
+  -- and that same filtered set was also the only evidence pool for "what is this item's auction
+  -- identity" -- two different questions. So the moment the last keyed batch reached zero, every
+  -- keyless batch for that item was orphaned into its own REPAIR_IDENTITY row: one item, fourteen
+  -- rows, no cost, no market, no Post. An item with a single leftover unit behaved correctly and
+  -- an identical item with none did not.
+  it("keeps an item's identity after every keyed batch is sold out", function()
+    local spent = batch("acq:spent", "auction_house", 0, 0, 1)
+    local keyless = batch("acq:keyless", "auction_house", 5, 500, 2)
+    keyless.positionKey = nil
+    local positions = build({ acquisitions = { spent, keyless } })
+
+    assert.equal(1, #positions)
+    assert.is_nil(positions[1].unresolved)
+    assert.equal("commodity:42", positions[1].positionKey)
+    assert.equal(5, positions[1].trackedQty)
+  end)
+
+  it("still refuses to guess when the sold-out batches disagree with each other", function()
+    local spentA = batch("acq:a", "auction_house", 0, 0, 1)
+    local spentB = batch("acq:b", "auction_house", 0, 0, 2, nil, nil, nil, "item:42:23:0:0")
+    local keyless = batch("acq:keyless", "auction_house", 5, 500, 3)
+    keyless.positionKey = nil
+    local positions = build({ acquisitions = { spentA, spentB, keyless } })
+
+    -- Two candidate identities and no way to choose: filing it under a guess is how one item
+    -- becomes two positions, so it stays a repair row instead.
+    local unresolved = 0
+    for _, position in ipairs(positions) do
+      if position.unresolved then unresolved = unresolved + 1 end
+    end
+    assert.equal(1, unresolved)
+  end)
+
   it("[FINAL I1] keeps pending and unresolved evidence visible without inventing a position", function()
     local active = batch("acq:1", "goldcap", 1, 100, 1)
     active.itemName = "Sold Ore"

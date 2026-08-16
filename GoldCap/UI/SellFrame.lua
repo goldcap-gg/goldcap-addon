@@ -116,8 +116,13 @@ local function paintRefreshButton()
   local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
   local label = "Refresh"
   if busy then
+    -- "Pricing 10/24", not a bare "10/24". This button sits at the end of a row of filter
+    -- chips, so a naked ratio reads as one more filter -- and the owner reasonably asked why
+    -- the tab only had 24 items in it. It is not a count of anything the player owns: it is
+    -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
+    -- because every entry is a round trip on the same throttled slot the Sniper's scans use.
     label = (#refresh.queue > 0 and refresh.index > 0)
-      and ("%d/%d"):format(refresh.index, #refresh.queue) or "…"
+      and ("Pricing %d/%d"):format(refresh.index, #refresh.queue) or "Pricing…"
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -1807,7 +1812,9 @@ function GC.Sell.Attach(f, geometry)
   container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
   local refreshButton = Theme.Button(container, "ghost")
-  refreshButton:SetSize(72, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh")
+  -- 96, not 72: the busy label is "Pricing 10/24" (see paintRefreshButton), and a button sized
+  -- for "Refresh" alone would have let that overflow its own edges into the filter chip beside it.
+  refreshButton:SetSize(96, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh")
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy

@@ -174,6 +174,20 @@ local function positionFor(positions, key, itemID, context)
   return position
 end
 
+-- Whether a batch may speak about what this item IS, as opposed to what is still held.
+--
+-- Deliberately weaker than compatibleBatch: it does NOT require a remaining quantity. Selling
+-- your last unit tells you nothing new about whether the item trades as a commodity, and the
+-- two questions -- "what do I still own" and "what is this item's auction identity" -- were
+-- being answered from the same filtered list. So the moment an item's last KEYED batch reached
+-- zero, every keyless batch for it was orphaned into its own REPAIR_IDENTITY row: fourteen rows
+-- for one herb, with no cost, no market and no Post button, while an identical herb with a
+-- single leftover unit collapsed into one correct row. Identity is not consumed by selling.
+local function identityBatch(batch, context)
+  return type(batch) == "table" and batch.character == context.char and batch.region == context.region
+    and positive(batch.itemID) and type(batch.positionKey) == "string" and batch.positionKey ~= ""
+end
+
 local function uniqueVariants(batches, ownedLots)
   local variants = {}
   for _, batch in ipairs(batches) do
@@ -356,7 +370,15 @@ function GC.SellPositions.Build(args)
   if type(context) ~= "table" or type(context.char) ~= "string" or context.char == ""
       or type(context.region) ~= "string" or context.region == "" then return {} end
   local scoped, lotsByItem, positions, unresolvedRows = {}, {}, {}, {}
+  -- `known` is the identity evidence pool: every batch of this item that ever carried a key,
+  -- including ones sold down to nothing. `scoped` stays what it was -- only batches with stock
+  -- left -- because that is what the accounting below is about. See identityBatch.
+  local known = {}
   for _, batch in ipairs(args.acquisitions or {}) do
+    if identityBatch(batch, context) then
+      known[batch.itemID] = known[batch.itemID] or {}
+      known[batch.itemID][#known[batch.itemID] + 1] = batch
+    end
     if compatibleBatch(batch, context) then
       scoped[batch.itemID] = scoped[batch.itemID] or {}
       scoped[batch.itemID][#scoped[batch.itemID] + 1] = batch
@@ -396,7 +418,7 @@ function GC.SellPositions.Build(args)
   end
 
   for itemID, batches in pairs(scoped) do
-    local target = uniqueVariants(batches, lotsByItem[itemID] or {})
+    local target = uniqueVariants(known[itemID] or batches, lotsByItem[itemID] or {})
     for _, batch in ipairs(batches) do
       local positionKey = batch.positionKey or target
       if positionKey then
@@ -422,7 +444,8 @@ function GC.SellPositions.Build(args)
   for _, pending in ipairs(args.pendingAcquisitions or {}) do
     if type(pending) == "table" and pending.character == context.char and pending.region == context.region
         and positive(pending.itemID) then
-      local target = pending.positionKey or uniqueVariants(scoped[pending.itemID] or {}, lotsByItem[pending.itemID] or {})
+      local target = pending.positionKey
+        or uniqueVariants(known[pending.itemID] or scoped[pending.itemID] or {}, lotsByItem[pending.itemID] or {})
       if target then
         addPending(positionFor(positions, target, pending.itemID, context), pending)
       else

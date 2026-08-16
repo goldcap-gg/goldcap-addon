@@ -199,7 +199,10 @@ describe("Sell widget geometry and manual cost", function()
     local state = upvalue(GC.Sell.OnThrottleReady, "refresh")
     state.phase, state.queue, state.index = "waiting_result", { 1, 2, 3 }, 2
     setStatus("Pricing 2/3…")
-    assert.equal("2/3", button.label)
+    -- The word matters, not just the ratio. This button is the last thing in a row of filter
+    -- chips, so a bare "2/3" read as another filter -- and the count it shows is a position in
+    -- the pricing queue, not a number of items the player owns.
+    assert.equal("Pricing 2/3", button.label)
 
     state.phase = "done"
     setStatus("Prices up to date")
