@@ -292,7 +292,9 @@ function T.TitleBar(frame, titleText)
   bar:EnableMouse(true)
   bar:RegisterForDrag("LeftButton")
   bar:SetScript("OnDragStart", function()
-    frame:StartMoving()
+    -- A docked window (GC.Sniper.SetDocked flips SetMovable off) must not be draggable, and
+    -- StartMoving on an immovable frame is a Lua error, not a no-op.
+    if frame:IsMovable() then frame:StartMoving() end
   end)
   bar:SetScript("OnDragStop", function()
     frame:StopMovingOrSizing()

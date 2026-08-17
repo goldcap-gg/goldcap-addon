@@ -24,9 +24,11 @@ read_globals = {
   -- HOT-deal alert for alt-tabbed players (pingNewHotDeals): flashes the OS taskbar/dock icon.
   "FlashClientIcon",
   -- Blizzard's tab helpers. UI/AuctionHouseTab.lua calls TabResize/SelectTab on
-  -- its OWN button only -- never SetNumTabs on a frame it does not own, which is
-  -- how an addon taints Blizzard's tab bookkeeping.
+  -- SetNumTabs registration was re-examined against Blizzard's own source and approved for
+  -- the embedded AH tab (see UI/AuctionHouseTab.lua's header): numTabs/selectedTab feed
+  -- insecure UI code only, and the pattern is what Auctionator ships at scale.
   "PanelTemplates_TabResize", "PanelTemplates_SelectTab", "PanelTemplates_DeselectTab",
+  "PanelTemplates_SetNumTabs",
   "C_Container", "ItemLocation",
   -- Reagent quality (Dragonflight+). The client is the authority on an item's
   -- tier; the goldcap.gg import is not -- see UI/Theme.lua's QualityMarkup.

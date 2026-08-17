@@ -4599,6 +4599,9 @@ end
 -- matter which of those two hardware paths triggered the change, without needing a reference
 -- to Theme.TitleBar's internal drag region (which Theme.lua doesn't expose).
 local function persistWindowGeometry(f)
+  -- A docked window's anchors belong to the auction-house host (GC.Sniper.SetDocked below);
+  -- persisting them would overwrite the FLOATING geometry this field exists to remember.
+  if f.goldcapDockHost then return end
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   if not cfg then return end
   local point, _, _, x, y = f:GetPoint(1)
@@ -5101,7 +5104,15 @@ local function createFrame()
     feedAuto("tabShown")
     feedAuto("resume:search")
   end)
-  f:SetScript("OnHide", function() feedAuto("tabHidden") end)
+  f:SetScript("OnHide", function()
+    feedAuto("tabHidden")
+    -- Closing the DOCKED window (its X, or Escape) must hand the auction house back to
+    -- Blizzard's own tab -- see GC.AuctionHouseTab.OnWindowHidden, which no-ops when the
+    -- window is not docked or its mode is not the one showing.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.OnWindowHidden then
+      pcall(GC.AuctionHouseTab.OnWindowHidden)
+    end
+  end)
 
   refreshAutoButton(f) -- (fix round 1, M1) paint the initial label/visual before the very first Show
   return f
@@ -5127,6 +5138,54 @@ function GC.Sniper.Toggle()
   end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.Refresh then
     pcall(GC.AuctionHouseTab.Refresh)
+  end
+end
+
+-- Docked mode: the window lives inside a host panel on Blizzard's auction house instead of
+-- floating -- UI/AuctionHouseTab.lua owns the host and decides when. Docking neutralizes the
+-- free-window chrome that would fight a fixed host: the title-bar drag (Theme.TitleBar's
+-- OnDragStart checks IsMovable before StartMoving), the resize grip, and geometry
+-- persistence (persistWindowGeometry skips a frame whose goldcapDockHost is set -- saving the
+-- host's anchors would corrupt the remembered floating geometry). Undocking restores the
+-- saved floating geometry the same way createFrame does on load, and leaves the window
+-- HIDDEN: it runs when the auction house closes, and a window popping to mid-screen at that
+-- moment would be the addon opening itself unasked.
+function GC.Sniper.SetDocked(host)
+  if host then
+    frame = frame or createFrame()
+    frame.goldcapDockHost = host
+    frame:SetMovable(false)
+    if frame.resizeHandle then frame.resizeHandle:Hide() end
+    frame:SetParent(host)
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT")
+    frame:SetPoint("BOTTOMRIGHT")
+    if not frame:IsShown() then
+      GC.Sniper.Toggle() -- the ordinary open path: stale banner, bag counts, the tab badge
+    end
+  else
+    if not frame or not frame.goldcapDockHost then return end
+    frame.goldcapDockHost = nil
+    frame:Hide()
+    frame:SetParent(UIParent)
+    frame:SetMovable(true)
+    if frame.resizeHandle then frame.resizeHandle:Show() end
+    frame:ClearAllPoints()
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    local saved = cfg and cfg.window
+    local restored = false
+    if isValidSavedWindow(saved) then
+      restored = pcall(frame.SetPoint, frame, saved.point, saved.x, saved.y)
+    end
+    if not restored then
+      frame:ClearAllPoints()
+      frame:SetPoint("CENTER")
+    end
+    local width = (saved and type(saved.width) == "number") and clampWindowWidth(saved.width)
+      or WIN.FRAME_WIDTH
+    local height = (saved and type(saved.height) == "number") and clampWindowHeight(saved.height)
+      or WIN.FRAME_HEIGHT
+    pcall(frame.SetSize, frame, width, height)
   end
 end
 
@@ -5298,6 +5357,13 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- resetAllPurchases/anything else runs so no code below it could observe a stale "AH still
   -- open" read.
   ahOpen = false
+
+  -- Undock the window from the auction house before anything else tears down: the dock host
+  -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)
+  -- no-ops on an undocked window), so the double-call above is tolerated here too.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.OnAuctionHouseClosed then
+    pcall(GC.AuctionHouseTab.OnAuctionHouseClosed)
+  end
 
   -- Wired from both PLAYER_INTERACTION_MANAGER_FRAME_HIDE and AUCTION_HOUSE_CLOSED (their
   -- overlap on a given close is unverified in 12.0.7 -- see in-game checklist), so this must
