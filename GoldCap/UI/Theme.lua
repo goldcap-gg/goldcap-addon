@@ -236,7 +236,14 @@ function T.Button(parent, variant)
   b.text:ClearAllPoints()
   b.text:SetPoint("CENTER")
 
+  -- `b.label` is the contract every caller and every spec test double already assumed --
+  -- ACTION_HELP's tooltip lookup in UI/SellFrame.lua reads `self.label`, and every fake
+  -- button in the test suite implements SetLabel by writing exactly this field. The real
+  -- widget never did, so anything reading `.label` off a REAL button got nil forever; the
+  -- fakes just made every test that depended on it look green. Set both: the FontString for
+  -- what is drawn, `.label` for what callers read back.
   function b:SetLabel(text)
+    b.label = text
     b.text:SetText(text)
   end
 
