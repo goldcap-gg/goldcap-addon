@@ -31,22 +31,6 @@ function GC.Book.UnitsAtOrBelow(levels, price)
   end
   return units
 end
-
--- The cheapest ask STRICTLY above `price` with stock, or nil when the visible book holds
--- nothing above it. When the velocity release writes off a partially-bought wall as turnover,
--- THIS minus one copper is the honest exit anchor -- the next real seller -- so the release
--- never prices above the visible book, only past the wall it judged to be already sold.
-function GC.Book.NextAskAbove(levels, price)
-  if not levels or not price then return nil end
-  for i = 1, #levels do
-    local level = levels[i]
-    if (level.quantity or 0) > 0 and level.unitPrice and level.unitPrice > price then
-      return level.unitPrice
-    end
-  end
-  return nil
-end
-
 function GC.Book.Fill(levels, want)
   if not levels or not want or want <= 0 then return nil end
 

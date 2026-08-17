@@ -607,6 +607,40 @@ describe("SniperDecision", function()
       assertNoReason(result, "wall_absorbed")
     end)
 
+    it("climbs a dense ladder to the highest rung whose queue fits the turnover budget", function()
+      -- The Sanguithorn Tea shape: a huge-velocity commodity whose book is a dense ladder, so
+      -- the next ask sits one step above the wall and a single-anchor release changes nothing.
+      -- Budget = 100000 * 2h / 24 = 8333 units. Below 130g sit 5000 - 200 bought = 4800
+      -- (fits); below 160g sit 15000 - 200 = 14800 (does not); the whole sub-stress book is
+      -- 23000 (the plain stress candidate does not fit either). Exit = 130g - 1c.
+      local input = deepWallInput()
+      input.market.soldPerDay = 100000
+      input.live.levels = {
+        { unitPrice = 1000000, quantity = 5000 },
+        { unitPrice = 1300000, quantity = 10000 },
+        { unitPrice = 1600000, quantity = 8000 },
+        { unitPrice = 3000001, quantity = 5 },
+      }
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(1299999, result.exitUnit)
+      assertReason(result, "wall_absorbed")
+    end)
+
+    it("refuses the same ladder when the velocity budget does not clear even one rung", function()
+      local input = deepWallInput()
+      input.market.soldPerDay = 20000 -- budget 1666 < the wall's own 4800 leftover
+      input.live.levels = {
+        { unitPrice = 1000000, quantity = 5000 },
+        { unitPrice = 1300000, quantity = 10000 },
+        { unitPrice = 3000001, quantity = 5 },
+      }
+      local result = evaluate(input)
+      assert.equal("AVOID", result.computedStatus)
+      assertReason(result, "stress_profit_below_buffer")
+      assertNoReason(result, "wall_absorbed")
+    end)
+
     it("is disabled outright by wallAbsorbHours = 0", function()
       local input = deepWallInput()
       input.market.soldPerDay = 100000

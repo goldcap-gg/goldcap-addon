@@ -417,25 +417,50 @@ function GC.SniperDecision.Evaluate(input)
         local exitUnit = math.min(stressUnit or 0, fill.competing - 1)
         -- The release applies ONLY to a partially-bought wall (fill.partialLevel): a fill
         -- that consumed its levels whole is already anchored to a real untouched seller, and
-        -- overriding THAT ask would price above the live book on a hope. When the leftover
-        -- wall qualifies as turnover, the exit re-anchors to the next real ask above the wall
-        -- (minus one copper), still bounded by stressUnit -- never above the visible book,
-        -- only past the wall judged to be already sold. A book with nothing above the wall
-        -- falls back to stressUnit, the same import anchor Fill's own nil-competing case uses.
+        -- overriding THAT ask would price above the live book on a hope. When the wall is
+        -- partial, the exit may climb the LADDER: each stocked level above the wall offers
+        -- the candidate exit "that level's price minus one copper", viable when the units
+        -- queued strictly below it (minus what this buy just removed) fit inside
+        -- wallAbsorbHours of the item's measured daily sales -- they are the queue that must
+        -- sell before that exit gets a turn, and at this velocity they clear within the
+        -- window. The chosen exit is the HIGHEST viable candidate, bounded by stressUnit
+        -- (whose own candidate needs the whole sub-stress book to fit). A single next-ask
+        -- anchor was not enough: on dense ladders (a 222k/day commodity with asks every few
+        -- silver) the next ask sits one step above the wall and the release changed nothing,
+        -- while the two-hour turnover honestly clears several rungs. Never above the visible
+        -- book, never above stress; the walk stops at the first level whose queue exceeds
+        -- the budget, since the queue only grows with height.
         local released = false
         if fill.partialLevel and stressUnit and stressUnit > 0 and exitUnit < stressUnit
             and config.wallAbsorbHours > 0 and wallBelowStress
             and isFinite(market.soldPerDay) and market.soldPerDay >= 3 then
+          local budgetUnits = market.soldPerDay * config.wallAbsorbHours / 24
+          local best = exitUnit
           local remaining = wallBelowStress - quantity
           if remaining < 0 then remaining = 0 end
-          if remaining <= market.soldPerDay * config.wallAbsorbHours / 24 then
-            local nextAsk = GC.Book.NextAskAbove and GC.Book.NextAskAbove(live.levels, fill.competing)
-            local anchor = nextAsk and (nextAsk - 1) or stressUnit
-            local releasedExit = math.min(stressUnit, anchor)
-            if releasedExit > exitUnit then
-              exitUnit = releasedExit
-              released = true
+          if remaining <= budgetUnits then
+            best = stressUnit
+          else
+            local queued = 0
+            for i = 1, #live.levels do
+              local level = live.levels[i]
+              local levelQty = level.quantity or 0
+              if levelQty > 0 then
+                if level.unitPrice > stressUnit then break end
+                if level.unitPrice > fill.competing then
+                  local ahead = queued - quantity
+                  if ahead < 0 then ahead = 0 end
+                  if ahead > budgetUnits then break end -- the queue only grows from here
+                  local candidate = level.unitPrice - 1
+                  if candidate > best then best = candidate end
+                end
+                queued = queued + levelQty
+              end
             end
+          end
+          if best > exitUnit then
+            exitUnit = best
+            released = true
           end
         end
         if exitUnit <= 0 then
