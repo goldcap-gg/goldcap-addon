@@ -656,6 +656,8 @@ describe("Sell widget geometry and manual cost", function()
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
     assert.equal("400", rows[4].cells.listed.text)
+    -- "»", not "→": U+2192 is missing from the client font and rendered as a tofu box.
+    assert.equal("» needs price", rows[4].cells.market.text)
     assert.equal("group", rows[5].kind)
     -- No epoch, no allocator counters: how many, when, at what price, from where.
     assert.match("×5 bought .+ at 50 each · GoldCap", rows[6].cells.item.text)
@@ -740,12 +742,16 @@ describe("Sell widget geometry and manual cost", function()
     rows = upvalue(render, "rows")
     assert.equal("group", rows[3].kind)
     assert.equal("What you paid", rows[3].cells.item.text:gsub("^%s+", ""))
-    -- Headless there is no date(), so the raw stamps stand in for the formatted dates.
-    assert.match("×400 bought 4 – 9 at 198 each · 2 purchases · GoldCap · captured", rows[4].cells.item.text)
+    -- The count sits right after the quantity: the item cell ellipsizes at narrow widths and
+    -- the tail is the first thing lost, so trailing the count would hide exactly the fact the
+    -- collapse exists to show. Headless there is no date(), so the raw stamps stand in for
+    -- the formatted dates; the range separator is ASCII on purpose (the client font has no
+    -- U+2192 -- it drew a tofu box in game -- so exotic punctuation is proven-glyphs only).
+    assert.match("×400 · 2 purchases · bought 4 %- 9 at 198 each · GoldCap · captured", rows[4].cells.item.text)
     assert.equal("198", rows[4].cells.cost.text)
     assert.equal("7g92s", rows[4].cells.listed.text)
     assert.equal("350 still unsold", rows[4].cells.status.text)
-    assert.match("×30 bought 12 at 500 each · 3 purchases · GoldCap · captured", rows[5].cells.item.text)
+    assert.match("×30 · 3 purchases · bought 12 at 500 each · GoldCap · captured", rows[5].cells.item.text)
     assert.equal("all sold", rows[5].cells.status.text)
   end)
 

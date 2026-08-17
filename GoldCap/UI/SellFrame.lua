@@ -1868,22 +1868,26 @@ renderRows = function()
         end
         -- A collapsed run (SellViewModel.Expansion merges adjacent same-price purchases) shows
         -- its date range and how many buys it stands for; a lone purchase reads as before.
+        -- The count follows the quantity directly: this cell ellipsizes from the tail at
+        -- narrow widths, and the count is the one fact the collapse exists to surface. The
+        -- range separator is an ASCII hyphen -- the client font is missing glyphs as common
+        -- as U+2192 (it drew a tofu box), so only in-game-proven punctuation goes on screen.
         local purchases = entry.batch.purchases
         local when
         if purchases and purchases > 1 then
           local first = acquiredWhen(entry.batch.acquiredAtFirst)
           local last = acquiredWhen(entry.batch.acquiredAtLast)
-          when = first == last and first or (first .. " – " .. last)
+          when = first == last and first or (first .. " - " .. last)
         else
           when = acquiredWhen(entry.batch.acquiredAt)
         end
         local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House", manual = "entered by hand" })[entry.batch.source] or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
         -- invoice or a guess, which is exactly the thing this whole tab refuses to fake.
-        row.cells.item:SetText(("  ×%d bought %s at %s each%s · %s · %s"):format(
-          entry.batch.originalQty or entry.batch.quantity or 0, when,
-          formatCell(entry.batch.unitCost),
-          purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
+        row.cells.item:SetText(("  ×%d%s bought %s at %s each · %s · %s"):format(
+          entry.batch.originalQty or entry.batch.quantity or 0,
+          purchases and purchases > 1 and (" · %d purchases ·"):format(purchases) or "",
+          when, formatCell(entry.batch.unitCost),
           sourceLabel, entry.batch.evidence or "unknown evidence"))
         row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
         row.cells.profit:SetText("")
@@ -1903,10 +1907,10 @@ renderRows = function()
         -- fresh quote unit, so showing that quote here answers "at what price?" before the
         -- player commits to cancelling a live auction and eating its deposit.
         if p.displayMarketUnit and p.freshMarketUnit then
-          row.cells.market:SetText("→ " .. formatCell(p.displayMarketUnit))
+          row.cells.market:SetText("» " .. formatCell(p.displayMarketUnit))
           setColor(row.cells.market, Theme.color.gold)
         else
-          row.cells.market:SetText("→ needs price")
+          row.cells.market:SetText("» needs price")
           setColor(row.cells.market, Theme.color.fgDim)
         end
         row.cells.profit:SetText("")
@@ -1941,10 +1945,10 @@ renderRows = function()
         if postable > 0 then
           -- Say what Post will charge before it is clicked.
           if p.displayMarketUnit and p.freshMarketUnit then
-            row.cells.market:SetText("→ " .. formatCell(p.displayMarketUnit))
+            row.cells.market:SetText("» " .. formatCell(p.displayMarketUnit))
             setColor(row.cells.market, Theme.color.gold)
           else
-            row.cells.market:SetText("→ needs price")
+            row.cells.market:SetText("» needs price")
             setColor(row.cells.market, Theme.color.fgDim)
           end
           row.cells.status:SetText(recommendationText(p.recommendation))
