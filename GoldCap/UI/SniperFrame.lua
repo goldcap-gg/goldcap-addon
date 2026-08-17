@@ -513,6 +513,15 @@ local function renderList()
     for i = 1, #kept do
       if kept[i].itemID == itemID then present = true; break end
     end
+    -- The hovered row counts as present. sortedDeals() excludes the item under the cursor
+    -- (its row is frozen so the deal cannot change beneath a click), so a pinned item being
+    -- hovered is missing from `kept` for that reason alone -- and appending a placeholder for
+    -- it here rendered the SAME item twice: the frozen real row under the cursor plus a
+    -- dimmed "Watching" twin below it, for as long as the mouse sat still.
+    if not present and hoveredRow and hoveredRow.deal
+        and hoveredRow.deal.itemID == itemID and hoveredRow:IsShown() then
+      present = true
+    end
     if not present then
       local lastPrice = lastSeenPrice(itemID)
       -- `_lastPrice` is wiped on every AH close (see OnAuctionHouseClosed), so a fresh session
@@ -798,9 +807,11 @@ local function setRowDeal(row, deal)
   if pinned then
     row.rail:SetColorTexture(Theme.color.watch[1], Theme.color.watch[2], Theme.color.watch[3])
     row.rail:Show()
+    row.pinBg:Show()
   else
     row.rail:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
     if hoveredRow ~= row then row.rail:Hide() end
+    row.pinBg:Hide()
   end
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
@@ -4373,6 +4384,18 @@ createRow = function(parent, index)
   zebra:SetAllPoints()
   zebra:SetColorTexture(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
   row.zebra = zebra
+
+  -- Persistent full-row wash for a pinned (watched) row, so tracking an item reads at a
+  -- glance instead of hanging on a 2px rail alone. Sublevel 1 (above the zebra fill), created
+  -- BEFORE the hover highlight at the same sublevel so the hover wash still draws on top of
+  -- it -- same-sublevel textures stack in creation order. Shown/hidden by setRowDeal off the
+  -- pin state; the watch color at low alpha, matching the rail it accompanies.
+  local pc = Theme.color.watch
+  local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+  pinBg:SetAllPoints()
+  pinBg:SetColorTexture(pc[1], pc[2], pc[3], 0.10)
+  pinBg:Hide()
+  row.pinBg = pinBg
 
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK

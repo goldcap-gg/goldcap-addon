@@ -48,7 +48,7 @@ describe("Sniper row repaint skip", function()
       buy = widget(calls), tierChip = widget(calls), icon = widget(calls), nameText = widget(calls),
       discountText = widget(calls), unitText = widget(calls), priceText = widget(calls),
       profitText = widget(calls), trendText = widget(calls), highlight = widget(calls),
-      rail = widget(calls), shown = false,
+      rail = widget(calls), pinBg = widget(calls), shown = false,
     }
     function row:Show() self.shown = true end
     function row:Hide() self.shown = false end

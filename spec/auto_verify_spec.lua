@@ -50,7 +50,7 @@ describe("Deals background verification", function()
     local row = {
       buy = widget(), tierChip = widget(), icon = widget(), nameText = widget(),
       discountText = widget(), unitText = widget(), priceText = widget(),
-      profitText = widget(), trendText = widget(), highlight = widget(), rail = widget(),
+      profitText = widget(), trendText = widget(), highlight = widget(), rail = widget(), pinBg = widget(),
       shown = false,
     }
     function row:Show() self.shown = true end

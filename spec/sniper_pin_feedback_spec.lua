@@ -73,7 +73,7 @@ describe("Sniper pin feedback and empty state", function()
     set(refreshRows, "createRow", function()
       local row = { shownState = false }
       for _, key in ipairs({ "buy", "tierChip", "icon", "nameText", "discountText",
-        "unitText", "priceText", "profitText", "trendText", "highlight", "rail" }) do
+        "unitText", "priceText", "profitText", "trendText", "highlight", "rail", "pinBg" }) do
         row[key] = setmetatable({}, { __index = function() return function() end end })
       end
       function row:Show() self.shownState = true end

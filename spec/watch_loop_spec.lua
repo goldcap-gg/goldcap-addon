@@ -42,7 +42,7 @@ describe("Watch loop", function()
     local row = {
       buy = widget(), tierChip = widget(), icon = widget(), nameText = widget(),
       discountText = widget(), unitText = widget(), priceText = widget(),
-      profitText = widget(), trendText = widget(), highlight = widget(), rail = widget(), shown = false,
+      profitText = widget(), trendText = widget(), highlight = widget(), rail = widget(), pinBg = widget(), shown = false,
     }
     function row:Show() self.shown = true end
     function row:Hide() self.shown = false end
@@ -282,15 +282,54 @@ describe("Watch loop", function()
     assert.is_not_nil(marked)
     assert.is_true(marked.rail.shown)
     assert.same({ 0.35, 0.72, 0.90 }, marked.rail.rgb)   -- the watch colour, not the hover gold
+    assert.is_true(marked.pinBg.shown)                   -- the full-row wash, not the rail alone
     assert.is_not_nil(plain)
     assert.is_false(plain.rail.shown)                    -- an unpinned row is untouched
+    assert.is_false(plain.pinBg.shown)
 
     GC.Sniper._TogglePin(42)
     for i = 1, #rows do
       if rows[i].deal and rows[i].deal.itemID == 42 then
         assert.is_false(rows[i].rail.shown)
+        assert.is_false(rows[i].pinBg.shown)
       end
     end
+  end)
+
+  -- sortedDeals() excludes the item under the cursor (the hovered row is frozen so a deal
+  -- cannot change beneath a click) -- and the placeholder loop used to read that absence as
+  -- "this pin has no row" and append a dimmed "Watching" twin. Screenshot-reproduced in game:
+  -- hover a pinned row, hold still, and the same item rendered twice.
+  it("does not duplicate a pinned row as a placeholder while it is hovered", function()
+    local GC = load()
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(42, 100), deal(43, 200) })
+    GC.Sniper._TogglePin(42)
+
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    local rows = upvalue(refreshRows, "rows")
+    local hovered
+    for i = 1, #rows do
+      if rows[i].deal and rows[i].deal.itemID == 42 then hovered = rows[i]; break end
+    end
+    assert.is_not_nil(hovered)
+    set(refreshRows, "hoveredRow", hovered)
+
+    local list = renderList(GC)
+    local count = 0
+    for i = 1, #list do
+      if list[i].itemID == 42 then count = count + 1 end
+    end
+    assert.equal(0, count) -- excluded from the list entirely: the frozen hovered row IS its row
+    set(refreshRows, "hoveredRow", nil)
+
+    -- Once the cursor leaves, the real deal is back in the list exactly once, still leading it.
+    list = renderList(GC)
+    count = 0
+    for i = 1, #list do
+      if list[i].itemID == 42 then count = count + 1 end
+    end
+    assert.equal(1, count)
+    assert.equal(42, list[1].itemID)
   end)
 
   it("pins and unpins an item, and remembers it", function()
