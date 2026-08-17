@@ -317,7 +317,10 @@ function T.TitleBar(frame, titleText)
   gear:SetPoint("RIGHT", close, "LEFT", -T.pad.xs, 0)
   gear:SetLabel("*")
 
-  return { gear = gear, close = close }
+  -- `title` is part of the return on purpose: docked mode (GC.Sniper.SetDocked) blanks and
+  -- restores it. It shipped without this field once, and the caller's nil-guard turned the
+  -- missing key into a silently-still-visible duplicate title.
+  return { gear = gear, close = close, title = bar.title }
 end
 
 -- Reagent quality, as the game itself draws it.

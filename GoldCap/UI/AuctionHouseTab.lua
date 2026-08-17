@@ -134,9 +134,11 @@ function GC.AuctionHouseTab.Install()
   pcall(function()
     tab:ClearAllPoints()
     if last then
-      -- Blizzard's tab art overlaps its neighbour by a fixed amount; matching it is what
-      -- makes the row read as one strip rather than a button parked beside it.
-      tab:SetPoint("TOPLEFT", last, "TOPRIGHT", -15, 0)
+      -- Blizzard's own tabs sit at -15, but our resized button rides visibly onto the
+      -- Auctions tab at that offset (seen in game 2026-08-17) -- ease it out to -10. The
+      -- anchor is "the last tab that is not ours" in ah.Tabs, so another tab-adding addon
+      -- (Auctionator does exactly this) slots in cleanly whichever of us installs first.
+      tab:SetPoint("TOPLEFT", last, "TOPRIGHT", -10, 0)
     else
       tab:SetPoint("TOPLEFT", ah, "BOTTOMLEFT", 11, 2)
     end

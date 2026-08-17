@@ -28,6 +28,7 @@ describe("Theme.Button real-widget label contract", function()
     function f:SetScript(name, fn) self.scripts[name] = fn end
     function f:HookScript(name, fn) self.scripts[name] = fn end
     function f:RegisterForClicks(kind) self.clicks = kind end
+    function f:RegisterForDrag(kind) self.drag = kind end
     function f:EnableMouse(enabled) self.mouseEnabled = enabled end
     function f:SetJustifyH(v) self.justify = v end
     function f:SetWordWrap(v) self.wordWrap = v end
@@ -74,6 +75,20 @@ describe("Theme.Button real-widget label contract", function()
     assert.equal("Repost", btn.label)
     btn:SetLabel("Cancel lot?")
     assert.equal("Cancel lot?", btn.label)
+  end)
+
+  -- GC.Sniper.SetDocked blanks the docked window's own title through TitleBar's return
+  -- value. The first shipped version returned only {gear, close}: `titleBar.title` was nil,
+  -- the nil-guard skipped silently, and the docked window kept its duplicate title clipped
+  -- under the auction house portrait -- the same real-widget-poorer-than-the-caller-assumed
+  -- class this spec file exists for.
+  it("returns the title FontString so docked mode can blank and restore it", function()
+    local parent = stubFrame()
+    local bar = GC.Theme.TitleBar(parent, "GoldCap Sniper")
+    assert.is_truthy(bar.title)
+    assert.equal("GoldCap Sniper", bar.title.rawText)
+    bar.title:SetText("")
+    assert.equal("", bar.title.rawText)
   end)
 
   -- The exact failure mode: UI/SellFrame.lua's ACTION_HELP tooltip keys off

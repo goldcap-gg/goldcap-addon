@@ -345,6 +345,58 @@ describe("Sell refresh state fence", function()
     assert.same({}, sent.keys)
   end)
 
+  -- The 5-second repeat used to re-run the whole manual path, including a throttled
+  -- QueryOwnedAuctions round trip and its wait, before a single price was asked -- per tick.
+  -- Owned lots change through OWNED_AUCTIONS_UPDATED/AUCTION_CANCELED events anyway, so the
+  -- repeat now prices immediately; only a manual press re-queries the listings.
+  it("an automatic pass skips the owned-auctions round trip and prices immediately", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal(1, sent.owned)
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.equal("done", refreshState(GC).phase)
+    now.value = 140
+    GC.Sell.Refresh(true)
+    assert.equal(1, sent.owned) -- no second owned query
+    assert.equal("waiting_result", refreshState(GC).phase) -- already asking prices
+    assert.same({ 42, 42 }, sent.keys)
+  end)
+
+  -- An item the auction house answered "nothing listed" about used to be indistinguishable
+  -- from one never asked: its cache entry was wiped, so EVERY pass re-asked it (or worse,
+  -- burned the full request timeout on it), which is what ground a tab full of niche items
+  -- to a crawl. The empty answer is now remembered for a while and skipped like a fresh
+  -- quote.
+  it("does not re-ask an item that answered 'nothing listed' until that answer ages", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    upvalue(advance, "driver").commodity = function() return nil end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    GC.Sell.OnCommoditySearchResults(42) -- the answer: nothing on sale
+    assert.equal("done", refreshState(GC).phase)
+    GC.Sell.Refresh(true)
+    assert.equal("done", refreshState(GC).phase) -- nothing due: the pass finishes instantly
+    assert.same({ 42 }, sent.keys)
+    now.value = 170 -- past the remembered-answer window
+    GC.Sell.Refresh(true)
+    assert.same({ 42, 42 }, sent.keys)
+  end)
+
+  it("a manual Refresh wipes remembered empty answers and re-asks for real", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    upvalue(advance, "driver").commodity = function() return nil end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.same({ 42 }, sent.keys)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42, 42 }, sent.keys) -- the player asked; the remembered answer must not gag it
+  end)
+
   it("observes commodity and variant owned lots with the exact active scope", function()
     local now, sent, cache, observed = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)

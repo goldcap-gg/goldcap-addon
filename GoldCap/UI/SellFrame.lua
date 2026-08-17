@@ -536,7 +536,7 @@ end
 -- So: only what can be acted on (stock in the bags, or a live listing that could
 -- be reposted), most valuable first, and capped. Everything else keeps whatever
 -- quote it already has and shows its age honestly.
-local QUOTE_WALK_CAP = 24
+local QUOTE_WALK_CAP = 40
 -- A quote younger than this is not re-asked about: it is already fresh enough for every
 -- decision on this screen, and re-pricing it burns one of the walk's throttled server round
 -- trips that a never-priced row further down the list needed. 30 sits under
@@ -544,6 +544,13 @@ local QUOTE_WALK_CAP = 24
 -- the Post/Repost window on it ever closes. This is what turned the permanent
 -- "Pricing N/24" grind into an empty steady-state pass.
 local QUOTE_REWALK_AGE = 30
+-- How long "the auction house answered: nothing listed" is remembered and treated like a
+-- fresh quote. Without this, an item with zero live listings was indistinguishable from one
+-- never asked about -- its cache entry was wiped on the empty answer -- so EVERY pass re-asked
+-- it (or burned the full request timeout on one that never answers), which is what ground a
+-- tab full of niche items to a crawl. A manual Refresh wipes these: the player asked for real.
+local EMPTY_ANSWER_AGE = 60
+local emptyAnswers = {}
 
 local function uniqueQuoteItemIDs()
   local actionable = {}
@@ -552,9 +559,13 @@ local function uniqueQuoteItemIDs()
     local listed = type(position.listedQty) == "number" and position.listedQty > 0
     -- Membership, not just order: a still-fresh quote is excluded from the pass entirely.
     -- Freshness used to decide only the ORDER, so every pass re-asked the server about the
-    -- whole tab -- see QUOTE_REWALK_AGE above for what that cost.
-    local due = position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
-      or position.quoteAge > QUOTE_REWALK_AGE
+    -- whole tab -- see QUOTE_REWALK_AGE above for what that cost. A remembered "nothing
+    -- listed" answer counts as fresh too (EMPTY_ANSWER_AGE above).
+    local answeredEmptyAt = emptyAnswers[position.itemID]
+    local answeredEmpty = type(answeredEmptyAt) == "number"
+      and (time() - answeredEmptyAt) <= EMPTY_ANSWER_AGE
+    local due = (position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
+      or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty
     if not position.unresolved and position.itemID and (inBags or listed) and due then
       actionable[#actionable + 1] = position
     end
@@ -688,6 +699,10 @@ end
 -- stale quote must go rather than be presented as current.
 local function skipPendingQuote(pending, timedOut)
   if refresh.pending ~= pending or pending.generation ~= refresh.generation then return end
+  -- Either way -- an empty answer or no answer at all -- this item earned a rest: re-asking
+  -- it on the very next pass is what burned the walk's slots (and, for the silent ones, a
+  -- whole request timeout each) on items with nothing to say. See EMPTY_ANSWER_AGE.
+  emptyAnswers[pending.itemID] = time()
   if timedOut then
     -- A late terminal event for this request must still be consumed rather than
     -- credited to whatever the walk is asking about by then.
@@ -924,6 +939,7 @@ local function quoteResolved(kind, itemID, unit, levels)
   refresh.pending = nil
   refresh.phase = "pricing"
   markProgress()
+  emptyAnswers[itemID] = nil -- a real price supersedes any remembered "nothing listed"
   GC.QuoteCache.Set(quotes, itemID, unit, time())
   if unit and quotes[itemID] then quotes[itemID].levels = levels end
   composePositions()
@@ -1898,7 +1914,13 @@ renderRows = function()
         elseif bagQty > 0 then
           -- The advice column is not the place to report bookkeeping when the
           -- player is holding sellable stock: say what is missing to price it.
-          row.cells.status:SetText("Waiting for a live price")
+          -- "Waiting" when the answer already arrived and was "nothing on sale"
+          -- is a lie that reads as the addon being slow -- name the real state.
+          if p.displayMarketUnit == nil and emptyAnswers[p.itemID] then
+            row.cells.status:SetText("Nothing listed on the AH right now")
+          else
+            row.cells.status:SetText("Waiting for a live price")
+          end
           setColor(row.cells.status, Theme.color.fgDim)
         elseif p.coverage ~= "COMPLETE" then
           row.cells.status:SetText(("Cost unknown for %d of %d"):format(
@@ -2208,6 +2230,11 @@ function GC.Sell.Refresh(automatic)
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.queue, refresh.index = "owned", {}, 0
   markProgress()
+  if not automatic then
+    -- A manual press means "ask for real": remembered no-listing answers are wiped so every
+    -- row gets a genuine re-ask instead of being gagged by a minute-old empty result.
+    for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
+  end
   -- Draw what is already known before asking the server anything. Bag contents
   -- need no auction house at all, and every path below can fail -- the auction
   -- house not being open being the ordinary one. Without this, opening the Sell
@@ -2216,6 +2243,15 @@ function GC.Sell.Refresh(automatic)
   composePositions()
   renderRows()
   setStatus(automatic and "Checking prices…" or "Refreshing listings…")
+  if automatic then
+    -- The repeat prices only. Owned lots change through OWNED_AUCTIONS_UPDATED /
+    -- AUCTION_CANCELED events regardless, and re-querying them here cost a throttled round
+    -- trip plus its wait on every 5-second tick before a single price was asked -- and was
+    -- one more phase the walk could wedge in.
+    beginQuoteWalk()
+    armPhaseWatchdog()
+    return
+  end
   local sent, waiting = requestOwnedAuctions()
   if waiting then
     refresh.phase = "waiting_owned"
@@ -2561,4 +2597,24 @@ function GC.Sell.Attach(f, geometry)
       renderRows()
     end
   end)
+end
+
+-- Live diagnosis for a wedged pricing walk, straight from the client: /goldcap sellstate
+-- prints the machine's actual state instead of leaving "Pricing…" to be guessed about.
+-- Registered here (not Core/Init.lua) because every field it reads is this file's own.
+GC.slashHandlers = GC.slashHandlers or {}
+GC.slashHandlers.sellstate = function()
+  local pending = refresh.pending
+  GC.Print(("sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"):format(
+    tostring(refresh.phase), #refresh.queue, refresh.index or 0, refresh.skipped or 0,
+    time() - (refresh.progressAt or 0),
+    pending and (" · pending item %s for %ds"):format(tostring(pending.itemID), time() - pending.at) or ""))
+  local blocking = GC.Sniper and (GC.Sniper.IsSearchCritical or GC.Sniper.IsBusy)
+  local rested = 0
+  for _, at in pairs(emptyAnswers) do
+    if time() - at <= EMPTY_ANSWER_AGE then rested = rested + 1 end
+  end
+  GC.Print(("throttle ready=%s · sniper busy=%s · empty answers resting=%d"):format(
+    tostring(driver and driver.isReady and driver.isReady() or false),
+    tostring(blocking and blocking() or false), rested))
 end
