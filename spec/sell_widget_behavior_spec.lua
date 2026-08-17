@@ -719,6 +719,36 @@ describe("Sell widget geometry and manual cost", function()
     assert.match("unknown evidence", rows[9].cells.item.text)
   end)
 
+  it("renders a collapsed purchase run as one line with its count and date range", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", ownedLots = {}, batches = {
+        { source = "goldcap", purchases = 2, acquiredAtFirst = 4, acquiredAtLast = 9,
+          originalQty = 400, remainingQty = 350, unitCost = 198, totalCost = 79200, evidence = "captured" },
+        -- A run bought inside one date stamp shows that date once, not "12 – 12".
+        { source = "goldcap", purchases = 3, acquiredAtFirst = 12, acquiredAtLast = 12,
+          originalQty = 30, remainingQty = 0, unitCost = 500, totalCost = 15000, evidence = "captured" },
+      } }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 430, knownQty = 430, knownCost = 94200, listedValue = 0,
+        sources = { goldcap = 430 }, status = "UNLISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    rows = upvalue(render, "rows")
+    assert.equal("group", rows[3].kind)
+    assert.equal("What you paid", rows[3].cells.item.text:gsub("^%s+", ""))
+    -- Headless there is no date(), so the raw stamps stand in for the formatted dates.
+    assert.match("×400 bought 4 – 9 at 198 each · 2 purchases · GoldCap · captured", rows[4].cells.item.text)
+    assert.equal("198", rows[4].cells.cost.text)
+    assert.equal("7g92s", rows[4].cells.listed.text)
+    assert.equal("350 still unsold", rows[4].cells.status.text)
+    assert.match("×30 bought 12 at 500 each · 3 purchases · GoldCap · captured", rows[5].cells.item.text)
+    assert.equal("all sold", rows[5].cells.status.text)
+  end)
+
   it("[I2] renders no recommendation when none is available", function()
     local GC = load(620, { calls = {} })
     GC.SellViewModel.Expansion = function()

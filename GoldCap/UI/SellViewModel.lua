@@ -163,6 +163,39 @@ function GC.SellViewModel.Expansion(position)
     batch.totalCost = batch.totalCost or batch.remainingTotal
     batch.evidence = evidenceLabel(batch)
   end
+  -- Two clicks of the same buyout are one fact about cost, not two lines of history: adjacent
+  -- batches agreeing on price, source and evidence collapse into one entry carrying a
+  -- `purchases` count and the run's date range. Adjacent only -- merging across a
+  -- different-priced purchase would re-order the oldest-first story the group hint promises.
+  -- Evidence is part of the key on purpose: a confirmed invoice never averages into a guess.
+  local collapsed = {}
+  for _, batch in ipairs(batches) do
+    local last = collapsed[#collapsed]
+    if last and type(batch.unitCost) == "number" and last.unitCost == batch.unitCost
+        and last.source == batch.source and last.evidence == batch.evidence then
+      if not last.purchases then
+        local at = type(last.acquiredAt) == "number" and last.acquiredAt or nil
+        last = { source = last.source, evidence = last.evidence, unitCost = last.unitCost,
+          purchases = 1, originalQty = last.originalQty or 0, remainingQty = last.remainingQty or 0,
+          allocatedQty = last.allocatedQty or 0, totalCost = last.totalCost,
+          acquiredAtFirst = at, acquiredAtLast = at }
+        collapsed[#collapsed] = last
+      end
+      last.purchases = last.purchases + 1
+      last.originalQty = last.originalQty + (batch.originalQty or 0)
+      last.remainingQty = last.remainingQty + (batch.remainingQty or 0)
+      last.allocatedQty = last.allocatedQty + (batch.allocatedQty or 0)
+      last.totalCost = last.totalCost and batch.totalCost and (last.totalCost + batch.totalCost) or nil
+      local at = type(batch.acquiredAt) == "number" and batch.acquiredAt or nil
+      if at then
+        if not last.acquiredAtFirst or at < last.acquiredAtFirst then last.acquiredAtFirst = at end
+        if not last.acquiredAtLast or at > last.acquiredAtLast then last.acquiredAtLast = at end
+      end
+    else
+      collapsed[#collapsed + 1] = batch
+    end
+  end
+  batches = collapsed
   local facts = {}
   if position.facts and position.facts.pendingPurchase then facts[#facts + 1] = "purchase pending exact cost" end
   if position.facts and position.facts.undercut then facts[#facts + 1] = "undercut" end

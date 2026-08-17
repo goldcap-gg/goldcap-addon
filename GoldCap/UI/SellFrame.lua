@@ -1857,20 +1857,34 @@ renderRows = function()
         -- Was "goldcap · at 1786831966 · 5 original / 2 left / 2 FIFO · unit 100 · captured".
         -- A raw epoch and the allocator's internal counters are not facts a seller can use; how
         -- many, when, at what price and from where are.
-        local when = "?"
-        local acquiredAt = entry.batch.acquiredAt
-        if type(acquiredAt) == "number" and _G.date then
-          local ok, formatted = pcall(_G.date, "%d %b", acquiredAt)
-          if ok and type(formatted) == "string" then when = formatted end
-        elseif acquiredAt ~= nil then
-          when = tostring(acquiredAt)
+        local function acquiredWhen(at)
+          if type(at) == "number" and _G.date then
+            local ok, formatted = pcall(_G.date, "%d %b", at)
+            if ok and type(formatted) == "string" then return formatted end
+          elseif at ~= nil then
+            return tostring(at)
+          end
+          return "?"
+        end
+        -- A collapsed run (SellViewModel.Expansion merges adjacent same-price purchases) shows
+        -- its date range and how many buys it stands for; a lone purchase reads as before.
+        local purchases = entry.batch.purchases
+        local when
+        if purchases and purchases > 1 then
+          local first = acquiredWhen(entry.batch.acquiredAtFirst)
+          local last = acquiredWhen(entry.batch.acquiredAtLast)
+          when = first == last and first or (first .. " – " .. last)
+        else
+          when = acquiredWhen(entry.batch.acquiredAt)
         end
         local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House", manual = "entered by hand" })[entry.batch.source] or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
         -- invoice or a guess, which is exactly the thing this whole tab refuses to fake.
-        row.cells.item:SetText(("  ×%d bought %s at %s each · %s · %s"):format(
+        row.cells.item:SetText(("  ×%d bought %s at %s each%s · %s · %s"):format(
           entry.batch.originalQty or entry.batch.quantity or 0, when,
-          formatCell(entry.batch.unitCost), sourceLabel, entry.batch.evidence or "unknown evidence"))
+          formatCell(entry.batch.unitCost),
+          purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
+          sourceLabel, entry.batch.evidence or "unknown evidence"))
         row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
         row.cells.profit:SetText("")
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0

@@ -110,6 +110,50 @@ describe("Sell view model", function()
     assert.equal("manual", expanded.batches[3].evidence)
     assert.equal("unknown evidence", expanded.batches[4].evidence)
   end)
+
+  it("collapses adjacent purchases at one price into a single counted line", function()
+    local expanded = GC.SellViewModel.Expansion({ batches = {
+      { id = "a", source = "goldcap", acquiredAt = 100, originalQty = 200, remainingQty = 200,
+        allocatedQty = 0, unitCost = 198, totalCost = 39600, sniperEvidenceKey = "capture:1" },
+      { id = "b", source = "goldcap", acquiredAt = 250, originalQty = 200, remainingQty = 150,
+        allocatedQty = 50, unitCost = 198, totalCost = 39600, sniperEvidenceKey = "capture:2" },
+      { id = "c", source = "goldcap", acquiredAt = 300, originalQty = 5, remainingQty = 5,
+        allocatedQty = 0, unitCost = 220, totalCost = 1100, sniperEvidenceKey = "capture:3" },
+    } })
+    assert.equal(2, #expanded.batches)
+    local merged = expanded.batches[1]
+    assert.equal(2, merged.purchases)
+    assert.equal(400, merged.originalQty)
+    assert.equal(350, merged.remainingQty)
+    assert.equal(50, merged.allocatedQty)
+    assert.equal(198, merged.unitCost)
+    assert.equal(79200, merged.totalCost)
+    assert.equal(100, merged.acquiredAtFirst)
+    assert.equal(250, merged.acquiredAtLast)
+    assert.equal("goldcap", merged.source)
+    assert.equal("captured", merged.evidence)
+    -- The odd-priced purchase stays its own uncounted line.
+    assert.equal(220, expanded.batches[2].unitCost)
+    assert.is_nil(expanded.batches[2].purchases)
+  end)
+
+  it("keeps purchases apart when price, evidence, or adjacency differs", function()
+    local expanded = GC.SellViewModel.Expansion({ batches = {
+      -- Same price, different evidence: a confirmed invoice never merges with a guess.
+      { source = "auction_house", originalQty = 1, remainingQty = 1, unitCost = 100, totalCost = 100,
+        mailEvidenceKey = "mail:1" },
+      { source = "auction_house", originalQty = 1, remainingQty = 1, unitCost = 100, totalCost = 100 },
+      -- Two 50s separated by a 60: merging across the price change would re-order the
+      -- oldest-first story the group's own hint promises, so all three stay put.
+      { source = "goldcap", originalQty = 1, remainingQty = 1, unitCost = 50, totalCost = 50,
+        sniperEvidenceKey = "c:1" },
+      { source = "goldcap", originalQty = 1, remainingQty = 1, unitCost = 60, totalCost = 60,
+        sniperEvidenceKey = "c:2" },
+      { source = "goldcap", originalQty = 1, remainingQty = 1, unitCost = 50, totalCost = 50,
+        sniperEvidenceKey = "c:3" },
+    } })
+    assert.equal(5, #expanded.batches)
+  end)
   describe("Filter", function()
     local rows = {
       { positionKey = "a", bagQty = 5, listedQty = 0, coverage = "UNKNOWN" },
