@@ -103,12 +103,18 @@ describe("FullScan.Evaluate", function()
   end)
 end)
 
-describe("FullScan.RowsFromBrowse", function()
+-- RowsFromBrowse's estimated quantity is no longer a raw sold/day figure: the deals list used
+-- to advertise flip sizes (up to a flat 200) the live safety engine would never approve, often
+-- by 5x-200x (see SniperDecision.DemandCap's own spec for the measured gap). This describe
+-- block deliberately loads only DealMath + FullScan, NOT SniperDecision -- it proves
+-- RowsFromBrowse degrades gracefully (fails closed to a single-unit flip, never the old
+-- inflated behaviour) when the engine module isn't present, and that unitPrice is invariant to
+-- whatever quantity ends up chosen.
+describe("FullScan.RowsFromBrowse (no SniperDecision loaded)", function()
   local GC
+  local cfg = { maxDailyDemandShare = 0.02, maxQuantity = 200 }
   local values = {
-    [100] = { sold = 50 },   -- a day's sold volume bounds the flip qty
-    [200] = {},              -- no sold figure at all (unknown liquidity)
-    [300] = { sold = 5000 }, -- sold volume far past the hard sanity cap
+    [100] = { sold = 50 },
   }
   local function getValue(id) return values[id] end
 
@@ -117,50 +123,14 @@ describe("FullScan.RowsFromBrowse", function()
     helper.loadModule("Core/FullScan.lua", GC)
   end)
 
-  it("caps estimated qty at a day's sold volume for a commodity-like entry", function()
-    -- totalQuantity (10000) is far above sold (50): flip qty is bounded by what's
-    -- realistically sellable in a day, not by how much is listed.
+  it("fails closed to a single-unit flip when the engine module is unavailable", function()
     local rows = GC.FullScan.RowsFromBrowse({
       { itemKey = { itemID = 100 }, totalQuantity = 10000, minPrice = 500 },
-    }, getValue)
+    }, getValue, cfg)
     assert.equal(1, #rows)
     assert.equal(100, rows[1].itemID)
-    assert.equal(50, rows[1].count)
-    assert.equal(500 * 50, rows[1].buyoutStack)
-  end)
-
-  -- Fix 1 (honest quantity display): avail is the market's REAL total, independent of the
-  -- suggested flip size above -- the "x200 when the market really has 1646" bug this fixes.
-  it("emits avail = totalQuantity alongside the (possibly much smaller) estimated qty", function()
-    local rows = GC.FullScan.RowsFromBrowse({
-      { itemKey = { itemID = 100 }, totalQuantity = 1646, minPrice = 500 },
-    }, getValue)
-    assert.equal(1646, rows[1].avail)
-    assert.equal(50, rows[1].count) -- unchanged: still capped by sold/day
-  end)
-
-  it("falls back to totalQuantity when it is the smaller bound", function()
-    -- Only 30 are actually listed, even though sold/day (50) would allow more -- can't flip
-    -- more than what's on the board.
-    local rows = GC.FullScan.RowsFromBrowse({
-      { itemKey = { itemID = 100 }, totalQuantity = 30, minPrice = 500 },
-    }, getValue)
-    assert.equal(30, rows[1].count)
-  end)
-
-  it("collapses to qty 1 when there is no sold figure", function()
-    local rows = GC.FullScan.RowsFromBrowse({
-      { itemKey = { itemID = 200 }, totalQuantity = 10000, minPrice = 500 },
-    }, getValue)
-    assert.equal(1, #rows)
     assert.equal(1, rows[1].count)
-  end)
-
-  it("caps qty at 200 even when sold volume is huge", function()
-    local rows = GC.FullScan.RowsFromBrowse({
-      { itemKey = { itemID = 300 }, totalQuantity = 10000, minPrice = 500 },
-    }, getValue)
-    assert.equal(200, rows[1].count)
+    assert.equal(500, rows[1].buyoutStack)
   end)
 
   it("skips zero/nil minPrice and nil-itemID entries", function()
@@ -169,23 +139,124 @@ describe("FullScan.RowsFromBrowse", function()
       { itemKey = { itemID = 100 }, totalQuantity = 10, minPrice = nil },
       { itemKey = {}, totalQuantity = 10, minPrice = 500 },
       { totalQuantity = 10, minPrice = 500 },
-    }, getValue)
+    }, getValue, cfg)
     assert.equal(0, #rows)
   end)
 
   it("feeds Evaluate end-to-end so unitPrice comes out equal to minPrice", function()
     local rows = GC.FullScan.RowsFromBrowse({
       { itemKey = { itemID = 100 }, totalQuantity = 10000, minPrice = 777 },
-    }, getValue)
-    local cfg = {
+    }, getValue, cfg)
+    local dealCfg = {
       hotDiscount = 0.40, hotProfit = 5000000,
       goodDiscount = 0.25, goodProfit = 1000000,
       watchDiscount = 0.10, suspectDiscount = 0.90,
     }
     local marketValues = { [100] = { mv = 2000 } }
-    local deals = GC.FullScan.Evaluate(rows, function(id) return marketValues[id] end, cfg, 100)
+    local deals = GC.FullScan.Evaluate(rows, function(id) return marketValues[id] end, dealCfg, 100)
     assert.equal(1, #deals)
     assert.equal(777, deals[1].unitPrice)
+  end)
+end)
+
+-- The live demand-cap path: FullScan.RowsFromBrowse calling GC.SniperDecision.DemandCap so a
+-- row's suggested quantity is one a live Check could actually approve.
+describe("FullScan.RowsFromBrowse (engine demand cap)", function()
+  local GC
+  local cfg = {
+    maxDailyDemandShare = 0.02, maxQuantity = 200,
+    hotDiscount = 0.40, hotProfit = 5000000,
+    goodDiscount = 0.25, goodProfit = 1000000,
+    watchDiscount = 0.10, suspectDiscount = 0.90,
+  }
+  -- Field names match GC.Data.GetItemValue's verification-block shape (Core/Data.lua), which
+  -- MarketFromValue reads from directly.
+  local values = {
+    -- sold=5000/currentQty=5000/madBps=250 -> DemandCap = 42 (matches the measured-gap table's
+    -- 5000/5000 row in SniperDecision.DemandCap's own spec).
+    [400] = { mv = 1000000, sold = 5000, currentQty = 5000, madBps = 250,
+      listings = 5, sellThroughBps = 7000, liquidityConfidence = 70, stressUnit = 1000000 },
+    [500] = { sold = 5000, currentQty = 5000, madBps = 250 },
+    [600] = { sold = 1000000, currentQty = 10, madBps = 0 },
+    [700] = {},
+    [800] = { sold = 5000 }, -- no currentQty: falls back to totalQuantity for stock
+  }
+  local function getValue(id) return values[id] end
+
+  before_each(function()
+    GC = helper.loadModule("Core/Book.lua")
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/FullScan.lua", GC)
+  end)
+
+  it("caps a high-velocity, deep-stock item at the engine's approvable quantity", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 400 }, totalQuantity = 10000, minPrice = 500000 },
+    }, getValue, cfg)
+    assert.equal(1, #rows)
+    assert.equal(42, rows[1].count)
+  end)
+
+  it("still yields 1 for an item with no velocity data at all", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 700 }, totalQuantity = 5000, minPrice = 500 },
+    }, getValue, cfg)
+    assert.equal(1, rows[1].count)
+  end)
+
+  it("carries the untouched totalQuantity through as avail even though count is capped small", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 400 }, totalQuantity = 10000, minPrice = 500000 },
+    }, getValue, cfg)
+    assert.equal(10000, rows[1].avail)
+    assert.equal(42, rows[1].count)
+  end)
+
+  it("falls back to totalQuantity when it is smaller than the demand cap", function()
+    -- Item 500's demand cap alone would be 42 (same market facts as item 400), but only 30
+    -- units are actually listed -- can't flip more than what's on the board.
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 500 }, totalQuantity = 30, minPrice = 500 },
+    }, getValue, cfg)
+    assert.equal(30, rows[1].count)
+  end)
+
+  it("caps qty at 200 even when the raw demand-cap arithmetic would allow far more", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 600 }, totalQuantity = 100000, minPrice = 500 },
+    }, getValue, cfg)
+    assert.equal(200, rows[1].count)
+  end)
+
+  it("falls back to the browse result's totalQuantity for stock when currentQty is absent", function()
+    -- Item 800 carries no currentQty (no verification block), so the substitution documented
+    -- in RowsFromBrowse's comment applies: totalQuantity stands in for stock. A shallow board
+    -- (30, supplyFactor near 1) yields a demand cap immediately clipped back down to the board
+    -- itself; a deep board (100000, supplyFactor near 0) yields a much smaller demand cap --
+    -- proving the fallback value is actually reaching the formula, not just being ignored.
+    local shallow = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 800 }, totalQuantity = 30, minPrice = 500 },
+    }, getValue, cfg)
+    local deep = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 800 }, totalQuantity = 100000, minPrice = 500 },
+    }, getValue, cfg)
+    assert.equal(30, shallow[1].count)
+    assert.equal(4, deep[1].count)
+  end)
+
+  -- The whole point of the fix: a row's profit is the per-unit margin times a quantity the
+  -- engine could actually approve, not an inflated number the safety engine would refuse.
+  it("produces a profit equal to the per-unit margin times the capped quantity", function()
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 400 }, totalQuantity = 10000, minPrice = 500000 },
+    }, getValue, cfg)
+    local deals = GC.FullScan.Evaluate(rows, getValue, cfg, 100)
+    assert.equal(1, #deals)
+    assert.equal(42, deals[1].qty)
+    local expectedUnitMargin = math.floor(1000000 * 0.95) - 500000
+    assert.equal(expectedUnitMargin * 42, deals[1].profit)
+    assert.equal("HOT", deals[1].tier)
   end)
 end)
 

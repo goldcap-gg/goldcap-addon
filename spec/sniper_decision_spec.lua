@@ -489,6 +489,63 @@ describe("SniperDecision", function()
     end)
   end)
 
+  -- FullScan.RowsFromBrowse calls this at discovery time so the deals list can never advertise
+  -- a quantity larger than what a live Check could actually approve. These fixtures are the
+  -- measured gap documented alongside the fix: a 500-sold/5000-stock item was shown at a flat
+  -- 200 units when the engine would only ever approve 1, etc.
+  describe("DemandCap", function()
+    local config = { maxDailyDemandShare = 0.02, maxQuantity = 200 }
+
+    local function cap(soldPerDay, currentQty, madBps)
+      return GC.SniperDecision.DemandCap(
+        { soldPerDay = soldPerDay, currentQty = currentQty, madBps = madBps }, config, 0)
+    end
+
+    it("reproduces the measured engine-vs-list gap", function()
+      assert.equal(1, cap(500, 5000, 0))
+      assert.equal(3, cap(500, 500, 1000))
+      assert.equal(10, cap(2000, 4000, 500))
+      assert.equal(42, cap(5000, 5000, 250))
+      assert.equal(1, cap(200, 2000, 0))
+    end)
+
+    it("floors at 1 rather than reaching zero", function()
+      -- A thin market (soldPerDay barely above the velocity floor, deep stock) still returns a
+      -- buyable quantity, never a zero that would make the row look like it has no cap at all.
+      assert.equal(1, cap(3, 1000000, 0))
+    end)
+
+    it("caps at config.maxQuantity regardless of how permissive the raw arithmetic is", function()
+      assert.equal(200, cap(1000000, 10, 0))
+    end)
+
+    it("returns 0 below the velocity floor or with no velocity figure at all", function()
+      assert.equal(0, cap(2.9, 100, 0))
+      assert.equal(0, cap(nil, 100, 0))
+    end)
+
+    it("fails closed on non-table input or a non-finite config", function()
+      assert.equal(0, GC.SniperDecision.DemandCap(nil, config, 0))
+      assert.equal(0, GC.SniperDecision.DemandCap({ soldPerDay = 500 }, nil, 0))
+      assert.equal(0, GC.SniperDecision.DemandCap(
+        { soldPerDay = 500 }, { maxDailyDemandShare = 0.02, maxQuantity = "bad" }, 0))
+    end)
+
+    it("agrees with Evaluate's own computed cap for the same inputs", function()
+      -- Same fixture as the "uses the two-percent demand share and the 200 hard cap" test
+      -- above: soldPerDay=100, a two-level book totalling visible=2, currentQty=0. Evaluate
+      -- selects quantity 1 there; DemandCap must return the identical number for the identical
+      -- market/config/visible -- it is the exact code Evaluate now calls internally.
+      local input = validInput(); input.market.soldPerDay = 100
+      input.live.levels = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 3000001, quantity = 1 } }
+      local viaEvaluate = evaluate(input)
+      local viaDemandCap = GC.SniperDecision.DemandCap(
+        { soldPerDay = 100, currentQty = 0, madBps = 0 }, input.config, 2)
+      assert.equal(1, viaEvaluate.quantity)
+      assert.equal(viaDemandCap, viaEvaluate.quantity)
+    end)
+  end)
+
   -- A refusal shown as a bare token ("source_stale") tells a player what the engine calls the
   -- problem, not what to do about it. The dialog needs a sentence, and it has to come from the
   -- same file that owns the reasons so a new gate cannot ship without one.

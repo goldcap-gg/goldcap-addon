@@ -155,7 +155,7 @@ end
 -- used to. RowsFromBrowse converts that aggregate shape into the same
 -- { itemID, count, buyoutStack } rows Evaluate already consumes, so both scan sources feed
 -- one evaluation path unchanged.
-function GC.FullScan.RowsFromBrowse(results, getValue)
+function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
   local rows = {}
   for _, result in ipairs(results) do
     local itemKey = result.itemKey
@@ -164,14 +164,30 @@ function GC.FullScan.RowsFromBrowse(results, getValue)
     if itemID and minPrice and minPrice > 0 then
       -- minPrice is the lowest per-unit buyout across the whole item group, but
       -- totalQuantity can run into the thousands for a staple commodity -- buying out an
-      -- entire group is never realistic. Bound the flip quantity by a day's sold volume
-      -- (from the goldcap.gg import, when available) instead: that's what's actually
-      -- flippable before the market re-equilibrates. 200 is a hard sanity cap regardless of
-      -- what sold/day says. Items and unknown-liquidity entries carry no sold figure at all,
-      -- so they naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off
-      -- item auction always was.
+      -- entire group is never realistic. Bound the flip quantity by SniperDecision's own
+      -- demand cap instead of a raw sold/day figure: it is the SAME formula the live Check
+      -- applies, so a row can never advertise a quantity the engine would refuse to approve
+      -- (the old sold/day-only cap could suggest 200 units of something the engine would
+      -- approve one unit of). There is no live order book at scan time, so the cap's
+      -- `visible` argument (a live book's summed quantity) is passed as 0 here -- the
+      -- import's own currentQty fact stands in for stock instead, falling back to this
+      -- browse result's own totalQuantity when the import carries no verification block
+      -- (no realm import yet, or bundled data). That substitution is the one place discovery
+      -- and the live decision are allowed to legitimately disagree: Evaluate always has a
+      -- real book to measure stock from, discovery never does. Items and unknown-liquidity
+      -- entries carry no sold figure at all, so DemandCap returns 0 for them and they
+      -- naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off item
+      -- auction always was. 200 remains a hard sanity cap regardless of what the demand cap
+      -- or the board says.
       local value = getValue(itemID) or {}
-      local estQty = math.min(result.totalQuantity or 1, math.ceil(value.sold or 1), 200)
+      local estQty = 1
+      if GC.SniperDecision and GC.SniperDecision.DemandCap and cfg then
+        local market = GC.SniperDecision.MarketFromValue(value)
+        market.currentQty = market.currentQty or result.totalQuantity
+        local cap = GC.SniperDecision.DemandCap(market, cfg, 0)
+        if cap and cap > 0 then estQty = cap end
+      end
+      estQty = math.min(estQty, result.totalQuantity or 1, 200)
       if estQty < 1 then estQty = 1 end
       -- Fix 1 (honest quantity display): estQty above is a suggested FLIP size, capped well
       -- below what's actually on the board -- rendering it bare as "x200" reads as the lot

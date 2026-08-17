@@ -48,8 +48,24 @@ GC.DEFAULTS = {
       -- standing instruction, so unlike the loop's own churn observations it survives the
       -- session. Same empty-table ApplyDefaults contract as `flips`.
       watchPins = {},
-      hotDiscount = 0.40, hotProfit = 5000000,
-      goodDiscount = 0.25, goodProfit = 1000000,
+      -- Tier profit floors, in copper, measured against the WHOLE lot -- deliberately per-lot
+      -- and not per-unit, because SniperDecision's own gate (requiredProfitFor) is per-lot too,
+      -- so the preview and the live check keep speaking in the same unit: total gold out of
+      -- this trade. A per-unit floor would rank a one-unit 51g flip identically to a fifty-unit
+      -- one, which rewards exactly the trivial rows this list should be burying.
+      --
+      -- Both were cut tenfold (500g/100g -> 50g/10g) when discovery stopped multiplying by a
+      -- day's sold volume and started using SniperDecision.DemandCap, the same quantity Check
+      -- approves -- typically single digits rather than 200. Against the old floors almost
+      -- nothing would ever have reached HOT or GOOD again and the board would have gone
+      -- uniformly WATCH: measured on a 5,600-row synthetic spread, HOT+GOOD fell from 49.5%
+      -- to 27.9% and collapsed hardest on cheap staples (10g items: 50% -> 9.4%). The 5:1
+      -- ratio between them is unchanged. See migrateSniperTierProfit below for existing saves.
+      hotDiscount = 0.40, hotProfit = 500000,
+      goodDiscount = 0.25, goodProfit = 100000,
+      -- Stamped by ApplyDefaults for a fresh database; migrateSniperTierProfit stamps it for
+      -- an existing one, so the tenfold cut is applied exactly once per save.
+      tierProfitVersion = 1,
       watchDiscount = 0.10, suspectDiscount = 0.90,
       -- Liquidity floors, sold per day (from a realm import's soldPerDay); only enforced
       -- against import-sourced values, see DealMath.Evaluate.
@@ -143,6 +159,24 @@ local function migrateSniperProfitFloor(db)
   sniper.profitFloorVersion = 1
 end
 
+-- The tier floors below were sized for a lot of up to 200 units, because that is what discovery
+-- used to propose. Discovery now proposes what SniperDecision.DemandCap would approve, which is
+-- usually single digits, so a floor of 500g per lot became unreachable for everything but
+-- high-ticket items -- see GC.DEFAULTS above. Cut both tenfold, once.
+--
+-- Same contract as migrateSniperProfitFloor: move ONLY the exact legacy defaults, so a value a
+-- player edited by hand survives untouched (neither field has ever had a settings control, so
+-- any non-default value here is deliberate), and stamp the version so this never runs twice.
+-- ApplyDefaults stamps it for a database that has no sniper settings at all yet.
+local function migrateSniperTierProfit(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.tierProfitVersion ~= nil then return end
+  if sniper.hotProfit == 5000000 then sniper.hotProfit = 500000 end
+  if sniper.goodProfit == 1000000 then sniper.goodProfit = 100000 end
+  sniper.tierProfitVersion = 1
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -154,6 +188,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       return
     end
     migrateSniperProfitFloor(GoldCapDB)
+    migrateSniperTierProfit(GoldCapDB)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
     if GC.Data then

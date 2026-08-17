@@ -184,6 +184,46 @@ local function orderReasons(reasons)
   end)
 end
 
+-- The demand-cap arithmetic Evaluate uses to decide how much of an item is safe to buy,
+-- pulled out to a single pure function so nothing else in the codebase can recompute (and
+-- drift from) it -- see this file's own header comment on why PreScreen already lives next to
+-- Evaluate for exactly this reason. FullScan.RowsFromBrowse calls this too, at discovery time,
+-- so the deals list can never advertise a quantity larger than a live Check could approve.
+--
+-- `visible` is the live order book's summed quantity (Evaluate's own preflightLevels total).
+-- Discovery has no live book, so it calls this with visible = 0 and stands its own stock
+-- estimate in `market.currentQty` instead -- see RowsFromBrowse's comment for why that is the
+-- one place discovery and the live decision are allowed to disagree.
+-- The two config fields are clamped to the SAME bounds normalizeConfig applies, and clamped
+-- here rather than trusted, because the two callers arrive with differently-trusted tables:
+-- Evaluate has already run its input through normalizeConfig (so this is a no-op for it --
+-- both clamps are idempotent), while RowsFromBrowse hands over GC.db.settings.sniper raw.
+-- Neither field has a settings control today, so a value outside these bounds can only come
+-- from a hand-edited SavedVariables -- but an unclamped maxDailyDemandShare there would make
+-- discovery propose a quantity Evaluate then refuses, which is precisely the divergence this
+-- shared function exists to make impossible.
+--
+-- Deliberately NOT normalizeConfig itself: that function fails closed to nil on any bad field,
+-- including minimumRoi and minimumProfitCopper, which this calculation never reads. Routing
+-- discovery through it would let one unrelated bad value collapse every quantity on the board
+-- to 1 -- silently, and looking exactly like a quiet market rather than a broken setting.
+function GC.SniperDecision.DemandCap(market, config, visible)
+  if type(market) ~= "table" or type(config) ~= "table"
+      or not isFinite(config.maxDailyDemandShare) or not isFinite(config.maxQuantity) then
+    return 0
+  end
+  if not (isFinite(market.soldPerDay) and market.soldPerDay >= 3 and visible) then return 0 end
+  local demandShare = clamp(config.maxDailyDemandShare, 0, 0.02)
+  local maxQuantity = clamp(config.maxQuantity, 1, 200)
+  local mad = market.madBps or 0
+  local stressDiscount = clamp(0.10 + 2 * mad / 10000, 0.10, 0.30)
+  local stock = math.max(market.currentQty or 0, visible)
+  local supplyFactor = market.soldPerDay / (market.soldPerDay + stock)
+  local demandCap = math.max(1, math.floor(market.soldPerDay * demandShare
+    * supplyFactor * (1 - stressDiscount)))
+  return math.min(demandCap, maxQuantity)
+end
+
 function GC.SniperDecision.Evaluate(input)
   local out = resultTemplate()
   -- This is the sole release gate. Keep the economic calculation intact for shadow
@@ -323,16 +363,7 @@ function GC.SniperDecision.Evaluate(input)
   if stressUnit == nil or stressUnit <= 0 then
     add("stress_exit_missing", 2)
   end
-  local computedCap = 0
-  if isFinite(market.soldPerDay) and market.soldPerDay >= 3 and visible then
-    local mad = market.madBps or 0
-    local stressDiscount = clamp(0.10 + 2 * mad / 10000, 0.10, 0.30)
-    local stock = math.max(market.currentQty or 0, visible)
-    local supplyFactor = market.soldPerDay / (market.soldPerDay + stock)
-    local demandCap = math.max(1, math.floor(market.soldPerDay * config.maxDailyDemandShare
-      * supplyFactor * (1 - stressDiscount)))
-    computedCap = math.min(demandCap, config.maxQuantity)
-  end
+  local computedCap = GC.SniperDecision.DemandCap(market, config, visible)
   if computedCap <= 0 then
     add("demand_limit", 2)
   elseif not fixed and computedCap < config.maxQuantity then
