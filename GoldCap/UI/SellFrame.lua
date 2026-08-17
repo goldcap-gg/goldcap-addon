@@ -184,9 +184,19 @@ local function setColor(fontString, color)
   if fontString and color then fontString:SetTextColor(color[1], color[2], color[3], color[4] or 1) end
 end
 
+-- Gold-carrying amounts render as plain text ("65g24s"), not GetCoinTextureString's coin
+-- icons: the icon escapes are wide, and a truncated FontString cuts them MID-ESCAPE, which
+-- painted lot labels as "bought 17 Aug at 1|..." in game. Sub-gold amounts keep the icons,
+-- where they fit. Mirrors the Deals board's formatColumnAmount rule.
 local function formatAmount(amount)
   if amount == nil then return "Unknown" end
-  if amount < 0 then return "-" .. GetCoinTextureString(-amount) end
+  if amount < 0 then return "-" .. formatAmount(-amount) end
+  if amount >= 10000 then
+    local gold = math.floor(amount / 10000)
+    local silver = math.floor((amount % 10000) / 100)
+    if silver == 0 then return ("%dg"):format(gold) end
+    return ("%dg%02ds"):format(gold, silver)
+  end
   return GetCoinTextureString(amount)
 end
 
@@ -257,6 +267,9 @@ local MODE_TEXT = {
   floor = "holding above a thin cheap lot",
   match = "matching the cheapest",
   undercut = "undercutting",
+  -- F5 queue-at-exit: the wall below sells through within hours at this item's pace, so the
+  -- post queues at the exit the sniper approved the buy against instead of matching the wall.
+  queue = "queueing at your exit -- cheaper lots sell through first",
 }
 
 local function recommendationText(recommendation)

@@ -622,6 +622,30 @@ describe("Sell positions", function()
     assert.equal("acq:2", plan.allocations[1].batchID)
   end)
 
+  -- F5 queue-at-exit: the plan must list at the same number the recommendation displayed --
+  -- the raise mirrors the postFloor raise right above it in BuildPostPlan, and can only ever
+  -- move the price UP, so a stale queue quote can delay a sale but never underprice one.
+  it("lists at the queue price when the recommendation chose to queue at the exit", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    p.postRecommendation = { mode = "queue", unit = 27300 }
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 19800)
+    assert.equal(27300, plan.unitPrice)
+  end)
+
+  it("ignores a queue recommendation that sits below the fresh quote", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    p.postRecommendation = { mode = "queue", unit = 15000 }
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 19800)
+    assert.equal(19800, plan.unitPrice)
+  end)
+
+  it("leaves the plan price alone for non-queue recommendations", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    p.postRecommendation = { mode = "match", unit = 27300 }
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 19800)
+    assert.equal(19800, plan.unitPrice)
+  end)
+
   -- Posts what is in the bags, not what GoldCap has a receipt for. Listed units
   -- are on the auction house and not in the bags, so the bag count already IS
   -- "everything not yet listed" -- the old min(tracked - listed, bags) capped a

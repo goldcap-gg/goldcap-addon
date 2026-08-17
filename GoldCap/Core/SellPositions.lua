@@ -338,6 +338,20 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   else
     position.status = "UNLISTED"
   end
+  -- The exit this position was underwritten at: sniper-bought batches store the stress exit
+  -- their purchase was approved against (Acquisitions.RecordGoldCap's targetUnit). The highest
+  -- one among batches still holding stock feeds RecommendPost's queue-at-exit rule; positions
+  -- with no sniper history have none and keep plain match/undercut pricing.
+  local targetUnit
+  for _, batch in ipairs(position.batches or {}) do
+    if (batch.remainingQty or 0) > 0 and type(batch.targetUnit) == "number" and batch.targetUnit > 0 then
+      if not targetUnit or batch.targetUnit > targetUnit then targetUnit = batch.targetUnit end
+    end
+  end
+  position.targetUnit = targetUnit
+  local absorbHours = GC.db and GC.db.settings and GC.db.settings.sniper
+    and GC.db.settings.sniper.wallAbsorbHours or nil
+
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
     sold = marketStats and marketStats.sold, trend = marketStats and marketStats.trend })
@@ -347,7 +361,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
       floor = position.postFloor })
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
-      fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor })
+      fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
+        targetUnit = targetUnit, absorbHours = absorbHours })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
     -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
@@ -376,7 +391,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     local paidUnit = position.coverage == "COMPLETE"
       and (position.knownCost and math.floor(position.knownCost / position.exposureQty)) or nil
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
-      { levels = levels, sold = position.soldPerDay, floor = position.postFloor })
+      { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
+        targetUnit = targetUnit, absorbHours = absorbHours })
   else
     position.postRecommendation = nil
   end
@@ -628,6 +644,17 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   -- floor cannot cause an underpriced sale, which is the failure that matters.
   if positive(position.postFloor) and position.postFloor > unit then
     unit = position.postFloor
+  end
+  -- Queue-at-exit raise (F5), same asymmetry as the floor raise above: when RecommendPost
+  -- decided this position should queue at its underwritten exit rather than match the wall it
+  -- was bought from, the plan must list at that same number -- the displayed recommendation
+  -- and the posted price being two different numbers is exactly the defect the floor raise
+  -- comment describes. A raise can only ever increase the price, so a stale queue quote can
+  -- delay a sale but never cause an underpriced one, which is the failure that matters.
+  local queueRec = position.postRecommendation
+  if type(queueRec) == "table" and queueRec.mode == "queue"
+      and positive(queueRec.unit) and queueRec.unit > unit then
+    unit = queueRec.unit
   end
   -- Part 0 of the posting-queue design (2026-08-17): PostCommodity/PostItem silently reject any
   -- price with a non-zero copper remainder, and neither the raw live quote above nor postFloor

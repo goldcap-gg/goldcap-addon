@@ -631,6 +631,40 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
 
   if candidate == nil then return nil end
 
+  -- F5, queue-at-exit: the sell-side mirror of SniperDecision's velocity release. A flip the
+  -- sniper underwrote carries the exit it was approved against (opts.targetUnit, the batch's
+  -- stored stress exit); matching the current cheapest ask instead -- often the very wall the
+  -- flip was bought FROM -- locks in the 5% cut as a loss and contradicts the engine's own
+  -- approval. When the units queued at or below a rung of the ladder fit inside
+  -- `absorbHours` of the item's measured daily sales, that rung is reachable within the
+  -- window -- post AT the highest reachable rung, capped by the target. The queue includes
+  -- the rung's own stock (a new post joins that price's tail). Only positions with a target
+  -- get this: untracked bag stock keeps the match/undercut behaviour unchanged.
+  if opts.targetUnit and opts.levels and opts.sold and opts.sold > 0 then
+    local hours = opts.absorbHours == nil and 2 or opts.absorbHours
+    local ceiling = GC.Flips.SilverDown(opts.targetUnit)
+    if hours > 0 and ceiling and ceiling > candidate then
+      local budget = opts.sold * hours / 24
+      local best
+      local queued, overBudget = 0, false
+      for _, lvl in ipairs(opts.levels) do
+        local qty = lvl.quantity or 0
+        if qty > 0 then
+          if lvl.unitPrice > ceiling then break end
+          queued = queued + qty
+          if queued > budget then overBudget = true; break end
+          if lvl.unitPrice > candidate then best = lvl.unitPrice end
+        end
+      end
+      -- Every rung up to the ceiling fit the budget: the target itself is reachable.
+      if not overBudget then best = ceiling end
+      best = best and GC.Flips.SilverDown(best)
+      if best and best > candidate then
+        mode, candidate = "queue", best
+      end
+    end
+  end
+
   -- Never recommend below the floor. See GC.Flips.PostFloor for why a live ask can be worth
   -- ignoring, and what it cost to learn that. Runs LAST and rounds UP: normalising a candidate
   -- that already cleared every earlier check can only ever raise it, so it can never re-drop the

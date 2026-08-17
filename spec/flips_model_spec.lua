@@ -685,6 +685,61 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.is_nil(GC.Flips.RecommendPost(100, nil, nil))
     end)
 
+    -- F5 queue-at-exit: a sniper-underwritten position posts at the exit its buy was approved
+    -- against when the wall below it is hours of turnover, instead of matching the wall it was
+    -- bought from (which locks in the 5% cut as a loss).
+    describe("queue-at-exit", function()
+      local ladder = {
+        { unitPrice = 19800, quantity = 8000 },
+        { unitPrice = 20000, quantity = 1500 },
+        { unitPrice = 24000, quantity = 4000 },
+        { unitPrice = 30000, quantity = 50000 },
+      }
+
+      it("queues at the target when everything below it fits the turnover budget", function()
+        -- budget = 222000 * 2 / 24 = 18500 >= 13500 units below the 27300 target
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300 })
+        assert.equal("queue", r.mode)
+        assert.equal(27300, r.unit)
+        assert.is_false(r.belowCost)
+      end)
+
+      it("stops at the highest rung whose queue fits when the target does not", function()
+        -- budget = 60000 * 2 / 24 = 5000: the 19800 wall (8000 units) already exceeds it once
+        -- its own tail is joined... but the seller joining AT 19800 is the match case; the
+        -- first rung ABOVE the wall needs 8000 queued -- over budget, so no climb at all.
+        local tight = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 60000, targetUnit = 27300 })
+        assert.not_equal("queue", tight.mode)
+        -- budget = 150000 * 2 / 24 = 12500: rungs at 20000 (9500 queued) fit; 24000 (13500)
+        -- does not, so the climb stops one rung below it.
+        local mid = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 150000, targetUnit = 27300 })
+        assert.equal("queue", mid.mode)
+        assert.equal(20000, mid.unit)
+      end)
+
+      it("does nothing without a target -- untracked stock keeps match/undercut", function()
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000 })
+        assert.not_equal("queue", r.mode)
+      end)
+
+      it("is disabled by absorbHours = 0", function()
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, absorbHours = 0 })
+        assert.not_equal("queue", r.mode)
+      end)
+
+      it("lands the queued price on the silver grid", function()
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27377 })
+        assert.equal("queue", r.mode)
+        assert.equal(27300, r.unit)
+      end)
+    end)
+
     it("computes breakeven as ceil(paidUnit / 0.95)", function()
       local r = GC.Flips.RecommendPost(100, 500, nil)
       assert.equal(106, r.breakeven) -- 100/0.95 = 105.26... -> ceil 106
