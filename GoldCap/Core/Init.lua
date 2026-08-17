@@ -74,6 +74,16 @@ GC.DEFAULTS = {
       -- import string's signed trend field; a deal whose 24h market-value
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
       dumpTrendPct = 10,
+      -- How long a posted auction runs: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration`
+      -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what UI/SellFrame.lua
+      -- had hardcoded, so an existing save keeps posting exactly as it did and needs no
+      -- migration -- ApplyDefaults fills the field in on the next login.
+      --
+      -- Filed under `sniper` with every other setting rather than under a new `sell` branch:
+      -- UI/SettingsFrame.lua's cfg() reads this one table, `settings.tooltip` is already the
+      -- lone exception at the top level, and inventing a second branch for a single field
+      -- would buy structure nobody reads at the cost of a second accessor.
+      postDuration = 2,
       maxCapitalShare = 0.05,
       maxDailyDemandShare = 0.02,
       maxQuantity = 200,
