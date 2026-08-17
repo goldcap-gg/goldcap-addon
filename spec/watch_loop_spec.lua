@@ -28,6 +28,11 @@ describe("Watch loop", function()
     function w:SetTexture() end
     function w:SetLabel(label) self.label = label end
     function w:SetVariant(name) self.variant = name end
+    -- The row's left rail is a real texture the pin marker drives: it is shown in blue while
+    -- the watch loop is polling that row, and hidden otherwise.
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    function w:SetColorTexture(r, g, b) self.rgb = { r, g, b } end
     function w:Enable() self.enabled = true end
     function w:Disable() self.enabled = false end
     return w
@@ -37,7 +42,7 @@ describe("Watch loop", function()
     local row = {
       buy = widget(), tierChip = widget(), icon = widget(), nameText = widget(),
       discountText = widget(), unitText = widget(), priceText = widget(),
-      profitText = widget(), trendText = widget(), highlight = widget(), shown = false,
+      profitText = widget(), trendText = widget(), highlight = widget(), rail = widget(), shown = false,
     }
     function row:Show() self.shown = true end
     function row:Hide() self.shown = false end
@@ -68,7 +73,8 @@ describe("Watch loop", function()
     local GC = {
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 },
         tier = { HOT = { 1, 1, 1 }, GOOD = { 1, 1, 1 }, WATCH = { 1, 1, 1 } },
-        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fg = { 0.92, 0.91, 0.89 } } },
+        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fg = { 0.92, 0.91, 0.89 },
+          gold = { 0.83, 0.64, 0.22 }, watch = { 0.35, 0.72, 0.90 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
         PauseReasons = function() return {} end, Tick = function() end } end },
       Data = { GetItemValue = function() return { mv = 200, soldPerDay = 50 } end,
@@ -253,6 +259,36 @@ describe("Watch loop", function()
     -- and neither must a protected call on this path.
     assert.is_nil(binding:find("row:RegisterForClicks(", 1, true))
     assert.is_nil(binding:find("C_AuctionHouse", 1, true))
+  end)
+
+  -- Right-clicking a row that is still a deal used to change nothing on screen at all. The pin
+  -- only became visible minutes later, when the item fell out of the list and came back as a
+  -- "Watching" placeholder -- which reads as the addon acting on its own.
+  it("marks a watched row on the spot, and clears the mark when unpinned", function()
+    local GC = load()
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(42, 100), deal(43, 200) })
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    local rows = upvalue(refreshRows, "rows")
+
+    GC.Sniper._TogglePin(42)
+    local marked, plain
+    for i = 1, #rows do
+      local d = rows[i].deal
+      if d and d.itemID == 42 then marked = rows[i] end
+      if d and d.itemID == 43 then plain = rows[i] end
+    end
+    assert.is_not_nil(marked)
+    assert.is_true(marked.rail.shown)
+    assert.same({ 0.35, 0.72, 0.90 }, marked.rail.rgb)   -- the watch colour, not the hover gold
+    assert.is_not_nil(plain)
+    assert.is_false(plain.rail.shown)                    -- an unpinned row is untouched
+
+    GC.Sniper._TogglePin(42)
+    for i = 1, #rows do
+      if rows[i].deal and rows[i].deal.itemID == 42 then
+        assert.is_false(rows[i].rail.shown)
+      end
+    end
   end)
 
   it("pins and unpins an item, and remembers it", function()

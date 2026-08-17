@@ -713,6 +713,22 @@ local function setRowDeal(row, deal)
       row.buy:SetVariant("ghost")
     end
   end
+  -- The left rail is the row's state edge, and "the watch loop is polling this" is a state that
+  -- has to be readable while you are looking somewhere else. Without it, right-clicking a row
+  -- that is still a deal changed nothing visible at all -- the pin only became apparent later,
+  -- when the item fell out of the list and reappeared as a "Watching" placeholder, which reads
+  -- as the addon doing something on its own.
+  --
+  -- Blue stays up even under the cursor: hover already announces itself with the full-row
+  -- highlight wash, so there is nothing to gain from also taking the rail and everything to
+  -- lose -- the one row you are pointing at would be the one row that stops telling you.
+  if isPinned(deal.itemID) then
+    row.rail:SetColorTexture(Theme.color.watch[1], Theme.color.watch[2], Theme.color.watch[3])
+    row.rail:Show()
+  else
+    row.rail:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
+    if hoveredRow ~= row then row.rail:Hide() end
+  end
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
 
@@ -1363,6 +1379,23 @@ end
 -- Adds or removes a pin, persists it, and refreshes both the watch set (so the loop starts
 -- polling it -- or stops, if nothing else keeps it alive) and the rendered list (so a newly
 -- pinned/unpinned row shows up or drops its placeholder immediately, not on the next tick).
+-- Says out loud what just happened. A right-click that silently edits a saved list is
+-- indistinguishable from a right-click that did nothing, and the only other evidence -- the row
+-- turning into a "Watching" placeholder -- arrives minutes later, when the item happens to fall
+-- out of the deals list. By then it reads as the addon acting on its own.
+local function announcePin(itemID, watching)
+  if not frame or not frame.status then return end
+  local name
+  if Item and Item.CreateFromItemID then
+    local ok, item = pcall(Item.CreateFromItemID, Item, itemID)
+    if ok and item and item.GetItemName then name = item:GetItemName() end
+  end
+  name = name or ("item " .. tostring(itemID))
+  frame.status:SetText(watching
+    and ("watching %s closely -- re-checked every few seconds"):format(name)
+    or ("stopped watching %s"):format(name))
+end
+
 function GC.Sniper._TogglePin(itemID)
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   if not cfg or not itemID then return end
@@ -1372,12 +1405,14 @@ function GC.Sniper._TogglePin(itemID)
       table.remove(cfg.watchPins, i)
       GC.Sniper._RefreshWatchSet()
       refreshRows()
+      announcePin(itemID, false)
       return
     end
   end
   cfg.watchPins[#cfg.watchPins + 1] = itemID
   GC.Sniper._RefreshWatchSet()
   refreshRows()
+  announcePin(itemID, true)
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -4099,7 +4134,9 @@ createRow = function(parent, index)
   end)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
-    self.rail:Hide()
+    -- A watched row keeps its blue rail after the cursor leaves -- that is the whole point of
+    -- it. Only the plain hover accent goes away here.
+    if not (self.deal and isPinned(self.deal.itemID)) then self.rail:Hide() end
     if hoveredRow == self then
       hoveredRow = nil
       refreshRows()

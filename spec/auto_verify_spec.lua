@@ -33,6 +33,11 @@ describe("Deals background verification", function()
     function w:SetTexture() end
     function w:SetLabel(label) self.label = label end
     function w:SetVariant(name) self.variant = name end
+    -- The row's left rail is a real texture the pin marker drives: it is shown in blue while
+    -- the watch loop is polling that row, and hidden otherwise.
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    function w:SetColorTexture(r, g, b) self.rgb = { r, g, b } end
     function w:Enable() self.enabled = true end
     function w:Disable() self.enabled = false end
     return w
@@ -45,7 +50,7 @@ describe("Deals background verification", function()
     local row = {
       buy = widget(), tierChip = widget(), icon = widget(), nameText = widget(),
       discountText = widget(), unitText = widget(), priceText = widget(),
-      profitText = widget(), trendText = widget(), highlight = widget(),
+      profitText = widget(), trendText = widget(), highlight = widget(), rail = widget(),
       shown = false,
     }
     function row:Show() self.shown = true end
@@ -82,7 +87,8 @@ describe("Deals background verification", function()
         ROW_H = 20,
         pad = { m = 8, s = 4, xs = 2 },
         tier = { HOT = { 1, 1, 1 }, GOOD = { 1, 1, 1 }, WATCH = { 1, 1, 1 } },
-        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fg = { 0.92, 0.91, 0.89 } },
+        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fg = { 0.92, 0.91, 0.89 },
+          gold = { 0.83, 0.64, 0.22 }, watch = { 0.35, 0.72, 0.90 } },
       },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end,

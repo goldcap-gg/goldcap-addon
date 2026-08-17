@@ -19,6 +19,10 @@ T.color = {
   -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
   -- reads as "grayer", while a gold wash reads as "this is the row you are on".
   hover   = { 0.831, 0.643, 0.216, 0.16 },
+  -- "The watch loop is polling this row." Its own colour on purpose: gold already means the
+  -- cursor is here, and green and red already mean profit and loss. A state that persists
+  -- while you look elsewhere cannot borrow a colour that means something else.
+  watch   = { 0.35, 0.72, 0.90 },
 }
 
 T.tier = {
