@@ -99,7 +99,7 @@ describe("Sniper pin row reservation", function()
     assert.is_nil(list[pos].pinPlaceholder) -- the real deal, not a synthesized placeholder
   end)
 
-  it("leaves render order untouched when the list does not reach the cap", function()
+  it("sorts pinned rows to the top even when the list does not reach the cap", function()
     local GC = {
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function()
@@ -116,7 +116,9 @@ describe("Sniper pin row reservation", function()
     deals[3] = { itemID = 3, tier = "WATCH", profit = 300, unitPrice = 100, qty = 1 }
 
     local list = renderList()
-    -- Below the cap, the reservation partition is a no-op: plain profit-descending order.
-    assert.same({ 2, 3, 1 }, { list[1].itemID, list[2].itemID, list[3].itemID })
+    -- The pin partition is unconditional (see renderList's own comment): the watched item
+    -- leads the board even though it sorts last by profit -- that reorder is the immediate,
+    -- unmissable feedback that the right-click landed. The rest keeps profit order.
+    assert.same({ 1, 2, 3 }, { list[1].itemID, list[2].itemID, list[3].itemID })
   end)
 end)

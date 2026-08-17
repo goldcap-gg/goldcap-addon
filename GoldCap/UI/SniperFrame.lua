@@ -117,6 +117,26 @@ local scanning = false
 -- setView (near createFrame) ever changes it.
 local view = "deals"
 
+-- The status line has two dozen writers and no arbiter -- last write wins, and during a scan
+-- the per-page progress line lands several times a second. A one-shot answer to a player
+-- action (right-click pin, most visibly) was therefore overwritten before it could be read,
+-- which made the action itself look dead. setStatus is the arbiter: a write that passes
+-- `holdSeconds` claims the line for that long, and held-out writes are DROPPED, not queued --
+-- every suppressed writer here is periodic (next page, next poll, next tick re-writes it),
+-- so the freshest one after the hold expires is strictly better than a replay of the backlog.
+-- One-shot writers that must always land (purchase flow) keep calling SetText directly.
+local statusHoldUntil = 0
+local function setStatus(text, holdSeconds)
+  if not frame then return end
+  local now = GetTime()
+  if holdSeconds then
+    statusHoldUntil = now + holdSeconds
+  elseif now < statusHoldUntil then
+    return
+  end
+  frame.status:SetText(text)
+end
+
 -- E.2 sortable headers: a click-set override applied on TOP of sortedDeals()'s own order at
 -- render time only -- never mutates `deals` or `scanDeals`, so switching modes, rescanning,
 -- or a purchase resolving never inherits a stale sort or fights with Evaluate's own order.
@@ -506,27 +526,24 @@ local function renderList()
 
   -- A pin is a standing instruction and outranks the automatic list -- exactly how
   -- WatchSet.Select already reserves pins ahead of the poll set's own capacity, pins first,
-  -- then everything else. refreshRows only ever renders list[1..WIN.ROW_CAP]; appending a
-  -- pin's placeholder at the tail above is not enough once #kept alone clears that cap -- the
-  -- placeholder (or a real pinned deal sorted low enough) lands past the cut and never gets a
-  -- row, and a pin with no row can never be right-clicked off (see clearDeals). Reserve their
-  -- rows here, before the cap, rather than leaving them to be truncated away after it. This is
-  -- a stable partition, so it is a no-op whenever #kept does not even reach the cap.
-  if #kept > WIN.ROW_CAP then
-    local pinnedRows, otherRows = {}, {}
-    for i = 1, #kept do
-      local entry = kept[i]
-      if isPinned(entry.itemID) then
-        pinnedRows[#pinnedRows + 1] = entry
-      else
-        otherRows[#otherRows + 1] = entry
-      end
+  -- then everything else. Two reasons this partition is unconditional, not only past the
+  -- row cap. Past the cap it is survival: refreshRows only renders list[1..WIN.ROW_CAP], and
+  -- a pin truncated away has no row and so can never be right-clicked off (see clearDeals).
+  -- Below the cap it is feedback: the one thing a right-click visibly does RIGHT NOW is move
+  -- the row to the top of the board -- the watched items live in one fixed place instead of
+  -- wherever the profit sort happens to put them, and the pin action stops reading as dead.
+  -- The partition is stable, so relative order within each half is untouched.
+  local pinnedRows, otherRows = {}, {}
+  for i = 1, #kept do
+    local entry = kept[i]
+    if isPinned(entry.itemID) then
+      pinnedRows[#pinnedRows + 1] = entry
+    else
+      otherRows[#otherRows + 1] = entry
     end
-    local ordered = pinnedRows
-    for i = 1, #otherRows do ordered[#ordered + 1] = otherRows[i] end
-    kept = ordered
   end
-  return kept
+  for i = 1, #otherRows do pinnedRows[#pinnedRows + 1] = otherRows[i] end
+  return pinnedRows
 end
 
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
@@ -935,7 +952,9 @@ local function refreshRows()
   content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
   -- renderList() just recomputed refusedCount for exactly this list -- publish it in the same
   -- breath, so the number beside the list can never describe a different render than the one
-  -- on screen. (The 0.25s ticker also calls it, for the window's first paint.)
+  -- on screen. (The 0.25s ticker also calls it, for the window's first paint.) The empty-state
+  -- panel is driven from the same spot for the same reason: it describes THIS render.
+  if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
   if refreshVerifyButton then refreshVerifyButton() end
 end
 
@@ -1003,6 +1022,44 @@ local function refreshStaleText()
     frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
   end
+end
+
+-- The board's empty state. An empty list used to be exactly that -- rows silently absent,
+-- with the only explanations living in a toolbar counter and a scan-completion status line
+-- that the next write erased. That is the TSM failure mode this addon exists to avoid: the
+-- filters work, and the player concludes the sniper is broken. When nothing renders, say WHY
+-- nothing renders, in the space where the rows would be, picking the dominant cause: no realm
+-- import (nothing can pass the safety pre-screen without one), everything filtered/refused
+-- (with the counts and where to review them), or genuinely nothing scanned yet.
+-- Exposed on GC.Sniper (not a local) so the spec suite can drive it directly.
+function GC.Sniper._UpdateEmptyState(shownCount)
+  local label = frame and frame.emptyText
+  if not label then return end
+  if shownCount > 0 or view ~= "deals" or scanRunning then
+    label:Hide()
+    return
+  end
+  local screened = GC.Sniper._screenedCount or 0
+  local text
+  if not importAgeSeconds() then
+    text = "No deals to show -- and no realm prices imported.\n"
+      .. "Without an import, almost nothing can be safety-checked.\n"
+      .. "Get your realm's data at goldcap.gg, then type /goldcap import."
+  elseif refusedCount > 0 or screened > 0 then
+    local parts = {}
+    if screened > 0 then
+      parts[#parts + 1] = ("%d filtered out as hard to resell"):format(screened)
+    end
+    if refusedCount > 0 then
+      parts[#parts + 1] = ("%d refused by live checks -- press \"Hidden: %d\" above to review them"):format(
+        refusedCount, refusedCount)
+    end
+    text = "No deals passed the safety checks right now.\n" .. table.concat(parts, "\n")
+  else
+    text = "No deals yet.\nPress Scan to search the whole auction house once, or Auto to keep scanning."
+  end
+  label:SetText(text)
+  label:Show()
 end
 
 -- One chat print per UI session (not per AH visit -- staleWarnedThisSession only resets on
@@ -1178,7 +1235,10 @@ driver = {
   getValue = GC.Data.GetItemValue,
 
   onStatus = function(text)
-    if frame then frame.status:SetText(text) end
+    -- setStatus, not SetText: the poll loop writes this on every send, and it must not be
+    -- able to stamp over a held one-shot announcement (right-click pin feedback, most
+    -- visibly) within the same second the player acted.
+    setStatus(text)
   end,
 
   onDeal = function(deal)
@@ -1341,6 +1401,13 @@ local function pingNewHotDeals(newHotDeals)
   if matched and GC.db.settings.sniper.sound then
     PlaySound(SOUNDKIT.MAP_PING or 3175)
   end
+  -- A sniper is an alarm, not a dashboard (the pattern every dedicated sniping addon ships:
+  -- PBS's Alert, AnS's flashWoWIcon): a HOT deal found while the player is alt-tabbed must
+  -- reach them, and FlashClientIcon is the platform's one sanctioned way to flash the
+  -- taskbar/dock icon. Guarded: absent in the headless test environment.
+  if matched and FlashClientIcon then
+    FlashClientIcon()
+  end
 end
 
 local function applyFullScanResults(rowsList, groupCount)
@@ -1363,7 +1430,9 @@ local function applyFullScanResults(rowsList, groupCount)
     -- strict filter.
     local hidden = (GC.Sniper._screenedCount or 0) > 0
       and (", %d hidden as unsellable"):format(GC.Sniper._screenedCount) or ""
-    frame.status:SetText(("full scan complete: %d deal%s from %d item group%s%s"):format(
+    -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
+    -- held announcement costs nothing -- the next pass rewrites it.
+    setStatus(("full scan complete: %d deal%s from %d item group%s%s"):format(
       #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
   end
   refreshRows()
@@ -1458,9 +1527,24 @@ local function announcePin(itemID, watching)
     if ok and item and item.GetItemName then name = item:GetItemName() end
   end
   name = name or ("item " .. tostring(itemID))
-  frame.status:SetText(watching
+  -- Held for a few seconds: without the hold, the next scan page / poll status overwrote this
+  -- within a frame or two, and the right-click read as having done nothing at all.
+  setStatus(watching
     and ("watching %s closely -- re-checked every few seconds"):format(name)
-    or ("stopped watching %s"):format(name))
+    or ("stopped watching %s"):format(name), 4)
+end
+
+-- The row the pin was toggled on is, by definition, under the cursor -- and refreshRows()
+-- deliberately skips the hovered row to keep its content stable across streaming renders.
+-- That skip is right for streaming and exactly wrong here: it suppressed the rail/label
+-- repaint on the ONE row the player is looking at, so the click showed no change where the
+-- eyes were. Repaint that row explicitly (setRowDeal re-reads the pin state; its signature
+-- includes the pinned bit, so this is never a wasted repaint) and flash it.
+local function repaintToggledRow(itemID)
+  local row = hoveredRow
+  if not (row and row.deal and row.deal.itemID == itemID) then return end
+  setRowDeal(row, row.deal)
+  flashRow(row)
 end
 
 function GC.Sniper._TogglePin(itemID)
@@ -1472,6 +1556,7 @@ function GC.Sniper._TogglePin(itemID)
       table.remove(cfg.watchPins, i)
       GC.Sniper._RefreshWatchSet()
       refreshRows()
+      repaintToggledRow(itemID)
       announcePin(itemID, false)
       return
     end
@@ -1479,7 +1564,29 @@ function GC.Sniper._TogglePin(itemID)
   cfg.watchPins[#cfg.watchPins + 1] = itemID
   GC.Sniper._RefreshWatchSet()
   refreshRows()
+  repaintToggledRow(itemID)
   announcePin(itemID, true)
+end
+
+-- Right-click pin dispatch for deal rows; createRow wires BOTH mouse phases here. A desktop
+-- mouse delivers down then up for one press; a macOS trackpad two-finger tap was observed to
+-- deliver only one of the two (the original OnMouseUp-only handler never fired from a tap,
+-- which is why the handler moved to OnMouseDown -- betting on the other single phase). The
+-- latch makes one physical press toggle exactly once whichever subset arrives: a down always
+-- toggles and arms the latch, an up toggles only when no down armed it (and disarms it either
+-- way, so a down-then-up press over two different rows can never toggle the second row).
+function GC.Sniper._RowPinEvent(row, phase, button)
+  if button ~= "RightButton" or not row.deal then return end
+  if phase == "down" then
+    GC.Sniper._pinPressLatch = true
+    GC.Sniper._TogglePin(row.deal.itemID)
+  else
+    if GC.Sniper._pinPressLatch then
+      GC.Sniper._pinPressLatch = nil
+      return
+    end
+    GC.Sniper._TogglePin(row.deal.itemID)
+  end
 end
 
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
@@ -1576,9 +1683,15 @@ local function advanceBrowseScan(token)
     -- aggregate, not a resolved auction), and merge into whatever's already on screen --
     -- MergeDeals' incoming-wins rule means a later page's fresher read of an item replaces an
     -- earlier one instead of both lingering.
-    local deltaDeals, newRowsCount = GC.FullScan.EvaluateDelta(
+    -- The third return is the pre-screen's removal count for THIS page. It used to be
+    -- discarded here, which meant the "hidden as unsellable" number stayed at zero for the
+    -- whole streaming phase and only appeared at the final reconcile -- mid-scan, a heavily
+    -- filtered board was indistinguishable from a quiet market. Accumulate it as pages land;
+    -- applyFullScanResults overwrites it with the authoritative full-walk count at the end.
+    local deltaDeals, newRowsCount, deltaScreened = GC.FullScan.EvaluateDelta(
       streamRows, streamRowsCount, GC.Data.GetItemValue, GC.db.settings.sniper)
     streamRowsCount = newRowsCount
+    GC.Sniper._screenedCount = (GC.Sniper._screenedCount or 0) + (deltaScreened or 0)
     for _, deal in ipairs(deltaDeals) do
       deal.stale = true
     end
@@ -1593,10 +1706,12 @@ local function advanceBrowseScan(token)
     refreshRows()
     if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
     -- Spec: no page % (Blizzard doesn't expose total pages) -- result count + running deal
-    -- count instead.
-    if frame then
-      frame.status:SetText(("scanning… %d results · %d deals"):format(n, #scanDeals))
-    end
+    -- count instead, plus the running pre-screen count so a strict filter is visible WHILE it
+    -- filters. setStatus, not SetText: this line lands on every page, and it must lose to a
+    -- held one-shot announcement (see setStatus).
+    local screenedNote = (GC.Sniper._screenedCount or 0) > 0
+      and (" · %d hidden"):format(GC.Sniper._screenedCount) or ""
+    setStatus(("scanning… %d results · %d deals%s"):format(n, #scanDeals, screenedNote))
     requestNextPage(token)
   end
 end
@@ -1640,9 +1755,9 @@ local function cancelFullScan()
     return
   end
   if next(reasons) == nil then
-    frame.status:SetText("auto off")
+    setStatus("auto off")
   else
-    frame.status:SetText("auto: paused")
+    setStatus("auto: paused")
   end
 end
 
@@ -1659,6 +1774,7 @@ local function startFullScan()
   pendingBrowsePage = false
   lastBrowseEventAt = 0
   streamRows, streamRawCount, streamRowsCount = {}, 0, 0 -- T6: fresh pass, fresh streaming state
+  GC.Sniper._screenedCount = 0 -- fresh pass, fresh pre-screen tally (accumulated per page while streaming)
   mode = "fullscan"
   refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
 
@@ -4376,19 +4492,21 @@ createRow = function(parent, index)
     GameTooltip:Hide()
   end)
 
-  -- Right-click pins. OnMouseDOWN, not OnMouseUp, and not RegisterForClicks: `row` is a plain
-  -- Frame, so it has no RegisterForClicks at all (that is a Button method -- the guarded call
-  -- that used to sit here was a no-op dressed up as intent), and the pattern this file already
-  -- proves works on a mouse-enabled Frame is the column headers' own
-  -- `hit:SetScript("OnMouseDown", ...)`. The first attempt used OnMouseUp and did not fire from
-  -- a trackpad two-finger tap.
+  -- Right-click pins. Both phases, not RegisterForClicks: `row` is a plain Frame, so it has
+  -- no RegisterForClicks at all (that is a Button method -- the guarded call that used to sit
+  -- here was a no-op dressed up as intent). The first attempt used OnMouseUp alone and did not
+  -- fire from a trackpad two-finger tap; OnMouseDown alone is the same single-phase bet in the
+  -- other direction, so GC.Sniper._RowPinEvent listens to both and latches so one physical
+  -- press toggles exactly once -- see its own comment.
   --
   -- Firing on the press is fine HERE and only here: pinning is a reversible view preference,
   -- not a purchase. Nothing on this path may ever reach a protected call, which is why the Buy
   -- button keeps its own LeftButtonUp handler and is untouched by this.
   row:SetScript("OnMouseDown", function(self, button)
-    if button ~= "RightButton" or not self.deal then return end
-    GC.Sniper._TogglePin(self.deal.itemID)
+    GC.Sniper._RowPinEvent(self, "down", button)
+  end)
+  row:SetScript("OnMouseUp", function(self, button)
+    GC.Sniper._RowPinEvent(self, "up", button)
   end)
 
   row:Hide()
@@ -4850,6 +4968,21 @@ local function createFrame()
     self:SetVerticalScroll(target)
   end)
   f.scroll = scroll -- D: setView hides/shows this alongside f.headerRow for the Sell tab
+
+  -- Empty-state panel for the deals board, living where the rows would be. Parented to
+  -- `scroll` (not `content`) so it shows/hides with the Deals view via setView's existing
+  -- scroll:Hide(), and never scrolls (an empty board has nothing to scroll). Driven solely by
+  -- GC.Sniper._UpdateEmptyState from refreshRows -- see that function for what it says when.
+  local emptyText = Theme.Label(scroll, 12)
+  emptyText:SetPoint("TOP", scroll, "TOP", 0, -WIN.ROW_HEIGHT * 2)
+  emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
+  emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
+  emptyText:SetJustifyH("CENTER")
+  emptyText:SetWordWrap(true)
+  emptyText:SetSpacing(4)
+  emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  emptyText:Hide()
+  f.emptyText = emptyText
 
   content = CreateFrame("Frame", nil, scroll)
   content:SetSize(math.max(restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER, 1), WIN.ROW_HEIGHT) -- refreshRows() stamps the real height; OnSizeChanged below keeps width live

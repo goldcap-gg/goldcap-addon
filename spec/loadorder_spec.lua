@@ -42,6 +42,9 @@ describe("TOC load order", function()
         GetVerticalScrollRange = function() return 0 end,
         SetWordWrap = function() end,
         SetMaxLines = function() end,
+        -- Deals empty-state panel (createFrame's f.emptyText): a multi-line FontString with
+        -- explicit line spacing, set once at construction.
+        SetSpacing = function() end,
         Enable = function() end,
         Disable = function() end,
         GetFontString = function() return nil end,

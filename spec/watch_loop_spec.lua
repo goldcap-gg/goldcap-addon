@@ -242,9 +242,10 @@ describe("Watch loop", function()
   -- The binding, not just the toggle. The first version hung the pin on OnMouseUp plus a
   -- guarded RegisterForClicks -- and `row` is a plain Frame, which has no RegisterForClicks at
   -- all, so that call was decoration. A trackpad two-finger tap never pinned anything. The
-  -- pattern this file already proves works on a mouse-enabled Frame is the column headers'
-  -- OnMouseDown.
-  it("[wiring] pins from OnMouseDown on the row, the way the headers already do", function()
+  -- handler now dispatches BOTH phases into GC.Sniper._RowPinEvent, whose latch makes one
+  -- physical press toggle exactly once whichever subset of phases the input device delivers
+  -- (behavioural coverage: spec/sniper_pin_feedback_spec.lua).
+  it("[wiring] dispatches both mouse phases on the row into the latched pin handler", function()
     local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
     local text = file:read("*a")
     file:close()
@@ -253,8 +254,9 @@ describe("Watch loop", function()
     local binding = text:sub(from, to)
 
     assert.is_truthy(binding:find('row:SetScript("OnMouseDown"', 1, true))
-    assert.is_truthy(binding:find('button ~= "RightButton"', 1, true))
-    assert.is_truthy(binding:find("GC.Sniper._TogglePin", 1, true))
+    assert.is_truthy(binding:find('row:SetScript("OnMouseUp"', 1, true))
+    assert.is_truthy(binding:find('GC.Sniper._RowPinEvent(self, "down", button)', 1, true))
+    assert.is_truthy(binding:find('GC.Sniper._RowPinEvent(self, "up", button)', 1, true))
     -- The dead guard must not come back (the comment may NAME it; the call must not exist),
     -- and neither must a protected call on this path.
     assert.is_nil(binding:find("row:RegisterForClicks(", 1, true))
@@ -307,9 +309,9 @@ describe("Watch loop", function()
     -- 42 has dropped out of the deals list entirely, but the pin must stay reachable.
     local list = renderList(GC)
     assert.equal(2, #list)
-    assert.equal(43, list[1].itemID)
-    assert.equal(42, list[2].itemID)      -- pins sit below every deal
-    assert.is_true(list[2].pinPlaceholder)
+    assert.equal(42, list[1].itemID)      -- pins lead the board (renderList's unconditional partition)
+    assert.is_true(list[1].pinPlaceholder)
+    assert.equal(43, list[2].itemID)
   end)
 
   it("does not render a fabricated price for a placeholder pin nothing has observed yet", function()
