@@ -534,13 +534,25 @@ end
 -- be reposted), most valuable first, and capped. Everything else keeps whatever
 -- quote it already has and shows its age honestly.
 local QUOTE_WALK_CAP = 24
+-- A quote younger than this is not re-asked about: it is already fresh enough for every
+-- decision on this screen, and re-pricing it burns one of the walk's throttled server round
+-- trips that a never-priced row further down the list needed. 30 sits under
+-- SELL_QUOTE_ACTION_AGE (45) by more than a whole pass takes, so a quote is renewed before
+-- the Post/Repost window on it ever closes. This is what turned the permanent
+-- "Pricing N/24" grind into an empty steady-state pass.
+local QUOTE_REWALK_AGE = 30
 
 local function uniqueQuoteItemIDs()
   local actionable = {}
   for _, position in ipairs(positions) do
     local inBags = type(position.bagQty) == "number" and position.bagQty > 0
     local listed = type(position.listedQty) == "number" and position.listedQty > 0
-    if not position.unresolved and position.itemID and (inBags or listed) then
+    -- Membership, not just order: a still-fresh quote is excluded from the pass entirely.
+    -- Freshness used to decide only the ORDER, so every pass re-asked the server about the
+    -- whole tab -- see QUOTE_REWALK_AGE above for what that cost.
+    local due = position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
+      or position.quoteAge > QUOTE_REWALK_AGE
+    if not position.unresolved and position.itemID and (inBags or listed) and due then
       actionable[#actionable + 1] = position
     end
   end

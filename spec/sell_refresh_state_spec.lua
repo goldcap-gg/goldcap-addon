@@ -314,6 +314,37 @@ describe("Sell refresh state fence", function()
     assert.equal("waiting_result", refreshState(GC).phase)
   end)
 
+  -- The walk used to re-ask the server about EVERY actionable position on every 5-second
+  -- pass -- freshness only decided the ORDER, never the membership -- so a tab of two dozen
+  -- items ground through "Pricing N/24" continuously even when every price on screen was
+  -- seconds old. A pass now contains only what actually needs asking: never-priced rows and
+  -- rows whose quote has aged past the re-walk threshold. Steady state is an empty pass.
+  it("prices only never-priced and aged rows, never a quote that is still fresh", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return {
+        { itemID = 43, positionKey = "commodity:43", bagQty = 5, displayMarketUnit = 100, quoteAge = 3 },
+        { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
+        { itemID = 44, positionKey = "commodity:44", bagQty = 5, displayMarketUnit = 100, quoteAge = 31 },
+      }
+    end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    -- Never-priced first, then the aged one; the 3-second-old quote is not asked about at all.
+    assert.same({ 42, 44 }, refreshState(GC).queue)
+  end)
+
+  it("finishes an all-fresh pass immediately instead of re-pricing the whole tab", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return { { itemID = 43, positionKey = "commodity:43", bagQty = 5, displayMarketUnit = 100, quoteAge = 3 } }
+    end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("done", refreshState(GC).phase)
+    assert.same({}, sent.keys)
+  end)
+
   it("observes commodity and variant owned lots with the exact active scope", function()
     local now, sent, cache, observed = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
