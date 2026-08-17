@@ -720,6 +720,21 @@ describe("Flips row model (Sniper v3 §5)", function()
         assert.equal(20000, mid.unit)
       end)
 
+      it("never jumps past the end of a truncated book to the target", function()
+        -- Same ladder, but nothing visible above the 27300 target: the book may simply be
+        -- cut off there (levels are capped), so the gap between the last rung and the target
+        -- is unmeasured. The climb stops at the highest VISIBLE rung.
+        local cut = {
+          { unitPrice = 19800, quantity = 8000 },
+          { unitPrice = 20000, quantity = 1500 },
+          { unitPrice = 24000, quantity = 4000 },
+        }
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = cut, sold = 222000, targetUnit = 27300 })
+        assert.equal("queue", r.mode)
+        assert.equal(24000, r.unit)
+      end)
+
       it("does nothing without a target -- untracked stock keeps match/undercut", function()
         local r = GC.Flips.RecommendPost(19800, 19800, 39100,
           { levels = ladder, sold = 222000 })

@@ -436,9 +436,23 @@ function GC.SniperDecision.Evaluate(input)
             and isFinite(market.soldPerDay) and market.soldPerDay >= 3 then
           local budgetUnits = market.soldPerDay * config.wallAbsorbHours / 24
           local best = exitUnit
+          -- The plain stress candidate needs PROOF the whole sub-stress book was visible: a
+          -- stocked ask above stressUnit. Levels arrive ascending and are capped, so a book
+          -- that merely ends below stress says nothing about the units between its last rung
+          -- and the exit -- releasing past the end of a truncated book prices against a queue
+          -- nobody measured. Rung candidates below need no such proof (their queues are fully
+          -- visible prefixes).
+          local sawAboveStress = false
+          for i = 1, #live.levels do
+            local level = live.levels[i]
+            if (level.quantity or 0) > 0 and level.unitPrice > stressUnit then
+              sawAboveStress = true
+              break
+            end
+          end
           local remaining = wallBelowStress - quantity
           if remaining < 0 then remaining = 0 end
-          if remaining <= budgetUnits then
+          if sawAboveStress and remaining <= budgetUnits then
             best = stressUnit
           else
             local queued = 0

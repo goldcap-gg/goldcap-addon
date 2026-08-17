@@ -646,18 +646,23 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     if hours > 0 and ceiling and ceiling > candidate then
       local budget = opts.sold * hours / 24
       local best
-      local queued, overBudget = 0, false
+      local queued, overBudget, sawAboveCeiling = 0, false, false
       for _, lvl in ipairs(opts.levels) do
         local qty = lvl.quantity or 0
         if qty > 0 then
-          if lvl.unitPrice > ceiling then break end
+          if lvl.unitPrice > ceiling then sawAboveCeiling = true; break end
           queued = queued + qty
           if queued > budget then overBudget = true; break end
           if lvl.unitPrice > candidate then best = lvl.unitPrice end
         end
       end
-      -- Every rung up to the ceiling fit the budget: the target itself is reachable.
-      if not overBudget then best = ceiling end
+      -- The ceiling itself is a candidate ONLY when a stocked ask ABOVE it was seen: levels
+      -- arrive ascending and are capped (LIM.MAX_BOOK_LEVELS), so a book that simply ENDS
+      -- below the ceiling proves nothing about the units between its last rung and the
+      -- ceiling -- jumping past the end of a truncated book is how a post lands above a
+      -- queue nobody measured. With a visible ask above, everything below was visible and
+      -- counted, and the jump is proven.
+      if not overBudget and sawAboveCeiling then best = ceiling end
       best = best and GC.Flips.SilverDown(best)
       if best and best > candidate then
         mode, candidate = "queue", best

@@ -641,6 +641,20 @@ describe("SniperDecision", function()
       assertNoReason(result, "wall_absorbed")
     end)
 
+    it("never releases to stress past the end of a truncated book", function()
+      -- The wall is the ONLY visible level: the book may simply be cut off below stress
+      -- (levels are capped), so the units between the wall and the stress exit are
+      -- unmeasured -- no proof, no release, and with no rungs above the wall either, the
+      -- old competing-minus-one clamp (a guaranteed loss) stands.
+      local input = deepWallInput()
+      input.market.soldPerDay = 100000
+      input.live.levels = { { unitPrice = 1000000, quantity = 5000 } }
+      local result = evaluate(input)
+      assert.equal("AVOID", result.computedStatus)
+      assertReason(result, "stress_profit_below_buffer")
+      assertNoReason(result, "wall_absorbed")
+    end)
+
     it("is disabled outright by wallAbsorbHours = 0", function()
       local input = deepWallInput()
       input.market.soldPerDay = 100000
