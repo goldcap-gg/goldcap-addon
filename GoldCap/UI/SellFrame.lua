@@ -1471,11 +1471,21 @@ end
 -- whichever is larger. The two disagree while an observation lags, and the
 -- larger is the safe one here: offering to cost a unit that turns out not to
 -- exist is a correctable mistake, refusing to cost one that does is the bug.
+--
+-- knownQty is FIFO allocation against exposureQty, and exposureQty is capped
+-- at listedQty once a lot is listed (decoratePosition, SellPositions.lua) --
+-- so allocation can stop well short of what is actually on record. trackedQty
+-- is the sum of every batch's remainingQty regardless of that cap, so a unit
+-- a recorded batch covers but allocation hasn't reached yet is costed even
+-- when knownQty says otherwise. Comparing against max(knownQty, trackedQty)
+-- reads what is recorded, not just what allocation reached: a live incident
+-- had 24 listed capping allocation at 24 while a batch actually covered 118,
+-- and the dialog offering to cost the "difference" let the player double it.
 local function uncostedQty(position)
   if type(position) ~= "table" then return 0 end
   local physical = (position.listedQty or 0) + (position.bagQty or 0)
   local held = math.max(position.exposureQty or 0, physical)
-  return math.max(0, held - (position.knownQty or 0))
+  return math.max(0, held - math.max(position.knownQty or 0, position.trackedQty or 0))
 end
 
 local function canSetCost(position)

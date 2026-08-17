@@ -265,4 +265,32 @@ describe("Sell tab, bags to Post", function()
     assert.is_true(dialog.shown)
     assert.equal(241, dialog.maximum) -- 246 held, 5 of them costed
   end)
+
+  -- Live incident: 24 listed capped the FIFO allocation at 24, but a recorded
+  -- batch actually covered all 118 units the player was holding across bags and
+  -- listings. knownQty read 24 against that same 118, so the dialog said "94
+  -- units without a cost" for stock that already had one, and entering a
+  -- manual cost doubled it. knownQty alone can never see past the allocation
+  -- cap -- trackedQty can, and must be checked too.
+  it("does not offer Set cost for stock a recorded batch already covers beyond the allocation cap", function()
+    local canSetCost = upvalue(render, "canSetCost")
+    assert.is_false(canSetCost({ positionKey = "commodity:1", listedQty = 24, bagQty = 94,
+      exposureQty = 24, knownQty = 24, trackedQty = 118 }))
+  end)
+
+  it("still offers Set cost for stock with no batch recorded against it at all", function()
+    local canSetCost = upvalue(render, "canSetCost")
+    assert.is_true(canSetCost({ positionKey = "commodity:1", bagQty = 50,
+      exposureQty = 50, knownQty = 0, trackedQty = 0 }))
+  end)
+
+  it("offers Set cost for the uncovered remainder, and withholds it once a batch closes the gap", function()
+    -- 60 of the 100 held units are costed either way; the other 40 stay open
+    -- until something -- allocation or a manual entry -- actually accounts for them.
+    local canSetCost = upvalue(render, "canSetCost")
+    assert.is_true(canSetCost({ positionKey = "commodity:1", bagQty = 100,
+      exposureQty = 60, knownQty = 60, trackedQty = 60 }))
+    assert.is_false(canSetCost({ positionKey = "commodity:1", bagQty = 100,
+      exposureQty = 60, knownQty = 60, trackedQty = 100 }))
+  end)
 end)
