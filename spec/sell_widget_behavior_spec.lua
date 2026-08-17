@@ -130,6 +130,21 @@ describe("Sell widget geometry and manual cost", function()
     _G.C_AuctionHouse, _G.ItemLocation, _G.C_Container, _G.C_Item = nil, nil, nil, nil
   end)
 
+  -- "—" in MARKET is ambiguous: it reads as "not asked yet" even when the auction house
+  -- already answered "nothing is listed". The remembered empty answer paints as "none".
+  it("shows 'none' in the market cell for an item the AH answered empty about", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "emptyAnswers", { [42] = 70 })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        sources = {}, status = "UNLISTED" },
+    })
+    assert.equal("none", rows[1].cells.market.text)
+    assert.equal("Nothing listed on the AH right now", rows[1].cells.status.text)
+  end)
+
   -- "Unknown · 1 partial · 37 missing" used to render in the same confident green as a real
   -- profit, which read as a number the addon stood behind. A non-number is an absence: dim.
   it("paints a non-numeric summary profit dim instead of a confident green", function()

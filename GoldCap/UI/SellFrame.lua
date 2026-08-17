@@ -551,6 +551,13 @@ local QUOTE_REWALK_AGE = 30
 -- tab full of niche items to a crawl. A manual Refresh wipes these: the player asked for real.
 local EMPTY_ANSWER_AGE = 60
 local emptyAnswers = {}
+-- How long a drain tombstone may fence off an item. The fence exists so a LATE answer to an
+-- abandoned request cannot be credited to a new request for the same item -- but it used to
+-- be permanent, cleared only by the very event that never comes for a silently-lost request,
+-- and ONE such item then wedged every later pass in "draining" until the watchdog shot it.
+-- Past this window the lost answer is not arriving; the fence lifts and the item is asked
+-- again (advanceQuote).
+local DRAIN_MAX_SECONDS = 15
 
 local function uniqueQuoteItemIDs()
   local actionable = {}
@@ -659,6 +666,7 @@ local function abandonInFlightQuote()
     refresh.drain[pending.kind .. ":" .. pending.itemID] = {
       abandonedGeneration = pending.generation,
       terminals = 1,
+      at = time(),
     }
   end
   refresh.pending, refresh.awaiting = nil, nil
@@ -709,6 +717,7 @@ local function skipPendingQuote(pending, timedOut)
     refresh.drain[pending.kind .. ":" .. pending.itemID] = {
       abandonedGeneration = pending.generation,
       terminals = 1,
+      at = time(),
     }
   else
     quotes[pending.itemID] = nil
@@ -776,6 +785,12 @@ advanceQuote = function()
     local info = driver.keyInfo(itemID)
     local kind = info.isCommodity and "commodity" or "item"
     local tombstone = refresh.drain[kind .. ":" .. itemID]
+    if tombstone and type(tombstone.at) == "number" and time() - tombstone.at > DRAIN_MAX_SECONDS then
+      -- The lost answer this fence was guarding against is too old to still arrive -- see
+      -- DRAIN_MAX_SECONDS. Lift it and ask for real instead of wedging in "draining".
+      refresh.drain[kind .. ":" .. itemID] = nil
+      tombstone = nil
+    end
     if tombstone then
       tombstone.resumeGeneration = refresh.generation
       refresh.phase = "draining"
@@ -1879,7 +1894,11 @@ renderRows = function()
         end
         row.cells.cost:SetText(unitCost and formatCell(unitCost) or "—")
         row.cells.listed:SetText(formatCell(p.listedValue))
-        local marketText = p.displayMarketUnit and formatCell(p.displayMarketUnit) or "—"
+        -- "none" ~= "—": the first is an answer ("the AH has zero listings right now",
+        -- remembered in emptyAnswers), the second is the absence of one. Conflating them made
+        -- honestly-unlisted items read as the pricing walk being slow or stuck.
+        local marketText = p.displayMarketUnit and formatCell(p.displayMarketUnit)
+          or (emptyAnswers[p.itemID] and "none" or "—")
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
           marketText = marketText .. (" · stale %ds"):format(p.quoteAge)
         end

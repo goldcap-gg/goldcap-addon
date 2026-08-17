@@ -385,6 +385,27 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 42 }, sent.keys)
   end)
 
+  -- The drain fence exists so a LATE answer cannot be credited to a new request for the same
+  -- item -- but it was permanent, cleared only by the very event that never comes for a
+  -- request that timed out silently. One such item wedged EVERY later pass: the walk reached
+  -- it, parked in "draining" waiting for the ghost event, and the watchdog shot the pass --
+  -- which is exactly "pressed Refresh several times, it stopped going anywhere, half the tab
+  -- has no market price". Past a plausibility window the lost answer is not coming; lift the
+  -- fence and ask again.
+  it("lifts a drain fence whose lost answer is too old to still arrive", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    now.value = 111
+    GC.Sell.OnThrottleReady() -- times out the request, leaves the drain tombstone
+    assert.equal("done", refreshState(GC).phase)
+    now.value = 140 -- well past any plausible late delivery
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42, 42 }, sent.keys)
+    assert.equal("waiting_result", refreshState(GC).phase)
+  end)
+
   it("a manual Refresh wipes remembered empty answers and re-asks for real", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
