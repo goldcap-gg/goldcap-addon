@@ -206,13 +206,24 @@ describe("Sell view model", function()
       })))
     end)
 
-    it("leaves everything it is not ranking exactly where it was", function()
-      -- Reshuffling rows a player is not acting on costs them their place on the
-      -- screen for no gain, so ties fall back to the incoming order.
-      assert.same({ "z", "m", "a" }, keys(GC.SellViewModel.Order({
+    it("keeps listed rows in place but sinks stockless ghosts below them", function()
+      -- Ties still fall back to the incoming order (a re-render must not reshuffle rows
+      -- under the cursor) -- but a position with nothing in the bags AND nothing listed is
+      -- pure bookkeeping (its stock is in the mail, the bank, or another character), and
+      -- sitting between live listings it read as the pricing walk being broken.
+      assert.same({ "z", "a", "m" }, keys(GC.SellViewModel.Order({
         { positionKey = "z", listedQty = 1, listedValue = 5 },
         { positionKey = "m" },
         { positionKey = "a", listedQty = 9, listedValue = 900 },
+      })))
+    end)
+
+    it("sinks every ghost below every listed row, keeping each group stable", function()
+      assert.same({ "l1", "l2", "g1", "g2" }, keys(GC.SellViewModel.Order({
+        { positionKey = "g1" },
+        { positionKey = "l1", listedQty = 1, listedValue = 5 },
+        { positionKey = "g2" },
+        { positionKey = "l2", listedQty = 2, listedValue = 1000 },
       })))
     end)
   end)

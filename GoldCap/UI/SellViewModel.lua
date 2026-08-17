@@ -71,8 +71,12 @@ end
 -- rows a player is not acting on costs them their place on the screen.
 local function rankOf(position)
   local inBags = type(position.bagQty) == "number" and position.bagQty > 0
-  if not inBags then return 2 end
-  return position.freshMarketUnit and 0 or 1
+  if inBags then return position.freshMarketUnit and 0 or 1 end
+  -- Listed rows above stockless ghosts: a position with nothing in the bags AND nothing
+  -- listed is pure bookkeeping -- its stock is in the mail, the bank, or on another
+  -- character -- and sitting between live listings it read as a broken row.
+  local listed = type(position.listedQty) == "number" and position.listedQty > 0
+  return listed and 2 or 3
 end
 
 local function weightOf(position)

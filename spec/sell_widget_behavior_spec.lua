@@ -130,6 +130,20 @@ describe("Sell widget geometry and manual cost", function()
     _G.C_AuctionHouse, _G.ItemLocation, _G.C_Container, _G.C_Item = nil, nil, nil, nil
   end)
 
+  -- A tracked position with nothing in the bags AND nothing listed is stock sitting in the
+  -- mail, the bank, or on another character. Its status used to talk about cost coverage,
+  -- which answered a question nobody asked while the real one -- "where is my ore?" -- went
+  -- unanswered.
+  it("says where the stock is not, for a position with no bags and no listings", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+        exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+        bagQty = 0, listedQty = 0, sources = {} },
+    })
+    assert.equal("Not in your bags or listed — mail or bank?", rows[1].cells.status.text)
+  end)
+
   -- "—" in MARKET is ambiguous: it reads as "not asked yet" even when the auction house
   -- already answered "nothing is listed". The remembered empty answer paints as "none".
   it("shows 'none' in the market cell for an item the AH answered empty about", function()
@@ -280,8 +294,11 @@ describe("Sell widget geometry and manual cost", function()
   it("keeps the row action in its own column beside the advice text", function()
     local GC = load(620, { calls = {} })
     local rows = topRows(GC, {
+      -- listedQty is part of the shape Build actually produces for a listed position; the
+      -- fixture originally omitted it and silently modelled a stockless ghost instead.
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
-        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20, sources = {} },
+        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20,
+        listedQty = 1, sources = {} },
     })
     assert.equal("Set cost", rows[1].action.label)
     assert.equal("Cost unknown for 2 of 5", rows[1].cells.status.text)
@@ -849,16 +866,23 @@ describe("Sell widget geometry and manual cost", function()
     compose()
     render()
 
+    -- Ghost rows (no bags, no listings -- item 42 here) sink below listed ones now, so the
+    -- row under test is found by item, not assumed to be first.
+    local function positionRow(itemID)
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.kind == "position" and row.position.itemID == itemID then return row end
+      end
+    end
     local rows = upvalue(render, "rows")
-    assert.equal("150", rows[1].cells.market.text)
-    assert.equal("42", tostring(rows[1].position.itemID))
+    local unlisted = positionRow(42)
+    assert.equal("150", unlisted.cells.market.text)
     assert.equal(1, #timers)
     -- Wakes when the quote actually expires. The Sell tab treats a quote as good
     -- for SELL_QUOTE_ACTION_AGE (45s), not the Sniper's 10s: a listing competes
     -- over hours, and a 10s window made Post unclickable because pricing the tab
     -- took longer than the quote lasted.
     assert.equal(46, timers[1].seconds)
-    rows[1].scripts.OnClick(rows[1])
+    unlisted.scripts.OnClick(unlisted)
     rows = upvalue(render, "rows")
     local freshDetail
     for _, row in ipairs(rows) do

@@ -1950,6 +1950,12 @@ renderRows = function()
             row.cells.status:SetText("Waiting for a live price")
           end
           setColor(row.cells.status, Theme.color.fgDim)
+        elseif not p.unresolved and (p.listedQty or 0) == 0 then
+          -- Nothing in the bags AND nothing listed: the stock this row tracks is in the
+          -- mail, the bank, or on another character. Cost coverage is a real question too,
+          -- but "where is my ore?" is the one the player is actually asking here.
+          row.cells.status:SetText("Not in your bags or listed — mail or bank?")
+          setColor(row.cells.status, Theme.color.fgDim)
         elseif p.coverage ~= "COMPLETE" then
           row.cells.status:SetText(("Cost unknown for %d of %d"):format(
             math.max(0, exposureQty - knownQty), exposureQty))
