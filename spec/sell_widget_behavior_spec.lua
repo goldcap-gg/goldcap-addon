@@ -130,6 +130,18 @@ describe("Sell widget geometry and manual cost", function()
     _G.C_AuctionHouse, _G.ItemLocation, _G.C_Container, _G.C_Item = nil, nil, nil, nil
   end)
 
+  -- "Unknown · 1 partial · 37 missing" used to render in the same confident green as a real
+  -- profit, which read as a number the addon stood behind. A non-number is an absence: dim.
+  it("paints a non-numeric summary profit dim instead of a confident green", function()
+    local GC = load(620, { calls = {} })
+    local _, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "UNKNOWN",
+        exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
+    })
+    assert.equal("Unknown", container.summary.profit.text)
+    assert.same({ .5, .5, .5, 1 }, container.summary.profit.color)
+  end)
+
   -- MARKET is now unconditional and LISTED is the column that drops on a narrow window: the
   -- market price drives every decision on this screen, while the listed total is already
   -- reported in the summary above the list.

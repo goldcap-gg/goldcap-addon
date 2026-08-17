@@ -1734,7 +1734,10 @@ local function updateSummary(filtered)
   container.summary.cost:SetText(formatCell(text.knownCost))
   container.summary.listed:SetText(formatCell(text.listedValue))
   container.summary.profit:SetText(type(text.profit) == "number" and formatAmount(text.profit) or text.profit)
-  setColor(container.summary.profit, type(text.profit) == "number" and text.profit < 0 and Theme.color.red or Theme.color.green)
+  -- A non-number here is an absence, not a result: painting "Unknown · 37 missing" in the
+  -- same confident green as a real profit read as a figure the addon stood behind.
+  setColor(container.summary.profit, type(text.profit) == "number"
+    and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
 
 renderRows = function()
@@ -2236,10 +2239,17 @@ function GC.Sell.Attach(f, geometry)
   ROW_WIDTH, ROW_HEIGHT, statusOwner = geometry.rowWidth, geometry.rowHeight, f
   container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
+  -- The header block is a fixed three-row grid on a 24px pitch, each row owning its whole
+  -- width, because the previous layout let two anchor chains grow toward each other on a
+  -- shared row and collide at ordinary window widths (the queue's head label ran under the
+  -- filter chips; the cancel cluster ran under EST. PROFIT):
+  --   row 1 (y   0): [Post N] head label ················· held-back · [Cancel N]
+  --   row 2 (y -24): ················· chips (filters for the list below) · [Refresh]
+  --   row 3 (y -48): KNOWN COST / LISTED VALUE / EST. PROFIT
   local refreshButton = Theme.Button(container, "ghost")
   -- 96, not 72: the busy label is "Pricing 10/24" (see paintRefreshButton), and a button sized
   -- for "Refresh" alone would have let that overflow its own edges into the filter chip beside it.
-  refreshButton:SetSize(96, 20); refreshButton:SetPoint("TOPRIGHT"); refreshButton:SetLabel("Refresh")
+  refreshButton:SetSize(96, 20); refreshButton:SetPoint("TOPRIGHT", 0, -24); refreshButton:SetLabel("Refresh")
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
@@ -2272,12 +2282,15 @@ function GC.Sell.Attach(f, geometry)
   container.queueButton = queueButton
 
   local queueLabel = Theme.Label(container, 11)
-  queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 6, 0)
+  queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 8, 0)
+  queueLabel:SetJustifyH("LEFT")
+  queueLabel:SetWordWrap(false)
   container.queueLabel = queueLabel
 
   local queueHeldBack = Theme.Label(container, 10)
   setColor(queueHeldBack, Theme.color.fgDim)
-  queueHeldBack:SetPoint("LEFT", queueLabel, "RIGHT", 8, 0)
+  -- Right-anchored below, once the cancel cluster it abuts exists -- see the row-1 bounding
+  -- block after that cluster. No LEFT anchor here: its width is its text.
   queueHeldBack:Hide()
   container.queueHeldBack = queueHeldBack
 
@@ -2308,14 +2321,14 @@ function GC.Sell.Attach(f, geometry)
 
   paintQueueButton() -- honest empty/disabled state before the very first compose ever runs
 
-  -- The cancel queue control: the summary row's empty right half -- the toolbar row above is
-  -- already full at minimum window width, and a destructive control does not belong beside
-  -- Post anyway. Ghost, not primary: this tab's primary action is posting; cancelling burns a
-  -- deposit and earns the quieter look. See paintCancelButton for the states and
+  -- The cancel queue control: row 1's right end, the far side of the row from Post -- the two
+  -- queue actions are siblings, but a destructive control does not belong ADJACENT to a
+  -- non-destructive one. Ghost, not primary: this tab's primary action is posting; cancelling
+  -- burns a deposit and earns the quieter look. See paintCancelButton for the states and
   -- onCancelQueueClick for what a click does (and, more importantly, does not) do.
   local cancelButton = Theme.Button(container, "ghost")
   cancelButton:SetSize(110, 20)
-  cancelButton:SetPoint("TOPRIGHT", 0, -26)
+  cancelButton:SetPoint("TOPRIGHT")
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
 
@@ -2347,6 +2360,13 @@ function GC.Sell.Attach(f, geometry)
   cancelHeldBackHit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   container.cancelHeldBackHit = cancelHeldBackHit
 
+  -- Row-1 bounding, settable only now that the cancel cluster exists: the post queue's
+  -- held-back count sits right-aligned against it, and the head label stretches between the
+  -- Post button and that count -- so a long item name TRUNCATES instead of running under the
+  -- controls to its right, which is exactly the collision the old one-row toolbar shipped.
+  queueHeldBack:SetPoint("RIGHT", cancelHeldBack, "LEFT", -12, 0)
+  queueLabel:SetPoint("RIGHT", queueHeldBack, "LEFT", -8, 0)
+
   paintCancelButton()
 
   -- The real keybinding (Bindings.xml, auto-loaded by the client, not listed in the .toc -- see
@@ -2360,10 +2380,10 @@ function GC.Sell.Attach(f, geometry)
 
   container.summary = {}
   for i, stat in ipairs({ { "cost", "KNOWN COST" }, { "listed", "LISTED VALUE" }, { "profit", "EST. PROFIT" } }) do
-    local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -24); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
+    local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -48); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
     local value = Theme.Num(container, 14, true); value:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -1); container.summary[stat[1]] = value
   end
-  local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -60); header:SetPoint("TOPRIGHT", 0, -60); header:SetHeight(16); header.cells = {}
+  local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -84); header:SetPoint("TOPRIGHT", 0, -84); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
@@ -2383,7 +2403,7 @@ function GC.Sell.Attach(f, geometry)
     end
   end
   layoutCells(header)
-  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")
+  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -102); scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this
