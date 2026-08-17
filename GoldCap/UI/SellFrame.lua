@@ -263,7 +263,10 @@ paintQueueButton = function()
   end
   if heldBack then
     if #queueSkipped > 0 then
-      heldBack:SetText(("%d held back"):format(#queueSkipped))
+      -- "from posting", because the cancel queue paints an identical counter near its own
+      -- button (paintCancelButton below) and two bare "N held back" strings on one screen
+      -- would leave the reader guessing which queue each one describes.
+      heldBack:SetText(("%d held back from posting"):format(#queueSkipped))
       heldBack:Show()
       if heldBackHit then heldBackHit:Show() end
     else
@@ -2276,7 +2279,9 @@ function GC.Sell.Attach(f, geometry)
   -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
   -- are painted, and onQueueClick for what a click does.
   local queueButton = Theme.Button(container, "primary")
-  queueButton:SetSize(110, 20)
+  -- 130, not 110: the empty-state label is "Nothing to post" (paintQueueButton), and the
+  -- narrower button let that text spill past its own borders.
+  queueButton:SetSize(130, 20)
   queueButton:SetPoint("TOPLEFT")
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
@@ -2327,7 +2332,8 @@ function GC.Sell.Attach(f, geometry)
   -- burns a deposit and earns the quieter look. See paintCancelButton for the states and
   -- onCancelQueueClick for what a click does (and, more importantly, does not) do.
   local cancelButton = Theme.Button(container, "ghost")
-  cancelButton:SetSize(110, 20)
+  -- 130 for the same reason as the Post button: "Nothing to cancel" must fit inside.
+  cancelButton:SetSize(130, 20)
   cancelButton:SetPoint("TOPRIGHT")
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
@@ -2360,12 +2366,15 @@ function GC.Sell.Attach(f, geometry)
   cancelHeldBackHit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   container.cancelHeldBackHit = cancelHeldBackHit
 
-  -- Row-1 bounding, settable only now that the cancel cluster exists: the post queue's
-  -- held-back count sits right-aligned against it, and the head label stretches between the
-  -- Post button and that count -- so a long item name TRUNCATES instead of running under the
-  -- controls to its right, which is exactly the collision the old one-row toolbar shipped.
-  queueHeldBack:SetPoint("RIGHT", cancelHeldBack, "LEFT", -12, 0)
-  queueLabel:SetPoint("RIGHT", queueHeldBack, "LEFT", -8, 0)
+  -- Row-1 bounding, settable only now that the cancel cluster exists: the head label
+  -- stretches between the Post button and the cancel cluster, so a long item name TRUNCATES
+  -- instead of running under the controls to its right -- exactly the collision the old
+  -- one-row toolbar shipped. The post queue's own held-back count does NOT sit here: two
+  -- identical "N held back" strings side by side (one the post queue's, one the cancel
+  -- queue's) read as one meaningless phrase, so the post one moves to row 2's empty left
+  -- end, under the cluster it belongs to, and says which queue it is about in words.
+  queueLabel:SetPoint("RIGHT", cancelHeldBack, "LEFT", -12, 0)
+  queueHeldBack:SetPoint("TOPLEFT", 0, -29)
 
   paintCancelButton()
 

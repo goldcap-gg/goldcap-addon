@@ -4810,6 +4810,9 @@ local function createFrame()
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, "GoldCap Sniper")
   f.gearBtn, f.closeBtn = titleBar.gear, titleBar.close
+  -- Kept as a field so docked mode (GC.Sniper.SetDocked below) can blank the duplicate
+  -- chrome: inside the auction house the AH frame already provides the title and the close.
+  f.titleBar = titleBar
   -- T10: opens/closes the in-game settings overlay (UI/SettingsFrame.lua) -- built lazily on
   -- first click, same lazy-construction pattern as this window's own purchase confirm dialog
   -- (createDialog, below).
@@ -5156,6 +5159,12 @@ function GC.Sniper.SetDocked(host)
     frame.goldcapDockHost = host
     frame:SetMovable(false)
     if frame.resizeHandle then frame.resizeHandle:Hide() end
+    -- Docked chrome: the auction house already shows a "GoldCap" title and its own close
+    -- button, and the AH portrait overlaps where our title text sits -- so the window's own
+    -- duplicates go. The BAR stays (every content offset hangs from its height) and so does
+    -- the gear; only the text and the X are the duplicates.
+    if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText("") end
+    if frame.closeBtn then frame.closeBtn:Hide() end
     frame:SetParent(host)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT")
@@ -5170,6 +5179,8 @@ function GC.Sniper.SetDocked(host)
     frame:SetParent(UIParent)
     frame:SetMovable(true)
     if frame.resizeHandle then frame.resizeHandle:Show() end
+    if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText("GoldCap Sniper") end
+    if frame.closeBtn then frame.closeBtn:Show() end
     frame:ClearAllPoints()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
     local saved = cfg and cfg.window
