@@ -503,6 +503,29 @@ local function renderList()
         qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
     end
   end
+
+  -- A pin is a standing instruction and outranks the automatic list -- exactly how
+  -- WatchSet.Select already reserves pins ahead of the poll set's own capacity, pins first,
+  -- then everything else. refreshRows only ever renders list[1..WIN.ROW_CAP]; appending a
+  -- pin's placeholder at the tail above is not enough once #kept alone clears that cap -- the
+  -- placeholder (or a real pinned deal sorted low enough) lands past the cut and never gets a
+  -- row, and a pin with no row can never be right-clicked off (see clearDeals). Reserve their
+  -- rows here, before the cap, rather than leaving them to be truncated away after it. This is
+  -- a stable partition, so it is a no-op whenever #kept does not even reach the cap.
+  if #kept > WIN.ROW_CAP then
+    local pinnedRows, otherRows = {}, {}
+    for i = 1, #kept do
+      local entry = kept[i]
+      if isPinned(entry.itemID) then
+        pinnedRows[#pinnedRows + 1] = entry
+      else
+        otherRows[#otherRows + 1] = entry
+      end
+    end
+    local ordered = pinnedRows
+    for i = 1, #otherRows do ordered[#ordered + 1] = otherRows[i] end
+    kept = ordered
+  end
   return kept
 end
 
@@ -673,6 +696,12 @@ end
 -- applyColumnVisibility (below createRow) whenever the scroll/content width changes.
 local hiddenColumns = {}
 
+-- itemID -> { icon, named } once setRowDeal has resolved a name/icon through Item:ContinueOnItemLoad.
+-- A quality-colored name and icon are properties of the ITEM, never of a particular deal on it,
+-- so a tiered reagent's second sighting (a fresh price, a different row slot, a later render)
+-- never needs its own Item object, its own closure, or its own Theme.QualityMarkup tooltip scan.
+local nameIconCache = {}
+
 local function setRowDeal(row, deal)
   -- (fix round 1, M3) A pooled row's ping flash must not migrate onto whatever deal gets
   -- reassigned into this same screen slot on the next refresh -- Stop() doesn't fire
@@ -690,6 +719,33 @@ local function setRowDeal(row, deal)
   -- two-click flow it always was. Neither label changes what the click DOES: openDialog still
   -- re-verifies live before anything can arm, so an aged hint can only cost a beat, never gold.
   local verdict = verdictFor(deal)
+  local pinned = isPinned(deal.itemID)
+  local value = GC.Data.GetItemValue(deal.itemID)
+  local trend = value and value.trend
+
+  -- refreshRows runs on every browse page while a full scan streams, on every watch-loop
+  -- observation, on every verdict stamp, and off the 0.25s ticker -- with up to WIN.ROW_CAP
+  -- rows that is a fresh Item object, a fresh ContinueOnItemLoad closure and a Theme.QualityMarkup
+  -- tooltip scan per row, several times a second, even for a row whose content never moved.
+  -- Skip the whole repaint once nothing the player can actually see has changed since this row
+  -- slot was last stamped -- every field folded into `sig` drives a visible pixel below,
+  -- including ones the verdict/pin/trend systems can change out from under an unchanged `deal`
+  -- object, so this is a value comparison, never an identity (`deal1 == deal2`) one. A hidden
+  -- row (pooled slot reused after sitting empty) always falls through and repaints regardless --
+  -- otherwise a row that goes empty and comes back showing the exact same deal would stay
+  -- invisible, `row:Show()` below being the one thing the skip must never skip.
+  local sig = table.concat({
+    deal.itemID, deal.unitPrice, deal.qty, tostring(deal.avail), tostring(deal.tier),
+    deal.falling and 1 or 0, deal.profit, tostring(deal.discount),
+    deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
+    pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
+    tostring(trend),
+  }, "|")
+  if row._dealSig == sig and row:IsShown() then
+    return
+  end
+  row._dealSig = sig
+
   if deal.pinPlaceholder then
     -- Nothing to buy here -- this is a pin that has fallen out of the deals list, not a deal --
     -- so the row says so plainly instead of falling through into the verdict/label logic below.
@@ -722,7 +778,7 @@ local function setRowDeal(row, deal)
   -- Blue stays up even under the cursor: hover already announces itself with the full-row
   -- highlight wash, so there is nothing to gain from also taking the rail and everything to
   -- lose -- the one row you are pointing at would be the one row that stops telling you.
-  if isPinned(deal.itemID) then
+  if pinned then
     row.rail:SetColorTexture(Theme.color.watch[1], Theme.color.watch[2], Theme.color.watch[3])
     row.rail:Show()
   else
@@ -761,38 +817,49 @@ local function setRowDeal(row, deal)
   -- -- import-sourced values only, absent for bundled/no-import (dim dash then). Reads
   -- GC.Data.GetItemValue directly rather than through `driver` -- `driver` (below) isn't
   -- declared yet at this point in the file, and driver.getValue is that same function anyway.
-  local value = GC.Data.GetItemValue(deal.itemID)
-  if value and value.trend then
-    local glyph = value.trend < 0 and "▼" or "▲"
-    row.trendText:SetText(("%s%d%%"):format(glyph, math.abs(value.trend)))
-    local tc = value.trend < 0 and Theme.color.red or Theme.color.green
+  if trend then
+    local glyph = trend < 0 and "▼" or "▲"
+    row.trendText:SetText(("%s%d%%"):format(glyph, math.abs(trend)))
+    local tc = trend < 0 and Theme.color.red or Theme.color.green
     row.trendText:SetTextColor(tc[1], tc[2], tc[3])
   else
     row.trendText:SetText("—")
     row.trendText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   end
 
-  row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
-  row.icon:SetTexture(nil)
+  -- A quality-colored name and icon are properties of the item, not of this particular deal on
+  -- it -- once resolved for an itemID they never change, so a second sighting (a fresher price,
+  -- a different pooled row slot, a later render) is served from cache instead of paying for
+  -- another Item object, another closure and another QualityMarkup tooltip scan.
+  local cached = nameIconCache[deal.itemID]
+  if cached then
+    row.icon:SetTexture(cached.icon)
+    row.nameText:SetText(cached.named .. qtySuffix(deal))
+  else
+    row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
+    row.icon:SetTexture(nil)
 
-  local item = Item:CreateFromItemID(deal.itemID)
-  item:ContinueOnItemLoad(function()
-    if row.deal ~= deal then return end -- row was repurposed before the async load finished
-    row.icon:SetTexture(item:GetItemIcon())
-    local quality = item:GetItemQuality()
-    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
-    local label = item:GetItemName() or ("item " .. deal.itemID)
-    -- Reagent quality in front of the name. Two tiers of the same reagent are
-    -- separate itemIDs and so already price separately -- this is identification,
-    -- not arithmetic, but on a list of ores and herbs it is the difference
-    -- between reading a row and guessing at it.
-    local named = (qc and qc:WrapTextInColorCode(label) or label)
-    if Theme.QualityMarkup then
-      local pip = Theme.QualityMarkup(deal.itemID, 12)
-      if pip ~= "" then named = pip .. " " .. named end
-    end
-    row.nameText:SetText(named .. qtySuffix(deal))
-  end)
+    local item = Item:CreateFromItemID(deal.itemID)
+    item:ContinueOnItemLoad(function()
+      if row.deal ~= deal then return end -- row was repurposed before the async load finished
+      local icon = item:GetItemIcon()
+      local quality = item:GetItemQuality()
+      local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+      local label = item:GetItemName() or ("item " .. deal.itemID)
+      -- Reagent quality in front of the name. Two tiers of the same reagent are
+      -- separate itemIDs and so already price separately -- this is identification,
+      -- not arithmetic, but on a list of ores and herbs it is the difference
+      -- between reading a row and guessing at it.
+      local named = (qc and qc:WrapTextInColorCode(label) or label)
+      if Theme.QualityMarkup then
+        local pip = Theme.QualityMarkup(deal.itemID, 12)
+        if pip ~= "" then named = pip .. " " .. named end
+      end
+      nameIconCache[deal.itemID] = { icon = icon, named = named }
+      row.icon:SetTexture(icon)
+      row.nameText:SetText(named .. qtySuffix(deal))
+    end)
+  end
 
   row:Show()
 end
@@ -1490,7 +1557,12 @@ local function advanceBrowseScan(token)
   if n > streamRawCount then
     local tail = {}
     for i = streamRawCount + 1, n do tail[#tail + 1] = browseResults[i] end
-    local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue)
+    -- The config is not optional here even though RowsFromBrowse tolerates its absence: the
+    -- quantity every row advertises is now SniperDecision's own demand cap, and that cap reads
+    -- maxDailyDemandShare/maxQuantity off these settings. Omitting it does not fall back to the
+    -- old sold/day estimate -- it fails closed to a quantity of 1 for every row on the board,
+    -- silently, which reads as "the scan found nothing worth buying" rather than as a bug.
+    local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue, GC.db.settings.sniper)
     for _, row in ipairs(tailRows) do streamRows[#streamRows + 1] = row end
     streamRawCount = n
   end
@@ -1837,21 +1909,46 @@ local function displayDecisionAmount(value)
   return value and formatColumnAmount(value) or "—"
 end
 
--- The diagnostic is evidence, not a purchase surface. Its height follows the rendered text so
--- every ordered reason remains visible at the player's current font scale. The buttons and
--- requote banner stay bottom-anchored; changing baseHeight moves that whole block together.
+-- The diagnostic is evidence, not a purchase surface, and (fix round N) is now hidden unless
+-- the player has turned on GC.db.settings.sniper.debug -- it is a bug-report transcript, not
+-- something a player one click from spending gold needs to see by default. Its height still
+-- follows the rendered text when it IS shown, so every ordered reason remains visible at the
+-- player's current font scale; when it is not shown it contributes nothing, and `status`
+-- anchors directly below wherever the (open or closed) evidence grid ends instead. The buttons
+-- and requote banner stay bottom-anchored; changing baseHeight moves that whole block together.
 local function resizeDialogDiagnostics()
+  local evidenceBottom = dialog.detailsOpen and dialog.evidenceTopOpen or dialog.evidenceTopClosed
+  dialog.mvNote:ClearAllPoints()
+  dialog.mvNote:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
+  dialog.mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
+
   local diagnostic = dialog.diagnosticText
-  local measured = type(diagnostic.GetStringHeight) == "function" and diagnostic:GetStringHeight() or nil
-  if type(measured) ~= "number" or measured <= 0 then measured = dialog.diagnosticMinimumHeight end
-  local height = math.max(dialog.diagnosticMinimumHeight, math.ceil(measured))
-  diagnostic:SetHeight(height)
+  diagnostic:ClearAllPoints()
+  diagnostic:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
+  diagnostic:SetPoint("RIGHT", -Theme.pad.m, 0)
+
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  local debugOn = (cfg and cfg.debug) and true or false
+  local height, gap = 0, 0
+  if debugOn then
+    diagnostic:Show()
+    local measured = type(diagnostic.GetStringHeight) == "function" and diagnostic:GetStringHeight() or nil
+    if type(measured) ~= "number" or measured <= 0 then measured = dialog.diagnosticMinimumHeight end
+    height = math.max(dialog.diagnosticMinimumHeight, math.ceil(measured))
+    gap = dialog.diagnosticGaps
+    diagnostic:SetHeight(height)
+    dialog.status:ClearAllPoints()
+    dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
+    dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
+  else
+    diagnostic:Hide()
+    dialog.status:ClearAllPoints()
+    dialog.status:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
+    dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
+  end
   dialog.diagnosticHeight = height
 
-  dialog.status:ClearAllPoints()
-  dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
-  dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
-  dialog.baseHeight = dialog.fixedHeight + dialog.diagnosticGaps + height
+  dialog.baseHeight = dialog.fixedHeight + gap + height
   local bannerVisible = dialog.banner and dialog.banner:IsShown()
   dialog:SetHeight(dialog.baseHeight + (bannerVisible and LIM.REQUOTE_BANNER_HEIGHT or 0))
 end
@@ -1885,6 +1982,29 @@ local function stampDialogFromDecision(deal, decision)
   end
   firstReason = firstReason or (decision.reasons and decision.reasons[1]) or "live_verification_required"
 
+  -- Verdict block: what a click DOES, not a debug dump. Money is formatColumnAmount (via
+  -- displayDecisionAmount) and this decision snapshot alone -- nothing here is recomputed.
+  -- The item label reuses the SAME per-itemID name/icon cache setRowDeal populates -- the
+  -- dialog only ever opens from a row's own Buy click, so that row has already resolved it;
+  -- "item <id>" is the same placeholder setDialogHeader itself falls back to when it has not.
+  local itemLabel = (nameIconCache[deal.itemID] and nameIconCache[deal.itemID].named)
+    or ("item " .. deal.itemID)
+  if decision.buyable then
+    dialog.verdictHead:SetText(("Buy %d × %s for %s"):format(
+      quantity, itemLabel, displayDecisionAmount(entryTotal)))
+    dialog.verdictHead:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    dialog.verdictSub:SetText(decision.stressProfit
+      and ("you should clear about %s"):format(displayDecisionAmount(decision.stressProfit))
+      or "")
+    dialog.verdictSub:Show()
+  else
+    -- Same refusal red as profitText below, and the same firstReason logic above -- never a
+    -- second copy of either.
+    dialog.verdictHead:SetText(GC.SniperDecision.ReasonText(firstReason))
+    dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
+    dialog.verdictSub:Hide()
+  end
+
   local publicStatus = decision.status or "WATCH"
   local computedStatus = decision.computedStatus or publicStatus
   local diagnosticReasons = table.concat(decision.reasons or {}, ", ")
@@ -1913,7 +2033,7 @@ local function stampDialogFromDecision(deal, decision)
   dialog.soldText:SetText(market.soldPerDay and ("%.1f"):format(market.soldPerDay) or "—")
   dialog.sellThroughText:SetText(market.sellThroughBps and ("%.1f%%"):format(market.sellThroughBps / 100) or "—")
   dialog.sourceAgeText:SetText(sourceAge and ("%ds"):format(sourceAge) or "—")
-  dialog.reasonText:SetText(firstReason)
+  dialog.reasonText:SetText(GC.SniperDecision.ReasonText(firstReason))
   if decision.status == "SAFE" then
     dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
   else
@@ -2924,7 +3044,8 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     C_AuctionHouse.CancelCommoditiesPurchase()
     pending.cancelRequested = true
     drainCommodityPurchase(row)
-    armCheck(row, deal, nil, "requote_broke_safety — Check again", true)
+    armCheck(row, deal, nil,
+      GC.SniperDecision.ReasonText("requote_broke_safety") .. " — Check again", true)
     return
   end
 
@@ -3403,7 +3524,8 @@ local function applyChosenQty(row, n)
   local decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
   if not decision or not decision.buyable or decision.status ~= "SAFE" then
     armCheck(row, deal, decision or { status = "WATCH", reasons = { "live_verification_required" } },
-      (decision and decision.reasons and decision.reasons[1]) or "live_verification_required", false)
+      GC.SniperDecision.ReasonText((decision and decision.reasons and decision.reasons[1])
+        or "live_verification_required"), false)
     return
   end
 
@@ -3454,10 +3576,12 @@ DG.WIDTH = 320
 DG.ICON = 24
 DG.TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
 DG.GRID_ROW_H = 17
--- Quantity and quick-fill precede the ten immutable decision/evidence fields below.
-DG.GRID_ROWS = 12
--- Fix 2 quick-fill row geometry: four small ghost buttons sharing grid row 2 (right under the
--- Quantity row) -- they don't fit alongside that row's own label + "of N" + edit box on one
+-- The label/value grid now holds only the ten immutable decision/evidence fields (Status
+-- through Reason) -- Quantity and its quick-fill row moved out into their own always-visible
+-- block (DG.QTY_ROWS below), reachable whether Details is open or not.
+DG.GRID_ROWS = 10
+-- Fix 2 quick-fill row geometry: four small ghost buttons sharing the row right under
+-- Quantity -- they don't fit alongside that row's own label + "of N" + edit box on one
 -- 296px-wide line, so they get their own row instead of crowding it.
 DG.QTY_QUICKFILL_H = 16
 DG.QTY_QUICKFILL_W = 34
@@ -3473,12 +3597,43 @@ DG.PRIMARY_H = 26
 DG.CANCEL_H = 20
 -- title line + gap + icon/name/chip row + gap + reserved suspect-note block + gap
 DG.HEADER_H = Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s + DG.ICON + Theme.pad.s + DG.NOTE_H + Theme.pad.s
-DG.GRID_TOP = -DG.HEADER_H
+
+-- Verdict block: one prominent headline -- what the click DOES and what it costs when
+-- buyable, the refusal sentence in refusal red when it is not -- plus, only when buyable, a
+-- quieter sub-line naming the stress profit. Both word-wrap, so this is a fixed, generous
+-- two-line-each reservation rather than a third GetStringHeight()-measured block --
+-- diagnosticText already owns the one dynamically-measured block this dialog needs.
+DG.VERDICT_HEAD_H = 28
+DG.VERDICT_SUB_H = 26
+DG.VERDICT_H = Theme.pad.s + DG.VERDICT_HEAD_H + Theme.pad.xs + DG.VERDICT_SUB_H + Theme.pad.s
+
+-- Quantity + its quick-fill row: the one interactive control in this dialog besides the
+-- buttons, so it stays visible above the Details toggle rather than being hidden behind it.
+DG.QTY_ROWS = 2
+DG.QTY_H = DG.QTY_ROWS * DG.GRID_ROW_H
+DG.TOGGLE_H = DG.GRID_ROW_H
+
+-- Measured down from the header, in the order the dialog actually stacks: verdict, then
+-- Quantity, then the Details toggle, then (only while open) the evidence grid.
+DG.VERDICT_TOP = -DG.HEADER_H
+DG.QTY_TOP = DG.VERDICT_TOP - DG.VERDICT_H
+DG.TOGGLE_TOP = DG.QTY_TOP - DG.QTY_H
+DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
+-- Where the diagnostic/status block starts: right after the (shown) evidence grid when
+-- Details is open, or right after the toggle itself -- the grid simply skipped -- when it is
+-- closed. resizeDialogDiagnostics picks between these depending on dialog.detailsOpen.
+DG.EVIDENCE_BOTTOM_OPEN = DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs
+DG.EVIDENCE_BOTTOM_CLOSED = DG.TOGGLE_TOP - DG.TOGGLE_H - Theme.pad.xs
+
 -- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
 -- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
 DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
-DG.FIXED_HEIGHT = DG.HEADER_H + DG.GRID_ROWS * DG.GRID_ROW_H
+-- Two fixed-height budgets, Details closed and open -- resizeDialogDiagnostics only ever
+-- READS dialog.fixedHeight (same contract as before); applyDetailsState (createDialog) is
+-- the one place that picks between these and writes it, on open/close.
+DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.TOGGLE_H
   + DG.STATUS_H + DG.CONTROLS_H
+DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H
 
 -- Fix 2: a bordered box with a recolorable border, for the Quantity EditBox's focus ring.
 -- Duplicated from SettingsFrame.lua's own private `borderedBox` (that one is a file-local
@@ -3570,7 +3725,10 @@ local function createDialog()
   -- Sniper window instead, and the dialog's own OnHide (which calls abortRowPurchase) never
   -- fires -- silently orphaning an in-flight purchase's pinned row.
   _G.GoldCapSniperConfirm = d
-  d.fixedHeight = DG.FIXED_HEIGHT
+  -- Collapsed-by-default placeholder; applyDetailsState (below, once the toggle and evidence
+  -- rows it drives actually exist) overwrites this from the restored setting before the
+  -- dialog is ever shown -- openDialog always stamps immediately after this returns.
+  d.fixedHeight = DG.FIXED_HEIGHT_CLOSED
   -- Match the two actual anchors: grid→diagnostic and diagnostic→status.
   d.diagnosticGaps = Theme.pad.xs + Theme.pad.xs
   d.diagnosticMinimumHeight = DG.DIAGNOSTIC_MIN_H
@@ -3628,13 +3786,30 @@ local function createDialog()
   suspectNote:Hide()
   d.suspectNote = suspectNote
 
+  -- Verdict block, directly under the item header: a prominent headline (buy action or
+  -- refusal sentence) and, only while buyable, a quieter sub-line naming the stress profit --
+  -- see stampDialogFromDecision for the text/color logic. Both word-wrap into the fixed
+  -- DG.VERDICT_HEAD_H/DG.VERDICT_SUB_H budgets above.
+  local verdictHead = Theme.Label(d, 13)
+  verdictHead:SetPoint("TOPLEFT", Theme.pad.m, DG.VERDICT_TOP)
+  verdictHead:SetPoint("RIGHT", -Theme.pad.m, 0)
+  verdictHead:SetWordWrap(true)
+  d.verdictHead = verdictHead
+
+  local verdictSub = Theme.Label(d, 11)
+  verdictSub:SetPoint("TOPLEFT", Theme.pad.m, DG.VERDICT_TOP - DG.VERDICT_HEAD_H - Theme.pad.xs)
+  verdictSub:SetPoint("RIGHT", -Theme.pad.m, 0)
+  verdictSub:SetWordWrap(true)
+  verdictSub:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  d.verdictSub = verdictSub
+
   -- Label/value grid: one row per number the player needs to decide with, aligned two-column
   -- (Theme.Label left, Theme.Num right) -- updateDialogAmounts re-stamps the value slots in
   -- place as fresher quotes come in; the grid itself never grows or reflows (fixed Y per row,
   -- same reasoning as DG.GRID_TOP/DG.GRID_ROW_H above: a chained anchor would let a wrapped
   -- neighbor note reflow rows underneath it).
-  local function gridRow(index, label)
-    local y = DG.GRID_TOP - (index - 1) * DG.GRID_ROW_H
+  local function gridRow(top, index, label)
+    local y = top - (index - 1) * DG.GRID_ROW_H
     local labelFS = Theme.Label(d, 11)
     labelFS:SetPoint("TOPLEFT", Theme.pad.m, y)
     labelFS:SetText(label)
@@ -3644,15 +3819,17 @@ local function createDialog()
     return labelFS, valueFS
   end
 
-  -- Fix 2: row 1 is Quantity -- commodities only editable (via qtyBox below); an item
-  -- auction's row instead shows this plain dim qtyLotText ("N (whole lot)"), since a lot
-  -- cannot be split. refreshQtyRow (above) toggles which of the two is shown/enabled.
-  local _, qtyLotText = gridRow(1, "Quantity")
+  -- Quantity + its quick-fill row: the one interactive control in this dialog besides Buy/
+  -- Cancel, so it lives here -- above the Details toggle, always reachable -- rather than
+  -- inside the collapsible evidence grid below. Fix 2: commodities only editable (via qtyBox);
+  -- an item auction's row instead shows this plain dim qtyLotText ("N (whole lot)"), since a
+  -- lot cannot be split. refreshQtyRow (above) toggles which of the two is shown/enabled.
+  local _, qtyLotText = gridRow(DG.QTY_TOP, 1, "Quantity")
   qtyLotText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   d.qtyLotText = qtyLotText
 
   local qtyBox = makeQtyEditBox(d, 64, DG.GRID_ROW_H - 3)
-  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, DG.GRID_TOP - 1)
+  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP - 1)
   d.qtyBox = qtyBox
 
   local qtyOfLabel = Theme.Label(d, 11) -- dim "of N" -- shown when the true available qty is known
@@ -3701,7 +3878,7 @@ local function createDialog()
     if prevBtn then
       btn:SetPoint("TOPRIGHT", prevBtn, "TOPLEFT", -Theme.pad.xs, 0)
     else
-      btn:SetPoint("TOPRIGHT", -Theme.pad.m, DG.GRID_TOP - DG.GRID_ROW_H)
+      btn:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP - DG.GRID_ROW_H)
     end
     btn:SetLabel(pct .. "%")
     btn:SetScript("OnClick", function() applyQuickFillQty(pct) end)
@@ -3710,43 +3887,98 @@ local function createDialog()
   end
   d.quickFillBtns = quickFillBtns
 
-  local _, decisionStatusText = gridRow(3, "Status")
-  local _, unitPriceText = gridRow(4, "Entry price (avg fill)")
-  local _, totalCostText = gridRow(5, "Entry total")
-  local _, exitUnitText = gridRow(6, "Stress exit unit")
-  local _, profitText = gridRow(7, "Stress profit")
-  local _, mvText = gridRow(8, "Market reference")
-  local _, soldText = gridRow(9, "Sold/day")
-  local _, sellThroughText = gridRow(10, "Sell-through")
-  local _, sourceAgeText = gridRow(11, "Source age")
-  local _, reasonText = gridRow(12, "Reason")
+  -- Details toggle: the 12-row evidence grid used to be the whole dialog below the item
+  -- header; now it is opt-in, collapsed by default, restored per the player's own last choice
+  -- (GC.db.settings.sniper.dialogDetailsOpen) rather than re-defaulting shut every time.
+  local detailsToggle = Theme.Button(d, "ghost")
+  detailsToggle:SetHeight(DG.TOGGLE_H)
+  detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, DG.TOGGLE_TOP)
+  detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, DG.TOGGLE_TOP)
+  d.detailsToggle = detailsToggle
+
+  -- The ten immutable decision/evidence fields -- collapsed behind Details above. Every pair
+  -- this loop builds is tracked in d.evidenceRows purely so applyDetailsState (below) can
+  -- Show()/Hide() both halves of each row together; the values themselves are still stamped
+  -- unconditionally by stampDialogFromDecision whether the row is visible or not, so expanding
+  -- Details never shows anything stale.
+  d.evidenceRows = {}
+  local function evidenceRow(index, label)
+    local labelFS, valueFS = gridRow(DG.GRID_TOP, index, label)
+    d.evidenceRows[#d.evidenceRows + 1] = { label = labelFS, value = valueFS }
+    return valueFS
+  end
+  local decisionStatusText = evidenceRow(1, "Status")
+  local unitPriceText = evidenceRow(2, "Entry price (avg fill)")
+  local totalCostText = evidenceRow(3, "Entry total")
+  local exitUnitText = evidenceRow(4, "Stress exit unit")
+  local profitText = evidenceRow(5, "Stress profit")
+  local mvText = evidenceRow(6, "Market reference")
+  local soldText = evidenceRow(7, "Sold/day")
+  local sellThroughText = evidenceRow(8, "Sell-through")
+  local sourceAgeText = evidenceRow(9, "Source age")
+  local reasonText = evidenceRow(10, "Reason")
   d.decisionStatusText = decisionStatusText
   d.unitPriceText, d.totalCostText, d.exitUnitText = unitPriceText, totalCostText, exitUnitText
   d.profitText, d.mvText, d.soldText = profitText, mvText, soldText
   d.sellThroughText, d.sourceAgeText, d.reasonText = sellThroughText, sourceAgeText, reasonText
 
+  -- Where diagnosticText/mvNote/status actually sit is a function of dialog.detailsOpen --
+  -- resizeDialogDiagnostics (above) re-anchors them on every stamp and every toggle click, so
+  -- the SetPoint calls below are only a safe initial placement before that first runs.
+  d.evidenceTopOpen = DG.EVIDENCE_BOTTOM_OPEN
+  d.evidenceTopClosed = DG.EVIDENCE_BOTTOM_CLOSED
+
   -- Sits between the grid and the status line; shown only when the clamp above actually bit.
   local mvNote = Theme.Label(d, 11)
-  mvNote:SetPoint("TOPLEFT", Theme.pad.m, DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs)
+  mvNote:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
   mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   mvNote:SetWordWrap(true)
   mvNote:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
   mvNote:Hide()
   d.mvNote = mvNote
 
+  -- Hidden unless GC.db.settings.sniper.debug is on (see resizeDialogDiagnostics) -- this is
+  -- what a bug report gets copied from, not something a player one click from spending gold
+  -- needs to see by default. The text it is given stays byte-identical either way.
   local diagnosticText = Theme.Label(d, 11)
-  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs)
+  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
   diagnosticText:SetPoint("RIGHT", -Theme.pad.m, 0)
   diagnosticText:SetHeight(d.diagnosticMinimumHeight)
   diagnosticText:SetJustifyH("LEFT")
   diagnosticText:SetWordWrap(true)
+  diagnosticText:Hide()
   d.diagnosticText = diagnosticText
 
   local status = Theme.Label(d, 11)
-  status:SetPoint("TOPLEFT", diagnosticText, "BOTTOMLEFT", 0, -Theme.pad.xs)
+  status:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
   status:SetPoint("RIGHT", -Theme.pad.m, 0)
   status:SetWordWrap(true)
   d.status = status
+
+  -- Applies (and, on a real toggle click, flips and persists) whether the evidence grid is
+  -- shown. `dialog` -- the module upvalue -- is still nil the one time this runs from inside
+  -- createDialog itself, seeding the initial state; openDialog's own stampDialogFromDecision
+  -- call, right after `dialog = dialog or createDialog()`, performs the first real resize.
+  local function applyDetailsState(open)
+    d.detailsOpen = open and true or false
+    d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED
+    d.detailsToggle:SetLabel(d.detailsOpen and "Hide details ▾" or "Show details ▸")
+    for _, pair in ipairs(d.evidenceRows) do
+      if d.detailsOpen then
+        pair.label:Show()
+        pair.value:Show()
+      else
+        pair.label:Hide()
+        pair.value:Hide()
+      end
+    end
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    if cfg then cfg.dialogDetailsOpen = d.detailsOpen end
+    if dialog then resizeDialogDiagnostics() end
+  end
+  detailsToggle:SetScript("OnClick", function() applyDetailsState(not d.detailsOpen) end)
+  local savedCfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  applyDetailsState(savedCfg and savedCfg.dialogDetailsOpen)
 
   -- Anchored off the BOTTOM, above the stacked buttons, and hidden by default. Showing it
   -- grows the dialog by exactly its own height (see the DIALOG_* block comment above), so the
@@ -4287,17 +4519,19 @@ local function createHeaderRow(f)
     disc = { "Discount", "Discount vs market value from your GoldCap import" },
     unit = { "Unit price", "Per-unit price of this auction" },
     total = { "Price", "Total cost to buy this auction" },
-    -- What this column is NOT is the point. It is a lead, computed from an
-    -- imported market value and a suggested lot size, before anything has looked
-    -- at the live order book. Check does look, and routinely returns AVOID on a
-    -- row showing thousands of gold -- because the stress exit (what the book
-    -- would actually absorb) is a different, smaller number than 95% of market
-    -- value, and because the amount you may safely buy is capped by how fast the
-    -- item really sells. Saying so here is cheaper than a player learning it by
-    -- being surprised.
+    -- This column used to be measured against a lot size the engine would never approve --
+    -- a day's sold volume, capped at 200 -- while Check would go on to authorise one unit.
+    -- Rows advertised five figures and the very next click refused them, which is not a
+    -- caveat, it is the addon lying to the player. Both sides now multiply by the SAME
+    -- quantity: SniperDecision.DemandCap, called once at discovery and again live.
+    --
+    -- What honestly remains is a difference of EVIDENCE, not of arithmetic. Discovery reads
+    -- the import's snapshot of stock and turnover; Check reads the order book that exists at
+    -- the moment of the click. So Check can still land lower or refuse -- because the market
+    -- moved, not because the number here was inflated on purpose.
     profit = { "Profit",
-      "A lead, not a promise: resale at 95% of the imported market value, for the lot size shown beside the item.",
-      "Check re-derives it against the live order book before any gold moves, and often lands lower — or refuses outright.",
+      "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
+      "Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import.",
       "Sort by it to decide what to Check first, not to decide what to buy." },
   }
 

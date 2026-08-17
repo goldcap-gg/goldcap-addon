@@ -75,6 +75,11 @@ describe("Sniper purchase wiring", function()
       Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return {} end },
+      -- The diagnostic line only measures/shows with debug on (fix round N) -- this spec is
+      -- specifically about that auto-sizing behaviour, which stays byte-identical to before
+      -- once it is on, so it turns debug on rather than asserting the (separately covered)
+      -- default-off/no-measurement case.
+      db = { settings = { sniper = { debug = true } } },
     }
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
@@ -105,7 +110,7 @@ describe("Sniper purchase wiring", function()
     local hideBanner = getUpvalue(priceUpdated, "hideRequoteBanner")
     local diagnosticHeight, dialogHeight, statusAnchors = nil, nil, {}
     local function textSink()
-      return { SetText = function() end, SetTextColor = function() end }
+      return { SetText = function() end, SetTextColor = function() end, Show = function() end, Hide = function() end }
     end
     local diagnosticText = { text = "" }
     function diagnosticText:SetText(text) self.text = text end
@@ -113,6 +118,10 @@ describe("Sniper purchase wiring", function()
       return #self.text > 200 and 260 or 24 -- simulates wrapped 1.3x-font reason evidence
     end
     function diagnosticText:SetHeight(height) diagnosticHeight = height end
+    function diagnosticText:ClearAllPoints() end
+    function diagnosticText:SetPoint() end
+    function diagnosticText:Show() end
+    function diagnosticText:Hide() end
     local banner = {
       shown = false,
       head = textSink(),
@@ -123,6 +132,7 @@ describe("Sniper purchase wiring", function()
     function banner:Hide() self.shown = false end
     local fakeDialog = {
       fixedHeight = 400, diagnosticGaps = 4, diagnosticMinimumHeight = 108,
+      detailsOpen = false, evidenceTopOpen = -200, evidenceTopClosed = -100,
       SetHeight = function(_, height) dialogHeight = height end,
       banner = banner,
       diagnosticText = diagnosticText,
@@ -133,7 +143,9 @@ describe("Sniper purchase wiring", function()
       decisionStatusText = textSink(), quantityText = textSink(), unitPriceText = textSink(),
       totalCostText = textSink(), exitUnitText = textSink(), profitText = textSink(),
       mvText = textSink(), soldText = textSink(), sellThroughText = textSink(),
-      sourceAgeText = textSink(), reasonText = textSink(), mvNote = { Hide = function() end },
+      sourceAgeText = textSink(), reasonText = textSink(),
+      verdictHead = textSink(), verdictSub = textSink(),
+      mvNote = { Hide = function() end, ClearAllPoints = function() end, SetPoint = function() end },
     }
     setUpvalue(stamp, "dialog", fakeDialog)
     setUpvalue(stamp, "marketForDecision", function() return {} end)
