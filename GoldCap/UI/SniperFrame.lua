@@ -3953,6 +3953,14 @@ local function createDialog()
 
     local valueFS = Theme.Num(d, 12)
     valueFS:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+    -- Bounded on the left by its own label, right-justified, single line: an unbounded
+    -- TOPRIGHT-only FontString grows leftward without limit, and the Reason row's full
+    -- sentence ("Cheaper listings remain...") was painting straight past the dialog's edge
+    -- onto whatever the window sat over. Bounded, the engine ellipsizes it instead.
+    valueFS:SetPoint("LEFT", labelFS, "RIGHT", Theme.pad.s, 0)
+    valueFS:SetJustifyH("RIGHT")
+    valueFS:SetWordWrap(false)
+    valueFS:SetMaxLines(1)
     return labelFS, valueFS
   end
 
