@@ -735,6 +735,19 @@ describe("Flips row model (Sniper v3 §5)", function()
         assert.equal(24000, r.unit)
       end)
 
+      it("deflates the target when the current trend says the market is mid-spike", function()
+        -- Stored target 27300 with a +201% trend: pre-spike estimate 27300/3.01 = 9069 ->
+        -- grid 9000, below the 19800 match candidate -- no queueing above the wall at all.
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 201 })
+        assert.not_equal("queue", r.mode)
+        -- At or below the threshold the target stands untouched.
+        local calm = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 30 })
+        assert.equal("queue", calm.mode)
+        assert.equal(27300, calm.unit)
+      end)
+
       it("does nothing without a target -- untracked stock keeps match/undercut", function()
         local r = GC.Flips.RecommendPost(19800, 19800, 39100,
           { levels = ladder, sold = 222000 })

@@ -641,6 +641,36 @@ describe("SniperDecision", function()
       assertNoReason(result, "wall_absorbed")
     end)
 
+    it("deflates the release ceiling when the 24h trend says the import rode a spike", function()
+      -- Sanguithorn Tea arrived with trend +201%: mv (and with it the 24h-tape stressUnit)
+      -- tripled inside a day. The pre-spike estimate is stress / (1 + trend/100); above
+      -- SPIKE_TREND_PCT the release may not climb past it.
+      local input = deepWallInput()
+      input.market.soldPerDay = 100000
+      input.market.trend24hPct = 40 -- ceiling = 3000000 / 1.4 = 2142857
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(2142857, result.exitUnit)
+      assertReason(result, "wall_absorbed")
+
+      -- A violent spike deflates the ceiling below the wall's own clamp: no release at all.
+      local hard = deepWallInput()
+      hard.market.soldPerDay = 100000
+      hard.market.trend24hPct = 201 -- ceiling = 996677, under the 999999 clamp
+      local refused = evaluate(hard)
+      assert.equal("AVOID", refused.computedStatus)
+      assertNoReason(refused, "wall_absorbed")
+    end)
+
+    it("leaves the ceiling alone at or below the spike threshold", function()
+      local input = deepWallInput()
+      input.market.soldPerDay = 100000
+      input.market.trend24hPct = 30 -- exactly the threshold: not a spike
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(3000000, result.exitUnit)
+    end)
+
     it("never releases to stress past the end of a truncated book", function()
       -- The wall is the ONLY visible level: the book may simply be cut off below stress
       -- (levels are capped), so the units between the wall and the stress exit are

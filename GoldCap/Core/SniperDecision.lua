@@ -7,6 +7,16 @@ local _, GC = ...
 -- a real purchase. Setting it back to false is the rollback, and it is a one-word change.
 GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = true }
 
+-- Above this 24h market-value trend (whole percent), the import's stressUnit is treated as
+-- spike-contaminated and the velocity release's ceiling deflates to the pre-spike estimate,
+-- stress / (1 + trend/100). The stress exit is computed server-side from a 24-HOUR tape, so a
+-- multi-hour price spike lifts it with the spike -- measured in game 2026-08-17: Crystalline
+-- Glass exported stress 11g19s during a spike while the week's clearing price sat at 7g, and
+-- Sanguithorn Tea arrived with trend +201%. The server is growing a weekly-median cap of its
+-- own; this is the client-side layer for sessions running on an import taken mid-spike.
+-- GC.Flips.RecommendPost reads this same constant for the sell-side queue ceiling.
+GC.SniperDecision.SPIKE_TREND_PCT = 30
+
 local MAX_EXACT = 9007199254740991
 -- Three hours, calibrated to the upstream rather than picked round. Blizzard republishes
 -- commodity data roughly once an hour, so a two-hour limit left no room for a single missed
@@ -391,9 +401,23 @@ function GC.SniperDecision.Evaluate(input)
   -- price minus one copper, a guaranteed loss after the cut), which refused exactly the deep
   -- liquid dips the discovery list exists to surface. The Sanguithorn shape stays refused:
   -- depth WITHOUT velocity gets no release, same as PostFloor's velocity path on the sell side.
-  local wallBelowStress
-  if stressUnit and stressUnit > 0 and GC.Book and GC.Book.UnitsAtOrBelow then
-    wallBelowStress = GC.Book.UnitsAtOrBelow(live.levels, stressUnit)
+  -- The ceiling the release may climb to: stressUnit, deflated to the pre-spike estimate when
+  -- the 24h trend says the import was taken mid-spike (see SPIKE_TREND_PCT above). The BASE
+  -- exit clamp (min(stress, competing - 1)) keeps the raw stressUnit -- it is already bounded
+  -- by a real live ask; only the release, which prices PAST the visible clamp, must not chase
+  -- a spike-inflated number.
+  local releaseCeiling
+  if stressUnit and stressUnit > 0 then
+    releaseCeiling = stressUnit
+    local trend = market.trend24hPct
+    if isFinite(trend) and trend > GC.SniperDecision.SPIKE_TREND_PCT then
+      releaseCeiling = math.floor(stressUnit / (1 + trend / 100))
+    end
+    if releaseCeiling <= 0 then releaseCeiling = nil end
+  end
+  local wallBelowCeiling
+  if releaseCeiling and GC.Book and GC.Book.UnitsAtOrBelow then
+    wallBelowCeiling = GC.Book.UnitsAtOrBelow(live.levels, releaseCeiling)
   end
   local selected
   local sawCapital, sawAffordable, sawProfit, sawExhausted, sawCompeting = false, false, false, false, false
@@ -431,36 +455,36 @@ function GC.SniperDecision.Evaluate(input)
         -- book, never above stress; the walk stops at the first level whose queue exceeds
         -- the budget, since the queue only grows with height.
         local released = false
-        if fill.partialLevel and stressUnit and stressUnit > 0 and exitUnit < stressUnit
-            and config.wallAbsorbHours > 0 and wallBelowStress
+        if fill.partialLevel and releaseCeiling and exitUnit < releaseCeiling
+            and config.wallAbsorbHours > 0 and wallBelowCeiling
             and isFinite(market.soldPerDay) and market.soldPerDay >= 3 then
           local budgetUnits = market.soldPerDay * config.wallAbsorbHours / 24
           local best = exitUnit
-          -- The plain stress candidate needs PROOF the whole sub-stress book was visible: a
-          -- stocked ask above stressUnit. Levels arrive ascending and are capped, so a book
-          -- that merely ends below stress says nothing about the units between its last rung
-          -- and the exit -- releasing past the end of a truncated book prices against a queue
-          -- nobody measured. Rung candidates below need no such proof (their queues are fully
-          -- visible prefixes).
-          local sawAboveStress = false
+          -- The plain ceiling candidate needs PROOF the whole sub-ceiling book was visible: a
+          -- stocked ask above the ceiling. Levels arrive ascending and are capped, so a book
+          -- that merely ends below the ceiling says nothing about the units between its last
+          -- rung and the exit -- releasing past the end of a truncated book prices against a
+          -- queue nobody measured. Rung candidates below need no such proof (their queues are
+          -- fully visible prefixes).
+          local sawAboveCeiling = false
           for i = 1, #live.levels do
             local level = live.levels[i]
-            if (level.quantity or 0) > 0 and level.unitPrice > stressUnit then
-              sawAboveStress = true
+            if (level.quantity or 0) > 0 and level.unitPrice > releaseCeiling then
+              sawAboveCeiling = true
               break
             end
           end
-          local remaining = wallBelowStress - quantity
+          local remaining = wallBelowCeiling - quantity
           if remaining < 0 then remaining = 0 end
-          if sawAboveStress and remaining <= budgetUnits then
-            best = stressUnit
+          if sawAboveCeiling and remaining <= budgetUnits then
+            best = releaseCeiling
           else
             local queued = 0
             for i = 1, #live.levels do
               local level = live.levels[i]
               local levelQty = level.quantity or 0
               if levelQty > 0 then
-                if level.unitPrice > stressUnit then break end
+                if level.unitPrice > releaseCeiling then break end
                 if level.unitPrice > fill.competing then
                   local ahead = queued - quantity
                   if ahead < 0 then ahead = 0 end

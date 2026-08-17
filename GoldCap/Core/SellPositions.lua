@@ -348,7 +348,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
       fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
-        targetUnit = targetUnit, absorbHours = absorbHours })
+        targetUnit = targetUnit, absorbHours = absorbHours,
+        trendPct = marketStats and marketStats.trend })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
     -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
@@ -378,7 +379,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
       and (position.knownCost and math.floor(position.knownCost / position.exposureQty)) or nil
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
-        targetUnit = targetUnit, absorbHours = absorbHours })
+        targetUnit = targetUnit, absorbHours = absorbHours,
+        trendPct = marketStats and marketStats.trend })
   else
     position.postRecommendation = nil
   end
