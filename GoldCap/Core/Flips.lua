@@ -424,6 +424,23 @@ end
 -- quarter off is not a market, it is one seller in a hurry.
 GC.Flips.UNDERPRICE_FLOOR = 0.75
 
+-- How many DISTINCT competing price levels have to sit below the floor before
+-- the book is believed even without a velocity figure. This exists because the
+-- velocity escape below only ever fires when GC.Data.GetItemValue's `sold` is
+-- present, and it usually is not: `sold` comes from the import's optional `s`
+-- field, absent for every realm/non-commodity item and for any commodity the
+-- ingest has no throughput figure for. Without a second escape the floor held
+-- at ANY depth on those items -- thousands of units could sit under a stale
+-- market value and GoldCap would still hold out at 75% of it, pricing a lot
+-- above a market that had genuinely moved and leaving it unsold.
+--
+-- One or two levels is exactly the shape of the original loss (a single
+-- lingering lot, or that lot plus one more) and must still hold. Three
+-- independent sellers agreeing on a lower price is not noise -- nobody
+-- coordinates three unrelated auctions to fake a floor, so by the third
+-- distinct level the simplest explanation is that the price actually moved.
+GC.Flips.MOVED_MARKET_LEVELS = 3
+
 --- The lowest price worth posting at, or nil if the book can be believed as-is.
 --
 -- Exists because of a real loss: Sanguithorn was posted at 7g against a market
@@ -442,8 +459,28 @@ GC.Flips.UNDERPRICE_FLOOR = 0.75
 -- some waiting -- the cheap lot sells, then yours does. Chasing it costs the
 -- difference, in gold, immediately and irreversibly.
 --
--- args = { marketUnit (the cheapest competing ask), mv, levels, sold }.
+-- args = { marketUnit (the cheapest competing ask), mv, levels, sold, heldQty }.
 -- Returns floor, qtyBelowFloor -- or nil when the book needs no correcting.
+--
+-- Two independent escapes decide "the book should be believed," combined with OR: either is
+-- sufficient on its own, and neither is required when the other already fired. The velocity
+-- escape (below >= sold) is the original rule and needs an imported `sold` figure that most
+-- items don't have. The level-count escape below is the one that works without it -- see
+-- GC.Flips.MOVED_MARKET_LEVELS for why three distinct competing levels is the line.
+--
+-- The level-count escape alone had a hole: three distinct prices below the floor released it no
+-- matter how thin each one was, so a seller posting one unit each at three prices under the
+-- floor could make GoldCap price a 200-unit stack against the cheapest of them -- the exact
+-- underpricing loss this function exists to prevent, just reached through a different door. The
+-- fix is the same idea the velocity escape already uses, one level down: "a whole day's supply
+-- sits under the floor" and "more units sit under the floor than I am trying to sell" are both
+-- ways of saying the cheap stock will not simply clear ahead of mine. Three units under a
+-- 200-unit stack clear in minutes and my price is still the market; 200 units under my 200 mean
+-- the market really is down there. So the level-count escape only fires when it is ALSO true
+-- that `below` covers at least `heldQty` -- the caller's own bag-plus-listed quantity, when it
+-- bothers to pass one. A caller that doesn't (every existing one, today) gets the un-gated
+-- level-count rule back, so this must never make PostFloor refuse to answer for want of a new
+-- argument.
 function GC.Flips.PostFloor(args)
   args = args or {}
   local mv, ask = args.mv, args.marketUnit
@@ -453,21 +490,41 @@ function GC.Flips.PostFloor(args)
   if type(ask) ~= "number" or ask >= floor then return nil end
 
   local below = 0
+  local seenPrices, distinctLevelsBelow = {}, 0
   for _, level in ipairs(args.levels or {}) do
     local unit = type(level.unitPrice) == "number" and level.unitPrice or nil
     if unit and unit < floor then
       local quantity = type(level.quantity) == "number" and level.quantity or 0
       -- The player's own units are not competition and must not be counted as
       -- evidence that the market has moved -- same reasoning as
-      -- SellPositions.CheapestCompetingUnit.
+      -- SellPositions.CheapestCompetingUnit. This feeds `below`, which is what
+      -- both escapes below compare against -- so the player's own cheap stock
+      -- can't satisfy the depth requirement any more than it can satisfy the
+      -- level count.
       local ownerQty = type(level.ownerQty) == "number" and level.ownerQty
         or (level.ownerItem == true and quantity) or 0
-      below = below + math.max(0, quantity - ownerQty)
+      local competing = math.max(0, quantity - ownerQty)
+      below = below + competing
+      -- A level with nobody else's stock on it is not a second opinion, it's the
+      -- same non-evidence the quantity subtraction above already excludes -- so
+      -- it must not count toward "distinct sellers," either. Distinct means
+      -- distinct unitPrice: two lots at the same price are one seller's worth of
+      -- price signal, not two.
+      if competing > 0 and not seenPrices[unit] then
+        seenPrices[unit] = true
+        distinctLevelsBelow = distinctLevelsBelow + 1
+      end
     end
   end
 
   local sold = type(args.sold) == "number" and args.sold or nil
-  if sold and sold > 0 and below >= sold then return nil, below end
+  local velocityMoved = sold and sold > 0 and below >= sold
+
+  local heldQty = type(args.heldQty) == "number" and args.heldQty > 0 and args.heldQty or nil
+  local depthMoved = heldQty == nil or below >= heldQty
+  local levelsMoved = distinctLevelsBelow >= GC.Flips.MOVED_MARKET_LEVELS and depthMoved
+
+  if velocityMoved or levelsMoved then return nil, below end
   return floor, below
 end
 

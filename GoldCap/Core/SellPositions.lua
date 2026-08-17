@@ -298,7 +298,8 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- GoldCap recommended and the price Post listed at. It is not the price; it is
   -- the sanity check on the price. See GC.Flips.PostFloor.
   position.postFloor = GC.Flips.PostFloor({ marketUnit = fresh, mv = position.marketValue,
-    levels = levels, sold = position.soldPerDay })
+    levels = levels, sold = position.soldPerDay,
+    heldQty = (position.bagQty or 0) + (position.listedQty or 0) })
 
   local cheapestListedUnit
   for _, ownedLot in ipairs(position.ownedLots) do

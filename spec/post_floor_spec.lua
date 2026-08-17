@@ -54,6 +54,154 @@ describe("PostFloor", function()
     assert.is_nil(GC.Flips.PostFloor({ marketUnit = 70000, mv = 0, levels = {} }))
   end)
 
+  -- The velocity escape above needs an imported `sold` figure that most items don't have
+  -- (GC.Data.GetItemValue's `sold` is the import's optional `s` field -- absent for every realm
+  -- item and any commodity the ingest has no throughput figure for). Without `sold`, these cases
+  -- have no other way to tell "the price really moved" from "one troll lot" except how many
+  -- independent sellers agree on the lower price.
+  describe("without a velocity figure", function()
+    it("holds the floor against one lot, no matter the quantity", function()
+      -- The ladder/troll case this floor exists for in the first place: a single price point,
+      -- however deep, is not a second opinion.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = { level(70000, 5000) },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("holds the floor against two levels", function()
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = { level(70000, 500), level(80000, 500) },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("releases the floor once three distinct levels agree", function()
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = { level(70000, 10), level(80000, 10), level(90000, 10) },
+      })
+      assert.is_nil(floor)
+    end)
+
+    it("does not count the player's own levels toward the three, via ownerQty", function()
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = { level(70000, 10, 10), level(80000, 10, 10), level(90000, 10, 10) },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("does not count the player's own levels toward the three, via unsplittable ownerItem", function()
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = {
+          { unitPrice = 70000, quantity = 10, ownerItem = true },
+          { unitPrice = 80000, quantity = 10, ownerItem = true },
+          { unitPrice = 90000, quantity = 10, ownerItem = true },
+        },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("holds when only two of three levels below the floor have real competition", function()
+      -- One of the three is entirely the player's own -- that leaves two independent sellers,
+      -- one short of the three the rule requires.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = { level(70000, 10, 10), level(80000, 10), level(90000, 10) },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("releases the floor on three competing levels even when sold is present but unmet", function()
+      -- sold is known but the queue hasn't cleared a day's worth yet -- the velocity escape
+      -- alone would hold the floor here. The level-count escape is independent and still fires.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000, sold = 1000,
+        levels = { level(70000, 10), level(80000, 10), level(90000, 10) },
+      })
+      assert.is_nil(floor)
+    end)
+  end)
+
+  -- The level-count escape above has no depth requirement on its own: three distinct prices
+  -- below the floor release it even if they carry three units between them. That is cheap to
+  -- exploit -- a seller posting one unit each at three prices under the floor makes GoldCap
+  -- price the player's WHOLE stack against the cheapest of them, which is the exact underpricing
+  -- loss this file exists to prevent, reached through a different door. `heldQty` (the player's
+  -- own bag-plus-listed quantity, from SellPositions.decoratePosition) closes it: the level-count
+  -- escape now also requires `below >= heldQty`, the same shape as the velocity escape one line
+  -- up -- "a day's worth sits under the floor" and "more sits under the floor than I'm trying to
+  -- sell" are both ways of saying the cheap stock won't simply clear ahead of mine. Three units
+  -- under a 200-unit stack clear in minutes and my price is still the market; 200 units under my
+  -- 200 mean the market really is down there.
+  describe("with heldQty gating the level-count escape", function()
+    it("holds the floor against the thin three-level attack once heldQty is known", function()
+      -- The attack: one unit at each of three prices under the floor. Distinct-level count
+      -- alone would release this; the depth requirement catches it.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000, heldQty = 200,
+        levels = { level(70000, 1), level(80000, 1), level(90000, 1) },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("releases once the competing depth below the floor covers heldQty", function()
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000, heldQty = 200,
+        levels = { level(70000, 200), level(80000, 150), level(90000, 150) },
+      })
+      assert.is_nil(floor)
+    end)
+
+    it("falls back to the level count alone when heldQty is absent", function()
+      -- Every caller today (RecommendPost, RepostAdvice, and every other existing spec in this
+      -- file) omits heldQty entirely -- PostFloor must not start refusing to answer, or go
+      -- stickier than before, just because a caller hasn't been taught the new argument yet.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000,
+        levels = { level(70000, 10), level(80000, 10), level(90000, 10) },
+      })
+      assert.is_nil(floor)
+    end)
+
+    it("treats heldQty == 0 the same as absent", function()
+      -- SellPositions always computes heldQty as a number (bagQty + listedQty, both default 0),
+      -- so "nothing held" arrives as 0, not nil -- 0 must not be read as "require 0 units of
+      -- depth" (which every level count would trivially satisfy) or the gate does nothing for
+      -- exactly the positions it matters most for: ones with no bag/listed stock recorded yet.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000, heldQty = 0,
+        levels = { level(70000, 10), level(80000, 10), level(90000, 10) },
+      })
+      assert.is_nil(floor)
+    end)
+
+    it("does not let the player's own quantity count toward the depth comparison either", function()
+      -- Same owner-subtraction the level count above already relies on: a huge owner-only level
+      -- must not pad `below` past heldQty any more than it can pad the distinct-level count.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000, heldQty = 200,
+        levels = { level(60000, 1000, 1000), level(70000, 5), level(80000, 5), level(90000, 5) },
+      })
+      assert.equal(150000, floor)
+    end)
+
+    it("leaves the velocity escape untouched by heldQty", function()
+      -- below >= sold releases on its own, regardless of heldQty -- even when heldQty is far
+      -- bigger than below. The two escapes are independent; heldQty only ever gates the
+      -- level-count one.
+      local floor = GC.Flips.PostFloor({
+        marketUnit = 70000, mv = 200000, sold = 100, heldQty = 100000,
+        levels = { level(70000, 150) },
+      })
+      assert.is_nil(floor)
+    end)
+  end)
+
   describe("RecommendPost", function()
     it("never recommends below the floor", function()
       local rec = GC.Flips.RecommendPost(nil, 70000, nil, { floor = 150000 })
