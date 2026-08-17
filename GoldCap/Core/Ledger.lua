@@ -391,9 +391,21 @@ local function planSnapshot(mails, context)
     generation = generation + 1 }
 end
 
-local function commitOccurrencePlan(plan, context)
-  db.mailOccurrenceSeq, db.mailOccurrenceGeneration = plan.sequence, plan.generation
+-- `complete` gates the ABSENCE inference and the presence/generation bookkeeping, exactly as
+-- before -- but the NEW occurrences a plan allocated, and the sequence numbers they consumed,
+-- persist on EVERY scan. An entry was just Appended under each planned occurrence's key, and
+-- an occurrence store that forgets that key re-invents a fresh one on the next inbox tick and
+-- Appends the SAME mail again. That is precisely how one purchase mail became four ledger
+-- buys and three phantom cost batches in one mailbox visit (2026-08-17): WoW streams inbox
+-- rows, so the first scans of a visit are almost always incomplete, and every incomplete
+-- scan re-keyed every not-yet-committed mail. Everything else -- retiring absentees, the
+-- present flags, the generation counter -- still requires a complete snapshot: a mail's
+-- absence cannot be inferred from a partial view.
+local function commitOccurrencePlan(plan, context, complete)
+  db.mailOccurrenceSeq = plan.sequence
   for _, occurrence in ipairs(plan.planned) do db.mailOccurrences[#db.mailOccurrences + 1] = occurrence end
+  if not complete then return end
+  db.mailOccurrenceGeneration = plan.generation
   for _, occurrence in ipairs(db.mailOccurrences) do
     if occurrence.char == context.char and occurrence.region == context.region then
       if plan.used[occurrence.key] then
@@ -483,7 +495,7 @@ function GC.Ledger.ScanInbox(api, context, now)
   end
   local plan = planSnapshot(mails, context)
   if not plan then return 0 end
-  if complete then commitOccurrencePlan(plan, context) end
+  commitOccurrencePlan(plan, context, complete)
 
   local created = 0
   for _, mail in ipairs(plan.mails) do

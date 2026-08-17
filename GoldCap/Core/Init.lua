@@ -218,6 +218,14 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     if GC.Acquisitions then
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
+      -- One-shot cleanup of phantom mail-buy duplicates (2026-08-17 incident); says what it
+      -- deleted, because silently editing the cost base is exactly what phantoms did.
+      local repaired = GC.Acquisitions.RepairDuplicateMailBuys
+        and GC.Acquisitions.RepairDuplicateMailBuys() or 0
+      if repaired > 0 and GC.Print then
+        GC.Print(("removed %d duplicate purchase record%s left by a mail-scan bug"):format(
+          repaired, repaired == 1 and "" or "s"))
+      end
     end
     if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then
       GC.PurchaseCapture.Init({

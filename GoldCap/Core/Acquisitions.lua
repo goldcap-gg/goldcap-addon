@@ -1130,6 +1130,73 @@ function GC.Acquisitions.MigrateLegacy(flips, ledger)
   if importingFlips then db.acquisitionVersion = 1 end
 end
 
+-- One-shot repair for the 2026-08-17 phantom-buy incident. Incomplete inbox scans used to
+-- Append a mail under a freshly-invented occurrence key without committing the occurrence, so
+-- ONE purchase mail became several ledger buys and several phantom cost batches (see
+-- Core/Ledger.lua's commitOccurrencePlan for the root fix). The phantoms have an exact shape:
+-- an `auction_house` batch, untouched (nothing ever allocated from it), whose mail evidence
+-- is a same-fingerprint twin of a mail already attached to a `goldcap` (sniper) batch of the
+-- same item, quantity and total, minutes apart. Deletes the batch, its ledger entry and its
+-- occurrence. Deliberately narrow: a legitimate identical non-sniper purchase inside the same
+-- fifteen minutes would match this shape too, judged an acceptable trade against phantom cost
+-- bases silently corrupting FIFO profit. Stamped once via db.mailDupRepairVersion.
+function GC.Acquisitions.RepairDuplicateMailBuys()
+  if not db or db.mailDupRepairVersion ~= nil then return 0 end
+  db.mailDupRepairVersion = 1
+  if type(db.acquisitions) ~= "table" then return 0 end
+  local ledger = type(db.ledger) == "table" and db.ledger or {}
+  local entryByKey = {}
+  for _, entry in ipairs(ledger) do
+    if type(entry) == "table" and entry.kind == "buy" and entry.source == "mail"
+        and type(entry.key) == "string" then
+      entryByKey[entry.key] = entry
+    end
+  end
+  local anchors = {}
+  for _, batch in ipairs(db.acquisitions) do
+    if batch.source == "goldcap" and type(batch.mailEvidenceKey) == "string"
+        and entryByKey[batch.mailEvidenceKey] then
+      anchors[#anchors + 1] = batch
+    end
+  end
+  local removedKeys, removed = {}, 0
+  for _, anchor in ipairs(anchors) do
+    local anchorEntry = entryByKey[anchor.mailEvidenceKey]
+    for index = #db.acquisitions, 1, -1 do
+      local batch = db.acquisitions[index]
+      if batch ~= anchor and batch.source == "auction_house"
+          and type(batch.mailEvidenceKey) == "string"
+          and batch.mailEvidenceKey ~= anchor.mailEvidenceKey
+          and not removedKeys[batch.mailEvidenceKey]
+          and batch.itemID == anchor.itemID
+          and batch.originalQty == anchor.originalQty
+          and batch.originalTotal == anchor.originalTotal
+          and batch.remainingQty == batch.originalQty
+          and math.abs((batch.acquiredAt or 0) - (anchor.acquiredAt or 0)) <= 900 then
+        local twin = entryByKey[batch.mailEvidenceKey]
+        if twin and anchorEntry and twin.itemName == anchorEntry.itemName
+            and twin.qty == anchorEntry.qty and twin.total == anchorEntry.total
+            and twin.char == anchorEntry.char and twin.region == anchorEntry.region then
+          table.remove(db.acquisitions, index)
+          removedKeys[batch.mailEvidenceKey] = true
+          removed = removed + 1
+        end
+      end
+    end
+  end
+  if removed == 0 then return 0 end
+  for index = #ledger, 1, -1 do
+    local entry = ledger[index]
+    if type(entry) == "table" and removedKeys[entry.key] then table.remove(ledger, index) end
+  end
+  if type(db.mailOccurrences) == "table" then
+    for index = #db.mailOccurrences, 1, -1 do
+      if removedKeys[db.mailOccurrences[index].key] then table.remove(db.mailOccurrences, index) end
+    end
+  end
+  return removed
+end
+
 local function copyMailEvidence(entry)
   return { key = entry.key, kind = entry.kind, source = entry.source, itemID = entry.itemID,
     itemName = entry.itemName, qty = entry.qty, total = entry.total, at = entry.at,

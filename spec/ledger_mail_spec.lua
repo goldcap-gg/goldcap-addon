@@ -182,6 +182,37 @@ describe("Ledger inbox scan", function()
     assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys[GC.Ledger.GetEntries()[1].key])
   end)
 
+  -- The 2026-08-17 phantom-buy incident: WoW streams inbox rows, so the first scans of a
+  -- mailbox visit are almost always INCOMPLETE -- and an incomplete scan used to Append the
+  -- mail under a freshly-invented occurrence key while skipping the occurrence commit, so the
+  -- next tick re-keyed and re-recorded the same mail. One 200-unit purchase became four
+  -- ledger buys and three phantom cost batches. Presence must commit on every scan; only the
+  -- absence inference stays gated on completeness.
+  it("keeps one entry for a buy mail rescanned while the inbox is still streaming", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", itemName = "Sanguithorn Tea",
+      count = 200, bid = 3960000, consignment = 0, deposit = 0 },
+      item = { name = "Sanguithorn Tea", itemID = 242299 } })
+    local unreadable = mail()
+    unreadable.invoice = nil -- a row whose invoice has not streamed in yet: scan is incomplete
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1000))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1001))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1002))
+    -- The row finishes streaming: the now-complete scan still recognises the same mail.
+    unreadable.invoice = { invoiceType = "buyer", itemName = "Ironclaw Ore", playerName = "x",
+      bid = 100, buyout = 100, deposit = 0, consignment = 0, moneyDelay = 0, etaHour = 0,
+      etaMin = 0, count = 1, commerceAuction = true }
+    unreadable.item = { name = "Ironclaw Ore", itemID = 210930 }
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1003))
+
+    local teaBuys = 0
+    for _, entry in ipairs(GC.Ledger.GetEntries()) do
+      if entry.kind == "buy" and entry.itemName == "Sanguithorn Tea" then teaBuys = teaBuys + 1 end
+    end
+    assert.equal(1, teaBuys)
+    assert.equal(2, #GC.Acquisitions.GetAll())
+  end)
+
   it("[FINAL C1] persists two identical buyer invoices one-to-one across repeat scans and scopes", function()
     local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
       item = { name = "Ironclaw Ore", itemID = 210930 } })
@@ -617,6 +648,63 @@ describe("Ledger inbox scan", function()
       assert.has_no.errors(function()
         GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
       end)
+    end)
+  end)
+
+  describe("RepairDuplicateMailBuys (2026-08-17 phantom-buy cleanup)", function()
+    local function buyEntry(key)
+      return { key = key, kind = "buy", source = "mail", itemName = "Sanguithorn Tea",
+        qty = 200, total = 3960000, char = context.char, region = context.region, at = 1000 }
+    end
+
+    local function seed()
+      local anchor = GC.Acquisitions.Record({ source = "goldcap", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1000, positionKey = "commodity:242299" })
+      anchor.mailEvidenceKey = "K1"
+      local phantom1 = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1010, positionKey = "commodity:242299" })
+      phantom1.mailEvidenceKey = "K2"
+      local phantom2 = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1011, positionKey = "commodity:242299" })
+      phantom2.mailEvidenceKey = "K3"
+      -- A twin something was already sold from: allocation happened against it, so deleting
+      -- it would corrupt realized history -- it must survive even though it matches otherwise.
+      local consumed = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1012, positionKey = "commodity:242299" })
+      consumed.mailEvidenceKey = "K4"
+      consumed.remainingQty = 150
+      db.ledger = { buyEntry("K1"), buyEntry("K2"), buyEntry("K3"), buyEntry("K4") }
+      db.mailOccurrences = { { key = "K2" }, { key = "UNRELATED" } }
+    end
+
+    it("removes untouched phantom twins, their entries and occurrences -- and only those", function()
+      seed()
+      assert.equal(2, GC.Acquisitions.RepairDuplicateMailBuys())
+
+      local keys = {}
+      for _, batch in ipairs(GC.Acquisitions.GetAll()) do keys[batch.mailEvidenceKey] = true end
+      assert.same({ K1 = true, K4 = true }, keys)
+      local ledgerKeys = {}
+      for _, entry in ipairs(db.ledger) do ledgerKeys[entry.key] = true end
+      assert.same({ K1 = true, K4 = true }, ledgerKeys)
+      assert.equal(1, #db.mailOccurrences)
+      assert.equal("UNRELATED", db.mailOccurrences[1].key)
+    end)
+
+    it("runs exactly once per save", function()
+      seed()
+      assert.equal(2, GC.Acquisitions.RepairDuplicateMailBuys())
+      seed() -- even if the same shape reappears, the stamp holds
+      assert.equal(0, GC.Acquisitions.RepairDuplicateMailBuys())
+    end)
+
+    it("touches nothing without a goldcap anchor carrying mail evidence", function()
+      local plain = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1010, positionKey = "commodity:242299" })
+      plain.mailEvidenceKey = "K2"
+      db.ledger = { buyEntry("K2") }
+      assert.equal(0, GC.Acquisitions.RepairDuplicateMailBuys())
+      assert.equal(1, #GC.Acquisitions.GetAll())
     end)
   end)
 end)
