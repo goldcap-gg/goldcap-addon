@@ -90,6 +90,12 @@ GC.DEFAULTS = {
       minimumProfitCopper = 50000,
       profitFloorVersion = 1,
       minimumRoi = 0.10,
+      -- Velocity release for the stress exit (SniperDecision.Evaluate): a leftover cheap wall
+      -- amounting to no more than this many hours of the item's measured daily sales is
+      -- treated as turnover, not competition, and the exit prices at stressUnit instead of
+      -- undercutting it. 0 disables the release (every partial wall is competition again);
+      -- normalizeConfig caps it at 6. ApplyDefaults fills this in on existing saves.
+      wallAbsorbHours = 2,
       -- Sniper v3 T10: UI-only scale multiplier for Theme's fonts (0.9-1.3), persisted so a
       -- player's chosen text size survives relog. Read back once GC.db exists (see this file's
       -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every

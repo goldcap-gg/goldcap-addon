@@ -557,12 +557,22 @@ end
 
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 
--- GetCoinTextureString's inline coin icons are too wide for a narrow column once the amount
--- climbs into three-plus digit gold -- collapse anything >= 100g to a plain "<N>g" instead of
--- letting the icon string overflow the column.
+-- GetCoinTextureString's inline coin icons are too wide for a narrow column once gold enters
+-- the amount at all: two-digit gold plus a silver coin icon already clipped mid-glyph in game
+-- ("15g 4|..."), which reads as a broken number, not a shortened one. Whole-gold amounts
+-- collapse to "<N>g"; anything from 1g up shows plain "<N>g<M>s" text; only sub-gold amounts
+-- keep the coin icons, where they fit. Negative amounts (a losing profit cell) format their
+-- magnitude and keep the sign.
 local function formatColumnAmount(copper)
+  if copper < 0 then return "-" .. formatColumnAmount(-copper) end
   if copper >= GOLD_COMPACT_THRESHOLD then
     return ("%dg"):format(math.floor(copper / 10000))
+  end
+  if copper >= 10000 then
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    if silver == 0 then return ("%dg"):format(gold) end
+    return ("%dg%02ds"):format(gold, silver)
   end
   return GetCoinTextureString(copper)
 end

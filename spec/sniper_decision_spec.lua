@@ -569,4 +569,65 @@ describe("SniperDecision", function()
       assert.equal("", GC.SniperDecision.ReasonText(nil))
     end)
   end)
+
+  -- The velocity release. Before it, ANY discounted wall deeper than the buyable quantity was
+  -- an automatic AVOID: a partial fill competes with the rest of the wall, exit = entry minus
+  -- one copper, guaranteed loss after the cut. That refused exactly the deep liquid dips the
+  -- deals list exists to surface (screenshot-reproduced: 33%-off Elementium Bar, 1185-unit
+  -- wall, 34k sold/day, AVOID). A wall the market absorbs within `wallAbsorbHours` of daily
+  -- sales is turnover, not competition -- the exit prices at stressUnit. Depth WITHOUT
+  -- velocity keeps the old refusal: that is the Sanguithorn shape, and it must stay refused.
+  describe("velocity release of a partial wall", function()
+    local function deepWallInput()
+      local input = validInput()
+      -- 5000 units at 100g against a 300g stress exit: DemandCap approves 200, so the fill is
+      -- always partial and the leftover wall (4800) is what the release must judge.
+      input.live.levels = { { unitPrice = 1000000, quantity = 5000 }, { unitPrice = 3000001, quantity = 1 } }
+      input.market.currentQty = 0
+      return input
+    end
+
+    it("prices the exit at stressUnit when the leftover wall is hours of turnover", function()
+      local input = deepWallInput()
+      input.market.soldPerDay = 100000 -- 2h absorb budget = 8333 units >= 4800 leftover
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(3000000, result.exitUnit)     -- stressUnit, not wall - 1c
+      assert.equal(1000000, result.competingUnit) -- the wall is still reported honestly
+      assertReason(result, "wall_absorbed")
+      assert.is_true(result.informational and result.informational.wall_absorbed or false)
+    end)
+
+    it("keeps refusing depth without velocity -- the Sanguithorn shape", function()
+      local input = deepWallInput()
+      input.market.soldPerDay = 20000 -- 2h absorb budget = 1666 units < 4800 leftover
+      local result = evaluate(input)
+      assert.equal("AVOID", result.computedStatus)
+      assertReason(result, "stress_profit_below_buffer")
+      assertNoReason(result, "wall_absorbed")
+    end)
+
+    it("is disabled outright by wallAbsorbHours = 0", function()
+      local input = deepWallInput()
+      input.market.soldPerDay = 100000
+      input.config.wallAbsorbHours = 0
+      local result = evaluate(input)
+      assert.equal("AVOID", result.computedStatus)
+      assertNoReason(result, "wall_absorbed")
+    end)
+
+    it("adds no note when the buy consumes the wall and the release never fires", function()
+      local result = evaluate() -- the base fixture buys its 200-unit wall whole
+      assert.equal("SAFE", result.computedStatus)
+      assertNoReason(result, "wall_absorbed")
+    end)
+
+    it("fails closed on a malformed wallAbsorbHours", function()
+      local input = deepWallInput()
+      input.config.wallAbsorbHours = "fast"
+      local result = evaluate(input)
+      assert.equal("AVOID", result.status)
+      assertReason(result, "invalid_input")
+    end)
+  end)
 end)

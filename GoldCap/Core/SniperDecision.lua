@@ -78,12 +78,19 @@ local function normalizeConfig(config)
     return nil
   end
   if roi > MAXIMUM_ROI then return nil end
+  -- Optional: how many hours of this item's sales the leftover cheap wall may amount to and
+  -- still be treated as turnover rather than competition (the velocity release below). Absent
+  -- means the default; present-but-garbage fails closed like every other field. 0 disables
+  -- the release outright. Capped at 6h -- past that, "it will sell through" is a hope.
+  local absorb = config.wallAbsorbHours
+  if absorb ~= nil and not isFinite(absorb) then return nil end
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
     maxQuantity = clamp(quantity, 1, 200),
     minimumProfitCopper = math.max(profit, 10000),
     minimumRoi = math.max(roi, 0.10),
+    wallAbsorbHours = clamp(absorb or 2, 0, 6),
   }
 end
 
@@ -154,6 +161,7 @@ local REASON_TEXT = {
   demand_limit = "Quantity is capped by how fast this item actually sells.",
   stress_exit_missing = "No safe resale price could be worked out.",
   stress_profit_below_buffer = "The profit does not clear your minimum once the 5% cut and deposit are paid.",
+  wall_absorbed = "Cheaper listings remain, but at this item's pace they sell through within hours.",
   invalid_input = "The data for this item is malformed, so GoldCap refuses to guess.",
   requote_broke_safety = "The price moved and the trade is no longer safe.",
   shadow_validation = "Purchases are turned off in this build.",
@@ -170,7 +178,7 @@ local REASON_ORDER = {
   listings_too_low = 20, velocity_missing = 21, velocity_too_low = 22,
   sell_through_too_low = 23, liquidity_confidence_low = 24, market_falling = 25,
   book_missing = 30, book_exhausted = 31, competing_ask_missing = 32, deposit_missing = 33,
-  capital_limit = 40, demand_limit = 41,
+  capital_limit = 40, demand_limit = 41, wall_absorbed = 42,
   stress_exit_missing = 50, stress_profit_below_buffer = 51,
   invalid_input = 60, requote_broke_safety = 70,
 }
@@ -374,6 +382,19 @@ function GC.SniperDecision.Evaluate(input)
   local coarseCap = fixed or computedCap
 
   local budget = math.floor(input.walletCopper * config.maxCapitalShare)
+  -- Velocity release, computed once (the book is fixed across the quantity loop): the units
+  -- listed at or below the stress exit. If what remains of them after the buy is no more than
+  -- `wallAbsorbHours` of this item's measured daily sales, the leftover wall is not
+  -- competition -- it is the next couple of hours' turnover, and the exit may re-anchor past
+  -- it (see the partialLevel block inside the loop for the exact rule). Without this, ANY
+  -- discounted wall deeper than the buyable quantity was an automatic AVOID (exit = own entry
+  -- price minus one copper, a guaranteed loss after the cut), which refused exactly the deep
+  -- liquid dips the discovery list exists to surface. The Sanguithorn shape stays refused:
+  -- depth WITHOUT velocity gets no release, same as PostFloor's velocity path on the sell side.
+  local wallBelowStress
+  if stressUnit and stressUnit > 0 and GC.Book and GC.Book.UnitsAtOrBelow then
+    wallBelowStress = GC.Book.UnitsAtOrBelow(live.levels, stressUnit)
+  end
   local selected
   local sawCapital, sawAffordable, sawProfit, sawExhausted, sawCompeting = false, false, false, false, false
   local start, finish = fixed and fixed or 1, coarseCap
@@ -394,6 +415,29 @@ function GC.SniperDecision.Evaluate(input)
         sawCapital = true
       else
         local exitUnit = math.min(stressUnit or 0, fill.competing - 1)
+        -- The release applies ONLY to a partially-bought wall (fill.partialLevel): a fill
+        -- that consumed its levels whole is already anchored to a real untouched seller, and
+        -- overriding THAT ask would price above the live book on a hope. When the leftover
+        -- wall qualifies as turnover, the exit re-anchors to the next real ask above the wall
+        -- (minus one copper), still bounded by stressUnit -- never above the visible book,
+        -- only past the wall judged to be already sold. A book with nothing above the wall
+        -- falls back to stressUnit, the same import anchor Fill's own nil-competing case uses.
+        local released = false
+        if fill.partialLevel and stressUnit and stressUnit > 0 and exitUnit < stressUnit
+            and config.wallAbsorbHours > 0 and wallBelowStress
+            and isFinite(market.soldPerDay) and market.soldPerDay >= 3 then
+          local remaining = wallBelowStress - quantity
+          if remaining < 0 then remaining = 0 end
+          if remaining <= market.soldPerDay * config.wallAbsorbHours / 24 then
+            local nextAsk = GC.Book.NextAskAbove and GC.Book.NextAskAbove(live.levels, fill.competing)
+            local anchor = nextAsk and (nextAsk - 1) or stressUnit
+            local releasedExit = math.min(stressUnit, anchor)
+            if releasedExit > exitUnit then
+              exitUnit = releasedExit
+              released = true
+            end
+          end
+        end
         if exitUnit <= 0 then
           add("stress_exit_missing", 2)
         else
@@ -423,6 +467,7 @@ function GC.SniperDecision.Evaluate(input)
                   quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
                   competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
                   deposit = deposit, stressProfit = stressProfit, requiredProfit = requiredProfit,
+                  releasedByVelocity = released,
                 }
               end
             end
@@ -440,6 +485,10 @@ function GC.SniperDecision.Evaluate(input)
   end
 
   if selected then
+    -- The note, not the flag: the dialog's Reason row can say WHY the exit prices at
+    -- stressUnit despite cheaper listings, but the public result keeps its v1 field set.
+    if selected.releasedByVelocity then add("wall_absorbed", 0) end
+    selected.releasedByVelocity = nil
     for k, v in pairs(selected) do out[k] = v end
   end
   if selected and severity == 0 then
