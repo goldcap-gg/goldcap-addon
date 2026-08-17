@@ -57,7 +57,10 @@ local function buildTab(ah)
   end)
   if built then
     pcall(function() built:SetText("GoldCap") end)
-    pcall(function() PanelTemplates_TabResize(built, 0) end) -- sizes to its own text; this button only
+    -- The template's own OnShow already resized -- at creation, with EMPTY text. Re-run the
+    -- exact call PanelTabButtonMixin:OnShow makes (same paddings from the parent), now that
+    -- the label exists. This button only.
+    pcall(function() PanelTemplates_TabResize(built, ah.tabPadding, nil, ah.minTabWidth, ah.maxTabWidth) end)
     return built, true
   end
   -- A client build without the template falls back to the addon's own button as a plain
@@ -102,21 +105,32 @@ function GC.AuctionHouseTab.Install()
   tab.displayMode = DISPLAY_MODE
 
   if native then
-    -- The registration the header explains: with these three writes the engine owns tab
-    -- selection, panel hiding and restoration end to end.
+    -- The registration the header explains: with these writes the engine owns tab selection,
+    -- panel hiding and restoration end to end. PanelTabButtonTemplate itself carries
+    -- parentArray="Tabs" (SharedUIPanelTemplates.xml:905, read verbatim), so CreateFrame has
+    -- ALREADY appended this button to ah.Tabs -- the first shipped version inserted it a
+    -- second time, which made "the last tab" the button itself, turned the anchor below into
+    -- an anchor-to-self error swallowed by pcall, and rendered NO tab at all. Register only
+    -- what the template did not do: the count and the display-mode lookup.
     pcall(function()
-      ah.Tabs = ah.Tabs or {}
-      ah.Tabs[#ah.Tabs + 1] = tab
       PanelTemplates_SetNumTabs(ah, #ah.Tabs)
       ah.tabsForDisplayMode = ah.tabsForDisplayMode or {}
-      ah.tabsForDisplayMode[DISPLAY_MODE] = #ah.Tabs
+      for index, candidate in ipairs(ah.Tabs) do
+        if candidate == tab then
+          ah.tabsForDisplayMode[DISPLAY_MODE] = index
+          break
+        end
+      end
     end)
     registered = true
   end
 
-  local tabs = blizzardTabs(ah)
-  -- Our own tab is in ah.Tabs now; the anchor is the last BLIZZARD tab, the one before ours.
-  local last = tabs[#tabs] == tab and tabs[#tabs - 1] or tabs[#tabs]
+  -- The anchor is the last tab that is NOT ours: ours is already in ah.Tabs (see above), and
+  -- a frame cannot anchor to itself.
+  local last
+  for _, candidate in ipairs(blizzardTabs(ah)) do
+    if candidate ~= tab then last = candidate end
+  end
   pcall(function()
     tab:ClearAllPoints()
     if last then

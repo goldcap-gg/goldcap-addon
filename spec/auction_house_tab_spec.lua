@@ -45,6 +45,15 @@ describe("Auction House tab", function()
       local w = widget(kind, parent)
       w.template, w.name = template, name
       created[#created + 1] = w
+      -- Faithful to the real client: PanelTabButtonTemplate carries parentArray="Tabs"
+      -- (SharedUIPanelTemplates.xml:905, read verbatim), so creating a tab from the AH tab
+      -- template APPENDS it to the parent's Tabs array by itself. The first shipped version
+      -- of this module did not know that, inserted the tab a second time, anchored it to
+      -- itself through the duplicate, and rendered no tab at all -- a fake without this line
+      -- proves nothing about that whole failure class.
+      if template == "AuctionHouseFrameTabTemplate" and parent and parent.Tabs then
+        parent.Tabs[#parent.Tabs + 1] = w
+      end
       return w
     end
     -- Faithful hooksecurefunc: the hook runs after the original, and cannot replace it.
