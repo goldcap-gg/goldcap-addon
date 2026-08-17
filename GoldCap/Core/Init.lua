@@ -96,6 +96,13 @@ GC.DEFAULTS = {
       -- undercutting it. 0 disables the release (every partial wall is competition again);
       -- normalizeConfig caps it at 6. ApplyDefaults fills this in on existing saves.
       wallAbsorbHours = 2,
+      -- Above this 24h market-value trend (whole percent) a stress exit counts as
+      -- spike-contaminated and deflates to the pre-spike estimate, on both the buy side
+      -- (SniperDecision.Evaluate, via its config) and the sell-side queue ceiling
+      -- (Flips.RecommendPost, via SellPositions). SniperDecision.SPIKE_TREND_PCT documents
+      -- the mechanism and stays as the fallback; normalizeConfig clamps this to 1-500.
+      -- ApplyDefaults fills it in on existing saves.
+      spikeTrendPct = 30,
       -- Sniper v3 T10: UI-only scale multiplier for Theme's fonts (0.9-1.3), persisted so a
       -- player's chosen text size survives relog. Read back once GC.db exists (see this file's
       -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every

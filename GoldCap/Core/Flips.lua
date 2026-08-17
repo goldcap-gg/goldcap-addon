@@ -642,11 +642,13 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   -- get this: untracked bag stock keeps the match/undercut behaviour unchanged.
   if opts.targetUnit and opts.levels and opts.sold and opts.sold > 0 then
     local hours = opts.absorbHours == nil and 2 or opts.absorbHours
-    -- Spike deflation, same rule and constant as the buy side (see SniperDecision's
+    -- Spike deflation, same rule and threshold as the buy side (see SniperDecision's
     -- SPIKE_TREND_PCT): a batch's stored target was computed from a 24h tape, and when the
     -- CURRENT trend says the market is mid-spike, queueing at that number chases the spike.
+    -- opts.spikePct is the player's settings.sniper.spikeTrendPct (SellPositions passes it);
+    -- the constant is the shared default when no setting reaches this call.
     local target = opts.targetUnit
-    local spikePct = (GC.SniperDecision and GC.SniperDecision.SPIKE_TREND_PCT) or 30
+    local spikePct = opts.spikePct or (GC.SniperDecision and GC.SniperDecision.SPIKE_TREND_PCT) or 30
     if type(opts.trendPct) == "number" and opts.trendPct > spikePct then
       target = math.floor(target / (1 + opts.trendPct / 100))
     end

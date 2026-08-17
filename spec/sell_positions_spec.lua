@@ -74,6 +74,21 @@ describe("Sell positions", function()
     assert.is_not_true(positions[1].facts.soldPending)
   end)
 
+  -- The wiring again: the absorb window and spike threshold are player settings, and this is
+  -- the one place they cross from GC.db into the sell-side recommendation.
+  it("hands the configured absorb window and spike threshold to the post recommendation", function()
+    GC.db = { settings = { sniper = { wallAbsorbHours = 4, spikeTrendPct = 55 } } }
+    local seen
+    GC.Flips.RecommendPost = function(_, _, _, opts) seen = opts end
+    build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+    })
+    assert.is_table(seen)
+    assert.equal(4, seen.absorbHours)
+    assert.equal(55, seen.spikePct)
+  end)
+
   -- Two activity rows for ONE item, differing only in commodity-vs-item form, is bookkeeping
   -- damage rather than a real question about which item was sold. When the purchase record
   -- proves which key is the item's real identity, that settles it.

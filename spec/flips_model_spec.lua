@@ -748,6 +748,20 @@ describe("Flips row model (Sniper v3 §5)", function()
         assert.equal(27300, calm.unit)
       end)
 
+      it("reads the spike threshold from opts.spikePct instead of the baked-in constant", function()
+        -- A raised threshold lets the same +201% trend keep the stored target...
+        local calm = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 201, spikePct = 250 })
+        assert.equal("queue", calm.mode)
+        assert.equal(27300, calm.unit)
+        -- ...and a lowered one deflates a +25% trend the default 30 would have left alone:
+        -- ceiling = SilverDown(27300 / 1.25) = 21800, proven by the stocked 24000 ask above it.
+        local strict = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 25, spikePct = 20 })
+        assert.equal("queue", strict.mode)
+        assert.equal(21800, strict.unit)
+      end)
+
       it("does nothing without a target -- untracked stock keeps match/undercut", function()
         local r = GC.Flips.RecommendPost(19800, 19800, 39100,
           { levels = ladder, sold = 222000 })

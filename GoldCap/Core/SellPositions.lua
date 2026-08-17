@@ -335,8 +335,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     end
   end
   position.targetUnit = targetUnit
-  local absorbHours = GC.db and GC.db.settings and GC.db.settings.sniper
-    and GC.db.settings.sniper.wallAbsorbHours or nil
+  local sniperSettings = GC.db and GC.db.settings and GC.db.settings.sniper or nil
+  local absorbHours = sniperSettings and sniperSettings.wallAbsorbHours or nil
+  local spikePct = sniperSettings and sniperSettings.spikeTrendPct or nil
 
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
@@ -348,7 +349,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
       fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
-        targetUnit = targetUnit, absorbHours = absorbHours,
+        targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
         trendPct = marketStats and marketStats.trend })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".

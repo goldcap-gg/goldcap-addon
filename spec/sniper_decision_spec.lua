@@ -707,5 +707,33 @@ describe("SniperDecision", function()
       assert.equal("AVOID", result.status)
       assertReason(result, "invalid_input")
     end)
+
+    it("reads the spike threshold from config instead of the baked-in constant", function()
+      -- A raised threshold lets the same +40% trend keep the full stress ceiling...
+      local calm = deepWallInput()
+      calm.market.soldPerDay = 100000
+      calm.market.trend24hPct = 40
+      calm.config.spikeTrendPct = 50
+      local result = evaluate(calm)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(3000000, result.exitUnit)
+
+      -- ...and a lowered one deflates a trend the default 30 would have left alone.
+      local strict = deepWallInput()
+      strict.market.soldPerDay = 100000
+      strict.market.trend24hPct = 30
+      strict.config.spikeTrendPct = 20
+      local deflated = evaluate(strict)
+      assert.equal("SAFE", deflated.computedStatus)
+      assert.equal(2307692, deflated.exitUnit) -- floor(3000000 / 1.3)
+    end)
+
+    it("fails closed on a malformed spikeTrendPct", function()
+      local input = deepWallInput()
+      input.config.spikeTrendPct = "spiky"
+      local result = evaluate(input)
+      assert.equal("AVOID", result.status)
+      assertReason(result, "invalid_input")
+    end)
   end)
 end)

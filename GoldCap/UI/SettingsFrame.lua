@@ -410,6 +410,12 @@ local function build(sniperFrame)
   fieldRow("HOT min sold/day", "hotMinSold", { min = 0, max = 1000 })
   fieldRow("GOOD min sold/day", "goodMinSold", { min = 0, max = 1000 })
   fieldRow("Dump-trend cap %", "dumpTrendPct", { min = 1, max = 99 })
+  -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
+  -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
+  -- the box can never store a value the engine would then silently re-clamp.
+  fieldRow("Spike-trend threshold %", "spikeTrendPct", { min = 1, max = 500 })
+  -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
+  fieldRow("Wall absorb window (hours)", "wallAbsorbHours", { min = 0, max = 6 })
 
   -- Ghost cycling button, not a fieldRow: FIELD_W (64px) is sized for a 6-letter numeric
   -- editbox, and "Duration: 48h" would not fit it. Sized separately below.

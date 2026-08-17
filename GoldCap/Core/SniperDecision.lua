@@ -14,7 +14,10 @@ GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = true }
 -- Glass exported stress 11g19s during a spike while the week's clearing price sat at 7g, and
 -- Sanguithorn Tea arrived with trend +201%. The server is growing a weekly-median cap of its
 -- own; this is the client-side layer for sessions running on an import taken mid-spike.
--- GC.Flips.RecommendPost reads this same constant for the sell-side queue ceiling.
+-- This constant is the DEFAULT: the live threshold is settings.sniper.spikeTrendPct
+-- (player-editable in the settings panel), which reaches Evaluate through its config
+-- (normalizeConfig validates it) and GC.Flips.RecommendPost's sell-side queue ceiling
+-- through opts.spikePct (SellPositions passes it). Both fall back here when unset.
 GC.SniperDecision.SPIKE_TREND_PCT = 30
 
 local MAX_EXACT = 9007199254740991
@@ -94,6 +97,12 @@ local function normalizeConfig(config)
   -- the release outright. Capped at 6h -- past that, "it will sell through" is a hope.
   local absorb = config.wallAbsorbHours
   if absorb ~= nil and not isFinite(absorb) then return nil end
+  -- Optional: the spike-deflation threshold (whole percent, see SPIKE_TREND_PCT above).
+  -- Same contract as wallAbsorbHours: absent means the default, present-but-garbage fails
+  -- closed. Floor 1 so it cannot be disabled into deflating on every positive tick; ceiling
+  -- 500 is effectively "never deflate" without letting a typo store nonsense.
+  local spike = config.spikeTrendPct
+  if spike ~= nil and not isFinite(spike) then return nil end
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
@@ -101,6 +110,7 @@ local function normalizeConfig(config)
     minimumProfitCopper = math.max(profit, 10000),
     minimumRoi = math.max(roi, 0.10),
     wallAbsorbHours = clamp(absorb or 2, 0, 6),
+    spikeTrendPct = clamp(spike or GC.SniperDecision.SPIKE_TREND_PCT, 1, 500),
   }
 end
 
@@ -410,7 +420,7 @@ function GC.SniperDecision.Evaluate(input)
   if stressUnit and stressUnit > 0 then
     releaseCeiling = stressUnit
     local trend = market.trend24hPct
-    if isFinite(trend) and trend > GC.SniperDecision.SPIKE_TREND_PCT then
+    if isFinite(trend) and trend > config.spikeTrendPct then
       releaseCeiling = math.floor(stressUnit / (1 + trend / 100))
     end
     if releaseCeiling <= 0 then releaseCeiling = nil end
