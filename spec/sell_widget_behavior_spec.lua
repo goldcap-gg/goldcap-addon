@@ -109,7 +109,13 @@ describe("Sell widget geometry and manual cost", function()
     root.HookScript = function(_, name, fn) root.scripts[name] = fn end
     root.status = region("FontString", root)
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8, rowWidth = width, rowHeight = 24 })
-    return GC
+    -- Attach leaves the Sell container hidden (it is only one of several tabs on the real
+    -- Sniper window) -- renderRows now defers a rebuild while it is hidden, so every test
+    -- below that reads rendered rows needs the container shown, the way GC.Sell.Show() (or
+    -- the real tab switch that calls it) would leave it before a player ever sees this tab.
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    upvalue(render, "container"):Show()
+    return GC, root
   end
 
   local function topRows(GC, values)
@@ -322,6 +328,12 @@ describe("Sell widget geometry and manual cost", function()
     rows[1].action.scripts.OnClick()
     assert.is_true(container.costDialog.shown)
     assert.equal(2, container.costDialog.maximum)
+    -- Which item, and the default quantity: both used to be missing/wrong. The dialog was
+    -- anonymous (no header said which position it was for) and always defaulted to "1" even
+    -- when several units had no cost.
+    assert.match("^Ore", container.costDialog.header:GetText())
+    assert.match("2 units without a cost$", container.costDialog.header:GetText())
+    assert.equal("2", container.costDialog.quantity:GetText())
     assert.equal("Set cost", rows[2].action.label)
   end)
 
@@ -339,7 +351,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
     local labels = {}
     for _, child in ipairs(dialog.children) do if child.text then labels[child.text] = true end end
-    assert.is_true(labels.Quantity); assert.is_true(labels["Unit cost"]); assert.is_true(labels["Total cost"])
+    assert.is_true(labels.Quantity); assert.is_true(labels["Unit cost (gold)"]); assert.is_true(labels["Total cost (gold)"])
+    -- Default quantity is the full uncosted count (2 here), not "1".
+    assert.equal("2", dialog.quantity:GetText())
     dialog.quantity:SetText("1.5")
     confirm.scripts.OnClick()
     assert.equal("Enter a whole quantity", dialog.error.text)
@@ -350,15 +364,23 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(0, #record.calls)
     dialog.quantity:SetText("10"); dialog.quantity.scripts.OnTextChanged()
     assert.equal("2", dialog.quantity:GetText())
+    -- "5" is 5 GOLD, not 5 copper: with quantity 2 that is 2.5g/unit, and the live coin
+    -- preview under Total shows what will actually be recorded, in copper.
     dialog.total:SetText("5"); dialog.total.scripts.OnTextChanged()
-    assert.equal("5", dialog.total:GetText()); assert.equal("2", dialog.unit:GetText())
+    assert.equal("5", dialog.total:GetText()); assert.equal("2.5", dialog.unit:GetText())
+    assert.equal("50000", dialog.totalPreview:GetText())
     dialog.unit:SetText("9007199254740991"); dialog.unit.scripts.OnTextChanged()
     assert.equal("Enter an exact positive cost", dialog.error.text)
     assert.equal(0, #record.calls)
+    assert.equal("", dialog.totalPreview:GetText())
     dialog.unit:SetText("3"); dialog.unit.scripts.OnTextChanged()
+    assert.equal("6", dialog.total:GetText())
+    assert.equal("60000", dialog.totalPreview:GetText())
     confirm.scripts.OnClick(); confirm.scripts.OnClick()
     assert.equal(1, #record.calls)
-    assert.same({ itemID = 42, positionKey = "commodity:42", itemName = "Ore", quantity = 2, total = 6,
+    -- Downstream (RecordManual) still receives an exact COPPER total: 2 units at 3g each is
+    -- 60000 copper, never "6".
+    assert.same({ itemID = 42, positionKey = "commodity:42", itemName = "Ore", quantity = 2, total = 60000,
       acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
     assert.equal(1, refreshes)
   end)
@@ -376,9 +398,12 @@ describe("Sell widget geometry and manual cost", function()
     dialog.quantity:SetText("2"); dialog.quantity.scripts.OnTextChanged()
     dialog.unit:SetText("3"); dialog.unit.scripts.OnTextChanged()
     assert.equal("6", dialog.total:GetText())
-    dialog.unit:SetText("1.5"); dialog.unit.scripts.OnTextChanged()
+    -- Unit/Total now accept decimals ("1.5" is a perfectly valid 1g50s), so what invalidates a
+    -- formerly-valid total is a negative amount, not a fractional one.
+    dialog.unit:SetText("-2"); dialog.unit.scripts.OnTextChanged()
     assert.equal("", dialog.total:GetText())
     assert.equal("Enter an exact positive cost", dialog.error.text)
+    assert.equal("", dialog.totalPreview:GetText())
     confirm.scripts.OnClick()
     assert.equal(0, #record.calls)
   end)
@@ -406,14 +431,16 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("2", dialog.quantity:GetText())
     assert.equal("6", dialog.total:GetText())
 
+    -- "5" is 5 GOLD; with quantity still 2 that is 2.5g/unit.
     dialog.total:SetText("5"); dialog.total.scripts.OnTextChanged()
-    assert.equal("2", dialog.unit:GetText())
+    assert.equal("2.5", dialog.unit:GetText())
     dialog.quantity:SetText("1"); dialog.quantity.scripts.OnTextChanged()
     assert.equal("5", dialog.total:GetText())
     assert.equal("5", dialog.unit:GetText())
 
     confirm.scripts.OnClick(); confirm.scripts.OnClick()
-    assert.same({ itemID = 42, positionKey = "commodity:42", itemName = "Ore", quantity = 1, total = 5,
+    -- Recorded total is the exact COPPER amount (5g = 50000c), not the typed "5".
+    assert.same({ itemID = 42, positionKey = "commodity:42", itemName = "Ore", quantity = 1, total = 50000,
       acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
     assert.equal(1, #record.calls)
     assert.equal(1, refreshes)
@@ -452,7 +479,8 @@ describe("Sell widget geometry and manual cost", function()
     for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
     dialog.total:SetText("9"); dialog.total.scripts.OnTextChanged()
     confirm.scripts.OnClick()
-    assert.same({ itemID = 7, positionKey = "item:7:1:0:0", itemName = "Odd", quantity = 1, total = 9,
+    -- "9" is 9 gold; RecordManual still receives an exact copper total (90000), never "9".
+    assert.same({ itemID = 7, positionKey = "item:7:1:0:0", itemName = "Odd", quantity = 1, total = 90000,
       acquiredAt = 77, character = "A-R", region = "eu" }, record.calls[1])
     assert.equal(1, refreshed)
   end)
@@ -830,5 +858,70 @@ describe("Sell widget geometry and manual cost", function()
     GC.Sell.Reset()
     resetTimer.callback()
     assert.equal("", tostring(quotes[42] or ""))
+  end)
+
+  -- renderRows used to have no visibility check at all: composePositions()+renderRows() run
+  -- from GC.Sell.Refresh() regardless of which tab is active (bag counts and the tab badge
+  -- must stay current either way), so a background Refresh() while the Deals tab was showing
+  -- rebuilt every Sell row for nothing, and dragging the window's resize grip rebuilt it
+  -- again on every pixel.
+  it("[perf] defers a render while the Sell container is hidden, and catches up once GC.Sell.Show reveals it", function()
+    local record = { calls = {} }
+    local GC = load(620, record)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local container = upvalue(render, "container")
+    container:Hide()
+    set(render, "positions", {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" },
+    })
+    render()
+    local rows = upvalue(render, "rows")
+    assert.equal(0, #rows) -- nothing built while hidden
+
+    local refreshes = 0
+    GC.Sell.Refresh = function() refreshes = refreshes + 1; render() end
+    GC.Sell.Show()
+    assert.is_true(container:IsShown())
+    assert.equal(1, refreshes) -- Show()'s own Refresh() call is what flushes the deferred render
+    rows = upvalue(render, "rows")
+    assert.is_true(#rows > 0)
+    assert.equal("commodity:42", rows[1].position.positionKey)
+  end)
+
+  -- OnSizeChanged fires once per pixel while the resize grip is dragged. Layout (the
+  -- width-driven column drop) must stay immediate every event; only the row rebuild is
+  -- coalesced to a single pass, once the size has settled.
+  it("[perf] throttles the resize hook's row rebuild to the settled width, but keeps layout immediate", function()
+    local timers = {}
+    _G.C_Timer = { After = function(seconds, callback) timers[#timers + 1] = { seconds = seconds, callback = callback } end }
+    local GC, root = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local container = upvalue(render, "container")
+    container:Show()
+    set(render, "positions", {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 5, listedValue = 10, sources = {}, status = "LISTED" },
+    })
+    local rows = upvalue(render, "rows")
+    assert.equal(0, #rows) -- nothing rendered by Attach itself
+
+    -- Simulate a drag: the grip fires OnSizeChanged once per pixel.
+    for _, width in ipairs({ 700, 720, 740, 760 }) do
+      root.scripts.OnSizeChanged(root, width)
+    end
+    local content = upvalue(render, "content")
+    assert.equal(760 - 16, content.width) -- ROW_WIDTH = width - panelLeft - panelRightInset (8+8); tracked every event, immediately
+    assert.equal(0, #rows) -- but no row rebuild has run yet -- it is still deferred
+    assert.is_true(#timers >= 2)
+
+    -- Every stale (superseded) resize callback is inert; only the last-scheduled one renders.
+    for i = 1, #timers - 1 do timers[i].callback() end
+    rows = upvalue(render, "rows")
+    assert.equal(0, #rows)
+    timers[#timers].callback()
+    rows = upvalue(render, "rows")
+    assert.is_true(#rows > 0)
+    assert.equal("commodity:42", rows[1].position.positionKey)
   end)
 end)

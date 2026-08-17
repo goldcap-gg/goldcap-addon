@@ -48,6 +48,9 @@ local COLUMNS = {
 
 local container, content, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
+-- Stamped by composePositions() as it walks every position, so SellableCount() can read it
+-- without recomposing. nil only until the first compose has ever run.
+local sellableCount
 local bagStock = {}
 local sessionCommodityKind = {}
 -- Still "all": hiding the player's live listings behind a filter to answer "what
@@ -327,9 +330,16 @@ local function composePositions()
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = ownedLots,
     bagStock = bagStock, quotes = quotes, statsByItemID = stats, context = scope, now = time(),
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
+  -- Stamped in the same walk this function already does over every position, rather than a
+  -- second pass triggered from SellableCount() -- see that function for why a fresh compose
+  -- per label-read was wasteful (a six-bag scan plus every Acquisitions/Ledger walk, on a tab
+  -- that may not even be the one currently shown).
+  local sellable = 0
   for _, position in ipairs(positions) do
     if position.itemID and not position.itemName then position.itemName = itemName(position.itemID) end
+    if (position.bagQty or 0) > 0 then sellable = sellable + 1 end
   end
+  sellableCount = sellable
 end
 
 -- Which items the pricing walk asks the server about.
@@ -408,9 +418,16 @@ local function scheduleQuoteExpiry()
   end)
 end
 
-local function tabIsLive()
+-- Whether the Sell CONTENT is the tab actually on screen right now, as opposed to merely
+-- attached. `composePositions()`/`GC.Sell.Refresh()` run regardless of which tab the player
+-- is looking at (bag counts and the tab badge stay current either way) -- this is the
+-- narrower check that guards the expensive part, rebuilding the visible ROWS.
+local function containerShown()
   return container ~= nil and container.IsShown and container:IsShown()
-    and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+end
+
+local function tabIsLive()
+  return containerShown() and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
 end
 
 -- Keeps the prices on screen live instead of frozen at whatever the last button
@@ -1136,6 +1153,51 @@ local function dialogExactPositive(edit)
   return exact(value) and value > 0 and value or nil
 end
 
+local COPPER_PER_GOLD = 10000
+
+-- The Unit/Total cost fields are GOLD, explicitly -- see the field labels in Attach below.
+-- A player typing "250" means 250 gold, and used to be recorded as 250 COPPER with no unit
+-- shown anywhere; that number then drove cost basis, profit and the below-cost warning
+-- forever. This is the one place that boundary is crossed, and it is crossed the same way
+-- GetCoinTextureString's own rounding implies: round to the nearest copper, never truncate.
+local function dialogGoldCopper(edit)
+  local value = tonumber(edit:GetText())
+  if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge or value < 0 then
+    return nil
+  end
+  local copper = math.floor(value * COPPER_PER_GOLD + 0.5)
+  return exact(copper) and copper or nil
+end
+
+local function dialogGoldPositive(edit)
+  local copper = dialogGoldCopper(edit)
+  return copper and copper > 0 and copper or nil
+end
+
+-- Exact copper -> a decimal gold string with no trailing noise ("2.5", never "2.5000"), so
+-- the Unit/Total fields can keep syncing each other in the same units the player types in.
+-- Copper is always an integer count of 1/10000 gold, so this round-trips exactly -- no
+-- floating point is involved in this direction, only integer division and remainder.
+local function copperToGoldText(copper)
+  if not exact(copper) then return "" end
+  local whole = math.floor(copper / COPPER_PER_GOLD)
+  local remainder = copper - whole * COPPER_PER_GOLD
+  if remainder == 0 then return tostring(whole) end
+  local text = ("%d.%04d"):format(whole, remainder)
+  text = (text:gsub("0+$", ""))
+  text = (text:gsub("%.$", ""))
+  return text
+end
+
+-- The live "what this will actually record" readout under the Total field. Typing "12.5" is
+-- ambiguous on its own -- seeing "12g 50s 0c" appear while typing is what makes the unit
+-- unambiguous no matter what the player assumed it was.
+local function updateTotalPreview(dialog, copper)
+  local preview = dialog.totalPreview
+  if not preview then return end
+  preview:SetText(exact(copper) and copper > 0 and GetCoinTextureString(copper) or "")
+end
+
 local function pendingRepairFor(position, scope)
   local pending = position and position.pendingAcquisitions
   if type(pending) ~= "table" or #pending ~= 1 or type(scope) ~= "table" then return nil end
@@ -1193,21 +1255,33 @@ local function openCostDialog(position)
   dialog.repairID = pending and table.concat({ "manual-repair", pending.id, tostring(time()),
     tostring(manualRepairNonce) }, "\1") or nil
   dialog.submitted, dialog.costMode, dialog.syncing = false, nil, false
-  dialog.quantity:SetText("1")
+  -- Which item, and how many of its units have no cost -- the two facts a player needs
+  -- before touching any of the numbers below. The dialog used to be anonymous: nothing on
+  -- it said which of several open positions it belonged to.
+  dialog.header:SetText(("%s — %d unit%s without a cost"):format(
+    position.itemName or "Item", missing, missing == 1 and "" or "s"))
+  -- Defaults to the full uncosted count, not "1" -- entering a cost for stock GoldCap never
+  -- saw the player buy is the ordinary case this dialog exists for, and "1" made the player
+  -- retype the real quantity every single time.
+  dialog.quantity:SetText(tostring(missing))
   dialog.unit:SetText("")
   dialog.total:SetText("")
+  updateTotalPreview(dialog, nil)
   setDialogError(dialog)
   dialog:Show()
 end
 
 local function confirmCostDialog(dialog)
   if dialog.submitted then return end
-  local quantity, total = dialogExactPositive(dialog.quantity), dialogExactPositive(dialog.total)
+  -- Quantity is a whole unit count; Unit/Total are gold, converted to exact copper here --
+  -- the same conversion the live preview already showed, so what gets recorded is never a
+  -- surprise. Everything from here down is copper, exactly as it always was.
+  local quantity, total = dialogExactPositive(dialog.quantity), dialogGoldPositive(dialog.total)
   if not quantity or quantity < 1 then return setDialogError(dialog, "Enter a whole quantity") end
   if quantity > dialog.maximum then return setDialogError(dialog, "Quantity exceeds missing units") end
   if not total then return setDialogError(dialog, "Enter an exact positive cost") end
   if dialog.costMode == "unit" then
-    local unit = dialogExactPositive(dialog.unit)
+    local unit = dialogGoldPositive(dialog.unit)
     if not unit or safeMultiply(quantity, unit) ~= total then
       return setDialogError(dialog, "Enter an exact positive cost")
     end
@@ -1461,6 +1535,19 @@ end
 
 renderRows = function()
   if not container then return end
+  -- The Sell CONTENT may be attached but not the tab currently on screen -- composePositions()
+  -- and GC.Sell.Refresh() run regardless of which tab is active (bag counts and the tab badge
+  -- must stay current either way), and that used to rebuild every visible row along with them:
+  -- dragging the window's resize grip alone re-ran this at up to 60fps, and every quote landing
+  -- during a background pricing walk re-ran it again, whether or not anyone could see the
+  -- result. Defer instead, the same way an armed post/repost already defers below --
+  -- GC.Sell.Show() reveals the container and then unconditionally calls Refresh(), which is
+  -- what actually flushes this: the very next render it triggers runs for real once
+  -- containerShown() is true again, so nothing needs a second explicit flush call here.
+  if not containerShown() then
+    deferredRender = true
+    return
+  end
   -- A post or repost that is armed is waiting on the player's confirming click,
   -- and the pin proving that click belongs to it is bound to a pooled row. A
   -- render rebinds those rows, so this used to answer by CANCELLING the
@@ -1754,17 +1841,30 @@ end
 -- outran their known listings -- an accounting difference, not a count of
 -- anything a player can act on. It now counts items sitting in the bags that
 -- the auction house would accept, which is what "Sell (9)" reads as.
+--
+-- Reads the count composePositions() already stamped rather than recomposing to answer this --
+-- a compose is a full six-bag scan plus every Acquisitions/Ledger walk, and every caller of
+-- this function calls it right where composePositions() was either just run or is about to be:
+--   * updateSellTabLabel(), from renderRows()'s own tail -- always after this same render's
+--     composePositions() has already run.
+--   * GC.Sniper.Toggle() and the AH-open handler -- both call GC.Sell.Refresh() (which
+--     composes synchronously, before any network round trip) immediately before reading this.
+--   * recordPurchaseFacts(), right after a purchase -- calls this WITHOUT a fresh compose, but
+--     a GoldCap purchase always lands in the mailbox, never straight into the bags, so bagQty
+--     (what this counts) cannot have changed at that exact instant; the cached value is still
+--     correct, and was already the only thing an immediate recompose there would have measured.
+-- Only a cold call before anything has ever composed falls back to composing once itself.
 function GC.Sell.SellableCount()
-  composePositions()
-  local n = 0
-  for _, position in ipairs(positions) do
-    if (position.bagQty or 0) > 0 then n = n + 1 end
-  end
-  return n
+  if sellableCount == nil then composePositions() end
+  return sellableCount or 0
 end
 
 function GC.Sell.Show()
   if container then container:Show() end
+  -- This is what flushes a render renderRows() deferred while the container was hidden: Show()
+  -- has always called Refresh() unconditionally, and Refresh()'s own composePositions()+
+  -- renderRows() pass now runs for real the instant containerShown() is true. An explicit
+  -- flushDeferredRender() call here would render this same pass a second time.
   GC.Sell.Refresh()
 end
 function GC.Sell.Hide() if container then container:Hide() end end
@@ -1867,7 +1967,7 @@ function GC.Sell.Attach(f, geometry)
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -78); scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
-  local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 130); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
+  local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this
   -- opened as bare floating widgets: the rows underneath showed straight through it, its own
   -- error text collided with them, and clicks aimed at the dialog landed on whatever row sat
@@ -1889,12 +1989,30 @@ function GC.Sell.Attach(f, geometry)
       edge:SetPoint("TOP" .. side); edge:SetPoint("BOTTOM" .. side); edge:SetWidth(1)
     end
   end
+  -- Which item, and how many units it is missing a cost for -- filled in by openCostDialog
+  -- every time it opens, since the dialog is pooled across positions. Reserves two lines'
+  -- worth of height: item names run long enough that one line is not always enough.
+  dialog.header = Theme.Label(dialog, 11)
+  dialog.header:SetPoint("TOPLEFT", 12, -10)
+  dialog.header:SetPoint("TOPRIGHT", -12, -10)
+  dialog.header:SetWordWrap(true)
+  setColor(dialog.header, Theme.color.fg)
   dialog.quantity, dialog.unit, dialog.total = CreateFrame("EditBox", nil, dialog, "InputBoxTemplate"), CreateFrame("EditBox", nil, dialog, "InputBoxTemplate"), CreateFrame("EditBox", nil, dialog, "InputBoxTemplate")
-  for i, field in ipairs({ { dialog.quantity, "Quantity" }, { dialog.unit, "Unit cost" }, { dialog.total, "Total cost" } }) do
-    local label = Theme.Label(dialog, 10); label:SetPoint("TOPLEFT", 12 + (i - 1) * 82, -12); label:SetText(field[2])
-    field[1]:SetSize(70, 20); field[1]:SetPoint("TOPLEFT", 12 + (i - 1) * 82, -26); field[1]:SetAutoFocus(false)
+  -- Pushed down FIELD_LABEL_Y/FIELD_BOX_Y (was -12/-26) to leave room for the header above.
+  -- Unit/Total are labelled "(gold)" -- explicitly, because the fields used to carry no unit
+  -- at all and every amount typed here was read as bare copper.
+  local FIELD_LABEL_Y, FIELD_BOX_Y = -40, -54
+  for i, field in ipairs({ { dialog.quantity, "Quantity" }, { dialog.unit, "Unit cost (gold)" }, { dialog.total, "Total cost (gold)" } }) do
+    local label = Theme.Label(dialog, 10); label:SetPoint("TOPLEFT", 12 + (i - 1) * 82, FIELD_LABEL_Y); label:SetText(field[2])
+    field[1]:SetSize(70, 20); field[1]:SetPoint("TOPLEFT", 12 + (i - 1) * 82, FIELD_BOX_Y); field[1]:SetAutoFocus(false)
   end
-  dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, -55); setColor(dialog.error, Theme.color.red)
+  -- Live coin readout of exactly what Total will record, under the Total field itself. This
+  -- is what makes the unit unambiguous no matter what the player assumed it was.
+  dialog.totalPreview = Theme.Label(dialog, 10)
+  dialog.totalPreview:SetPoint("TOPLEFT", 12 + 2 * 82, FIELD_BOX_Y - 24)
+  dialog.totalPreview:SetPoint("TOPRIGHT", -12, FIELD_BOX_Y - 24)
+  setColor(dialog.totalPreview, Theme.color.fgDim)
+  dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, FIELD_BOX_Y - 44); setColor(dialog.error, Theme.color.red)
   local cancel = Theme.Button(dialog, "ghost"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
   local confirm = Theme.Button(dialog, "primary"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
   local function syncText(edit, text)
@@ -1902,21 +2020,29 @@ function GC.Sell.Attach(f, geometry)
     edit:SetText(text)
     dialog.syncing = false
   end
+  -- All three handlers read/write GOLD text now (dialogGoldPositive / copperToGoldText), but
+  -- do every comparison and every downstream write in COPPER -- the sync must stay exact in
+  -- the unit RecordManual/RepairPendingManual actually store, not in the decimal the player
+  -- is typing, or rounding in one direction and not the other would drift the two fields
+  -- apart from what Confirm's own validation checks.
   dialog.unit:SetScript("OnTextChanged", function()
     if dialog.syncing then return end
     dialog.costMode = "unit"
-    local q, unit = dialogExactPositive(dialog.quantity), dialogExactPositive(dialog.unit)
-    if not q or not unit then
+    local q, unitCopper = dialogExactPositive(dialog.quantity), dialogGoldPositive(dialog.unit)
+    if not q or not unitCopper then
       syncText(dialog.total, "")
+      updateTotalPreview(dialog, nil)
       return setDialogError(dialog, "Enter an exact positive cost")
     end
-    local total = safeMultiply(q, unit)
-    if not total then
+    local totalCopper = safeMultiply(q, unitCopper)
+    if not totalCopper then
       syncText(dialog.total, "")
+      updateTotalPreview(dialog, nil)
       return setDialogError(dialog, "Enter an exact positive cost")
     end
     setDialogError(dialog)
-    syncText(dialog.total, tostring(total))
+    syncText(dialog.total, copperToGoldText(totalCopper))
+    updateTotalPreview(dialog, totalCopper)
   end)
   dialog.quantity:SetScript("OnTextChanged", function()
     if dialog.syncing then return end
@@ -1925,6 +2051,7 @@ function GC.Sell.Attach(f, geometry)
       if dialog.costMode == "unit" then syncText(dialog.total, "")
       elseif dialog.costMode == "total" then syncText(dialog.unit, "")
       else syncText(dialog.unit, ""); syncText(dialog.total, "") end
+      updateTotalPreview(dialog, nil)
       return setDialogError(dialog, "Enter a whole quantity")
     end
     if dialog.maximum then
@@ -1932,36 +2059,59 @@ function GC.Sell.Attach(f, geometry)
       if clamped ~= quantity then syncText(dialog.quantity, tostring(clamped)); quantity = clamped end
     end
     if dialog.costMode == "unit" then
-      local unit = dialogExactPositive(dialog.unit)
-      local total = unit and safeMultiply(quantity, unit)
-      if not total then
+      local unitCopper = dialogGoldPositive(dialog.unit)
+      local totalCopper = unitCopper and safeMultiply(quantity, unitCopper)
+      if not totalCopper then
         syncText(dialog.total, "")
+        updateTotalPreview(dialog, nil)
         return setDialogError(dialog, "Enter an exact positive cost")
       end
-      syncText(dialog.total, tostring(total))
+      syncText(dialog.total, copperToGoldText(totalCopper))
+      updateTotalPreview(dialog, totalCopper)
       setDialogError(dialog)
     elseif dialog.costMode == "total" then
-      local total = dialogExactPositive(dialog.total)
-      if not total then
+      local totalCopper = dialogGoldPositive(dialog.total)
+      if not totalCopper then
         syncText(dialog.unit, "")
+        updateTotalPreview(dialog, nil)
         return setDialogError(dialog, "Enter an exact positive cost")
       end
-      syncText(dialog.unit, tostring(math.floor(total / quantity)))
+      syncText(dialog.unit, copperToGoldText(math.floor(totalCopper / quantity)))
+      updateTotalPreview(dialog, totalCopper)
       setDialogError(dialog)
     end
   end)
   dialog.total:SetScript("OnTextChanged", function()
     if dialog.syncing then return end
     dialog.costMode = "total"
-    local q, total = dialogExactPositive(dialog.quantity), dialogExactPositive(dialog.total)
-    if not q or not total then
+    local q, totalCopper = dialogExactPositive(dialog.quantity), dialogGoldPositive(dialog.total)
+    if not q or not totalCopper then
       syncText(dialog.unit, "")
+      updateTotalPreview(dialog, nil)
       return setDialogError(dialog, "Enter an exact positive cost")
     end
-    syncText(dialog.unit, tostring(math.floor(total / q)))
+    syncText(dialog.unit, copperToGoldText(math.floor(totalCopper / q)))
+    updateTotalPreview(dialog, totalCopper)
     setDialogError(dialog)
   end)
+  -- OnSizeChanged fires once per pixel while the resize grip is being dragged -- as often as
+  -- every frame -- and renderRows is not free: it walks the filtered position list and
+  -- rebuilds every visible row. Layout (the width-driven column drop) is cheap and stays
+  -- immediate; the row rebuild is coalesced to a single pass once the size has settled,
+  -- rather than rebuilding the model up to 60 times a second while the grip is dragged.
+  local resizeRenderToken = 0
   f:HookScript("OnSizeChanged", function(_, width)
-    ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset); content:SetWidth(ROW_WIDTH); layoutCells(header); renderRows()
+    ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
+    content:SetWidth(ROW_WIDTH)
+    layoutCells(header)
+    resizeRenderToken = resizeRenderToken + 1
+    local token = resizeRenderToken
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0, function()
+        if token == resizeRenderToken then renderRows() end
+      end)
+    else
+      renderRows()
+    end
   end)
 end

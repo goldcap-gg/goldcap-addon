@@ -39,6 +39,15 @@ describe("Sell tab, bags to Post", function()
     error("missing upvalue " .. wanted)
   end
 
+  local function set(fn, wanted, value)
+    for i = 1, math.huge do
+      local n = debug.getupvalue(fn, i)
+      if not n then break end
+      if n == wanted then debug.setupvalue(fn, i, value); return end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
   -- Slot 1: 200 Eternium Ore, a commodity, freely sellable.
   -- Slot 2: 46 more of the same, so the aggregate has to add up across stacks.
   -- Slot 3: soulbound, which the auction house refuses.
@@ -96,6 +105,11 @@ describe("Sell tab, bags to Post", function()
     GC.Sell.Attach(root, { panelLeft = 8, panelRightInset = 8, top = -10, bottom = 8,
       rowWidth = 1100, rowHeight = 24 })
     render = upvalue(GC.Sell.Attach, "renderRows")
+    -- Attach leaves the Sell container hidden (one of several tabs on the real Sniper
+    -- window); renderRows now defers a rebuild while it is hidden, so this whole suite --
+    -- which reads rendered rows directly -- needs it shown, the way GC.Sell.Show() (the
+    -- real tab switch) would leave it.
+    upvalue(render, "container"):Show()
   end)
 
   after_each(function()
@@ -133,6 +147,33 @@ describe("Sell tab, bags to Post", function()
     for _, r in ipairs(rows) do if r.shown and r.kind == "position" then shown = shown + 1 end end
     assert.equal(1, shown) -- the soulbound and the worthless are not positions
     assert.equal(1, GC.Sell.SellableCount())
+  end)
+
+  -- SellableCount used to call composePositions() itself on every read -- a full six-bag
+  -- scan plus every Acquisitions/Ledger walk -- even though updateSellTabLabel()'s own
+  -- callers all read it right where a compose had either just run or was about to. It now
+  -- reads the count composePositions() stamps as it walks positions, so a read after a real
+  -- compose must not trigger a second one.
+  it("[perf] does not recompose positions merely to read the sellable count", function()
+    compose() -- a real composePositions() run, via the upvalue, the same way `compose()` above does
+    set(GC.Sell.SellableCount, "composePositions", function()
+      error("SellableCount must not recompose -- the count was already stamped")
+    end)
+    assert.equal(1, GC.Sell.SellableCount())
+  end)
+
+  -- The one caller that reads it without a compose immediately before it (recordPurchaseFacts,
+  -- right after a GoldCap purchase) is still correct: a GoldCap purchase always lands in the
+  -- mailbox, never straight into the bags, so bagQty -- what this counts -- cannot have moved
+  -- at that exact instant. The cached value already answers correctly with no recompose.
+  it("[perf] composes exactly once on a cold call before anything has ever composed", function()
+    local composeCalls = 0
+    local realCompose = upvalue(GC.Sell.SellableCount, "composePositions")
+    set(GC.Sell.SellableCount, "composePositions", function() composeCalls = composeCalls + 1; realCompose() end)
+    assert.equal(1, GC.Sell.SellableCount())
+    assert.equal(1, composeCalls)
+    assert.equal(1, GC.Sell.SellableCount()) -- second read: still cached, no second compose
+    assert.equal(1, composeCalls)
   end)
 
   it("reports the cost as unknown rather than inventing one", function()
