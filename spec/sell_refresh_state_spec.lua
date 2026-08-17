@@ -334,6 +334,25 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 44 }, refreshState(GC).queue)
   end)
 
+  -- Unresolved positions were excluded from pricing wholesale, which left every tiered
+  -- reagent caught in identity repair (Progenium Ore, Bismuth...) at "—" forever -- reading
+  -- as the walk being broken. Identity questions are about COST; a commodity's market price
+  -- is exact for its itemID no matter whose stock it is. Variant ITEMS stay excluded: a
+  -- basic-key quote can be a different variant's price, and a wrong number is worse than none.
+  it("prices an unresolved commodity holding stock, never an unresolved variant item", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return {
+        { itemID = 51, positionKey = "commodity:51", bagQty = 3, unresolved = true },
+        { itemID = 52, positionKey = "item:52:100:0:0", bagQty = 1, unresolved = true },
+        { itemID = 53, positionKey = "commodity:53", unresolved = true }, -- stockless ghost
+      }
+    end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 51 }, refreshState(GC).queue)
+  end)
+
   it("finishes an all-fresh pass immediately instead of re-pricing the whole tab", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)

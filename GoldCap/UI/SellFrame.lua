@@ -573,7 +573,16 @@ local function uniqueQuoteItemIDs()
       and (time() - answeredEmptyAt) <= EMPTY_ANSWER_AGE
     local due = (position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty
-    if not position.unresolved and position.itemID and (inBags or listed) and due then
+    -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
+    -- identity question is about cost, and a commodity's market price is exact for its
+    -- itemID no matter whose stock it is -- leaving every tiered reagent caught in identity
+    -- repair at "—" forever read as this walk being broken. Unresolved variant ITEMS stay
+    -- excluded: a basic-key quote can be a different variant's price, and a wrong number is
+    -- worse than none.
+    local commodity = type(position.positionKey) == "string"
+      and position.positionKey:find("commodity:", 1, true) == 1
+    local pricable = not position.unresolved or commodity
+    if pricable and position.itemID and (inBags or listed) and due then
       actionable[#actionable + 1] = position
     end
   end
@@ -2636,4 +2645,28 @@ GC.slashHandlers.sellstate = function()
   GC.Print(("throttle ready=%s · sniper busy=%s · empty answers resting=%d"):format(
     tostring(driver and driver.isReady and driver.isReady() or false),
     tostring(blocking and blocking() or false), rested))
+  -- Every row without a market price, and the EXACT reason the walk is not asking about it --
+  -- mirrors uniqueQuoteItemIDs' own membership rules, so a "—" can always be explained.
+  local shown = 0
+  for _, position in ipairs(positions) do
+    if position.displayMarketUnit == nil and position.itemID and shown < 12 then
+      local inBags = type(position.bagQty) == "number" and position.bagQty > 0
+      local listed = type(position.listedQty) == "number" and position.listedQty > 0
+      local commodity = type(position.positionKey) == "string"
+        and position.positionKey:find("commodity:", 1, true) == 1
+      local restingAt = emptyAnswers[position.itemID]
+      local why
+      if position.unresolved and not commodity then
+        why = "identity unresolved (variant item -- not priced by design)"
+      elseif not (inBags or listed) then
+        why = "no stock in bags or listed -- nothing to price for"
+      elseif type(restingAt) == "number" and (time() - restingAt) <= EMPTY_ANSWER_AGE then
+        why = ("AH answered empty %ds ago"):format(time() - restingAt)
+      else
+        why = "due -- will be asked next pass"
+      end
+      shown = shown + 1
+      GC.Print(("  %s (%d): %s"):format(tostring(position.itemName or "?"), position.itemID, why))
+    end
+  end
 end
