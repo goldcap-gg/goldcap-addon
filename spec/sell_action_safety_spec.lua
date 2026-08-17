@@ -158,6 +158,54 @@ describe("Sell protected action state", function()
     assert.same({ 2, 5, 200 }, { calls[1][2], calls[1][3], calls[1][4] })
   end)
 
+  -- The auction's listing duration used to be a hardcoded constant (24h). It now reads
+  -- GC.db.settings.sniper.postDuration -- the same field the settings panel's cycling control
+  -- writes -- so a player's choice takes effect on the very next click, with no reload.
+  it("posts at the configured duration, not a hardcoded one", function()
+    local calls = {}
+    local location = { bag = 0, slot = 1 }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return location end }
+    _G.C_AuctionHouse = { PostCommodity = function(...) calls[#calls + 1] = { ... }; return false end }
+    local stacks = { [1] = { itemID = 42, stackCount = 2 }, [2] = { itemID = 42, stackCount = 3 } }
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end,
+      GetContainerItemInfo = function(_, slot) return stacks[slot] end,
+    }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 5, unitPrice = 200 } end,
+    }, db = { settings = { sniper = { postDuration = 3 } } } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
+    assert.equal(3, calls[1][2])
+  end)
+
+  -- A malformed or hand-edited SavedVariables value must never reach a protected call: fall
+  -- back to the addon's long-standing default (24h) rather than pass a duration the API would
+  -- reject or, worse, silently misinterpret.
+  it("falls back to 24h for a settings value that is not one of the three the API accepts", function()
+    local calls = {}
+    local location = { bag = 0, slot = 1 }
+    _G.ItemLocation = { CreateFromBagAndSlot = function() return location end }
+    _G.C_AuctionHouse = { PostCommodity = function(...) calls[#calls + 1] = { ... }; return false end }
+    local stacks = { [1] = { itemID = 42, stackCount = 2 }, [2] = { itemID = 42, stackCount = 3 } }
+    _G.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end,
+      GetContainerItemInfo = function(_, slot) return stacks[slot] end,
+    }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return { unit = 200, at = 100 } end }, SellPositions = {
+      BuildPostPlan = function() return { positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        itemID = 42, quantity = 5, unitPrice = 200 } end,
+    }, db = { settings = { sniper = { postDuration = 99 } } } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    post({ position = position(), action = button(), renderEntryID = "entry:post:42" })
+    assert.equal(2, calls[1][2])
+  end)
+
   it("fails closed when a commodity bag slot cannot produce an ItemLocation", function()
     local calls = 0
     _G.ItemLocation = { CreateFromBagAndSlot = function() return nil end }

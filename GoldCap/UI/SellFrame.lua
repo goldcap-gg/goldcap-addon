@@ -2,10 +2,31 @@ local _, GC = ...
 
 GC.Sell = GC.Sell or {}
 
+-- Labels for the posting-queue keybinding (Bindings.xml, auto-loaded by the client -- see that
+-- file for the binding itself and GC.Sell.Attach below for the handler it calls). Purely
+-- cosmetic: the Key Bindings UI falls back to the raw action name if these are missing, so the
+-- feature works without them, but a human label is worth the two lines. `_G.` explicit, not a
+-- bare assignment, so this is a plain field write on the standard `_G` table rather than a new
+-- global luacheck would need to be told about.
+_G.BINDING_HEADER_GOLDCAP = "GoldCap"
+_G.BINDING_NAME_GOLDCAP_POST_NEXT = "Post the next queued item"
+
 local Theme = GC.Theme
 local ROW_HEIGHT, ROW_WIDTH
 local SELL_BAGS = { 0, 1, 2, 3, 4, 5 }
-local POST_DURATION = 2
+-- The auction's listing duration: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration` argument
+-- the two posting calls in onPostClick below take -- see Core/Init.lua's own comment on
+-- settings.sniper.postDuration for the same mapping. Read fresh on every post rather than
+-- cached once, so a change in the settings panel takes effect on the very next click with no
+-- reload. Falls back to 2 (this addon's long-standing default) for a missing settings table, a
+-- value nobody has ever set, or anything that is not exactly one of the three durations the API
+-- accepts -- a typo or a hand-edited SavedVariables value must never reach a protected call.
+local function postDuration()
+  local settings = GC.db and GC.db.settings and GC.db.settings.sniper
+  local value = settings and settings.postDuration
+  if value == 1 or value == 2 or value == 3 then return value end
+  return 2
+end
 local QUOTE_STALE_SECONDS = (GC.QuoteCache and GC.QuoteCache.MAX_AGE_SECONDS) or 10
 local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 3, 10
 local MAX_EXACT = 9007199254740991
@@ -51,6 +72,14 @@ local rows, positions, ownedLots, quotes = {}, {}, {}, {}
 -- Stamped by composePositions() as it walks every position, so SellableCount() can read it
 -- without recomposing. nil only until the first compose has ever run.
 local sellableCount
+-- The posting queue, DERIVED, never stored: rebuilt by composePositions() every time positions
+-- are, straight from GC.PostQueue.Build(positions). There is deliberately no separate stateful
+-- queue with an index into it -- a post empties that item from the bags, so the entry drops out
+-- of the very next build on its own. A stored queue is a second source of truth that can
+-- disagree with the bags, which is exactly the class of bug this codebase has been bitten by
+-- before (see the price-ladder and market-value postmortems). Both default to {} so the toolbar
+-- control has something sane to paint before the very first compose ever runs.
+local queueEntries, queueSkipped = {}, {}
 local bagStock = {}
 local sessionCommodityKind = {}
 -- Still "all": hiding the player's live listings behind a filter to answer "what
@@ -74,6 +103,14 @@ local scanBagStock
 -- need to flush a render that was deferred while a purchase was armed.
 local function renderRows() end
 local deferredRender = false
+-- Forward-declared for the same reason renderRows is: setStatus (defined further down, but
+-- above formatCell) needs to call this on every state change, and composePositions (much
+-- further down) needs to call it on every data change -- see this function's real body, well
+-- below formatCell, for why it cannot be defined this early itself. renderRows DEFERS for the
+-- whole time a post is armed (disarmPost/disarmRepost's own flushDeferredRender), so a render is
+-- not a reliable place to keep the queue control's own label in sync with the confirm/posting
+-- dance -- this is driven the same way paintRefreshButton already is, from setStatus.
+local function paintQueueButton() end
 
 local function restorePostRow(row)
   if not row then return end
@@ -140,6 +177,7 @@ end
 local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
   paintRefreshButton()
+  paintQueueButton()
 end
 
 local function setColor(fontString, color)
@@ -154,6 +192,63 @@ end
 
 local function formatCell(value)
   return type(value) == "number" and formatAmount(value) or tostring(value or "")
+end
+
+-- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
+-- -- see that module's own `evaluate` comment for what each one means structurally. A silently
+-- short queue is the same lie as a silently short deals list; naming the reason in plain words
+-- is what keeps it from being a DIFFERENT lie instead.
+local QUEUE_SKIP_TEXT = {
+  no_fresh_price = "needs a fresh price -- press Refresh",
+  below_breakeven = "would sell at a loss",
+  unresolved_identity = "GoldCap can't pin down which bag stack this is",
+}
+
+-- The real body, promised by the forward declaration above. Needs formatCell (just above) and
+-- container/queueEntries/queueSkipped/postingRow (all declared well above this point), so it
+-- could not be written any earlier than here.
+paintQueueButton = function()
+  local button, label = container and container.queueButton, container and container.queueLabel
+  if not button then return end
+  local heldBack, heldBackHit = container.queueHeldBack, container.queueHeldBackHit
+  -- Row 1 of the QUEUE's own order, not of whatever filter chip happens to be on screen right
+  -- now: this control acts on GC.PostQueue's own head regardless of what the player is currently
+  -- looking at, and paints itself from that same head so what it says is never a guess about
+  -- what a render would show if one ran right now.
+  local head = queueEntries[1]
+  if postingRow then
+    -- Mirror the row postingRow itself pins to -- see onQueueClick/onPostClick -- only when
+    -- that row genuinely IS the queue's own head. If some OTHER row's post is in flight (the
+    -- player clicked a row's own Post button directly, on a position that is not the head),
+    -- this control simply disables rather than offering a second, conflicting click; it must
+    -- never claim "Confirm" for a click that would land on the wrong row.
+    local sameHead = head and postingRow.position and postingRow.position.positionKey == head.positionKey
+    if sameHead and postingRow.postStage == "confirm" then
+      button:SetLabel("Confirm"); button:Enable()
+    else
+      button:SetLabel("Posting…"); button:Disable()
+    end
+    if label and head then label:SetText(head.itemName or "") end
+  elseif not head then
+    button:SetLabel("Nothing to post")
+    button:Disable()
+    if label then label:SetText("") end
+  else
+    button:SetLabel(("Post %d"):format(#queueEntries))
+    button:Enable()
+    if label then label:SetText(("%s @ %s"):format(head.itemName or "Item", formatCell(head.unitPrice))) end
+  end
+  if heldBack then
+    if #queueSkipped > 0 then
+      heldBack:SetText(("%d held back"):format(#queueSkipped))
+      heldBack:Show()
+      if heldBackHit then heldBackHit:Show() end
+    else
+      heldBack:SetText("")
+      heldBack:Hide()
+      if heldBackHit then heldBackHit:Hide() end
+    end
+  end
 end
 
 -- Mode names are internal. "Post (floor) @ 15g" tells a player nothing about
@@ -340,6 +435,17 @@ local function composePositions()
     if (position.bagQty or 0) > 0 then sellable = sellable + 1 end
   end
   sellableCount = sellable
+  -- Rebuilt from THESE positions, every time -- never kept as a separate stateful list. See
+  -- this file's own queueEntries/queueSkipped declaration for why. Guarded for GC.PostQueue
+  -- being absent: every real load carries Core/PostQueue.lua (GoldCap.toc), but a handful of
+  -- older fixtures in this spec suite load UI/SellFrame.lua without it, and a missing queue
+  -- module must degrade to "nothing queued," never a crash.
+  if GC.PostQueue and GC.PostQueue.Build then
+    queueEntries, queueSkipped = GC.PostQueue.Build(positions)
+  else
+    queueEntries, queueSkipped = {}, {}
+  end
+  paintQueueButton()
 end
 
 -- Which items the pricing walk asks the server about.
@@ -930,7 +1036,8 @@ local function onPostClick(row)
         or not exact(bagState.exactQty) or bagState.exactQty < pin.quantity
         or not checkedTotal or checkedTotal ~= pin.total
         or (not pin.isCommodity and pin.buyout ~= checkedTotal)
-        or not sameQuote or not confirmAvailable then
+        or not sameQuote or not confirmAvailable
+        or (pin.duration ~= 1 and pin.duration ~= 2 and pin.duration ~= 3) then
       disarmPost()
       if not sameQuote then startQuoteRefreshFor(position)
       else setStatus("Post confirmation expired") end
@@ -938,9 +1045,9 @@ local function onPostClick(row)
     end
     row.postStage = "confirming"; row.action:Disable(); setStatus("Posting…")
     if pin.isCommodity then
-      C_AuctionHouse.ConfirmPostCommodity(pin.location, POST_DURATION, pin.quantity, pin.unitPrice)
+      C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
     else
-      C_AuctionHouse.ConfirmPostItem(pin.location, POST_DURATION, pin.quantity, nil, pin.buyout)
+      C_AuctionHouse.ConfirmPostItem(pin.location, pin.duration, pin.quantity, nil, pin.buyout)
     end
     return
   end
@@ -986,17 +1093,23 @@ local function onPostClick(row)
   local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
   if not location then setStatus("No exact bag stack"); return end
   postingRow = row
+  -- Pinned once, here, rather than re-read at Confirm time: everything else about a post is
+  -- pinned the same way (unitPrice, quantity, ...) precisely so the two clicks of a two-click
+  -- post cannot disagree about what they are doing. A duration changed in the settings panel
+  -- between the two clicks must not let a post start at one duration and confirm at another.
+  local duration = postDuration()
   postingPin = { scopeKey = plan.scopeKey, positionKey = plan.positionKey, itemID = plan.itemID,
     variantKey = bagState.positionKey, quantity = plan.quantity, bag = bagState.bag, slot = bagState.slot,
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
-    position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
+    position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
+    duration = duration }
   row.postStage = "posting"; row.action:Disable(); setStatus("Posting…")
   local needsConfirmation
   if info.isCommodity then
-    needsConfirmation = C_AuctionHouse.PostCommodity(location, POST_DURATION, plan.quantity, plan.unitPrice)
+    needsConfirmation = C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)
   else
-    needsConfirmation = C_AuctionHouse.PostItem(location, POST_DURATION, plan.quantity, nil, buyout)
+    needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
   end
   if needsConfirmation then
     row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel("Confirm")
@@ -1376,9 +1489,9 @@ end
 -- destroys a deposit, so none of them should be a word a player has to guess at.
 local ACTION_HELP = {
   ["Set cost"] = { "Set cost", { "Tell GoldCap what you actually paid for these units.", "It will not invent a cost from the market price, so profit stays unknown until you enter one." } },
-  ["Post"] = { "Post", { "Lists what is sitting in your bags at the price shown under WHAT TO DO.", "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.", "It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it.", "The price is re-checked against the live Auction House immediately before anything is listed; if it has moved, the post is abandoned rather than sent at a stale price." } },
-  ["Repost"] = { "Repost", { "Cancels this live auction and lists it again at the current market price.", "Cancelling forfeits the deposit on the old auction, so this asks for a second click to confirm.", "Worth doing when someone has undercut you; not worth it if the price barely moved." } },
-  ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction and immediately relists it at the shown price.", "The deposit on the cancelled auction is lost. The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
+  ["Post"] = { "Post", { "Lists what is sitting in your bags at the price shown under WHAT TO DO.", "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.", "It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it.", "The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price." } },
+  ["Repost"] = { "Repost", { "Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags.", "Cancelling forfeits the deposit, so this asks for a second click to confirm.", "Once the mail arrives, list it again yourself at the new price -- from this same row.", "Worth doing when someone has undercut you; not worth it if the price barely moved." } },
+  ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
 }
 
 local function createRow(parent)
@@ -1561,8 +1674,23 @@ renderRows = function()
   end
   deferredRender = false
   renderGeneration = renderGeneration + 1
-  local filtered = GC.SellViewModel.Filter(positions, filterMode)
-  if GC.SellViewModel.Order then filtered = GC.SellViewModel.Order(filtered) end
+  local filtered
+  if filterMode == "queue" then
+    -- The queue's own order, head first -- deliberately NOT SellViewModel.Order, which ranks
+    -- by a different question ("what could I act on, roughly") than GC.PostQueue.Build's "what
+    -- is most valuable to post right now, in a stable order." See PostQueue.lua's own
+    -- entryLess. Every entry maps back to its live position object -- the queue itself carries
+    -- only display figures, never a second copy of the position -- so the row this produces is
+    -- the exact same row a normal filter chip would have rendered for that position.
+    filtered = {}
+    for _, entry in ipairs(queueEntries) do
+      local position = currentPosition(entry.positionKey)
+      if position then filtered[#filtered + 1] = position end
+    end
+  else
+    filtered = GC.SellViewModel.Filter(positions, filterMode)
+    if GC.SellViewModel.Order then filtered = GC.SellViewModel.Order(filtered) end
+  end
   updateSummary(filtered)
   local entries = {}
   for _, position in ipairs(filtered) do
@@ -1837,6 +1965,40 @@ renderRows = function()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
 
+-- The toolbar queue control's own click. Arms queue mode (so row 1 is guaranteed to be the
+-- head -- see renderRows' own "queue" branch above and the design document's own reasoning for
+-- why this, rather than teaching onPostClick a second way to find a row) and then posts row 1
+-- through onPostClick EXACTLY -- its own pin validation, its needsConfirmation branch, its
+-- timeout. There is no second posting implementation here, and nothing here calls a protected
+-- API directly; see spec/sell_post_wiring_spec.lua for the static guard on both.
+--
+-- Failure mode, spelled out rather than reassured about: if row 1 does not come back as a
+-- rendered "position" row after this -- the container hidden, a render some other in-flight
+-- arm is still deferring, or (the one this file's own code cannot create today, but a future
+-- edit might) the queue's head position vanishing from `positions` between compose and render
+-- -- this does nothing further. No protected call is attempted on a guess. The player sees a
+-- status line saying so and can press the control again once a render has actually happened.
+local function onQueueClick()
+  if #queueEntries == 0 then
+    setStatus("Nothing queued to post")
+    return
+  end
+  filterMode = "queue"
+  renderRows()
+  local row = rows[1]
+  -- `row:IsShown()`, never `row.shown`. A real Frame has no `shown` FIELD -- only the method --
+  -- but every widget double in this suite implements Show/Hide by writing `self.shown`, so
+  -- reading the field is true in every test and nil in the client, and this button would have
+  -- shipped refusing to post anything at all while seven tests proved it worked. That is the
+  -- third time today a field only the fakes define reached production; see
+  -- spec/ui_widget_field_spec.lua, which now fails the build for it.
+  if row and row.IsShown and row:IsShown() and row.kind == "position" then
+    onPostClick(row)
+  else
+    setStatus("Could not find the queue's next item to post — try again")
+  end
+end
+
 -- The number on the Sell tab. It counted positions whose tracked purchases
 -- outran their known listings -- an accounting difference, not a count of
 -- anything a player can act on. It now counts items sitting in the bags that
@@ -1940,6 +2102,64 @@ function GC.Sell.Attach(f, geometry)
     button:SetSize(widths[mode] or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
     button:SetScript("OnClick", function() filterMode = mode; renderRows() end); previous = button
   end
+  -- The posting queue control: the toolbar's own left end, opposite Refresh/the filter chips.
+  -- "Post N" (its own count, so the number is on the button a click actually is), a label
+  -- beside it naming the item and unit price that click will post -- a blind click is not one a
+  -- seller should be asked to make -- and a held-back indicator with a tooltip that explains,
+  -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
+  -- are painted, and onQueueClick for what a click does.
+  local queueButton = Theme.Button(container, "primary")
+  queueButton:SetSize(110, 20)
+  queueButton:SetPoint("TOPLEFT")
+  queueButton:SetScript("OnClick", function() onQueueClick() end)
+  container.queueButton = queueButton
+
+  local queueLabel = Theme.Label(container, 11)
+  queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 6, 0)
+  container.queueLabel = queueLabel
+
+  local queueHeldBack = Theme.Label(container, 10)
+  setColor(queueHeldBack, Theme.color.fgDim)
+  queueHeldBack:SetPoint("LEFT", queueLabel, "RIGHT", 8, 0)
+  queueHeldBack:Hide()
+  container.queueHeldBack = queueHeldBack
+
+  -- A FontString cannot take mouse scripts (see the header-cell hit frames a little further
+  -- down for the same fix) -- this invisible frame over the label is what actually raises the
+  -- tooltip. Content is read from queueSkipped live, at hover time, rather than baked in when
+  -- the label's text was last set, so it can never go stale between two renders.
+  local queueHeldBackHit = CreateFrame("Frame", nil, container)
+  queueHeldBackHit:SetAllPoints(queueHeldBack)
+  queueHeldBackHit:EnableMouse(true)
+  queueHeldBackHit:Hide()
+  queueHeldBackHit:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("Held back from the queue", 1, 0.82, 0)
+    if #queueSkipped == 0 then
+      GameTooltip:AddLine("Nothing is being held back.", 0.85, 0.85, 0.85, true)
+    else
+      for _, skip in ipairs(queueSkipped) do
+        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or "Item",
+          QUEUE_SKIP_TEXT[skip.reason] or "not ready to post"), 0.85, 0.85, 0.85, true)
+      end
+    end
+    GameTooltip:Show()
+  end)
+  queueHeldBackHit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  container.queueHeldBackHit = queueHeldBackHit
+
+  paintQueueButton() -- honest empty/disabled state before the very first compose ever runs
+
+  -- The real keybinding (Bindings.xml, auto-loaded by the client, not listed in the .toc -- see
+  -- that file) reaches into this exact field on the Sniper window frame, because Bindings.xml
+  -- executes as its own isolated Lua chunk with no upvalues into this file. It calls the SAME
+  -- Lua function the button's own OnClick calls above -- never Button:Click(), which both
+  -- inherits the caller's taint and skips RegisterForClicks/the mouse-down handling (see the
+  -- design document's own reasoning). A keybinding handler already runs synchronously inside a
+  -- real hardware input event, which is what a protected post actually requires.
+  f.GoldCapPostNext = onQueueClick
+
   container.summary = {}
   for i, stat in ipairs({ { "cost", "KNOWN COST" }, { "listed", "LISTED VALUE" }, { "profit", "EST. PROFIT" } }) do
     local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -24); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)

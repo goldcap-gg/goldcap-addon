@@ -226,6 +226,41 @@ local function bindCheckbox(box, key)
   return display
 end
 
+-- Cycles GC.db.settings.sniper.postDuration through the three durations
+-- C_AuctionHouse.PostCommodity/PostItem accept -- 1 = 12h, 2 = 24h, 3 = 48h, see Core/Init.lua's
+-- own comment on that field. A numeric field (like the ones bindNumberField above builds) would
+-- happily let a player type a 4th value the API would reject; a three-state cycle can't express
+-- a duration that does not exist.
+local DURATION_LABELS = { [1] = "Duration: 12h", [2] = "Duration: 24h", [3] = "Duration: 48h" }
+
+local function bindDurationButton(button)
+  -- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
+  -- postDuration() reader -- this control must never show, let alone cycle from, a value that
+  -- reader would refuse to post at.
+  local function storedValue()
+    local c = cfg()
+    local value = c and c.postDuration
+    if value == 1 or value == 2 or value == 3 then return value end
+    local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+    local default = d and d.postDuration
+    return (default == 1 or default == 2 or default == 3) and default or 2
+  end
+
+  local function display()
+    button:SetLabel(DURATION_LABELS[storedValue()])
+  end
+
+  button:SetScript("OnClick", function()
+    local c = cfg()
+    if not c then return end
+    c.postDuration = (storedValue() % 3) + 1
+    display()
+  end)
+
+  display()
+  return display
+end
+
 -- Binds the font-scale slider straight to GC.Theme.SetScale -- live (every drag tick rescales
 -- the whole addon's already-built widgets via Theme's OnRescale hooks/widgetFonts), and
 -- self-persisting (Theme.SetScale itself writes GC.db.settings.sniper.fontScale on every call,
@@ -333,7 +368,11 @@ local function build(sniperFrame)
 
   local title = Theme.Label(panel, 14)
   title:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
-  title:SetText("Sniper settings")
+  -- "GoldCap settings", not "Sniper settings". This is the addon's only settings screen and it
+  -- has not been about the Sniper alone for some time: sound, font scale, and now how long a
+  -- posted auction runs, which belongs to the Sell tab. A player looking for the duration would
+  -- not open a panel named after the buying half.
+  title:SetText("GoldCap settings")
 
   local done = Theme.Button(panel, "ghost")
   done:SetSize(56, ROW_H)
@@ -371,6 +410,24 @@ local function build(sniperFrame)
   fieldRow("HOT min sold/day", "hotMinSold", { min = 0, max = 1000 })
   fieldRow("GOOD min sold/day", "goodMinSold", { min = 0, max = 1000 })
   fieldRow("Dump-trend cap %", "dumpTrendPct", { min = 1, max = 99 })
+
+  -- Ghost cycling button, not a fieldRow: FIELD_W (64px) is sized for a 6-letter numeric
+  -- editbox, and "Duration: 48h" would not fit it. Sized separately below.
+  do
+    local label = Theme.Label(panel, 12)
+    label:SetPoint("TOPLEFT", Theme.pad.m, y)
+    label:SetPoint("RIGHT", panel, "RIGHT", -(Theme.pad.m + 118 + Theme.pad.s), 0)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
+    label:SetText("Auction duration")
+
+    local button = Theme.Button(panel, "ghost")
+    button:SetSize(118, ROW_H)
+    button:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+
+    refreshers[#refreshers + 1] = bindDurationButton(button)
+    y = y - STEP
+  end
 
   local function checkRow(labelText, key)
     local box = makeCheckbox(panel, 18)

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Auto-loaded by the client -- deliberately NOT listed in GoldCap.toc, which is how a
+  Bindings.xml file is meant to be shipped.
+
+  The posting queue's keybinding. Design: docs/superpowers/specs/2026-08-17-post-queue-design.md
+  ("Keybinding -- verify, then keep or drop"). This does NOT call the button's own Click method
+  -- the wiki is explicit that a click made that way inherits the caller's taint and skips
+  RegisterForClicks/the mouse-down handling. Instead it calls the exact same Lua function the
+  posting queue's toolbar button's own OnClick calls (see UI/SellFrame.lua's
+  GC.Sell.Attach: `f.GoldCapPostNext = onQueueClick`), through the Sniper window's own global
+  frame name -- Bindings.xml executes as an isolated chunk with no upvalues into any addon file,
+  so a reachable global is the only way in. A keybinding handler runs synchronously inside a
+  real hardware input event, which is what a protected post actually requires; whether the
+  client's #hwevent check is satisfied by THIS path specifically has not been confirmed in-game.
+-->
+<Bindings>
+  <Binding name="GOLDCAP_POST_NEXT" header="GOLDCAP">
+    if GoldCapSniperFrame and GoldCapSniperFrame.GoldCapPostNext then
+      GoldCapSniperFrame.GoldCapPostNext()
+    end
+  </Binding>
+</Bindings>
