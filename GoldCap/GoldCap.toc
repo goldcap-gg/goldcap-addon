@@ -19,6 +19,7 @@ Core/Flips.lua
 Core/BagStock.lua
 Core/SellPositions.lua
 Core/PostQueue.lua
+Core/CancelQueue.lua
 Core/Book.lua
 Core/SniperDecision.lua
 Core/DealMath.lua

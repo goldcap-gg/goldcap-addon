@@ -49,6 +49,31 @@ describe("Sell posting wiring", function()
     assert.is_truthy(body:find("onPostClick(", 1, true), "onQueueClick must call onPostClick")
   end)
 
+  -- The cancel queue's own belt, same shape: CancelAuction forfeits a real deposit, so it may
+  -- exist ONLY inside onRepostClick (the hardware click handler with the two-click arm), and
+  -- the cancel control must reuse that handler rather than grow a second cancel implementation.
+  it("keeps CancelAuction inside onRepostClick and routes the cancel control through it", function()
+    local text = source()
+    local repostStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
+    local repostEnd = assert(text:find("function GC.Sell.OnAuctionCreated()", repostStart, true))
+    local before = text:sub(1, repostStart - 1)
+    local body = text:sub(repostStart, repostEnd - 1)
+    local after = text:sub(repostEnd)
+    assert.is_truthy(body:find("C_AuctionHouse.CancelAuction", 1, true),
+      "CancelAuction must be reachable from onRepostClick")
+    assert.is_nil(before:find("C_AuctionHouse.CancelAuction", 1, true),
+      "CancelAuction must not appear before onRepostClick's body")
+    assert.is_nil(after:find("C_AuctionHouse.CancelAuction", 1, true),
+      "CancelAuction must not appear after onRepostClick's body -- including the cancel control")
+
+    local start = assert(text:find("local function onCancelQueueClick()", 1, true),
+      "the cancel control's click handler must exist")
+    local stop = assert(text:find("-- The number on the Sell tab", start, true))
+    local control = text:sub(start, stop - 1)
+    assert.is_truthy(control:find("onRepostClick(", 1, true),
+      "onCancelQueueClick must call onRepostClick")
+  end)
+
   -- Bindings.xml is not a .lua file, so the source-text scans above never see it -- this reads
   -- it directly. The design document is explicit that the keybinding must reach the SAME
   -- handler the button's OnClick calls, via a real hardware key event, and must never call

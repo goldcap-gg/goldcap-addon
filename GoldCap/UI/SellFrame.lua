@@ -80,6 +80,10 @@ local sellableCount
 -- before (see the price-ladder and market-value postmortems). Both default to {} so the toolbar
 -- control has something sane to paint before the very first compose ever runs.
 local queueEntries, queueSkipped = {}, {}
+-- The cancel twin, same statelessness contract: rebuilt from the positions on every compose,
+-- never kept as its own list with an index. A confirmed cancel makes the lot vanish from
+-- GetOwnedAuctions, so the entry drops out of the very next build on its own.
+local cancelEntries, cancelSkipped = {}, {}
 local bagStock = {}
 local sessionCommodityKind = {}
 -- Still "all": hiding the player's live listings behind a filter to answer "what
@@ -111,6 +115,10 @@ local deferredRender = false
 -- not a reliable place to keep the queue control's own label in sync with the confirm/posting
 -- dance -- this is driven the same way paintRefreshButton already is, from setStatus.
 local function paintQueueButton() end
+-- Forward-declared for the same reason paintQueueButton is: disarmRepost and the repost arm
+-- timer (both above the real body) must keep the cancel control's label in sync with the
+-- arm/confirm dance, because renderRows defers for the whole time a repost is armed.
+local function paintCancelButton() end
 
 local function restorePostRow(row)
   if not row then return end
@@ -142,6 +150,7 @@ local function disarmRepost()
   repostArmToken = (repostArmToken or 0) + 1
   restoreRepostRow(row)
   flushDeferredRender()
+  paintCancelButton()
 end
 
 -- The status line lives in the Sniper's toolbar, at the far left of a different
@@ -212,6 +221,10 @@ local QUEUE_SKIP_TEXT = {
   no_fresh_price = "needs a fresh price -- press Refresh",
   below_breakeven = "would sell at a loss",
   unresolved_identity = "GoldCap can't pin down which bag stack this is",
+  -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
+  -- held-back listing needs its why stated even more than a held-back post does.
+  advised_hold = "relisting now would lock in a loss or a stall -- hold",
+  no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
 -- The real body, promised by the forward declaration above. Needs formatCell (just above) and
@@ -251,6 +264,47 @@ paintQueueButton = function()
   if heldBack then
     if #queueSkipped > 0 then
       heldBack:SetText(("%d held back"):format(#queueSkipped))
+      heldBack:Show()
+      if heldBackHit then heldBackHit:Show() end
+    else
+      heldBack:SetText("")
+      heldBack:Hide()
+      if heldBackHit then heldBackHit:Hide() end
+    end
+  end
+end
+
+-- The cancel control's mirror of paintQueueButton, over the repost arm instead of the post
+-- pin. States, in the order a click sequence produces them: "Cancel N" -> "Cancel lot?" (the
+-- head lot is armed; enabled only once the REPOST_ARM_SECONDS delay has passed, exactly like
+-- the row's own button) -> "Cancelling…". While some OTHER lot's repost is in flight the
+-- control keeps its count but disables -- it must never offer a click that would land on the
+-- wrong lot, the same rule paintQueueButton applies to a non-head post.
+paintCancelButton = function()
+  local button = container and container.cancelButton
+  if not button then return end
+  local heldBack, heldBackHit = container.cancelHeldBack, container.cancelHeldBackHit
+  local head = cancelEntries[1]
+  if repostingRow then
+    local sameHead = head and repostPin and repostPin.auctionID == head.auctionID
+    if sameHead and repostingRow.repostStage == "cancelling" then
+      button:SetLabel("Cancelling…"); button:Disable()
+    elseif sameHead and repostingRow.repostStage == "armed" then
+      button:SetLabel("Cancel lot?")
+      if repostingRow.repostReady then button:Enable() else button:Disable() end
+    else
+      button:SetLabel(("Cancel %d"):format(#cancelEntries)); button:Disable()
+    end
+  elseif not head then
+    button:SetLabel("Nothing to cancel")
+    button:Disable()
+  else
+    button:SetLabel(("Cancel %d"):format(#cancelEntries))
+    button:Enable()
+  end
+  if heldBack then
+    if #cancelSkipped > 0 then
+      heldBack:SetText(("%d held back"):format(#cancelSkipped))
       heldBack:Show()
       if heldBackHit then heldBackHit:Show() end
     else
@@ -459,6 +513,13 @@ local function composePositions()
     queueEntries, queueSkipped = {}, {}
   end
   paintQueueButton()
+  -- The cancel twin, same degradation contract for fixtures loaded without the module.
+  if GC.CancelQueue and GC.CancelQueue.Build then
+    cancelEntries, cancelSkipped = GC.CancelQueue.Build(positions)
+  else
+    cancelEntries, cancelSkipped = {}, {}
+  end
+  paintCancelButton()
 end
 
 -- Which items the pricing walk asks the server about.
@@ -1231,7 +1292,12 @@ local function onRepostClick(row, auctionID)
   local token = repostArmToken
   if C_Timer and C_Timer.After then
     C_Timer.After(REPOST_ARM_SECONDS, function()
-      if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then row.repostReady = true; row.action:Enable() end
+      if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then
+        row.repostReady = true; row.action:Enable()
+        -- The cancel control mirrors this arm (see paintCancelButton); without this repaint it
+        -- would stay disabled after the delay even though the row's own button just enabled.
+        paintCancelButton()
+      end
     end)
     C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
       if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then
@@ -1700,6 +1766,19 @@ renderRows = function()
       local position = currentPosition(entry.positionKey)
       if position then filtered[#filtered + 1] = position end
     end
+  elseif filterMode == "cancelqueue" then
+    -- The cancel queue's own order, head first -- one row per position however many of its
+    -- lots are queued; the queued lots themselves render through the position's expansion,
+    -- which is where the Repost/Cancel action a click needs actually lives.
+    filtered = {}
+    local seen = {}
+    for _, entry in ipairs(cancelEntries) do
+      if not seen[entry.positionKey] then
+        seen[entry.positionKey] = true
+        local position = currentPosition(entry.positionKey)
+        if position then filtered[#filtered + 1] = position end
+      end
+    end
   else
     filtered = GC.SellViewModel.Filter(positions, filterMode)
     if GC.SellViewModel.Order then filtered = GC.SellViewModel.Order(filtered) end
@@ -2030,6 +2109,41 @@ local function onQueueClick()
   end
 end
 
+-- The cancel control's click. Same discipline as onQueueClick, plus the destructive-action
+-- rule: this function never cancels anything itself -- it finds the head's rendered LOT row
+-- and hands the click to onRepostClick, whose two-click arm (the deposit warning, the
+-- REPOST_ARM_SECONDS delay before a confirm counts, the timeout) and pin validation apply
+-- unchanged. A first click therefore arms at most; nothing here calls a protected API --
+-- see spec/sell_post_wiring_spec.lua's static guard on exactly that.
+local function onCancelQueueClick()
+  if #cancelEntries == 0 then
+    setStatus("Nothing queued to cancel")
+    return
+  end
+  local head = cancelEntries[1]
+  filterMode = "cancelqueue"
+  -- Force-expand the head's position: onRepostClick pins to a rendered lot row, and a
+  -- collapsed position renders no lot rows at all. (While an arm is already in flight this
+  -- render defers, deliberately -- the armed row's binding must not be rebuilt under it.)
+  expanded[head.positionKey] = true
+  renderRows()
+  local target
+  for _, row in ipairs(rows) do
+    -- `row:IsShown()`, never `row.shown` -- see onQueueClick's own comment on the widget-double
+    -- field that shipped a dead button.
+    if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot and row.lot.auctionID == head.auctionID then
+      target = row
+      break
+    end
+  end
+  if target then
+    onRepostClick(target, head.auctionID)
+    paintCancelButton()
+  else
+    setStatus("Could not find the queue's next lot to cancel — try again")
+  end
+end
+
 -- The number on the Sell tab. It counted positions whose tracked purchases
 -- outran their known listings -- an accounting difference, not a count of
 -- anything a player can act on. It now counts items sitting in the bags that
@@ -2181,6 +2295,47 @@ function GC.Sell.Attach(f, geometry)
   container.queueHeldBackHit = queueHeldBackHit
 
   paintQueueButton() -- honest empty/disabled state before the very first compose ever runs
+
+  -- The cancel queue control: the summary row's empty right half -- the toolbar row above is
+  -- already full at minimum window width, and a destructive control does not belong beside
+  -- Post anyway. Ghost, not primary: this tab's primary action is posting; cancelling burns a
+  -- deposit and earns the quieter look. See paintCancelButton for the states and
+  -- onCancelQueueClick for what a click does (and, more importantly, does not) do.
+  local cancelButton = Theme.Button(container, "ghost")
+  cancelButton:SetSize(110, 20)
+  cancelButton:SetPoint("TOPRIGHT", 0, -26)
+  cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
+  container.cancelButton = cancelButton
+
+  local cancelHeldBack = Theme.Label(container, 10)
+  setColor(cancelHeldBack, Theme.color.fgDim)
+  cancelHeldBack:SetPoint("RIGHT", cancelButton, "LEFT", -8, 0)
+  cancelHeldBack:Hide()
+  container.cancelHeldBack = cancelHeldBack
+
+  -- Same FontString-cannot-take-mouse-scripts fix as the posting queue's held-back label.
+  local cancelHeldBackHit = CreateFrame("Frame", nil, container)
+  cancelHeldBackHit:SetAllPoints(cancelHeldBack)
+  cancelHeldBackHit:EnableMouse(true)
+  cancelHeldBackHit:Hide()
+  cancelHeldBackHit:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("Held back from cancelling", 1, 0.82, 0)
+    if #cancelSkipped == 0 then
+      GameTooltip:AddLine("Nothing is being held back.", 0.85, 0.85, 0.85, true)
+    else
+      for _, skip in ipairs(cancelSkipped) do
+        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or "Item",
+          QUEUE_SKIP_TEXT[skip.reason] or "not ready to cancel"), 0.85, 0.85, 0.85, true)
+      end
+    end
+    GameTooltip:Show()
+  end)
+  cancelHeldBackHit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  container.cancelHeldBackHit = cancelHeldBackHit
+
+  paintCancelButton()
 
   -- The real keybinding (Bindings.xml, auto-loaded by the client, not listed in the .toc -- see
   -- that file) reaches into this exact field on the Sniper window frame, because Bindings.xml
