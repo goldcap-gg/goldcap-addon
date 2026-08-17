@@ -345,6 +345,29 @@ describe("Sell positions", function()
     assert.equal(190, fresh.projectedNet)
   end)
 
+  -- Queue-at-exit projection: the PROFIT column and the price Post uses must be one number.
+  -- A lot listed at or under the position's underwritten exit (batch.targetUnit) projects at
+  -- ITS price -- the addon queued it there on purpose; clamping it to the current floor showed
+  -- a fresh queue post as an instant loss (in game: listed 11g19s, PROFIT read -45s off the
+  -- 8g93s floor). A lot priced above the exit keeps the conservative min(list, market) clamp.
+  it("projects a listed lot at its own price when it sits within the underwritten exit", function()
+    local underwritten = batch("acq:1", "goldcap", 2, 200, 1)
+    underwritten.targetUnit = 300
+    local p = build({ acquisitions = { underwritten },
+      ownedLots = { lot("commodity:42", 1, 300, 1), lot("commodity:42", 1, 200, 2) },
+      quotes = { [42] = { unit = 100, at = 9 } } })[1]
+    -- (300 + 200) * 0.95 = 475, not the floor-clamped 190.
+    assert.equal(475, p.projectedNet)
+
+    local overpriced = batch("acq:1", "goldcap", 2, 200, 1)
+    overpriced.targetUnit = 250
+    local q = build({ acquisitions = { overpriced },
+      ownedLots = { lot("commodity:42", 1, 300, 1), lot("commodity:42", 1, 200, 2) },
+      quotes = { [42] = { unit = 100, at = 9 } } })[1]
+    -- 300 is above the 250 exit: nothing underwrites it, the clamp holds -> (100+200)*0.95.
+    assert.equal(285, q.projectedNet)
+  end)
+
   it("does not call a position undercut when its cheapest listed lot is still competitive", function()
     local p = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
       ownedLots = { lot("commodity:42", 1, 300, 1), lot("commodity:42", 1, 80, 2) },

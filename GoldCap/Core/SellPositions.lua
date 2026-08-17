@@ -271,23 +271,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.coverage = allocation.knownQty == 0 and "UNKNOWN"
       or allocation.knownQty < position.exposureQty and "PARTIAL" or "COMPLETE"
   end
-  local projected
-  if position.listedQty > 0 then
-    local gross = 0
-    for _, ownedLot in ipairs(position.ownedLots) do
-      local unit = fresh and math.min(ownedLot.unitPrice, fresh) or ownedLot.unitPrice
-      local value = valueFor(ownedLot.quantity, unit)
-      gross = value and add(gross, value) or nil
-      if not gross then break end
-    end
-    projected = gross and mulDivFloor(gross, 95, 100) or nil
-  elseif fresh then
-    projected = netFor(position.exposureQty, fresh)
-  else
-    projected = nil
-  end
-  position.projectedNet = projected
-  if position.coverage == "COMPLETE" and projected ~= nil then position.profit = projected - position.knownCost end
+  -- projectedNet/profit are computed BELOW, after the recommendations -- they must price at
+  -- the same number Post actually uses (see the projected block's own comment), and the
+  -- queue-at-exit recommendation does not exist yet at this point in the walk.
 
   local levels = type(quotes and quotes[position.itemID]) == "table" and quotes[position.itemID].levels or nil
   local marketStats = statsByItemID and statsByItemID[position.itemID]
@@ -396,6 +382,43 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   else
     position.postRecommendation = nil
   end
+
+  -- Projected income and profit, computed HERE -- after the recommendations -- so the row's
+  -- PROFIT column and the price Post actually uses are one number, not two. Both branches
+  -- price the way the queue-at-exit rule does:
+  --  * A LISTED lot priced at or under the position's underwritten exit projects at ITS
+  --    price -- the addon queued it there on purpose, and clamping it back down to the
+  --    current cheapest ask (the old rule) showed a fresh queue post as an instant loss
+  --    (seen in game: listed at 11g19s per the queue rule, PROFIT read -45s off the 8g93s
+  --    floor). A lot priced ABOVE the exit keeps the conservative min(list, market) clamp:
+  --    nothing underwrites that price, and projecting it would flatter a mistake.
+  --  * BAG stock projects at what Post would actually list it at (postRecommendation.unit,
+  --    floor/queue raises included) rather than the raw cheapest ask, for the same reason.
+  --    Still only with a fresh live quote, exactly as before -- mv alone never projects.
+  local projected
+  if position.listedQty > 0 then
+    local gross = 0
+    for _, ownedLot in ipairs(position.ownedLots) do
+      local unit
+      if targetUnit and ownedLot.unitPrice <= targetUnit then
+        unit = ownedLot.unitPrice
+      else
+        unit = fresh and math.min(ownedLot.unitPrice, fresh) or ownedLot.unitPrice
+      end
+      local value = valueFor(ownedLot.quantity, unit)
+      gross = value and add(gross, value) or nil
+      if not gross then break end
+    end
+    projected = gross and mulDivFloor(gross, 95, 100) or nil
+  elseif fresh then
+    local rec = position.postRecommendation
+    local unit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
+    projected = netFor(position.exposureQty, unit)
+  else
+    projected = nil
+  end
+  position.projectedNet = projected
+  if position.coverage == "COMPLETE" and projected ~= nil then position.profit = projected - position.knownCost end
 
   local skipped = 0
   for _, ownedLot in ipairs(position.ownedLots) do
