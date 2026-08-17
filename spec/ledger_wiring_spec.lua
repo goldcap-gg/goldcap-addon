@@ -106,6 +106,52 @@ describe("Ledger event wiring", function()
     assert.equal(1, _G.GoldCapDB.settings.sniper.profitFloorVersion)
   end)
 
+  -- The tier floors were sized for a lot of up to 200 units. Discovery now proposes what
+  -- SniperDecision.DemandCap would approve, usually single digits, so 500g per lot became
+  -- unreachable and the board would have gone uniformly WATCH -- see migrateSniperTierProfit.
+  it("cuts the legacy tier profit floors tenfold once", function()
+    _G.GoldCapDB = { settings = { sniper = { hotProfit = 5000000, goodProfit = 1000000 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(500000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100000, _G.GoldCapDB.settings.sniper.goodProfit)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
+  end)
+
+  -- Neither field has ever had a settings control, so a value that is not the legacy default
+  -- was typed into SavedVariables on purpose and must survive the migration untouched.
+  it("preserves hand-edited tier profit floors while versioning them", function()
+    _G.GoldCapDB = { settings = { sniper = { hotProfit = 3000000, goodProfit = 100 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(3000000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100, _G.GoldCapDB.settings.sniper.goodProfit)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
+  end)
+
+  -- Already-stamped saves must not be cut a second time down to 50g/10g.
+  it("never runs the tier migration twice", function()
+    _G.GoldCapDB = { settings = { sniper = {
+      hotProfit = 500000, goodProfit = 100000, tierProfitVersion = 1 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(500000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100000, _G.GoldCapDB.settings.sniper.goodProfit)
+  end)
+
+  it("stamps a fresh database with the new tier floors and their version", function()
+    _G.GoldCapDB = {}
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(500000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100000, _G.GoldCapDB.settings.sniper.goodProfit)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
+  end)
+
   it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
     local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
       boughtAt = 500, targetUnit = 180 }
