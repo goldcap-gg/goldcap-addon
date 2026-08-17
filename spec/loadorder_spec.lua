@@ -201,7 +201,7 @@ describe("TOC load order", function()
     end
     toc:close()
     assert.is_true(#files >= 7)
-    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex, sellPositionsIndex, sellViewModelIndex, sellFrameIndex
+    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex, sellPositionsIndex, postQueueIndex, sellViewModelIndex, sellFrameIndex
     for i, rel in ipairs(files) do
       if rel == "Core/Acquisitions.lua" then acquisitionsIndex = i end
       if rel == "Core/PurchaseCapture.lua" then purchaseCaptureIndex = i end
@@ -209,6 +209,7 @@ describe("TOC load order", function()
       if rel == "Core/QuoteCache.lua" then quoteCacheIndex = i end
       if rel == "Core/Flips.lua" then flipsIndex = i end
       if rel == "Core/SellPositions.lua" then sellPositionsIndex = i end
+      if rel == "Core/PostQueue.lua" then postQueueIndex = i end
       if rel == "UI/SellViewModel.lua" then sellViewModelIndex = i end
       if rel == "UI/SellFrame.lua" then sellFrameIndex = i end
     end
@@ -222,9 +223,16 @@ describe("TOC load order", function()
     assert.is_true(quoteCacheIndex < flipsIndex)
     assert.is_number(sellPositionsIndex)
     assert.is_true(flipsIndex < sellPositionsIndex)
+    -- PostQueue.Build consumes SellPositions.Build's own return shape, so it belongs right
+    -- after it in the pipeline, and (the property that actually matters -- see the design doc's
+    -- "one click, one control" constraint) strictly before UI/SellFrame.lua, which is the only
+    -- file that will ever call it.
+    assert.is_number(postQueueIndex)
+    assert.is_true(sellPositionsIndex < postQueueIndex)
     assert.is_number(sellViewModelIndex)
     assert.is_number(sellFrameIndex)
     assert.is_true(sellViewModelIndex < sellFrameIndex)
+    assert.is_true(postQueueIndex < sellFrameIndex)
 
     for _, rel in ipairs(files) do
       local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))
@@ -245,6 +253,8 @@ describe("TOC load order", function()
     assert.is_function(GC.SellPositions.Build)
     assert.is_function(GC.SellPositions.BuildPostPlan)
     assert.is_function(GC.SellPositions.BuildRepostPlan)
+    assert.is_function(GC.PostQueue.Build)
+    assert.is_function(GC.PostQueue.Without)
     assert.is_function(GC.SellViewModel.Filter)
     assert.is_function(GC.PurchaseCapture.Init)
     assert.is_function(GC.DealMath.Evaluate)

@@ -359,28 +359,105 @@ describe("Sell positions", function()
     assert.is_nil(p.profit)
   end)
 
+  -- Part 0 (silver-grid fix): this fixture originally priced the item at 150 copper (1s50c),
+  -- well under the match/undercut share boundary (50 silver -- see silver_grid_spec.lua for the
+  -- derivation), so RecommendPost now correctly recommends MATCH there instead of undercut --
+  -- and match's candidate (100, the grid floor) sits below this fixture's breakeven, flipping
+  -- the whole RepostAdvice outcome to hold/loss. Every copper figure below is scaled by 100x
+  -- (same ratios, same shape) to land back in "ordinary item worth a couple silver" territory,
+  -- comfortably above the boundary, so the test goes back to demonstrating what it's actually
+  -- for: ahead/outlook flowing through into a repost recommendation.
   it("carries measured outlook and a pure recommendation rather than a status label", function()
-    local p = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
-      ownedLots = { lot("commodity:42", 2, 200, 1) },
-      quotes = { [42] = { unit = 150, at = 9, levels = { { unitPrice = 100, quantity = 3 } } } },
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+      ownedLots = { lot("commodity:42", 2, 20000, 1) },
+      quotes = { [42] = { unit = 15000, at = 9, levels = { { unitPrice = 10000, quantity = 3 } } } },
       statsByItemID = { [42] = { sold = 4 } } })[1]
     assert.equal(3, p.ahead)
     assert.equal(4, p.soldPerDay)
     assert.equal("repost", p.recommendation.action)
-    assert.equal(149, p.recommendation.rec.unit)
-    assert.equal(106, p.recommendation.rec.breakeven)
+    assert.equal(14900, p.recommendation.rec.unit)
+    assert.equal(10527, p.recommendation.rec.breakeven)
   end)
 
+  -- Part 0: same reason as the test above -- scaled by 100x to sit above the match/undercut
+  -- share boundary so this still demonstrates an undercut decision.
   it("carries a direct RecommendPost decision for unlisted exact stock and no fallback without a quote", function()
-    local advised = build({ acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
-      quotes = { [42] = { unit = 150, at = 9, levels = { { unitPrice = 150, quantity = 3 } } } },
+    local advised = build({ acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+      quotes = { [42] = { unit = 15000, at = 9, levels = { { unitPrice = 15000, quantity = 3 } } } },
       statsByItemID = { [42] = { sold = 5 } } })[1]
-    assert.equal(149, advised.recommendation.unit)
+    assert.equal(14900, advised.recommendation.unit)
     assert.equal("undercut", advised.recommendation.mode)
-    assert.equal(106, advised.recommendation.breakeven)
+    assert.equal(10527, advised.recommendation.breakeven)
     assert.equal(5, advised.soldPerDay)
     local noQuote = build({ acquisitions = { batch("acq:2", "goldcap", 1, 100, 1) } })[1]
     assert.is_nil(noQuote.recommendation)
+  end)
+
+  -- `position.postRecommendation` answers a narrower, always-the-same question --
+  -- "what would I list the stock in my BAGS at" -- independently of what
+  -- `position.recommendation` says, which sometimes answers a different question
+  -- entirely (RepostAdvice's "should I cancel and relist the lot that's already
+  -- up", once coverage is COMPLETE and something is already listed). GC.PostQueue
+  -- reads this field, not `recommendation`, precisely so a position that is BOTH
+  -- partly listed AND still holds bag stock still gets a post price for the bags.
+  describe("postRecommendation", function()
+    it("is absent when there is no bag stock, even when recommendation is not", function()
+      local p = build({ acquisitions = { batch("acq:1", "goldcap", 1, 20000, 1) },
+        ownedLots = { lot("commodity:42", 1, 20000, 1) },
+        quotes = { [42] = { unit = 20000, at = 9 } } })[1]
+      assert.equal(0, p.bagQty)
+      assert.is_not_nil(p.recommendation) -- RepostAdvice fires; the row still has something to say
+      assert.is_nil(p.postRecommendation)
+    end)
+
+    -- The two cases where a branch already answers "what would I list the bag stock at" today:
+    -- COMPLETE coverage with nothing listed yet (RecommendPost, no cost-basis gate), and bag
+    -- stock GoldCap never bought at all (RecommendPost with a nil paidUnit). postRecommendation
+    -- must compute the identical value in both, or the row and the queue could disagree about
+    -- a position neither of these two new cases even touches.
+    it("equals recommendation when coverage is COMPLETE and nothing is listed yet", function()
+      local p = build({ acquisitions = { batch("acq:1", "goldcap", 50, 500000, 1) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 50,
+          isCommodity = true } },
+        quotes = { [42] = { unit = 20000, at = 9 } } })[1]
+      assert.equal("COMPLETE", p.coverage)
+      assert.equal(0, p.listedQty)
+      assert.equal(50, p.bagQty)
+      assert.is_not_nil(p.recommendation)
+      assert.same(p.recommendation, p.postRecommendation)
+    end)
+
+    it("equals recommendation for untracked bag stock GoldCap never bought", function()
+      local p = build({
+        bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 40,
+          isCommodity = true } },
+        quotes = { [42] = { unit = 20000, at = 9 } } })[1]
+      assert.not_equal("COMPLETE", p.coverage)
+      assert.equal(40, p.bagQty)
+      assert.is_not_nil(p.recommendation)
+      assert.same(p.recommendation, p.postRecommendation)
+    end)
+
+    -- The defect this field exists to fix: COMPLETE coverage, some of the stock already
+    -- listed, AND some still in the bags (bought 100, posted 50, 50 left to post).
+    -- `recommendation` here is RepostAdvice-shaped ({action, reason, rec}, no top-level
+    -- `.unit`) -- it answers "should I cancel and relist the 50 that are already up", not
+    -- "what should the other 50 in my bags list at". postRecommendation answers the second
+    -- question regardless of what the first one says.
+    it("still answers 'what would I post the bags at' when recommendation is RepostAdvice-shaped", function()
+      local p = build({ acquisitions = { batch("acq:1", "goldcap", 100, 1000000, 1) },
+        ownedLots = { lot("commodity:42", 50, 15000, 1) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 50,
+          isCommodity = true } },
+        quotes = { [42] = { unit = 20000, at = 9 } } })[1]
+      assert.equal("COMPLETE", p.coverage)
+      assert.is_true(p.listedQty > 0)
+      assert.equal(50, p.bagQty)
+      assert.is_nil(p.recommendation.unit) -- RepostAdvice shape: no top-level .unit to copy
+      assert.is_not_nil(p.postRecommendation)
+      assert.is_true(p.postRecommendation.unit > 0)
+      assert.equal(0, p.postRecommendation.unit % 100)
+    end)
   end)
 
   it("keeps every batch and owned lot alongside bounded queue facts", function()
@@ -576,7 +653,10 @@ describe("Sell positions", function()
     local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 40 }, 250)
     assert.equal(40, plan.quantity)
     assert.is_false(plan.costKnown)
-    assert.equal(250, plan.unitPrice)
+    -- Part 0 (silver-grid fix): BuildPostPlan now normalizes its unitPrice to whole silver via
+    -- SilverUp, so the raw 250-copper freshQuote used here rounds up to 300 rather than posting
+    -- at a price PostCommodity would have silently rejected.
+    assert.equal(300, plan.unitPrice)
   end)
 
   -- Everything farmed, crafted, milled or bought before GoldCap existed. It used

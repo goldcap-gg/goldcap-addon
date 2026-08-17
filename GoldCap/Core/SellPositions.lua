@@ -358,6 +358,29 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.recommendation = nil
   end
 
+  -- What would I list the stock in my BAGS at -- a narrower, always-the-same question than
+  -- `position.recommendation` above, which sometimes answers a different one: once coverage is
+  -- COMPLETE and something is already listed, `recommendation` is RepostAdvice-shaped
+  -- ({action, reason, rec}, no top-level `.unit`) and answers "should I cancel and relist the
+  -- lot that's already up" instead. Bag stock still needs a post price of its own even when the
+  -- SAME item is partly listed -- 100 bought, 50 posted, 50 still in the bags -- and conflating
+  -- the two questions into one field is exactly what made GC.PostQueue skip that position: it
+  -- read `recommendation.unit`, found no top-level `.unit` on the RepostAdvice shape, and
+  -- reported `no_fresh_price` for a row whose own Post button, right beside it, worked fine
+  -- (BuildPostPlan never reads `recommendation` at all). Computed for every position that has
+  -- bag stock, independently of listedQty and of what `recommendation` above decided; `paidUnit`
+  -- mirrors the COMPLETE branch above exactly when coverage is COMPLETE, and is nil otherwise --
+  -- the same "no cost basis, no breakeven, no belowCost warning" degradation the untracked-stock
+  -- branch above already relies on.
+  if positive(position.bagQty) then
+    local paidUnit = position.coverage == "COMPLETE"
+      and (position.knownCost and math.floor(position.knownCost / position.exposureQty)) or nil
+    position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
+      { levels = levels, sold = position.soldPerDay, floor = position.postFloor })
+  else
+    position.postRecommendation = nil
+  end
+
   local skipped = 0
   for _, ownedLot in ipairs(position.ownedLots) do
     ownedLot.allocation = GC.Acquisitions.AllocateRange(position.batches, skipped, ownedLot.quantity)
@@ -606,6 +629,13 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   if positive(position.postFloor) and position.postFloor > unit then
     unit = position.postFloor
   end
+  -- Part 0 of the posting-queue design (2026-08-17): PostCommodity/PostItem silently reject any
+  -- price with a non-zero copper remainder, and neither the raw live quote above nor postFloor
+  -- (derived from mv * UNDERPRICE_FLOOR, an arithmetic ratio, not a grid position) is guaranteed
+  -- to land on the 100-copper grid. Normalize AFTER the floor raise, with SilverUp, so this can
+  -- only ever move the price up -- never back under the floor the raise above just enforced.
+  unit = GC.Flips.SilverUp(unit)
+  if not unit then return nil, "invalid_price" end
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,

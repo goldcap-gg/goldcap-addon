@@ -384,19 +384,23 @@ end
 -- bare status chip). Pure: `paidUnit`/`marketUnit`/`mv` are whatever the caller already has on
 -- hand -- see UI/SellFrame.lua's createRow OnEnter for exactly what it passes as each.
 --
--- candidate: undercut the live ask by 1 copper (`marketUnit - 1`, floored at 1c so a 1c ask
--- can't drive a negative/zero recommendation) when a fresh quote exists; otherwise fall back to
--- `mv` (whatever the caller decided "the best available market read" means when there's no
--- live quote -- see the cross-reference comment on UI/SellFrame.lua's onPostClick for why the
--- row tooltip specifically feeds this flip.targetUnit rather than a second, independently-fresh
--- GC.Data.GetItemValue read: it must never show a different number than what Post would
--- actually post at). nil candidate (both marketUnit and mv unknown) means nothing to recommend.
+-- candidate: undercut the live ask by one whole silver (`SilverDown(marketUnit - 1)`) when a
+-- fresh quote exists AND the item is worth enough that one silver is a small share of the price;
+-- otherwise fall back to `mv` (whatever the caller decided "the best available market read"
+-- means when there's no live quote -- see the cross-reference comment on UI/SellFrame.lua's
+-- onPostClick for why the row tooltip specifically feeds this flip.targetUnit rather than a
+-- second, independently-fresh GC.Data.GetItemValue read: it must never show a different number
+-- than what Post would actually post at). Every candidate is normalized to the 100-copper grid
+-- (see GC.Flips.SilverDown/SilverUp below) -- PostCommodity/PostItem silently reject anything
+-- else. nil candidate (both marketUnit and mv unknown) means nothing to recommend.
 --
 -- breakeven: the unit price at which the AH's 5% cut exactly cancels out what was paid --
 -- ceil (not floor) so a rounded-down breakeven couldn't itself understate a loss. nil whenever
 -- paidUnit is unknown (an orphan row -- no recorded purchase, so no cost basis to break even
 -- against; RecommendPost is deliberately not called for those rows at all, per the file header
--- above and UI/SellFrame.lua's OnEnter).
+-- above and UI/SellFrame.lua's OnEnter). Deliberately left UNNORMALIZED -- it is a displayed
+-- threshold to compare a price against, never itself posted, so there is nothing for it to fail
+-- to post at.
 --
 -- belowCost: true when the recommended candidate would sell at a loss even before the 5% cut is
 -- accounted for a second time -- i.e. candidate itself sits below the price where costs are
@@ -404,21 +408,22 @@ end
 -- recommendation text.
 --
 -- F3 ("match, don't undercut"): `opts = { levels, sold }` (both optional; omitting either falls
--- straight back to the undercut behavior above). Racing to the bottom 1c at a time is wasted
--- effort when the CHEAPEST price tier sells out fast enough that being anywhere IN that tier is
--- enough -- buyers consume the whole tier, not just the single lowest listing, so undercutting
--- it by 1c buys nothing but a smaller margin. When marketUnit, opts.levels (with a first entry --
--- levels is assumed pre-sorted ascending, same convention DepthBelow's callers already follow)
--- and a positive opts.sold are ALL present: tierDepth sums quantity across every level priced
--- exactly at the book's own cheapest unit price. `opts.sold >= 2 * tierDepth` -- "the whole
--- cheapest tier turns over in half a day or less at current velocity" -- is a deliberately
+-- through to the undercut/match choice below). Racing to the bottom one silver at a time is
+-- wasted effort when the CHEAPEST price tier sells out fast enough that being anywhere IN that
+-- tier is enough -- buyers consume the whole tier, not just the single lowest listing, so
+-- undercutting it buys nothing but a smaller margin. When marketUnit, opts.levels (with a first
+-- entry -- levels is assumed pre-sorted ascending, same convention DepthBelow's callers already
+-- follow) and a positive opts.sold are ALL present: tierDepth sums quantity across every level
+-- priced exactly at the book's own cheapest unit price. `opts.sold >= 2 * tierDepth` -- "the
+-- whole cheapest tier turns over in half a day or less at current velocity" -- is a deliberately
 -- coarse rule of thumb, not a probability model: sold/day is a single realm-wide daily figure
 -- (GC.Data.GetItemValue), not a real-time fill-rate feed, so there is no honest way to derive a
--- sharper threshold from it. When it holds, mode="match" and the candidate becomes marketUnit
--- itself (no -1c undercut); otherwise (or when the match-mode inputs aren't all available)
--- mode="undercut", exactly the pre-F3 `max(1, marketUnit - 1)` expression. The no-quote (mv)
--- fallback branch always leaves mode nil -- there is no ask to match OR undercut, so neither
--- label applies.
+-- sharper threshold from it. When it holds, mode="match" and the candidate becomes (a
+-- grid-normalized) marketUnit itself; otherwise the match-vs-undercut choice falls to the
+-- silver-grid share rule below, which is its own, independent reason to match (Part 0 of the
+-- posting-queue design, 2026-08-17) -- either reason alone is sufficient, and this tier/velocity
+-- rule keeps the precedence it already had. The no-quote (mv) fallback branch always leaves mode
+-- nil -- there is no ask to match OR undercut, so neither label applies.
 -- How far below the item's market value a live ask may sit before it stops being
 -- a price and starts being noise. Ordinary undercutting runs a few percent; a
 -- quarter off is not a market, it is one seller in a hurry.
@@ -528,10 +533,69 @@ function GC.Flips.PostFloor(args)
   return floor, below
 end
 
+-- ---------------------------------------------------------------------------
+-- Part 0 of the posting-queue design (2026-08-17) -- a shipped bug. warcraft.wiki.gg, verbatim,
+-- about PostCommodity's unitPrice and about PostItem's bid/buyout: "Amount in copper, only
+-- accepts gold and silver and silently fails for non-zero copper counts." The undercut branch
+-- below used to return `math.max(1, marketUnit - 1)`, and there was no silver rounding anywhere
+-- in the addon. Every competing ask is itself whole silver -- the same API forces every other
+-- seller onto the same grid -- so `marketUnit - 1` always carried a non-zero copper remainder,
+-- and the post silently failed: the player saw the button go dead and "Posting timed out" eight
+-- seconds later. Floor mode (`math.floor(mv * UNDERPRICE_FLOOR)`) failed the same way almost
+-- always; match mode was the only one that ever worked, because it posts at the ask itself.
+-- ---------------------------------------------------------------------------
+
+-- One silver, in copper -- the smallest unit PostCommodity/PostItem will ever accept.
+GC.Flips.SILVER = 100
+
+--- Rounds `copper` DOWN to the nearest whole silver -- the direction that keeps an undercut as
+-- cheap as the grid allows without ever landing above the ask it is undercutting. The result is
+-- then clamped UP to GC.Flips.SILVER when that would put it below one silver: a price under one
+-- silver cannot be posted at all, so 100 copper is the floor of the whole grid, not a rounding
+-- preference that could ever produce less.
+--
+-- Fails closed -- returns nil -- on nil, a non-number, NaN, +-infinity, or a negative value.
+-- None of those describe a price; they describe a bug somewhere upstream. Clamping a negative or
+-- garbage input up to a plausible-looking 100 would hide that bug behind a real auction, so this
+-- declines instead. Every caller in this file already treats a nil candidate the same way it
+-- treats "nothing to recommend," so nil propagates safely rather than crashing or posting at a
+-- guessed number.
+function GC.Flips.SilverDown(copper)
+  if type(copper) ~= "number" or copper ~= copper or copper == math.huge
+      or copper == -math.huge or copper < 0 then
+    return nil
+  end
+  return math.max(GC.Flips.SILVER, math.floor(copper / GC.Flips.SILVER) * GC.Flips.SILVER)
+end
+
+--- As GC.Flips.SilverDown, but rounds UP -- the direction the floor override below needs: it
+-- must never hand back a price under the floor it exists to enforce, and rounding down could do
+-- exactly that. Same clamp, same fail-closed input contract as SilverDown.
+function GC.Flips.SilverUp(copper)
+  if type(copper) ~= "number" or copper ~= copper or copper == math.huge
+      or copper == -math.huge or copper < 0 then
+    return nil
+  end
+  return math.max(GC.Flips.SILVER, math.ceil(copper / GC.Flips.SILVER) * GC.Flips.SILVER)
+end
+
+-- The largest share of a unit's price a flat one-silver undercut is allowed to cost before
+-- match wins instead. Against a whole-silver competitor (every real one, per the file header
+-- above) the only undercut the grid allows is a flat 100 copper below, so solving
+-- `SILVER > marketUnit * UNDERCUT_MAX_SHARE` puts the actual boundary this code implements at
+-- marketUnit = 5,000 copper (50 silver / 0.5g): below that, a flat silver eats more than 2% of
+-- the price and match wins; at 50s and above, the step is cheap enough that undercutting is
+-- still worth it.
+GC.Flips.UNDERCUT_MAX_SHARE = 0.02
+
 function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   opts = opts or {}
   local mode, candidate
 
+  -- Tier-depth/velocity match (F3, unchanged precedence): candidate is grid-normalized too,
+  -- defensively -- a live marketUnit should already be whole silver (it couldn't have posted
+  -- otherwise), so this is a no-op on every real input, and a fail-closed guard against whatever
+  -- reaches this function with a marketUnit that isn't.
   if marketUnit and opts.levels and opts.levels[1] and opts.sold and opts.sold > 0 then
     local cheapest = opts.levels[1].unitPrice
     local tierDepth = 0
@@ -539,27 +603,45 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
       if lvl.unitPrice == cheapest then tierDepth = tierDepth + (lvl.quantity or 0) end
     end
     if opts.sold >= 2 * tierDepth then
-      mode, candidate = "match", marketUnit
+      mode, candidate = "match", GC.Flips.SilverDown(marketUnit)
+    end
+  end
+
+  -- Silver-grid share rule (Part 0): a second, independent reason to match. Either this or the
+  -- tier/velocity rule above is sufficient on its own; neither is required when the other has
+  -- already fired.
+  if not mode and marketUnit then
+    local undercut = GC.Flips.SilverDown(marketUnit - 1)
+    local shareTooBig = undercut and (marketUnit - undercut) > marketUnit * GC.Flips.UNDERCUT_MAX_SHARE
+    -- `undercut < marketUnit` is not redundant with the share rule. At an ask of exactly one
+    -- silver, SilverDown's clamp -- the grid has no rung below 100 copper -- hands back the ask
+    -- itself, and a zero-copper step trivially passes the share test. Without this the row would
+    -- report "undercutting" while posting at precisely the competitor's price. The number would
+    -- have been right and the word wrong, which is the failure this whole batch is about.
+    if undercut and undercut < marketUnit and not shareTooBig then
+      mode, candidate = "undercut", undercut
+    else
+      mode, candidate = "match", GC.Flips.SilverDown(marketUnit)
     end
   end
 
   if not mode then
-    if marketUnit then
-      mode, candidate = "undercut", math.max(1, marketUnit - 1)
-    else
-      candidate = mv or nil
-    end
+    candidate = mv and GC.Flips.SilverDown(mv)
   end
 
   if candidate == nil then return nil end
 
-  -- Never recommend below the floor. See GC.Flips.PostFloor for why a live ask
-  -- can be worth ignoring, and what it cost to learn that.
+  -- Never recommend below the floor. See GC.Flips.PostFloor for why a live ask can be worth
+  -- ignoring, and what it cost to learn that. Runs LAST and rounds UP: normalising a candidate
+  -- that already cleared every earlier check can only ever raise it, so it can never re-drop the
+  -- price under the very floor this override exists to enforce.
   local floor = opts.floor
   if type(floor) == "number" and floor > 0 and candidate < floor then
-    mode, candidate = "floor", floor
+    mode, candidate = "floor", GC.Flips.SilverUp(floor)
   end
 
+  -- Deliberately unnormalized -- breakeven is a displayed threshold to compare a price against,
+  -- never itself posted, so there is nothing here for the grid to protect.
   local breakeven = paidUnit and math.ceil(paidUnit / 0.95) or nil
 
   return {

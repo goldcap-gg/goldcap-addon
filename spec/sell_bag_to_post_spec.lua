@@ -198,7 +198,9 @@ describe("Sell tab, bags to Post", function()
     assert.is_nil(reason)
     assert.equal(246, plan.quantity)
     assert.is_false(plan.costKnown)
-    assert.equal(184719, plan.unitPrice)
+    -- Part 0 (silver-grid fix): 184719 carries 19 copper of remainder -- PostCommodity would
+    -- have silently rejected it. BuildPostPlan now rounds up to the nearest whole silver.
+    assert.equal(184800, plan.unitPrice)
   end)
 
   it("prices only what there is something to do with", function()

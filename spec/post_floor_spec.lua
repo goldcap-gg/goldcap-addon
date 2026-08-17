@@ -210,8 +210,11 @@ describe("PostFloor", function()
     end)
 
     it("leaves an honest book alone", function()
+      -- Part 0 (silver-grid fix): the undercut candidate is now normalized to whole silver, so
+      -- one silver below 195000 is 194900, not the raw 194999 (one copper below) this test
+      -- asserted before -- 194999 could never actually have posted.
       local rec = GC.Flips.RecommendPost(nil, 195000, nil, { floor = 150000 })
-      assert.equal(194999, rec.unit)
+      assert.equal(194900, rec.unit)
       assert.equal("undercut", rec.mode)
     end)
   end)
