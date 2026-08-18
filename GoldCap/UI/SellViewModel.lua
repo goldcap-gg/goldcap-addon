@@ -172,6 +172,11 @@ function GC.SellViewModel.Expansion(position)
   -- `purchases` count and the run's date range. Adjacent only -- merging across a
   -- different-priced purchase would re-order the oldest-first story the group hint promises.
   -- Evidence is part of the key on purpose: a confirmed invoice never averages into a guess.
+  --
+  -- `ids` rides along on every entry, collapsed or not -- the underlying acquisition batch ids
+  -- a manual-cost removal needs, since the collapse itself already discards which physical
+  -- batches it stands for. The merge key guarantees every id in one run shares one `source`,
+  -- so a caller checking `source == "manual"` on the entry never has to also check each id.
   local collapsed = {}
   for _, batch in ipairs(batches) do
     local last = collapsed[#collapsed]
@@ -182,7 +187,7 @@ function GC.SellViewModel.Expansion(position)
         last = { source = last.source, evidence = last.evidence, unitCost = last.unitCost,
           purchases = 1, originalQty = last.originalQty or 0, remainingQty = last.remainingQty or 0,
           allocatedQty = last.allocatedQty or 0, totalCost = last.totalCost,
-          acquiredAtFirst = at, acquiredAtLast = at }
+          acquiredAtFirst = at, acquiredAtLast = at, ids = { last.id } }
         collapsed[#collapsed] = last
       end
       last.purchases = last.purchases + 1
@@ -190,12 +195,14 @@ function GC.SellViewModel.Expansion(position)
       last.remainingQty = last.remainingQty + (batch.remainingQty or 0)
       last.allocatedQty = last.allocatedQty + (batch.allocatedQty or 0)
       last.totalCost = last.totalCost and batch.totalCost and (last.totalCost + batch.totalCost) or nil
+      last.ids[#last.ids + 1] = batch.id
       local at = type(batch.acquiredAt) == "number" and batch.acquiredAt or nil
       if at then
         if not last.acquiredAtFirst or at < last.acquiredAtFirst then last.acquiredAtFirst = at end
         if not last.acquiredAtLast or at > last.acquiredAtLast then last.acquiredAtLast = at end
       end
     else
+      batch.ids = { batch.id }
       collapsed[#collapsed + 1] = batch
     end
   end

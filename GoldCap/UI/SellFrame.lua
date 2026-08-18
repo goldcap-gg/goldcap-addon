@@ -29,6 +29,11 @@ local function postDuration()
 end
 local QUOTE_STALE_SECONDS = (GC.QuoteCache and GC.QuoteCache.MAX_AGE_SECONDS) or 10
 local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 3, 10
+-- Removing a manual cost has no deposit at stake, so it skips REPOST_ARM_SECONDS' forced delay
+-- before the second click counts -- that delay exists to stop an accidental double-click from
+-- burning a deposit, and there is no deposit here. The confirmation window still expires, the
+-- same way a repost's does.
+local REMOVE_TIMEOUT_SECONDS = 8
 local MAX_EXACT = 9007199254740991
 -- How old a quote may be and still back a Post or a Repost.
 --
@@ -96,6 +101,7 @@ local quoteTimeoutToken = 0
 local walkRepeatToken, watchdogToken = 0, 0
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
+local removingRow, removePin, removeArmToken = nil, nil, 0
 local renderGeneration = 0
 local quoteExpiryGeneration = 0
 local manualRepairNonce = 0
@@ -132,8 +138,14 @@ local function restoreRepostRow(row)
   if row.action then row.action:Enable(); row.action:SetLabel("Repost") end
 end
 
+local function restoreRemoveRow(row)
+  if not row then return end
+  row.removeStage = nil
+  if row.action then row.action:Enable(); row.action:SetLabel("Remove") end
+end
+
 local function flushDeferredRender()
-  if deferredRender and not postingRow and not repostingRow then renderRows() end
+  if deferredRender and not postingRow and not repostingRow and not removingRow then renderRows() end
 end
 
 local function disarmPost()
@@ -151,6 +163,14 @@ local function disarmRepost()
   restoreRepostRow(row)
   flushDeferredRender()
   paintCancelButton()
+end
+
+local function disarmRemove()
+  local row = removingRow
+  removingRow, removePin = nil, nil
+  removeArmToken = (removeArmToken or 0) + 1
+  restoreRemoveRow(row)
+  flushDeferredRender()
 end
 
 -- The status line lives in the Sniper's toolbar, at the far left of a different
@@ -1363,6 +1383,68 @@ local function onRepostClick(row, auctionID)
   end
 end
 
+-- The "What you paid" affordance for a hand-entered cost: a mistaken "Set cost" entry used to
+-- have no way back out short of raw SavedVariables surgery. Mirrors onRepostClick's arm/confirm
+-- shape (first click arms with explicit text, a second click within the window executes) but
+-- without its deposit-guard forced delay -- there is no deposit here to protect against a fast
+-- double-click, only a typo to walk back.
+--
+-- `row.batch.ids` is however many acquisition batch ids this row stands for -- one for a lone
+-- purchase, several for a collapsed run (SellViewModel.Expansion). Every id in the list shares
+-- one source, because that is one of Expansion's own collapse keys, so the button only ever
+-- appears when the whole run is manual and removes the whole run when confirmed.
+local function onRemoveClick(row)
+  if removingRow and removingRow ~= row then
+    disarmRemove()
+    setStatus("Previous removal selection cleared")
+    return
+  end
+  if row.removeStage == "armed" then
+    local pin = removePin
+    if not exactRenderEntry(row, pin) then
+      disarmRemove()
+      setStatus("Removal confirmation expired")
+      return
+    end
+    local removed = 0
+    for _, id in ipairs(pin.ids) do
+      if GC.Acquisitions.RemoveManual(id) then removed = removed + 1 end
+    end
+    disarmRemove()
+    setStatus(removed > 0
+      and (removed > 1 and ("Removed %d entries"):format(removed) or "Removed")
+      or "Nothing to remove")
+    GC.Sell.Refresh()
+    return
+  end
+  if postingRow or repostingRow then
+    setStatus("Finish the pending post or repost first")
+    return
+  end
+  local ids = row.batch and row.batch.ids
+  if type(ids) ~= "table" or #ids == 0 or type(row.renderEntryID) ~= "string" or row.renderEntryID == "" then
+    setStatus("Cannot remove this entry")
+    return
+  end
+  removingRow, removePin = row, { ids = ids, row = row, action = row.action,
+    position = row.position, renderEntryID = row.renderEntryID }
+  row.removeStage = "armed"
+  row.action:SetLabel("Remove?")
+  setStatus(#ids > 1
+    and "Removes every entered-by-hand purchase in this run -- click again to confirm"
+    or "Removes this entered-by-hand purchase -- click again to confirm")
+  removeArmToken = removeArmToken + 1
+  local token = removeArmToken
+  if C_Timer and C_Timer.After then
+    C_Timer.After(REMOVE_TIMEOUT_SECONDS, function()
+      if token == removeArmToken and removingRow == row and row.removeStage == "armed" then
+        disarmRemove()
+        setStatus("Removal confirmation expired")
+      end
+    end)
+  end
+end
+
 function GC.Sell.OnAuctionCreated()
   local pin, row = postingPin, postingRow
   if not pin or not row then return end
@@ -1636,6 +1718,8 @@ local ACTION_HELP = {
   ["Post"] = { "Post", { "Lists what is sitting in your bags at the price shown under WHAT TO DO.", "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.", "It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it.", "The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price." } },
   ["Repost"] = { "Repost", { "Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags.", "Cancelling forfeits the deposit, so this asks for a second click to confirm.", "Once the mail arrives, list it again yourself at the new price -- from this same row.", "Worth doing when someone has undercut you; not worth it if the price barely moved." } },
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
+  ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
+  ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
 }
 
 local function createRow(parent)
@@ -1813,9 +1897,9 @@ renderRows = function()
   -- render rebinds those rows, so this used to answer by CANCELLING the
   -- confirmation the player was one click away from giving. That was already
   -- wrong; the tab now re-prices itself every few seconds, which made it certain.
-  -- Hold the render instead. Both arms are timeout-bounded, so it cannot be held
-  -- indefinitely, and disarmPost/disarmRepost flush whatever was deferred.
-  if postingRow or repostingRow then
+  -- Hold the render instead. Every arm is timeout-bounded, so it cannot be held
+  -- indefinitely, and disarmPost/disarmRepost/disarmRemove flush whatever was deferred.
+  if postingRow or repostingRow or removingRow then
     deferredRender = true
     return
   end
@@ -2058,7 +2142,16 @@ renderRows = function()
           and ("%d still unsold"):format(entry.batch.remainingQty) or "all sold")
         setColor(row.cells.status, Theme.color.fgDim)
         row.cells.expand:SetText("")
-        row.action:Hide()
+        -- Only a hand-entered cost gets a removal affordance -- goldcap and auction_house
+        -- batches are evidence-backed, and Core/Acquisitions' own RemoveManual already refuses
+        -- them, but the button should never even offer the click. entry.batch.source is the one
+        -- source every id in `ids` shares (Expansion's own collapse key), so this single check
+        -- covers a lone purchase and a collapsed run alike -- and a mixed run cannot occur here.
+        if entry.batch.source == "manual" and type(entry.batch.ids) == "table" and #entry.batch.ids > 0 then
+          showRowAction(row, "Remove", function() onRemoveClick(row) end)
+        else
+          row.action:Hide()
+        end
       elseif entry.kind == "lot" then
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
         -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to
@@ -2316,6 +2409,7 @@ function GC.Sell.Reset()
   watchdogToken = watchdogToken + 1
   disarmPost()
   disarmRepost()
+  disarmRemove()
 end
 
 function GC.Sell.Attach(f, geometry)

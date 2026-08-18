@@ -1011,4 +1011,109 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_true(#rows > 0)
     assert.equal("commodity:42", rows[1].position.positionKey)
   end)
+
+  -- A mistaken "Set cost" entry used to have no way back out short of raw SavedVariables
+  -- surgery. "What you paid" rows for a hand-entered batch now get a Remove affordance;
+  -- goldcap/auction_house rows are evidence-backed and never do, matching Core/Acquisitions'
+  -- own RemoveManual refusal.
+  it("shows a remove button only on a manual 'What you paid' row", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {
+        { source = "manual", ids = { "acq:1" }, unitCost = 100, totalCost = 100,
+          originalQty = 1, remainingQty = 1, evidence = "manual" },
+        { source = "goldcap", ids = { "acq:2" }, unitCost = 50, totalCost = 50,
+          originalQty = 1, remainingQty = 1, evidence = "captured" },
+      }, ownedLots = {} }
+    end
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+      exposureQty = 2, knownQty = 2, knownCost = 150, listedValue = 0, sources = {} }
+    local rows = topRows(GC, { p })
+    rows[1].scripts.OnClick(rows[1])
+    -- rows[2] is "detail", rows[3] the "What you paid" group heading, then one row per batch.
+    local manualRow, goldcapRow = rows[4], rows[5]
+    assert.equal("batch", manualRow.kind)
+    assert.equal("manual", manualRow.batch.source)
+    assert.is_true(manualRow.action.shown)
+    assert.equal("Remove", manualRow.action.label)
+    assert.equal("batch", goldcapRow.kind)
+    assert.equal("goldcap", goldcapRow.batch.source)
+    assert.is_false(goldcapRow.action.shown)
+  end)
+
+  -- The armed/disarm two-click shape onRepostClick already uses for a cancel: an explicit
+  -- first-click label change, a second click within the window that actually acts.
+  it("arms then confirms removal of a single manual batch and refreshes", function()
+    local removed = {}
+    local GC = load(620, { calls = {} })
+    GC.Acquisitions.RemoveManual = function(id) removed[#removed + 1] = id; return true end
+    local refreshes = 0
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {
+        { source = "manual", ids = { "acq:1" }, unitCost = 100, totalCost = 100,
+          originalQty = 1, remainingQty = 1, evidence = "manual" },
+      }, ownedLots = {} }
+    end
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+      exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {} }
+    local rows = topRows(GC, { p })
+    rows[1].scripts.OnClick(rows[1])
+    local row = rows[4]
+    assert.equal("Remove", row.action.label)
+    row.action.scripts.OnClick()
+    assert.equal("armed", row.removeStage)
+    assert.equal("Remove?", row.action.label)
+    assert.equal(0, #removed)
+    assert.equal(0, refreshes)
+    row.action.scripts.OnClick()
+    assert.same({ "acq:1" }, removed)
+    assert.equal(1, refreshes)
+    assert.is_nil(row.removeStage)
+    assert.equal("Remove", row.action.label)
+  end)
+
+  -- "What you paid" collapses adjacent identical purchases into one counted line
+  -- (SellViewModel.Expansion); a manual run's Remove button has to take every batch behind it
+  -- with it, not just the one the collapsed line happens to keep a reference to.
+  it("removes every batch in a collapsed manual run on one confirm", function()
+    local removed = {}
+    local GC = load(620, { calls = {} })
+    GC.Acquisitions.RemoveManual = function(id) removed[#removed + 1] = id; return true end
+    local refreshes = 0
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {
+        { source = "manual", ids = { "acq:1", "acq:2" }, purchases = 2, unitCost = 100,
+          totalCost = 200, originalQty = 2, remainingQty = 2, evidence = "manual" },
+      }, ownedLots = {} }
+    end
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+      exposureQty = 2, knownQty = 2, knownCost = 200, listedValue = 0, sources = {} }
+    local rows = topRows(GC, { p })
+    rows[1].scripts.OnClick(rows[1])
+    local row = rows[4]
+    row.action.scripts.OnClick()
+    row.action.scripts.OnClick()
+    assert.same({ "acq:1", "acq:2" }, removed)
+    assert.equal(1, refreshes)
+  end)
+
+  -- Expansion's collapse key guarantees every id in one run shares a source, so a mixed run
+  -- cannot occur through the real collapse -- this stands in for that invariant breaking, to
+  -- prove the button check itself (source == "manual"), not just today's caller.
+  it("gives no button when a run's source is not manual", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {
+        { source = "mixed", ids = { "acq:1", "acq:2" }, purchases = 2, unitCost = 100,
+          totalCost = 200, originalQty = 2, remainingQty = 2, evidence = "unknown evidence" },
+      }, ownedLots = {} }
+    end
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+      exposureQty = 2, knownQty = 2, knownCost = 200, listedValue = 0, sources = {} }
+    local rows = topRows(GC, { p })
+    rows[1].scripts.OnClick(rows[1])
+    assert.is_false(rows[4].action.shown)
+  end)
 end)

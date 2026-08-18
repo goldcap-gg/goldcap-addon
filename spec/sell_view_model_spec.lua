@@ -40,12 +40,13 @@ describe("Sell view model", function()
     local position = {
       positionKey = "commodity:42", coverage = "PARTIAL", quoteAge = 3, ahead = 4,
       outlook = { days = 2, tier = "OK" }, recommendation = "Post", batches = {
-        { source = "goldcap", acquiredAt = 10, originalQty = 3, remainingQty = 2,
+        { id = "acq:1", source = "goldcap", acquiredAt = 10, originalQty = 3, remainingQty = 2,
           allocatedQty = 1, unitCost = 50, totalCost = 100, sniperEvidenceKey = "capture:1" },
       }, ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 99 } },
     }
     local expanded = GC.SellViewModel.Expansion(position)
     assert.equal("FIFO allocations", expanded.note)
+    assert.same({ "acq:1" }, expanded.batches[1].ids)
     assert.equal("goldcap", expanded.batches[1].source)
     assert.equal(10, expanded.batches[1].acquiredAt)
     assert.equal(3, expanded.batches[1].originalQty)
@@ -132,9 +133,13 @@ describe("Sell view model", function()
     assert.equal(250, merged.acquiredAtLast)
     assert.equal("goldcap", merged.source)
     assert.equal("captured", merged.evidence)
+    -- Both source batch ids ride along on the merged run -- a manual-cost removal has no other
+    -- way to find the batches a collapsed line stands for.
+    assert.same({ "a", "b" }, merged.ids)
     -- The odd-priced purchase stays its own uncounted line.
     assert.equal(220, expanded.batches[2].unitCost)
     assert.is_nil(expanded.batches[2].purchases)
+    assert.same({ "c" }, expanded.batches[2].ids)
   end)
 
   it("keeps purchases apart when price, evidence, or adjacency differs", function()

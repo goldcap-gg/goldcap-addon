@@ -106,6 +106,28 @@ describe("Acquisition store", function()
     end
   end)
 
+  it("removes a manual batch by id", function()
+    local batch = record({ source = "manual", evidenceKey = "manual:remove" })
+    assert.is_truthy(GC.Acquisitions.RemoveManual(batch.id))
+    assert.equal(0, #GC.Acquisitions.GetAll())
+  end)
+
+  it("refuses to remove a goldcap batch", function()
+    local batch = record({ source = "goldcap", evidenceKey = "goldcap:remove" })
+    assert.is_falsy(GC.Acquisitions.RemoveManual(batch.id))
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("refuses an unknown id", function()
+    assert.is_falsy(GC.Acquisitions.RemoveManual("acq:999"))
+  end)
+
+  it("is idempotent -- a second removal of the same id is falsy", function()
+    local batch = record({ source = "manual", evidenceKey = "manual:remove2" })
+    assert.is_truthy(GC.Acquisitions.RemoveManual(batch.id))
+    assert.is_falsy(GC.Acquisitions.RemoveManual(batch.id))
+  end)
+
   it("conserves copper across partial FIFO consumption", function()
     record({ source = "manual", quantity = 3, total = 100, acquiredAt = 1,
       evidenceKey = "manual:1" })

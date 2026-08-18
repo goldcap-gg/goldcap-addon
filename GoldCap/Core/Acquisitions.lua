@@ -433,6 +433,21 @@ function GC.Acquisitions.RecordManual(args)
   return GC.Acquisitions.Record(fields)
 end
 
+-- Removes one hand-entered batch by id. Refuses anything that is not a manual
+-- entry: goldcap and auction_house batches are evidence-backed, and this is
+-- the only deletion path the UI can reach, so it must never discard evidence.
+function GC.Acquisitions.RemoveManual(id)
+  if not db or not isNonEmptyString(id) then return false end
+  for index, batch in ipairs(db.acquisitions) do
+    if type(batch) == "table" and batch.id == id then
+      if batch.source ~= "manual" then return false end
+      table.remove(db.acquisitions, index)
+      return true
+    end
+  end
+  return false
+end
+
 local function pendingByID(id)
   for index, pending in ipairs(db and db.acquisitionPending or {}) do
     if type(pending) == "table" and pending.id == id then return pending, index end
