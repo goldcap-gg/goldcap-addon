@@ -248,16 +248,19 @@ describe("Sell tab, bags to Post", function()
       knownQty = 0, bagQty = 0, listedQty = 0 }))
   end)
   it("still offers Set cost when only part of the stock is costed", function()
-    -- Five bought through GoldCap, the rest farmed. Coverage reads COMPLETE
-    -- against the tracked purchase, and gating the button on that label hid it
-    -- for exactly the case that needs it most.
+    -- Five bought through GoldCap, the rest farmed. Coverage used to read COMPLETE against the
+    -- tracked purchase alone (blind to the other 241 units actually sitting in the bags), and
+    -- gating the button on that label hid it for exactly the case that needs it most -- the
+    -- cost-covers-everything-held fix (Core/SellPositions.lua) now reports this correctly as
+    -- PARTIAL, but canSetCost/uncostedQty were deliberately never gated on the label (they
+    -- compare held against knownQty/trackedQty directly) and still don't need to be.
     GC.Acquisitions.Record({ source = "goldcap", itemID = 23427,
       positionKey = "commodity:23427", itemName = "Eternium Ore", quantity = 5,
       total = 60000, acquiredAt = 1, evidenceKey = "buy:1",
       character = "Owner-Dentarg", region = "eu" })
     compose()
     local row = positionRow()
-    assert.equal("COMPLETE", row.position.coverage)
+    assert.equal("PARTIAL", row.position.coverage)
     local openCostDialog = upvalue(render, "openCostDialog")
     local dialog = upvalue(render, "container").costDialog
     dialog.shown = false

@@ -181,6 +181,109 @@ describe("Sell positions", function()
     assert.is_nil(p.profit)
   end)
 
+  -- The live incident (2026-08-18): a position held two cost tranches -- 24 units listed on
+  -- the AH, bought first at 170g88s each, and 94 units sitting in the bags, bought later at
+  -- 86g08s51c each. `accountedExposure` capped the allocation at the listed 24 the instant
+  -- anything was listed, so the FIFO walk only ever reached the oldest (expensive) batch and
+  -- the 94 cheap units in the bags were invisible to COST/UNIT -- the row read as a loss that
+  -- was not real. The fix: the allocation quantity is everything the player physically holds
+  -- right now (listed + bags), not whichever slice happens to be listed.
+  describe("cost covers everything the player holds, not just the listed slice", function()
+    it("blends both tranches once units are both listed and in the bags", function()
+      local p = build({
+        acquisitions = {
+          batch("acq:listed", "auction_house", 24, 41011900, 1),
+          batch("acq:bags", "goldcap", 94, 80920000, 2),
+        },
+        ownedLots = { lot("commodity:42", 24, 1708800, 9001) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 94, isCommodity = true } },
+      })[1]
+      assert.equal(24, p.listedQty)
+      assert.equal(94, p.bagQty)
+      -- knownQty must cover EVERYTHING held (24 + 94 = 118), not just the 24 that are listed.
+      assert.equal(118, p.knownQty)
+      -- 41011900 (the 24 listed) + 80920000 (the 94 in bags) = 121931900, the full blended
+      -- cost across both tranches -- not just the expensive listed 24.
+      assert.equal(121931900, p.knownCost)
+      assert.equal("COMPLETE", p.coverage)
+      -- 121931900 / 118 = 1033321 remainder 22 (floor, same rounding SellFrame.lua's COST/UNIT
+      -- column already applies) -- the real blended per-unit cost, nowhere near the 1708800
+      -- (170g88s) the incident showed by only ever costing the listed slice.
+      assert.equal(1033321, math.floor(p.knownCost / p.knownQty))
+    end)
+
+    it("costs bag-only stock against what is actually in the bags, not the full tracked total", function()
+      -- trackedQty is 150 (50 + 100 bought) but only 90 remain in the bags -- the other 60 are
+      -- elsewhere (sold, mailed, whatever). The cost basis must stop at what is physically
+      -- held, or a position that has partly moved on reports a cost basis wider than its stock.
+      local p = build({
+        acquisitions = {
+          batch("acq:a", "goldcap", 50, 500000, 1),
+          batch("acq:b", "goldcap", 100, 1500000, 2),
+        },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 90, isCommodity = true } },
+      })[1]
+      assert.equal(0, p.listedQty)
+      assert.equal(90, p.bagQty)
+      assert.equal(150, p.trackedQty)
+      assert.equal(90, p.knownQty)
+      -- FIFO: 50 units @ 10000/unit (500000) + 40 units @ 15000/unit (600000) = 1100000.
+      assert.equal(1100000, p.knownCost)
+      assert.equal("COMPLETE", p.coverage)
+    end)
+
+    it("costs listed-only stock exactly as before when nothing sits in the bags", function()
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 100, 1000, 1), batch("acq:2", "auction_house", 50, 600, 2) },
+        ownedLots = { lot("commodity:42", 120, 20, 9001) },
+      })[1]
+      assert.equal(120, p.listedQty)
+      assert.equal(0, p.bagQty)
+      assert.equal(120, p.knownQty)
+      assert.equal(1240, p.knownCost)
+      assert.equal("COMPLETE", p.coverage)
+    end)
+
+    it("reports partial coverage when what is held exceeds what is tracked", function()
+      -- 15 listed + 10 in the bags = 25 held, but only 20 units were ever tracked as bought.
+      -- Held CAN exceed tracked (untracked/farmed stock sitting alongside a tracked purchase);
+      -- coverage must say PARTIAL, not silently cap at whatever the batches can prove.
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 20, 200000, 1) },
+        ownedLots = { lot("commodity:42", 15, 15000, 9001) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 10, isCommodity = true } },
+      })[1]
+      assert.equal(15, p.listedQty)
+      assert.equal(10, p.bagQty)
+      assert.equal(20, p.trackedQty)
+      assert.equal(20, p.knownQty)
+      assert.equal(200000, p.knownCost)
+      assert.equal("PARTIAL", p.coverage)
+      assert.is_nil(p.profit)
+    end)
+
+    -- PROFIT/UNIT must describe the same unit-set as the cost it was subtracted from: listed
+    -- units project at their listed price, bag units at the row's post recommendation, and both
+    -- join the SAME gross that knownCost (listed + bags) is compared against.
+    it("projects bag revenue alongside listed revenue so profit is not priced against a narrower cost", function()
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 2, 200, 1) },
+        ownedLots = { lot("commodity:42", 1, 300, 1) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 1, isCommodity = true } },
+        quotes = { [42] = { unit = 100, at = 9 } },
+      })[1]
+      assert.equal(2, p.knownQty)
+      assert.equal(200, p.knownCost)
+      assert.equal("COMPLETE", p.coverage)
+      -- Listed unit projects at min(300, 100) = 100 (no queue-at-exit target on this batch).
+      -- Bag unit has no postRecommendation.unit here (RecommendPost needs more to fire a
+      -- candidate for a paid-basis row without levels/sold), so it falls back to the fresh
+      -- quote, 100, same as the listed unit. Gross = (100 + 100) * 0.95 = 190.
+      assert.equal(190, p.projectedNet)
+      assert.equal(-10, p.profit)
+    end)
+  end)
+
   it("[FINAL I2] applies the auction cut once to aggregate multi-lot gross", function()
     local tiny = build({ acquisitions = { batch("acq:1", "goldcap", 2, 1, 1) },
       ownedLots = { lot("commodity:42", 1, 1, 1), lot("commodity:42", 1, 1, 2) } })[1]

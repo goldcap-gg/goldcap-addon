@@ -264,12 +264,41 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, nil
     return
   end
-  local allocation = position.exposureQty > 0 and GC.Acquisitions.Allocate(position.batches, position.exposureQty)
+  -- The cost basis covers everything the player physically holds RIGHT NOW -- listed on the AH
+  -- plus sitting in the bags -- not whichever slice happens to be listed. This is the incident
+  -- fix: a 24-unit listing used to cap the FIFO allocation at 24, so 94 cheap units sitting in
+  -- the bags were invisible to COST/UNIT and the row read as a loss that was not real.
+  --
+  -- `exposureQty` above is left exactly as it was (listedQty alone once anything is listed, else
+  -- trackedQty, plus pending) -- it feeds SellOutlook's queue-depth math and RepostAdvice/
+  -- RecommendPost's `qty` argument below, both asking "how many units are moving through the
+  -- pipeline" (SellFrame.lua's uncostedQty/canSetCost already documents that this field stays
+  -- capped at listedQty on purpose and works around it with trackedQty; nothing here changes
+  -- that fact). `heldQty` answers a different question -- "what did the units I am holding right
+  -- now cost" -- and only the allocation, knownQty/knownCost and coverage below follow it.
+  --
+  -- physicalQty (listed + bags) wins whenever there is any physical evidence at all; trackedQty
+  -- is kept ONLY as the fallback for a position with nothing listed and nothing yet scanned into
+  -- the bags (e.g. a GoldCap purchase still sitting in the mail) -- there is no better estimate
+  -- of what is held in that state, and dropping it would make every unpicked-up purchase read as
+  -- uncosted. pendingQty is deliberately excluded: a pending acquisition has not landed yet, so
+  -- there is nothing physical to cost it against.
+  local physicalQty = add(position.listedQty or 0, position.bagQty or 0)
+  if not physicalQty then
+    position.invalid = true
+    position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
+    position.coverage, position.projectedNet, position.profit = "UNKNOWN", nil, nil
+    position.status, position.ahead, position.outlook, position.recommendation = "NO_COST", nil, nil, nil
+    return
+  end
+  local heldQty = physicalQty > 0 and physicalQty or position.trackedQty
+  position.heldQty = heldQty
+  local allocation = heldQty > 0 and GC.Acquisitions.Allocate(position.batches, heldQty)
   if allocation then
     position.allocations, position.knownQty, position.knownCost = allocation.allocations,
       allocation.knownQty, allocation.knownCost
     position.coverage = allocation.knownQty == 0 and "UNKNOWN"
-      or allocation.knownQty < position.exposureQty and "PARTIAL" or "COMPLETE"
+      or allocation.knownQty < heldQty and "PARTIAL" or "COMPLETE"
   end
   -- projectedNet/profit are computed BELOW, after the recommendations -- they must price at
   -- the same number Post actually uses (see the projected block's own comment), and the
@@ -342,12 +371,17 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
     sold = marketStats and marketStats.sold, trend = marketStats and marketStats.trend })
+  -- paidUnit is knownCost/knownQty, not knownCost/exposureQty: knownCost now covers heldQty
+  -- (listed + bags), and knownQty equals heldQty exactly whenever coverage is COMPLETE (the
+  -- guard both branches share), so this is the same per-unit figure COST/UNIT itself displays
+  -- (SellFrame.lua). Dividing by exposureQty here would price the FULL blended cost per the
+  -- narrower listed-only quantity -- exactly the incoherence this fix exists to remove.
   if position.coverage == "COMPLETE" and position.listedQty > 0 then
-    position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.exposureQty),
+    position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.knownQty),
       marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty,
       floor = position.postFloor })
   elseif position.coverage == "COMPLETE" then
-    position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.exposureQty),
+    position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.knownQty),
       fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
         trendPct = marketStats and marketStats.trend })
@@ -376,8 +410,10 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- the same "no cost basis, no breakeven, no belowCost warning" degradation the untracked-stock
   -- branch above already relies on.
   if positive(position.bagQty) then
+    -- Same re-derivation as the recommendation branches above: knownCost/knownQty, not
+    -- knownCost/exposureQty (see that comment for why).
     local paidUnit = position.coverage == "COMPLETE"
-      and (position.knownCost and math.floor(position.knownCost / position.exposureQty)) or nil
+      and (position.knownCost and math.floor(position.knownCost / position.knownQty)) or nil
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours,
@@ -398,6 +434,14 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   --  * BAG stock projects at what Post would actually list it at (postRecommendation.unit,
   --    floor/queue raises included) rather than the raw cheapest ask, for the same reason.
   --    Still only with a fresh live quote, exactly as before -- mv alone never projects.
+  --
+  -- Both branches must cover the SAME quantity knownCost was allocated over (heldQty, above),
+  -- or PROFIT/UNIT subtracts a cost basis wider than the revenue it was compared against --
+  -- the other half of the incident: 94 bag units were invisible to COST/UNIT AND to PROFIT/UNIT.
+  -- So when something is listed, the bag units (if any) join the SAME gross the listed lots
+  -- build, priced at postRecommendation exactly like the bag-only branch below -- and if bag
+  -- stock exists but has no price yet, the whole projection stays unknown rather than silently
+  -- comparing listed-only revenue against listed-plus-bags cost.
   local projected
   if position.listedQty > 0 then
     local gross = 0
@@ -412,11 +456,21 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
       gross = value and add(gross, value) or nil
       if not gross then break end
     end
+    if gross and positive(position.bagQty) then
+      local rec = position.postRecommendation
+      local bagUnit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
+      if bagUnit then
+        local bagValue = valueFor(position.bagQty, bagUnit)
+        gross = bagValue and add(gross, bagValue) or nil
+      else
+        gross = nil
+      end
+    end
     projected = gross and mulDivFloor(gross, 95, 100) or nil
   elseif fresh then
     local rec = position.postRecommendation
     local unit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
-    projected = netFor(position.exposureQty, unit)
+    projected = netFor(heldQty, unit)
   else
     projected = nil
   end
