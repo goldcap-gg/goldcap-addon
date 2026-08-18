@@ -27,6 +27,14 @@ GC.DEFAULTS = {
   -- UI/SellFrame.lua's classifyBagItem), so an unknown item is left out rather
   -- than guessed at. Same empty-table ApplyDefaults contract as `flips` above.
   commodityByItem = {},
+  -- itemID -> { unit, at } (copper, epoch seconds): the Sell tab's own last resolved market
+  -- quote, so a /reload shows the last known price and its age instead of a dash for the
+  -- minutes it takes the pricing walk to catch back up. `levels` is deliberately never
+  -- persisted here -- only a fresh walk's levels are usable for anything beyond the headline
+  -- unit, and keeping them would just bloat the save file for no reader. See UI/SellFrame.lua's
+  -- seedPersistedQuotes for the retention window that prunes this on the way back in. Same
+  -- empty-table ApplyDefaults contract as `flips` above.
+  sellQuotes = {},
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.

@@ -477,7 +477,52 @@ local function quoteDriver()
 end
 local driver = quoteDriver()
 
+-- The Sell tab's own persisted mirror of `quotes` (declared above, near COLUMNS): only
+-- {unit, at}, never `levels` -- see Core/Init.lua's `sellQuotes` default for the write side
+-- and why. nil once GC.db does not exist yet: Init.lua runs LAST in the .toc, so no store
+-- exists at file load, and persistence is simply skipped until it does. Unlike
+-- commodityKindCache above, there is no session-local fallback -- an unpersisted quote costs
+-- nothing worse than today's behavior (a dash until the walk answers).
+local function persistedQuotes()
+  if not GC.db then return nil end
+  GC.db.sellQuotes = type(GC.db.sellQuotes) == "table" and GC.db.sellQuotes or {}
+  return GC.db.sellQuotes
+end
+
+-- How old a persisted quote may be and still seed `quotes` on the first compose after a
+-- reload. Loose on purpose: a days-old price is still a better anchor than a dash (the
+-- renderer's own " . stale %ds" tag already tells the truth about its age), but week-old
+-- garbage should not resurrect and confuse a Post decision. Pruning here is also what stops
+-- the persisted store growing forever, since nothing else ever deletes an old entry from it.
+local QUOTE_PERSIST_MAX_AGE = 3 * 24 * 60 * 60
+
+-- One-shot: composePositions() runs on every refresh tick, and re-merging the persisted store
+-- on every one of them would let a persisted quote silently resurrect over a quote this
+-- session has already, correctly, forgotten (an empty answer via skipPendingQuote). Guarded on
+-- GC.db existing at all -- the very first compose can run before ADDON_LOADED has -- so a
+-- session with no store yet simply retries on the next compose instead of flipping the flag on
+-- nothing.
+local quotesSeeded = false
+local function seedPersistedQuotes()
+  local store = persistedQuotes()
+  if not store then return end
+  quotesSeeded = true
+  local now = time()
+  for itemID, entry in pairs(store) do
+    local unit = type(entry) == "table" and entry.unit or nil
+    local at = type(entry) == "table" and entry.at or nil
+    local valid = exact(unit) and unit > 0 and exact(at) and at <= now and (now - at) <= QUOTE_PERSIST_MAX_AGE
+    if valid then
+      -- A live answer this session already produced beats a persisted one.
+      if quotes[itemID] == nil then quotes[itemID] = { unit = unit, at = at } end
+    else
+      store[itemID] = nil
+    end
+  end
+end
+
 local function composePositions()
+  if not quotesSeeded then seedPersistedQuotes() end
   local scope = context()
   if scanBagStock then scanBagStock() end
   local stats = {}
@@ -750,6 +795,8 @@ local function skipPendingQuote(pending, timedOut)
     }
   else
     quotes[pending.itemID] = nil
+    local persisted = persistedQuotes()
+    if persisted then persisted[pending.itemID] = nil end
   end
   refresh.pending = nil
   refresh.skipped = (refresh.skipped or 0) + 1
@@ -985,6 +1032,14 @@ local function quoteResolved(kind, itemID, unit, levels)
   markProgress()
   emptyAnswers[itemID] = nil -- a real price supersedes any remembered "nothing listed"
   GC.QuoteCache.Set(quotes, itemID, unit, time())
+  -- Mirror the result into the persisted store: whatever Set just did to `quotes[itemID]` --
+  -- write it in (it never clears here, since `unit` is already known-valid above, but the
+  -- contract matches Set's either way) so a later reload can seed from it.
+  local persisted = persistedQuotes()
+  if persisted then
+    local resolved = quotes[itemID]
+    persisted[itemID] = resolved and { unit = resolved.unit, at = resolved.at } or nil
+  end
   if unit and quotes[itemID] then quotes[itemID].levels = levels end
   composePositions()
   renderRows()
@@ -2404,6 +2459,9 @@ function GC.Sell.Reset()
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.queue, refresh.index = "idle", {}, 0
   GC.QuoteCache.Clear(quotes)
+  -- Reset means "forget everything" -- the persisted mirror too, not just the session cache.
+  local persisted = persistedQuotes()
+  if persisted then GC.QuoteCache.Clear(persisted) end
   quoteExpiryGeneration = quoteExpiryGeneration + 1
   walkRepeatToken = walkRepeatToken + 1
   watchdogToken = watchdogToken + 1

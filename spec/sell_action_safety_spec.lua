@@ -961,7 +961,10 @@ describe("Sell protected action state", function()
     assert.equal(0, calls.cacheSet)
     assert.same({ 42, 42 }, sent)
     assert.equal("waiting_result", refresh.phase)
-    assert.equal(1, calls.cacheClear)
+    -- Twice, not once: GC.Sell.Reset() now clears the persisted quote mirror alongside the
+    -- session cache whenever GC.db exists (it does here), and this fake QuoteCache.Clear
+    -- counts every call regardless of which table it was handed.
+    assert.equal(2, calls.cacheClear)
     assert.same(afterClose, { post = calls.post, confirm = calls.confirm,
       cancel = calls.cancel, activity = calls.activity })
   end)
