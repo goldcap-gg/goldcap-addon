@@ -1,16 +1,33 @@
 local _, GC = ...
 
 GC.Sniper = GC.Sniper or {}
+GC.Sniper._liveTargets = {}
+GC.Sniper._liveTracksScanDeals = false
+
+-- Churn observations and the resulting target list live on GC.Sniper as table fields rather
+-- than as module locals: this chunk is at Lua's 200-local ceiling, and a field costs nothing.
+GC.Sniper._churn = {}
+GC.Sniper._churnSeq = 0
+-- itemID -> GetTime() of the last ring stampVerdict rang for it. Same "field, not a local"
+-- reasoning as _churn above.
+GC.Sniper._rangAt = {}
+-- itemID -> the last live unit price any observation reported for it, so a pinned placeholder
+-- (renderList) can show a real number instead of a dash. Same "field, not a local" reasoning
+-- as _churn above.
+GC.Sniper._lastPrice = {}
 
 local Theme = GC.Theme
 
-local ROW_HEIGHT = Theme.ROW_H
-local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
+-- Window and row geometry, folded into one table for the same reason DG below
+-- is: this chunk is at Lua's 200-local ceiling exactly.
+local WIN = {}
+WIN.ROW_HEIGHT = Theme.ROW_H
+WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist and full-scan modes
 
 -- Sniper v3: window chrome is Theme.Panel + Theme.TitleBar (see createFrame) instead of
 -- BasicFrameTemplateWithInset, and BOTH width and height are now resizable (T5 -- previously
 -- only height could change, which is why the old column grid derived every offset from a
--- single fixed FRAME_WIDTH). The column grid below is now driven by COLUMNS + anchorColumns:
+-- single fixed WIN.FRAME_WIDTH). The column grid below is now driven by COLUMNS + anchorColumns:
 -- every fixed-width cell anchors relative to its neighbor (right-to-left off the row/header
 -- container's own RIGHT edge), and the `content`/`header` containers themselves track the
 -- frame's live width via SetPoint, so a resize re-flows the grid with no recompute step
@@ -19,32 +36,34 @@ local ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist
 -- (see createFrame's f:SetScript("OnSizeChanged", ...) -- observed off the window frame
 -- itself, not the ScrollFrame, so it keeps firing even while the ScrollFrame is hidden behind
 -- the Sell tab; M8).
-local FRAME_WIDTH = 640
-local FRAME_HEIGHT = 520
-local RESIZE_MIN_WIDTH = 560
-local RESIZE_MAX_WIDTH = 1100
-local RESIZE_MIN_HEIGHT = 300
-local RESIZE_MAX_HEIGHT = 900
+WIN.FRAME_WIDTH = 640
+WIN.FRAME_HEIGHT = 520
+WIN.RESIZE_MIN_WIDTH = 560
+WIN.RESIZE_MAX_WIDTH = 1100
+WIN.RESIZE_MIN_HEIGHT = 300
+WIN.RESIZE_MAX_HEIGHT = 900
 
--- Content-area margins. CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
+-- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
 -- UIPanelScrollFrameTemplate) has no Theme equivalent -- Theme doesn't know about Blizzard's
 -- scrollbar width -- so it stays a plain named constant, same as before.
-local CONTENT_LEFT = Theme.pad.m
-local CONTENT_RIGHT_GUTTER = 32
+WIN.CONTENT_LEFT = Theme.pad.m
+WIN.CONTENT_RIGHT_GUTTER = 32
 
-local ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
+WIN.ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
 
 -- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
 -- sortable; the two columns COLUMNS adds for Sniper v3, unit/trend, stay inert like "buy").
-local REQUOTE_WARN_RATIO = 0.05
-local REQUOTE_LOUD_RATIO = 0.25
+-- Timeouts, ratios and caps. Same reason as WIN above.
+local LIM = {}
+LIM.REQUOTE_WARN_RATIO = 0.05
+LIM.REQUOTE_LOUD_RATIO = 0.25
 -- How long the loud prompt refuses the confirming click. Long enough that a second click
 -- already on its way lands on a disabled button, short enough not to feel broken.
-local REQUOTE_ARM_SECONDS = 1.5
-local REQUOTE_BANNER_HEIGHT = 46
+LIM.REQUOTE_ARM_SECONDS = 1.5
+LIM.REQUOTE_BANNER_HEIGHT = 46
 -- How many order-book entries the dialog will read. Purely a bound on work done against
 -- already-fetched results; a purchase never spans anywhere near this many price levels.
-local MAX_BOOK_LEVELS = 100
+LIM.MAX_BOOK_LEVELS = 100
 -- How far above the live market an imported market value has to sit before the dialog stops
 -- treating it as information and says so.
 -- How long a confirmed quote stays clickable in the dialog. Generous on purpose: the player
@@ -52,21 +71,49 @@ local MAX_BOOK_LEVELS = 100
 -- is immutable (PlaceBid either buys at exactly the shown price or fails because the lot is
 -- gone), and a commodity purchase always re-quotes server-side via StartCommoditiesPurchase
 -- before the separate Confirm click (with the >5% requote re-prompt on top).
-local ARM_TIMEOUT_SECONDS = 30
-local BUY_TIMEOUT_SECONDS = 8
-local REQUERY_TIMEOUT_SECONDS = 8
+LIM.ARM_TIMEOUT_SECONDS = 30
+LIM.BUY_TIMEOUT_SECONDS = 8
+LIM.REQUERY_TIMEOUT_SECONDS = 8
 -- Task 8 hover pre-warm: how long a cached deal.prewarm result stays consumable by openDialog
 -- before it's treated as expired (falls back to today's requery-then-arm flow instead).
-local PREWARM_TTL_SECONDS = 10
+LIM.PREWARM_TTL_SECONDS = 10
 -- If no browse event arrives within this long after a send (initial query or page
 -- request), the paging chain is presumed stalled -- see armScanWatchdog.
-local SCAN_WATCHDOG_SECONDS = 15
+LIM.SCAN_WATCHDOG_SECONDS = 15
+-- Background verification (tickAutoVerify): how far down the visible list to check, how often
+-- a row already carrying a verdict is checked again, and how long a SAFE verdict may go
+-- unrefreshed before the row stops advertising it. The scan, the Sell tab's pricing walk and
+-- this all share one throttled search slot, and the Sell tab is the one that starves first
+-- when something greedy runs -- but with Commit 1's estProfit ranking, renderList()'s order is
+-- now best-first, so covering more of it (24, not the old 8) is worth the wider net; the walk
+-- itself is still one query per second regardless of how many rows this covers.
+LIM.VERIFY_TOP_ROWS = 24
+LIM.VERIFY_INTERVAL_SECONDS = 30
+LIM.VERIFY_TRUST_SECONDS = 120
+-- How long a row whose last stamped verdict was AVOID goes before the walk spends another
+-- query re-confirming it. An AVOID that was true LIM.VERIFY_INTERVAL_SECONDS ago is almost
+-- always still true -- the gates that produce it (demand/velocity/liquidity limits) do not
+-- move on a 30-second clock -- so the walk's scarce one-query-per-tick budget belongs to rows
+-- nothing has looked at yet, not to reconfirming a refusal that hasn't had time to change.
+LIM.VERIFY_AVOID_INTERVAL_SECONDS = 120
+-- The verify walk runs off the same 0.25s ticker as everything else, but the walk itself
+-- sorts and filters the whole deals list -- once a second is far more often than a 30s
+-- re-check cadence can consume, and four times a second is just wasted work.
+LIM.VERIFY_WALK_SECONDS = 1
+-- How many items the dormant poll loop watches at once. This, not the arbiter's split, is
+-- what shrinks if the cycle proves too slow -- the split only decides who goes first among
+-- however many targets there are.
+LIM.WATCH_SET_SIZE = 10
+-- Per-item floor between rings (stampVerdict): a churning watched item can transition into
+-- buyable several times a minute, and every one of those is worth SHOWING, but not worth a
+-- separate bell each time. See stampVerdict's own comment for why this is per item, not global.
+LIM.RING_FLOOR_SECONDS = 30
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
-local rows = {}        -- pooled row widgets, grown lazily up to ROW_CAP
+local rows = {}        -- pooled row widgets, grown lazily up to WIN.ROW_CAP
 local dialog           -- the single reusable purchase-confirmation dialog; lazily created (see createDialog)
 local deals = {}        -- itemID -> latest watchlist deal shown for it (watchlist mode)
 local scanDeals = {}     -- array of deals from the last completed full scan (full-scan mode)
@@ -77,6 +124,26 @@ local scanning = false
 -- watchlist-vs-full-scan backing store WITHIN the Deals view). Default is "deals"; only
 -- setView (near createFrame) ever changes it.
 local view = "deals"
+
+-- The status line has two dozen writers and no arbiter -- last write wins, and during a scan
+-- the per-page progress line lands several times a second. A one-shot answer to a player
+-- action (right-click pin, most visibly) was therefore overwritten before it could be read,
+-- which made the action itself look dead. setStatus is the arbiter: a write that passes
+-- `holdSeconds` claims the line for that long, and held-out writes are DROPPED, not queued --
+-- every suppressed writer here is periodic (next page, next poll, next tick re-writes it),
+-- so the freshest one after the hold expires is strictly better than a replay of the backlog.
+-- One-shot writers that must always land (purchase flow) keep calling SetText directly.
+local statusHoldUntil = 0
+local function setStatus(text, holdSeconds)
+  if not frame then return end
+  local now = GetTime()
+  if holdSeconds then
+    statusHoldUntil = now + holdSeconds
+  elseif now < statusHoldUntil then
+    return
+  end
+  frame.status:SetText(text)
+end
 
 -- E.2 sortable headers: a click-set override applied on TOP of sortedDeals()'s own order at
 -- render time only -- never mutates `deals` or `scanDeals`, so switching modes, rescanning,
@@ -89,8 +156,8 @@ local sortHeaders = {}          -- sortKey -> { label = FontString, base = strin
 -- import is found stale on AH open -- reset only by /reload, deliberately not tied to a
 -- fresh import landing mid-session (see GC.Sniper.OnAuctionHouseShow).
 local staleWarnedThisSession = false
-local STALE_YELLOW_SECONDS = 6 * 3600
-local STALE_RED_SECONDS = 24 * 3600
+LIM.STALE_YELLOW_SECONDS = 6 * 3600
+LIM.STALE_RED_SECONDS = 24 * 3600
 
 -- Full-scan (Auctionator-style incremental browse) state. A full scan pages through
 -- C_AuctionHouse's browse results with SendBrowseQuery + RequestMoreBrowseResults until
@@ -147,6 +214,24 @@ local function drainCommodityPurchase(row)
     commodityDraining = pending
     -- No event token can prove a terminal belongs to this attempt. Stay fail-closed until a
     -- terminal event arrives or the Auction House session resets, even after a price update.
+    --
+    -- Except that CancelCommoditiesPurchase produces none of the three terminal events, so an
+    -- unconfirmed cancellation used to hold this tombstone until the player happened to close
+    -- the Auction House -- and every commodity buy in between was refused with "waiting for
+    -- previous commodity purchase to settle". Retire it on a timer instead. This is safe only
+    -- because the attempt is unconfirmed: ConfirmCommoditiesPurchase was never called, so no
+    -- gold moved and no late event can credit a purchase to a later row. The worst a
+    -- misattributed late event can now do is cancel a fresh attempt, which is the fail-safe
+    -- direction. A CONFIRMED tombstone is never retired here -- its late success must land.
+    -- 10s, written inline rather than as a named constant: this chunk is at Lua's 200-local
+    -- ceiling. Longer than LIM.BUY_TIMEOUT_SECONDS so a real terminal event still lands first.
+    if not pending.confirmed then
+      C_Timer.After(10, function()
+        if commodityDraining == pending and not pending.confirmed then
+          commodityDraining = nil
+        end
+      end)
+    end
     return pending
   end
 end
@@ -214,6 +299,15 @@ GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 -- :Cancel() on AH close -- see GC.Sniper.OnAuctionHouseShow/OnAuctionHouseClosed).
 local autoScan
 local autoScanTicker
+-- Slot arbiter. The browse scan and the watch loop are both BACKGROUND consumers of one
+-- throttled search slot; `watchTurn` alternates between them so speeding up watching cannot
+-- silently stop discovery. Starts true so the watch loop takes the first contested slot -- it
+-- is the latency-sensitive one, and the browse scan is a marathon either way.
+local watchTurn = true
+-- True only for the instant a grant is open. Core/Scanner.lua's advance() reads this through
+-- driver.mayScan and will not send outside it, which is what stops it chaining result -> send
+-- straight past the arbiter.
+local watchGrant = false
 -- feedAuto funnels EVERY AutoScan input through one place (instead of bare
 -- `autoScan:Input(...)` calls scattered across the file) so the Auto button's label/pulse
 -- (refreshAutoButton, assigned once the button itself is built in createFrame) can never
@@ -221,6 +315,42 @@ local autoScanTicker
 -- reason as autoScan.
 local feedAuto
 local refreshAutoButton
+-- Assigned below, once the button exists. Driven off the same 0.25s ticker as
+-- refreshAutoButton rather than hooked into all six places scanRunning changes,
+-- so a transition can never be added without the button following it.
+local refreshScanButton
+-- Assigned once the refused-rows toggle exists (createFrame). Forward-declared for the same
+-- reason the two above are: refreshRows() re-stamps its count on every render, and that runs
+-- long before the button is built.
+local refreshVerifyButton
+-- Assigned below (it needs refreshRows and flashRow), forward-declared because
+-- applyRequeryResult -- which sits above it -- must record what a real Check just found, or a
+-- row could sit there advertising a background verdict the player has since disproved.
+local stampVerdict
+-- Forward-declared for the same reason as stampVerdict above: driver.onObservation is built
+-- far above this function's real definition, so the closure needs the local to already exist
+-- at closure-creation time or it would silently bind the global of this name (nil) instead.
+local evaluateLiveCommodityDeal
+
+-- Background verification. itemID -> { unitPrice, at, buyable, status, reason }: what a live
+-- Check said about this item the last time one was run for it in the background.
+--
+-- Keyed by itemID and held HERE rather than stamped on the deal table, because a scan pass
+-- replaces every deal table wholesale (FullScan.MergeDeals: the incoming row wins
+-- unconditionally), which would throw away a verdict that is still perfectly true. `unitPrice`
+-- is what keeps carrying it forward honest: the same item at a different asking price was
+-- never verified, so verdictFor refuses to match it.
+--
+-- This is a rendering hint and nothing more. It never arms, approves or shortcuts a purchase
+-- -- clicking a row still runs the same live Check it always did (openDialog -> startRequery),
+-- and the purchase calls themselves are protected and reachable only from a hardware click.
+local verdicts = {}
+-- How many of the rows the current render WOULD have shown carry a refusal. Recomputed by
+-- renderList on every render and displayed by the toolbar toggle, so a shorter list always
+-- comes with the number that explains it.
+local refusedCount = 0
+-- GetTime() before which tickAutoVerify does not walk the list again -- see LIM.VERIFY_WALK_SECONDS.
+local verifyWalkAt = 0
 
 -- New-HOT-deal ping (spec §3): keyed itemID.."@"..unitPrice so a genuinely NEW listing at a
 -- NEW price re-pings even for an item that already had an older HOT listing earlier in the
@@ -235,19 +365,34 @@ local function sortedDeals()
   -- stayed in `list` it would render TWICE: frozen in its own row and fresh wherever the
   -- rest of the list now ranks it.
   local hoveredItemID = hoveredRow and hoveredRow.deal and hoveredRow.deal.itemID
+  -- Same reasoning, second case: refreshRows() also skips any row carrying a purchaseStage, so
+  -- an open Check/Buy freezes that row on its deal. activeItemID is NOT a substitute here --
+  -- armCheck deliberately releases the pin (so a second Check can be started) while leaving
+  -- purchaseStage set, and that is exactly the window in which the item rendered twice.
+  -- Built inline rather than as a file-level helper: this chunk is at Lua's 200-local ceiling.
+  local frozen = nil
+  for i = 1, #rows do
+    local frozenDeal = rows[i].purchaseStage and (rows[i].purchaseDeal or rows[i].deal) or nil
+    if frozenDeal and frozenDeal.itemID then
+      frozen = frozen or {}
+      frozen[frozenDeal.itemID] = true
+    end
+  end
   local list = {}
   if mode == "fullscan" then
     -- GC.FullScan.Evaluate already returns tier-rank/profit sorted order; filtering out
     -- pinned itemIDs preserves that order (no re-sort needed).
     for _, deal in ipairs(scanDeals) do
-      if not activeItemID[deal.itemID] and deal.itemID ~= hoveredItemID then
+      if not activeItemID[deal.itemID] and deal.itemID ~= hoveredItemID
+          and not (frozen and frozen[deal.itemID]) then
         list[#list + 1] = deal
       end
     end
     return list
   end
   for itemID, deal in pairs(deals) do
-    if not activeItemID[itemID] and itemID ~= hoveredItemID then
+    if not activeItemID[itemID] and itemID ~= hoveredItemID
+        and not (frozen and frozen[itemID]) then
       list[#list + 1] = deal
     end
   end
@@ -298,20 +443,144 @@ local function applySortOverride(list)
   return copy
 end
 
+-- Whether refused rows are currently shown. Default is hidden -- the whole point of verifying
+-- in the background is that the list stops offering flips a Check has already ruled out.
+local function showRefused()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (cfg and cfg.showRefused) and true or false
+end
+
+local function isPinned(itemID)
+  for _, pin in ipairs(GC.Sniper._WatchPins()) do
+    if pin == itemID then return true end
+  end
+  return false
+end
+
+-- The last unit price any observation reported for this item, so a pinned placeholder shows a
+-- real number rather than a dash. Filled by driver.onObservation; nil until the loop has been
+-- round the set once, which is why the placeholder must tolerate 0.
+local function lastSeenPrice(itemID)
+  return GC.Sniper._lastPrice[itemID]
+end
+
+-- The verdict that applies to `deal` RIGHT NOW, or nil if it has none.
+--
+-- Two ways a stored verdict stops applying. A price change voids it outright: what was checked
+-- was this item at that asking price, and a fresher scan quoting a different one was never
+-- verified. And a SAFE verdict that has gone LIM.VERIFY_TRUST_SECONDS without a refresh stops
+-- being advertised -- the row falls back to plain "Check" rather than keep a gold Buy button up
+-- on a claim nothing has re-tested. A REFUSAL does not expire that way: refusals come from
+-- demand and velocity limits that do not move in two minutes, and expiring them would flicker
+-- hidden rows back into the list every couple of minutes for no new information.
+local function verdictFor(deal)
+  local v = deal and deal.itemID and verdicts[deal.itemID]
+  if not v then return nil end
+  if v.unitPrice ~= deal.unitPrice then return nil end
+  if v.buyable and (GetTime() - v.at) > LIM.VERIFY_TRUST_SECONDS then return nil end
+  return v
+end
+
 -- The single entry point refreshRows() renders from: sortedDeals()'s own order, with the
--- header-click override (if any) layered on top.
+-- header-click override (if any) layered on top, and rows a background Check has refused
+-- filtered out (unless the toolbar toggle says otherwise).
+--
+-- The filter is what makes the verify walk work its way DOWN the list: a refused row leaves,
+-- the row beneath it moves into the top LIM.VERIFY_TOP_ROWS, and gets checked in its turn. The
+-- count it leaves behind in `refusedCount` is not optional -- a silently shorter list is its
+-- own lie, so the toolbar carries the number and the switch to see them.
 local function renderList()
-  return applySortOverride(sortedDeals())
+  local list = applySortOverride(sortedDeals())
+  local show = showRefused()
+  local kept = {}
+  refusedCount = 0
+  for i = 1, #list do
+    local deal = list[i]
+    local verdict = verdictFor(deal)
+    -- A pin that is currently a deal is exempt from the refused-rows filter outright -- no
+    -- capacity condition attached. `_IsWatched` alone would be wrong here: it is only true for
+    -- items that made the poll set's CAPACITY cut, and a pin squeezed out by capacity is still
+    -- a pin.
+    local pinned = isPinned(deal.itemID)
+    -- `manual` rows are never pruned -- see stampVerdict. And they are not counted either:
+    -- this number exists to explain a list that got shorter, and they did not shorten it.
+    if verdict and not verdict.buyable and not verdict.manual and not pinned then
+      refusedCount = refusedCount + 1
+      if show then kept[#kept + 1] = deal end
+    else
+      kept[#kept + 1] = deal
+    end
+  end
+
+  -- A pin whose item is no longer a deal still gets a row -- dimmed, below everything, with
+  -- its live price and no profit. Without this a pin is a roach motel: ApplyLiveObservation
+  -- drops an item that stops qualifying, and an invisible pin cannot be right-clicked off.
+  -- It is also the thing worth watching: what the item you are watching costs right now.
+  for _, itemID in ipairs(GC.Sniper._WatchPins()) do
+    local present = false
+    for i = 1, #kept do
+      if kept[i].itemID == itemID then present = true; break end
+    end
+    -- The hovered row counts as present. sortedDeals() excludes the item under the cursor
+    -- (its row is frozen so the deal cannot change beneath a click), so a pinned item being
+    -- hovered is missing from `kept` for that reason alone -- and appending a placeholder for
+    -- it here rendered the SAME item twice: the frozen real row under the cursor plus a
+    -- dimmed "Watching" twin below it, for as long as the mouse sat still.
+    if not present and hoveredRow and hoveredRow.deal
+        and hoveredRow.deal.itemID == itemID and hoveredRow:IsShown() then
+      present = true
+    end
+    if not present then
+      local lastPrice = lastSeenPrice(itemID)
+      -- `_lastPrice` is wiped on every AH close (see OnAuctionHouseClosed), so a fresh session
+      -- has no observation for a pin nothing has polled yet. `unitPrice = 0` stays the sentinel
+      -- in the table -- `priceUnknown` is what setRowDeal checks before it will render that as
+      -- a real number, so a session-old pin never shows a fabricated 0-copper price.
+      kept[#kept + 1] = { itemID = itemID, pinPlaceholder = true, unitPrice = lastPrice or 0,
+        qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
+    end
+  end
+
+  -- A pin is a standing instruction and outranks the automatic list -- exactly how
+  -- WatchSet.Select already reserves pins ahead of the poll set's own capacity, pins first,
+  -- then everything else. Two reasons this partition is unconditional, not only past the
+  -- row cap. Past the cap it is survival: refreshRows only renders list[1..WIN.ROW_CAP], and
+  -- a pin truncated away has no row and so can never be right-clicked off (see clearDeals).
+  -- Below the cap it is feedback: the one thing a right-click visibly does RIGHT NOW is move
+  -- the row to the top of the board -- the watched items live in one fixed place instead of
+  -- wherever the profit sort happens to put them, and the pin action stops reading as dead.
+  -- The partition is stable, so relative order within each half is untouched.
+  local pinnedRows, otherRows = {}, {}
+  for i = 1, #kept do
+    local entry = kept[i]
+    if isPinned(entry.itemID) then
+      pinnedRows[#pinnedRows + 1] = entry
+    else
+      otherRows[#otherRows + 1] = entry
+    end
+  end
+  for i = 1, #otherRows do pinnedRows[#pinnedRows + 1] = otherRows[i] end
+  return pinnedRows
 end
 
 local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
 
--- GetCoinTextureString's inline coin icons are too wide for a narrow column once the amount
--- climbs into three-plus digit gold -- collapse anything >= 100g to a plain "<N>g" instead of
--- letting the icon string overflow the column.
+-- GetCoinTextureString's inline coin icons are too wide for a narrow column once gold enters
+-- the amount at all: two-digit gold plus a silver coin icon already clipped mid-glyph in game
+-- ("15g 4|..."), which reads as a broken number, not a shortened one. Whole-gold amounts
+-- collapse to "<N>g"; anything from 1g up shows plain "<N>g<M>s" text; only sub-gold amounts
+-- keep the coin icons, where they fit. Negative amounts (a losing profit cell) format their
+-- magnitude and keep the sign.
 local function formatColumnAmount(copper)
+  if copper < 0 then return "-" .. formatColumnAmount(-copper) end
   if copper >= GOLD_COMPACT_THRESHOLD then
     return ("%dg"):format(math.floor(copper / 10000))
+  end
+  if copper >= 10000 then
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    if silver == 0 then return ("%dg"):format(gold) end
+    return ("%dg%02ds"):format(gold, silver)
   end
   return GetCoinTextureString(copper)
 end
@@ -471,6 +740,12 @@ end
 -- applyColumnVisibility (below createRow) whenever the scroll/content width changes.
 local hiddenColumns = {}
 
+-- itemID -> { icon, named } once setRowDeal has resolved a name/icon through Item:ContinueOnItemLoad.
+-- A quality-colored name and icon are properties of the ITEM, never of a particular deal on it,
+-- so a tiered reagent's second sighting (a fresh price, a different row slot, a later render)
+-- never needs its own Item object, its own closure, or its own Theme.QualityMarkup tooltip scan.
+local nameIconCache = {}
+
 local function setRowDeal(row, deal)
   -- (fix round 1, M3) A pooled row's ping flash must not migrate onto whatever deal gets
   -- reassigned into this same screen slot on the next refresh -- Stop() doesn't fire
@@ -483,49 +758,179 @@ local function setRowDeal(row, deal)
     row.highlight:SetAlpha(1)
   end
   row.deal = deal
-  row.buy:SetLabel(deal.action or "Check")
+  -- What the background Check found, if anything. Gold "Buy" is reserved for a row a live
+  -- Check has actually approved; an unverified row is a plain ghost "Check", exactly the
+  -- two-click flow it always was. Neither label changes what the click DOES: openDialog still
+  -- re-verifies live before anything can arm, so an aged hint can only cost a beat, never gold.
+  local verdict = verdictFor(deal)
+  local pinned = isPinned(deal.itemID)
+  local value = GC.Data.GetItemValue(deal.itemID)
+  local trend = value and value.trend
+
+  -- refreshRows runs on every browse page while a full scan streams, on every watch-loop
+  -- observation, on every verdict stamp, and off the 0.25s ticker -- with up to WIN.ROW_CAP
+  -- rows that is a fresh Item object, a fresh ContinueOnItemLoad closure and a Theme.QualityMarkup
+  -- tooltip scan per row, several times a second, even for a row whose content never moved.
+  -- Skip the whole repaint once nothing the player can actually see has changed since this row
+  -- slot was last stamped -- every field folded into `sig` drives a visible pixel below,
+  -- including ones the verdict/pin/trend systems can change out from under an unchanged `deal`
+  -- object, so this is a value comparison, never an identity (`deal1 == deal2`) one. A hidden
+  -- row (pooled slot reused after sitting empty) always falls through and repaints regardless --
+  -- otherwise a row that goes empty and comes back showing the exact same deal would stay
+  -- invisible, `row:Show()` below being the one thing the skip must never skip.
+  local sig = table.concat({
+    deal.itemID, deal.unitPrice, deal.qty, tostring(deal.avail), tostring(deal.tier),
+    deal.falling and 1 or 0, deal.profit, tostring(deal.discount),
+    deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
+    pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
+    tostring(trend),
+  }, "|")
+  if row._dealSig == sig and row:IsShown() then
+    return
+  end
+  row._dealSig = sig
+
+  if deal.pinPlaceholder then
+    -- Nothing to buy here -- this is a pin that has fallen out of the deals list, not a deal --
+    -- so the row says so plainly instead of falling through into the verdict/label logic below.
+    row.buy:SetLabel("Watching")
+    row.buy:SetVariant("ghost")
+    row.buy:Disable()
+    row:SetAlpha(0.55)
+  else
+    row:SetAlpha(1)
+    row.buy:Enable()
+    if verdict and verdict.buyable then
+      row.buy:SetLabel("Buy")
+      row.buy:SetVariant("primary")
+    elseif verdict then
+      -- Only reachable with the toolbar toggle showing refused rows; the status is the engine's
+      -- own word for it, and the row tooltip (createRow's OnEnter) carries the reason.
+      row.buy:SetLabel(verdict.status or "Avoid")
+      row.buy:SetVariant("ghost")
+    else
+      row.buy:SetLabel(deal.action or "Check")
+      row.buy:SetVariant("ghost")
+    end
+  end
+  -- The left rail is the row's state edge, and "the watch loop is polling this" is a state that
+  -- has to be readable while you are looking somewhere else. Without it, right-clicking a row
+  -- that is still a deal changed nothing visible at all -- the pin only became apparent later,
+  -- when the item fell out of the list and reappeared as a "Watching" placeholder, which reads
+  -- as the addon doing something on its own.
+  --
+  -- Blue stays up even under the cursor: hover already announces itself with the full-row
+  -- highlight wash, so there is nothing to gain from also taking the rail and everything to
+  -- lose -- the one row you are pointing at would be the one row that stops telling you.
+  if pinned then
+    row.rail:SetColorTexture(Theme.color.watch[1], Theme.color.watch[2], Theme.color.watch[3])
+    row.rail:Show()
+    row.pinBg:Show()
+  else
+    row.rail:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
+    if hoveredRow ~= row then row.rail:Hide() end
+    row.pinBg:Hide()
+  end
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
 
-  row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
-  row.discountText:SetTextColor(color[1], color[2], color[3])
-
-  row.unitText:SetText(formatColumnAmount(deal.unitPrice))
-  row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
-  row.profitText:SetText(formatColumnAmount(deal.profit))
-  if deal.profit >= 0 then
-    row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
+  -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
+  -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
+  -- that need a number) would otherwise print.
+  if deal.pinPlaceholder then
+    row.discountText:SetText("—")
+    row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
-    row.profitText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+    row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
+    row.discountText:SetTextColor(color[1], color[2], color[3])
+  end
+
+  -- A placeholder pin with nothing observed yet has no price to show -- deal.unitPrice is only
+  -- the sentinel 0 kept in the table for callers that need a number. Rendering it through
+  -- formatColumnAmount would print a literal 0-copper price nothing polled, so it gets the same
+  -- dimmed em-dash the trend column below already uses for its own unknown state.
+  if deal.priceUnknown then
+    row.unitText:SetText("—")
+    row.unitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    row.priceText:SetText("—")
+    row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  elseif deal.pinPlaceholder then
+    -- A real price WAS observed for this pin (lastSeenPrice), but a placeholder's qty is
+    -- always the sentinel 1 -- unitPrice*qty is never an actual total, just the same unit
+    -- price rendered a second time ("20g/20g"). Show the one real number (what it costs per
+    -- unit right now) and nothing where a total was never actually quoted.
+    row.unitText:SetText(formatColumnAmount(deal.unitPrice))
+    row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    row.priceText:SetText("—")
+    row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  else
+    row.unitText:SetText(formatColumnAmount(deal.unitPrice))
+    row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+    row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+  end
+
+  -- A pin placeholder has no deal to have made a profit on -- this cell says nothing rather
+  -- than a formatted 0-copper coin string (profit = 0, the same placeholder sentinel).
+  if deal.pinPlaceholder then
+    row.profitText:SetText("—")
+    row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  else
+    row.profitText:SetText(formatColumnAmount(deal.profit))
+    if deal.profit >= 0 then
+      row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
+    else
+      row.profitText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+    end
   end
 
   -- Sniper v3 trend column: mirrors the dialog's own value.trend read (updateDialogAmounts)
   -- -- import-sourced values only, absent for bundled/no-import (dim dash then). Reads
   -- GC.Data.GetItemValue directly rather than through `driver` -- `driver` (below) isn't
   -- declared yet at this point in the file, and driver.getValue is that same function anyway.
-  local value = GC.Data.GetItemValue(deal.itemID)
-  if value and value.trend then
-    local glyph = value.trend < 0 and "▼" or "▲"
-    row.trendText:SetText(("%s%d%%"):format(glyph, math.abs(value.trend)))
-    local tc = value.trend < 0 and Theme.color.red or Theme.color.green
+  if trend then
+    local glyph = trend < 0 and "▼" or "▲"
+    row.trendText:SetText(("%s%d%%"):format(glyph, math.abs(trend)))
+    local tc = trend < 0 and Theme.color.red or Theme.color.green
     row.trendText:SetTextColor(tc[1], tc[2], tc[3])
   else
     row.trendText:SetText("—")
     row.trendText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   end
 
-  row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
-  row.icon:SetTexture(nil)
+  -- A quality-colored name and icon are properties of the item, not of this particular deal on
+  -- it -- once resolved for an itemID they never change, so a second sighting (a fresher price,
+  -- a different pooled row slot, a later render) is served from cache instead of paying for
+  -- another Item object, another closure and another QualityMarkup tooltip scan.
+  local cached = nameIconCache[deal.itemID]
+  if cached then
+    row.icon:SetTexture(cached.icon)
+    row.nameText:SetText(cached.named .. qtySuffix(deal))
+  else
+    row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
+    row.icon:SetTexture(nil)
 
-  local item = Item:CreateFromItemID(deal.itemID)
-  item:ContinueOnItemLoad(function()
-    if row.deal ~= deal then return end -- row was repurposed before the async load finished
-    row.icon:SetTexture(item:GetItemIcon())
-    local quality = item:GetItemQuality()
-    local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
-    local label = item:GetItemName() or ("item " .. deal.itemID)
-    row.nameText:SetText((qc and qc:WrapTextInColorCode(label) or label) .. qtySuffix(deal))
-  end)
+    local item = Item:CreateFromItemID(deal.itemID)
+    item:ContinueOnItemLoad(function()
+      if row.deal ~= deal then return end -- row was repurposed before the async load finished
+      local icon = item:GetItemIcon()
+      local quality = item:GetItemQuality()
+      local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
+      local label = item:GetItemName() or ("item " .. deal.itemID)
+      -- Reagent quality in front of the name. Two tiers of the same reagent are
+      -- separate itemIDs and so already price separately -- this is identification,
+      -- not arithmetic, but on a list of ores and herbs it is the difference
+      -- between reading a row and guessing at it.
+      local named = (qc and qc:WrapTextInColorCode(label) or label)
+      if Theme.QualityMarkup then
+        local pip = Theme.QualityMarkup(deal.itemID, 12)
+        if pip ~= "" then named = pip .. " " .. named end
+      end
+      nameIconCache[deal.itemID] = { icon = icon, named = named }
+      row.icon:SetTexture(icon)
+      row.nameText:SetText(named .. qtySuffix(deal))
+    end)
+  end
 
   row:Show()
 end
@@ -567,7 +972,7 @@ end
 -- row under the cursor must not change identity between a click landing and the button
 -- underneath it processing that click.
 --
--- The row pool grows lazily up to `shown` (itself capped at ROW_CAP) instead of being
+-- The row pool grows lazily up to `shown` (itself capped at WIN.ROW_CAP) instead of being
 -- pre-built at a fixed size: full scans can return far more deals than the old
 -- watchlist-only 20-row pool ever needed to hold. `shown` also bounds how many entries of
 -- `list` get consumed even if `list` itself is longer (already true for full-scan mode,
@@ -577,7 +982,7 @@ end
 local function refreshRows()
   if not frame then return end
   local list = renderList()
-  local shown = math.min(#list, ROW_CAP)
+  local shown = math.min(#list, WIN.ROW_CAP)
 
   for i = #rows + 1, shown do
     rows[i] = createRow(content, i)
@@ -598,7 +1003,13 @@ local function refreshRows()
     end
   end
 
-  content:SetHeight(math.max(shown, 1) * ROW_HEIGHT)
+  content:SetHeight(math.max(shown, 1) * WIN.ROW_HEIGHT)
+  -- renderList() just recomputed refusedCount for exactly this list -- publish it in the same
+  -- breath, so the number beside the list can never describe a different render than the one
+  -- on screen. (The 0.25s ticker also calls it, for the window's first paint.) The empty-state
+  -- panel is driven from the same spot for the same reason: it describes THIS render.
+  if GC.Sniper._UpdateEmptyState then GC.Sniper._UpdateEmptyState(shown) end
+  if refreshVerifyButton then refreshVerifyButton() end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -653,9 +1064,9 @@ local function refreshStaleText()
     frame.staleText:SetText("no import -- /goldcap import")
     frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
-  elseif age < STALE_YELLOW_SECONDS then
+  elseif age < LIM.STALE_YELLOW_SECONDS then
     frame.staleText:Hide()
-  elseif age < STALE_RED_SECONDS then
+  elseif age < LIM.STALE_RED_SECONDS then
     local label = isAppData and "auto-synced %dh ago" or "import %dh old"
     frame.staleText:SetText(label:format(math.floor(age / 3600)))
     frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
@@ -667,12 +1078,50 @@ local function refreshStaleText()
   end
 end
 
+-- The board's empty state. An empty list used to be exactly that -- rows silently absent,
+-- with the only explanations living in a toolbar counter and a scan-completion status line
+-- that the next write erased. That is the TSM failure mode this addon exists to avoid: the
+-- filters work, and the player concludes the sniper is broken. When nothing renders, say WHY
+-- nothing renders, in the space where the rows would be, picking the dominant cause: no realm
+-- import (nothing can pass the safety pre-screen without one), everything filtered/refused
+-- (with the counts and where to review them), or genuinely nothing scanned yet.
+-- Exposed on GC.Sniper (not a local) so the spec suite can drive it directly.
+function GC.Sniper._UpdateEmptyState(shownCount)
+  local label = frame and frame.emptyText
+  if not label then return end
+  if shownCount > 0 or view ~= "deals" or scanRunning then
+    label:Hide()
+    return
+  end
+  local screened = GC.Sniper._screenedCount or 0
+  local text
+  if not importAgeSeconds() then
+    text = "No deals to show -- and no realm prices imported.\n"
+      .. "Without an import, almost nothing can be safety-checked.\n"
+      .. "Get your realm's data at goldcap.gg, then type /goldcap import."
+  elseif refusedCount > 0 or screened > 0 then
+    local parts = {}
+    if screened > 0 then
+      parts[#parts + 1] = ("%d filtered out as hard to resell"):format(screened)
+    end
+    if refusedCount > 0 then
+      parts[#parts + 1] = ("%d refused by live checks -- press \"Hidden: %d\" above to review them"):format(
+        refusedCount, refusedCount)
+    end
+    text = "No deals passed the safety checks right now.\n" .. table.concat(parts, "\n")
+  else
+    text = "No deals yet.\nPress Scan to search the whole auction house once, or Auto to keep scanning."
+  end
+  label:SetText(text)
+  label:Show()
+end
+
 -- One chat print per UI session (not per AH visit -- staleWarnedThisSession only resets on
 -- /reload) the first time the import is found stale on AH open.
 local function maybeWarnStale()
   if staleWarnedThisSession then return end
   local age = importAgeSeconds()
-  if age and age < STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
+  if age and age < LIM.STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
   staleWarnedThisSession = true
   if age then
     GC.Print(("your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."):format(math.floor(age / 3600)))
@@ -684,23 +1133,9 @@ end
 -- The decision engine owns every purchase-safety judgement. Keep the raw Data shape at this
 -- one boundary so a UI caller cannot accidentally make a tier/profit calculation authoritative.
 local function marketForDecision(itemID)
-  local value = GC.Data.GetItemValue(itemID) or {}
-  return {
-    kind = value.kind,
-    source = value.source,
-    sourceAt = value.sourceAt,
-    marketValue = value.mv,
-    estimated = value.estimated,
-    stressUnit = value.stressUnit,
-    soldPerDay = value.sold,
-    sellThroughBps = value.sellThroughBps,
-    liquidityConfidence = value.liquidityConfidence,
-    currentQty = value.currentQty,
-    listings = value.listings,
-    observations = value.observations,
-    madBps = value.madBps,
-    trend24hPct = value.trend,
-  }
+  -- One mapping, in SniperDecision, shared with the scan's pre-screen: a second copy here
+  -- would drift the first time a field is renamed on the import side.
+  return GC.SniperDecision.MarketFromValue(GC.Data.GetItemValue(itemID))
 end
 
 local function depositFor(itemID, quantity)
@@ -728,12 +1163,38 @@ end
 -- rest of the purchase-flow helpers.
 local resolvePurchase
 
+function GC.Sniper._CurrentLiveDeal(itemID)
+  if not GC.Sniper._liveTracksScanDeals then return deals[itemID] end
+  for _, deal in ipairs(scanDeals) do
+    if deal.itemID == itemID then return deal end
+  end
+  return nil
+end
+
 -- Live driver bound to C_AuctionHouse; every WoW-API access below is wrapped in a
 -- function so the table itself can be built at file-load with no side effects
 -- (required for the headless busted load-order spec).
-local driver = {
+--
+-- Forward-declared, then filled by a plain `driver = {...}` assignment below rather than
+-- `local driver = {...}` in one step: onObservation (a field of this same literal) needs to
+-- call driver.commodityResult, and a name first bound by the `local` statement that CONTAINS
+-- the literal is not in scope until that statement finishes -- referenced from inside the
+-- literal it would resolve to an unset global instead. Splitting the declaration from the
+-- assignment (same idiom as resolvePurchase/stampVerdict/evaluateLiveCommodityDeal above) puts
+-- `driver` in scope before the closures that capture it are even parsed.
+local driver
+driver = {
   isReady = function()
     return C_AuctionHouse.IsThrottledMessageSystemReady()
+  end,
+
+  mayScan = function()
+    -- Shared throttle budget: while the player is on Blizzard's own Create Auction form, their
+    -- click outranks every watch-loop poll.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then
+      return false
+    end
+    return watchGrant
   end,
 
   getKeyInfo = function(itemID)
@@ -773,13 +1234,13 @@ local driver = {
     -- Fix 1: info.quantity above is only level 1's own stock (what a purchase quote is built
     -- from) -- `avail` is the market's real depth, summed across every fetched price level, so
     -- the row/dialog can show "x<qty> of <avail>" instead of implying the level-1 quantity is
-    -- all there is. Same bounded MAX_BOOK_LEVELS idiom driver.commodityBook uses below, kept as
+    -- all there is. Same bounded LIM.MAX_BOOK_LEVELS idiom driver.commodityBook uses below, kept as
     -- its own small loop rather than calling commodityBook itself: this only needs a running
     -- total, not the per-level array GC.Book.Fill consumes.
     local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
     local avail
     if n and n > 0 then
-      if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+      if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
       avail = 0
       for i = 1, n do
         local levelInfo = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
@@ -797,7 +1258,7 @@ local driver = {
   commodityBook = function(itemID)
     local n = C_AuctionHouse.GetNumCommoditySearchResults(itemID)
     if not n or n <= 0 then return nil end
-    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
     local levels = {}
     for i = 1, n do
       local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
@@ -816,7 +1277,7 @@ local driver = {
     local key = C_AuctionHouse.MakeItemKey(itemID)
     local n = C_AuctionHouse.GetNumItemSearchResults(key)
     if not n or n <= 0 then return nil end
-    if n > MAX_BOOK_LEVELS then n = MAX_BOOK_LEVELS end
+    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
     local best
     for i = 1, n do
       local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
@@ -833,7 +1294,10 @@ local driver = {
   getValue = GC.Data.GetItemValue,
 
   onStatus = function(text)
-    if frame then frame.status:SetText(text) end
+    -- setStatus, not SetText: the poll loop writes this on every send, and it must not be
+    -- able to stamp over a held one-shot announcement (right-click pin feedback, most
+    -- visibly) within the same second the player acted.
+    setStatus(text)
   end,
 
   onDeal = function(deal)
@@ -841,7 +1305,7 @@ local driver = {
     -- UNVERIFIED to actually fire, so if a rescan reports a *different* top auction for
     -- an itemID we're mid-purchase on, the auction we bid on is gone from the book —
     -- treat that as a completed snipe.
-    local prior = deals[deal.itemID]
+    local prior = GC.Sniper._CurrentLiveDeal(deal.itemID)
     if prior and not deal.isCommodity and prior.auctionID and prior.auctionID ~= deal.auctionID then
       local staleRow = pendingAuction[prior.auctionID]
       if staleRow then
@@ -849,11 +1313,33 @@ local driver = {
       end
     end
 
-    deals[deal.itemID] = deal
+    if not GC.Sniper._liveTracksScanDeals then deals[deal.itemID] = deal end
     refreshRows()
-    if deal.tier == "HOT" and GC.db.settings.sniper.sound then
-      PlaySound(SOUNDKIT.RAID_WARNING, "Master")
+    -- No PlaySound here, deliberately. A DealMath tier is a lead, not a promise -- ringing is
+    -- the verdict path's job: stampVerdict rings on the transition into buyable, once, floored
+    -- 30 seconds per item. Doing it here as well would ring on every "HOT" poll result with
+    -- neither the verdict gate nor that floor in the way.
+  end,
+
+  onObservation = function(itemID, deal)
+    if GC.Sniper._liveTracksScanDeals then
+      scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, WIN.ROW_CAP)
+    else
+      deals[itemID] = deal
     end
+    -- The poll has just pulled this item's live book, which is exactly what a verdict is
+    -- computed from -- so compute it here, for nothing. A watched item therefore never costs
+    -- tickAutoVerify a query, and the ring it may produce goes through the one shared
+    -- transition path rather than a second notion of "buyable".
+    if deal and GC.Sniper._IsWatched(itemID) then
+      stampVerdict(deal, evaluateLiveCommodityDeal(itemID))
+    end
+    -- The live price this observation just fetched, independent of whether it qualified as a
+    -- deal (DealMath.Evaluate above returns nil `deal` for a price that isn't cheap enough --
+    -- which is exactly the state a pin sits in most of the time). See lastSeenPrice.
+    local live = driver.commodityResult(itemID)
+    if live and live.unitPrice then GC.Sniper._lastPrice[itemID] = live.unitPrice end
+    refreshRows()
   end,
 
   now = time,
@@ -875,20 +1361,30 @@ local function clearDeals()
   refreshRows()
 end
 
-local function startScanning()
-  if not GC.Sniper.scanner then return end
-  mode = "watchlist"
-  clearDeals()
-  GC.Sniper.scanner:Stop() -- re-Start while a search is in flight drops it silently: always Stop first
-  GC.Sniper.scanner:Start(GC.Data.GetWatchlist(100))
+-- The Live scan loop no longer has a manual way to start -- its button is gone (see
+-- createFrame), and nothing calls startScanning, so `scanning` itself is still permanently
+-- false. But `_liveTargets` is no longer permanently empty: GC.Sniper._RefreshWatchSet
+-- populates it from the watch set (churn + pins) and starts the scanner on it whenever
+-- membership changes. Read every `if scanning` below with the manual path in mind: those
+-- branches exist to yield the single throttled search slot to a Check, and there is still
+-- nothing manual to yield it from -- the watch loop's own contention for that slot goes
+-- through the arbiter (GC.Sniper._GrantWatchSlot), not through `scanning`.
+--
+-- What is deliberately NOT removed: GC.Sniper.scanner itself, which Core/Init.lua
+-- still feeds events to, and the pause/resume pair, which the Check requery path
+-- calls unconditionally. startRequery sends its own search and only pauses the
+-- scanner as a courtesy, so with the manual loop stopped the whole Check flow is
+-- unchanged apart from a contention it no longer has. Restoring Live means
+-- restoring one function and one button, not untangling this.
+function GC.Sniper._ResumeLiveScanner()
+  if not GC.Sniper.scanner or #GC.Sniper._liveTargets == 0 then return end
+  GC.Sniper.scanner:Resume()
   scanning = true
-  if frame then frame.toggleBtn:SetLabel("Stop") end
 end
 
 local function stopScanning()
   if GC.Sniper.scanner then GC.Sniper.scanner:Stop() end
   scanning = false
-  if frame then frame.toggleBtn:SetLabel("Live") end
 end
 
 -- A dialog Check owns the throttled search slot over the optional watchlist loop. Its exact
@@ -898,7 +1394,13 @@ end
 function GC.Sniper._ResumePausedLiveRequery(attempt)
   if GC.Sniper._pausedLiveRequery ~= attempt then return end
   GC.Sniper._pausedLiveRequery = nil
-  if ahOpen and not scanning then startScanning() end
+  -- An exact Check owner may retire its Live pause only when no browse/Auto mode has claimed
+  -- traffic in the meantime. A manual Scan can begin while Check is open; resuming Scanner
+  -- into that browse session would create competing throttled searches.
+  if ahOpen and not scanning and not scanRunning and not pendingFullScanStart
+      and not pendingBrowsePage and autoScan:State() == "OFF" then
+    GC.Sniper._ResumeLiveScanner()
+  end
 end
 
 function GC.Sniper._FinishDrainWait(itemID, draining)
@@ -958,10 +1460,22 @@ local function pingNewHotDeals(newHotDeals)
   if matched and GC.db.settings.sniper.sound then
     PlaySound(SOUNDKIT.MAP_PING or 3175)
   end
+  -- A sniper is an alarm, not a dashboard (the pattern every dedicated sniping addon ships:
+  -- PBS's Alert, AnS's flashWoWIcon): a HOT deal found while the player is alt-tabbed must
+  -- reach them, and FlashClientIcon is the platform's one sanctioned way to flash the
+  -- taskbar/dock icon. Guarded: absent in the headless test environment.
+  if matched and FlashClientIcon then
+    FlashClientIcon()
+  end
 end
 
 local function applyFullScanResults(rowsList, groupCount)
-  scanDeals = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
+  local screened
+  scanDeals, screened = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
+  GC.Sniper._screenedCount = screened or 0
+  GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
+  GC.WatchSet.Observe(GC.Sniper._churn, scanDeals, GC.Sniper._churnSeq)
+  GC.Sniper._RefreshWatchSet()
   -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
   -- single resolved auction: isCommodity is unknown here and auctionID is always nil. Mark
   -- every deal `.stale` so onBuyClick knows to requery live before it will let one arm for
@@ -970,8 +1484,15 @@ local function applyFullScanResults(rowsList, groupCount)
     deal.stale = true
   end
   if frame then
-    frame.status:SetText(("full scan complete: %d deal%s from %d item group%s"):format(
-      #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s"))
+    -- Name the rows the pre-screen removed rather than presenting a shorter list as if it were
+    -- the whole market: a player who cannot see the number cannot tell a quiet market from a
+    -- strict filter.
+    local hidden = (GC.Sniper._screenedCount or 0) > 0
+      and (", %d hidden as unsellable"):format(GC.Sniper._screenedCount) or ""
+    -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
+    -- held announcement costs nothing -- the next pass rewrites it.
+    setStatus(("full scan complete: %d deal%s from %d item group%s%s"):format(
+      #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
@@ -995,13 +1516,145 @@ local function applyFullScanResults(rowsList, groupCount)
   feedAuto("scanFinished")
 end
 
+function GC.Sniper._WatchPins()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  return (cfg and cfg.watchPins) or {}
+end
+
+function GC.Sniper._IsWatched(itemID)
+  for i = 1, #GC.Sniper._liveTargets do
+    if GC.Sniper._liveTargets[i] == itemID then return true end
+  end
+  return false
+end
+
+-- Recomputes the target list and restarts the loop ONLY if membership actually changed.
+-- Restarting is not free: Scanner:Start wipes alertedCommodity/alertedAuctions, so a needless
+-- restart re-arms every alert and would ring for lots that have been sitting there all along.
+function GC.Sniper._RefreshWatchSet()
+  local targets = GC.WatchSet.Select(GC.Sniper._churn, GC.Sniper._WatchPins(), LIM.WATCH_SET_SIZE)
+  local current = GC.Sniper._liveTargets
+  -- Membership, not order. Select ranks by recency among other things, so a fresh observation
+  -- on an ALREADY-watched item can re-rank it without changing who is watched -- and treating
+  -- that as a change would restart the scanner, wiping alertedCommodity/alertedAuctions and
+  -- re-arming an alert for every lot that has been sitting there untouched. Order genuinely
+  -- does not matter: the poll is round-robin and visits every member either way. Returning
+  -- without touching `current` is deliberate too -- the scanner is actively indexing into that
+  -- exact table, so there is nothing to gain from reshuffling it underneath the index.
+  local same = #targets == #current
+  if same then
+    local have = {}
+    for i = 1, #current do have[current[i]] = true end
+    for i = 1, #targets do
+      if not have[targets[i]] then same = false; break end
+    end
+  end
+  if same then return end
+
+  for i = #current, 1, -1 do current[i] = nil end
+  for i = 1, #targets do current[i] = targets[i] end
+
+  -- A different set is a different measurement: the pass the loop was timing no longer visits
+  -- the same members, so its partial count means nothing against the new one.
+  GC.Sniper._passStartedAt = GetTime()
+  GC.Sniper._grants = 0
+  GC.Sniper._cycleSeconds = nil
+
+  if not GC.Sniper.scanner then return end
+  if #current == 0 then
+    GC.Sniper.scanner:Stop()
+    return
+  end
+  -- Observations rewrite the full-scan list in place (FullScan.ApplyLiveObservation) rather
+  -- than the watchlist map -- the board the player is looking at is scanDeals.
+  GC.Sniper._liveTracksScanDeals = true
+  GC.Sniper.scanner:Start(current)
+end
+
+-- Adds or removes a pin, persists it, and refreshes both the watch set (so the loop starts
+-- polling it -- or stops, if nothing else keeps it alive) and the rendered list (so a newly
+-- pinned/unpinned row shows up or drops its placeholder immediately, not on the next tick).
+-- Says out loud what just happened. A right-click that silently edits a saved list is
+-- indistinguishable from a right-click that did nothing, and the only other evidence -- the row
+-- turning into a "Watching" placeholder -- arrives minutes later, when the item happens to fall
+-- out of the deals list. By then it reads as the addon acting on its own.
+local function announcePin(itemID, watching)
+  if not frame or not frame.status then return end
+  local name
+  if Item and Item.CreateFromItemID then
+    local ok, item = pcall(Item.CreateFromItemID, Item, itemID)
+    if ok and item and item.GetItemName then name = item:GetItemName() end
+  end
+  name = name or ("item " .. tostring(itemID))
+  -- Held for a few seconds: without the hold, the next scan page / poll status overwrote this
+  -- within a frame or two, and the right-click read as having done nothing at all.
+  setStatus(watching
+    and ("watching %s closely -- re-checked every few seconds"):format(name)
+    or ("stopped watching %s"):format(name), 4)
+end
+
+-- The row the pin was toggled on is, by definition, under the cursor -- and refreshRows()
+-- deliberately skips the hovered row to keep its content stable across streaming renders.
+-- That skip is right for streaming and exactly wrong here: it suppressed the rail/label
+-- repaint on the ONE row the player is looking at, so the click showed no change where the
+-- eyes were. Repaint that row explicitly (setRowDeal re-reads the pin state; its signature
+-- includes the pinned bit, so this is never a wasted repaint) and flash it.
+local function repaintToggledRow(itemID)
+  local row = hoveredRow
+  if not (row and row.deal and row.deal.itemID == itemID) then return end
+  setRowDeal(row, row.deal)
+  flashRow(row)
+end
+
+function GC.Sniper._TogglePin(itemID)
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  if not cfg or not itemID then return end
+  cfg.watchPins = cfg.watchPins or {}
+  for i = 1, #cfg.watchPins do
+    if cfg.watchPins[i] == itemID then
+      table.remove(cfg.watchPins, i)
+      GC.Sniper._RefreshWatchSet()
+      refreshRows()
+      repaintToggledRow(itemID)
+      announcePin(itemID, false)
+      return
+    end
+  end
+  cfg.watchPins[#cfg.watchPins + 1] = itemID
+  GC.Sniper._RefreshWatchSet()
+  refreshRows()
+  repaintToggledRow(itemID)
+  announcePin(itemID, true)
+end
+
+-- Right-click pin dispatch for deal rows; createRow wires BOTH mouse phases here. A desktop
+-- mouse delivers down then up for one press; a macOS trackpad two-finger tap was observed to
+-- deliver only one of the two (the original OnMouseUp-only handler never fired from a tap,
+-- which is why the handler moved to OnMouseDown -- betting on the other single phase). The
+-- latch makes one physical press toggle exactly once whichever subset arrives: a down always
+-- toggles and arms the latch, an up toggles only when no down armed it (and disarms it either
+-- way, so a down-then-up press over two different rows can never toggle the second row).
+function GC.Sniper._RowPinEvent(row, phase, button)
+  if button ~= "RightButton" or not row.deal then return end
+  if phase == "down" then
+    GC.Sniper._pinPressLatch = true
+    GC.Sniper._TogglePin(row.deal.itemID)
+  else
+    if GC.Sniper._pinPressLatch then
+      GC.Sniper._pinPressLatch = nil
+      return
+    end
+    GC.Sniper._TogglePin(row.deal.itemID)
+  end
+end
+
 -- Re-armed after every send (the initial SendBrowseQuery and each RequestMoreBrowseResults).
 -- If no browse event has landed by the time this fires, the paging chain has genuinely
 -- stalled -- clear scan state instead of leaving the status frozen forever. Browse queries
 -- have no server cooldown, so retrying costs nothing; the status line says so.
 local function armScanWatchdog(token)
   local sentAt = time()
-  C_Timer.After(SCAN_WATCHDOG_SECONDS, function()
+  C_Timer.After(LIM.SCAN_WATCHDOG_SECONDS, function()
     if token ~= fullScanToken or not scanRunning then return end -- superseded, aborted, or already finished
     if lastBrowseEventAt < sentAt then
       scanRunning = false
@@ -1070,7 +1723,12 @@ local function advanceBrowseScan(token)
   if n > streamRawCount then
     local tail = {}
     for i = streamRawCount + 1, n do tail[#tail + 1] = browseResults[i] end
-    local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue)
+    -- The config is not optional here even though RowsFromBrowse tolerates its absence: the
+    -- quantity every row advertises is now SniperDecision's own demand cap, and that cap reads
+    -- maxDailyDemandShare/maxQuantity off these settings. Omitting it does not fall back to the
+    -- old sold/day estimate -- it fails closed to a quantity of 1 for every row on the board,
+    -- silently, which reads as "the scan found nothing worth buying" rather than as a bug.
+    local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue, GC.db.settings.sniper)
     for _, row in ipairs(tailRows) do streamRows[#streamRows + 1] = row end
     streamRawCount = n
   end
@@ -1084,9 +1742,15 @@ local function advanceBrowseScan(token)
     -- aggregate, not a resolved auction), and merge into whatever's already on screen --
     -- MergeDeals' incoming-wins rule means a later page's fresher read of an item replaces an
     -- earlier one instead of both lingering.
-    local deltaDeals, newRowsCount = GC.FullScan.EvaluateDelta(
+    -- The third return is the pre-screen's removal count for THIS page. It used to be
+    -- discarded here, which meant the "hidden as unsellable" number stayed at zero for the
+    -- whole streaming phase and only appeared at the final reconcile -- mid-scan, a heavily
+    -- filtered board was indistinguishable from a quiet market. Accumulate it as pages land;
+    -- applyFullScanResults overwrites it with the authoritative full-walk count at the end.
+    local deltaDeals, newRowsCount, deltaScreened = GC.FullScan.EvaluateDelta(
       streamRows, streamRowsCount, GC.Data.GetItemValue, GC.db.settings.sniper)
     streamRowsCount = newRowsCount
+    GC.Sniper._screenedCount = (GC.Sniper._screenedCount or 0) + (deltaScreened or 0)
     for _, deal in ipairs(deltaDeals) do
       deal.stale = true
     end
@@ -1094,14 +1758,19 @@ local function advanceBrowseScan(token)
     -- applyFullScanResults' own completion branch uses, against the same seenHotDeals set --
     -- see that call site's comment for why both branches need their own pass.
     local pingDeals = GC.FullScan.CollectNewHot(deltaDeals, seenHotDeals)
+    GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
+    GC.WatchSet.Observe(GC.Sniper._churn, deltaDeals, GC.Sniper._churnSeq)
+    GC.Sniper._RefreshWatchSet()
     scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
     refreshRows()
     if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
     -- Spec: no page % (Blizzard doesn't expose total pages) -- result count + running deal
-    -- count instead.
-    if frame then
-      frame.status:SetText(("scanning… %d results · %d deals"):format(n, #scanDeals))
-    end
+    -- count instead, plus the running pre-screen count so a strict filter is visible WHILE it
+    -- filters. setStatus, not SetText: this line lands on every page, and it must lose to a
+    -- held one-shot announcement (see setStatus).
+    local screenedNote = (GC.Sniper._screenedCount or 0) > 0
+      and (" · %d hidden"):format(GC.Sniper._screenedCount) or ""
+    setStatus(("scanning… %d results · %d deals%s"):format(n, #scanDeals, screenedNote))
     requestNextPage(token)
   end
 end
@@ -1145,9 +1814,9 @@ local function cancelFullScan()
     return
   end
   if next(reasons) == nil then
-    frame.status:SetText("auto off")
+    setStatus("auto off")
   else
-    frame.status:SetText("auto: paused")
+    setStatus("auto: paused")
   end
 end
 
@@ -1157,12 +1826,14 @@ end
 -- C_AuctionHouse.IsThrottledMessageSystemReady() is false, which is routinely the case for a
 -- beat right after opening the Auction House.
 local function startFullScan()
+  if scanning then stopScanning() end
   fullScanToken = fullScanToken + 1
   local token = fullScanToken
   scanRunning = true
   pendingBrowsePage = false
   lastBrowseEventAt = 0
   streamRows, streamRawCount, streamRowsCount = {}, 0, 0 -- T6: fresh pass, fresh streaming state
+  GC.Sniper._screenedCount = 0 -- fresh pass, fresh pre-screen tally (accumulated per page while streaming)
   mode = "fullscan"
   refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
 
@@ -1189,6 +1860,11 @@ end
 autoScan = GC.AutoScan.New({}, {
   startScan = function()
     if scanRunning or pendingFullScanStart then return end
+    -- Shared throttle budget: while the player is on Blizzard's own Create Auction form,
+    -- their click outranks a fresh background scan. The FSM's own state still advances to
+    -- SCANNING regardless (see AutoScan.lua's Tick) -- this only withholds the send, and the
+    -- very next tick after the player leaves the panel starts a real scan.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then return end
     startFullScan()
   end,
   abortScan = cancelFullScan,
@@ -1217,17 +1893,19 @@ local function autoButtonText(state, reasons)
   return "Auto" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
 end
 
--- Re-derives the Auto control's label/on-off look/pulse from the machine's own State()/
--- PauseReasons() -- called after every feedAuto() input and once per Tick (see the
--- autoScanTicker set up in GC.Sniper.OnAuctionHouseShow), so the button can never show a
--- state the machine itself has already moved past. Two overlapping buttons (frame.autoBtnOff
--- ghost / frame.autoBtnOn primary, built in createFrame), not one button whose colors get
--- poked at runtime -- Theme.Button's own hover-brighten closures capture their variant's
--- base/hover colors at construction time (see Theme.lua's T.Button), so repainting a single
--- button's `.bg` here would just get stomped by the very next OnEnter/OnLeave. Swapping which
--- of two correctly-built buttons is shown sidesteps that entirely, and keeps the control
--- clickable in both states (a real :Disable() would also block the click that's supposed to
--- turn it back on).
+-- Re-derives the Auto control's label and look from the machine's own State()/PauseReasons()
+-- -- called after every feedAuto() input and once per Tick (see the autoScanTicker set up in
+-- GC.Sniper.OnAuctionHouseShow), so the button can never show a state the machine itself has
+-- already moved past.
+--
+-- ONE button with two variants, not two overlaid buttons swapped by Show/Hide. The swap was
+-- there because Theme.Button used to capture its colors at construction, making a repaint
+-- impossible; Theme.Button:SetVariant now exists, so the swap can go. It was the direct cause
+-- of the control feeling broken: hiding a frame under a stationary cursor does not reliably
+-- deliver OnLeave or OnEnter, so hovers were missed and the button that came back was painted
+-- for a state it was no longer in. The scanning alpha pulse went with it -- on a near-black
+-- panel it read as the button dimming to grey rather than as a heartbeat, which is exactly the
+-- "it goes black" the owner reported. Scanning is said in words instead.
 --
 -- `targetFrame` (fix round 1, M1): createFrame calls this with its own local `f` right
 -- before returning, since the module-level `frame` upvalue isn't assigned until AFTER
@@ -1237,41 +1915,41 @@ end
 -- caller (the ticker, feedAuto) omits it and falls back to the module-level `frame`.
 refreshAutoButton = function(targetFrame)
   local f = targetFrame or frame
-  if not f or not f.autoBtnOn then return end
+  if not f or not f.autoBtn then return end
   local state = autoScan:State()
   local on = state ~= "OFF"
-  if f.autoBtnOn.lastOn ~= on then
-    f.autoBtnOn.lastOn = on
-    if on then
-      f.autoBtnOff:Hide()
-      f.autoBtnOn:Show()
-    else
-      f.autoBtnOn:Hide()
-      f.autoBtnOff:Show()
-    end
+  if f.autoBtn.lastOn ~= on then
+    f.autoBtn.lastOn = on
+    -- `active`, not `primary`: primary is dark text on a gold fill, so the label is only legible
+    -- while that fill is painted, and the owner saw it reduced to near-black text on a dark
+    -- button. `active` carries the on-state in gold text, which cannot become unreadable.
+    f.autoBtn:SetVariant(on and "active" or "ghost")
   end
-
-  -- (fix round 1, I5) Pulse Play/Stop must run regardless of `on` -- previously this sat
-  -- AFTER the off-state early return below, so toggling Auto off (or any other transition
-  -- straight out of SCANNING) left the animation silently playing forever on a now-hidden
-  -- button instead of being Stop()'d.
-  local shouldPulse = (state == "SCANNING")
-  if shouldPulse and not f.autoBtnOn.pulsing then
-    f.autoBtnOn.pulsing = true
-    f.autoBtnOn.pulse:Play()
-  elseif not shouldPulse and f.autoBtnOn.pulsing then
-    f.autoBtnOn.pulsing = false
-    f.autoBtnOn.pulse:Stop()
-    f.autoBtnOn:SetAlpha(1)
+  local text = on and autoButtonText(state, autoScan:PauseReasons()) or "Auto"
+  if f.autoBtn.lastText ~= text then
+    f.autoBtn:SetLabel(text)
+    f.autoBtn.lastText = text
   end
+end
 
-  if not on then return end -- the off button's label never changes ("Auto") -- nothing else to update
-
-  local text = autoButtonText(state, autoScan:PauseReasons())
-  if f.autoBtnOn.lastText ~= text then
-    f.autoBtnOn:SetLabel(text)
-    f.autoBtnOn.lastText = text
-  end
+-- Scan did its work in silence. The status line said "scanning auction
+-- house..." but it sits at the far left of the toolbar, a window's width away
+-- from the button that was just pressed, and the button itself did not move --
+-- so the honest read of a press was "nothing happened". Same class of defect as
+-- the Repost that refreshed a quote and returned without saying so.
+--
+-- The button now carries its own state, the way Auto already does.
+refreshScanButton = function(targetFrame)
+  local f = targetFrame or frame
+  if not f or not f.fullScanBtn then return end
+  local busy = scanRunning or pendingFullScanStart
+  if f.fullScanBtn.lastBusy == busy then return end
+  f.fullScanBtn.lastBusy = busy
+  f.fullScanBtn:SetLabel(busy and "Scanning…" or "Scan")
+  -- `active`, not `primary`, and not Disable(): a disabled button reads as
+  -- broken, and the click while busy has something useful to say (see
+  -- onFullScanClick). Same reasoning as the Auto button's on-state.
+  f.fullScanBtn:SetVariant(busy and "active" or "ghost")
 end
 
 local function onFullScanClick()
@@ -1286,7 +1964,9 @@ local function onFullScanClick()
     return
   end
 
+  frame.status:SetText("starting full scan...")
   startFullScan()
+  refreshScanButton()
 end
 
 -- ---------------------------------------------------------------------------
@@ -1342,11 +2022,11 @@ end
 local function showRequoteBanner(head, detail)
   dialog.banner.head:SetText(head)
   dialog.banner.detail:SetText(detail)
-  dialog:SetHeight(dialog.baseHeight + REQUOTE_BANNER_HEIGHT)
+  dialog:SetHeight(dialog.baseHeight + LIM.REQUOTE_BANNER_HEIGHT)
   dialog.banner:Show()
 end
 
--- Refuses the confirming click for REQUOTE_ARM_SECONDS so a click already on its way when the
+-- Refuses the confirming click for LIM.REQUOTE_ARM_SECONDS so a click already on its way when the
 -- alarm fired can't land on it. Red-and-disabled reads as deliberate on its own; there is no
 -- countdown number in the label (a dropped earlier version ticked on a 0.5s interval over a
 -- 1.5s window, which reads as three seconds -- "(3) -> (2) -> (1)" -- for a wait that isn't).
@@ -1366,7 +2046,7 @@ local function armLoudConfirm(row)
   dialog.primaryBtn:Disable()
   setPrimaryLabel("Confirm", 1, 0.35, 0.35)
 
-  C_Timer.After(REQUOTE_ARM_SECONDS, function()
+  C_Timer.After(LIM.REQUOTE_ARM_SECONDS, function()
     if token ~= requoteArmToken then return end
     if not dialog or dialog.row ~= row or row.purchaseStage ~= "requote" then return end
     dialog.primaryBtn:Enable()
@@ -1409,23 +2089,48 @@ local function displayDecisionAmount(value)
   return value and formatColumnAmount(value) or "—"
 end
 
--- The diagnostic is evidence, not a purchase surface. Its height follows the rendered text so
--- every ordered reason remains visible at the player's current font scale. The buttons and
--- requote banner stay bottom-anchored; changing baseHeight moves that whole block together.
+-- The diagnostic is evidence, not a purchase surface, and (fix round N) is now hidden unless
+-- the player has turned on GC.db.settings.sniper.debug -- it is a bug-report transcript, not
+-- something a player one click from spending gold needs to see by default. Its height still
+-- follows the rendered text when it IS shown, so every ordered reason remains visible at the
+-- player's current font scale; when it is not shown it contributes nothing, and `status`
+-- anchors directly below wherever the (open or closed) evidence grid ends instead. The buttons
+-- and requote banner stay bottom-anchored; changing baseHeight moves that whole block together.
 local function resizeDialogDiagnostics()
+  local evidenceBottom = dialog.detailsOpen and dialog.evidenceTopOpen or dialog.evidenceTopClosed
+  dialog.mvNote:ClearAllPoints()
+  dialog.mvNote:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
+  dialog.mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
+
   local diagnostic = dialog.diagnosticText
-  local measured = type(diagnostic.GetStringHeight) == "function" and diagnostic:GetStringHeight() or nil
-  if type(measured) ~= "number" or measured <= 0 then measured = dialog.diagnosticMinimumHeight end
-  local height = math.max(dialog.diagnosticMinimumHeight, math.ceil(measured))
-  diagnostic:SetHeight(height)
+  diagnostic:ClearAllPoints()
+  diagnostic:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
+  diagnostic:SetPoint("RIGHT", -Theme.pad.m, 0)
+
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  local debugOn = (cfg and cfg.debug) and true or false
+  local height, gap = 0, 0
+  if debugOn then
+    diagnostic:Show()
+    local measured = type(diagnostic.GetStringHeight) == "function" and diagnostic:GetStringHeight() or nil
+    if type(measured) ~= "number" or measured <= 0 then measured = dialog.diagnosticMinimumHeight end
+    height = math.max(dialog.diagnosticMinimumHeight, math.ceil(measured))
+    gap = dialog.diagnosticGaps
+    diagnostic:SetHeight(height)
+    dialog.status:ClearAllPoints()
+    dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
+    dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
+  else
+    diagnostic:Hide()
+    dialog.status:ClearAllPoints()
+    dialog.status:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
+    dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
+  end
   dialog.diagnosticHeight = height
 
-  dialog.status:ClearAllPoints()
-  dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
-  dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
-  dialog.baseHeight = dialog.fixedHeight + dialog.diagnosticGaps + height
+  dialog.baseHeight = dialog.fixedHeight + gap + height
   local bannerVisible = dialog.banner and dialog.banner:IsShown()
-  dialog:SetHeight(dialog.baseHeight + (bannerVisible and REQUOTE_BANNER_HEIGHT or 0))
+  dialog:SetHeight(dialog.baseHeight + (bannerVisible and LIM.REQUOTE_BANNER_HEIGHT or 0))
 end
 
 -- Forward declarations for the quantity controls. Their definitions are intentionally below
@@ -1443,7 +2148,42 @@ local function stampDialogFromDecision(deal, decision)
   local entryTotal = decision.entryTotal
   local average = entryTotal and quantity > 0 and math.floor(entryTotal / quantity) or nil
   local sourceAge = market.sourceAt and math.max(0, time() - market.sourceAt) or nil
-  local firstReason = decision.reasons and decision.reasons[1] or "live_verification_required"
+  -- The headline names the first reason that actually REFUSED, skipping the informational ones
+  -- SniperDecision marks. `demand_limit` is added as a note whenever the chosen quantity is
+  -- below the player's maximum, which is ordinary, and it sorts ahead of the gate that really
+  -- refused -- so reasons[1] showed "demand_limit" while stress_profit_below_buffer, the actual
+  -- answer, sat further down the list. The full ordered list below is unchanged.
+  local firstReason
+  for _, reason in ipairs(decision.reasons or {}) do
+    if not (decision.informational and decision.informational[reason]) then
+      firstReason = reason
+      break
+    end
+  end
+  firstReason = firstReason or (decision.reasons and decision.reasons[1]) or "live_verification_required"
+
+  -- Verdict block: what a click DOES, not a debug dump. Money is formatColumnAmount (via
+  -- displayDecisionAmount) and this decision snapshot alone -- nothing here is recomputed.
+  -- The item label reuses the SAME per-itemID name/icon cache setRowDeal populates -- the
+  -- dialog only ever opens from a row's own Buy click, so that row has already resolved it;
+  -- "item <id>" is the same placeholder setDialogHeader itself falls back to when it has not.
+  local itemLabel = (nameIconCache[deal.itemID] and nameIconCache[deal.itemID].named)
+    or ("item " .. deal.itemID)
+  if decision.buyable then
+    dialog.verdictHead:SetText(("Buy %d × %s for %s"):format(
+      quantity, itemLabel, displayDecisionAmount(entryTotal)))
+    dialog.verdictHead:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    dialog.verdictSub:SetText(decision.stressProfit
+      and ("you should clear about %s"):format(displayDecisionAmount(decision.stressProfit))
+      or "")
+    dialog.verdictSub:Show()
+  else
+    -- Same refusal red as profitText below, and the same firstReason logic above -- never a
+    -- second copy of either.
+    dialog.verdictHead:SetText(GC.SniperDecision.ReasonText(firstReason))
+    dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
+    dialog.verdictSub:Hide()
+  end
 
   local publicStatus = decision.status or "WATCH"
   local computedStatus = decision.computedStatus or publicStatus
@@ -1453,8 +2193,13 @@ local function stampDialogFromDecision(deal, decision)
   else
     dialog.decisionStatusText:SetText(publicStatus)
   end
-  dialog.diagnosticText:SetText(("computed=%s public=%s buyable=%s reasons=%s"):format(
-    computedStatus, publicStatus, decision.buyable and "yes" or "no",
+  -- The item ID leads the line because this diagnostic is the only place it survives: the
+  -- header shows "item <id>" for exactly as long as Item:ContinueOnItemLoad takes to replace
+  -- it with the localized name, and a name is not an identity -- tiered reagents share one
+  -- name across several IDs. Without this, a shadow observation transcribed from the dialog
+  -- cannot be attributed to an item afterwards.
+  dialog.diagnosticText:SetText(("item=%d computed=%s public=%s buyable=%s reasons=%s"):format(
+    deal.itemID, computedStatus, publicStatus, decision.buyable and "yes" or "no",
     diagnosticReasons ~= "" and diagnosticReasons or "none"))
   resizeDialogDiagnostics()
   dialog.stampedUnit = average
@@ -1468,7 +2213,7 @@ local function stampDialogFromDecision(deal, decision)
   dialog.soldText:SetText(market.soldPerDay and ("%.1f"):format(market.soldPerDay) or "—")
   dialog.sellThroughText:SetText(market.sellThroughBps and ("%.1f%%"):format(market.sellThroughBps / 100) or "—")
   dialog.sourceAgeText:SetText(sourceAge and ("%ds"):format(sourceAge) or "—")
-  dialog.reasonText:SetText(firstReason)
+  dialog.reasonText:SetText(GC.SniperDecision.ReasonText(firstReason))
   if decision.status == "SAFE" then
     dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
   else
@@ -1529,8 +2274,12 @@ local function recordPurchaseFacts(deal, purchase)
   session.estProfit = session.estProfit + purchase.expectedProfit
   local now = time()
   -- `purchase` is the one immutable final-quote object shared by both stores.
+  local context = GC.Ledger.Context()
+  local ledgerEntry = GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
   GC.Data.RecordFlip(deal, purchase, now)
-  GC.Ledger.RecordSniperBuy(deal, purchase, GC.Ledger.Context(), now)
+  if GC.Acquisitions and GC.Acquisitions.RecordGoldCap then
+    GC.Acquisitions.RecordGoldCap(deal, purchase, context, now, ledgerEntry and ledgerEntry.key or nil)
+  end
   updateSellTabLabel()
   consumePurchasedDeal(deal)
 end
@@ -1720,12 +2469,12 @@ local function showGoneState(row, message)
   end
 end
 
--- Expires a quote nobody clicked within ARM_TIMEOUT_SECONDS -- but never dead-ends the
+-- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
 -- expired -> Refresh -> ready any number of times stays compliant.
 local function scheduleArmTimeout(row, deal, decision)
-  C_Timer.After(ARM_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.ARM_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "ready" and row.deal == deal and row.decisionSnapshot == decision
         and dialog and dialog.row == row then
       row.purchaseStage = "expired"
@@ -1796,7 +2545,7 @@ local function availableFromLevels(levels)
   return total > 0 and total or nil
 end
 
-local function evaluateLiveCommodityDeal(itemID)
+evaluateLiveCommodityDeal = function(itemID)
   local levels = driver.commodityBook(itemID)
   if not levels then return nil end
   local result = driver.commodityResult(itemID)
@@ -1825,7 +2574,11 @@ local function applyRequeryResult(row, itemID, live)
       armReady(row, deal, decision, live.levels)
       if frame then frame.status:SetText("live safety confirmed -- click Buy to purchase") end
     else
-      armCheck(row, deal, decision, decision.reasons[1] or "live_verification_required", false)
+      -- A sentence, not the engine's token: "source_stale" names the gate, it does not tell the
+      -- player that the import is two hours old and that a Companion sync needs a /reload to be
+      -- seen. The token itself is still on the reason line and in the diagnostic above it.
+      armCheck(row, deal, decision,
+        GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
     end
   else
     showGoneState(row, "listing gone -- already bought out or price changed")
@@ -1835,6 +2588,11 @@ local function applyRequeryResult(row, itemID, live)
     end
     if frame then frame.status:SetText("gone / price changed") end
   end
+  -- The Check the player just ran is the most authoritative thing anyone knows about this
+  -- item, so it replaces whatever the background walk had recorded. Without this, cancelling
+  -- out of a dialog that said AVOID would drop the player back onto a row still wearing the
+  -- gold Buy button an older background verdict had earned it.
+  stampVerdict(deal, live, true)
   refreshRows()
 end
 
@@ -1844,7 +2602,7 @@ end
 -- event is UNVERIFIED to always fire, so silently unpinning here could let the player
 -- re-attempt a buy whose bid may in fact still land. The row stays pinned until Cancel.
 local function scheduleBuyTimeout(row, deal, token)
-  C_Timer.After(BUY_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.BUY_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "buying" and row.purchaseDeal == deal and row.purchaseToken == token
         and (not deal.isCommodity or (commodityPurchase and commodityPurchase.row == row
           and commodityPurchase.token == token))
@@ -1903,7 +2661,7 @@ local function finishRequery(attempt, liveDeal)
 end
 
 local function scheduleRequeryTimeout(attempt)
-  C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.REQUERY_TIMEOUT_SECONDS, function()
     if isCurrentRequeryAttempt(attempt) then
       -- The server might still send an untagged result after this timeout. Fence it before
       -- returning the row to Check, so it cannot become a quote for a subsequent same-item
@@ -1945,9 +2703,15 @@ local function startRequery(row, deal)
   end
   row.purchaseToken = (row.purchaseToken or 0) + 1
   local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false }
-  -- Stop Live before registering or sending the authoritative Check. Init.lua dispatches the
-  -- scanner's throttle-ready hook first, so leaving it active even for this one turn lets it
-  -- consume the only slot and starve a parked Check until it falsely times out as Gone.
+  -- Stop Live before registering or sending the authoritative Check. This comment used to claim
+  -- Init.lua dispatches the scanner's throttle-ready hook first, which stopped being true once
+  -- the slot arbiter (GC.Sniper.OnThrottleReady/_GrantWatchSlot) took over allocation: a parked
+  -- Check now wins its slot outright through the arbiter regardless of this branch. `scanning`
+  -- itself is permanently false besides -- the Live button that used to flip it true is gone
+  -- (see the comment above GC.Sniper._ResumeLiveScanner) -- so the `elseif scanning` arm below
+  -- is retained-but-unreachable, not removed: `scanning` is still read in several other places
+  -- in this file (e.g. the pause/resume pair the Check requery path calls unconditionally), and
+  -- restoring Live means restoring one function and one button, not untangling those reads.
   if GC.Sniper._pausedLiveRequery then
     -- A replacement Check is already taking over a paused dialog session. Preserve the
     -- original user's Live intent but hand ownership to the new immutable attempt.
@@ -1981,7 +2745,7 @@ end
 -- below) calls maybeStartPrewarm(self.deal) on every hover; this issues the SAME live query
 -- startRequery would for a `.stale` deal, but into resolvePrewarm instead of finishRequery --
 -- the result lands on deal.prewarm and NOTHING here ever opens, arms, or otherwise touches the
--- row/dialog. openDialog (below) is the only consumer: a fresh (<= PREWARM_TTL_SECONDS old)
+-- row/dialog. openDialog (below) is the only consumer: a fresh (<= LIM.PREWARM_TTL_SECONDS old)
 -- deal.prewarm lets it skip straight to applyRequeryResult instead of calling startRequery, so
 -- the dialog opens already armed. A stale/absent cache falls back to today's flow unchanged.
 -- ---------------------------------------------------------------------------
@@ -1992,10 +2756,24 @@ end
 -- winning a throttle slot the T7 OnThrottleReady flush order reserves for scan traffic /
 -- pendingRequerySend first -- simplest and safest is: not ready right now -> skip, hovering
 -- again retries.
-local function maybeStartPrewarm(deal)
-  if not deal or not deal.stale then return end -- only the two-click full-scan flow ever needs this
+-- `auto` marks the background-verification caller (tickAutoVerify below). It relaxes exactly
+-- one guard: the `.stale` requirement, which exists because a hover pre-warm is only ever
+-- useful to openDialog's own stale-deal shortcut. Background verification wants a verdict for
+-- whatever the player is looking at, stale or not. Relaxed explicitly rather than by deleting
+-- the guard: today every deal on the board comes from the full scan and is therefore stale, so
+-- deleting it would look correct and quietly make the auto path depend on that staying true.
+--
+-- **Returns true only if a query actually went out.** Eleven of the twelve paths through this
+-- function are declines, and two of them never clear on their own: an item whose key the
+-- client has not cached (a pre-warm may not chase ITEM_KEY_ITEM_INFO_RECEIVED the way
+-- startRequery does) and one parked behind the untagged-result drain fence. A caller that
+-- cannot tell "sent" from "declined" treats a permanently unsendable row as work in progress
+-- -- which is exactly how one bad row at the top of the list starved every row beneath it.
+local function maybeStartPrewarm(deal, auto)
+  if not deal then return end
+  if not auto and not deal.stale then return end -- hover pre-warm only helps the two-click full-scan flow
   if not ahOpen then return end -- fix round 1 M-3: no AH session live (window can stay open/re-shown via /goldcap with leftover deals after AH close) -- nothing to query against
-  if deal.prewarm and (GetTime() - deal.prewarm.at) <= PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
+  if deal.prewarm and (GetTime() - deal.prewarm.at) <= LIM.PREWARM_TTL_SECONDS then return end -- fix round 1 I-3: re-hovering a deal with a still-fresh cache has nothing to gain from a second query
   if activeItemID[deal.itemID] then return end -- a purchase (or its own live dialog requery) is already in flight for this item
   -- Final fix wave (item 2), coordinator ruling restoring spec §4: gate narrowed from
   -- GC.Sniper.IsBusy() (which also covered a paging Full Scan) to purchase traffic ONLY --
@@ -2024,28 +2802,182 @@ local function maybeStartPrewarm(deal)
 
   -- Ultimate fallback so a pre-warm that never gets a matching event (or one whose deal was
   -- superseded before it landed) can't wedge the "one in flight globally" slot shut forever.
-  C_Timer.After(REQUERY_TIMEOUT_SECONDS, function()
+  C_Timer.After(LIM.REQUERY_TIMEOUT_SECONDS, function()
     if prewarmAttempt == attempt then
       prewarmAttempt = nil
       requeryDraining[itemID] = attempt
     end
   end)
+  return true
+end
+
+-- Records what the live query just said about `deal`, re-renders the list around it, and rings
+-- once on the transition into buyable.
+--
+-- `data` is exactly the liveDeal shape finishRequery/applyRequeryResult consume, so `buyable`
+-- here is armReady's own gate verbatim (SAFE + buyable + commodity) -- one place decides what
+-- "you can buy this" means, and this is not a second one. nil data means the listing is gone.
+--
+-- Called from every pre-warm landing, hover ones included: a hover already pays for the query,
+-- so there is no reason for it not to leave a verdict behind.
+-- `manual` marks a verdict the player asked for by clicking Check, and it changes two things.
+--
+-- It does not ring: the ping exists to say "something became buyable while you were not
+-- looking", and somebody reading the dialog they just opened is looking.
+--
+-- And the row is never pruned from the list, however the Check turned out. Answering "what
+-- about this one?" by making it disappear is not an answer -- the row stays, wearing the
+-- engine's own word for the refusal, which is strictly more than it said before. Pruning is
+-- for rows nobody asked about. It survives the background walk's own re-checks (a kept row is
+-- still on screen, so it still gets re-checked) but not a price change: a new asking price is
+-- a new question, and nobody has asked it yet.
+stampVerdict = function(deal, data, manual)
+  if not deal or not deal.itemID then return end
+  local previous = verdicts[deal.itemID]
+  local samePrice = previous and previous.unitPrice == deal.unitPrice
+  local wasBuyable = samePrice and previous.buyable
+  local kept = manual or (samePrice and previous.manual) or nil
+  local decision = data and data.decision
+  local buyable = (decision and decision.buyable and decision.status == "SAFE"
+    and data.isCommodity) and true or false
+  local status, reason
+  if not data then
+    status, reason = "Gone", "listing gone -- bought out or repriced"
+  else
+    status = decision and decision.status or "WATCH"
+    local token = decision and decision.reasons and decision.reasons[1]
+    reason = GC.SniperDecision.ReasonText(token or "live_verification_required")
+  end
+  verdicts[deal.itemID] = {
+    unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
+    buyable = buyable, status = status, reason = reason,
+  }
+  refreshRows()
+
+  if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  -- Per ITEM, never a global mute. A watched item whose floor is reset every few seconds is a
+  -- real sequence of opportunities and every one of them still SHOWS -- but a bell every five
+  -- seconds stops carrying information, and two different items must never silence each other.
+  local rang = GC.Sniper._rangAt[deal.itemID]
+  if rang and (GetTime() - rang) < LIM.RING_FLOOR_SECONDS then return end
+  GC.Sniper._rangAt[deal.itemID] = GetTime()
+  -- Find the row by the SAME key the verdict itself is filed under -- item and asking price --
+  -- and NOT by table identity the way pingNewHotDeals does. That difference is the whole bug
+  -- behind "the Buy button appeared but it never made a sound": identity is right for a HOT
+  -- ping, which fires within one merge of the tables it was handed, but a verdict outlives the
+  -- table it was measured on. Streaming re-evaluates on every browse page and MergeDeals
+  -- splices in FRESH tables each time, so by the time a query came back the row was usually
+  -- carrying an equal-but-different table, no row matched, and the ping was dropped on the
+  -- floor. Row-not-on-screen must still mean no sound -- a ping with nothing to look at is
+  -- noise -- but "not on screen" has to mean what the player sees, not what Lua allocated.
+  for i = 1, #rows do
+    local row = rows[i]
+    if row.deal and row.deal.itemID == deal.itemID
+        and row.deal.unitPrice == deal.unitPrice and row:IsShown() then
+      flashRow(row)
+      if GC.db and GC.db.settings and GC.db.settings.sniper.sound then
+        PlaySound(SOUNDKIT.READY_CHECK or SOUNDKIT.MAP_PING or 3175, "Master")
+      end
+      return
+    end
+  end
 end
 
 -- The pre-warm result landing (or failing to materialize into a live deal): stamps
--- deal.prewarm on the EXACT deal table maybeStartPrewarm captured, and releases the "one in
--- flight" slot. `data` mirrors exactly what finishRequery's own `liveDeal` argument would be
--- for the same event -- nil means "gone / price changed", handled identically by
--- applyRequeryResult whenever this cache gets consumed. Never touches row/dialog/
--- activeItemID/purchaseStage -- that is the entire point of this being a separate path from
--- finishRequery.
+-- deal.prewarm on the EXACT deal table maybeStartPrewarm captured, records the verdict, and
+-- releases the "one in flight" slot. `data` mirrors exactly what finishRequery's own `liveDeal`
+-- argument would be for the same event -- nil means "gone / price changed", handled identically
+-- by applyRequeryResult whenever this cache gets consumed.
+--
+-- Never touches row.purchaseStage/activeItemID/the dialog -- that is still the entire point of
+-- this being a separate path from finishRequery. stampVerdict below it re-renders the list,
+-- which is a read of the same purchase state, never a write to it.
 local function resolvePrewarm(itemID, data)
   local attempt = prewarmAttempt
   if not attempt or attempt.itemID ~= itemID then return end
   local deal = attempt.deal
   prewarmAttempt = nil
-  if deal then
-    deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
+  if not deal then return end
+  deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
+  stampVerdict(deal, data)
+end
+
+-- ---------------------------------------------------------------------------
+-- Background verification. The player asked for automatic BUYING; that cannot be built and
+-- deliberately is not. Purchase calls (StartCommoditiesPurchase, ConfirmCommoditiesPurchase,
+-- PlaceBid) are protected: the client runs them only out of a hardware input handler, and
+-- automating gameplay actions violates the Terms of Use besides
+-- (spec/sniper_purchase_wiring_spec.lua asserts that statically, on purpose).
+--
+-- What IS buildable is everything except the final click. This runs the same live query a
+-- Check runs, on the handful of rows the player is actually looking at, so the list carries
+-- real verdicts instead of thirty identical Check clicks. The click that spends gold stays
+-- exactly where it was.
+-- ---------------------------------------------------------------------------
+local function tickAutoVerify()
+  -- Shared throttle budget: while the player is on Blizzard's own Create Auction form, their
+  -- click outranks this background walk.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then return end
+  if not ahOpen then return end
+  if view ~= "deals" then return end -- the Sell tab is up; verifying what nobody is reading just costs throttle
+  if not frame or not frame:IsShown() then return end
+  if prewarmAttempt then return end -- one query in flight globally, shared with the hover pre-warm
+  if GC.Sniper.IsSearchCritical() then return end -- a Check or a purchase owns the search slot
+  -- Checked BEFORE the once-a-second gate below, and deliberately so. Under Auto the browse
+  -- scan is paging almost continuously, so the throttled system is unready most of the time --
+  -- letting a busy moment consume the walk's turn meant the walk mostly ran during the
+  -- fraction of a second it could do nothing, and the next opening a whole second away.
+  if not driver.isReady() then return end
+
+  local now = GetTime()
+  if now < verifyWalkAt then return end
+  verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+
+  local list = renderList()
+  local limit = math.min(#list, LIM.VERIFY_TOP_ROWS)
+
+  -- Two passes over the SAME top-`limit` slice, in renderList()'s own order (best-first as of
+  -- Commit 1's estProfit ranking). Pass 1 gives first claim on the walk's one query per tick to
+  -- rows with no verdict at their current asking price -- never checked at all, or checked at a
+  -- price that has since moved, which is the same "know nothing about this" state. Without this
+  -- priority, an already-verified row sitting ahead of a brand-new one in the list could keep
+  -- winning every tick's single slot forever, and the new row would never get its first look.
+  -- Pass 2 only runs (finds anything) when pass 1 sent nothing, and covers rows that already
+  -- carry a same-price verdict but are due for a recheck -- see the interval comment inside it.
+  for i = 1, limit do
+    local deal = list[i]
+    -- Already covered by the watch loop, which re-reads its live book far more often than
+    -- this walk could. Spending a slot here would buy nothing and starve an unwatched row.
+    -- A placeholder is skipped too -- there is nothing to buy and its unitPrice may be 0, so
+    -- verifying one would burn a search slot and stamp a verdict keyed to a meaningless price.
+    if not GC.Sniper._IsWatched(deal.itemID) and not deal.pinPlaceholder then
+      local v = verdicts[deal.itemID]
+      if not (v and v.unitPrice == deal.unitPrice) then
+        -- Stop on a query actually going out -- one per walk at most. A row that DECLINED to
+        -- send is not progress and must not end the walk: its blocker may never clear (an
+        -- uncached item key, the drain fence), and treating it as work in flight is what let one
+        -- row at the top hold the whole list hostage. Move on and check the next one.
+        if maybeStartPrewarm(deal, true) then return end
+      end
+    end
+  end
+  for i = 1, limit do
+    local deal = list[i]
+    if not GC.Sniper._IsWatched(deal.itemID) and not deal.pinPlaceholder then
+      -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
+      -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
+      -- may have moved underneath it since. Only reached for a row pass 1 already confirmed
+      -- carries a same-price verdict (a mismatched or absent one would have sent above and
+      -- returned) -- an AVOID verdict gets the long leash, everything else the normal one.
+      local v = verdicts[deal.itemID]
+      if v and v.unitPrice == deal.unitPrice then
+        local interval = (v.status == "AVOID") and LIM.VERIFY_AVOID_INTERVAL_SECONDS
+          or LIM.VERIFY_INTERVAL_SECONDS
+        if (now - v.at) >= interval then
+          if maybeStartPrewarm(deal, true) then return end
+        end
+      end
+    end
   end
 end
 
@@ -2081,11 +3013,53 @@ function GC.Sniper.OnBrowseResultsAdded()
   advanceBrowseScan(fullScanToken)
 end
 
+-- Hands the watch loop exactly one send. The grant is a window, not a flag the scanner keeps:
+-- advance() runs synchronously inside OnSystemReady, so opening the window around that one
+-- call is what bounds the loop to a single query per turn.
+function GC.Sniper._GrantWatchSlot()
+  local scanner = GC.Sniper.scanner
+  if not scanner or not scanner.Wants or not scanner:Wants() then return false end
+  watchGrant = true
+  -- pcall, not a bare call. If the scanner throws, the `watchGrant = false` below would never
+  -- run and Scanner.advance()'s veto would stay permanently open -- the watch loop would then
+  -- take every ready tick for the rest of the session, which is the exact failure this arbiter
+  -- exists to prevent. And OnThrottleReady is a shared handler: Init.lua runs
+  -- GC.Sell.OnThrottleReady() right after it, so an escaping error takes the Sell tab's quote
+  -- walk down too. The error is deliberately swallowed rather than surfaced -- a broken
+  -- optional poll must not break the throttle chain a purchase Check depends on, the same
+  -- reasoning that already pcall-guards AuctionHouseTab.Install.
+  pcall(scanner.OnSystemReady, scanner)
+  watchGrant = false
+  -- Cycle time is MEASURED, never estimated: this project has not measured Blizzard's throttle
+  -- interval and will not invent one. Count grants against the set size; every time the count
+  -- wraps, one full pass has completed and its wall-clock is the number the UI shows.
+  -- A wrap is the loop landing back on the item it started this pass on, which takes one MORE
+  -- grant than the set has members (n grants visit every member once; the (n+1)th repeats the
+  -- first) -- ">=" here would stamp every pass one grant short, permanently, not just the
+  -- first. The grant that detects the wrap is also the first grant of the next pass, so the
+  -- count restarts at 1 for it rather than 0. Counted even if the pcall above just swallowed a
+  -- throw: the arbiter still spent this turn on the watch loop, and that is what is being
+  -- timed -- not whether the scanner's own bookkeeping succeeded.
+  GC.Sniper._grants = (GC.Sniper._grants or 0) + 1
+  if #GC.Sniper._liveTargets > 0 and GC.Sniper._grants > #GC.Sniper._liveTargets then
+    local started = GC.Sniper._passStartedAt
+    if started then GC.Sniper._cycleSeconds = GetTime() - started end
+    GC.Sniper._passStartedAt = GetTime()
+    GC.Sniper._grants = 1
+  end
+  return true
+end
+
 -- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
--- the next slot before any optional browse traffic. The Check has already stopped Live in
--- startRequery, so this works in watchlist mode without a scanner collision; returning after
--- the send also prevents a full-scan browse request from stealing the same ready turn.
+-- the next slot before any optional browse traffic, exactly as before -- the Check has already
+-- stopped Live in startRequery, so this works in watchlist mode without a scanner collision.
+-- Starting a Full Scan pass is next, keeping its place ahead of everything optional. What's
+-- left after those two is the split this task adds: the watch loop and browse paging are the
+-- only two consumers that are genuinely optional, so they alternate turns while both are
+-- hungry, and whichever one is hungry alone takes the slot outright so no slot goes idle.
 function GC.Sniper.OnThrottleReady()
+  -- A parked Check wins outright, exactly as before: a player is waiting on it, and it has
+  -- already stopped the loop as a courtesy besides.
   for itemID, attempt in pairs(pendingRequerySend) do
     pendingRequerySend[itemID] = nil
     if isCurrentRequeryAttempt(attempt) then
@@ -2095,14 +3069,36 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
+  -- Starting a pass is not a background page -- it is the one send that makes the scan exist
+  -- at all, and delaying it just leaves the scan idle. It keeps its place ahead of the split.
   if pendingFullScanStart then
     pendingFullScanStart = false
     sendBrowseQuery(fullScanToken)
-  elseif pendingBrowsePage then
+    return
+  end
+
+  -- The even split, between the only two consumers that are genuinely optional. The watch poll
+  -- stands down when the Deals view is not the one on screen, exactly as tickAutoVerify already
+  -- does (it early-returns on `view ~= "deals"`): polling for a screen nobody is looking at was
+  -- never the point, and the Sell tab is the consumer that starves first when the watch loop
+  -- treats every ready tick as its own.
+  local scanner = GC.Sniper.scanner
+  local watchWants = (scanner and scanner.Wants and view == "deals" and scanner:Wants()) and true or false
+  if not watchWants and not pendingBrowsePage then return end
+
+  -- Alternate only while BOTH are hungry. If one has nothing to do the other takes the slot:
+  -- a split that manufactures idle slots is worse than no split at all.
+  local giveWatch = watchWants
+  if watchWants and pendingBrowsePage then giveWatch = watchTurn end
+
+  if giveWatch then
+    watchTurn = false
+    GC.Sniper._GrantWatchSlot()
+  else
+    watchTurn = true
     pendingBrowsePage = false
     sendBrowsePage(fullScanToken)
   end
-
 end
 
 -- D: true while a Full Scan is paging (or queued to start) or any row has a purchase pinned
@@ -2112,6 +3108,21 @@ end
 -- message system.
 function GC.Sniper.IsBusy()
   if scanRunning or pendingFullScanStart or pendingBrowsePage then return true end
+  return next(activeItemID) ~= nil
+end
+
+-- Whether something the PLAYER is waiting on owns the throttled search slot: a
+-- Check requery, or a purchase in flight. Short-lived, and nothing else may take
+-- the slot out from under it.
+--
+-- Deliberately narrower than IsBusy, which also counts the full browse scan. The
+-- Sell tab used to stand aside for IsBusy, and under Auto the browse scan runs
+-- back to back with a two-second breather forever -- so the Sell tab could never
+-- price anything at all, and Refresh looked hung until a reload happened to
+-- catch a gap. A background convenience does not get to starve the screen the
+-- player is actually looking at; the scan may run slightly slower for it, and
+-- its own watchdog and Auto's retry already cover a disturbed pass.
+function GC.Sniper.IsSearchCritical()
   return next(activeItemID) ~= nil
 end
 
@@ -2195,6 +3206,21 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
   resolvePurchase(row, true, deal and ("sniped for " .. GetCoinTextureString(deal.unitPrice * deal.qty)) or "purchase complete")
 end
 
+-- Read-only ownership checks used by Core/PurchaseCapture.lua's post-call observers. The
+-- Sniper installs its in-flight state immediately before issuing its hardware-click purchase
+-- call, so the passive hook can identify our call without issuing or changing any AH action.
+function GC.Sniper.OwnsCommodityPurchase(itemID, quantity)
+  local pending = commodityPurchase
+  if not pending or pending.itemID ~= itemID then return false end
+  if quantity == nil then return true end
+  local decision = pending.row and pending.row.decisionSnapshot
+  return decision and decision.quantity == quantity or false
+end
+
+function GC.Sniper.OwnsAuctionPurchase(auctionID)
+  return pendingAuction[auctionID] ~= nil
+end
+
 function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if commodityDraining then
     -- Price updates are non-terminal. Keep draining through every one, and re-send Cancel for
@@ -2224,7 +3250,8 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     C_AuctionHouse.CancelCommoditiesPurchase()
     pending.cancelRequested = true
     drainCommodityPurchase(row)
-    armCheck(row, deal, nil, "requote_broke_safety — Check again", true)
+    armCheck(row, deal, nil,
+      GC.SniperDecision.ReasonText("requote_broke_safety") .. " — Check again", true)
     return
   end
 
@@ -2243,7 +3270,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
 
   local severity, ratio = GC.DealMath.RequoteSeverity(
-    decision.entryTotal, totalPrice, REQUOTE_WARN_RATIO, REQUOTE_LOUD_RATIO)
+    decision.entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
   if severity == "none" then
     row.purchaseStage = "confirm"
     -- Fix 2: the server's own live quote can exceed what's in the player's bags even when the
@@ -2463,6 +3490,24 @@ local function onDialogPrimaryClick()
     setDialogStatus("confirming purchase...")
     if frame then frame.status:SetText("confirming purchase...") end
     if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call already issued -- box/quick-fill must stay greyed out
+    -- The confirming stage had no timeout at all: both buttons are disabled here, so if the
+    -- server's terminal event never arrived the dialog sat on "confirming purchase..." with no
+    -- way out. 15s, written inline because this chunk is at Lua's 200-local ceiling.
+    --
+    -- What this may NOT do is resolve the purchase. ConfirmCommoditiesPurchase has already been
+    -- called, so gold may well have moved; marking it failed or freeing the row for a retry
+    -- could buy the same lot twice. The attempt stays confirmed and owned -- a late success
+    -- still settles through the tombstone -- and the only thing that changes is that the player
+    -- is told what happened and can close the window.
+    local confirmedToken = pending.token
+    if C_Timer and C_Timer.After then
+    C_Timer.After(20, function()
+      if row.purchaseStage ~= "confirming" or row.purchaseToken ~= confirmedToken then return end
+      if not (dialog and dialog.row == row) then return end
+      dialog.cancelBtn:Enable()
+      setDialogStatus("no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it.", 1, 0.82, 0)
+    end)
+    end
     return
   end
 
@@ -2569,7 +3614,7 @@ end
 
 -- Sums a raw commodity order-book's level quantities (driver.commodityBook's own shape,
 -- cached as dialog.bookLevels by the same live query that produced the decision) -- the total currently listed across every
--- level the dialog fetched (bounded by MAX_BOOK_LEVELS, same cap driver.commodityBook itself
+-- level the dialog fetched (bounded by LIM.MAX_BOOK_LEVELS, same cap driver.commodityBook itself
 -- applies).
 local function sumLevelQty(levels)
   local total = 0
@@ -2685,7 +3730,8 @@ local function applyChosenQty(row, n)
   local decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
   if not decision or not decision.buyable or decision.status ~= "SAFE" then
     armCheck(row, deal, decision or { status = "WATCH", reasons = { "live_verification_required" } },
-      (decision and decision.reasons and decision.reasons[1]) or "live_verification_required", false)
+      GC.SniperDecision.ReasonText((decision and decision.reasons and decision.reasons[1])
+        or "live_verification_required"), false)
     return
   end
 
@@ -2726,35 +3772,74 @@ end
 -- the pre-Theme dialog used (see hideRequoteBanner/showRequoteBanner); only the pixel budget
 -- below is new, sized for the wider Theme fonts and the added item-header row.
 -- ---------------------------------------------------------------------------
-local DIALOG_WIDTH = 320
-local DIALOG_ICON = 24
-local DIALOG_TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
-local DIALOG_GRID_ROW_H = 17
--- Quantity and quick-fill precede the ten immutable decision/evidence fields below.
-local DIALOG_GRID_ROWS = 12
--- Fix 2 quick-fill row geometry: four small ghost buttons sharing grid row 2 (right under the
--- Quantity row) -- they don't fit alongside that row's own label + "of N" + edit box on one
+-- One table, not seventeen top-level locals. A Lua chunk may hold 200 of those
+-- and this file sits at exactly 200: adding a single new one fails at load with
+-- "too many local variables". The dialog's geometry is the largest cluster of
+-- pure constants here, so folding it buys the most room per line changed --
+-- see addon/AGENTS.md.
+local DG = {}
+DG.WIDTH = 320
+DG.ICON = 24
+DG.TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
+DG.GRID_ROW_H = 17
+-- The label/value grid now holds only the ten immutable decision/evidence fields (Status
+-- through Reason) -- Quantity and its quick-fill row moved out into their own always-visible
+-- block (DG.QTY_ROWS below), reachable whether Details is open or not.
+DG.GRID_ROWS = 10
+-- Fix 2 quick-fill row geometry: four small ghost buttons sharing the row right under
+-- Quantity -- they don't fit alongside that row's own label + "of N" + edit box on one
 -- 296px-wide line, so they get their own row instead of crowding it.
-local QTY_QUICKFILL_H = 16
-local QTY_QUICKFILL_W = 34
-local QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
+DG.QTY_QUICKFILL_H = 16
+DG.QTY_QUICKFILL_W = 34
+DG.QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
 -- I5: 36/32 (were 28/18) -- the requote path's status line can wrap to two full lines
--- ("<unit> -> <unit> per unit    total <total> -> <total>" at DIALOG_WIDTH), and the
+-- ("<unit> -> <unit> per unit    total <total> -> <total>" at DG.WIDTH), and the
 -- suspect/mv notes must never clip a second line either; both budgets sized for two lines
 -- of Theme.Label(d, 11) at this width, not one.
-local DIALOG_NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
-local DIALOG_DIAGNOSTIC_MIN_H = 36
-local DIALOG_STATUS_H = 32
-local DIALOG_PRIMARY_H = 26
-local DIALOG_CANCEL_H = 20
+DG.NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
+DG.DIAGNOSTIC_MIN_H = 36
+DG.STATUS_H = 32
+DG.PRIMARY_H = 26
+DG.CANCEL_H = 20
 -- title line + gap + icon/name/chip row + gap + reserved suspect-note block + gap
-local DIALOG_HEADER_H = Theme.pad.m + DIALOG_TITLE_LINE_H + Theme.pad.s + DIALOG_ICON + Theme.pad.s + DIALOG_NOTE_H + Theme.pad.s
-local GRID_TOP = -DIALOG_HEADER_H
+DG.HEADER_H = Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s + DG.ICON + Theme.pad.s + DG.NOTE_H + Theme.pad.s
+
+-- Verdict block: one prominent headline -- what the click DOES and what it costs when
+-- buyable, the refusal sentence in refusal red when it is not -- plus, only when buyable, a
+-- quieter sub-line naming the stress profit. Both word-wrap, so this is a fixed, generous
+-- two-line-each reservation rather than a third GetStringHeight()-measured block --
+-- diagnosticText already owns the one dynamically-measured block this dialog needs.
+DG.VERDICT_HEAD_H = 28
+DG.VERDICT_SUB_H = 26
+DG.VERDICT_H = Theme.pad.s + DG.VERDICT_HEAD_H + Theme.pad.xs + DG.VERDICT_SUB_H + Theme.pad.s
+
+-- Quantity + its quick-fill row: the one interactive control in this dialog besides the
+-- buttons, so it stays visible above the Details toggle rather than being hidden behind it.
+DG.QTY_ROWS = 2
+DG.QTY_H = DG.QTY_ROWS * DG.GRID_ROW_H
+DG.TOGGLE_H = DG.GRID_ROW_H
+
+-- Measured down from the header, in the order the dialog actually stacks: verdict, then
+-- Quantity, then the Details toggle, then (only while open) the evidence grid.
+DG.VERDICT_TOP = -DG.HEADER_H
+DG.QTY_TOP = DG.VERDICT_TOP - DG.VERDICT_H
+DG.TOGGLE_TOP = DG.QTY_TOP - DG.QTY_H
+DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
+-- Where the diagnostic/status block starts: right after the (shown) evidence grid when
+-- Details is open, or right after the toggle itself -- the grid simply skipped -- when it is
+-- closed. resizeDialogDiagnostics picks between these depending on dialog.detailsOpen.
+DG.EVIDENCE_BOTTOM_OPEN = DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs
+DG.EVIDENCE_BOTTOM_CLOSED = DG.TOGGLE_TOP - DG.TOGGLE_H - Theme.pad.xs
+
 -- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
--- bottom edge (mirrors GRID_TOP's measured-down-from-top pattern above).
-local DIALOG_CONTROLS_H = Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs + DIALOG_CANCEL_H + Theme.pad.s
-local DIALOG_FIXED_HEIGHT = DIALOG_HEADER_H + DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H
-  + DIALOG_STATUS_H + DIALOG_CONTROLS_H
+-- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
+DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
+-- Two fixed-height budgets, Details closed and open -- resizeDialogDiagnostics only ever
+-- READS dialog.fixedHeight (same contract as before); applyDetailsState (createDialog) is
+-- the one place that picks between these and writes it, on open/close.
+DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.TOGGLE_H
+  + DG.STATUS_H + DG.CONTROLS_H
+DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H
 
 -- Fix 2: a bordered box with a recolorable border, for the Quantity EditBox's focus ring.
 -- Duplicated from SettingsFrame.lua's own private `borderedBox` (that one is a file-local
@@ -2812,7 +3897,7 @@ local function makeQtyEditBox(parent, width, height)
   eb:SetAutoFocus(false)
   eb:SetNumeric(true)
   eb:SetJustifyH("CENTER")
-  eb:SetMaxLetters(6) -- nothing plausible (even a full MAX_BOOK_LEVELS-deep book) needs more digits
+  eb:SetMaxLetters(6) -- nothing plausible (even a full LIM.MAX_BOOK_LEVELS-deep book) needs more digits
   eb:SetFont(Theme.FONT_MONO, 12 * Theme.Scale(), "")
   eb:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
   eb:SetScript("OnEscapePressed", eb.ClearFocus)
@@ -2846,12 +3931,15 @@ local function createDialog()
   -- Sniper window instead, and the dialog's own OnHide (which calls abortRowPurchase) never
   -- fires -- silently orphaning an in-flight purchase's pinned row.
   _G.GoldCapSniperConfirm = d
-  d.fixedHeight = DIALOG_FIXED_HEIGHT
+  -- Collapsed-by-default placeholder; applyDetailsState (below, once the toggle and evidence
+  -- rows it drives actually exist) overwrites this from the restored setting before the
+  -- dialog is ever shown -- openDialog always stamps immediately after this returns.
+  d.fixedHeight = DG.FIXED_HEIGHT_CLOSED
   -- Match the two actual anchors: grid→diagnostic and diagnostic→status.
   d.diagnosticGaps = Theme.pad.xs + Theme.pad.xs
-  d.diagnosticMinimumHeight = DIALOG_DIAGNOSTIC_MIN_H
+  d.diagnosticMinimumHeight = DG.DIAGNOSTIC_MIN_H
   d.baseHeight = d.fixedHeight + d.diagnosticGaps + d.diagnosticMinimumHeight
-  d:SetSize(DIALOG_WIDTH, d.baseHeight)
+  d:SetSize(DG.WIDTH, d.baseHeight)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
   d:SetPoint("CENTER", frame, "CENTER")
   d:EnableMouse(true)
@@ -2862,13 +3950,13 @@ local function createDialog()
   d.title = title
 
   local icon = d:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(DIALOG_ICON, DIALOG_ICON)
+  icon:SetSize(DG.ICON, DG.ICON)
   icon:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -Theme.pad.s)
   d.icon = icon
 
   local tierChip = Theme.Chip(d)
   tierChip:SetWidth(COLUMN_W.tier) -- M13: matches the list's own tier column width, not a duplicated literal
-  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + DIALOG_TITLE_LINE_H + Theme.pad.s))
+  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s))
   d.tierChip = tierChip
 
   local nameText = Theme.Label(d, 12)
@@ -2904,31 +3992,58 @@ local function createDialog()
   suspectNote:Hide()
   d.suspectNote = suspectNote
 
+  -- Verdict block, directly under the item header: a prominent headline (buy action or
+  -- refusal sentence) and, only while buyable, a quieter sub-line naming the stress profit --
+  -- see stampDialogFromDecision for the text/color logic. Both word-wrap into the fixed
+  -- DG.VERDICT_HEAD_H/DG.VERDICT_SUB_H budgets above.
+  local verdictHead = Theme.Label(d, 13)
+  verdictHead:SetPoint("TOPLEFT", Theme.pad.m, DG.VERDICT_TOP)
+  verdictHead:SetPoint("RIGHT", -Theme.pad.m, 0)
+  verdictHead:SetWordWrap(true)
+  d.verdictHead = verdictHead
+
+  local verdictSub = Theme.Label(d, 11)
+  verdictSub:SetPoint("TOPLEFT", Theme.pad.m, DG.VERDICT_TOP - DG.VERDICT_HEAD_H - Theme.pad.xs)
+  verdictSub:SetPoint("RIGHT", -Theme.pad.m, 0)
+  verdictSub:SetWordWrap(true)
+  verdictSub:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  d.verdictSub = verdictSub
+
   -- Label/value grid: one row per number the player needs to decide with, aligned two-column
   -- (Theme.Label left, Theme.Num right) -- updateDialogAmounts re-stamps the value slots in
   -- place as fresher quotes come in; the grid itself never grows or reflows (fixed Y per row,
-  -- same reasoning as GRID_TOP/DIALOG_GRID_ROW_H above: a chained anchor would let a wrapped
+  -- same reasoning as DG.GRID_TOP/DG.GRID_ROW_H above: a chained anchor would let a wrapped
   -- neighbor note reflow rows underneath it).
-  local function gridRow(index, label)
-    local y = GRID_TOP - (index - 1) * DIALOG_GRID_ROW_H
+  local function gridRow(top, index, label)
+    local y = top - (index - 1) * DG.GRID_ROW_H
     local labelFS = Theme.Label(d, 11)
     labelFS:SetPoint("TOPLEFT", Theme.pad.m, y)
     labelFS:SetText(label)
 
     local valueFS = Theme.Num(d, 12)
     valueFS:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+    -- Bounded on the left by its own label, right-justified, single line: an unbounded
+    -- TOPRIGHT-only FontString grows leftward without limit, and the Reason row's full
+    -- sentence ("Cheaper listings remain...") was painting straight past the dialog's edge
+    -- onto whatever the window sat over. Bounded, the engine ellipsizes it instead.
+    valueFS:SetPoint("LEFT", labelFS, "RIGHT", Theme.pad.s, 0)
+    valueFS:SetJustifyH("RIGHT")
+    valueFS:SetWordWrap(false)
+    valueFS:SetMaxLines(1)
     return labelFS, valueFS
   end
 
-  -- Fix 2: row 1 is Quantity -- commodities only editable (via qtyBox below); an item
-  -- auction's row instead shows this plain dim qtyLotText ("N (whole lot)"), since a lot
-  -- cannot be split. refreshQtyRow (above) toggles which of the two is shown/enabled.
-  local _, qtyLotText = gridRow(1, "Quantity")
+  -- Quantity + its quick-fill row: the one interactive control in this dialog besides Buy/
+  -- Cancel, so it lives here -- above the Details toggle, always reachable -- rather than
+  -- inside the collapsible evidence grid below. Fix 2: commodities only editable (via qtyBox);
+  -- an item auction's row instead shows this plain dim qtyLotText ("N (whole lot)"), since a
+  -- lot cannot be split. refreshQtyRow (above) toggles which of the two is shown/enabled.
+  local _, qtyLotText = gridRow(DG.QTY_TOP, 1, "Quantity")
   qtyLotText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   d.qtyLotText = qtyLotText
 
-  local qtyBox = makeQtyEditBox(d, 64, DIALOG_GRID_ROW_H - 3)
-  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, GRID_TOP - 1)
+  local qtyBox = makeQtyEditBox(d, 64, DG.GRID_ROW_H - 3)
+  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP - 1)
   d.qtyBox = qtyBox
 
   local qtyOfLabel = Theme.Label(d, 11) -- dim "of N" -- shown when the true available qty is known
@@ -2970,14 +4085,14 @@ local function createDialog()
   -- how every numeric grid column already anchors off the dialog's right edge.
   local quickFillBtns = {}
   local prevBtn
-  for i = #QTY_QUICKFILL_PCTS, 1, -1 do
-    local pct = QTY_QUICKFILL_PCTS[i]
+  for i = #DG.QTY_QUICKFILL_PCTS, 1, -1 do
+    local pct = DG.QTY_QUICKFILL_PCTS[i]
     local btn = Theme.Button(d, "ghost")
-    btn:SetSize(QTY_QUICKFILL_W, QTY_QUICKFILL_H)
+    btn:SetSize(DG.QTY_QUICKFILL_W, DG.QTY_QUICKFILL_H)
     if prevBtn then
       btn:SetPoint("TOPRIGHT", prevBtn, "TOPLEFT", -Theme.pad.xs, 0)
     else
-      btn:SetPoint("TOPRIGHT", -Theme.pad.m, GRID_TOP - DIALOG_GRID_ROW_H)
+      btn:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP - DG.GRID_ROW_H)
     end
     btn:SetLabel(pct .. "%")
     btn:SetScript("OnClick", function() applyQuickFillQty(pct) end)
@@ -2986,52 +4101,107 @@ local function createDialog()
   end
   d.quickFillBtns = quickFillBtns
 
-  local _, decisionStatusText = gridRow(3, "Status")
-  local _, unitPriceText = gridRow(4, "Entry price (avg fill)")
-  local _, totalCostText = gridRow(5, "Entry total")
-  local _, exitUnitText = gridRow(6, "Stress exit unit")
-  local _, profitText = gridRow(7, "Stress profit")
-  local _, mvText = gridRow(8, "Market reference")
-  local _, soldText = gridRow(9, "Sold/day")
-  local _, sellThroughText = gridRow(10, "Sell-through")
-  local _, sourceAgeText = gridRow(11, "Source age")
-  local _, reasonText = gridRow(12, "Reason")
+  -- Details toggle: the 12-row evidence grid used to be the whole dialog below the item
+  -- header; now it is opt-in, collapsed by default, restored per the player's own last choice
+  -- (GC.db.settings.sniper.dialogDetailsOpen) rather than re-defaulting shut every time.
+  local detailsToggle = Theme.Button(d, "ghost")
+  detailsToggle:SetHeight(DG.TOGGLE_H)
+  detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, DG.TOGGLE_TOP)
+  detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, DG.TOGGLE_TOP)
+  d.detailsToggle = detailsToggle
+
+  -- The ten immutable decision/evidence fields -- collapsed behind Details above. Every pair
+  -- this loop builds is tracked in d.evidenceRows purely so applyDetailsState (below) can
+  -- Show()/Hide() both halves of each row together; the values themselves are still stamped
+  -- unconditionally by stampDialogFromDecision whether the row is visible or not, so expanding
+  -- Details never shows anything stale.
+  d.evidenceRows = {}
+  local function evidenceRow(index, label)
+    local labelFS, valueFS = gridRow(DG.GRID_TOP, index, label)
+    d.evidenceRows[#d.evidenceRows + 1] = { label = labelFS, value = valueFS }
+    return valueFS
+  end
+  local decisionStatusText = evidenceRow(1, "Status")
+  local unitPriceText = evidenceRow(2, "Entry price (avg fill)")
+  local totalCostText = evidenceRow(3, "Entry total")
+  local exitUnitText = evidenceRow(4, "Stress exit unit")
+  local profitText = evidenceRow(5, "Stress profit")
+  local mvText = evidenceRow(6, "Market reference")
+  local soldText = evidenceRow(7, "Sold/day")
+  local sellThroughText = evidenceRow(8, "Sell-through")
+  local sourceAgeText = evidenceRow(9, "Source age")
+  local reasonText = evidenceRow(10, "Reason")
   d.decisionStatusText = decisionStatusText
   d.unitPriceText, d.totalCostText, d.exitUnitText = unitPriceText, totalCostText, exitUnitText
   d.profitText, d.mvText, d.soldText = profitText, mvText, soldText
   d.sellThroughText, d.sourceAgeText, d.reasonText = sellThroughText, sourceAgeText, reasonText
 
+  -- Where diagnosticText/mvNote/status actually sit is a function of dialog.detailsOpen --
+  -- resizeDialogDiagnostics (above) re-anchors them on every stamp and every toggle click, so
+  -- the SetPoint calls below are only a safe initial placement before that first runs.
+  d.evidenceTopOpen = DG.EVIDENCE_BOTTOM_OPEN
+  d.evidenceTopClosed = DG.EVIDENCE_BOTTOM_CLOSED
+
   -- Sits between the grid and the status line; shown only when the clamp above actually bit.
   local mvNote = Theme.Label(d, 11)
-  mvNote:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
+  mvNote:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
   mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   mvNote:SetWordWrap(true)
   mvNote:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
   mvNote:Hide()
   d.mvNote = mvNote
 
+  -- Hidden unless GC.db.settings.sniper.debug is on (see resizeDialogDiagnostics) -- this is
+  -- what a bug report gets copied from, not something a player one click from spending gold
+  -- needs to see by default. The text it is given stays byte-identical either way.
   local diagnosticText = Theme.Label(d, 11)
-  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, GRID_TOP - DIALOG_GRID_ROWS * DIALOG_GRID_ROW_H - Theme.pad.xs)
+  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
   diagnosticText:SetPoint("RIGHT", -Theme.pad.m, 0)
   diagnosticText:SetHeight(d.diagnosticMinimumHeight)
   diagnosticText:SetJustifyH("LEFT")
   diagnosticText:SetWordWrap(true)
+  diagnosticText:Hide()
   d.diagnosticText = diagnosticText
 
   local status = Theme.Label(d, 11)
-  status:SetPoint("TOPLEFT", diagnosticText, "BOTTOMLEFT", 0, -Theme.pad.xs)
+  status:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
   status:SetPoint("RIGHT", -Theme.pad.m, 0)
   status:SetWordWrap(true)
   d.status = status
+
+  -- Applies (and, on a real toggle click, flips and persists) whether the evidence grid is
+  -- shown. `dialog` -- the module upvalue -- is still nil the one time this runs from inside
+  -- createDialog itself, seeding the initial state; openDialog's own stampDialogFromDecision
+  -- call, right after `dialog = dialog or createDialog()`, performs the first real resize.
+  local function applyDetailsState(open)
+    d.detailsOpen = open and true or false
+    d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED
+    d.detailsToggle:SetLabel(d.detailsOpen and "Hide details ▾" or "Show details ▸")
+    for _, pair in ipairs(d.evidenceRows) do
+      if d.detailsOpen then
+        pair.label:Show()
+        pair.value:Show()
+      else
+        pair.label:Hide()
+        pair.value:Hide()
+      end
+    end
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    if cfg then cfg.dialogDetailsOpen = d.detailsOpen end
+    if dialog then resizeDialogDiagnostics() end
+  end
+  detailsToggle:SetScript("OnClick", function() applyDetailsState(not d.detailsOpen) end)
+  local savedCfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  applyDetailsState(savedCfg and savedCfg.dialogDetailsOpen)
 
   -- Anchored off the BOTTOM, above the stacked buttons, and hidden by default. Showing it
   -- grows the dialog by exactly its own height (see the DIALOG_* block comment above), so the
   -- window visibly changes shape rather than re-rendering a line of status text inside an
   -- unchanged outline -- which is what a player running on muscle memory does not notice.
   local banner = Theme.Panel(d)
-  banner:SetHeight(REQUOTE_BANNER_HEIGHT)
-  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DIALOG_CONTROLS_H)
-  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DIALOG_CONTROLS_H)
+  banner:SetHeight(LIM.REQUOTE_BANNER_HEIGHT)
+  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
+  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H)
   -- Theme.Panel with red bg at 20% alpha: recolor the exposed .bg texture rather than
   -- reimplementing panel construction -- still built ONLY through the Theme factory.
   banner.bg:SetColorTexture(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.2)
@@ -3051,9 +4221,9 @@ local function createDialog()
   d.banner = banner
 
   local cancelBtn = Theme.Button(d, "ghost")
-  cancelBtn:SetHeight(DIALOG_CANCEL_H)
-  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs)
-  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DIALOG_PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetHeight(DG.CANCEL_H)
+  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
   cancelBtn:SetLabel("Cancel")
   cancelBtn:SetScript("OnClick", function()
     -- COMPLIANCE: CancelCommoditiesPurchase is safe to call from anywhere (unlike
@@ -3076,7 +4246,7 @@ local function createDialog()
 
   -- Full-width primary button, bottom-most: the single most-clicked control in this window.
   local primaryBtn = Theme.Button(d, "primary")
-  primaryBtn:SetHeight(DIALOG_PRIMARY_H)
+  primaryBtn:SetHeight(DG.PRIMARY_H)
   primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
   primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
   primaryBtn:SetLabel("Buy")
@@ -3147,7 +4317,7 @@ local function openDialog(row, deal)
 
   local prewarm = deal.prewarm
   deal.prewarm = nil -- consumed either way below: a hit is used once, a miss/expiry is discarded so it can't be read again next open
-  if deal.stale and prewarm and (GetTime() - prewarm.at) <= PREWARM_TTL_SECONDS then
+  if deal.stale and prewarm and (GetTime() - prewarm.at) <= LIM.PREWARM_TTL_SECONDS then
     -- Task 8: feed the cached result into the exact same tail finishRequery uses to arm the
     -- button -- the dialog opens already armed, no "checking live price..." beat, no second
     -- SendSearchQuery. applyRequeryResult sets purchaseStage/activeItemID itself (via armReady
@@ -3223,7 +4393,7 @@ local function resetAllPurchases()
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
   -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the
   -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
-  -- to wait REQUERY_TIMEOUT_SECONDS out when the AH session it belonged to just ended anyway).
+  -- to wait LIM.REQUERY_TIMEOUT_SECONDS out when the AH session it belonged to just ended anyway).
   prewarmAttempt = nil
   if not (commodityDraining and commodityDraining.confirmed) then
     commodityPurchase = nil
@@ -3287,9 +4457,9 @@ end
 
 createRow = function(parent, index)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
-  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * ROW_HEIGHT)
-  row:SetHeight(ROW_HEIGHT)
+  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * WIN.ROW_HEIGHT)
+  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -(index - 1) * WIN.ROW_HEIGHT)
+  row:SetHeight(WIN.ROW_HEIGHT)
 
   -- E.1 zebra + hover: full-width BACKGROUND textures, drawn behind every other row widget
   -- (including the Buy button) regardless of creation order -- BACKGROUND always renders
@@ -3301,6 +4471,18 @@ createRow = function(parent, index)
   zebra:SetAllPoints()
   zebra:SetColorTexture(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
   row.zebra = zebra
+
+  -- Persistent full-row wash for a pinned (watched) row, so tracking an item reads at a
+  -- glance instead of hanging on a 2px rail alone. Sublevel 1 (above the zebra fill), created
+  -- BEFORE the hover highlight at the same sublevel so the hover wash still draws on top of
+  -- it -- same-sublevel textures stack in creation order. Shown/hidden by setRowDeal off the
+  -- pin state; the watch color at low alpha, matching the rail it accompanies.
+  local pc = Theme.color.watch
+  local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+  pinBg:SetAllPoints()
+  pinBg:SetColorTexture(pc[1], pc[2], pc[3], 0.10)
+  pinBg:Hide()
+  row.pinBg = pinBg
 
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK
@@ -3347,7 +4529,7 @@ createRow = function(parent, index)
   row.rail = rail
 
   local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(ICON_SIZE, ICON_SIZE)
+  icon:SetSize(WIN.ICON_SIZE, WIN.ICON_SIZE)
   icon:SetPoint("LEFT")
   row.icon = icon
 
@@ -3391,16 +4573,50 @@ createRow = function(parent, index)
     maybeStartPrewarm(self.deal)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetItemByID(self.deal.itemID)
+    -- What the background check found, in words. A refused row that the toolbar toggle has
+    -- brought back into view is otherwise a status code and nothing else.
+    local verdict = verdictFor(self.deal)
+    if verdict then
+      GameTooltip:AddLine(" ")
+      if verdict.buyable then
+        GameTooltip:AddLine("GoldCap: checked live -- safe to buy", 0.25, 0.85, 0.25)
+      else
+        GameTooltip:AddLine(("GoldCap: %s -- %s"):format(verdict.status or "refused",
+          verdict.reason or "live verification required"), 1, 0.82, 0)
+      end
+    end
+    GameTooltip:AddLine(isPinned(self.deal.itemID)
+      and "Right-click to stop watching this item"
+      or "Right-click to watch this item closely", 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
-    self.rail:Hide()
+    -- A watched row keeps its blue rail after the cursor leaves -- that is the whole point of
+    -- it. Only the plain hover accent goes away here.
+    if not (self.deal and isPinned(self.deal.itemID)) then self.rail:Hide() end
     if hoveredRow == self then
       hoveredRow = nil
       refreshRows()
     end
     GameTooltip:Hide()
+  end)
+
+  -- Right-click pins. Both phases, not RegisterForClicks: `row` is a plain Frame, so it has
+  -- no RegisterForClicks at all (that is a Button method -- the guarded call that used to sit
+  -- here was a no-op dressed up as intent). The first attempt used OnMouseUp alone and did not
+  -- fire from a trackpad two-finger tap; OnMouseDown alone is the same single-phase bet in the
+  -- other direction, so GC.Sniper._RowPinEvent listens to both and latches so one physical
+  -- press toggles exactly once -- see its own comment.
+  --
+  -- Firing on the press is fine HERE and only here: pinning is a reversible view preference,
+  -- not a purchase. Nothing on this path may ever reach a protected call, which is why the Buy
+  -- button keeps its own LeftButtonUp handler and is untouched by this.
+  row:SetScript("OnMouseDown", function(self, button)
+    GC.Sniper._RowPinEvent(self, "down", button)
+  end)
+  row:SetScript("OnMouseUp", function(self, button)
+    GC.Sniper._RowPinEvent(self, "up", button)
   end)
 
   row:Hide()
@@ -3430,16 +4646,16 @@ local function isValidSavedWindow(win)
 end
 
 local function clampWindowHeight(h)
-  if h < RESIZE_MIN_HEIGHT then return RESIZE_MIN_HEIGHT end
-  if h > RESIZE_MAX_HEIGHT then return RESIZE_MAX_HEIGHT end
+  if h < WIN.RESIZE_MIN_HEIGHT then return WIN.RESIZE_MIN_HEIGHT end
+  if h > WIN.RESIZE_MAX_HEIGHT then return WIN.RESIZE_MAX_HEIGHT end
   return h
 end
 
--- T5: width is now resizable too (previously only height could change -- see the FRAME_WIDTH
+-- T5: width is now resizable too (previously only height could change -- see the WIN.FRAME_WIDTH
 -- comment near the top), so the saved geometry needs the same clamp on the other axis.
 local function clampWindowWidth(w)
-  if w < RESIZE_MIN_WIDTH then return RESIZE_MIN_WIDTH end
-  if w > RESIZE_MAX_WIDTH then return RESIZE_MAX_WIDTH end
+  if w < WIN.RESIZE_MIN_WIDTH then return WIN.RESIZE_MIN_WIDTH end
+  if w > WIN.RESIZE_MAX_WIDTH then return WIN.RESIZE_MAX_WIDTH end
   return w
 end
 
@@ -3452,6 +4668,9 @@ end
 -- matter which of those two hardware paths triggered the change, without needing a reference
 -- to Theme.TitleBar's internal drag region (which Theme.lua doesn't expose).
 local function persistWindowGeometry(f)
+  -- A docked window's anchors belong to the auction-house host (GC.Sniper.SetDocked below);
+  -- persisting them would overwrite the FLOATING geometry this field exists to remember.
+  if f.goldcapDockHost then return end
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   if not cfg then return end
   local point, _, _, x, y = f:GetPoint(1)
@@ -3499,17 +4718,18 @@ end
 -- everything below the title bar is stacked top-down with named row-height constants and
 -- Theme.pad gaps instead of ad-hoc absolute offsets.
 -- ---------------------------------------------------------------------------
-local TITLEBAR_H = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
-local TAB_WIDTH = 50
-local TAB_HEIGHT = 18
-local TOOLBAR_BTN_H = 24 -- Full Scan / Live button height
-local HEADER_H = 16      -- column header row height
+local CH = {}
+CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
+CH.TAB_W = 50
+CH.TAB_H = 18
+CH.BTN_H = 24 -- Full Scan / Live button height
+CH.HEADER = 16      -- column header row height
 
 local function createHeaderRow(f)
   local header = CreateFrame("Frame", nil, f)
-  header:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, f.headerY)
-  header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, f.headerY)
-  header:SetHeight(HEADER_H)
+  header:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, f.headerY)
+  header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, f.headerY)
+  header:SetHeight(CH.HEADER)
   f.headerRow = header -- D: setView shows/hides this alongside f.scroll for the Sell tab
 
   -- sortKey (E.2), when present, makes the header clickable: OnMouseDown sets/toggles the
@@ -3530,12 +4750,25 @@ local function createHeaderRow(f)
     disc = { "Discount", "Discount vs market value from your GoldCap import" },
     unit = { "Unit price", "Per-unit price of this auction" },
     total = { "Price", "Total cost to buy this auction" },
-    profit = { "Profit", "Estimated resale profit at 95% of market value, whole stack" },
+    -- This column used to be measured against a lot size the engine would never approve --
+    -- a day's sold volume, capped at 200 -- while Check would go on to authorise one unit.
+    -- Rows advertised five figures and the very next click refused them, which is not a
+    -- caveat, it is the addon lying to the player. Both sides now multiply by the SAME
+    -- quantity: SniperDecision.DemandCap, called once at discovery and again live.
+    --
+    -- What honestly remains is a difference of EVIDENCE, not of arithmetic. Discovery reads
+    -- the import's snapshot of stock and turnover; Check reads the order book that exists at
+    -- the moment of the click. So Check can still land lower or refuse -- because the market
+    -- moved, not because the number here was inflated on purpose.
+    profit = { "Profit",
+      "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
+      "Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import.",
+      "Sort by it to decide what to Check first, not to decide what to buy." },
   }
 
   local function buildHeaderCell(col)
     local hit = CreateFrame("Frame", nil, header)
-    hit:SetHeight(HEADER_H)
+    hit:SetHeight(CH.HEADER)
     local baseText = (HEADER_TEXT[col.key] or ""):upper()
     local label = Theme.Label(hit, 11)
     label:SetAllPoints()
@@ -3607,7 +4840,7 @@ local function createFrame()
   panel:SetAllPoints(f)
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
-  local restoreWidth, restoreHeight = FRAME_WIDTH, FRAME_HEIGHT
+  local restoreWidth, restoreHeight = WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT
   if isValidSavedWindow(savedWindow) then
     if type(savedWindow.width) == "number" then restoreWidth = clampWindowWidth(savedWindow.width) end
     if type(savedWindow.height) == "number" then restoreHeight = clampWindowHeight(savedWindow.height) end
@@ -3618,13 +4851,13 @@ local function createFrame()
   -- window's actual starting width, so the very first header/row layout already reflects it
   -- instead of waiting for a later resize event (see applyColumnVisibility, and the
   -- f:SetScript("OnSizeChanged", ...) below that keeps it current afterward -- M8).
-  hiddenColumns = computeHidden(restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER)
+  hiddenColumns = computeHidden(restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER)
 
-  -- T5: BOTH width and height are resizable now (previously only height -- see FRAME_WIDTH's
+  -- T5: BOTH width and height are resizable now (previously only height -- see WIN.FRAME_WIDTH's
   -- own comment above); the column grid no longer needs a fixed width to stay aligned, since
   -- every column anchors relative to its neighbor (see COLUMNS/anchorColumns).
   f:SetResizable(true)
-  f:SetResizeBounds(RESIZE_MIN_WIDTH, RESIZE_MIN_HEIGHT, RESIZE_MAX_WIDTH, RESIZE_MAX_HEIGHT)
+  f:SetResizeBounds(WIN.RESIZE_MIN_WIDTH, WIN.RESIZE_MIN_HEIGHT, WIN.RESIZE_MAX_WIDTH, WIN.RESIZE_MAX_HEIGHT)
 
   -- E.3 window position: ClearAllPoints then either the saved point/x/y (validated, and
   -- guarded by pcall against a corrupted/hand-edited SavedVariables value) or the original
@@ -3646,6 +4879,9 @@ local function createFrame()
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, "GoldCap Sniper")
   f.gearBtn, f.closeBtn = titleBar.gear, titleBar.close
+  -- Kept as a field so docked mode (GC.Sniper.SetDocked below) can blank the duplicate
+  -- chrome: inside the auction house the AH frame already provides the title and the close.
+  f.titleBar = titleBar
   -- T10: opens/closes the in-game settings overlay (UI/SettingsFrame.lua) -- built lazily on
   -- first click, same lazy-construction pattern as this window's own purchase confirm dialog
   -- (createDialog, below).
@@ -3656,16 +4892,16 @@ local function createFrame()
   hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
 
   -- D: Deals/Sell view switcher tabs, top-left under the title bar.
-  local row1Y = -(TITLEBAR_H + Theme.pad.s)
+  local row1Y = -(CH.TITLEBAR + Theme.pad.s)
   local dealsTab = Theme.Button(f, "ghost")
-  dealsTab:SetSize(TAB_WIDTH, TAB_HEIGHT)
-  dealsTab:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row1Y)
+  dealsTab:SetSize(CH.TAB_W, CH.TAB_H)
+  dealsTab:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row1Y)
   dealsTab:SetLabel("Deals")
   dealsTab:SetScript("OnClick", function() setView("deals") end)
   f.dealsTab = dealsTab
 
   local sellTab = Theme.Button(f, "ghost")
-  sellTab:SetSize(TAB_WIDTH + 14, TAB_HEIGHT) -- extra width for the "Sell (NN)" badge text
+  sellTab:SetSize(CH.TAB_W + 14, CH.TAB_H) -- extra width for the "Sell (NN)" badge text
   sellTab:SetPoint("LEFT", dealsTab, "RIGHT", Theme.pad.xs, 0)
   sellTab:SetLabel("Sell")
   sellTab:SetScript("OnClick", function() setView("sell") end)
@@ -3678,7 +4914,7 @@ local function createFrame()
   -- show and after every full scan) says otherwise.
   local staleText = Theme.Label(f, 11)
   staleText:SetPoint("TOPLEFT", sellTab, "TOPRIGHT", Theme.pad.s, 0)
-  staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row1Y)
+  staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row1Y)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
   staleText:Hide()
@@ -3689,7 +4925,7 @@ local function createFrame()
   -- prominent control now -- same slot Full Scan alone used to hold) + Scan (renamed "Full
   -- Scan", now ghost, still the manual one-shot fallback) to its left; the watchlist
   -- live-scan toggle stays exactly where it was, further left again.
-  local row2Y = row1Y - (TAB_HEIGHT + Theme.pad.s)
+  local row2Y = row1Y - (CH.TAB_H + Theme.pad.s)
   local AUTO_BTN_WIDTH = 148
 
   -- Auto (spec §3 "[Auto ⏻]"): two overlapping buttons -- ghost "off" look, primary "on"
@@ -3697,35 +4933,16 @@ local function createFrame()
   -- runtime; see refreshAutoButton's own comment for why repainting a single Theme.Button
   -- doesn't survive its own hover-brighten. Both share the same click handler: it only cares
   -- whether the machine is currently OFF, not which of the two is visible.
-  local autoBtnOff = Theme.Button(f, "ghost")
-  autoBtnOff:SetSize(AUTO_BTN_WIDTH, TOOLBAR_BTN_H)
-  autoBtnOff:SetPoint("TOPRIGHT", f, "TOPRIGHT", -CONTENT_RIGHT_GUTTER, row2Y)
-  autoBtnOff:SetLabel("Auto")
-  f.autoBtnOff = autoBtnOff
-
-  local autoBtnOn = Theme.Button(f, "primary")
-  autoBtnOn:SetAllPoints(autoBtnOff)
-  autoBtnOn:SetLabel("Auto")
-  autoBtnOn:Hide()
-  f.autoBtnOn = autoBtnOn
-
-  -- "Auto · scanning" pulse: a looping alpha animation on the "on" button itself, Played/
-  -- Stopped only from refreshAutoButton (never here) so a rapid state flap can't stack
-  -- overlapping Plays -- SetLooping("BOUNCE") free-runs forward/back on its own once started.
-  local autoPulse = autoBtnOn:CreateAnimationGroup()
-  autoPulse:SetLooping("BOUNCE")
-  local autoPulseAlpha = autoPulse:CreateAnimation("Alpha")
-  autoPulseAlpha:SetFromAlpha(1)
-  -- 0.8, not lower: dipping the gold fill past ~0.7 over the near-black window desaturates
-  -- it enough to read as the button flipping to gray, not as a scanning heartbeat.
-  autoPulseAlpha:SetToAlpha(0.8)
-  autoPulseAlpha:SetDuration(0.9)
-  autoPulseAlpha:SetSmoothing("IN_OUT")
-  autoBtnOn.pulse = autoPulse
+  local autoBtn = Theme.Button(f, "ghost")
+  autoBtn:SetSize(AUTO_BTN_WIDTH, CH.BTN_H)
+  autoBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row2Y)
+  autoBtn:SetLabel("Auto")
+  f.autoBtn = autoBtn
 
   local function onAutoToggleClick()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
     if autoScan:State() == "OFF" then
+      if scanning then stopScanning() end
       if cfg then cfg.auto = true end
       feedAuto("toggleOn")
       -- (fix round 1, I4) toggleOn always arms with a clean reason set (AutoScan.lua wipes
@@ -3738,17 +4955,15 @@ local function createFrame()
       feedAuto("toggleOff")
     end
   end
-  autoBtnOff:SetScript("OnClick", onAutoToggleClick)
-  autoBtnOn:SetScript("OnClick", onAutoToggleClick)
+  autoBtn:SetScript("OnClick", onAutoToggleClick)
   local autoTooltip =
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, " ..
     "search the Auction House yourself, or check your mail. Click to toggle."
-  setPlainTooltip(autoBtnOff, autoTooltip)
-  setPlainTooltip(autoBtnOn, autoTooltip)
+  setPlainTooltip(autoBtn, autoTooltip)
 
   local fullScanBtn = Theme.Button(f, "ghost")
-  fullScanBtn:SetSize(64, TOOLBAR_BTN_H)
-  fullScanBtn:SetPoint("RIGHT", autoBtnOff, "LEFT", -Theme.pad.xs, 0)
+  fullScanBtn:SetSize(64, CH.BTN_H)
+  fullScanBtn:SetPoint("RIGHT", autoBtn, "LEFT", -Theme.pad.xs, 0)
   fullScanBtn:SetLabel("Scan")
   fullScanBtn:SetScript("OnClick", onFullScanClick)
   setPlainTooltip(fullScanBtn,
@@ -3756,58 +4971,137 @@ local function createFrame()
     "15-60 seconds on busy realms. No cooldown -- rescan anytime.")
   f.fullScanBtn = fullScanBtn
 
-  local toggleBtn = Theme.Button(f, "ghost")
-  toggleBtn:SetSize(56, TAB_HEIGHT)
-  toggleBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.xs, 0)
-  toggleBtn:SetLabel("Live")
-  toggleBtn:SetScript("OnClick", function()
-    if not GC.Sniper.scanner then
-      f.status:SetText("Open the Auction House first.")
-      return
-    end
-    if GC.Sniper._pausedLiveRequery then
-      f.status:SetText("Live scan pauses while checking the selected listing.")
-      return
-    end
-    if scanning then
-      stopScanning()
-    else
-      startScanning()
-    end
+  -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
+  -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
+  -- nothing explaining it is its own lie -- this is the number and the switch. One button with
+  -- two variants (never two swapped by Show/Hide), per addon/AGENTS.md.
+  local verifyBtn = Theme.Button(f, "ghost")
+  verifyBtn:SetSize(92, CH.BTN_H)
+  verifyBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.xs, 0)
+  verifyBtn:SetLabel("Hidden: 0")
+  verifyBtn:SetScript("OnClick", function()
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    if not cfg then return end
+    cfg.showRefused = not showRefused()
+    refreshRows() -- re-renders and, through it, re-labels this button
   end)
-  setPlainTooltip(toggleBtn,
-    "Live scan: continuously re-checks your watchlist for fresh deals. Independent of Full Scan.")
-  f.toggleBtn = toggleBtn
+  -- A live tooltip rather than setPlainTooltip's fixed text. "It seems to work sometimes" is
+  -- not a report anyone can act on, and the walk is invisible by nature -- so it says what it
+  -- has actually done: how many of the rows it is responsible for carry a verdict, and how
+  -- long ago the last one landed. A stalled walk shows up here as a number that stops moving.
+  verifyBtn:HookScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Background check", 1, 1, 1)
+    GameTooltip:AddLine("GoldCap re-checks the top " .. LIM.VERIFY_TOP_ROWS ..
+      " rows against the live auction house about every " .. LIM.VERIFY_INTERVAL_SECONDS ..
+      "s. Rows it refuses are hidden. Buying always stays a click you make.", 1, 1, 1, true)
+
+    local list = renderList()
+    local checked, newest = 0, nil
+    for i = 1, math.min(#list, LIM.VERIFY_TOP_ROWS) do
+      local v = verdicts[list[i].itemID]
+      if v and v.unitPrice == list[i].unitPrice then
+        checked = checked + 1
+        if not newest or v.at > newest then newest = v.at end
+      end
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(("Checked: %d of the top %d on screen"):format(
+      checked, math.min(#list, LIM.VERIFY_TOP_ROWS)), 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(newest
+      and ("Last result: %ds ago"):format(math.floor(GetTime() - newest))
+      or "Last result: none yet this visit", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(("Refused so far: %d"):format(refusedCount), 0.7, 0.7, 0.7)
+    local watched = #GC.Sniper._liveTargets
+    if watched > 0 then
+      GameTooltip:AddLine(("Watching closely: %d item%s"):format(watched, watched == 1 and "" or "s"),
+        0.7, 0.7, 0.7)
+      GameTooltip:AddLine(GC.Sniper._cycleSeconds
+        and ("Full pass over them: %.1fs"):format(GC.Sniper._cycleSeconds)
+        or "Full pass over them: measuring...", 0.7, 0.7, 0.7)
+    end
+    GameTooltip:Show()
+  end)
+  verifyBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
+  f.verifyBtn = verifyBtn
+
+  -- Re-derives the toggle's label and look from `refusedCount`, which renderList recomputes on
+  -- every render. Same contract as refreshAutoButton/refreshScanButton: driven off the 0.25s
+  -- ticker and off refreshRows, rather than hooked into every place a verdict can land, so a
+  -- new path cannot silently leave a stale number on screen.
+  refreshVerifyButton = function(target)
+    local owner = target or frame
+    local btn = owner and owner.verifyBtn
+    if not btn then return end
+    local show = showRefused()
+    local text = (show and "Refused: %d" or "Hidden: %d"):format(refusedCount)
+    if btn.lastText ~= text then
+      btn:SetLabel(text)
+      btn.lastText = text
+    end
+    if btn.lastOn ~= show then
+      btn.lastOn = show
+      btn:SetVariant(show and "active" or "ghost")
+    end
+  end
+  refreshVerifyButton(f)
+
+  -- The "Live" button is gone. It started a second, narrower scan loop over the
+  -- items the last Full Scan had turned up (or, failing that, the imported
+  -- watchlist), which is a real capability -- but Auto is strictly broader: it
+  -- re-browses the whole auction house on a loop and finds everything Live would,
+  -- plus everything Live's fixed target list could not. The two also fought each
+  -- other -- starting Live forcibly switched Auto off -- with nothing in the
+  -- interface saying so, which left two adjacent buttons that could not be told
+  -- apart. Scan (once) and Auto (continuously) is the whole story.
+  --
+  -- The scanner itself stays: the Check flow pauses and resumes it, and the deal
+  -- rows it produces are still the ones a Full Scan feeds.
 
   local status = Theme.Label(f, 11)
-  status:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, row2Y)
-  status:SetPoint("RIGHT", toggleBtn, "LEFT", -Theme.pad.s, 0)
+  status:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row2Y)
+  status:SetPoint("RIGHT", verifyBtn, "LEFT", -Theme.pad.s, 0)
   status:SetJustifyH("LEFT")
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
 
   -- Row 3: column headers, sticky above the scroll area.
-  f.headerY = row2Y - (TOOLBAR_BTN_H + Theme.pad.s)
+  f.headerY = row2Y - (CH.BTN_H + Theme.pad.s)
   createHeaderRow(f)
 
-  local scrollTop = f.headerY - (HEADER_H + Theme.pad.xs)
+  local scrollTop = f.headerY - (CH.HEADER + Theme.pad.xs)
   local scrollBottom = Theme.pad.m
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", f, "TOPLEFT", CONTENT_LEFT, scrollTop)
-  scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -CONTENT_RIGHT_GUTTER, scrollBottom)
+  scroll:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, scrollTop)
+  scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WIN.CONTENT_RIGHT_GUTTER, scrollBottom)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local range = self:GetVerticalScrollRange()
-    local target = self:GetVerticalScroll() - delta * ROW_HEIGHT * 3
+    local target = self:GetVerticalScroll() - delta * WIN.ROW_HEIGHT * 3
     if target < 0 then target = 0 end
     if target > range then target = range end
     self:SetVerticalScroll(target)
   end)
   f.scroll = scroll -- D: setView hides/shows this alongside f.headerRow for the Sell tab
 
+  -- Empty-state panel for the deals board, living where the rows would be. Parented to
+  -- `scroll` (not `content`) so it shows/hides with the Deals view via setView's existing
+  -- scroll:Hide(), and never scrolls (an empty board has nothing to scroll). Driven solely by
+  -- GC.Sniper._UpdateEmptyState from refreshRows -- see that function for what it says when.
+  local emptyText = Theme.Label(scroll, 12)
+  emptyText:SetPoint("TOP", scroll, "TOP", 0, -WIN.ROW_HEIGHT * 2)
+  emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
+  emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
+  emptyText:SetJustifyH("CENTER")
+  emptyText:SetWordWrap(true)
+  emptyText:SetSpacing(4)
+  emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  emptyText:Hide()
+  f.emptyText = emptyText
+
   content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(math.max(restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER, 1), ROW_HEIGHT) -- refreshRows() stamps the real height; OnSizeChanged below keeps width live
+  content:SetSize(math.max(restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER, 1), WIN.ROW_HEIGHT) -- refreshRows() stamps the real height; OnSizeChanged below keeps width live
   scroll:SetScrollChild(content)
   -- T5/M8: the scroll child's WIDTH is the one piece of the grid Blizzard's ScrollFrame widget
   -- requires an explicit size for (unlike every row inside it, which anchors relatively) --
@@ -3817,18 +5111,18 @@ local function createFrame()
   -- guaranteed to fire its own OnSizeChanged while hidden, which would silently stop the
   -- Deals grid's column-drop from tracking a resize made while looking at Sell. `f` is never
   -- hidden while the window is open, so this fires regardless of which tab is active. The
-  -- header's own width tracks the same CONTENT_LEFT/CONTENT_RIGHT_GUTTER margins off `f`
+  -- header's own width tracks the same WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER margins off `f`
   -- directly, so the derived contentWidth here is exactly the header's width too -- one number
   -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
   f:SetScript("OnSizeChanged", function(_, w)
     if not w or w <= 0 then return end
-    local contentWidth = math.max(w - CONTENT_LEFT - CONTENT_RIGHT_GUTTER, 1)
+    local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER, 1)
     content:SetWidth(contentWidth)
     applyColumnVisibility(contentWidth)
   end)
 
   -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar
-  -- gutter (CONTENT_RIGHT_GUTTER) below the scroll frame's own bottom edge, not on top of the
+  -- gutter (WIN.CONTENT_RIGHT_GUTTER) below the scroll frame's own bottom edge, not on top of the
   -- rows. StartSizing("BOTTOMRIGHT") (T5: both axes, not just "BOTTOM") + SetResizeBounds
   -- above are what actually let both width and height change. Created AFTER scroll (whose
   -- built-in scrollbar is a child one level deeper) and explicitly raised past it, so the
@@ -3853,18 +5147,17 @@ local function createFrame()
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
   -- D: builds the Sell tab's container, hidden, filling the exact region `scroll` occupies
-  -- above (same CONTENT_LEFT/CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
+  -- above (same WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
   -- never re-declared, so the two views can't silently drift out of alignment). rowWidth is a
-  -- one-time snapshot at the window's CURRENT width -- GC.Sell.Attach only runs once, so
-  -- (like before T5) the Sell tab's own column grid does not re-flow on a window resize; only
-  -- the Deals grid gained that this task.
+  -- Initial geometry for the Sell ledger.  SellFrame keeps its own responsive column layout
+  -- current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
-    panelLeft = CONTENT_LEFT,
-    panelRightInset = CONTENT_RIGHT_GUTTER,
+    panelLeft = WIN.CONTENT_LEFT,
+    panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
     top = scrollTop,
     bottom = scrollBottom,
-    rowWidth = restoreWidth - CONTENT_LEFT - CONTENT_RIGHT_GUTTER,
-    rowHeight = ROW_HEIGHT,
+    rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
+    rowHeight = WIN.ROW_HEIGHT,
   })
 
   -- Sniper v3 §3 sniperTabShown/sniperTabHidden: the Sniper is a standalone floating window,
@@ -3883,10 +5176,24 @@ local function createFrame()
     feedAuto("tabShown")
     feedAuto("resume:search")
   end)
-  f:SetScript("OnHide", function() feedAuto("tabHidden") end)
+  f:SetScript("OnHide", function()
+    feedAuto("tabHidden")
+    -- Closing the DOCKED window (its X, or Escape) must hand the auction house back to
+    -- Blizzard's own tab -- see GC.AuctionHouseTab.OnWindowHidden, which no-ops when the
+    -- window is not docked or its mode is not the one showing.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.OnWindowHidden then
+      pcall(GC.AuctionHouseTab.OnWindowHidden)
+    end
+  end)
 
   refreshAutoButton(f) -- (fix round 1, M1) paint the initial label/visual before the very first Show
   return f
+end
+
+-- Whether the addon window is up. Read by UI/AuctionHouseTab.lua so the tab it
+-- draws on Blizzard's auction house never claims a state the window is not in.
+function GC.Sniper.IsWindowShown()
+  return frame ~= nil and frame:IsShown()
 end
 
 function GC.Sniper.Toggle()
@@ -3900,6 +5207,65 @@ function GC.Sniper.Toggle()
     -- was last open -- cheap to recompute on every show regardless of which tab is active.
     GC.Sell.Refresh()
     updateSellTabLabel()
+  end
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.Refresh then
+    pcall(GC.AuctionHouseTab.Refresh)
+  end
+end
+
+-- Docked mode: the window lives inside a host panel on Blizzard's auction house instead of
+-- floating -- UI/AuctionHouseTab.lua owns the host and decides when. Docking neutralizes the
+-- free-window chrome that would fight a fixed host: the title-bar drag (Theme.TitleBar's
+-- OnDragStart checks IsMovable before StartMoving), the resize grip, and geometry
+-- persistence (persistWindowGeometry skips a frame whose goldcapDockHost is set -- saving the
+-- host's anchors would corrupt the remembered floating geometry). Undocking restores the
+-- saved floating geometry the same way createFrame does on load, and leaves the window
+-- HIDDEN: it runs when the auction house closes, and a window popping to mid-screen at that
+-- moment would be the addon opening itself unasked.
+function GC.Sniper.SetDocked(host)
+  if host then
+    frame = frame or createFrame()
+    frame.goldcapDockHost = host
+    frame:SetMovable(false)
+    if frame.resizeHandle then frame.resizeHandle:Hide() end
+    -- Docked chrome: the auction house already shows a "GoldCap" title and its own close
+    -- button, and the AH portrait overlaps where our title text sits -- so the window's own
+    -- duplicates go. The BAR stays (every content offset hangs from its height) and so does
+    -- the gear; only the text and the X are the duplicates.
+    if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText("") end
+    if frame.closeBtn then frame.closeBtn:Hide() end
+    frame:SetParent(host)
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT")
+    frame:SetPoint("BOTTOMRIGHT")
+    if not frame:IsShown() then
+      GC.Sniper.Toggle() -- the ordinary open path: stale banner, bag counts, the tab badge
+    end
+  else
+    if not frame or not frame.goldcapDockHost then return end
+    frame.goldcapDockHost = nil
+    frame:Hide()
+    frame:SetParent(UIParent)
+    frame:SetMovable(true)
+    if frame.resizeHandle then frame.resizeHandle:Show() end
+    if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText("GoldCap Sniper") end
+    if frame.closeBtn then frame.closeBtn:Show() end
+    frame:ClearAllPoints()
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    local saved = cfg and cfg.window
+    local restored = false
+    if isValidSavedWindow(saved) then
+      restored = pcall(frame.SetPoint, frame, saved.point, saved.x, saved.y)
+    end
+    if not restored then
+      frame:ClearAllPoints()
+      frame:SetPoint("CENTER")
+    end
+    local width = (saved and type(saved.width) == "number") and clampWindowWidth(saved.width)
+      or WIN.FRAME_WIDTH
+    local height = (saved and type(saved.height) == "number") and clampWindowHeight(saved.height)
+      or WIN.FRAME_HEIGHT
+    pcall(frame.SetSize, frame, width, height)
   end
 end
 
@@ -3997,6 +5363,12 @@ function GC.Sniper.OnAuctionHouseShow()
   -- Build the scanner on the first AH visit regardless of autoOpen, so a later
   -- manual watchlist Live click has one to drive.
   GC.Sniper.scanner = GC.Sniper.scanner or GC.Scanner.New(driver, GC.db.settings.sniper)
+  -- A pin persists in SavedVariables across an AH close, but `_liveTargets` does not -- it is
+  -- wiped in OnAuctionHouseClosed like every other live claim. Without this call, a pin made
+  -- last session (or with Auto off, which is the only other thing that used to reach
+  -- _RefreshWatchSet) sits inert until a scan happens to run: nothing polls it. Must come
+  -- after the scanner is built just above, or there is nothing for the refresh to Start.
+  GC.Sniper._RefreshWatchSet()
 
   -- Sniper v3 §3: the AutoScan ticker only runs while the AH is open (nothing to drive
   -- otherwise -- SendBrowseQuery would silently no-op with no AH session live). This, the
@@ -4005,9 +5377,20 @@ function GC.Sniper.OnAuctionHouseShow()
   -- from appearing, but (fix round 1, I4 ruling) Auto never actually SCANS until the window
   -- is shown, since toggleOn's own tab-seed just below re-adds "tab" if it isn't up yet.
   installSearchHooks()
+  -- Same guarantee installSearchHooks carries: this runs synchronously inside
+  -- this function, so it must not be able to raise. AuctionHouseTab.Install is
+  -- pcall-guarded end to end, and pcall'd again here rather than trusted.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.Install then
+    pcall(GC.AuctionHouseTab.Install)
+  end
   autoScanTicker = autoScanTicker or C_Timer.NewTicker(0.25, function()
     autoScan:Tick(GetTime())
     refreshAutoButton()
+    refreshScanButton()
+    -- Background verification rides the same clock, for the same reason the two buttons above
+    -- do: one place drives it, so it cannot be forgotten by a path that changes state.
+    tickAutoVerify()
+    refreshVerifyButton()
   end)
   feedAuto("ahOpened")
   if GC.db.settings.sniper.auto then
@@ -4055,10 +5438,19 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- open" read.
   ahOpen = false
 
+  -- Undock the window from the auction house before anything else tears down: the dock host
+  -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)
+  -- no-ops on an undocked window), so the double-call above is tolerated here too.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.OnAuctionHouseClosed then
+    pcall(GC.AuctionHouseTab.OnAuctionHouseClosed)
+  end
+
   -- Wired from both PLAYER_INTERACTION_MANAGER_FRAME_HIDE and AUCTION_HOUSE_CLOSED (their
   -- overlap on a given close is unverified in 12.0.7 -- see in-game checklist), so this must
   -- tolerate being called twice for one AH visit without double-printing or double-crediting.
   stopScanning()
+  for i = #GC.Sniper._liveTargets, 1, -1 do GC.Sniper._liveTargets[i] = nil end
+  GC.Sniper._liveTracksScanDeals = false
   abortFullScan()
 
   -- Sniper v3 §3: stop driving the machine's clock once there's nothing left for it to
@@ -4091,11 +5483,30 @@ function GC.Sniper.OnAuctionHouseClosed()
   end
 
   resetAllPurchases()
-  clearDeals() -- next AH visit starts from a clean slate; stale auctions are no longer live
+  -- Clears the live/watchlist `deals` map ONLY. A completed full scan's `scanDeals` array is
+  -- deliberately left intact and re-renders on the next AH visit -- see OnAuctionHouseShow's
+  -- own comment for why (a browse scan has no cooldown, and every buy re-quotes live anyway).
+  -- So this is not "a clean slate": what a closed AH guarantees is that no purchase or Sell
+  -- state survives (resetAllPurchases above, GC.Sell.Reset below), not that the board is empty.
+  clearDeals()
   -- Sniper v3 §3 ping: a HOT listing that pinged this session should be able to ping again
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
   -- what's worth flagging) -- see seenHotDeals' own declaration.
   for key in pairs(seenHotDeals) do seenHotDeals[key] = nil end
+  -- What the addon worked out for itself is a claim about a live market and does not survive
+  -- the session, exactly like a verdict. Pins do: they are a standing instruction, and they
+  -- live in SavedVariables.
+  for itemID in pairs(GC.Sniper._churn) do GC.Sniper._churn[itemID] = nil end
+  GC.Sniper._churnSeq = 0
+  for itemID in pairs(GC.Sniper._rangAt) do GC.Sniper._rangAt[itemID] = nil end
+  for itemID in pairs(GC.Sniper._lastPrice) do GC.Sniper._lastPrice[itemID] = nil end
+  -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live
+  -- order book, and there is no live order book once the session is gone. scanDeals survives
+  -- the close on purpose (see OnAuctionHouseShow) -- its verdicts must not, or the next visit
+  -- opens with gold Buy buttons vouched for by a market nobody has looked at since.
+  for itemID in pairs(verdicts) do verdicts[itemID] = nil end
+  refusedCount = 0
+  verifyWalkAt = 0
   -- D: abort any in-flight Sell quote walk/post -- neither can safely resume once the AH
   -- session is gone (same reasoning as resetAllPurchases above for the Deals side).
   GC.Sell.Reset()

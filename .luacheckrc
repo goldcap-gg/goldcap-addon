@@ -21,7 +21,18 @@ read_globals = {
   -- Sniper v3 §3 AutoScan wiring: the machine's own clock domain, and the native AH frame
   -- whose SearchBar/SetDisplayMode are hooked for player-search detection.
   "GetTime", "AuctionHouseFrame",
+  -- HOT-deal alert for alt-tabbed players (pingNewHotDeals): flashes the OS taskbar/dock icon.
+  "FlashClientIcon",
+  -- Blizzard's tab helpers. UI/AuctionHouseTab.lua calls TabResize/SelectTab on
+  -- SetNumTabs registration was re-examined against Blizzard's own source and approved for
+  -- the embedded AH tab (see UI/AuctionHouseTab.lua's header): numTabs/selectedTab feed
+  -- insecure UI code only, and the pattern is what Auctionator ships at scale.
+  "PanelTemplates_TabResize", "PanelTemplates_SelectTab", "PanelTemplates_DeselectTab",
+  "PanelTemplates_SetNumTabs",
   "C_Container", "ItemLocation",
+  -- Reagent quality (Dragonflight+). The client is the authority on an item's
+  -- tier; the goldcap.gg import is not -- see UI/Theme.lua's QualityMarkup.
+  "C_TradeSkillUI", "C_TooltipInfo", "C_Texture",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",

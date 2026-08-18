@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The posting queue's keybinding.
+
+  Auto-loaded by the client, deliberately NOT listed in GoldCap.toc, which is how a
+  Bindings.xml file is meant to be shipped.
+
+  Design: docs/superpowers/specs/2026-08-17-post-queue-design.md, section "Keybinding".
+  This does NOT call the button's own Click method: the wiki is explicit that a click made
+  that way inherits the caller's taint and skips RegisterForClicks and the mouse-down
+  handling. Instead it calls the exact same Lua function the posting queue's toolbar button
+  calls from its own OnClick (see GC.Sell.Attach in UI/SellFrame.lua, which assigns
+  f.GoldCapPostNext = onQueueClick). Bindings.xml executes as an isolated chunk with no
+  upvalues into any addon file, so a reachable global is the only way in.
+
+  A keybinding handler runs synchronously inside a real hardware input event, which is what a
+  protected post actually requires. Whether the client's hwevent check is satisfied by THIS
+  path specifically has not been confirmed in game.
+
+  Note for whoever edits this comment next: XML forbids a double hyphen anywhere inside a
+  comment. Writing one the way Lua starts a comment makes the whole file fail to parse with
+  "not well-formed (invalid token)", the keybinding silently never registers, and the client
+  throws a Lua Warning on load. spec/bindings_xml_spec.lua now fails the build for it.
+-->
+<Bindings>
+  <Binding name="GOLDCAP_POST_NEXT" header="GOLDCAP">
+    if GoldCapSniperFrame and GoldCapSniperFrame.GoldCapPostNext then
+      GoldCapSniperFrame.GoldCapPostNext()
+    end
+  </Binding>
+</Bindings>

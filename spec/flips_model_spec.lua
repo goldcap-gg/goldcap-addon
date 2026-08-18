@@ -294,8 +294,19 @@ describe("Flips row model (Sniper v3 §5)", function()
   -- BuildRow/Summary above.
   describe("ExtractOwnedLots", function()
     it("uses a commodity's unitPrice as-is", function()
-      local result = GC.Flips.ExtractOwnedLots({ { itemKey = { itemID = 42 }, unitPrice = 500, quantity = 3, auctionID = 1 } })
-      assert.same({ { itemID = 42, unitPrice = 500, auctionID = 1, quantity = 3 } }, result)
+      local itemKey = { itemID = 42 }
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = itemKey, isCommodity = true,
+        unitPrice = 500, quantity = 3, auctionID = 1 } })
+      assert.same({ { itemID = 42, itemKey = itemKey, isCommodity = true,
+        unitPrice = 500, auctionID = 1, quantity = 3 } }, result)
+    end)
+
+    it("preserves a normal lot's exact item variant for position accounting", function()
+      local itemKey = { itemID = 7, itemLevel = 447, itemSuffix = 3, battlePetSpeciesID = 0 }
+      local result = GC.Flips.ExtractOwnedLots({ { itemKey = itemKey, buyoutAmount = 1000,
+        quantity = 1, auctionID = 8, isCommodity = false } })
+      assert.same(itemKey, result[1].itemKey)
+      assert.is_false(result[1].isCommodity)
     end)
 
     it("I3: divides a stacked item lot's buyoutAmount by its quantity", function()
@@ -642,14 +653,21 @@ describe("Flips row model (Sniper v3 §5)", function()
   end)
 
   describe("RecommendPost (design update)", function()
-    it("undercuts a live market quote by 1 copper", function()
-      local r = GC.Flips.RecommendPost(100, 500, nil)
-      assert.equal(499, r.unit)
+    -- Part 0 (silver-grid fix): candidates are now normalized to whole silver, so the plain
+    -- undercut-by-1-copper number this test used to assert (499) is no longer reachable -- it
+    -- would silently fail to post. marketUnit=50000 (5g) sits well above the match/undercut
+    -- share boundary (see silver_grid_spec.lua for the derivation), so undercut still fires;
+    -- the candidate is one silver below, on the grid.
+    it("undercuts a live market quote by one whole silver", function()
+      local r = GC.Flips.RecommendPost(100, 50000, nil)
+      assert.equal(49900, r.unit)
     end)
 
-    it("floors the undercut candidate at 1 copper (never zero/negative)", function()
+    -- Part 0: a price under one silver cannot be posted at all, so the grid's floor is 100
+    -- copper, not 1 -- this replaces the old "floors at 1 copper" behavior.
+    it("floors the undercut candidate at one silver (never zero/sub-silver)", function()
       local r = GC.Flips.RecommendPost(1, 1, nil)
-      assert.equal(1, r.unit)
+      assert.equal(100, r.unit)
     end)
 
     it("falls back to mv when there is no live quote", function()
@@ -657,13 +675,111 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.equal(800, r.unit)
     end)
 
+    -- Part 0: same grid normalization as the first test above.
     it("prefers a live quote over mv when both are present", function()
-      local r = GC.Flips.RecommendPost(100, 500, 800)
-      assert.equal(499, r.unit)
+      local r = GC.Flips.RecommendPost(100, 50000, 800)
+      assert.equal(49900, r.unit)
     end)
 
     it("returns nil when neither marketUnit nor mv is known", function()
       assert.is_nil(GC.Flips.RecommendPost(100, nil, nil))
+    end)
+
+    -- F5 queue-at-exit: a sniper-underwritten position posts at the exit its buy was approved
+    -- against when the wall below it is hours of turnover, instead of matching the wall it was
+    -- bought from (which locks in the 5% cut as a loss).
+    describe("queue-at-exit", function()
+      local ladder = {
+        { unitPrice = 19800, quantity = 8000 },
+        { unitPrice = 20000, quantity = 1500 },
+        { unitPrice = 24000, quantity = 4000 },
+        { unitPrice = 30000, quantity = 50000 },
+      }
+
+      it("queues at the target when everything below it fits the turnover budget", function()
+        -- budget = 222000 * 2 / 24 = 18500 >= 13500 units below the 27300 target
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300 })
+        assert.equal("queue", r.mode)
+        assert.equal(27300, r.unit)
+        assert.is_false(r.belowCost)
+      end)
+
+      it("stops at the highest rung whose queue fits when the target does not", function()
+        -- budget = 60000 * 2 / 24 = 5000: the 19800 wall (8000 units) already exceeds it once
+        -- its own tail is joined... but the seller joining AT 19800 is the match case; the
+        -- first rung ABOVE the wall needs 8000 queued -- over budget, so no climb at all.
+        local tight = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 60000, targetUnit = 27300 })
+        assert.not_equal("queue", tight.mode)
+        -- budget = 150000 * 2 / 24 = 12500: rungs at 20000 (9500 queued) fit; 24000 (13500)
+        -- does not, so the climb stops one rung below it.
+        local mid = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 150000, targetUnit = 27300 })
+        assert.equal("queue", mid.mode)
+        assert.equal(20000, mid.unit)
+      end)
+
+      it("never jumps past the end of a truncated book to the target", function()
+        -- Same ladder, but nothing visible above the 27300 target: the book may simply be
+        -- cut off there (levels are capped), so the gap between the last rung and the target
+        -- is unmeasured. The climb stops at the highest VISIBLE rung.
+        local cut = {
+          { unitPrice = 19800, quantity = 8000 },
+          { unitPrice = 20000, quantity = 1500 },
+          { unitPrice = 24000, quantity = 4000 },
+        }
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = cut, sold = 222000, targetUnit = 27300 })
+        assert.equal("queue", r.mode)
+        assert.equal(24000, r.unit)
+      end)
+
+      it("deflates the target when the current trend says the market is mid-spike", function()
+        -- Stored target 27300 with a +201% trend: pre-spike estimate 27300/3.01 = 9069 ->
+        -- grid 9000, below the 19800 match candidate -- no queueing above the wall at all.
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 201 })
+        assert.not_equal("queue", r.mode)
+        -- At or below the threshold the target stands untouched.
+        local calm = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 30 })
+        assert.equal("queue", calm.mode)
+        assert.equal(27300, calm.unit)
+      end)
+
+      it("reads the spike threshold from opts.spikePct instead of the baked-in constant", function()
+        -- A raised threshold lets the same +201% trend keep the stored target...
+        local calm = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 201, spikePct = 250 })
+        assert.equal("queue", calm.mode)
+        assert.equal(27300, calm.unit)
+        -- ...and a lowered one deflates a +25% trend the default 30 would have left alone:
+        -- ceiling = SilverDown(27300 / 1.25) = 21800, proven by the stocked 24000 ask above it.
+        local strict = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, trendPct = 25, spikePct = 20 })
+        assert.equal("queue", strict.mode)
+        assert.equal(21800, strict.unit)
+      end)
+
+      it("does nothing without a target -- untracked stock keeps match/undercut", function()
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000 })
+        assert.not_equal("queue", r.mode)
+      end)
+
+      it("is disabled by absorbHours = 0", function()
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27300, absorbHours = 0 })
+        assert.not_equal("queue", r.mode)
+      end)
+
+      it("lands the queued price on the silver grid", function()
+        local r = GC.Flips.RecommendPost(19800, 19800, 39100,
+          { levels = ladder, sold = 222000, targetUnit = 27377 })
+        assert.equal("queue", r.mode)
+        assert.equal(27300, r.unit)
+      end)
     end)
 
     it("computes breakeven as ceil(paidUnit / 0.95)", function()
@@ -678,7 +794,9 @@ describe("Flips row model (Sniper v3 §5)", function()
     end)
 
     it("belowCost is true when the candidate sits below breakeven", function()
-      local r = GC.Flips.RecommendPost(100, 90, nil) -- candidate=89, breakeven=106
+      -- Part 0: candidate is now the match price 100 (marketUnit=90 clamps up to the grid
+      -- floor), not the old 89 -- still below breakeven=106 either way.
+      local r = GC.Flips.RecommendPost(100, 90, nil) -- candidate=100 (grid floor), breakeven=106
       assert.is_true(r.belowCost)
     end)
 
@@ -696,10 +814,17 @@ describe("Flips row model (Sniper v3 §5)", function()
     end)
 
     describe("mode selection: match vs undercut (F3)", function()
+      -- Every price in this block is priced at 10g a unit, well clear of the 50-silver boundary
+      -- where a flat one-silver step stops being worth taking. These tests are about WHICH RULE
+      -- picks the mode -- tier depth and velocity -- so they must not sit at a price where the
+      -- grid's own share rule decides the answer before the tier rule is even consulted. An
+      -- earlier draft ran them at one silver, which is the one price where "undercut" cannot
+      -- exist at all; the tightest-edge-of-the-grid cases live in spec/silver_grid_spec.lua,
+      -- where they belong.
       it("plain 3-arg call (no opts) still undercuts, mode='undercut'", function()
-        local r = GC.Flips.RecommendPost(50, 100, nil)
+        local r = GC.Flips.RecommendPost(50000, 100000, nil)
         assert.equal("undercut", r.mode)
-        assert.equal(99, r.unit)
+        assert.equal(99900, r.unit)
       end)
 
       it("mode is nil in the no-quote (mv) fallback branch, even with opts present", function()
@@ -725,10 +850,10 @@ describe("Flips row model (Sniper v3 §5)", function()
       end)
 
       it("boundary: sold just under 2x tierDepth stays undercut", function()
-        local levels = { { unitPrice = 100, quantity = 10 } }
-        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 19 })
+        local levels = { { unitPrice = 100000, quantity = 10 } }
+        local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = levels, sold = 19 })
         assert.equal("undercut", r.mode)
-        assert.equal(99, r.unit)
+        assert.equal(99900, r.unit) -- one whole silver below, the smallest step the grid allows
       end)
 
       it("only counts levels priced exactly at the cheapest tier toward tierDepth", function()
@@ -739,24 +864,24 @@ describe("Flips row model (Sniper v3 §5)", function()
       end)
 
       it("falls back to undercut when opts.levels is missing", function()
-        local r = GC.Flips.RecommendPost(50, 100, nil, { sold = 1000 })
+        local r = GC.Flips.RecommendPost(50000, 100000, nil, { sold = 1000 })
         assert.equal("undercut", r.mode)
       end)
 
       it("falls back to undercut when opts.levels is empty (no levels[1] to read a cheapest price from)", function()
-        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = {}, sold = 1000 })
+        local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = {}, sold = 1000 })
         assert.equal("undercut", r.mode)
       end)
 
       it("falls back to undercut when opts.sold is missing", function()
-        local levels = { { unitPrice = 100, quantity = 1 } }
-        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels })
+        local levels = { { unitPrice = 100000, quantity = 1 } }
+        local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = levels })
         assert.equal("undercut", r.mode)
       end)
 
       it("falls back to undercut when opts.sold is zero (never a match with no measured velocity)", function()
-        local levels = { { unitPrice = 100, quantity = 1 } }
-        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 0 })
+        local levels = { { unitPrice = 100000, quantity = 1 } }
+        local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = levels, sold = 0 })
         assert.equal("undercut", r.mode)
       end)
 
@@ -792,8 +917,9 @@ describe("Flips row model (Sniper v3 §5)", function()
         paidUnit = 10, marketUnit = 100, qty = 100, sold = 1,
         levels = { { unitPrice = 100, quantity = 1000 } },
       })
-      -- rec.unit=99 (undercut, tierDepth 1000 vs sold 1 stays undercut); aheadAtNew =
-      -- DepthBelow(levels, 99) = 0 (the 100-priced level is not < 99); days = (0+100)/1 = 100 -> STALL
+      -- rec.unit=100 (undercut, tierDepth 1000 vs sold 1 stays undercut; grid-clamped -- see
+      -- Part 0 above); aheadAtNew = DepthBelow(levels, 100) = 0 (the 100-priced level is not
+      -- < 100); days = (0+100)/1 = 100 -> STALL
       assert.equal("hold", r.action)
       assert.equal("slow", r.reason)
     end)
@@ -805,7 +931,7 @@ describe("Flips row model (Sniper v3 §5)", function()
       })
       -- days = (0+1)/1 = 1 -> tier OK, not STALL
       assert.equal("repost", r.action)
-      assert.equal(99, r.rec.unit)
+      assert.equal(100, r.rec.unit) -- grid-clamped, see Part 0 above
     end)
 
     it("does not block on missing levels/sold data (treats an unknowable queue as ok-to-repost)", function()

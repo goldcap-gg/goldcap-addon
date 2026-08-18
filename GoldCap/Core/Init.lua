@@ -10,6 +10,31 @@ GC.DEFAULTS = {
   -- value isn't already a table, and recursing over an empty table's pairs() is a no-op, so a
   -- populated SavedVariables array is never touched or truncated on later logins.
   flips = {},
+  acquisitions = {},
+  acquisitionPending = {},
+  acquisitionRealized = {},
+  acquisitionActivity = {},
+  acquisitionSeq = 0,
+  acquisitionPendingSeq = 0,
+  acquisitionVersion = 0,
+  mailOccurrences = {},
+  mailOccurrenceSeq = 0,
+  mailOccurrenceGeneration = 0,
+  -- itemID -> true/false, "does this item sell as a commodity". Learned from
+  -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
+  -- open, and remembered because the Sell tab lists bag stock wherever the player
+  -- is standing. Getting this wrong files one item under two position keys (see
+  -- UI/SellFrame.lua's classifyBagItem), so an unknown item is left out rather
+  -- than guessed at. Same empty-table ApplyDefaults contract as `flips` above.
+  commodityByItem = {},
+  -- itemID -> { unit, at } (copper, epoch seconds): the Sell tab's own last resolved market
+  -- quote, so a /reload shows the last known price and its age instead of a dash for the
+  -- minutes it takes the pricing walk to catch back up. `levels` is deliberately never
+  -- persisted here -- only a fresh walk's levels are usable for anything beyond the headline
+  -- unit, and keeping them would just bloat the save file for no reader. See UI/SellFrame.lua's
+  -- seedPersistedQuotes for the retention window that prunes this on the way back in. Same
+  -- empty-table ApplyDefaults contract as `flips` above.
+  sellQuotes = {},
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.
@@ -21,8 +46,34 @@ GC.DEFAULTS = {
       autoOpen = true,
       auto = false,
       sound = true,
-      hotDiscount = 0.40, hotProfit = 5000000,
-      goodDiscount = 0.25, goodProfit = 1000000,
+      -- Whether the deals list shows rows the background live check has refused. Off by
+      -- default: the point of checking in the background is that the list stops offering
+      -- flips a Check has already ruled out. Owned by the Deals toolbar's own toggle (see
+      -- UI/SniperFrame.lua's verifyBtn), which is also where the count of hidden rows lives,
+      -- so a shorter list always arrives with the number that explains it.
+      showRefused = false,
+      -- Items the owner has asked the watch loop to poll closely, in their own order. A
+      -- standing instruction, so unlike the loop's own churn observations it survives the
+      -- session. Same empty-table ApplyDefaults contract as `flips`.
+      watchPins = {},
+      -- Tier profit floors, in copper, measured against the WHOLE lot -- deliberately per-lot
+      -- and not per-unit, because SniperDecision's own gate (requiredProfitFor) is per-lot too,
+      -- so the preview and the live check keep speaking in the same unit: total gold out of
+      -- this trade. A per-unit floor would rank a one-unit 51g flip identically to a fifty-unit
+      -- one, which rewards exactly the trivial rows this list should be burying.
+      --
+      -- Both were cut tenfold (500g/100g -> 50g/10g) when discovery stopped multiplying by a
+      -- day's sold volume and started using SniperDecision.DemandCap, the same quantity Check
+      -- approves -- typically single digits rather than 200. Against the old floors almost
+      -- nothing would ever have reached HOT or GOOD again and the board would have gone
+      -- uniformly WATCH: measured on a 5,600-row synthetic spread, HOT+GOOD fell from 49.5%
+      -- to 27.9% and collapsed hardest on cheap staples (10g items: 50% -> 9.4%). The 5:1
+      -- ratio between them is unchanged. See migrateSniperTierProfit below for existing saves.
+      hotDiscount = 0.40, hotProfit = 500000,
+      goodDiscount = 0.25, goodProfit = 100000,
+      -- Stamped by ApplyDefaults for a fresh database; migrateSniperTierProfit stamps it for
+      -- an existing one, so the tenfold cut is applied exactly once per save.
+      tierProfitVersion = 1,
       watchDiscount = 0.10, suspectDiscount = 0.90,
       -- Liquidity floors, sold per day (from a realm import's soldPerDay); only enforced
       -- against import-sourced values, see DealMath.Evaluate.
@@ -31,11 +82,35 @@ GC.DEFAULTS = {
       -- import string's signed trend field; a deal whose 24h market-value
       -- trend is <= -dumpTrendPct is capped below GOOD, see DealMath.Evaluate.
       dumpTrendPct = 10,
+      -- How long a posted auction runs: 1 = 12h, 2 = 24h, 3 = 48h, matching the `duration`
+      -- argument C_AuctionHouse.PostCommodity/PostItem take. 2 preserves what UI/SellFrame.lua
+      -- had hardcoded, so an existing save keeps posting exactly as it did and needs no
+      -- migration -- ApplyDefaults fills the field in on the next login.
+      --
+      -- Filed under `sniper` with every other setting rather than under a new `sell` branch:
+      -- UI/SettingsFrame.lua's cfg() reads this one table, `settings.tooltip` is already the
+      -- lone exception at the top level, and inventing a second branch for a single field
+      -- would buy structure nobody reads at the cost of a second accessor.
+      postDuration = 2,
       maxCapitalShare = 0.05,
       maxDailyDemandShare = 0.02,
       maxQuantity = 200,
-      minimumProfitCopper = 1000000,
+      minimumProfitCopper = 50000,
+      profitFloorVersion = 1,
       minimumRoi = 0.10,
+      -- Velocity release for the stress exit (SniperDecision.Evaluate): a leftover cheap wall
+      -- amounting to no more than this many hours of the item's measured daily sales is
+      -- treated as turnover, not competition, and the exit prices at stressUnit instead of
+      -- undercutting it. 0 disables the release (every partial wall is competition again);
+      -- normalizeConfig caps it at 6. ApplyDefaults fills this in on existing saves.
+      wallAbsorbHours = 2,
+      -- Above this 24h market-value trend (whole percent) a stress exit counts as
+      -- spike-contaminated and deflates to the pre-spike estimate, on both the buy side
+      -- (SniperDecision.Evaluate, via its config) and the sell-side queue ceiling
+      -- (Flips.RecommendPost, via SellPositions). SniperDecision.SPIKE_TREND_PCT documents
+      -- the mechanism and stays as the fallback; normalizeConfig clamps this to 1-500.
+      -- ApplyDefaults fills it in on existing saves.
+      spikeTrendPct = 30,
       -- Sniper v3 T10: UI-only scale multiplier for Theme's fonts (0.9-1.3), persisted so a
       -- player's chosen text size survives relog. Read back once GC.db exists (see this file's
       -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every
@@ -105,11 +180,46 @@ frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
 frame:RegisterEvent("PLAYER_LOGOUT")
 
+local function migrateSniperProfitFloor(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.profitFloorVersion ~= nil then return end
+  -- The old 100g value was implicit and had no settings control. Move only that exact legacy
+  -- default; preserve any manually edited value. ApplyDefaults stamps the version for new DBs.
+  if sniper.minimumProfitCopper == 1000000 then sniper.minimumProfitCopper = 50000 end
+  sniper.profitFloorVersion = 1
+end
+
+-- The tier floors below were sized for a lot of up to 200 units, because that is what discovery
+-- used to propose. Discovery now proposes what SniperDecision.DemandCap would approve, which is
+-- usually single digits, so a floor of 500g per lot became unreachable for everything but
+-- high-ticket items -- see GC.DEFAULTS above. Cut both tenfold, once.
+--
+-- Same contract as migrateSniperProfitFloor: move ONLY the exact legacy defaults, so a value a
+-- player edited by hand survives untouched (neither field has ever had a settings control, so
+-- any non-default value here is deliberate), and stamp the version so this never runs twice.
+-- ApplyDefaults stamps it for a database that has no sniper settings at all yet.
+local function migrateSniperTierProfit(db)
+  local settings = type(db) == "table" and db.settings or nil
+  local sniper = type(settings) == "table" and settings.sniper or nil
+  if type(sniper) ~= "table" or sniper.tierProfitVersion ~= nil then return end
+  if sniper.hotProfit == 5000000 then sniper.hotProfit = 500000 end
+  if sniper.goodProfit == 1000000 then sniper.goodProfit = 100000 end
+  sniper.tierProfitVersion = 1
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
     if name ~= ADDON_NAME then return end
     GoldCapDB = GoldCapDB or {}
+    local acquisitionsInitialized = not GC.Acquisitions or GC.Acquisitions.Init(GoldCapDB)
+    if not acquisitionsInitialized then
+      frame:UnregisterEvent("ADDON_LOADED")
+      return
+    end
+    migrateSniperProfitFloor(GoldCapDB)
+    migrateSniperTierProfit(GoldCapDB)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
     if GC.Data then
@@ -121,6 +231,30 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Data.AdoptAppData()
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    if GC.Acquisitions then
+      GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
+      -- One-shot cleanup of phantom mail-buy duplicates (2026-08-17 incident); says what it
+      -- deleted, because silently editing the cost base is exactly what phantoms did.
+      local repaired = GC.Acquisitions.RepairDuplicateMailBuys
+        and GC.Acquisitions.RepairDuplicateMailBuys() or 0
+      if repaired > 0 and GC.Print then
+        GC.Print(("removed %d duplicate purchase record%s left by a mail-scan bug"):format(
+          repaired, repaired == 1 and "" or "s"))
+      end
+    end
+    if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then
+      GC.PurchaseCapture.Init({
+        hooksecurefunc = hooksecurefunc,
+        getNumItemSearchResults = function(itemKey) return C_AuctionHouse.GetNumItemSearchResults(itemKey) end,
+        getItemSearchResultInfo = function(itemKey, index)
+          return C_AuctionHouse.GetItemSearchResultInfo(itemKey, index)
+        end,
+        time = time,
+        after = function(seconds, callback)
+          if C_Timer and C_Timer.After then C_Timer.After(seconds, callback) end
+        end,
+      }, GC.Ledger and GC.Ledger.Context or nil)
+    end
     -- Sniper v3 T10: apply the persisted font-scale multiplier as soon as GC.db exists, NOT
     -- gated on the Sniper window ever being built -- UI/SniperFrame.lua's window frame is
     -- created lazily (first Toggle()/AH visit), so a player who never opens the Sniper this
@@ -144,14 +278,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
       GC.Sniper.OnAuctionHouseClosed()
+      if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
-    if GC.Sniper.scanner then GC.Sniper.scanner:OnSystemReady() end
+    -- The scanner is NOT woken here any more. It is one of two background consumers of a
+    -- single search slot, and calling it first meant it took every slot ahead of the browse
+    -- scan -- see UI/SniperFrame.lua's OnThrottleReady, which now owns that decision. Result
+    -- routing (OnKeyInfo/OnItemResults/OnCommodityResults below) stays here: that is delivery,
+    -- not allocation.
     if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end
-    -- D: serviced AFTER the scanner and the Sniper's own pendingFullScanStart/pendingBrowsePage/
-    -- pendingRequerySend flush above -- GC.Sell.OnThrottleReady only ever advances its OWN
-    -- sequential quote walk (and even then refuses while GC.Sniper.IsBusy()), so it can never
-    -- steal this throttle-ready tick out from under a scan or a buy requery.
     if GC.Sell.OnThrottleReady then GC.Sell.OnThrottleReady() end
   elseif event == "ITEM_KEY_ITEM_INFO_RECEIVED" then
     local itemID = ...
@@ -178,6 +313,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnItemSearchResults then
       GC.Sell.OnItemSearchResults(itemKey.itemID)
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnItemSearchResults(itemKey) end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
     local itemID = ...
     if GC.Sniper.scanner then
@@ -194,23 +330,28 @@ frame:SetScript("OnEvent", function(_, event, ...)
       local auctionID = ...
       GC.Sniper.OnPurchaseCompleted(auctionID)
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnPurchaseCompleted(...) end
   elseif event == "COMMODITY_PRICE_UPDATED" then
     if GC.Sniper.OnCommodityPriceUpdated then
       local unitPrice, totalPrice = ...
       GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUpdated(...) end
   elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
     if GC.Sniper.OnCommodityPriceUnavailable then
       GC.Sniper.OnCommodityPriceUnavailable()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUnavailable() end
   elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
     if GC.Sniper.OnCommodityPurchaseSucceeded then
       GC.Sniper.OnCommodityPurchaseSucceeded()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseSucceeded() end
   elseif event == "COMMODITY_PURCHASE_FAILED" then
     if GC.Sniper.OnCommodityPurchaseFailed then
       GC.Sniper.OnCommodityPurchaseFailed()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseFailed() end
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" then
     if GC.Sniper.OnBrowseResults then
       GC.Sniper.OnBrowseResults()
@@ -223,6 +364,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnAuctionHouseClosed then
       GC.Sniper.OnAuctionHouseClosed()
     end
+    if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     if GC.Sell.OnAuctionCreated then
       GC.Sell.OnAuctionCreated()
@@ -271,7 +413,7 @@ function GC.OnSlash(msg)
   if handler then
     handler()
   else
-    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper")
+    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger")
   end
 end
 
@@ -300,6 +442,44 @@ GC.slashHandlers.ledger = function()
   GC.Print(("last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent")
     :format(sales, GetCoinTextureString(gross), GetCoinTextureString(cut),
       buys, GetCoinTextureString(spent)))
+end
+
+-- "What did that actually sell for?" had no answer anywhere in the addon. The
+-- ledger recorded every sale invoice and only ever reported them as a 24h total,
+-- which cannot tell you the price of one item -- and the mail carrying the
+-- invoice is gone from the client the moment it is collected, so afterwards
+-- this store is the only record that exists.
+--
+-- `total` is what the buyer paid; `cut` is the auction house's consignment,
+-- already deducted from what arrived. Per-unit is what a seller compares against
+-- a market price, so it leads.
+GC.slashHandlers.sales = function()
+  local entries = GC.Ledger and GC.Ledger.GetEntries() or {}
+  local sales = {}
+  for i = 1, #entries do
+    local e = entries[i]
+    if e.kind == "sale" and (e.itemName or "") ~= "" then sales[#sales + 1] = e end
+  end
+  table.sort(sales, function(left, right) return (left.at or 0) > (right.at or 0) end)
+  if #sales == 0 then
+    GC.Print("no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices")
+    return
+  end
+  GC.Print("recent sales (newest first):")
+  for i = 1, math.min(#sales, 15) do
+    local sale = sales[i]
+    local qty = (type(sale.qty) == "number" and sale.qty > 0) and sale.qty or 1
+    local total = sale.total or 0
+    local when = "?"
+    if type(sale.at) == "number" and _G.date then
+      local ok, formatted = pcall(_G.date, "%d %b %H:%M", sale.at)
+      if ok then when = formatted end
+    end
+    GC.Print((" %s  %s  x%d at %s each  (%s total, %s cut)%s"):format(
+      when, sale.itemName, qty, GetCoinTextureString(math.floor(total / qty)),
+      GetCoinTextureString(total), GetCoinTextureString(sale.cut or 0),
+      sale.pending and "  [not yet paid out]" or ""))
+  end
 end
 
 SLASH_GOLDCAP1 = "/goldcap"

@@ -88,6 +88,86 @@ describe("Ledger event wiring", function()
     assert.is_table(_G.GoldCapDB.gold)
   end)
 
+  it("migrates the old implicit 100g sniper floor to the new 5g default once", function()
+    _G.GoldCapDB = { settings = { sniper = { minimumProfitCopper = 1000000 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(50000, _G.GoldCapDB.settings.sniper.minimumProfitCopper)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.profitFloorVersion)
+  end)
+
+  it("preserves a custom sniper profit floor while versioning the setting", function()
+    _G.GoldCapDB = { settings = { sniper = { minimumProfitCopper = 2500000 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(2500000, _G.GoldCapDB.settings.sniper.minimumProfitCopper)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.profitFloorVersion)
+  end)
+
+  -- The tier floors were sized for a lot of up to 200 units. Discovery now proposes what
+  -- SniperDecision.DemandCap would approve, usually single digits, so 500g per lot became
+  -- unreachable and the board would have gone uniformly WATCH -- see migrateSniperTierProfit.
+  it("cuts the legacy tier profit floors tenfold once", function()
+    _G.GoldCapDB = { settings = { sniper = { hotProfit = 5000000, goodProfit = 1000000 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(500000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100000, _G.GoldCapDB.settings.sniper.goodProfit)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
+  end)
+
+  -- Neither field has ever had a settings control, so a value that is not the legacy default
+  -- was typed into SavedVariables on purpose and must survive the migration untouched.
+  it("preserves hand-edited tier profit floors while versioning them", function()
+    _G.GoldCapDB = { settings = { sniper = { hotProfit = 3000000, goodProfit = 100 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(3000000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100, _G.GoldCapDB.settings.sniper.goodProfit)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
+  end)
+
+  -- Already-stamped saves must not be cut a second time down to 50g/10g.
+  it("never runs the tier migration twice", function()
+    _G.GoldCapDB = { settings = { sniper = {
+      hotProfit = 500000, goodProfit = 100000, tierProfitVersion = 1 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(500000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100000, _G.GoldCapDB.settings.sniper.goodProfit)
+  end)
+
+  it("stamps a fresh database with the new tier floors and their version", function()
+    _G.GoldCapDB = {}
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(500000, _G.GoldCapDB.settings.sniper.hotProfit)
+    assert.equal(100000, _G.GoldCapDB.settings.sniper.goodProfit)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
+  end)
+
+  it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
+    local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
+      boughtAt = 500, targetUnit = 180 }
+    local mail = { key = "mail:42", kind = "buy", source = "mail", itemID = 42,
+      qty = 2, total = 201, at = 600, char = "Belarsa-Dentarg", region = "eu" }
+    _G.GoldCapDB = { flips = { flip }, ledger = { mail } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.same(flip, _G.GoldCapDB.flips[1])
+    assert.same(mail, _G.GoldCapDB.ledger[1])
+    assert.equal(1, _G.GoldCapDB.acquisitionVersion)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys["mail:42"])
+  end)
+
   it("records a sale when the mailbox opens", function()
     _G.UnitName = function() return "Belarsa" end
     _G.GetRealmName = function() return "Dentarg" end
@@ -111,6 +191,32 @@ describe("Ledger event wiring", function()
     -- The inbox refresh that always follows must not fork the row.
     onEvent(nil, "MAIL_INBOX_UPDATE")
     assert.equal(1, #GC.Ledger.GetEntries())
+  end)
+
+  it("reconciles the stored seller row only when its pending mailbox update becomes paid", function()
+    GC.Ledger.Context = function() return { char = "Belarsa-Dentarg", region = "eu" } end
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 42,
+      positionKey = "commodity:42", itemName = "Ironclaw Ore", quantity = 20, total = 400000,
+      acquiredAt = 900, evidenceKey = "buy:1", character = "Belarsa-Dentarg", region = "eu" })
+    GC.Acquisitions.RecordPost("commodity:42", 42, "Ironclaw Ore", "Belarsa-Dentarg", "eu", 20, 950)
+    local pending = true
+    _G.GetInboxNumItems = function() return 1 end
+    _G.GetInboxHeaderInfo = function()
+      return nil, nil, "Auction House", "Auction successful", 0, 0, 30
+    end
+    _G.GetInboxInvoiceInfo = function()
+      return pending and "seller_temp_invoice" or "seller", "Ironclaw Ore", "Buyerguy",
+        500000, 500000, 1000, 25000, 500000, 1, 0, 20, true
+    end
+    _G.GetInboxItem = function() return nil end
+
+    onEvent(nil, "MAIL_SHOW")
+    assert.equal(20, batch.remainingQty)
+    pending = false
+    onEvent(nil, "MAIL_INBOX_UPDATE")
+
+    assert.equal(0, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized({ char = "Belarsa-Dentarg", region = "eu" }))
   end)
 
   it("does not blow up on a mailbox the API refuses to describe", function()
@@ -149,5 +255,54 @@ describe("Ledger event wiring", function()
 
     assert.is_string(printed)
     assert.truthy(printed:find("last 24h"))
+  end)
+
+  local function assertMalformedLoadedStartupFailsClosed(acquisitions, mailKey)
+    local database = { acquisitions = acquisitions }
+    local originalAcquisitions = database.acquisitions
+    _G.GoldCapDB = database
+
+    local loadedOK = pcall(onEvent, nil, "ADDON_LOADED", "GoldCap")
+    assert.is_true(loadedOK)
+    assert.equal(database, _G.GoldCapDB)
+    assert.equal(originalAcquisitions, database.acquisitions)
+    local databaseFieldCount = 0
+    for _ in pairs(database) do databaseFieldCount = databaseFieldCount + 1 end
+    assert.equal(1, databaseFieldCount)
+    assert.is_nil(database.acquisitionPending)
+    assert.is_nil(database.acquisitionRepairGroups)
+    assert.is_nil(database.acquisitionConsumptionEvidence)
+    assert.is_nil(database.acquisitionVersion)
+    for _, row in pairs(acquisitions) do
+      if type(row) == "table" then
+        assert.is_nil(row.evidenceKeys)
+        assert.is_nil(row.consumedEvidenceKeys)
+      end
+    end
+
+    local reconcileOK, matched, isNew = pcall(GC.Acquisitions.ReconcileBuy, {
+      key = mailKey, kind = "buy", source = "mail", itemID = 42,
+      itemName = "Copper Ore", qty = 5, total = 500, at = 102,
+      char = "A-R", region = "eu",
+    })
+    assert.is_true(reconcileOK)
+    assert.is_nil(matched)
+    assert.is_false(isNew)
+  end
+
+  it("[WAVE3 I1 fix5] aborts loaded startup for a dense non-table acquisition row", function()
+    assertMalformedLoadedStartupFailsClosed({ true }, "mail:fix5-loaded-non-table")
+  end)
+
+  it("[WAVE3 I1 fix5] aborts loaded startup for a sparse acquisition store", function()
+    assertMalformedLoadedStartupFailsClosed({ [2] = {
+      id = "acq:2", repairedPendingID = "pending:fix5-loaded-sparse",
+    } }, "mail:fix5-loaded-sparse")
+  end)
+
+  it("[WAVE3 I1 fix5] aborts loaded startup for a dictionary acquisition store", function()
+    assertMalformedLoadedStartupFailsClosed({ ["dictionary-orphan"] = {
+      id = "acq:2", repairEvidenceKey = "repair:fix5-loaded-dictionary",
+    } }, "mail:fix5-loaded-dictionary")
   end)
 end)

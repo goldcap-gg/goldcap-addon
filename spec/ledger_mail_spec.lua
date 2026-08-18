@@ -7,6 +7,7 @@ describe("Ledger inbox scan", function()
   local function mail(overrides)
     local m = {
       sender = "Auction House",
+      subject = "Auction successful",
       daysLeft = 30,
       invoice = {
         invoiceType = "seller",
@@ -40,9 +41,10 @@ describe("Ledger inbox scan", function()
       GetInboxHeaderInfo = function(i)
         local m = mails[i]
         if not m then return nil end
-        -- Mirrors the live return order for the fields we read:
-        -- packageIcon, stationeryIcon, sender, subject, money, CODAmount, daysLeft
-        return nil, nil, m.sender, "Auction successful", 0, 0, m.daysLeft
+        -- Mirrors the complete live return order through canReply, which is
+        -- the locale-independent ordinary-mail signal for unreadable invoices.
+        return nil, nil, m.sender, m.subject, 0, 0, m.daysLeft, m.item ~= nil,
+          false, false, false, m.canReply
       end,
       GetInboxInvoiceInfo = function(i)
         local inv = mails[i] and mails[i].invoice
@@ -66,8 +68,10 @@ describe("Ledger inbox scan", function()
   end
 
   before_each(function()
-    GC = helper.loadModule("Core/Ledger.lua")
+    GC = helper.loadModule("Core/Acquisitions.lua")
+    helper.loadModule("Core/Ledger.lua", GC)
     db = {}
+    GC.Acquisitions.Init(db)
     GC.Ledger.Init(db)
     context = { char = "Belarsa-Dentarg", region = "eu" }
   end)
@@ -120,6 +124,28 @@ describe("Ledger inbox scan", function()
     assert.equal(500000, e.total)
   end)
 
+  it("consumes a paid seller invoice once only after its pending row matures", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 210930,
+      positionKey = "commodity:210930", itemName = "Ironclaw Ore", quantity = 20, total = 400000,
+      acquiredAt = 900, evidenceKey = "buy:1", character = context.char, region = context.region })
+    GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore", context.char, context.region, 20, 950)
+    local pending = mail({ invoice = {
+      invoiceType = "seller_temp_invoice", moneyDelay = 500000, etaHour = 1, etaMin = 0,
+    } })
+
+    GC.Ledger.ScanInbox(apiFor({ pending }), context, 1000)
+    assert.equal(20, batch.remainingQty)
+    assert.equal(0, #GC.Acquisitions.GetRealized(context))
+
+    local paid = mail({ daysLeft = 30 - (3600 / 86400) })
+    GC.Ledger.ScanInbox(apiFor({ paid }), context, 4600)
+    assert.equal(0, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+
+    GC.Ledger.ScanInbox(apiFor({ paid }), context, 4610)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
   it("does not re-add the same mail when the inbox refreshes minutes later", function()
     GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
     -- MAIL_INBOX_UPDATE fires constantly; four minutes of drift must not push
@@ -143,6 +169,400 @@ describe("Ledger inbox scan", function()
     assert.equal(210930, e.itemID)
     assert.equal(500000, e.total)
     assert.is_nil(e.decisionVersion) -- mail invoices have no Sniper decision evidence
+  end)
+
+  it("reconciles a repeated buyer-mail ledger update into one acquisition", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010)
+
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.is_true(GC.Acquisitions.GetAll()[1].evidenceKeys[GC.Ledger.GetEntries()[1].key])
+  end)
+
+  -- The 2026-08-17 phantom-buy incident: WoW streams inbox rows, so the first scans of a
+  -- mailbox visit are almost always INCOMPLETE -- and an incomplete scan used to Append the
+  -- mail under a freshly-invented occurrence key while skipping the occurrence commit, so the
+  -- next tick re-keyed and re-recorded the same mail. One 200-unit purchase became four
+  -- ledger buys and three phantom cost batches. Presence must commit on every scan; only the
+  -- absence inference stays gated on completeness.
+  it("keeps one entry for a buy mail rescanned while the inbox is still streaming", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", itemName = "Sanguithorn Tea",
+      count = 200, bid = 3960000, consignment = 0, deposit = 0 },
+      item = { name = "Sanguithorn Tea", itemID = 242299 } })
+    local unreadable = mail()
+    unreadable.invoice = nil -- a row whose invoice has not streamed in yet: scan is incomplete
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1000))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1001))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1002))
+    -- The row finishes streaming: the now-complete scan still recognises the same mail.
+    unreadable.invoice = { invoiceType = "buyer", itemName = "Ironclaw Ore", playerName = "x",
+      bid = 100, buyout = 100, deposit = 0, consignment = 0, moneyDelay = 0, etaHour = 0,
+      etaMin = 0, count = 1, commerceAuction = true }
+    unreadable.item = { name = "Ironclaw Ore", itemID = 210930 }
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought, unreadable }), context, 1003))
+
+    local teaBuys = 0
+    for _, entry in ipairs(GC.Ledger.GetEntries()) do
+      if entry.kind == "buy" and entry.itemName == "Sanguithorn Tea" then teaBuys = teaBuys + 1 end
+    end
+    assert.equal(1, teaBuys)
+    assert.equal(2, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[FINAL C1] persists two identical buyer invoices one-to-one across repeat scans and scopes", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local twin = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ bought, twin }), context, 1000))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.not_equal(GC.Ledger.GetEntries()[1].key, GC.Ledger.GetEntries()[2].key)
+
+    local keys = { GC.Ledger.GetEntries()[1].key, GC.Ledger.GetEntries()[2].key }
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, twin }), context, 1010))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.same(keys, { GC.Ledger.GetEntries()[1].key, GC.Ledger.GetEntries()[2].key })
+
+    local other = { char = "Other-Realm", region = "us" }
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ bought, twin }), other, 1020))
+    assert.equal(4, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetActive(context))
+    assert.equal(2, #GC.Acquisitions.GetActive(other))
+  end)
+
+  it("[FINAL C1] consumes two identical paid seller occurrences and keeps invoice classes separate", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 210930,
+      positionKey = "commodity:210930", itemName = "Ironclaw Ore", quantity = 2, total = 200,
+      acquiredAt = 900, evidenceKey = "buy:two-sales", character = context.char, region = context.region })
+    GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore",
+      context.char, context.region, 2, 950)
+    local sale = mail({ invoice = { count = 1, bid = 500, buyout = 500,
+      deposit = 0, consignment = 25 } })
+    local twin = mail({ invoice = { count = 1, bid = 500, buyout = 500,
+      deposit = 0, consignment = 25 } })
+
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ sale, twin }), context, 1000))
+    assert.equal(0, batch.remainingQty)
+    assert.equal(2, #GC.Acquisitions.GetRealized(context))
+    assert.not_equal(GC.Ledger.GetEntries()[1].key, GC.Ledger.GetEntries()[2].key)
+
+    local bought = mail({ invoice = { invoiceType = "buyer", count = 1, bid = 500,
+      buyout = 500, deposit = 0, consignment = 25 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    assert.equal(3, #GC.Ledger.GetEntries())
+    assert.equal("buy", GC.Ledger.GetEntries()[3].kind)
+  end)
+
+  it("keeps identical pending seller occurrences paired one-to-one as they mature", function()
+    local pending = mail({ invoice = { invoiceType = "seller_temp_invoice",
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25,
+      moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    local twin = mail({ invoice = { invoiceType = "seller_temp_invoice",
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25,
+      moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ pending, twin }), context, 1000))
+    local firstKey, secondKey = GC.Ledger.GetEntries()[1].key, GC.Ledger.GetEntries()[2].key
+    assert.is_true(GC.Ledger.GetEntries()[1].pending)
+    assert.is_true(GC.Ledger.GetEntries()[2].pending)
+
+    local paid = mail({ daysLeft = 30 - (3600 / 86400), invoice = {
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25 } })
+    local stillPending = mail({ daysLeft = 30 - (3600 / 86400), invoice = {
+      invoiceType = "seller_temp_invoice", count = 1, bid = 500, buyout = 500,
+      deposit = 0, consignment = 25, moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ paid, stillPending }), context, 4600))
+    assert.equal(firstKey, GC.Ledger.GetEntries()[1].key)
+    assert.equal(secondKey, GC.Ledger.GetEntries()[2].key)
+    assert.is_false(GC.Ledger.GetEntries()[1].pending)
+    assert.is_true(GC.Ledger.GetEntries()[2].pending)
+  end)
+
+  it("[WAVE2 C1] retires a buyer occurrence only after a complete absent inbox snapshot", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local firstKey = GC.Ledger.GetEntries()[1].key
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({}), context, 1010))
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.not_equal(firstKey, GC.Ledger.GetEntries()[2].key)
+  end)
+
+  it("[WAVE2 C1] never retires a buyer occurrence after an incomplete or malformed inbox snapshot", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local incomplete = apiFor({ bought })
+    incomplete.GetInboxNumItems = function() error("inbox unavailable") end
+    assert.equal(0, GC.Ledger.ScanInbox(incomplete, context, 1010))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+
+    local malformed = apiFor({ bought })
+    malformed.GetInboxInvoiceInfo = function() error("invoice unreadable") end
+    assert.equal(0, GC.Ledger.ScanInbox(malformed, context, 1030))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1040))
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  -- WoW streams mail data: right after MAIL_SHOW some rows have no header or invoice loaded
+  -- yet, and on a busy mailbox at least one is unreadable nearly every scan. Aborting the whole
+  -- pass on that meant a readable sale sitting beside it was never recorded -- the owner's
+  -- SavedVariables held exactly one mail-sourced entry, days old, while every sale went
+  -- unrecorded. Absence still needs a complete snapshot; presence does not.
+  it("records a readable invoice even when another mail in the inbox is unreadable", function()
+    local sold = mail({ invoice = { invoiceType = "seller", consignment = 500, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local unreadable = mail()
+    unreadable.invoice = nil
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ unreadable, sold }), context, 1000))
+    local entries = GC.Ledger.GetEntries()
+    assert.equal(1, #entries)
+    assert.equal("sale", entries[1].kind)
+  end)
+
+  it("never retires an occurrence on a partial snapshot, even while recording from it", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local generation = db.mailOccurrenceGeneration
+
+    local sold = mail({ invoice = { invoiceType = "seller", consignment = 500, deposit = 0 },
+      item = { name = "Mireslush Hide", itemID = 210931 } })
+    local unreadable = mail()
+    unreadable.invoice = nil
+
+    -- The bought mail is absent from this pass, but the pass is partial, so its occurrence must
+    -- not be retired and the generation must not advance -- while the sale is still recorded.
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ unreadable, sold }), context, 1010))
+    assert.equal(generation, db.mailOccurrenceGeneration)
+    assert.equal(2, #GC.Ledger.GetEntries())
+  end)
+
+  it("[WAVE3 C1] retains a readable buyer occurrence across an AH-like nil invoice row", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local unreadable = mail()
+    unreadable.invoice = nil
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local key = GC.Ledger.GetEntries()[1].key
+    local generation = db.mailOccurrenceGeneration
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ unreadable }), context, 1010))
+    assert.equal(generation, db.mailOccurrenceGeneration)
+    assert.is_true(db.mailOccurrences[1].present)
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(key, GC.Ledger.GetEntries()[1].key)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE3 C1] fails closed for AH-like empty and unknown invoice types", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local key = GC.Ledger.GetEntries()[1].key
+    local generation = db.mailOccurrenceGeneration
+
+    for _, invoiceType in ipairs({ "", "not-an-auction-invoice" }) do
+      local unreadable = mail({ invoice = { invoiceType = invoiceType } })
+      assert.equal(0, GC.Ledger.ScanInbox(apiFor({ unreadable }), context, 1010))
+      assert.equal(generation, db.mailOccurrenceGeneration)
+      assert.is_true(db.mailOccurrences[1].present)
+    end
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(key, GC.Ledger.GetEntries()[1].key)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE3 C1] ignores positively ordinary non-AH mail while retiring absence", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local ordinary = mail({ sender = "Guildmate", subject = "Hello", canReply = true })
+    ordinary.invoice.invoiceType = nil
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local firstKey = GC.Ledger.GetEntries()[1].key
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ ordinary }), context, 1010))
+    assert.is_false(db.mailOccurrences[1].present)
+
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+    assert.not_equal(firstKey, GC.Ledger.GetEntries()[2].key)
+  end)
+
+  it("[WAVE3 C1 fix1] fails closed for unknown localized headers without canReply", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    local key = GC.Ledger.GetEntries()[1].key
+    local generation = db.mailOccurrenceGeneration
+
+    local function assertUnreadable(canReply)
+      local unreadable = mail({ sender = "Дом аукциона", subject = "Успешный аукцион",
+        canReply = canReply, invoice = { invoiceType = "unknown-invoice" } })
+      assert.equal(0, GC.Ledger.ScanInbox(apiFor({ unreadable }), context, 1010))
+      assert.equal(generation, db.mailOccurrenceGeneration)
+      assert.is_true(db.mailOccurrences[1].present)
+      assert.equal(1, #GC.Ledger.GetEntries())
+      assert.equal(1, #GC.Acquisitions.GetAll())
+    end
+    assertUnreadable(false)
+    assertUnreadable(nil)
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1020))
+    assert.equal(key, GC.Ledger.GetEntries()[1].key)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE2 C1] keeps paid seller twins monotonic when a later snapshot reverses their order", function()
+    local batch = GC.Acquisitions.Record({ source = "auction_house", itemID = 210930,
+      positionKey = "commodity:210930", itemName = "Ironclaw Ore", quantity = 2, total = 200,
+      acquiredAt = 900, evidenceKey = "buy:wave2-sellers", character = context.char, region = context.region })
+    GC.Acquisitions.RecordPost("commodity:210930", 210930, "Ironclaw Ore",
+      context.char, context.region, 2, 950)
+
+    local pending = mail({ invoice = { invoiceType = "seller_temp_invoice",
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25,
+      moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    local twin = mail({ invoice = { invoiceType = "seller_temp_invoice",
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25,
+      moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ pending, twin }), context, 1000))
+
+    local paid = mail({ daysLeft = 30 - (3600 / 86400), invoice = {
+      count = 1, bid = 500, buyout = 500, deposit = 0, consignment = 25 } })
+    local stillPending = mail({ daysLeft = 30 - (3600 / 86400), invoice = {
+      invoiceType = "seller_temp_invoice", count = 1, bid = 500, buyout = 500,
+      deposit = 0, consignment = 25, moneyDelay = 500, etaHour = 1, etaMin = 0 } })
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ paid, stillPending }), context, 4600))
+    local paidKey
+    for _, entry in ipairs(GC.Ledger.GetEntries()) do if entry.pending == false then paidKey = entry.key end end
+    assert.is_truthy(paidKey)
+    assert.equal(1, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ stillPending, paid }), context, 4610))
+    local paidRow
+    for _, entry in ipairs(GC.Ledger.GetEntries()) do if entry.key == paidKey then paidRow = entry end end
+    assert.is_false(paidRow.pending)
+    assert.equal(1, batch.remainingQty)
+    assert.equal(1, #GC.Acquisitions.GetRealized(context))
+  end)
+
+  it("[WAVE2 C1] keeps a repeated complete multiset snapshot idempotent", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    local twin = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    assert.equal(2, GC.Ledger.ScanInbox(apiFor({ bought, twin }), context, 1000))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ twin, bought }), context, 1010))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ bought, twin }), context, 1020))
+    assert.equal(2, #GC.Ledger.GetEntries())
+    assert.equal(2, #GC.Acquisitions.GetAll())
+  end)
+
+  it("[WAVE2 C1 regression] fails closed without mutating a malformed persisted occurrence", function()
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+    assert.equal(1, GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000))
+    db.mailOccurrences[#db.mailOccurrences + 1] = { key = "corrupt", identity = "corrupt",
+      char = context.char, region = context.region }
+
+    local result
+    assert.has_no.errors(function() result = GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010) end)
+    assert.equal(0, result)
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.is_nil(db.mailOccurrences[2].present)
+  end)
+
+  it("fails closed on malformed expiry and an unsafe occurrence sequence", function()
+    local broken = mail()
+    broken.daysLeft = 0 / 0
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ broken }), context, 1000))
+    assert.equal(0, #GC.Ledger.GetEntries())
+
+    db.mailOccurrenceSeq = 9007199254740991
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000))
+    assert.equal(0, #GC.Ledger.GetEntries())
+    assert.equal(0, #db.mailOccurrences)
+  end)
+
+  it("does not persist an invoice until its character and region scope are known", function()
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ mail() }), { char = context.char }, 1000))
+    assert.equal(0, GC.Ledger.ScanInbox(apiFor({ mail() }), { region = context.region }, 1000))
+    assert.equal(0, #GC.Ledger.GetEntries())
+    assert.equal(0, #db.mailOccurrences)
+  end)
+
+  it("refuses to mutate a repeated key owned by another scope or invoice class", function()
+    local original = { key = "shared", kind = "buy", source = "mail", qty = 1,
+      total = 100, at = 1, char = context.char, region = context.region }
+    assert.is_true(select(2, GC.Ledger.Append(original)))
+
+    local stored, isNew, reason = GC.Ledger.Append({ key = "shared", kind = "sale",
+      source = "mail", qty = 1, total = 200, at = 2, char = "Other-Realm", region = "us" })
+    assert.equal(original, stored)
+    assert.is_false(isNew)
+    assert.equal("incompatible_key", reason)
+    assert.equal("buy", stored.kind)
+    assert.equal(100, stored.total)
+    assert.equal(context.char, stored.char)
+  end)
+
+  it("promotes pending buyer evidence once and keeps repeat mail idempotent", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 210930, quantity = 20,
+      completedAt = 999, character = context.char, region = context.region,
+      reason = "exact total unavailable" })
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010)
+
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
+    assert.equal(pending.id, GC.Acquisitions.GetAll()[1].promotedPendingID)
+    assert.equal(GC.Ledger.GetEntries()[1].key, GC.Acquisitions.GetAll()[1].mailEvidenceKey)
+  end)
+
+  it("promotes an unknown pending quantity only through exact buyer mail", function()
+    local pending = GC.Acquisitions.RecordPending({ itemID = 210930,
+      completedAt = 999, character = context.char, region = context.region,
+      reason = "quantity unavailable" })
+    local bought = mail({ invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
+      item = { name = "Ironclaw Ore", itemID = 210930 } })
+
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1000)
+    GC.Ledger.ScanInbox(apiFor({ bought }), context, 1010)
+
+    assert.equal(1, #GC.Ledger.GetEntries())
+    assert.equal(GC.Ledger.GetEntries()[1].key, GC.Acquisitions.GetAll()[1].mailEvidenceKey)
+    assert.equal(pending.id, GC.Acquisitions.GetAll()[1].promotedPendingID)
+    assert.equal(20, GC.Acquisitions.GetAll()[1].originalQty)
+    assert.equal(1, #GC.Acquisitions.GetAll())
+    assert.equal(0, #GC.Acquisitions.GetPending())
   end)
 
   it("skips mail that carries no invoice at all", function()
@@ -228,6 +648,63 @@ describe("Ledger inbox scan", function()
       assert.has_no.errors(function()
         GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
       end)
+    end)
+  end)
+
+  describe("RepairDuplicateMailBuys (2026-08-17 phantom-buy cleanup)", function()
+    local function buyEntry(key)
+      return { key = key, kind = "buy", source = "mail", itemName = "Sanguithorn Tea",
+        qty = 200, total = 3960000, char = context.char, region = context.region, at = 1000 }
+    end
+
+    local function seed()
+      local anchor = GC.Acquisitions.Record({ source = "goldcap", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1000, positionKey = "commodity:242299" })
+      anchor.mailEvidenceKey = "K1"
+      local phantom1 = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1010, positionKey = "commodity:242299" })
+      phantom1.mailEvidenceKey = "K2"
+      local phantom2 = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1011, positionKey = "commodity:242299" })
+      phantom2.mailEvidenceKey = "K3"
+      -- A twin something was already sold from: allocation happened against it, so deleting
+      -- it would corrupt realized history -- it must survive even though it matches otherwise.
+      local consumed = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1012, positionKey = "commodity:242299" })
+      consumed.mailEvidenceKey = "K4"
+      consumed.remainingQty = 150
+      db.ledger = { buyEntry("K1"), buyEntry("K2"), buyEntry("K3"), buyEntry("K4") }
+      db.mailOccurrences = { { key = "K2" }, { key = "UNRELATED" } }
+    end
+
+    it("removes untouched phantom twins, their entries and occurrences -- and only those", function()
+      seed()
+      assert.equal(2, GC.Acquisitions.RepairDuplicateMailBuys())
+
+      local keys = {}
+      for _, batch in ipairs(GC.Acquisitions.GetAll()) do keys[batch.mailEvidenceKey] = true end
+      assert.same({ K1 = true, K4 = true }, keys)
+      local ledgerKeys = {}
+      for _, entry in ipairs(db.ledger) do ledgerKeys[entry.key] = true end
+      assert.same({ K1 = true, K4 = true }, ledgerKeys)
+      assert.equal(1, #db.mailOccurrences)
+      assert.equal("UNRELATED", db.mailOccurrences[1].key)
+    end)
+
+    it("runs exactly once per save", function()
+      seed()
+      assert.equal(2, GC.Acquisitions.RepairDuplicateMailBuys())
+      seed() -- even if the same shape reappears, the stamp holds
+      assert.equal(0, GC.Acquisitions.RepairDuplicateMailBuys())
+    end)
+
+    it("touches nothing without a goldcap anchor carrying mail evidence", function()
+      local plain = GC.Acquisitions.Record({ source = "auction_house", itemID = 242299,
+        quantity = 200, total = 3960000, acquiredAt = 1010, positionKey = "commodity:242299" })
+      plain.mailEvidenceKey = "K2"
+      db.ledger = { buyEntry("K2") }
+      assert.equal(0, GC.Acquisitions.RepairDuplicateMailBuys())
+      assert.equal(1, #GC.Acquisitions.GetAll())
     end)
   end)
 end)

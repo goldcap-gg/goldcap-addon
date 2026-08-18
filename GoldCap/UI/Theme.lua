@@ -16,7 +16,13 @@ T.color = {
   red     = { 0.898, 0.283, 0.302 },
   green   = { 0.25, 0.85, 0.25 },
   zebra   = { 1, 1, 1, 0.04 },
-  hover   = { 1, 1, 1, 0.08 },
+  -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
+  -- reads as "grayer", while a gold wash reads as "this is the row you are on".
+  hover   = { 0.831, 0.643, 0.216, 0.16 },
+  -- "The watch loop is polling this row." Its own colour on purpose: gold already means the
+  -- cursor is here, and green and red already mean profit and loss. A state that persists
+  -- while you look elsewhere cannot borrow a colour that means something else.
+  watch   = { 0.35, 0.72, 0.90 },
 }
 
 T.tier = {
@@ -165,17 +171,19 @@ function T.Label(parent, size)
   return fs
 end
 
-local function darkened(c)
-  return { c[1] * 0.85, c[2] * 0.85, c[3] * 0.85, c[4] or 1 }
-end
+-- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
+-- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
+local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
 
--- Ghost buttons have no fill of their own, so "slightly darker" is a translucent black
--- film -- NOT T.color.hover's white one, which reads as the button going gray next to the
--- gold primary variant (the two Auto buttons swap in place, so the mismatch is glaring).
-local GHOST_HOVER = { 0, 0, 0, 0.35 }
-
+-- `primary` is dark-on-gold, which is only legible while the gold fill is actually painted.
+-- That is fine for a button built primary and left that way (the dialog's Buy/Confirm), but it
+-- is a trap for a control that toggles: the Auto button was showing near-black text on a fill
+-- that had not gone gold, leaving the label all but invisible. `active` states the same "this
+-- is on" with gold TEXT over a faint gold tint, so the label survives no matter what the fill
+-- is doing -- there is no state in which it becomes unreadable.
 local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
+  active  = { bg = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.16 }, text = T.color.goldHi },
   ghost   = { bg = nil, text = T.color.fg },
   danger  = { bg = T.color.red, text = T.color.fg },
 }
@@ -183,44 +191,72 @@ local BUTTON_VARIANTS = {
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
 function T.Button(parent, variant)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
-  local base = spec.bg or { 0, 0, 0, 0 }
-  local hoverColor = spec.bg and darkened(spec.bg) or GHOST_HOVER
-
+  -- Held on the button, not captured as upvalues, so SetVariant below can genuinely change how
+  -- a live button looks. Capturing them made a repaint impossible: the next OnEnter/OnLeave
+  -- would stomp it back, which is why the Auto control used to be two overlaid buttons swapped
+  -- by Show/Hide -- and that swap is what made it flicker, miss hovers, and reappear painted in
+  -- a stale state under a stationary cursor.
   local b = CreateFrame("Button", nil, parent)
+  local base
   -- I2: LEFT-click only. This reverses an earlier "AnyUp" choice -- a purchase-flow button
   -- (row Buy, dialog primary/Confirm) must never let a right- or middle-click reach
   -- PlaceBid/StartCommoditiesPurchase/ConfirmCommoditiesPurchase; only a left-click OnClick
   -- may fire.
   b:RegisterForClicks("LeftButtonUp")
-  b.bg = solid(b, "BACKGROUND", base)
+  -- Required, not decorative: the HIGHLIGHT layer below is shown and hidden by the engine only
+  -- on a mouse-enabled frame ("Setting Frame:EnableMouse() causes HIGHLIGHT to show/hide as the
+  -- cursor hovers the Frame" -- warcraft.wiki.gg/wiki/Layer). Without it the hover silently
+  -- never appears.
+  b:EnableMouse(true)
+  b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
   b.bg:SetAllPoints()
 
-  if not spec.bg then
-    edgeBorder(b, T.color.border)
-  end
+  -- Hover is a HIGHLIGHT-layer texture, not an OnEnter/OnLeave repaint. The engine draws that
+  -- layer for exactly as long as the cursor is over the button and stops on its own, the same
+  -- way UIPanelButtonTemplate works -- so a hover cannot be missed, cannot stick, and cannot
+  -- survive the frame being hidden under a stationary cursor. Painting it by hand is what made
+  -- these buttons feel broken: OnLeave is not delivered reliably when a frame is hidden or
+  -- swapped, leaving a button stuck in the hovered fill or repainted for a state it had left.
+  --
+  -- One additive gold wash for every variant, rather than a per-variant colour: additive keeps
+  -- it readable over a gold fill and over bare panel alike, and "the cursor is here" should
+  -- look like one thing everywhere in this UI.
+  b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
+  b.highlightTexture:SetAllPoints()
+  b.highlightTexture:SetBlendMode("ADD")
+  b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+
+  -- The border is drawn for every variant, at the variant's own strength: a ghost button needs
+  -- it to have an edge at all, and a filled one keeps its shape while the fill is dimmed by
+  -- OnDisable. Drawing it only for ghost meant a button that changed variant lost its outline.
+  edgeBorder(b, T.color.border)
 
   b.text = T.Label(b, 12)
   b.text:SetJustifyH("CENTER")
   b.text:ClearAllPoints()
   b.text:SetPoint("CENTER")
-  b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
 
+  -- `b.label` is the contract every caller and every spec test double already assumed --
+  -- ACTION_HELP's tooltip lookup in UI/SellFrame.lua reads `self.label`, and every fake
+  -- button in the test suite implements SetLabel by writing exactly this field. The real
+  -- widget never did, so anything reading `.label` off a REAL button got nil forever; the
+  -- fakes just made every test that depended on it look green. Set both: the FontString for
+  -- what is drawn, `.label` for what callers read back.
   function b:SetLabel(text)
+    b.label = text
     b.text:SetText(text)
   end
 
-  -- I3: hover-brighten only applies while enabled -- a disabled button (see OnDisable below)
-  -- still receives OnEnter/OnLeave in WoW (that's how a disabled control can still show an
-  -- explanatory tooltip), so without this guard hovering a dimmed/disabled button would
-  -- brighten it right back to looking clickable.
-  b:SetScript("OnEnter", function()
-    if not b:IsEnabled() then return end
-    b.bg:SetColorTexture(hoverColor[1], hoverColor[2], hoverColor[3], hoverColor[4] or 1)
-  end)
-  b:SetScript("OnLeave", function()
-    if not b:IsEnabled() then return end
+  -- Switches a live button between variants. One control with two looks, rather than two
+  -- controls taking turns being hidden.
+  function b:SetVariant(name)
+    spec = BUTTON_VARIANTS[name] or BUTTON_VARIANTS.ghost
+    base = spec.bg or { 0, 0, 0, 0 }
     b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
-  end)
+    b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
+  end
+  b:SetVariant(variant)
+
 
   -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
   -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
@@ -232,18 +268,15 @@ function T.Button(parent, variant)
   b:SetScript("OnDisable", function()
     b.bg:SetAlpha(0.45)
     b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
+    -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
+    -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
+    b.highlightTexture:SetAlpha(0)
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
     b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
-  end)
-
-  -- Hiding a hovered frame doesn't reliably deliver OnLeave, and the Auto control swaps
-  -- its two overlaid buttons under a stationary cursor -- without this reset the hidden
-  -- button keeps its hover fill and reappears pre-painted (the "stuck gray" look).
-  b:SetScript("OnHide", function()
-    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    b.highlightTexture:SetAlpha(1)
   end)
 
   return b
@@ -259,7 +292,9 @@ function T.TitleBar(frame, titleText)
   bar:EnableMouse(true)
   bar:RegisterForDrag("LeftButton")
   bar:SetScript("OnDragStart", function()
-    frame:StartMoving()
+    -- A docked window (GC.Sniper.SetDocked flips SetMovable off) must not be draggable, and
+    -- StartMoving on an immovable frame is a Lua error, not a no-op.
+    if frame:IsMovable() then frame:StartMoving() end
   end)
   bar:SetScript("OnDragStop", function()
     frame:StopMovingOrSizing()
@@ -282,5 +317,92 @@ function T.TitleBar(frame, titleText)
   gear:SetPoint("RIGHT", close, "LEFT", -T.pad.xs, 0)
   gear:SetLabel("*")
 
-  return { gear = gear, close = close }
+  -- `title` is part of the return on purpose: docked mode (GC.Sniper.SetDocked) blanks and
+  -- restores it. It shipped without this field once, and the caller's nil-guard turned the
+  -- missing key into a silently-still-visible duplicate title.
+  return { gear = gear, close = close, title = bar.title }
+end
+
+-- Reagent quality, as the game itself draws it.
+--
+-- The first attempt hardcoded `Professions-ChatIcon-Quality-Tier1..5`, which are
+-- the Dragonflight diamonds. The client draws something else now, so the list
+-- showed two diamonds beside an item whose own tooltip showed a different mark
+-- entirely -- the addon disagreeing with the game about the same item.
+--
+-- The lesson is not "use the newer atlas names". It is that an atlas name is art
+-- and art is versioned, so hardcoding one means being wrong again at the next
+-- expansion. The tooltip already renders the correct icon for whatever build is
+-- running, and C_TooltipInfo hands us that tooltip as data with its escape
+-- sequences intact -- so the icon is lifted from there and rescaled, and this
+-- file never needs to know what the art is called.
+--
+-- Matching is on the atlas NAME, never on the label beside it: atlas names are
+-- not localised and the label is. "quality" or "tier" covers every naming the
+-- art has used so far; a client that matches neither shows no pip at all, which
+-- is honest -- an absent mark costs nothing, a wrong one contradicts the game.
+local QUALITY_CACHE = {}
+local LEGACY_QUALITY_ATLAS = {
+  "Professions-ChatIcon-Quality-Tier1",
+  "Professions-ChatIcon-Quality-Tier2",
+  "Professions-ChatIcon-Quality-Tier3",
+  "Professions-ChatIcon-Quality-Tier4",
+  "Professions-ChatIcon-Quality-Tier5",
+}
+
+local function atlasFromTooltip(itemID)
+  if not (C_TooltipInfo and C_TooltipInfo.GetItemByID) then return nil end
+  local ok, data = pcall(C_TooltipInfo.GetItemByID, itemID)
+  if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+  for _, line in ipairs(data.lines) do
+    for _, text in ipairs({ line.leftText, line.rightText }) do
+      if type(text) == "string" then
+        for atlas in text:gmatch("|A:([^:|]+):") do
+          local name = atlas:lower()
+          if name:find("quality", 1, true) or name:find("tier", 1, true) then return atlas end
+        end
+      end
+    end
+  end
+  return nil
+end
+
+local function atlasForQuality(itemID, quality)
+  local cached = QUALITY_CACHE[itemID]
+  if cached ~= nil then return cached ~= false and cached or nil end
+  local atlas = atlasFromTooltip(itemID)
+  if not atlas then
+    -- The tooltip may simply not be cached client-side yet, which is temporary,
+    -- so nothing is remembered in that case -- only a resolved answer is.
+    local legacy = LEGACY_QUALITY_ATLAS[quality]
+    if legacy and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(legacy) then
+      QUALITY_CACHE[itemID] = legacy
+      return legacy
+    end
+    return nil
+  end
+  QUALITY_CACHE[itemID] = atlas
+  return atlas
+end
+
+--- The quality of `itemID` as an inline atlas escape, or "" when the item has no
+-- quality tier (most items do not) or the client will not say what to draw.
+function T.QualityMarkup(itemID, size)
+  if type(itemID) ~= "number" then return "" end
+  local api = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo
+  if not api then return "" end
+  local ok, quality = pcall(api, itemID)
+  if not ok or type(quality) ~= "number" then return "" end
+  local atlas = atlasForQuality(itemID, quality)
+  if not atlas then return "" end
+  size = size or 14
+  return ("|A:%s:%d:%d|a"):format(atlas, size, size)
+end
+
+--- `name` with its quality pip in front, or `name` unchanged. Convenience so a
+-- caller never has to remember the trailing space.
+function T.WithQuality(name, itemID, size)
+  local markup = T.QualityMarkup(itemID, size)
+  if markup == "" then return name end
+  return markup .. " " .. tostring(name)
 end

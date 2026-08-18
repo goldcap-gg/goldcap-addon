@@ -42,6 +42,9 @@ describe("TOC load order", function()
         GetVerticalScrollRange = function() return 0 end,
         SetWordWrap = function() end,
         SetMaxLines = function() end,
+        -- Deals empty-state panel (createFrame's f.emptyText): a multi-line FontString with
+        -- explicit line spacing, set once at construction.
+        SetSpacing = function() end,
         Enable = function() end,
         Disable = function() end,
         GetFontString = function() return nil end,
@@ -56,6 +59,9 @@ describe("TOC load order", function()
         GetFrameLevel = function() return 1 end,
         SetFrameLevel = function() end,
         SetColorTexture = function() end,
+        -- Theme.Button's hover is a HIGHLIGHT-layer texture drawn by the engine rather than an
+        -- OnEnter/OnLeave repaint, and it sets an additive blend at construction time.
+        SetBlendMode = function() end,
         SetAllPoints = function() end,
         -- D (Sniper v2 Sell view): GC.Sell.Attach/renderRows stamp the scroll child's height
         -- the same way the Deals view's refreshRows always has -- now reachable from
@@ -198,14 +204,38 @@ describe("TOC load order", function()
     end
     toc:close()
     assert.is_true(#files >= 7)
-    local quoteCacheIndex, flipsIndex
+    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex, sellPositionsIndex, postQueueIndex, sellViewModelIndex, sellFrameIndex
     for i, rel in ipairs(files) do
+      if rel == "Core/Acquisitions.lua" then acquisitionsIndex = i end
+      if rel == "Core/PurchaseCapture.lua" then purchaseCaptureIndex = i end
+      if rel == "Core/Ledger.lua" then ledgerIndex = i end
       if rel == "Core/QuoteCache.lua" then quoteCacheIndex = i end
       if rel == "Core/Flips.lua" then flipsIndex = i end
+      if rel == "Core/SellPositions.lua" then sellPositionsIndex = i end
+      if rel == "Core/PostQueue.lua" then postQueueIndex = i end
+      if rel == "UI/SellViewModel.lua" then sellViewModelIndex = i end
+      if rel == "UI/SellFrame.lua" then sellFrameIndex = i end
     end
+    assert.is_number(acquisitionsIndex)
+    assert.is_number(purchaseCaptureIndex)
+    assert.is_true(acquisitionsIndex < purchaseCaptureIndex)
+    assert.is_number(ledgerIndex)
+    assert.is_true(acquisitionsIndex < ledgerIndex)
     assert.is_number(quoteCacheIndex)
     assert.is_number(flipsIndex)
     assert.is_true(quoteCacheIndex < flipsIndex)
+    assert.is_number(sellPositionsIndex)
+    assert.is_true(flipsIndex < sellPositionsIndex)
+    -- PostQueue.Build consumes SellPositions.Build's own return shape, so it belongs right
+    -- after it in the pipeline, and (the property that actually matters -- see the design doc's
+    -- "one click, one control" constraint) strictly before UI/SellFrame.lua, which is the only
+    -- file that will ever call it.
+    assert.is_number(postQueueIndex)
+    assert.is_true(sellPositionsIndex < postQueueIndex)
+    assert.is_number(sellViewModelIndex)
+    assert.is_number(sellFrameIndex)
+    assert.is_true(sellViewModelIndex < sellFrameIndex)
+    assert.is_true(postQueueIndex < sellFrameIndex)
 
     for _, rel in ipairs(files) do
       local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))
@@ -220,6 +250,16 @@ describe("TOC load order", function()
     assert.is_function(GC.Scanner.New)
     assert.is_function(GC.QuoteCache.Set)
     assert.is_function(GC.QuoteCache.Get)
+    assert.is_function(GC.Acquisitions.Init)
+    assert.is_function(GC.Acquisitions.Record)
+    assert.is_function(GC.Acquisitions.Allocate)
+    assert.is_function(GC.SellPositions.Build)
+    assert.is_function(GC.SellPositions.BuildPostPlan)
+    assert.is_function(GC.SellPositions.BuildRepostPlan)
+    assert.is_function(GC.PostQueue.Build)
+    assert.is_function(GC.PostQueue.Without)
+    assert.is_function(GC.SellViewModel.Filter)
+    assert.is_function(GC.PurchaseCapture.Init)
     assert.is_function(GC.DealMath.Evaluate)
     assert.is_function(GC.SniperDecision.Evaluate)
     assert.is_function(GC.slashHandlers.sniper)

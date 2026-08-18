@@ -3,6 +3,7 @@ local _, GC = ...
 GC.Ledger = {}
 
 local db
+local MAX_EXACT = 9007199254740991
 
 -- Roughly a year of active goldmaking at a few dozen mails a day, and far below
 -- the size at which SavedVariables writes start costing a noticeable logout
@@ -33,6 +34,34 @@ function GC.Ledger.Init(database)
   db = database
   db.ledger = db.ledger or {}
   db.gold = db.gold or {}
+  db.mailOccurrences = type(db.mailOccurrences) == "table" and db.mailOccurrences or {}
+  db.mailOccurrenceSeq = type(db.mailOccurrenceSeq) == "number"
+    and db.mailOccurrenceSeq == math.floor(db.mailOccurrenceSeq)
+    and db.mailOccurrenceSeq >= 0 and db.mailOccurrenceSeq <= MAX_EXACT
+    and db.mailOccurrenceSeq or 0
+  db.mailOccurrenceGeneration = type(db.mailOccurrenceGeneration) == "number"
+    and db.mailOccurrenceGeneration == math.floor(db.mailOccurrenceGeneration)
+    and db.mailOccurrenceGeneration >= 0 and db.mailOccurrenceGeneration <= MAX_EXACT
+    and db.mailOccurrenceGeneration or 0
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if type(occurrence.sequence) == "number" and occurrence.sequence == math.floor(occurrence.sequence)
+        and occurrence.sequence >= 0 and occurrence.sequence <= MAX_EXACT
+        and occurrence.sequence > db.mailOccurrenceSeq then
+      db.mailOccurrenceSeq = occurrence.sequence
+    end
+    if type(occurrence.lastPresentGeneration) == "number"
+        and occurrence.lastPresentGeneration == math.floor(occurrence.lastPresentGeneration)
+        and occurrence.lastPresentGeneration >= 0 and occurrence.lastPresentGeneration <= MAX_EXACT
+        and occurrence.lastPresentGeneration > db.mailOccurrenceGeneration then
+      db.mailOccurrenceGeneration = occurrence.lastPresentGeneration
+    end
+    if type(occurrence.retiredGeneration) == "number"
+        and occurrence.retiredGeneration == math.floor(occurrence.retiredGeneration)
+        and occurrence.retiredGeneration >= 0 and occurrence.retiredGeneration <= MAX_EXACT
+        and occurrence.retiredGeneration > db.mailOccurrenceGeneration then
+      db.mailOccurrenceGeneration = occurrence.retiredGeneration
+    end
+  end
 end
 
 -- Task 9 Step 4b: counts ledger entries genuinely NEW this session (both RecordSniperBuy and
@@ -56,6 +85,14 @@ local function indexOf(key)
     if entries[i].key == key then return i end
   end
   return nil
+end
+
+local function compatibleKeyOwner(stored, entry)
+  if type(stored) ~= "table" or type(entry) ~= "table" then return false end
+  if stored.kind ~= nil and entry.kind ~= nil and stored.kind ~= entry.kind then return false end
+  if stored.char ~= nil and entry.char ~= nil and stored.char ~= entry.char then return false end
+  if stored.region ~= nil and entry.region ~= nil and stored.region ~= entry.region then return false end
+  return true
 end
 
 -- Evicts one row to make space: the oldest ALREADY-UPLOADED row first, because
@@ -87,12 +124,24 @@ end
 -- MAIL_INBOX_UPDATE until the player collects it, and a Sale Pending row
 -- legitimately changes once, when the money lands.
 function GC.Ledger.Append(entry)
-  if not db then return entry, false end
+  if not db or type(entry) ~= "table" or type(entry.key) ~= "string" or entry.key == "" then
+    return entry, false, "invalid_entry"
+  end
   local entries = db.ledger
 
   local existing = indexOf(entry.key)
   if existing then
     local stored = entries[existing]
+    if not compatibleKeyOwner(stored, entry) then return stored, false, "incompatible_key" end
+    -- A seller invoice can be observed as pending before its proceeds land. A
+    -- later complete snapshot must be allowed to promote it, but a stale or
+    -- reordered pending observation must never turn a paid immutable fact back
+    -- into a pending one. The inbox reconciler below normally avoids that
+    -- pairing; this guard keeps the ledger monotonic if an old SavedVariables
+    -- occurrence or a direct caller ever presents the unsafe update anyway.
+    if stored.kind == "sale" and stored.pending == false and entry.pending == true then
+      return stored, false
+    end
     for k, v in pairs(entry) do stored[k] = v end
     -- The row's contents changed, so any prior upload is now out of date.
     stored.uploaded = nil
@@ -146,124 +195,332 @@ end
 local BUCKET_SECONDS = 300
 
 local function expiryBucket(now, daysLeft)
-  return math.floor((now + (daysLeft or 0) * 86400) / BUCKET_SECONDS)
+  if type(now) ~= "number" or now ~= now or now == math.huge or now == -math.huge
+      or now < 0 or now > MAX_EXACT
+      or type(daysLeft) ~= "number" or daysLeft ~= daysLeft
+      or daysLeft == math.huge or daysLeft == -math.huge or daysLeft < 0 then return nil end
+  local expiresAt = now + daysLeft * 86400
+  if expiresAt ~= expiresAt or expiresAt == math.huge or expiresAt > MAX_EXACT then return nil end
+  return math.floor(expiresAt / BUCKET_SECONDS)
 end
 
--- Bucketing has one seam: a mail whose expiry sits near a boundary can land in
--- adjacent buckets on consecutive scans. Rather than widen the bucket (which
--- would start merging genuinely different sales), try the neighbours too and
--- reuse an existing row's key when one matches.
-local function keyForMail(fields, bucket)
-  local candidates = {}
-  for _, b in ipairs({ bucket, bucket - 1, bucket + 1 }) do
-    fields.expiresAt = b
-    candidates[#candidates + 1] = GC.Ledger.EntryKey(fields)
+local function valueFingerprint(fields)
+  local copy = {}
+  for key, value in pairs(fields) do copy[key] = value end
+  copy.expiresAt = 0
+  return GC.Ledger.EntryKey(copy)
+end
+
+local function scopedMailIdentity(fields, context, invoiceClass)
+  return table.concat({ tostring(context and context.region or ""),
+    tostring(context and context.char or ""), invoiceClass, valueFingerprint(fields) }, "\1")
+end
+
+local function exactNonNegative(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+    and value == math.floor(value) and value >= 0 and value <= MAX_EXACT
+end
+
+local function occurrenceIsActive(occurrence)
+  return type(occurrence) == "table" and occurrence.present ~= false
+end
+
+local function occurrenceMatches(occurrence, identity, bucket, invoiceClass, context)
+  return occurrenceIsActive(occurrence) and occurrence.identity == identity
+    and occurrence.invoiceClass == invoiceClass
+    and occurrence.char == context.char and occurrence.region == context.region
+    and exactNonNegative(occurrence.expiryBucket)
+    and math.abs(occurrence.expiryBucket - bucket) <= 1
+    and type(occurrence.key) == "string" and occurrence.key ~= ""
+end
+
+local function occurrenceSequence(occurrence)
+  return exactNonNegative(occurrence and occurrence.sequence) and occurrence.sequence or 0
+end
+
+local function validOccurrence(occurrence)
+  return type(occurrence) == "table" and type(occurrence.key) == "string" and occurrence.key ~= ""
+    and type(occurrence.identity) == "string" and occurrence.identity ~= ""
+    and (occurrence.invoiceClass == "buy" or occurrence.invoiceClass == "sale")
+    and type(occurrence.char) == "string" and occurrence.char ~= ""
+    and type(occurrence.region) == "string" and occurrence.region ~= ""
+    and exactNonNegative(occurrence.expiryBucket) and exactNonNegative(occurrence.sequence)
+    and (occurrence.present == nil or type(occurrence.present) == "boolean")
+    and (occurrence.lastPresentGeneration == nil or exactNonNegative(occurrence.lastPresentGeneration))
+    and (occurrence.retiredGeneration == nil or exactNonNegative(occurrence.retiredGeneration))
+end
+
+local function validOccurrenceStore()
+  if type(db.mailOccurrences) ~= "table" then return false end
+  local keys = {}
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if not validOccurrence(occurrence) or keys[occurrence.key] then return false end
+    keys[occurrence.key] = true
   end
-  local entries = GC.Ledger.GetEntries()
-  for i = 1, #entries do
-    for _, candidate in ipairs(candidates) do
-      if entries[i].key == candidate then return candidate end
+  return true
+end
+
+local function occurrenceKeySet()
+  local keys = {}
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if type(occurrence.key) == "string" and occurrence.key ~= "" then keys[occurrence.key] = true end
+  end
+  return keys
+end
+
+local function storedForOccurrence(occurrence)
+  local storedIndex = occurrence and indexOf(occurrence.key)
+  return storedIndex and db.ledger[storedIndex] or nil
+end
+
+local function occurrenceCandidates(mail, context, used)
+  local candidates = {}
+  local probe = { kind = mail.invoiceClass, char = context.char, region = context.region }
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if not used[occurrence.key] and occurrenceMatches(occurrence, mail.identity, mail.bucket,
+        mail.invoiceClass, context) then
+      local stored = storedForOccurrence(occurrence)
+      if not stored or compatibleKeyOwner(stored, probe) then
+        candidates[#candidates + 1] = { occurrence = occurrence, stored = stored }
+      end
     end
   end
-  return candidates[1]
+  table.sort(candidates, function(left, right)
+    return occurrenceSequence(left.occurrence) < occurrenceSequence(right.occurrence)
+  end)
+  return candidates
 end
 
---- Walks the inbox and records every auction invoice it can read.
--- Called on MAIL_SHOW and MAIL_INBOX_UPDATE, i.e. BEFORE the player collects
--- anything -- a collected mail is gone from the client entirely, so a scan
--- that waited for collection would record nothing at all.
--- `api` is injected so this is testable without a running game client.
--- Returns the number of entries newly created; updates are not counted.
-function GC.Ledger.ScanInbox(api, context, now)
-  if not db then return 0 end
-  now = now or time()
-  local created = 0
+-- Pending and paid seller invoices have the same stable value fingerprint, but
+-- not the same accounting state.  Select from the complete snapshot with the
+-- state rules here rather than the transient scan order: paid prefers paid,
+-- then promotes one pending; pending may reuse only a pending/unknown slot and
+-- can never regress a paid one.
+local function selectOccurrence(mail, context, used)
+  local candidates = occurrenceCandidates(mail, context, used)
+  if mail.invoiceClass ~= "sale" then return candidates[1] and candidates[1].occurrence or nil end
 
-  local ok, count = pcall(api.GetInboxNumItems)
-  if not ok or type(count) ~= "number" then return 0 end
+  local paid, pending, unknown
+  for _, candidate in ipairs(candidates) do
+    if candidate.stored and candidate.stored.pending == false then
+      paid = paid or candidate.occurrence
+    elseif candidate.stored and candidate.stored.pending == true then
+      pending = pending or candidate.occurrence
+    else
+      unknown = unknown or candidate.occurrence
+    end
+  end
+  if mail.entry.pending then return pending or unknown end
+  return paid or pending or unknown
+end
 
-  for i = 1, count do
-    -- Per-mail pcall: one malformed invoice must not abort the rest of the
-    -- inbox, and must never surface as a Lua error over the mailbox UI.
-    local readOk, entry = pcall(function()
-      local _, _, sender, _, _, _, daysLeft = api.GetInboxHeaderInfo(i)
-      local invoiceType, itemName, _, bid, buyout, deposit, consignment,
-        moneyDelay, _, _, itemCount = api.GetInboxInvoiceInfo(i)
+local function legacyOccurrenceKey(mail, context, used, occurrenceKeys)
+  local legacyCandidates = {}
+  for _, adjacent in ipairs({ mail.bucket, mail.bucket - 1, mail.bucket + 1 }) do
+    local fields = {}
+    for key, value in pairs(mail.fields) do fields[key] = value end
+    fields.expiresAt = adjacent
+    legacyCandidates[GC.Ledger.EntryKey(fields)] = true
+  end
+  for _, stored in ipairs(db.ledger) do
+    if legacyCandidates[stored.key] and not used[stored.key] and not occurrenceKeys[stored.key]
+        and compatibleKeyOwner(stored, { kind = mail.invoiceClass,
+          char = context.char, region = context.region }) then
+      return stored.key
+    end
+  end
+  return nil
+end
 
-      if not invoiceType or not itemName then return nil end
-      local isSale = invoiceType == "seller" or invoiceType == "seller_temp_invoice"
-      local isBuy = invoiceType == "buyer"
-      if not isSale and not isBuy then return nil end
+local function scanOrder(left, right)
+  local function rank(mail)
+    if mail.invoiceClass ~= "sale" then return 3 end
+    return mail.entry.pending and 2 or 1
+  end
+  local leftRank, rightRank = rank(left), rank(right)
+  if leftRank ~= rightRank then return leftRank < rightRank end
+  if left.identity ~= right.identity then return left.identity < right.identity end
+  return left.index < right.index
+end
 
-      local fields = {
-        sender = sender,
-        itemName = itemName,
-        count = itemCount or 1,
-        bid = bid or 0,
-        buyout = buyout or 0,
-        deposit = deposit or 0,
-        consignment = consignment or 0,
-      }
-      local key = keyForMail(fields, expiryBucket(now, daysLeft))
+local function validMailGeneration(value)
+  return exactNonNegative(value) and value < MAX_EXACT
+end
 
-      -- A buy mail has the item attached, so its id is readable. A sale mail
-      -- has money attached and nothing else -- itemName is all there is.
-      --
-      -- GetInboxItem takes (index, itemIndex) and BOTH are required; attachment
-      -- slots are 1-based and an auction buy puts its item in the first one.
-      -- The call gets its own pcall rather than riding the caller's, because
-      -- the id is a nice-to-have: losing it should cost the id, not the whole
-      -- purchase. Sales never reach this branch, which is exactly why a
-      -- failure here looked like "buys are never recorded, sales are fine".
-      local itemID = nil
-      if isBuy then
-        local gotItem, _, boughtID = pcall(api.GetInboxItem, i, 1)
-        if gotItem and type(boughtID) == "number" then itemID = boughtID end
+-- Plans an entire inbox snapshot before touching SavedVariables.  This gives
+-- a complete scan one deterministic multiset reconciliation and lets a bad
+-- mailbox read fail closed without retiring or shuffling any prior occurrence.
+local function planSnapshot(mails, context)
+  if not validOccurrenceStore() then return nil end
+  local generation = db.mailOccurrenceGeneration
+  if not validMailGeneration(generation) then return nil end
+  local sequence = db.mailOccurrenceSeq
+  if not exactNonNegative(sequence) then return nil end
+
+  local used, planned, occurrenceKeys = {}, {}, occurrenceKeySet()
+  local ordered = {}
+  for _, mail in ipairs(mails) do ordered[#ordered + 1] = mail end
+  table.sort(ordered, scanOrder)
+
+  for _, mail in ipairs(ordered) do
+    local occurrence = selectOccurrence(mail, context, used)
+    if occurrence then
+      used[occurrence.key] = true
+      mail.entry.key = occurrence.key
+    else
+      if sequence >= MAX_EXACT then return nil end
+      sequence = sequence + 1
+      local key = legacyOccurrenceKey(mail, context, used, occurrenceKeys)
+      if not key then key = table.concat({ "mail", mail.identity, tostring(mail.bucket), tostring(sequence) }, "\1") end
+      if used[key] or occurrenceKeys[key] then return nil end
+      used[key] = true
+      occurrenceKeys[key] = true
+      mail.entry.key = key
+      planned[#planned + 1] = { key = key, identity = mail.identity, expiryBucket = mail.bucket,
+        invoiceClass = mail.invoiceClass, char = context.char, region = context.region,
+        sequence = sequence, present = true, lastPresentGeneration = generation + 1 }
+    end
+  end
+
+  for _, mail in ipairs(mails) do
+    if type(mail.entry.key) ~= "string" or mail.entry.key == "" then return nil end
+    local existing = indexOf(mail.entry.key)
+    if existing and not compatibleKeyOwner(db.ledger[existing], mail.entry) then return nil end
+  end
+  return { mails = mails, planned = planned, used = used, sequence = sequence,
+    generation = generation + 1 }
+end
+
+-- `complete` gates the ABSENCE inference and the presence/generation bookkeeping, exactly as
+-- before -- but the NEW occurrences a plan allocated, and the sequence numbers they consumed,
+-- persist on EVERY scan. An entry was just Appended under each planned occurrence's key, and
+-- an occurrence store that forgets that key re-invents a fresh one on the next inbox tick and
+-- Appends the SAME mail again. That is precisely how one purchase mail became four ledger
+-- buys and three phantom cost batches in one mailbox visit (2026-08-17): WoW streams inbox
+-- rows, so the first scans of a visit are almost always incomplete, and every incomplete
+-- scan re-keyed every not-yet-committed mail. Everything else -- retiring absentees, the
+-- present flags, the generation counter -- still requires a complete snapshot: a mail's
+-- absence cannot be inferred from a partial view.
+local function commitOccurrencePlan(plan, context, complete)
+  db.mailOccurrenceSeq = plan.sequence
+  for _, occurrence in ipairs(plan.planned) do db.mailOccurrences[#db.mailOccurrences + 1] = occurrence end
+  if not complete then return end
+  db.mailOccurrenceGeneration = plan.generation
+  for _, occurrence in ipairs(db.mailOccurrences) do
+    if occurrence.char == context.char and occurrence.region == context.region then
+      if plan.used[occurrence.key] then
+        occurrence.present, occurrence.lastPresentGeneration, occurrence.retiredGeneration = true,
+          plan.generation, nil
+      elseif occurrenceIsActive(occurrence) then
+        occurrence.present, occurrence.retiredGeneration = false, plan.generation
       end
+    end
+  end
+end
 
-      local pending = invoiceType == "seller_temp_invoice"
-      return {
-        key = key,
-        kind = isSale and "sale" or "buy",
-        source = "mail",
-        itemName = itemName,
-        itemID = itemID,
-        qty = fields.count,
-        -- While pending, the proceeds live in moneyDelay rather than in the
-        -- mail's attached money; once paid, bid carries them.
-        total = pending and (moneyDelay or 0) or (bid or 0),
-        cut = isSale and (consignment or 0) or 0,
-        deposit = deposit or 0,
-        pending = pending,
-        at = now,
-        char = context and context.char or nil,
-        region = context and context.region or nil,
-      }
-    end)
+local function readInboxMail(api, index, context, now)
+  local headerOk, _, _, sender, _, _, _, daysLeft, _, _, _, _, canReply = pcall(api.GetInboxHeaderInfo, index)
+  if not headerOk then return nil, "incomplete" end
+  local invoiceOk, invoiceType, itemName, _, bid, buyout, deposit, consignment,
+    moneyDelay, _, _, itemCount = pcall(api.GetInboxInvoiceInfo, index)
+  if not invoiceOk then return nil, "incomplete" end
+  local isSale = invoiceType == "seller" or invoiceType == "seller_temp_invoice"
+  local isBuy = invoiceType == "buyer"
+  if not isSale and not isBuy then
+    -- canReply is the locale-independent ordinary-mail signal. Anything else
+    -- is unreadable rather than positively non-AH and cannot retire evidence.
+    return nil, canReply == true and "ignored" or "incomplete"
+  end
 
-    if readOk and entry then
-      local _, isNew = GC.Ledger.Append(entry)
+  local fields = { sender = sender, itemName = itemName, count = itemCount or 1,
+    bid = bid or 0, buyout = buyout or 0, deposit = deposit or 0,
+    consignment = consignment or 0 }
+  if type(itemName) ~= "string" or itemName == "" or not exactNonNegative(fields.count)
+      or fields.count == 0 or not exactNonNegative(fields.bid) or not exactNonNegative(fields.buyout)
+      or not exactNonNegative(fields.deposit) or not exactNonNegative(fields.consignment)
+      or not exactNonNegative(moneyDelay or 0) then
+    return nil, "incomplete"
+  end
+  local bucket = expiryBucket(now, daysLeft)
+  if not bucket then return nil, "incomplete" end
+
+  -- A buy mail has the item attached, so its id is readable. A sale mail has
+  -- money attached and nothing else. Attachment lookup remains best-effort:
+  -- losing a cache lookup must not turn authoritative invoice evidence into an
+  -- invented item identity or abort a trustworthy invoice snapshot.
+  local itemID
+  if isBuy then
+    local gotItem, _, boughtID = pcall(api.GetInboxItem, index, 1)
+    if gotItem and type(boughtID) == "number" then itemID = boughtID end
+  end
+  local pending = invoiceType == "seller_temp_invoice"
+  local invoiceClass = isSale and "sale" or "buy"
+  return {
+    fields = fields, bucket = bucket, invoiceClass = invoiceClass,
+    identity = scopedMailIdentity(fields, context, invoiceClass),
+    entry = { kind = invoiceClass, source = "mail", itemName = itemName, itemID = itemID,
+      qty = fields.count, total = pending and (moneyDelay or 0) or (bid or 0),
+      cut = isSale and (consignment or 0) or 0, deposit = deposit or 0, pending = pending,
+      at = now, char = context.char, region = context.region },
+  }
+end
+
+-- Walks the inbox and records every auction invoice it can read.  Occurrence
+-- reconciliation deliberately waits until every row in the snapshot is known
+-- good; a partial read is informative only to the mailbox UI and cannot erase
+-- durable presence state.
+function GC.Ledger.ScanInbox(api, context, now)
+  if not db or type(context) ~= "table"
+      or type(context.char) ~= "string" or context.char == ""
+      or type(context.region) ~= "string" or context.region == "" then return 0 end
+  now = now or time()
+  local ok, count = pcall(api.GetInboxNumItems)
+  if not ok or not exactNonNegative(count) then return 0 end
+
+  -- An unreadable row no longer discards the whole pass. WoW streams mail data, so immediately
+  -- after MAIL_SHOW some rows have neither header nor invoice loaded yet; on a busy mailbox at
+  -- least one is unreadable on nearly every scan, and aborting meant a perfectly readable sale
+  -- sitting beside it was never recorded. That is how a ledger ends up holding one mail-sourced
+  -- entry from days ago while every sale since went missing.
+  --
+  -- The all-or-nothing rule was protecting one specific thing -- occurrence reconciliation,
+  -- which infers a mail is GONE from its absence and cannot do that from a partial view. So
+  -- that step, and only that step, still requires a complete snapshot. Recording an invoice we
+  -- positively read is safe either way: it is evidence of presence, not of absence.
+  local mails, complete = {}, true
+  for index = 1, count do
+    local mail, state = readInboxMail(api, index, context, now)
+    if state == "incomplete" then complete = false end
+    if mail then mail.index = index; mails[#mails + 1] = mail end
+  end
+  local plan = planSnapshot(mails, context)
+  if not plan then return 0 end
+  commitOccurrencePlan(plan, context, complete)
+
+  local created = 0
+  for _, mail in ipairs(plan.mails) do
+    local stored, isNew, appendError = GC.Ledger.Append(mail.entry)
+    if not appendError and stored then
+      if stored.kind == "buy" and GC.Acquisitions and GC.Acquisitions.ReconcileBuy then
+        GC.Acquisitions.ReconcileBuy(stored)
+      end
+      if stored.kind == "sale" and GC.Acquisitions and GC.Acquisitions.ReconcileSale then
+        GC.Acquisitions.ReconcileSale(stored)
+      end
       if isNew then
         created = created + 1
-        -- F2 (personal sale rate): only on isNew, deliberately -- Append's repeat-key branch
-        -- (a Sale Pending invoice maturing into a paid one on a LATER scan of the SAME mail,
-        -- see Append's own comment above) UPDATES the stored row rather than appending a
-        -- second one; crediting a sale event on that update too would double-count one real
-        -- sale as two against GC.Data's postStats denominator. Guarded the same defensive way
-        -- GC.Ledger.Context above guards its own GC.Data reads -- this module has no
-        -- compile-time load-order guarantee that Core/Data.lua has already loaded.
-        if entry.kind == "sale" and GC.Data and GC.Data.RecordSaleEvent then
-          GC.Data.RecordSaleEvent(entry.itemName)
+        -- Only new sale evidence contributes to personal sale-rate history;
+        -- pending -> paid is the same immutable invoice, not a second sale.
+        if mail.entry.kind == "sale" and GC.Data and GC.Data.RecordSaleEvent then
+          GC.Data.RecordSaleEvent(mail.entry.itemName)
         end
       end
     end
   end
-
   return created
 end
 
 local sniperSeq = 0
-local MAX_EXACT = 9007199254740991
 
 local function isExactInteger(value)
   return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge

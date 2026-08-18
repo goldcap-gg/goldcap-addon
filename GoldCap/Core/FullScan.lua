@@ -4,11 +4,20 @@ GC.FullScan = {}
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
--- Tier rank first, then profit desc, then itemID asc as a deterministic tiebreaker
--- (pairs()/map iteration order is otherwise unspecified). Shared by Evaluate, EvaluateDelta
--- (each page's deals are already in this order) and MergeDeals (the combined set is
--- re-sorted the same way so streamed and single-shot results are identical).
+-- estProfit desc first (Sniper discovery rework: the number that mirrors what a live Check
+-- would approve, not just how far under mv the ask sits), then the OLD order as a tiebreak --
+-- tier rank, then profit desc, then itemID asc (pairs()/map iteration order is otherwise
+-- unspecified). Shared by Evaluate, EvaluateDelta (each page's deals are already in this order)
+-- and MergeDeals (the combined set is re-sorted the same way so streamed and single-shot results
+-- are identical).
+--
+-- DealMath.Evaluate always sets estProfit on a deal it returns, so `or a.profit` only matters
+-- for hand-built deal tables (this suite's own fixtures, or a pre-rework caller) that never
+-- carried the field -- without the fallback, comparing one such fixture's nil against a real
+-- deal's number would error.
 local function compareDeals(a, b)
+  local pa, pb = a.estProfit or a.profit, b.estProfit or b.profit
+  if pa ~= pb then return pa > pb end
   local ra, rb = TIER_RANK[a.tier], TIER_RANK[b.tier]
   if ra ~= rb then return ra < rb end
   if a.profit ~= b.profit then return a.profit > b.profit end
@@ -35,14 +44,25 @@ end
 -- Evaluate walks the whole thing (first = 1) -- same per-row body either way.
 local function evaluateFrom(rows, first, getValue, cfg)
   local bestByItem = {}
+  local screened = 0
   for i = first, #rows do
     local row = rows[i]
     if row.count and row.count > 0 and row.buyoutStack and row.buyoutStack > 0 then
       local unitPrice = math.floor(row.buyoutStack / row.count)
+      local value = getValue(row.itemID)
+      -- Discovery used to advertise rows the decision engine could never approve: the player
+      -- clicked Check on a market whose sell-through or velocity already ruled it out, and
+      -- only then learned it was hopeless. Those gates need no order book, so apply them here
+      -- and keep the list to rows a Check can actually pass.
+      local blocked = GC.SniperDecision and GC.SniperDecision.PreScreen
+        and GC.SniperDecision.PreScreen(GC.SniperDecision.MarketFromValue(value), cfg) or {}
+      if #blocked > 0 then
+        screened = screened + 1
+      else
       local deal = GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false, auctionID = nil,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },
-        getValue(row.itemID), cfg)
+        value, cfg)
       if deal then
         -- Browse aggregates are discovery evidence, never a resolved lot or a live
         -- commodity book. Keep their legacy tier for discovery/sorting, but make the only
@@ -55,6 +75,14 @@ local function evaluateFrom(rows, first, getValue, cfg)
         if not existing or deal.profit > existing.profit then
           bestByItem[deal.itemID] = deal
         end
+      else
+        -- A discount below watchDiscount is a screen too -- DealMath.Evaluate returning nil
+        -- here used to drop the row with no counter at all, so the "N hidden" banner undercounted
+        -- what the scan actually removed. Folded into the same `screened` count the PreScreen
+        -- drops above use: from the player's perspective both are "the scan looked at this and
+        -- decided it wasn't worth showing you", one number either way.
+        screened = screened + 1
+      end
       end
     end
   end
@@ -63,14 +91,16 @@ local function evaluateFrom(rows, first, getValue, cfg)
   for _, deal in pairs(bestByItem) do
     deals[#deals + 1] = deal
   end
-  return deals
+  return deals, screened
 end
 
+-- Returns the deals plus how many rows the pre-screen removed, so the UI can report the number
+-- instead of silently presenting a shorter list as if it were everything.
 function GC.FullScan.Evaluate(rows, getValue, cfg, cap)
-  local deals = evaluateFrom(rows, 1, getValue, cfg)
+  local deals, screened = evaluateFrom(rows, 1, getValue, cfg)
   table.sort(deals, compareDeals)
   truncate(deals, cap)
-  return deals
+  return deals, screened
 end
 
 -- Streaming counterpart to Evaluate: only rows[fromIndex+1 ..] are evaluated (deduped by
@@ -88,9 +118,9 @@ end
 -- MergeDeals' incoming-wins rule (below) only matters once a *second* pass starts merging
 -- fresher rows over the first pass's results.
 function GC.FullScan.EvaluateDelta(rows, fromIndex, getValue, cfg)
-  local deals = evaluateFrom(rows, fromIndex + 1, getValue, cfg)
+  local deals, screened = evaluateFrom(rows, fromIndex + 1, getValue, cfg)
   table.sort(deals, compareDeals)
-  return deals, #rows
+  return deals, #rows, screened
 end
 
 -- Combines a previously-merged deal set with a newly-evaluated page. Dedupes by itemID
@@ -120,13 +150,28 @@ function GC.FullScan.MergeDeals(existing, incoming, cap)
   return merged
 end
 
+function GC.FullScan.ApplyLiveObservation(existingDeals, itemID, liveDeal, cap)
+  local updated = {}
+  for _, deal in ipairs(existingDeals) do
+    if deal.itemID ~= itemID then
+      updated[#updated + 1] = deal
+    end
+  end
+  if liveDeal then
+    updated[#updated + 1] = liveDeal
+  end
+  table.sort(updated, compareDeals)
+  truncate(updated, cap)
+  return updated
+end
+
 -- Auctionator-style incremental browse scan: C_AuctionHouse.GetBrowseResults() returns one
 -- BrowseResultInfo per itemKey, already aggregated across every seller of that item group
 -- (minPrice, totalQuantity), not one row per individual auction the way GetReplicateItemInfo
 -- used to. RowsFromBrowse converts that aggregate shape into the same
 -- { itemID, count, buyoutStack } rows Evaluate already consumes, so both scan sources feed
 -- one evaluation path unchanged.
-function GC.FullScan.RowsFromBrowse(results, getValue)
+function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
   local rows = {}
   for _, result in ipairs(results) do
     local itemKey = result.itemKey
@@ -135,14 +180,30 @@ function GC.FullScan.RowsFromBrowse(results, getValue)
     if itemID and minPrice and minPrice > 0 then
       -- minPrice is the lowest per-unit buyout across the whole item group, but
       -- totalQuantity can run into the thousands for a staple commodity -- buying out an
-      -- entire group is never realistic. Bound the flip quantity by a day's sold volume
-      -- (from the goldcap.gg import, when available) instead: that's what's actually
-      -- flippable before the market re-equilibrates. 200 is a hard sanity cap regardless of
-      -- what sold/day says. Items and unknown-liquidity entries carry no sold figure at all,
-      -- so they naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off
-      -- item auction always was.
+      -- entire group is never realistic. Bound the flip quantity by SniperDecision's own
+      -- demand cap instead of a raw sold/day figure: it is the SAME formula the live Check
+      -- applies, so a row can never advertise a quantity the engine would refuse to approve
+      -- (the old sold/day-only cap could suggest 200 units of something the engine would
+      -- approve one unit of). There is no live order book at scan time, so the cap's
+      -- `visible` argument (a live book's summed quantity) is passed as 0 here -- the
+      -- import's own currentQty fact stands in for stock instead, falling back to this
+      -- browse result's own totalQuantity when the import carries no verification block
+      -- (no realm import yet, or bundled data). That substitution is the one place discovery
+      -- and the live decision are allowed to legitimately disagree: Evaluate always has a
+      -- real book to measure stock from, discovery never does. Items and unknown-liquidity
+      -- entries carry no sold figure at all, so DemandCap returns 0 for them and they
+      -- naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off item
+      -- auction always was. 200 remains a hard sanity cap regardless of what the demand cap
+      -- or the board says.
       local value = getValue(itemID) or {}
-      local estQty = math.min(result.totalQuantity or 1, math.ceil(value.sold or 1), 200)
+      local estQty = 1
+      if GC.SniperDecision and GC.SniperDecision.DemandCap and cfg then
+        local market = GC.SniperDecision.MarketFromValue(value)
+        market.currentQty = market.currentQty or result.totalQuantity
+        local cap = GC.SniperDecision.DemandCap(market, cfg, 0)
+        if cap and cap > 0 then estQty = cap end
+      end
+      estQty = math.min(estQty, result.totalQuantity or 1, 200)
       if estQty < 1 then estQty = 1 end
       -- Fix 1 (honest quantity display): estQty above is a suggested FLIP size, capped well
       -- below what's actually on the board -- rendering it bare as "x200" reads as the lot
