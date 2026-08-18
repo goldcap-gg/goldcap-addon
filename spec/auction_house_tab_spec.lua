@@ -40,7 +40,7 @@ describe("Auction House tab", function()
     end
     ah.SetTitle = function(self, title) self.title = title end
     _G.AuctionHouseFrame = ah
-    _G.AuctionHouseFrameDisplayMode = { Buy = {} }
+    _G.AuctionHouseFrameDisplayMode = { Buy = {}, ItemSell = {}, CommoditiesSell = {} }
     _G.CreateFrame = function(kind, name, parent, template)
       local w = widget(kind, parent)
       w.template, w.name = template, name
@@ -189,6 +189,51 @@ describe("Auction House tab", function()
     _G.AuctionHouseFrame = nil
     assert.has_no.errors(function() GC.AuctionHouseTab.Install() end)
     assert.equal(0, #created)
+  end)
+
+  -- Blizzard's request throttle is one shared budget: while the player is on the default
+  -- Create Auction form, GoldCap's background traffic must go quiet. Verified against the same
+  -- Blizzard_AuctionHouseFrame.lua the header cites: AuctionHouseFrameDisplayMode has distinct
+  -- ItemSell and CommoditiesSell entries (Blizzard's own IsListingAuctions checks exactly these
+  -- two plus WoWTokenSell, which the Create Auction form never uses), and SetDisplayMode
+  -- resolves a Sell-family request against self.displayMode before this hook ever sees it, so
+  -- the predicate reads the RESOLVED field, not the raw call argument.
+  describe("PlayerIsPosting", function()
+    it("fails open before Install has ever run", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
+
+    it("fails open right after Install, before any SetDisplayMode call landed", function()
+      GC.AuctionHouseTab.Install()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
+
+    it("is true once Blizzard's own display mode is ItemSell", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
+
+    it("is true once Blizzard's own display mode is CommoditiesSell", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
+
+    it("goes false again once the player leaves the sell panel", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsPosting())
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
+
+    it("fails open if Blizzard's own display-mode table ever goes missing", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)
+      _G.AuctionHouseFrameDisplayMode = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
   end)
 
   -- The window-side wiring this module depends on, in the repo's source-text style: docking

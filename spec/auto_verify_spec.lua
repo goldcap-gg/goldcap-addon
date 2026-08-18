@@ -254,6 +254,22 @@ describe("Deals background verification", function()
     assert.same({ 1 }, sent)
   end)
 
+  -- Confirmed live 2026-08-18: with the window closed, this walk kept burning the shared
+  -- request throttle while the player tried to click Create Auction in Blizzard's own default
+  -- sell panel, and every click failed with "You're doing that too fast".
+  it("stands down while the player is posting in Blizzard's own default sell panel", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100) })
+    api.GC.AuctionHouseTab = { PlayerIsPosting = function() return true end }
+
+    tickAt(api, 101)
+    assert.same({}, sent)
+
+    api.GC.AuctionHouseTab.PlayerIsPosting = function() return false end
+    tickAt(api, 102)
+    assert.same({ 1 }, sent)
+  end)
+
   -- The walk used to `return` the moment it picked a candidate, whether or not a query
   -- actually went out. Two of maybeStartPrewarm's own gates never clear on their own -- an
   -- item whose key the client has not cached yet, and one parked behind the untagged-result

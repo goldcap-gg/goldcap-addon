@@ -1156,6 +1156,11 @@ driver = {
   end,
 
   mayScan = function()
+    -- Shared throttle budget: while the player is on Blizzard's own Create Auction form, their
+    -- click outranks every watch-loop poll.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then
+      return false
+    end
     return watchGrant
   end,
 
@@ -1822,6 +1827,11 @@ end
 autoScan = GC.AutoScan.New({}, {
   startScan = function()
     if scanRunning or pendingFullScanStart then return end
+    -- Shared throttle budget: while the player is on Blizzard's own Create Auction form,
+    -- their click outranks a fresh background scan. The FSM's own state still advances to
+    -- SCANNING regardless (see AutoScan.lua's Tick) -- this only withholds the send, and the
+    -- very next tick after the player leaves the panel starts a real scan.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then return end
     startFullScan()
   end,
   abortScan = cancelFullScan,
@@ -2872,6 +2882,9 @@ end
 -- exactly where it was.
 -- ---------------------------------------------------------------------------
 local function tickAutoVerify()
+  -- Shared throttle budget: while the player is on Blizzard's own Create Auction form, their
+  -- click outranks this background walk.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then return end
   if not ahOpen then return end
   if view ~= "deals" then return end -- the Sell tab is up; verifying what nobody is reading just costs throttle
   if not frame or not frame:IsShown() then return end

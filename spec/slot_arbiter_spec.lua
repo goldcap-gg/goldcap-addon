@@ -122,6 +122,24 @@ describe("Search slot arbiter", function()
     assert.is_false(mayScan())            -- and closed again straight after
   end)
 
+  -- Confirmed live 2026-08-18: the watch loop's polls kept firing while the player tried to
+  -- click Create Auction in Blizzard's own default sell panel, burning the same shared
+  -- throttle budget and turning every click into "You're doing that too fast".
+  it("keeps the watch loop's grant closed while the player is posting, even mid-grant", function()
+    local GC = load()
+    local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan
+    GC.AuctionHouseTab = { PlayerIsPosting = function() return true end }
+
+    local seenInside
+    GC.Sniper.scanner.OnSystemReady = function() seenInside = mayScan() end
+    GC.Sniper._GrantWatchSlot()
+    assert.is_false(seenInside)          -- the grant window opens, but posting still vetoes it
+
+    GC.AuctionHouseTab.PlayerIsPosting = function() return false end
+    GC.Sniper._GrantWatchSlot()
+    assert.is_true(seenInside)           -- and resumes the moment the player leaves the panel
+  end)
+
   it("does not wedge the gate open when the scanner throws", function()
     local GC = load()
     local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan

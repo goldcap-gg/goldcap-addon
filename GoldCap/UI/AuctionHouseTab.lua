@@ -32,6 +32,9 @@ GC.AuctionHouseTab = {}
 
 local tab, dock, installed, hookedTabs = nil, nil, false, false
 local registered = false
+-- The Blizzard mode last recorded by the SetDisplayMode hook below -- nil until the hook has
+-- fired at least once. Read by PlayerIsPosting().
+local currentMode = nil
 -- The GoldCap display mode: identity is the contract (Blizzard compares modes with `==`),
 -- and empty is the content (their show loop iterates it and finds nothing to show).
 local DISPLAY_MODE = {}
@@ -175,6 +178,12 @@ function GC.AuctionHouseTab.Install()
   if not hookedTabs and ah.SetDisplayMode then
     hookedTabs = true
     pcall(hooksecurefunc, ah, "SetDisplayMode", function(_, mode)
+      -- SetDisplayMode itself resolves a Sell-family request (ItemSell/CommoditiesSell/
+      -- WoWTokenSell) against whichever SellFrame actually has an item loaded before it stores
+      -- self.displayMode (Blizzard_AuctionHouseFrame.lua, read verbatim) -- so read the
+      -- RESOLVED field back off `ah` here, hooksecurefunc runs after the original, rather than
+      -- trust the raw `mode` argument this hook was called with.
+      currentMode = ah.displayMode
       if mode == DISPLAY_MODE then
         showDock()
       else
@@ -182,6 +191,21 @@ function GC.AuctionHouseTab.Install()
       end
     end)
   end
+end
+
+-- True while Blizzard's own auction house is showing the Create Auction form (the ItemSell or
+-- CommoditiesSell display mode) -- i.e. while the player could click Create Auction at any
+-- moment. Blizzard throttles every auction-house request through one shared budget, and
+-- GoldCap's background traffic (auto-scan, the background verify walk, the watch loop's live
+-- polls -- see the gated tickers in UI/SniperFrame.lua) must yield to it: a player's own click
+-- outranks all of it. Fails open (false) whenever the hook has not recorded a mode yet or
+-- Blizzard's own mode table is missing -- a broken detector must never permanently silence the
+-- sniper.
+function GC.AuctionHouseTab.PlayerIsPosting()
+  if not currentMode then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes then return false end
+  return currentMode == modes.ItemSell or currentMode == modes.CommoditiesSell
 end
 
 -- Called from the window's own OnHide (see UI/SniperFrame.lua): the player closed the docked
