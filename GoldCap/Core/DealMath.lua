@@ -14,6 +14,23 @@ function GC.DealMath.Evaluate(live, value, cfg)
   local qty = live.qty or 1
   local profit = (math.floor(value.mv * 0.95) - live.unitPrice) * qty
 
+  -- Estimated stress-exit profit (Sniper discovery rework): mirrors the SHAPE of Check's own
+  -- stressProfit (SniperDecision.Evaluate) so the number discovery sorts and displays by is the
+  -- one that predicts what a live Check will say, not just how far under mv the ask sits.
+  -- estExitUnit stands in for the live competing ask discovery has no order book to read:
+  -- stressUnit (the same fact.stressUnit GC.Data.GetItemValue exposes) capped at mv, since a
+  -- resale can never be usefully projected above the market value that produced it. Falls back
+  -- to mv alone -- the same ceiling `profit` above has always used -- whenever this value
+  -- carries no usable stressUnit (bundled data, a realm item, or a watch-loop poll of an item
+  -- nobody has imported verification for), so estProfit degrades to the old projection instead
+  -- of going nil.
+  -- Only the 5% AH cut is modeled here, same fee `profit` above already applies. The deposit is
+  -- unknowable at this point: it comes from a live StartCommoditiesPurchase quote, which
+  -- discovery never has (that is exactly what Check's own live requery is for).
+  local estExitUnit = value.stressUnit
+  if not estExitUnit or estExitUnit <= 0 or estExitUnit > value.mv then estExitUnit = value.mv end
+  local estProfit = math.floor(estExitUnit * qty * 0.95) - live.unitPrice * qty
+
   -- Liquidity gate against thin-market noise: an inflated mv with no real turnover
   -- otherwise dominates the tier+profit sort. Only an import entry's absent sold/day
   -- carries meaning ("zero recorded sales in the realm's last 24h"); bundled data has
@@ -58,6 +75,8 @@ function GC.DealMath.Evaluate(live, value, cfg)
     mv = value.mv,
     discount = discount,
     profit = profit,
+    estProfit = estProfit,
+    estExitUnit = estExitUnit,
     tier = tier,
     falling = falling,
   }

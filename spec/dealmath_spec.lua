@@ -210,6 +210,49 @@ describe("DealMath", function()
     end)
   end)
 
+  describe("estProfit (Sniper discovery rework)", function()
+    -- mv 100g, price 50g, qty 2 -- same fixture as the plain-profit test above, but with a
+    -- stressUnit below mv so estExitUnit is genuinely stressUnit, not the mv fallback.
+    it("uses stressUnit as the exit when it sits below mv", function()
+      local d = GC.DealMath.Evaluate(live(500000, 2), { mv = 1000000, stressUnit = 800000 }, cfg)
+      assert.equal(800000, d.estExitUnit)
+      -- estProfit = floor(800000 * 2 * 0.95) - 500000 * 2 = 1520000 - 1000000
+      assert.equal(520000, d.estProfit)
+    end)
+
+    it("caps estExitUnit at mv when stressUnit sits above it", function()
+      local d = GC.DealMath.Evaluate(live(500000, 2), { mv = 1000000, stressUnit = 1500000 }, cfg)
+      assert.equal(1000000, d.estExitUnit)
+      -- Same arithmetic as the plain `profit` fixture: capped exit equals mv.
+      assert.equal(900000, d.estProfit)
+    end)
+
+    it("falls back to mv when the value carries no stressUnit at all", function()
+      local d = GC.DealMath.Evaluate(live(500000, 2), { mv = 1000000 }, cfg)
+      assert.equal(1000000, d.estExitUnit)
+      assert.equal(900000, d.estProfit)
+    end)
+
+    it("falls back to mv for a non-positive stressUnit", function()
+      local d = GC.DealMath.Evaluate(live(500000, 2), { mv = 1000000, stressUnit = 0 }, cfg)
+      assert.equal(1000000, d.estExitUnit)
+      assert.equal(900000, d.estProfit)
+    end)
+
+    it("applies the 5% cut to the exact gross total, not per-unit", function()
+      -- gross = 333333 * 3 = 999999; * 0.95 = 949999.05 -> floors to 949999; entry 300000*3=900000
+      local d = GC.DealMath.Evaluate(live(300000, 3), { mv = 900000, stressUnit = 333333 }, cfg)
+      assert.equal(333333, d.estExitUnit)
+      assert.equal(49999, d.estProfit)
+    end)
+
+    it("can go negative when the stress exit does not clear the entry cost", function()
+      local d = GC.DealMath.Evaluate(live(500000, 1), { mv = 1000000, stressUnit = 400000 }, cfg)
+      -- floor(400000*0.95) - 500000 = 380000 - 500000 = -120000
+      assert.equal(-120000, d.estProfit)
+    end)
+  end)
+
   describe("PriceIncreaseExceeds", function()
     it("is false at or under the tolerance", function()
       assert.is_false(GC.DealMath.PriceIncreaseExceeds(1000, 1050, 0.05))

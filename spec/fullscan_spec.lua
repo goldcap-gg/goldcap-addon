@@ -101,6 +101,81 @@ describe("FullScan.Evaluate", function()
       { { itemID = 10, count = 5, buyoutStack = 2500000 } }, getValue, cfg, 100)
     assert.is_nil(deals[1].avail)
   end)
+
+  -- Sniper discovery rework: the board ranks by estProfit -- the number that mirrors what a
+  -- live Check would approve -- not by tier-then-mv-profit. This is the whole point of the
+  -- rework: a lower-tier row whose stress exit still clears a real profit must outrank a
+  -- higher-tier row whose stress exit does not.
+  it("ranks a WATCH-tier row with a genuine stress profit above a HOT-tier row that has none", function()
+    local stressValues = {
+      -- item 1: HOT by mv-based discount/profit (discount 0.4, profit 7000g), but a stressUnit
+      -- barely above its own entry price means a live Check would find almost nothing left.
+      [1] = { mv = 200000000, stressUnit = 121000000 },
+      -- item 2: only a WATCH-tier discount (15%), but no stressUnit means the full mv-based
+      -- projection survives -- a real 100g of estimated profit.
+      [2] = { mv = 10000000 },
+    }
+    local function getStressValue(id) return stressValues[id] end
+    local rows = {
+      { itemID = 1, count = 1, buyoutStack = 120000000 }, -- estProfit = -505g (see fixture comment)
+      { itemID = 2, count = 1, buyoutStack = 8500000 },   -- estProfit = 100g
+    }
+    local deals = GC.FullScan.Evaluate(rows, getStressValue, cfg, 100)
+    assert.equal(2, #deals)
+    assert.equal("HOT", deals[2].tier)
+    assert.equal(1, deals[2].itemID)
+    assert.equal(-5050000, deals[2].estProfit)
+    assert.equal("WATCH", deals[1].tier)
+    assert.equal(2, deals[1].itemID)
+    assert.equal(1000000, deals[1].estProfit)
+  end)
+
+  it("falls back to the old tier-then-profit order when estProfit ties", function()
+    local stressValues = {
+      -- item 3 (WATCH): no stressUnit, mv-based estProfit lands at 470000 on its own.
+      [3] = { mv = 1000000 },
+      -- item 4 (HOT): a stressUnit engineered so its estProfit lands at the SAME 470000,
+      -- despite a much bigger mv-based profit (5500g).
+      [4] = { mv = 100000000, stressUnit = 42600000 },
+    }
+    local function getStressValue(id) return stressValues[id] end
+    local rows = {
+      { itemID = 3, count = 1, buyoutStack = 480000 },
+      { itemID = 4, count = 1, buyoutStack = 40000000 },
+    }
+    local deals = GC.FullScan.Evaluate(rows, getStressValue, cfg, 100)
+    assert.equal(2, #deals)
+    assert.equal(470000, deals[1].estProfit)
+    assert.equal(470000, deals[2].estProfit)
+    -- Tied on estProfit: the old tiebreak (tier rank, then mv-profit, then itemID) applies --
+    -- HOT (item 4) sorts ahead of WATCH (item 3).
+    assert.equal("HOT", deals[1].tier)
+    assert.equal(4, deals[1].itemID)
+    assert.equal("WATCH", deals[2].tier)
+    assert.equal(3, deals[2].itemID)
+  end)
+
+  -- The silent drop fix: a row whose mv-discount falls below watchDiscount used to vanish from
+  -- `screened` entirely, undercounting what the "N hidden" banner reports.
+  it("counts a below-watch-discount drop into `screened`", function()
+    local deals, screened = GC.FullScan.Evaluate({
+      { itemID = 10, count = 1, buyoutStack = 950000 }, -- 5% off, below watchDiscount 0.10
+    }, getValue, cfg, 100)
+    assert.equal(0, #deals)
+    assert.equal(1, screened)
+  end)
+
+  it("adds below-watch-discount drops to PreScreen drops in the same `screened` total", function()
+    -- item 10 has no PreScreen-relevant facts (no SniperDecision loaded in this describe block,
+    -- so PreScreen never runs) -- this isolates the below-watch-discount branch's own counting
+    -- across two rows.
+    local deals, screened = GC.FullScan.Evaluate({
+      { itemID = 10, count = 1, buyoutStack = 960000 }, -- 4% off
+      { itemID = 20, count = 1, buyoutStack = 199000000 }, -- 0.5% off item 20 (mv 200000000)
+    }, getValue, cfg, 100)
+    assert.equal(0, #deals)
+    assert.equal(2, screened)
+  end)
 end)
 
 -- RowsFromBrowse's estimated quantity is no longer a raw sold/day figure: the deals list used

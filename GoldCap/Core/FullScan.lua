@@ -4,11 +4,20 @@ GC.FullScan = {}
 
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
--- Tier rank first, then profit desc, then itemID asc as a deterministic tiebreaker
--- (pairs()/map iteration order is otherwise unspecified). Shared by Evaluate, EvaluateDelta
--- (each page's deals are already in this order) and MergeDeals (the combined set is
--- re-sorted the same way so streamed and single-shot results are identical).
+-- estProfit desc first (Sniper discovery rework: the number that mirrors what a live Check
+-- would approve, not just how far under mv the ask sits), then the OLD order as a tiebreak --
+-- tier rank, then profit desc, then itemID asc (pairs()/map iteration order is otherwise
+-- unspecified). Shared by Evaluate, EvaluateDelta (each page's deals are already in this order)
+-- and MergeDeals (the combined set is re-sorted the same way so streamed and single-shot results
+-- are identical).
+--
+-- DealMath.Evaluate always sets estProfit on a deal it returns, so `or a.profit` only matters
+-- for hand-built deal tables (this suite's own fixtures, or a pre-rework caller) that never
+-- carried the field -- without the fallback, comparing one such fixture's nil against a real
+-- deal's number would error.
 local function compareDeals(a, b)
+  local pa, pb = a.estProfit or a.profit, b.estProfit or b.profit
+  if pa ~= pb then return pa > pb end
   local ra, rb = TIER_RANK[a.tier], TIER_RANK[b.tier]
   if ra ~= rb then return ra < rb end
   if a.profit ~= b.profit then return a.profit > b.profit end
@@ -66,6 +75,13 @@ local function evaluateFrom(rows, first, getValue, cfg)
         if not existing or deal.profit > existing.profit then
           bestByItem[deal.itemID] = deal
         end
+      else
+        -- A discount below watchDiscount is a screen too -- DealMath.Evaluate returning nil
+        -- here used to drop the row with no counter at all, so the "N hidden" banner undercounted
+        -- what the scan actually removed. Folded into the same `screened` count the PreScreen
+        -- drops above use: from the player's perspective both are "the scan looked at this and
+        -- decided it wasn't worth showing you", one number either way.
+        screened = screened + 1
       end
       end
     end
