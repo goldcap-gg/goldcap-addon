@@ -208,18 +208,61 @@ describe("Deals background verification", function()
     assert.same({ 1, 1 }, sent)
   end)
 
-  it("never looks past the top rows", function()
+  it("never looks past the widened top-24 rows", function()
     local api = loadSniper(safe)
     local deals = {}
-    for i = 1, 12 do deals[i] = deal(i, i * 100) end
+    for i = 1, 26 do deals[i] = deal(i, i * 100) end
     board(api, deals)
 
-    for i = 1, 12 do
+    for i = 1, 26 do
       tickAt(api, 100 + i)
       api.GC.Sniper.OnCommoditySearchResults(sent[#sent])
     end
-    assert.equal(8, #sent)
-    for i = 1, 8 do assert.equal(i, sent[i]) end
+    assert.equal(24, #sent)
+    for i = 1, 24 do assert.equal(i, sent[i]) end
+  end)
+
+  -- Never-verified rows get first claim on the walk's one query per tick, ahead of an
+  -- already-verified row that merely became due for a recheck -- even though that already-
+  -- verified row sits FIRST in renderList()'s own order. Under the old single-pass, top-down
+  -- walk this row would have won the slot instead: it is "due" the moment 30s pass, exactly
+  -- like a never-verified row reads as "due" from tick one.
+  it("prioritizes a never-verified row over re-confirming one that is merely due", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100) })
+
+    tickAt(api, 101)
+    assert.same({ 1 }, sent)
+    api.GC.Sniper.OnCommoditySearchResults(1) -- item1's verdict lands at t=101
+
+    -- item2 joins the board, never checked. item1's verdict is now well past
+    -- LIM.VERIFY_INTERVAL_SECONDS (30s) -- under the OLD top-down walk it would be the only
+    -- candidate this tick, since it sits ahead of item2 in the list and reads as "due".
+    board(api, { deal(1, 100), deal(2, 200) })
+    tickAt(api, 140) -- 39s after item1's verdict
+    assert.same({ 1, 2 }, sent) -- item2 (never verified) wins the slot, not a re-confirmation of item1
+  end)
+
+  -- An AVOID verdict gets a much longer leash than any other status: the gates that produce it
+  -- (demand/velocity/liquidity limits) do not move on a 30-second clock, so re-confirming one
+  -- costs a query the walk could spend on a row nothing has looked at yet.
+  it("rechecks an AVOID row only after the wider 120s backoff, not the normal 30s", function()
+    local api = loadSniper(avoid)
+    -- Keep the AVOID row visible to the walk itself (renderList hides an unmanaged refusal by
+    -- default) -- same toggle the toolbar's "Hidden: N" button flips, see the tests below.
+    api.GC.db.settings.sniper.showRefused = true
+    board(api, { deal(1, 100) })
+
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1) -- AVOID verdict lands at t=101
+    assert.equal("AVOID", api.verdicts[1].status)
+    assert.same({ 1 }, sent)
+
+    tickAt(api, 101 + 31) -- past the normal 30s interval, short of the 120s AVOID backoff
+    assert.same({ 1 }, sent)
+
+    tickAt(api, 101 + 121) -- past the 120s AVOID backoff
+    assert.same({ 1, 1 }, sent)
   end)
 
   it("stands down for the auction house, the tab, the window and the search slot", function()

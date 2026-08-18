@@ -82,12 +82,20 @@ LIM.PREWARM_TTL_SECONDS = 10
 LIM.SCAN_WATCHDOG_SECONDS = 15
 -- Background verification (tickAutoVerify): how far down the visible list to check, how often
 -- a row already carrying a verdict is checked again, and how long a SAFE verdict may go
--- unrefreshed before the row stops advertising it. Deliberately small: the scan, the Sell
--- tab's pricing walk and this all share one throttled search slot, and the Sell tab is the
--- one that starves first when something greedy runs.
-LIM.VERIFY_TOP_ROWS = 8
+-- unrefreshed before the row stops advertising it. The scan, the Sell tab's pricing walk and
+-- this all share one throttled search slot, and the Sell tab is the one that starves first
+-- when something greedy runs -- but with Commit 1's estProfit ranking, renderList()'s order is
+-- now best-first, so covering more of it (24, not the old 8) is worth the wider net; the walk
+-- itself is still one query per second regardless of how many rows this covers.
+LIM.VERIFY_TOP_ROWS = 24
 LIM.VERIFY_INTERVAL_SECONDS = 30
 LIM.VERIFY_TRUST_SECONDS = 120
+-- How long a row whose last stamped verdict was AVOID goes before the walk spends another
+-- query re-confirming it. An AVOID that was true LIM.VERIFY_INTERVAL_SECONDS ago is almost
+-- always still true -- the gates that produce it (demand/velocity/liquidity limits) do not
+-- move on a 30-second clock -- so the walk's scarce one-query-per-tick budget belongs to rows
+-- nothing has looked at yet, not to reconfirming a refusal that hasn't had time to change.
+LIM.VERIFY_AVOID_INTERVAL_SECONDS = 120
 -- The verify walk runs off the same 0.25s ticker as everything else, but the walk itself
 -- sorts and filters the whole deals list -- once a second is far more often than a 30s
 -- re-check cadence can consume, and four times a second is just wasted work.
@@ -2902,6 +2910,15 @@ local function tickAutoVerify()
 
   local list = renderList()
   local limit = math.min(#list, LIM.VERIFY_TOP_ROWS)
+
+  -- Two passes over the SAME top-`limit` slice, in renderList()'s own order (best-first as of
+  -- Commit 1's estProfit ranking). Pass 1 gives first claim on the walk's one query per tick to
+  -- rows with no verdict at their current asking price -- never checked at all, or checked at a
+  -- price that has since moved, which is the same "know nothing about this" state. Without this
+  -- priority, an already-verified row sitting ahead of a brand-new one in the list could keep
+  -- winning every tick's single slot forever, and the new row would never get its first look.
+  -- Pass 2 only runs (finds anything) when pass 1 sent nothing, and covers rows that already
+  -- carry a same-price verdict but are due for a recheck -- see the interval comment inside it.
   for i = 1, limit do
     local deal = list[i]
     -- Already covered by the watch loop, which re-reads its live book far more often than
@@ -2909,17 +2926,31 @@ local function tickAutoVerify()
     -- A placeholder is skipped too -- there is nothing to buy and its unitPrice may be 0, so
     -- verifying one would burn a search slot and stamp a verdict keyed to a meaningless price.
     if not GC.Sniper._IsWatched(deal.itemID) and not deal.pinPlaceholder then
-      -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
-      -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
-      -- may have moved underneath it since.
       local v = verdicts[deal.itemID]
-      if not (v and v.unitPrice == deal.unitPrice
-          and (now - v.at) < LIM.VERIFY_INTERVAL_SECONDS) then
+      if not (v and v.unitPrice == deal.unitPrice) then
         -- Stop on a query actually going out -- one per walk at most. A row that DECLINED to
         -- send is not progress and must not end the walk: its blocker may never clear (an
         -- uncached item key, the drain fence), and treating it as work in flight is what let one
         -- row at the top hold the whole list hostage. Move on and check the next one.
         if maybeStartPrewarm(deal, true) then return end
+      end
+    end
+  end
+  for i = 1, limit do
+    local deal = list[i]
+    if not GC.Sniper._IsWatched(deal.itemID) and not deal.pinPlaceholder then
+      -- Read `verdicts` directly rather than through verdictFor: re-checking is on its own
+      -- cadence, and a refusal that verdictFor still honours is exactly the thing whose price
+      -- may have moved underneath it since. Only reached for a row pass 1 already confirmed
+      -- carries a same-price verdict (a mismatched or absent one would have sent above and
+      -- returned) -- an AVOID verdict gets the long leash, everything else the normal one.
+      local v = verdicts[deal.itemID]
+      if v and v.unitPrice == deal.unitPrice then
+        local interval = (v.status == "AVOID") and LIM.VERIFY_AVOID_INTERVAL_SECONDS
+          or LIM.VERIFY_INTERVAL_SECONDS
+        if (now - v.at) >= interval then
+          if maybeStartPrewarm(deal, true) then return end
+        end
       end
     end
   end
