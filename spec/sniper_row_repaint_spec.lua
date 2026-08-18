@@ -248,6 +248,44 @@ describe("Sniper row repaint skip", function()
     assert.is_true(row:IsShown(), "a reused row must never stay hidden just because its content repeats")
   end)
 
+  -- Fix 3: a pin placeholder (renderList's fabricated row for a pin that fell out of the deals
+  -- list) is not a deal -- its discount/profit/qty fields are sentinel zeros kept only so
+  -- callers that expect a number get one. Rendering those sentinels used to print "0%", a
+  -- 0-copper profit coin, and (when a price WAS observed) the same unit price twice as a fake
+  -- "unit/total" pair, since qty is always 1. Every one of those cells must say nothing instead.
+  it("renders a priceUnknown pin placeholder's discount, profit and price as dashes, not zeros", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+
+    ctx.setRowDeal(row, deal(7, {
+      pinPlaceholder = true, unitPrice = 0, qty = 1, profit = 0, discount = 0,
+      tier = "WATCH", action = "Check", priceUnknown = true,
+    }))
+
+    assert.equal("—", row.discountText.text)
+    assert.equal("—", row.profitText.text)
+    assert.equal("—", row.unitText.text)
+    assert.equal("—", row.priceText.text)
+    assert.equal("Watching", row.buy.label)
+  end)
+
+  it("shows a pin placeholder's last-seen unit price without duplicating it as a fake total", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+
+    ctx.setRowDeal(row, deal(7, {
+      pinPlaceholder = true, unitPrice = 500, qty = 1, profit = 0, discount = 0,
+      tier = "WATCH", action = "Check", priceUnknown = false,
+    }))
+
+    assert.equal("—", row.discountText.text)
+    assert.equal("—", row.profitText.text)
+    assert.equal("500c", row.unitText.text)   -- the one real number: what it costs right now
+    assert.equal("—", row.priceText.text)     -- never unitPrice * qty duplicated as a fake total
+  end)
+
   it("resolves an itemID's name/icon once and reuses it across a genuine repaint", function()
     local ctx = load()
     local calls = { n = 0 }

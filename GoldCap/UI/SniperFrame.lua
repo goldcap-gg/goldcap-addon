@@ -834,8 +834,16 @@ local function setRowDeal(row, deal)
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   row.tierChip:SetLabel(tierLabel(deal), color)
 
-  row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
-  row.discountText:SetTextColor(color[1], color[2], color[3])
+  -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
+  -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
+  -- that need a number) would otherwise print.
+  if deal.pinPlaceholder then
+    row.discountText:SetText("—")
+    row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  else
+    row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
+    row.discountText:SetTextColor(color[1], color[2], color[3])
+  end
 
   -- A placeholder pin with nothing observed yet has no price to show -- deal.unitPrice is only
   -- the sentinel 0 kept in the table for callers that need a number. Rendering it through
@@ -846,17 +854,34 @@ local function setRowDeal(row, deal)
     row.unitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     row.priceText:SetText("—")
     row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  elseif deal.pinPlaceholder then
+    -- A real price WAS observed for this pin (lastSeenPrice), but a placeholder's qty is
+    -- always the sentinel 1 -- unitPrice*qty is never an actual total, just the same unit
+    -- price rendered a second time ("20g/20g"). Show the one real number (what it costs per
+    -- unit right now) and nothing where a total was never actually quoted.
+    row.unitText:SetText(formatColumnAmount(deal.unitPrice))
+    row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    row.priceText:SetText("—")
+    row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
     row.unitText:SetText(formatColumnAmount(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
     row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
     row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   end
-  row.profitText:SetText(formatColumnAmount(deal.profit))
-  if deal.profit >= 0 then
-    row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
+
+  -- A pin placeholder has no deal to have made a profit on -- this cell says nothing rather
+  -- than a formatted 0-copper coin string (profit = 0, the same placeholder sentinel).
+  if deal.pinPlaceholder then
+    row.profitText:SetText("—")
+    row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
-    row.profitText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+    row.profitText:SetText(formatColumnAmount(deal.profit))
+    if deal.profit >= 0 then
+      row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
+    else
+      row.profitText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+    end
   end
 
   -- Sniper v3 trend column: mirrors the dialog's own value.trend read (updateDialogAmounts)
