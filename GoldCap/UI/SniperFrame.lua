@@ -1189,9 +1189,10 @@ driver = {
   end,
 
   mayScan = function()
-    -- Shared throttle budget: while the player is on Blizzard's own Create Auction form, their
-    -- click outranks every watch-loop poll.
-    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then
+    -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
+    -- buying a browse result, or reading their own search -- their click outranks every
+    -- watch-loop poll.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then
       return false
     end
     return watchGrant
@@ -1860,11 +1861,12 @@ end
 autoScan = GC.AutoScan.New({}, {
   startScan = function()
     if scanRunning or pendingFullScanStart then return end
-    -- Shared throttle budget: while the player is on Blizzard's own Create Auction form,
-    -- their click outranks a fresh background scan. The FSM's own state still advances to
-    -- SCANNING regardless (see AutoScan.lua's Tick) -- this only withholds the send, and the
-    -- very next tick after the player leaves the panel starts a real scan.
-    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then return end
+    -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
+    -- buying a browse result, or reading their own search -- their click outranks a fresh
+    -- background scan. The FSM's own state still advances to SCANNING regardless (see
+    -- AutoScan.lua's Tick) -- this only withholds the send, and the very next tick after the
+    -- player is no longer busy starts a real scan.
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return end
     startFullScan()
   end,
   abortScan = cancelFullScan,
@@ -2915,9 +2917,10 @@ end
 -- exactly where it was.
 -- ---------------------------------------------------------------------------
 local function tickAutoVerify()
-  -- Shared throttle budget: while the player is on Blizzard's own Create Auction form, their
-  -- click outranks this background walk.
-  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsPosting and GC.AuctionHouseTab.PlayerIsPosting() then return end
+  -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
+  -- buying a browse result, or reading their own search -- their click outranks this
+  -- background walk.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return end
   if not ahOpen then return end
   if view ~= "deals" then return end -- the Sell tab is up; verifying what nobody is reading just costs throttle
   if not frame or not frame:IsShown() then return end
@@ -5309,12 +5312,25 @@ local function installSearchHooks()
   local box = searchBar and (searchBar.SearchBox or searchBar)
   if box and (box.SetFocus or (box.GetObjectType and box:GetObjectType() == "EditBox")) then
     pcall(function()
-      box:HookScript("OnEditFocusGained", function() feedAuto("pause:search") end)
+      box:HookScript("OnEditFocusGained", function()
+        feedAuto("pause:search")
+        -- GC.AuctionHouseTab is the one place PlayerIsBusy lives -- record this independently
+        -- of the FSM pause reason above, which only governs OUR OWN auto-scan and says nothing
+        -- about the verify walk or the watch loop.
+        if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteSearchFocus then
+          pcall(GC.AuctionHouseTab.NoteSearchFocus, true)
+        end
+      end)
     end)
     pcall(function()
       box:HookScript("OnEditFocusLost", function()
         if frame and frame:IsShown() then
           feedAuto("resume:search")
+        end
+        -- Unconditional, unlike the feedAuto resume above: PlayerIsBusy must know the player
+        -- left the box even when our own window is closed.
+        if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteSearchFocus then
+          pcall(GC.AuctionHouseTab.NoteSearchFocus, false)
         end
       end)
     end)
@@ -5322,10 +5338,17 @@ local function installSearchHooks()
 
   -- (fix round 1, C3) SetDisplayMode alone previously only ever fed pause:search, with no
   -- resume counterpart -- a single AH tab click would strand Auto in "paused: searching" for
-  -- the rest of the session. Enum name unverified against the live client (see the in-game
-  -- checklist) -- guarded so a missing/renamed enum degrades to the documented fallback
-  -- instead of erroring.
-  local buyMode = Enum.AuctionHouseDisplayMode and Enum.AuctionHouseDisplayMode.Buy
+  -- the rest of the session.
+  --
+  -- (fix round 2) Enum.AuctionHouseDisplayMode does not exist on the live client -- confirmed
+  -- against Gethe/wow-ui-source, Interface/AddOns/Blizzard_AuctionHouseUI/Shared/
+  -- Blizzard_AuctionHouseFrame.lua, read verbatim: the mode identifiers are keys of the plain
+  -- Lua table AuctionHouseFrameDisplayMode (Buy/WoWTokenBuy/CommoditiesBuy/ItemBuy/
+  -- CommoditiesSell/ItemSell/WoWTokenSell/Auctions), never an Enum, so the old comparison
+  -- always fell through to the degraded branch below. Use the same verified global
+  -- GC.AuctionHouseTab.PlayerIsPosting/PlayerIsBuying already read, guarded the same way in
+  -- case some future client build renames or drops it.
+  local buyMode = _G.AuctionHouseFrameDisplayMode and _G.AuctionHouseFrameDisplayMode.Buy
   if AuctionHouseFrame.SetDisplayMode then
     pcall(hooksecurefunc, AuctionHouseFrame, "SetDisplayMode", function(_, newDisplayMode)
       if buyMode ~= nil then
@@ -5336,10 +5359,11 @@ local function installSearchHooks()
         end
         return
       end
-      -- Enum shape not verified: can't tell Buy mode from any other, so pause immediately
-      -- (a mode change COULD be the player driving the AH's own search) and, if our window
-      -- is up, resume after a short defer -- long enough for the mode transition's own query
-      -- to land first -- so one stray SetDisplayMode call can't strand Auto for the session.
+      -- AuctionHouseFrameDisplayMode itself missing (a client shape this was never verified
+      -- against): can't tell Buy mode from any other, so pause immediately (a mode change
+      -- COULD be the player driving the AH's own search) and, if our window is up, resume
+      -- after a short defer -- long enough for the mode transition's own query to land first --
+      -- so one stray SetDisplayMode call can't strand Auto for the session.
       feedAuto("pause:search")
       if frame and frame:IsShown() then
         C_Timer.After(0.5, function()

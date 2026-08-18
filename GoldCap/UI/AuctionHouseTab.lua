@@ -197,15 +197,67 @@ end
 -- CommoditiesSell display mode) -- i.e. while the player could click Create Auction at any
 -- moment. Blizzard throttles every auction-house request through one shared budget, and
 -- GoldCap's background traffic (auto-scan, the background verify walk, the watch loop's live
--- polls -- see the gated tickers in UI/SniperFrame.lua) must yield to it: a player's own click
--- outranks all of it. Fails open (false) whenever the hook has not recorded a mode yet or
--- Blizzard's own mode table is missing -- a broken detector must never permanently silence the
--- sniper.
+-- polls -- see PlayerIsBusy below and the gated tickers it feeds in UI/SniperFrame.lua) must
+-- yield to it: a player's own click outranks all of it. Fails open (false) whenever the hook
+-- has not recorded a mode yet or Blizzard's own mode table is missing -- a broken detector
+-- must never permanently silence the sniper.
 function GC.AuctionHouseTab.PlayerIsPosting()
   if not currentMode then return false end
   local modes = _G.AuctionHouseFrameDisplayMode
   if not modes then return false end
   return currentMode == modes.ItemSell or currentMode == modes.CommoditiesSell
+end
+
+-- True while Blizzard's own auction house is showing a purchase form for a browse result the
+-- player clicked open -- the ItemBuy or CommoditiesBuy display mode. Verified against the same
+-- Blizzard_AuctionHouseFrame.lua (Gethe/wow-ui-source, live) the header cites:
+-- AuctionHouseFrameMixin:SelectBrowseResult (the handler for clicking a browse row) sets
+-- self.displayMode to exactly AuctionHouseFrameDisplayMode.CommoditiesBuy or .ItemBuy depending
+-- on the item, distinct from .Buy (the browse list itself, read verbatim) and from the
+-- Sell-family modes PlayerIsPosting already covers. Same fail-open shape and for the same
+-- reason: a broken detector must never permanently silence the sniper.
+function GC.AuctionHouseTab.PlayerIsBuying()
+  if not currentMode then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes then return false end
+  return currentMode == modes.ItemBuy or currentMode == modes.CommoditiesBuy
+end
+
+-- The player's own search-box activity. Called from UI/SniperFrame.lua's installSearchHooks on
+-- every focus change of Blizzard's own search box, so this module -- the one place that already
+-- tracks what the player is doing on the default AH panes -- can answer for this too.
+local searchFocused = false
+local searchLostFocusAt = nil
+-- C_AuctionHouse.SendSearchQuery is throttled: the query the player just typed lands and gets
+-- READ after the box loses focus (tabbing away, or clicking a browse row, while results are
+-- still streaming in) -- so treating "unfocused" as "done reading" the instant it happens would
+-- let a background query (the verify walk, the watch loop) replace what the player is reading.
+-- ~10s covers a normal throttled round trip with margin.
+local SEARCH_GRACE_SECONDS = 10
+
+function GC.AuctionHouseTab.NoteSearchFocus(focused)
+  searchFocused = focused
+  if not focused then
+    searchLostFocusAt = time()
+  end
+end
+
+-- `now` is an explicit, optional parameter (defaulting to time()) purely so specs can drive it
+-- with a fake clock -- production callers never pass it.
+function GC.AuctionHouseTab.PlayerIsSearching(now)
+  if searchFocused then return true end
+  if not searchLostFocusAt then return false end
+  now = now or time()
+  return (now - searchLostFocusAt) < SEARCH_GRACE_SECONDS
+end
+
+-- One predicate for the background tickers in UI/SniperFrame.lua (the auto-scan send,
+-- tickAutoVerify, and the watch-loop poll): the player outranks all of it for the shared
+-- request throttle whether they are posting, buying a browse result, or reading their own
+-- search -- any one of the three means a hardware click could land at any moment.
+function GC.AuctionHouseTab.PlayerIsBusy(now)
+  return GC.AuctionHouseTab.PlayerIsPosting() or GC.AuctionHouseTab.PlayerIsBuying()
+    or GC.AuctionHouseTab.PlayerIsSearching(now)
 end
 
 -- Called from the window's own OnHide (see UI/SniperFrame.lua): the player closed the docked

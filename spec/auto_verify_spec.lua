@@ -299,16 +299,18 @@ describe("Deals background verification", function()
 
   -- Confirmed live 2026-08-18: with the window closed, this walk kept burning the shared
   -- request throttle while the player tried to click Create Auction in Blizzard's own default
-  -- sell panel, and every click failed with "You're doing that too fast".
-  it("stands down while the player is posting in Blizzard's own default sell panel", function()
+  -- sell panel, and every click failed with "You're doing that too fast". PlayerIsBusy is the
+  -- single predicate this gate reads now -- posting, buying a browse result, or reading their
+  -- own search all mean the same thing to this walk: yield.
+  it("stands down while the player is busy on Blizzard's own AH panes", function()
     local api = loadSniper(safe)
     board(api, { deal(1, 100) })
-    api.GC.AuctionHouseTab = { PlayerIsPosting = function() return true end }
+    api.GC.AuctionHouseTab = { PlayerIsBusy = function() return true end }
 
     tickAt(api, 101)
     assert.same({}, sent)
 
-    api.GC.AuctionHouseTab.PlayerIsPosting = function() return false end
+    api.GC.AuctionHouseTab.PlayerIsBusy = function() return false end
     tickAt(api, 102)
     assert.same({ 1 }, sent)
   end)

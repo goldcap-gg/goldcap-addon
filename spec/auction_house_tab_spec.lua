@@ -10,7 +10,7 @@ local helper = require("spec.spec_helper")
 -- MODE table (ours is empty -- shows nothing of theirs), compares modes by identity, and
 -- numTabs/selectedTab feed insecure UI code only (UpdateTitle), never a protected path.
 describe("Auction House tab", function()
-  local GC, ah, created, docked
+  local GC, ah, created, docked, clock
 
   local function widget(kind, parent)
     local w = { kind = kind, parent = parent, points = {}, scripts = {}, shown = true }
@@ -40,7 +40,11 @@ describe("Auction House tab", function()
     end
     ah.SetTitle = function(self, title) self.title = title end
     _G.AuctionHouseFrame = ah
-    _G.AuctionHouseFrameDisplayMode = { Buy = {}, ItemSell = {}, CommoditiesSell = {} }
+    _G.AuctionHouseFrameDisplayMode = {
+      Buy = {}, ItemSell = {}, CommoditiesSell = {}, ItemBuy = {}, CommoditiesBuy = {},
+    }
+    clock = 1000
+    _G.time = function() return clock end
     _G.CreateFrame = function(kind, name, parent, template)
       local w = widget(kind, parent)
       w.template, w.name = template, name
@@ -77,6 +81,7 @@ describe("Auction House tab", function()
     _G.AuctionHouseFrame, _G.CreateFrame, _G.hooksecurefunc = nil, nil, nil
     _G.PanelTemplates_TabResize, _G.PanelTemplates_SetNumTabs = nil, nil
     _G.AuctionHouseFrameDisplayMode = nil
+    _G.time = os.time
   end)
 
   local function tabButton()
@@ -236,6 +241,112 @@ describe("Auction House tab", function()
     end)
   end)
 
+  -- Same shared-throttle reasoning as PlayerIsPosting, for the other half of Blizzard's own AH:
+  -- a browse result the player clicked open (ItemBuy/CommoditiesBuy -- SelectBrowseResult puts
+  -- the frame into exactly these two modes, Blizzard_AuctionHouseFrame.lua read verbatim) is a
+  -- purchase form the player is one click from confirming, same as Create Auction is.
+  describe("PlayerIsBuying", function()
+    it("fails open before Install has ever run", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+    end)
+
+    it("fails open right after Install, before any SetDisplayMode call landed", function()
+      GC.AuctionHouseTab.Install()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+    end)
+
+    it("is true once Blizzard's own display mode is ItemBuy", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
+    end)
+
+    it("is true once Blizzard's own display mode is CommoditiesBuy", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesBuy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
+    end)
+
+    it("goes false again once the player is back on the browse list", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+    end)
+
+    it("fails open if Blizzard's own display-mode table ever goes missing", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
+      _G.AuctionHouseFrameDisplayMode = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+    end)
+  end)
+
+  -- The player's own search-box activity, tracked by SniperFrame's focus hooks calling
+  -- NoteSearchFocus. SendSearchQuery is throttled -- the query the player just typed lands and
+  -- gets READ after the box loses focus (they tab away or click a browse row while results are
+  -- still streaming in) -- so unfocus alone is not "done reading". A ~10s grace window covers a
+  -- normal throttled round trip; `now` is an explicit parameter (default GC.AuctionHouseTab's
+  -- own time()) purely so this spec can drive it with a fake clock.
+  describe("PlayerIsSearching", function()
+    it("is false before the search box has ever been focused", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsSearching())
+    end)
+
+    it("is true while the box is focused", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching())
+    end)
+
+    it("stays true through the grace window after focus is lost", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.NoteSearchFocus(false)
+      clock = 1009
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching(clock))
+    end)
+
+    it("goes false once the grace window has passed", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.NoteSearchFocus(false)
+      clock = 1011
+      assert.is_false(GC.AuctionHouseTab.PlayerIsSearching(clock))
+    end)
+
+    it("goes false immediately if the box was never focused again after a previous grace window", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      GC.AuctionHouseTab.NoteSearchFocus(false)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsSearching(1000))
+      assert.is_false(GC.AuctionHouseTab.PlayerIsSearching(1500))
+    end)
+  end)
+
+  -- One predicate the background tickers in UI/SniperFrame.lua read: the player is busy if
+  -- they are posting, buying, or reading their own search -- any one of the three outranks
+  -- background traffic for the shared request throttle.
+  describe("PlayerIsBusy", function()
+    it("is false when none of the three are true", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    it("is true while posting", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    it("is true while buying", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    it("is true while searching", function()
+      GC.AuctionHouseTab.NoteSearchFocus(true)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+  end)
+
   -- The window-side wiring this module depends on, in the repo's source-text style: docking
   -- must neutralize geometry persistence (a docked frame's anchors are the host's, and saving
   -- them would corrupt the floating geometry), and the window's OnHide must hand off here.
@@ -246,5 +357,15 @@ describe("Auction House tab", function()
     assert.is_truthy(text:find("goldcapDockHost", 1, true))
     assert.is_truthy(text:find("GC.AuctionHouseTab.OnWindowHidden", 1, true))
     assert.is_truthy(text:find("function GC.Sniper.SetDocked", 1, true))
+  end)
+
+  -- installSearchHooks' own focus hooks are the only place NoteSearchFocus can be called from
+  -- (there's no other trigger for "the player's search box gained/lost focus" in the addon).
+  it("[wiring] the search box focus hooks in SniperFrame.lua record focus here", function()
+    local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local text = f:read("*a")
+    f:close()
+    assert.is_truthy(text:find("pcall(GC.AuctionHouseTab.NoteSearchFocus, true)", 1, true))
+    assert.is_truthy(text:find("pcall(GC.AuctionHouseTab.NoteSearchFocus, false)", 1, true))
   end)
 end)
