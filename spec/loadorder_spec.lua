@@ -204,7 +204,7 @@ describe("TOC load order", function()
     end
     toc:close()
     assert.is_true(#files >= 7)
-    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex, sellPositionsIndex, postQueueIndex, sellViewModelIndex, sellFrameIndex
+    local acquisitionsIndex, purchaseCaptureIndex, ledgerIndex, quoteCacheIndex, flipsIndex, sellPositionsIndex, postQueueIndex, sellViewModelIndex, sellFrameIndex, appLedgerIndex, soldFrameIndex
     for i, rel in ipairs(files) do
       if rel == "Core/Acquisitions.lua" then acquisitionsIndex = i end
       if rel == "Core/PurchaseCapture.lua" then purchaseCaptureIndex = i end
@@ -215,6 +215,8 @@ describe("TOC load order", function()
       if rel == "Core/PostQueue.lua" then postQueueIndex = i end
       if rel == "UI/SellViewModel.lua" then sellViewModelIndex = i end
       if rel == "UI/SellFrame.lua" then sellFrameIndex = i end
+      if rel == "Core/AppLedger.lua" then appLedgerIndex = i end
+      if rel == "UI/SoldFrame.lua" then soldFrameIndex = i end
     end
     assert.is_number(acquisitionsIndex)
     assert.is_number(purchaseCaptureIndex)
@@ -236,6 +238,13 @@ describe("TOC load order", function()
     assert.is_number(sellFrameIndex)
     assert.is_true(sellViewModelIndex < sellFrameIndex)
     assert.is_true(postQueueIndex < sellFrameIndex)
+    -- The Sold tab renders what AppLedger adopted, so the data module loads
+    -- strictly before the UI that reads it; SoldFrame follows SellFrame in
+    -- the .toc (same tab family, same window).
+    assert.is_number(appLedgerIndex)
+    assert.is_number(soldFrameIndex)
+    assert.is_true(appLedgerIndex < soldFrameIndex)
+    assert.is_true(sellFrameIndex < soldFrameIndex)
 
     for _, rel in ipairs(files) do
       local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))

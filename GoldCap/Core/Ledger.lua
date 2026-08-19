@@ -517,6 +517,12 @@ function GC.Ledger.ScanInbox(api, context, now)
       end
     end
   end
+
+  -- Sold tab: a mailbox scan is exactly when new sale rows appear, so the
+  -- tab's local section refreshes live if it is currently up. Guarded --
+  -- Core files must not assume UI files loaded (specs load Ledger alone).
+  if GC.Sold and GC.Sold.RefreshIfShown then GC.Sold.RefreshIfShown() end
+
   return created
 end
 

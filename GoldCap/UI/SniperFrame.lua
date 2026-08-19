@@ -4712,15 +4712,22 @@ local function setView(v)
   if isDeals then
     frame.scroll:Show()
     frame.headerRow:Show()
-    setTabActive(frame.dealsTab, true)
-    setTabActive(frame.sellTab, false)
-    if GC.Sell.Hide then GC.Sell.Hide() end
   else
     frame.scroll:Hide()
     frame.headerRow:Hide()
-    setTabActive(frame.sellTab, true)
-    setTabActive(frame.dealsTab, false)
+  end
+  setTabActive(frame.dealsTab, isDeals)
+  setTabActive(frame.sellTab, v == "sell")
+  setTabActive(frame.soldTab, v == "sold")
+  if v == "sell" then
     if GC.Sell.Show then GC.Sell.Show() end
+  elseif GC.Sell.Hide then
+    GC.Sell.Hide()
+  end
+  if v == "sold" then
+    if GC.Sold and GC.Sold.Show then GC.Sold.Show() end
+  elseif GC.Sold and GC.Sold.Hide then
+    GC.Sold.Hide()
   end
 end
 
@@ -4917,14 +4924,23 @@ local function createFrame()
   sellTab:SetLabel("Sell")
   sellTab:SetScript("OnClick", function() setView("sell") end)
   f.sellTab = sellTab
+
+  local soldTab = Theme.Button(f, "ghost")
+  soldTab:SetSize(CH.TAB_W, CH.TAB_H)
+  soldTab:SetPoint("LEFT", sellTab, "RIGHT", Theme.pad.xs, 0)
+  soldTab:SetLabel("Sold")
+  soldTab:SetScript("OnClick", function() setView("sold") end)
+  f.soldTab = soldTab
+
   setTabActive(dealsTab, true)  -- Deals is the default view
   setTabActive(sellTab, false)
+  setTabActive(soldTab, false)
 
   -- B: import staleness. Right-justified so it reads as sitting on the right of row 1,
   -- sharing the row with the Deals/Sell tabs; hidden until refreshStaleText() (called on AH
   -- show and after every full scan) says otherwise.
   local staleText = Theme.Label(f, 11)
-  staleText:SetPoint("TOPLEFT", sellTab, "TOPRIGHT", Theme.pad.s, 0)
+  staleText:SetPoint("TOPLEFT", soldTab, "TOPRIGHT", Theme.pad.s, 0)
   staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row1Y)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
@@ -5163,6 +5179,15 @@ local function createFrame()
   -- Initial geometry for the Sell ledger.  SellFrame keeps its own responsive column layout
   -- current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
+    panelLeft = WIN.CONTENT_LEFT,
+    panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
+    top = scrollTop,
+    bottom = scrollBottom,
+    rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
+    rowHeight = WIN.ROW_HEIGHT,
+  })
+
+  GC.Sold.Attach(f, {
     panelLeft = WIN.CONTENT_LEFT,
     panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
     top = scrollTop,
