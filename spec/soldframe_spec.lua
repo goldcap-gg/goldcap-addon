@@ -161,7 +161,7 @@ describe("SoldFrame", function()
 
   it("shows the pairing hint when there is no companion data", function()
     GC.Sold.RefreshIfShown()
-    assert.truthy(shownTexts():find("Pair the GoldCap Companion", 1, true))
+    assert.truthy(shownTexts():find("Pair or update the GoldCap Companion", 1, true))
   end)
 
   it("splits local rows around the snapshot boundary, newest first", function()

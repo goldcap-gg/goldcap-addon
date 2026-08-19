@@ -99,7 +99,7 @@ local function buildEntries()
     end
   else
     entries[#entries + 1] = { kind = "hint",
-      text = "Pair the GoldCap Companion to see profit from goldcap.gg" }
+      text = "Pair or update the GoldCap Companion to see profit from goldcap.gg" }
   end
 
   -- Local section: ledger sales the snapshot cannot contain yet. Exact-key
