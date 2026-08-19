@@ -346,6 +346,44 @@ describe("Sell positions", function()
       assert.is_nil(p.profitAtHold)
       assert.is_not_nil(p.profit)
     end)
+
+    -- The mixed branch prices bag units the same way the bag-only branch does -- at
+    -- postRecommendation.unit, floor raises included -- so when PostFloor holds that price
+    -- above the live ask, its PROFIT rests on the same hold and needs the same flag. Same
+    -- inputs as the bag-only hold spec above, split 1 listed + 1 in the bags: the listed
+    -- unit projects at the 10000 ask, the bag unit at the held 15000.
+    it("flags the hold on a mixed listed+bag position when PostFloor holds the bag price above the live ask", function()
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+        ownedLots = { lot("commodity:42", 1, 10000, 9001) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 1, isCommodity = true } },
+        quotes = { [42] = { unit = 10000, at = 9 } },
+        statsByItemID = { [42] = { mv = 20000 } },
+      })[1]
+      assert.equal(1, p.listedQty)
+      assert.equal(1, p.bagQty)
+      assert.equal("COMPLETE", p.coverage)
+      assert.equal(15000, p.postRecommendation.unit)
+      -- Gross = listed 10000 + bag at the held 15000 = 25000; net = 25000 * 0.95 = 23750.
+      assert.equal(23750, p.projectedNet)
+      assert.equal(3750, p.profit)
+      assert.equal(15000, p.profitAtHold)
+    end)
+
+    -- And the mirror: same mixed split, no mv, so the recommendation (9900) stays under the
+    -- ask and the flag stays absent.
+    it("leaves the hold flag absent on a mixed position when the recommendation stays under the ask", function()
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+        ownedLots = { lot("commodity:42", 1, 10000, 9001) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 1, isCommodity = true } },
+        quotes = { [42] = { unit = 10000, at = 9 } },
+      })[1]
+      assert.equal("COMPLETE", p.coverage)
+      assert.equal(9900, p.postRecommendation.unit)
+      assert.is_nil(p.profitAtHold)
+      assert.is_not_nil(p.profit)
+    end)
   end)
 
   it("[FINAL I2] applies the auction cut once to aggregate multi-lot gross", function()

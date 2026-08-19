@@ -474,6 +474,9 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
       local rec = position.postRecommendation
       local bagUnit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
       if bagUnit then
+        -- Same hold rule as the bag-only branch below: bag units priced above the live ask
+        -- mean this PROFIT rests on the recommendation holding, and the row must say so.
+        if fresh and bagUnit > fresh then holdUnit = bagUnit end
         local bagValue = valueFor(position.bagQty, bagUnit)
         gross = bagValue and add(gross, bagValue) or nil
       else
