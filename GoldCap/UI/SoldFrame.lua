@@ -10,6 +10,18 @@ local _, GC = ...
 -- db.acquisitionRealized; everything else says "--", never an invented
 -- number. Pro gating happened server-side: a free summary simply carries no
 -- basis/realized, and this file renders what is there.
+--
+-- Local/server boundary (C1 fix): the boundary is the newest `at` among the
+-- snapshot's OWN sale rows, never its generatedAt. occurredAt != uploadedAt
+-- -- SavedVariables only flushes to disk on /reload or logout, so the file
+-- the addon reads was written BEFORE that reload, and generatedAt is
+-- therefore always newer than the sales the snapshot is missing. Clamping
+-- the boundary to generatedAt (the old rule) hid a whole session's worth of
+-- sales in neither section. Deriving the boundary from the sales themselves
+-- is a fact about what the server demonstrably holds: it can duplicate a
+-- sale across both sections for one reload (accepted, honest -- the
+-- sections are labeled) but it can never hide one. generatedAt remains only
+-- the "age" line's surface below.
 GC.Sold = {}
 
 local Theme
@@ -61,9 +73,16 @@ local function buildEntries()
   local entries = {}
   local summary = GC.AppLedger and GC.AppLedger.GetSummary and GC.AppLedger.GetSummary()
   local now = time()
-  -- min() guards companion clock skew: a generatedAt from the future would
-  -- otherwise swallow every local row.
-  local boundary = summary and math.min(summary.generatedAt, now) or 0
+  -- The boundary is the newest `at` the snapshot's own sale rows prove the
+  -- server holds (see the file header comment) -- not generatedAt. No
+  -- summary, or a summary with no sales yet, proves nothing: every local
+  -- sale belongs in the local section.
+  local boundary = 0
+  if summary then
+    for _, sale in ipairs(summary.sales) do
+      if type(sale.at) == "number" and sale.at > boundary then boundary = sale.at end
+    end
+  end
 
   if summary then
     entries[#entries + 1] = { kind = "totals", summary = summary }

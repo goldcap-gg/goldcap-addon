@@ -130,14 +130,31 @@ describe("SoldFrame", function()
     assert.truthy(text:find("Server Ore", 1, true))
   end)
 
-  it("clamps a future generatedAt to now so clock skew cannot hide local rows", function()
-    GC.AppLedger.GetSummary = function() return summary({ generatedAt = 99999 }) end
+  it("shows a local sale older than generatedAt but newer than every snapshot sale (C1)", function()
+    -- The old rule clamped the boundary to generatedAt, but generatedAt is
+    -- always newer than the sales the snapshot is missing -- SavedVariables
+    -- only flushes to disk on /reload or logout, so the file the addon
+    -- reads was written BEFORE that reload. This sale sits exactly in that
+    -- gap: sold at 950, after the snapshot's newest sale (900) but before
+    -- its generatedAt (1000). The old code hid it in neither section; the
+    -- boundary must come from the snapshot's own sales, not generatedAt.
+    GC.AppLedger.GetSummary = function() return summary() end -- generatedAt=1000, newest sale at=900
     GC.Ledger.GetEntries = function()
-      return { { kind = "sale", itemName = "Fresh", qty = 1, total = 10, cut = 0,
-                 pending = false, at = 2100, key = "k" } } -- at > time() boundary
+      return { { kind = "sale", itemName = "Just Synced", qty = 1, total = 10, cut = 0,
+                 pending = false, at = 950, key = "k-gap" } }
     end
     GC.Sold.RefreshIfShown()
-    assert.truthy(shownTexts():find("Fresh", 1, true))
+    assert.truthy(shownTexts():find("Just Synced", 1, true))
+  end)
+
+  it("keeps a local sale hidden once it is no newer than the snapshot's newest sale", function()
+    GC.AppLedger.GetSummary = function() return summary() end -- newest snapshot sale at=900
+    GC.Ledger.GetEntries = function()
+      return { { kind = "sale", itemName = "Already Synced", qty = 1, total = 10, cut = 0,
+                 pending = false, at = 900, key = "k-covered" } }
+    end
+    GC.Sold.RefreshIfShown()
+    assert.is_nil(shownTexts():find("Already Synced", 1, true))
   end)
 
   it("shows local profit only on an exact evidence-key join", function()
