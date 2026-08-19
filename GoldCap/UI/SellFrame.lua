@@ -233,6 +233,12 @@ local function formatCell(value)
   return type(value) == "number" and formatAmount(value) or tostring(value or "")
 end
 
+-- Same inline color escape UI/SoldFrame.lua's DIM_HEX uses, for the same reason: the hold-price
+-- suffix on the PROFIT/UNIT cell shares one FontString with the number in front of it, so there
+-- is no separate region to SetTextColor -- the only way to dim part of the text is to color it
+-- inline and close with |r.
+local DIM_HEX = "|cff9d9d9d"
+
 -- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
 -- -- see that module's own `evaluate` comment for what each one means structurally. A silently
 -- short queue is the same lie as a silently short deals list; naming the reason in plain words
@@ -2071,7 +2077,30 @@ renderRows = function()
           local perUnit = profit / p.knownQty
           profit = perUnit >= 0 and math.floor(perUnit) or -math.floor(-perUnit)
         end
-        row.cells.profit:SetText(formatCell(profit))
+        -- position.profitAtHold names the case where this number was computed at
+        -- postRecommendation.unit and that unit sat ABOVE the fresh live quote (PostFloor, or
+        -- the queue-at-exit rule, holding the recommendation above what a seller could actually
+        -- get selling into today's book right now). The number itself stays the recommendation
+        -- -- it IS the price GoldCap would post at -- but green would claim it as ordinary
+        -- market profit when it is really a bet on the hold, so it renders in the same gold the
+        -- MARKET/UNIT column already uses for a computed forward price (see the "» <price>"
+        -- cells below), with the price it assumes named in the cell rather than left implicit.
+        -- A hold that is STILL a loss is not softened by the gold tone -- red outranks it.
+        --
+        -- setColor runs in BOTH branches, never just the hold one: rows are pooled and rebound
+        -- to a new position on every render (renderRows reuses `rows[i]` rather than creating a
+        -- fresh cell each time -- see createRow's own call site), so a row painted gold or red
+        -- here on one render and left uncolored on the next would carry that tint into whatever
+        -- unrelated number lands in the same slot afterward. Same failure class AGENTS.md
+        -- already documents for hover fills painted in OnEnter and never cleared in OnLeave.
+        if type(profit) == "number" and exact(p.profitAtHold) then
+          row.cells.profit:SetText(("%s %s@ %s|r"):format(
+            formatCell(profit), DIM_HEX, formatCell(p.profitAtHold)))
+          setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
+        else
+          row.cells.profit:SetText(formatCell(profit))
+          setColor(row.cells.profit, Theme.color.fg)
+        end
         -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
         -- This column now says what to do about it, in a sentence, or names what is missing.
         local knownQty, exposureQty = p.knownQty or 0, p.exposureQty or 0
