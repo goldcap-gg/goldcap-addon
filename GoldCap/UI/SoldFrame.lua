@@ -34,6 +34,12 @@ local geometry
 local STALE_YELLOW_SECONDS = 6 * 3600
 local STALE_RED_SECONDS = 24 * 3600
 
+-- Close to Theme.color.fgDim. rightSub is one FontString, so the partial-
+-- coverage "N/M" suffix (M2) can't get its own setColor call like the
+-- profit beside it -- an inline escape is the only way to make it read dim
+-- instead of inheriting the green/red profit color.
+local DIM_HEX = "|cff9d9d9d"
+
 local function setColor(fontString, color)
   if fontString and color then
     fontString:SetTextColor(color[1], color[2], color[3], color[4] or 1)
@@ -216,7 +222,7 @@ local function paintRow(row, entry)
     if basis and basis.matched > 0 then
       local text = signedProfit(basis.profit)
       if basis.unmatched > 0 then
-        text = text .. ("  %d/%d"):format(basis.matched, sale.qty)
+        text = text .. "  " .. DIM_HEX .. ("%d/%d"):format(basis.matched, sale.qty) .. "|r"
       end
       row.rightSub:SetText(text)
       setColor(row.rightSub, basis.profit >= 0 and Theme.color.green or Theme.color.red)

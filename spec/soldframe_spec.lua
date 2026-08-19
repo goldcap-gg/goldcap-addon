@@ -226,7 +226,10 @@ describe("SoldFrame", function()
     local full, part, none = rowWithLeftText("Full"), rowWithLeftText("Part"), rowWithLeftText("None")
     assert.truthy(full and part and none)
     assert.equal("+45c", full.rightSub:GetText())          -- Full: signed profit, no count suffix
-    assert.equal("+12c  1/4", part.rightSub:GetText())     -- Part: signed profit plus honest coverage
+    -- Part: signed profit in green/red, the N/M coverage suffix dim (M2) --
+    -- an inline color escape, since rightSub is one FontString and the two
+    -- halves must read in different colors.
+    assert.equal("+12c  |cff9d9d9d1/4|r", part.rightSub:GetText())
     assert.equal("cost unknown", none.rightSub:GetText())  -- None: no invented zero
   end)
 
