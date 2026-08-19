@@ -1348,6 +1348,27 @@ driver = {
       unitPrice = itemLive and itemLive.unitPrice
     end
     if unitPrice then GC.Sniper._lastPrice[itemID] = unitPrice end
+    -- Live observation for the export pipeline. Commodities get the real
+    -- book (driver.commodityBook reads already-fetched results, no query);
+    -- item searches only ever read the top listing here, so the observation
+    -- is the floor alone -- listings/totalQty stay honestly absent. Guarded
+    -- like every other cross-module call in this file: specs load only the
+    -- modules a given test needs, so GC.Book/GC.Data/GC.Ledger may be absent
+    -- outside the client.
+    if GC.Data and GC.Data.RecordLiveObservation then
+      local region = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context().region
+      local book = live and live.avail and driver.commodityBook(itemID) or nil
+      local summary = GC.Book and GC.Book.Summarize(book)
+      if summary then
+        GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
+          region = region, minUnit = summary.minUnit,
+          listings = summary.listings, totalQty = summary.totalQty,
+          levels = book }, time())
+      elseif unitPrice then
+        GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
+          region = region, minUnit = unitPrice }, time())
+      end
+    end
     refreshRows()
   end,
 

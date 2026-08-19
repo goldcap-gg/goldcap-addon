@@ -86,4 +86,25 @@ describe("Live observations store", function()
     assert.is_true(GC.Data.RecordLiveObservation(fresh, obs(), 5000))
     assert.equal(1, #fresh.liveObservations)
   end)
+
+  -- Wiring, not just capability: the store is worthless if no scan path calls it.
+  describe("wiring", function()
+    local function fileText(path)
+      local file = assert(io.open(path, "r"))
+      local text = file:read("*a")
+      file:close()
+      return text
+    end
+
+    it("the Sell quote walk records an observation when a quote resolves", function()
+      local text = fileText("GoldCap/UI/SellFrame.lua")
+      assert.is_truthy(text:find("GC.Data.RecordLiveObservation(", 1, true))
+      assert.is_truthy(text:find("GC.Book.Summarize(levels)", 1, true))
+    end)
+
+    it("the sniper watch loop records an observation on every poll result", function()
+      local text = fileText("GoldCap/UI/SniperFrame.lua")
+      assert.is_truthy(text:find("GC.Data.RecordLiveObservation(", 1, true))
+    end)
+  end)
 end)
