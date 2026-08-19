@@ -130,8 +130,16 @@ local function buildEntries()
   -- Server section: the snapshot's own sale rows, order as served (newest
   -- first).
   if summary and #summary.sales > 0 then
-    entries[#entries + 1] = { kind = "section",
-      text = ("On goldcap.gg -- last %d days"):format(summary.days) }
+    -- The snapshot's `sales` list is capped (at most 50, per the API); once
+    -- totals.salesCount says the server holds more than that, the header
+    -- admits this section is a tail rather than silently under-counting the
+    -- window (M3).
+    local header = ("On goldcap.gg -- last %d days"):format(summary.days)
+    if summary.totals.salesCount > #summary.sales then
+      header = ("On goldcap.gg -- last %d days, latest %d of %d"):format(
+        summary.days, #summary.sales, summary.totals.salesCount)
+    end
+    entries[#entries + 1] = { kind = "section", text = header }
     for _, sale in ipairs(summary.sales) do
       entries[#entries + 1] = { kind = "serverSale", sale = sale }
     end

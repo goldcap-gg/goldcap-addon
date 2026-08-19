@@ -261,6 +261,22 @@ describe("SoldFrame", function()
     assert.truthy(shownTexts():find("No sales recorded yet", 1, true))
   end)
 
+  it("admits the server section is a tail when salesCount exceeds the fetched sales (M3)", function()
+    GC.AppLedger.GetSummary = function()
+      return summary({ totals = { proceeds = 100, spent = 50, pending = 7,
+                                   salesCount = 5, realized = 25 } })
+    end
+    GC.Sold.RefreshIfShown()
+    assert.truthy(shownTexts():find("On goldcap.gg -- last 30 days, latest 1 of 5", 1, true))
+  end)
+
+  it("leaves the server section header unchanged when it holds every sale", function()
+    GC.AppLedger.GetSummary = function() return summary() end -- salesCount == #sales == 1
+    GC.Sold.RefreshIfShown()
+    assert.truthy(shownTexts():find("On goldcap.gg -- last 30 days", 1, true))
+    assert.is_nil(shownTexts():find("latest", 1, true))
+  end)
+
   it("shows the local section's profit net of the sale's own cut (I1)", function()
     -- entry.realized.profit (Core/Acquisitions.lua's ReconcileSale) is
     -- GROSS -- proceeds minus known cost, cut not subtracted. The server
