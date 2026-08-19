@@ -171,6 +171,77 @@ describe("Sell widget geometry and manual cost", function()
     assert.same({ .5, .5, .5, 1 }, container.summary.profit.color)
   end)
 
+  -- The PROFIT / UNIT cell has never had a numeric assertion of its own -- every existing test
+  -- either stubs ProfitText to "Unknown" or checks the row it lives on for something else. Row
+  -- 1: a known cost with no hold price renders the plain per-unit figure, untouched -- the
+  -- "nothing changes" half of the hold-price fix. Rows 2 and 3 are that fix: `profitAtHold` set
+  -- on the position means PostFloor (or the queue-at-exit rule) held postRecommendation.unit
+  -- above the live ask, so this number is the recommendation, not today's market, and the cell
+  -- says so with a dim ` @ <holdUnit>` suffix and a gold (not green) tone -- unless the held
+  -- number is STILL a loss, which stays red regardless.
+  describe("PROFIT / UNIT cell", function()
+    it("renders the exact per-unit figure for a position with a known cost and no hold price", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.ProfitText = function(p) return p.profit end
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 2, knownQty = 2, knownCost = 100, listedValue = 0, bagQty = 2,
+          listedQty = 0, sources = {}, profit = 170000 },
+      })
+      -- 170000 / 2 = 85000/unit = 8g50s.
+      assert.equal("8g50s", rows[1].cells.profit.text)
+      assert.same({ 1, 1, 1, 1 }, rows[1].cells.profit.color)
+    end)
+
+    -- The regression this cell is most exposed to: rows are pooled and rebound to a new
+    -- position on every render, so a row painted gold or red by the hold branch on one pass
+    -- must not still be gold or red on the next pass, once the position it now holds is back
+    -- to the ordinary case. A row.cells.profit that only ever gets SetColor'd from the hold
+    -- branch would leak exactly that tint forward.
+    it("clears a held row's gold tint on the next render once the position is ordinary again", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.ProfitText = function(p) return p.profit end
+      local held = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+          listedQty = 0, sources = {}, profit = 8500, profitAtHold = 15000 },
+      })
+      assert.same({ 0.83, 0.64, 0.22, 1 }, held[1].cells.profit.color)
+
+      local ordinary = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+          listedQty = 0, sources = {}, profit = 8500 },
+      })
+      assert.equal("8500", ordinary[1].cells.profit.text)
+      assert.same({ 1, 1, 1, 1 }, ordinary[1].cells.profit.color)
+    end)
+
+    it("renders a positive hold-price profit in gold with the held unit named", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.ProfitText = function(p) return p.profit end
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+          listedQty = 0, sources = {}, profit = 8500, profitAtHold = 15000 },
+      })
+      assert.equal("8500 |cff9d9d9d@ 1g50s|r", rows[1].cells.profit.text)
+      assert.same({ 0.83, 0.64, 0.22, 1 }, rows[1].cells.profit.color)
+    end)
+
+    it("keeps a negative hold-price profit red, suffix and all", function()
+      local GC = load(620, { calls = {} })
+      GC.SellViewModel.ProfitText = function(p) return p.profit end
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+          listedQty = 0, sources = {}, profit = -11500, profitAtHold = 15000 },
+      })
+      assert.equal("-1g15s |cff9d9d9d@ 1g50s|r", rows[1].cells.profit.text)
+      assert.same({ 1, 0, 0, 1 }, rows[1].cells.profit.color)
+    end)
+  end)
+
   -- MARKET is now unconditional and LISTED is the column that drops on a narrow window: the
   -- market price drives every decision on this screen, while the listed total is already
   -- reported in the summary above the list.

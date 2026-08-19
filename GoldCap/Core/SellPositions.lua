@@ -167,7 +167,7 @@ local function positionFor(positions, key, itemID, context)
     allocations = {}, knownQty = 0, knownCost = 0, coverage = "UNKNOWN", ownedLots = {},
     bagQty = 0, bagStacks = {},
     listedValue = 0, freshMarketUnit = nil, displayMarketUnit = nil, quoteAge = nil,
-    projectedNet = nil, profit = nil, status = "UNLISTED", ahead = nil, outlook = nil,
+    projectedNet = nil, profit = nil, profitAtHold = nil, status = "UNLISTED", ahead = nil, outlook = nil,
     pendingAcquisitions = {}, pendingQty = 0, sellerEvidence = {},
     facts = { soldPending = false, pendingPurchase = false, undercut = false } }
   positions[key] = position
@@ -414,9 +414,15 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     -- knownCost/exposureQty (see that comment for why).
     local paidUnit = position.coverage == "COMPLETE"
       and (position.knownCost and math.floor(position.knownCost / position.knownQty)) or nil
+    -- spikePct travels alongside targetUnit here for the same reason it does in the
+    -- `recommendation` branch above: without it, the queue-at-exit deflation this options
+    -- table enables (opts.targetUnit + opts.levels + opts.sold) falls back to the shared
+    -- default instead of the player's own settings.sniper.spikeTrendPct, so PROFIT/UNIT and
+    -- the Post button could price the SAME bag stock differently depending on which branch
+    -- happened to compute it -- one honoring the player's setting, one silently ignoring it.
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
-        targetUnit = targetUnit, absorbHours = absorbHours,
+        targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
         trendPct = marketStats and marketStats.trend })
   else
     position.postRecommendation = nil
@@ -443,6 +449,14 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- stock exists but has no price yet, the whole projection stays unknown rather than silently
   -- comparing listed-only revenue against listed-plus-bags cost.
   local projected
+  -- Set only by the bag-only branch below, and only when it actually priced the projection at
+  -- postRecommendation.unit rather than the live ask -- i.e. PostFloor (or the queue-at-exit
+  -- rule) held the recommendation ABOVE what MARKET/UNIT shows right now. The view reads this
+  -- to know PROFIT/UNIT is answering "what would I clear at the price GoldCap recommends," not
+  -- "what would I clear selling into today's book" -- two different numbers that happen to
+  -- share a cell. Left nil for the ordinary case (rec at or under the live ask) so the view's
+  -- rendering is untouched there.
+  local holdUnit
   if position.listedQty > 0 then
     local gross = 0
     for _, ownedLot in ipairs(position.ownedLots) do
@@ -470,12 +484,16 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   elseif fresh then
     local rec = position.postRecommendation
     local unit = (type(rec) == "table" and positive(rec.unit)) and rec.unit or fresh
+    if unit > fresh then holdUnit = unit end
     projected = netFor(heldQty, unit)
   else
     projected = nil
   end
   position.projectedNet = projected
-  if position.coverage == "COMPLETE" and projected ~= nil then position.profit = projected - position.knownCost end
+  if position.coverage == "COMPLETE" and projected ~= nil then
+    position.profit = projected - position.knownCost
+    position.profitAtHold = holdUnit
+  end
 
   local skipped = 0
   for _, ownedLot in ipairs(position.ownedLots) do

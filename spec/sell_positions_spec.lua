@@ -89,6 +89,31 @@ describe("Sell positions", function()
     assert.equal(55, seen.spikePct)
   end)
 
+  -- The same wiring, checked at the OTHER call site. `recommendation` (COMPLETE, nothing listed)
+  -- and `postRecommendation` (bag stock, computed independently) both build a RecommendPost
+  -- options table, and both carry a queue-at-exit targetUnit here -- so both must carry the
+  -- SAME spikePct, or a player who set a custom settings.sniper.spikeTrendPct would see PROFIT
+  -- / UNIT and the Post price agree on ordinary positions (single call site fires) and quietly
+  -- disagree the moment a position has both a live listing (recommendation goes RepostAdvice-
+  -- shaped, a path that never took a spikePct) AND bag stock (postRecommendation, which used to
+  -- drop it). RepostAdvice's own internal RecommendPost call fires first here and is captured
+  -- by `seen` same as before it is overwritten by postRecommendation's own call -- the one this
+  -- test actually verifies, since it is the last to run.
+  it("hands the same spike threshold to the bag-stock post recommendation as the listed-lot branch", function()
+    GC.db = { settings = { sniper = { spikeTrendPct = 55 } } }
+    local seen
+    GC.Flips.RecommendPost = function(_, _, _, opts) seen = opts end
+    build({
+      acquisitions = { batch("acq:1", "goldcap", 100, 1000000, 1) },
+      ownedLots = { lot("commodity:42", 50, 15000, 1) },
+      bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 50,
+        isCommodity = true } },
+      quotes = { [42] = { unit = 20000, at = 9 } },
+    })
+    assert.is_table(seen)
+    assert.equal(55, seen.spikePct)
+  end)
+
   -- Two activity rows for ONE item, differing only in commodity-vs-item form, is bookkeeping
   -- damage rather than a real question about which item was sold. When the purchase record
   -- proves which key is the item's real identity, that settles it.
@@ -281,6 +306,45 @@ describe("Sell positions", function()
       -- quote, 100, same as the listed unit. Gross = (100 + 100) * 0.95 = 190.
       assert.equal(190, p.projectedNet)
       assert.equal(-10, p.profit)
+    end)
+
+    -- The bug this batch exists to fix: PostFloor (mv * 0.75) can hold postRecommendation.unit
+    -- ABOVE the live ask, and the bag-only branch above prices PROFIT/UNIT at that held price --
+    -- correctly, it IS the price GoldCap would post at -- but nothing on the row said so, and a
+    -- seller reading a green number assumed it was ordinary market profit. mv = 20000 pushes the
+    -- floor to 15000, well above the live ask of 10000, so RecommendPost's undercut candidate
+    -- (9900) gets overridden to the floor (15000, already whole-silver) before this position's
+    -- profit is ever computed.
+    it("prices bag-only profit at the held recommendation and flags it, when PostFloor holds the price above the live ask", function()
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 2, isCommodity = true } },
+        quotes = { [42] = { unit = 10000, at = 9 } },
+        statsByItemID = { [42] = { mv = 20000 } },
+      })[1]
+      assert.equal(0, p.listedQty)
+      assert.equal(2, p.bagQty)
+      assert.equal("COMPLETE", p.coverage)
+      assert.equal(15000, p.postRecommendation.unit)
+      -- Priced at the held 15000/unit, not the live 10000 ask: netFor(2, 15000) = 30000 * 0.95 = 28500.
+      assert.equal(28500, p.projectedNet)
+      assert.equal(8500, p.profit)
+      assert.equal(15000, p.profitAtHold)
+    end)
+
+    -- Same shape, no mv: PostFloor refuses without one, so RecommendPost's own undercut
+    -- candidate (9900, already under the 10000 live ask) stands unmodified -- the ordinary
+    -- case, where the recommendation never rose above the market it is quoted against.
+    it("leaves the hold flag absent when the recommendation never rises above the live ask", function()
+      local p = build({
+        acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+        bagStock = { { positionKey = "commodity:42", itemID = 42, quantity = 2, isCommodity = true } },
+        quotes = { [42] = { unit = 10000, at = 9 } },
+      })[1]
+      assert.equal("COMPLETE", p.coverage)
+      assert.equal(9900, p.postRecommendation.unit)
+      assert.is_nil(p.profitAtHold)
+      assert.is_not_nil(p.profit)
     end)
   end)
 
