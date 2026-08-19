@@ -1338,8 +1338,16 @@ driver = {
     -- The live price this observation just fetched, independent of whether it qualified as a
     -- deal (DealMath.Evaluate above returns nil `deal` for a price that isn't cheap enough --
     -- which is exactly the state a pin sits in most of the time). See lastSeenPrice.
+    -- commodityResult is nil for a non-commodity (item-class) itemID -- GetCommoditySearchResultInfo
+    -- has nothing to say about it -- so fall back to itemResult, which is what this same poll
+    -- actually queried for such an item (see driver.getKeyInfo/sendSearch above).
     local live = driver.commodityResult(itemID)
-    if live and live.unitPrice then GC.Sniper._lastPrice[itemID] = live.unitPrice end
+    local unitPrice = live and live.unitPrice
+    if not unitPrice then
+      local itemLive = driver.itemResult(itemID)
+      unitPrice = itemLive and itemLive.unitPrice
+    end
+    if unitPrice then GC.Sniper._lastPrice[itemID] = unitPrice end
     refreshRows()
   end,
 

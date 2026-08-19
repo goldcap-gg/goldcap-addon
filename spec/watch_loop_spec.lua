@@ -382,6 +382,18 @@ describe("Watch loop", function()
     assert.are_not.equal("—", rows[1].unitText.text)
   end)
 
+  it("falls back to the item result when a watched item has no commodity result", function()
+    local GC = load()
+    GC.Sniper._TogglePin(99)
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    -- A non-commodity pin: the auction house never returns a commodity search result for it,
+    -- only an item search result -- see driver.itemResult vs driver.commodityResult.
+    driverTbl.commodityResult = function() return nil end
+    driverTbl.itemResult = function() return { auctionID = 1, unitPrice = 250, qty = 1 } end
+    driverTbl.onObservation(99, nil)
+    assert.equal(250, GC.Sniper._lastPrice[99])
+  end)
+
   it("never hides a pinned row, whatever the Check said", function()
     local GC = load()
     GC.Sniper._TogglePin(42)
