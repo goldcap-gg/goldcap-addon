@@ -107,4 +107,32 @@ describe("Book", function()
       assert.equal(0, GC.Book.UnitsAtOrBelow(levels({ 100, 5 }), 0))
     end)
   end)
+
+  describe("Summarize", function()
+    it("reports the true minimum, level count and summed quantity", function()
+      local lvl = {
+        { unitPrice = 500, quantity = 3 },
+        { unitPrice = 200, quantity = 10 },
+        { unitPrice = 900, quantity = 1 },
+      }
+      assert.same({ minUnit = 200, listings = 3, totalQty = 14 }, GC.Book.Summarize(lvl))
+    end)
+
+    it("skips malformed levels and returns nil when none are usable", function()
+      local dirty = {
+        { unitPrice = 0, quantity = 5 },          -- non-positive price
+        { unitPrice = 100.5, quantity = 2 },      -- fractional copper
+        { unitPrice = 300 },                       -- missing quantity
+        "junk",
+      }
+      assert.is_nil(GC.Book.Summarize(dirty))
+      local mixed = { dirty[1], { unitPrice = 300, quantity = 2 } }
+      assert.same({ minUnit = 300, listings = 1, totalQty = 2 }, GC.Book.Summarize(mixed))
+    end)
+
+    it("returns nil for a nil or empty book", function()
+      assert.is_nil(GC.Book.Summarize(nil))
+      assert.is_nil(GC.Book.Summarize({}))
+    end)
+  end)
 end)
