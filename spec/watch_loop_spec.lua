@@ -147,7 +147,7 @@ describe("Watch loop", function()
   end)
 
   it("starts the loop once an item has churned enough", function()
-    local GC, started = load()
+    local GC = load()
     GC.Sniper._churn = {}
     GC.WatchSet.Observe(GC.Sniper._churn, { { itemID = 7, unitPrice = 100 } }, 1)
     GC.WatchSet.Observe(GC.Sniper._churn, { { itemID = 7, unitPrice = 90 } }, 2)
@@ -160,7 +160,7 @@ describe("Watch loop", function()
   end)
 
   it("does not restart the loop when the set is unchanged", function()
-    local GC, started = load()
+    local GC = load()
     GC.Sniper._churn = {}
     for price = 1, 3 do GC.WatchSet.Observe(GC.Sniper._churn, { { itemID = 7, unitPrice = price } }, price) end
     GC.Sniper._RefreshWatchSet()
@@ -169,7 +169,7 @@ describe("Watch loop", function()
   end)
 
   it("watches a pin with no churn at all", function()
-    local GC, started = load()
+    local GC = load()
     GC.db.settings.sniper.watchPins = { 42 }
     GC.Sniper._churn = {}
     GC.Sniper._RefreshWatchSet()
@@ -187,7 +187,7 @@ describe("Watch loop", function()
   end)
 
   it("does not restart the loop when a re-rank leaves membership unchanged", function()
-    local GC, started = load()
+    local GC = load()
     GC.Sniper._churn = {}
     -- Two items both clear MIN_CHURN and tie on count (3); Select's tiebreak after count is
     -- `at` (recency) descending, so seeding item 20 with the later seq range ranks it first.
@@ -204,7 +204,7 @@ describe("Watch loop", function()
   end)
 
   it("stops the loop when the set goes empty, rather than starting on an empty list", function()
-    local GC, started = load()
+    local GC = load()
     local scanner = GC.Sniper.scanner
     GC.db.settings.sniper.watchPins = { 42 }
     GC.Sniper._churn = {}

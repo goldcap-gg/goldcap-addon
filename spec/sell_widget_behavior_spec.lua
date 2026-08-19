@@ -944,7 +944,6 @@ describe("Sell widget geometry and manual cost", function()
         if row.kind == "position" and row.position.itemID == itemID then return row end
       end
     end
-    local rows = upvalue(render, "rows")
     local unlisted = positionRow(42)
     assert.equal("150", unlisted.cells.market.text)
     assert.equal(1, #timers)
@@ -954,7 +953,7 @@ describe("Sell widget geometry and manual cost", function()
     -- took longer than the quote lasted.
     assert.equal(46, timers[1].seconds)
     unlisted.scripts.OnClick(unlisted)
-    rows = upvalue(render, "rows")
+    local rows = upvalue(render, "rows")
     local freshDetail
     for _, row in ipairs(rows) do
       if row.kind == "detail" and row.position.itemID == 42 then freshDetail = row end

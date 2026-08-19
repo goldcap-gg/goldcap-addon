@@ -17,21 +17,12 @@ describe("Sniper row repaint skip", function()
     end
     error("missing upvalue " .. wanted)
   end
-  local function setUpvalue(fn, wanted, value)
-    for i = 1, math.huge do
-      local name = debug.getupvalue(fn, i)
-      if not name then break end
-      if name == wanted then debug.setupvalue(fn, i, value); return end
-    end
-    error("missing upvalue " .. wanted)
-  end
-
   -- A widget that counts every mutating call it receives, so a skip can be proven by the
   -- counter staying flat rather than by re-reading text that a bug could leave stale anyway.
   local function widget(calls)
     local w = {}
     function w:SetText(t) self.text = t; calls.n = calls.n + 1 end
-    function w:SetTextColor(...) calls.n = calls.n + 1 end
+    function w:SetTextColor() calls.n = calls.n + 1 end
     function w:SetTexture(t) self.texture = t; calls.n = calls.n + 1 end
     function w:SetLabel(label) self.label = label; calls.n = calls.n + 1 end
     function w:SetVariant(name) self.variant = name; calls.n = calls.n + 1 end

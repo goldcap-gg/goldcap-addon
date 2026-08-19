@@ -64,7 +64,7 @@ describe("Sell tab, the posting queue control", function()
     }
     _G.C_AuctionHouse = {
       MakeItemKey = function(itemID) return { itemID = itemID } end,
-      GetItemKeyInfo = function(key) return { isCommodity = true } end,
+      GetItemKeyInfo = function() return { isCommodity = true } end,
       PostCommodity = function() return false end,
     }
     _G.C_Item = { GetItemNameByID = function(id) return ITEM_NAMES[id] end }

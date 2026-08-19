@@ -51,7 +51,7 @@ describe("Theme.Button real-widget label contract", function()
 
   before_each(function()
     GC = {}
-    _G.CreateFrame = function(_, _, parent) return stubFrame() end
+    _G.CreateFrame = function() return stubFrame() end
     helper.loadModule("UI/Theme.lua", GC)
   end)
 
