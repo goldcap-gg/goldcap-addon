@@ -34,12 +34,15 @@ end
 -- The tiebreak chain is not decoration: a set that reshuffles on a tie changes WHICH items get
 -- polled between one pass and the next, which is indistinguishable from the loop being broken.
 --
--- Capacity truncates recidivists only. A pin is a standing instruction and outranks anything
--- the addon worked out for itself, so a full set of pins simply leaves no automatic slots.
+-- Capacity bounds the churn-derived portion of the set only, never the pins. A pin is a
+-- standing instruction and outranks anything the addon worked out for itself, so every pin is
+-- always included -- the total set can run past `capacity` once pins outnumber it, and that is
+-- the point: `capacity` limits how many recidivists get to ride along, not how many pins the
+-- player is allowed to have.
 function GC.WatchSet.Select(churn, pins, capacity)
   local out, taken = {}, {}
   for _, itemID in ipairs(pins or {}) do
-    if not taken[itemID] and #out < capacity then
+    if not taken[itemID] then
       taken[itemID] = true
       out[#out + 1] = itemID
     end
@@ -57,9 +60,11 @@ function GC.WatchSet.Select(churn, pins, capacity)
     return a.itemID < b.itemID
   end)
 
+  local churnAdded = 0
   for _, candidate in ipairs(candidates) do
-    if #out >= capacity then break end
+    if churnAdded >= capacity then break end
     out[#out + 1] = candidate.itemID
+    churnAdded = churnAdded + 1
   end
   return out
 end

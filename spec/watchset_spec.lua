@@ -35,7 +35,21 @@ describe("WatchSet", function()
     local churn = {}
     for price = 1, 5 do GC.WatchSet.Observe(churn, { deal(7, price) }, price) end
     assert.same({ 42, 7 }, GC.WatchSet.Select(churn, { 42 }, 10))
-    assert.same({ 42 }, GC.WatchSet.Select(churn, { 42 }, 1))
+  end)
+
+  it("never truncates pins even when they outnumber capacity", function()
+    local churn = {}
+    -- A standing instruction outranks anything the addon worked out for itself: capacity
+    -- bounds only the churn-derived portion of the set, never the pins.
+    assert.same({ 42, 43 }, GC.WatchSet.Select(churn, { 42, 43 }, 1))
+  end)
+
+  it("still bounds the churn-derived portion by capacity once pins are included", function()
+    local churn = {
+      [1] = { count = 5, seen = {}, at = 10 },
+      [2] = { count = 4, seen = {}, at = 9 },
+    }
+    assert.same({ 42, 1 }, GC.WatchSet.Select(churn, { 42 }, 1))
   end)
 
   it("never lists a pinned item twice", function()
