@@ -193,8 +193,16 @@ local function paintRow(row, entry)
     row.right:SetText(formatAmount(sale.total))
     setColor(row.right, Theme.color.fg)
     if entry.realized and type(entry.realized.profit) == "number" then
-      row.rightSub:SetText(signedProfit(entry.realized.profit))
-      setColor(row.rightSub, entry.realized.profit >= 0 and Theme.color.green or Theme.color.red)
+      -- entry.realized.profit (Core/Acquisitions.lua's ReconcileSale:
+      -- `profit = entry.total - allocation.knownCost`) is GROSS -- the AH
+      -- cut is never subtracted there. The server section's basis.profit
+      -- IS net of the cut, so the two sections would otherwise disagree on
+      -- the same sale by exactly the cut. Subtract it here, at render time,
+      -- from the sale's own recorded cut (I1) -- do not also subtract it in
+      -- Core/Acquisitions.lua, or a future reader double-subtracts.
+      local net = entry.realized.profit - (sale.cut or 0)
+      row.rightSub:SetText(signedProfit(net))
+      setColor(row.rightSub, net >= 0 and Theme.color.green or Theme.color.red)
     else
       row.rightSub:SetText("--")
       setColor(row.rightSub, Theme.color.fgDim)

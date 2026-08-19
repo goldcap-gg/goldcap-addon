@@ -258,6 +258,25 @@ describe("SoldFrame", function()
     assert.truthy(shownTexts():find("No sales recorded yet", 1, true))
   end)
 
+  it("shows the local section's profit net of the sale's own cut (I1)", function()
+    -- entry.realized.profit (Core/Acquisitions.lua's ReconcileSale) is
+    -- GROSS -- proceeds minus known cost, cut not subtracted. The server
+    -- section's basis.profit is net of the AH cut, so the two sections
+    -- would otherwise disagree by exactly the cut for the same sale.
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Ledger.GetEntries = function()
+      return { { kind = "sale", itemName = "Cut Test", qty = 1, total = 100, cut = 12,
+                 pending = false, at = 1500, key = "k-cut" } }
+    end
+    GC.Acquisitions.GetRealized = function()
+      return { { evidenceKey = "k-cut", profit = 40, cost = 60 } } -- gross: 100 - 60
+    end
+    GC.Sold.RefreshIfShown()
+    local row = rowWithLeftText("Cut Test")
+    assert.truthy(row)
+    assert.equal("+28c", row.rightSub:GetText()) -- net: 40 - 12 cut = 28
+  end)
+
   it("colors local profit rows red for a loss and green for a gain", function()
     GC.AppLedger.GetSummary = function() return summary() end
     GC.Ledger.GetEntries = function()
