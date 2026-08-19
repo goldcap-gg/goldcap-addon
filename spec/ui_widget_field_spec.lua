@@ -21,6 +21,7 @@ require("spec.spec_helper")
 describe("widget fields the real client actually has", function()
   local SOURCES = {
     "GoldCap/UI/SellFrame.lua",
+    "GoldCap/UI/SoldFrame.lua",
     "GoldCap/UI/SniperFrame.lua",
     "GoldCap/UI/SettingsFrame.lua",
     "GoldCap/UI/Theme.lua",
