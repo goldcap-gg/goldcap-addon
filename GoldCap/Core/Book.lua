@@ -92,6 +92,15 @@ end
 -- minimum (quoteResolved's own `unit` is the competing-not-own price, not
 -- the floor), how many result rows the client returned (distinct listings
 -- for item searches, price levels for commodities), and the shelf total.
+--
+-- `levels` itself is already censored before it reaches here: both callers build it via a
+-- client read capped at LIM.MAX_BOOK_LEVELS = 100 (driver.commodityBook in SniperFrame.lua,
+-- boundedLevels in SellFrame.lua), because that is all the API hands back in one page. On a
+-- book deeper than that, this function only ever sees the cheapest 100 rows -- so `listings`
+-- saturates at 100 rather than reporting the book's real depth, and `totalQty` is a floor on
+-- the shelf (the sum of what was readable), not the true total. A phase-2 anchor consuming
+-- these observations must treat `listings == 100` as "at least 100, depth unknown", not as a
+-- whole-shelf count.
 function GC.Book.Summarize(levels)
   if type(levels) ~= "table" then return nil end
   local minUnit, listings, totalQty
