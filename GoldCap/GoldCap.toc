@@ -11,6 +11,7 @@
 Core/Util.lua
 Core/ImportString.lua
 Core/Data.lua
+Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua
 Core/Ledger.lua

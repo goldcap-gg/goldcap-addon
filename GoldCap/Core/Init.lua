@@ -230,6 +230,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- db.imported already reflects the prior session's state to compare against.
       GC.Data.AdoptAppData()
     end
+    if GC.AppLedger then
+      -- Sold tab: adopt the companion-written ledger summary the same way
+      -- AdoptAppData above adopts prices -- once, at load, memory only.
+      GC.AppLedger.Adopt()
+    end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     if GC.Acquisitions then
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
