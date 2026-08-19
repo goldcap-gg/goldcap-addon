@@ -127,7 +127,7 @@ local function buildEntries()
     entries[#entries + 1] = { kind = "section",
       text = ("On goldcap.gg -- last %d days"):format(summary.days) }
     for _, sale in ipairs(summary.sales) do
-      entries[#entries + 1] = { kind = "serverSale", sale = sale, pro = summary.pro }
+      entries[#entries + 1] = { kind = "serverSale", sale = sale }
     end
   end
 
