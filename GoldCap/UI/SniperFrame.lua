@@ -1328,12 +1328,16 @@ driver = {
     else
       deals[itemID] = deal
     end
+    -- Built once and threaded through below (to evaluateLiveCommodityDeal and to the
+    -- observation recorder) instead of letting each ask driver.commodityBook for its own copy
+    -- of the same already-fetched poll.
+    local book = driver.commodityBook(itemID)
     -- The poll has just pulled this item's live book, which is exactly what a verdict is
     -- computed from -- so compute it here, for nothing. A watched item therefore never costs
     -- tickAutoVerify a query, and the ring it may produce goes through the one shared
     -- transition path rather than a second notion of "buyable".
     if deal and GC.Sniper._IsWatched(itemID) then
-      stampVerdict(deal, evaluateLiveCommodityDeal(itemID))
+      stampVerdict(deal, evaluateLiveCommodityDeal(itemID, book))
     end
     -- The live price this observation just fetched, independent of whether it qualified as a
     -- deal (DealMath.Evaluate above returns nil `deal` for a price that isn't cheap enough --
@@ -1348,6 +1352,27 @@ driver = {
       unitPrice = itemLive and itemLive.unitPrice
     end
     if unitPrice then GC.Sniper._lastPrice[itemID] = unitPrice end
+    -- Live observation for the export pipeline. Commodities get the real
+    -- book (driver.commodityBook reads already-fetched results, no query);
+    -- item searches only ever read the top listing here, so the observation
+    -- is the floor alone -- listings/totalQty stay honestly absent. Guarded
+    -- like every other cross-module call in this file: specs load only the
+    -- modules a given test needs, so GC.Book/GC.Data/GC.Ledger may be absent
+    -- outside the client.
+    if GC.Data and GC.Data.RecordLiveObservation then
+      local region = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context().region
+      local recordBook = live and live.avail and book or nil
+      local summary = GC.Book and GC.Book.Summarize(recordBook)
+      if summary then
+        GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
+          region = region, minUnit = summary.minUnit,
+          listings = summary.listings, totalQty = summary.totalQty,
+          levels = recordBook }, time())
+      elseif unitPrice then
+        GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
+          region = region, minUnit = unitPrice }, time())
+      end
+    end
     refreshRows()
   end,
 
@@ -2555,8 +2580,11 @@ local function availableFromLevels(levels)
   return total > 0 and total or nil
 end
 
-evaluateLiveCommodityDeal = function(itemID)
-  local levels = driver.commodityBook(itemID)
+-- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
+-- onObservation below passes its own so the same poll's book is not fetched twice. Every other
+-- call site omits it and gets the old behaviour of building its own.
+evaluateLiveCommodityDeal = function(itemID, levels)
+  levels = levels or driver.commodityBook(itemID)
   if not levels then return nil end
   local result = driver.commodityResult(itemID)
   return {

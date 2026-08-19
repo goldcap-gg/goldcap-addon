@@ -1039,6 +1039,19 @@ local function quoteResolved(kind, itemID, unit, levels)
     persisted[itemID] = resolved and { unit = resolved.unit, at = resolved.at } or nil
   end
   if unit and quotes[itemID] then quotes[itemID].levels = levels end
+  -- Carry what this walk just saw out of the game (live-prices spec).
+  -- Summarize gives the TRUE floor; `unit` here is the competing-not-own
+  -- price and must not masquerade as the book minimum. Guarded like every
+  -- other cross-module call in this file: specs load only the modules a
+  -- given test needs, so GC.Book/GC.Data may be absent outside the client.
+  local summary = GC.Book and GC.Book.Summarize(levels)
+  if summary and GC.Data and GC.Data.RecordLiveObservation then
+    local scope = context()
+    GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
+      region = scope and scope.region, minUnit = summary.minUnit,
+      listings = summary.listings, totalQty = summary.totalQty,
+      levels = levels }, time())
+  end
   composePositions()
   renderRows()
   advanceQuote()

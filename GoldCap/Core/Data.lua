@@ -361,3 +361,61 @@ function GC.Data.GetSaleRate(itemID)
     sales = entry.sales,
   }
 end
+
+-- Live observations: bounded facts about the book the client just saw,
+-- carried out via SavedVariables for the companion to upload (spec:
+-- docs/superpowers/specs/2026-08-19-live-prices-from-player-scans-design.md).
+-- Unlike sellQuotes — which deliberately does NOT persist levels — this
+-- table persists at most five levels per item, newest scan wins per item,
+-- 200 items, day-old rows pruned on write: the whole table stays small by
+-- construction, which is the condition Init.lua's sellQuotes comment set.
+GC.Data.LIVE_OBSERVATIONS_CAP = 200
+GC.Data.LIVE_OBSERVATION_MAX_AGE = 24 * 60 * 60
+GC.Data.LIVE_OBSERVATION_MAX_LEVELS = 5
+
+function GC.Data.RecordLiveObservation(database, observation, now)
+  if type(database) ~= "table" or type(observation) ~= "table" then return nil end
+  if database.liveObservations == nil then database.liveObservations = {} end
+  if type(database.liveObservations) ~= "table" then return nil end
+  if not isPositiveInteger(now) or not isPositiveInteger(observation.itemID)
+      or not isPositiveInteger(observation.minUnit)
+      or (observation.region ~= "us" and observation.region ~= "eu") then return nil end
+  if observation.listings ~= nil and not isPositiveInteger(observation.listings) then return nil end
+  if observation.totalQty ~= nil and not isPositiveInteger(observation.totalQty) then return nil end
+
+  local levels
+  if type(observation.levels) == "table" then
+    levels = {}
+    for _, level in ipairs(observation.levels) do
+      if #levels >= GC.Data.LIVE_OBSERVATION_MAX_LEVELS then break end
+      if type(level) == "table" and isPositiveInteger(level.unitPrice) and isPositiveInteger(level.quantity) then
+        levels[#levels + 1] = { unit = level.unitPrice, qty = level.quantity }
+      end
+    end
+    if #levels == 0 then levels = nil end
+  end
+
+  local store = database.liveObservations
+  -- Prune: same item (newest wins) and anything a day stale.
+  for index = #store, 1, -1 do
+    local row = store[index]
+    if type(row) ~= "table" or row.itemID == observation.itemID
+        or not isPositiveInteger(row.scannedAt)
+        or now - row.scannedAt > GC.Data.LIVE_OBSERVATION_MAX_AGE then
+      table.remove(store, index)
+    end
+  end
+  -- Cap: evict the oldest scan until there is room.
+  while #store >= GC.Data.LIVE_OBSERVATIONS_CAP do
+    local oldestIndex, oldestAt = 1, math.huge
+    for index, row in ipairs(store) do
+      if (row.scannedAt or 0) < oldestAt then oldestIndex, oldestAt = index, row.scannedAt or 0 end
+    end
+    table.remove(store, oldestIndex)
+  end
+
+  store[#store + 1] = { itemID = observation.itemID, region = observation.region,
+    scannedAt = now, minUnit = observation.minUnit, listings = observation.listings,
+    totalQty = observation.totalQty, levels = levels }
+  return true
+end

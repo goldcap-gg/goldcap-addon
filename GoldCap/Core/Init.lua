@@ -35,6 +35,10 @@ GC.DEFAULTS = {
   -- seedPersistedQuotes for the retention window that prunes this on the way back in. Same
   -- empty-table ApplyDefaults contract as `flips` above.
   sellQuotes = {},
+  -- Live observations: bounded facts about the book the client just saw, for the companion
+  -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
+  -- contract as `flips` above.
+  liveObservations = {},
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.

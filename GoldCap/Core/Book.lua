@@ -2,6 +2,11 @@ local _, GC = ...
 
 GC.Book = {}
 
+local function exact(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+    and value == math.floor(value) and value >= 0
+end
+
 -- `levels` is the visible order book ascending by unitPrice -- for a commodity, one entry per
 -- price level (C_AuctionHouse.GetCommoditySearchResultInfo). `want` is how many units the
 -- player is about to buy. This walks the book bottom-up exactly the way a commodity purchase
@@ -81,4 +86,32 @@ function GC.Book.Fill(levels, want)
     levelsUsed = levelsUsed,
     exhausted = filled < want,
   }
+end
+
+-- One summary of a walked book for the live-observation writer: the TRUE
+-- minimum (quoteResolved's own `unit` is the competing-not-own price, not
+-- the floor), how many result rows the client returned (distinct listings
+-- for item searches, price levels for commodities), and the shelf total.
+--
+-- `levels` itself is already censored before it reaches here: both callers build it via a
+-- client read capped at LIM.MAX_BOOK_LEVELS = 100 (driver.commodityBook in SniperFrame.lua,
+-- boundedLevels in SellFrame.lua), because that is all the API hands back in one page. On a
+-- book deeper than that, this function only ever sees the cheapest 100 rows -- so `listings`
+-- saturates at 100 rather than reporting the book's real depth, and `totalQty` is a floor on
+-- the shelf (the sum of what was readable), not the true total. A phase-2 anchor consuming
+-- these observations must treat `listings == 100` as "at least 100, depth unknown", not as a
+-- whole-shelf count.
+function GC.Book.Summarize(levels)
+  if type(levels) ~= "table" then return nil end
+  local minUnit, listings, totalQty
+  for _, level in ipairs(levels) do
+    if type(level) == "table" and exact(level.unitPrice) and level.unitPrice > 0
+        and exact(level.quantity) and level.quantity > 0 then
+      minUnit = (minUnit == nil or level.unitPrice < minUnit) and level.unitPrice or minUnit
+      listings = (listings or 0) + 1
+      totalQty = (totalQty or 0) + level.quantity
+    end
+  end
+  if not minUnit then return nil end
+  return { minUnit = minUnit, listings = listings, totalQty = totalQty }
 end
