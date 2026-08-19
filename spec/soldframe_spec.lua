@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 describe("SoldFrame", function()
-  local GC, rowsOf, containerOf
+  local GC, rowsOf, containerOf, bandOf
 
   local function region(kind, parent)
     -- `points`/`scripts` are bookkeeping the doubles alone define -- see
@@ -13,13 +13,16 @@ describe("SoldFrame", function()
       self.points[#self.points + 1] = { point = point, relative = relative,
                                          relativePoint = relativePoint, x = x, y = y }
     end
+    function r:ClearAllPoints() self.points = {} end
+    function r:SetAllPoints() self.points[#self.points + 1] = { point = "ALL" } end
     function r:SetSize(w, h) self.width, self.height = w, h end
     function r:SetWidth(w) self.width = w end
     function r:SetHeight(h) self.height = h end
     function r:GetWidth() return self.width end
-    function r:SetJustifyH() end
+    function r:SetJustifyH(j) self.justify = j end
     function r:SetWordWrap() end
     function r:SetTextColor(...) self.colorValue = { ... } end
+    function r:SetColorTexture(...) self.colorTexture = { ... } end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
     function r:Show() self.visible = true end
@@ -43,11 +46,12 @@ describe("SoldFrame", function()
     GC = helper.loadModule("Core/Util.lua")
     GC.Theme = {
       color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {1,1,1}, gold = {1,1,1},
-                red = {1,0,0}, green = {0,1,0}, panel = {0,0,0}, bg = {0,0,0} },
+                red = {1,0,0}, green = {0,1,0}, panel = {0,0,0}, bg = {0,0,0},
+                zebra = {1,1,1,0.04}, hover = {1,1,1,0.08} },
       tier = { SUSPECT = {1,1,0} },
       pad = { xs = 4, s = 8, m = 12, l = 16 },
       Label = function(parent, _) return region("FontString", parent) end,
-      Num = function(parent, _) return region("FontString", parent) end,
+      Num = function(parent, _, _) return region("FontString", parent) end,
       WithQuality = function(name) return name end,
     }
     GC.AppLedger = { GetSummary = function() return nil end }
@@ -77,6 +81,19 @@ describe("SoldFrame", function()
       end
     end
 
+    -- The header band (totals+profit line, age line, and -- for the header
+    -- row test below -- the column header's own cells, attached at
+    -- band.header purely for spec reachability).
+    bandOf = function()
+      local i = 1
+      while true do
+        local name, value = debug.getupvalue(GC.Sold.RefreshIfShown, i)
+        if not name then error("band upvalue not found") end
+        if name == "band" then return value end
+        i = i + 1
+      end
+    end
+
     local host = region("Frame")
     GC.Sold.Attach(host, { panelLeft = 12, panelRightInset = 32, top = -100,
                            bottom = 34, rowWidth = 600, rowHeight = 28 })
@@ -89,26 +106,38 @@ describe("SoldFrame", function()
     _G.date = nil
   end)
 
+  -- Concatenates every cell a shown row could possibly carry -- the plain
+  -- item name, the section/hint full-row text, and the five column cells --
+  -- so a substring search behaves like the old single-blob search used to,
+  -- regardless of which cell kind actually holds the text.
   local function shownTexts()
     local out = {}
     for _, row in ipairs(rowsOf()) do
       if row:IsShown() then
-        out[#out + 1] = (row.left:GetText() or "") .. " | " .. (row.right:GetText() or "")
-          .. " | " .. (row.rightSub:GetText() or "")
+        out[#out + 1] = table.concat({
+          row.item:GetText() or "",
+          row.wide:GetText() or "",
+          row.cells.when:GetText() or "",
+          row.cells.qty:GetText() or "",
+          row.cells.unit:GetText() or "",
+          row.cells.total:GetText() or "",
+          row.cells.profit:GetText() or "",
+        }, " | ")
       end
     end
     return table.concat(out, "\n")
   end
 
-  -- Finds the one shown row whose left text contains `pattern` (plain find,
-  -- no magic chars). Used where a test needs a specific row's own color/text
-  -- rather than a blob search across every rendered row -- a blob search
-  -- can't tell which row a fact came from, so it can pass even when the
-  -- branch under test is broken (see the totals-row confound this replaced).
-  local function rowWithLeftText(pattern)
+  -- Finds the one shown row whose item/section/hint text contains `pattern`
+  -- (plain find, no magic chars). Used where a test needs a specific row's
+  -- own cell/color rather than a blob search across every rendered row -- a
+  -- blob search can't tell which row a fact came from, so it can pass even
+  -- when the branch under test is broken.
+  local function rowWithText(pattern)
     for _, row in ipairs(rowsOf()) do
-      if row:IsShown() and (row.left:GetText() or ""):find(pattern, 1, true) then
-        return row
+      if row:IsShown() then
+        local text = (row.item:GetText() or "") .. (row.wide:GetText() or "")
+        if text:find(pattern, 1, true) then return row end
       end
     end
   end
@@ -195,12 +224,12 @@ describe("SoldFrame", function()
     GC.Sold.RefreshIfShown()
     local matched, unmatched
     for _, row in ipairs(rowsOf()) do
-      if row:IsShown() and (row.left:GetText() or ""):find("Matched", 1, true)
-         and not (row.left:GetText() or ""):find("Unmatched", 1, true) then
-        matched = row.rightSub:GetText()
+      if row:IsShown() and (row.item:GetText() or ""):find("Matched", 1, true)
+         and not (row.item:GetText() or ""):find("Unmatched", 1, true) then
+        matched = row.cells.profit:GetText()
       end
-      if row:IsShown() and (row.left:GetText() or ""):find("Unmatched", 1, true) then
-        unmatched = row.rightSub:GetText()
+      if row:IsShown() and (row.item:GetText() or ""):find("Unmatched", 1, true) then
+        unmatched = row.cells.profit:GetText()
       end
     end
     assert.truthy(matched and matched:find("+", 1, true))
@@ -219,18 +248,20 @@ describe("SoldFrame", function()
       } })
     end
     GC.Sold.RefreshIfShown()
-    -- Read each row's own rightSub directly rather than searching the whole
-    -- rendered blob: the totals row independently renders "+25c" from this
-    -- fixture's totals.realized, so a blob-wide `text:find("+")` would still
-    -- pass even if the Full row's own basis branch were broken.
-    local full, part, none = rowWithLeftText("Full"), rowWithLeftText("Part"), rowWithLeftText("None")
+    -- Read each row's own PROFIT cell directly rather than searching the
+    -- whole rendered blob: the header band independently renders "+25c"
+    -- from this fixture's totals.realized (now on its own line, outside
+    -- the row pool entirely -- see the band tests below), but a stray
+    -- blob-wide `text:find("+")` could still have passed even when the
+    -- Full row's own basis branch were broken, so this stays row-specific.
+    local full, part, none = rowWithText("Full"), rowWithText("Part"), rowWithText("None")
     assert.truthy(full and part and none)
-    assert.equal("+45c", full.rightSub:GetText())          -- Full: signed profit, no count suffix
+    assert.equal("+45c", full.cells.profit:GetText())          -- Full: signed profit, no count suffix
     -- Part: signed profit in green/red, the N/M coverage suffix dim (M2) --
-    -- an inline color escape, since rightSub is one FontString and the two
-    -- halves must read in different colors.
-    assert.equal("+12c  |cff9d9d9d1/4|r", part.rightSub:GetText())
-    assert.equal("cost unknown", none.rightSub:GetText())  -- None: no invented zero
+    -- an inline color escape, since the PROFIT cell is one FontString and
+    -- the two halves must read in different colors.
+    assert.equal("+12c  |cff9d9d9d1/4|r", part.cells.profit:GetText())
+    assert.equal("cost unknown", none.cells.profit:GetText())  -- None: no invented zero
   end)
 
   it("free tier shows the Pro hint and no profit column", function()
@@ -242,6 +273,12 @@ describe("SoldFrame", function()
     end
     GC.Sold.RefreshIfShown()
     assert.truthy(shownTexts():find("Pro feature", 1, true))
+    -- The design's own words for this state: "free tier (no basis) ->
+    -- empty" -- never an invented "--" or "cost unknown" when the sale
+    -- carries no basis field at all.
+    local row = rowWithText("Server Ore")
+    assert.truthy(row)
+    assert.equal("", row.cells.profit:GetText())
   end)
 
   it("shows every local sale when there is no companion summary yet (boundary defaults to 0)", function()
@@ -291,9 +328,9 @@ describe("SoldFrame", function()
       return { { evidenceKey = "k-cut", profit = 40, cost = 60 } } -- gross: 100 - 60
     end
     GC.Sold.RefreshIfShown()
-    local row = rowWithLeftText("Cut Test")
+    local row = rowWithText("Cut Test")
     assert.truthy(row)
-    assert.equal("+28c", row.rightSub:GetText()) -- net: 40 - 12 cut = 28
+    assert.equal("+28c", row.cells.profit:GetText()) -- net: 40 - 12 cut = 28
   end)
 
   it("colors local profit rows red for a loss and green for a gain", function()
@@ -313,10 +350,66 @@ describe("SoldFrame", function()
       }
     end
     GC.Sold.RefreshIfShown()
-    local winRow, loseRow = rowWithLeftText("Winner"), rowWithLeftText("Loser")
+    local winRow, loseRow = rowWithText("Winner"), rowWithText("Loser")
     assert.truthy(winRow and loseRow)
-    assert.truthy(colorEquals(winRow.rightSub.colorValue, GC.Theme.color.green))
-    assert.truthy(colorEquals(loseRow.rightSub.colorValue, GC.Theme.color.red))
+    assert.truthy(colorEquals(winRow.cells.profit.colorValue, GC.Theme.color.green))
+    assert.truthy(colorEquals(loseRow.cells.profit.colorValue, GC.Theme.color.red))
+  end)
+
+  it("shows the WHEN column as a formatted date, or a dim 'in the mail' while pending", function()
+    -- Same honesty the old inline "[not yet paid out]" suffix carried: the
+    -- sale exists, the gold is just in transit -- now the WHEN column's own
+    -- content instead of an appendix to it.
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Ledger.GetEntries = function()
+      return {
+        { kind = "sale", itemName = "Posted Already", qty = 1, total = 10, cut = 0,
+          pending = false, at = 1500, key = "k-posted" },
+        { kind = "sale", itemName = "In Transit", qty = 1, total = 10, cut = 0,
+          pending = true, at = 1600, key = "k-transit" },
+      }
+    end
+    GC.Sold.RefreshIfShown()
+    local posted, transit = rowWithText("Posted Already"), rowWithText("In Transit")
+    assert.truthy(posted and transit)
+    assert.truthy(posted.cells.when:GetText() ~= "in the mail")
+    assert.equal("in the mail", transit.cells.when:GetText())
+    assert.truthy(colorEquals(transit.cells.when.colorValue, GC.Theme.color.fgDim))
+  end)
+
+  it("shows the UNIT column as floor(total/qty)", function()
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Ledger.GetEntries = function()
+      return { { kind = "sale", itemName = "Unit Math", qty = 3, total = 100, cut = 0,
+                 pending = false, at = 1500, key = "k-unit" } }
+    end
+    GC.Sold.RefreshIfShown()
+    local row = rowWithText("Unit Math")
+    assert.truthy(row)
+    assert.equal("33c", row.cells.unit:GetText()) -- floor(100/3) = 33
+    assert.equal("3", row.cells.qty:GetText())
+    assert.equal("100c", row.cells.total:GetText())
+  end)
+
+  it("shows the two-line header band: totals+realized profit, then sync age", function()
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Sold.RefreshIfShown()
+    local band = bandOf()
+    assert.truthy(band)
+    assert.truthy(band.totals:GetText():find("1 sales", 1, true))
+    assert.truthy(band.totals:GetText():find("proceeds", 1, true))
+    assert.equal("+25c", band.profit:GetText())
+    assert.truthy(colorEquals(band.profit.colorValue, GC.Theme.color.green))
+    assert.truthy(band.age:GetText():find("synced", 1, true))
+    -- The band is not a row: neither line appears in the scrolling list.
+    assert.is_nil(shownTexts():find("proceeds", 1, true))
+  end)
+
+  it("leaves the header band blank when there is no companion summary", function()
+    GC.Sold.RefreshIfShown()
+    local band = bandOf()
+    assert.equal("", band.totals:GetText())
+    assert.equal("", band.age:GetText())
   end)
 
   it("colors the sync-age line with the SUSPECT tier once it is 6-24h stale", function()
@@ -324,9 +417,19 @@ describe("SoldFrame", function()
     -- inside (STALE_YELLOW_SECONDS, STALE_RED_SECONDS) -- the yellow band.
     GC.AppLedger.GetSummary = function() return summary({ generatedAt = 2000 - 12 * 3600 }) end
     GC.Sold.RefreshIfShown()
-    local ageRow = rowWithLeftText("synced")
-    assert.truthy(ageRow)
-    assert.truthy(colorEquals(ageRow.left.colorValue, GC.Theme.tier.SUSPECT))
+    local band = bandOf()
+    assert.truthy(band)
+    assert.truthy(colorEquals(band.age.colorValue, GC.Theme.tier.SUSPECT))
+  end)
+
+  it("labels the column header row like Deals': uppercase ITEM/WHEN/QTY/UNIT/TOTAL/PROFIT", function()
+    local band = bandOf()
+    assert.truthy(band and band.header and band.header.cells)
+    assert.equal("WHEN", band.header.cells.when.label:GetText())
+    assert.equal("QTY", band.header.cells.qty.label:GetText())
+    assert.equal("UNIT", band.header.cells.unit.label:GetText())
+    assert.equal("TOTAL", band.header.cells.total.label:GetText())
+    assert.equal("PROFIT", band.header.cells.profit.label:GetText())
   end)
 
   it("re-anchors rows to the container's current width instead of a stale fixed size (I2)", function()
@@ -350,5 +453,42 @@ describe("SoldFrame", function()
     end
     assert.truthy(topLeft)
     assert.truthy(topRight)
+  end)
+
+  it("drops WHEN first as the window narrows, then UNIT, and restores both when it widens again", function()
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Ledger.GetEntries = function()
+      return { { kind = "sale", itemName = "Responsive Row", qty = 1, total = 10, cut = 0,
+                 pending = false, at = 1500, key = "k-resp" } }
+    end
+    local container = containerOf()
+
+    -- Wide: both optional columns visible.
+    container.width = 900
+    GC.Sold.Show()
+    local wide = rowWithText("Responsive Row")
+    assert.truthy(wide.cells.when:IsShown())
+    assert.truthy(wide.cells.unit:IsShown())
+
+    -- Narrow enough to drop WHEN but not UNIT.
+    container.width = 450
+    GC.Sold.Show()
+    local midRow = rowWithText("Responsive Row")
+    assert.falsy(midRow.cells.when:IsShown())
+    assert.truthy(midRow.cells.unit:IsShown())
+
+    -- Narrower still: UNIT drops too.
+    container.width = 260
+    GC.Sold.Show()
+    local narrowRow = rowWithText("Responsive Row")
+    assert.falsy(narrowRow.cells.when:IsShown())
+    assert.falsy(narrowRow.cells.unit:IsShown())
+
+    -- Back to wide: both columns come back.
+    container.width = 900
+    GC.Sold.Show()
+    local restored = rowWithText("Responsive Row")
+    assert.truthy(restored.cells.when:IsShown())
+    assert.truthy(restored.cells.unit:IsShown())
   end)
 end)
