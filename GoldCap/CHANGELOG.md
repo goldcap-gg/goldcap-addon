@@ -53,6 +53,14 @@
   dump-trend cutoff, the sound and auto-scan-by-default toggles, a font
   scale slider (0.9–1.3), and a button to reset the window back to its
   default position and size.
+- **New Sold tab.** A third tab, next to Deals and Sell, answers "what did I
+  sell and at what profit" straight from goldcap.gg's own numbers — the same
+  FIFO cost-basis profit as the web ledger, fed in by the GoldCap Companion
+  on its regular sync tick. It's shown as two honestly separate sections:
+  goldcap.gg's own synced sales, and a "not on goldcap.gg yet" section for
+  today's sales and anything this session hasn't synced yet, so a sale never
+  goes missing while it's waiting on a `/reload` or logout to reach the
+  server. No companion paired? The tab says so instead of showing nothing.
 
 ## 0.1.0
 
