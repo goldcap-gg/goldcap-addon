@@ -9,7 +9,7 @@ describe("SoldFrame", function()
     function r:SetSize() end
     function r:SetJustifyH() end
     function r:SetWordWrap() end
-    function r:SetTextColor() end
+    function r:SetTextColor(...) self.colorValue = { ... } end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
     function r:Show() self.visible = true end
@@ -76,6 +76,24 @@ describe("SoldFrame", function()
       end
     end
     return table.concat(out, "\n")
+  end
+
+  -- Finds the one shown row whose left text contains `pattern` (plain find,
+  -- no magic chars). Used where a test needs a specific row's own color/text
+  -- rather than a blob search across every rendered row -- a blob search
+  -- can't tell which row a fact came from, so it can pass even when the
+  -- branch under test is broken (see the totals-row confound this replaced).
+  local function rowWithLeftText(pattern)
+    for _, row in ipairs(rowsOf()) do
+      if row:IsShown() and (row.left:GetText() or ""):find(pattern, 1, true) then
+        return row
+      end
+    end
+  end
+
+  local function colorEquals(actual, expected)
+    return actual ~= nil and expected ~= nil
+      and actual[1] == expected[1] and actual[2] == expected[2] and actual[3] == expected[3]
   end
 
   local function summary(over)
@@ -162,10 +180,15 @@ describe("SoldFrame", function()
       } })
     end
     GC.Sold.RefreshIfShown()
-    local text = shownTexts()
-    assert.truthy(text:find("+", 1, true))          -- Full: signed profit
-    assert.truthy(text:find("1/4", 1, true))         -- Part: honest coverage
-    assert.truthy(text:find("cost unknown", 1, true)) -- None: no invented zero
+    -- Read each row's own rightSub directly rather than searching the whole
+    -- rendered blob: the totals row independently renders "+25c" from this
+    -- fixture's totals.realized, so a blob-wide `text:find("+")` would still
+    -- pass even if the Full row's own basis branch were broken.
+    local full, part, none = rowWithLeftText("Full"), rowWithLeftText("Part"), rowWithLeftText("None")
+    assert.truthy(full and part and none)
+    assert.equal("+45c", full.rightSub:GetText())          -- Full: signed profit, no count suffix
+    assert.equal("+12c  1/4", part.rightSub:GetText())     -- Part: signed profit plus honest coverage
+    assert.equal("cost unknown", none.rightSub:GetText())  -- None: no invented zero
   end)
 
   it("free tier shows the Pro hint and no profit column", function()
@@ -177,5 +200,55 @@ describe("SoldFrame", function()
     end
     GC.Sold.RefreshIfShown()
     assert.truthy(shownTexts():find("Pro feature", 1, true))
+  end)
+
+  it("shows every local sale when there is no companion summary yet (boundary defaults to 0)", function()
+    GC.AppLedger.GetSummary = function() return nil end
+    GC.Ledger.GetEntries = function()
+      return { { kind = "sale", itemName = "No Summary Yet", qty = 1, total = 10, cut = 0,
+                 pending = false, at = 1, key = "k-early" } } -- at(1) > boundary(0) with no summary
+    end
+    GC.Sold.RefreshIfShown()
+    assert.truthy(shownTexts():find("No Summary Yet", 1, true))
+  end)
+
+  it("shows the mailbox empty-state hint when there is nothing anywhere", function()
+    GC.AppLedger.GetSummary = function() return nil end
+    GC.Ledger.GetEntries = function() return {} end
+    GC.Sold.RefreshIfShown()
+    assert.truthy(shownTexts():find("No sales recorded yet", 1, true))
+  end)
+
+  it("colors local profit rows red for a loss and green for a gain", function()
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Ledger.GetEntries = function()
+      return {
+        { kind = "sale", itemName = "Winner", qty = 1, total = 100, cut = 5,
+          pending = false, at = 1500, key = "k-win" },
+        { kind = "sale", itemName = "Loser", qty = 1, total = 100, cut = 5,
+          pending = false, at = 1600, key = "k-lose" },
+      }
+    end
+    GC.Acquisitions.GetRealized = function()
+      return {
+        { evidenceKey = "k-win", profit = 40, cost = 55 },
+        { evidenceKey = "k-lose", profit = -15, cost = 115 },
+      }
+    end
+    GC.Sold.RefreshIfShown()
+    local winRow, loseRow = rowWithLeftText("Winner"), rowWithLeftText("Loser")
+    assert.truthy(winRow and loseRow)
+    assert.truthy(colorEquals(winRow.rightSub.colorValue, GC.Theme.color.green))
+    assert.truthy(colorEquals(loseRow.rightSub.colorValue, GC.Theme.color.red))
+  end)
+
+  it("colors the sync-age line with the SUSPECT tier once it is 6-24h stale", function()
+    -- time() is stubbed to 2000; a generatedAt 12h earlier lands the age
+    -- inside (STALE_YELLOW_SECONDS, STALE_RED_SECONDS) -- the yellow band.
+    GC.AppLedger.GetSummary = function() return summary({ generatedAt = 2000 - 12 * 3600 }) end
+    GC.Sold.RefreshIfShown()
+    local ageRow = rowWithLeftText("synced")
+    assert.truthy(ageRow)
+    assert.truthy(colorEquals(ageRow.left.colorValue, GC.Theme.tier.SUSPECT))
   end)
 end)
