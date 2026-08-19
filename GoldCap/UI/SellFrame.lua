@@ -344,17 +344,13 @@ paintCancelButton = function()
   end
 end
 
--- Mode names are internal. "Post (floor) @ 15g" tells a player nothing about
--- why the number is not the price they can see in the auction house.
-local MODE_TEXT = {
-  floor = "holding above a thin cheap lot",
-  match = "matching the cheapest",
-  undercut = "undercutting",
-  -- F5 queue-at-exit: the wall below sells through within hours at this item's pace, so the
-  -- post queues at the exit the sniper approved the buy against instead of matching the wall.
-  queue = "queueing at your exit -- cheaper lots sell through first",
-}
-
+-- Action and price, nothing else. This cell used to narrate the pricing mode
+-- in a sentence ("Post (queueing at your exit -- cheaper lots sell through
+-- first) @ 18g15s · breakeven 20g41s"), and in game the words won: the column
+-- truncated BEFORE the price, showing "Post (queueing at…" — advice with the
+-- one number that matters cut off (owner, 2026-08-19). What survives the trim
+-- is only what changes the player's next move: RepostAdvice's one-word hold
+-- reason ("loss"/"slow"), and the below-cost warning.
 local function recommendationText(recommendation)
   if type(recommendation) == "string" then return recommendation end
   if type(recommendation) ~= "table" then return "" end
@@ -363,15 +359,11 @@ local function recommendationText(recommendation)
   action = action:sub(1, 1):upper() .. action:sub(2)
   local nested = recommendation.rec
   local unit = nested and nested.unit or recommendation.unit
-  local breakeven = nested and nested.breakeven or recommendation.breakeven
-  local mode = type(recommendation.mode) == "string" and recommendation.mode or nil
-  local nestedMode = nested and type(nested.mode) == "string" and nested.mode or nil
-  local reason = type(recommendation.reason) == "string" and recommendation.reason
-    or MODE_TEXT[mode or nestedMode or ""] or mode or nestedMode
-  local suffix = unit and (" @ " .. formatCell(unit)) or ""
-  if recommendation.belowCost then reason = reason and (reason .. " · below cost") or "below cost" end
-  local floor = breakeven and (" · breakeven " .. formatCell(breakeven)) or ""
-  return action .. (reason and (" (" .. reason .. ")") or "") .. suffix .. floor
+  local reason = type(recommendation.reason) == "string" and recommendation.reason or nil
+  local text = action .. (reason and (" (" .. reason .. ")") or "")
+    .. (unit and (" @ " .. formatCell(unit)) or "")
+  if recommendation.belowCost then text = text .. " · below cost" end
+  return text
 end
 
 local function exact(value)
@@ -2094,8 +2086,13 @@ renderRows = function()
         -- unrelated number lands in the same slot afterward. Same failure class AGENTS.md
         -- already documents for hover fills painted in OnEnter and never cleared in OnLeave.
         if type(profit) == "number" and exact(p.profitAtHold) then
-          row.cells.profit:SetText(("%s %s@ %s|r"):format(
-            formatCell(profit), DIM_HEX, formatCell(p.profitAtHold)))
+          -- Whole gold only: "@ 18g15s" was precisely the tail the column cut
+          -- off in game. The exact figure is the Post price, one column over.
+          local hold = p.profitAtHold >= 10000
+            and ("%dg"):format(math.floor(p.profitAtHold / 10000))
+            or formatCell(p.profitAtHold)
+          row.cells.profit:SetText(("%s %s@%s|r"):format(
+            formatCell(profit), DIM_HEX, hold))
           setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
         else
           row.cells.profit:SetText(formatCell(profit))

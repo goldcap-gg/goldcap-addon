@@ -225,7 +225,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {}, profit = 8500, profitAtHold = 15000 },
       })
-      assert.equal("8500 |cff9d9d9d@ 1g50s|r", rows[1].cells.profit.text)
+      assert.equal("8500 |cff9d9d9d@1g|r", rows[1].cells.profit.text)
       assert.same({ 0.83, 0.64, 0.22, 1 }, rows[1].cells.profit.color)
     end)
 
@@ -237,7 +237,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {}, profit = -11500, profitAtHold = 15000 },
       })
-      assert.equal("-1g15s |cff9d9d9d@ 1g50s|r", rows[1].cells.profit.text)
+      assert.equal("-1g15s |cff9d9d9d@1g|r", rows[1].cells.profit.text)
       assert.same({ 1, 0, 0, 1 }, rows[1].cells.profit.color)
     end)
   end)
@@ -767,7 +767,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Plain-language detail line: market state, competition, velocity and time to clear. It no
     -- longer opens by naming the allocation rule, which told a seller nothing.
     assert.match("quote 7s · 3 ahead of you · sells 4/day · clears in ~1 days", rows[2].cells.item.text)
-    assert.equal("Repost @ 149 · breakeven 106", rows[2].cells.status.text)
+    assert.equal("Repost @ 149", rows[2].cells.status.text)
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
     assert.equal("400", rows[4].cells.listed.text)
@@ -800,8 +800,39 @@ describe("Sell widget geometry and manual cost", function()
         knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "UNLISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    -- The internal mode name is not shown; "undercut" told a player nothing.
-    assert.equal("Post (undercutting) @ 199", rows[2].cells.status.text)
+    -- No mode words at all: the price IS the advice, and the sentences that
+    -- used to wrap it pushed it clean out of the cell in game (2026-08-19).
+    assert.equal("Post @ 199", rows[2].cells.status.text)
+  end)
+
+  -- The two annotations that survive the trim, because both change what the
+  -- player should DO: a hold's one-word reason, and the below-cost warning.
+  it("keeps a hold's short reason through the trim", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {}, ownedLots = {},
+        recommendation = { action = "hold", reason = "loss", rec = { unit = 149 } } }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 1,
+        knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "UNLISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("Hold (loss) @ 149", rows[2].cells.status.text)
+  end)
+
+  it("keeps the below-cost warning through the trim", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {}, ownedLots = {},
+        recommendation = { unit = 100, mode = "undercut", belowCost = true } }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 1,
+        knownQty = 1, knownCost = 300, listedValue = 200, sources = {}, status = "UNLISTED" },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("Post @ 100 · below cost", rows[2].cells.status.text)
   end)
 
   it("[I2] renders semantic evidence, owned unit and total, and breakeven", function()
@@ -827,7 +858,7 @@ describe("Sell widget geometry and manual cost", function()
     rows[1].scripts.OnClick(rows[1])
     -- Listings first, then purchases, each behind its own heading: rows[3] heading, rows[4] the
     -- lot, rows[5] heading, rows[6..9] the four batches.
-    assert.equal("Post (undercutting) @ 199 · breakeven 106", rows[2].cells.status.text)
+    assert.equal("Post @ 199", rows[2].cells.status.text)
     assert.match("×2 listed at 200 each", rows[4].cells.item.text)
     assert.equal("400", rows[4].cells.listed.text)
     assert.match("captured", rows[6].cells.item.text)
