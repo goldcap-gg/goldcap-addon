@@ -73,6 +73,21 @@ describe("AppLedger.Adopt", function()
     assert.equal(2, #GC.AppLedger.GetSummary().sales)
   end)
 
+  it("adopts a valid summary whose totals omit realized/medianHold as nil, never 0", function()
+    -- The free tier never sends these keys at all (companion's
+    -- render_ledger_summary_lua omits them, never zeros). Adopt must not
+    -- turn their absence into a fake 0 -- num() already returns nil for a
+    -- missing field, but nothing pinned that until now.
+    local f = fixture()
+    f.totals.realized = nil
+    f.totals.medianHold = nil
+    _G.GoldCap_AppLedger = f
+    GC.AppLedger.Adopt()
+    local totals = GC.AppLedger.GetSummary().totals
+    assert.is_nil(totals.realized)
+    assert.is_nil(totals.medianHold)
+  end)
+
   it("drops a malformed basis but keeps its row", function()
     local f = fixture()
     f.sales[1].basis = { matched = "two", unmatched = 0, cost = 50, profit = 45 }
