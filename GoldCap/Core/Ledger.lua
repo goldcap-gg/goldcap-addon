@@ -225,12 +225,23 @@ local function occurrenceIsActive(occurrence)
   return type(occurrence) == "table" and occurrence.present ~= false
 end
 
+-- Two reads of the SAME mail can disagree about its expiry by far more than
+-- the bucket width: on 2026-08-19 five sale mails read 30 minutes "younger"
+-- between two scans 3 seconds apart (a placeholder daysLeft on a fresh
+-- delivery), and the old ±1-bucket match re-keyed all five into duplicate
+-- sales that doubled proceeds. 13 buckets (65 minutes) covers that jump plus
+-- the hour a Sale Pending payout can shift the final mail's expiry. Distinct
+-- identical mails never depended on this margin being tight: co-present
+-- twins are split by the snapshot multiset (`used` in planSnapshot), and a
+-- collected mail's occurrence is retired before its value-twin can arrive.
+local BUCKET_MATCH_TOLERANCE = 13
+
 local function occurrenceMatches(occurrence, identity, bucket, invoiceClass, context)
   return occurrenceIsActive(occurrence) and occurrence.identity == identity
     and occurrence.invoiceClass == invoiceClass
     and occurrence.char == context.char and occurrence.region == context.region
     and exactNonNegative(occurrence.expiryBucket)
-    and math.abs(occurrence.expiryBucket - bucket) <= 1
+    and math.abs(occurrence.expiryBucket - bucket) <= BUCKET_MATCH_TOLERANCE
     and type(occurrence.key) == "string" and occurrence.key ~= ""
 end
 

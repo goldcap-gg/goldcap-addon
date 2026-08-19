@@ -246,6 +246,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GC.Print(("removed %d duplicate purchase record%s left by a mail-scan bug"):format(
           repaired, repaired == 1 and "" or "s"))
       end
+      -- Same announcement rule for the 2026-08-19 double-scan sale duplicates.
+      local rescanned = GC.Acquisitions.RepairRescannedMailSales
+        and GC.Acquisitions.RepairRescannedMailSales() or 0
+      if rescanned > 0 and GC.Print then
+        GC.Print(("removed %d duplicate sale record%s left by a mail-scan bug"):format(
+          rescanned, rescanned == 1 and "" or "s"))
+      end
     end
     if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then
       GC.PurchaseCapture.Init({

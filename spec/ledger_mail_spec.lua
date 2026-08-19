@@ -157,6 +157,19 @@ describe("Ledger inbox scan", function()
     assert.equal(1, #GC.Ledger.GetEntries())
   end)
 
+  -- 2026-08-19, live: five sale mails read 30 minutes "younger" between two
+  -- scans 3 seconds apart -- daysLeft is a READ, not a fact, and one of the
+  -- two reads was a placeholder. Six 5-minute buckets of drift re-keyed all
+  -- five mails into duplicate sales that doubled proceeds on the Sold tab.
+  it("does not fork a row when the same mail's expiry reading jumps half an hour between scans", function()
+    GC.Ledger.ScanInbox(apiFor({ mail() }), context, 1000)
+    local rescan = mail({ daysLeft = 30 + (1800 / 86400) })
+    local newCount = GC.Ledger.ScanInbox(apiFor({ rescan }), context, 1003)
+
+    assert.equal(0, newCount)
+    assert.equal(1, #GC.Ledger.GetEntries())
+  end)
+
   it("records a purchase with its item id, which a buy mail does carry", function()
     local bought = mail({
       invoice = { invoiceType = "buyer", consignment = 0, deposit = 0 },
@@ -705,6 +718,57 @@ describe("Ledger inbox scan", function()
       db.ledger = { buyEntry("K2") }
       assert.equal(0, GC.Acquisitions.RepairDuplicateMailBuys())
       assert.equal(1, #GC.Acquisitions.GetAll())
+    end)
+  end)
+
+  -- The local half of the 2026-08-19 double-scan incident (the scan-side root
+  -- fix is the expiry-drift tolerance above; the server collapses its copies
+  -- at read time). The values are the real Fungalskin Pike pair. The EARLIER
+  -- row survives -- the same side the server keeps -- so the local and the
+  -- goldcap.gg sections of the Sold tab tell one story.
+  describe("RepairRescannedMailSales (2026-08-19 double-scan cleanup)", function()
+    local function saleEntry(key, at, over)
+      local entry = { key = key, kind = "sale", source = "mail", itemName = "Fungalskin Pike",
+        qty = 8, total = 2400000, cut = 120000, pending = false,
+        char = context.char, region = context.region, at = at }
+      for k, v in pairs(over or {}) do entry[k] = v end
+      return entry
+    end
+
+    it("removes the later twin and its occurrence, keeping the row the server also keeps", function()
+      db.ledger = { saleEntry("A", 1787132192), saleEntry("B", 1787132195) }
+      db.mailOccurrences = { { key = "A" }, { key = "B" }, { key = "UNRELATED" } }
+      assert.equal(1, GC.Acquisitions.RepairRescannedMailSales())
+      assert.equal(1, #db.ledger)
+      assert.equal("A", db.ledger[1].key)
+      local keys = {}
+      for _, occurrence in ipairs(db.mailOccurrences) do keys[occurrence.key] = true end
+      assert.same({ A = true, UNRELATED = true }, keys)
+    end)
+
+    it("collapses a rescan chain onto the earliest row", function()
+      db.ledger = { saleEntry("A", 1000), saleEntry("B", 1003), saleEntry("C", 1006) }
+      assert.equal(2, GC.Acquisitions.RepairRescannedMailSales())
+      assert.equal(1, #db.ledger)
+      assert.equal("A", db.ledger[1].key)
+    end)
+
+    it("keeps same-timestamp twins, pending rows and sales over a minute apart", function()
+      db.ledger = {
+        -- Two real stacks collected in one scan share one clock.
+        saleEntry("S1", 2000), saleEntry("S2", 2000),
+        saleEntry("P1", 3000, { pending = true }), saleEntry("P2", 3003, { pending = true }),
+        saleEntry("F1", 4000), saleEntry("F2", 4061),
+      }
+      assert.equal(0, GC.Acquisitions.RepairRescannedMailSales())
+      assert.equal(6, #db.ledger)
+    end)
+
+    it("runs exactly once per save", function()
+      db.ledger = { saleEntry("A", 1000), saleEntry("B", 1003) }
+      assert.equal(1, GC.Acquisitions.RepairRescannedMailSales())
+      db.ledger = { saleEntry("C", 1000), saleEntry("D", 1003) }
+      assert.equal(0, GC.Acquisitions.RepairRescannedMailSales())
     end)
   end)
 end)

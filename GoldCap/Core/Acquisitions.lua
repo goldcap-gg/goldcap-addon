@@ -1212,6 +1212,56 @@ function GC.Acquisitions.RepairDuplicateMailBuys()
   return removed
 end
 
+-- One-shot repair for the 2026-08-19 double-scan incident. The same five sale
+-- mails were read with expiries 30 minutes apart by two scans 3 seconds apart,
+-- so each minted a second occurrence key and a duplicate ledger sale (root fix:
+-- Core/Ledger.lua's BUCKET_MATCH_TOLERANCE). The duplicate's shape: settled
+-- mail sales identical in every value field, struck within a minute of each
+-- other -- while two REAL stacks collected in one scan share one clock and
+-- differ by exactly zero. The EARLIER row survives, matching the side the
+-- server's own read-time collapse keeps, so the local and goldcap.gg sections
+-- of the Sold tab tell one story. Stamped once via db.mailSaleRescanRepairVersion.
+function GC.Acquisitions.RepairRescannedMailSales()
+  if not db or db.mailSaleRescanRepairVersion ~= nil then return 0 end
+  db.mailSaleRescanRepairVersion = 1
+  local ledger = type(db.ledger) == "table" and db.ledger or {}
+  local groups = {}
+  for _, entry in ipairs(ledger) do
+    if type(entry) == "table" and entry.kind == "sale" and entry.source == "mail"
+        and entry.pending == false and type(entry.itemName) == "string"
+        and type(entry.at) == "number" and type(entry.key) == "string" then
+      local identity = table.concat({ tostring(entry.char), tostring(entry.region),
+        entry.itemName, tostring(entry.qty), tostring(entry.total), tostring(entry.cut or 0) }, "\1")
+      groups[identity] = groups[identity] or {}
+      groups[identity][#groups[identity] + 1] = entry
+    end
+  end
+  local removedKeys, removed = {}, 0
+  for _, group in pairs(groups) do
+    table.sort(group, function(left, right) return left.at < right.at end)
+    local anchorAt
+    for _, entry in ipairs(group) do
+      if anchorAt and entry.at - anchorAt > 0 and entry.at - anchorAt <= 60 then
+        removedKeys[entry.key] = true
+        removed = removed + 1
+      else
+        anchorAt = entry.at
+      end
+    end
+  end
+  if removed == 0 then return 0 end
+  for index = #ledger, 1, -1 do
+    local entry = ledger[index]
+    if type(entry) == "table" and removedKeys[entry.key] then table.remove(ledger, index) end
+  end
+  if type(db.mailOccurrences) == "table" then
+    for index = #db.mailOccurrences, 1, -1 do
+      if removedKeys[db.mailOccurrences[index].key] then table.remove(db.mailOccurrences, index) end
+    end
+  end
+  return removed
+end
+
 local function copyMailEvidence(entry)
   return { key = entry.key, kind = entry.kind, source = entry.source, itemID = entry.itemID,
     itemName = entry.itemName, qty = entry.qty, total = entry.total, at = entry.at,
