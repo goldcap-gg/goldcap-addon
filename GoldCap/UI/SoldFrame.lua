@@ -219,9 +219,24 @@ local function paintRow(row, entry)
   end
 end
 
+-- The container is anchored TOPLEFT/BOTTOMRIGHT to the window (Attach
+-- below), so it already tracks a resize or a dock reparent; this pulls its
+-- actual current width into geometry.rowWidth/content, which is what every
+-- row's own width then follows via its TOPLEFT+TOPRIGHT anchor in
+-- renderRows (I2). A width of 0/nil (nothing laid out yet) is a no-op --
+-- geometry.rowWidth keeps whatever Attach was given.
+local function updateContentWidth()
+  if not container or not content then return end
+  local width = container:GetWidth()
+  if width and width > 0 then
+    geometry.rowWidth = width
+    content:SetWidth(width)
+  end
+end
+
 local function createRow(parent)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetSize(geometry.rowWidth, geometry.rowHeight)
+  row:SetHeight(geometry.rowHeight)
   row.left = Theme.Label(row, 11)
   row.left:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -3)
   row.left:SetPoint("RIGHT", row, "RIGHT", -170, 0)
@@ -246,12 +261,16 @@ local function renderRows()
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   for i, entry in ipairs(entries) do
     local row = rows[i]
+    -- TOPLEFT + TOPRIGHT, not TOPLEFT plus a size fixed at creation (I2):
+    -- the row's own width then always tracks content's, which
+    -- updateContentWidth keeps current with the real window/dock width.
     row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(i - 1) * geometry.rowHeight)
+    row:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -(i - 1) * geometry.rowHeight)
     paintRow(row, entry)
     row:Show()
   end
   for i = #entries + 1, #rows do rows[i]:Hide() end
-  content:SetSize(geometry.rowWidth, math.max(1, #entries * geometry.rowHeight))
+  content:SetHeight(math.max(1, #entries * geometry.rowHeight))
 end
 
 -- Builds the tab's container, hidden, filling the same region the Deals
@@ -270,11 +289,21 @@ function GC.Sold.Attach(f, geo)
   content = CreateFrame("Frame", nil, scroll)
   content:SetSize(geo.rowWidth, geo.rowHeight)
   scroll:SetScrollChild(content)
+  -- OnSizeChanged is the live path (dragging the window's resize grip, or
+  -- the AH tab reparenting it into a different-width dock); Show() below is
+  -- the catch-up path for a frame that was hidden while that happened, since
+  -- a hidden frame does not reliably fire OnSizeChanged (I2).
+  container:HookScript("OnSizeChanged", function(_, width)
+    if not width or width <= 0 then return end
+    geometry.rowWidth = width
+    content:SetWidth(width)
+  end)
 end
 
 function GC.Sold.Show()
   if container then
     container:Show()
+    updateContentWidth()
     renderRows()
   end
 end

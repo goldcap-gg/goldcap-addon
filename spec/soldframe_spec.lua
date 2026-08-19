@@ -1,12 +1,22 @@
 local helper = require("spec.spec_helper")
 
 describe("SoldFrame", function()
-  local GC, rowsOf
+  local GC, rowsOf, containerOf
 
   local function region(kind, parent)
-    local r = { __frame = true, kind = kind, children = {}, textValue = nil, visible = true }
-    function r:SetPoint() end
-    function r:SetSize() end
+    -- `points`/`scripts` are bookkeeping the doubles alone define -- see
+    -- ui_widget_field_spec.lua's DOUBLE_ONLY guard, which fails the suite
+    -- if production ever reads them; only tests may.
+    local r = { __frame = true, kind = kind, children = {}, textValue = nil, visible = true,
+                points = {}, scripts = {} }
+    function r:SetPoint(point, relative, relativePoint, x, y)
+      self.points[#self.points + 1] = { point = point, relative = relative,
+                                         relativePoint = relativePoint, x = x, y = y }
+    end
+    function r:SetSize(w, h) self.width, self.height = w, h end
+    function r:SetWidth(w) self.width = w end
+    function r:SetHeight(h) self.height = h end
+    function r:GetWidth() return self.width end
     function r:SetJustifyH() end
     function r:SetWordWrap() end
     function r:SetTextColor(...) self.colorValue = { ... } end
@@ -16,7 +26,8 @@ describe("SoldFrame", function()
     function r:Hide() self.visible = false end
     function r:IsShown() return self.visible end
     function r:SetScrollChild() end
-    function r:SetScript() end
+    function r:SetScript(name, fn) self.scripts[name] = fn end
+    function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:EnableMouse() end
     function r:CreateTexture() return region("Texture", self) end
     if parent then parent.children[#parent.children + 1] = r end
@@ -51,6 +62,17 @@ describe("SoldFrame", function()
         local name, value = debug.getupvalue(GC.Sold.RefreshIfShown, i)
         if not name then error("rows upvalue not found") end
         if name == "rows" then return value end
+        i = i + 1
+      end
+    end
+
+    -- Same trick to reach the module-local container, for the resize test.
+    containerOf = function()
+      local i = 1
+      while true do
+        local name, value = debug.getupvalue(GC.Sold.Show, i)
+        if not name then error("container upvalue not found") end
+        if name == "container" then return value end
         i = i + 1
       end
     end
@@ -267,5 +289,28 @@ describe("SoldFrame", function()
     local ageRow = rowWithLeftText("synced")
     assert.truthy(ageRow)
     assert.truthy(colorEquals(ageRow.left.colorValue, GC.Theme.tier.SUSPECT))
+  end)
+
+  it("re-anchors rows to the container's current width instead of a stale fixed size (I2)", function()
+    -- The container tracks the window (TOPLEFT/BOTTOMRIGHT anchored), so a
+    -- resize or a dock reparent changes its width; rows must follow rather
+    -- than staying pinned to the rowWidth Attach was called with.
+    local container = containerOf()
+    assert.truthy(container)
+    container.width = 1100
+    GC.AppLedger.GetSummary = function() return summary() end
+    -- A Show() after the width change must re-render without error even
+    -- though nothing fired the container's OnSizeChanged in this fake.
+    assert.has_no.errors(function() GC.Sold.Show() end)
+
+    local row = rowsOf()[1]
+    assert.truthy(row)
+    local topLeft, topRight
+    for _, p in ipairs(row.points) do
+      if p.point == "TOPLEFT" then topLeft = p end
+      if p.point == "TOPRIGHT" then topRight = p end
+    end
+    assert.truthy(topLeft)
+    assert.truthy(topRight)
   end)
 end)
