@@ -343,6 +343,34 @@ function T.Chip(parent)
   return f
 end
 
+-- TierMark: a 6x6 color dot + mono label, replacing T.Chip's plaque-and-underline everywhere
+-- a tier marker sits inline in a row rather than boxed on its own. `:SetLabel(text, colorTable)`
+-- is the exact call signature SniperFrame's row-stamping line already uses on T.Chip, so
+-- swapping the widget that builds `row.tierChip` does not touch that call site.
+function T.TierMark(parent)
+  local f = CreateFrame("Frame", nil, parent)
+  f:SetHeight(10)
+
+  f.dot = solid(f, "ARTWORK", T.color.fgDim)
+  f.dot:SetSize(6, 6)
+  f.dot:SetPoint("LEFT")
+
+  f.text = f:CreateFontString(nil, "OVERLAY")
+  f.text:SetFont(T.FONT_MONO_BOLD, 10 * T.Scale(), "")
+  f.text:SetJustifyH("LEFT")
+  f.text:SetPoint("LEFT", f.dot, "RIGHT", 5, 0)
+  widgetFonts[f.text] = { path = T.FONT_MONO_BOLD, size = 10 }
+
+  function f:SetLabel(text, colorTable)
+    f.text:SetText(text)
+    local c = colorTable or T.color.fg
+    f.dot:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+    f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+  end
+
+  return f
+end
+
 -- Num: mono font, size*Scale(), RIGHT-justified. Re-fonts on rescale.
 function T.Num(parent, size, bold)
   local fs = parent:CreateFontString(nil, "OVERLAY")
@@ -389,9 +417,24 @@ local BUTTON_VARIANTS = {
   danger  = { bg = T.color.red, text = T.color.fg },
 }
 
+-- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`
+-- picks plaque over card -- badge is one size class down again (BADGE_SLICE, no ring: see
+-- BADGE_SLICE's own comment, the same 16px art is too small for a second nine-slice ring
+-- on top of its fill without the two notching each other).
+local ROUNDED_BUTTON = {
+  plaque = { bg = T.MEDIA .. "plaque.png", ring = T.MEDIA .. "plaque_ring.png", margin = PLAQUE_SLICE },
+  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, margin = BADGE_SLICE },
+}
+
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
-function T.Button(parent, variant)
+-- `rounded` (nil | "plaque" | "badge"): nil keeps the original square look (solid bg,
+-- edgeBorder) unchanged. "plaque"/"badge" swap the bg and hover wash for sliced textures of
+-- that art (ROUNDED_BUTTON above) and drop the square edgeBorder -- "plaque" gets a sliced
+-- plaque_ring.png ring in its place, "badge" gets none (too small for the ring art, same as
+-- T.RailButton's own badge).
+function T.Button(parent, variant, rounded)
   local spec = BUTTON_VARIANTS[variant] or BUTTON_VARIANTS.ghost
+  local roundedSpec = rounded and ROUNDED_BUTTON[rounded]
   -- Held on the button, not captured as upvalues, so SetVariant below can genuinely change how
   -- a live button looks. Capturing them made a repaint impossible: the next OnEnter/OnLeave
   -- would stomp it back, which is why the Auto control used to be two overlaid buttons swapped
@@ -409,8 +452,17 @@ function T.Button(parent, variant)
   -- cursor hovers the Frame" -- warcraft.wiki.gg/wiki/Layer). Without it the hover silently
   -- never appears.
   b:EnableMouse(true)
-  b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
-  b.bg:SetAllPoints()
+  -- `b.roundedMargin` records which mode built this button so SetVariant/OnEnable below can
+  -- branch on it later -- a rounded bg is a textured region (SetVertexColor tints it),
+  -- SetColorTexture on that same region would strip the texture file and leave a flat fill.
+  b.roundedMargin = roundedSpec and roundedSpec.margin or nil
+  if roundedSpec then
+    b.bg = slicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or { 0, 0, 0, 0 }, roundedSpec.margin)
+    b.bg:SetAllPoints()
+  else
+    b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
+    b.bg:SetAllPoints()
+  end
 
   -- Hover is a HIGHLIGHT-layer texture, not an OnEnter/OnLeave repaint. The engine draws that
   -- layer for exactly as long as the cursor is over the button and stops on its own, the same
@@ -425,17 +477,37 @@ function T.Button(parent, variant)
   b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
   b.highlightTexture:SetAllPoints()
   b.highlightTexture:SetBlendMode("ADD")
-  b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+  if roundedSpec then
+    -- A sliced ADD texture reads fine here -- the wash never needs a flat edge, only the
+    -- rounded corners not to draw square outside the art.
+    b.highlightTexture:SetTexture(roundedSpec.bg)
+    b.highlightTexture:SetTextureSliceMargins(roundedSpec.margin, roundedSpec.margin, roundedSpec.margin, roundedSpec.margin)
+    b.highlightTexture:SetVertexColor(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+  else
+    b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+  end
 
-  -- The border is drawn for every variant, at the variant's own strength: a ghost button needs
-  -- it to have an edge at all, and a filled one keeps its shape while the fill is dimmed by
-  -- OnDisable. Drawing it only for ghost meant a button that changed variant lost its outline.
-  edgeBorder(b, T.color.border)
+  if roundedSpec then
+    if roundedSpec.ring then
+      b.ring = slicedTexture(b, "BORDER", roundedSpec.ring, T.color.border, roundedSpec.margin)
+      b.ring:SetAllPoints()
+    end
+  else
+    -- The border is drawn for every variant, at the variant's own strength: a ghost button
+    -- needs it to have an edge at all, and a filled one keeps its shape while the fill is
+    -- dimmed by OnDisable. Drawing it only for ghost meant a button that changed variant lost
+    -- its outline.
+    edgeBorder(b, T.color.border)
+  end
 
   b.text = T.Label(b, 12)
   b.text:SetJustifyH("CENTER")
   b.text:ClearAllPoints()
   b.text:SetPoint("CENTER")
+  if roundedSpec then
+    b.text:SetFont(T.FONT_MONO, 10 * T.Scale(), "")
+    widgetFonts[b.text] = { path = T.FONT_MONO, size = 10 }
+  end
 
   -- `b.label` is the contract every caller and every spec test double already assumed --
   -- ACTION_HELP's tooltip lookup in UI/SellFrame.lua reads `self.label`, and every fake
@@ -453,7 +525,14 @@ function T.Button(parent, variant)
   function b:SetVariant(name)
     spec = BUTTON_VARIANTS[name] or BUTTON_VARIANTS.ghost
     base = spec.bg or { 0, 0, 0, 0 }
-    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    -- `b.bg` in rounded mode is a textured region (see roundedMargin above): SetColorTexture
+    -- there would erase the texture file and leave a flat fill, so recolor via SetVertexColor
+    -- instead, the same way T.Card:SetTint does.
+    if b.roundedMargin then
+      b.bg:SetVertexColor(base[1], base[2], base[3], base[4] or 1)
+    else
+      b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    end
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
   end
   b:SetVariant(variant)
@@ -475,7 +554,13 @@ function T.Button(parent, variant)
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
-    b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    -- Same rounded-vs-square branch as SetVariant above: SetColorTexture on a textured
+    -- rounded bg would erase the texture file the re-enable path is meant to restore.
+    if b.roundedMargin then
+      b.bg:SetVertexColor(base[1], base[2], base[3], base[4] or 1)
+    else
+      b.bg:SetColorTexture(base[1], base[2], base[3], base[4] or 1)
+    end
     b.text:SetTextColor(spec.text[1], spec.text[2], spec.text[3], spec.text[4] or 1)
     b.highlightTexture:SetAlpha(1)
   end)
