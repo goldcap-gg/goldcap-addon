@@ -43,7 +43,15 @@ WIN.FRAME_HEIGHT = 520
 -- restores the same worst-case content width the 560 floor used to give.
 WIN.RESIZE_MIN_WIDTH = 640
 WIN.RESIZE_MAX_WIDTH = 1100
-WIN.RESIZE_MIN_HEIGHT = 300
+-- 400, was 300 (F1, whole-branch review): the check drawer's closed layout is a fixed 336px
+-- (DG.FIXED_HEIGHT_CLOSED) plus the requote banner's 46px (LIM.REQUOTE_BANNER_HEIGHT) both
+-- living in the drawer's BOTTOM-anchored block now (createDialog's own drawer-anchor comment
+-- -- SetHeight is an anchor-overridden no-op, so nothing shrinks to fit a short window
+-- anymore). Below ~372px window height the bottom-anchored Buy/Cancel start overlapping the
+-- quick-fill row/details toggle above them -- ON the purchase surface, not decoration. 400
+-- keeps the closed drawer collision-free with margin. Product call (controller ruling), not
+-- derived from a formula.
+WIN.RESIZE_MIN_HEIGHT = 400
 WIN.RESIZE_MAX_HEIGHT = 900
 
 -- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
@@ -2153,6 +2161,77 @@ local function displayDecisionAmount(value)
   return value and formatColumnAmount(value) or "—"
 end
 
+-- DG (dialog geometry): relocated here from down by createDialog (F4, whole-branch review) --
+-- resizeDialogDiagnostics below needs DG.CONTROLS_H for its drawer-era status anchor, and a
+-- local must be declared before the earliest function that closes over it (same chunk-order
+-- requirement CH was moved for; see CH's own comment, and the "Sniper v3 dialog layout
+-- constants" marker left in DG's old spot -- that exact text is a protected-spec section
+-- boundary and could not move with the table). One table, not seventeen top-level locals: a
+-- Lua chunk may hold 200 of those and this file sits at exactly 200 -- see addon/AGENTS.md.
+local DG = {}
+DG.WIDTH = 320
+DG.ICON = 24
+DG.TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
+DG.GRID_ROW_H = 17
+-- The label/value grid now holds only the ten immutable decision/evidence fields (Status
+-- through Reason) -- Quantity and its quick-fill row moved out into their own always-visible
+-- block (DG.QTY_ROWS below), reachable whether Details is open or not.
+DG.GRID_ROWS = 10
+-- Fix 2 quick-fill row geometry: four small ghost buttons sharing the row right under
+-- Quantity -- they don't fit alongside that row's own label + "of N" + edit box on one
+-- 296px-wide line, so they get their own row instead of crowding it.
+DG.QTY_QUICKFILL_H = 16
+DG.QTY_QUICKFILL_W = 34
+DG.QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
+-- I5: 36/32 (were 28/18) -- the requote path's status line can wrap to two full lines
+-- ("<unit> -> <unit> per unit    total <total> -> <total>" at DG.WIDTH), and the
+-- suspect/mv notes must never clip a second line either; both budgets sized for two lines
+-- of Theme.Label(d, 11) at this width, not one.
+DG.NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
+DG.DIAGNOSTIC_MIN_H = 36
+DG.STATUS_H = 32
+DG.PRIMARY_H = 26
+DG.CANCEL_H = 20
+-- title line + gap + icon/name/chip row + gap + reserved suspect-note block + gap
+DG.HEADER_H = Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s + DG.ICON + Theme.pad.s + DG.NOTE_H + Theme.pad.s
+
+-- Verdict block: one prominent headline -- what the click DOES and what it costs when
+-- buyable, the refusal sentence in refusal red when it is not -- plus, only when buyable, a
+-- quieter sub-line naming the stress profit. Both word-wrap, so this is a fixed, generous
+-- two-line-each reservation rather than a third GetStringHeight()-measured block --
+-- diagnosticText already owns the one dynamically-measured block this dialog needs.
+DG.VERDICT_HEAD_H = 28
+DG.VERDICT_SUB_H = 26
+DG.VERDICT_H = Theme.pad.s + DG.VERDICT_HEAD_H + Theme.pad.xs + DG.VERDICT_SUB_H + Theme.pad.s
+
+-- Quantity + its quick-fill row: the one interactive control in this dialog besides the
+-- buttons, so it stays visible above the Details toggle rather than being hidden behind it.
+DG.QTY_ROWS = 2
+DG.QTY_H = DG.QTY_ROWS * DG.GRID_ROW_H
+DG.TOGGLE_H = DG.GRID_ROW_H
+
+-- Measured down from the header, in the order the dialog actually stacks: verdict, then
+-- Quantity, then the Details toggle, then (only while open) the evidence grid.
+DG.VERDICT_TOP = -DG.HEADER_H
+DG.QTY_TOP = DG.VERDICT_TOP - DG.VERDICT_H
+DG.TOGGLE_TOP = DG.QTY_TOP - DG.QTY_H
+DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
+-- Where the diagnostic/status block starts: right after the (shown) evidence grid when
+-- Details is open, or right after the toggle itself -- the grid simply skipped -- when it is
+-- closed. resizeDialogDiagnostics picks between these depending on dialog.detailsOpen.
+DG.EVIDENCE_BOTTOM_OPEN = DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs
+DG.EVIDENCE_BOTTOM_CLOSED = DG.TOGGLE_TOP - DG.TOGGLE_H - Theme.pad.xs
+
+-- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
+-- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
+DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
+-- Two fixed-height budgets, Details closed and open -- resizeDialogDiagnostics only ever
+-- READS dialog.fixedHeight (same contract as before); applyDetailsState (createDialog) is
+-- the one place that picks between these and writes it, on open/close.
+DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.TOGGLE_H
+  + DG.STATUS_H + DG.CONTROLS_H
+DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H
+
 -- The diagnostic is evidence, not a purchase surface, and (fix round N) is now hidden unless
 -- the player has turned on GC.db.settings.sniper.debug -- it is a bug-report transcript, not
 -- something a player one click from spending gold needs to see by default. Its height still
@@ -2160,6 +2239,20 @@ end
 -- player's current font scale; when it is not shown it contributes nothing, and `status`
 -- anchors directly below wherever the (open or closed) evidence grid ends instead. The buttons
 -- and requote banner stay bottom-anchored; changing baseHeight moves that whole block together.
+--
+-- F4 (whole-branch review): in the old centered modal, dialog:SetHeight below actually grew
+-- the dialog to fit whatever status ended up flowing to, so a top-flowed status could never
+-- collide with the bottom-anchored banner/buttons -- the dialog just got taller around it. In
+-- the check drawer that SetHeight is an anchor-overridden no-op (createDialog's own drawer-
+-- anchor comment): nothing grows anymore, so a status positioned by flowing down from the
+-- (open or closed) evidence grid could run into the fixed bottom block instead. The DEFAULT
+-- (debug off) branch below now anchors `status` bottom-up, pinned clear of the banner slot,
+-- for exactly this reason. The debug-ON branch keeps flowing status directly under the
+-- (dynamically measured) diagnostic text unchanged -- that exact anchor is pinned by
+-- sniper_purchase_wiring_spec's "sizes, banners, and shrinks..." test (statusAnchors[1]), a
+-- protected spec this task may not modify; debug is a developer-only view, already denser
+-- than the default one (see the accepted evidence-rows-9-10-under-banner ruling), so the
+-- default path every real player sees is the one this fix actually needs to cover.
 local function resizeDialogDiagnostics()
   local evidenceBottom = dialog.detailsOpen and dialog.evidenceTopOpen or dialog.evidenceTopClosed
   dialog.mvNote:ClearAllPoints()
@@ -2174,6 +2267,7 @@ local function resizeDialogDiagnostics()
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   local debugOn = (cfg and cfg.debug) and true or false
   local height, gap = 0, 0
+  dialog.status:ClearAllPoints() -- idempotent: every call below re-sets both points fresh
   if debugOn then
     diagnostic:Show()
     local measured = type(diagnostic.GetStringHeight) == "function" and diagnostic:GetStringHeight() or nil
@@ -2181,14 +2275,15 @@ local function resizeDialogDiagnostics()
     height = math.max(dialog.diagnosticMinimumHeight, math.ceil(measured))
     gap = dialog.diagnosticGaps
     diagnostic:SetHeight(height)
-    dialog.status:ClearAllPoints()
     dialog.status:SetPoint("TOPLEFT", diagnostic, "BOTTOMLEFT", 0, -Theme.pad.xs)
     dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
   else
     diagnostic:Hide()
-    dialog.status:ClearAllPoints()
-    dialog.status:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
-    dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
+    -- Bottom-up, not top-flowed: always clear of the fixed banner slot (DG.CONTROLS_H up from
+    -- the drawer's bottom, LIM.REQUOTE_BANNER_HEIGHT tall, plus one more gap) regardless of
+    -- how much room the evidence grid above actually used.
+    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H + LIM.REQUOTE_BANNER_HEIGHT + Theme.pad.xs)
+    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H + LIM.REQUOTE_BANNER_HEIGHT + Theme.pad.xs)
   end
   dialog.diagnosticHeight = height
 
@@ -3855,74 +3950,14 @@ end
 -- the pre-Theme dialog used (see hideRequoteBanner/showRequoteBanner); only the pixel budget
 -- below is new, sized for the wider Theme fonts and the added item-header row.
 -- ---------------------------------------------------------------------------
--- One table, not seventeen top-level locals. A Lua chunk may hold 200 of those
--- and this file sits at exactly 200: adding a single new one fails at load with
--- "too many local variables". The dialog's geometry is the largest cluster of
--- pure constants here, so folding it buys the most room per line changed --
--- see addon/AGENTS.md.
-local DG = {}
-DG.WIDTH = 320
-DG.ICON = 24
-DG.TITLE_LINE_H = 13 -- Theme.Label(d, 13)'s line height (title row)
-DG.GRID_ROW_H = 17
--- The label/value grid now holds only the ten immutable decision/evidence fields (Status
--- through Reason) -- Quantity and its quick-fill row moved out into their own always-visible
--- block (DG.QTY_ROWS below), reachable whether Details is open or not.
-DG.GRID_ROWS = 10
--- Fix 2 quick-fill row geometry: four small ghost buttons sharing the row right under
--- Quantity -- they don't fit alongside that row's own label + "of N" + edit box on one
--- 296px-wide line, so they get their own row instead of crowding it.
-DG.QTY_QUICKFILL_H = 16
-DG.QTY_QUICKFILL_W = 34
-DG.QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
--- I5: 36/32 (were 28/18) -- the requote path's status line can wrap to two full lines
--- ("<unit> -> <unit> per unit    total <total> -> <total>" at DG.WIDTH), and the
--- suspect/mv notes must never clip a second line either; both budgets sized for two lines
--- of Theme.Label(d, 11) at this width, not one.
-DG.NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
-DG.DIAGNOSTIC_MIN_H = 36
-DG.STATUS_H = 32
-DG.PRIMARY_H = 26
-DG.CANCEL_H = 20
--- title line + gap + icon/name/chip row + gap + reserved suspect-note block + gap
-DG.HEADER_H = Theme.pad.m + DG.TITLE_LINE_H + Theme.pad.s + DG.ICON + Theme.pad.s + DG.NOTE_H + Theme.pad.s
-
--- Verdict block: one prominent headline -- what the click DOES and what it costs when
--- buyable, the refusal sentence in refusal red when it is not -- plus, only when buyable, a
--- quieter sub-line naming the stress profit. Both word-wrap, so this is a fixed, generous
--- two-line-each reservation rather than a third GetStringHeight()-measured block --
--- diagnosticText already owns the one dynamically-measured block this dialog needs.
-DG.VERDICT_HEAD_H = 28
-DG.VERDICT_SUB_H = 26
-DG.VERDICT_H = Theme.pad.s + DG.VERDICT_HEAD_H + Theme.pad.xs + DG.VERDICT_SUB_H + Theme.pad.s
-
--- Quantity + its quick-fill row: the one interactive control in this dialog besides the
--- buttons, so it stays visible above the Details toggle rather than being hidden behind it.
-DG.QTY_ROWS = 2
-DG.QTY_H = DG.QTY_ROWS * DG.GRID_ROW_H
-DG.TOGGLE_H = DG.GRID_ROW_H
-
--- Measured down from the header, in the order the dialog actually stacks: verdict, then
--- Quantity, then the Details toggle, then (only while open) the evidence grid.
-DG.VERDICT_TOP = -DG.HEADER_H
-DG.QTY_TOP = DG.VERDICT_TOP - DG.VERDICT_H
-DG.TOGGLE_TOP = DG.QTY_TOP - DG.QTY_H
-DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
--- Where the diagnostic/status block starts: right after the (shown) evidence grid when
--- Details is open, or right after the toggle itself -- the grid simply skipped -- when it is
--- closed. resizeDialogDiagnostics picks between these depending on dialog.detailsOpen.
-DG.EVIDENCE_BOTTOM_OPEN = DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs
-DG.EVIDENCE_BOTTOM_CLOSED = DG.TOGGLE_TOP - DG.TOGGLE_H - Theme.pad.xs
-
--- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
--- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
-DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
--- Two fixed-height budgets, Details closed and open -- resizeDialogDiagnostics only ever
--- READS dialog.fixedHeight (same contract as before); applyDetailsState (createDialog) is
--- the one place that picks between these and writes it, on open/close.
-DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.TOGGLE_H
-  + DG.STATUS_H + DG.CONTROLS_H
-DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H
+-- DG itself (the constants this comment block describes) now lives up by
+-- resizeDialogDiagnostics (F4, whole-branch review): that function's drawer-era status anchor
+-- needs DG.CONTROLS_H, and a local must be declared before the earliest function that closes
+-- over it (same chunk-order requirement CH was moved for -- see CH's own comment). This marker
+-- comment stays here UNMOVED: sniper_purchase_wiring_spec's "keeps purchase calls in the
+-- hardware-click handler" test locates it by exact source text as onDialogPrimaryClick's own
+-- section boundary.
+-- ---------------------------------------------------------------------------
 
 -- Fix 2: a bordered box with a recolorable border, for the Quantity EditBox's focus ring.
 -- Duplicated from SettingsFrame.lua's own private `borderedBox` (that one is a file-local
@@ -4109,15 +4144,24 @@ local function createDialog()
   suspectNote:Hide()
   d.suspectNote = suspectNote
 
-  -- Verdict card: a rounded, tinted card behind the headline/sub-line below, built and
-  -- anchored FIRST so it draws behind them (same frames-render-in-creation-order convention
-  -- the window's own Theme.Card chrome already relies on). stampDialogFromDecision tints it
-  -- green/red beside the two dialog.verdictHead:SetTextColor sets it already makes -- see the
+  -- Verdict card: a rounded, tinted highlight behind the headline/sub-line, in reading order
+  -- if not in draw order -- (F6a correction) Theme.Card is a CHILD FRAME, which defaults to
+  -- frameLevel d+1 and therefore composites ABOVE every one of `d`'s own regions, verdictHead/
+  -- verdictSub included, regardless of creation order. It reads as "behind" the text purely
+  -- because its fill sits at 6-7% alpha (stampDialogFromDecision's SetTint calls below) -- the
+  -- text shows straight through a wash that thin. The 2px ring (up to 30% alpha) stays clear
+  -- of the glyphs because the card is padded Theme.pad.s beyond the text's own bounds, so the
+  -- outline never crosses over a character. stampDialogFromDecision tints it green/red beside
+  -- the two dialog.verdictHead:SetTextColor sets it already makes -- see the
   -- `dialog.verdictCard:SetTint(...)` calls there, the only lines this task adds outside this
   -- function.
   local verdictCard = Theme.Card(d, nil, nil, true)
   verdictCard:SetPoint("TOPLEFT", Theme.pad.m - Theme.pad.s, DG.VERDICT_TOP + Theme.pad.s)
-  verdictCard:SetPoint("BOTTOMRIGHT", -(Theme.pad.m - Theme.pad.s), DG.VERDICT_TOP - DG.VERDICT_H - Theme.pad.s)
+  -- F3 (whole-branch review): was "- Theme.pad.s" -- double-applied padding pushed the card's
+  -- bottom edge past DG.QTY_TOP, into the Quantity row below. "+ Theme.pad.s" pulls it back up
+  -- to sit just inside the verdict block's own reserved bottom (DG.VERDICT_TOP - DG.VERDICT_H),
+  -- padded the SAME Theme.pad.s as the top/left/right edges above, not double it.
+  verdictCard:SetPoint("BOTTOMRIGHT", -(Theme.pad.m - Theme.pad.s), DG.VERDICT_TOP - DG.VERDICT_H + Theme.pad.s)
   d.verdictCard = verdictCard
 
   -- Verdict block, directly under the item header: a prominent headline (buy action or
@@ -4307,7 +4351,28 @@ local function createDialog()
   -- createDialog itself, seeding the initial state; openDialog's own stampDialogFromDecision
   -- call, right after `dialog = dialog or createDialog()`, performs the first real resize.
   local function applyDetailsState(open)
+    -- d.detailsOpen starts as the RAW request and is persisted immediately, before the F5
+    -- spill guard below can downgrade it -- sniper_dialog_verdict_spec's "persists the open/
+    -- closed choice" test pins this exact `cfg.dialogDetailsOpen = d.detailsOpen` line (a
+    -- protected spec this task may not modify), so the persisted value has to keep riding on
+    -- d.detailsOpen itself rather than a second requestedOpen local. Net effect is the same
+    -- either way: a saved "open" preference survives a momentarily short window and takes
+    -- effect again once it's resized back up, because it was written here, before the guard
+    -- had a chance to force d.detailsOpen back to false for this session's visuals.
     d.detailsOpen = open and true or false
+    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+    if cfg then cfg.dialogDetailsOpen = d.detailsOpen end
+    -- F5 (whole-branch review): the open grid is a fixed-offset block below the toggle, not
+    -- something the drawer can grow to fit -- SetHeight is an anchor-overridden no-op (see
+    -- createDialog's own drawer-anchor comment), so a short window can't be rescued by growing
+    -- around the open layout the way the old centered modal could. Refuse the open instead of
+    -- silently spilling the grid past the drawer's actual bottom -- a lying toggle (says "open"
+    -- while the rows are cut off) is worse than a plain refusal. This runs AFTER the persist
+    -- above on purpose (see that comment): only this session's visuals get forced shut.
+    if d.detailsOpen and d:GetHeight() < DG.FIXED_HEIGHT_OPEN + d.diagnosticGaps + d.diagnosticMinimumHeight then
+      d.detailsOpen = false
+      setDialogStatus("Enlarge the window to see details")
+    end
     d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED
     d.detailsToggle:SetLabel(d.detailsOpen and "Hide details ▾" or "Show details ▸")
     for _, pair in ipairs(d.evidenceRows) do
@@ -4319,18 +4384,18 @@ local function createDialog()
         pair.value:Hide()
       end
     end
-    local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
-    if cfg then cfg.dialogDetailsOpen = d.detailsOpen end
     if dialog then resizeDialogDiagnostics() end
   end
   detailsToggle:SetScript("OnClick", function() applyDetailsState(not d.detailsOpen) end)
   local savedCfg = GC.db and GC.db.settings and GC.db.settings.sniper
   applyDetailsState(savedCfg and savedCfg.dialogDetailsOpen)
 
-  -- Anchored off the BOTTOM, above the stacked buttons, and hidden by default. Showing it
-  -- grows the dialog by exactly its own height (see the DIALOG_* block comment above), so the
-  -- window visibly changes shape rather than re-rendering a line of status text inside an
-  -- unchanged outline -- which is what a player running on muscle memory does not notice.
+  -- Anchored off the BOTTOM, above the stacked buttons, and hidden by default. (F6b
+  -- correction) In the old centered modal, showing it grew the dialog by exactly its own
+  -- height, visibly changing the window's shape. In the check drawer that SetHeight is an
+  -- anchor-overridden no-op (see createDialog's own drawer-anchor comment) -- the banner is
+  -- now a fixed slot in the bottom-anchored block, always reserved whether shown or not, and
+  -- F4's resizeDialogDiagnostics keeps `status` anchored clear of it for exactly this reason.
   local banner = Theme.Panel(d)
   banner:SetHeight(LIM.REQUOTE_BANNER_HEIGHT)
   banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
@@ -5402,6 +5467,14 @@ local function createFrame()
   end)
   f:SetScript("OnHide", function()
     feedAuto("tabHidden")
+    -- F2 (whole-branch review): the drawer is now a CHILD of this window frame (createDialog's
+    -- own re-host), not a UIParent-anchored sibling -- hiding the window no longer implies
+    -- hiding it. Blizzard's engine hides children visually when a parent hides, but does NOT
+    -- flip the child's own shown-flag or fire its OnHide -- so without this, reopening the
+    -- window would resurrect a stale drawer (no row, stale decision) still reporting IsShown().
+    -- Explicit Hide() fires the drawer's own OnHide (abort runs; its row-guard already makes a
+    -- second/redundant Hide() a no-op, so this is safe whether or not the drawer was open).
+    if dialog then dialog:Hide() end
     -- Closing the DOCKED window (its X, or Escape) must hand the auction house back to
     -- Blizzard's own tab -- see GC.AuctionHouseTab.OnWindowHidden, which no-ops when the
     -- window is not docked or its mode is not the one showing.
