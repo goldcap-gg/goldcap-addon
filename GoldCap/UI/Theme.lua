@@ -113,11 +113,16 @@ T.RAIL_W = 76
 -- PNGs with addon/tools/gen_art.py, never edit them by hand. Margins are 24
 -- of the 64px file so the 16px corners survive any widget size.
 local CARD_SLICE = 24
--- Small-radius sibling for plaque.png/plaque_ring.png (32px, radius 8): 24px
--- margins on a 14px badge overlap and notch the corners (each margin covers
--- more than half the widget). Margins must stay below half the smallest
--- widget edge they're applied to, or nine-slice corners overlap and notch.
+-- Small-radius sibling for plaque.png/plaque_ring.png (32px, radius 8), used
+-- for chrome like the 32px rail logo. Margins must stay below half the
+-- smallest widget edge they're applied to, or nine-slice corners overlap and
+-- notch -- which is also why the 14px badge below gets its own BADGE_SLICE
+-- rather than reusing this one (12 is not below half of 14).
 local PLAQUE_SLICE = 12
+-- badge.png (16px, radius 6): the rail-button badge is only 14px tall, so
+-- even PLAQUE_SLICE (12) would exceed half its smallest edge (7) and notch
+-- it. 6 < 14/2 satisfies the margin invariant above.
+local BADGE_SLICE = 6
 
 -- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
@@ -213,9 +218,9 @@ function T.RailButton(parent, iconFile, labelText)
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetHeight(14)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
-  -- plaque.png/PLAQUE_SLICE, not card.png/CARD_SLICE: the badge is 14px tall and
-  -- the 24px card margins overlap and notch its corners (see PLAQUE_SLICE's comment).
-  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "plaque.png", T.color.gold, PLAQUE_SLICE)
+  -- badge.png/BADGE_SLICE, not card.png/CARD_SLICE or plaque.png/PLAQUE_SLICE: the badge is
+  -- 14px tall and both of those margins exceed half that (see BADGE_SLICE's own comment).
+  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, BADGE_SLICE)
   b.badge.bg:SetAllPoints()
   b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
   b.badge.text:SetFont(T.FONT_MONO_BOLD, 9 * T.Scale(), "")

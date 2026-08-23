@@ -75,10 +75,10 @@ describe("Theme.Rail navigation widgets", function()
     assert.is_false(b.badge.shown)
   end)
 
-  it("RailButton: badge bg is the plaque texture (14px tall -- card.png's margins would notch it)", function()
+  it("RailButton: badge bg is its own badge texture (14px tall -- even plaque.png's margins would notch it)", function()
     local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sell.png", "SELL")
-    assert.equal(GC.Theme.MEDIA .. "plaque.png", b.badge.bg.textureFile)
-    assert.same({ 12, 12, 12, 12 }, b.badge.bg.slice)
+    assert.equal(GC.Theme.MEDIA .. "badge.png", b.badge.bg.textureFile)
+    assert.same({ 6, 6, 6, 6 }, b.badge.bg.slice)
   end)
 
   it("RailButton: hover is the engine HIGHLIGHT layer on a mouse-enabled button", function()
