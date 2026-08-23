@@ -72,7 +72,7 @@ describe("Sniper purchase wiring", function()
 
   it("sizes, banners, and shrinks a stateful full-reasons diagnostic", function()
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return {} end },
       -- The diagnostic line only measures/shows with debug on (fix round N) -- this spec is
@@ -211,7 +211,7 @@ describe("Sniper purchase wiring", function()
     _G.PlaySound = function() end
 
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function()
         return {
@@ -313,7 +313,7 @@ describe("Sniper purchase wiring", function()
     _G.PlaySound = function() end
 
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function()
         return {
@@ -390,7 +390,7 @@ describe("Sniper purchase wiring", function()
     _G.C_AuctionHouse = {}
     _G.GetTime = function() return 0 end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return {} end, RecordFlip = function() flipCalls = flipCalls + 1 end },
       Ledger = { RecordSniperBuy = function() ledgerCalls = ledgerCalls + 1 end },
@@ -429,7 +429,7 @@ describe("Sniper purchase wiring", function()
     local cancelCalls = 0
     _G.C_AuctionHouse = { CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end }
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
@@ -478,7 +478,7 @@ describe("Sniper purchase wiring", function()
   it("keeps a delayed price tombstone until a terminal event", function()
     _G.C_AuctionHouse = { CancelCommoditiesPurchase = function() end }
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
@@ -518,7 +518,7 @@ describe("Sniper purchase wiring", function()
     _G.GetTime = function() return 0 end
     _G.C_AuctionHouse = { ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end }
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = {
         GetItemValue = function() return {} end,
@@ -636,7 +636,7 @@ describe("Sniper purchase wiring", function()
   it("ignores a stale requery result after its row token advances", function()
     _G.C_AuctionHouse = {}
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
@@ -668,7 +668,7 @@ describe("Sniper purchase wiring", function()
     local flipCalls, ledgerCalls = 0, 0
     _G.C_AuctionHouse = {}
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = {
         GetItemValue = function() return {} end,
@@ -739,7 +739,7 @@ describe("Sniper purchase wiring", function()
     local timers = {}
     _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
@@ -800,7 +800,7 @@ describe("Sniper purchase wiring", function()
   it("drains an old search result before it can resolve a newer prewarm attempt", function()
     _G.C_AuctionHouse = {}
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
@@ -843,7 +843,7 @@ describe("Sniper purchase wiring", function()
     local starts = 0
     _G.C_AuctionHouse = { StartCommoditiesPurchase = function() starts = starts + 1 end }
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
     }
@@ -907,7 +907,7 @@ describe("Sniper purchase wiring", function()
     _G.time = function() return 100 end
     _G.GetTime = function() return 100 end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end },
       db = { settings = { sniper = {} } },
@@ -981,7 +981,7 @@ describe("Sniper purchase wiring", function()
     _G.time = function() return 100 end
     _G.GetTime = function() return 100 end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 7 } end },
       db = { settings = { sniper = {} } },
@@ -1075,7 +1075,7 @@ describe("Sniper purchase wiring", function()
     _G.time = function() return 100 end
     _G.GetTime = function() return 100 end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 7 } end },
       db = { settings = { sniper = {} } },
@@ -1175,7 +1175,7 @@ describe("Sniper purchase wiring", function()
     _G.time = function() return 100 end
     _G.GetTime = function() return 100 end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 7 } end },
       db = { settings = { sniper = {} } },
@@ -1268,7 +1268,7 @@ describe("Sniper purchase wiring", function()
     function scanner:Resume() self.resumes = self.resumes + 1 end
     function scanner:Stop() self.stops = self.stops + 1 end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
       Data = { GetItemValue = function() return nil end, GetWatchlist = function() return { 42 } end },
       db = { settings = { sniper = {} } },

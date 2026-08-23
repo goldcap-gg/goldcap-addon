@@ -38,7 +38,10 @@ WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist a
 -- the Sell tab; M8).
 WIN.FRAME_WIDTH = 640
 WIN.FRAME_HEIGHT = 520
-WIN.RESIZE_MIN_WIDTH = 560
+-- 640, was 560: the rail consumes RAIL_W of every width, so the old floor
+-- left the item column ~90px after the responsive drops -- unreadable. 640
+-- restores the same worst-case content width the 560 floor used to give.
+WIN.RESIZE_MIN_WIDTH = 640
 WIN.RESIZE_MAX_WIDTH = 1100
 WIN.RESIZE_MIN_HEIGHT = 300
 WIN.RESIZE_MAX_HEIGHT = 900
@@ -46,7 +49,8 @@ WIN.RESIZE_MAX_HEIGHT = 900
 -- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
 -- UIPanelScrollFrameTemplate) has no Theme equivalent -- Theme doesn't know about Blizzard's
 -- scrollbar width -- so it stays a plain named constant, same as before.
-WIN.CONTENT_LEFT = Theme.pad.m
+WIN.RAIL_W = Theme.RAIL_W                     -- left navigation rail (Theme.Rail)
+WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rail
 WIN.CONTENT_RIGHT_GUTTER = 32
 
 WIN.ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
@@ -1379,14 +1383,14 @@ driver = {
   now = time,
 }
 
--- D: keeps the Sell tab's "Sell (N)" badge current. Called after a purchase (a new flip may
+-- D: keeps the Sell rail button's count badge current. Called after a purchase (a new flip may
 -- now exist), on every AH open (bag counts may have changed since a mailbox visit), and by
 -- SellFrame.lua itself after Post/Remove/a bag-count refresh -- one shared place instead of
--- every call site re-deriving the label text. Safe to call before the frame/tab exist yet.
+-- every call site re-deriving the badge. Safe to call before the frame/tab exist yet.
 local function updateSellTabLabel()
   if not frame or not frame.sellTab then return end
   local n = GC.Sell.SellableCount and GC.Sell.SellableCount() or 0
-  frame.sellTab:SetLabel(n > 0 and ("Sell (%d)"):format(n) or "Sell")
+  frame.sellTab:SetBadge(n > 0 and n or nil)
 end
 GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
 
@@ -4720,17 +4724,12 @@ end
 -- D: Deals/Sell view switcher. Full Scan/Live are separate widgets untouched by this and stay
 -- clickable in both views. Sell's own container, rows, and bag-count refresh are entirely
 -- GC.Sell's responsibility (built once by GC.Sell.Attach in createFrame) -- this function only
--- toggles the Deals-side widgets and the tab buttons' enabled state. Theme.Button has no
--- built-in "disabled" look (unlike the old UIPanelButtonTemplate), so the active tab is now
--- indicated explicitly via its own text color on top of Enable/Disable's functional gating.
+-- toggles the Deals-side widgets and the rail buttons' active state.
+-- The rail button owns its whole active look (fill/ring/glow/recolor) AND the
+-- functional gating: active == Disable()d, exactly the contract the old text
+-- recolor version enforced.
 local function setTabActive(btn, active)
-  if active then
-    btn:Disable()
-    btn.text:SetTextColor(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
-  else
-    btn:Enable()
-    btn.text:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
-  end
+  btn:SetActive(active)
 end
 
 local function setView(v)
@@ -4928,47 +4927,38 @@ local function createFrame()
   -- Kept as a field so docked mode (GC.Sniper.SetDocked below) can blank the duplicate
   -- chrome: inside the auction house the AH frame already provides the title and the close.
   f.titleBar = titleBar
-  -- T10: opens/closes the in-game settings overlay (UI/SettingsFrame.lua) -- built lazily on
-  -- first click, same lazy-construction pattern as this window's own purchase confirm dialog
-  -- (createDialog, below).
-  titleBar.gear:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
-
   -- hooksecurefunc, not an OnDragStop/OnMouseUp script: see persistWindowGeometry's own
   -- comment for why the method-hook is what unifies both hardware-driven geometry changes.
   hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
 
   -- D: Deals/Sell view switcher tabs, top-left under the title bar.
   local row1Y = -(CH.TITLEBAR + Theme.pad.s)
-  local dealsTab = Theme.Button(f, "ghost")
-  dealsTab:SetSize(CH.TAB_W, CH.TAB_H)
-  dealsTab:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row1Y)
-  dealsTab:SetLabel("Deals")
-  dealsTab:SetScript("OnClick", function() setView("deals") end)
-  f.dealsTab = dealsTab
+  -- Rail (Sniper v4): the Deals/Sell/Sold switcher is a 76px left rail of big
+  -- targets (Theme.Rail), not a row of 50x18 ghost tabs. The f.dealsTab/
+  -- f.sellTab/f.soldTab FIELDS survive on purpose: setView and
+  -- updateSellTabLabel address the buttons only through them.
+  local rail = Theme.Rail(f)
+  rail.frame:SetPoint("TOPLEFT")
+  rail.frame:SetPoint("BOTTOMLEFT")
+  rail.buttons.deals:SetScript("OnClick", function() setView("deals") end)
+  rail.buttons.sell:SetScript("OnClick", function() setView("sell") end)
+  rail.buttons.sold:SetScript("OnClick", function() setView("sold") end)
+  f.rail = rail
+  f.dealsTab, f.sellTab, f.soldTab = rail.buttons.deals, rail.buttons.sell, rail.buttons.sold
+  setTabActive(f.dealsTab, true) -- Deals is the default view
+  setTabActive(f.sellTab, false)
+  setTabActive(f.soldTab, false)
 
-  local sellTab = Theme.Button(f, "ghost")
-  sellTab:SetSize(CH.TAB_W + 14, CH.TAB_H) -- extra width for the "Sell (NN)" badge text
-  sellTab:SetPoint("LEFT", dealsTab, "RIGHT", Theme.pad.xs, 0)
-  sellTab:SetLabel("Sell")
-  sellTab:SetScript("OnClick", function() setView("sell") end)
-  f.sellTab = sellTab
-
-  local soldTab = Theme.Button(f, "ghost")
-  soldTab:SetSize(CH.TAB_W, CH.TAB_H)
-  soldTab:SetPoint("LEFT", sellTab, "RIGHT", Theme.pad.xs, 0)
-  soldTab:SetLabel("Sold")
-  soldTab:SetScript("OnClick", function() setView("sold") end)
-  f.soldTab = soldTab
-
-  setTabActive(dealsTab, true)  -- Deals is the default view
-  setTabActive(sellTab, false)
-  setTabActive(soldTab, false)
+  -- Settings entry lives on the rail now; TitleBar still builds its gear for
+  -- other callers, this window just doesn't show two of them.
+  titleBar.gear:Hide()
+  rail.gear:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
 
   -- B: import staleness. Right-justified so it reads as sitting on the right of row 1,
   -- sharing the row with the Deals/Sell tabs; hidden until refreshStaleText() (called on AH
   -- show and after every full scan) says otherwise.
   local staleText = Theme.Label(f, 11)
-  staleText:SetPoint("TOPLEFT", soldTab, "TOPRIGHT", Theme.pad.s, 0)
+  staleText:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row1Y)
   staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row1Y)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
@@ -5294,8 +5284,9 @@ function GC.Sniper.SetDocked(host)
     if frame.resizeHandle then frame.resizeHandle:Hide() end
     -- Docked chrome: the auction house already shows a "GoldCap" title and its own close
     -- button, and the AH portrait overlaps where our title text sits -- so the window's own
-    -- duplicates go. The BAR stays (every content offset hangs from its height) and so does
-    -- the gear; only the text and the X are the duplicates.
+    -- duplicates go. The BAR stays (every content offset hangs from its height); only the
+    -- text and the X are the duplicates. The gear moved to the rail (createFrame) and stays
+    -- visible there regardless of dock state -- the titlebar's own gear is permanently hidden.
     if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText("") end
     if frame.closeBtn then frame.closeBtn:Hide() end
     frame:SetParent(host)

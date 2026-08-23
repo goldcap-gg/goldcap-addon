@@ -46,6 +46,7 @@ describe("Sniper pin feedback and empty state", function()
     local GC = {
       Theme = {
         ROW_H = 20,
+        RAIL_W = 76,
         pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 } },
         color = { watch = { 0.35, 0.72, 0.90 }, gold = { 0.83, 0.64, 0.22 }, fgDim = { 0.5, 0.5, 0.5 },

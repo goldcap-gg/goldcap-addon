@@ -74,7 +74,7 @@ describe("Sniper buy dialog verdict block", function()
 
   local function load(dbOverrides)
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 } },
         color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 } } },
       AutoScan = { New = function()
@@ -257,7 +257,7 @@ describe("Sniper buy dialog verdict block", function()
   it("DG's open/closed height budgets differ by exactly one evidence grid, with no overlap or negative geometry", function()
     -- A behavioural sanity check on the actual production constants (not a stand-in), reached
     -- as a direct upvalue of createDialog -- DG's own fields are referenced right in its body.
-    local Theme = { pad = { m = 8, s = 4, xs = 2 } }
+    local Theme = { RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 } }
     local GC = { Theme = Theme,
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }

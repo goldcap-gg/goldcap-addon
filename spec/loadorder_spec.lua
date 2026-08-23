@@ -62,6 +62,12 @@ describe("TOC load order", function()
         -- Theme.Button's hover is a HIGHLIGHT-layer texture drawn by the engine rather than an
         -- OnEnter/OnLeave repaint, and it sets an additive blend at construction time.
         SetBlendMode = function() end,
+        -- Sniper v4 (rail mount): Theme.Rail/Theme.RailButton/Theme.Card build their chrome
+        -- from a nine-slice PNG (slicedTexture in Theme.lua) recolored via vertex color --
+        -- both calls run synchronously during createFrame now that the rail is part of the
+        -- window's real construction path, not just Theme.lua's own spec.
+        SetTextureSliceMargins = function() end,
+        SetVertexColor = function() end,
         SetAllPoints = function() end,
         -- D (Sniper v2 Sell view): GC.Sell.Attach/renderRows stamp the scroll child's height
         -- the same way the Deals view's refreshRows always has -- now reachable from
