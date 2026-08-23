@@ -213,7 +213,7 @@ function T.RailButton(parent, iconFile, labelText)
   function b:SetBadge(count)
     if count then
       b.badge.text:SetText(tostring(count))
-      b.badge:SetWidth(14 + 6 * #tostring(count))
+      b.badge:SetWidth((14 + 6 * #tostring(count)) * T.Scale())
       b.badge:Show()
     else
       b.badge:Hide()
@@ -240,8 +240,10 @@ end
 function T.Rail(parent)
   local frame = CreateFrame("Frame", nil, parent)
   frame:SetWidth(T.RAIL_W)
-  local bg = frame:CreateTexture(nil, "BACKGROUND")
-  bg:SetColorTexture(T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9)
+  -- card_left.png: left corners rounded to match the window card's own radius 16, right edge
+  -- square (it borders content, not window chrome) -- a flat rectangle here would poke square
+  -- corners past the window's rounded top-left/bottom-left arcs.
+  local bg = slicedTexture(frame, "BACKGROUND", T.MEDIA .. "card_left.png", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
   bg:SetAllPoints()
   local edge = frame:CreateTexture(nil, "BORDER")
   edge:SetColorTexture(T.color.border[1], T.color.border[2], T.color.border[3], T.color.border[4])

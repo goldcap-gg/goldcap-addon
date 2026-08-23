@@ -4765,7 +4765,6 @@ end
 -- ---------------------------------------------------------------------------
 local CH = {}
 CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
-CH.TAB_W = 50
 CH.TAB_H = 18
 CH.BTN_H = 24 -- Full Scan / Live button height
 CH.HEADER = 16      -- column header row height
@@ -4933,7 +4932,8 @@ local function createFrame()
   -- comment for why the method-hook is what unifies both hardware-driven geometry changes.
   hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
 
-  -- D: Deals/Sell view switcher tabs, top-left under the title bar.
+  -- D: row 1 holds only the import-staleness text now (top-right, under the title bar); the
+  -- Deals/Sell/Sold switcher moved to the left rail (Theme.Rail, below).
   local row1Y = -(CH.TITLEBAR + Theme.pad.s)
   -- Rail (Sniper v4): the Deals/Sell/Sold switcher is a 76px left rail of big
   -- targets (Theme.Rail), not a row of 50x18 ghost tabs. The f.dealsTab/
@@ -4955,6 +4955,13 @@ local function createFrame()
   -- other callers, this window just doesn't show two of them.
   titleBar.gear:Hide()
   rail.gear:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
+
+  -- Theme.TitleBar anchors the title at the window's own LEFT edge, which the rail now covers
+  -- (it owns x in [0, RAIL_W]) -- without this the title text renders underneath/behind the
+  -- rail. SetDocked's blank/restore (UI/SniperFrame.lua) only calls title:SetText, so it is
+  -- unaffected by this re-anchor.
+  titleBar.title:ClearAllPoints()
+  titleBar.title:SetPoint("LEFT", titleBar, "LEFT", WIN.CONTENT_LEFT, 0)
 
   -- B: import staleness. Right-justified so it reads as sitting on the right of row 1,
   -- sharing the row with the Deals/Sell tabs; hidden until refreshStaleText() (called on AH
