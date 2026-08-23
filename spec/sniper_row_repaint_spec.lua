@@ -139,7 +139,7 @@ describe("Sniper row repaint skip", function()
     ctx.setRowDeal(row, deal(7, { profit = 9999 }))
 
     assert.is_true(calls.n > afterFirst)
-    assert.equal("9999c", row.profitText.text)
+    assert.equal("+9999c", row.profitText.text)
   end)
 
   it("repaints when the unit price, quantity, or tier changes", function()

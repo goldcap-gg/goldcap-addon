@@ -604,10 +604,10 @@ end
 -- both so the number in the suffix stops implying a scarcity that isn't real.
 local function qtySuffix(deal)
   if deal.avail and deal.avail > deal.qty then
-    return ("|cffaaaaaa x%d of %d|r"):format(deal.qty, deal.avail)
+    return ("|cff8c8a85 x%d of %d|r"):format(deal.qty, deal.avail)
   end
   if deal.qty and deal.qty > 1 then
-    return ("|cffaaaaaa x%d|r"):format(deal.qty)
+    return ("|cff8c8a85 x%d|r"):format(deal.qty)
   end
   return ""
 end
@@ -885,7 +885,7 @@ local function setRowDeal(row, deal)
     row.profitText:SetText("—")
     row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
-    row.profitText:SetText(formatColumnAmount(deal.profit))
+    row.profitText:SetText((deal.profit > 0 and "+" or "") .. formatColumnAmount(deal.profit))
     if deal.profit >= 0 then
       row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
     else
@@ -4492,11 +4492,11 @@ end
 -- ---------------------------------------------------------------------------
 local function buildRowCell(row, col)
   if col.key == "tier" then
-    local chip = Theme.Chip(row)
+    local chip = Theme.TierMark(row)
     row.tierChip = chip
     return chip
   elseif col.key == "buy" then
-    local btn = Theme.Button(row, "primary")
+    local btn = Theme.Button(row, "primary", "badge")
     btn:SetHeight(22)
     btn:SetLabel("Check")
     btn:SetScript("OnClick", function() onBuyClick(row) end)
@@ -4845,9 +4845,10 @@ local function createHeaderRow(f)
     local hit = CreateFrame("Frame", nil, header)
     hit:SetHeight(CH.HEADER)
     local baseText = (HEADER_TEXT[col.key] or ""):upper()
-    local label = Theme.Label(hit, 11)
+    local label = Theme.Num(hit, 9)
     label:SetAllPoints()
     label:SetJustifyH(col.num and "RIGHT" or "LEFT")
+    label:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3], Theme.color.fgDim[4] or 1)
     label:SetText(baseText)
     hit.label = label
 
@@ -4887,9 +4888,10 @@ local function createHeaderRow(f)
   end
 
   local itemHit = CreateFrame("Frame", nil, header)
-  itemHit.label = Theme.Label(itemHit, 11)
+  itemHit.label = Theme.Num(itemHit, 9)
   itemHit.label:SetAllPoints()
   itemHit.label:SetJustifyH("LEFT")
+  itemHit.label:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3], Theme.color.fgDim[4] or 1)
   itemHit.label:SetText("ITEM")
 
   -- Re-anchors the visible-only column chain (see anchorColumns) and the item header cell's
@@ -4904,6 +4906,16 @@ local function createHeaderRow(f)
     itemHit:SetPoint("BOTTOMRIGHT", flexAnchor.frame, "BOTTOMLEFT", -Theme.pad.s, 0)
   end
   layoutHeaderRow()
+
+  -- 1px rule under the mono column labels, the same border color used elsewhere as a hairline
+  -- (Theme.Chip's own underline, the toolbar divider) -- separates the header row from the
+  -- first data row now that the labels themselves are small and dim rather than a filled bar.
+  header.underline = header:CreateTexture(nil, "ARTWORK")
+  header.underline:SetHeight(1)
+  header.underline:SetColorTexture(Theme.color.border[1], Theme.color.border[2],
+    Theme.color.border[3], Theme.color.border[4])
+  header.underline:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT")
+  header.underline:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT")
 
   return header
 end
