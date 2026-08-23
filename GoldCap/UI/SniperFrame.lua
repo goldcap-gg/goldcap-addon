@@ -2237,6 +2237,15 @@ local function stampDialogFromDecision(deal, decision)
     dialog.verdictHead:SetText(("Buy %d × %s for %s"):format(
       quantity, itemLabel, displayDecisionAmount(entryTotal)))
     dialog.verdictHead:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+    -- Sniper v4 check drawer: tints the card behind the verdict headline/sub-line. Guarded --
+    -- not every dialog stand-in in the test suite builds a real createDialog widget tree (the
+    -- protected purchase-wiring/verdict specs stamp a hand-built fakeDialog without this
+    -- field), and this is purely visual, so a stand-in without it just skips the tint.
+    if dialog.verdictCard then
+      dialog.verdictCard:SetTint(
+        { Theme.color.green[1], Theme.color.green[2], Theme.color.green[3], 0.06 },
+        { Theme.color.green[1], Theme.color.green[2], Theme.color.green[3], 0.30 })
+    end
     dialog.verdictSub:SetText(decision.stressProfit
       and ("you should clear about %s"):format(displayDecisionAmount(decision.stressProfit))
       or "")
@@ -2246,6 +2255,12 @@ local function stampDialogFromDecision(deal, decision)
     -- second copy of either.
     dialog.verdictHead:SetText(GC.SniperDecision.ReasonText(firstReason))
     dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
+    -- See the buyable branch's own comment above -- same guard, refusal tint.
+    if dialog.verdictCard then
+      dialog.verdictCard:SetTint(
+        { Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.07 },
+        { Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.30 })
+    end
     dialog.verdictSub:Hide()
   end
 
@@ -3988,16 +4003,25 @@ local function makeQtyEditBox(parent, width, height)
   return box
 end
 
+-- CH.TITLEBAR is needed by the check drawer's anchor below (its top hugs the title bar), so
+-- the table is declared here rather than down by createHeaderRow, which is its other consumer
+-- -- a chunk-order requirement: a local declared after this function's body is compiled is not
+-- an upvalue of it, it would resolve as an (absent) global instead.
+local CH = {}
+CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
+CH.BTN_H = 26 -- toolbar row: Auto / Scan / Refused-Hidden, all "plaque" buttons
+CH.HEADER = 16      -- column header row height
+
 -- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
 -- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
 -- never built eagerly alongside the sniper frame itself.
 local function createDialog()
-  local d = Theme.Panel(UIParent)
-  -- C1: Theme.Panel creates an UNNAMED frame (CreateFrame("Frame", nil, parent)), but
-  -- UISpecialFrames (below) resolves "GoldCapSniperConfirm" by looking it up as a GLOBAL --
-  -- without this, Escape can't find the dialog at all, so it falls through to hiding the main
-  -- Sniper window instead, and the dialog's own OnHide (which calls abortRowPurchase) never
-  -- fires -- silently orphaning an in-flight purchase's pinned row.
+  local d = CreateFrame("Frame", nil, frame)
+  -- C1: this is an UNNAMED frame (CreateFrame(..., nil, ...)), but UISpecialFrames (below)
+  -- resolves "GoldCapSniperConfirm" by looking it up as a GLOBAL -- without this, Escape can't
+  -- find the dialog at all, so it falls through to hiding the main Sniper window instead, and
+  -- the dialog's own OnHide (which calls abortRowPurchase) never fires -- silently orphaning an
+  -- in-flight purchase's pinned row.
   _G.GoldCapSniperConfirm = d
   -- Collapsed-by-default placeholder; applyDetailsState (below, once the toggle and evidence
   -- rows it drives actually exist) overwrites this from the restored setting before the
@@ -4009,12 +4033,37 @@ local function createDialog()
   d.baseHeight = d.fixedHeight + d.diagnosticGaps + d.diagnosticMinimumHeight
   d:SetSize(DG.WIDTH, d.baseHeight)
   d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
-  d:SetPoint("CENTER", frame, "CENTER")
+  -- Check drawer (Sniper v4): full-height sheet on the window's right edge. TOP+BOTTOM
+  -- anchors own the height -- the engine ignores every SetHeight below them, so the
+  -- dialog's height bookkeeping (baseHeight/fixedHeight and their call sites) keeps
+  -- running as harmless no-ops and the bottom-anchored controls/banner block just sits
+  -- at the drawer's foot with the middle stretching.
+  d:SetWidth(DG.WIDTH)
+  d:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -CH.TITLEBAR)
+  d:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+  -- Sheet chrome: right corners must match the window card's radius; the drawer's
+  -- top-left/bottom-left corners are square against the content area.
+  d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card_right.png",
+    { Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 0.97 })
+  d.sheet:SetAllPoints()
+  d.edge = d:CreateTexture(nil, "BORDER")
+  d.edge:SetColorTexture(Theme.color.border[1], Theme.color.border[2], Theme.color.border[3], Theme.color.border[4])
+  d.edge:SetPoint("TOPLEFT")
+  d.edge:SetPoint("BOTTOMLEFT")
+  d.edge:SetWidth(1)
   d:EnableMouse(true)
 
-  local title = Theme.Label(d, 13)
+  -- Title restyled as a small mono kicker (Theme.Num's own font formula: FONT_MONO_BOLD,
+  -- size*Scale()) rather than through Theme.Label + a manual SetFont override -- Theme.Label
+  -- registers the FontString in Theme's private rescale table under its OWN (native/13) font,
+  -- and SetScale's re-font pass would silently stomp a later manual override back to that on
+  -- the next rescale. Theme.Num registers itself under the mono font it actually set, so this
+  -- stays correct across GC.Theme.SetScale.
+  local title = Theme.Num(d, 10, true)
   title:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
-  title:SetText("Confirm Purchase")
+  title:SetJustifyH("LEFT")
+  title:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  title:SetText("CONFIRM PURCHASE")
   d.title = title
 
   local icon = d:CreateTexture(nil, "ARTWORK")
@@ -4059,6 +4108,17 @@ local function createDialog()
   suspectNote:SetText("a discount this extreme usually means the market value is wrong, not that this is a bargain")
   suspectNote:Hide()
   d.suspectNote = suspectNote
+
+  -- Verdict card: a rounded, tinted card behind the headline/sub-line below, built and
+  -- anchored FIRST so it draws behind them (same frames-render-in-creation-order convention
+  -- the window's own Theme.Card chrome already relies on). stampDialogFromDecision tints it
+  -- green/red beside the two dialog.verdictHead:SetTextColor sets it already makes -- see the
+  -- `dialog.verdictCard:SetTint(...)` calls there, the only lines this task adds outside this
+  -- function.
+  local verdictCard = Theme.Card(d, nil, nil, true)
+  verdictCard:SetPoint("TOPLEFT", Theme.pad.m - Theme.pad.s, DG.VERDICT_TOP + Theme.pad.s)
+  verdictCard:SetPoint("BOTTOMRIGHT", -(Theme.pad.m - Theme.pad.s), DG.VERDICT_TOP - DG.VERDICT_H - Theme.pad.s)
+  d.verdictCard = verdictCard
 
   -- Verdict block, directly under the item header: a prominent headline (buy action or
   -- refusal sentence) and, only while buyable, a quieter sub-line naming the stress profit --
@@ -4155,7 +4215,7 @@ local function createDialog()
   local prevBtn
   for i = #DG.QTY_QUICKFILL_PCTS, 1, -1 do
     local pct = DG.QTY_QUICKFILL_PCTS[i]
-    local btn = Theme.Button(d, "ghost")
+    local btn = Theme.Button(d, "ghost", "badge")
     btn:SetSize(DG.QTY_QUICKFILL_W, DG.QTY_QUICKFILL_H)
     if prevBtn then
       btn:SetPoint("TOPRIGHT", prevBtn, "TOPLEFT", -Theme.pad.xs, 0)
@@ -4172,7 +4232,12 @@ local function createDialog()
   -- Details toggle: the 12-row evidence grid used to be the whole dialog below the item
   -- header; now it is opt-in, collapsed by default, restored per the player's own last choice
   -- (GC.db.settings.sniper.dialogDetailsOpen) rather than re-defaulting shut every time.
-  local detailsToggle = Theme.Button(d, "ghost")
+  -- "badge", not "plaque": DG.TOGGLE_H is 17px (a shared layout constant -- DG.GRID_TOP and
+  -- the FIXED_HEIGHT_* budgets all flow from it, and the protected purchase-wiring spec pins
+  -- exact dialog heights derived from it, so it cannot move for this restyle). PLAQUE_SLICE
+  -- (12) is not below half of 17 -- Theme.lua's own margin invariant (see PLAQUE_SLICE's
+  -- comment) -- so plaque would notch this button's corners; BADGE_SLICE (6) is safely below.
+  local detailsToggle = Theme.Button(d, "ghost", "badge")
   detailsToggle:SetHeight(DG.TOGGLE_H)
   detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, DG.TOGGLE_TOP)
   detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, DG.TOGGLE_TOP)
@@ -4288,7 +4353,10 @@ local function createDialog()
   banner:Hide()
   d.banner = banner
 
-  local cancelBtn = Theme.Button(d, "ghost")
+  -- "badge", not "plaque": DG.CANCEL_H is 20px, another shared/pinned constant (see
+  -- detailsToggle's own comment above for why it can't move) -- PLAQUE_SLICE (12) is not
+  -- below half of 20, BADGE_SLICE (6) is.
+  local cancelBtn = Theme.Button(d, "ghost", "badge")
   cancelBtn:SetHeight(DG.CANCEL_H)
   cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
   cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
@@ -4313,7 +4381,11 @@ local function createDialog()
   d.cancelBtn = cancelBtn
 
   -- Full-width primary button, bottom-most: the single most-clicked control in this window.
-  local primaryBtn = Theme.Button(d, "primary")
+  -- "plaque" is safe here (unlike cancelBtn/detailsToggle above): DG.PRIMARY_H is 26px, and
+  -- PLAQUE_SLICE (12) IS below half of that (13). Height stays DG.PRIMARY_H, not bumped to
+  -- 34 -- that constant also drives DG.CONTROLS_H/DG.FIXED_HEIGHT_* and cancelBtn's own
+  -- anchor, so it isn't a per-button size free to change here (see the two comments above).
+  local primaryBtn = Theme.Button(d, "primary", "plaque")
   primaryBtn:SetHeight(DG.PRIMARY_H)
   primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
   primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
@@ -4810,12 +4882,11 @@ end
 -- ---------------------------------------------------------------------------
 -- Chrome (Sniper v3): Theme.Panel + Theme.TitleBar replace BasicFrameTemplateWithInset;
 -- everything below the title bar is stacked top-down with named row-height constants and
--- Theme.pad gaps instead of ad-hoc absolute offsets.
+-- Theme.pad gaps instead of ad-hoc absolute offsets. CH itself is declared up by createDialog
+-- now (the check drawer's TOPRIGHT anchor needs CH.TITLEBAR too, and a local must be declared
+-- before the earliest function that closes over it) -- this comment stays here as the doc for
+-- CH.BTN_H/CH.HEADER's consumers below.
 -- ---------------------------------------------------------------------------
-local CH = {}
-CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
-CH.BTN_H = 26 -- toolbar row: Auto / Scan / Refused-Hidden, all "plaque" buttons
-CH.HEADER = 16      -- column header row height
 
 local function createHeaderRow(f)
   local header = CreateFrame("Frame", nil, f)
