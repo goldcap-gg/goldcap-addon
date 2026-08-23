@@ -61,6 +61,14 @@ describe("Theme.Card / Theme.Glow", function()
     assert.same({ b[1], b[2], b[3], b[4] }, card.ring.vertex)
   end)
 
+  it("builds a small card from the plaque textures with PLAQUE_SLICE margins", function()
+    local card = GC.Theme.Card(stubFrame(), nil, nil, true)
+    assert.equal(GC.Theme.MEDIA .. "plaque.png", card.bg.textureFile)
+    assert.equal(GC.Theme.MEDIA .. "plaque_ring.png", card.ring.textureFile)
+    assert.same({ 12, 12, 12, 12 }, card.bg.slice)
+    assert.same({ 12, 12, 12, 12 }, card.ring.slice)
+  end)
+
   it("SetTint recolors fill and ring independently", function()
     local card = GC.Theme.Card(stubFrame())
     local gold = GC.Theme.color.gold

@@ -113,26 +113,38 @@ T.RAIL_W = 76
 -- PNGs with addon/tools/gen_art.py, never edit them by hand. Margins are 24
 -- of the 64px file so the 16px corners survive any widget size.
 local CARD_SLICE = 24
+-- Small-radius sibling for plaque.png/plaque_ring.png (32px, radius 8): 24px
+-- margins on a 14px badge overlap and notch the corners (each margin covers
+-- more than half the widget). Margins must stay below half the smallest
+-- widget edge they're applied to, or nine-slice corners overlap and notch.
+local PLAQUE_SLICE = 12
 
 -- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
 -- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
 local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
 
-local function slicedTexture(parent, layer, file, c)
+local function slicedTexture(parent, layer, file, c, margin)
+  local m = margin or CARD_SLICE
   local tx = parent:CreateTexture(nil, layer)
   tx:SetTexture(file)
-  tx:SetTextureSliceMargins(CARD_SLICE, CARD_SLICE, CARD_SLICE, CARD_SLICE)
+  tx:SetTextureSliceMargins(m, m, m, m)
   tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
   return tx
 end
 
 -- Card: rounded panel (fill + 2px ring). The rounded sibling of T.Panel; use
 -- it for chrome that should read as a surface, keep T.Panel for flat fills.
-function T.Card(parent, fill, border)
+-- `small`: use plaque.png/plaque_ring.png (radius 8, PLAQUE_SLICE margins)
+-- instead of card.png/ring.png (radius 16, CARD_SLICE margins) -- for chrome
+-- small enough that the 24px card margins would overlap and notch.
+function T.Card(parent, fill, border, small)
   local f = CreateFrame("Frame", nil, parent)
-  f.bg = slicedTexture(f, "BACKGROUND", T.MEDIA .. "card.png", fill or T.color.panel)
+  local bgFile = small and (T.MEDIA .. "plaque.png") or (T.MEDIA .. "card.png")
+  local ringFile = small and (T.MEDIA .. "plaque_ring.png") or (T.MEDIA .. "ring.png")
+  local margin = small and PLAQUE_SLICE or nil
+  f.bg = slicedTexture(f, "BACKGROUND", bgFile, fill or T.color.panel, margin)
   f.bg:SetAllPoints()
-  f.ring = slicedTexture(f, "BORDER", T.MEDIA .. "ring.png", border or T.color.border)
+  f.ring = slicedTexture(f, "BORDER", ringFile, border or T.color.border, margin)
   f.ring:SetAllPoints()
   function f:SetTint(fillC, borderC)
     if fillC then f.bg:SetVertexColor(fillC[1], fillC[2], fillC[3], fillC[4] or 1) end
@@ -201,7 +213,9 @@ function T.RailButton(parent, iconFile, labelText)
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetHeight(14)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
-  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "card.png", T.color.gold)
+  -- plaque.png/PLAQUE_SLICE, not card.png/CARD_SLICE: the badge is 14px tall and
+  -- the 24px card margins overlap and notch its corners (see PLAQUE_SLICE's comment).
+  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "plaque.png", T.color.gold, PLAQUE_SLICE)
   b.badge.bg:SetAllPoints()
   b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
   b.badge.text:SetFont(T.FONT_MONO_BOLD, 9 * T.Scale(), "")
@@ -251,7 +265,9 @@ function T.Rail(parent)
   edge:SetPoint("BOTTOMRIGHT")
   edge:SetWidth(1)
 
-  local logo = T.Card(frame, T.color.gold, { T.color.goldHi[1], T.color.goldHi[2], T.color.goldHi[3], 0.5 })
+  -- `small` (plaque.png/PLAQUE_SLICE): the 32px logo is the same size class as the
+  -- badge -- card.png's 24px margins would overlap and notch its corners too.
+  local logo = T.Card(frame, T.color.gold, { T.color.goldHi[1], T.color.goldHi[2], T.color.goldHi[3], 0.5 }, true)
   logo:SetSize(32, 32)
   logo:SetPoint("TOP", 0, -16)
   logo.text = logo:CreateFontString(nil, "OVERLAY")

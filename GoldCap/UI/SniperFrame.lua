@@ -4932,9 +4932,6 @@ local function createFrame()
   -- comment for why the method-hook is what unifies both hardware-driven geometry changes.
   hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
 
-  -- D: row 1 holds only the import-staleness text now (top-right, under the title bar); the
-  -- Deals/Sell/Sold switcher moved to the left rail (Theme.Rail, below).
-  local row1Y = -(CH.TITLEBAR + Theme.pad.s)
   -- Rail (Sniper v4): the Deals/Sell/Sold switcher is a 76px left rail of big
   -- targets (Theme.Rail), not a row of 50x18 ghost tabs. The f.dealsTab/
   -- f.sellTab/f.soldTab FIELDS survive on purpose: setView and
@@ -4963,23 +4960,24 @@ local function createFrame()
   titleBar.title:ClearAllPoints()
   titleBar.title:SetPoint("LEFT", titleBar.bar, "LEFT", WIN.CONTENT_LEFT, 0)
 
-  -- B: import staleness. Right-justified so it reads as sitting on the right of row 1,
-  -- sharing the row with the Deals/Sell tabs; hidden until refreshStaleText() (called on AH
-  -- show and after every full scan) says otherwise.
+  -- B: import staleness. Staleness lives in the title bar since the tab row died; the gear
+  -- there is hidden (rail.gear owns Settings now, see above), so the strip is free. Right-
+  -- justified against the close button, hidden until refreshStaleText() (called on AH show
+  -- and after every full scan) says otherwise.
   local staleText = Theme.Label(f, 11)
-  staleText:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row1Y)
-  staleText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row1Y)
+  staleText:SetPoint("RIGHT", f.closeBtn, "LEFT", -Theme.pad.m, 0)
   staleText:SetJustifyH("RIGHT")
   staleText:SetWordWrap(false)
   staleText:Hide()
   f.staleText = staleText
 
-  -- Row 2: status line (left) + Live / Scan / Auto (right). Sniper v3 §3 replaces the old
-  -- standalone "Full Scan" primary button with a split control: Auto (rightmost, the most
-  -- prominent control now -- same slot Full Scan alone used to hold) + Scan (renamed "Full
-  -- Scan", now ghost, still the manual one-shot fallback) to its left; the watchlist
-  -- live-scan toggle stays exactly where it was, further left again.
-  local row2Y = row1Y - (CH.TAB_H + Theme.pad.s)
+  -- Row 2 (now the only row below the title bar -- the empty ex-tab row it used to share
+  -- with staleText is gone): status line (left) + Live / Scan / Auto (right). Sniper v3 §3
+  -- replaces the old standalone "Full Scan" primary button with a split control: Auto
+  -- (rightmost, the most prominent control now -- same slot Full Scan alone used to hold) +
+  -- Scan (renamed "Full Scan", now ghost, still the manual one-shot fallback) to its left;
+  -- the watchlist live-scan toggle stays exactly where it was, further left again.
+  local row2Y = -(CH.TITLEBAR + Theme.pad.s)
   local AUTO_BTN_WIDTH = 148
 
   -- Auto (spec §3 "[Auto ⏻]"): two overlapping buttons -- ghost "off" look, primary "on"

@@ -335,9 +335,11 @@ local function build(sniperFrame)
   -- build order -- it's necessarily constructed well AFTER the rest of the window (lazy, on
   -- first gear click), so relying on creation-order z-stacking alone would be fragile.
   panel:SetFrameStrata("HIGH")
-  -- Covers everything below the 32px title bar (Theme.TitleBar's own fixed height) -- title
-  -- text/gear/close stay visible and live above this overlay.
-  panel:SetPoint("TOPLEFT", sniperFrame, "TOPLEFT", 0, -32)
+  -- Covers everything below the 32px title bar (Theme.TitleBar's own fixed height) and clear
+  -- of the rail (Theme.RAIL_W) -- title text/gear/close stay visible and live above this
+  -- overlay, and the overlay owns the content area only: the rail stays visible and clickable,
+  -- matching the design where Settings is a view beside the rail, not a panel that covers it.
+  panel:SetPoint("TOPLEFT", sniperFrame, "TOPLEFT", Theme.RAIL_W, -32)
   panel:SetPoint("BOTTOMRIGHT", sniperFrame, "BOTTOMRIGHT", 0, 0)
   panel:EnableMouse(true) -- blocks clicks from reaching the deal rows/tabs underneath
 
