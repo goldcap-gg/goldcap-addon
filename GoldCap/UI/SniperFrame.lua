@@ -38,7 +38,7 @@ WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist a
 -- the Sell tab; M8).
 WIN.FRAME_WIDTH = 716
 WIN.FRAME_HEIGHT = 520
--- 716, was 640: the rail consumes RAIL_W of every width, so the old floor
+-- 640, was 560: the rail consumes RAIL_W of every width, so the old floor
 -- left the item column ~90px after the responsive drops -- unreadable. 640
 -- restores the same worst-case content width the 560 floor used to give.
 WIN.RESIZE_MIN_WIDTH = 640
