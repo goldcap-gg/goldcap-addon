@@ -1114,7 +1114,7 @@ function GC.Sniper._UpdateEmptyState(shownCount)
       parts[#parts + 1] = ("%d filtered out as hard to resell"):format(screened)
     end
     if refusedCount > 0 then
-      parts[#parts + 1] = ("%d refused by live checks -- press \"Hidden: %d\" above to review them"):format(
+      parts[#parts + 1] = ("%d refused by live checks -- press \"HIDDEN %d\" above to review them"):format(
         refusedCount, refusedCount)
     end
     text = "No deals passed the safety checks right now.\n" .. table.concat(parts, "\n")
@@ -1706,7 +1706,7 @@ local function armScanWatchdog(token)
         -- (fix round 1, M6) "press Full Scan to retry" is dead advice while Auto is armed --
         -- the feedAuto("scanFinished") below already queues its own breather-delayed retry,
         -- and the very next Tick/refreshAutoButton call would immediately overwrite a
-        -- "press Full Scan" line with "Auto · scanning" anyway. Pick the text off the
+        -- "press Full Scan" line with "AUTO · SCANNING" anyway. Pick the text off the
         -- machine's OWN state (read before feeding scanFinished moves it along).
         if autoScan and autoScan:State() ~= "OFF" then
           frame.status:SetText("full scan stalled -- retrying shortly")
@@ -1717,7 +1717,7 @@ local function armScanWatchdog(token)
       -- Sniper v3 §3: without this, a stalled Auto-driven scan would leave the machine
       -- stuck in SCANNING forever (it only ever leaves that state on a scanFinished input) --
       -- feeding it here lets Auto's breather/settle timers retry on the next pass instead of
-      -- silently hanging with the button stuck on "Auto · scanning".
+      -- silently hanging with the button stuck on "AUTO · SCANNING".
       feedAuto("scanFinished")
     end
   end)
@@ -5003,10 +5003,10 @@ local function createFrame()
   f.staleText = staleText
 
   -- Row 2 (now the only row below the title bar -- the empty ex-tab row it used to share
-  -- with staleText is gone): status line (left) + session block · divider · Scan · Refused/
-  -- Hidden · Auto (right, in that left-to-right visual order). Sniper v4 toolbar rework: the
-  -- three buttons all share the same "plaque" rounded chrome (Theme.Button's rounded arg from
-  -- the rail kit) at height 26 (CH.BTN_H), and every label on this row is UPPERCASE mono.
+  -- with staleText is gone), left-to-right: Auto pill, status line, session block, divider,
+  -- Scan, Refused/Hidden. Sniper v4 toolbar rework: the three buttons all share the same
+  -- "plaque" rounded chrome (Theme.Button's rounded arg from the rail kit) at height 26
+  -- (CH.BTN_H), and every label on this row is UPPERCASE mono.
   local row2Y = -(CH.TITLEBAR + Theme.pad.s)
 
   -- Auto: now anchored top-LEFT of the content column (was top-right) -- the rail kit put

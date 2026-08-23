@@ -189,7 +189,7 @@ describe("Sniper pin feedback and empty state", function()
       assert.is_true(emptyText.shown)
       assert.matches("5 filtered out", emptyText.text)
       assert.matches("3 refused by live checks", emptyText.text)
-      assert.matches('"Hidden: 3"', emptyText.text)
+      assert.matches('"HIDDEN 3"', emptyText.text)
     end)
 
     it("suggests scanning when there is simply nothing yet", function()
