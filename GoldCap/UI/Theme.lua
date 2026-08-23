@@ -426,6 +426,13 @@ local ROUNDED_BUTTON = {
   badge  = { bg = T.MEDIA .. "badge.png", ring = nil, margin = BADGE_SLICE },
 }
 
+-- Square mode's ghost has no fill by design -- edgeBorder (below) draws its outline instead.
+-- Rounded mode drops edgeBorder entirely, and "badge" rounded buttons get no ring either (too
+-- small for the ring art -- ROUNDED_BUTTON's own comment), so a rounded ghost painted with the
+-- same alpha-0 fill has zero at-rest boundary: the row Buy button's "Check" state was bare
+-- text. A faint white fill gives rounded ghost the affordance square ghost got from its border.
+local ROUNDED_GHOST_FILL = { 1, 1, 1, 0.07 }
+
 -- Button: variant "primary" (gold bg, dark text) | "ghost" (border only) | "danger" (red bg).
 -- `rounded` (nil | "plaque" | "badge"): nil keeps the original square look (solid bg,
 -- edgeBorder) unchanged. "plaque"/"badge" swap the bg and hover wash for sliced textures of
@@ -457,7 +464,7 @@ function T.Button(parent, variant, rounded)
   -- SetColorTexture on that same region would strip the texture file and leave a flat fill.
   b.roundedMargin = roundedSpec and roundedSpec.margin or nil
   if roundedSpec then
-    b.bg = slicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or { 0, 0, 0, 0 }, roundedSpec.margin)
+    b.bg = slicedTexture(b, "BACKGROUND", roundedSpec.bg, spec.bg or ROUNDED_GHOST_FILL, roundedSpec.margin)
     b.bg:SetAllPoints()
   else
     b.bg = solid(b, "BACKGROUND", spec.bg or { 0, 0, 0, 0 })
@@ -524,7 +531,10 @@ function T.Button(parent, variant, rounded)
   -- controls taking turns being hidden.
   function b:SetVariant(name)
     spec = BUTTON_VARIANTS[name] or BUTTON_VARIANTS.ghost
-    base = spec.bg or { 0, 0, 0, 0 }
+    -- Rounded ghost (spec.bg == nil) falls back to ROUNDED_GHOST_FILL, not alpha-0 -- see that
+    -- constant's own comment. `base` feeds OnEnable's restore below too, so that path inherits
+    -- this fix for free -- it just repaints whatever `base` SetVariant last computed.
+    base = spec.bg or (b.roundedMargin and ROUNDED_GHOST_FILL or { 0, 0, 0, 0 })
     -- `b.bg` in rounded mode is a textured region (see roundedMargin above): SetColorTexture
     -- there would erase the texture file and leave a flat fill, so recolor via SetVertexColor
     -- instead, the same way T.Card:SetTint does.

@@ -4534,8 +4534,9 @@ createRow = function(parent, index)
   -- under ARTWORK. The zebra fill alternates by POOL index, not by the deal's position in
   -- the current sorted view, so it stays visually stable across a resort/rescan instead of
   -- flickering as rows are reassigned to different deals.
-  -- Rounded fills inset 2px from edges and 26px right to keep clear of scrollbar gutter;
-  -- margin 12 is half of 28px row height, satisfying the constraint.
+  -- Rounded fills inset 1px top/bottom (2px total) and 26px right to keep clear of scrollbar
+  -- gutter; the fill is 26px tall after those insets (28px row height minus 2px), so margin 12
+  -- <= 13 = half of 26, satisfying the constraint.
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
   zebra:SetTexture(Theme.MEDIA .. "plaque.png")
@@ -4779,13 +4780,18 @@ local function setView(v)
     frame.scroll:Hide()
     frame.headerRow:Hide()
   end
-  -- Deals-only toolbar chrome (status/verify/scan/auto/divider/session) -- see f.dealsChrome's
-  -- own comment in createFrame. Note: refreshSessionText re-Shows f.sessionText on its own
-  -- clock whenever it runs, so it carries a `view ~= "deals"` early return of its own -- this
-  -- loop's Hide() here would otherwise be undone by the very next 0.25s tick.
+  -- Deals-only toolbar chrome (verify/scan/auto/divider/session -- `status` is NOT here, see
+  -- f.dealsChrome's own comment in createFrame: it's a shared cross-view channel). Note:
+  -- refreshSessionText re-Shows f.sessionText on its own clock whenever it runs, so it carries
+  -- a `view ~= "deals"` early return of its own -- this loop's Hide() here would otherwise be
+  -- undone by the very next 0.25s tick.
   for _, w in ipairs(frame.dealsChrome) do
     if isDeals then w:Show() else w:Hide() end
   end
+  -- The blanket Show() above just unconditionally showed f.sessionText even if the session has
+  -- zero buys (e.g. switching to Deals before ever buying this AH visit) -- re-derive right
+  -- away instead of trusting that Show and waiting up to 0.25s for the ticker to hide it again.
+  if isDeals then refreshSessionText() end
   setTabActive(frame.dealsTab, isDeals)
   setTabActive(frame.sellTab, v == "sell")
   setTabActive(frame.soldTab, v == "sold")
@@ -5192,10 +5198,16 @@ local function createFrame()
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
 
-  -- Deals-only toolbar chrome: setView shows/hides these six alongside the scroll/header
-  -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific status/session
+  -- Deals-only toolbar chrome: setView shows/hides these five alongside the scroll/header
+  -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific control/session
   -- row that means nothing on their view. See setView's own comment on this field.
-  f.dealsChrome = { status, verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText }
+  --
+  -- `status` is deliberately NOT in this list. GC.Sell.Attach (SellFrame.lua) captures this
+  -- same `f` as `statusOwner` and its own setStatus() routes ~40 user-facing messages
+  -- ("Posting…", "Click Confirm to post", timeouts, etc.) through `statusOwner.status:SetText`
+  -- -- it is a shared channel across every view, not a Deals-only readout. Hiding it here
+  -- would mute Sell's entire posting-feedback channel while the Sell view is showing.
+  f.dealsChrome = { verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText }
 
   -- Row 3: column headers, sticky above the scroll area.
   f.headerY = row2Y - (CH.BTN_H + Theme.pad.s)
@@ -5641,6 +5653,11 @@ function GC.Sniper.OnAuctionHouseClosed()
       session.buys, GetCoinTextureString(session.spent), GetCoinTextureString(session.estProfit)))
     session.buys, session.spent, session.estProfit = 0, 0, 0
   end
+  -- The wipe above (or a no-op when buys was already 0) can leave f.sessionText showing a
+  -- figure for a session that no longer exists -- re-derive right away rather than waiting for
+  -- the 0.25s ticker (which isn't even running here, see autoScanTicker:Cancel() above). On
+  -- Deals this hides the now-wiped block; off-Deals it's already hidden (dealsChrome).
+  refreshSessionText()
 
   local scanner = GC.Sniper.scanner
   if scanner and scanner.scanned > 0 then
