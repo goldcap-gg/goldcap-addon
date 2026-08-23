@@ -4961,7 +4961,7 @@ local function createFrame()
   -- rail. SetDocked's blank/restore (UI/SniperFrame.lua) only calls title:SetText, so it is
   -- unaffected by this re-anchor.
   titleBar.title:ClearAllPoints()
-  titleBar.title:SetPoint("LEFT", titleBar, "LEFT", WIN.CONTENT_LEFT, 0)
+  titleBar.title:SetPoint("LEFT", titleBar.bar, "LEFT", WIN.CONTENT_LEFT, 0)
 
   -- B: import staleness. Right-justified so it reads as sitting on the right of row 1,
   -- sharing the row with the Deals/Sell tabs; hidden until refreshStaleText() (called on AH

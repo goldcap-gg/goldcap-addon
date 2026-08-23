@@ -500,7 +500,10 @@ function T.TitleBar(frame, titleText)
   -- `title` is part of the return on purpose: docked mode (GC.Sniper.SetDocked) blanks and
   -- restores it. It shipped without this field once, and the caller's nil-guard turned the
   -- missing key into a silently-still-visible duplicate title.
-  return { gear = gear, close = close, title = bar.title }
+  -- `bar` (the title bar FRAME) is returned too because a caller may need to re-anchor the
+  -- title relative to it (e.g. to make room for a rail on the left) -- the RETURN TABLE
+  -- itself is a plain Lua table, not a region, and must never be passed to SetPoint.
+  return { gear = gear, close = close, title = bar.title, bar = bar }
 end
 
 -- Reagent quality, as the game itself draws it.

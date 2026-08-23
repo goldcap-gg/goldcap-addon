@@ -89,6 +89,7 @@ describe("Theme.Button real-widget label contract", function()
     assert.equal("GoldCap Sniper", bar.title.rawText)
     bar.title:SetText("")
     assert.equal("", bar.title.rawText)
+    assert.is_truthy(bar.bar)
   end)
 
   -- The exact failure mode: UI/SellFrame.lua's ACTION_HELP tooltip keys off
