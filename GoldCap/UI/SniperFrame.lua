@@ -4534,10 +4534,15 @@ createRow = function(parent, index)
   -- under ARTWORK. The zebra fill alternates by POOL index, not by the deal's position in
   -- the current sorted view, so it stays visually stable across a resort/rescan instead of
   -- flickering as rows are reassigned to different deals.
+  -- Rounded fills inset 2px from edges and 26px right to keep clear of scrollbar gutter;
+  -- margin 12 is half of 28px row height, satisfying the constraint.
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
-  zebra:SetAllPoints()
-  zebra:SetColorTexture(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
+  zebra:SetTexture(Theme.MEDIA .. "plaque.png")
+  zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
+  zebra:SetPoint("TOPLEFT", 2, -1)
+  zebra:SetPoint("BOTTOMRIGHT", -26, 1)
   row.zebra = zebra
 
   -- Persistent full-row wash for a pinned (watched) row, so tracking an item reads at a
@@ -4547,15 +4552,21 @@ createRow = function(parent, index)
   -- pin state; the watch color at low alpha, matching the rail it accompanies.
   local pc = Theme.color.watch
   local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  pinBg:SetAllPoints()
-  pinBg:SetColorTexture(pc[1], pc[2], pc[3], 0.10)
+  pinBg:SetTexture(Theme.MEDIA .. "plaque.png")
+  pinBg:SetTextureSliceMargins(12, 12, 12, 12)
+  pinBg:SetVertexColor(pc[1], pc[2], pc[3], 0.10)
+  pinBg:SetPoint("TOPLEFT", 2, -1)
+  pinBg:SetPoint("BOTTOMRIGHT", -26, 1)
   pinBg:Hide()
   row.pinBg = pinBg
 
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- sublevel 1: above zebra, still under ARTWORK
-  highlight:SetAllPoints()
-  highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4])
+  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
+  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4])
+  highlight:SetPoint("TOPLEFT", 2, -1)
+  highlight:SetPoint("BOTTOMRIGHT", -26, 1)
   highlight:Hide()
   row.highlight = highlight
 

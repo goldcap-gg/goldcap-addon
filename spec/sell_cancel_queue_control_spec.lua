@@ -26,6 +26,7 @@ describe("Sell tab, the cancel queue control", function()
     function v:CreateTexture() return region("Texture", self) end
     function v:SetAllPoints() end function v:SetColorTexture() end
     function v:SetTexture() end function v:SetTexCoord() end
+    function v:SetTextureSliceMargins() end function v:SetVertexColor() end
     function v:SetFrameStrata() end function v:SetFrameLevel() end
     function v:GetFrameLevel() return 0 end function v:EnableMouse() end
     return v
