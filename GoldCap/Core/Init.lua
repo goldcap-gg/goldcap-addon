@@ -101,6 +101,12 @@ GC.DEFAULTS = {
       maxQuantity = 200,
       minimumProfitCopper = 50000,
       profitFloorVersion = 1,
+      -- Same reason as profitFloorVersion above: stamped here so ApplyDefaults versions a
+      -- FRESH database immediately, before migrateSniperWindowWidth ever runs on it -- without
+      -- this a brand-new save had no version at all, so the very first resize the player made
+      -- looked identical to an untouched pre-rail save and got widened by the rail's 76px on
+      -- its very next login.
+      windowWidthVersion = 1,
       minimumRoi = 0.10,
       -- Velocity release for the stress exit (SniperDecision.Evaluate): a leftover cheap wall
       -- amounting to no more than this many hours of the item's measured daily sales is

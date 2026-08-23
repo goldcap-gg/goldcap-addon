@@ -182,6 +182,23 @@ describe("Ledger event wiring", function()
     assert.equal(1, _G.GoldCapDB.settings.sniper.windowWidthVersion)
   end)
 
+  -- C1: a brand-new install has no `sniper` table at all, so migrateSniperWindowWidth never
+  -- even runs -- ApplyDefaults must be the one to stamp windowWidthVersion, straight from
+  -- GC.DEFAULTS, or a player's very first post-rail resize looks identical to an untouched
+  -- pre-rail save and gets silently widened by 76px on their next login.
+  it("stamps windowWidthVersion from defaults on a fresh install, so a later resize is never re-migrated", function()
+    _G.GoldCapDB = {}
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(1, _G.GoldCapDB.settings.sniper.windowWidthVersion)
+
+    _G.GoldCapDB.settings.sniper.window = { point = "CENTER", x = 0, y = 0, width = 900, height = 520 }
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(900, _G.GoldCapDB.settings.sniper.window.width)
+  end)
+
   it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
     local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
       boughtAt = 500, targetUnit = 180 }

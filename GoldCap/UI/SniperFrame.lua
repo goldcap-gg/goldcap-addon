@@ -36,7 +36,12 @@ WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist a
 -- (see createFrame's f:SetScript("OnSizeChanged", ...) -- observed off the window frame
 -- itself, not the ScrollFrame, so it keeps firing even while the ScrollFrame is hidden behind
 -- the Sell tab; M8).
-WIN.FRAME_WIDTH = 716
+-- 720, not 716: UI/SellFrame.lua's own COLUMNS grid derives its content width from this same
+-- FRAME_WIDTH (minus the rail and the scrollbar gutter), and at 716 that content area comes
+-- out to 596px -- short of the 600px shownColumns needs to keep the COST column past its
+-- other fixed columns, so a fresh install silently opened with COST already dropped.
+-- 720 gives 600px, which keeps it.
+WIN.FRAME_WIDTH = 720
 WIN.FRAME_HEIGHT = 520
 -- 640, was 560: the rail consumes RAIL_W of every width, so the old floor
 -- left the item column ~90px after the responsive drops -- unreadable. 640
