@@ -17,6 +17,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetText(text) self.text = text end
     function value:GetText() return self.text or "" end
     function value:SetLabel(text) self.label = text end
+    function value:SetVariant(name) self.variant = name end
     function value:SetScript(name, fn) self.scripts[name] = fn end
     function value:HookScript(name, fn) self.scripts[name] = fn end
     function value:Show() self.shown = true end
@@ -294,7 +295,7 @@ describe("Sell widget geometry and manual cost", function()
     GC.Sell.Refresh = function(automatic) presses = presses + 1; captured = automatic end
     local _, container = topRows(GC, {})
     for _, child in ipairs(container.children) do
-      if child.label == "Refresh" then child.scripts.OnClick(child, "LeftButton", false) end
+      if child.label == "REFRESH" then child.scripts.OnClick(child, "LeftButton", false) end
     end
     assert.equal(1, presses)
     assert.is_nil(captured)
@@ -309,7 +310,7 @@ describe("Sell widget geometry and manual cost", function()
     local _, container = topRows(GC, {})
     local button
     for _, child in ipairs(container.children) do
-      if child.label == "Refresh" then button = child end
+      if child.label == "REFRESH" then button = child end
     end
     assert.is_not_nil(button)
 
@@ -320,11 +321,11 @@ describe("Sell widget geometry and manual cost", function()
     -- The word matters, not just the ratio. This button is the last thing in a row of filter
     -- chips, so a bare "2/3" read as another filter -- and the count it shows is a position in
     -- the pricing queue, not a number of items the player owns.
-    assert.equal("Pricing 2/3", button.label)
+    assert.equal("PRICING 2/3", button.label)
 
     state.phase = "done"
     setStatus("Prices up to date")
-    assert.equal("Refresh", button.label)
+    assert.equal("REFRESH", button.label)
   end)
 
   it("orders Sell filters from broad to specific before Refresh", function()
@@ -338,11 +339,11 @@ describe("Sell widget geometry and manual cost", function()
     -- by mail), which reads as "my auctions" and is not what it did. The two
     -- cuts a seller actually wants are what is in the bags and what is already
     -- up for sale.
-    assert.equal(buttons.Refresh, buttons["Missing cost"].points[1].relative)
-    assert.equal(buttons["Missing cost"], buttons.Listed.points[1].relative)
-    assert.equal(buttons.Listed, buttons["In bags"].points[1].relative)
-    assert.equal(buttons["In bags"], buttons.GC.points[1].relative)
-    assert.equal(buttons.GC, buttons.All.points[1].relative)
+    assert.equal(buttons.REFRESH, buttons["MISSING COST"].points[1].relative)
+    assert.equal(buttons["MISSING COST"], buttons.LISTED.points[1].relative)
+    assert.equal(buttons.LISTED, buttons["IN BAGS"].points[1].relative)
+    assert.equal(buttons["IN BAGS"], buttons.GC.points[1].relative)
+    assert.equal(buttons.GC, buttons.ALL.points[1].relative)
     assert.is_nil(buttons.AH)
   end)
 
@@ -708,7 +709,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(0, cancels)
 
     for _, child in ipairs(container.children) do
-      if child.label == "Listed" then child.scripts.OnClick() end
+      if child.label == "LISTED" then child.scripts.OnClick() end
     end
     -- The filter change cannot repoint this pooled row at auction 8 while the row
     -- is armed on auction 7 -- which is the hazard the old behaviour answered by

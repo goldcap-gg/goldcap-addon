@@ -183,7 +183,7 @@ local function paintRefreshButton()
   if not button then return end
   local phase = refresh.phase
   local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
-  local label = "Refresh"
+  local label = "REFRESH"
   if busy then
     -- "Pricing 10/24", not a bare "10/24". This button sits at the end of a row of filter
     -- chips, so a naked ratio reads as one more filter -- and the owner reasonably asked why
@@ -191,7 +191,7 @@ local function paintRefreshButton()
     -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
     -- because every entry is a round trip on the same throttled slot the Sniper's scans use.
     label = (#refresh.queue > 0 and refresh.index > 0)
-      and ("Pricing %d/%d"):format(refresh.index, #refresh.queue) or "Pricing…"
+      and ("PRICING %d/%d"):format(refresh.index, #refresh.queue) or "PRICING…"
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -273,17 +273,17 @@ paintQueueButton = function()
     -- never claim "Confirm" for a click that would land on the wrong row.
     local sameHead = head and postingRow.position and postingRow.position.positionKey == head.positionKey
     if sameHead and postingRow.postStage == "confirm" then
-      button:SetLabel("Confirm"); button:Enable()
+      button:SetLabel("CONFIRM"); button:Enable()
     else
-      button:SetLabel("Posting…"); button:Disable()
+      button:SetLabel("POSTING…"); button:Disable()
     end
     if label and head then label:SetText(head.itemName or "") end
   elseif not head then
-    button:SetLabel("Nothing to post")
+    button:SetLabel("NOTHING TO POST")
     button:Disable()
     if label then label:SetText("") end
   else
-    button:SetLabel(("Post %d"):format(#queueEntries))
+    button:SetLabel(("POST %d"):format(#queueEntries))
     button:Enable()
     if label then label:SetText(("%s @ %s"):format(head.itemName or "Item", formatCell(head.unitPrice))) end
   end
@@ -317,19 +317,22 @@ paintCancelButton = function()
   if repostingRow then
     local sameHead = head and repostPin and repostPin.auctionID == head.auctionID
     if sameHead and repostingRow.repostStage == "cancelling" then
-      button:SetLabel("Cancelling…"); button:Disable()
+      button:SetLabel("CANCELLING…"); button:Disable()
     elseif sameHead and repostingRow.repostStage == "armed" then
-      button:SetLabel("Cancel lot?")
+      button:SetLabel("CANCEL LOT?")
       if repostingRow.repostReady then button:Enable() else button:Disable() end
     else
-      button:SetLabel(("Cancel %d"):format(#cancelEntries)); button:Disable()
+      button:SetLabel(("CANCEL %d"):format(#cancelEntries)); button:Disable()
     end
+    button:SetVariant("danger")
   elseif not head then
-    button:SetLabel("Nothing to cancel")
+    button:SetLabel("NOTHING TO CANCEL")
     button:Disable()
+    button:SetVariant("ghost")
   else
-    button:SetLabel(("Cancel %d"):format(#cancelEntries))
+    button:SetLabel(("CANCEL %d"):format(#cancelEntries))
     button:Enable()
+    button:SetVariant("danger")
   end
   if heldBack then
     if #cancelSkipped > 0 then
@@ -2513,17 +2516,18 @@ function GC.Sell.Attach(f, geometry)
   ROW_WIDTH, ROW_HEIGHT, statusOwner = geometry.rowWidth, geometry.rowHeight, f
   container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
-  -- The header block is a fixed three-row grid on a 24px pitch, each row owning its whole
+  -- The header block is a fixed three-row grid on a 30px pitch (was 24px -- the rounded mono
+  -- buttons below are h26, and a 24px pitch would have clipped them), each row owning its whole
   -- width, because the previous layout let two anchor chains grow toward each other on a
   -- shared row and collide at ordinary window widths (the queue's head label ran under the
   -- filter chips; the cancel cluster ran under EST. PROFIT):
   --   row 1 (y   0): [Post N] head label ················· held-back · [Cancel N]
-  --   row 2 (y -24): ················· chips (filters for the list below) · [Refresh]
-  --   row 3 (y -48): KNOWN COST / LISTED VALUE / EST. PROFIT
-  local refreshButton = Theme.Button(container, "ghost")
-  -- 96, not 72: the busy label is "Pricing 10/24" (see paintRefreshButton), and a button sized
-  -- for "Refresh" alone would have let that overflow its own edges into the filter chip beside it.
-  refreshButton:SetSize(96, 20); refreshButton:SetPoint("TOPRIGHT", 0, -24); refreshButton:SetLabel("Refresh")
+  --   row 2 (y -30): ················· chips (filters for the list below) · [Refresh]
+  --   row 3 (y -60): KNOWN COST / LISTED VALUE / EST. PROFIT
+  local refreshButton = Theme.Button(container, "ghost", "plaque")
+  -- 96, not 72: the busy label is "PRICING 10/24" (see paintRefreshButton), and a button sized
+  -- for "REFRESH" alone would have let that overflow its own edges into the filter chip beside it.
+  refreshButton:SetSize(96, 26); refreshButton:SetPoint("TOPRIGHT", 0, -30); refreshButton:SetLabel("REFRESH")
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
@@ -2531,39 +2535,51 @@ function GC.Sell.Attach(f, geometry)
   -- The button would have gone on doing nothing, which is the bug this argument
   -- was added to fix.
   refreshButton:SetScript("OnClick", function() GC.Sell.Refresh() end)
-  local labels = { all = "All", goldcap = "GC", missing_cost = "Missing cost",
-    sellable = "In bags", listed = "Listed" }
+  local labels = { all = "ALL", goldcap = "GC", missing_cost = "MISSING COST",
+    sellable = "IN BAGS", listed = "LISTED" }
   local widths = { missing_cost = 82, sellable = 56, listed = 52, all = 36, goldcap = 36 }
   local previous = refreshButton
+  -- The active filter must be visible on the chip itself: SetVariant, never a second
+  -- overlaid button (one control, two variants -- see addon/AGENTS.md on buttons).
+  local function paintFilterChips()
+    for mode, chip in pairs(container.filterButtons) do
+      chip:SetVariant(mode == filterMode and "active" or "ghost")
+    end
+  end
+  container.filterButtons = {}
   -- "AH" was a provenance filter (units GoldCap saw arrive by mail) sitting
   -- where a player expected "my auctions". The two useful cuts of this list are
   -- what is in the bags and what is already up; provenance stays on the tooltip.
   for _, mode in ipairs({ "missing_cost", "listed", "sellable", "goldcap", "all" }) do
-    local button = Theme.Button(container, "ghost")
+    local button = Theme.Button(container, "ghost", "badge")
     button:SetSize(widths[mode] or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
-    button:SetScript("OnClick", function() filterMode = mode; renderRows() end); previous = button
+    button:SetScript("OnClick", function() filterMode = mode; paintFilterChips(); renderRows() end)
+    container.filterButtons[mode] = button
+    previous = button
   end
+  paintFilterChips()
   -- The posting queue control: the toolbar's own left end, opposite Refresh/the filter chips.
   -- "Post N" (its own count, so the number is on the button a click actually is), a label
   -- beside it naming the item and unit price that click will post -- a blind click is not one a
   -- seller should be asked to make -- and a held-back indicator with a tooltip that explains,
   -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
   -- are painted, and onQueueClick for what a click does.
-  local queueButton = Theme.Button(container, "primary")
-  -- 130, not 110: the empty-state label is "Nothing to post" (paintQueueButton), and the
+  local queueButton = Theme.Button(container, "primary", "plaque")
+  -- 130, not 110: the empty-state label is "NOTHING TO POST" (paintQueueButton), and the
   -- narrower button let that text spill past its own borders.
-  queueButton:SetSize(130, 20)
+  queueButton:SetSize(130, 26)
   queueButton:SetPoint("TOPLEFT")
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
 
-  local queueLabel = Theme.Label(container, 11)
+  local queueLabel = Theme.Num(container, 10)
   queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 8, 0)
   queueLabel:SetJustifyH("LEFT")
   queueLabel:SetWordWrap(false)
   container.queueLabel = queueLabel
 
-  local queueHeldBack = Theme.Label(container, 10)
+  local queueHeldBack = Theme.Num(container, 9)
+  queueHeldBack:SetJustifyH("LEFT")
   setColor(queueHeldBack, Theme.color.fgDim)
   -- Right-anchored below, once the cancel cluster it abuts exists -- see the row-1 bounding
   -- block after that cluster. No LEFT anchor here: its width is its text.
@@ -2599,17 +2615,18 @@ function GC.Sell.Attach(f, geometry)
 
   -- The cancel queue control: row 1's right end, the far side of the row from Post -- the two
   -- queue actions are siblings, but a destructive control does not belong ADJACENT to a
-  -- non-destructive one. Ghost, not primary: this tab's primary action is posting; cancelling
-  -- burns a deposit and earns the quieter look. See paintCancelButton for the states and
-  -- onCancelQueueClick for what a click does (and, more importantly, does not) do.
-  local cancelButton = Theme.Button(container, "ghost")
-  -- 130 for the same reason as the Post button: "Nothing to cancel" must fit inside.
-  cancelButton:SetSize(130, 20)
+  -- non-destructive one. Danger when it can burn a deposit, ghost when idle -- still the
+  -- quieter look next to POST. See paintCancelButton for the states and onCancelQueueClick
+  -- for what a click does (and, more importantly, does not) do.
+  local cancelButton = Theme.Button(container, "ghost", "plaque")
+  -- 130 for the same reason as the Post button: "NOTHING TO CANCEL" must fit inside.
+  cancelButton:SetSize(130, 26)
   cancelButton:SetPoint("TOPRIGHT")
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
 
-  local cancelHeldBack = Theme.Label(container, 10)
+  local cancelHeldBack = Theme.Num(container, 9)
+  cancelHeldBack:SetJustifyH("LEFT")
   setColor(cancelHeldBack, Theme.color.fgDim)
   cancelHeldBack:SetPoint("RIGHT", cancelButton, "LEFT", -8, 0)
   cancelHeldBack:Hide()
@@ -2645,7 +2662,7 @@ function GC.Sell.Attach(f, geometry)
   -- queue's) read as one meaningless phrase, so the post one moves to row 2's empty left
   -- end, under the cluster it belongs to, and says which queue it is about in words.
   queueLabel:SetPoint("RIGHT", cancelHeldBack, "LEFT", -12, 0)
-  queueHeldBack:SetPoint("TOPLEFT", 0, -29)
+  queueHeldBack:SetPoint("TOPLEFT", 0, -35)
 
   paintCancelButton()
 
@@ -2660,10 +2677,10 @@ function GC.Sell.Attach(f, geometry)
 
   container.summary = {}
   for i, stat in ipairs({ { "cost", "KNOWN COST" }, { "listed", "LISTED VALUE" }, { "profit", "EST. PROFIT" } }) do
-    local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -48); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
+    local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -60); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
     local value = Theme.Num(container, 14, true); value:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -1); container.summary[stat[1]] = value
   end
-  local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -84); header:SetPoint("TOPRIGHT", 0, -84); header:SetHeight(16); header.cells = {}
+  local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -106); header:SetPoint("TOPRIGHT", 0, -106); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
@@ -2683,7 +2700,7 @@ function GC.Sell.Attach(f, geometry)
     end
   end
   layoutCells(header)
-  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -102); scroll:SetPoint("BOTTOMRIGHT")
+  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -124); scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this

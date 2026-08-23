@@ -15,6 +15,7 @@ describe("Sell tab, the posting queue control", function()
     function v:SetSize() end function v:SetWidth() end function v:SetHeight() end
     function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
     function v:SetLabel(t) self.label = t end
+    function v:SetVariant(name) self.variant = name end
     function v:SetScript(n, f) self.scripts[n] = f end
     function v:HookScript(n, f) self.scripts[n] = f end
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
@@ -123,7 +124,7 @@ describe("Sell tab, the posting queue control", function()
     compose()
     local button = container.queueButton
     local label = container.queueLabel
-    assert.equal("Post 1", button.label)
+    assert.equal("POST 1", button.label)
     assert.is_true(button.enabled)
     assert.matches("Eternium Ore", label.text, 1, true)
   end)
@@ -132,7 +133,7 @@ describe("Sell tab, the posting queue control", function()
     compose() -- no quote at all: BOTH bag items are held back, nothing enters the queue
     local button = container.queueButton
     assert.is_false(button.enabled)
-    assert.matches("[Nn]othing", button.label)
+    assert.matches("NOTHING", button.label)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()
@@ -175,7 +176,7 @@ describe("Sell tab, the posting queue control", function()
     compose()
     local button = container.queueButton
     button.scripts.OnClick(button)
-    assert.equal("Confirm", button.label)
+    assert.equal("CONFIRM", button.label)
     assert.is_true(button.enabled)
     button.scripts.OnClick(button)
     assert.equal(1, confirmCalls)

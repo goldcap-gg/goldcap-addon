@@ -15,6 +15,7 @@ describe("Sell tab, bags to Post", function()
     function v:SetSize() end function v:SetWidth() end function v:SetHeight() end
     function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
     function v:SetLabel(t) self.label = t end
+    function v:SetVariant(name) self.variant = name end
     function v:SetScript(n, f) self.scripts[n] = f end
     function v:HookScript(n, f) self.scripts[n] = f end
     function v:Show() self.shown = true end function v:Hide() self.shown = false end

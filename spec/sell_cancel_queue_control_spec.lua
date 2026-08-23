@@ -16,6 +16,7 @@ describe("Sell tab, the cancel queue control", function()
     function v:SetSize() end function v:SetWidth() end function v:SetHeight() end
     function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
     function v:SetLabel(t) self.label = t end
+    function v:SetVariant(name) self.variant = name end
     function v:SetScript(n, f) self.scripts[n] = f end
     function v:HookScript(n, f) self.scripts[n] = f end
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
@@ -132,11 +133,11 @@ describe("Sell tab, the cancel queue control", function()
     compose() -- no quote at all: the lot cannot be judged, nothing enters the queue
     local button = container.cancelButton
     assert.is_false(button.enabled)
-    assert.matches("[Nn]othing", button.label)
+    assert.matches("NOTHING", button.label)
 
     GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
     compose()
-    assert.equal("Cancel 1", button.label)
+    assert.equal("CANCEL 1", button.label)
     assert.is_true(button.enabled)
   end)
 
@@ -177,7 +178,7 @@ describe("Sell tab, the cancel queue control", function()
     assert.equal(0, cancelCalls)
     -- The control mirrors the arm; without C_Timer the arm delay never elapses headless, so it
     -- shows the confirm label while staying disabled.
-    assert.equal("Cancel lot?", button.label)
+    assert.equal("CANCEL LOT?", button.label)
     assert.is_false(button.enabled)
   end)
 
@@ -193,7 +194,7 @@ describe("Sell tab, the cancel queue control", function()
 
     assert.equal(1, cancelCalls)
     assert.equal("cancelling", lotRow.repostStage)
-    assert.matches("Cancelling", button.label)
+    assert.matches("CANCELLING", button.label)
     assert.is_false(button.enabled)
   end)
 end)
