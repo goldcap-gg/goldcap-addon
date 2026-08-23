@@ -85,6 +85,7 @@ describe("Sell tab, the posting queue control", function()
         Num = function(p) return region("FontString", p) end,
         Button = function(p) return region("Button", p) end,
         Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
+        SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
       },
       Ledger = { Context = function() return { char = "Owner-Dentarg", region = "eu" } end,
         GetEntries = function() return {} end },

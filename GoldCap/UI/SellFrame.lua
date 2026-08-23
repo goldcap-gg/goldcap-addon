@@ -2748,20 +2748,15 @@ function GC.Sell.Attach(f, geometry)
   dialog:SetFrameStrata("DIALOG")
   dialog:SetFrameLevel((container:GetFrameLevel() or 0) + 50)
   dialog:EnableMouse(true)
-  local dialogBG = dialog:CreateTexture(nil, "BACKGROUND")
-  dialogBG:SetAllPoints()
+  -- Rounded kit surface. card.png margin 24 <= 85 = half of the 170px edge. Regions on the
+  -- dialog frame itself, not a child Card frame: a child frame would draw over the dialog's
+  -- own FontStrings.
   local pc = Theme.color.panel
-  dialogBG:SetColorTexture(pc[1], pc[2], pc[3], 0.98)
-  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-    local edge = dialog:CreateTexture(nil, "BORDER")
-    local gc2 = Theme.color.gold
-    edge:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.5)
-    if side == "TOP" or side == "BOTTOM" then
-      edge:SetPoint(side .. "LEFT"); edge:SetPoint(side .. "RIGHT"); edge:SetHeight(1)
-    else
-      edge:SetPoint("TOP" .. side); edge:SetPoint("BOTTOM" .. side); edge:SetWidth(1)
-    end
-  end
+  local dialogBG = Theme.SlicedTexture(dialog, "BACKGROUND", Theme.MEDIA .. "card.png", { pc[1], pc[2], pc[3], 0.98 }, 24)
+  dialogBG:SetAllPoints(dialog)
+  local gc2 = Theme.color.gold
+  local dialogEdge = Theme.SlicedTexture(dialog, "BORDER", Theme.MEDIA .. "ring.png", { gc2[1], gc2[2], gc2[3], 0.5 }, 24)
+  dialogEdge:SetAllPoints(dialog)
   -- Which item, and how many units it is missing a cost for -- filled in by openCostDialog
   -- every time it opens, since the dialog is pooled across positions. Reserves two lines'
   -- worth of height: item names run long enough that one line is not always enough.
@@ -2786,8 +2781,8 @@ function GC.Sell.Attach(f, geometry)
   dialog.totalPreview:SetPoint("TOPRIGHT", -12, FIELD_BOX_Y - 24)
   setColor(dialog.totalPreview, Theme.color.fgDim)
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, FIELD_BOX_Y - 44); setColor(dialog.error, Theme.color.red)
-  local cancel = Theme.Button(dialog, "ghost"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
-  local confirm = Theme.Button(dialog, "primary"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
+  local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
+  local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
   local function syncText(edit, text)
     dialog.syncing = true
     edit:SetText(text)
