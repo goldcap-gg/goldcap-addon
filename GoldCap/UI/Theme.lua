@@ -103,6 +103,53 @@ function T.Panel(parent)
   return f
 end
 
+T.MEDIA = "Interface\\AddOns\\GoldCap\\Media\\"
+T.RAIL_W = 76
+
+-- Rounded chrome comes from ONE white 64px rounded-rect PNG stretched with
+-- SetTextureSliceMargins (nine-slice on a single texture, 10.2.0+ -- wiki:
+-- API_TextureBase_SetTextureSliceMargins) and recolored via SetVertexColor.
+-- White art + vertex color means one file serves every tint; regenerate the
+-- PNGs with addon/tools/gen_art.py, never edit them by hand. Margins are 24
+-- of the 64px file so the 16px corners survive any widget size.
+local CARD_SLICE = 24
+
+local function slicedTexture(parent, layer, file, c)
+  local tx = parent:CreateTexture(nil, layer)
+  tx:SetTexture(file)
+  tx:SetTextureSliceMargins(CARD_SLICE, CARD_SLICE, CARD_SLICE, CARD_SLICE)
+  tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+  return tx
+end
+
+-- Card: rounded panel (fill + 2px ring). The rounded sibling of T.Panel; use
+-- it for chrome that should read as a surface, keep T.Panel for flat fills.
+function T.Card(parent, fill, border)
+  local f = CreateFrame("Frame", nil, parent)
+  f.bg = slicedTexture(f, "BACKGROUND", T.MEDIA .. "card.png", fill or T.color.panel)
+  f.bg:SetAllPoints()
+  f.ring = slicedTexture(f, "BORDER", T.MEDIA .. "ring.png", border or T.color.border)
+  f.ring:SetAllPoints()
+  function f:SetTint(fillC, borderC)
+    if fillC then f.bg:SetVertexColor(fillC[1], fillC[2], fillC[3], fillC[4] or 1) end
+    if borderC then f.ring:SetVertexColor(borderC[1], borderC[2], borderC[3], borderC[4] or 1) end
+  end
+  return f
+end
+
+-- Glow: additive halo hung `inset` px outside the parent's own rect. ADD
+-- blend keeps it readable over any fill, same reasoning as HOVER_WASH.
+function T.Glow(parent, c, inset)
+  local pad = inset or 14
+  local tx = parent:CreateTexture(nil, "BACKGROUND")
+  tx:SetTexture(T.MEDIA .. "glow.png")
+  tx:SetBlendMode("ADD")
+  tx:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+  tx:SetPoint("TOPLEFT", -pad, pad)
+  tx:SetPoint("BOTTOMRIGHT", pad, -pad)
+  return tx
+end
+
 -- Chip: solid dark plaque + colored text + colored 1px underline.
 function T.Chip(parent)
   local f = CreateFrame("Frame", nil, parent)
