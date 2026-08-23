@@ -327,6 +327,11 @@ local refreshScanButton
 -- reason the two above are: refreshRows() re-stamps its count on every render, and that runs
 -- long before the button is built.
 local refreshVerifyButton
+-- Assigned once f.sessionText exists (createFrame). Driven off the same 0.25s ticker as the
+-- three refresh* functions above -- same "one place drives it" contract, see the ticker's own
+-- comment. Deals-only: early-returns when the module-local `view` isn't "deals" so it can't
+-- re-Show the text out from under setView's per-view chrome toggle (dealsChrome).
+local refreshSessionText
 -- Assigned below (it needs refreshRows and flashRow), forward-declared because
 -- applyRequeryResult -- which sits above it -- must record what a real Check just found, or a
 -- row could sit there advertising a background verdict the player has since disproved.
@@ -1918,18 +1923,18 @@ local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
 -- decisive of the three: the player is one click from spending gold. `ah`/`tab` are
--- deliberately absent -- per spec they render as plain "Auto", not a paused chip, since
+-- deliberately absent -- per spec they render as plain "AUTO", not a paused chip, since
 -- neither reflects something the player is actively DOING right now.
 local AUTO_PAUSE_ORDER = { "dialog", "search", "mail" }
 
 local function autoButtonText(state, reasons)
-  if state == "SCANNING" then return "Auto · scanning" end
+  if state == "SCANNING" then return "AUTO · SCANNING" end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
-      if reasons[reason] then return "Auto · paused: " .. AUTO_PAUSE_LABEL[reason] end
+      if reasons[reason] then return "AUTO · PAUSED: " .. AUTO_PAUSE_LABEL[reason] end
     end
   end
-  return "Auto" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+  return "AUTO" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
 end
 
 -- Re-derives the Auto control's label and look from the machine's own State()/PauseReasons()
@@ -1964,7 +1969,7 @@ refreshAutoButton = function(targetFrame)
     -- button. `active` carries the on-state in gold text, which cannot become unreadable.
     f.autoBtn:SetVariant(on and "active" or "ghost")
   end
-  local text = on and autoButtonText(state, autoScan:PauseReasons()) or "Auto"
+  local text = on and autoButtonText(state, autoScan:PauseReasons()) or "AUTO"
   if f.autoBtn.lastText ~= text then
     f.autoBtn:SetLabel(text)
     f.autoBtn.lastText = text
@@ -1984,11 +1989,31 @@ refreshScanButton = function(targetFrame)
   local busy = scanRunning or pendingFullScanStart
   if f.fullScanBtn.lastBusy == busy then return end
   f.fullScanBtn.lastBusy = busy
-  f.fullScanBtn:SetLabel(busy and "Scanning…" or "Scan")
+  f.fullScanBtn:SetLabel(busy and "SCANNING…" or "SCAN")
   -- `active`, not `primary`, and not Disable(): a disabled button reads as
   -- broken, and the click while busy has something useful to say (see
   -- onFullScanClick). Same reasoning as the Auto button's on-state.
   f.fullScanBtn:SetVariant(busy and "active" or "ghost")
+end
+
+-- Re-derives the toolbar's session readout from GC.Sniper.session (buys/spent/estProfit).
+-- Same "one place drives it" contract as refreshAutoButton/refreshScanButton/refreshVerifyButton
+-- above -- driven off the same 0.25s ticker (see its own comment there) rather than hooked into
+-- every path that can change s.buys/s.estProfit, so a new one can't leave a stale figure on
+-- screen. Deals-only: f.sessionText is part of f.dealsChrome, which setView Hides on Sell/Sold
+-- -- but this function re-Shows it whenever it runs (Show() at the bottom), so without this
+-- early return the very next tick after switching away from Deals would undo that Hide.
+refreshSessionText = function()
+  if view ~= "deals" then return end
+  local fs = frame and frame.sessionText
+  if not fs then return end
+  local s = GC.Sniper.session
+  if not s or s.buys == 0 then fs:Hide() return end
+  local c = s.estProfit >= 0 and Theme.color.green or Theme.color.red
+  fs:SetText(("SESSION %s%s · %d BUYS"):format(s.estProfit >= 0 and "+" or "",
+    formatColumnAmount(s.estProfit), s.buys))
+  fs:SetTextColor(c[1], c[2], c[3])
+  fs:Show()
 end
 
 local function onFullScanClick()
@@ -4743,6 +4768,13 @@ local function setView(v)
     frame.scroll:Hide()
     frame.headerRow:Hide()
   end
+  -- Deals-only toolbar chrome (status/verify/scan/auto/divider/session) -- see f.dealsChrome's
+  -- own comment in createFrame. Note: refreshSessionText re-Shows f.sessionText on its own
+  -- clock whenever it runs, so it carries a `view ~= "deals"` early return of its own -- this
+  -- loop's Hide() here would otherwise be undone by the very next 0.25s tick.
+  for _, w in ipairs(frame.dealsChrome) do
+    if isDeals then w:Show() else w:Hide() end
+  end
   setTabActive(frame.dealsTab, isDeals)
   setTabActive(frame.sellTab, v == "sell")
   setTabActive(frame.soldTab, v == "sold")
@@ -4765,8 +4797,7 @@ end
 -- ---------------------------------------------------------------------------
 local CH = {}
 CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
-CH.TAB_H = 18
-CH.BTN_H = 24 -- Full Scan / Live button height
+CH.BTN_H = 26 -- toolbar row: Auto / Scan / Refused-Hidden, all "plaque" buttons
 CH.HEADER = 16      -- column header row height
 
 local function createHeaderRow(f)
@@ -4972,23 +5003,20 @@ local function createFrame()
   f.staleText = staleText
 
   -- Row 2 (now the only row below the title bar -- the empty ex-tab row it used to share
-  -- with staleText is gone): status line (left) + Live / Scan / Auto (right). Sniper v3 §3
-  -- replaces the old standalone "Full Scan" primary button with a split control: Auto
-  -- (rightmost, the most prominent control now -- same slot Full Scan alone used to hold) +
-  -- Scan (renamed "Full Scan", now ghost, still the manual one-shot fallback) to its left;
-  -- the watchlist live-scan toggle stays exactly where it was, further left again.
+  -- with staleText is gone): status line (left) + session block · divider · Scan · Refused/
+  -- Hidden · Auto (right, in that left-to-right visual order). Sniper v4 toolbar rework: the
+  -- three buttons all share the same "plaque" rounded chrome (Theme.Button's rounded arg from
+  -- the rail kit) at height 26 (CH.BTN_H), and every label on this row is UPPERCASE mono.
   local row2Y = -(CH.TITLEBAR + Theme.pad.s)
-  local AUTO_BTN_WIDTH = 148
 
-  -- Auto (spec §3 "[Auto ⏻]"): two overlapping buttons -- ghost "off" look, primary "on"
-  -- look -- swapped via Show/Hide by refreshAutoButton rather than one button repainted at
-  -- runtime; see refreshAutoButton's own comment for why repainting a single Theme.Button
-  -- doesn't survive its own hover-brighten. Both share the same click handler: it only cares
-  -- whether the machine is currently OFF, not which of the two is visible.
-  local autoBtn = Theme.Button(f, "ghost")
-  autoBtn:SetSize(AUTO_BTN_WIDTH, CH.BTN_H)
-  autoBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row2Y)
-  autoBtn:SetLabel("Auto")
+  -- Auto: now anchored top-LEFT of the content column (was top-right) -- the rail kit put
+  -- navigation on its own strip at the window's left edge, so the toolbar's own left edge is
+  -- free, and Auto (the most-used control) gets the first, most consistent anchor point.
+  -- Same click handler/tooltip as before; only the anchor and label case changed.
+  local autoBtn = Theme.Button(f, "ghost", "plaque")
+  autoBtn:SetSize(132, CH.BTN_H)
+  autoBtn:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row2Y)
+  autoBtn:SetLabel("AUTO")
   f.autoBtn = autoBtn
 
   local function onAutoToggleClick()
@@ -5013,24 +5041,15 @@ local function createFrame()
     "search the Auction House yourself, or check your mail. Click to toggle."
   setPlainTooltip(autoBtn, autoTooltip)
 
-  local fullScanBtn = Theme.Button(f, "ghost")
-  fullScanBtn:SetSize(64, CH.BTN_H)
-  fullScanBtn:SetPoint("RIGHT", autoBtn, "LEFT", -Theme.pad.xs, 0)
-  fullScanBtn:SetLabel("Scan")
-  fullScanBtn:SetScript("OnClick", onFullScanClick)
-  setPlainTooltip(fullScanBtn,
-    "One-shot scan of the entire Auction House via paged browse queries. Takes roughly " ..
-    "15-60 seconds on busy realms. No cooldown -- rescan anytime.")
-  f.fullScanBtn = fullScanBtn
-
   -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
   -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
   -- nothing explaining it is its own lie -- this is the number and the switch. One button with
-  -- two variants (never two swapped by Show/Hide), per addon/AGENTS.md.
-  local verifyBtn = Theme.Button(f, "ghost")
-  verifyBtn:SetSize(92, CH.BTN_H)
-  verifyBtn:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.xs, 0)
-  verifyBtn:SetLabel("Hidden: 0")
+  -- two variants (never two swapped by Show/Hide), per addon/AGENTS.md. Anchored top-RIGHT now
+  -- (was Scan's slot): it and Scan swap sides of the row so Auto/Refused-Hidden bookend it.
+  local verifyBtn = Theme.Button(f, "ghost", "plaque")
+  verifyBtn:SetSize(76, CH.BTN_H)
+  verifyBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WIN.CONTENT_RIGHT_GUTTER, row2Y)
+  verifyBtn:SetLabel("HIDDEN 0")
   verifyBtn:SetScript("OnClick", function()
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
     if not cfg then return end
@@ -5077,6 +5096,33 @@ local function createFrame()
   verifyBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
   f.verifyBtn = verifyBtn
 
+  local fullScanBtn = Theme.Button(f, "ghost", "plaque")
+  fullScanBtn:SetSize(64, CH.BTN_H)
+  fullScanBtn:SetPoint("RIGHT", verifyBtn, "LEFT", -Theme.pad.xs, 0)
+  fullScanBtn:SetLabel("SCAN")
+  fullScanBtn:SetScript("OnClick", onFullScanClick)
+  setPlainTooltip(fullScanBtn,
+    "One-shot scan of the entire Auction House via paged browse queries. Takes roughly " ..
+    "15-60 seconds on busy realms. No cooldown -- rescan anytime.")
+  f.fullScanBtn = fullScanBtn
+
+  -- Divider + session block sit further left of Scan, between it and the status line -- the
+  -- session figures (buys/profit this AH visit) are secondary to the toolbar's controls, so
+  -- they read as a trailing readout rather than another button.
+  f.toolbarDivider = f:CreateTexture(nil, "ARTWORK")
+  f.toolbarDivider:SetSize(1, 16)
+  f.toolbarDivider:SetColorTexture(Theme.color.border[1], Theme.color.border[2],
+    Theme.color.border[3], Theme.color.border[4])
+  f.toolbarDivider:SetPoint("RIGHT", fullScanBtn, "LEFT", -Theme.pad.s, 0)
+
+  -- Hidden by default: refreshSessionText only Shows it once GC.Sniper.session has a buy this
+  -- visit (see that function). SESSION resets to zero-buys at AH close, same as the session
+  -- table itself (GC.Sniper.OnAuctionHouseClosed) -- an empty session says nothing here rather
+  -- than showing a stale "0 buys" from the last visit.
+  f.sessionText = Theme.Num(f, 11, true)
+  f.sessionText:SetPoint("RIGHT", f.toolbarDivider, "LEFT", -Theme.pad.s, 0)
+  f.sessionText:Hide()
+
   -- Re-derives the toggle's label and look from `refusedCount`, which renderList recomputes on
   -- every render. Same contract as refreshAutoButton/refreshScanButton: driven off the 0.25s
   -- ticker and off refreshRows, rather than hooked into every place a verdict can land, so a
@@ -5086,7 +5132,7 @@ local function createFrame()
     local btn = owner and owner.verifyBtn
     if not btn then return end
     local show = showRefused()
-    local text = (show and "Refused: %d" or "Hidden: %d"):format(refusedCount)
+    local text = (show and "REFUSED %d" or "HIDDEN %d"):format(refusedCount)
     if btn.lastText ~= text then
       btn:SetLabel(text)
       btn.lastText = text
@@ -5110,12 +5156,23 @@ local function createFrame()
   -- The scanner itself stays: the Check flow pauses and resumes it, and the deal
   -- rows it produces are still the ones a Full Scan feeds.
 
-  local status = Theme.Label(f, 11)
-  status:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, row2Y)
-  status:SetPoint("RIGHT", verifyBtn, "LEFT", -Theme.pad.s, 0)
+  -- Theme.Num (mono), not Theme.Label (native font): the status line sits in the same row as
+  -- three mono-labeled plaque buttons now, and the native-font Label read as a mismatched
+  -- typeface against them. fgMuted, not fg: this is secondary readout text, same as the
+  -- session block beside it, not a control label.
+  local status = Theme.Num(f, 10)
   status:SetJustifyH("LEFT")
+  local muted = Theme.color.fgMuted
+  status:SetTextColor(muted[1], muted[2], muted[3], muted[4] or 1)
+  status:SetPoint("TOPLEFT", autoBtn, "TOPRIGHT", Theme.pad.s, 0)
+  status:SetPoint("RIGHT", f.sessionText, "LEFT", -Theme.pad.s, 0)
   status:SetText("Open the Auction House to begin scanning.")
   f.status = status
+
+  -- Deals-only toolbar chrome: setView shows/hides these six alongside the scroll/header
+  -- toggle it already drives, so Sell/Sold don't sit under a Deals-specific status/session
+  -- row that means nothing on their view. See setView's own comment on this field.
+  f.dealsChrome = { status, verifyBtn, fullScanBtn, autoBtn, f.toolbarDivider, f.sessionText }
 
   -- Row 3: column headers, sticky above the scroll area.
   f.headerY = row2Y - (CH.BTN_H + Theme.pad.s)
@@ -5474,6 +5531,9 @@ function GC.Sniper.OnAuctionHouseShow()
     -- do: one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()
     refreshVerifyButton()
+    -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
+    -- GC.Sniper.session either.
+    refreshSessionText()
   end)
   feedAuto("ahOpened")
   if GC.db.settings.sniper.auto then
