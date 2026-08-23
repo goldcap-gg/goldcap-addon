@@ -4881,7 +4881,9 @@ end
 local function createFrame()
   local f = CreateFrame("Frame", "GoldCapSniperFrame", UIParent)
 
-  local panel = Theme.Panel(f)
+  -- Rounded card window (Sniper v4). Theme.Panel stays untouched for the
+  -- overlays that still use it; only the main window goes rounded.
+  local panel = Theme.Card(f)
   panel:SetAllPoints(f)
 
   local savedWindow = GC.db and GC.db.settings and GC.db.settings.sniper and GC.db.settings.sniper.window
