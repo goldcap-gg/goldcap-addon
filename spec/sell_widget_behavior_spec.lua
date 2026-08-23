@@ -79,6 +79,7 @@ describe("Sell widget geometry and manual cost", function()
       Label = function(parent) return region("FontString", parent) end,
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return region("Button", parent) end,
+      Card = function(parent) local card = region("Frame", parent); function card:SetTint() end return card end,
     }
     local GC = {
       Sell = {}, Theme = theme,

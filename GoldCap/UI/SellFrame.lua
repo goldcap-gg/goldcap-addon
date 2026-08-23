@@ -2677,13 +2677,19 @@ function GC.Sell.Attach(f, geometry)
 
   container.summary = {}
   for i, stat in ipairs({ { "cost", "KNOWN COST" }, { "listed", "LISTED VALUE" }, { "profit", "EST. PROFIT" } }) do
-    local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -60); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
-    local value = Theme.Num(container, 14, true); value:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -1); container.summary[stat[1]] = value
+    -- 3 cards * 156px pitch = 468, under the 520px content width at the 640px minimum window.
+    local card = Theme.Card(container, Theme.color.panel, nil, true)
+    card:SetSize(148, 40); card:SetPoint("TOPLEFT", (i - 1) * 156, -60)
+    local label = Theme.Num(card, 9); label:SetJustifyH("LEFT")
+    label:SetPoint("TOPLEFT", 10, -6); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
+    local value = Theme.Num(card, 13, true); value:SetJustifyH("LEFT")
+    value:SetPoint("TOPLEFT", 10, -18); container.summary[stat[1]] = value
   end
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -106); header:SetPoint("TOPRIGHT", 0, -106); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
+    local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
+    setColor(cell, Theme.color.fgDim)
     -- Headings must sit over their own numbers. createRow right-aligns every numeric cell, but
     -- these were left at the default left alignment, so each heading floated to the left edge
     -- of a right-aligned column and every value looked like it belonged to the column after it.
@@ -2699,6 +2705,12 @@ function GC.Sell.Attach(f, geometry)
       explain(hit, help[1], help[2])
     end
   end
+  -- Separates the column headings from the first row now that both read in the same mono
+  -- font -- without it the header row visually fused with row 1.
+  local rule = header:CreateTexture(nil, "ARTWORK")
+  local bc = Theme.color.border
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); rule:SetHeight(1)
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -124); scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
