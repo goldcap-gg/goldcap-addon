@@ -270,7 +270,7 @@ paintQueueButton = function()
     -- that row genuinely IS the queue's own head. If some OTHER row's post is in flight (the
     -- player clicked a row's own Post button directly, on a position that is not the head),
     -- this control simply disables rather than offering a second, conflicting click; it must
-    -- never claim "Confirm" for a click that would land on the wrong row.
+    -- never claim "CONFIRM" for a click that would land on the wrong row.
     local sameHead = head and postingRow.position and postingRow.position.positionKey == head.positionKey
     if sameHead and postingRow.postStage == "confirm" then
       button:SetLabel("CONFIRM"); button:Enable()

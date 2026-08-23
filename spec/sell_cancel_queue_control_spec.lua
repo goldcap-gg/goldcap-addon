@@ -134,11 +134,13 @@ describe("Sell tab, the cancel queue control", function()
     local button = container.cancelButton
     assert.is_false(button.enabled)
     assert.matches("NOTHING", button.label)
+    assert.equal("ghost", button.variant)
 
     GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
     compose()
     assert.equal("CANCEL 1", button.label)
     assert.is_true(button.enabled)
+    assert.equal("danger", button.variant)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()

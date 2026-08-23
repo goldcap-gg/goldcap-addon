@@ -345,6 +345,18 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal(buttons["IN BAGS"], buttons.GC.points[1].relative)
     assert.equal(buttons.GC, buttons.ALL.points[1].relative)
     assert.is_nil(buttons.AH)
+
+    -- The active filter must be visible on the chip itself (SetVariant), not just
+    -- inferred from filterMode -- see paintFilterChips.
+    assert.equal("active", buttons.ALL.variant)
+    assert.equal("ghost", buttons["MISSING COST"].variant)
+    assert.equal("ghost", buttons.LISTED.variant)
+    assert.equal("ghost", buttons["IN BAGS"].variant)
+    assert.equal("ghost", buttons.GC.variant)
+
+    buttons.LISTED.scripts.OnClick()
+    assert.equal("active", buttons.LISTED.variant)
+    assert.equal("ghost", buttons.ALL.variant)
   end)
 
   it("keeps every fixed-width Sell cell on one line", function()
