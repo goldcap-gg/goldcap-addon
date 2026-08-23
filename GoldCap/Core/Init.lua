@@ -212,6 +212,18 @@ local function migrateSniperTierProfit(db)
   sniper.tierProfitVersion = 1
 end
 
+-- Batch-1's rail consumed 76px of every window's content area, so a width a
+-- player chose before the rail shows 76px less list than they chose it for.
+-- One-time: hand those 76px back. 1100 mirrors WIN.RESIZE_MAX_WIDTH.
+local function migrateSniperWindowWidth(sniper)
+  if sniper.windowWidthVersion ~= nil then return end
+  sniper.windowWidthVersion = 1
+  local window = sniper.window
+  if type(window) == "table" and type(window.width) == "number" then
+    window.width = math.min(window.width + 76, 1100)
+  end
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -224,6 +236,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     migrateSniperProfitFloor(GoldCapDB)
     migrateSniperTierProfit(GoldCapDB)
+    local sniper = GoldCapDB.settings and GoldCapDB.settings.sniper or nil
+    if type(sniper) == "table" then migrateSniperWindowWidth(sniper) end
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
     if GC.Data then

@@ -152,6 +152,36 @@ describe("Ledger event wiring", function()
     assert.equal(1, _G.GoldCapDB.settings.sniper.tierProfitVersion)
   end)
 
+  it("widens a saved window width by the rail width once", function()
+    -- The rail (76px) consumes part of every pre-rail saved width; hand it back one time.
+    _G.GoldCapDB = { settings = { sniper = { window = { point = "CENTER", x = 0, y = 0, width = 800, height = 520 } } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(876, _G.GoldCapDB.settings.sniper.window.width)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.windowWidthVersion)
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap") -- a second load must not widen again
+
+    assert.equal(876, _G.GoldCapDB.settings.sniper.window.width)
+  end)
+
+  it("clamps the migrated width to the resize maximum", function()
+    _G.GoldCapDB = { settings = { sniper = { window = { point = "CENTER", x = 0, y = 0, width = 1090, height = 520 } } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(1100, _G.GoldCapDB.settings.sniper.window.width)
+  end)
+
+  it("stamps the width version even with no saved window", function()
+    _G.GoldCapDB = { settings = { sniper = {} } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.equal(1, _G.GoldCapDB.settings.sniper.windowWidthVersion)
+  end)
+
   it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
     local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
       boughtAt = 500, targetUnit = 180 }
