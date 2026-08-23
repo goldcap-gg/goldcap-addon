@@ -137,6 +137,11 @@ local function slicedTexture(parent, layer, file, c, margin)
   return tx
 end
 
+-- SlicedTexture: public wrapper around slicedTexture (default margin CARD_SLICE).
+function T.SlicedTexture(parent, layer, file, c, margin)
+  return slicedTexture(parent, layer, file, c, margin)
+end
+
 -- Card: rounded panel (fill + 2px ring). The rounded sibling of T.Panel; use
 -- it for chrome that should read as a surface, keep T.Panel for flat fills.
 -- `small`: use plaque.png/plaque_ring.png (radius 8, PLAQUE_SLICE margins)
