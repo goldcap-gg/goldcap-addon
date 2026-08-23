@@ -176,7 +176,7 @@ end
 -- The status line lives in the Sniper's toolbar, at the far left of a different
 -- row from the Refresh button -- a window's width away from what was just
 -- pressed. That is the same distance that made Scan look dead. So the button
--- carries the state too, and the progress with it: "Pricing 3/24" answers "is it
+-- carries the state too, and the progress with it: "PRICING 3/24" answers "is it
 -- running" without the player having to hunt for a line of text.
 local function paintRefreshButton()
   local button = container and container.refreshButton
@@ -185,7 +185,7 @@ local function paintRefreshButton()
   local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
   local label = "REFRESH"
   if busy then
-    -- "Pricing 10/24", not a bare "10/24". This button sits at the end of a row of filter
+    -- "PRICING 10/24", not a bare "10/24". This button sits at the end of a row of filter
     -- chips, so a naked ratio reads as one more filter -- and the owner reasonably asked why
     -- the tab only had 24 items in it. It is not a count of anything the player owns: it is
     -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
@@ -304,9 +304,9 @@ paintQueueButton = function()
 end
 
 -- The cancel control's mirror of paintQueueButton, over the repost arm instead of the post
--- pin. States, in the order a click sequence produces them: "Cancel N" -> "Cancel lot?" (the
+-- pin. States, in the order a click sequence produces them: "CANCEL N" -> "CANCEL LOT?" (the
 -- head lot is armed; enabled only once the REPOST_ARM_SECONDS delay has passed, exactly like
--- the row's own button) -> "Cancelling…". While some OTHER lot's repost is in flight the
+-- the row's own button) -> "CANCELLING…". While some OTHER lot's repost is in flight the
 -- control keeps its count but disables -- it must never offer a click that would land on the
 -- wrong lot, the same rule paintQueueButton applies to a non-head post.
 paintCancelButton = function()
@@ -608,7 +608,7 @@ local QUOTE_WALK_CAP = 40
 -- trips that a never-priced row further down the list needed. 30 sits under
 -- SELL_QUOTE_ACTION_AGE (45) by more than a whole pass takes, so a quote is renewed before
 -- the Post/Repost window on it ever closes. This is what turned the permanent
--- "Pricing N/24" grind into an empty steady-state pass.
+-- "PRICING N/24" grind into an empty steady-state pass.
 local QUOTE_REWALK_AGE = 30
 -- How long "the auction house answered: nothing listed" is remembered and treated like a
 -- fresh quote. Without this, an item with zero live listings was indistinguishable from one
@@ -2521,8 +2521,8 @@ function GC.Sell.Attach(f, geometry)
   -- width, because the previous layout let two anchor chains grow toward each other on a
   -- shared row and collide at ordinary window widths (the queue's head label ran under the
   -- filter chips; the cancel cluster ran under EST. PROFIT):
-  --   row 1 (y   0): [Post N] head label ················· held-back · [Cancel N]
-  --   row 2 (y -30): ················· chips (filters for the list below) · [Refresh]
+  --   row 1 (y   0): [POST N] head label ················· held-back · [CANCEL N]
+  --   row 2 (y -30): ················· chips (filters for the list below) · [REFRESH]
   --   row 3 (y -60): KNOWN COST / LISTED VALUE / EST. PROFIT
   local refreshButton = Theme.Button(container, "ghost", "plaque")
   -- 96, not 72: the busy label is "PRICING 10/24" (see paintRefreshButton), and a button sized
@@ -2559,7 +2559,7 @@ function GC.Sell.Attach(f, geometry)
   end
   paintFilterChips()
   -- The posting queue control: the toolbar's own left end, opposite Refresh/the filter chips.
-  -- "Post N" (its own count, so the number is on the button a click actually is), a label
+  -- "POST N" (its own count, so the number is on the button a click actually is), a label
   -- beside it naming the item and unit price that click will post -- a blind click is not one a
   -- seller should be asked to make -- and a held-back indicator with a tooltip that explains,
   -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
@@ -2852,7 +2852,7 @@ function GC.Sell.Attach(f, geometry)
 end
 
 -- Live diagnosis for a wedged pricing walk, straight from the client: /goldcap sellstate
--- prints the machine's actual state instead of leaving "Pricing…" to be guessed about.
+-- prints the machine's actual state instead of leaving "PRICING…" to be guessed about.
 -- Registered here (not Core/Init.lua) because every field it reads is this file's own.
 GC.slashHandlers = GC.slashHandlers or {}
 GC.slashHandlers.sellstate = function()
