@@ -1237,4 +1237,45 @@ describe("Sell widget geometry and manual cost", function()
     rows[1].scripts.OnClick(rows[1])
     assert.is_false(rows[4].action.shown)
   end)
+
+  -- The empty-state panel is the only thing standing between "nothing rendered" and "the tab is
+  -- broken" -- a swapped copy string, a dropped Hide(), or a flipped `#entries == 0` branch would
+  -- all leave the row list silently blank, and nothing above this describe block would notice.
+  describe("empty state", function()
+    it("says nothing is in bags or listed when the default filter has no positions at all", function()
+      local GC = load(620, { calls = {} })
+      local _, container = topRows(GC, {})
+      assert.is_true(container.emptyText:IsShown())
+      assert.equal("NOTHING TO SELL — NO ITEMS IN BAGS OR LISTED", container.emptyText:GetText())
+    end)
+
+    it("says no items match this filter when a chip empties an otherwise non-empty list", function()
+      local GC = load(620, { calls = {} })
+      -- The real GC.SellViewModel.Filter narrows by mode; this fake normally ignores it
+      -- entirely (returns `values` unchanged), so it is overridden here to reproduce the one
+      -- behavior this test needs: a non-"all" mode that matches nothing.
+      GC.SellViewModel.Filter = function(values, mode) return mode == "all" and values or {} end
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "positions", {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+          listedQty = 0, sources = {} },
+      })
+      set(render, "filterMode", "listed")
+      render()
+      local container = upvalue(render, "container")
+      assert.is_true(container.emptyText:IsShown())
+      assert.equal("NO ITEMS MATCH THIS FILTER", container.emptyText:GetText())
+    end)
+
+    it("hides once a render produces at least one row", function()
+      local GC = load(620, { calls = {} })
+      local _, container = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+          listedQty = 0, sources = {} },
+      })
+      assert.is_false(container.emptyText:IsShown())
+    end)
+  end)
 end)
