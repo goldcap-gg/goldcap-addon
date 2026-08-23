@@ -84,7 +84,11 @@ describe("Sell widget geometry and manual cost", function()
       MEDIA = "",
       Label = function(parent) return region("FontString", parent) end,
       Num = function(parent) return region("FontString", parent) end,
-      Button = function(parent) return region("Button", parent) end,
+      -- M11: records the 3rd (rounded) argument -- Theme.Button(parent, variant, rounded)
+      -- silently falls back to square on an unknown key, and this fake used to drop the
+      -- argument entirely, so nothing here ever proved a caller actually asked for the
+      -- rounded kit.
+      Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       Card = function(parent) local card = region("Frame", parent); function card:SetTint() end return card end,
       SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
     }
@@ -397,6 +401,23 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("CENTER", rows[1].action.points[1].point)
     assert.equal(rows[1].cells.action, rows[1].action.points[1].relative)
     assert.equal("CENTER", rows[1].action.points[1].relativePoint)
+  end)
+
+  -- M11: Theme.Button(parent, variant, rounded) silently falls back to square on an unknown
+  -- `rounded` key, and until now every Sell spec fake ignored the 3rd argument entirely -- so
+  -- nothing here ever proved a real caller actually asked for the rounded kit.
+  it("builds every toolbar control and the row action in the rounded kit", function()
+    local GC = load(620, { calls = {} })
+    local rows, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {} },
+    })
+    assert.equal("plaque", container.queueButton.rounded)
+    assert.equal("plaque", container.refreshButton.rounded)
+    assert.equal("plaque", container.cancelButton.rounded)
+    assert.equal("badge", container.filterButtons.all.rounded)
+    assert.equal("badge", rows[1].action.rounded)
   end)
 
   it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
@@ -1247,7 +1268,7 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local _, container = topRows(GC, {})
       assert.is_true(container.emptyText:IsShown())
-      assert.equal("NOTHING TO SELL — NO ITEMS IN BAGS OR LISTED", container.emptyText:GetText())
+      assert.equal("Nothing to sell — no items in bags or listed", container.emptyText:GetText())
     end)
 
     it("says no items match this filter when a chip empties an otherwise non-empty list", function()
@@ -1266,7 +1287,7 @@ describe("Sell widget geometry and manual cost", function()
       render()
       local container = upvalue(render, "container")
       assert.is_true(container.emptyText:IsShown())
-      assert.equal("NO ITEMS MATCH THIS FILTER", container.emptyText:GetText())
+      assert.equal("No items match this filter", container.emptyText:GetText())
     end)
 
     it("hides once a render produces at least one row", function()

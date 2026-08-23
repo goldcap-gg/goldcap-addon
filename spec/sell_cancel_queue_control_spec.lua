@@ -9,19 +9,25 @@ describe("Sell tab, the cancel queue control", function()
   local GC, root, render, container, cancelCalls
 
   local function region(kind, parent)
-    local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
+    local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {}, calls = {} }
     if parent then parent.children[#parent.children + 1] = v end
     function v:SetPoint() end
     function v:ClearAllPoints() end
     function v:SetSize() end function v:SetWidth() end function v:SetHeight() end
     function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
     function v:SetLabel(t) self.label = t end
-    function v:SetVariant(name) self.variant = name end
+    -- I2: the real Theme.Button dims text via OnDisable and SetVariant restores full
+    -- brightness -- calling SetVariant after Disable() silently wipes the disabled look.
+    -- This fake has no such color coupling to assert against (that would just restate the
+    -- production code), so it logs call order instead: a caller must invoke SetVariant
+    -- BEFORE Enable/Disable in every branch, provably, not just by inspection.
+    function v:SetVariant(name) self.variant = name; self.calls[#self.calls + 1] = "SetVariant:" .. name end
     function v:SetScript(n, f) self.scripts[n] = f end
     function v:HookScript(n, f) self.scripts[n] = f end
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
     function v:IsShown() return self.shown end
-    function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
+    function v:Enable() self.enabled = true; self.calls[#self.calls + 1] = "Enable" end
+    function v:Disable() self.enabled = false; self.calls[#self.calls + 1] = "Disable" end
     function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
     function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
@@ -140,6 +146,14 @@ describe("Sell tab, the cancel queue control", function()
     assert.is_false(button.enabled)
     assert.matches("NOTHING", button.label)
     assert.equal("ghost", button.variant)
+    -- I2: SetVariant must land before Disable, or Theme.Button's OnDisable dims the text and
+    -- the immediately-following SetVariant would have undone it. paintCancelButton's own
+    -- "not head" branch logs exactly this pair, back to back (SetLabel isn't instrumented) --
+    -- so the last two calls logged by the most recent paint are the ones to check.
+    local n = #button.calls
+    assert.is_true(n >= 2)
+    assert.matches("^SetVariant:", button.calls[n - 1])
+    assert.equal("Disable", button.calls[n])
 
     GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
     compose()

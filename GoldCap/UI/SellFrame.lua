@@ -314,8 +314,12 @@ paintCancelButton = function()
   if not button then return end
   local heldBack, heldBackHit = container.cancelHeldBack, container.cancelHeldBackHit
   local head = cancelEntries[1]
+  -- SetVariant runs BEFORE Enable/Disable in every branch: Theme.Button's OnDisable dims the
+  -- text to fgDim, and SetVariant restores full-brightness text -- calling SetVariant after
+  -- Disable() silently wiped the dimmed look this button needs while it has nothing to do.
   if repostingRow then
     local sameHead = head and repostPin and repostPin.auctionID == head.auctionID
+    button:SetVariant("danger")
     if sameHead and repostingRow.repostStage == "cancelling" then
       button:SetLabel("CANCELLING…"); button:Disable()
     elseif sameHead and repostingRow.repostStage == "armed" then
@@ -324,15 +328,14 @@ paintCancelButton = function()
     else
       button:SetLabel(("CANCEL %d"):format(#cancelEntries)); button:Disable()
     end
-    button:SetVariant("danger")
   elseif not head then
+    button:SetVariant("ghost")
     button:SetLabel("NOTHING TO CANCEL")
     button:Disable()
-    button:SetVariant("ghost")
   else
+    button:SetVariant("danger")
     button:SetLabel(("CANCEL %d"):format(#cancelEntries))
     button:Enable()
-    button:SetVariant("danger")
   end
   if heldBack then
     if #cancelSkipped > 0 then
@@ -1860,7 +1863,11 @@ local function createRow(parent)
   end
   row.cells.item:SetJustifyH("LEFT")
   row.action = Theme.Button(row, "ghost", "badge")
-  row.action:SetSize(84, 18)
+  -- 86, not 84: "Cancel lot?" is 85.8px at mono-10 and Theme.Scale() 1.3 (JetBrains Mono
+  -- ~0.6em/char -> 7.8px/char); 86 is the largest width that still leaves >=2px clearance
+  -- from the neighbouring cells inside the 88px `action` column (layoutCells packs cells with
+  -- an explicit 2px gap between them, so an inset button never touches the gap).
+  row.action:SetSize(86, 18)
   -- Its own column. Anchored over `status` it covered the recommendation text, which is where
   -- the price and the breakeven are written.
   row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
@@ -2036,8 +2043,10 @@ renderRows = function()
     end
   end
   if #entries == 0 then
+    -- M7: sentence case, not shouted -- this is a native-font (Theme.Label) empty state, like
+    -- Deals', and reads like the rest of that font's copy rather than a toolbar label.
     container.emptyText:SetText(filterMode == "all"
-      and "NOTHING TO SELL — NO ITEMS IN BAGS OR LISTED" or "NO ITEMS MATCH THIS FILTER")
+      and "Nothing to sell — no items in bags or listed" or "No items match this filter")
     container.emptyText:Show()
   else
     container.emptyText:Hide()
@@ -2539,9 +2548,11 @@ function GC.Sell.Attach(f, geometry)
   --   row 2 (y -30): ················· chips (filters for the list below) · [REFRESH]
   --   row 3 (y -60): KNOWN COST / LISTED VALUE / EST. PROFIT
   local refreshButton = Theme.Button(container, "ghost", "plaque")
-  -- 96, not 72: the busy label is "PRICING 10/24" (see paintRefreshButton), and a button sized
-  -- for "REFRESH" alone would have let that overflow its own edges into the filter chip beside it.
-  refreshButton:SetSize(96, 26); refreshButton:SetPoint("TOPRIGHT", 0, -30); refreshButton:SetLabel("REFRESH")
+  -- 104, not 72: the busy label is "PRICING 10/24" (see paintRefreshButton), which is 101.4px
+  -- at mono-10 and Theme.Scale() 1.3 (JetBrains Mono ~0.6em/char -> 7.8px/char) -- a button
+  -- sized for "REFRESH" alone would have let that overflow its own edges into the filter chip
+  -- beside it.
+  refreshButton:SetSize(104, 26); refreshButton:SetPoint("TOPRIGHT", 0, -30); refreshButton:SetLabel("REFRESH")
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
@@ -2551,7 +2562,9 @@ function GC.Sell.Attach(f, geometry)
   refreshButton:SetScript("OnClick", function() GC.Sell.Refresh() end)
   local labels = { all = "ALL", goldcap = "GC", missing_cost = "MISSING COST",
     sellable = "IN BAGS", listed = "LISTED" }
-  local widths = { missing_cost = 82, sellable = 56, listed = 52, all = 36, goldcap = 36 }
+  -- missing_cost is 96, not 82: "MISSING COST" is 93.6px at mono-10 and Theme.Scale() 1.3
+  -- (JetBrains Mono ~0.6em/char -> 7.8px/char) -- 82 let it overflow the chip's own edges.
+  local widths = { missing_cost = 96, sellable = 56, listed = 52, all = 36, goldcap = 36 }
   local previous = refreshButton
   -- The active filter must be visible on the chip itself: SetVariant, never a second
   -- overlaid button (one control, two variants -- see addon/AGENTS.md on buttons).
@@ -2579,9 +2592,10 @@ function GC.Sell.Attach(f, geometry)
   -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
   -- are painted, and onQueueClick for what a click does.
   local queueButton = Theme.Button(container, "primary", "plaque")
-  -- 130, not 110: the empty-state label is "NOTHING TO POST" (paintQueueButton), and the
-  -- narrower button let that text spill past its own borders.
-  queueButton:SetSize(130, 26)
+  -- 136, not 110: matches cancelButton below, sized for its own widest label ("NOTHING TO
+  -- CANCEL", 132.6px at mono-10 and Theme.Scale() 1.3 -- JetBrains Mono ~0.6em/char ->
+  -- 7.8px/char) -- a narrower button let "NOTHING TO POST" spill past its own borders.
+  queueButton:SetSize(136, 26)
   queueButton:SetPoint("TOPLEFT")
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
@@ -2595,8 +2609,9 @@ function GC.Sell.Attach(f, geometry)
   local queueHeldBack = Theme.Num(container, 9)
   queueHeldBack:SetJustifyH("LEFT")
   setColor(queueHeldBack, Theme.color.fgDim)
-  -- Right-anchored below, once the cancel cluster it abuts exists -- see the row-1 bounding
-  -- block after that cluster. No LEFT anchor here: its width is its text.
+  -- Both anchors set below, once its row-2 position and the ALL chip it abuts exist -- see the
+  -- row-1 bounding block after the cancel cluster (M5: RIGHT-bound against the ALL chip, or a
+  -- long held-back count ran under the filter chips at narrow widths).
   queueHeldBack:Hide()
   container.queueHeldBack = queueHeldBack
 
@@ -2633,8 +2648,9 @@ function GC.Sell.Attach(f, geometry)
   -- quieter look next to POST. See paintCancelButton for the states and onCancelQueueClick
   -- for what a click does (and, more importantly, does not) do.
   local cancelButton = Theme.Button(container, "ghost", "plaque")
-  -- 130 for the same reason as the Post button: "NOTHING TO CANCEL" must fit inside.
-  cancelButton:SetSize(130, 26)
+  -- 136 for the same reason as the Post button: "NOTHING TO CANCEL" (132.6px at mono-10 and
+  -- Theme.Scale() 1.3) must fit inside.
+  cancelButton:SetSize(136, 26)
   cancelButton:SetPoint("TOPRIGHT")
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
@@ -2677,6 +2693,12 @@ function GC.Sell.Attach(f, geometry)
   -- end, under the cluster it belongs to, and says which queue it is about in words.
   queueLabel:SetPoint("RIGHT", cancelHeldBack, "LEFT", -12, 0)
   queueHeldBack:SetPoint("TOPLEFT", 0, -35)
+  -- M5: RIGHT-bound against the ALL chip -- the leftmost of the filter chips, and the last
+  -- one built by the chain above -- with no wrap, the same truncate-not-overflow fix
+  -- queueLabel gets on row 1: without it a long held-back count ran under the chips at
+  -- narrow widths and Theme.Scale() 1.3.
+  queueHeldBack:SetPoint("RIGHT", container.filterButtons.all, "LEFT", -8, 0)
+  queueHeldBack:SetWordWrap(false)
 
   paintCancelButton()
 
@@ -2695,9 +2717,16 @@ function GC.Sell.Attach(f, geometry)
     local card = Theme.Card(container, Theme.color.panel, nil, true)
     card:SetSize(148, 40); card:SetPoint("TOPLEFT", (i - 1) * 156, -60)
     local label = Theme.Num(card, 9); label:SetJustifyH("LEFT")
-    label:SetPoint("TOPLEFT", 10, -6); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
+    label:SetPoint("TOPLEFT", 10, -6)
+    -- RIGHT-bound and non-wrapping: a FontString with LEFT/RIGHT bounds and no wrap truncates
+    -- with an ellipsis instead of escaping the 148px card, which SellViewModel.SummaryText's
+    -- own longer strings (e.g. "Unknown . 12 partial . 37 missing") otherwise did.
+    label:SetPoint("TOPRIGHT", -10, -6); label:SetWordWrap(false)
+    label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
     local value = Theme.Num(card, 13, true); value:SetJustifyH("LEFT")
-    value:SetPoint("TOPLEFT", 10, -18); container.summary[stat[1]] = value
+    value:SetPoint("TOPLEFT", 10, -18)
+    value:SetPoint("TOPRIGHT", -10, -18); value:SetWordWrap(false)
+    container.summary[stat[1]] = value
   end
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -106); header:SetPoint("TOPRIGHT", 0, -106); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
