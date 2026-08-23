@@ -23,6 +23,7 @@ describe("Sell tab, the cancel queue control", function()
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
     function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
+    function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
     function v:CreateTexture() return region("Texture", self) end
     function v:SetAllPoints() end function v:SetColorTexture() end
@@ -74,6 +75,8 @@ describe("Sell tab, the cancel queue control", function()
         color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
           zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
           gold = { 1, 1, 0 }, panel = { 0, 0, 0 } },
+        pad = { xs = 4, s = 8, m = 12, l = 16 },
+        MEDIA = "",
         Label = function(p) return region("FontString", p) end,
         Num = function(p) return region("FontString", p) end,
         Button = function(p) return region("Button", p) end,

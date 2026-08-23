@@ -1800,14 +1800,21 @@ local function createRow(parent)
   -- distinguishable only by two leading spaces in their text. Same treatment as the Deals list:
   -- BACKGROUND zebra, a highlight above it, a hairline at the bottom edge, and an item icon so
   -- rows are scannable by shape rather than by reading every name.
+  -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 13 = half of
+  -- the 26px effective fill; right inset is 2, NOT Deals' 26 -- this container is already inset
+  -- by CONTENT_RIGHT_GUTTER (see Attach) and the scrollbar hangs outside in that gutter.
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
-  row.zebra:SetAllPoints()
-  row.zebra:SetColorTexture(zc[1], zc[2], zc[3], 0)
+  row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
+  row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  row.zebra:SetPoint("TOPLEFT", 2, -1); row.zebra:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  row.highlight:SetAllPoints()
+  row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
+  row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  row.highlight:SetPoint("TOPLEFT", 2, -1); row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
   local hc = Theme.color.hover
-  row.highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4] or 0.08)
+  row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight:Hide()
   row.divider = row:CreateTexture(nil, "ARTWORK")
   row.divider:SetHeight(1)
@@ -1852,7 +1859,7 @@ local function createRow(parent)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
-  row.action = Theme.Button(row, "ghost")
+  row.action = Theme.Button(row, "ghost", "badge")
   row.action:SetSize(84, 18)
   -- Its own column. Anchored over `status` it covered the recommendation text, which is where
   -- the price and the breakeven are written.
@@ -2027,6 +2034,13 @@ renderRows = function()
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
     end
+  end
+  if #entries == 0 then
+    container.emptyText:SetText(filterMode == "all"
+      and "NOTHING TO SELL — NO ITEMS IN BAGS OR LISTED" or "NO ITEMS MATCH THIS FILTER")
+    container.emptyText:Show()
+  else
+    container.emptyText:Hide()
   end
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   for i, row in ipairs(rows) do
@@ -2324,7 +2338,7 @@ renderRows = function()
       -- Banding, hierarchy and the icon are decided here, after the cells are filled, because
       -- only `entry.kind` distinguishes a position from one of its expanded children.
       local zc2 = Theme.color.zebra
-      row.zebra:SetColorTexture(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
+      row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
       if entry.kind == "position" then
         row.itemInset = 26
         row.spine:Hide()
@@ -2713,6 +2727,18 @@ function GC.Sell.Attach(f, geometry)
   rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); rule:SetHeight(1)
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -124); scroll:SetPoint("BOTTOMRIGHT")
+  -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
+  -- `scroll` (not `content`), living where the rows would be, never scrolling.
+  local emptyText = Theme.Label(scroll, 12)
+  emptyText:SetPoint("TOP", scroll, "TOP", 0, -ROW_HEIGHT * 2)
+  emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
+  emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
+  emptyText:SetJustifyH("CENTER")
+  emptyText:SetWordWrap(true)
+  emptyText:SetSpacing(4)
+  emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  emptyText:Hide()
+  container.emptyText = emptyText
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this

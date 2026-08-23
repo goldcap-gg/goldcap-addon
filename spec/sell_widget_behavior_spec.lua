@@ -37,6 +37,10 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetColorTexture(...) self.colorTexture = { ... } end
     function value:SetTexture(path) self.texture = path end
     function value:SetTexCoord(...) self.texCoord = { ... } end
+    function value:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
+    function value:SetVertexColor(...) self.vertexColor = { ... } end
+    function value:SetBlendMode(mode) self.blendMode = mode end
+    function value:SetSpacing(n) self.spacing = n end
     function value:SetFrameStrata(strata) self.strata = strata end
     function value:SetFrameLevel(level) self.level = level end
     function value:GetFrameLevel() return self.level or 0 end
@@ -76,6 +80,8 @@ describe("Sell widget geometry and manual cost", function()
       color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
         zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
         gold = { 0.83, 0.64, 0.22 }, panel = { 0.078, 0.086, 0.110 } },
+      pad = { xs = 4, s = 8, m = 12, l = 16 },
+      MEDIA = "",
       Label = function(parent) return region("FontString", parent) end,
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent) return region("Button", parent) end,
