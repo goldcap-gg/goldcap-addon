@@ -193,6 +193,11 @@ function T.RailButton(parent, iconFile, labelText)
   b.highlightTexture:SetBlendMode("ADD")
   b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
 
+  -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
+  -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
+  b:SetScript("OnDisable", function() b.highlightTexture:SetAlpha(0) end)
+  b:SetScript("OnEnable", function() b.highlightTexture:SetAlpha(1) end)
+
   b.badge = CreateFrame("Frame", nil, b)
   b.badge:SetHeight(14)
   b.badge:SetPoint("TOPRIGHT", -4, -4)

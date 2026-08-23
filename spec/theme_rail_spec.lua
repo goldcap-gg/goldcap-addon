@@ -31,7 +31,7 @@ local function stubFrame()
   function f:Show() self.shown = true end
   function f:Hide() self.shown = false end
   function f:IsShown() return self.shown end
-  function f:CreateTexture() return stubFrame() end
+  function f:CreateTexture(_, layer) local t = stubFrame(); t.layer = layer; return t end
   function f:CreateFontString() return stubFrame() end
   return f
 end
@@ -55,12 +55,14 @@ describe("Theme.Rail navigation widgets", function()
     assert.is_false(b.enabled)          -- active view's button must not be clickable
     assert.is_true(b.bg.shown)
     assert.is_true(b.glow.shown)
+    assert.equal(0, b.highlightTexture.alpha)
     local hi = GC.Theme.color.goldHi
     assert.same({ hi[1], hi[2], hi[3], 1 }, b.icon.vertex)
     b:SetActive(false)
     assert.is_true(b.enabled)
     assert.is_false(b.bg.shown)
     assert.is_false(b.glow.shown)
+    assert.equal(1, b.highlightTexture.alpha)
   end)
 
   it("RailButton: badge shows a count and hides on nil", function()
@@ -76,6 +78,7 @@ describe("Theme.Rail navigation widgets", function()
   it("RailButton: hover is the engine HIGHLIGHT layer on a mouse-enabled button", function()
     local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sold.png", "SOLD")
     assert.is_true(b.mouseEnabled)
+    assert.equal("HIGHLIGHT", b.highlightTexture.layer)
     assert.equal("ADD", b.highlightTexture.blend)
   end)
 
