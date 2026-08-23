@@ -114,6 +114,10 @@ T.RAIL_W = 76
 -- of the 64px file so the 16px corners survive any widget size.
 local CARD_SLICE = 24
 
+-- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
+-- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
+local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
+
 local function slicedTexture(parent, layer, file, c)
   local tx = parent:CreateTexture(nil, layer)
   tx:SetTexture(file)
@@ -148,6 +152,132 @@ function T.Glow(parent, c, inset)
   tx:SetPoint("TOPLEFT", -pad, pad)
   tx:SetPoint("BOTTOMRIGHT", pad, -pad)
   return tx
+end
+
+-- Rail: the window's primary navigation. Big targets on purpose -- the old
+-- 50x18 ghost tabs were the main menu and read as decoration. Active state
+-- reuses setTabActive's functional contract: the current view's button is
+-- Disable()d (not clickable), visuals ride on top of that.
+local RAIL_BTN_W, RAIL_BTN_H = 60, 54
+local RAIL_FILL = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.13 }
+local RAIL_RING = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.40 }
+local RAIL_GLOW = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.14 }
+local BADGE_TEXT = { 0.05, 0.05, 0.06 }
+
+function T.RailButton(parent, iconFile, labelText)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(RAIL_BTN_W, RAIL_BTN_H)
+  b:RegisterForClicks("LeftButtonUp")
+  -- Required for the HIGHLIGHT layer, exactly as in T.Button.
+  b:EnableMouse(true)
+
+  b.glow = T.Glow(b, RAIL_GLOW, 10)
+  b.bg = slicedTexture(b, "BACKGROUND", T.MEDIA .. "card.png", RAIL_FILL)
+  b.bg:SetAllPoints()
+  b.ring = slicedTexture(b, "BORDER", T.MEDIA .. "ring.png", RAIL_RING)
+  b.ring:SetAllPoints()
+
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetTexture(iconFile)
+  b.icon:SetSize(20, 20)
+  b.icon:SetPoint("TOP", 0, -8)
+
+  b.text = b:CreateFontString(nil, "OVERLAY")
+  b.text:SetFont(T.FONT_MONO_BOLD, 8 * T.Scale(), "")
+  b.text:SetPoint("BOTTOM", 0, 7)
+  b.text:SetText(labelText)
+  widgetFonts[b.text] = { path = T.FONT_MONO_BOLD, size = 8 }
+
+  b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
+  b.highlightTexture:SetAllPoints()
+  b.highlightTexture:SetBlendMode("ADD")
+  b.highlightTexture:SetColorTexture(HOVER_WASH[1], HOVER_WASH[2], HOVER_WASH[3], HOVER_WASH[4])
+
+  b.badge = CreateFrame("Frame", nil, b)
+  b.badge:SetHeight(14)
+  b.badge:SetPoint("TOPRIGHT", -4, -4)
+  b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "card.png", T.color.gold)
+  b.badge.bg:SetAllPoints()
+  b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
+  b.badge.text:SetFont(T.FONT_MONO_BOLD, 9 * T.Scale(), "")
+  b.badge.text:SetPoint("CENTER")
+  b.badge.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
+  widgetFonts[b.badge.text] = { path = T.FONT_MONO_BOLD, size = 9 }
+  b.badge:Hide()
+
+  function b:SetBadge(count)
+    if count then
+      b.badge.text:SetText(tostring(count))
+      b.badge:SetWidth(14 + 6 * #tostring(count))
+      b.badge:Show()
+    else
+      b.badge:Hide()
+    end
+  end
+
+  function b:SetActive(active)
+    local c = active and T.color.goldHi or T.color.fgDim
+    b.icon:SetVertexColor(c[1], c[2], c[3], 1)
+    b.text:SetTextColor(c[1], c[2], c[3], 1)
+    if active then
+      b.glow:Show(); b.bg:Show(); b.ring:Show()
+      b:Disable()
+    else
+      b.glow:Hide(); b.bg:Hide(); b.ring:Hide()
+      b:Enable()
+    end
+  end
+  b:SetActive(false)
+
+  return b
+end
+
+function T.Rail(parent)
+  local frame = CreateFrame("Frame", nil, parent)
+  frame:SetWidth(T.RAIL_W)
+  local bg = frame:CreateTexture(nil, "BACKGROUND")
+  bg:SetColorTexture(T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9)
+  bg:SetAllPoints()
+  local edge = frame:CreateTexture(nil, "BORDER")
+  edge:SetColorTexture(T.color.border[1], T.color.border[2], T.color.border[3], T.color.border[4])
+  edge:SetPoint("TOPRIGHT")
+  edge:SetPoint("BOTTOMRIGHT")
+  edge:SetWidth(1)
+
+  local logo = T.Card(frame, T.color.gold, { T.color.goldHi[1], T.color.goldHi[2], T.color.goldHi[3], 0.5 })
+  logo:SetSize(32, 32)
+  logo:SetPoint("TOP", 0, -16)
+  logo.text = logo:CreateFontString(nil, "OVERLAY")
+  logo.text:SetFont(T.FONT_MONO_BOLD, 16 * T.Scale(), "")
+  logo.text:SetPoint("CENTER")
+  logo.text:SetText("G")
+  logo.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
+  widgetFonts[logo.text] = { path = T.FONT_MONO_BOLD, size = 16 }
+
+  local buttons = {}
+  local order = {
+    { key = "deals", icon = "icon_deals.png", label = "DEALS" },
+    { key = "sell", icon = "icon_sell.png", label = "SELL" },
+    { key = "sold", icon = "icon_sold.png", label = "SOLD" },
+  }
+  local prev = logo
+  for i, item in ipairs(order) do
+    local b = T.RailButton(frame, T.MEDIA .. item.icon, item.label)
+    b:SetPoint("TOP", prev, "BOTTOM", 0, i == 1 and -22 or -T.pad.s)
+    buttons[item.key] = b
+    prev = b
+  end
+
+  local gear = T.Button(frame, "ghost")
+  gear:SetSize(28, 28)
+  gear:SetPoint("BOTTOM", 0, 14)
+  gear.icon = gear:CreateTexture(nil, "ARTWORK")
+  gear.icon:SetTexture(T.MEDIA .. "icon_gear.png")
+  gear.icon:SetSize(17, 17)
+  gear.icon:SetPoint("CENTER")
+  gear.icon:SetVertexColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], 1)
+
+  return { frame = frame, buttons = buttons, gear = gear }
 end
 
 -- Chip: solid dark plaque + colored text + colored 1px underline.
@@ -217,10 +347,6 @@ function T.Label(parent, size)
   fs:SetJustifyH("LEFT")
   return fs
 end
-
--- Drawn additively in the HIGHLIGHT layer by the engine while the cursor is over a button, so
--- it must stay subtle: it lands on top of a gold fill as readily as on bare panel.
-local HOVER_WASH = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.18 }
 
 -- `primary` is dark-on-gold, which is only legible while the gold fill is actually painted.
 -- That is fine for a button built primary and left that way (the dialog's Buy/Confirm), but it
