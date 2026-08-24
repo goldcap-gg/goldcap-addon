@@ -37,6 +37,9 @@ describe("Settings controls", function()
     function r:SetTexCoord() end
     function r:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
     function r:SetVertexColor(...) self.vertexColor = { ... } end
+    -- M10: the pill toggle's hover wash is a HIGHLIGHT-layer texture with an additive blend
+    -- (Theme.Button's own hover precedent), built synchronously in makeToggle.
+    function r:SetBlendMode(m) self.blendMode = m end
     function r:SetFont(...) self.font = { ... } end
     function r:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
     function r:SetSpacing(s) self.spacing = s end
@@ -72,7 +75,17 @@ describe("Settings controls", function()
         self.scripts[name] = fn
       end
     end
-    function r:HookScript(name, fn) self.scripts[name] = fn end
+    -- M9: HookScript must CHAIN with whatever script is already stored, not replace it -- the
+    -- real WidgetAPI runs every hook after the frame's own SetScript handler, so a fake that
+    -- overwrote here would silently discard SettingsFrame.lua's OnShow refresh loop the moment
+    -- the gear-tint HookScript (T6, below) got wired onto the same event.
+    function r:HookScript(name, fn)
+      local prev = self.scripts[name]
+      self.scripts[name] = function(...)
+        if prev then prev(...) end
+        return fn(...)
+      end
+    end
     function r:CreateTexture(_, layer) local t = region("Texture", self); t.layer = layer; return t end
     function r:CreateFontString(_, layer) local t = region("FontString", self); t.layer = layer; return t end
     function r:RegisterForClicks() end
@@ -218,6 +231,20 @@ describe("Settings controls", function()
     assert.equal("LEFT", t.knob.points[1][1])
   end)
 
+  it("gives the toggle's checkbutton an engine-driven HIGHLIGHT hover wash (M10)", function()
+    GC.db.settings.sniper.sound = true
+    GC.SettingsUI.Toggle()
+    local t = toggleOf(_G.GoldCapSniperFrame, "Sound on HOT deal")
+    local hover
+    for _, child in ipairs(t.checkButton.children) do
+      if child.layer == "HIGHLIGHT" then hover = child end
+    end
+    assert.is_not_nil(hover, "no HIGHLIGHT texture on the toggle's checkButton")
+    assert.equal("badge.png", hover.texture)
+    assert.equal("ADD", hover.blendMode)
+    assert.same({ GC.Theme.color.gold[1], GC.Theme.color.gold[2], GC.Theme.color.gold[3], 0.18 }, hover.vertexColor)
+  end)
+
   it("builds the five kit cards and a rounded DONE button", function()
     GC.SettingsUI.Toggle()
     local titles = cardTitles(_G.GoldCapSniperFrame)
@@ -239,5 +266,31 @@ describe("Settings controls", function()
 
     GC.SettingsUI.Toggle() -- closes
     assert.equal("ghost", gear.variant)
+  end)
+
+  it("tints the gear icon along with the plate (M8)", function()
+    local gear = _G.GoldCapSniperFrame.rail.gear
+    gear.icon = region("Texture", gear)
+    GC.SettingsUI.Toggle() -- opens
+    assert.same(GC.Theme.color.goldHi, { gear.icon.vertexColor[1], gear.icon.vertexColor[2], gear.icon.vertexColor[3] })
+
+    GC.SettingsUI.Toggle() -- closes
+    assert.same(GC.Theme.color.fgDim, { gear.icon.vertexColor[1], gear.icon.vertexColor[2], gear.icon.vertexColor[3] })
+  end)
+
+  it("still runs the OnShow refresh loop after the gear-tint hook is chained onto it (M9)", function()
+    -- Regression for the fake HookScript bug: it used to REPLACE the production OnShow refresh
+    -- loop (SetScript) with the T6 gear-tint hook (HookScript on the same event), so a value
+    -- changed while the panel was closed would never repaint on re-open. The segment control is
+    -- the easiest observable: its variant only updates inside bindDurationSegments' display(),
+    -- one of the refreshers that loop calls.
+    GC.SettingsUI.Toggle() -- opens
+    GC.SettingsUI.Toggle() -- closes
+    GC.db.settings.sniper.postDuration = 1 -- 12h, changed while the panel was closed
+    GC.SettingsUI.Toggle() -- re-opens: OnShow must still run the refresh loop
+    local seg = segmentsOf(_G.GoldCapSniperFrame)
+    assert.equal("active", seg["12H"].variant)
+    assert.equal("ghost", seg["24H"].variant)
+    assert.equal("ghost", seg["48H"].variant)
   end)
 end)
