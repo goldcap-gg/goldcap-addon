@@ -448,8 +448,12 @@ local function paintRow(row, entry, index)
   -- Re-anchor the item cell now that this render's own row.itemInset is
   -- known (SellFrame's paintRow does the same: layoutCells runs once per
   -- render, after the icon/itemInset decision, not only on a column-drop
-  -- change) -- otherwise a pooled row keeps a stale inset from whatever
-  -- kind it last painted as.
+  -- change). This MUST run every render, not just on resize: rows are
+  -- pooled and a given index's entry.kind can change from one render to
+  -- the next (a hint row this pass, a sale row next pass), so without this
+  -- call a pooled row would keep whatever itemInset it last painted as,
+  -- stale until the next unrelated column-visibility change happened to
+  -- re-run layoutRow for it.
   layoutRow(row)
 end
 

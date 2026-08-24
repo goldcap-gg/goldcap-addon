@@ -53,7 +53,13 @@ describe("SoldFrame", function()
     GC = helper.loadModule("Core/Util.lua")
     GC.Theme = {
       MEDIA = "",
-      color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {1,1,1}, gold = {1,1,1},
+      -- gold and fgDim are deliberately DISTINCT values (not both {1,1,1}
+      -- like the rest of this table) -- the WHEN-column tint test below
+      -- must be able to fail: a "dated" row's cells.when should read fgDim,
+      -- a "pending" row's should read gold, and if those two colors were
+      -- numerically identical in this fake, a broken paintSaleCells that
+      -- always applied the same color to both would still pass.
+      color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {0.55,0.54,0.52}, gold = {0.83,0.64,0.22},
                 red = {1,0,0}, green = {0,1,0}, panel = {0,0,0}, bg = {0,0,0},
                 zebra = {1,1,1,0.04}, hover = {1,1,1,0.08}, border = {1,1,1,0.06} },
       tier = { SUSPECT = {1,1,0} },
