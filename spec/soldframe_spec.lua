@@ -398,11 +398,24 @@ describe("SoldFrame", function()
     assert.truthy(band)
     assert.truthy(band.totals:GetText():find("1 sales", 1, true))
     assert.truthy(band.totals:GetText():find("proceeds", 1, true))
+    -- Mono band separator, replacing the old " -- ": every " -- " became
+    -- " · " when totals/age moved onto Theme.Num alongside the rest of the
+    -- mono table.
+    assert.truthy(band.totals:GetText():find(" · ", 1, true))
     assert.equal("+25c", band.profit:GetText())
     assert.truthy(colorEquals(band.profit.colorValue, GC.Theme.color.green))
     assert.truthy(band.age:GetText():find("synced", 1, true))
+    assert.truthy(band.age:GetText():find(" · ", 1, true))
     -- The band is not a row: neither line appears in the scrolling list.
     assert.is_nil(shownTexts():find("proceeds", 1, true))
+
+    -- The REALIZED PROFIT caption above band.profit, and the 1px rule along
+    -- the band's own bottom edge -- both new user-visible structure this
+    -- batch adds, not just re-styled existing lines.
+    assert.equal("REALIZED PROFIT", band.profitLabel:GetText())
+    assert.truthy(colorEquals(band.profitLabel.colorValue, GC.Theme.color.fgDim))
+    assert.truthy(band.rule.colorTexture)
+    assert.truthy(colorEquals(band.rule.colorTexture, GC.Theme.color.border))
   end)
 
   it("leaves the header band blank when there is no companion summary", function()
@@ -430,6 +443,10 @@ describe("SoldFrame", function()
     assert.equal("UNIT", band.header.cells.unit.label:GetText())
     assert.equal("TOTAL", band.header.cells.total.label:GetText())
     assert.equal("PROFIT", band.header.cells.profit.label:GetText())
+    -- The underline separating the column headings from row 1, attached at
+    -- header.rule purely for spec reachability (see createHeaderRow).
+    assert.truthy(band.header.rule and band.header.rule.colorTexture)
+    assert.truthy(colorEquals(band.header.rule.colorTexture, GC.Theme.color.border))
   end)
 
   it("re-anchors rows to the container's current width instead of a stale fixed size (I2)", function()

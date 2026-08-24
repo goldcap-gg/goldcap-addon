@@ -523,12 +523,16 @@ local function createHeaderRow(parent)
 
   -- Separates the column headings from the first row now that both read in
   -- the same mono font (SellFrame's own header-underline precedent).
+  -- Attached as header.rule (not just a local) purely so the behavior spec
+  -- can reach it via band.header.rule the same way it already reaches
+  -- band.header.cells -- not read by any production code.
   local bc = Theme.color.border
   local rule = header:CreateTexture(nil, "ARTWORK")
   rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
   rule:SetPoint("BOTTOMLEFT")
   rule:SetPoint("BOTTOMRIGHT")
   rule:SetHeight(1)
+  header.rule = rule
 
   return header
 end
