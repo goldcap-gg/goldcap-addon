@@ -17,74 +17,33 @@ local function cfg()
 end
 
 -- ---------------------------------------------------------------------------
--- Minimal Theme-consistent widgets (bordered box / editbox / checkbox /
--- slider). Theme.lua has factories for Panel/Card/Chip/Num/Label/Button/
--- TitleBar because every one of those is reused across SniperFrame +
+-- Minimal Theme-consistent widgets (editbox / pill toggle / segmented
+-- duration / slider). Theme.lua has factories for Panel/Card/Chip/Num/Label/
+-- Button/TitleBar because every one of those is reused across SniperFrame +
 -- SellFrame + ImportDialog + Tooltip. Nothing else in the addon needs a
--- slider, a checkbox, or a raw numeric input -- this settings screen is the
+-- slider, a toggle, or a raw numeric input -- this settings screen is the
 -- only consumer -- so adding first-class Theme factories for them now would
 -- be speculative API surface nobody else calls. These stay built inline,
 -- reusing Theme's own colors/fonts/pad/slice constants so they still look
 -- like Theme widgets.
 --
--- Batch 5 moved the editbox onto the kit's rounded chrome: its box
--- (editBoxBg below) is a sliced badge.png background (Theme.SlicedTexture,
--- margin 6, valid on its 64x20 size) tinted between Theme.color.bg and a
--- faint gold wash on focus via SetFocusTint(on), not ringed with a separate
--- recolorable border -- a vertex-colored sliced texture has no independent
--- edge layer to brighten, only a whole-fill tint. borderedBox (flat bg + 4
--- recolorable hairline edges) survives unchanged below for the checkbox and
--- slider track, which still want a square, border-recolorable look -- Task 5
--- replaces those controls with the kit's own pill toggle / rounded slider
--- and decides then whether borderedBox has any callers left.
+-- Every control on this screen now sits on the kit's own chrome: the editbox
+-- background (editBoxBg below) and the pill toggle's track/knob are sliced
+-- badge.png (Theme.SlicedTexture, margin 6, valid at their sizes) tinted via
+-- SetVertexColor rather than ringed with a separate recolorable border -- a
+-- vertex-colored sliced texture has no independent edge layer to brighten,
+-- only a whole-fill tint. The one holdout is the font-scale slider's track:
+-- at 4px tall it is well under BADGE_SLICE's 6px margin, so nine-slicing it
+-- would notch the corners into the fill -- a plain SetColorTexture bar is the
+-- correct primitive there, not a workaround. There is no longer a shared
+-- "bordered box" helper: the old checkbox/slider-track look it backed is
+-- gone, and the editbox's rounded box is a one-off (editBoxBg below).
 -- ---------------------------------------------------------------------------
-
--- A bordered dark box with a recolorable border. Theme.Panel also draws a
--- flat dark bg + 1px border, but its border textures are private locals
--- inside Theme.lua's `edgeBorder` helper and are never attached to the
--- returned frame -- there is no way to brighten them for a focus/hover accent
--- from outside Theme.lua. Reimplemented here, minimally, for exactly that
--- reason (checkboxes/slider track want a gold border on hover; the editbox
--- has its own rounded box below instead).
-local function borderedBox(parent)
-  local f = CreateFrame("Frame", nil, parent)
-  local bg = f:CreateTexture(nil, "BACKGROUND")
-  bg:SetAllPoints()
-  bg:SetColorTexture(Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 1)
-
-  local edges = {}
-  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-    local e = f:CreateTexture(nil, "BORDER")
-    if side == "TOP" or side == "BOTTOM" then
-      e:SetPoint(side .. "LEFT")
-      e:SetPoint(side .. "RIGHT")
-      e:SetHeight(1)
-    else
-      e:SetPoint("TOP" .. side)
-      e:SetPoint("BOTTOM" .. side)
-      e:SetWidth(1)
-    end
-    edges[#edges + 1] = e
-  end
-
-  local function paint(c)
-    for _, e in ipairs(edges) do
-      e:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
-    end
-  end
-  paint(Theme.color.border)
-
-  function f:SetBorderColor(c)
-    paint(c)
-  end
-
-  return f
-end
 
 -- Rounded editbox background: sliced badge.png (margin 6, valid at this box's 64x20 size),
 -- recolored between Theme.color.bg and a faint gold wash via :SetFocusTint(on) rather than a
--- recolorable border -- see the design comment above borderedBox for why the editbox no longer
--- uses that widget.
+-- recolorable border -- see the design comment above for why nothing on this screen uses a
+-- separate recolorable edge anymore.
 local function editBoxBg(parent)
   local f = CreateFrame("Frame", nil, parent)
   local bg = Theme.SlicedTexture(f, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
@@ -138,29 +97,41 @@ local function makeEditBox(parent, width, height)
   return box
 end
 
--- Checkbox: a real CreateFrame("CheckButton") for its built-in checked-state semantics
--- (GetChecked/SetChecked, auto-flip on click) -- but with no template, so it carries none of
--- UICheckButtonTemplate's default artwork/sizing. The checkmark is a plain gold square texture
--- set as the CheckButton's checked-texture, matching Theme's flat/no-icon aesthetic.
-local function makeCheckbox(parent, size)
-  size = size or 18
-  local box = borderedBox(parent)
-  box:SetSize(size, size)
+-- Pill toggle: one control, two paints. The CheckButton underneath owns click + state
+-- (bindCheckbox's contract below -- GetChecked/SetChecked, auto-flip on click, no template so
+-- it carries none of UICheckButtonTemplate's default artwork/sizing); :Paint() moves the knob
+-- and tints the track. Track and knob are both sliced badge.png (margin 6, valid at their 36x20
+-- / 16x16 sizes) recolored via SetVertexColor -- gold wash + bright knob when on, dim track/knob
+-- when off -- rather than a checkmark glyph.
+local function makeToggle(parent)
+  local box = CreateFrame("Frame", nil, parent)
+  box:SetSize(36, 20)
+
+  box.track = Theme.SlicedTexture(box, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  box.track:SetAllPoints()
+
+  box.knob = Theme.SlicedTexture(box, "OVERLAY", Theme.MEDIA .. "badge.png", Theme.color.fgDim, 6)
+  box.knob:SetSize(16, 16)
 
   local cb = CreateFrame("CheckButton", nil, box)
   cb:SetAllPoints()
-  cb:RegisterForClicks("LeftButtonUp")
-
-  local mark = cb:CreateTexture(nil, "ARTWORK")
-  mark:SetPoint("TOPLEFT", 3, -3)
-  mark:SetPoint("BOTTOMRIGHT", -3, 3)
-  mark:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 1)
-  cb:SetCheckedTexture(mark)
-
-  cb:SetScript("OnEnter", function() box:SetBorderColor(Theme.color.gold) end)
-  cb:SetScript("OnLeave", function() box:SetBorderColor(Theme.color.border) end)
-
   box.checkButton = cb
+
+  function box:Paint()
+    local on = cb:GetChecked()
+    local g, d, b = Theme.color.gold, Theme.color.fgDim, Theme.color.bg
+    self.knob:ClearAllPoints()
+    if on then
+      self.track:SetVertexColor(g[1], g[2], g[3], 0.30)
+      self.knob:SetVertexColor(Theme.color.goldHi[1], Theme.color.goldHi[2], Theme.color.goldHi[3], 1)
+      self.knob:SetPoint("RIGHT", -2, 0)
+    else
+      self.track:SetVertexColor(b[1], b[2], b[3], b[4] or 1)
+      self.knob:SetVertexColor(d[1], d[2], d[3], 1)
+      self.knob:SetPoint("LEFT", 2, 0)
+    end
+  end
+
   return box
 end
 
@@ -170,9 +141,13 @@ end
 -- still gives real drag/click-to-set/keyboard-step mechanics for free via
 -- SetMinMaxValues/SetValueStep/SetObeyStepOnDrag -- only the visuals (track + thumb) are ours,
 -- so this is "Blizzard template for functionality, restyled" rather than a hand-rolled drag
--- implementation.
+-- implementation. The track is a plain 4px Theme.color.bg fill, not sliced: a 4px bar is
+-- shorter than BADGE_SLICE's 6px margin, so nine-slicing it would notch the corners into the
+-- fill -- flat is the correct primitive at this size, not a fallback. The thumb, at 12x16, is
+-- comfortably above the margin and gets the kit's sliced badge.png like every other control.
 local function makeSlider(parent, width, min, max, step)
-  local track = borderedBox(parent)
+  local track = parent:CreateTexture(nil, "BACKGROUND")
+  track:SetColorTexture(Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], Theme.color.bg[4] or 1)
   track:SetSize(width, 4)
 
   local slider = CreateFrame("Slider", nil, parent)
@@ -183,9 +158,8 @@ local function makeSlider(parent, width, min, max, step)
   slider:SetValueStep(step)
   slider:SetObeyStepOnDrag(true)
 
-  local thumb = slider:CreateTexture(nil, "OVERLAY")
-  thumb:SetSize(10, 16)
-  thumb:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 1)
+  local thumb = Theme.SlicedTexture(slider, "OVERLAY", Theme.MEDIA .. "badge.png", Theme.color.gold, 6)
+  thumb:SetSize(12, 16)
   slider:SetThumbTexture(thumb)
 
   return slider, track
@@ -239,54 +213,69 @@ local function bindNumberField(box, key, opts)
   return display
 end
 
--- Binds a checkbox to a boolean GC.db.settings.sniper[key].
+-- Binds a pill toggle to a boolean GC.db.settings.sniper[key]. display() and the OnClick
+-- handler both re-run box:Paint() so the knob/track repaint whether the value changed from
+-- inside this screen (a click) or from outside it (OnShow's refresh loop below).
 local function bindCheckbox(box, key)
   local cb = box.checkButton
 
   local function display()
     local c = cfg()
     cb:SetChecked(c and c[key] and true or false)
+    box:Paint()
   end
 
   cb:SetScript("OnClick", function(self)
     local c = cfg()
     if c then c[key] = self:GetChecked() and true or false end
+    box:Paint()
   end)
 
   display()
   return display
 end
 
--- Cycles GC.db.settings.sniper.postDuration through the three durations
+-- GC.db.settings.sniper.postDuration stores one of the three durations
 -- C_AuctionHouse.PostCommodity/PostItem accept -- 1 = 12h, 2 = 24h, 3 = 48h, see Core/Init.lua's
--- own comment on that field. A numeric field (like the ones bindNumberField above builds) would
--- happily let a player type a 4th value the API would reject; a three-state cycle can't express
--- a duration that does not exist.
-local DURATION_LABELS = { [1] = "Duration: 12h", [2] = "Duration: 24h", [3] = "Duration: 48h" }
+-- own comment on that field. DURATION_INDEX maps the segment's own label hours (12/24/48) to
+-- that stored index; a numeric field (like the ones bindNumberField above builds) would happily
+-- let a player type a 4th value the API would reject, and a three-state segment group can't
+-- express a duration that does not exist.
+local DURATION_INDEX = { [12] = 1, [24] = 2, [48] = 3 }
 
-local function bindDurationButton(button)
-  -- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
-  -- postDuration() reader -- this control must never show, let alone cycle from, a value that
-  -- reader would refuse to post at.
-  local function storedValue()
-    local c = cfg()
-    local value = c and c.postDuration
-    if value == 1 or value == 2 or value == 3 then return value end
-    local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
-    local default = d and d.postDuration
-    return (default == 1 or default == 2 or default == 3) and default or 2
-  end
+-- Same "invalid/missing falls back to the default" contract as UI/SellFrame.lua's own
+-- postDuration() reader -- these controls must never show, let alone write, a value that
+-- reader would refuse to post at.
+local function storedDurationIndex()
+  local c = cfg()
+  local value = c and c.postDuration
+  if value == 1 or value == 2 or value == 3 then return value end
+  local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+  local default = d and d.postDuration
+  return (default == 1 or default == 2 or default == 3) and default or 2
+end
 
+-- Binds the three 12H/24H/48H segment buttons: `buttons`/`hoursList` are parallel arrays
+-- (buttons[i] labeled hoursList[i] .. "H"). display() paints the current duration's button
+-- "active" and every other "ghost"; each button writes DURATION_INDEX[its own hours] on click,
+-- then repaints -- same db key, same 1/2/3 value type the old cycling button wrote.
+local function bindDurationSegments(buttons, hoursList)
   local function display()
-    button:SetLabel(DURATION_LABELS[storedValue()])
+    local current = storedDurationIndex()
+    for i, button in ipairs(buttons) do
+      button:SetVariant(DURATION_INDEX[hoursList[i]] == current and "active" or "ghost")
+    end
   end
 
-  button:SetScript("OnClick", function()
-    local c = cfg()
-    if not c then return end
-    c.postDuration = (storedValue() % 3) + 1
-    display()
-  end)
+  for i, button in ipairs(buttons) do
+    local hours = hoursList[i]
+    button:SetScript("OnClick", function()
+      local c = cfg()
+      if not c then return end
+      c.postDuration = DURATION_INDEX[hours]
+      display()
+    end)
+  end
 
   display()
   return display
@@ -501,52 +490,65 @@ local function build(sniperFrame)
   -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
   fieldRow(safety, 5, "Wall absorb window (hours)", "wallAbsorbHours", { min = 0, max = 6 })
 
-  -- Ghost cycling button, not a fieldRow: FIELD_W (64px) is sized for a 6-letter numeric
-  -- editbox, and "Duration: 48h" would not fit it. Sized separately below.
+  -- Segmented duration, not a fieldRow: three 40x20 kit buttons chained from the card's right
+  -- edge, rightmost (48H) placed first so each earlier one anchors off the one already placed.
   do
-    local button = Theme.Button(posting, "ghost")
-    button:SetSize(118, ROW_H)
-    button:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
+    local h48 = Theme.Button(posting, "ghost", "badge")
+    h48:SetSize(40, ROW_H)
+    h48:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
+    h48:SetLabel("48H")
+
+    local h24 = Theme.Button(posting, "ghost", "badge")
+    h24:SetSize(40, ROW_H)
+    h24:SetPoint("RIGHT", h48, "LEFT", -2, 0)
+    h24:SetLabel("24H")
+
+    local h12 = Theme.Button(posting, "ghost", "badge")
+    h12:SetSize(40, ROW_H)
+    h12:SetPoint("RIGHT", h24, "LEFT", -2, 0)
+    h12:SetLabel("12H")
 
     local label = Theme.Label(posting, 12)
     label:SetPoint("TOPLEFT", Theme.pad.m, posting.rowY(1))
-    label:SetPoint("RIGHT", button, "LEFT", -Theme.pad.s, 0)
+    label:SetPoint("RIGHT", h12, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     label:SetText("Auction duration")
 
-    refreshers[#refreshers + 1] = bindDurationButton(button)
+    refreshers[#refreshers + 1] = bindDurationSegments({ h12, h24, h48 }, { 12, 24, 48 })
   end
 
-  local function checkRow(cardFrame, i, labelText, key)
-    local box = makeCheckbox(cardFrame, 18)
-    box:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i) - 1)
+  local function toggleRow(cardFrame, i, labelText, key)
+    local box = makeToggle(cardFrame)
+    box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
 
     local label = Theme.Label(cardFrame, 12)
-    label:SetPoint("LEFT", box, "RIGHT", Theme.pad.s, 0)
+    label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
+    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
+    label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     label:SetText(labelText)
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
   end
 
-  checkRow(automation, 1, "Sound on HOT deal", "sound")
+  toggleRow(automation, 1, "Sound on HOT deal", "sound")
   -- Final fix wave (item 5): the plain "Auto-scan by default" label read as if toggling it
   -- would also start/stop a session already in progress -- it only decides whether Auto is
   -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
-  checkRow(automation, 2, "Auto-scan on next AH visit", "auto")
+  toggleRow(automation, 2, "Auto-scan on next AH visit", "auto")
 
   local scaleLabel = Theme.Label(display, 12)
   scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(1))
   scaleLabel:SetWordWrap(false)
   scaleLabel:SetText("Font scale")
 
-  local scaleReadout = Theme.Num(display, 12)
-  scaleReadout:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(1))
+  local slider, sliderTrack = makeSlider(display, 150, 0.9, 1.3, 0.05)
+  sliderTrack:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(1) - 8)
 
-  local slider, sliderTrack = makeSlider(display, 160, 0.9, 1.3, 0.05)
-  sliderTrack:SetPoint("TOPRIGHT", scaleReadout, "TOPLEFT", -Theme.pad.s, -(ROW_H / 2 - 2))
+  local scaleReadout = Theme.Num(display, 12)
+  scaleReadout:SetPoint("RIGHT", sliderTrack, "LEFT", -Theme.pad.s, 0)
 
   refreshers[#refreshers + 1] = bindFontSlider(slider, scaleReadout)
 
