@@ -120,7 +120,7 @@ local function buildEntries()
   table.sort(localSales, function(a, b) return (a.at or 0) > (b.at or 0) end)
   if #localSales > 0 then
     entries[#entries + 1] = { kind = "section",
-      text = "Not on goldcap.gg yet — syncs on /reload or logout" }
+      text = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT" }
     for _, sale in ipairs(localSales) do
       entries[#entries + 1] = { kind = "localSale", sale = sale,
         realized = sale.key and realizedByKey[sale.key] or nil }
@@ -134,9 +134,9 @@ local function buildEntries()
     -- totals.salesCount says the server holds more than that, the header
     -- admits this section is a tail rather than silently under-counting the
     -- window (M3).
-    local header = ("On goldcap.gg — last %d days"):format(summary.days)
+    local header = ("ON GOLDCAP.GG — LAST %d DAYS"):format(summary.days)
     if summary.totals.salesCount > #summary.sales then
-      header = ("On goldcap.gg — last %d days, latest %d of %d"):format(
+      header = ("ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"):format(
         summary.days, #summary.sales, summary.totals.salesCount)
     end
     entries[#entries + 1] = { kind = "section", text = header }
@@ -348,6 +348,13 @@ end
 -- applyColumnVisibility), not on every render, so this is what keeps a
 -- dropped WHEN/UNIT column from reappearing the next time an unrelated
 -- entry (a new sale, a section header) repaints this same pooled row.
+--
+-- A hint/section row does NOT also Hide() these cells in paintRow (M3): the
+-- trailing layoutRow(row) call at the end of every paintRow branch re-runs
+-- anchorColumns, which unconditionally Show()s every non-dropped cell, so a
+-- Hide() here would just get undone. Blank TEXT -- set below, and never
+-- refilled by the hint/section branches -- is what actually keeps those
+-- cells empty on a hint/section row, not visibility.
 local function clearRow(row)
   row.item:SetText("")
   row.item:Show()
@@ -384,9 +391,6 @@ local function paintRow(row, entry, index)
     -- (the Pro notice sits above server rows that still render), so it
     -- stays a row in the same flow instead of a separate overlay widget.
     row.item:Hide()
-    for _, col in ipairs(COLUMNS) do
-      if not col.flex then row.cells[col.key]:Hide() end
-    end
     row.wide:Show()
     row.wide:SetJustifyH("CENTER")
     row.wide:SetWordWrap(true)
@@ -400,11 +404,8 @@ local function paintRow(row, entry, index)
     -- dim rule reads as a divider rather than another content row (createRow
     -- has the anchoring rationale).
     row.item:Hide()
-    for _, col in ipairs(COLUMNS) do
-      if not col.flex then row.cells[col.key]:Hide() end
-    end
     row.wide:Hide()
-    row.sectionLabel:SetText(entry.text:upper())
+    row.sectionLabel:SetText(entry.text)
     row.sectionLabel:Show()
     row.sectionRule:Show()
   elseif entry.kind == "localSale" then
@@ -607,18 +608,21 @@ local function createBand(parent)
   profitLabel:SetText("REALIZED PROFIT")
   profitLabel:SetPoint("TOPRIGHT", 0, -4)
 
+  -- Both lines' RIGHT edge is bound to profitLabel's LEFT, not profit's:
+  -- "REALIZED PROFIT" (M6, ~81-105px) is wider than the value it captions,
+  -- so binding to the narrower value would let a long totals/age line run
+  -- underneath the caption.
   local totals = Theme.Num(parent, 10)
   totals:SetJustifyH("LEFT")
   totals:SetWordWrap(false)
-  setColor(totals, Theme.color.fgMuted)
   totals:SetPoint("TOPLEFT", 0, -5)
-  totals:SetPoint("RIGHT", profit, "LEFT", -Theme.pad.s, 0)
+  totals:SetPoint("RIGHT", profitLabel, "LEFT", -Theme.pad.s, 0)
 
   local age = Theme.Num(parent, 9)
   age:SetJustifyH("LEFT")
   age:SetWordWrap(false)
   age:SetPoint("TOPLEFT", 0, -24)
-  age:SetPoint("RIGHT", profit, "LEFT", -Theme.pad.s, 0)
+  age:SetPoint("RIGHT", profitLabel, "LEFT", -Theme.pad.s, 0)
 
   -- Band rule: a separate frame pinned to the band's own height so the 1px
   -- BOTTOMLEFT/BOTTOMRIGHT line sits at the band's bottom edge regardless of
@@ -666,16 +670,22 @@ local function renderRows()
   band.totals:SetText("")
   band.profit:SetText("")
   band.age:SetText("")
+  -- REALIZED PROFIT (I2): the caption is only meaningful once band.profit
+  -- actually carries a value -- t.realized is nil for Free-tier/unpaired
+  -- users, and this branch never sets band.profit's text in that case, so
+  -- the caption must not sit there captioning nothing.
+  band.profitLabel:Hide()
   local listEntries = {}
   for _, entry in ipairs(entries) do
     if entry.kind == "totals" then
       local t = entry.summary.totals
       band.totals:SetText(("%d sales · %s proceeds · %s in the mail"):format(
         t.salesCount, formatAmount(t.proceeds), formatAmount(t.pending)))
-      setColor(band.totals, Theme.color.fg)
+      setColor(band.totals, Theme.color.fgMuted)
       if t.realized then
         band.profit:SetText(signedProfit(t.realized))
         setColor(band.profit, t.realized >= 0 and Theme.color.green or Theme.color.red)
+        band.profitLabel:Show()
       end
     elseif entry.kind == "age" then
       band.age:SetText(("data from goldcap.gg · synced %s ago"):format(

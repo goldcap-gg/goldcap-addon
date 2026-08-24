@@ -459,6 +459,9 @@ describe("SoldFrame", function()
     local band = bandOf()
     assert.equal("", band.totals:GetText())
     assert.equal("", band.age:GetText())
+    -- REALIZED PROFIT (I2): no summary means band.profit never gets a value,
+    -- so the caption above it must not stay shown captioning nothing.
+    assert.is_false(band.profitLabel:IsShown())
   end)
 
   it("colors the sync-age line with the SUSPECT tier once it is 6-24h stale", function()
