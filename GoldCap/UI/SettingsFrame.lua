@@ -18,14 +18,25 @@ end
 
 -- ---------------------------------------------------------------------------
 -- Minimal Theme-consistent widgets (bordered box / editbox / checkbox /
--- slider). Theme.lua has factories for Panel/Chip/Num/Label/Button/TitleBar
--- because every one of those is reused across SniperFrame + SellFrame +
--- ImportDialog + Tooltip. Nothing else in the addon needs a slider, a
--- checkbox, or a raw numeric input -- this settings screen is the only
--- consumer -- so adding first-class Theme factories for them now would be
--- speculative API surface nobody else calls. These are built inline instead,
--- reusing Theme's own colors/fonts/pad constants so they still look like
--- Theme widgets.
+-- slider). Theme.lua has factories for Panel/Card/Chip/Num/Label/Button/
+-- TitleBar because every one of those is reused across SniperFrame +
+-- SellFrame + ImportDialog + Tooltip. Nothing else in the addon needs a
+-- slider, a checkbox, or a raw numeric input -- this settings screen is the
+-- only consumer -- so adding first-class Theme factories for them now would
+-- be speculative API surface nobody else calls. These stay built inline,
+-- reusing Theme's own colors/fonts/pad/slice constants so they still look
+-- like Theme widgets.
+--
+-- Batch 5 moved the editbox onto the kit's rounded chrome: its box
+-- (editBoxBg below) is a sliced badge.png background (Theme.SlicedTexture,
+-- margin 6, valid on its 64x20 size) tinted between Theme.color.bg and a
+-- faint gold wash on focus via SetFocusTint(on), not ringed with a separate
+-- recolorable border -- a vertex-colored sliced texture has no independent
+-- edge layer to brighten, only a whole-fill tint. borderedBox (flat bg + 4
+-- recolorable hairline edges) survives unchanged below for the checkbox and
+-- slider track, which still want a square, border-recolorable look -- Task 5
+-- replaces those controls with the kit's own pill toggle / rounded slider
+-- and decides then whether borderedBox has any callers left.
 -- ---------------------------------------------------------------------------
 
 -- A bordered dark box with a recolorable border. Theme.Panel also draws a
@@ -33,8 +44,8 @@ end
 -- inside Theme.lua's `edgeBorder` helper and are never attached to the
 -- returned frame -- there is no way to brighten them for a focus/hover accent
 -- from outside Theme.lua. Reimplemented here, minimally, for exactly that
--- reason (editboxes want a gold border on focus; checkboxes/slider track want
--- one on hover).
+-- reason (checkboxes/slider track want a gold border on hover; the editbox
+-- has its own rounded box below instead).
 local function borderedBox(parent)
   local f = CreateFrame("Frame", nil, parent)
   local bg = f:CreateTexture(nil, "BACKGROUND")
@@ -70,12 +81,32 @@ local function borderedBox(parent)
   return f
 end
 
--- Numeric editbox: mono font, centered, gold border on focus. Returns the
--- bordered wrapper box (positionable) with `.editBox` set to the real
--- EditBox (for :GetText/:SetText/binding scripts). Validation/clamp policy
--- lives in bindNumberField below, not here -- this only builds the widget.
+-- Rounded editbox background: sliced badge.png (margin 6, valid at this box's 64x20 size),
+-- recolored between Theme.color.bg and a faint gold wash via :SetFocusTint(on) rather than a
+-- recolorable border -- see the design comment above borderedBox for why the editbox no longer
+-- uses that widget.
+local function editBoxBg(parent)
+  local f = CreateFrame("Frame", nil, parent)
+  local bg = Theme.SlicedTexture(f, "BACKGROUND", Theme.MEDIA .. "badge.png", Theme.color.bg, 6)
+  bg:SetAllPoints()
+
+  function f:SetFocusTint(on)
+    if on then
+      bg:SetVertexColor(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.25)
+    else
+      bg:SetVertexColor(Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 1)
+    end
+  end
+
+  return f
+end
+
+-- Numeric editbox: mono font, centered, gold tint on focus (SetFocusTint). Returns the rounded
+-- wrapper box (positionable) with `.editBox` set to the real EditBox (for :GetText/:SetText/
+-- binding scripts). Validation/clamp policy lives in bindNumberField below, not here -- this
+-- only builds the widget.
 local function makeEditBox(parent, width, height)
-  local box = borderedBox(parent)
+  local box = editBoxBg(parent)
   box:SetSize(width, height or 20)
 
   local eb = CreateFrame("EditBox", nil, box)
@@ -92,8 +123,8 @@ local function makeEditBox(parent, width, height)
   -- enough to keep "backspace out of a bad number" from also closing the whole settings panel.
   eb:SetScript("OnEscapePressed", eb.ClearFocus)
   eb:SetScript("OnEnterPressed", eb.ClearFocus) -- commits via OnEditFocusLost below
-  eb:SetScript("OnEditFocusGained", function() box:SetBorderColor(Theme.color.gold) end)
-  eb:SetScript("OnEditFocusLost", function() box:SetBorderColor(Theme.color.border) end)
+  eb:SetScript("OnEditFocusGained", function() box:SetFocusTint(true) end)
+  eb:SetScript("OnEditFocusLost", function() box:SetFocusTint(false) end)
 
   -- Live font-scale slider support: Theme.Num/Chip re-font themselves on rescale via Theme.lua's
   -- own private weak-keyed `widgetFonts` table, which isn't reachable from outside Theme.lua.
@@ -294,12 +325,6 @@ local function bindFontSlider(slider, readout)
   return display
 end
 
--- FRAME_WIDTH/FRAME_HEIGHT mirrored from UI/SniperFrame.lua's own module-local constants of the
--- same name (top of that file). Not read from there directly: this task's file ownership scopes
--- SniperFrame.lua edits to ONLY the gear button's OnClick wiring, and those constants aren't
--- exposed on GC.Sniper. If the real defaults in SniperFrame.lua ever change, update both.
-local DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT = 640, 520
-
 -- Reset window: clears the persisted geometry and re-applies the built-in default straight to
 -- the LIVE frame -- found via its global name (CreateFrame("Frame", "GoldCapSniperFrame", ...)
 -- in SniperFrame.lua's createFrame auto-publishes it to _G, real WoW WidgetAPI behavior).
@@ -309,6 +334,13 @@ local DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT = 640, 520
 -- exists to clear. SetSize below still fires the window's own OnSizeChanged script (SniperFrame
 -- .lua's createFrame wires that unconditionally, not gated on how the resize happened), so the
 -- column grid re-flows to the restored width with no extra plumbing from here.
+--
+-- Batch 5: the default geometry comes straight from GC.Sniper.DefaultWindowSize() (SniperFrame
+-- .lua, next to its other GC.Sniper.* exports) instead of a mirrored local constant here -- this
+-- file used to carry its own DEFAULT_WINDOW_WIDTH/HEIGHT = 640, 520, and that copy had already
+-- gone stale (SniperFrame.lua's real default had moved to 720x520) with nothing to catch the
+-- drift. Reading the live table field instead of a second copy makes that class of bug
+-- impossible.
 local function resetWindow()
   local c = cfg()
   if c then c.window = nil end
@@ -316,7 +348,8 @@ local function resetWindow()
   if sniperFrame then
     sniperFrame:ClearAllPoints()
     sniperFrame:SetPoint("CENTER")
-    sniperFrame:SetSize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+    local w, h = GC.Sniper.DefaultWindowSize()
+    sniperFrame:SetSize(w, h)
   end
 end
 
@@ -326,7 +359,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local ROW_H = 20
-local STEP = ROW_H + Theme.pad.s -- 8px rhythm per the design brief
+local STEP = 26 -- kit row rhythm (batch 5): 26px between row tops inside a card
 local FIELD_W = 64
 
 local function build(sniperFrame)
@@ -368,36 +401,83 @@ local function build(sniperFrame)
     end
   end)
 
+  -- Header: title + subtitle + DONE, closed off by a hairline rule at y -40. Everything below
+  -- that rule belongs to the two card columns (thresholds/safety on the left, posting/
+  -- automation/display on the right).
   local title = Theme.Label(panel, 14)
-  title:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
-  -- "GoldCap settings", not "Sniper settings". This is the addon's only settings screen and it
-  -- has not been about the Sniper alone for some time: sound, font scale, and now how long a
-  -- posted auction runs, which belongs to the Sell tab. A player looking for the duration would
-  -- not open a panel named after the buying half.
-  title:SetText("GoldCap settings")
+  title:SetPoint("TOPLEFT", 16, -12)
+  title:SetText("Settings")
 
-  local done = Theme.Button(panel, "ghost")
-  done:SetSize(56, ROW_H)
-  done:SetPoint("TOPRIGHT", -Theme.pad.m, -Theme.pad.m)
-  done:SetLabel("Done")
+  local subtitle = Theme.Num(panel, 9)
+  subtitle:SetJustifyH("LEFT")
+  subtitle:SetWordWrap(false)
+  subtitle:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  subtitle:SetText("SAVED INSTANTLY · ESC OR DONE TO CLOSE")
+  subtitle:SetPoint("LEFT", title, "RIGHT", 12, 0)
+
+  local done = Theme.Button(panel, "active", "plaque")
+  done:SetSize(64, 26)
+  done:SetPoint("TOPRIGHT", -16, -7)
+  done:SetLabel("DONE")
   done:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
 
-  local y = -Theme.pad.m - STEP -- first field row, one STEP below the title/Done row
+  do
+    local bc = Theme.color.border
+    local headerRule = panel:CreateTexture(nil, "ARTWORK")
+    headerRule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+    headerRule:SetPoint("TOPLEFT", 0, -40)
+    headerRule:SetPoint("TOPRIGHT", 0, -40)
+    headerRule:SetHeight(1)
+  end
+
   local refreshers = {}
 
-  local function fieldRow(labelText, key, opts)
-    local label = Theme.Label(panel, 12)
-    label:SetPoint("TOPLEFT", Theme.pad.m, y)
-    label:SetPoint("RIGHT", panel, "RIGHT", -(Theme.pad.m + FIELD_W + Theme.pad.s), 0)
+  -- One card per settings group. Rows are laid out from the card's own top so the
+  -- two columns can stack independently; height = 24 (title band) + n*STEP + 6.
+  local function card(parent, cardTitle, rowCount)
+    local c = Theme.Card(parent, Theme.color.panelHi, nil)
+    c:SetHeight(24 + rowCount * STEP + 6)
+    local t = Theme.Num(c, 9); t:SetJustifyH("LEFT"); t:SetPoint("TOPLEFT", Theme.pad.m, -8)
+    t:SetText(cardTitle); t:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    function c.rowY(i) return -(24 + (i - 1) * STEP) end
+    return c
+  end
+
+  -- Left column: DEAL THRESHOLDS above SAFETY, both spanning panel-left to panel-CENTER-7.
+  local thresholds = card(panel, "DEAL THRESHOLDS", 4)
+  thresholds:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
+  thresholds:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+
+  local safety = card(panel, "SAFETY", 5)
+  safety:SetPoint("TOPLEFT", thresholds, "BOTTOMLEFT", 0, -12)
+  safety:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+
+  -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
+  -- panel-right.
+  local posting = card(panel, "POSTING", 1)
+  posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
+  posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
+
+  local automation = card(panel, "AUTOMATION & ALERTS", 2)
+  automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
+  automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
+
+  local display = card(panel, "DISPLAY", 2)
+  display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
+  display:SetPoint("LEFT", panel, "CENTER", 7, 0)
+
+  local function fieldRow(cardFrame, i, labelText, key, opts)
+    local box = makeEditBox(cardFrame, FIELD_W, ROW_H)
+    box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
+
+    local label = Theme.Label(cardFrame, 12)
+    label:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i))
+    label:SetPoint("RIGHT", box, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     label:SetText(labelText)
 
-    local box = makeEditBox(panel, FIELD_W, ROW_H)
-    box:SetPoint("TOPRIGHT", -Theme.pad.m, y)
-
     refreshers[#refreshers + 1] = bindNumberField(box, key, opts)
-    y = y - STEP
   end
 
   local PCT = { min = 1, max = 90, toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end }
@@ -405,77 +485,83 @@ local function build(sniperFrame)
   local GOLD = { min = 1, max = 100000,
     toUI = function(v) return v / 10000 end,
     toStorage = function(v) return v * 10000 end }
-  fieldRow("Max wallet per buy %", "maxCapitalShare", WALLET_PCT)
-  fieldRow("Min profit per buy (gold)", "minimumProfitCopper", GOLD)
-  fieldRow("HOT min discount %", "hotDiscount", PCT)
-  fieldRow("GOOD min discount %", "goodDiscount", PCT)
-  fieldRow("HOT min sold/day", "hotMinSold", { min = 0, max = 1000 })
-  fieldRow("GOOD min sold/day", "goodMinSold", { min = 0, max = 1000 })
-  fieldRow("Dump-trend cap %", "dumpTrendPct", { min = 1, max = 99 })
+
+  fieldRow(thresholds, 1, "HOT — min discount %", "hotDiscount", PCT)
+  fieldRow(thresholds, 2, "HOT — min sold/day", "hotMinSold", { min = 0, max = 1000 })
+  fieldRow(thresholds, 3, "GOOD — min discount %", "goodDiscount", PCT)
+  fieldRow(thresholds, 4, "GOOD — min sold/day", "goodMinSold", { min = 0, max = 1000 })
+
+  fieldRow(safety, 1, "Max wallet per buy %", "maxCapitalShare", WALLET_PCT)
+  fieldRow(safety, 2, "Min profit per buy (gold)", "minimumProfitCopper", GOLD)
+  fieldRow(safety, 3, "Dump-trend cap %", "dumpTrendPct", { min = 1, max = 99 })
   -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
   -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
   -- the box can never store a value the engine would then silently re-clamp.
-  fieldRow("Spike-trend threshold %", "spikeTrendPct", { min = 1, max = 500 })
+  fieldRow(safety, 4, "Spike-trend threshold %", "spikeTrendPct", { min = 1, max = 500 })
   -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
-  fieldRow("Wall absorb window (hours)", "wallAbsorbHours", { min = 0, max = 6 })
+  fieldRow(safety, 5, "Wall absorb window (hours)", "wallAbsorbHours", { min = 0, max = 6 })
 
   -- Ghost cycling button, not a fieldRow: FIELD_W (64px) is sized for a 6-letter numeric
   -- editbox, and "Duration: 48h" would not fit it. Sized separately below.
   do
-    local label = Theme.Label(panel, 12)
-    label:SetPoint("TOPLEFT", Theme.pad.m, y)
-    label:SetPoint("RIGHT", panel, "RIGHT", -(Theme.pad.m + 118 + Theme.pad.s), 0)
+    local button = Theme.Button(posting, "ghost")
+    button:SetSize(118, ROW_H)
+    button:SetPoint("TOPRIGHT", -Theme.pad.m, posting.rowY(1))
+
+    local label = Theme.Label(posting, 12)
+    label:SetPoint("TOPLEFT", Theme.pad.m, posting.rowY(1))
+    label:SetPoint("RIGHT", button, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     label:SetText("Auction duration")
 
-    local button = Theme.Button(panel, "ghost")
-    button:SetSize(118, ROW_H)
-    button:SetPoint("TOPRIGHT", -Theme.pad.m, y)
-
     refreshers[#refreshers + 1] = bindDurationButton(button)
-    y = y - STEP
   end
 
-  local function checkRow(labelText, key)
-    local box = makeCheckbox(panel, 18)
-    box:SetPoint("TOPLEFT", Theme.pad.m, y - 1)
+  local function checkRow(cardFrame, i, labelText, key)
+    local box = makeCheckbox(cardFrame, 18)
+    box:SetPoint("TOPLEFT", Theme.pad.m, cardFrame.rowY(i) - 1)
 
-    local label = Theme.Label(panel, 12)
+    local label = Theme.Label(cardFrame, 12)
     label:SetPoint("LEFT", box, "RIGHT", Theme.pad.s, 0)
     label:SetWordWrap(false)
     label:SetText(labelText)
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
-    y = y - STEP
   end
 
-  checkRow("Sound", "sound")
+  checkRow(automation, 1, "Sound on HOT deal", "sound")
   -- Final fix wave (item 5): the plain "Auto-scan by default" label read as if toggling it
   -- would also start/stop a session already in progress -- it only decides whether Auto is
   -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
-  checkRow("Auto-scan by default (next AH visit)", "auto")
+  checkRow(automation, 2, "Auto-scan on next AH visit", "auto")
 
-  local scaleLabel = Theme.Label(panel, 12)
-  scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, y)
+  local scaleLabel = Theme.Label(display, 12)
+  scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(1))
   scaleLabel:SetWordWrap(false)
   scaleLabel:SetText("Font scale")
 
-  local scaleReadout = Theme.Num(panel, 12)
-  scaleReadout:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+  local scaleReadout = Theme.Num(display, 12)
+  scaleReadout:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(1))
 
-  local slider, sliderTrack = makeSlider(panel, 160, 0.9, 1.3, 0.05)
+  local slider, sliderTrack = makeSlider(display, 160, 0.9, 1.3, 0.05)
   sliderTrack:SetPoint("TOPRIGHT", scaleReadout, "TOPLEFT", -Theme.pad.s, -(ROW_H / 2 - 2))
 
   refreshers[#refreshers + 1] = bindFontSlider(slider, scaleReadout)
-  y = y - STEP
 
-  local resetBtn = Theme.Button(panel, "ghost")
-  resetBtn:SetSize(140, 22)
-  resetBtn:SetPoint("TOPLEFT", Theme.pad.m, y - Theme.pad.s)
-  resetBtn:SetLabel("Reset window")
+  local windowLabel = Theme.Label(display, 12)
+  windowLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(2))
+  windowLabel:SetWordWrap(false)
+  windowLabel:SetText("Window position & size")
+
+  local resetBtn = Theme.Button(display, "ghost", "plaque")
+  resetBtn:SetSize(120, 26)
+  resetBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(2) + 3)
+  resetBtn:SetLabel("RESET WINDOW")
   resetBtn:SetScript("OnClick", resetWindow)
+
+  windowLabel:SetPoint("RIGHT", resetBtn, "LEFT", -Theme.pad.s, 0)
 
   -- Re-syncs every control from GC.db.settings.sniper (and Theme.Scale()) each time the overlay
   -- is shown -- covers external changes made while it was closed, e.g. the toolbar's own Auto

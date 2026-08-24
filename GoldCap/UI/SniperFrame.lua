@@ -1412,6 +1412,13 @@ local function updateSellTabLabel()
 end
 GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
 
+-- UI/SettingsFrame.lua's RESET WINDOW button needs the real built-in default to restore --
+-- exposed here (a table field, not a new top-level local: this file sits at its 200-local
+-- ceiling) rather than SettingsFrame.lua mirroring WIN.FRAME_WIDTH/HEIGHT in its own copy,
+-- which is exactly how that file's old default silently went stale (640x520, while this
+-- window's real default had already moved to 720x520 above).
+function GC.Sniper.DefaultWindowSize() return WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT end
+
 local function clearDeals()
   for itemID in pairs(deals) do deals[itemID] = nil end
   refreshRows()

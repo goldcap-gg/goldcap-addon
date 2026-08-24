@@ -281,6 +281,12 @@ describe("TOC load order", function()
     assert.is_function(GC.Sniper.Toggle)
     assert.is_function(GC.SettingsUI.Toggle)
 
+    -- Batch 5: RESET WINDOW (UI/SettingsFrame.lua) reads the live default straight off
+    -- SniperFrame.lua's own WIN table via this export, instead of a mirrored constant that can
+    -- (and did) go stale -- pin the real default here so a future change to WIN.FRAME_WIDTH/
+    -- HEIGHT is caught the same way loadorder catches every other cross-file contract.
+    assert.same({ 720, 520 }, { GC.Sniper.DefaultWindowSize() })
+
     -- exercise real frame construction through the stubbed CreateFrame
     assert.has_no.errors(function() GC.Sniper.Toggle() end)
     -- T10: GC.Sniper.Toggle() above publishes _G.GoldCapSniperFrame (see the CreateFrame stub's
