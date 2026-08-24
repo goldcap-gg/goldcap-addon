@@ -120,7 +120,7 @@ local function buildEntries()
   table.sort(localSales, function(a, b) return (a.at or 0) > (b.at or 0) end)
   if #localSales > 0 then
     entries[#entries + 1] = { kind = "section",
-      text = "Not on goldcap.gg yet -- syncs on /reload or logout" }
+      text = "Not on goldcap.gg yet — syncs on /reload or logout" }
     for _, sale in ipairs(localSales) do
       entries[#entries + 1] = { kind = "localSale", sale = sale,
         realized = sale.key and realizedByKey[sale.key] or nil }
@@ -134,9 +134,9 @@ local function buildEntries()
     -- totals.salesCount says the server holds more than that, the header
     -- admits this section is a tail rather than silently under-counting the
     -- window (M3).
-    local header = ("On goldcap.gg -- last %d days"):format(summary.days)
+    local header = ("On goldcap.gg — last %d days"):format(summary.days)
     if summary.totals.salesCount > #summary.sales then
-      header = ("On goldcap.gg -- last %d days, latest %d of %d"):format(
+      header = ("On goldcap.gg — last %d days, latest %d of %d"):format(
         summary.days, #summary.sales, summary.totals.salesCount)
     end
     entries[#entries + 1] = { kind = "section", text = header }
@@ -353,7 +353,9 @@ local function clearRow(row)
   row.item:Show()
   row.wide:SetText("")
   row.wide:Hide()
-  row.underline:Hide()
+  row.sectionLabel:SetText("")
+  row.sectionLabel:Hide()
+  row.sectionRule:Hide()
   -- Only a sale row (paintSaleCells) claims icon space; hint/section rows
   -- have nothing to show one for and stay flush left.
   row.itemInset = 0
@@ -392,21 +394,19 @@ local function paintRow(row, entry, index)
     setColor(row.wide, Theme.color.fgDim)
     row.wide:SetSpacing(4)
   elseif entry.kind == "section" then
-    -- Full-width gold label with a thin gold underline -- the Sell
-    -- group-row aesthetic, adapted: Sell's group text lives in the flexible
-    -- item column because its siblings still show blank cells beside it;
-    -- Sold's section rows have nothing to say in QTY/UNIT/TOTAL/PROFIT at
-    -- all, so the label spans the row outright.
+    -- Mono micro-label + a hairline rule running to the row's right edge --
+    -- not a full-width gold label: Sold's section rows have nothing to say
+    -- in QTY/UNIT/TOTAL/PROFIT at all, so a small uppercase label plus a
+    -- dim rule reads as a divider rather than another content row (createRow
+    -- has the anchoring rationale).
     row.item:Hide()
     for _, col in ipairs(COLUMNS) do
       if not col.flex then row.cells[col.key]:Hide() end
     end
-    row.wide:Show()
-    row.wide:SetJustifyH("LEFT")
-    row.wide:SetWordWrap(false)
-    row.wide:SetText(entry.text)
-    setColor(row.wide, Theme.color.gold)
-    row.underline:Show()
+    row.wide:Hide()
+    row.sectionLabel:SetText(entry.text:upper())
+    row.sectionLabel:Show()
+    row.sectionRule:Show()
   elseif entry.kind == "localSale" then
     local sale = entry.sale
     paintSaleCells(row, sale.itemName or "Unknown item", sale.itemID, sale.qty or 0,
@@ -501,15 +501,21 @@ createRow = function(parent)
   row.highlight = highlight
   row:EnableMouse(true)
 
-  -- Thin gold underline, shown only for a "section" row.
+  -- Section rows: mono micro-label + a hairline running to the row's right edge. The rule
+  -- anchors to the label's RIGHT, so the label must stay single-point LEFT-anchored (its
+  -- width is its text).
+  row.sectionLabel = Theme.Num(row, 9, true)
+  row.sectionLabel:SetJustifyH("LEFT")
+  row.sectionLabel:SetPoint("LEFT", 4, 0)
+  setColor(row.sectionLabel, Theme.color.gold)
+  row.sectionLabel:Hide()
   local gc = Theme.color.gold
-  local underline = row:CreateTexture(nil, "ARTWORK")
-  underline:SetHeight(1)
-  underline:SetPoint("BOTTOMLEFT")
-  underline:SetPoint("BOTTOMRIGHT")
-  underline:SetColorTexture(gc[1], gc[2], gc[3], 0.6)
-  underline:Hide()
-  row.underline = underline
+  row.sectionRule = row:CreateTexture(nil, "ARTWORK")
+  row.sectionRule:SetColorTexture(gc[1], gc[2], gc[3], 0.25)
+  row.sectionRule:SetHeight(1)
+  row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", 10, 0)
+  row.sectionRule:SetPoint("RIGHT", -2, 0)
+  row.sectionRule:Hide()
 
   -- Item icon, shown only on sale rows (paintRow) -- same trimmed-border
   -- convention as SellFrame's position rows.
@@ -519,7 +525,8 @@ createRow = function(parent)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   row.icon:Hide()
 
-  -- The full-row text used by "section" and "hint" kinds -- see paintRow.
+  -- The full-row text used by the "hint" kind -- see paintRow. Section rows
+  -- use row.sectionLabel/row.sectionRule above instead.
   row.wide = Theme.Label(row, 11)
   row.wide:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
   row.wide:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)

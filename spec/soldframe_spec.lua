@@ -121,9 +121,11 @@ describe("SoldFrame", function()
   end)
 
   -- Concatenates every cell a shown row could possibly carry -- the plain
-  -- item name, the section/hint full-row text, and the five column cells --
-  -- so a substring search behaves like the old single-blob search used to,
-  -- regardless of which cell kind actually holds the text.
+  -- item name, the hint's full-row text, the section row's own mono
+  -- micro-label (row.sectionLabel, when shown -- section rows no longer use
+  -- row.wide), and the five column cells -- so a substring search behaves
+  -- like the old single-blob search used to, regardless of which cell kind
+  -- actually holds the text.
   local function shownTexts()
     local out = {}
     for _, row in ipairs(rowsOf()) do
@@ -131,6 +133,7 @@ describe("SoldFrame", function()
         out[#out + 1] = table.concat({
           row.item:GetText() or "",
           row.wide:GetText() or "",
+          row.sectionLabel:IsShown() and (row.sectionLabel:GetText() or "") or "",
           row.cells.when:GetText() or "",
           row.cells.qty:GetText() or "",
           row.cells.unit:GetText() or "",
@@ -146,11 +149,13 @@ describe("SoldFrame", function()
   -- (plain find, no magic chars). Used where a test needs a specific row's
   -- own cell/color rather than a blob search across every rendered row -- a
   -- blob search can't tell which row a fact came from, so it can pass even
-  -- when the branch under test is broken.
+  -- when the branch under test is broken. A section row's text lives in
+  -- row.sectionLabel now, not row.wide -- checked first, additively.
   local function rowWithText(pattern)
     for _, row in ipairs(rowsOf()) do
       if row:IsShown() then
-        local text = (row.item:GetText() or "") .. (row.wide:GetText() or "")
+        local text = row.sectionLabel:IsShown() and (row.sectionLabel:GetText() or "")
+          or ((row.item:GetText() or "") .. (row.wide:GetText() or ""))
         if text:find(pattern, 1, true) then return row end
       end
     end
@@ -318,13 +323,19 @@ describe("SoldFrame", function()
                                    salesCount = 5, realized = 25 } })
     end
     GC.Sold.RefreshIfShown()
-    assert.truthy(shownTexts():find("On goldcap.gg -- last 30 days, latest 1 of 5", 1, true))
+    assert.truthy(shownTexts():find("ON GOLDCAP.GG — LAST 30 DAYS, LATEST 1 OF 5", 1, true))
+    -- The section row is the mono micro-label + gold rule (Task 3), not the
+    -- old full-width row.wide label.
+    local row = rowWithText("ON GOLDCAP.GG")
+    assert.truthy(row)
+    assert.truthy(row.sectionRule:IsShown())
+    assert.truthy(colorEquals(row.sectionLabel.colorValue, GC.Theme.color.gold))
   end)
 
   it("leaves the server section header unchanged when it holds every sale", function()
     GC.AppLedger.GetSummary = function() return summary() end -- salesCount == #sales == 1
     GC.Sold.RefreshIfShown()
-    assert.truthy(shownTexts():find("On goldcap.gg -- last 30 days", 1, true))
+    assert.truthy(shownTexts():find("ON GOLDCAP.GG — LAST 30 DAYS", 1, true))
     assert.is_nil(shownTexts():find("latest", 1, true))
   end)
 
