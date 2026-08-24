@@ -47,7 +47,7 @@ describe("SoldFrame", function()
     GC.Theme = {
       color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {1,1,1}, gold = {1,1,1},
                 red = {1,0,0}, green = {0,1,0}, panel = {0,0,0}, bg = {0,0,0},
-                zebra = {1,1,1,0.04}, hover = {1,1,1,0.08} },
+                zebra = {1,1,1,0.04}, hover = {1,1,1,0.08}, border = {1,1,1,0.06} },
       tier = { SUSPECT = {1,1,0} },
       pad = { xs = 4, s = 8, m = 12, l = 16 },
       Label = function(parent, _) return region("FontString", parent) end,

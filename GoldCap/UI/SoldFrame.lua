@@ -168,7 +168,6 @@ end
 -- ---------------------------------------------------------------------------
 local SD = {
   BAND_HEIGHT = 40,  -- header band: two text lines above the table
-  BAND_LINE2_Y = -18,
   HEADER_H = 16,     -- column header row height, matches Deals' CH.HEADER
 }
 
@@ -497,7 +496,9 @@ local function createHeaderRow(parent)
     if not col.flex then
       local hit = CreateFrame("Frame", nil, header)
       hit:SetHeight(SD.HEADER_H)
-      local label = Theme.Label(hit, 11)
+      local label = Theme.Num(hit, 9)
+      label:SetWordWrap(false)
+      setColor(label, Theme.color.fgDim)
       label:SetAllPoints()
       label:SetJustifyH(col.num and "RIGHT" or "LEFT")
       label:SetText((HEADER_TEXT[col.key] or ""):upper())
@@ -520,32 +521,62 @@ local function createHeaderRow(parent)
   end
   headerLayout()
 
+  -- Separates the column headings from the first row now that both read in
+  -- the same mono font (SellFrame's own header-underline precedent).
+  local bc = Theme.color.border
+  local rule = header:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("BOTTOMLEFT")
+  rule:SetPoint("BOTTOMRIGHT")
+  rule:SetHeight(1)
+
   return header
 end
 
--- The header band: two persistent lines above the table (totals + realized
--- profit, then sync age), not table rows -- SellFrame's header-band
--- convention, styled with this tab's own font sizes/spacing rather than its
--- code. `totals` line 1 and `age` line 2 are plain Theme.Label; `profit` is
--- Theme.Num bold and larger, matching "realized profit right in bold
--- green/red".
+-- The header band: two persistent lines above the table (totals, then sync
+-- age) plus a right-aligned REALIZED PROFIT block, not table rows --
+-- SellFrame's header-band convention, styled with this tab's own font sizes/
+-- spacing rather than its code. Every line is Theme.Num (mono), matching the
+-- mono column headers/rows below it; `profit` stays the largest and bold,
+-- "realized profit right in bold green/red" under its own dim caption.
 local function createBand(parent)
   local profit = Theme.Num(parent, 15, true)
-  profit:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+  profit:SetPoint("TOPRIGHT", 0, -16)
 
-  local totals = Theme.Label(parent, 11)
-  totals:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-  totals:SetPoint("RIGHT", profit, "LEFT", -Theme.pad.s, 0)
+  local profitLabel = Theme.Num(parent, 9)
+  setColor(profitLabel, Theme.color.fgDim)
+  profitLabel:SetText("REALIZED PROFIT")
+  profitLabel:SetPoint("TOPRIGHT", 0, -4)
+
+  local totals = Theme.Num(parent, 10)
   totals:SetJustifyH("LEFT")
   totals:SetWordWrap(false)
+  setColor(totals, Theme.color.fgMuted)
+  totals:SetPoint("TOPLEFT", 0, -5)
+  totals:SetPoint("RIGHT", profit, "LEFT", -Theme.pad.s, 0)
 
-  local age = Theme.Label(parent, 10)
-  age:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, SD.BAND_LINE2_Y)
-  age:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, SD.BAND_LINE2_Y)
+  local age = Theme.Num(parent, 9)
   age:SetJustifyH("LEFT")
   age:SetWordWrap(false)
+  age:SetPoint("TOPLEFT", 0, -24)
+  age:SetPoint("RIGHT", profit, "LEFT", -Theme.pad.s, 0)
 
-  return { totals = totals, profit = profit, age = age }
+  -- Band rule: a separate frame pinned to the band's own height so the 1px
+  -- BOTTOMLEFT/BOTTOMRIGHT line sits at the band's bottom edge regardless of
+  -- where the text lines above it end -- the same fixed-height-frame-plus-
+  -- rule shape SellFrame's header underline uses.
+  local bandFrame = CreateFrame("Frame", nil, parent)
+  bandFrame:SetPoint("TOPLEFT", 0, 0)
+  bandFrame:SetPoint("TOPRIGHT", 0, 0)
+  bandFrame:SetHeight(SD.BAND_HEIGHT)
+  local bc = Theme.color.border
+  local rule = bandFrame:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("BOTTOMLEFT")
+  rule:SetPoint("BOTTOMRIGHT")
+  rule:SetHeight(1)
+
+  return { totals = totals, profit = profit, profitLabel = profitLabel, age = age, rule = rule }
 end
 
 -- The container is anchored TOPLEFT/BOTTOMRIGHT to the window (Attach
@@ -580,7 +611,7 @@ local function renderRows()
   for _, entry in ipairs(entries) do
     if entry.kind == "totals" then
       local t = entry.summary.totals
-      band.totals:SetText(("%d sales -- %s proceeds -- %s in the mail"):format(
+      band.totals:SetText(("%d sales · %s proceeds · %s in the mail"):format(
         t.salesCount, formatAmount(t.proceeds), formatAmount(t.pending)))
       setColor(band.totals, Theme.color.fg)
       if t.realized then
@@ -588,7 +619,7 @@ local function renderRows()
         setColor(band.profit, t.realized >= 0 and Theme.color.green or Theme.color.red)
       end
     elseif entry.kind == "age" then
-      band.age:SetText(("data from goldcap.gg -- synced %s ago"):format(
+      band.age:SetText(("data from goldcap.gg · synced %s ago"):format(
         GC.Util.FormatAge(entry.age)))
       if entry.age >= STALE_RED_SECONDS then
         setColor(band.age, Theme.color.red)
