@@ -347,3 +347,222 @@ describe("Sniper row repaint skip", function()
     assert.equal(0, highlightHideCalls)
   end)
 end)
+
+-- Task 2 review finding: nothing above drives the REAL OnMouseDown/OnMouseUp/OnLeave closures
+-- createRow wires onto a row -- the repaint tests above hand-build fake rows, and
+-- watch_loop_spec.lua's "[wiring] dispatches both mouse phases..." only proves the SOURCE TEXT
+-- calls the right functions by name, not that the leftPressed latch/buy gate actually behave.
+-- This builds a REAL row against a REAL Theme.Button/TierMark/Num/Label (same option-(a)
+-- approach as theme_button_contract_spec.lua/theme_rounded_button_spec.lua) off a recording
+-- CreateFrame stub, the way loadorder_spec.lua's stubFrame records SetScript into a table, and
+-- fires the actual closures captured off the result.
+describe("Row click wiring (whole-row left-click acts)", function()
+  -- Nearly the theme_rounded_button_spec.lua / theme_button_contract_spec.lua stub, extended
+  -- with CreateAnimationGroup (createRow builds one directly on the row -- see flashAnim) and
+  -- IsEnabled (the new OnMouseUp gate reads it off row.buy). shown/enabled default to true,
+  -- matching a real Blizzard widget's default state -- createRow never calls Show()/Enable()
+  -- on construction, it relies on that default, and a stub defaulting to false/nil would pass
+  -- these tests for the wrong reason (an accidentally-hidden button "explains" a click that
+  -- never fires).
+  local function stubFrame()
+    local f = { points = {}, scripts = {}, shown = true, enabled = true }
+    function f:SetPoint(...) self.points[#self.points + 1] = { ... } end
+    function f:ClearAllPoints() self.points = {} end
+    function f:SetSize(w, h) self.width, self.height = w, h end
+    function f:SetWidth(w) self.width = w end
+    function f:SetHeight(h) self.height = h end
+    function f:SetScript(name, fn) self.scripts[name] = fn end
+    function f:HookScript(name, fn) self.scripts[name] = fn end
+    function f:RegisterForClicks(kind) self.clicks = kind end
+    function f:EnableMouse(enabled) self.mouseEnabled = enabled end
+    function f:Enable() self.enabled = true; if self.scripts.OnEnable then self.scripts.OnEnable(self) end end
+    function f:Disable() self.enabled = false; if self.scripts.OnDisable then self.scripts.OnDisable(self) end end
+    function f:IsEnabled() return self.enabled end
+    function f:SetJustifyH(v) self.justify = v end
+    function f:SetWordWrap(v) self.wordWrap = v end
+    function f:SetMaxLines(n) self.maxLines = n end
+    function f:SetText(text) self.rawText = text end
+    function f:GetText() return self.rawText or "" end
+    function f:SetTextColor(...) self.color = { ... } end
+    function f:SetFont(path, size, flags) self.font = { path, size, flags } end
+    function f:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
+    function f:SetColorTexture(...) self.colorTexture = { ... } end
+    function f:SetTexture(file) self.textureFile = file end
+    function f:SetTextureSliceMargins(l, t, r, b) self.slice = { l, t, r, b } end
+    function f:SetVertexColor(...) self.vertex = { ... } end
+    function f:SetBlendMode(mode) self.blend = mode end
+    function f:SetAllPoints(rel) self.allPoints = rel end
+    function f:SetAlpha(a) self.alpha = a end
+    function f:Show() self.shown = true end
+    function f:Hide() self.shown = false end
+    function f:IsShown() return self.shown end
+    function f:CreateTexture() return stubFrame() end
+    function f:CreateFontString() return stubFrame() end
+    function f:CreateAnimationGroup()
+      return {
+        CreateAnimation = function()
+          return {
+            SetFromAlpha = function() end, SetToAlpha = function() end,
+            SetDuration = function() end, SetSmoothing = function() end,
+            SetOrder = function() end, SetTarget = function() end,
+          }
+        end,
+        SetLooping = function() end, SetScript = function() end,
+        Play = function() end, Stop = function() end, IsPlaying = function() return false end,
+      }
+    end
+    return f
+  end
+
+  local function getUpvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  local function setUpvalue(fn, wanted, value)
+    for i = 1, math.huge do
+      local name = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then debug.setupvalue(fn, i, value); return end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  local function load()
+    _G.GetTime = function() return 100 end
+    _G.time = function() return 1000 end
+    _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
+    _G.ITEM_QUALITY_COLORS = {}
+    _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+    _G.CreateFrame = function() return stubFrame() end
+    -- Only OnLeave (GameTooltip:Hide()) is exercised below, never OnEnter's fuller GameTooltip
+    -- use -- an any-method-is-a-no-op stub covers whichever of GameTooltip's methods any given
+    -- scenario happens to reach, the same trick sniper_pin_feedback_spec.lua's row stubs use.
+    _G.GameTooltip = setmetatable({}, { __index = function() return function() end end })
+
+    local GC = {}
+    helper.loadModule("UI/Theme.lua", GC)
+    GC.AutoScan = { New = function()
+      return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
+    end }
+    GC.Data = { GetItemValue = function() return nil end }
+    GC.db = { settings = { sniper = { watchPins = {} } } }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/WatchSet.lua", GC) -- _TogglePin -> _RefreshWatchSet -> GC.WatchSet.Select
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+
+    return { GC = GC, createRow = createRow }
+  end
+
+  after_each(function()
+    _G.GetTime, _G.time, _G.GetCoinTextureString = nil, os.time, nil
+    _G.ITEM_QUALITY_COLORS, _G.Item = nil, nil
+    _G.CreateFrame, _G.GameTooltip = nil, nil
+  end)
+
+  -- itemID 99 satisfies GC.Sniper._RowPinEvent's `not row.deal` guard for the right-click test
+  -- below -- setRowDeal is never called here, so this is set directly, the way
+  -- sniper_pin_feedback_spec.lua's own row stubs do.
+  local function buildRow(ctx)
+    local row = ctx.createRow({}, 1)
+    row.deal = { itemID = 99 }
+    return row
+  end
+
+  it("builds row.flash as its own texture, distinct from row.highlight", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    assert.is_not_nil(row.flash)
+    assert.is_not_nil(row.highlight)
+    assert.are_not.equal(row.highlight, row.flash)
+  end)
+
+  it("fires the row action once for a left down+up that both land on the row", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    local calls = {}
+    setUpvalue(ctx.createRow, "onBuyClick", function(r) calls[#calls + 1] = r end)
+
+    row.scripts.OnMouseDown(row, "LeftButton")
+    row.scripts.OnMouseUp(row, "LeftButton")
+
+    assert.same({ row }, calls)
+  end)
+
+  it("never fires the row action on a right-click, and still dispatches both phases to the pin handler", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    local calls = {}
+    setUpvalue(ctx.createRow, "onBuyClick", function(r) calls[#calls + 1] = r end)
+
+    row.scripts.OnMouseDown(row, "RightButton")
+    row.scripts.OnMouseUp(row, "RightButton")
+
+    assert.same({}, calls)
+    -- Proves _RowPinEvent actually received BOTH phases (down armed+toggled the latch, up saw
+    -- the latch and did NOT toggle again) -- a single stray toggle would also leave one entry
+    -- here, so this alone wouldn't prove two calls, but combined with the down-only/up-only
+    -- latch behaviour already covered in sniper_pin_feedback_spec.lua, this is the wiring proof.
+    assert.same({ 99 }, ctx.GC.db.settings.sniper.watchPins)
+  end)
+
+  it("does not fire when the left press started on the row but the cursor left before releasing", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    local calls = {}
+    setUpvalue(ctx.createRow, "onBuyClick", function(r) calls[#calls + 1] = r end)
+
+    row.scripts.OnMouseDown(row, "LeftButton")
+    row.scripts.OnLeave(row)
+    row.scripts.OnMouseUp(row, "LeftButton")
+
+    assert.same({}, calls)
+  end)
+
+  it("does not fire on a left-up with no prior left-down on this row", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    local calls = {}
+    setUpvalue(ctx.createRow, "onBuyClick", function(r) calls[#calls + 1] = r end)
+
+    row.scripts.OnMouseUp(row, "LeftButton")
+
+    assert.same({}, calls)
+  end)
+
+  it("does not fire when the Buy button is disabled", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    local calls = {}
+    setUpvalue(ctx.createRow, "onBuyClick", function(r) calls[#calls + 1] = r end)
+    row.buy:Disable()
+
+    row.scripts.OnMouseDown(row, "LeftButton")
+    row.scripts.OnMouseUp(row, "LeftButton")
+
+    assert.same({}, calls)
+  end)
+
+  it("does not fire when the Buy button is hidden", function()
+    local ctx = load()
+    local row = buildRow(ctx)
+    local calls = {}
+    setUpvalue(ctx.createRow, "onBuyClick", function(r) calls[#calls + 1] = r end)
+    row.buy:Hide()
+
+    row.scripts.OnMouseDown(row, "LeftButton")
+    row.scripts.OnMouseUp(row, "LeftButton")
+
+    assert.same({}, calls)
+  end)
+end)
