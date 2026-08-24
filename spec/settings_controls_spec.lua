@@ -40,8 +40,17 @@ describe("Settings controls", function()
     function r:SetFont(...) self.font = { ... } end
     function r:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
     function r:SetSpacing(s) self.spacing = s end
-    function r:Show() self.shown = true end
-    function r:Hide() self.shown = false end
+    -- T6: mirrors the real WidgetAPI (Show/Hide dispatch OnShow/OnHide) -- SettingsFrame.lua's
+    -- rail-gear wiring only runs off those events, not off build()'s own state, so a fake that
+    -- flipped `.shown` without firing them would leave that wiring untestable here.
+    function r:Show()
+      self.shown = true
+      if self.scripts.OnShow then self.scripts.OnShow(self) end
+    end
+    function r:Hide()
+      self.shown = false
+      if self.scripts.OnHide then self.scripts.OnHide(self) end
+    end
     function r:IsShown() return self.shown end
     function r:Enable() self.enabled = true end
     function r:Disable() self.enabled = false end
@@ -170,6 +179,10 @@ describe("Settings controls", function()
     GC.Theme = fakeTheme()
     GC.Sniper = { DefaultWindowSize = function() return 720, 520 end }
     _G.GoldCapSniperFrame = region("Frame")
+    -- T6: SettingsFrame.lua reads the gear off sniperFrame.rail.gear (SniperFrame.lua's own
+    -- `f.rail = rail`, ~:5153) -- a plain region("Button") already records SetVariant calls
+    -- into `.variant`, same as every other fake button in this file.
+    _G.GoldCapSniperFrame.rail = { gear = region("Button") }
     helper.loadModule("UI/SettingsFrame.lua", GC)
   end)
 
@@ -217,5 +230,14 @@ describe("Settings controls", function()
     local done = buttonLabeled(_G.GoldCapSniperFrame, "DONE")
     assert.is_not_nil(done)
     assert.equal("plaque", done.rounded)
+  end)
+
+  it("rail gear lights up while the overlay is open (T6)", function()
+    local gear = _G.GoldCapSniperFrame.rail.gear
+    GC.SettingsUI.Toggle() -- opens: build() then Show()
+    assert.equal("active", gear.variant)
+
+    GC.SettingsUI.Toggle() -- closes
+    assert.equal("ghost", gear.variant)
   end)
 end)

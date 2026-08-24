@@ -572,6 +572,21 @@ local function build(sniperFrame)
     for _, refresh in ipairs(refreshers) do refresh() end
   end)
 
+  -- T6: the rail gear lights up while this overlay is open, so its own state (lit while a view
+  -- is active, per RailButton) reads consistently whether the "view" is Deals/Sell/Sold or
+  -- Settings. HookScript, not SetScript, for OnShow -- the refresh loop above already owns that
+  -- event and this must not clobber it. OnHide has no existing script, and both close paths
+  -- (Escape's OnKeyDown and DONE's OnClick, above) funnel through GC.SettingsUI.Toggle()'s own
+  -- panel:Hide(), so one OnHide here covers both without duplicating the wiring at each call
+  -- site. Guarded: sniperFrame.rail doesn't exist for a bare Settings-panel construction (there
+  -- is none in production, but this file's own specs build SettingsFrame.lua standalone).
+  local rail = sniperFrame.rail
+  local gear = rail and rail.gear
+  if gear and gear.SetVariant then
+    panel:HookScript("OnShow", function() gear:SetVariant("active") end)
+    panel:SetScript("OnHide", function() gear:SetVariant("ghost") end)
+  end
+
   -- Fix round 1 (C2): WoW frames are SHOWN by default -- without this, build() hands back an
   -- already-visible panel, and GC.SettingsUI.Toggle()'s very first call (`if panel:IsShown()
   -- then Hide() else Show() end`) immediately hides it again on the first gear click of every

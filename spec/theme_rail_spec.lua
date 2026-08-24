@@ -95,6 +95,10 @@ describe("Theme.Rail navigation widgets", function()
     assert.is_truthy(rail.buttons.sell)
     assert.is_truthy(rail.buttons.sold)
     assert.is_truthy(rail.gear)
+    -- T6: rounded "badge" (margin 6, same size class as RailButton's own badge -- see
+    -- ROUNDED_BUTTON's comment in Theme.lua) so SetVariant("active")/"ghost" (SettingsFrame.lua's
+    -- OnShow/OnHide) has a rounded fill to repaint, not the square edgeBorder look.
+    assert.equal(6, rail.gear.roundedMargin)
     -- labels are what the player reads; assert them so a refactor can't shuffle order
     assert.equal("DEALS", rail.buttons.deals.text.rawText)
     assert.equal("SELL", rail.buttons.sell.text.rawText)
