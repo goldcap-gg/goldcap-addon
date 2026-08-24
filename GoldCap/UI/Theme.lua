@@ -313,7 +313,15 @@ function T.Rail(parent)
   gear.icon:SetPoint("CENTER")
   gear.icon:SetVertexColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], 1)
 
-  return { frame = frame, buttons = buttons, gear = gear }
+  -- Docked into the Auction House the host's portrait overhangs the rail's top-left corner;
+  -- SetDocked pushes the logo (and the nav chain anchored to it) below it. The gear is
+  -- bottom-anchored and unaffected.
+  local function setTopInset(px)
+    logo:ClearAllPoints()
+    logo:SetPoint("TOP", 0, -(16 + (px or 0)))
+  end
+
+  return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset }
 end
 
 -- Chip: solid dark plaque + colored text + colored 1px underline.

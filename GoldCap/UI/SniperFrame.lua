@@ -4058,6 +4058,10 @@ local CH = {}
 CH.TITLEBAR = 32    -- matches Theme.TitleBar's own fixed bar height (Theme.lua)
 CH.BTN_H = 26 -- toolbar row: Auto / Scan / Refused-Hidden, all "plaque" buttons
 CH.HEADER = 16      -- column header row height
+-- Docked into the Auction House, the host's portrait overhangs the rail's top-left corner
+-- (measured in the 2026-08-24 screenshot: logo top ~= 59px, portrait bottom ~= 70px at 1x);
+-- 28 clears it with margin. Passed to rail.SetTopInset in SetDocked below.
+CH.DOCK_RAIL_INSET = 28
 
 -- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
 -- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
@@ -5184,7 +5188,7 @@ local function createFrame()
   -- Scan, Refused/Hidden. Sniper v4 toolbar rework: the three buttons all share the same
   -- "plaque" rounded chrome (Theme.Button's rounded arg from the rail kit) at height 26
   -- (CH.BTN_H), and every label on this row is UPPERCASE mono.
-  local row2Y = -(CH.TITLEBAR + Theme.pad.s)
+  local row2Y = -(CH.TITLEBAR + Theme.pad.xs)
 
   -- Auto: now anchored top-LEFT of the content column (was top-right) -- the rail kit put
   -- navigation on its own strip at the window's left edge, so the toolbar's own left edge is
@@ -5438,15 +5442,17 @@ local function createFrame()
 
   table.insert(UISpecialFrames, "GoldCapSniperFrame") -- Escape closes the window
 
-  -- D: builds the Sell tab's container, hidden, filling the exact region `scroll` occupies
-  -- above (same WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER/scrollTop/scrollBottom -- passed through,
-  -- never re-declared, so the two views can't silently drift out of alignment). rowWidth is a
-  -- Initial geometry for the Sell ledger.  SellFrame keeps its own responsive column layout
+  -- D: builds the Sell tab's container, hidden, filling the region below the title bar. Sell
+  -- and Sold own their toolbars (their own Auto/Scan-equivalent row), so their containers start
+  -- where the Deals toolbar starts (row2Y), not below Deals' header row -- Deals is the only
+  -- view with a third (column-header) row. The shared invariant across all three views is
+  -- horizontal (WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER) plus the bottom edge (scrollBottom);
+  -- rowWidth is initial geometry only -- SellFrame keeps its own responsive column layout
   -- current from this same window's OnSizeChanged hook.
   GC.Sell.Attach(f, {
     panelLeft = WIN.CONTENT_LEFT,
     panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
-    top = scrollTop,
+    top = row2Y,
     bottom = scrollBottom,
     rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
     rowHeight = WIN.ROW_HEIGHT,
@@ -5455,7 +5461,7 @@ local function createFrame()
   GC.Sold.Attach(f, {
     panelLeft = WIN.CONTENT_LEFT,
     panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
-    top = scrollTop,
+    top = row2Y,
     bottom = scrollBottom,
     rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
     rowHeight = WIN.ROW_HEIGHT,
@@ -5548,6 +5554,7 @@ function GC.Sniper.SetDocked(host)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT")
     frame:SetPoint("BOTTOMRIGHT")
+    if frame.rail and frame.rail.SetTopInset then frame.rail.SetTopInset(CH.DOCK_RAIL_INSET) end
     if not frame:IsShown() then
       GC.Sniper.Toggle() -- the ordinary open path: stale banner, bag counts, the tab badge
     end
@@ -5576,6 +5583,7 @@ function GC.Sniper.SetDocked(host)
     local height = (saved and type(saved.height) == "number") and clampWindowHeight(saved.height)
       or WIN.FRAME_HEIGHT
     pcall(frame.SetSize, frame, width, height)
+    if frame.rail and frame.rail.SetTopInset then frame.rail.SetTopInset(0) end
   end
 end
 

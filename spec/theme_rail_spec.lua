@@ -104,4 +104,12 @@ describe("Theme.Rail navigation widgets", function()
     assert.equal("SELL", rail.buttons.sell.text.rawText)
     assert.equal("SOLD", rail.buttons.sold.text.rawText)
   end)
+
+  it("Rail: SetTopInset re-points the logo below the docked host's portrait", function()
+    local rail = GC.Theme.Rail(stubFrame())
+    assert.is_truthy(rail.logo)
+    rail.SetTopInset(28)
+    local point = rail.logo.points[#rail.logo.points]
+    assert.same({ "TOP", 0, -44 }, point)
+  end)
 end)
