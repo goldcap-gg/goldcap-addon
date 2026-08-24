@@ -771,13 +771,13 @@ local nameIconCache = {}
 local function setRowDeal(row, deal)
   -- (fix round 1, M3) A pooled row's ping flash must not migrate onto whatever deal gets
   -- reassigned into this same screen slot on the next refresh -- Stop() doesn't fire
-  -- OnFinished (that only runs on natural completion), so the highlight/alpha reset that
+  -- OnFinished (that only runs on natural completion), so the flash/alpha reset that
   -- normally happens there has to be done explicitly here too. Only stops on an itemID
   -- CHANGE -- the same item re-stamped with a fresher price (still mid-flash) keeps flashing.
   if row.flashAnim and row.deal and row.deal.itemID ~= deal.itemID then
     row.flashAnim:Stop()
-    if hoveredRow ~= row then row.highlight:Hide() end
-    row.highlight:SetAlpha(1)
+    row.flash:Hide()
+    row.flash:SetAlpha(1)
   end
   row.deal = deal
   -- What the background Check found, if anything. Gold "Buy" is reserved for a row a live
@@ -1486,16 +1486,17 @@ end
 -- racing fresher state.
 -- ---------------------------------------------------------------------------
 
--- New-HOT-deal ping (spec §3): 1.5s flash on the row's own hover-highlight texture (E.1's
--- `row.highlight`), reusing it rather than a dedicated texture. row.flashAnim (built once
--- per pooled row in createRow) owns an Alpha animation fading from full brightness to 0;
--- its OnFinished (also wired in createRow) re-hides the highlight unless the row is
--- genuinely under the mouse right now, so a flash ending mid-hover never fights the real
--- hover state.
+-- New-HOT-deal ping (spec §3): 1.5s flash on the row's OWN dedicated texture (`row.flash`,
+-- built alongside `row.highlight` in createRow). It used to reuse row.highlight itself,
+-- which left the hover wash inheriting whatever alpha the fade animation had last written to
+-- it. row.flashAnim (built once per pooled row in createRow) owns an Alpha animation fading
+-- row.flash from full brightness to 0; its OnFinished (also wired in createRow) hides
+-- row.flash and resets its alpha, entirely independent of hover state -- the highlight is
+-- shown/hidden purely by OnEnter/OnLeave now.
 local function flashRow(row)
   if not row.flashAnim then return end
-  row.highlight:SetAlpha(1)
-  row.highlight:Show()
+  row.flash:SetAlpha(1)
+  row.flash:Show()
   row.flashAnim:Stop()
   row.flashAnim:Play()
 end
@@ -4724,30 +4725,42 @@ createRow = function(parent, index)
   highlight:Hide()
   row.highlight = highlight
 
+  -- The new-HOT-deal ping fades its OWN texture. It used to animate row.highlight's alpha,
+  -- which left the hover wash inheriting whatever alpha the animation last wrote.
+  local flash = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+  flash:SetTexture(Theme.MEDIA .. "plaque.png")
+  flash:SetTextureSliceMargins(12, 12, 12, 12)
+  flash:SetVertexColor(hc[1], hc[2], hc[3], 0.35)
+  flash:SetPoint("TOPLEFT", 2, -1)
+  flash:SetPoint("BOTTOMRIGHT", -26, 1)
+  flash:Hide()
+  row.flash = flash
+
   -- Sniper v3 §3 ping: 1.5s alpha fade-out flash for a newly-surfaced HOT deal (see
   -- pingNewHotDeals/flashRow above advanceBrowseScan). Built once per pooled row rather than
   -- per-flash -- an AnimationGroup is a real object with nontrivial construction cost, and
-  -- rows are reused across scans/passes via the same pool. OnFinished re-hides the highlight
-  -- unless the row is genuinely under the mouse right now (hoveredRow), so a flash that
-  -- finishes mid-hover never fights the real hover state, and resets alpha back to 1 either
-  -- way so a later genuine hover isn't dimmed.
+  -- rows are reused across scans/passes via the same pool. It targets its OWN dedicated
+  -- texture (`flash`, above) rather than `highlight` -- the highlight is shown/hidden purely
+  -- by OnEnter/OnLeave (see below) and must never inherit whatever alpha an in-flight
+  -- animation last wrote. OnFinished hides `flash` and resets its alpha back to 1 so a later
+  -- flash isn't dimmed.
   --
   -- (fix round 1, "insurance from cannot-verify") The group is built on the ROW frame
-  -- (`row:CreateAnimationGroup()`), not `highlight:CreateAnimationGroup()` -- Frame is
+  -- (`row:CreateAnimationGroup()`), not `flash:CreateAnimationGroup()` -- Frame is
   -- unambiguously a supported AnimationGroup owner; Texture's support for the same call
   -- wasn't independently verified against the live client, so this avoids betting createRow
   -- (which every pooled row, and therefore refreshRows() itself, depends on) on a Region-API
-  -- gap. SetTarget points the specific Alpha animation at `highlight` instead.
+  -- gap. SetTarget points the specific Alpha animation at `flash` instead.
   local flashAnim = row:CreateAnimationGroup()
   local flashAlpha = flashAnim:CreateAnimation("Alpha")
-  flashAlpha:SetTarget(highlight)
+  flashAlpha:SetTarget(flash)
   flashAlpha:SetFromAlpha(1)
   flashAlpha:SetToAlpha(0)
   flashAlpha:SetDuration(1.5)
   flashAlpha:SetSmoothing("OUT")
   flashAnim:SetScript("OnFinished", function()
-    if hoveredRow ~= row then highlight:Hide() end
-    highlight:SetAlpha(1)
+    flash:Hide()
+    flash:SetAlpha(1)
   end)
   row.flashAnim = flashAnim
 
@@ -4832,23 +4845,44 @@ createRow = function(parent, index)
       hoveredRow = nil
       refreshRows()
     end
+    -- A left press that started on this row and then dragged off it (cursor left before the
+    -- button came back up) must not act when it eventually lifts somewhere else -- see
+    -- OnMouseUp below.
+    self.leftPressed = nil
     GameTooltip:Hide()
   end)
 
-  -- Right-click pins. Both phases, not RegisterForClicks: `row` is a plain Frame, so it has
-  -- no RegisterForClicks at all (that is a Button method -- the guarded call that used to sit
-  -- here was a no-op dressed up as intent). The first attempt used OnMouseUp alone and did not
-  -- fire from a trackpad two-finger tap; OnMouseDown alone is the same single-phase bet in the
-  -- other direction, so GC.Sniper._RowPinEvent listens to both and latches so one physical
-  -- press toggles exactly once -- see its own comment.
+  -- Right-click pins. Left-click acts on the whole row. Both mouse-down and mouse-up are
+  -- wired, not RegisterForClicks: `row` is a plain Frame, so it has no RegisterForClicks at
+  -- all (that is a Button method -- the guarded call that used to sit here was a no-op
+  -- dressed up as intent). The first attempt used OnMouseUp alone and did not fire from a
+  -- trackpad two-finger tap; OnMouseDown alone is the same single-phase bet in the other
+  -- direction, so GC.Sniper._RowPinEvent listens to both and latches so one physical
+  -- right-click press toggles exactly once -- see its own comment.
   --
-  -- Firing on the press is fine HERE and only here: pinning is a reversible view preference,
-  -- not a purchase. Nothing on this path may ever reach a protected call, which is why the Buy
-  -- button keeps its own LeftButtonUp handler and is untouched by this.
+  -- Firing the PIN on the press is fine HERE and only here: pinning is a reversible view
+  -- preference, not a purchase. Nothing on THIS path (the pin dispatch) reaches a protected
+  -- call -- _RowPinEvent is a plain settings-list mutation.
+  --
+  -- The left-click ACTION is different: it runs the exact same onBuyClick as row.buy's own
+  -- OnClick (buildRowCell, above), on release, gated by `leftPressed` -- armed only by a down
+  -- that landed on this row and cleared by OnLeave, so a press that drags off the row before
+  -- releasing is not this row's click, and a right-click or a disabled/hidden Buy button never
+  -- fires it. This mirrors ordinary button-click semantics rather than adding a new one: it
+  -- does not reach a protected call directly, and everything downstream of onBuyClick (Check,
+  -- the dialog, the eventual purchase) still runs its own live re-verification and still needs
+  -- its own separate hardware click to arm a purchase.
   row:SetScript("OnMouseDown", function(self, button)
+    if button == "LeftButton" then self.leftPressed = true end
     GC.Sniper._RowPinEvent(self, "down", button)
   end)
   row:SetScript("OnMouseUp", function(self, button)
+    -- A left click anywhere on the row is the row's action (the same handler as row.buy);
+    -- the button itself sits above the row and keeps its own click. Disabled = no action.
+    if button == "LeftButton" and self.leftPressed then
+      self.leftPressed = nil
+      if self.buy and self.buy:IsShown() and self.buy:IsEnabled() then onBuyClick(self) end
+    end
     GC.Sniper._RowPinEvent(self, "up", button)
   end)
 

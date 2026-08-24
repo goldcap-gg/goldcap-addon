@@ -98,10 +98,15 @@ describe("Sniper row repaint skip", function()
     local setRowDeal = getUpvalue(refreshRows, "setRowDeal")
     local verdictFor = getUpvalue(setRowDeal, "verdictFor")
     local verdicts = getUpvalue(verdictFor, "verdicts")
+    -- flashRow is not reachable from clearDeals/refreshRows -- it's an upvalue of
+    -- repaintToggledRow, which is itself an upvalue of the public GC.Sniper._TogglePin.
+    local repaintToggledRow = getUpvalue(GC.Sniper._TogglePin, "repaintToggledRow")
+    local flashRow = getUpvalue(repaintToggledRow, "flashRow")
 
     return {
       GC = GC,
       setRowDeal = setRowDeal,
+      flashRow = flashRow,
       verdicts = verdicts,
       itemLoads = function() return itemLoads end,
       setTrend = function(v) trendValue = v end,
@@ -287,5 +292,58 @@ describe("Sniper row repaint skip", function()
 
     ctx.setRowDeal(row, deal(7, { profit = 200 })) -- genuine change -> repaints, but same itemID
     assert.equal(1, ctx.itemLoads())
+  end)
+
+  -- Task 2: the HOT-deal ping used to animate row.highlight's alpha directly, so the hover
+  -- wash inherited whatever alpha the fade animation had last written to it. It now owns a
+  -- dedicated row.flash texture; row.highlight is touched only by OnEnter/OnLeave.
+  it("flashes the ping on the row's own flash texture, never the hover highlight", function()
+    local ctx = load()
+    local flashCalls, highlightCalls = {}, {}
+    local row = {
+      flash = {
+        SetAlpha = function() table.insert(flashCalls, "SetAlpha") end,
+        Show = function() table.insert(flashCalls, "Show") end,
+        Hide = function() table.insert(flashCalls, "Hide") end,
+      },
+      highlight = {
+        SetAlpha = function() table.insert(highlightCalls, "SetAlpha") end,
+        Show = function() table.insert(highlightCalls, "Show") end,
+        Hide = function() table.insert(highlightCalls, "Hide") end,
+      },
+      flashAnim = { Stop = function() end, Play = function() end },
+    }
+
+    ctx.flashRow(row)
+
+    assert.same({ "SetAlpha", "Show" }, flashCalls)
+    assert.same({}, highlightCalls)
+  end)
+
+  it("resets only the flash texture, not the hover highlight, when a pooled row's itemID changes mid-flash", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+    local flashResets = {}
+    row.flash = {
+      SetAlpha = function() table.insert(flashResets, "SetAlpha") end,
+      Hide = function() table.insert(flashResets, "Hide") end,
+      Show = function() end,
+    }
+    row.flashAnim = { Stop = function() table.insert(flashResets, "Stop") end, Play = function() end }
+    local highlightHideCalls = 0
+    local realHighlightHide = row.highlight.Hide
+    function row.highlight:Hide()
+      highlightHideCalls = highlightHideCalls + 1
+      realHighlightHide(self)
+    end
+
+    ctx.setRowDeal(row, deal(7))
+    -- A DIFFERENT itemID lands in this same pooled slot mid-flash -- the reuse guard stops/
+    -- hides/resets row.flash, and never touches row.highlight (OnEnter/OnLeave own that alone).
+    ctx.setRowDeal(row, deal(9))
+
+    assert.same({ "Stop", "Hide", "SetAlpha" }, flashResets)
+    assert.equal(0, highlightHideCalls)
   end)
 end)
