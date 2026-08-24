@@ -23,6 +23,13 @@ describe("SoldFrame", function()
     function r:SetWordWrap() end
     function r:SetTextColor(...) self.colorValue = { ... } end
     function r:SetColorTexture(...) self.colorTexture = { ... } end
+    -- Sliced rounded fills (batch-5 pattern, see UI/SellFrame.lua's own
+    -- doubles): rows own a real texture now instead of a flat color.
+    function r:SetTexture(f) self.texture = f end
+    function r:SetTexCoord() end
+    function r:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
+    function r:SetVertexColor(...) self.vertexColor = { ... } end
+    function r:SetSpacing(s) self.spacing = s end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
     function r:Show() self.visible = true end
@@ -45,6 +52,7 @@ describe("SoldFrame", function()
 
     GC = helper.loadModule("Core/Util.lua")
     GC.Theme = {
+      MEDIA = "",
       color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {1,1,1}, gold = {1,1,1},
                 red = {1,0,0}, green = {0,1,0}, panel = {0,0,0}, bg = {0,0,0},
                 zebra = {1,1,1,0.04}, hover = {1,1,1,0.08}, border = {1,1,1,0.06} },
@@ -374,7 +382,18 @@ describe("SoldFrame", function()
     assert.truthy(posted and transit)
     assert.truthy(posted.cells.when:GetText() ~= "in the mail")
     assert.equal("in the mail", transit.cells.when:GetText())
-    assert.truthy(colorEquals(transit.cells.when.colorValue, GC.Theme.color.fgDim))
+    -- A dated WHEN stays dim like the rest of the row; "in the mail" is the
+    -- one thing in that column worth calling out, so it gets the gold tint.
+    assert.truthy(colorEquals(posted.cells.when.colorValue, GC.Theme.color.fgDim))
+    assert.truthy(colorEquals(transit.cells.when.colorValue, GC.Theme.color.gold))
+  end)
+
+  it("renders the row fill through a sliced texture, not a flat color", function()
+    -- Batch-5 sliced-fill pattern (SellFrame's row.zebra precedent): a real
+    -- texture recolored with SetVertexColor, not SetColorTexture.
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Sold.RefreshIfShown()
+    assert.equal("plaque.png", rowsOf()[1].zebra.texture)
   end)
 
   it("shows the UNIT column as floor(total/qty)", function()

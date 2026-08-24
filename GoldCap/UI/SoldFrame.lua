@@ -300,11 +300,24 @@ local function paintSaleCells(row, name, itemID, qty, total, at, pending)
   row.item:SetText(decorated)
   setColor(row.item, Theme.color.fg)
 
+  -- Item icon, same guarded C_Item.GetItemIconByID call SellFrame's position
+  -- rows use -- headless/pcall-safe, no icon rather than an error when the
+  -- client doesn't have one cached yet.
+  row.itemInset = 26
+  local icon = nil
+  if itemID and C_Item and C_Item.GetItemIconByID then
+    local ok, texture = pcall(C_Item.GetItemIconByID, itemID)
+    icon = ok and texture or nil
+  end
+  if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
+
   -- The sale exists, the gold is just in transit -- same honesty the old
   -- "[not yet paid out]" suffix carried, now the WHEN column's own content
   -- rather than an appendix to it.
+  -- Transit is the one thing worth calling out in this column -- the gold
+  -- tint says "still moving", dates stay dim like the rest of the row.
   row.cells.when:SetText(pending and "in the mail" or formatWhen(at))
-  setColor(row.cells.when, Theme.color.fgDim)
+  setColor(row.cells.when, pending and Theme.color.gold or Theme.color.fgDim)
 
   row.cells.qty:SetText(tostring(qty or 0))
   setColor(row.cells.qty, Theme.color.fg)
@@ -341,6 +354,10 @@ local function clearRow(row)
   row.wide:SetText("")
   row.wide:Hide()
   row.underline:Hide()
+  -- Only a sale row (paintSaleCells) claims icon space; hint/section rows
+  -- have nothing to show one for and stay flush left.
+  row.itemInset = 0
+  row.icon:Hide()
   for _, col in ipairs(COLUMNS) do
     if not col.flex then
       row.cells[col.key]:SetText("")
@@ -357,7 +374,7 @@ local function paintRow(row, entry, index)
   clearRow(row)
 
   local zc = Theme.color.zebra
-  row.zebra:SetColorTexture(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
+  row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
   if entry.kind == "hint" then
     -- Centered, muted, in the list area -- Deals' empty-state language --
@@ -372,7 +389,8 @@ local function paintRow(row, entry, index)
     row.wide:SetJustifyH("CENTER")
     row.wide:SetWordWrap(true)
     row.wide:SetText(entry.text)
-    setColor(row.wide, Theme.color.fgMuted)
+    setColor(row.wide, Theme.color.fgDim)
+    row.wide:SetSpacing(4)
   elseif entry.kind == "section" then
     -- Full-width gold label with a thin gold underline -- the Sell
     -- group-row aesthetic, adapted: Sell's group text lives in the flexible
@@ -426,12 +444,21 @@ local function paintRow(row, entry, index)
     -- else: free tier, no basis at all -- row.cells.profit stays "" (M2/
     -- design: "free tier (no basis) -> empty"), never an invented dash.
   end
+
+  -- Re-anchor the item cell now that this render's own row.itemInset is
+  -- known (SellFrame's paintRow does the same: layoutCells runs once per
+  -- render, after the icon/itemInset decision, not only on a column-drop
+  -- change) -- otherwise a pooled row keeps a stale inset from whatever
+  -- kind it last painted as.
+  layoutRow(row)
 end
 
 layoutRow = function(row)
   local flexAnchor = anchorColumns(row, hiddenColumns, function(col) return row.cells[col.key] end)
   row.item:ClearAllPoints()
-  row.item:SetPoint("LEFT", row, "LEFT", 0, 0)
+  -- row.itemInset (paintRow/paintSaleCells) leaves room for the icon on a
+  -- sale row; hint/section rows (itemInset 0) stay flush with the row edge.
+  row.item:SetPoint("LEFT", row, "LEFT", row.itemInset or 0, 0)
   row.item:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
 end
 
@@ -439,16 +466,22 @@ createRow = function(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(geometry.rowHeight)
 
-  -- Zebra + hover, same convention as Deals/Sell: a full-width BACKGROUND
-  -- zebra fill, recomputed every render off the row's CURRENT position
-  -- (Sell's approach -- Sold's entry composition reshuffles kind-to-kind far
-  -- more than Deals' pool ever does, so baking zebra in at creation time,
-  -- the way Deals does, would go stale the moment a section appears above a
-  -- row that used to sit at an even index).
+  -- Zebra + hover, same convention as Deals/Sell: a sliced rounded fill,
+  -- recomputed every render off the row's CURRENT position (Sell's approach
+  -- -- Sold's entry composition reshuffles kind-to-kind far more than Deals'
+  -- pool ever does, so baking zebra in at creation time, the way Deals does,
+  -- would go stale the moment a section appears above a row that used to sit
+  -- at an even index). Insets: 1px top/bottom so margin 12 <= 13 = half of
+  -- the 26px effective fill at ROW_H 28; right inset is 2, not Deals' 26 --
+  -- this container is already inset by the gutter and the scrollbar hangs
+  -- outside it (Sell's createRow carries the identical comment).
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
-  zebra:SetAllPoints()
-  zebra:SetColorTexture(zc[1], zc[2], zc[3], 0)
+  zebra:SetTexture(Theme.MEDIA .. "plaque.png")
+  zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  zebra:SetPoint("TOPLEFT", 2, -1)
+  zebra:SetPoint("BOTTOMRIGHT", -2, 1)
+  zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
   row.zebra = zebra
 
   -- Hover: the real engine HIGHLIGHT draw layer, shown/hidden by the client
@@ -456,8 +489,11 @@ createRow = function(parent)
   -- an OnEnter/OnLeave repaint (addon/AGENTS.md's "Buttons and hover").
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-  highlight:SetAllPoints()
-  highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4])
+  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
+  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  highlight:SetPoint("TOPLEFT", 2, -1)
+  highlight:SetPoint("BOTTOMRIGHT", -2, 1)
+  highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight = highlight
   row:EnableMouse(true)
 
@@ -470,6 +506,14 @@ createRow = function(parent)
   underline:SetColorTexture(gc[1], gc[2], gc[3], 0.6)
   underline:Hide()
   row.underline = underline
+
+  -- Item icon, shown only on sale rows (paintRow) -- same trimmed-border
+  -- convention as SellFrame's position rows.
+  row.icon = row:CreateTexture(nil, "ARTWORK")
+  row.icon:SetSize(18, 18)
+  row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  row.icon:Hide()
 
   -- The full-row text used by "section" and "hint" kinds -- see paintRow.
   row.wide = Theme.Label(row, 11)
