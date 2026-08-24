@@ -117,6 +117,20 @@ local function makeToggle(parent)
   cb:SetAllPoints()
   box.checkButton = cb
 
+  -- M10: hover affordance, engine-driven -- a HIGHLIGHT-layer sliced badge.png (margin 6, valid
+  -- at the 36x20 track it's sized to), additive blend, the same gold @ ~0.18 wash T.Button's own
+  -- hover texture uses (Theme.lua's file-local HOVER_WASH isn't exported, so this is built from
+  -- Theme.color.gold directly rather than duplicated as a second unlinked constant). Nothing is
+  -- painted in OnEnter/OnLeave -- addon/AGENTS.md's "never paint hover by hand" rule.
+  cb:EnableMouse(true)
+  local hover = cb:CreateTexture(nil, "HIGHLIGHT")
+  hover:SetTexture(Theme.MEDIA .. "badge.png")
+  hover:SetTextureSliceMargins(6, 6, 6, 6)
+  hover:SetAllPoints()
+  hover:SetBlendMode("ADD")
+  local hg = Theme.color.gold
+  hover:SetVertexColor(hg[1], hg[2], hg[3], 0.18)
+
   function box:Paint()
     local on = cb:GetChecked()
     local g, d, b = Theme.color.gold, Theme.color.fgDim, Theme.color.bg
@@ -513,7 +527,9 @@ local function build(sniperFrame)
     label:SetPoint("RIGHT", h12, "LEFT", -Theme.pad.s, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
-    label:SetText("Auction duration")
+    -- M11: "Auction duration" truncated to "Auction du..." at the 640 minimum / 1.3x scale --
+    -- relabeled to the shorter "Duration" (no spec pins on the string).
+    label:SetText("Duration")
 
     refreshers[#refreshers + 1] = bindDurationSegments({ h12, h24, h48 }, { 12, 24, 48 })
   end
@@ -539,16 +555,24 @@ local function build(sniperFrame)
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
   toggleRow(automation, 2, "Auto-scan on next AH visit", "auto")
 
+  -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
+  -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px
+  -- at 1.3x. Budget at the 640 minimum: 12 (pad.m) + label + 8 (pad.s) + 48 (readout) +
+  -- 8 (pad.s) + 110 (slider track) + 12 (pad.m) = 259 -> label gets 61px, which ellipsizes at
+  -- 1.3x scale and fits at 1.0x.
   local scaleLabel = Theme.Label(display, 12)
   scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(1))
   scaleLabel:SetWordWrap(false)
   scaleLabel:SetText("Font scale")
 
-  local slider, sliderTrack = makeSlider(display, 150, 0.9, 1.3, 0.05)
+  local slider, sliderTrack = makeSlider(display, 110, 0.9, 1.3, 0.05)
   sliderTrack:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(1) - 8)
 
   local scaleReadout = Theme.Num(display, 12)
+  scaleReadout:SetWidth(48)
   scaleReadout:SetPoint("RIGHT", sliderTrack, "LEFT", -Theme.pad.s, 0)
+
+  scaleLabel:SetPoint("RIGHT", scaleReadout, "LEFT", -Theme.pad.s, 0)
 
   refreshers[#refreshers + 1] = bindFontSlider(slider, scaleReadout)
 
@@ -573,18 +597,32 @@ local function build(sniperFrame)
   end)
 
   -- T6: the rail gear lights up while this overlay is open, so its own state (lit while a view
-  -- is active, per RailButton) reads consistently whether the "view" is Deals/Sell/Sold or
-  -- Settings. HookScript, not SetScript, for OnShow -- the refresh loop above already owns that
-  -- event and this must not clobber it. OnHide has no existing script, and both close paths
-  -- (Escape's OnKeyDown and DONE's OnClick, above) funnel through GC.SettingsUI.Toggle()'s own
-  -- panel:Hide(), so one OnHide here covers both without duplicating the wiring at each call
-  -- site. Guarded: sniperFrame.rail doesn't exist for a bare Settings-panel construction (there
-  -- is none in production, but this file's own specs build SettingsFrame.lua standalone).
+  -- is active) reads as true parity with T.RailButton:SetActive -- that also tints the icon
+  -- (goldHi active / fgDim inactive), not just the plate behind it, so the gear icon is tinted
+  -- here too (M8) instead of staying a still-fgDim icon on a gold plate. HookScript, not
+  -- SetScript, for OnShow -- the refresh loop above already owns that event and this must not
+  -- clobber it. OnHide has no existing script, and both close paths (Escape's OnKeyDown and
+  -- DONE's OnClick, above) funnel through GC.SettingsUI.Toggle()'s own panel:Hide(), so one
+  -- OnHide here covers both without duplicating the wiring at each call site. Guarded:
+  -- sniperFrame.rail doesn't exist for a bare Settings-panel construction (there is none in
+  -- production, but this file's own specs build SettingsFrame.lua standalone).
   local rail = sniperFrame.rail
   local gear = rail and rail.gear
   if gear and gear.SetVariant then
-    panel:HookScript("OnShow", function() gear:SetVariant("active") end)
-    panel:SetScript("OnHide", function() gear:SetVariant("ghost") end)
+    panel:HookScript("OnShow", function()
+      gear:SetVariant("active")
+      if gear.icon and gear.icon.SetVertexColor then
+        local c = Theme.color.goldHi
+        gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
+      end
+    end)
+    panel:SetScript("OnHide", function()
+      gear:SetVariant("ghost")
+      if gear.icon and gear.icon.SetVertexColor then
+        local c = Theme.color.fgDim
+        gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
+      end
+    end)
   end
 
   -- Fix round 1 (C2): WoW frames are SHOWN by default -- without this, build() hands back an
