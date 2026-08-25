@@ -54,6 +54,26 @@ describe("Sniper buy dialog verdict block", function()
     return d
   end
 
+  -- Task 2 restyle: distinct-color widget doubles for the new verdictLabel/verdictAmount
+  -- fields, same "record every SetTextColor call" shape as fakeVerdictHead above -- so the
+  -- SAFE/REFUSED tint assertions below compare against real, different color tables (green vs
+  -- red) rather than two stubs that happen to look alike.
+  local function fakeVerdictLabel()
+    local w = { text = "", colors = {} }
+    function w:SetText(t) self.text = t end
+    function w:SetTextColor(r, g, b) self.colors[#self.colors + 1] = { r, g, b } end
+    return w
+  end
+
+  local function fakeVerdictAmount()
+    local w = { text = "", colors = {}, shown = nil }
+    function w:SetText(t) self.text = t end
+    function w:SetTextColor(r, g, b) self.colors[#self.colors + 1] = { r, g, b } end
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
   local function fakeDialog(overrides)
     local d = {
       fixedHeight = 400, diagnosticGaps = 4, diagnosticMinimumHeight = 108,
@@ -76,7 +96,11 @@ describe("Sniper buy dialog verdict block", function()
     local GC = {
       Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 } },
-        color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 } } },
+        -- Task 2 restyle: green/red added (additive -- every existing test in this file only
+        -- ever reads fg/fgDim off this table) for stampDialogFromDecision's new guarded
+        -- verdictLabel/verdictAmount tint calls.
+        color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 },
+          green = { 0.25, 0.85, 0.25 }, red = { 0.898, 0.283, 0.302 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
@@ -141,6 +165,41 @@ describe("Sniper buy dialog verdict block", function()
     assert.not_equal("stress_profit_below_buffer", d.verdictHead.text)
     assert.same({ 1, 0.3, 0.3 }, d.verdictHead.colors[#d.verdictHead.colors])
     assert.is_false(d.verdictSub.shown)
+  end)
+
+  it("stamps the live-verdict kicker and big signed profit figure when both widgets exist, buyable then refusal", function()
+    -- Task 2 restyle. A fakeDialog WITHOUT verdictLabel/verdictAmount/verdictAmountNote is
+    -- exactly what every other test in this file already builds (fakeDialog()'s own base
+    -- shape, unmodified) -- those must keep stamping fine (they do, elsewhere in this file);
+    -- this test is the additive counterpart with a fakeDialog that HAS them.
+    local GC, stamp = load()
+    local d = fakeDialog({
+      verdictLabel = fakeVerdictLabel(),
+      verdictAmount = fakeVerdictAmount(),
+      verdictAmountNote = textSink(),
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42 }, {
+      status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
+      stressProfit = 1200000, reasons = {},
+    })
+    assert.equal("LIVE VERDICT · SAFE", d.verdictLabel.text)
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      d.verdictLabel.colors[#d.verdictLabel.colors])
+    assert.equal("+120g", d.verdictAmount.text) -- same 1200000-copper figure verdictSub's own sentence uses
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      d.verdictAmount.colors[#d.verdictAmount.colors])
+    assert.is_true(d.verdictAmount.shown)
+
+    stamp({ itemID = 42 }, {
+      status = "WATCH", buyable = false, quantity = 0,
+      reasons = { "stress_profit_below_buffer" },
+    })
+    assert.equal("LIVE VERDICT · REFUSED", d.verdictLabel.text)
+    assert.same({ GC.Theme.color.red[1], GC.Theme.color.red[2], GC.Theme.color.red[3] },
+      d.verdictLabel.colors[#d.verdictLabel.colors])
+    assert.is_false(d.verdictAmount.shown)
   end)
 
   it("hides the diagnostic line and contributes no height to it by default", function()
