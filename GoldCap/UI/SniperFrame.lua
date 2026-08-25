@@ -66,6 +66,12 @@ WIN.RAIL_W = Theme.RAIL_W                     -- left navigation rail (Theme.Rai
 WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rail
 WIN.CONTENT_RIGHT_GUTTER = 32
 
+-- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) shifts the deals list aside
+-- only when the window is wide enough to fit both without crushing either -- below this the
+-- panel overlays instead (see applyPanelInset in createFrame). The docked-in-the-AH host is
+-- ~805px wide, comfortably under this floor, so it always keeps the overlay.
+WIN.PANEL_SHIFT_MIN = 900
+
 WIN.ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
 
 -- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
@@ -4099,8 +4105,12 @@ local function createDialog()
   d:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
   -- Sheet chrome: right corners must match the window card's radius; the drawer's
   -- top-left/bottom-left corners are square against the content area.
+  -- Opaque by design (alpha 1, not 0.97): at 0.97 the Deals rows underneath ghosted through
+  -- just enough to read as a rendering bug in the first in-game pass. The panel now also
+  -- shifts the list out from behind it on wide windows (applyPanelInset, createFrame) --
+  -- opacity is what keeps the narrower/docked case, which still overlays, honest instead.
   d.sheet = Theme.SlicedTexture(d, "BACKGROUND", Theme.MEDIA .. "card_right.png",
-    { Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 0.97 })
+    { Theme.color.bg[1], Theme.color.bg[2], Theme.color.bg[3], 1 })
   d.sheet:SetAllPoints()
   d.edge = d:CreateTexture(nil, "BORDER")
   d.edge:SetColorTexture(Theme.color.border[1], Theme.color.border[2], Theme.color.border[3], Theme.color.border[4])
@@ -4483,6 +4493,10 @@ local function createDialog()
   -- abort path; after Confirm abortRowPurchase deliberately preserves server ownership, so
   -- Esc can never discard the token/final quote while a terminal event is still possible.
   d:SetScript("OnHide", function()
+    -- Panel-inset reset comes first and unconditionally, same reasoning as
+    -- GC.Sniper.NotifyDialogClosed() right below it: the deals list must snap back to the
+    -- plain gutter anchor whenever the sheet stops covering it, regardless of why it closed.
+    if frame and frame.applyPanelInset then frame.applyPanelInset(false) end
     -- Unconditional -- fires whether this close was a resolved purchase, a hardware Cancel,
     -- or Esc, and regardless of whether `row` below is still set. AutoScan's own "dialog"
     -- pause reason cares only that the dialog is no longer up, not why.
@@ -4499,6 +4513,12 @@ local function createDialog()
     if not row then return end -- normal close: resolvePurchase already cleared this before hiding
     dialog.row = nil
     abortRowPurchase(row, "purchase canceled")
+  end)
+
+  -- Mirror of the OnHide reset above: every time the sheet actually shows, the deals list
+  -- shifts aside behind it (still gated on the window being wide enough -- see applyPanelInset).
+  d:SetScript("OnShow", function()
+    if frame and frame.applyPanelInset then frame.applyPanelInset(true) end
   end)
 
   table.insert(UISpecialFrames, "GoldCapSniperConfirm") -- Escape closes the dialog = cancel
@@ -5473,11 +5493,40 @@ local function createFrame()
   -- header's own width tracks the same WIN.CONTENT_LEFT/WIN.CONTENT_RIGHT_GUTTER margins off `f`
   -- directly, so the derived contentWidth here is exactly the header's width too -- one number
   -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
-  f:SetScript("OnSizeChanged", function(_, w)
-    if not w or w <= 0 then return end
-    local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER, 1)
+  --
+  -- The check panel shifts the list aside only when there is room for both (>= WIN.PANEL_
+  -- SHIFT_MIN, 900 wide); narrower windows -- the docked AH is ~805 -- get an opaque overlay
+  -- instead (see createDialog's sheet alpha). One function owns every right-edge anchor
+  -- (scroll's BOTTOMRIGHT, f.headerRow's TOPRIGHT, verifyBtn's TOPRIGHT) plus the derived
+  -- content width, so they can never drift apart -- called from here on every resize, and from
+  -- createDialog's OnShow/OnHide whenever the sheet itself appears or disappears.
+  local function applyPanelInset(open)
+    local w = f:GetWidth() or 0
+    local inset = (open and w >= WIN.PANEL_SHIFT_MIN) and (DG.WIDTH + Theme.pad.m) or 0
+    f.panelInset = inset
+    local right = -(WIN.CONTENT_RIGHT_GUTTER + inset)
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, scrollTop)
+    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", right, scrollBottom)
+    f.headerRow:ClearAllPoints()
+    f.headerRow:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, f.headerY)
+    f.headerRow:SetPoint("TOPRIGHT", f, "TOPRIGHT", right, f.headerY)
+    verifyBtn:ClearAllPoints()
+    verifyBtn:SetPoint("TOPRIGHT", right, row2Y)
+    local contentWidth = math.max(w - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER - inset, 1)
     content:SetWidth(contentWidth)
     applyColumnVisibility(contentWidth)
+  end
+  f.applyPanelInset = applyPanelInset
+
+  -- OnSizeChanged now fully delegates to applyPanelInset (above), which supersedes what this
+  -- handler used to do inline (compute contentWidth off `w` alone, content:SetWidth it,
+  -- applyColumnVisibility it) -- passing the dialog's live open/shown state re-evaluates the
+  -- inset on every resize too, so dragging the window across WIN.PANEL_SHIFT_MIN while the
+  -- panel is open re-flows the list instead of leaving it stuck at whichever side it started on.
+  f:SetScript("OnSizeChanged", function(_, w)
+    if not w or w <= 0 then return end
+    applyPanelInset(dialog ~= nil and dialog:IsShown())
   end)
 
   -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar
