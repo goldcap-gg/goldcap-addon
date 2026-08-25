@@ -1803,9 +1803,10 @@ local function createRow(parent)
   -- distinguishable only by two leading spaces in their text. Same treatment as the Deals list:
   -- BACKGROUND zebra, a highlight above it, a hairline at the bottom edge, and an item icon so
   -- rows are scannable by shape rather than by reading every name.
-  -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 13 = half of
-  -- the 26px effective fill; right inset is 2, NOT Deals' 26 -- this container is already inset
-  -- by CONTENT_RIGHT_GUTTER (see Attach) and the scrollbar hangs outside in that gutter.
+  -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 15 = half of
+  -- the 30px effective fill (Theme.ROW_H 32 minus 2px); right inset is 2, NOT Deals' 26 -- this
+  -- container is already inset by CONTENT_RIGHT_GUTTER (see Attach) and the scrollbar hangs
+  -- outside in that gutter.
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
   row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")

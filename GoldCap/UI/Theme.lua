@@ -33,7 +33,7 @@ T.tier = {
 }
 
 T.pad = { xs = 4, s = 8, m = 12, l = 16 }
-T.ROW_H = 28
+T.ROW_H = 32
 
 T.FONT_MONO = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Regular.ttf"
 T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"

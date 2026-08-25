@@ -86,7 +86,7 @@ WIN.CONTENT_RIGHT_GUTTER = 32
 -- ~805px wide, comfortably under this floor, so it always keeps the overlay.
 WIN.PANEL_SHIFT_MIN = 900
 
-WIN.ICON_SIZE = 16 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
+WIN.ICON_SIZE = 20 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
 
 -- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
 -- sortable; the two columns COLUMNS adds for Sniper v3, unit/trend, stay inert like "buy").
@@ -828,14 +828,20 @@ local function setRowDeal(row, deal)
   row._dealSig = sig
 
   if deal.pinPlaceholder then
-    -- Nothing to buy here -- this is a pin that has fallen out of the deals list, not a deal --
-    -- so the row says so plainly instead of falling through into the verdict/label logic below.
-    row.buy:SetLabel("Watching")
-    row.buy:SetVariant("ghost")
-    row.buy:Disable()
+    -- Nothing to buy here -- this is a pin that has fallen out of the deals list, not a deal.
+    -- The first in-game pass shipped this as a disabled ghost button labeled "Watching", and it
+    -- read as a broken control -- a button that looks clickable but never responds. A watched
+    -- item that is not currently a deal is information, not an action, so the row hides the
+    -- button entirely instead of faking one that does nothing; the name gets a dim suffix
+    -- (below) and OnEnter's tooltip spells it out. Hiding row.buy also does double duty: this
+    -- row's own left-click handler (below) only fires when `row.buy:IsShown() and
+    -- row.buy:IsEnabled()`, so a hidden button already makes the whole row un-clickable with no
+    -- second guard needed.
+    row.buy:Hide()
     row:SetAlpha(0.55)
   else
     row:SetAlpha(1)
+    row.buy:Show() -- undo the placeholder branch's Hide() for a pooled row reused after one
     row.buy:Enable()
     if verdict and verdict.buyable then
       row.buy:SetLabel("Buy")
@@ -939,12 +945,18 @@ local function setRowDeal(row, deal)
   -- it -- once resolved for an itemID they never change, so a second sighting (a fresher price,
   -- a different pooled row slot, a later render) is served from cache instead of paying for
   -- another Item object, another closure and another QualityMarkup tooltip scan.
+  --
+  -- A placeholder pin is watched, not up for sale -- the dim "· watching" suffix goes AFTER the
+  -- qty suffix (its own color code so it never inherits the quality-colored name), on every path
+  -- that stamps nameText below, including the async ContinueOnItemLoad callback that can land
+  -- well after this call returns.
+  local watchSuffix = deal.pinPlaceholder and "|cff8c8a85 · watching|r" or ""
   local cached = nameIconCache[deal.itemID]
   if cached then
     row.icon:SetTexture(cached.icon)
-    row.nameText:SetText(cached.named .. qtySuffix(deal))
+    row.nameText:SetText(cached.named .. qtySuffix(deal) .. watchSuffix)
   else
-    row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal))
+    row.nameText:SetText(("item %d"):format(deal.itemID) .. qtySuffix(deal) .. watchSuffix)
     row.icon:SetTexture(nil)
 
     local item = Item:CreateFromItemID(deal.itemID)
@@ -965,7 +977,7 @@ local function setRowDeal(row, deal)
       end
       nameIconCache[deal.itemID] = { icon = icon, named = named }
       row.icon:SetTexture(icon)
-      row.nameText:SetText(named .. qtySuffix(deal))
+      row.nameText:SetText(named .. qtySuffix(deal) .. watchSuffix)
     end)
   end
 
@@ -4853,8 +4865,8 @@ createRow = function(parent, index)
   -- the current sorted view, so it stays visually stable across a resort/rescan instead of
   -- flickering as rows are reassigned to different deals.
   -- Rounded fills inset 1px top/bottom (2px total) and 26px right to keep clear of scrollbar
-  -- gutter; the fill is 26px tall after those insets (28px row height minus 2px), so margin 12
-  -- <= 13 = half of 26, satisfying the constraint.
+  -- gutter; the fill is 30px tall after those insets (32px row height minus 2px), so margin 12
+  -- <= 15 = half of 30, satisfying the constraint.
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
   zebra:SetTexture(Theme.MEDIA .. "plaque.png")
@@ -4874,7 +4886,7 @@ createRow = function(parent, index)
   local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
   pinBg:SetTexture(Theme.MEDIA .. "plaque.png")
   pinBg:SetTextureSliceMargins(12, 12, 12, 12)
-  pinBg:SetVertexColor(pc[1], pc[2], pc[3], 0.10)
+  pinBg:SetVertexColor(pc[1], pc[2], pc[3], 0.09)
   pinBg:SetPoint("TOPLEFT", 2, -1)
   pinBg:SetPoint("BOTTOMRIGHT", -26, 1)
   pinBg:Hide()
@@ -4929,12 +4941,13 @@ createRow = function(parent, index)
   end)
   row.flashAnim = flashAnim
 
-  -- Sniper v3: 2px gold left-rail shown alongside the hover highlight -- the accent that
-  -- marks "this row" beyond the flat highlight wash alone.
+  -- Sniper v3: 3px gold left-rail shown alongside the hover highlight -- the accent that
+  -- marks "this row" beyond the flat highlight wash alone. Inset 6px top/bottom (kit value)
+  -- so it reads as a short accent mark rather than a bar spanning the full row edge to edge.
   local rail = row:CreateTexture(nil, "BACKGROUND", nil, 2)
-  rail:SetPoint("TOPLEFT")
-  rail:SetPoint("BOTTOMLEFT")
-  rail:SetWidth(2)
+  rail:SetPoint("TOPLEFT", 0, -6)
+  rail:SetPoint("BOTTOMLEFT", 0, 6)
+  rail:SetWidth(3)
   rail:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3])
   rail:Hide()
   row.rail = rail
@@ -4944,7 +4957,7 @@ createRow = function(parent, index)
   icon:SetPoint("LEFT")
   row.icon = icon
 
-  local nameText = Theme.Label(row, 11)
+  local nameText = Theme.Label(row, 12)
   nameText:SetWordWrap(false)
   nameText:SetMaxLines(1)
   row.nameText = nameText
@@ -4995,6 +5008,12 @@ createRow = function(parent, index)
         GameTooltip:AddLine(("GoldCap: %s -- %s"):format(verdict.status or "refused",
           verdict.reason or "live verification required"), 1, 0.82, 0)
       end
+    end
+    -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
+    -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
+    if self.deal.pinPlaceholder then
+      GameTooltip:AddLine("Watching — pinned, but not a deal right now",
+        Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
     GameTooltip:AddLine(isPinned(self.deal.itemID)
       and "Right-click to stop watching this item"
@@ -5193,7 +5212,7 @@ local function createHeaderRow(f)
   -- key) -- unlike "total", "unit" is never one of the responsively-dropped columns, so it's
   -- always available as a by-price sort even at window widths where "total" itself is hidden.
   local SORT_KEY = { tier = "tier", disc = "pct", unit = "unit", total = "price", profit = "profit" }
-  local HEADER_TEXT = { item = "Item", tier = "Tier", disc = "%", unit = "Unit", total = "Price", profit = "Profit", trend = "Trend", buy = "" }
+  local HEADER_TEXT = { item = "Item", tier = "Tier", disc = "Disc", unit = "Unit", total = "Price", profit = "Profit", trend = "Trend", buy = "" }
   local TOOLTIP = {
     tier = {
       "Tier",

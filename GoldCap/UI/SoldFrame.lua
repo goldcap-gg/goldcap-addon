@@ -476,8 +476,8 @@ createRow = function(parent)
   -- -- Sold's entry composition reshuffles kind-to-kind far more than Deals'
   -- pool ever does, so baking zebra in at creation time, the way Deals does,
   -- would go stale the moment a section appears above a row that used to sit
-  -- at an even index). Insets: 1px top/bottom so margin 12 <= 13 = half of
-  -- the 26px effective fill at ROW_H 28; right inset is 2, not Deals' 26 --
+  -- at an even index). Insets: 1px top/bottom so margin 12 <= 15 = half of
+  -- the 30px effective fill at ROW_H 32; right inset is 2, not Deals' 26 --
   -- this container is already inset by the gutter and the scrollbar hangs
   -- outside it (Sell's createRow carries the identical comment).
   local zc = Theme.color.zebra

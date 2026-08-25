@@ -209,7 +209,21 @@ describe("Sniper row repaint skip", function()
     ctx.setRowDeal(row, placeholder)
 
     assert.is_true(calls.n > afterFirst)
-    assert.equal("Watching", row.buy.label)
+    -- A watched-not-a-deal row has no Buy button at all (it read as a broken control when it
+    -- was a disabled "Watching" ghost button) -- the double records Hide having actually been
+    -- called, not just the widget's untouched default (nil).
+    assert.is_false(row.buy.shown)
+    local watchingSuffix = "· watching|r"
+    assert.equal(watchingSuffix, row.nameText.text:sub(-#watchingSuffix))
+
+    -- A pooled row that was a placeholder must come back with a working button once it is
+    -- reassigned (or reverts) to an actual deal -- setRowDeal's non-placeholder branch re-Shows
+    -- row.buy before its label logic runs.
+    local afterPlaceholder = calls.n
+    ctx.setRowDeal(row, deal(7))
+
+    assert.is_true(calls.n > afterPlaceholder)
+    assert.is_true(row.buy.shown)
   end)
 
   it("repaints when the trend read against the SAME deal object changes", function()
@@ -263,7 +277,9 @@ describe("Sniper row repaint skip", function()
     assert.equal("—", row.profitText.text)
     assert.equal("—", row.unitText.text)
     assert.equal("—", row.priceText.text)
-    assert.equal("Watching", row.buy.label)
+    assert.is_false(row.buy.shown)
+    local watchingSuffix = "· watching|r"
+    assert.equal(watchingSuffix, row.nameText.text:sub(-#watchingSuffix))
   end)
 
   it("shows a pin placeholder's last-seen unit price without duplicating it as a fake total", function()
