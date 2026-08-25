@@ -1780,15 +1780,34 @@ local function layoutCells(row)
     cell:ClearAllPoints()
     if column.flex then
       -- row.itemInset leaves room for the icon on a position row, and indents a child row so
-      -- the hierarchy is carried by layout instead of by leading spaces in the string.
+      -- the hierarchy is carried by layout instead of by leading spaces in the string. The box
+      -- this defines is shared by three mutually exclusive widgets -- this cell (a position),
+      -- row.subItem (a detail/batch/lot/listing sub-row) and row.sectionLabel (a group heading)
+      -- -- exactly one of which is shown per row (the kind branch in renderRows), so all three
+      -- get the same anchors rather than fighting over layout.
       cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
       cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
+      -- The column header row (below) shares this function but carries neither widget -- it is
+      -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
+      if row.subItem then
+        row.subItem:ClearAllPoints()
+        row.subItem:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
+        row.subItem:SetPoint("RIGHT", right, "LEFT", -4, 0)
+      end
+      if row.sectionLabel then
+        row.sectionLabel:ClearAllPoints()
+        row.sectionLabel:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
+      end
+      -- Deliberately no cell:Show() here: which of item/subItem/sectionLabel is visible is the
+      -- kind branch's call (renderRows), not this function's -- forcing the flex column shown
+      -- unconditionally would undo a "position" row's own cells.item:Hide() on every layout.
+      -- The header row (below) sets its own item cell's text once and never hides it.
     else
       cell:SetWidth(columnWidth[column.key] or column.w)
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, 0)
       right = cell
+      cell:Show()
     end
-    cell:Show()
   end
   for _, column in ipairs(COLUMNS) do
     if dropped[column.key] then row.cells[column.key]:Hide() end
@@ -1825,6 +1844,18 @@ local function createRow(parent)
   row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
   row.zebra:SetPoint("TOPLEFT", 2, -1); row.zebra:SetPoint("BOTTOMRIGHT", -2, 1)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- The "well": a sunken fill an expanded position's children sit in instead of the list's
+  -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
+  -- row in the same flat list (row.spine, below, is the other half of that cue). Same sliced
+  -- plaque and insets as the zebra it replaces -- only shown for sub-rows (the kind branch in
+  -- renderRows), never alongside it.
+  row.well = row:CreateTexture(nil, "BACKGROUND")
+  row.well:SetTexture(Theme.MEDIA .. "plaque.png")
+  row.well:SetTextureSliceMargins(12, 12, 12, 12)
+  row.well:SetPoint("TOPLEFT", 2, -1); row.well:SetPoint("BOTTOMRIGHT", -2, 1)
+  local phc = Theme.color.panelHi
+  row.well:SetVertexColor(phc[1], phc[2], phc[3], 0.5)
+  row.well:Hide()
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
   row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
   row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
@@ -1885,6 +1916,30 @@ local function createRow(parent)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
+  -- Sub-rows (detail/batch/lot/listing) write into their own widget, one size down from a
+  -- position's name (11, not 12) -- the flex column's box is shared by three mutually
+  -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and layoutCells anchors
+  -- all three to the same LEFT/RIGHT points every render since exactly one is shown per row
+  -- (the kind branch in renderRows).
+  row.subItem = Theme.Label(row, 11)
+  row.subItem:SetJustifyH("LEFT")
+  row.subItem:SetWordWrap(false)
+  row.subItem:Hide()
+  -- Group headings (Sold's own pattern, UI/SoldFrame.lua's row.sectionLabel/row.sectionRule):
+  -- a mono micro-label plus a hairline rule running to the row's right edge, instead of a
+  -- gold line sharing the item cell's own font -- gold and uppercase are the group's whole
+  -- visual language, so nothing about the flex column's shared styling has to bend for it.
+  row.sectionLabel = Theme.Num(row, 9, true)
+  row.sectionLabel:SetJustifyH("LEFT")
+  setColor(row.sectionLabel, Theme.color.gold)
+  row.sectionLabel:Hide()
+  local gc2 = Theme.color.gold
+  row.sectionRule = row:CreateTexture(nil, "ARTWORK")
+  row.sectionRule:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.35)
+  row.sectionRule:SetHeight(1)
+  row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.s, 0)
+  row.sectionRule:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
+  row.sectionRule:Hide()
   row.action = Theme.Button(row, "ghost", "badge")
   -- 86, not 84: "Cancel lot?" is 85.8px at mono-10 and Theme.Scale() 1.3 (JetBrains Mono
   -- ~0.6em/char -> 7.8px/char); 86 is the largest width that still leaves >=2px clearance
@@ -2067,14 +2122,14 @@ renderRows = function()
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
       if #detail.ownedLots > 0 or inBags > 0 then
-        entries[#entries + 1] = { kind = "group", position = position, title = "On the Auction House" }
+        entries[#entries + 1] = { kind = "group", position = position, title = "ON THE AUCTION HOUSE" }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
       if inBags > 0 then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
       if #detail.batches > 0 then
-        entries[#entries + 1] = { kind = "group", position = position, title = "What you paid",
+        entries[#entries + 1] = { kind = "group", position = position, title = "WHAT YOU PAID",
           hint = "Sales are costed from your oldest units first" }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
@@ -2267,28 +2322,33 @@ renderRows = function()
           row.action:Hide()
         end
       elseif entry.kind == "detail" then
+        -- Facts joined only when GoldCap actually has them -- a "quote 7s / ? ahead of you /
+        -- sells ?/day" used to paper over missing data with a question mark on every field that
+        -- happened not to apply to this position, which read as the addon being broken rather
+        -- than as "this one doesn't have that fact". A live market quote replaces the "quote"
+        -- fact with its own richer lead (unchanged shape, just no "?" filler within it either);
+        -- everything else after it -- competition, velocity, time to clear, any structural
+        -- facts -- still only appears when it is actually known.
         local d = entry.detail
-        local quoteText
+        local facts = {}
         if d.displayMarketUnit ~= nil then
-          quoteText = ("market %s · %s · age %ss"):format(formatCell(d.displayMarketUnit),
-            d.marketState or "unavailable", d.quoteAge or "?")
-        else
-          quoteText = ("quote %ss"):format(d.quoteAge or "?")
+          local lead = ("market %s · %s"):format(formatCell(d.displayMarketUnit), d.marketState or "unavailable")
+          if type(d.quoteAge) == "number" then lead = lead .. (" · age %ss"):format(d.quoteAge) end
+          facts[#facts + 1] = lead
+        elseif type(d.quoteAge) == "number" then
+          facts[#facts + 1] = ("quote %ss ago"):format(d.quoteAge)
         end
-        -- d.note used to lead with "FIFO allocations", naming the accounting rule rather than
-        -- telling the player anything. What matters here is how the market looks right now and
-        -- how long the stock will take to clear.
-        row.cells.item:SetText(("  %s · %s ahead of you · sells %s/day · clears in %s%s"):format(
-          quoteText, d.ahead or "?", d.sold or "?",
-          d.days and ("~" .. math.floor(d.days + 0.5) .. " days") or "?",
-          d.factsText and (" · " .. d.factsText) or ""))
-        setColor(row.cells.item, d.marketStale and Theme.color.fgDim or Theme.color.fg)
+        if type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
+        if d.sold ~= nil then facts[#facts + 1] = ("sells %s/day"):format(d.sold) end
+        if type(d.days) == "number" then facts[#facts + 1] = ("clears in ~%dd"):format(math.floor(d.days + 0.5)) end
+        if d.factsText then facts[#facts + 1] = d.factsText end
+        row.subItem:SetText(#facts > 0 and table.concat(facts, " · ") or "no live quote yet — pricing…")
+        setColor(row.subItem, (#facts == 0 or d.marketStale) and Theme.color.fgDim or Theme.color.fg)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
       elseif entry.kind == "group" then
-        row.cells.item:SetText("  " .. entry.title)
-        setColor(row.cells.item, Theme.color.gold)
+        row.sectionLabel:SetText(entry.title)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.expand:SetText("")
         row.cells.status:SetText(entry.hint or "")
@@ -2324,12 +2384,14 @@ renderRows = function()
         end
         local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House", manual = "entered by hand" })[entry.batch.source] or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
-        -- invoice or a guess, which is exactly the thing this whole tab refuses to fake.
-        row.cells.item:SetText(("  ×%d%s bought %s at %s each · %s · %s"):format(
+        -- invoice or a guess, which is exactly the thing this whole tab refuses to fake. The
+        -- unit price no longer repeats here -- the COST/LISTED cells two columns over already
+        -- carry the unit and total, and this line was the one place on the row saying the same
+        -- number twice.
+        row.subItem:SetText(("×%d%s · bought %s · %s · %s"):format(
           entry.batch.originalQty or entry.batch.quantity or 0,
-          purchases and purchases > 1 and (" · %d purchases ·"):format(purchases) or "",
-          when, formatCell(entry.batch.unitCost),
-          sourceLabel, entry.batch.evidence or "unknown evidence"))
+          purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
+          when, sourceLabel, entry.batch.evidence or "unknown evidence"))
         row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
         row.cells.profit:SetText("")
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
@@ -2350,7 +2412,7 @@ renderRows = function()
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
         -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to
         -- a player, so it moves to the tooltip and the row says what is actually listed.
-        row.cells.item:SetText(("  ×%d listed at %s each"):format(
+        row.subItem:SetText(("×%d listed at %s each"):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
         -- What Repost will actually list at. BuildRepostPlan prices a repost at exactly the
@@ -2384,12 +2446,12 @@ renderRows = function()
         local bagState = liveBagState(p)
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
         if postable > 0 and postable < inBags then
-          row.cells.item:SetText(("  ×%d in your bags · Post lists %d of them, the largest stack"):format(
+          row.subItem:SetText(("×%d in your bags · Post lists %d of them, the largest stack"):format(
             inBags, postable))
         elseif postable > 0 then
-          row.cells.item:SetText(("  ×%d in your bags, ready to list"):format(postable))
+          row.subItem:SetText(("×%d in your bags, ready to list"):format(postable))
         else
-          row.cells.item:SetText(("  ×%d in your bags · no stack GoldCap can identify exactly"):format(inBags))
+          row.subItem:SetText(("×%d in your bags · no stack GoldCap can identify exactly"):format(inBags))
         end
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if postable > 0 then
@@ -2419,13 +2481,22 @@ renderRows = function()
         end
       end
       -- Banding, hierarchy and the icon are decided here, after the cells are filled, because
-      -- only `entry.kind` distinguishes a position from one of its expanded children.
+      -- only `entry.kind` distinguishes a position from one of its expanded children. Exactly
+      -- one of row.cells.item / row.subItem / row.sectionLabel is shown per row -- the other
+      -- two are hidden here rather than merely left un-set, since rows are pooled and rebound
+      -- to a different kind on every render (a "batch" this pass can be a "position" the next).
       local zc2 = Theme.color.zebra
       row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
       if entry.kind == "position" then
         row.itemInset = 26
         row.spine:Hide()
         row.divider:Show()
+        row.zebra:Show()
+        row.well:Hide()
+        row.cells.item:Show()
+        row.subItem:Hide()
+        row.sectionLabel:Hide()
+        row.sectionRule:Hide()
         local icon = nil
         if p.itemID and C_Item and C_Item.GetItemIconByID then
           local ok, texture = pcall(C_Item.GetItemIconByID, p.itemID)
@@ -2437,6 +2508,21 @@ renderRows = function()
         row.icon:Hide()
         row.spine:Show()
         row.divider:Hide() -- a group's children are bracketed by the spine, not sliced by rules
+        -- The well, not the zebra: a sub-row sits on a nested fill instead of the list's own
+        -- banding, so an expanded group reads as one bracketed unit (the spine is the other
+        -- half of that cue) rather than as more top-level rows in the same alternating list.
+        row.zebra:Hide()
+        row.well:Show()
+        row.cells.item:Hide()
+        if entry.kind == "group" then
+          row.subItem:Hide()
+          row.sectionLabel:Show()
+          row.sectionRule:Show()
+        else
+          row.subItem:Show()
+          row.sectionLabel:Hide()
+          row.sectionRule:Hide()
+        end
       end
       layoutCells(row)
     end

@@ -84,7 +84,7 @@ describe("Sell tab, bags to Post", function()
       Theme = {
         color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
           zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
-          gold = { 1, 1, 0 }, panel = { 0, 0, 0 } },
+          gold = { 1, 1, 0 }, panel = { 0, 0, 0 }, panelHi = { 0.102, 0.114, 0.141 } },
         pad = { xs = 4, s = 8, m = 12, l = 16 },
         MEDIA = "",
         Label = function(p) return region("FontString", p) end,

@@ -79,7 +79,7 @@ describe("Sell widget geometry and manual cost", function()
     local theme = {
       color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
         zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
-        gold = { 0.83, 0.64, 0.22 }, panel = { 0.078, 0.086, 0.110 } },
+        gold = { 0.83, 0.64, 0.22 }, panel = { 0.078, 0.086, 0.110 }, panelHi = { 0.102, 0.114, 0.141 } },
       pad = { xs = 4, s = 8, m = 12, l = 16 },
       MEDIA = "",
       Label = function(parent) return region("FontString", parent) end,
@@ -612,10 +612,10 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(6 * 24, content.height)
       assert.equal("detail", rows[2].kind)
       assert.equal("group", rows[3].kind)
-      assert.equal("On the Auction House", rows[3].cells.item.text:gsub("^%s+", ""))
+      assert.equal("ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
       assert.equal("lot", rows[4].kind)
       assert.equal("group", rows[5].kind)
-      assert.equal("What you paid", rows[5].cells.item.text:gsub("^%s+", ""))
+      assert.equal("WHAT YOU PAID", rows[5].sectionLabel.text)
       assert.equal("batch", rows[6].kind)
     end
     -- 700 and 620 both land past the advice column being shed; 1100 keeps every column.
@@ -960,7 +960,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("detail", rows[2].kind)
     -- Plain-language detail line: market state, competition, velocity and time to clear. It no
     -- longer opens by naming the allocation rule, which told a seller nothing.
-    assert.match("quote 7s · 3 ahead of you · sells 4/day · clears in ~1 days", rows[2].cells.item.text)
+    assert.match("quote 7s ago · 3 ahead of you · sells 4/day · clears in ~1d", rows[2].subItem.text)
     assert.equal("Repost @ 149", rows[2].cells.status.text)
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
@@ -968,11 +968,28 @@ describe("Sell widget geometry and manual cost", function()
     -- "»", not "→": U+2192 is missing from the client font and rendered as a tofu box.
     assert.equal("» needs price", rows[4].cells.market.text)
     assert.equal("group", rows[5].kind)
-    -- No epoch, no allocator counters: how many, when, at what price, from where.
-    assert.match("×5 bought .+ at 50 each · GoldCap", rows[6].cells.item.text)
+    -- No epoch, no allocator counters: how many, when, at what price, from where. The unit
+    -- price no longer repeats -- the COST cell two columns over already carries it.
+    assert.match("×5 · bought .+ · GoldCap", rows[6].subItem.text)
     assert.equal("50", rows[6].cells.cost.text)
     assert.equal("100", rows[6].cells.listed.text)
     assert.equal("2 still unsold", rows[6].cells.status.text)
+    -- The nested "well" replaces the list's own zebra for a sub-row (a batch here), never for
+    -- a position -- and exactly one of item/subItem/sectionLabel is visible per row, whichever
+    -- widget this row's kind actually writes to.
+    assert.is_false(rows[1].well.shown)
+    assert.is_true(rows[1].cells.item.shown)
+    assert.is_false(rows[1].subItem.shown)
+    assert.is_false(rows[1].sectionLabel.shown)
+    assert.is_true(rows[6].well.shown)
+    assert.is_false(rows[6].cells.item.shown)
+    assert.is_true(rows[6].subItem.shown)
+    assert.is_false(rows[6].sectionLabel.shown)
+    assert.is_true(rows[3].well.shown)
+    assert.is_false(rows[3].cells.item.shown)
+    assert.is_false(rows[3].subItem.shown)
+    assert.is_true(rows[3].sectionLabel.shown)
+    assert.equal("ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
     for _, child in ipairs(container.children) do
       if child.label == "GC" then child.scripts.OnClick() end
     end
@@ -1053,12 +1070,12 @@ describe("Sell widget geometry and manual cost", function()
     -- Listings first, then purchases, each behind its own heading: rows[3] heading, rows[4] the
     -- lot, rows[5] heading, rows[6..9] the four batches.
     assert.equal("Post @ 199", rows[2].cells.status.text)
-    assert.match("×2 listed at 200 each", rows[4].cells.item.text)
+    assert.match("×2 listed at 200 each", rows[4].subItem.text)
     assert.equal("400", rows[4].cells.listed.text)
-    assert.match("captured", rows[6].cells.item.text)
-    assert.match("mail%-confirmed", rows[7].cells.item.text)
-    assert.match("manual", rows[8].cells.item.text)
-    assert.match("unknown evidence", rows[9].cells.item.text)
+    assert.match("captured", rows[6].subItem.text)
+    assert.match("mail%-confirmed", rows[7].subItem.text)
+    assert.match("manual", rows[8].subItem.text)
+    assert.match("unknown evidence", rows[9].subItem.text)
   end)
 
   it("renders a collapsed purchase run as one line with its count and date range", function()
@@ -1081,17 +1098,18 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     assert.equal("group", rows[3].kind)
-    assert.equal("What you paid", rows[3].cells.item.text:gsub("^%s+", ""))
-    -- The count sits right after the quantity: the item cell ellipsizes at narrow widths and
+    assert.equal("WHAT YOU PAID", rows[3].sectionLabel.text)
+    -- The count sits right after the quantity: the sub-row cell ellipsizes at narrow widths and
     -- the tail is the first thing lost, so trailing the count would hide exactly the fact the
     -- collapse exists to show. Headless there is no date(), so the raw stamps stand in for
     -- the formatted dates; the range separator is ASCII on purpose (the client font has no
-    -- U+2192 -- it drew a tofu box in game -- so exotic punctuation is proven-glyphs only).
-    assert.match("×400 · 2 purchases · bought 4 %- 9 at 198 each · GoldCap · captured", rows[4].cells.item.text)
+    -- U+2192 -- it drew a tofu box in game -- so exotic punctuation is proven-glyphs only). The
+    -- unit price no longer repeats here -- the COST/LISTED cells two columns over carry it.
+    assert.match("×400 · 2 purchases · bought 4 %- 9 · GoldCap · captured", rows[4].subItem.text)
     assert.equal("198", rows[4].cells.cost.text)
     assert.equal("7g92s", rows[4].cells.listed.text)
     assert.equal("350 still unsold", rows[4].cells.status.text)
-    assert.match("×30 · 3 purchases · bought 12 at 500 each · GoldCap · captured", rows[5].cells.item.text)
+    assert.match("×30 · 3 purchases · bought 12 · GoldCap · captured", rows[5].subItem.text)
     assert.equal("all sold", rows[5].cells.status.text)
   end)
 
@@ -1127,8 +1145,8 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     assert.equal("detail", rows[2].kind)
-    assert.match("market 150 · fresh · age 3s", rows[2].cells.item.text)
-    assert.same({ 1, 1, 1, 1 }, rows[2].cells.item.color)
+    assert.match("market 150 · fresh · age 3s", rows[2].subItem.text)
+    assert.same({ 1, 1, 1, 1 }, rows[2].subItem.color)
   end)
 
   it("[WAVE2 I4] keeps a visible stale quote after timer recomposition and never acts on it", function()
@@ -1183,8 +1201,8 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "detail" and row.position.itemID == 42 then freshDetail = row end
     end
-    assert.match("market 150 · fresh · age 0s", freshDetail.cells.item.text)
-    assert.same({ 1, 1, 1, 1 }, freshDetail.cells.item.color)
+    assert.match("market 150 · fresh · age 0s", freshDetail.subItem.text)
+    assert.same({ 1, 1, 1, 1 }, freshDetail.subItem.color)
 
     now.value = 151
     assert.equal(2, #timers) -- the expansion render fences the older expiry callback
@@ -1201,8 +1219,8 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "detail" and row.position.itemID == 42 then staleDetail = row end
     end
-    assert.match("market 150 · stale · age 51s", staleDetail.cells.item.text)
-    assert.same({ .5, .5, .5, 1 }, staleDetail.cells.item.color)
+    assert.match("market 150 · stale · age 51s", staleDetail.subItem.text)
+    assert.same({ .5, .5, .5, 1 }, staleDetail.subItem.color)
 
     local listedPosition
     for _, row in ipairs(rows) do
