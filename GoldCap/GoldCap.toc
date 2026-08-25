@@ -7,7 +7,7 @@
 ## X-Website: https://goldcap.gg
 ## X-Curse-Project-ID: 1668448
 ## X-Wago-ID: v6330D6b
-## IconTexture: Interface\Icons\inv_misc_coin_01
+## IconTexture: Interface\AddOns\GoldCap\Media\GoldCap
 ## OptionalDeps: GoldCap_AppData
 
 Core/Util.lua
