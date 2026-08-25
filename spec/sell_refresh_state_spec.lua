@@ -191,7 +191,7 @@ describe("Sell refresh state fence", function()
     GC.Sell.Refresh()
     ready = false
     GC.Sell.OnOwnedAuctions() -- enters pricing and immediately starves on the busy slot
-    assert.equal("Waiting for the Auction House… (another search holds the slot)", status[#status])
+    assert.equal("Waiting for the Auction House…", status[#status])
     assert.equal(100, refreshState(GC).progressAt) -- markProgress ran: the watchdog will not fire
     assert.same({}, sent.keys)
 
@@ -218,7 +218,7 @@ describe("Sell refresh state fence", function()
     GC.Sell.Refresh()
     ready = false
     GC.Sell.OnOwnedAuctions()
-    assert.equal("Waiting for the Auction House… (another search holds the slot)", status[#status])
+    assert.equal("Waiting for the Auction House…", status[#status])
     assert.is_true(refreshState(GC).waitingNoted)
 
     ready = true
@@ -233,7 +233,7 @@ describe("Sell refresh state fence", function()
     GC.Sell.OnOwnedAuctions()
     local notices = 0
     for _, text in ipairs(status) do
-      if text == "Waiting for the Auction House… (another search holds the slot)" then
+      if text == "Waiting for the Auction House…" then
         notices = notices + 1
       end
     end

@@ -20,6 +20,15 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     error("missing upvalue " .. wanted)
   end
 
+  local function set(fn, wanted, value)
+    for i = 1, math.huge do
+      local name = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then debug.setupvalue(fn, i, value); return end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
   local browseSent
 
   local function loadSniper()
@@ -52,6 +61,11 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
       Print = function() end,
       db = { settings = { sniper = { sound = true, showRefused = false } } },
       AuctionHouseTab = { PlayerIsBusy = function() return false end },
+      -- GC.Sniper.OnAuctionHouseShow's own _RefreshWatchSet() call reaches this -- only the
+      -- I1 test below actually invokes OnAuctionHouseShow for real (every other test in this
+      -- file drives autoScan/feedAuto/installSearchHooks directly), so it needs a live target
+      -- list even though nothing here cares what it contains.
+      WatchSet = { Select = function() return {} end },
     }
     helper.loadModule("Core/AutoScan.lua", GC) -- the real FSM, not the stub every other spec uses
     helper.loadModule("UI/SniperFrame.lua", GC)
@@ -132,5 +146,73 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
     assert.equal("WAITING", autoScan:State()) -- resumed straight into the settle countdown
     assert.equal(baseline, afterCalls)
+  end)
+
+  -- I1 (fix wave, sell honesty): AutoScan.lua's toggleOn wipes `reasons = {}` unconditionally,
+  -- so an AUTO off->on cycle made while the Sell tab is showing used to lose the "sell" pause
+  -- reason -- Auto would start browsing the AH again right underneath the pricing walk's own
+  -- throttled search, exactly the starvation autoscan_wiring's other tests exist to prevent.
+  -- GC.Sniper.OnAuctionHouseShow's own re-seed (fires on every AH open/reopen while
+  -- cfg.sniper.auto is set) now re-feeds "pause:sell" whenever the module-local `view` is
+  -- still "sell", the same way it already re-seeds "tab". `view` is driven through the real
+  -- setView() (the same upvalue seam spec/toolbar_chrome_spec.lua uses for it) rather than
+  -- poked directly, so this exercises the real shared cell every other SniperFrame.lua closure
+  -- reads.
+  local function widget()
+    local w = { shown = false }
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    function w:IsShown() return self.shown end
+    function w:SetActive() end
+    function w:SetText() end
+    function w:SetTextColor() end
+    return w
+  end
+
+  local function fakeToolbarFrame()
+    local f = widget() -- OnAuctionHouseShow's own `not frame:IsShown()` reads the frame itself
+    f.scroll, f.headerRow = widget(), widget()
+    f.dealsChrome = { widget(), widget(), widget(), widget(), widget() }
+    f.dealsTab, f.sellTab, f.soldTab = widget(), widget(), widget()
+    f.status = widget()
+    return f
+  end
+
+  it("re-seeds the sell pause on an AUTO off->on cycle reached via OnAuctionHouseShow while Sell is showing", function()
+    local GC = loadSniper()
+    local show = GC.Sniper.OnAuctionHouseShow
+    local feedAuto = upvalue(show, "feedAuto")
+    local autoScan = upvalue(feedAuto, "autoScan")
+    local createFrame = upvalue(show, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+    set(setView, "frame", fakeToolbarFrame())
+
+    GC.db.settings.sniper.auto = true
+    GC.db.settings.sniper.autoOpen = false -- return before createFrame's own real widget build
+
+    show() -- arms Auto for the first time (state OFF -> IDLE); nothing to switch views from yet
+    setView("sell") -- player opens Sell while Auto is running: feedAuto("pause:sell") for real
+    assert.is_true(autoScan:PauseReasons().sell)
+
+    feedAuto("toggleOff") -- state -> OFF, reasons wiped
+    show() -- re-open the AH with cfg.auto still true: toggleOn wipes reasons again
+
+    assert.is_true(autoScan:PauseReasons().sell) -- re-seeded because `view` is still "sell"
+  end)
+
+  it("does not re-seed a sell pause on the same cycle when Deals is the active view", function()
+    local GC = loadSniper()
+    local show = GC.Sniper.OnAuctionHouseShow
+    local feedAuto = upvalue(show, "feedAuto")
+    local autoScan = upvalue(feedAuto, "autoScan")
+
+    GC.db.settings.sniper.auto = true
+    GC.db.settings.sniper.autoOpen = false
+
+    show()
+    feedAuto("toggleOff")
+    show()
+
+    assert.is_falsy(autoScan:PauseReasons().sell)
   end)
 end)

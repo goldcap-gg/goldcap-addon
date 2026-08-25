@@ -5646,6 +5646,12 @@ local function createFrame()
       -- -- defensive/unreachable in practice (this button lives INSIDE the window), but kept
       -- symmetric with the real case in GC.Sniper.OnAuctionHouseShow.
       if not frame or not frame:IsShown() then feedAuto("tabHidden") end
+      -- (fix wave, I1) Same reason toggleOn wipes "tab": a Sell-view pause made while AUTO was
+      -- off was silently dropped -- addPause is a no-op in state OFF (Core/AutoScan.lua) -- so
+      -- an off/on cycle made while the Sell tab is showing used to leave Auto free to browse
+      -- the AH right underneath the pricing walk's own throttled search. The Sell view is a
+      -- standing reason exactly like the hidden tab above, so it gets the same re-seed.
+      if view == "sell" then feedAuto("pause:sell") end
     else
       if cfg then cfg.auto = false end
       feedAuto("toggleOff")
@@ -6223,6 +6229,9 @@ function GC.Sniper.OnAuctionHouseShow()
     if not frame or not frame:IsShown() then
       feedAuto("tabHidden")
     end
+    -- (fix wave, I1) Same wipe, same fix as onAutoToggleClick above: a Sell-view pause made
+    -- while AUTO was off is otherwise lost on every AH close/reopen, not just a manual toggle.
+    if view == "sell" then feedAuto("pause:sell") end
   end
 
   -- autoOpen gates only whether the WINDOW auto-appears. It does NOT auto-start any

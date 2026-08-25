@@ -194,6 +194,31 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_false(rows[1].notOnHand)
   end)
 
+  -- I2 (fix wave, sell honesty): an unresolved position (unassigned_acquisition/
+  -- pending_purchase/paid_sale/ambiguous_sale, see Core/SellPositions.lua) has no stock to be
+  -- "elsewhere" -- there IS no batch/lot backing it yet, so the mail/bank/alt claim above would
+  -- be a fabrication about a position that is really "GoldCap doesn't know what this is",
+  -- mirroring the STATUS branch's own `not p.unresolved` guard a few lines down.
+  it("does not claim 'not on hand' for an unresolved position with bag 0 / listed 0", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "UNKNOWN",
+        exposureQty = 5, knownQty = 5, knownCost = 500, listedValue = 0,
+        bagQty = 0, listedQty = 0, sources = {}, unresolved = true },
+    })
+    assert.not_matches("· not on hand", rows[1].cells.item.text, 1, true)
+    assert.is_false(rows[1].notOnHand)
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, Show = function() end, Hide = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+    }
+    rows[1].scripts.OnEnter(rows[1])
+    local joined = table.concat(tooltipLines, " ")
+    assert.not_matches("Not on hand", joined, 1, true)
+    _G.GameTooltip = nil
+  end)
+
   -- "—" in MARKET is ambiguous: it reads as "not asked yet" even when the auction house
   -- already answered "nothing is listed". The remembered empty answer paints as "none".
   it("shows 'none' in the market cell for an item the AH answered empty about", function()
@@ -222,6 +247,11 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("≈10g", rows[1].cells.market.text)
     assert.same({ .5, .5, .5, 1 }, rows[1].cells.market.color)
     assert.is_true(rows[1].marketFallback)
+    -- Minor (fix wave, sell honesty): "Unknown" profit beside a dim "≈" market used to render
+    -- in the row's ordinary fg -- a confident-looking pair next to an admittedly approximate
+    -- number. This fixture's ProfitText stub always returns "Unknown" (never overridden in
+    -- this test), so the profit cell should read dim here too.
+    assert.same({ .5, .5, .5, 1 }, rows[1].cells.profit.color)
     local tooltipLines = {}
     _G.GameTooltip = {
       SetOwner = function() end, Show = function() end, Hide = function() end,
@@ -326,14 +356,14 @@ describe("Sell widget geometry and manual cost", function()
     local GC = load(620, { calls = {} })
     GC.SellViewModel.SummaryText = function(summary)
       return { knownCost = summary.knownCost, listedValue = summary.listedValue,
-        profit = 900000, profitDetail = "over 1 positions · 1 without cost · 1 without a price" }
+        profit = 900000, profitDetail = "over 1 position · 1 without cost · 1 without a price" }
     end
     local _, container = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 0, listedValue = 0, sources = {} },
     })
     assert.equal("90g", container.summary.profit:GetText())
-    assert.equal("over 1 positions · 1 without cost · 1 without a price", container.summaryProfitDetail)
+    assert.equal("over 1 position · 1 without cost · 1 without a price", container.summaryProfitDetail)
   end)
 
   -- The PROFIT / UNIT cell has never had a numeric assertion of its own -- every existing test
@@ -404,6 +434,40 @@ describe("Sell widget geometry and manual cost", function()
       })
       assert.equal("-1g15s |cff9d9d9d@1g|r", rows[1].cells.profit.text)
       assert.same({ 1, 0, 0, 1 }, rows[1].cells.profit.color)
+    end)
+  end)
+
+  -- I3 (fix wave, sell honesty): "no live quote yet -- pricing..." on an expanded position's
+  -- detail row promises the pricing walk will reach this row -- but uniqueQuoteItemIDs (the
+  -- walk's own queue builder, see the comment above `notOnHand` in renderRows) only picks up a
+  -- position with bag or listed stock. A not-on-hand position is never queued, so the old copy
+  -- was a promise the addon could not keep. GC.SellViewModel.Expansion is stubbed to an empty
+  -- table by this file's own `load()`, so `#facts == 0` on every case below regardless.
+  describe("detail row copy for the empty-facts fallback", function()
+    it("says 'not priced' for a not-on-hand position's expanded detail row", function()
+      local GC = load(620, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+          exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+          bagQty = 0, listedQty = 0, sources = {} },
+      })
+      assert.equal("not priced — nothing on hand to sell", rows[2].subItem.text)
+      assert.same({ .5, .5, .5, 1 }, rows[2].subItem.color)
+    end)
+
+    it("keeps 'no live quote yet -- pricing...' for a bag-stock position awaiting a quote", function()
+      local GC = load(620, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+          exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+          bagQty = 3, listedQty = 0, sources = {} },
+      })
+      assert.equal("no live quote yet — pricing…", rows[2].subItem.text)
+      assert.same({ .5, .5, .5, 1 }, rows[2].subItem.color)
     end)
   end)
 

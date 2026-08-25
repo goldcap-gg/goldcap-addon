@@ -860,14 +860,15 @@ advanceQuote = function()
     return
   end
   if not driver.isReady() then
-    -- The shared search slot is busy with someone else's request (the Deals scan, a purchase
-    -- Check) -- the walk is stalled on purpose, not stuck, so this must feed the watchdog
-    -- exactly like the purchase-yield branch above and say why, once per walk rather than on
-    -- every tick.
+    -- The throttle window is closed -- IsThrottledMessageSystemReady() is false -- so the walk
+    -- is stalled on purpose, not stuck, and this must feed the watchdog exactly like the
+    -- purchase-yield branch above. I4 (fix wave, sell honesty): the code cannot actually tell
+    -- WHY the slot is busy -- another search, the walk's own last query still cooling down, or
+    -- the player's own Post -- so say only what is known, once per walk rather than every tick.
     markProgress()
     if not refresh.waitingNoted then
       refresh.waitingNoted = true
-      setStatus("Waiting for the Auction House… (another search holds the slot)")
+      setStatus("Waiting for the Auction House…")
     end
     return
   end
@@ -1935,7 +1936,7 @@ local function createRow(parent)
   row.sectionLabel:Hide()
   local gc2 = Theme.color.gold
   row.sectionRule = row:CreateTexture(nil, "ARTWORK")
-  row.sectionRule:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.35)
+  row.sectionRule:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.25)
   row.sectionRule:SetHeight(1)
   row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.s, 0)
   row.sectionRule:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
@@ -2189,7 +2190,13 @@ renderRows = function()
         -- has (or none) and stays ranked last -- there is nothing actionable to price a quote
         -- for, and spending one of the walk's throttled requests on it would starve a row a
         -- player can actually act on right now.
-        local notOnHand = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
+        -- I2 (fix wave, sell honesty): an unresolved position (unassigned_acquisition/
+        -- pending_purchase/paid_sale/ambiguous_sale, see Core/SellPositions.lua ~:579-616) has
+        -- no batch or lot backing it at all -- there is no stock to be "elsewhere", so the
+        -- mail/bank/alt claim below would be a fabrication about a position that is really
+        -- "GoldCap doesn't know what this is yet". Mirrors the STATUS branch's own
+        -- `not p.unresolved` guard further down.
+        local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
         row.notOnHand = notOnHand
         row.cells.item:SetText(named .. "\n"
           .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p))
@@ -2264,7 +2271,11 @@ renderRows = function()
           setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
         else
           row.cells.profit:SetText(formatCell(profit))
-          setColor(row.cells.profit, Theme.color.fg)
+          -- Minor (fix wave, sell honesty): "Unknown" beside a dim "≈" market used to render in
+          -- the row's ordinary fg -- a confident-looking pair next to an admittedly approximate
+          -- number. Dim whenever there is no real number here; the gold/red hold-price branch
+          -- above (a real number either way) is untouched.
+          setColor(row.cells.profit, type(profit) == "number" and Theme.color.fg or Theme.color.fgDim)
         end
         -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
         -- This column now says what to do about it, in a sentence, or names what is missing.
@@ -2342,7 +2353,14 @@ renderRows = function()
         if d.sold ~= nil then facts[#facts + 1] = ("sells %s/day"):format(d.sold) end
         if type(d.days) == "number" then facts[#facts + 1] = ("clears in ~%dd"):format(math.floor(d.days + 0.5)) end
         if d.factsText then facts[#facts + 1] = d.factsText end
-        row.subItem:SetText(#facts > 0 and table.concat(facts, " · ") or "no live quote yet — pricing…")
+        -- I3 (fix wave, sell honesty): "pricing..." promises the walk will reach this row, but
+        -- uniqueQuoteItemIDs (the walk's own queue builder, see the comment above `notOnHand`)
+        -- only picks up a position with bag or listed stock -- a not-on-hand, resolved position
+        -- is never queued, so that promise could never be kept. `p` is entry.position, already
+        -- in scope above the kind branch.
+        local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
+        row.subItem:SetText(#facts > 0 and table.concat(facts, " · ")
+          or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…"))
         setColor(row.subItem, (#facts == 0 or d.marketStale) and Theme.color.fgDim or Theme.color.fg)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")

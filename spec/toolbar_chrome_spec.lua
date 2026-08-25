@@ -206,3 +206,211 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     assert.equal("AUTO · PAUSED: selling", autoButtonText("PAUSED", { sell = true }))
   end)
 end)
+
+-- I1 (fix wave, sell honesty): reproduces the bug through the actual Auto button click rather
+-- than the FSM/upvalue seam above -- onAutoToggleClick is a `local function` closed over
+-- inside createFrame's own body (never a module upvalue reachable via debug.getupvalue the
+-- way setView/feedAuto are), so the only way to drive it for real is a real `frame.autoBtn`,
+-- which needs a real createFrame() construction. Follows spec/loadorder_spec.lua and
+-- spec/sniper_panel_inset_spec.lua's own recipe: the full GoldCap.toc load order against a
+-- fully rigged CreateFrame stub, then a real GC.Sniper.Toggle(), to get real autoBtn/sellTab
+-- widgets back and read their real OnClick handlers off `.scripts.OnClick`.
+describe("Auto toggle click: sell pause survives an off->on cycle while Sell is showing", function()
+  -- Copied from spec/sniper_panel_inset_spec.lua's own stubFrame() (itself copied from
+  -- spec/loadorder_spec.lua) -- kept as a per-spec double per addon/AGENTS.md's own note on
+  -- this pattern, rather than shared, so a change to either spec's construction needs does not
+  -- silently perturb this one.
+  local function stubFrame()
+    local f
+    f = {
+      RegisterEvent = function() end,
+      UnregisterEvent = function() end,
+      scripts = {},
+      SetScript = function(self, name, fn) self.scripts = self.scripts or {}; self.scripts[name] = fn end,
+      SetSize = function() end,
+      SetPoint = function() end,
+      SetMovable = function() end,
+      EnableMouse = function() end,
+      RegisterForDrag = function() end,
+      Show = function() end,
+      Hide = function() end,
+      IsShown = function() return false end,
+      SetText = function() end,
+      SetTexture = function() end,
+      SetTextColor = function() end,
+      SetJustifyH = function() end,
+      SetWidth = function() end,
+      SetScrollChild = function() end,
+      StartMoving = function() end,
+      StopMovingOrSizing = function() end,
+      CreateFontString = function() return stubFrame() end,
+      CreateTexture = function() return stubFrame() end,
+      TitleText = { SetText = function() end },
+      EnableMouseWheel = function() end,
+      SetVerticalScroll = function() end,
+      GetVerticalScroll = function() return 0 end,
+      GetVerticalScrollRange = function() return 0 end,
+      SetWordWrap = function() end,
+      SetMaxLines = function() end,
+      SetSpacing = function() end,
+      Enable = function() end,
+      Disable = function() end,
+      GetFontString = function() return nil end,
+      SetResizable = function() end,
+      SetResizeBounds = function() end,
+      StartSizing = function() end,
+      ClearAllPoints = function() end,
+      GetPoint = function() return nil end,
+      GetHeight = function() return 0 end,
+      GetFrameLevel = function() return 1 end,
+      SetFrameLevel = function() end,
+      SetColorTexture = function() end,
+      SetBlendMode = function() end,
+      SetTextureSliceMargins = function() end,
+      SetVertexColor = function() end,
+      SetAllPoints = function() end,
+      SetHeight = function() end,
+      SetFont = function() end,
+      GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
+      RegisterForClicks = function() end,
+      SetFrameStrata = function() end,
+      GetWidth = function() return 0 end,
+      HookScript = function() end,
+      IsEnabled = function() return true end,
+      SetAlpha = function() end,
+      CreateAnimationGroup = function()
+        return {
+          CreateAnimation = function()
+            return {
+              SetFromAlpha = function() end,
+              SetToAlpha = function() end,
+              SetDuration = function() end,
+              SetSmoothing = function() end,
+              SetOrder = function() end,
+              SetTarget = function() end,
+            }
+          end,
+          SetLooping = function() end,
+          SetScript = function() end,
+          Play = function() end,
+          Stop = function() end,
+          IsPlaying = function() return false end,
+        }
+      end,
+      EnableKeyboard = function() end,
+      SetPropagateKeyboardInput = function() end,
+      SetAutoFocus = function() end,
+      SetMaxLetters = function() end,
+      GetText = function() return "" end,
+      ClearFocus = function() end,
+      SetChecked = function() end,
+      GetChecked = function() return false end,
+      SetCheckedTexture = function() end,
+      SetOrientation = function() end,
+      SetMinMaxValues = function() end,
+      SetValueStep = function() end,
+      SetObeyStepOnDrag = function() end,
+      SetThumbTexture = function() end,
+      SetValue = function() end,
+      GetValue = function() return 0 end,
+    }
+    return f
+  end
+
+  local function buildFrame()
+    _G.CreateFrame = function(_, name)
+      local f = stubFrame()
+      if name and name ~= "" then
+        _G[name] = f
+      end
+      return f
+    end
+    _G.UISpecialFrames = _G.UISpecialFrames or {}
+    _G.SlashCmdList = {}
+    _G.C_AddOns = { GetAddOnMetadata = function() return "test" end }
+    _G.hooksecurefunc = _G.hooksecurefunc or function() end
+    _G.GetTime = _G.GetTime or function() return 0 end
+    _G.PlaySound = _G.PlaySound or function() end
+    _G.SOUNDKIT = _G.SOUNDKIT or { MAP_PING = 3175, RAID_WARNING = 1 }
+    _G.C_Timer = _G.C_Timer or { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+    _G.GetCoinTextureString = _G.GetCoinTextureString or function(amount) return tostring(amount) .. "c" end
+
+    local GC = {}
+    local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
+    local files = {}
+    for rawLine in toc:lines() do
+      local line = rawLine:gsub("%s+$", "")
+      if line ~= "" and not line:match("^##") then
+        files[#files + 1] = line
+      end
+    end
+    toc:close()
+    for _, rel in ipairs(files) do
+      local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))
+      assert(chunk, err)
+      chunk("GoldCap", GC)
+    end
+
+    GC.Sniper.Toggle() -- constructs and shows the real window; frame = frame or createFrame()
+    local frame = _G.GoldCapSniperFrame
+    assert(frame, "GC.Sniper.Toggle() did not publish _G.GoldCapSniperFrame")
+    assert.is_function(frame.autoBtn.scripts.OnClick)
+    assert.is_function(frame.sellTab.scripts.OnClick)
+
+    return frame, GC
+  end
+
+  local function teardown()
+    _G.CreateFrame = nil
+    _G.GoldCapSniperFrame = nil
+    _G.UISpecialFrames = nil
+    _G.SlashCmdList = nil
+    _G.C_AddOns = nil
+    _G.GoldCap_MarketData = nil
+    _G.SLASH_GOLDCAP1 = nil
+    _G.hooksecurefunc = nil
+    _G.GetTime = nil
+    _G.PlaySound = nil
+    _G.SOUNDKIT = nil
+    _G.C_Timer = nil
+    _G.GetCoinTextureString = nil
+  end
+
+  after_each(teardown)
+
+  local function upvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  it("re-arms the sell pause when Auto is toggled off then back on while Sell is the active view", function()
+    local frame = buildFrame()
+    local autoScan = upvalue(frame.autoBtn.scripts.OnClick, "autoScan")
+
+    frame.autoBtn.scripts.OnClick() -- OFF -> IDLE: arms Auto for the first time (still on Deals)
+    frame.sellTab.scripts.OnClick() -- Deals -> Sell: setView("sell") feeds pause:sell for real
+    assert.is_true(autoScan:PauseReasons().sell)
+
+    frame.autoBtn.scripts.OnClick() -- ON -> OFF: toggleOff wipes every reason
+    assert.is_falsy(autoScan:PauseReasons().sell)
+
+    frame.autoBtn.scripts.OnClick() -- OFF -> IDLE again, still on Sell: toggleOn also wipes
+    -- every reason -- without the I1 fix this leaves the walk racing Auto's own browse query.
+    assert.is_true(autoScan:PauseReasons().sell)
+  end)
+
+  it("does not re-arm a sell pause on the same off->on cycle while Deals is the active view", function()
+    local frame = buildFrame()
+    local autoScan = upvalue(frame.autoBtn.scripts.OnClick, "autoScan")
+
+    frame.autoBtn.scripts.OnClick() -- OFF -> IDLE, still on Deals
+    frame.autoBtn.scripts.OnClick() -- ON -> OFF
+    frame.autoBtn.scripts.OnClick() -- OFF -> IDLE
+
+    assert.is_falsy(autoScan:PauseReasons().sell)
+  end)
+end)

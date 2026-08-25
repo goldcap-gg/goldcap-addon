@@ -151,7 +151,8 @@ function GC.SellViewModel.SummaryText(summary)
     -- individually clear both gates), but it is still a partial one whenever something got
     -- left out -- say so here, the same way the "Unknown · N partial · M missing" string above
     -- carries its own detail, so the stat card's tooltip can show it without a second query.
-    local parts = { ("over %d positions"):format(summary.countedCount or 0) }
+    local n = summary.countedCount or 0
+    local parts = { ("over %d position%s"):format(n, n == 1 and "" or "s") }
     local noCost = summary.excludedNoCost or 0
     local noPrice = summary.excludedNoPrice or 0
     if noCost > 0 then parts[#parts + 1] = ("%d without cost"):format(noCost) end
