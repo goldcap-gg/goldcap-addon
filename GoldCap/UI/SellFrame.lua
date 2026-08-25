@@ -859,7 +859,18 @@ advanceQuote = function()
     setStatus("Waiting for the purchase to finish…")
     return
   end
-  if not driver.isReady() then return end
+  if not driver.isReady() then
+    -- The shared search slot is busy with someone else's request (the Deals scan, a purchase
+    -- Check) -- the walk is stalled on purpose, not stuck, so this must feed the watchdog
+    -- exactly like the purchase-yield branch above and say why, once per walk rather than on
+    -- every tick.
+    markProgress()
+    if not refresh.waitingNoted then
+      refresh.waitingNoted = true
+      setStatus("Waiting for the Auction House… (another search holds the slot)")
+    end
+    return
+  end
   local itemID = refresh.awaiting or refresh.queue[refresh.index + 1]
   if driver.keyInfo(itemID) then
     local info = driver.keyInfo(itemID)
@@ -893,6 +904,7 @@ end
 local function beginQuoteWalk()
   refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = uniqueQuoteItemIDs(), 0, "pricing", nil, nil
   refresh.skipped = 0
+  refresh.waitingNoted = false
   if #refresh.queue == 0 then return finishQuoteWalk() end
   advanceQuote()
 end

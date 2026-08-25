@@ -91,6 +91,24 @@ describe("AutoScan", function()
     assert.equal(2, log.start)
   end)
 
+  it("treats pause:sell/resume:sell as the sell pause reason", function()
+    local m = newMachine()
+    m:Input("toggleOn", 1000)
+    m:Tick(1000)
+    assert.equal("SCANNING", m:State())
+
+    m:Input("pause:sell", 1001)
+    assert.equal(1, log.abort)
+    assert.equal("PAUSED", m:State())
+    assert.same({ sell = true }, m:PauseReasons())
+
+    m:Input("resume:sell", 1002)
+    assert.equal("WAITING", m:State())
+    m:Tick(1003) -- deadline 1003 (settle=1): reached
+    assert.equal("SCANNING", m:State())
+    assert.equal(2, log.start)
+  end)
+
   it("does not call abortScan when a pause reason arrives before scanning has started", function()
     local m = newMachine()
     m:Input("toggleOn", 1000)

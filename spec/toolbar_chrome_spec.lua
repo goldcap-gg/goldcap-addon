@@ -144,4 +144,65 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
 
     assert.is_false(sessionText.shown)
   end)
+
+  local function fakeToolbarFrame()
+    return {
+      scroll = widget(), headerRow = widget(),
+      dealsChrome = { widget(), widget(), widget(), widget(), widget() },
+      dealsTab = widget(), sellTab = widget(), soldTab = widget(),
+      status = widget(),
+    }
+  end
+
+  -- One throttled search slot serves the whole addon: a Deals scan running behind the Sell
+  -- tab starved the pricing walk's queries silently. setView now feeds Auto a pause/resume
+  -- reason on every transition into/out of the Sell view; feedAuto is stubbed via
+  -- debug.setupvalue on setView itself, same seam this file already uses for frame/view.
+  it("setView pauses Auto entering Sell and resumes it leaving Sell for Deals", function()
+    local GC = loadSniper()
+    local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+
+    local calls = {}
+    set(setView, "feedAuto", function(event) calls[#calls + 1] = event end)
+    set(setView, "frame", fakeToolbarFrame())
+
+    setView("sell")
+    assert.same({ "pause:sell" }, calls)
+
+    setView("deals")
+    assert.same({ "pause:sell", "resume:sell" }, calls)
+  end)
+
+  -- Sold never queries the AH, so it neither pauses nor is resumed-from unless the player
+  -- was actually leaving Sell.
+  it("setView('sold') resumes Auto only when coming from Sell, not from Deals", function()
+    local GC = loadSniper()
+    local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+
+    local calls = {}
+    set(setView, "feedAuto", function(event) calls[#calls + 1] = event end)
+    set(setView, "frame", fakeToolbarFrame())
+
+    setView("sold") -- Deals -> Sold: nothing to pause or resume
+    assert.same({}, calls)
+
+    setView("sell")
+    assert.same({ "pause:sell" }, calls)
+
+    setView("sold") -- Sell -> Sold: releases the search slot
+    assert.same({ "pause:sell", "resume:sell" }, calls)
+  end)
+
+  it("renders 'AUTO · PAUSED: selling' when the sell pause reason is the one set", function()
+    local GC = loadSniper()
+    local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+    local feedAuto = upvalue(setView, "feedAuto")
+    local refreshAutoButton = upvalue(feedAuto, "refreshAutoButton")
+    local autoButtonText = upvalue(refreshAutoButton, "autoButtonText")
+
+    assert.equal("AUTO · PAUSED: selling", autoButtonText("PAUSED", { sell = true }))
+  end)
 end)

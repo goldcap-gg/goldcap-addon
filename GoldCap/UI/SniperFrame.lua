@@ -1991,13 +1991,13 @@ feedAuto = function(event)
   if refreshAutoButton then refreshAutoButton() end
 end
 
-local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail" }
+local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail", sell = "selling" }
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
--- decisive of the three: the player is one click from spending gold. `ah`/`tab` are
+-- decisive of the four: the player is one click from spending gold. `ah`/`tab` are
 -- deliberately absent -- per spec they render as plain "AUTO", not a paused chip, since
 -- neither reflects something the player is actively DOING right now.
-local AUTO_PAUSE_ORDER = { "dialog", "search", "mail" }
+local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell" }
 
 local function autoButtonText(state, reasons)
   if state == "SCANNING" then return "AUTO · SCANNING" end
@@ -5325,7 +5325,17 @@ end
 
 local function setView(v)
   if view == v or not frame then return end
+  local previousView = view
   view = v
+  -- One throttled search slot serves the whole addon: a Deals scan running behind the Sell
+  -- tab starved the pricing walk's queries silently (see SellFrame.lua's advanceQuote). Auto
+  -- pauses for as long as Sell is shown and resumes leaving it -- Sold never queries the AH,
+  -- so switching to/from Sold neither pauses nor resumes this reason.
+  if v == "sell" then
+    feedAuto("pause:sell")
+  elseif previousView == "sell" then
+    feedAuto("resume:sell")
+  end
   local isDeals = (v == "deals")
   if isDeals then
     frame.scroll:Show()
