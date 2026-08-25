@@ -773,7 +773,7 @@ describe("Sell positions", function()
     assert.equal(90, summary.profit)
   end)
 
-  it("[FINAL I3] retains independently known partial cost and listed value in mixed summaries", function()
+  it("[FINAL I3] retains independently known partial cost, listed value AND profit in mixed summaries", function()
     local complete = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
       ownedLots = { lot("commodity:42", 1, 200, 1) } })[1]
     local incomplete = { coverage = "PARTIAL", knownQty = 1, exposureQty = 2,
@@ -781,8 +781,16 @@ describe("Sell positions", function()
     local summary = GC.SellPositions.Summary({ complete, incomplete })
     assert.equal(110, summary.invested)
     assert.equal(250, summary.listedValue)
+    -- `projected`/the top-level all-or-nothing total still null out the moment one position is
+    -- incomplete -- that stays unchanged. `profit` does not: the "complete" position individually
+    -- clears both gates (COMPLETE coverage, a priced projection), so it counts on its own, exactly
+    -- the fix this task exists to make -- one PARTIAL position no longer nulls a total that had a
+    -- perfectly good, individually-known profit sitting right next to it.
     assert.is_nil(summary.projected)
-    assert.is_nil(summary.profit)
+    assert.equal(90, summary.profit)
+    assert.equal(1, summary.countedCount)
+    assert.equal(1, summary.excludedNoCost)
+    assert.equal(0, summary.excludedNoPrice)
   end)
 
   it("keeps known investment while leaving an unquoted complete position's projection unknown", function()
@@ -807,7 +815,32 @@ describe("Sell positions", function()
       { coverage = "COMPLETE", knownCost = 200, listedValue = 0, projectedNet = 95, profit = -105 },
       { coverage = "COMPLETE", knownCost = 30, listedValue = 0, projectedNet = 95, profit = 65 },
     })
-    assert.same({ invested = 230, listedValue = 0, projected = 190, profit = -40 }, summary)
+    assert.same({ invested = 230, listedValue = 0, projected = 190, profit = -40,
+      countedCount = 2, excludedNoCost = 0, excludedNoPrice = 0 }, summary)
+  end)
+
+  it("sums only the positions that individually clear both gates, reporting the rest as exclusions", function()
+    local summary = GC.SellPositions.Summary({
+      { coverage = "COMPLETE", knownCost = 200, listedValue = 0, projectedNet = 295 },
+      { coverage = "PARTIAL", knownCost = 10, listedValue = 50, projectedNet = nil },
+      { coverage = "COMPLETE", knownCost = 40, listedValue = 0, projectedNet = nil },
+    })
+    assert.equal(95, summary.profit)
+    assert.equal(1, summary.countedCount)
+    assert.equal(1, summary.excludedNoCost)
+    assert.equal(1, summary.excludedNoPrice)
+  end)
+
+  it("reports profit as nil only when nothing on the list individually clears both gates", function()
+    local summary = GC.SellPositions.Summary({
+      { coverage = "PARTIAL", knownCost = 10, listedValue = 50, projectedNet = nil },
+      { coverage = "UNKNOWN", knownCost = 0, listedValue = 0, projectedNet = nil },
+      { coverage = "COMPLETE", knownCost = 40, listedValue = 0, projectedNet = nil },
+    })
+    assert.is_nil(summary.profit)
+    assert.equal(0, summary.countedCount)
+    assert.equal(2, summary.excludedNoCost)
+    assert.equal(1, summary.excludedNoPrice)
   end)
 
   it("fails closed when batch tracked and source quantities overflow exact accounting", function()
@@ -840,7 +873,8 @@ describe("Sell positions", function()
       { coverage = "COMPLETE", knownCost = max, listedValue = max, projectedNet = max },
       { coverage = "COMPLETE", knownCost = 1, listedValue = 1, projectedNet = 1 },
     })
-    assert.same({ invested = nil, listedValue = nil, projected = nil, profit = nil }, summary)
+    assert.same({ invested = nil, listedValue = nil, projected = nil, profit = nil,
+      countedCount = 2, excludedNoCost = 0, excludedNoPrice = 0 }, summary)
   end)
 
   it("normalizes missing lot timestamps for stable FIFO sorting without mutating input", function()

@@ -157,6 +157,43 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Not in your bags or listed — mail or bank?", rows[1].cells.status.text)
   end)
 
+  -- Same shape, checking the ITEM cell and the row's own tooltip rather than STATUS: the row is
+  -- real cost history, not a broken one, and the item name says so wherever the player is
+  -- actually looking, not only in the one column that happened to have room.
+  it("appends '· not on hand' to the item cell and its tooltip for a bag 0 / listed 0 position", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+        exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+        bagQty = 0, listedQty = 0, sources = {} },
+    })
+    assert.matches("· not on hand", rows[1].cells.item.text, 1, true)
+    assert.is_true(rows[1].notOnHand)
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, Show = function() end, Hide = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+    }
+    rows[1].scripts.OnEnter(rows[1])
+    local joined = table.concat(tooltipLines, " ")
+    assert.matches("Not on hand", joined, 1, true)
+    _G.GameTooltip = nil
+  end)
+
+  -- The row's own OnEnter only reads self.itemID via self.position -- give it one, since the
+  -- fixture above never set it, and OnEnter guards on `self.position.itemID` before it does
+  -- anything at all.
+  it("clears the not-on-hand flag for a position with bag stock", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+    })
+    assert.not_matches("· not on hand", rows[1].cells.item.text, 1, true)
+    assert.is_false(rows[1].notOnHand)
+  end)
+
   -- "—" in MARKET is ambiguous: it reads as "not asked yet" even when the auction house
   -- already answered "nothing is listed". The remembered empty answer paints as "none".
   it("shows 'none' in the market cell for an item the AH answered empty about", function()
@@ -170,6 +207,45 @@ describe("Sell widget geometry and manual cost", function()
     })
     assert.equal("none", rows[1].cells.market.text)
     assert.equal("Nothing listed on the AH right now", rows[1].cells.status.text)
+  end)
+
+  -- Below "none" and "—" sits a third case: no live quote yet at all, but the position carries
+  -- the imported goldcap.gg market value (the same number Deals shows). It stands in, dim and
+  -- "≈"-prefixed so it never impersonates a live number, until a real quote lands.
+  it("falls back to the imported market value, dim and '≈'-prefixed, with no live quote yet", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
+    })
+    assert.equal("≈10g", rows[1].cells.market.text)
+    assert.same({ .5, .5, .5, 1 }, rows[1].cells.market.color)
+    assert.is_true(rows[1].marketFallback)
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, Show = function() end, Hide = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+    }
+    rows[1].scripts.OnEnter(rows[1])
+    local joined = table.concat(tooltipLines, " ")
+    assert.matches("goldcap.gg market value", joined, 1, true)
+    _G.GameTooltip = nil
+  end)
+
+  -- An AH answer of "nothing listed" still outranks the imported value: the addon already asked
+  -- and got a real answer, so falling back to a guess from the last import would contradict it.
+  it("keeps 'none' rather than the market-value fallback when the AH already answered empty", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "emptyAnswers", { [42] = 70 })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
+    })
+    assert.equal("none", rows[1].cells.market.text)
+    assert.is_false(rows[1].marketFallback)
   end)
 
   -- "Unknown · 1 partial · 37 missing" used to render in the same confident green as a real
@@ -215,7 +291,7 @@ describe("Sell widget geometry and manual cost", function()
     local joined = table.concat(tooltipLines, " ")
     assert.matches("Est. profit", joined, 1, true)
     assert.matches("2 partial", joined, 1, true)
-    assert.matches("excludes them", joined, 1, true)
+    assert.matches("excluded", joined, 1, true)
     hit.scripts.OnLeave(hit)
     assert.is_true(hidden)
     _G.GameTooltip = nil
@@ -240,6 +316,24 @@ describe("Sell widget geometry and manual cost", function()
     render()
     assert.equal("5g", container.summary.profit:GetText())
     assert.is_nil(container.summaryProfitDetail)
+  end)
+
+  -- A real number is no longer proof that nothing was excluded: SellPositions.Summary sums only
+  -- the positions that individually clear both gates, so the total can still be partial. The
+  -- exclusions ride along on summaryProfitDetail exactly like the "Unknown · ..." case above,
+  -- for the same hit-frame tooltip to show.
+  it("carries the exclusion detail on summaryProfitDetail even when the card shows a real number", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.SummaryText = function(summary)
+      return { knownCost = summary.knownCost, listedValue = summary.listedValue,
+        profit = 900000, profitDetail = "over 1 positions · 1 without cost · 1 without a price" }
+    end
+    local _, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 0, listedValue = 0, sources = {} },
+    })
+    assert.equal("90g", container.summary.profit:GetText())
+    assert.equal("over 1 positions · 1 without cost · 1 without a price", container.summaryProfitDetail)
   end)
 
   -- The PROFIT / UNIT cell has never had a numeric assertion of its own -- every existing test

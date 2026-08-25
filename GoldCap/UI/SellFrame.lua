@@ -1859,6 +1859,16 @@ local function createRow(parent)
     if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
+      -- Flags painted onto the row at the same time as the cells they describe (MARKET/UNIT's
+      -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
+      -- so the tooltip can never disagree with what the row is actually showing.
+      if self.marketFallback then
+        GameTooltip:AddLine("≈ goldcap.gg market value — no live quote yet", 0.85, 0.85, 0.85, true)
+      end
+      if self.notOnHand then
+        GameTooltip:AddLine("Not on hand — the stock is in the mail, the bank, or on another character",
+          0.85, 0.85, 0.85, true)
+      end
       GameTooltip:Show()
     end
   end)
@@ -1959,7 +1969,8 @@ local function summaryFor(filtered)
   local raw = GC.SellPositions.Summary(filtered)
   return GC.SellViewModel.SummaryText({ knownCost = raw.invested or knownCost,
     listedValue = raw.listedValue or listedValue,
-    profit = raw.profit, partialCount = partial, unknownCount = unknown })
+    profit = raw.profit, partialCount = partial, unknownCount = unknown,
+    countedCount = raw.countedCount, excludedNoCost = raw.excludedNoCost, excludedNoPrice = raw.excludedNoPrice })
 end
 
 local function updateSummary(filtered)
@@ -1968,7 +1979,10 @@ local function updateSummary(filtered)
   container.summary.listed:SetText(formatCell(text.listedValue))
   if type(text.profit) == "number" then
     container.summary.profit:SetText(formatAmount(text.profit))
-    container.summaryProfitDetail = nil
+    -- No longer always nil: the number is a sum over only the positions that individually
+    -- cleared both gates, so it can still be a partial total, and the card's own hit frame
+    -- (below) shows that detail on hover exactly like the "Unknown · ..." case does.
+    container.summaryProfitDetail = text.profitDetail
   else
     -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37
     -- missing" -- at Theme.Scale() 1.3 the longer form doesn't fit the mono value line, so the
@@ -2082,6 +2096,11 @@ renderRows = function()
     else
       row:Show(); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
+      -- Read by this row's own OnEnter (below) to decide whether to add a tooltip line about the
+      -- number this row is showing. Reset for every kind, not just "position": rows are pooled
+      -- and rebound, so a flag left set from an earlier position would otherwise ride along onto
+      -- an unrelated expansion sub-row.
+      row.marketFallback, row.notOnHand = false, false
       local p = entry.position
       local lotID = entry.lot and entry.lot.auctionID or 0
       row.renderEntryID = table.concat({ renderGeneration, i, entry.kind, p.scopeKey or "", p.positionKey or "", lotID }, ":")
@@ -2103,8 +2122,23 @@ renderRows = function()
         -- majority of items, which have no quality tier at all.
         local named = Theme.WithQuality and Theme.WithQuality(p.itemName or "Item", p.itemID)
           or (p.itemName or "Item")
+        -- Nothing in the bags and nothing listed means the stock this row tracks is real cost
+        -- history sitting somewhere else -- the mail, the bank, another character -- not a
+        -- position that vanished. The dim "· not on hand" suffix goes AFTER the qty suffix (or
+        -- its SourceText fallback, when there is no qty to show), same idiom as SniperFrame's
+        -- "· watching" suffix in setRowDeal, and its own color code so it never inherits
+        -- whatever color the line before it painted.
+        --
+        -- Deliberately not queued into the pricing walk: uniqueQuoteItemIDs (above) only picks
+        -- up a position with `inBags or listed`, so this row keeps whatever quote it already
+        -- has (or none) and stays ranked last -- there is nothing actionable to price a quote
+        -- for, and spending one of the walk's throttled requests on it would starve a row a
+        -- player can actually act on right now.
+        local notOnHand = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
+        row.notOnHand = notOnHand
         row.cells.item:SetText(named .. "\n"
-          .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p)))
+          .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p))
+          .. (notOnHand and "|cff8c8a85 · not on hand|r" or ""))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.
         local unitCost = nil
@@ -2116,13 +2150,29 @@ renderRows = function()
         -- "none" ~= "—": the first is an answer ("the AH has zero listings right now",
         -- remembered in emptyAnswers), the second is the absence of one. Conflating them made
         -- honestly-unlisted items read as the pricing walk being slow or stuck.
-        local marketText = p.displayMarketUnit and formatCell(p.displayMarketUnit)
-          or (emptyAnswers[p.itemID] and "none" or "—")
+        --
+        -- Below both of those sits a third case: no live quote yet AT ALL (not even a stale
+        -- one), but the item was imported from goldcap.gg with a market value -- the same
+        -- number Deals shows. That value is not live, so it never overrides an actual AH
+        -- answer (an empty one included -- the AH answered "none", which outranks a guess from
+        -- the last import), but showing it beats a "—" that reads as "the addon hasn't checked
+        -- yet" for as long as the pricing walk takes to reach this row.
+        local marketFallback = p.displayMarketUnit == nil and type(p.marketValue) == "number"
+          and p.marketValue > 0 and not emptyAnswers[p.itemID]
+        row.marketFallback = marketFallback
+        local marketText
+        if p.displayMarketUnit then
+          marketText = formatCell(p.displayMarketUnit)
+        elseif marketFallback then
+          marketText = "≈" .. formatCell(p.marketValue)
+        else
+          marketText = emptyAnswers[p.itemID] and "none" or "—"
+        end
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
           marketText = marketText .. (" · stale %ds"):format(p.quoteAge)
         end
         row.cells.market:SetText(marketText)
-        setColor(row.cells.market, p.displayMarketUnit and not p.freshMarketUnit
+        setColor(row.cells.market, (marketFallback or (p.displayMarketUnit and not p.freshMarketUnit))
           and Theme.color.fgDim or Theme.color.fg)
         -- Per unit, to match the two columns it is compared against. The view model reports the
         -- position total; showing that under a "/ UNIT" heading turned a loss of under a gold
@@ -2767,7 +2817,7 @@ function GC.Sell.Attach(f, geometry)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("Est. profit", 1, 0.82, 0)
         GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine("Costs are missing or partial for these positions; the estimate excludes them.",
+        GameTooltip:AddLine("Positions without a cost or a live price are excluded.",
           0.85, 0.85, 0.85, true)
         GameTooltip:Show()
       end)
