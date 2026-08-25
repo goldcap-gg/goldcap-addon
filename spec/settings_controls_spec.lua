@@ -206,7 +206,7 @@ describe("Settings controls", function()
     -- covered by SniperFrame's specs, not this one.
     refreshRailActiveCalls = 0
     GC.Sniper = {
-      DefaultWindowSize = function() return 720, 520 end,
+      DefaultWindowSize = function() return 720, 600 end,
       RefreshRailActive = function() refreshRailActiveCalls = refreshRailActiveCalls + 1 end,
     }
     _G.GoldCapSniperFrame = region("Frame")

@@ -42,7 +42,14 @@ WIN.ROW_CAP = 100 -- hard cap on rendered/pooled deal rows, for both watchlist a
 -- other fixed columns, so a fresh install silently opened with COST already dropped.
 -- 720 gives 600px, which keeps it.
 WIN.FRAME_WIDTH = 720
-WIN.FRAME_HEIGHT = 520
+-- 600, was 520 (check panel v2 fix round 1: at 520 the drawer -- window height minus
+-- CH.TITLEBAR(32) -- was 488, short of DG.FIXED_HEIGHT_OPEN(548), so a FRESH profile's
+-- default-open evidence grid (Init.lua's dialogDetailsOpen = true) got refused by the F5 guard
+-- before the player ever touched the toggle, seeding "Enlarge the window to see details" on a
+-- window the player hadn't resized. 600 - CH.TITLEBAR(32) = 568 >= 548, matching the docked AH
+-- drawer's own ~565px ceiling. Only fresh installs and RESET WINDOW see this default -- a
+-- player's saved window size (persistWindowGeometry) is untouched.
+WIN.FRAME_HEIGHT = 600
 -- 640, was 560: the rail consumes RAIL_W of every width, so the old floor
 -- left the item column ~90px after the responsive drops -- unreadable. 640
 -- restores the same worst-case content width the 560 floor used to give.
@@ -2249,7 +2256,7 @@ DG.ICON = 32 -- Task 2 restyle (was 24): the header icon reads as the item itsel
 DG.GRID_ROW_H = 18
 -- The label/value grid now holds only the ten immutable decision/evidence fields (Status
 -- through Reason) -- Quantity and its quick-fill row moved out into their own always-visible
--- block (DG.QTY_ROWS below), reachable whether Details is open or not.
+-- block (DG.QTY_H below), reachable whether Details is open or not.
 DG.GRID_ROWS = 10
 -- Fix 2 quick-fill row geometry: four small ghost buttons sharing the row right under
 -- Quantity -- they don't fit alongside that row's own label + "of N" + edit box on one
@@ -4499,9 +4506,15 @@ local function createDialog()
   entryCard:SetPoint("RIGHT", d, "CENTER", -Theme.pad.xs, 0)
   d.entryCard = entryCard
 
+  -- fix round 1: bounded on the RIGHT + SetWordWrap(false) -- the file's own gridRow/
+  -- verdictAmountNote comments already warn that an unbounded single-point FontString grows
+  -- without limit; a caption this short never actually reaches the card's right edge, but the
+  -- pattern stays consistent rather than being the one label in this dialog left unbounded.
   local entryCaption = Theme.Num(entryCard, 9)
   entryCaption:SetJustifyH("LEFT")
   entryCaption:SetPoint("TOPLEFT", Theme.pad.s, -6)
+  entryCaption:SetPoint("RIGHT", -Theme.pad.s, 0)
+  entryCaption:SetWordWrap(false)
   entryCaption:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   entryCaption:SetText("ENTRY AVG")
 
@@ -4510,6 +4523,10 @@ local function createDialog()
   entryValue:SetPoint("TOPLEFT", entryCaption, "BOTTOMLEFT", 0, -2)
   entryValue:SetPoint("RIGHT", -Theme.pad.s, 0)
   entryValue:SetWordWrap(false)
+  -- fix round 1: Theme.Num does not tint (see its own comment -- callers own color), so without
+  -- this the amount rendered in the font's raw white rather than the dialog's own fg tone every
+  -- other stamped number in this dialog uses.
+  entryValue:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   d.entryValue = entryValue
 
   local exitCard = Theme.Card(d, nil, nil, true)
@@ -4521,6 +4538,8 @@ local function createDialog()
   local exitCaption = Theme.Num(exitCard, 9)
   exitCaption:SetJustifyH("LEFT")
   exitCaption:SetPoint("TOPLEFT", Theme.pad.s, -6)
+  exitCaption:SetPoint("RIGHT", -Theme.pad.s, 0)
+  exitCaption:SetWordWrap(false)
   exitCaption:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   exitCaption:SetText("STRESS EXIT")
 
@@ -4529,6 +4548,7 @@ local function createDialog()
   exitValue:SetPoint("TOPLEFT", exitCaption, "BOTTOMLEFT", 0, -2)
   exitValue:SetPoint("RIGHT", -Theme.pad.s, 0)
   exitValue:SetWordWrap(false)
+  exitValue:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   d.exitValue = exitValue
 
   -- Details toggle: the 12-row evidence grid used to be the whole dialog below the item
@@ -4640,18 +4660,21 @@ local function createDialog()
     -- resizeDialogDiagnostics itself reads, so the two can never disagree about what's reserved.
     local debugOn = (cfg and cfg.debug) and true or false
     local needed = DG.FIXED_HEIGHT_OPEN + (debugOn and (d.diagnosticGaps + d.diagnosticMinimumHeight) or 0)
-    -- Check panel v2: `h` can be nil or 0 at construction -- createDialog's own d:SetSize call
-    -- runs before the engine has laid the frame out even once, and this same applyDetailsState
-    -- seeds the initial (possibly saved-"open") state right from there. Treat an unresolved
-    -- height as "fits" rather than refusing: refusing here would silently downgrade a saved or
-    -- default-open drawer to closed before the player ever saw it get a real size, which is
-    -- exactly the "docked SHOW DETAILS dead" failure mode this guard exists to describe
-    -- honestly, not to cause somewhere else. Only a height the engine has actually reported, and
-    -- reported as too small, refuses the open.
+    -- Check panel v2 fix round 1: `d:SetSize` (createDialog, above) always gives `d` a real,
+    -- positive height before this ever runs, and every anchor in this dialog resolves against
+    -- that already-sized frame -- `h` is not actually expected to come back nil/0 here. The
+    -- `h and h > 0` half of this check is defensive widening, not a reachable scenario: if the
+    -- engine ever DID hand back an unresolved height, treating it as "fits" is the safer failure
+    -- than refusing a saved/default "open" over a number this guard can't trust yet.
     local h = d:GetHeight()
     if d.detailsOpen and h and h > 0 and h < needed then
       d.detailsOpen = false
-      setDialogStatus("Enlarge the window to see details")
+      -- Check panel v2 fix round 1: `dialog` (the module upvalue) is still nil the one time
+      -- this guard runs from inside createDialog's own construction-time seed (see this
+      -- function's opening comment) -- that seed is not a player action, so it must stay
+      -- silent instead of announcing "Enlarge the window..." before the player has touched
+      -- anything. Every later call (the toggle's own OnClick) has `dialog` set.
+      if dialog then setDialogStatus("Enlarge the window to see details") end
     end
     d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED
     -- Task 2 restyle: uppercase kit-value labels (were "Show/Hide details"); the

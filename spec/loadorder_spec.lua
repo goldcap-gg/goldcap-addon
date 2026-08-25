@@ -286,7 +286,7 @@ describe("TOC load order", function()
     -- SniperFrame.lua's own WIN table via this export, instead of a mirrored constant that can
     -- (and did) go stale -- pin the real default here so a future change to WIN.FRAME_WIDTH/
     -- HEIGHT is caught the same way loadorder catches every other cross-file contract.
-    assert.same({ 720, 520 }, { GC.Sniper.DefaultWindowSize() })
+    assert.same({ 720, 600 }, { GC.Sniper.DefaultWindowSize() })
 
     -- exercise real frame construction through the stubbed CreateFrame
     assert.has_no.errors(function() GC.Sniper.Toggle() end)
