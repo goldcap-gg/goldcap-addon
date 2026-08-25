@@ -74,6 +74,28 @@ describe("Sell positions", function()
     assert.is_not_true(positions[1].facts.soldPending)
   end)
 
+  -- The other half of the same rule: a settled sale attaches to a position that exists for
+  -- another reason, but never conjures one. With nothing bought, held or listed, a paid sale
+  -- from the ledger used to leave a permanent row with a dash in every column (the third
+  -- in-game pass found dozens of "items I sold long ago").
+  it("does not create a position for a settled sale of stock that is no longer held", function()
+    local positions = build({
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      sellerEvidence = { sale("Herb", 5, false) },
+    })
+    assert.equal(0, #positions)
+  end)
+
+  it("still creates a position for a pending sale of stock that is no longer held", function()
+    local positions = build({
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      sellerEvidence = { sale("Herb", 5, true) },
+    })
+    assert.equal(1, #positions)
+    assert.is_true(positions[1].facts.soldPending)
+    assert.equal(1, #positions[1].sellerEvidence)
+  end)
+
   -- The wiring again: the absorb window and spike threshold are player settings, and this is
   -- the one place they cross from GC.db into the sell-side recommendation.
   it("hands the configured absorb window and spike threshold to the post recommendation", function()

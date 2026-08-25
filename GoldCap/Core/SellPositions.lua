@@ -672,11 +672,24 @@ function GC.SellPositions.Build(args)
       -- A settled sale is the NORMAL end of owning something. Requiring `pending` here meant
       -- every paid sale fell through to a repair row with no itemID, no icon and no numbers --
       -- and nothing ever makes a paid sale pending again, so they accumulated forever.
+      --
+      -- ...but a settled sale only ATTACHES to a position that exists for another reason
+      -- (stock in the bags, a live listing, an open purchase batch). It never creates one: a
+      -- position with nothing bought, nothing held and nothing listed, carrying only a paid
+      -- sale from weeks ago, is a row with a dash in every column -- the third in-game pass
+      -- found dozens of them ("items I sold long ago") at the bottom of the list, one per
+      -- ledger sale that no purchase batch ever consumed, and the ledger is never pruned by
+      -- age. That sale is history, and history is the Sold tab's business. A PENDING sale
+      -- (proceeds not collected yet) still gets its row -- "sale proceeds pending" is the
+      -- one thing this tab can still tell the player about it.
       if count == 1 then
-        local position = positionFor(positions, matched.positionKey, matched.itemID, context)
-        position.itemName = position.itemName or matched.itemName
-        if evidence.pending == true then position.facts.soldPending = true end
-        position.sellerEvidence[#position.sellerEvidence + 1] = evidence
+        local existing = positions[matched.positionKey]
+        if existing or evidence.pending == true then
+          local position = positionFor(positions, matched.positionKey, matched.itemID, context)
+          position.itemName = position.itemName or matched.itemName
+          if evidence.pending == true then position.facts.soldPending = true end
+          position.sellerEvidence[#position.sellerEvidence + 1] = evidence
+        end
       else
         unresolvedRows[#unresolvedRows + 1] = {
           unresolved = true, protectedAction = false,
