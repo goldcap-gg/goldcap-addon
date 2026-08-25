@@ -23,6 +23,13 @@ describe("SoldFrame", function()
     function r:SetWordWrap() end
     function r:SetTextColor(...) self.colorValue = { ... } end
     function r:SetColorTexture(...) self.colorTexture = { ... } end
+    -- Sliced rounded fills (batch-5 pattern, see UI/SellFrame.lua's own
+    -- doubles): rows own a real texture now instead of a flat color.
+    function r:SetTexture(f) self.texture = f end
+    function r:SetTexCoord() end
+    function r:SetTextureSliceMargins(...) self.sliceMargins = { ... } end
+    function r:SetVertexColor(...) self.vertexColor = { ... } end
+    function r:SetSpacing(s) self.spacing = s end
     function r:SetText(t) self.textValue = t end
     function r:GetText() return self.textValue end
     function r:Show() self.visible = true end
@@ -45,9 +52,16 @@ describe("SoldFrame", function()
 
     GC = helper.loadModule("Core/Util.lua")
     GC.Theme = {
-      color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {1,1,1}, gold = {1,1,1},
+      MEDIA = "",
+      -- gold and fgDim are deliberately DISTINCT values (not both {1,1,1}
+      -- like the rest of this table) -- the WHEN-column tint test below
+      -- must be able to fail: a "dated" row's cells.when should read fgDim,
+      -- a "pending" row's should read gold, and if those two colors were
+      -- numerically identical in this fake, a broken paintSaleCells that
+      -- always applied the same color to both would still pass.
+      color = { fg = {1,1,1}, fgMuted = {1,1,1}, fgDim = {0.55,0.54,0.52}, gold = {0.83,0.64,0.22},
                 red = {1,0,0}, green = {0,1,0}, panel = {0,0,0}, bg = {0,0,0},
-                zebra = {1,1,1,0.04}, hover = {1,1,1,0.08} },
+                zebra = {1,1,1,0.04}, hover = {1,1,1,0.08}, border = {1,1,1,0.06} },
       tier = { SUSPECT = {1,1,0} },
       pad = { xs = 4, s = 8, m = 12, l = 16 },
       Label = function(parent, _) return region("FontString", parent) end,
@@ -107,9 +121,11 @@ describe("SoldFrame", function()
   end)
 
   -- Concatenates every cell a shown row could possibly carry -- the plain
-  -- item name, the section/hint full-row text, and the five column cells --
-  -- so a substring search behaves like the old single-blob search used to,
-  -- regardless of which cell kind actually holds the text.
+  -- item name, the hint's full-row text, the section row's own mono
+  -- micro-label (row.sectionLabel, when shown -- section rows no longer use
+  -- row.wide), and the five column cells -- so a substring search behaves
+  -- like the old single-blob search used to, regardless of which cell kind
+  -- actually holds the text.
   local function shownTexts()
     local out = {}
     for _, row in ipairs(rowsOf()) do
@@ -117,6 +133,7 @@ describe("SoldFrame", function()
         out[#out + 1] = table.concat({
           row.item:GetText() or "",
           row.wide:GetText() or "",
+          row.sectionLabel:IsShown() and (row.sectionLabel:GetText() or "") or "",
           row.cells.when:GetText() or "",
           row.cells.qty:GetText() or "",
           row.cells.unit:GetText() or "",
@@ -132,11 +149,13 @@ describe("SoldFrame", function()
   -- (plain find, no magic chars). Used where a test needs a specific row's
   -- own cell/color rather than a blob search across every rendered row -- a
   -- blob search can't tell which row a fact came from, so it can pass even
-  -- when the branch under test is broken.
+  -- when the branch under test is broken. A section row's text lives in
+  -- row.sectionLabel now, not row.wide -- checked first, additively.
   local function rowWithText(pattern)
     for _, row in ipairs(rowsOf()) do
       if row:IsShown() then
-        local text = (row.item:GetText() or "") .. (row.wide:GetText() or "")
+        local text = row.sectionLabel:IsShown() and (row.sectionLabel:GetText() or "")
+          or ((row.item:GetText() or "") .. (row.wide:GetText() or ""))
         if text:find(pattern, 1, true) then return row end
       end
     end
@@ -304,13 +323,19 @@ describe("SoldFrame", function()
                                    salesCount = 5, realized = 25 } })
     end
     GC.Sold.RefreshIfShown()
-    assert.truthy(shownTexts():find("On goldcap.gg -- last 30 days, latest 1 of 5", 1, true))
+    assert.truthy(shownTexts():find("ON GOLDCAP.GG — LAST 30 DAYS, LATEST 1 OF 5", 1, true))
+    -- The section row is the mono micro-label + gold rule (Task 3), not the
+    -- old full-width row.wide label.
+    local row = rowWithText("ON GOLDCAP.GG")
+    assert.truthy(row)
+    assert.truthy(row.sectionRule:IsShown())
+    assert.truthy(colorEquals(row.sectionLabel.colorValue, GC.Theme.color.gold))
   end)
 
   it("leaves the server section header unchanged when it holds every sale", function()
     GC.AppLedger.GetSummary = function() return summary() end -- salesCount == #sales == 1
     GC.Sold.RefreshIfShown()
-    assert.truthy(shownTexts():find("On goldcap.gg -- last 30 days", 1, true))
+    assert.truthy(shownTexts():find("ON GOLDCAP.GG — LAST 30 DAYS", 1, true))
     assert.is_nil(shownTexts():find("latest", 1, true))
   end)
 
@@ -374,7 +399,18 @@ describe("SoldFrame", function()
     assert.truthy(posted and transit)
     assert.truthy(posted.cells.when:GetText() ~= "in the mail")
     assert.equal("in the mail", transit.cells.when:GetText())
-    assert.truthy(colorEquals(transit.cells.when.colorValue, GC.Theme.color.fgDim))
+    -- A dated WHEN stays dim like the rest of the row; "in the mail" is the
+    -- one thing in that column worth calling out, so it gets the gold tint.
+    assert.truthy(colorEquals(posted.cells.when.colorValue, GC.Theme.color.fgDim))
+    assert.truthy(colorEquals(transit.cells.when.colorValue, GC.Theme.color.gold))
+  end)
+
+  it("renders the row fill through a sliced texture, not a flat color", function()
+    -- Batch-5 sliced-fill pattern (SellFrame's row.zebra precedent): a real
+    -- texture recolored with SetVertexColor, not SetColorTexture.
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Sold.RefreshIfShown()
+    assert.equal("plaque.png", rowsOf()[1].zebra.texture)
   end)
 
   it("shows the UNIT column as floor(total/qty)", function()
@@ -398,11 +434,24 @@ describe("SoldFrame", function()
     assert.truthy(band)
     assert.truthy(band.totals:GetText():find("1 sales", 1, true))
     assert.truthy(band.totals:GetText():find("proceeds", 1, true))
+    -- Mono band separator, replacing the old " -- ": every " -- " became
+    -- " · " when totals/age moved onto Theme.Num alongside the rest of the
+    -- mono table.
+    assert.truthy(band.totals:GetText():find(" · ", 1, true))
     assert.equal("+25c", band.profit:GetText())
     assert.truthy(colorEquals(band.profit.colorValue, GC.Theme.color.green))
     assert.truthy(band.age:GetText():find("synced", 1, true))
+    assert.truthy(band.age:GetText():find(" · ", 1, true))
     -- The band is not a row: neither line appears in the scrolling list.
     assert.is_nil(shownTexts():find("proceeds", 1, true))
+
+    -- The REALIZED PROFIT caption above band.profit, and the 1px rule along
+    -- the band's own bottom edge -- both new user-visible structure this
+    -- batch adds, not just re-styled existing lines.
+    assert.equal("REALIZED PROFIT", band.profitLabel:GetText())
+    assert.truthy(colorEquals(band.profitLabel.colorValue, GC.Theme.color.fgDim))
+    assert.truthy(band.rule.colorTexture)
+    assert.truthy(colorEquals(band.rule.colorTexture, GC.Theme.color.border))
   end)
 
   it("leaves the header band blank when there is no companion summary", function()
@@ -410,6 +459,9 @@ describe("SoldFrame", function()
     local band = bandOf()
     assert.equal("", band.totals:GetText())
     assert.equal("", band.age:GetText())
+    -- REALIZED PROFIT (I2): no summary means band.profit never gets a value,
+    -- so the caption above it must not stay shown captioning nothing.
+    assert.is_false(band.profitLabel:IsShown())
   end)
 
   it("colors the sync-age line with the SUSPECT tier once it is 6-24h stale", function()
@@ -425,11 +477,20 @@ describe("SoldFrame", function()
   it("labels the column header row like Deals': uppercase ITEM/WHEN/QTY/UNIT/TOTAL/PROFIT", function()
     local band = bandOf()
     assert.truthy(band and band.header and band.header.cells)
+    -- ITEM is on the kit now too -- mono font, fgDim, same as its neighbours
+    -- (previously the one native-font label in the row).
+    assert.truthy(band.header.itemCell)
+    assert.equal("ITEM", band.header.itemCell.label:GetText())
+    assert.truthy(colorEquals(band.header.itemCell.label.colorValue, GC.Theme.color.fgDim))
     assert.equal("WHEN", band.header.cells.when.label:GetText())
     assert.equal("QTY", band.header.cells.qty.label:GetText())
     assert.equal("UNIT", band.header.cells.unit.label:GetText())
     assert.equal("TOTAL", band.header.cells.total.label:GetText())
     assert.equal("PROFIT", band.header.cells.profit.label:GetText())
+    -- The underline separating the column headings from row 1, attached at
+    -- header.rule purely for spec reachability (see createHeaderRow).
+    assert.truthy(band.header.rule and band.header.rule.colorTexture)
+    assert.truthy(colorEquals(band.header.rule.colorTexture, GC.Theme.color.border))
   end)
 
   it("re-anchors rows to the container's current width instead of a stale fixed size (I2)", function()

@@ -140,13 +140,26 @@ function GC.SellViewModel.SummaryText(summary)
   local partial = summary.partialCount or 0
   local unknown = summary.unknownCount or 0
   local profit = summary.profit
+  local profitDetail
   if profit == nil then
     local suffix = {}
     if partial > 0 then suffix[#suffix + 1] = ("%d partial"):format(partial) end
     if unknown > 0 then suffix[#suffix + 1] = ("%d missing"):format(unknown) end
     profit = "Unknown" .. (#suffix > 0 and (" · " .. table.concat(suffix, " · ")) or "")
+  else
+    -- The number is a real total now (SellPositions.Summary sums only the positions that
+    -- individually clear both gates), but it is still a partial one whenever something got
+    -- left out -- say so here, the same way the "Unknown · N partial · M missing" string above
+    -- carries its own detail, so the stat card's tooltip can show it without a second query.
+    local n = summary.countedCount or 0
+    local parts = { ("over %d position%s"):format(n, n == 1 and "" or "s") }
+    local noCost = summary.excludedNoCost or 0
+    local noPrice = summary.excludedNoPrice or 0
+    if noCost > 0 then parts[#parts + 1] = ("%d without cost"):format(noCost) end
+    if noPrice > 0 then parts[#parts + 1] = ("%d without a price"):format(noPrice) end
+    profitDetail = table.concat(parts, " · ")
   end
-  return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = profit }
+  return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = profit, profitDetail = profitDetail }
 end
 
 function GC.SellViewModel.Expansion(position)

@@ -159,8 +159,9 @@ describe("Sell protected action state", function()
   end)
 
   -- The auction's listing duration used to be a hardcoded constant (24h). It now reads
-  -- GC.db.settings.sniper.postDuration -- the same field the settings panel's cycling control
-  -- writes -- so a player's choice takes effect on the very next click, with no reload.
+  -- GC.db.settings.sniper.postDuration -- the same field the settings panel's segmented
+  -- 12H/24H/48H duration control writes -- so a player's choice takes effect on the very next
+  -- click, with no reload.
   it("posts at the configured duration, not a hardcoded one", function()
     local calls = {}
     local location = { bag = 0, slot = 1 }
@@ -855,7 +856,7 @@ describe("Sell protected action state", function()
         auctionID = 7, quantity = 1, unitPrice = 220 } } }
     local GC = {
       Sell = {},
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end,

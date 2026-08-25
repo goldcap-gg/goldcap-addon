@@ -176,22 +176,22 @@ end
 -- The status line lives in the Sniper's toolbar, at the far left of a different
 -- row from the Refresh button -- a window's width away from what was just
 -- pressed. That is the same distance that made Scan look dead. So the button
--- carries the state too, and the progress with it: "Pricing 3/24" answers "is it
+-- carries the state too, and the progress with it: "PRICING 3/24" answers "is it
 -- running" without the player having to hunt for a line of text.
 local function paintRefreshButton()
   local button = container and container.refreshButton
   if not button then return end
   local phase = refresh.phase
   local busy = phase ~= "idle" and phase ~= "done" and phase ~= "error"
-  local label = "Refresh"
+  local label = "REFRESH"
   if busy then
-    -- "Pricing 10/24", not a bare "10/24". This button sits at the end of a row of filter
+    -- "PRICING 10/24", not a bare "10/24". This button sits at the end of a row of filter
     -- chips, so a naked ratio reads as one more filter -- and the owner reasonably asked why
     -- the tab only had 24 items in it. It is not a count of anything the player owns: it is
     -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
     -- because every entry is a round trip on the same throttled slot the Sniper's scans use.
     label = (#refresh.queue > 0 and refresh.index > 0)
-      and ("Pricing %d/%d"):format(refresh.index, #refresh.queue) or "Pricing…"
+      and ("PRICING %d/%d"):format(refresh.index, #refresh.queue) or "PRICING…"
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -270,20 +270,20 @@ paintQueueButton = function()
     -- that row genuinely IS the queue's own head. If some OTHER row's post is in flight (the
     -- player clicked a row's own Post button directly, on a position that is not the head),
     -- this control simply disables rather than offering a second, conflicting click; it must
-    -- never claim "Confirm" for a click that would land on the wrong row.
+    -- never claim "CONFIRM" for a click that would land on the wrong row.
     local sameHead = head and postingRow.position and postingRow.position.positionKey == head.positionKey
     if sameHead and postingRow.postStage == "confirm" then
-      button:SetLabel("Confirm"); button:Enable()
+      button:SetLabel("CONFIRM"); button:Enable()
     else
-      button:SetLabel("Posting…"); button:Disable()
+      button:SetLabel("POSTING…"); button:Disable()
     end
     if label and head then label:SetText(head.itemName or "") end
   elseif not head then
-    button:SetLabel("Nothing to post")
+    button:SetLabel("NOTHING TO POST")
     button:Disable()
     if label then label:SetText("") end
   else
-    button:SetLabel(("Post %d"):format(#queueEntries))
+    button:SetLabel(("POST %d"):format(#queueEntries))
     button:Enable()
     if label then label:SetText(("%s @ %s"):format(head.itemName or "Item", formatCell(head.unitPrice))) end
   end
@@ -304,9 +304,9 @@ paintQueueButton = function()
 end
 
 -- The cancel control's mirror of paintQueueButton, over the repost arm instead of the post
--- pin. States, in the order a click sequence produces them: "Cancel N" -> "Cancel lot?" (the
+-- pin. States, in the order a click sequence produces them: "CANCEL N" -> "CANCEL LOT?" (the
 -- head lot is armed; enabled only once the REPOST_ARM_SECONDS delay has passed, exactly like
--- the row's own button) -> "Cancelling…". While some OTHER lot's repost is in flight the
+-- the row's own button) -> "CANCELLING…". While some OTHER lot's repost is in flight the
 -- control keeps its count but disables -- it must never offer a click that would land on the
 -- wrong lot, the same rule paintQueueButton applies to a non-head post.
 paintCancelButton = function()
@@ -314,21 +314,27 @@ paintCancelButton = function()
   if not button then return end
   local heldBack, heldBackHit = container.cancelHeldBack, container.cancelHeldBackHit
   local head = cancelEntries[1]
+  -- SetVariant runs BEFORE Enable/Disable in every branch: Theme.Button's OnDisable dims the
+  -- text to fgDim, and SetVariant restores full-brightness text -- calling SetVariant after
+  -- Disable() silently wiped the dimmed look this button needs while it has nothing to do.
   if repostingRow then
     local sameHead = head and repostPin and repostPin.auctionID == head.auctionID
+    button:SetVariant("danger")
     if sameHead and repostingRow.repostStage == "cancelling" then
-      button:SetLabel("Cancelling…"); button:Disable()
+      button:SetLabel("CANCELLING…"); button:Disable()
     elseif sameHead and repostingRow.repostStage == "armed" then
-      button:SetLabel("Cancel lot?")
+      button:SetLabel("CANCEL LOT?")
       if repostingRow.repostReady then button:Enable() else button:Disable() end
     else
-      button:SetLabel(("Cancel %d"):format(#cancelEntries)); button:Disable()
+      button:SetLabel(("CANCEL %d"):format(#cancelEntries)); button:Disable()
     end
   elseif not head then
-    button:SetLabel("Nothing to cancel")
+    button:SetVariant("ghost")
+    button:SetLabel("NOTHING TO CANCEL")
     button:Disable()
   else
-    button:SetLabel(("Cancel %d"):format(#cancelEntries))
+    button:SetVariant("danger")
+    button:SetLabel(("CANCEL %d"):format(#cancelEntries))
     button:Enable()
   end
   if heldBack then
@@ -605,7 +611,7 @@ local QUOTE_WALK_CAP = 40
 -- trips that a never-priced row further down the list needed. 30 sits under
 -- SELL_QUOTE_ACTION_AGE (45) by more than a whole pass takes, so a quote is renewed before
 -- the Post/Repost window on it ever closes. This is what turned the permanent
--- "Pricing N/24" grind into an empty steady-state pass.
+-- "PRICING N/24" grind into an empty steady-state pass.
 local QUOTE_REWALK_AGE = 30
 -- How long "the auction house answered: nothing listed" is remembered and treated like a
 -- fresh quote. Without this, an item with zero live listings was indistinguishable from one
@@ -853,7 +859,19 @@ advanceQuote = function()
     setStatus("Waiting for the purchase to finish…")
     return
   end
-  if not driver.isReady() then return end
+  if not driver.isReady() then
+    -- The throttle window is closed -- IsThrottledMessageSystemReady() is false -- so the walk
+    -- is stalled on purpose, not stuck, and this must feed the watchdog exactly like the
+    -- purchase-yield branch above. I4 (fix wave, sell honesty): the code cannot actually tell
+    -- WHY the slot is busy -- another search, the walk's own last query still cooling down, or
+    -- the player's own Post -- so say only what is known, once per walk rather than every tick.
+    markProgress()
+    if not refresh.waitingNoted then
+      refresh.waitingNoted = true
+      setStatus("Waiting for the Auction House…")
+    end
+    return
+  end
   local itemID = refresh.awaiting or refresh.queue[refresh.index + 1]
   if driver.keyInfo(itemID) then
     local info = driver.keyInfo(itemID)
@@ -887,6 +905,7 @@ end
 local function beginQuoteWalk()
   refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = uniqueQuoteItemIDs(), 0, "pricing", nil, nil
   refresh.skipped = 0
+  refresh.waitingNoted = false
   if #refresh.queue == 0 then return finishQuoteWalk() end
   advanceQuote()
 end
@@ -1762,15 +1781,34 @@ local function layoutCells(row)
     cell:ClearAllPoints()
     if column.flex then
       -- row.itemInset leaves room for the icon on a position row, and indents a child row so
-      -- the hierarchy is carried by layout instead of by leading spaces in the string.
+      -- the hierarchy is carried by layout instead of by leading spaces in the string. The box
+      -- this defines is shared by three mutually exclusive widgets -- this cell (a position),
+      -- row.subItem (a detail/batch/lot/listing sub-row) and row.sectionLabel (a group heading)
+      -- -- exactly one of which is shown per row (the kind branch in renderRows), so all three
+      -- get the same anchors rather than fighting over layout.
       cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
       cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
+      -- The column header row (below) shares this function but carries neither widget -- it is
+      -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
+      if row.subItem then
+        row.subItem:ClearAllPoints()
+        row.subItem:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
+        row.subItem:SetPoint("RIGHT", right, "LEFT", -4, 0)
+      end
+      if row.sectionLabel then
+        row.sectionLabel:ClearAllPoints()
+        row.sectionLabel:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
+      end
+      -- Deliberately no cell:Show() here: which of item/subItem/sectionLabel is visible is the
+      -- kind branch's call (renderRows), not this function's -- forcing the flex column shown
+      -- unconditionally would undo a "position" row's own cells.item:Hide() on every layout.
+      -- The header row (below) sets its own item cell's text once and never hides it.
     else
       cell:SetWidth(columnWidth[column.key] or column.w)
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, 0)
       right = cell
+      cell:Show()
     end
-    cell:Show()
   end
   for _, column in ipairs(COLUMNS) do
     if dropped[column.key] then row.cells[column.key]:Hide() end
@@ -1797,14 +1835,34 @@ local function createRow(parent)
   -- distinguishable only by two leading spaces in their text. Same treatment as the Deals list:
   -- BACKGROUND zebra, a highlight above it, a hairline at the bottom edge, and an item icon so
   -- rows are scannable by shape rather than by reading every name.
+  -- Sliced rounded fills (batch-2 pattern). Insets: 1px top/bottom so margin 12 <= 15 = half of
+  -- the 30px effective fill (Theme.ROW_H 32 minus 2px); right inset is 2, NOT Deals' 26 -- this
+  -- container is already inset by CONTENT_RIGHT_GUTTER (see Attach) and the scrollbar hangs
+  -- outside in that gutter.
   local zc = Theme.color.zebra
   row.zebra = row:CreateTexture(nil, "BACKGROUND")
-  row.zebra:SetAllPoints()
-  row.zebra:SetColorTexture(zc[1], zc[2], zc[3], 0)
+  row.zebra:SetTexture(Theme.MEDIA .. "plaque.png")
+  row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  row.zebra:SetPoint("TOPLEFT", 2, -1); row.zebra:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- The "well": a sunken fill an expanded position's children sit in instead of the list's
+  -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
+  -- row in the same flat list (row.spine, below, is the other half of that cue). Same sliced
+  -- plaque and insets as the zebra it replaces -- only shown for sub-rows (the kind branch in
+  -- renderRows), never alongside it.
+  row.well = row:CreateTexture(nil, "BACKGROUND")
+  row.well:SetTexture(Theme.MEDIA .. "plaque.png")
+  row.well:SetTextureSliceMargins(12, 12, 12, 12)
+  row.well:SetPoint("TOPLEFT", 2, -1); row.well:SetPoint("BOTTOMRIGHT", -2, 1)
+  local phc = Theme.color.panelHi
+  row.well:SetVertexColor(phc[1], phc[2], phc[3], 0.5)
+  row.well:Hide()
   row.highlight = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  row.highlight:SetAllPoints()
+  row.highlight:SetTexture(Theme.MEDIA .. "plaque.png")
+  row.highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  row.highlight:SetPoint("TOPLEFT", 2, -1); row.highlight:SetPoint("BOTTOMRIGHT", -2, 1)
   local hc = Theme.color.hover
-  row.highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4] or 0.08)
+  row.highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight:Hide()
   row.divider = row:CreateTexture(nil, "ARTWORK")
   row.divider:SetHeight(1)
@@ -1833,6 +1891,16 @@ local function createRow(parent)
     if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
+      -- Flags painted onto the row at the same time as the cells they describe (MARKET/UNIT's
+      -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
+      -- so the tooltip can never disagree with what the row is actually showing.
+      if self.marketFallback then
+        GameTooltip:AddLine("≈ goldcap.gg market value — no live quote yet", 0.85, 0.85, 0.85, true)
+      end
+      if self.notOnHand then
+        GameTooltip:AddLine("Not on hand — the stock is in the mail, the bank, or on another character",
+          0.85, 0.85, 0.85, true)
+      end
       GameTooltip:Show()
     end
   end)
@@ -1849,8 +1917,36 @@ local function createRow(parent)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
-  row.action = Theme.Button(row, "ghost")
-  row.action:SetSize(84, 18)
+  -- Sub-rows (detail/batch/lot/listing) write into their own widget, one size down from a
+  -- position's name (11, not 12) -- the flex column's box is shared by three mutually
+  -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and layoutCells anchors
+  -- all three to the same LEFT/RIGHT points every render since exactly one is shown per row
+  -- (the kind branch in renderRows).
+  row.subItem = Theme.Label(row, 11)
+  row.subItem:SetJustifyH("LEFT")
+  row.subItem:SetWordWrap(false)
+  row.subItem:Hide()
+  -- Group headings (Sold's own pattern, UI/SoldFrame.lua's row.sectionLabel/row.sectionRule):
+  -- a mono micro-label plus a hairline rule running to the row's right edge, instead of a
+  -- gold line sharing the item cell's own font -- gold and uppercase are the group's whole
+  -- visual language, so nothing about the flex column's shared styling has to bend for it.
+  row.sectionLabel = Theme.Num(row, 9, true)
+  row.sectionLabel:SetJustifyH("LEFT")
+  setColor(row.sectionLabel, Theme.color.gold)
+  row.sectionLabel:Hide()
+  local gc2 = Theme.color.gold
+  row.sectionRule = row:CreateTexture(nil, "ARTWORK")
+  row.sectionRule:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.25)
+  row.sectionRule:SetHeight(1)
+  row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.s, 0)
+  row.sectionRule:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
+  row.sectionRule:Hide()
+  row.action = Theme.Button(row, "ghost", "badge")
+  -- 86, not 84: "Cancel lot?" is 85.8px at mono-10 and Theme.Scale() 1.3 (JetBrains Mono
+  -- ~0.6em/char -> 7.8px/char); 86 is the largest width that still leaves >=2px clearance
+  -- from the neighbouring cells inside the 88px `action` column (layoutCells packs cells with
+  -- an explicit 2px gap between them, so an inset button never touches the gap).
+  row.action:SetSize(86, 18)
   -- Its own column. Anchored over `status` it covered the recommendation text, which is where
   -- the price and the breakeven are written.
   row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
@@ -1929,16 +2025,31 @@ local function summaryFor(filtered)
   local raw = GC.SellPositions.Summary(filtered)
   return GC.SellViewModel.SummaryText({ knownCost = raw.invested or knownCost,
     listedValue = raw.listedValue or listedValue,
-    profit = raw.profit, partialCount = partial, unknownCount = unknown })
+    profit = raw.profit, partialCount = partial, unknownCount = unknown,
+    countedCount = raw.countedCount, excludedNoCost = raw.excludedNoCost, excludedNoPrice = raw.excludedNoPrice })
 end
 
 local function updateSummary(filtered)
   local text = summaryFor(filtered)
   container.summary.cost:SetText(formatCell(text.knownCost))
   container.summary.listed:SetText(formatCell(text.listedValue))
-  container.summary.profit:SetText(type(text.profit) == "number" and formatAmount(text.profit) or text.profit)
-  -- A non-number here is an absence, not a result: painting "Unknown · 37 missing" in the
-  -- same confident green as a real profit read as a figure the addon stood behind.
+  if type(text.profit) == "number" then
+    container.summary.profit:SetText(formatAmount(text.profit))
+    -- No longer always nil: the number is a sum over only the positions that individually
+    -- cleared both gates, so it can still be a partial total, and the card's own hit frame
+    -- (below) shows that detail on hover exactly like the "Unknown · ..." case does.
+    container.summaryProfitDetail = text.profitDetail
+  else
+    -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37
+    -- missing" -- at Theme.Scale() 1.3 the longer form doesn't fit the mono value line, so the
+    -- card itself stays a plain "Unknown" and everything after the first " · " moves to
+    -- summaryProfitHit's own tooltip (see the stat-card loop below), read live at hover time.
+    container.summary.profit:SetText("Unknown")
+    local sepStart, sepEnd = text.profit:find(" · ", 1, true)
+    container.summaryProfitDetail = sepStart and text.profit:sub(sepEnd + 1) or nil
+  end
+  -- A non-number here is an absence, not a result: painting "Unknown" in the same confident
+  -- green as a real profit read as a figure the addon stood behind.
   setColor(container.summary.profit, type(text.profit) == "number"
     and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
@@ -2012,18 +2123,27 @@ renderRows = function()
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
       if #detail.ownedLots > 0 or inBags > 0 then
-        entries[#entries + 1] = { kind = "group", position = position, title = "On the Auction House" }
+        entries[#entries + 1] = { kind = "group", position = position, title = "ON THE AUCTION HOUSE" }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
       if inBags > 0 then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
       if #detail.batches > 0 then
-        entries[#entries + 1] = { kind = "group", position = position, title = "What you paid",
+        entries[#entries + 1] = { kind = "group", position = position, title = "WHAT YOU PAID",
           hint = "Sales are costed from your oldest units first" }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
     end
+  end
+  if #entries == 0 then
+    -- M7: sentence case, not shouted -- this is a native-font (Theme.Label) empty state, like
+    -- Deals', and reads like the rest of that font's copy rather than a toolbar label.
+    container.emptyText:SetText(filterMode == "all"
+      and "Nothing to sell — no items in bags or listed" or "No items match this filter")
+    container.emptyText:Show()
+  else
+    container.emptyText:Hide()
   end
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   for i, row in ipairs(rows) do
@@ -2032,6 +2152,11 @@ renderRows = function()
     else
       row:Show(); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_HEIGHT); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
+      -- Read by this row's own OnEnter (below) to decide whether to add a tooltip line about the
+      -- number this row is showing. Reset for every kind, not just "position": rows are pooled
+      -- and rebound, so a flag left set from an earlier position would otherwise ride along onto
+      -- an unrelated expansion sub-row.
+      row.marketFallback, row.notOnHand = false, false
       local p = entry.position
       local lotID = entry.lot and entry.lot.auctionID or 0
       row.renderEntryID = table.concat({ renderGeneration, i, entry.kind, p.scopeKey or "", p.positionKey or "", lotID }, ":")
@@ -2053,8 +2178,29 @@ renderRows = function()
         -- majority of items, which have no quality tier at all.
         local named = Theme.WithQuality and Theme.WithQuality(p.itemName or "Item", p.itemID)
           or (p.itemName or "Item")
+        -- Nothing in the bags and nothing listed means the stock this row tracks is real cost
+        -- history sitting somewhere else -- the mail, the bank, another character -- not a
+        -- position that vanished. The dim "· not on hand" suffix goes AFTER the qty suffix (or
+        -- its SourceText fallback, when there is no qty to show), same idiom as SniperFrame's
+        -- "· watching" suffix in setRowDeal, and its own color code so it never inherits
+        -- whatever color the line before it painted.
+        --
+        -- Deliberately not queued into the pricing walk: uniqueQuoteItemIDs (above) only picks
+        -- up a position with `inBags or listed`, so this row keeps whatever quote it already
+        -- has (or none) and stays ranked last -- there is nothing actionable to price a quote
+        -- for, and spending one of the walk's throttled requests on it would starve a row a
+        -- player can actually act on right now.
+        -- I2 (fix wave, sell honesty): an unresolved position (unassigned_acquisition/
+        -- pending_purchase/paid_sale/ambiguous_sale, see Core/SellPositions.lua ~:579-616) has
+        -- no batch or lot backing it at all -- there is no stock to be "elsewhere", so the
+        -- mail/bank/alt claim below would be a fabrication about a position that is really
+        -- "GoldCap doesn't know what this is yet". Mirrors the STATUS branch's own
+        -- `not p.unresolved` guard further down.
+        local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
+        row.notOnHand = notOnHand
         row.cells.item:SetText(named .. "\n"
-          .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p)))
+          .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p))
+          .. (notOnHand and "|cff8c8a85 · not on hand|r" or ""))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.
         local unitCost = nil
@@ -2066,13 +2212,29 @@ renderRows = function()
         -- "none" ~= "—": the first is an answer ("the AH has zero listings right now",
         -- remembered in emptyAnswers), the second is the absence of one. Conflating them made
         -- honestly-unlisted items read as the pricing walk being slow or stuck.
-        local marketText = p.displayMarketUnit and formatCell(p.displayMarketUnit)
-          or (emptyAnswers[p.itemID] and "none" or "—")
+        --
+        -- Below both of those sits a third case: no live quote yet AT ALL (not even a stale
+        -- one), but the item was imported from goldcap.gg with a market value -- the same
+        -- number Deals shows. That value is not live, so it never overrides an actual AH
+        -- answer (an empty one included -- the AH answered "none", which outranks a guess from
+        -- the last import), but showing it beats a "—" that reads as "the addon hasn't checked
+        -- yet" for as long as the pricing walk takes to reach this row.
+        local marketFallback = p.displayMarketUnit == nil and type(p.marketValue) == "number"
+          and p.marketValue > 0 and not emptyAnswers[p.itemID]
+        row.marketFallback = marketFallback
+        local marketText
+        if p.displayMarketUnit then
+          marketText = formatCell(p.displayMarketUnit)
+        elseif marketFallback then
+          marketText = "≈" .. formatCell(p.marketValue)
+        else
+          marketText = emptyAnswers[p.itemID] and "none" or "—"
+        end
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
           marketText = marketText .. (" · stale %ds"):format(p.quoteAge)
         end
         row.cells.market:SetText(marketText)
-        setColor(row.cells.market, p.displayMarketUnit and not p.freshMarketUnit
+        setColor(row.cells.market, (marketFallback or (p.displayMarketUnit and not p.freshMarketUnit))
           and Theme.color.fgDim or Theme.color.fg)
         -- Per unit, to match the two columns it is compared against. The view model reports the
         -- position total; showing that under a "/ UNIT" heading turned a loss of under a gold
@@ -2109,7 +2271,11 @@ renderRows = function()
           setColor(row.cells.profit, profit < 0 and Theme.color.red or Theme.color.gold)
         else
           row.cells.profit:SetText(formatCell(profit))
-          setColor(row.cells.profit, Theme.color.fg)
+          -- Minor (fix wave, sell honesty): "Unknown" beside a dim "≈" market used to render in
+          -- the row's ordinary fg -- a confident-looking pair next to an admittedly approximate
+          -- number. Dim whenever there is no real number here; the gold/red hold-price branch
+          -- above (a real number either way) is untouched.
+          setColor(row.cells.profit, type(profit) == "number" and Theme.color.fg or Theme.color.fgDim)
         end
         -- "Unknown" (profit) sitting beside "UNLISTED" (status) read as one meaningless phrase.
         -- This column now says what to do about it, in a sentence, or names what is missing.
@@ -2167,28 +2333,40 @@ renderRows = function()
           row.action:Hide()
         end
       elseif entry.kind == "detail" then
+        -- Facts joined only when GoldCap actually has them -- a "quote 7s / ? ahead of you /
+        -- sells ?/day" used to paper over missing data with a question mark on every field that
+        -- happened not to apply to this position, which read as the addon being broken rather
+        -- than as "this one doesn't have that fact". A live market quote replaces the "quote"
+        -- fact with its own richer lead (unchanged shape, just no "?" filler within it either);
+        -- everything else after it -- competition, velocity, time to clear, any structural
+        -- facts -- still only appears when it is actually known.
         local d = entry.detail
-        local quoteText
+        local facts = {}
         if d.displayMarketUnit ~= nil then
-          quoteText = ("market %s · %s · age %ss"):format(formatCell(d.displayMarketUnit),
-            d.marketState or "unavailable", d.quoteAge or "?")
-        else
-          quoteText = ("quote %ss"):format(d.quoteAge or "?")
+          local lead = ("market %s · %s"):format(formatCell(d.displayMarketUnit), d.marketState or "unavailable")
+          if type(d.quoteAge) == "number" then lead = lead .. (" · age %ss"):format(d.quoteAge) end
+          facts[#facts + 1] = lead
+        elseif type(d.quoteAge) == "number" then
+          facts[#facts + 1] = ("quote %ss ago"):format(d.quoteAge)
         end
-        -- d.note used to lead with "FIFO allocations", naming the accounting rule rather than
-        -- telling the player anything. What matters here is how the market looks right now and
-        -- how long the stock will take to clear.
-        row.cells.item:SetText(("  %s · %s ahead of you · sells %s/day · clears in %s%s"):format(
-          quoteText, d.ahead or "?", d.sold or "?",
-          d.days and ("~" .. math.floor(d.days + 0.5) .. " days") or "?",
-          d.factsText and (" · " .. d.factsText) or ""))
-        setColor(row.cells.item, d.marketStale and Theme.color.fgDim or Theme.color.fg)
+        if type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
+        if d.sold ~= nil then facts[#facts + 1] = ("sells %s/day"):format(d.sold) end
+        if type(d.days) == "number" then facts[#facts + 1] = ("clears in ~%dd"):format(math.floor(d.days + 0.5)) end
+        if d.factsText then facts[#facts + 1] = d.factsText end
+        -- I3 (fix wave, sell honesty): "pricing..." promises the walk will reach this row, but
+        -- uniqueQuoteItemIDs (the walk's own queue builder, see the comment above `notOnHand`)
+        -- only picks up a position with bag or listed stock -- a not-on-hand, resolved position
+        -- is never queued, so that promise could never be kept. `p` is entry.position, already
+        -- in scope above the kind branch.
+        local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
+        row.subItem:SetText(#facts > 0 and table.concat(facts, " · ")
+          or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…"))
+        setColor(row.subItem, (#facts == 0 or d.marketStale) and Theme.color.fgDim or Theme.color.fg)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
       elseif entry.kind == "group" then
-        row.cells.item:SetText("  " .. entry.title)
-        setColor(row.cells.item, Theme.color.gold)
+        row.sectionLabel:SetText(entry.title)
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
         row.cells.profit:SetText(""); row.cells.expand:SetText("")
         row.cells.status:SetText(entry.hint or "")
@@ -2224,12 +2402,17 @@ renderRows = function()
         end
         local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House", manual = "entered by hand" })[entry.batch.source] or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
-        -- invoice or a guess, which is exactly the thing this whole tab refuses to fake.
-        row.cells.item:SetText(("  ×%d%s bought %s at %s each · %s · %s"):format(
+        -- invoice or a guess, which is exactly the thing this whole tab refuses to fake. The
+        -- unit price no longer repeats here -- the COST/LISTED cells two columns over already
+        -- carry the unit and total, and this line was the one place on the row saying the same
+        -- number twice.
+        -- Pooled rows keep whatever colour the last kind painted: a dim detail line must not
+        -- bleed into the next render's batch text.
+        setColor(row.subItem, Theme.color.fg)
+        row.subItem:SetText(("×%d%s · bought %s · %s · %s"):format(
           entry.batch.originalQty or entry.batch.quantity or 0,
-          purchases and purchases > 1 and (" · %d purchases ·"):format(purchases) or "",
-          when, formatCell(entry.batch.unitCost),
-          sourceLabel, entry.batch.evidence or "unknown evidence"))
+          purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
+          when, sourceLabel, entry.batch.evidence or "unknown evidence"))
         row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
         row.cells.profit:SetText("")
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
@@ -2250,7 +2433,8 @@ renderRows = function()
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
         -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to
         -- a player, so it moves to the tooltip and the row says what is actually listed.
-        row.cells.item:SetText(("  ×%d listed at %s each"):format(
+        setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
+        row.subItem:SetText(("×%d listed at %s each"):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
         -- What Repost will actually list at. BuildRepostPlan prices a repost at exactly the
@@ -2283,13 +2467,14 @@ renderRows = function()
         local inBags = p.bagQty or 0
         local bagState = liveBagState(p)
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
+        setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
         if postable > 0 and postable < inBags then
-          row.cells.item:SetText(("  ×%d in your bags · Post lists %d of them, the largest stack"):format(
+          row.subItem:SetText(("×%d in your bags · Post lists %d of them, the largest stack"):format(
             inBags, postable))
         elseif postable > 0 then
-          row.cells.item:SetText(("  ×%d in your bags, ready to list"):format(postable))
+          row.subItem:SetText(("×%d in your bags, ready to list"):format(postable))
         else
-          row.cells.item:SetText(("  ×%d in your bags · no stack GoldCap can identify exactly"):format(inBags))
+          row.subItem:SetText(("×%d in your bags · no stack GoldCap can identify exactly"):format(inBags))
         end
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if postable > 0 then
@@ -2319,13 +2504,22 @@ renderRows = function()
         end
       end
       -- Banding, hierarchy and the icon are decided here, after the cells are filled, because
-      -- only `entry.kind` distinguishes a position from one of its expanded children.
+      -- only `entry.kind` distinguishes a position from one of its expanded children. Exactly
+      -- one of row.cells.item / row.subItem / row.sectionLabel is shown per row -- the other
+      -- two are hidden here rather than merely left un-set, since rows are pooled and rebound
+      -- to a different kind on every render (a "batch" this pass can be a "position" the next).
       local zc2 = Theme.color.zebra
-      row.zebra:SetColorTexture(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
+      row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
       if entry.kind == "position" then
         row.itemInset = 26
         row.spine:Hide()
         row.divider:Show()
+        row.zebra:Show()
+        row.well:Hide()
+        row.cells.item:Show()
+        row.subItem:Hide()
+        row.sectionLabel:Hide()
+        row.sectionRule:Hide()
         local icon = nil
         if p.itemID and C_Item and C_Item.GetItemIconByID then
           local ok, texture = pcall(C_Item.GetItemIconByID, p.itemID)
@@ -2337,6 +2531,21 @@ renderRows = function()
         row.icon:Hide()
         row.spine:Show()
         row.divider:Hide() -- a group's children are bracketed by the spine, not sliced by rules
+        -- The well, not the zebra: a sub-row sits on a nested fill instead of the list's own
+        -- banding, so an expanded group reads as one bracketed unit (the spine is the other
+        -- half of that cue) rather than as more top-level rows in the same alternating list.
+        row.zebra:Hide()
+        row.well:Show()
+        row.cells.item:Hide()
+        if entry.kind == "group" then
+          row.subItem:Hide()
+          row.sectionLabel:Show()
+          row.sectionRule:Show()
+        else
+          row.subItem:Show()
+          row.sectionLabel:Hide()
+          row.sectionRule:Hide()
+        end
       end
       layoutCells(row)
     end
@@ -2513,17 +2722,20 @@ function GC.Sell.Attach(f, geometry)
   ROW_WIDTH, ROW_HEIGHT, statusOwner = geometry.rowWidth, geometry.rowHeight, f
   container = CreateFrame("Frame", nil, f)
   container:SetPoint("TOPLEFT", geometry.panelLeft, geometry.top); container:SetPoint("BOTTOMRIGHT", -geometry.panelRightInset, geometry.bottom); container:Hide()
-  -- The header block is a fixed three-row grid on a 24px pitch, each row owning its whole
+  -- The header block is a fixed three-row grid on a 30px pitch (was 24px -- the rounded mono
+  -- buttons below are h26, and a 24px pitch would have clipped them), each row owning its whole
   -- width, because the previous layout let two anchor chains grow toward each other on a
   -- shared row and collide at ordinary window widths (the queue's head label ran under the
   -- filter chips; the cancel cluster ran under EST. PROFIT):
-  --   row 1 (y   0): [Post N] head label ················· held-back · [Cancel N]
-  --   row 2 (y -24): ················· chips (filters for the list below) · [Refresh]
-  --   row 3 (y -48): KNOWN COST / LISTED VALUE / EST. PROFIT
-  local refreshButton = Theme.Button(container, "ghost")
-  -- 96, not 72: the busy label is "Pricing 10/24" (see paintRefreshButton), and a button sized
-  -- for "Refresh" alone would have let that overflow its own edges into the filter chip beside it.
-  refreshButton:SetSize(96, 20); refreshButton:SetPoint("TOPRIGHT", 0, -24); refreshButton:SetLabel("Refresh")
+  --   row 1 (y   0): [POST N] head label ················· held-back · [CANCEL N]
+  --   row 2 (y -30): ················· chips (filters for the list below) · [REFRESH]
+  --   row 3 (y -60): KNOWN COST / LISTED VALUE / EST. PROFIT
+  local refreshButton = Theme.Button(container, "ghost", "plaque")
+  -- 104, not 72: the busy label is "PRICING 10/24" (see paintRefreshButton), which is 101.4px
+  -- at mono-10 and Theme.Scale() 1.3 (JetBrains Mono ~0.6em/char -> 7.8px/char) -- a button
+  -- sized for "REFRESH" alone would have let that overflow its own edges into the filter chip
+  -- beside it.
+  refreshButton:SetSize(104, 26); refreshButton:SetPoint("TOPRIGHT", 0, -30); refreshButton:SetLabel("REFRESH")
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
@@ -2531,42 +2743,58 @@ function GC.Sell.Attach(f, geometry)
   -- The button would have gone on doing nothing, which is the bug this argument
   -- was added to fix.
   refreshButton:SetScript("OnClick", function() GC.Sell.Refresh() end)
-  local labels = { all = "All", goldcap = "GC", missing_cost = "Missing cost",
-    sellable = "In bags", listed = "Listed" }
-  local widths = { missing_cost = 82, sellable = 56, listed = 52, all = 36, goldcap = 36 }
+  local labels = { all = "ALL", goldcap = "GC", missing_cost = "MISSING COST",
+    sellable = "IN BAGS", listed = "LISTED" }
+  -- missing_cost is 96, not 82: "MISSING COST" is 93.6px at mono-10 and Theme.Scale() 1.3
+  -- (JetBrains Mono ~0.6em/char -> 7.8px/char) -- 82 let it overflow the chip's own edges.
+  local widths = { missing_cost = 96, sellable = 56, listed = 52, all = 36, goldcap = 36 }
   local previous = refreshButton
+  -- The active filter must be visible on the chip itself: SetVariant, never a second
+  -- overlaid button (one control, two variants -- see addon/AGENTS.md on buttons).
+  local function paintFilterChips()
+    for mode, chip in pairs(container.filterButtons) do
+      chip:SetVariant(mode == filterMode and "active" or "ghost")
+    end
+  end
+  container.filterButtons = {}
   -- "AH" was a provenance filter (units GoldCap saw arrive by mail) sitting
   -- where a player expected "my auctions". The two useful cuts of this list are
   -- what is in the bags and what is already up; provenance stays on the tooltip.
   for _, mode in ipairs({ "missing_cost", "listed", "sellable", "goldcap", "all" }) do
-    local button = Theme.Button(container, "ghost")
+    local button = Theme.Button(container, "ghost", "badge")
     button:SetSize(widths[mode] or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
-    button:SetScript("OnClick", function() filterMode = mode; renderRows() end); previous = button
+    button:SetScript("OnClick", function() filterMode = mode; paintFilterChips(); renderRows() end)
+    container.filterButtons[mode] = button
+    previous = button
   end
+  paintFilterChips()
   -- The posting queue control: the toolbar's own left end, opposite Refresh/the filter chips.
-  -- "Post N" (its own count, so the number is on the button a click actually is), a label
+  -- "POST N" (its own count, so the number is on the button a click actually is), a label
   -- beside it naming the item and unit price that click will post -- a blind click is not one a
   -- seller should be asked to make -- and a held-back indicator with a tooltip that explains,
   -- in words, everything GC.PostQueue.Build held back. See paintQueueButton for how all three
   -- are painted, and onQueueClick for what a click does.
-  local queueButton = Theme.Button(container, "primary")
-  -- 130, not 110: the empty-state label is "Nothing to post" (paintQueueButton), and the
-  -- narrower button let that text spill past its own borders.
-  queueButton:SetSize(130, 20)
+  local queueButton = Theme.Button(container, "primary", "plaque")
+  -- 136, not 110: matches cancelButton below, sized for its own widest label ("NOTHING TO
+  -- CANCEL", 132.6px at mono-10 and Theme.Scale() 1.3 -- JetBrains Mono ~0.6em/char ->
+  -- 7.8px/char) -- a narrower button let "NOTHING TO POST" spill past its own borders.
+  queueButton:SetSize(136, 26)
   queueButton:SetPoint("TOPLEFT")
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
 
-  local queueLabel = Theme.Label(container, 11)
+  local queueLabel = Theme.Num(container, 10)
   queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 8, 0)
   queueLabel:SetJustifyH("LEFT")
   queueLabel:SetWordWrap(false)
   container.queueLabel = queueLabel
 
-  local queueHeldBack = Theme.Label(container, 10)
+  local queueHeldBack = Theme.Num(container, 9)
+  queueHeldBack:SetJustifyH("LEFT")
   setColor(queueHeldBack, Theme.color.fgDim)
-  -- Right-anchored below, once the cancel cluster it abuts exists -- see the row-1 bounding
-  -- block after that cluster. No LEFT anchor here: its width is its text.
+  -- Both anchors set below, once its row-2 position and the ALL chip it abuts exist -- see the
+  -- row-1 bounding block after the cancel cluster (M5: RIGHT-bound against the ALL chip, or a
+  -- long held-back count ran under the filter chips at narrow widths).
   queueHeldBack:Hide()
   container.queueHeldBack = queueHeldBack
 
@@ -2599,17 +2827,19 @@ function GC.Sell.Attach(f, geometry)
 
   -- The cancel queue control: row 1's right end, the far side of the row from Post -- the two
   -- queue actions are siblings, but a destructive control does not belong ADJACENT to a
-  -- non-destructive one. Ghost, not primary: this tab's primary action is posting; cancelling
-  -- burns a deposit and earns the quieter look. See paintCancelButton for the states and
-  -- onCancelQueueClick for what a click does (and, more importantly, does not) do.
-  local cancelButton = Theme.Button(container, "ghost")
-  -- 130 for the same reason as the Post button: "Nothing to cancel" must fit inside.
-  cancelButton:SetSize(130, 20)
+  -- non-destructive one. Danger when it can burn a deposit, ghost when idle -- still the
+  -- quieter look next to POST. See paintCancelButton for the states and onCancelQueueClick
+  -- for what a click does (and, more importantly, does not) do.
+  local cancelButton = Theme.Button(container, "ghost", "plaque")
+  -- 136 for the same reason as the Post button: "NOTHING TO CANCEL" (132.6px at mono-10 and
+  -- Theme.Scale() 1.3) must fit inside.
+  cancelButton:SetSize(136, 26)
   cancelButton:SetPoint("TOPRIGHT")
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
 
-  local cancelHeldBack = Theme.Label(container, 10)
+  local cancelHeldBack = Theme.Num(container, 9)
+  cancelHeldBack:SetJustifyH("LEFT")
   setColor(cancelHeldBack, Theme.color.fgDim)
   cancelHeldBack:SetPoint("RIGHT", cancelButton, "LEFT", -8, 0)
   cancelHeldBack:Hide()
@@ -2645,7 +2875,13 @@ function GC.Sell.Attach(f, geometry)
   -- queue's) read as one meaningless phrase, so the post one moves to row 2's empty left
   -- end, under the cluster it belongs to, and says which queue it is about in words.
   queueLabel:SetPoint("RIGHT", cancelHeldBack, "LEFT", -12, 0)
-  queueHeldBack:SetPoint("TOPLEFT", 0, -29)
+  queueHeldBack:SetPoint("TOPLEFT", 0, -35)
+  -- M5: RIGHT-bound against the ALL chip -- the leftmost of the filter chips, and the last
+  -- one built by the chain above -- with no wrap, the same truncate-not-overflow fix
+  -- queueLabel gets on row 1: without it a long held-back count ran under the chips at
+  -- narrow widths and Theme.Scale() 1.3.
+  queueHeldBack:SetPoint("RIGHT", container.filterButtons.all, "LEFT", -8, 0)
+  queueHeldBack:SetWordWrap(false)
 
   paintCancelButton()
 
@@ -2660,13 +2896,49 @@ function GC.Sell.Attach(f, geometry)
 
   container.summary = {}
   for i, stat in ipairs({ { "cost", "KNOWN COST" }, { "listed", "LISTED VALUE" }, { "profit", "EST. PROFIT" } }) do
-    local label = Theme.Label(container, 10); label:SetPoint("TOPLEFT", (i - 1) * 155, -48); label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
-    local value = Theme.Num(container, 14, true); value:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -1); container.summary[stat[1]] = value
+    -- 3 cards * 156px pitch = 468, under the 520px content width at the 640px minimum window.
+    local card = Theme.Card(container, Theme.color.panel, nil, true)
+    card:SetSize(148, 40); card:SetPoint("TOPLEFT", (i - 1) * 156, -60)
+    local label = Theme.Num(card, 9); label:SetJustifyH("LEFT")
+    label:SetPoint("TOPLEFT", 10, -6)
+    -- RIGHT-bound and non-wrapping: a FontString with LEFT/RIGHT bounds and no wrap truncates
+    -- with an ellipsis instead of escaping the 148px card -- belt and suspenders now that
+    -- updateSummary caps the profit card's own value at a plain "Unknown" itself, with the
+    -- missing/partial detail moved to that card's hover tooltip instead of riding along in the
+    -- text (which used to ellipsize into unreadable garbage at Theme.Scale() 1.3).
+    label:SetPoint("TOPRIGHT", -10, -6); label:SetWordWrap(false)
+    label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
+    local value = Theme.Num(card, 13, true); value:SetJustifyH("LEFT")
+    value:SetPoint("TOPLEFT", 10, -18)
+    value:SetPoint("TOPRIGHT", -10, -18); value:SetWordWrap(false)
+    container.summary[stat[1]] = value
+    if stat[1] == "profit" then
+      -- A FontString cannot take mouse scripts, so the missing/partial detail that used to ride
+      -- along in the value text (see updateSummary) gets the same invisible-hit-frame trick as
+      -- queueHeldBackHit above: content is read from container.summaryProfitDetail live, at
+      -- hover time, so the tooltip can never go stale between renders, and it stays hidden
+      -- entirely once every position's cost is known.
+      local hit = CreateFrame("Frame", nil, card)
+      hit:SetAllPoints(card)
+      hit:EnableMouse(true)
+      hit:SetScript("OnEnter", function(self)
+        if not GameTooltip or not container.summaryProfitDetail then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Est. profit", 1, 0.82, 0)
+        GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine("Positions without a cost or a live price are excluded.",
+          0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+      end)
+      hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+      container.summaryProfitHit = hit
+    end
   end
-  local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -84); header:SetPoint("TOPRIGHT", 0, -84); header:SetHeight(16); header.cells = {}
+  local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -106); header:SetPoint("TOPRIGHT", 0, -106); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Label(header, 10); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
+    local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
+    setColor(cell, Theme.color.fgDim)
     -- Headings must sit over their own numbers. createRow right-aligns every numeric cell, but
     -- these were left at the default left alignment, so each heading floated to the left edge
     -- of a right-aligned column and every value looked like it belonged to the column after it.
@@ -2682,8 +2954,26 @@ function GC.Sell.Attach(f, geometry)
       explain(hit, help[1], help[2])
     end
   end
+  -- Separates the column headings from the first row now that both read in the same mono
+  -- font -- without it the header row visually fused with row 1.
+  local rule = header:CreateTexture(nil, "ARTWORK")
+  local bc = Theme.color.border
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); rule:SetHeight(1)
   layoutCells(header)
-  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -102); scroll:SetPoint("BOTTOMRIGHT")
+  local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -124); scroll:SetPoint("BOTTOMRIGHT")
+  -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
+  -- `scroll` (not `content`), living where the rows would be, never scrolling.
+  local emptyText = Theme.Label(scroll, 12)
+  emptyText:SetPoint("TOP", scroll, "TOP", 0, -ROW_HEIGHT * 2)
+  emptyText:SetPoint("LEFT", scroll, "LEFT", Theme.pad.m * 3, 0)
+  emptyText:SetPoint("RIGHT", scroll, "RIGHT", -Theme.pad.m * 3, 0)
+  emptyText:SetJustifyH("CENTER")
+  emptyText:SetWordWrap(true)
+  emptyText:SetSpacing(4)
+  emptyText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  emptyText:Hide()
+  container.emptyText = emptyText
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this
@@ -2693,20 +2983,15 @@ function GC.Sell.Attach(f, geometry)
   dialog:SetFrameStrata("DIALOG")
   dialog:SetFrameLevel((container:GetFrameLevel() or 0) + 50)
   dialog:EnableMouse(true)
-  local dialogBG = dialog:CreateTexture(nil, "BACKGROUND")
-  dialogBG:SetAllPoints()
+  -- Rounded kit surface. card.png margin 24 <= 85 = half of the 170px edge. Regions on the
+  -- dialog frame itself, not a child Card frame: a child frame would draw over the dialog's
+  -- own FontStrings.
   local pc = Theme.color.panel
-  dialogBG:SetColorTexture(pc[1], pc[2], pc[3], 0.98)
-  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-    local edge = dialog:CreateTexture(nil, "BORDER")
-    local gc2 = Theme.color.gold
-    edge:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.5)
-    if side == "TOP" or side == "BOTTOM" then
-      edge:SetPoint(side .. "LEFT"); edge:SetPoint(side .. "RIGHT"); edge:SetHeight(1)
-    else
-      edge:SetPoint("TOP" .. side); edge:SetPoint("BOTTOM" .. side); edge:SetWidth(1)
-    end
-  end
+  local dialogBG = Theme.SlicedTexture(dialog, "BACKGROUND", Theme.MEDIA .. "card.png", { pc[1], pc[2], pc[3], 0.98 }, 24)
+  dialogBG:SetAllPoints(dialog)
+  local gc2 = Theme.color.gold
+  local dialogEdge = Theme.SlicedTexture(dialog, "BORDER", Theme.MEDIA .. "ring.png", { gc2[1], gc2[2], gc2[3], 0.5 }, 24)
+  dialogEdge:SetAllPoints(dialog)
   -- Which item, and how many units it is missing a cost for -- filled in by openCostDialog
   -- every time it opens, since the dialog is pooled across positions. Reserves two lines'
   -- worth of height: item names run long enough that one line is not always enough.
@@ -2731,8 +3016,8 @@ function GC.Sell.Attach(f, geometry)
   dialog.totalPreview:SetPoint("TOPRIGHT", -12, FIELD_BOX_Y - 24)
   setColor(dialog.totalPreview, Theme.color.fgDim)
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, FIELD_BOX_Y - 44); setColor(dialog.error, Theme.color.red)
-  local cancel = Theme.Button(dialog, "ghost"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
-  local confirm = Theme.Button(dialog, "primary"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
+  local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
+  local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
   local function syncText(edit, text)
     dialog.syncing = true
     edit:SetText(text)
@@ -2835,7 +3120,7 @@ function GC.Sell.Attach(f, geometry)
 end
 
 -- Live diagnosis for a wedged pricing walk, straight from the client: /goldcap sellstate
--- prints the machine's actual state instead of leaving "Pricing…" to be guessed about.
+-- prints the machine's actual state instead of leaving "PRICING…" to be guessed about.
 -- Registered here (not Core/Init.lua) because every field it reads is this file's own.
 GC.slashHandlers = GC.slashHandlers or {}
 GC.slashHandlers.sellstate = function()

@@ -54,6 +54,49 @@ describe("Sniper buy dialog verdict block", function()
     return d
   end
 
+  -- Task 2 restyle: distinct-color widget doubles for the new verdictLabel/verdictAmount
+  -- fields, same "record every SetTextColor call" shape as fakeVerdictHead above -- so the
+  -- SAFE/REFUSED tint assertions below compare against real, different color tables (green vs
+  -- red) rather than two stubs that happen to look alike.
+  local function fakeVerdictLabel()
+    local w = { text = "", colors = {} }
+    function w:SetText(t) self.text = t end
+    function w:SetTextColor(r, g, b) self.colors[#self.colors + 1] = { r, g, b } end
+    return w
+  end
+
+  local function fakeVerdictAmount()
+    local w = { text = "", colors = {}, shown = nil }
+    function w:SetText(t) self.text = t end
+    function w:SetTextColor(r, g, b) self.colors[#self.colors + 1] = { r, g, b } end
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
+  -- Fix round 1: state-tracking double for the caption, same "shown" shape as fakeVerdictSub
+  -- above -- textSink()'s Show/Hide are no-ops, which would make the "orphaned caption on
+  -- refusal" assertion below vacuous.
+  local function fakeVerdictAmountNote()
+    local w = { shown = nil }
+    function w:SetText() end
+    function w:SetTextColor() end
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
+  -- Check panel v2: state-tracking double shared by the new entryCard/exitCard/suspectNote
+  -- fields below -- Show()/Hide() record which one last ran (nil until either does, same
+  -- "starts nil" shape as fakeVerdictAmount/fakeVerdictSub above), so the cards-vs-note
+  -- assertions are non-vacuous.
+  local function fakeShowHide()
+    local w = { shown = nil }
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
   local function fakeDialog(overrides)
     local d = {
       fixedHeight = 400, diagnosticGaps = 4, diagnosticMinimumHeight = 108,
@@ -74,9 +117,13 @@ describe("Sniper buy dialog verdict block", function()
 
   local function load(dbOverrides)
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 } },
-        color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 } } },
+        -- Task 2 restyle: green/red added (additive -- every existing test in this file only
+        -- ever reads fg/fgDim off this table) for stampDialogFromDecision's new guarded
+        -- verdictLabel/verdictAmount tint calls.
+        color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 },
+          green = { 0.25, 0.85, 0.25 }, red = { 0.898, 0.283, 0.302 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
@@ -141,6 +188,85 @@ describe("Sniper buy dialog verdict block", function()
     assert.not_equal("stress_profit_below_buffer", d.verdictHead.text)
     assert.same({ 1, 0.3, 0.3 }, d.verdictHead.colors[#d.verdictHead.colors])
     assert.is_false(d.verdictSub.shown)
+  end)
+
+  it("stamps the live-verdict kicker and big signed profit figure when both widgets exist, buyable then refusal", function()
+    -- Task 2 restyle. A fakeDialog WITHOUT verdictLabel/verdictAmount/verdictAmountNote is
+    -- exactly what every other test in this file already builds (fakeDialog()'s own base
+    -- shape, unmodified) -- those must keep stamping fine (they do, elsewhere in this file);
+    -- this test is the additive counterpart with a fakeDialog that HAS them.
+    local GC, stamp = load()
+    local d = fakeDialog({
+      verdictLabel = fakeVerdictLabel(),
+      verdictAmount = fakeVerdictAmount(),
+      verdictAmountNote = fakeVerdictAmountNote(),
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42 }, {
+      status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
+      stressProfit = 1200000, reasons = {},
+    })
+    assert.equal("LIVE VERDICT · SAFE", d.verdictLabel.text)
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      d.verdictLabel.colors[#d.verdictLabel.colors])
+    assert.equal("+120g", d.verdictAmount.text) -- same 1200000-copper figure verdictSub's own sentence uses
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      d.verdictAmount.colors[#d.verdictAmount.colors])
+    assert.is_true(d.verdictAmount.shown)
+    assert.is_true(d.verdictAmountNote.shown) -- Fix round 1: the caption goes with the amount
+
+    stamp({ itemID = 42 }, {
+      status = "WATCH", buyable = false, quantity = 0,
+      reasons = { "stress_profit_below_buffer" },
+    })
+    assert.equal("LIVE VERDICT · REFUSED", d.verdictLabel.text)
+    assert.same({ GC.Theme.color.red[1], GC.Theme.color.red[2], GC.Theme.color.red[3] },
+      d.verdictLabel.colors[#d.verdictLabel.colors])
+    assert.is_false(d.verdictAmount.shown)
+    assert.is_false(d.verdictAmountNote.shown) -- Fix round 1: not orphaned when the amount hides
+  end)
+
+  it("stamps the ENTRY AVG / STRESS EXIT cards from the same two values as the evidence grid, and swaps them for the suspect note on a SUSPECT tier", function()
+    -- Check panel v2. The two amounts are owned by stampDialogFromDecision (same as
+    -- unitPriceText/exitUnitText); which of the cards-vs-note pair is shown is owned by
+    -- setDialogHeader instead -- both guarded on the same new dialog.* fields, exercised
+    -- together here the way openDialog/armReady/armCheck actually call them in sequence.
+    local GC, stamp = load()
+    local d = fakeDialog({
+      entryValue = textSink(), exitValue = textSink(),
+      entryCard = fakeShowHide(), exitCard = fakeShowHide(),
+      tierChip = { SetLabel = function() end },
+      suspectNote = fakeShowHide(),
+      nameText = textSink(), icon = { SetTexture = function() end },
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42 }, {
+      status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
+      stressProfit = 1200000, exitUnit = 1600000, reasons = {},
+    })
+    assert.equal(d.unitPriceText.text, d.entryValue.text)
+    assert.equal(d.exitUnitText.text, d.exitValue.text)
+
+    _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local setDialogHeader = getUpvalue(openDialog, "setDialogHeader")
+
+    setDialogHeader({ itemID = 42, tier = "WATCH" }, {})
+    assert.is_true(d.entryCard.shown)
+    assert.is_true(d.exitCard.shown)
+    assert.is_false(d.suspectNote.shown)
+
+    setDialogHeader({ itemID = 42, tier = "SUSPECT" }, {})
+    assert.is_false(d.entryCard.shown)
+    assert.is_false(d.exitCard.shown)
+    assert.is_true(d.suspectNote.shown)
   end)
 
   it("hides the diagnostic line and contributes no height to it by default", function()
@@ -252,12 +378,31 @@ describe("Sniper buy dialog verdict block", function()
         "detailsToggle:SetScript(\"OnClick\", function() applyDetailsState(not d.detailsOpen) end)",
         1, true))
     end)
+
+    -- Fix wave (check panel v2 review): createFrame's OnSizeChanged re-applies the saved
+    -- preference on every resize (see the OnSizeChanged section below), including a downsize
+    -- that trips this very guard -- without this, every drag-resize past the fit floor would
+    -- spam "Enlarge the window to see details" the whole way down.
+    it("does not announce the F5 refusal while a resize's own re-apply is in flight (detailsQuiet)", function()
+      local text = source()
+      local body = section(text, "local function applyDetailsState(open)", "detailsToggle:SetScript(\"OnClick\"")
+      assert.is_truthy(body:find(
+        "if dialog and not d.detailsQuiet then setDialogStatus(\"Enlarge the window to see details\") end",
+        1, true))
+    end)
+
+    -- The dialog exposes applyDetailsState so createFrame's OnSizeChanged can drive it directly
+    -- (the only handle the rest of the file gets on this closure), same idiom as f.applyPanelInset.
+    it("exposes applyDetailsState on the dialog table for the resize hook to call", function()
+      local text = source()
+      assert.is_truthy(text:find("d.applyDetailsState = applyDetailsState", 1, true))
+    end)
   end)
 
   it("DG's open/closed height budgets differ by exactly one evidence grid, with no overlap or negative geometry", function()
     -- A behavioural sanity check on the actual production constants (not a stand-in), reached
     -- as a direct upvalue of createDialog -- DG's own fields are referenced right in its body.
-    local Theme = { pad = { m = 8, s = 4, xs = 2 } }
+    local Theme = { RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 } }
     local GC = { Theme = Theme,
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
@@ -283,7 +428,8 @@ describe("Sniper buy dialog verdict block", function()
     -- Stacked top-to-bottom without overlap: verdict, then Quantity, then the toggle, each
     -- strictly below the one before it.
     assert.is_true(DG.VERDICT_TOP > DG.QTY_TOP)
-    assert.is_true(DG.QTY_TOP > DG.TOGGLE_TOP)
+    assert.is_true(DG.QTY_TOP > DG.CARDS_TOP)
+    assert.is_true(DG.CARDS_TOP > DG.TOGGLE_TOP)
     assert.is_true(DG.TOGGLE_TOP > DG.GRID_TOP)
     assert.is_true(DG.GRID_TOP > DG.EVIDENCE_BOTTOM_OPEN)
     assert.is_true(DG.TOGGLE_TOP > DG.EVIDENCE_BOTTOM_CLOSED)

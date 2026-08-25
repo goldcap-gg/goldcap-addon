@@ -672,11 +672,24 @@ function GC.SellPositions.Build(args)
       -- A settled sale is the NORMAL end of owning something. Requiring `pending` here meant
       -- every paid sale fell through to a repair row with no itemID, no icon and no numbers --
       -- and nothing ever makes a paid sale pending again, so they accumulated forever.
+      --
+      -- ...but a settled sale only ATTACHES to a position that exists for another reason
+      -- (stock in the bags, a live listing, an open purchase batch). It never creates one: a
+      -- position with nothing bought, nothing held and nothing listed, carrying only a paid
+      -- sale from weeks ago, is a row with a dash in every column -- the third in-game pass
+      -- found dozens of them ("items I sold long ago") at the bottom of the list, one per
+      -- ledger sale that no purchase batch ever consumed, and the ledger is never pruned by
+      -- age. That sale is history, and history is the Sold tab's business. A PENDING sale
+      -- (proceeds not collected yet) still gets its row -- "sale proceeds pending" is the
+      -- one thing this tab can still tell the player about it.
       if count == 1 then
-        local position = positionFor(positions, matched.positionKey, matched.itemID, context)
-        position.itemName = position.itemName or matched.itemName
-        if evidence.pending == true then position.facts.soldPending = true end
-        position.sellerEvidence[#position.sellerEvidence + 1] = evidence
+        local existing = positions[matched.positionKey]
+        if existing or evidence.pending == true then
+          local position = positionFor(positions, matched.positionKey, matched.itemID, context)
+          position.itemName = position.itemName or matched.itemName
+          if evidence.pending == true then position.facts.soldPending = true end
+          position.sellerEvidence[#position.sellerEvidence + 1] = evidence
+        end
       else
         unresolvedRows[#unresolvedRows + 1] = {
           unresolved = true, protectedAction = false,
@@ -790,24 +803,46 @@ end
 function GC.SellPositions.Summary(positions)
   local invested, listedValue, projected = 0, 0, 0
   local complete = true
+  -- `profit` used to be all-or-nothing: one PARTIAL/UNKNOWN position, or one COMPLETE position
+  -- with no live quote yet, nulled the entire total, even though every other position on the
+  -- list had a perfectly good, individually-known profit. Count each position on its own terms
+  -- instead -- COMPLETE coverage and a priced projection, the same two gates `position.profit`
+  -- itself is set under at ~:496 -- and sum only those, reporting what got left out rather than
+  -- pretending the whole total is unknown because of them.
+  local countedCount, excludedNoCost, excludedNoPrice = 0, 0, 0
+  local countedCost, countedNet = 0, 0
   for _, position in ipairs(positions or {}) do
     if position.coverage ~= "COMPLETE" then complete = false end
     invested = invested ~= nil and add(invested, position.knownCost) or nil
     listedValue = listedValue ~= nil and add(listedValue, position.listedValue) or nil
     if not complete or projected == nil or position.projectedNet == nil then projected = nil
     else projected = add(projected, position.projectedNet) end
+
+    if position.coverage ~= "COMPLETE" then
+      excludedNoCost = excludedNoCost + 1
+    elseif position.projectedNet == nil then
+      excludedNoPrice = excludedNoPrice + 1
+    else
+      countedCount = countedCount + 1
+      countedCost = countedCost ~= nil and add(countedCost, position.knownCost) or nil
+      countedNet = countedNet ~= nil and add(countedNet, position.projectedNet) or nil
+    end
   end
-  if not invested or not listedValue then
-    return { invested = invested, listedValue = listedValue, projected = nil, profit = nil }
+  -- Same shape as the all-or-nothing `projected - invested` below: sum the two non-negative
+  -- sides separately (add() rejects negatives, so a signed per-position profit can't be summed
+  -- directly), subtract once, and gate the signed result through exactSigned -- the identical
+  -- overflow guard `position.profit` itself relies on.
+  local profit
+  if countedCount > 0 and countedCost ~= nil and countedNet ~= nil then
+    local candidate = countedNet - countedCost
+    if exactSigned(candidate) then profit = candidate end
   end
-  if not complete or projected == nil then
-    return { invested = invested, listedValue = listedValue, projected = nil, profit = nil }
+  if not invested or not listedValue or not complete or projected == nil then
+    return { invested = invested, listedValue = listedValue, projected = nil, profit = profit,
+      countedCount = countedCount, excludedNoCost = excludedNoCost, excludedNoPrice = excludedNoPrice }
   end
-  local profit = projected - invested
-  if not exactSigned(profit) then
-    return { invested = invested, listedValue = listedValue, projected = nil, profit = nil }
-  end
-  return { invested = invested, listedValue = listedValue, projected = projected, profit = profit }
+  return { invested = invested, listedValue = listedValue, projected = projected, profit = profit,
+    countedCount = countedCount, excludedNoCost = excludedNoCost, excludedNoPrice = excludedNoPrice }
 end
 
 -- Cheapest unit price in the book at which somebody OTHER than the player is selling.

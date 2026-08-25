@@ -45,7 +45,7 @@ describe("Sniper pin row reservation", function()
 
   it("still gives an unpinned-from-the-list pin a row once the deal count clears the cap", function()
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
@@ -75,7 +75,7 @@ describe("Sniper pin row reservation", function()
 
   it("still gives a real (non-placeholder) pinned deal a row when it sorts below the cap", function()
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
@@ -101,7 +101,7 @@ describe("Sniper pin row reservation", function()
 
   it("sorts pinned rows to the top even when the list does not reach the cap", function()
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },

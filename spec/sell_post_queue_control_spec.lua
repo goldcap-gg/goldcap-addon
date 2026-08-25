@@ -15,16 +15,19 @@ describe("Sell tab, the posting queue control", function()
     function v:SetSize() end function v:SetWidth() end function v:SetHeight() end
     function v:SetText(t) self.text = t end function v:GetText() return self.text or "" end
     function v:SetLabel(t) self.label = t end
+    function v:SetVariant(name) self.variant = name end
     function v:SetScript(n, f) self.scripts[n] = f end
     function v:HookScript(n, f) self.scripts[n] = f end
     function v:Show() self.shown = true end function v:Hide() self.shown = false end
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
     function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
+    function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
     function v:CreateTexture() return region("Texture", self) end
     function v:SetAllPoints() end function v:SetColorTexture() end
     function v:SetTexture() end function v:SetTexCoord() end
+    function v:SetTextureSliceMargins() end function v:SetVertexColor() end
     function v:SetFrameStrata() end function v:SetFrameLevel() end
     function v:GetFrameLevel() return 0 end function v:EnableMouse() end
     return v
@@ -75,10 +78,14 @@ describe("Sell tab, the posting queue control", function()
       Theme = {
         color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
           zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
-          gold = { 1, 1, 0 }, panel = { 0, 0, 0 } },
+          gold = { 1, 1, 0 }, panel = { 0, 0, 0 }, panelHi = { 0.102, 0.114, 0.141 } },
+        pad = { xs = 4, s = 8, m = 12, l = 16 },
+        MEDIA = "",
         Label = function(p) return region("FontString", p) end,
         Num = function(p) return region("FontString", p) end,
         Button = function(p) return region("Button", p) end,
+        Card = function(p) local card = region("Frame", p); function card:SetTint() end return card end,
+        SlicedTexture = function(p, layer) local t = region("Texture", p); t.layer = layer; return t end,
       },
       Ledger = { Context = function() return { char = "Owner-Dentarg", region = "eu" } end,
         GetEntries = function() return {} end },
@@ -122,7 +129,7 @@ describe("Sell tab, the posting queue control", function()
     compose()
     local button = container.queueButton
     local label = container.queueLabel
-    assert.equal("Post 1", button.label)
+    assert.equal("POST 1", button.label)
     assert.is_true(button.enabled)
     assert.matches("Eternium Ore", label.text, 1, true)
   end)
@@ -131,7 +138,7 @@ describe("Sell tab, the posting queue control", function()
     compose() -- no quote at all: BOTH bag items are held back, nothing enters the queue
     local button = container.queueButton
     assert.is_false(button.enabled)
-    assert.matches("[Nn]othing", button.label)
+    assert.matches("NOTHING", button.label)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()
@@ -174,7 +181,7 @@ describe("Sell tab, the posting queue control", function()
     compose()
     local button = container.queueButton
     button.scripts.OnClick(button)
-    assert.equal("Confirm", button.label)
+    assert.equal("CONFIRM", button.label)
     assert.is_true(button.enabled)
     button.scripts.OnClick(button)
     assert.equal(1, confirmCalls)

@@ -99,6 +99,8 @@ function GC.AutoScan.New(timers, actions)
     ["resume:search"] = function(now) removePause("search", now) end,
     ["pause:mail"] = function() addPause("mail") end,
     ["resume:mail"] = function(now) removePause("mail", now) end,
+    ["pause:sell"] = function() addPause("sell") end,
+    ["resume:sell"] = function(now) removePause("sell", now) end,
   }
 
   function obj:Input(event, now)

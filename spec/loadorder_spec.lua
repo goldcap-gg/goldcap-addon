@@ -62,6 +62,12 @@ describe("TOC load order", function()
         -- Theme.Button's hover is a HIGHLIGHT-layer texture drawn by the engine rather than an
         -- OnEnter/OnLeave repaint, and it sets an additive blend at construction time.
         SetBlendMode = function() end,
+        -- Sniper v4 (rail mount): Theme.Rail/Theme.RailButton/Theme.Card build their chrome
+        -- from a nine-slice PNG (slicedTexture in Theme.lua) recolored via vertex color --
+        -- both calls run synchronously during createFrame now that the rail is part of the
+        -- window's real construction path, not just Theme.lua's own spec.
+        SetTextureSliceMargins = function() end,
+        SetVertexColor = function() end,
         SetAllPoints = function() end,
         -- D (Sniper v2 Sell view): GC.Sell.Attach/renderRows stamp the scroll child's height
         -- the same way the Deals view's refreshRows always has -- now reachable from
@@ -133,7 +139,8 @@ describe("TOC load order", function()
         SetMaxLetters = function() end,
         GetText = function() return "" end,
         ClearFocus = function() end,
-        -- T10 CheckButton widgets (Sound / Auto-scan by default): SetChecked runs for real
+        -- T10 CheckButton widgets (Sound on HOT deal / Auto-scan on next AH visit, batch-5 pill
+        -- toggles): SetChecked runs for real
         -- (bindCheckbox's display() during construction); GetChecked/SetCheckedTexture back the
         -- OnClick script this test never fires -- kept for parity.
         SetChecked = function() end,
@@ -274,6 +281,12 @@ describe("TOC load order", function()
     assert.is_function(GC.slashHandlers.sniper)
     assert.is_function(GC.Sniper.Toggle)
     assert.is_function(GC.SettingsUI.Toggle)
+
+    -- Batch 5: RESET WINDOW (UI/SettingsFrame.lua) reads the live default straight off
+    -- SniperFrame.lua's own WIN table via this export, instead of a mirrored constant that can
+    -- (and did) go stale -- pin the real default here so a future change to WIN.FRAME_WIDTH/
+    -- HEIGHT is caught the same way loadorder catches every other cross-file contract.
+    assert.same({ 720, 600 }, { GC.Sniper.DefaultWindowSize() })
 
     -- exercise real frame construction through the stubbed CreateFrame
     assert.has_no.errors(function() GC.Sniper.Toggle() end)

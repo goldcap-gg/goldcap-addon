@@ -27,7 +27,7 @@ describe("Search slot arbiter", function()
     _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
     local GC = {
-      Theme = { ROW_H = 20, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
         color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 } } },
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
         PauseReasons = function() return {} end, Tick = function() end } end },

@@ -89,6 +89,7 @@ describe("Theme.Button real-widget label contract", function()
     assert.equal("GoldCap Sniper", bar.title.rawText)
     bar.title:SetText("")
     assert.equal("", bar.title.rawText)
+    assert.is_truthy(bar.bar)
   end)
 
   -- The exact failure mode: UI/SellFrame.lua's ACTION_HELP tooltip keys off
@@ -99,5 +100,38 @@ describe("Theme.Button real-widget label contract", function()
     local btn = GC.Theme.Button(parent, "ghost")
     btn:SetLabel("Post")
     assert.equal("Lists what is sitting in your bags.", ACTION_HELP[btn.label])
+  end)
+
+  -- Task 2 restyle: SetUppercase changes only the drawn FontString text -- `.label` stays the
+  -- caller's exact source string, since ACTION_HELP-style lookups and pooled-row rebinding
+  -- both read `.label` back, not the FontString.
+  it("draws the label upper-case without changing .label when SetUppercase(true) is on", function()
+    local parent = stubFrame()
+    local btn = GC.Theme.Button(parent, "primary")
+    btn:SetUppercase(true)
+    btn:SetLabel("Post")
+    assert.equal("Post", btn.label)
+    assert.equal("POST", btn.text.rawText)
+  end)
+
+  it("draws the label as given once SetUppercase(false) turns it back off", function()
+    local parent = stubFrame()
+    local btn = GC.Theme.Button(parent, "primary")
+    btn:SetUppercase(true)
+    btn:SetLabel("Post")
+    assert.equal("POST", btn.text.rawText)
+    btn:SetUppercase(false)
+    assert.equal("Post", btn.text.rawText)
+    assert.equal("Post", btn.label) -- .label never moved
+  end)
+
+  it("re-draws an already-labelled button upper-case when SetUppercase(true) runs after SetLabel", function()
+    local parent = stubFrame()
+    local btn = GC.Theme.Button(parent, "primary")
+    btn:SetLabel("Post")
+    assert.equal("Post", btn.text.rawText)
+    btn:SetUppercase(true)
+    assert.equal("POST", btn.text.rawText)
+    assert.equal("Post", btn.label)
   end)
 end)

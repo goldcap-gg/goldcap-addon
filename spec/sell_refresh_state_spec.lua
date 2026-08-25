@@ -175,6 +175,71 @@ describe("Sell refresh state fence", function()
     assert.equal("Auction House is not open", status[#status])
   end)
 
+  -- Starving on a busy search slot is the walk working correctly, not stalling: the 15s
+  -- PHASE_WATCHDOG_SECONDS must not misreport "Auction House did not answer" while nothing
+  -- was ever sent. advanceQuote now calls markProgress() on that path (same as the
+  -- purchase-yield branch) and says why, once per walk rather than on every tick.
+  it("reports a busy search slot once per walk instead of tripping the watchdog", function()
+    local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    local ready = true
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local driver = upvalue(advance, "driver")
+    driver.isReady = function() return ready end
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+
+    GC.Sell.Refresh()
+    ready = false
+    GC.Sell.OnOwnedAuctions() -- enters pricing and immediately starves on the busy slot
+    assert.equal("Waiting for the Auction House…", status[#status])
+    assert.equal(100, refreshState(GC).progressAt) -- markProgress ran: the watchdog will not fire
+    assert.same({}, sent.keys)
+
+    local noticedAt = #status
+    now.value = 105
+    GC.Sell.OnThrottleReady() -- still not ready: progress advances again, notice does not repeat
+    assert.equal(noticedAt, #status)
+    assert.equal(105, refreshState(GC).progressAt)
+
+    ready = true
+    GC.Sell.OnThrottleReady() -- the slot frees up: the walk proceeds
+    assert.same({ 42 }, sent.keys)
+  end)
+
+  it("beginQuoteWalk resets the waiting-noted flag so the next walk can report again", function()
+    local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    local ready = true
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local driver = upvalue(advance, "driver")
+    driver.isReady = function() return ready end
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+
+    GC.Sell.Refresh()
+    ready = false
+    GC.Sell.OnOwnedAuctions()
+    assert.equal("Waiting for the Auction House…", status[#status])
+    assert.is_true(refreshState(GC).waitingNoted)
+
+    ready = true
+    GC.Sell.OnThrottleReady()
+    assert.same({ 42 }, sent.keys)
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.equal("done", refreshState(GC).phase)
+
+    -- A fresh walk clears the flag: starving again on the next round reports again.
+    GC.Sell.Refresh()
+    ready = false
+    GC.Sell.OnOwnedAuctions()
+    local notices = 0
+    for _, text in ipairs(status) do
+      if text == "Waiting for the Auction House…" then
+        notices = notices + 1
+      end
+    end
+    assert.equal(2, notices)
+  end)
+
   it("parks the cold-start owned-auction refresh until throttle-ready and sends it once", function()
     local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
     local ready = false

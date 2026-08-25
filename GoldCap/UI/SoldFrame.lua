@@ -120,7 +120,7 @@ local function buildEntries()
   table.sort(localSales, function(a, b) return (a.at or 0) > (b.at or 0) end)
   if #localSales > 0 then
     entries[#entries + 1] = { kind = "section",
-      text = "Not on goldcap.gg yet -- syncs on /reload or logout" }
+      text = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT" }
     for _, sale in ipairs(localSales) do
       entries[#entries + 1] = { kind = "localSale", sale = sale,
         realized = sale.key and realizedByKey[sale.key] or nil }
@@ -134,9 +134,9 @@ local function buildEntries()
     -- totals.salesCount says the server holds more than that, the header
     -- admits this section is a tail rather than silently under-counting the
     -- window (M3).
-    local header = ("On goldcap.gg -- last %d days"):format(summary.days)
+    local header = ("ON GOLDCAP.GG — LAST %d DAYS"):format(summary.days)
     if summary.totals.salesCount > #summary.sales then
-      header = ("On goldcap.gg -- last %d days, latest %d of %d"):format(
+      header = ("ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"):format(
         summary.days, #summary.sales, summary.totals.salesCount)
     end
     entries[#entries + 1] = { kind = "section", text = header }
@@ -168,7 +168,6 @@ end
 -- ---------------------------------------------------------------------------
 local SD = {
   BAND_HEIGHT = 40,  -- header band: two text lines above the table
-  BAND_LINE2_Y = -18,
   HEADER_H = 16,     -- column header row height, matches Deals' CH.HEADER
 }
 
@@ -301,11 +300,24 @@ local function paintSaleCells(row, name, itemID, qty, total, at, pending)
   row.item:SetText(decorated)
   setColor(row.item, Theme.color.fg)
 
+  -- Item icon, same guarded C_Item.GetItemIconByID call SellFrame's position
+  -- rows use -- headless/pcall-safe, no icon rather than an error when the
+  -- client doesn't have one cached yet.
+  row.itemInset = 26
+  local icon = nil
+  if itemID and C_Item and C_Item.GetItemIconByID then
+    local ok, texture = pcall(C_Item.GetItemIconByID, itemID)
+    icon = ok and texture or nil
+  end
+  if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
+
   -- The sale exists, the gold is just in transit -- same honesty the old
   -- "[not yet paid out]" suffix carried, now the WHEN column's own content
   -- rather than an appendix to it.
+  -- Transit is the one thing worth calling out in this column -- the gold
+  -- tint says "still moving", dates stay dim like the rest of the row.
   row.cells.when:SetText(pending and "in the mail" or formatWhen(at))
-  setColor(row.cells.when, Theme.color.fgDim)
+  setColor(row.cells.when, pending and Theme.color.gold or Theme.color.fgDim)
 
   row.cells.qty:SetText(tostring(qty or 0))
   setColor(row.cells.qty, Theme.color.fg)
@@ -336,12 +348,25 @@ end
 -- applyColumnVisibility), not on every render, so this is what keeps a
 -- dropped WHEN/UNIT column from reappearing the next time an unrelated
 -- entry (a new sale, a section header) repaints this same pooled row.
+--
+-- A hint/section row does NOT also Hide() these cells in paintRow (M3): the
+-- trailing layoutRow(row) call at the end of every paintRow branch re-runs
+-- anchorColumns, which unconditionally Show()s every non-dropped cell, so a
+-- Hide() here would just get undone. Blank TEXT -- set below, and never
+-- refilled by the hint/section branches -- is what actually keeps those
+-- cells empty on a hint/section row, not visibility.
 local function clearRow(row)
   row.item:SetText("")
   row.item:Show()
   row.wide:SetText("")
   row.wide:Hide()
-  row.underline:Hide()
+  row.sectionLabel:SetText("")
+  row.sectionLabel:Hide()
+  row.sectionRule:Hide()
+  -- Only a sale row (paintSaleCells) claims icon space; hint/section rows
+  -- have nothing to show one for and stay flush left.
+  row.itemInset = 0
+  row.icon:Hide()
   for _, col in ipairs(COLUMNS) do
     if not col.flex then
       row.cells[col.key]:SetText("")
@@ -358,7 +383,7 @@ local function paintRow(row, entry, index)
   clearRow(row)
 
   local zc = Theme.color.zebra
-  row.zebra:SetColorTexture(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
+  row.zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and (zc[4] or 0) or 0)
 
   if entry.kind == "hint" then
     -- Centered, muted, in the list area -- Deals' empty-state language --
@@ -366,30 +391,23 @@ local function paintRow(row, entry, index)
     -- (the Pro notice sits above server rows that still render), so it
     -- stays a row in the same flow instead of a separate overlay widget.
     row.item:Hide()
-    for _, col in ipairs(COLUMNS) do
-      if not col.flex then row.cells[col.key]:Hide() end
-    end
     row.wide:Show()
     row.wide:SetJustifyH("CENTER")
     row.wide:SetWordWrap(true)
     row.wide:SetText(entry.text)
-    setColor(row.wide, Theme.color.fgMuted)
+    setColor(row.wide, Theme.color.fgDim)
+    row.wide:SetSpacing(4)
   elseif entry.kind == "section" then
-    -- Full-width gold label with a thin gold underline -- the Sell
-    -- group-row aesthetic, adapted: Sell's group text lives in the flexible
-    -- item column because its siblings still show blank cells beside it;
-    -- Sold's section rows have nothing to say in QTY/UNIT/TOTAL/PROFIT at
-    -- all, so the label spans the row outright.
+    -- Mono micro-label + a hairline rule running to the row's right edge --
+    -- not a full-width gold label: Sold's section rows have nothing to say
+    -- in QTY/UNIT/TOTAL/PROFIT at all, so a small uppercase label plus a
+    -- dim rule reads as a divider rather than another content row (createRow
+    -- has the anchoring rationale).
     row.item:Hide()
-    for _, col in ipairs(COLUMNS) do
-      if not col.flex then row.cells[col.key]:Hide() end
-    end
-    row.wide:Show()
-    row.wide:SetJustifyH("LEFT")
-    row.wide:SetWordWrap(false)
-    row.wide:SetText(entry.text)
-    setColor(row.wide, Theme.color.gold)
-    row.underline:Show()
+    row.wide:Hide()
+    row.sectionLabel:SetText(entry.text)
+    row.sectionLabel:Show()
+    row.sectionRule:Show()
   elseif entry.kind == "localSale" then
     local sale = entry.sale
     paintSaleCells(row, sale.itemName or "Unknown item", sale.itemID, sale.qty or 0,
@@ -427,12 +445,25 @@ local function paintRow(row, entry, index)
     -- else: free tier, no basis at all -- row.cells.profit stays "" (M2/
     -- design: "free tier (no basis) -> empty"), never an invented dash.
   end
+
+  -- Re-anchor the item cell now that this render's own row.itemInset is
+  -- known (SellFrame's paintRow does the same: layoutCells runs once per
+  -- render, after the icon/itemInset decision, not only on a column-drop
+  -- change). This MUST run every render, not just on resize: rows are
+  -- pooled and a given index's entry.kind can change from one render to
+  -- the next (a hint row this pass, a sale row next pass), so without this
+  -- call a pooled row would keep whatever itemInset it last painted as,
+  -- stale until the next unrelated column-visibility change happened to
+  -- re-run layoutRow for it.
+  layoutRow(row)
 end
 
 layoutRow = function(row)
   local flexAnchor = anchorColumns(row, hiddenColumns, function(col) return row.cells[col.key] end)
   row.item:ClearAllPoints()
-  row.item:SetPoint("LEFT", row, "LEFT", 0, 0)
+  -- row.itemInset (paintRow/paintSaleCells) leaves room for the icon on a
+  -- sale row; hint/section rows (itemInset 0) stay flush with the row edge.
+  row.item:SetPoint("LEFT", row, "LEFT", row.itemInset or 0, 0)
   row.item:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
 end
 
@@ -440,16 +471,22 @@ createRow = function(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(geometry.rowHeight)
 
-  -- Zebra + hover, same convention as Deals/Sell: a full-width BACKGROUND
-  -- zebra fill, recomputed every render off the row's CURRENT position
-  -- (Sell's approach -- Sold's entry composition reshuffles kind-to-kind far
-  -- more than Deals' pool ever does, so baking zebra in at creation time,
-  -- the way Deals does, would go stale the moment a section appears above a
-  -- row that used to sit at an even index).
+  -- Zebra + hover, same convention as Deals/Sell: a sliced rounded fill,
+  -- recomputed every render off the row's CURRENT position (Sell's approach
+  -- -- Sold's entry composition reshuffles kind-to-kind far more than Deals'
+  -- pool ever does, so baking zebra in at creation time, the way Deals does,
+  -- would go stale the moment a section appears above a row that used to sit
+  -- at an even index). Insets: 1px top/bottom so margin 12 <= 15 = half of
+  -- the 30px effective fill at ROW_H 32; right inset is 2, not Deals' 26 --
+  -- this container is already inset by the gutter and the scrollbar hangs
+  -- outside it (Sell's createRow carries the identical comment).
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
-  zebra:SetAllPoints()
-  zebra:SetColorTexture(zc[1], zc[2], zc[3], 0)
+  zebra:SetTexture(Theme.MEDIA .. "plaque.png")
+  zebra:SetTextureSliceMargins(12, 12, 12, 12)
+  zebra:SetPoint("TOPLEFT", 2, -1)
+  zebra:SetPoint("BOTTOMRIGHT", -2, 1)
+  zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
   row.zebra = zebra
 
   -- Hover: the real engine HIGHLIGHT draw layer, shown/hidden by the client
@@ -457,22 +494,40 @@ createRow = function(parent)
   -- an OnEnter/OnLeave repaint (addon/AGENTS.md's "Buttons and hover").
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-  highlight:SetAllPoints()
-  highlight:SetColorTexture(hc[1], hc[2], hc[3], hc[4])
+  highlight:SetTexture(Theme.MEDIA .. "plaque.png")
+  highlight:SetTextureSliceMargins(12, 12, 12, 12)
+  highlight:SetPoint("TOPLEFT", 2, -1)
+  highlight:SetPoint("BOTTOMRIGHT", -2, 1)
+  highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight = highlight
   row:EnableMouse(true)
 
-  -- Thin gold underline, shown only for a "section" row.
+  -- Section rows: mono micro-label + a hairline running to the row's right edge. The rule
+  -- anchors to the label's RIGHT, so the label must stay single-point LEFT-anchored (its
+  -- width is its text).
+  row.sectionLabel = Theme.Num(row, 9, true)
+  row.sectionLabel:SetJustifyH("LEFT")
+  row.sectionLabel:SetPoint("LEFT", 4, 0)
+  setColor(row.sectionLabel, Theme.color.gold)
+  row.sectionLabel:Hide()
   local gc = Theme.color.gold
-  local underline = row:CreateTexture(nil, "ARTWORK")
-  underline:SetHeight(1)
-  underline:SetPoint("BOTTOMLEFT")
-  underline:SetPoint("BOTTOMRIGHT")
-  underline:SetColorTexture(gc[1], gc[2], gc[3], 0.6)
-  underline:Hide()
-  row.underline = underline
+  row.sectionRule = row:CreateTexture(nil, "ARTWORK")
+  row.sectionRule:SetColorTexture(gc[1], gc[2], gc[3], 0.25)
+  row.sectionRule:SetHeight(1)
+  row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", 10, 0)
+  row.sectionRule:SetPoint("RIGHT", -2, 0)
+  row.sectionRule:Hide()
 
-  -- The full-row text used by "section" and "hint" kinds -- see paintRow.
+  -- Item icon, shown only on sale rows (paintRow) -- same trimmed-border
+  -- convention as SellFrame's position rows.
+  row.icon = row:CreateTexture(nil, "ARTWORK")
+  row.icon:SetSize(18, 18)
+  row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  row.icon:Hide()
+
+  -- The full-row text used by the "hint" kind -- see paintRow. Section rows
+  -- use row.sectionLabel/row.sectionRule above instead.
   row.wide = Theme.Label(row, 11)
   row.wide:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
   row.wide:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
@@ -497,7 +552,9 @@ local function createHeaderRow(parent)
     if not col.flex then
       local hit = CreateFrame("Frame", nil, header)
       hit:SetHeight(SD.HEADER_H)
-      local label = Theme.Label(hit, 11)
+      local label = Theme.Num(hit, 9)
+      label:SetWordWrap(false)
+      setColor(label, Theme.color.fgDim)
       label:SetAllPoints()
       label:SetJustifyH(col.num and "RIGHT" or "LEFT")
       label:SetText((HEADER_TEXT[col.key] or ""):upper())
@@ -506,11 +563,19 @@ local function createHeaderRow(parent)
     end
   end
 
+  -- ITEM reads on the kit now too, the same mono/fgDim treatment as the other
+  -- header cells above -- it used to stand out as the one native-font label
+  -- in an otherwise all-mono row.
   local itemHit = CreateFrame("Frame", nil, header)
-  itemHit.label = Theme.Label(itemHit, 11)
-  itemHit.label:SetAllPoints()
-  itemHit.label:SetJustifyH("LEFT")
-  itemHit.label:SetText(HEADER_TEXT.item)
+  local itemLabel = Theme.Num(itemHit, 9)
+  itemLabel:SetWordWrap(false)
+  setColor(itemLabel, Theme.color.fgDim)
+  itemLabel:SetAllPoints()
+  itemLabel:SetJustifyH("LEFT")
+  itemLabel:SetText(HEADER_TEXT.item:upper())
+  itemHit.label = itemLabel
+  -- Not read by any production code; exposed so the behavior spec can reach the ITEM cell.
+  header.itemCell = itemHit
 
   headerLayout = function()
     local flexAnchor = anchorColumns(header, hiddenColumns, function(col) return header.cells[col.key] end)
@@ -520,32 +585,69 @@ local function createHeaderRow(parent)
   end
   headerLayout()
 
+  -- Separates the column headings from the first row now that both read in
+  -- the same mono font (SellFrame's own header-underline precedent).
+  -- Attached as header.rule (not just a local) purely so the behavior spec
+  -- can reach it via band.header.rule the same way it already reaches
+  -- band.header.cells -- not read by any production code.
+  local bc = Theme.color.border
+  local rule = header:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("BOTTOMLEFT")
+  rule:SetPoint("BOTTOMRIGHT")
+  rule:SetHeight(1)
+  header.rule = rule
+
   return header
 end
 
--- The header band: two persistent lines above the table (totals + realized
--- profit, then sync age), not table rows -- SellFrame's header-band
--- convention, styled with this tab's own font sizes/spacing rather than its
--- code. `totals` line 1 and `age` line 2 are plain Theme.Label; `profit` is
--- Theme.Num bold and larger, matching "realized profit right in bold
--- green/red".
+-- The header band: two persistent lines above the table (totals, then sync
+-- age) plus a right-aligned REALIZED PROFIT block, not table rows --
+-- SellFrame's header-band convention, styled with this tab's own font sizes/
+-- spacing rather than its code. Every line is Theme.Num (mono), matching the
+-- mono column headers/rows below it; `profit` stays the largest and bold,
+-- "realized profit right in bold green/red" under its own dim caption.
 local function createBand(parent)
   local profit = Theme.Num(parent, 15, true)
-  profit:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+  profit:SetPoint("TOPRIGHT", 0, -16)
 
-  local totals = Theme.Label(parent, 11)
-  totals:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-  totals:SetPoint("RIGHT", profit, "LEFT", -Theme.pad.s, 0)
+  local profitLabel = Theme.Num(parent, 9)
+  setColor(profitLabel, Theme.color.fgDim)
+  profitLabel:SetText("REALIZED PROFIT")
+  profitLabel:SetPoint("TOPRIGHT", 0, -4)
+
+  -- Both lines' RIGHT edge is bound to profitLabel's LEFT, not profit's:
+  -- "REALIZED PROFIT" (M6, ~81-105px) is wider than the value it captions,
+  -- so binding to the narrower value would let a long totals/age line run
+  -- underneath the caption.
+  local totals = Theme.Num(parent, 10)
   totals:SetJustifyH("LEFT")
   totals:SetWordWrap(false)
+  totals:SetPoint("TOPLEFT", 0, -5)
+  totals:SetPoint("RIGHT", profitLabel, "LEFT", -Theme.pad.s, 0)
 
-  local age = Theme.Label(parent, 10)
-  age:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, SD.BAND_LINE2_Y)
-  age:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, SD.BAND_LINE2_Y)
+  local age = Theme.Num(parent, 9)
   age:SetJustifyH("LEFT")
   age:SetWordWrap(false)
+  age:SetPoint("TOPLEFT", 0, -24)
+  age:SetPoint("RIGHT", profitLabel, "LEFT", -Theme.pad.s, 0)
 
-  return { totals = totals, profit = profit, age = age }
+  -- Band rule: a separate frame pinned to the band's own height so the 1px
+  -- BOTTOMLEFT/BOTTOMRIGHT line sits at the band's bottom edge regardless of
+  -- where the text lines above it end -- the same fixed-height-frame-plus-
+  -- rule shape SellFrame's header underline uses.
+  local bandFrame = CreateFrame("Frame", nil, parent)
+  bandFrame:SetPoint("TOPLEFT", 0, 0)
+  bandFrame:SetPoint("TOPRIGHT", 0, 0)
+  bandFrame:SetHeight(SD.BAND_HEIGHT)
+  local bc = Theme.color.border
+  local rule = bandFrame:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(bc[1], bc[2], bc[3], bc[4])
+  rule:SetPoint("BOTTOMLEFT")
+  rule:SetPoint("BOTTOMRIGHT")
+  rule:SetHeight(1)
+
+  return { totals = totals, profit = profit, profitLabel = profitLabel, age = age, rule = rule }
 end
 
 -- The container is anchored TOPLEFT/BOTTOMRIGHT to the window (Attach
@@ -576,19 +678,25 @@ local function renderRows()
   band.totals:SetText("")
   band.profit:SetText("")
   band.age:SetText("")
+  -- REALIZED PROFIT (I2): the caption is only meaningful once band.profit
+  -- actually carries a value -- t.realized is nil for Free-tier/unpaired
+  -- users, and this branch never sets band.profit's text in that case, so
+  -- the caption must not sit there captioning nothing.
+  band.profitLabel:Hide()
   local listEntries = {}
   for _, entry in ipairs(entries) do
     if entry.kind == "totals" then
       local t = entry.summary.totals
-      band.totals:SetText(("%d sales -- %s proceeds -- %s in the mail"):format(
+      band.totals:SetText(("%d sales · %s proceeds · %s in the mail"):format(
         t.salesCount, formatAmount(t.proceeds), formatAmount(t.pending)))
-      setColor(band.totals, Theme.color.fg)
+      setColor(band.totals, Theme.color.fgMuted)
       if t.realized then
         band.profit:SetText(signedProfit(t.realized))
         setColor(band.profit, t.realized >= 0 and Theme.color.green or Theme.color.red)
+        band.profitLabel:Show()
       end
     elseif entry.kind == "age" then
-      band.age:SetText(("data from goldcap.gg -- synced %s ago"):format(
+      band.age:SetText(("data from goldcap.gg · synced %s ago"):format(
         GC.Util.FormatAge(entry.age)))
       if entry.age >= STALE_RED_SECONDS then
         setColor(band.age, Theme.color.red)
