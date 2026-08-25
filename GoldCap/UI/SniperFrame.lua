@@ -5468,7 +5468,7 @@ local function createHeaderRow(f)
   layoutHeaderRow()
 
   -- 1px rule under the mono column labels, the same border color used elsewhere as a hairline
-  -- (Theme.Chip's own underline, the toolbar divider) -- separates the header row from the
+  -- (the toolbar divider) -- separates the header row from the
   -- first data row now that the labels themselves are small and dim rather than a filled bar.
   header.underline = header:CreateTexture(nil, "ARTWORK")
   header.underline:SetHeight(1)
