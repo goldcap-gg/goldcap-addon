@@ -126,6 +126,10 @@ GC.DEFAULTS = {
       -- ADDON_LOADED handler below) and re-written by UI/Theme.lua's SetScale itself on every
       -- change (the settings panel's font-scale slider), not by UI/SettingsFrame.lua directly.
       fontScale = 1.0,
+      -- Check panel v2: the evidence grid defaults open where the drawer fits -- the F5 guard
+      -- in UI/SniperFrame.lua's applyDetailsState still closes it on a short window, and the
+      -- toggle itself keeps persisting whatever the player actually chooses from here on.
+      dialogDetailsOpen = true,
       -- window: undeclared here on purpose (a nil-valued table field is never actually
       -- stored, so ApplyDefaults' pairs() walk would just skip it either way). Populated by
       -- UI/SniperFrame.lua's persistWindowGeometry as { point, x, y, width, height } (Sniper

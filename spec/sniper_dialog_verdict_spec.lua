@@ -86,6 +86,17 @@ describe("Sniper buy dialog verdict block", function()
     return w
   end
 
+  -- Check panel v2: state-tracking double shared by the new entryCard/exitCard/suspectNote
+  -- fields below -- Show()/Hide() record which one last ran (nil until either does, same
+  -- "starts nil" shape as fakeVerdictAmount/fakeVerdictSub above), so the cards-vs-note
+  -- assertions are non-vacuous.
+  local function fakeShowHide()
+    local w = { shown = nil }
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
   local function fakeDialog(overrides)
     local d = {
       fixedHeight = 400, diagnosticGaps = 4, diagnosticMinimumHeight = 108,
@@ -214,6 +225,48 @@ describe("Sniper buy dialog verdict block", function()
       d.verdictLabel.colors[#d.verdictLabel.colors])
     assert.is_false(d.verdictAmount.shown)
     assert.is_false(d.verdictAmountNote.shown) -- Fix round 1: not orphaned when the amount hides
+  end)
+
+  it("stamps the ENTRY AVG / STRESS EXIT cards from the same two values as the evidence grid, and swaps them for the suspect note on a SUSPECT tier", function()
+    -- Check panel v2. The two amounts are owned by stampDialogFromDecision (same as
+    -- unitPriceText/exitUnitText); which of the cards-vs-note pair is shown is owned by
+    -- setDialogHeader instead -- both guarded on the same new dialog.* fields, exercised
+    -- together here the way openDialog/armReady/armCheck actually call them in sequence.
+    local GC, stamp = load()
+    local d = fakeDialog({
+      entryValue = textSink(), exitValue = textSink(),
+      entryCard = fakeShowHide(), exitCard = fakeShowHide(),
+      tierChip = { SetLabel = function() end },
+      suspectNote = fakeShowHide(),
+      nameText = textSink(), icon = { SetTexture = function() end },
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42 }, {
+      status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
+      stressProfit = 1200000, exitUnit = 1600000, reasons = {},
+    })
+    assert.equal(d.unitPriceText.text, d.entryValue.text)
+    assert.equal(d.exitUnitText.text, d.exitValue.text)
+
+    _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local setDialogHeader = getUpvalue(openDialog, "setDialogHeader")
+
+    setDialogHeader({ itemID = 42, tier = "WATCH" }, {})
+    assert.is_true(d.entryCard.shown)
+    assert.is_true(d.exitCard.shown)
+    assert.is_false(d.suspectNote.shown)
+
+    setDialogHeader({ itemID = 42, tier = "SUSPECT" }, {})
+    assert.is_false(d.entryCard.shown)
+    assert.is_false(d.exitCard.shown)
+    assert.is_true(d.suspectNote.shown)
   end)
 
   it("hides the diagnostic line and contributes no height to it by default", function()
@@ -356,7 +409,8 @@ describe("Sniper buy dialog verdict block", function()
     -- Stacked top-to-bottom without overlap: verdict, then Quantity, then the toggle, each
     -- strictly below the one before it.
     assert.is_true(DG.VERDICT_TOP > DG.QTY_TOP)
-    assert.is_true(DG.QTY_TOP > DG.TOGGLE_TOP)
+    assert.is_true(DG.QTY_TOP > DG.CARDS_TOP)
+    assert.is_true(DG.CARDS_TOP > DG.TOGGLE_TOP)
     assert.is_true(DG.TOGGLE_TOP > DG.GRID_TOP)
     assert.is_true(DG.GRID_TOP > DG.EVIDENCE_BOTTOM_OPEN)
     assert.is_true(DG.TOGGLE_TOP > DG.EVIDENCE_BOTTOM_CLOSED)

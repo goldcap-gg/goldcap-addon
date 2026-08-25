@@ -48,29 +48,29 @@ WIN.FRAME_HEIGHT = 520
 -- restores the same worst-case content width the 560 floor used to give.
 WIN.RESIZE_MIN_WIDTH = 640
 WIN.RESIZE_MAX_WIDTH = 1100
--- 460, was 420 then 400 (Task 2 restyle, fix round 1: DG.FIXED_HEIGHT_CLOSED alone -- 362,
--- a pure top-down sum -- is NOT the real closed-drawer floor. resizeDialogDiagnostics's own
--- non-debug branch (the one every real player sees) anchors `status` BOTTOM-UP, independently
--- of the top-down stack, and reserves the banner slot ABOVE it -- so the true minimum has to
--- fit BOTH stacks without them overlapping, not just the top-down sum. Recomputed straight off
--- that function's own anchoring, each term named:
---   DG.HEADER_H(96) + DG.VERDICT_H(94) + DG.QTY_H(40) + DG.TOGGLE_H(22)      = 252  (top-down,
---     through the Details toggle -- this magnitude IS DG.GRID_TOP)
---   + Theme.pad.xs(4)                                                       = 256  (gap after
+-- 470, was 460 (check panel v2: DG.FIXED_HEIGHT_CLOSED alone -- 368, a pure top-down sum --
+-- is NOT the real closed-drawer floor. resizeDialogDiagnostics's own non-debug branch (the one
+-- every real player sees) anchors `status` BOTTOM-UP, independently of the top-down stack, and
+-- reserves the banner slot ABOVE it -- so the true minimum has to fit BOTH stacks without them
+-- overlapping, not just the top-down sum. Recomputed straight off that function's own
+-- anchoring, each term named:
+--   DG.HEADER_H(52) + DG.VERDICT_H(94) + DG.QTY_H(42) + DG.CARDS_H(48) + DG.TOGGLE_H(22)
+--     = 258  (top-down, through the Details toggle -- this magnitude IS DG.GRID_TOP)
+--   + Theme.pad.xs(4)                                                       = 262  (gap after
 --     the toggle, mirroring DG.EVIDENCE_BOTTOM_CLOSED's own toggle-to-content offset)
---   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 306  (the banner
+--   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 312  (the banner
 --     slot createDialog reserves above the status line, plus the pad.xs gap under it)
---   + DG.STATUS_H(32)                                                       = 338  (status's
+--   + DG.STATUS_H(32)                                                       = 344  (status's
 --     own reserved line height, anchored at DG.CONTROLS_H by resizeDialogDiagnostics)
---   + DG.CONTROLS_H(78)                                                     = 416  (bottom
+--   + DG.CONTROLS_H(78)                                                     = 422  (bottom
 --     margin + Cancel + gap + Buy + gap-to-status)
--- stack = 416. The drawer itself is (window height - CH.TITLEBAR(32)); smallest multiple of 10
--- such that (RESIZE_MIN_HEIGHT - 32) - 416 >= 8 (an 8px safety margin, not zero-clearance) is
--- 460: 460 - 32 = 428, 428 - 416 = 12 >= 8. The F5 details-open guard (applyDetailsState) still
--- refuses at this floor by a wide margin -- it needs DG.FIXED_HEIGHT_OPEN(562) alone for the
--- default (debug off) player, or +diagnosticGaps(8)+diagnosticMinimumHeight(36) = 606 once
--- GC.db.settings.sniper.debug is on, and the drawer here is only 428 either way.
-WIN.RESIZE_MIN_HEIGHT = 460
+-- stack = 422. The drawer itself is (window height - CH.TITLEBAR(32)); smallest multiple of 10
+-- such that (RESIZE_MIN_HEIGHT - 32) - 422 >= 8 (an 8px safety margin, not zero-clearance) is
+-- 470: 470 - 32 = 438, 438 - 422 = 16 >= 8. The F5 details-open guard (applyDetailsState) still
+-- refuses at this floor by a wide margin -- it needs DG.FIXED_HEIGHT_OPEN(548) alone for the
+-- default (debug off) player, or +diagnosticGaps(8)+diagnosticMinimumHeight(36) = 592 once
+-- GC.db.settings.sniper.debug is on, and the drawer here is only 438 either way.
+WIN.RESIZE_MIN_HEIGHT = 470
 WIN.RESIZE_MAX_HEIGHT = 900
 
 -- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
@@ -2202,7 +2202,17 @@ end
 local function setDialogHeader(deal, decision)
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   dialog.tierChip:SetLabel(deal.tier, color)
-  if deal.tier == "SUSPECT" then dialog.suspectNote:Show() else dialog.suspectNote:Hide() end
+  local suspect = deal.tier == "SUSPECT"
+  if suspect then dialog.suspectNote:Show() else dialog.suspectNote:Hide() end
+  -- Check panel v2: the cards slot doubles as the suspect-note slot -- never both. Guarded
+  -- (entryCard/exitCard are new fields) so every fakeDialog in sniper_dialog_verdict_spec /
+  -- sniper_purchase_wiring_spec without them keeps passing unmodified.
+  if dialog.entryCard then
+    if suspect then dialog.entryCard:Hide() else dialog.entryCard:Show() end
+  end
+  if dialog.exitCard then
+    if suspect then dialog.exitCard:Hide() else dialog.exitCard:Show() end
+  end
   local quantity = decision and decision.quantity or nil
   local suffix = quantity and quantity > 0 and ("  x%d"):format(quantity) or ""
   dialog.nameText:SetText(("item %d"):format(deal.itemID) .. suffix)
@@ -2233,9 +2243,10 @@ end
 local DG = {}
 DG.WIDTH = 320
 DG.ICON = 32 -- Task 2 restyle (was 24): the header icon reads as the item itself now, not a bullet
--- Task 2 restyle (was 17): shared by the evidence grid, the Quantity row and (as a component of
--- DG.QTY_H only -- see DG.TOGGLE_H below) the quick-fill row.
-DG.GRID_ROW_H = 20
+-- Check panel v2 (was 20): shrunk one notch so the ten-row evidence grid reads denser without
+-- growing DG.FIXED_HEIGHT_OPEN past the docked drawer's own ceiling. No longer a component of
+-- DG.QTY_H (see that constant's own comment below) -- only the evidence grid itself now.
+DG.GRID_ROW_H = 18
 -- The label/value grid now holds only the ten immutable decision/evidence fields (Status
 -- through Reason) -- Quantity and its quick-fill row moved out into their own always-visible
 -- block (DG.QTY_ROWS below), reachable whether Details is open or not.
@@ -2250,16 +2261,20 @@ DG.QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
 -- ("<unit> -> <unit> per unit    total <total> -> <total>" at DG.WIDTH), and the
 -- suspect/mv notes must never clip a second line either; both budgets sized for two lines
 -- of Theme.Label(d, 11) at this width, not one.
+-- Check panel v2: no longer read by DG.HEADER_H (the suspect note left the header for the
+-- cards slot below) -- kept defined as the reserved-note-height figure in case a future budget
+-- needs it again; nothing currently reads it.
 DG.NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
 DG.DIAGNOSTIC_MIN_H = 36
 DG.STATUS_H = 32
 DG.PRIMARY_H = 32 -- Task 2 restyle (was 26): kit-value "big buy" plaque height
 DG.CANCEL_H = 22 -- Task 2 restyle (was 20)
--- Task 2 restyle: d.title (the old mono "CONFIRM PURCHASE" kicker) is gone -- that text now
--- lives in d.subtitle, under the name, costing no separate line in this budget. Header is just
--- top margin + icon + gap + the reserved suspect-note block + gap.
--- 12 + 32 + 8 + 36 + 8 = 96
-DG.HEADER_H = Theme.pad.m + DG.ICON + Theme.pad.s + DG.NOTE_H + Theme.pad.s
+-- Check panel v2: the header no longer reserves a blank note slot under the item name -- that
+-- was the single biggest hole the second in-game pass called out ("это окно надо улучшить").
+-- d.suspectNote now shares the cards slot after the Quantity row (see DG.CARDS_TOP below)
+-- instead of living here. Header is just top margin + icon + gap.
+-- 12 + 32 + 8 = 52
+DG.HEADER_H = Theme.pad.m + DG.ICON + Theme.pad.s
 
 -- Verdict block: a small live-status kicker (d.verdictLabel), the headline -- what the click
 -- DOES and what it costs when buyable, the refusal sentence in refusal red when it is not --
@@ -2276,17 +2291,27 @@ DG.VERDICT_H = Theme.pad.s + DG.VERDICT_HEAD_H + Theme.pad.xs + DG.VERDICT_SUB_H
 
 -- Quantity + its quick-fill row: the one interactive control in this dialog besides the
 -- buttons, so it stays visible above the Details toggle rather than being hidden behind it.
-DG.QTY_ROWS = 2
-DG.QTY_H = DG.QTY_ROWS * DG.GRID_ROW_H -- 2 x 20 = 40
+-- 18px box (Task 2 restyle, DG.QTY_BOX_H below); check panel v2 stopped tying this to
+-- DG.GRID_ROW_H (now 18, was 20) once the evidence grid and the QTY row needed different row
+-- heights -- 20 (label line) + pad.xs (gap) + DG.QTY_QUICKFILL_H (18, the chip row).
+DG.QTY_H = 20 + Theme.pad.xs + DG.QTY_QUICKFILL_H -- 20 + 4 + 18 = 42
+-- Check panel v2: the qty edit box's own height, split out from DG.GRID_ROW_H now that the
+-- grid row shrank to 18 and the box did not need to shrink with it.
+DG.QTY_BOX_H = 18
 -- Task 2 restyle: no longer tied to DG.GRID_ROW_H (20) -- the kit gives the toggle its own
 -- height (22), so it needs its own field now that the two numbers differ.
 DG.TOGGLE_H = 22
 
 -- Measured down from the header, in the order the dialog actually stacks: verdict, then
--- Quantity, then the Details toggle, then (only while open) the evidence grid.
+-- Quantity, then the ENTRY AVG / STRESS EXIT cards (or the suspect note, sharing the same
+-- slot), then the Details toggle, then (only while open) the evidence grid.
 DG.VERDICT_TOP = -DG.HEADER_H
 DG.QTY_TOP = DG.VERDICT_TOP - DG.VERDICT_H
-DG.TOGGLE_TOP = DG.QTY_TOP - DG.QTY_H
+-- Check panel v2: two 40px-tall cards side by side (kit-value height) plus pad.s below them,
+-- same idiom as DG.VERDICT_H/DG.CONTROLS_H above (a fixed component sum, not a bare literal).
+DG.CARDS_H = 40 + Theme.pad.s -- 48
+DG.CARDS_TOP = DG.QTY_TOP - DG.QTY_H
+DG.TOGGLE_TOP = DG.CARDS_TOP - DG.CARDS_H
 DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
 -- Where the diagnostic/status block starts: right after the (shown) evidence grid when
 -- Details is open, or right after the toggle itself -- the grid simply skipped -- when it is
@@ -2301,10 +2326,10 @@ DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.
 -- Two fixed-height budgets, Details closed and open -- resizeDialogDiagnostics only ever
 -- READS dialog.fixedHeight (same contract as before); applyDetailsState (createDialog) is
 -- the one place that picks between these and writes it, on open/close.
--- 96 + 94 + 40 + 22 + 32 + 78 = 362 (Task 2 restyle, was 336)
-DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.TOGGLE_H
+-- 52 + 94 + 42 + 48 + 22 + 32 + 78 = 368 (check panel v2, was 362)
+DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.CARDS_H + DG.TOGGLE_H
   + DG.STATUS_H + DG.CONTROLS_H
-DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H -- 362 + 200 = 562
+DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H -- 368 + 180 = 548
 
 -- The diagnostic is evidence, not a purchase surface, and (fix round N) is now hidden unless
 -- the player has turned on GC.db.settings.sniper.debug -- it is a bug-report transcript, not
@@ -2481,8 +2506,10 @@ local function stampDialogFromDecision(deal, decision)
   dialog.stampedTotal = entryTotal
   if dialog.qtyBox and quantity > 0 then dialog.qtyBox.editBox:SetText(tostring(quantity)) end
   dialog.unitPriceText:SetText(displayDecisionAmount(average))
+  if dialog.entryValue then dialog.entryValue:SetText(displayDecisionAmount(average)) end
   dialog.totalCostText:SetText(displayDecisionAmount(entryTotal))
   dialog.exitUnitText:SetText(displayDecisionAmount(decision.exitUnit))
+  if dialog.exitValue then dialog.exitValue:SetText(displayDecisionAmount(decision.exitUnit)) end
   dialog.profitText:SetText(displayDecisionAmount(decision.stressProfit))
   dialog.mvText:SetText(displayDecisionAmount(market.marketValue))
   dialog.soldText:SetText(market.soldPerDay and ("%.1f"):format(market.soldPerDay) or "—")
@@ -4250,9 +4277,13 @@ local function createDialog()
   d.itemHit = itemHit
 
   -- A four-letter yellow tier chip lost to a green five-figure profit on 2026-08-10.
-  -- Said in words, right under the header row, it competes on the same terms.
+  -- Check panel v2: this used to live under the header, in its own reserved blank slot
+  -- (DG.NOTE_H) that the second in-game pass called the single biggest hole in the dialog when
+  -- a deal wasn't SUSPECT. It now shares the cards slot after the Quantity row instead -- the
+  -- same rect ENTRY AVG/STRESS EXIT occupy (setDialogHeader's Show/Hide toggle below picks one
+  -- or the other, never both).
   local suspectNote = Theme.Label(d, 11)
-  suspectNote:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -Theme.pad.s)
+  suspectNote:SetPoint("TOPLEFT", Theme.pad.m, DG.CARDS_TOP)
   suspectNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   suspectNote:SetWordWrap(true)
   suspectNote:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
@@ -4392,9 +4423,9 @@ local function createDialog()
   qtyLotText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   d.qtyLotText = qtyLotText
 
-  -- 64x18 (Task 2 restyle): DG.GRID_ROW_H is now 20, so "- 2" (was "- 3" against the old 17)
-  -- keeps the kit-value 18px box height exactly.
-  local qtyBox = makeQtyEditBox(d, 64, DG.GRID_ROW_H - 2)
+  -- 64x18: check panel v2 split this off DG.GRID_ROW_H (now 18, the evidence grid's own row
+  -- height) into its own DG.QTY_BOX_H constant, since the two no longer share one number.
+  local qtyBox = makeQtyEditBox(d, 64, DG.QTY_BOX_H)
   qtyBox:SetPoint("LEFT", qtyLabel, "RIGHT", Theme.pad.s, 0)
   d.qtyBox = qtyBox
 
@@ -4444,7 +4475,10 @@ local function createDialog()
     if prevBtn then
       btn:SetPoint("TOPLEFT", prevBtn, "TOPRIGHT", Theme.pad.xs, 0)
     else
-      btn:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP - DG.GRID_ROW_H)
+      -- 24 = the 20px label line + pad.xs(4) gap above this row -- DG.QTY_H's own two
+      -- components (see that constant's comment) -- not DG.GRID_ROW_H, which is the unrelated
+      -- evidence-grid row height and no longer sized to match.
+      btn:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP - 24)
     end
     btn:SetLabel(pct .. "%")
     btn:SetScript("OnClick", function() applyQuickFillQty(pct) end)
@@ -4452,6 +4486,50 @@ local function createDialog()
     prevBtn = btn
   end
   d.quickFillBtns = quickFillBtns
+
+  -- Check panel v2: ENTRY AVG / STRESS EXIT cards, directly under the Quantity row -- the
+  -- mockup's own layout, and the fix for the dialog reading as a column of holes (no header
+  -- note, no summary before the collapsed grid). Two Theme.Card(small=true) plaques side by
+  -- side, split at the dialog's own horizontal center so each gets an equal half of the
+  -- content width. d.suspectNote (above) shares this exact rect for SUSPECT deals -- the
+  -- setDialogHeader Show/Hide toggle beside its own suspectNote line picks one or the other.
+  local entryCard = Theme.Card(d, nil, nil, true)
+  entryCard:SetHeight(40)
+  entryCard:SetPoint("TOPLEFT", Theme.pad.m, DG.CARDS_TOP)
+  entryCard:SetPoint("RIGHT", d, "CENTER", -Theme.pad.xs, 0)
+  d.entryCard = entryCard
+
+  local entryCaption = Theme.Num(entryCard, 9)
+  entryCaption:SetJustifyH("LEFT")
+  entryCaption:SetPoint("TOPLEFT", Theme.pad.s, -6)
+  entryCaption:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  entryCaption:SetText("ENTRY AVG")
+
+  local entryValue = Theme.Num(entryCard, 12, true)
+  entryValue:SetJustifyH("LEFT")
+  entryValue:SetPoint("TOPLEFT", entryCaption, "BOTTOMLEFT", 0, -2)
+  entryValue:SetPoint("RIGHT", -Theme.pad.s, 0)
+  entryValue:SetWordWrap(false)
+  d.entryValue = entryValue
+
+  local exitCard = Theme.Card(d, nil, nil, true)
+  exitCard:SetHeight(40)
+  exitCard:SetPoint("LEFT", d, "CENTER", Theme.pad.xs, 0)
+  exitCard:SetPoint("TOPRIGHT", -Theme.pad.m, DG.CARDS_TOP)
+  d.exitCard = exitCard
+
+  local exitCaption = Theme.Num(exitCard, 9)
+  exitCaption:SetJustifyH("LEFT")
+  exitCaption:SetPoint("TOPLEFT", Theme.pad.s, -6)
+  exitCaption:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  exitCaption:SetText("STRESS EXIT")
+
+  local exitValue = Theme.Num(exitCard, 12, true)
+  exitValue:SetJustifyH("LEFT")
+  exitValue:SetPoint("TOPLEFT", exitCaption, "BOTTOMLEFT", 0, -2)
+  exitValue:SetPoint("RIGHT", -Theme.pad.s, 0)
+  exitValue:SetWordWrap(false)
+  d.exitValue = exitValue
 
   -- Details toggle: the 12-row evidence grid used to be the whole dialog below the item
   -- header; now it is opt-in, collapsed by default, restored per the player's own last choice
@@ -4556,13 +4634,22 @@ local function createDialog()
     -- (fix round, "docked SHOW DETAILS dead") The diagnostic block (diagnosticGaps +
     -- diagnosticMinimumHeight) is only ever laid out by resizeDialogDiagnostics's debugOn
     -- branch -- a normal player draws nothing there. Reserving it here unconditionally made the
-    -- guard demand DG.FIXED_HEIGHT_OPEN(562) + 8 + 36 = 606 even for players who will never see
+    -- guard demand DG.FIXED_HEIGHT_OPEN(548) + 8 + 36 = 592 even for players who will never see
     -- a diagnostic block at all, and the docked AH drawer (~565px, no resize handle) can never
     -- clear that -- a dead toggle with an impossible instruction. Same predicate
     -- resizeDialogDiagnostics itself reads, so the two can never disagree about what's reserved.
     local debugOn = (cfg and cfg.debug) and true or false
-    if d.detailsOpen and d:GetHeight() < DG.FIXED_HEIGHT_OPEN
-        + (debugOn and (d.diagnosticGaps + d.diagnosticMinimumHeight) or 0) then
+    local needed = DG.FIXED_HEIGHT_OPEN + (debugOn and (d.diagnosticGaps + d.diagnosticMinimumHeight) or 0)
+    -- Check panel v2: `h` can be nil or 0 at construction -- createDialog's own d:SetSize call
+    -- runs before the engine has laid the frame out even once, and this same applyDetailsState
+    -- seeds the initial (possibly saved-"open") state right from there. Treat an unresolved
+    -- height as "fits" rather than refusing: refusing here would silently downgrade a saved or
+    -- default-open drawer to closed before the player ever saw it get a real size, which is
+    -- exactly the "docked SHOW DETAILS dead" failure mode this guard exists to describe
+    -- honestly, not to cause somewhere else. Only a height the engine has actually reported, and
+    -- reported as too small, refuses the open.
+    local h = d:GetHeight()
+    if d.detailsOpen and h and h > 0 and h < needed then
       d.detailsOpen = false
       setDialogStatus("Enlarge the window to see details")
     end
