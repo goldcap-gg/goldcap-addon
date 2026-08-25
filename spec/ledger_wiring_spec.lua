@@ -199,6 +199,42 @@ describe("Ledger event wiring", function()
     assert.equal(900, _G.GoldCapDB.settings.sniper.window.width)
   end)
 
+  -- Check-panel-v2 fix wave: earlier builds seeded dialogDetailsOpen = false from the dialog's
+  -- own construction (a boot value, not a player choice), so every save written before the
+  -- open-by-default landed with a plain, unversioned false -- ApplyDefaults never touches it
+  -- (dst[k] == nil is false), so those saves would stay closed forever without this one-time
+  -- reset. Same shape as migrateSniperWindowWidth above.
+  it("opens dialogDetailsOpen once for a save that predates the open-by-default", function()
+    _G.GoldCapDB = { settings = { sniper = { dialogDetailsOpen = false } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.is_true(_G.GoldCapDB.settings.sniper.dialogDetailsOpen)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.dialogDetailsOpenVersion)
+  end)
+
+  -- Once versioned, a player's own "off" choice (the toggle's real write) must survive --
+  -- exactly the "never runs the tier migration twice" contract above, applied here.
+  it("never re-opens a versioned dialogDetailsOpen, even if it is false", function()
+    _G.GoldCapDB = { settings = { sniper = { dialogDetailsOpen = false, dialogDetailsOpenVersion = 1 } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.is_false(_G.GoldCapDB.settings.sniper.dialogDetailsOpen)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.dialogDetailsOpenVersion)
+  end)
+
+  -- Same C1 shape as windowWidthVersion: a fresh install must carry the version from
+  -- GC.DEFAULTS immediately, or its first real toggle-off would look like a pre-migration save.
+  it("stamps dialogDetailsOpenVersion from defaults on a fresh install", function()
+    _G.GoldCapDB = {}
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.is_true(_G.GoldCapDB.settings.sniper.dialogDetailsOpen)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.dialogDetailsOpenVersion)
+  end)
+
   it("migrates raw persisted flips and stored buyer mail during ADDON_LOADED", function()
     local flip = { itemID = 42, qty = 2, paidUnit = 100, paidTotal = 201,
       boughtAt = 500, targetUnit = 180 }

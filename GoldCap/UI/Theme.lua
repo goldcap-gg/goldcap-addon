@@ -367,10 +367,11 @@ function T.Chip(parent)
   return f
 end
 
--- TierMark: a 6x6 color dot + mono label, replacing T.Chip's plaque-and-underline everywhere
--- a tier marker sits inline in a row rather than boxed on its own. `:SetLabel(text, colorTable)`
--- is the exact call signature SniperFrame's row-stamping line already uses on T.Chip, so
--- swapping the widget that builds `row.tierChip` does not touch that call site.
+-- TierMark: a 6x6 color dot + mono label, a plainer stand-in for T.Chip's tinted badge pill
+-- (see T.Chip's own comment above) everywhere a tier marker sits inline in a row rather than
+-- boxed on its own. `:SetLabel(text, colorTable)` is the exact call signature SniperFrame's
+-- row-stamping line already uses on T.Chip, so swapping the widget that builds `row.tierChip`
+-- does not touch that call site.
 function T.TierMark(parent)
   local f = CreateFrame("Frame", nil, parent)
   f:SetHeight(10)

@@ -130,6 +130,12 @@ GC.DEFAULTS = {
       -- in UI/SniperFrame.lua's applyDetailsState still closes it on a short window, and the
       -- toggle itself keeps persisting whatever the player actually chooses from here on.
       dialogDetailsOpen = true,
+      -- Same reason as windowWidthVersion above: stamped here so ApplyDefaults versions a
+      -- FRESH database immediately, before migrateSniperDialogDetails ever runs on it --
+      -- without this a brand-new save would carry no version at all, so its very first real
+      -- toggle-off would look identical to an unversioned pre-open-by-default save and get
+      -- silently reopened by the migration on its next login.
+      dialogDetailsOpenVersion = 1,
       -- window: undeclared here on purpose (a nil-valued table field is never actually
       -- stored, so ApplyDefaults' pairs() walk would just skip it either way). Populated by
       -- UI/SniperFrame.lua's persistWindowGeometry as { point, x, y, width, height } (Sniper
@@ -234,6 +240,22 @@ local function migrateSniperWindowWidth(sniper)
   end
 end
 
+-- Earlier builds seeded dialogDetailsOpen = false from the dialog's own construction (UI/
+-- SniperFrame.lua's createDialog, before the toggle or a saved preference ever ran), not from
+-- a player choice -- so every save written before the evidence grid became open-by-default
+-- carries a plain, unversioned false that ApplyDefaults will never touch (it only fills in
+-- nil fields). This one-time reset gives every such profile the open default once; the
+-- toggle's own writes (UI/SniperFrame.lua's applyDetailsState) stick afterwards, same contract
+-- as migrateSniperProfitFloor/migrateSniperTierProfit above.
+local function migrateSniperDialogDetails(db)
+  local s = db.settings and db.settings.sniper
+  if not s then return end
+  if (s.dialogDetailsOpenVersion or 0) < 1 then
+    s.dialogDetailsOpen = true
+    s.dialogDetailsOpenVersion = 1
+  end
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -248,6 +270,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     migrateSniperTierProfit(GoldCapDB)
     local sniper = GoldCapDB.settings and GoldCapDB.settings.sniper or nil
     if type(sniper) == "table" then migrateSniperWindowWidth(sniper) end
+    migrateSniperDialogDetails(GoldCapDB)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
     if GC.Data then

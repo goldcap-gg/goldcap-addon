@@ -13,6 +13,20 @@ require("spec.spec_helper")
 -- calls `frame.applyPanelInset` on it directly, the same way createDialog's OnShow/OnHide
 -- closures do.
 describe("Sniper check panel inset (applyPanelInset)", function()
+  -- Same setupvalue idiom as spec/sniper_dialog_verdict_spec.lua and
+  -- spec/sniper_purchase_wiring_spec.lua: `dialog` is a module-level local shared by every
+  -- function SniperFrame.lua defines, so setting it via one closure's upvalue slot (here,
+  -- the real OnSizeChanged handler captured off `frame.scripts`) is visible to every other
+  -- function that reads it.
+  local function setUpvalue(fn, wanted, value)
+    for i = 1, math.huge do
+      local name = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then debug.setupvalue(fn, i, value); return end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
   -- Copied from spec/loadorder_spec.lua's own stubFrame(): every widget method createFrame's
   -- real construction path touches, from Theme.Card/TitleBar/Rail/Button down to GC.Sell.Attach
   -- and GC.Sold.Attach. Kept as a per-spec double (addon/AGENTS.md: "when a widget starts
@@ -23,7 +37,11 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     f = {
       RegisterEvent = function() end,
       UnregisterEvent = function() end,
-      SetScript = function() end,
+      -- Records every handler by name (fix wave addition) so a spec can fire the real
+      -- OnSizeChanged closure createFrame installs on `f`, the same "scripts" idiom
+      -- spec/sell_widget_behavior_spec.lua's stub already uses.
+      scripts = {},
+      SetScript = function(self, name, fn) self.scripts = self.scripts or {}; self.scripts[name] = fn end,
       SetSize = function() end,
       SetPoint = function() end,
       SetMovable = function() end,
@@ -180,7 +198,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     withPointRecorder(frame.headerRow)
     withPointRecorder(frame.verifyBtn)
 
-    return frame
+    return frame, GC
   end
 
   local function teardown()
@@ -276,5 +294,63 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     assert.are.equal(-32, lastOffsetX(frame.headerRow, "TOPRIGHT"))
     assert.are.equal(-32, lastOffsetX(frame.verifyBtn, "TOPRIGHT"))
     assert.are.equal(0, frame.panelInset)
+  end)
+
+  -- Fix wave (check panel v2 review): an open evidence grid painted its rows straight over
+  -- BUY/CANCEL when the window shrank to the 470 floor (no SetClipsChildren anywhere), and
+  -- enlarging again after the F5 refusal needed a manual toggle click. createFrame's own
+  -- OnSizeChanged now re-applies the SAVED preference (not the live flag) on every resize, so a
+  -- downsize closes the grid without eating the player's "open" and an upsize reopens it.
+  describe("re-applying the saved details preference on resize", function()
+    -- dialog is a plain double here, not a real createDialog() product (see this file's own
+    -- header comment on why createDialog's real widget tree stays out of this suite) --
+    -- applyDetailsState is a bare recorder so the assertions are about what OnSizeChanged
+    -- calls it WITH, not about applyDetailsState's own internals (covered separately by
+    -- spec/sniper_dialog_verdict_spec.lua's source-text pins).
+    local function fakeDialog()
+      local d = { IsShown = function() return false end }
+      d.applyDetailsState = function(open)
+        d.lastOpen = open
+        d.quietDuringCall = d.detailsQuiet
+      end
+      return d
+    end
+
+    it("calls dialog.applyDetailsState with the saved cfg value, quietly, and clears the flag after", function()
+      local frame, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = true } } }
+      local d = fakeDialog()
+      assert.is_function(frame.scripts.OnSizeChanged)
+      setUpvalue(frame.scripts.OnSizeChanged, "dialog", d)
+      frame.GetWidth = function() return 1000 end
+
+      frame.scripts.OnSizeChanged(frame, 1000)
+
+      assert.is_true(d.lastOpen) -- the SAVED preference, not a live flag this test never set
+      assert.is_true(d.quietDuringCall) -- no status spam while the resize re-apply is in flight
+      assert.is_nil(d.detailsQuiet) -- cleared once the re-apply finishes
+    end)
+
+    it("passes a closed preference through just as faithfully", function()
+      local frame, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = false } } }
+      local d = fakeDialog()
+      setUpvalue(frame.scripts.OnSizeChanged, "dialog", d)
+      frame.GetWidth = function() return 1000 end
+
+      frame.scripts.OnSizeChanged(frame, 1000)
+
+      assert.is_false(d.lastOpen)
+      assert.is_nil(d.detailsQuiet)
+    end)
+
+    it("does nothing when the dialog has never been opened (no applyDetailsState field yet)", function()
+      local frame = buildFrame()
+      setUpvalue(frame.scripts.OnSizeChanged, "dialog", nil)
+      frame.GetWidth = function() return 1000 end
+
+      -- Must not error just because no dialog has ever been constructed.
+      frame.scripts.OnSizeChanged(frame, 1000)
+    end)
   end)
 end)

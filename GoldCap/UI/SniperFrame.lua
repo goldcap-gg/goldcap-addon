@@ -1466,7 +1466,8 @@ GC.Sniper.UpdateSellTabLabel = updateSellTabLabel
 -- exposed here (a table field, not a new top-level local: this file sits at its 200-local
 -- ceiling) rather than SettingsFrame.lua mirroring WIN.FRAME_WIDTH/HEIGHT in its own copy,
 -- which is exactly how that file's old default silently went stale (640x520, while this
--- window's real default had already moved to 720x520 above).
+-- window's real default had already moved on -- WIN.FRAME_WIDTH/HEIGHT above are the current
+-- numbers, so read those rather than trusting a second hardcoded pair here too).
 function GC.Sniper.DefaultWindowSize() return WIN.FRAME_WIDTH, WIN.FRAME_HEIGHT end
 
 local function clearDeals()
@@ -2326,7 +2327,7 @@ DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
 DG.EVIDENCE_BOTTOM_OPEN = DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs
 DG.EVIDENCE_BOTTOM_CLOSED = DG.TOGGLE_TOP - DG.TOGGLE_H - Theme.pad.xs
 
--- bottom margin + primary + gap + cancel + gap-to-banner, measured up from the dialog's own
+-- bottom margin + cancel + gap + primary + gap-to-status, measured up from the dialog's own
 -- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
 -- 12 + 32 + 4 + 22 + 8 = 78
 DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
@@ -4422,9 +4423,13 @@ local function createDialog()
   -- Non-commodity fallback ("N (whole lot)"): takes the box's place after the label, bounded on
   -- the right so a long lot count ellipsizes instead of growing past the sheet (gridRow's own
   -- valueFS reasoning -- an unbounded single-point FontString grows without limit).
+  -- TOPLEFT off qtyLabel's TOPRIGHT, not LEFT: a LEFT+RIGHT pair are both centre-Y constraints,
+  -- and they disagreed here -- LEFT centred on qtyLabel, RIGHT centred on the whole drawer -- so
+  -- the anchor that actually pinned the top was accidental. TOPLEFT supplies the top explicitly;
+  -- RIGHT still bounds the width for the ellipsis.
   local qtyLotText = Theme.Num(d, 12)
   qtyLotText:SetJustifyH("LEFT")
-  qtyLotText:SetPoint("LEFT", qtyLabel, "RIGHT", Theme.pad.s, 0)
+  qtyLotText:SetPoint("TOPLEFT", qtyLabel, "TOPRIGHT", Theme.pad.s, 0)
   qtyLotText:SetPoint("RIGHT", -Theme.pad.m, 0)
   qtyLotText:SetWordWrap(false)
   qtyLotText:SetMaxLines(1)
@@ -4641,9 +4646,17 @@ local function createDialog()
     -- either way: a saved "open" preference survives a momentarily short window and takes
     -- effect again once it's resized back up, because it was written here, before the guard
     -- had a chance to force d.detailsOpen back to false for this session's visuals.
+    -- `dialog` gates the write too (same nil-during-construction predicate the status write
+    -- below already relies on): the one call that runs before `dialog` exists is createDialog's
+    -- own construction seed above, and that seed is GoldCap's boot value, not a player's choice
+    -- -- earlier builds let it fall straight through to cfg, so every fresh dialog re-persisted
+    -- false and no saved-default migration (Core/Init.lua's migrateSniperDialogDetails) could
+    -- ever stick. Every real caller -- the toggle's own OnClick, and the resize re-apply in
+    -- createFrame's OnSizeChanged (below) -- already has `dialog` set, so this changes nothing
+    -- for an actual player action or a real resize.
     d.detailsOpen = open and true or false
     local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
-    if cfg then cfg.dialogDetailsOpen = d.detailsOpen end
+    if cfg and dialog then cfg.dialogDetailsOpen = d.detailsOpen end
     -- F5 (whole-branch review): the open grid is a fixed-offset block below the toggle, not
     -- something the drawer can grow to fit -- SetHeight is an anchor-overridden no-op (see
     -- createDialog's own drawer-anchor comment), so a short window can't be rescued by growing
@@ -4675,7 +4688,12 @@ local function createDialog()
       -- function's opening comment) -- that seed is not a player action, so it must stay
       -- silent instead of announcing "Enlarge the window..." before the player has touched
       -- anything. Every later call (the toggle's own OnClick) has `dialog` set.
-      if dialog then setDialogStatus("Enlarge the window to see details") end
+      --
+      -- Fix wave: `d.detailsQuiet` additionally silences this during createFrame's OnSizeChanged
+      -- re-apply (below) -- a drag-resize re-runs this guard on every pixel crossed, and without
+      -- the quiet flag a downsize past the fit floor would spam this status line the whole way
+      -- down instead of just quietly closing the grid.
+      if dialog and not d.detailsQuiet then setDialogStatus("Enlarge the window to see details") end
     end
     d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED
     -- Task 2 restyle: uppercase kit-value labels (were "Show/Hide details"); the
@@ -4696,6 +4714,10 @@ local function createDialog()
   detailsToggle:SetScript("OnClick", function() applyDetailsState(not d.detailsOpen) end)
   local savedCfg = GC.db and GC.db.settings and GC.db.settings.sniper
   applyDetailsState(savedCfg and savedCfg.dialogDetailsOpen)
+  -- Exposed so createFrame's OnSizeChanged (below) can re-apply the saved preference on every
+  -- resize without reaching into createDialog's locals -- the only handle the rest of the file
+  -- gets on this closure, same idiom as f.applyPanelInset.
+  d.applyDetailsState = applyDetailsState
 
   -- Anchored off the BOTTOM, above the stacked buttons, and hidden by default. (F6b
   -- correction) In the old centered modal, showing it grew the dialog by exactly its own
@@ -5847,6 +5869,20 @@ local function createFrame()
   f:SetScript("OnSizeChanged", function(_, w)
     if not w or w <= 0 then return end
     applyPanelInset(dialog ~= nil and dialog:IsShown())
+    -- Fix wave (check panel v2 review): the open evidence grid is a fixed-offset block, not
+    -- something that reflows with the drawer -- without this, an open grid painted its rows
+    -- straight over BUY/CANCEL when the window shrank to the 470 floor (no SetClipsChildren
+    -- anywhere), and enlarging again after an F5 refusal needed a manual toggle click.
+    -- Re-applies the SAVED preference (not d.detailsOpen, the live flag) on every resize, so a
+    -- downsize closes the grid without eating the player's "open" and an upsize reopens it.
+    -- detailsQuiet silences applyDetailsState's own F5 refusal status write (see that
+    -- function's guard) so a drag-resize doesn't spam "Enlarge the window..." on every pixel.
+    if dialog and dialog.applyDetailsState then
+      local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+      dialog.detailsQuiet = true
+      dialog.applyDetailsState(cfg and cfg.dialogDetailsOpen)
+      dialog.detailsQuiet = nil
+    end
   end)
 
   -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar

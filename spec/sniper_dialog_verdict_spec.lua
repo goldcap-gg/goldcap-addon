@@ -378,6 +378,25 @@ describe("Sniper buy dialog verdict block", function()
         "detailsToggle:SetScript(\"OnClick\", function() applyDetailsState(not d.detailsOpen) end)",
         1, true))
     end)
+
+    -- Fix wave (check panel v2 review): createFrame's OnSizeChanged re-applies the saved
+    -- preference on every resize (see the OnSizeChanged section below), including a downsize
+    -- that trips this very guard -- without this, every drag-resize past the fit floor would
+    -- spam "Enlarge the window to see details" the whole way down.
+    it("does not announce the F5 refusal while a resize's own re-apply is in flight (detailsQuiet)", function()
+      local text = source()
+      local body = section(text, "local function applyDetailsState(open)", "detailsToggle:SetScript(\"OnClick\"")
+      assert.is_truthy(body:find(
+        "if dialog and not d.detailsQuiet then setDialogStatus(\"Enlarge the window to see details\") end",
+        1, true))
+    end)
+
+    -- The dialog exposes applyDetailsState so createFrame's OnSizeChanged can drive it directly
+    -- (the only handle the rest of the file gets on this closure), same idiom as f.applyPanelInset.
+    it("exposes applyDetailsState on the dialog table for the resize hook to call", function()
+      local text = source()
+      assert.is_truthy(text:find("d.applyDetailsState = applyDetailsState", 1, true))
+    end)
   end)
 
   it("DG's open/closed height budgets differ by exactly one evidence grid, with no overlap or negative geometry", function()
