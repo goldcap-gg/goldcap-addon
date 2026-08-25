@@ -74,6 +74,18 @@ describe("Sniper buy dialog verdict block", function()
     return w
   end
 
+  -- Fix round 1: state-tracking double for the caption, same "shown" shape as fakeVerdictSub
+  -- above -- textSink()'s Show/Hide are no-ops, which would make the "orphaned caption on
+  -- refusal" assertion below vacuous.
+  local function fakeVerdictAmountNote()
+    local w = { shown = nil }
+    function w:SetText() end
+    function w:SetTextColor() end
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
   local function fakeDialog(overrides)
     local d = {
       fixedHeight = 400, diagnosticGaps = 4, diagnosticMinimumHeight = 108,
@@ -176,7 +188,7 @@ describe("Sniper buy dialog verdict block", function()
     local d = fakeDialog({
       verdictLabel = fakeVerdictLabel(),
       verdictAmount = fakeVerdictAmount(),
-      verdictAmountNote = textSink(),
+      verdictAmountNote = fakeVerdictAmountNote(),
     })
     setUpvalue(stamp, "dialog", d)
 
@@ -191,6 +203,7 @@ describe("Sniper buy dialog verdict block", function()
     assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
       d.verdictAmount.colors[#d.verdictAmount.colors])
     assert.is_true(d.verdictAmount.shown)
+    assert.is_true(d.verdictAmountNote.shown) -- Fix round 1: the caption goes with the amount
 
     stamp({ itemID = 42 }, {
       status = "WATCH", buyable = false, quantity = 0,
@@ -200,6 +213,7 @@ describe("Sniper buy dialog verdict block", function()
     assert.same({ GC.Theme.color.red[1], GC.Theme.color.red[2], GC.Theme.color.red[3] },
       d.verdictLabel.colors[#d.verdictLabel.colors])
     assert.is_false(d.verdictAmount.shown)
+    assert.is_false(d.verdictAmountNote.shown) -- Fix round 1: not orphaned when the amount hides
   end)
 
   it("hides the diagnostic line and contributes no height to it by default", function()

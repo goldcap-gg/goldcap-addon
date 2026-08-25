@@ -48,15 +48,29 @@ WIN.FRAME_HEIGHT = 520
 -- restores the same worst-case content width the 560 floor used to give.
 WIN.RESIZE_MIN_WIDTH = 640
 WIN.RESIZE_MAX_WIDTH = 1100
--- 420, was 400 (Task 2 restyle, controller ruling): the check drawer's closed layout is now a
--- fixed 362px (DG.FIXED_HEIGHT_CLOSED, up from 336 -- the kit's bigger icon/verdict/buttons)
--- plus the requote banner's 46px (LIM.REQUOTE_BANNER_HEIGHT) both living in the drawer's
--- BOTTOM-anchored block (createDialog's own drawer-anchor comment -- SetHeight is an
--- anchor-overridden no-op, so nothing shrinks to fit a short window anymore). At the floor the
--- drawer itself (window height minus CH.TITLEBAR: 420 - 32 = 388px) still clears the closed
--- layout with a 26px margin (388 >= 362 + 26), collision-free under the reserved banner slot.
--- Product call, not derived from a formula.
-WIN.RESIZE_MIN_HEIGHT = 420
+-- 460, was 420 then 400 (Task 2 restyle, fix round 1: DG.FIXED_HEIGHT_CLOSED alone -- 362,
+-- a pure top-down sum -- is NOT the real closed-drawer floor. resizeDialogDiagnostics's own
+-- non-debug branch (the one every real player sees) anchors `status` BOTTOM-UP, independently
+-- of the top-down stack, and reserves the banner slot ABOVE it -- so the true minimum has to
+-- fit BOTH stacks without them overlapping, not just the top-down sum. Recomputed straight off
+-- that function's own anchoring, each term named:
+--   DG.HEADER_H(96) + DG.VERDICT_H(94) + DG.QTY_H(40) + DG.TOGGLE_H(22)      = 252  (top-down,
+--     through the Details toggle -- this magnitude IS DG.GRID_TOP)
+--   + Theme.pad.xs(4)                                                       = 256  (gap after
+--     the toggle, mirroring DG.EVIDENCE_BOTTOM_CLOSED's own toggle-to-content offset)
+--   + DG.STATUS_H(32)                                                       = 288  (status's
+--     own reserved line height)
+--   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 338  (the banner
+--     slot resizeDialogDiagnostics reserves above status, plus the exact pad.xs gap its own
+--     `CONTROLS_H + REQUOTE_BANNER_HEIGHT + pad.xs` status anchor uses)
+--   + DG.CONTROLS_H(78)                                                     = 416  (bottom
+--     margin + Buy + gap + Cancel + gap-to-banner)
+-- stack = 416. The drawer itself is (window height - CH.TITLEBAR(32)); smallest multiple of 10
+-- such that (RESIZE_MIN_HEIGHT - 32) - 416 >= 8 (an 8px safety margin, not zero-clearance) is
+-- 460: 460 - 32 = 428, 428 - 416 = 12 >= 8. The F5 details-open guard (applyDetailsState) still
+-- refuses at this floor by a wide margin -- it needs DG.FIXED_HEIGHT_OPEN(562) +
+-- diagnosticGaps(8) + diagnosticMinimumHeight(36) = 606, and the drawer here is only 428.
+WIN.RESIZE_MIN_HEIGHT = 460
 WIN.RESIZE_MAX_HEIGHT = 900
 
 -- Content-area margins. WIN.CONTENT_RIGHT_GUTTER (scrollbar gutter reserved by
@@ -2388,6 +2402,9 @@ local function stampDialogFromDecision(deal, decision)
       dialog.verdictAmount:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
       dialog.verdictAmount:Show()
     end
+    -- Fix round 1: the caption is orphaned (still visible, captioning nothing) if it isn't
+    -- hidden alongside verdictAmount on refusal -- same guard, shown here.
+    if dialog.verdictAmountNote then dialog.verdictAmountNote:Show() end
     dialog.verdictSub:SetText(decision.stressProfit
       and ("you should clear about %s"):format(displayDecisionAmount(decision.stressProfit))
       or "")
@@ -2410,6 +2427,7 @@ local function stampDialogFromDecision(deal, decision)
       dialog.verdictLabel:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     end
     if dialog.verdictAmount then dialog.verdictAmount:Hide() end
+    if dialog.verdictAmountNote then dialog.verdictAmountNote:Hide() end
     dialog.verdictSub:Hide()
   end
 
@@ -4240,9 +4258,13 @@ local function createDialog()
   -- openDialog for the text/color logic. verdictHead no longer wraps (Task 2 restyle -- the
   -- sentence fits one line at this width/font); verdictSub still does, into the fixed
   -- DG.VERDICT_HEAD_H/DG.VERDICT_SUB_H budgets above.
+  -- Fix round 1: x = Theme.pad.s + Theme.pad.xs (12), NOT Theme.pad.m + Theme.pad.s (20) --
+  -- the kit-values table (binding over the brief's own prose) puts every line in this block
+  -- 8px inside the card rect, aligned with verdictHead/verdictAmount/verdictSub below (all of
+  -- which inherit this x via their own 0-offset BOTTOMLEFT anchors off this widget/each other).
   local verdictLabel = Theme.Num(d, 9, true)
   verdictLabel:SetJustifyH("LEFT")
-  verdictLabel:SetPoint("TOPLEFT", Theme.pad.m + Theme.pad.s, DG.VERDICT_TOP - Theme.pad.s)
+  verdictLabel:SetPoint("TOPLEFT", Theme.pad.s + Theme.pad.xs, DG.VERDICT_TOP - Theme.pad.s)
   d.verdictLabel = verdictLabel
 
   local verdictHead = Theme.Label(d, 12)
@@ -4251,14 +4273,28 @@ local function createDialog()
   verdictHead:SetWordWrap(false)
   d.verdictHead = verdictHead
 
+  -- Fix round 1: SetWordWrap(false) + SetMaxLines(1), no RIGHT bound -- a RIGHT anchor here
+  -- would be circular with verdictAmountNote's own LEFT anchor (BOTTOMRIGHT of this widget), so
+  -- the caption is the one that ellipsizes at the sheet's edge (see verdictAmountNote just
+  -- below); this just keeps a long "1234g56s" figure from wrapping into a second line and
+  -- blowing the fixed DG.VERDICT_SUB_H budget.
   local verdictAmount = Theme.Num(d, 22, true)
   verdictAmount:SetJustifyH("LEFT")
   verdictAmount:SetPoint("TOPLEFT", verdictHead, "BOTTOMLEFT", 0, -4)
+  verdictAmount:SetWordWrap(false)
+  verdictAmount:SetMaxLines(1)
   d.verdictAmount = verdictAmount
 
+  -- Fix round 1: bounded on the RIGHT (dialog's own right inset, same idiom verdictHead uses
+  -- two-point-anchor style just above) + SetWordWrap(false) -- at Theme.Scale 1.3 a big amount
+  -- plus this caption's full 24 characters can run past the 320px sheet; this caption is the
+  -- one that ellipsizes, not the amount (see verdictAmount's own comment above).
   local verdictAmountNote = Theme.Num(d, 9)
   verdictAmountNote:SetJustifyH("LEFT")
   verdictAmountNote:SetPoint("BOTTOMLEFT", verdictAmount, "BOTTOMRIGHT", Theme.pad.s, 3)
+  verdictAmountNote:SetPoint("RIGHT", -Theme.pad.m, 0)
+  verdictAmountNote:SetWordWrap(false)
+  verdictAmountNote:SetMaxLines(1)
   verdictAmountNote:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   verdictAmountNote:SetText("EST. PROFIT AFTER AH CUT")
   d.verdictAmountNote = verdictAmountNote
@@ -4679,6 +4715,9 @@ local function openDialog(row, deal)
       dialog.verdictAmount:SetText("—")
       dialog.verdictAmount:Show()
     end
+    -- Fix round 1: caption goes with the amount, checking or not (see stampDialogFromDecision's
+    -- own show/hide pair for the buyable/refusal branches).
+    if dialog.verdictAmountNote then dialog.verdictAmountNote:Show() end
     setDialogStatus("checking live safety...")
     startRequery(row, deal) -- pins the row ("requerying"); only a SAFE commodity decision arms Buy
   end
