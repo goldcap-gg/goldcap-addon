@@ -778,6 +778,9 @@ local function setRowDeal(row, deal)
     row.flashAnim:Stop()
     row.flash:Hide()
     row.flash:SetAlpha(1)
+    -- A press that never saw its OnLeave (rows hidden programmatically) must not
+    -- carry over to the item that takes this row next.
+    row.leftPressed = nil
   end
   row.deal = deal
   -- What the background Check found, if anything. Gold "Buy" is reserved for a row a live
@@ -1020,6 +1023,7 @@ local function refreshRows()
         li = li + 1
       else
         row.deal = nil
+        row.leftPressed = nil
         row:Hide()
       end
     end
@@ -4703,7 +4707,8 @@ createRow = function(parent, index)
   -- Persistent full-row wash for a pinned (watched) row, so tracking an item reads at a
   -- glance instead of hanging on a 2px rail alone. Sublevel 1 (above the zebra fill), created
   -- BEFORE the hover highlight at the same sublevel so the hover wash still draws on top of
-  -- it -- same-sublevel textures stack in creation order. Shown/hidden by setRowDeal off the
+  -- it -- same-sublevel textures stack in creation order (the HOT flash texture below is
+  -- created after both and so draws topmost of the three). Shown/hidden by setRowDeal off the
   -- pin state; the watch color at low alpha, matching the rail it accompanies.
   local pc = Theme.color.watch
   local pinBg = row:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -4994,8 +4999,9 @@ local function setView(v)
   end
 end
 
--- Settings' OnHide (SettingsFrame.lua) calls this on every close path -- Escape, DONE, a rail
--- click, or Toggle() -- to re-apply the active tab's Disable() that setTabActive normally owns.
+-- Settings' OnHide (SettingsFrame.lua) calls this on every close path -- Escape, DONE, the
+-- gear, a rail click, or the window closing -- to re-apply the active tab's Disable() that
+-- setTabActive normally owns.
 -- Settings enables all three rail buttons for as long as it's open (see its own OnShow), so
 -- closing it has to hand that Disable() back to whichever tab is actually current.
 function GC.Sniper.RefreshRailActive()

@@ -572,8 +572,9 @@ local function createHeaderRow(parent)
   setColor(itemLabel, Theme.color.fgDim)
   itemLabel:SetAllPoints()
   itemLabel:SetJustifyH("LEFT")
-  itemLabel:SetText(HEADER_TEXT.item)
+  itemLabel:SetText(HEADER_TEXT.item:upper())
   itemHit.label = itemLabel
+  -- Not read by any production code; exposed so the behavior spec can reach the ITEM cell.
   header.itemCell = itemHit
 
   headerLayout = function()

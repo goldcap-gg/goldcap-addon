@@ -606,8 +606,9 @@ local function build(sniperFrame)
   -- on a clickable button (see SniperFrame.lua's rail OnClick closures), and setTabActive
   -- Disable()s whichever tab is current, so they'd otherwise be unclickable the whole time
   -- Settings is open. OnHide undoes that via GC.Sniper.RefreshRailActive, which re-Disable()s
-  -- the active tab. However this overlay closes -- Escape's OnKeyDown, DONE's OnClick, or a
-  -- rail click routed through the new GC.SettingsUI.Hide() below -- it funnels through this same
+  -- the active tab. However this overlay closes -- Escape's OnKeyDown, DONE's OnClick, the gear,
+  -- a rail click routed through GC.SettingsUI.Hide() below, or the Sniper window itself hiding
+  -- (the engine fires OnHide on children too) -- it funnels through this same
   -- panel:Hide(), so one OnShow/OnHide pair here covers all of them without duplicating the
   -- wiring at each call site. Guarded: sniperFrame.rail doesn't exist for a bare Settings-panel
   -- construction (there is none in production, but this file's own specs build
