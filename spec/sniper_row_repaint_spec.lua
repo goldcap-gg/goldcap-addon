@@ -25,6 +25,9 @@ describe("Sniper row repaint skip", function()
     function w:SetTextColor() calls.n = calls.n + 1 end
     function w:SetTexture(t) self.texture = t; calls.n = calls.n + 1 end
     function w:SetLabel(label) self.label = label; calls.n = calls.n + 1 end
+    -- Task 2 restyle: buildRowCell calls this once at row construction (not on every render),
+    -- so it does not count toward the repaint-skip tally this suite exists to prove.
+    function w:SetUppercase(on) self.uppercase = on end
     function w:SetVariant(name) self.variant = name; calls.n = calls.n + 1 end
     function w:SetColorTexture(r, g, b) self.rgb = { r, g, b }; calls.n = calls.n + 1 end
     function w:Show() self.shown = true end

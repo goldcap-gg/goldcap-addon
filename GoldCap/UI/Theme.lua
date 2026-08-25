@@ -324,36 +324,44 @@ function T.Rail(parent)
   return { frame = frame, buttons = buttons, gear = gear, logo = logo, SetTopInset = setTopInset }
 end
 
--- Chip: solid dark plaque + colored text + colored 1px underline.
+-- Chip: a tinted pill, not the old solid plaque + underline. Nine-slice invariant (see
+-- PLAQUE_SLICE/BADGE_SLICE's own comments above): margins must stay BELOW half the smallest
+-- widget edge, or the sliced corners overlap and notch. This pill is 20px tall -- PLAQUE_SLICE
+-- (12) is not below half of a 24px pill (12), so plaque.png was ruled out; BADGE_SLICE (6) IS
+-- below half of 20 (10), so this uses badge.png at height 20, with no separate ring texture
+-- (badge.png has none -- unlike T.Card's card.png/plaque.png, which pair with ring.png/
+-- plaque_ring.png).
+-- Grepped every spec and every UI source before removing the old `f.underline` texture: nothing
+-- reads `.underline` off a chip (SoldFrame.lua's own header-underline is an unrelated feature
+-- with its own texture), so it is dropped outright rather than kept as a hidden stand-in.
 function T.Chip(parent)
   local f = CreateFrame("Frame", nil, parent)
-  f:SetHeight(16)
+  f:SetHeight(20)
 
-  f.bg = solid(f, "BACKGROUND", { T.color.bg[1], T.color.bg[2], T.color.bg[3], 0.9 })
+  -- File texture, recolored via SetVertexColor only (never SetColorTexture, which would strip
+  -- the art) -- same rule T.Card:SetTint and Theme.Button's rounded bg follow.
+  f.bg = slicedTexture(f, "BACKGROUND", T.MEDIA .. "badge.png", T.color.panel, BADGE_SLICE)
   f.bg:SetAllPoints()
 
   f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_MONO_BOLD, 10 * T.Scale(), "")
+  f.text:SetFont(T.FONT_MONO_BOLD, 9 * T.Scale(), "")
   f.text:SetJustifyH("CENTER")
-  -- M14: bounded to the chip's own width (a bare CENTER point has no width limit at all) and
-  -- non-wrapping, so a long label (e.g. "SUSPECT" plus the falling-tier marker) truncates
-  -- inside the chip instead of overflowing into whatever sits to its right.
-  f.text:SetPoint("LEFT", 2, 0)
-  f.text:SetPoint("RIGHT", -2, 0)
+  -- Bounded to the pill's own width (a bare CENTER point has no width limit at all) and
+  -- non-wrapping, so a long label (e.g. "SUSPECT") truncates inside the pill instead of
+  -- overflowing into whatever sits to its right.
+  f.text:SetPoint("LEFT", 4, 0)
+  f.text:SetPoint("RIGHT", -4, 0)
   f.text:SetWordWrap(false)
 
-  f.underline = solid(f, "ARTWORK", T.color.border)
-  f.underline:SetPoint("BOTTOMLEFT")
-  f.underline:SetPoint("BOTTOMRIGHT")
-  f.underline:SetHeight(1)
-
-  widgetFonts[f.text] = { path = T.FONT_MONO_BOLD, size = 10 }
+  widgetFonts[f.text] = { path = T.FONT_MONO_BOLD, size = 9 }
 
   function f:SetLabel(text, colorTable)
     f.text:SetText(text)
     local c = colorTable or T.color.fg
     f.text:SetTextColor(c[1], c[2], c[3], c[4] or 1)
-    f.underline:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+    -- Fill at low alpha over the dark panel underneath -- a pill reads as a tinted surface,
+    -- not a solid block of the tier color. No ring layer to tint alongside it (see above).
+    f.bg:SetVertexColor(c[1], c[2], c[3], 0.12)
   end
 
   return f
@@ -540,7 +548,21 @@ function T.Button(parent, variant, rounded)
   -- what is drawn, `.label` for what callers read back.
   function b:SetLabel(text)
     b.label = text
-    b.text:SetText(text)
+    -- Lua 5.1's string.upper only touches bytes below 0x80 (ASCII); any byte >= 0x80 -- the
+    -- lead/continuation bytes of a multi-byte UTF-8 sequence like ×/—/… -- passes through
+    -- unchanged rather than being corrupted. b.label above stays the caller's exact SOURCE
+    -- string either way; only the drawn FontString text is transformed.
+    b.text:SetText(b.uppercase and text:upper() or text)
+  end
+
+  -- Draws the label upper-case without touching `.label` -- theme_button_contract_spec pins
+  -- `btn.label == "Post"` even with uppercase on, since ACTION_HELP-style lookups and pooled-row
+  -- rebinding both read `.label` as the exact string the caller passed. Re-invokes SetLabel so
+  -- toggling this AFTER a label is already drawn re-renders it immediately, and calling it
+  -- before any label exists is a harmless no-op that only takes effect on the next SetLabel.
+  function b:SetUppercase(on)
+    b.uppercase = on and true or nil
+    if b.label then b:SetLabel(b.label) end
   end
 
   -- Switches a live button between variants. One control with two looks, rather than two

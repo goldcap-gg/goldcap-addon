@@ -4235,15 +4235,16 @@ local function createDialog()
   icon:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.m)
   d.icon = icon
 
-  -- Task 2 restyle: width 56 (was the row's own COLUMN_W.tier/48 -- that table is now dead and
-  -- removed, this was its only reader) and anchored -pad.m-8 down from the top, not the old
-  -- title-line offset (DG.TITLE_LINE_H is gone with d.title above) -- kit-value geometry. This
-  -- deliberately drops M13's old "never drift from the list's own tier column" sync: the
-  -- dialog's chip now needs to fit "SUSPECT" at this bigger geometry, and the two surfaces
-  -- (row chip, dialog chip) have diverged on purpose.
+  -- Task 2 restyle: width 60 (was 56/48 -- see the pill rebuild in Theme.lua's T.Chip, and its
+  -- own comment for why the pill lands at 20px tall rather than 24). Anchored -pad.m,
+  -- -(pad.m+6) so the 20-tall pill's vertical center lines up with the 32px icon's own center
+  -- (icon top is -pad.m, so its center sits at -(pad.m+16); a 20-tall pill centered there tops
+  -- out at -(pad.m+16)+10 = -(pad.m+6)). This deliberately drops M13's old "never drift from
+  -- the list's own tier column" sync: the dialog's chip now needs to fit "SUSPECT" at this
+  -- bigger geometry, and the two surfaces (row chip, dialog chip) have diverged on purpose.
   local tierChip = Theme.Chip(d)
-  tierChip:SetWidth(56)
-  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + 8))
+  tierChip:SetWidth(60)
+  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + 6))
   d.tierChip = tierChip
 
   local nameText = Theme.Label(d, 13)
@@ -4738,6 +4739,9 @@ local function createDialog()
   cancelBtn:SetHeight(DG.CANCEL_H)
   cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
   cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
+  -- Task 2 restyle: uppercase display only -- every setDialogHeader/close-flow call site below
+  -- still passes "Cancel"/"Close" and dialog.cancelBtn.label reads back exactly that.
+  cancelBtn:SetUppercase(true)
   cancelBtn:SetLabel("Cancel")
   cancelBtn:SetScript("OnClick", function()
     -- COMPLIANCE: CancelCommoditiesPurchase is safe to call from anywhere (unlike
@@ -4767,6 +4771,9 @@ local function createDialog()
   primaryBtn:SetHeight(DG.PRIMARY_H)
   primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DG.CANCEL_H + Theme.pad.xs)
   primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DG.CANCEL_H + Theme.pad.xs)
+  -- Task 2 restyle: uppercase display only -- setPrimaryLabel's "Buy"/"Check" calls elsewhere
+  -- in this file are untouched, and dialog.primaryBtn.label still reads back the exact string.
+  primaryBtn:SetUppercase(true)
   primaryBtn:SetLabel("Buy")
   primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
   d.primaryBtn = primaryBtn
@@ -4974,6 +4981,9 @@ local function buildRowCell(row, col)
   elseif col.key == "buy" then
     local btn = Theme.Button(row, "primary", "badge")
     btn:SetHeight(22)
+    -- Task 2 restyle: uppercase display only -- setRowDeal's "Buy"/"Check"/verdict.status
+    -- ("AVOID") calls below are untouched, and row.buy.label still reads back the exact string.
+    btn:SetUppercase(true)
     btn:SetLabel("Check")
     btn:SetScript("OnClick", function() onBuyClick(row) end)
     row.buy = btn
