@@ -6,6 +6,7 @@
 ## SavedVariables: GoldCapDB
 ## X-Website: https://goldcap.gg
 ## X-Curse-Project-ID: 1668448
+## X-Wago-ID: v6330D6b
 ## IconTexture: Interface\Icons\inv_misc_coin_01
 ## OptionalDeps: GoldCap_AppData
 
