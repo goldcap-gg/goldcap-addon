@@ -58,13 +58,12 @@ WIN.RESIZE_MAX_WIDTH = 1100
 --     through the Details toggle -- this magnitude IS DG.GRID_TOP)
 --   + Theme.pad.xs(4)                                                       = 256  (gap after
 --     the toggle, mirroring DG.EVIDENCE_BOTTOM_CLOSED's own toggle-to-content offset)
---   + DG.STATUS_H(32)                                                       = 288  (status's
---     own reserved line height)
---   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 338  (the banner
---     slot resizeDialogDiagnostics reserves above status, plus the exact pad.xs gap its own
---     `CONTROLS_H + REQUOTE_BANNER_HEIGHT + pad.xs` status anchor uses)
+--   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 306  (the banner
+--     slot createDialog reserves above the status line, plus the pad.xs gap under it)
+--   + DG.STATUS_H(32)                                                       = 338  (status's
+--     own reserved line height, anchored at DG.CONTROLS_H by resizeDialogDiagnostics)
 --   + DG.CONTROLS_H(78)                                                     = 416  (bottom
---     margin + Buy + gap + Cancel + gap-to-banner)
+--     margin + Cancel + gap + Buy + gap-to-status)
 -- stack = 416. The drawer itself is (window height - CH.TITLEBAR(32)); smallest multiple of 10
 -- such that (RESIZE_MIN_HEIGHT - 32) - 416 >= 8 (an 8px safety margin, not zero-clearance) is
 -- 460: 460 - 32 = 428, 428 - 416 = 12 >= 8. The F5 details-open guard (applyDetailsState) still
@@ -2354,11 +2353,13 @@ local function resizeDialogDiagnostics()
     dialog.status:SetPoint("RIGHT", -Theme.pad.m, 0)
   else
     diagnostic:Hide()
-    -- Bottom-up, not top-flowed: always clear of the fixed banner slot (DG.CONTROLS_H up from
-    -- the drawer's bottom, LIM.REQUOTE_BANNER_HEIGHT tall, plus one more gap) regardless of
-    -- how much room the evidence grid above actually used.
-    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H + LIM.REQUOTE_BANNER_HEIGHT + Theme.pad.xs)
-    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H + LIM.REQUOTE_BANNER_HEIGHT + Theme.pad.xs)
+    -- Bottom-up, not top-flowed: the status line sits directly on the button block (DG.CONTROLS_H
+    -- up from the drawer's bottom, its own top padding included), the way the mockup reads
+    -- "price confirmed" right above BUY. The fixed banner slot (LIM.REQUOTE_BANNER_HEIGHT) is
+    -- reserved ABOVE the status (see the banner's anchors in createDialog), so the two never
+    -- overlap regardless of how much room the evidence grid above actually used.
+    dialog.status:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
+    dialog.status:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H)
   end
   dialog.diagnosticHeight = height
 
@@ -4272,11 +4273,12 @@ local function createDialog()
   -- function.
   local verdictCard = Theme.Card(d, nil, nil, true)
   verdictCard:SetPoint("TOPLEFT", Theme.pad.m - Theme.pad.s, DG.VERDICT_TOP + Theme.pad.s)
-  -- F3 (whole-branch review): was "- Theme.pad.s" -- double-applied padding pushed the card's
-  -- bottom edge past DG.QTY_TOP, into the Quantity row below. "+ Theme.pad.s" pulls it back up
-  -- to sit just inside the verdict block's own reserved bottom (DG.VERDICT_TOP - DG.VERDICT_H),
-  -- padded the SAME Theme.pad.s as the top/left/right edges above, not double it.
-  verdictCard:SetPoint("BOTTOMRIGHT", -(Theme.pad.m - Theme.pad.s), DG.VERDICT_TOP - DG.VERDICT_H + Theme.pad.s)
+  -- The bottom edge is measured from the dialog's TOP, like every other DG.*_TOP offset: a bare
+  -- SetPoint("BOTTOMRIGHT", x, y) would take y from the dialog's own BOTTOMRIGHT and put the
+  -- card's bottom ~180px BELOW the drawer (a full-height green ring down into the action bars
+  -- in the second in-game pass). Sits just inside the verdict block's reserved bottom
+  -- (DG.VERDICT_TOP - DG.VERDICT_H), padded the same Theme.pad.s as the other three edges.
+  verdictCard:SetPoint("BOTTOMRIGHT", d, "TOPRIGHT", -(Theme.pad.m - Theme.pad.s), DG.VERDICT_TOP - DG.VERDICT_H + Theme.pad.s)
   d.verdictCard = verdictCard
 
   -- Verdict block, directly under the item header: a small live-status kicker
@@ -4367,19 +4369,24 @@ local function createDialog()
   -- Task 2 restyle: a bespoke "QTY" kicker (Theme.Num, fgDim, uppercase), not gridRow's shared
   -- Theme.Label(d, 11) -- the evidence grid below still uses gridRow as-is (out of scope for
   -- this restyle), and gridRow itself cannot change without also restyling every evidence row.
+  -- The row reads left to right like the mockup -- QTY, the box, "of N" -- instead of a kicker
+  -- stranded at the left with the box and chips right-aligned (the second in-game pass called
+  -- that "crooked"). The label's TOP sits 4px under DG.QTY_TOP so its ~11px line centres on the
+  -- 18px box; the box and the "of N" text then hang off the label's vertical centre.
   local qtyLabel = Theme.Num(d, 9)
   qtyLabel:SetJustifyH("LEFT")
-  qtyLabel:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP)
+  qtyLabel:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP - 4)
   qtyLabel:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   qtyLabel:SetText("QTY")
   d.qtyLabel = qtyLabel
 
-  -- Non-commodity fallback ("N (whole lot)"), same right-anchored/bounded/single-line
-  -- reasoning gridRow's own valueFS comment gives -- an unbounded TOPRIGHT-only FontString
-  -- grows leftward without limit.
+  -- Non-commodity fallback ("N (whole lot)"): takes the box's place after the label, bounded on
+  -- the right so a long lot count ellipsizes instead of growing past the sheet (gridRow's own
+  -- valueFS reasoning -- an unbounded single-point FontString grows without limit).
   local qtyLotText = Theme.Num(d, 12)
-  qtyLotText:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP)
+  qtyLotText:SetJustifyH("LEFT")
   qtyLotText:SetPoint("LEFT", qtyLabel, "RIGHT", Theme.pad.s, 0)
+  qtyLotText:SetPoint("RIGHT", -Theme.pad.m, 0)
   qtyLotText:SetWordWrap(false)
   qtyLotText:SetMaxLines(1)
   qtyLotText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
@@ -4388,11 +4395,11 @@ local function createDialog()
   -- 64x18 (Task 2 restyle): DG.GRID_ROW_H is now 20, so "- 2" (was "- 3" against the old 17)
   -- keeps the kit-value 18px box height exactly.
   local qtyBox = makeQtyEditBox(d, 64, DG.GRID_ROW_H - 2)
-  qtyBox:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP - 1)
+  qtyBox:SetPoint("LEFT", qtyLabel, "RIGHT", Theme.pad.s, 0)
   d.qtyBox = qtyBox
 
   local qtyOfLabel = Theme.Label(d, 11) -- dim "of N" -- shown when the true available qty is known
-  qtyOfLabel:SetPoint("RIGHT", qtyBox, "LEFT", -Theme.pad.xs, 0)
+  qtyOfLabel:SetPoint("LEFT", qtyBox, "RIGHT", Theme.pad.s, 0)
   qtyOfLabel:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   qtyOfLabel:Hide()
   d.qtyOfLabel = qtyOfLabel
@@ -4425,19 +4432,19 @@ local function createDialog()
 
   -- Fix 2 quick-fill: row 2, right under Quantity -- four small ghost buttons that jump
   -- straight to a percentage of qtyMaxAvailable(deal) and commit immediately via
-  -- applyChosenQty (same path qtyBox.onCommit uses -- see applyQuickFillQty). Built right-to-
-  -- left off the grid's own right margin (100%, then 75%/50%/25% reading leftward), matching
-  -- how every numeric grid column already anchors off the dialog's right edge.
+  -- applyChosenQty (same path qtyBox.onCommit uses -- see applyQuickFillQty). Laid out left to
+  -- right from the dialog's left margin (25% ... 100%), under the QTY row it belongs to -- the
+  -- mockup's chip strip; four 36px chips plus "of N" do not fit beside the box at 320 wide.
   local quickFillBtns = {}
   local prevBtn
-  for i = #DG.QTY_QUICKFILL_PCTS, 1, -1 do
+  for i = 1, #DG.QTY_QUICKFILL_PCTS do
     local pct = DG.QTY_QUICKFILL_PCTS[i]
     local btn = Theme.Button(d, "ghost", "badge")
     btn:SetSize(DG.QTY_QUICKFILL_W, DG.QTY_QUICKFILL_H)
     if prevBtn then
-      btn:SetPoint("TOPRIGHT", prevBtn, "TOPLEFT", -Theme.pad.xs, 0)
+      btn:SetPoint("TOPLEFT", prevBtn, "TOPRIGHT", Theme.pad.xs, 0)
     else
-      btn:SetPoint("TOPRIGHT", -Theme.pad.m, DG.QTY_TOP - DG.GRID_ROW_H)
+      btn:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP - DG.GRID_ROW_H)
     end
     btn:SetLabel(pct .. "%")
     btn:SetScript("OnClick", function() applyQuickFillQty(pct) end)
@@ -4583,8 +4590,10 @@ local function createDialog()
   -- correction) In the old centered modal, showing it grew the dialog by exactly its own
   -- height, visibly changing the window's shape. In the check drawer that SetHeight is an
   -- anchor-overridden no-op (see createDialog's own drawer-anchor comment) -- the banner is
-  -- now a fixed slot in the bottom-anchored block, always reserved whether shown or not, and
-  -- F4's resizeDialogDiagnostics keeps `status` anchored clear of it for exactly this reason.
+  -- now a fixed slot in the bottom-anchored block, always reserved whether shown or not. The
+  -- slot sits ABOVE the status line (DG.CONTROLS_H + DG.STATUS_H + pad.xs up from the bottom),
+  -- so the status stays glued to the buttons and the empty slot never reads as a gap between
+  -- them; F4's resizeDialogDiagnostics anchors `status` at DG.CONTROLS_H to match.
   -- Task 2 restyle: Theme.Card(small=true) -- a rounded plaque.png/PLAQUE_SLICE(12) alarm
   -- instead of Theme.Panel's flat rectangle + edgeBorder. Sized LIM.REQUOTE_BANNER_HEIGHT (46)
   -- tall by up to DG.WIDTH-2*pad.m (296) wide -- margin 12 is well under half the smallest
@@ -4593,8 +4602,8 @@ local function createDialog()
   -- would have stripped the texture file the moment it became a real sliced surface.
   local banner = Theme.Card(d, { Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.2 }, nil, true)
   banner:SetHeight(LIM.REQUOTE_BANNER_HEIGHT)
-  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H)
-  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H)
+  banner:SetPoint("BOTTOMLEFT", Theme.pad.m, DG.CONTROLS_H + DG.STATUS_H + Theme.pad.xs)
+  banner:SetPoint("BOTTOMRIGHT", -Theme.pad.m, DG.CONTROLS_H + DG.STATUS_H + Theme.pad.xs)
 
   local bannerHead = Theme.Label(banner, 12)
   bannerHead:SetPoint("TOPLEFT", Theme.pad.s, -Theme.pad.xs)
@@ -4613,10 +4622,12 @@ local function createDialog()
   -- "badge", not "plaque": DG.CANCEL_H is 22px (Task 2 restyle, was 20), another shared/pinned
   -- constant (see detailsToggle's own comment above) -- PLAQUE_SLICE (12) is not below half
   -- of 22 (11), BADGE_SLICE (6) is.
+  -- Bottom-most, UNDER the primary (mockup order: BUY, then CANCEL) -- the secondary action
+  -- sits furthest from the verdict it declines.
   local cancelBtn = Theme.Button(d, "ghost", "badge")
   cancelBtn:SetHeight(DG.CANCEL_H)
-  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
-  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs)
+  cancelBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
+  cancelBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
   cancelBtn:SetLabel("Cancel")
   cancelBtn:SetScript("OnClick", function()
     -- COMPLIANCE: CancelCommoditiesPurchase is safe to call from anywhere (unlike
@@ -4637,16 +4648,15 @@ local function createDialog()
   end)
   d.cancelBtn = cancelBtn
 
-  -- Full-width primary button, bottom-most: the single most-clicked control in this window.
-  -- "plaque" is safe here (unlike cancelBtn/detailsToggle above): DG.PRIMARY_H is 32px (Task 2
-  -- restyle, was 26 -- the kit's "big buy" height), and PLAQUE_SLICE (12) IS below half of that
-  -- (16). Height stays DG.PRIMARY_H -- that constant also drives DG.CONTROLS_H/
-  -- DG.FIXED_HEIGHT_* and cancelBtn's own anchor, so it isn't a per-button size free to change
-  -- here (see the two comments above).
+  -- Full-width primary button, directly above Cancel: the single most-clicked control in this
+  -- window. "plaque" is safe here (unlike cancelBtn/detailsToggle above): DG.PRIMARY_H is 32px
+  -- (Task 2 restyle, was 26 -- the kit's "big buy" height), and PLAQUE_SLICE (12) IS below half
+  -- of that (16). Height stays DG.PRIMARY_H -- that constant also drives DG.CONTROLS_H/
+  -- DG.FIXED_HEIGHT_*, so it isn't a per-button size free to change here.
   local primaryBtn = Theme.Button(d, "primary", "plaque")
   primaryBtn:SetHeight(DG.PRIMARY_H)
-  primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m)
-  primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m)
+  primaryBtn:SetPoint("BOTTOMLEFT", Theme.pad.m, Theme.pad.m + DG.CANCEL_H + Theme.pad.xs)
+  primaryBtn:SetPoint("BOTTOMRIGHT", -Theme.pad.m, Theme.pad.m + DG.CANCEL_H + Theme.pad.xs)
   primaryBtn:SetLabel("Buy")
   primaryBtn:SetScript("OnClick", onDialogPrimaryClick)
   d.primaryBtn = primaryBtn
@@ -4893,16 +4903,18 @@ createRow = function(parent, index)
   -- under ARTWORK. The zebra fill alternates by POOL index, not by the deal's position in
   -- the current sorted view, so it stays visually stable across a resort/rescan instead of
   -- flickering as rows are reassigned to different deals.
-  -- Rounded fills inset 1px top/bottom (2px total) and 26px right to keep clear of scrollbar
-  -- gutter; the fill is 30px tall after those insets (32px row height minus 2px), so margin 12
-  -- <= 15 = half of 30, satisfying the constraint.
+  -- Rounded fills inset 1px top/bottom (2px total) and 2px left/right. The scrollbar lives in
+  -- WIN.CONTENT_RIGHT_GUTTER, OUTSIDE the row, so the fill runs to the row's own right edge --
+  -- the action button sits flush with that edge, and a shorter fill (the old 26px right inset)
+  -- left half the button hanging off the hover wash. The fill is 30px tall after the insets
+  -- (32px row height minus 2px), so margin 12 <= 15 = half of 30, satisfying the constraint.
   local zc = Theme.color.zebra
   local zebra = row:CreateTexture(nil, "BACKGROUND")
   zebra:SetTexture(Theme.MEDIA .. "plaque.png")
   zebra:SetTextureSliceMargins(12, 12, 12, 12)
   zebra:SetVertexColor(zc[1], zc[2], zc[3], (index % 2 == 1) and zc[4] or 0)
   zebra:SetPoint("TOPLEFT", 2, -1)
-  zebra:SetPoint("BOTTOMRIGHT", -26, 1)
+  zebra:SetPoint("BOTTOMRIGHT", -2, 1)
   row.zebra = zebra
 
   -- Persistent full-row wash for a pinned (watched) row, so tracking an item reads at a
@@ -4917,7 +4929,7 @@ createRow = function(parent, index)
   pinBg:SetTextureSliceMargins(12, 12, 12, 12)
   pinBg:SetVertexColor(pc[1], pc[2], pc[3], 0.09)
   pinBg:SetPoint("TOPLEFT", 2, -1)
-  pinBg:SetPoint("BOTTOMRIGHT", -26, 1)
+  pinBg:SetPoint("BOTTOMRIGHT", -2, 1)
   pinBg:Hide()
   row.pinBg = pinBg
 
@@ -4927,7 +4939,7 @@ createRow = function(parent, index)
   highlight:SetTextureSliceMargins(12, 12, 12, 12)
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4])
   highlight:SetPoint("TOPLEFT", 2, -1)
-  highlight:SetPoint("BOTTOMRIGHT", -26, 1)
+  highlight:SetPoint("BOTTOMRIGHT", -2, 1)
   highlight:Hide()
   row.highlight = highlight
 
@@ -4938,7 +4950,7 @@ createRow = function(parent, index)
   flash:SetTextureSliceMargins(12, 12, 12, 12)
   flash:SetVertexColor(hc[1], hc[2], hc[3], 0.35)
   flash:SetPoint("TOPLEFT", 2, -1)
-  flash:SetPoint("BOTTOMRIGHT", -26, 1)
+  flash:SetPoint("BOTTOMRIGHT", -2, 1)
   flash:Hide()
   row.flash = flash
 
