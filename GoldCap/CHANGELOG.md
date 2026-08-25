@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-08-26)
 
 - **Sniper redesign, on brand.** The sniper window is rebuilt on goldcap.gg's
   own visual language — dark panels, gold accents, a bundled monospace font
