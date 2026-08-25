@@ -2388,6 +2388,9 @@ renderRows = function()
         -- unit price no longer repeats here -- the COST/LISTED cells two columns over already
         -- carry the unit and total, and this line was the one place on the row saying the same
         -- number twice.
+        -- Pooled rows keep whatever colour the last kind painted: a dim detail line must not
+        -- bleed into the next render's batch text.
+        setColor(row.subItem, Theme.color.fg)
         row.subItem:SetText(("×%d%s · bought %s · %s · %s"):format(
           entry.batch.originalQty or entry.batch.quantity or 0,
           purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
@@ -2412,6 +2415,7 @@ renderRows = function()
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
         -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to
         -- a player, so it moves to the tooltip and the row says what is actually listed.
+        setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
         row.subItem:SetText(("×%d listed at %s each"):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
@@ -2445,6 +2449,7 @@ renderRows = function()
         local inBags = p.bagQty or 0
         local bagState = liveBagState(p)
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
+        setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
         if postable > 0 and postable < inBags then
           row.subItem:SetText(("×%d in your bags · Post lists %d of them, the largest stack"):format(
             inBags, postable))
