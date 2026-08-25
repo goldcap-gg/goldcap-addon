@@ -563,11 +563,18 @@ local function createHeaderRow(parent)
     end
   end
 
+  -- ITEM reads on the kit now too, the same mono/fgDim treatment as the other
+  -- header cells above -- it used to stand out as the one native-font label
+  -- in an otherwise all-mono row.
   local itemHit = CreateFrame("Frame", nil, header)
-  itemHit.label = Theme.Label(itemHit, 11)
-  itemHit.label:SetAllPoints()
-  itemHit.label:SetJustifyH("LEFT")
-  itemHit.label:SetText(HEADER_TEXT.item)
+  local itemLabel = Theme.Num(itemHit, 9)
+  itemLabel:SetWordWrap(false)
+  setColor(itemLabel, Theme.color.fgDim)
+  itemLabel:SetAllPoints()
+  itemLabel:SetJustifyH("LEFT")
+  itemLabel:SetText(HEADER_TEXT.item)
+  itemHit.label = itemLabel
+  header.itemCell = itemHit
 
   headerLayout = function()
     local flexAnchor = anchorColumns(header, hiddenColumns, function(col) return header.cells[col.key] end)

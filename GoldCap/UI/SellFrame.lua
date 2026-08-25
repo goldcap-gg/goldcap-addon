@@ -1953,9 +1953,20 @@ local function updateSummary(filtered)
   local text = summaryFor(filtered)
   container.summary.cost:SetText(formatCell(text.knownCost))
   container.summary.listed:SetText(formatCell(text.listedValue))
-  container.summary.profit:SetText(type(text.profit) == "number" and formatAmount(text.profit) or text.profit)
-  -- A non-number here is an absence, not a result: painting "Unknown · 37 missing" in the
-  -- same confident green as a real profit read as a figure the addon stood behind.
+  if type(text.profit) == "number" then
+    container.summary.profit:SetText(formatAmount(text.profit))
+    container.summaryProfitDetail = nil
+  else
+    -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37
+    -- missing" -- at Theme.Scale() 1.3 the longer form doesn't fit the mono value line, so the
+    -- card itself stays a plain "Unknown" and everything after the first " · " moves to
+    -- summaryProfitHit's own tooltip (see the stat-card loop below), read live at hover time.
+    container.summary.profit:SetText("Unknown")
+    local sepStart, sepEnd = text.profit:find(" · ", 1, true)
+    container.summaryProfitDetail = sepStart and text.profit:sub(sepEnd + 1) or nil
+  end
+  -- A non-number here is an absence, not a result: painting "Unknown" in the same confident
+  -- green as a real profit read as a figure the addon stood behind.
   setColor(container.summary.profit, type(text.profit) == "number"
     and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
@@ -2719,14 +2730,37 @@ function GC.Sell.Attach(f, geometry)
     local label = Theme.Num(card, 9); label:SetJustifyH("LEFT")
     label:SetPoint("TOPLEFT", 10, -6)
     -- RIGHT-bound and non-wrapping: a FontString with LEFT/RIGHT bounds and no wrap truncates
-    -- with an ellipsis instead of escaping the 148px card, which SellViewModel.SummaryText's
-    -- own longer strings (e.g. "Unknown . 12 partial . 37 missing") otherwise did.
+    -- with an ellipsis instead of escaping the 148px card -- belt and suspenders now that
+    -- updateSummary caps the profit card's own value at a plain "Unknown" itself, with the
+    -- missing/partial detail moved to that card's hover tooltip instead of riding along in the
+    -- text (which used to ellipsize into unreadable garbage at Theme.Scale() 1.3).
     label:SetPoint("TOPRIGHT", -10, -6); label:SetWordWrap(false)
     label:SetText(stat[2]); setColor(label, Theme.color.fgDim)
     local value = Theme.Num(card, 13, true); value:SetJustifyH("LEFT")
     value:SetPoint("TOPLEFT", 10, -18)
     value:SetPoint("TOPRIGHT", -10, -18); value:SetWordWrap(false)
     container.summary[stat[1]] = value
+    if stat[1] == "profit" then
+      -- A FontString cannot take mouse scripts, so the missing/partial detail that used to ride
+      -- along in the value text (see updateSummary) gets the same invisible-hit-frame trick as
+      -- queueHeldBackHit above: content is read from container.summaryProfitDetail live, at
+      -- hover time, so the tooltip can never go stale between renders, and it stays hidden
+      -- entirely once every position's cost is known.
+      local hit = CreateFrame("Frame", nil, card)
+      hit:SetAllPoints(card)
+      hit:EnableMouse(true)
+      hit:SetScript("OnEnter", function(self)
+        if not GameTooltip or not container.summaryProfitDetail then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Est. profit", 1, 0.82, 0)
+        GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine("Costs are missing or partial for these positions; the estimate excludes them.",
+          0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+      end)
+      hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+      container.summaryProfitHit = hit
+    end
   end
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -106); header:SetPoint("TOPRIGHT", 0, -106); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons

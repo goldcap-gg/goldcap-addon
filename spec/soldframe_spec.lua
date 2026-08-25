@@ -477,6 +477,11 @@ describe("SoldFrame", function()
   it("labels the column header row like Deals': uppercase ITEM/WHEN/QTY/UNIT/TOTAL/PROFIT", function()
     local band = bandOf()
     assert.truthy(band and band.header and band.header.cells)
+    -- ITEM is on the kit now too -- mono font, fgDim, same as its neighbours
+    -- (previously the one native-font label in the row).
+    assert.truthy(band.header.itemCell)
+    assert.equal("ITEM", band.header.itemCell.label:GetText())
+    assert.truthy(colorEquals(band.header.itemCell.label.colorValue, GC.Theme.color.fgDim))
     assert.equal("WHEN", band.header.cells.when.label:GetText())
     assert.equal("QTY", band.header.cells.qty.label:GetText())
     assert.equal("UNIT", band.header.cells.unit.label:GetText())

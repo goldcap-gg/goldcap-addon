@@ -182,6 +182,64 @@ describe("Sell widget geometry and manual cost", function()
     })
     assert.equal("Unknown", container.summary.profit.text)
     assert.same({ .5, .5, .5, 1 }, container.summary.profit.color)
+    -- Plain "Unknown" carries no " · " suffix at all: no detail to show, so no tooltip either.
+    assert.is_nil(container.summaryProfitDetail)
+  end)
+
+  -- The stat-card's own value line ellipsized into unreadable garbage at Theme.Scale() 1.3 when
+  -- SummaryText's non-number carried a "12 partial"/"37 missing" suffix. The card now shows
+  -- plain "Unknown" and the suffix moves to container.summaryProfitDetail, which the profit
+  -- card's own hit frame reads live to build its tooltip (see summaryProfitHit below).
+  it("moves the missing/partial detail off the profit card and onto its tooltip", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.SummaryText = function(summary)
+      return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown · 2 partial" }
+    end
+    local _, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+        exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
+    })
+    assert.equal("Unknown", container.summary.profit:GetText())
+    assert.equal("2 partial", container.summaryProfitDetail)
+    local hit = container.summaryProfitHit
+    assert.truthy(hit)
+    assert.is_true(hit.mouseEnabled)
+    assert.is_function(hit.scripts.OnEnter)
+    local tooltipLines = {}
+    local hidden = false
+    _G.GameTooltip = {
+      SetOwner = function() end, Show = function() end, Hide = function() hidden = true end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+    }
+    hit.scripts.OnEnter(hit)
+    local joined = table.concat(tooltipLines, " ")
+    assert.matches("Est. profit", joined, 1, true)
+    assert.matches("2 partial", joined, 1, true)
+    assert.matches("excludes them", joined, 1, true)
+    hit.scripts.OnLeave(hit)
+    assert.is_true(hidden)
+    _G.GameTooltip = nil
+  end)
+
+  -- Numeric profit is unchanged, and any stale detail from an earlier render is cleared rather
+  -- than lingering for the tooltip to keep showing on a now-complete summary.
+  it("clears summaryProfitDetail once the profit is a real number again", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.SummaryText = function(summary)
+      return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown · 2 partial" }
+    end
+    local _, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "PARTIAL",
+        exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0, sources = {} },
+    })
+    assert.equal("2 partial", container.summaryProfitDetail)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    GC.SellViewModel.SummaryText = function(summary)
+      return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = 50000 }
+    end
+    render()
+    assert.equal("5g", container.summary.profit:GetText())
+    assert.is_nil(container.summaryProfitDetail)
   end)
 
   -- The PROFIT / UNIT cell has never had a numeric assertion of its own -- every existing test
