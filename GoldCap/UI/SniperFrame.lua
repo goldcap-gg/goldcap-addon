@@ -4994,6 +4994,17 @@ local function setView(v)
   end
 end
 
+-- Settings' OnHide (SettingsFrame.lua) calls this on every close path -- Escape, DONE, a rail
+-- click, or Toggle() -- to re-apply the active tab's Disable() that setTabActive normally owns.
+-- Settings enables all three rail buttons for as long as it's open (see its own OnShow), so
+-- closing it has to hand that Disable() back to whichever tab is actually current.
+function GC.Sniper.RefreshRailActive()
+  if not frame then return end
+  setTabActive(frame.dealsTab, view == "deals")
+  setTabActive(frame.sellTab, view == "sell")
+  setTabActive(frame.soldTab, view == "sold")
+end
+
 -- ---------------------------------------------------------------------------
 -- Chrome (Sniper v3): Theme.Panel + Theme.TitleBar replace BasicFrameTemplateWithInset;
 -- everything below the title bar is stacked top-down with named row-height constants and
@@ -5185,9 +5196,21 @@ local function createFrame()
   local rail = Theme.Rail(f)
   rail.frame:SetPoint("TOPLEFT")
   rail.frame:SetPoint("BOTTOMLEFT")
-  rail.buttons.deals:SetScript("OnClick", function() setView("deals") end)
-  rail.buttons.sell:SetScript("OnClick", function() setView("sell") end)
-  rail.buttons.sold:SetScript("OnClick", function() setView("sold") end)
+  -- Settings overlays the content but not the rail, so a rail click must dismiss it first --
+  -- and closing it re-disables the active tab (RefreshRailActive above), which is why the tabs
+  -- are enabled while Settings is open (SettingsFrame.lua's own OnShow).
+  rail.buttons.deals:SetScript("OnClick", function()
+    if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+    setView("deals")
+  end)
+  rail.buttons.sell:SetScript("OnClick", function()
+    if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+    setView("sell")
+  end)
+  rail.buttons.sold:SetScript("OnClick", function()
+    if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+    setView("sold")
+  end)
   f.rail = rail
   f.dealsTab, f.sellTab, f.soldTab = rail.buttons.deals, rail.buttons.sell, rail.buttons.sold
   setTabActive(f.dealsTab, true) -- Deals is the default view

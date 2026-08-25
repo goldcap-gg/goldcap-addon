@@ -6,6 +6,7 @@ local helper = require("spec.spec_helper")
 -- covers via loadorder_spec.lua's real-Theme construction pass.
 describe("Settings controls", function()
   local GC
+  local refreshRailActiveCalls
 
   -- Same recording double shape as soldframe_spec.lua/sell_widget_behavior_spec.lua's own
   -- region() -- `.points`/`.scripts`/`.variant`/`.label` are bookkeeping the double alone
@@ -181,6 +182,15 @@ describe("Settings controls", function()
     return found
   end
 
+  -- The overlay panel itself: the sole direct Frame child of GoldCapSniperFrame with HIGH
+  -- strata (build() sets that right after Theme.Panel -- see SettingsFrame.lua). Module-level
+  -- `panel` inside SettingsFrame.lua isn't otherwise reachable from a spec.
+  local function settingsPanel()
+    for _, child in ipairs(_G.GoldCapSniperFrame.children) do
+      if child.kind == "Frame" and child.strata == "HIGH" then return child end
+    end
+  end
+
   before_each(function()
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     GC = { db = { settings = { sniper = {
@@ -190,12 +200,26 @@ describe("Settings controls", function()
       postDuration = 2,
     } } } }
     GC.Theme = fakeTheme()
-    GC.Sniper = { DefaultWindowSize = function() return 720, 520 end }
+    -- T7: RefreshRailActive is GC.Sniper's own export (SniperFrame.lua, right after setView) --
+    -- SettingsFrame.lua's OnHide calls it to re-apply the active tab's Disable() on close. The
+    -- fake just counts calls; which tab it would restore is SniperFrame.lua's own concern,
+    -- covered by SniperFrame's specs, not this one.
+    refreshRailActiveCalls = 0
+    GC.Sniper = {
+      DefaultWindowSize = function() return 720, 520 end,
+      RefreshRailActive = function() refreshRailActiveCalls = refreshRailActiveCalls + 1 end,
+    }
     _G.GoldCapSniperFrame = region("Frame")
     -- T6: SettingsFrame.lua reads the gear off sniperFrame.rail.gear (SniperFrame.lua's own
     -- `f.rail = rail`, ~:5153) -- a plain region("Button") already records SetVariant calls
     -- into `.variant`, same as every other fake button in this file.
-    _G.GoldCapSniperFrame.rail = { gear = region("Button") }
+    -- T7: `.buttons` mirrors Theme.Rail's own shape (rail.buttons.deals/sell/sold) -- region's
+    -- Enable/Disable already record `.enabled`, same double every other fake button in this
+    -- file uses.
+    _G.GoldCapSniperFrame.rail = {
+      gear = region("Button"),
+      buttons = { deals = region("Button"), sell = region("Button"), sold = region("Button") },
+    }
     helper.loadModule("UI/SettingsFrame.lua", GC)
   end)
 
@@ -292,5 +316,33 @@ describe("Settings controls", function()
     assert.equal("active", seg["12H"].variant)
     assert.equal("ghost", seg["24H"].variant)
     assert.equal("ghost", seg["48H"].variant)
+  end)
+
+  it("Hide() before the panel is ever built is a no-op (T7)", function()
+    assert.has_no.errors(function() GC.SettingsUI.Hide() end)
+  end)
+
+  it("enables all three rail tab buttons while open, so a rail click can still land (T7)", function()
+    local buttons = _G.GoldCapSniperFrame.rail.buttons
+    GC.SettingsUI.Toggle() -- opens
+    assert.is_true(buttons.deals.enabled)
+    assert.is_true(buttons.sell.enabled)
+    assert.is_true(buttons.sold.enabled)
+  end)
+
+  it("Hide() hides the panel, un-tints the gear, and restores the active rail tab (T7)", function()
+    local gear = _G.GoldCapSniperFrame.rail.gear
+    GC.SettingsUI.Toggle() -- opens
+    assert.equal("active", gear.variant)
+    -- build()'s own initial panel:Hide() (SettingsFrame.lua's C2 fix) already fired OnHide once
+    -- before the panel was ever shown -- reset the counter so this only measures the explicit
+    -- Hide() call below.
+    refreshRailActiveCalls = 0
+
+    GC.SettingsUI.Hide()
+
+    assert.is_false(settingsPanel():IsShown())
+    assert.equal("ghost", gear.variant)
+    assert.equal(1, refreshRailActiveCalls)
   end)
 end)

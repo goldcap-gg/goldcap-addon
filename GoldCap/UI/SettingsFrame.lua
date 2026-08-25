@@ -601,11 +601,17 @@ local function build(sniperFrame)
   -- (goldHi active / fgDim inactive), not just the plate behind it, so the gear icon is tinted
   -- here too (M8) instead of staying a still-fgDim icon on a gold plate. HookScript, not
   -- SetScript, for OnShow -- the refresh loop above already owns that event and this must not
-  -- clobber it. OnHide has no existing script, and both close paths (Escape's OnKeyDown and
-  -- DONE's OnClick, above) funnel through GC.SettingsUI.Toggle()'s own panel:Hide(), so one
-  -- OnHide here covers both without duplicating the wiring at each call site. Guarded:
-  -- sniperFrame.rail doesn't exist for a bare Settings-panel construction (there is none in
-  -- production, but this file's own specs build SettingsFrame.lua standalone).
+  -- clobber it. OnShow also Enables the three rail tab buttons (NOT SetActive(false), which
+  -- would drop the active tab's tint): a rail click has to dismiss this overlay AND still land
+  -- on a clickable button (see SniperFrame.lua's rail OnClick closures), and setTabActive
+  -- Disable()s whichever tab is current, so they'd otherwise be unclickable the whole time
+  -- Settings is open. OnHide undoes that via GC.Sniper.RefreshRailActive, which re-Disable()s
+  -- the active tab. However this overlay closes -- Escape's OnKeyDown, DONE's OnClick, or a
+  -- rail click routed through the new GC.SettingsUI.Hide() below -- it funnels through this same
+  -- panel:Hide(), so one OnShow/OnHide pair here covers all of them without duplicating the
+  -- wiring at each call site. Guarded: sniperFrame.rail doesn't exist for a bare Settings-panel
+  -- construction (there is none in production, but this file's own specs build
+  -- SettingsFrame.lua standalone).
   local rail = sniperFrame.rail
   local gear = rail and rail.gear
   if gear and gear.SetVariant then
@@ -615,6 +621,12 @@ local function build(sniperFrame)
         local c = Theme.color.goldHi
         gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
       end
+      local buttons = rail and rail.buttons
+      if buttons then
+        for _, b in pairs(buttons) do
+          if b.Enable then b:Enable() end
+        end
+      end
     end)
     panel:SetScript("OnHide", function()
       gear:SetVariant("ghost")
@@ -622,6 +634,7 @@ local function build(sniperFrame)
         local c = Theme.color.fgDim
         gear.icon:SetVertexColor(c[1], c[2], c[3], 1)
       end
+      if GC.Sniper and GC.Sniper.RefreshRailActive then GC.Sniper.RefreshRailActive() end
     end)
   end
 
@@ -648,4 +661,11 @@ function GC.SettingsUI.Toggle()
   else
     panel:Show()
   end
+end
+
+-- Called from SniperFrame.lua's rail OnClick closures so a Deals/Sell/Sold click dismisses
+-- Settings first. No-op if the panel was never built (gear never clicked this session) or is
+-- already hidden -- unlike Toggle, this never opens it.
+function GC.SettingsUI.Hide()
+  if panel and panel:IsShown() then panel:Hide() end
 end
