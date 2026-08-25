@@ -203,7 +203,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
 
   -- 320 (DG.WIDTH) + 12 (Theme.pad.m) = 332 pushed past the 32px scrollbar gutter
   -- (WIN.CONTENT_RIGHT_GUTTER) already reserved -- -(32 + 332) = -364.
-  it("shifts the deals list left by DG.WIDTH + Theme.pad.m when open on a >=900 window", function()
+  it("shifts the deals list left by DG.WIDTH + Theme.pad.m when open on a >=990 window", function()
     local frame = buildFrame()
     frame.GetWidth = function() return 1000 end
 
@@ -215,8 +215,8 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     assert.are.equal(332, frame.panelInset)
   end)
 
-  -- Below WIN.PANEL_SHIFT_MIN (900) the panel overlays instead of shifting: docked mode (the
-  -- in-game AH host) is ~805 wide and must keep the plain -32 gutter anchor.
+  -- Below WIN.PANEL_SHIFT_MIN (990) the panel overlays instead of shifting: docked mode (the
+  -- in-game AH host) is 792 wide and must keep the plain -32 gutter anchor.
   it("keeps the plain gutter anchor when open but narrower than WIN.PANEL_SHIFT_MIN", function()
     local frame = buildFrame()
     frame.GetWidth = function() return 800 end
@@ -227,6 +227,41 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     assert.are.equal(-32, lastOffsetX(frame.headerRow, "TOPRIGHT"))
     assert.are.equal(-32, lastOffsetX(frame.verifyBtn, "TOPRIGHT"))
     assert.are.equal(0, frame.panelInset)
+  end)
+
+  -- Fix 3 (check-panel-deals-list, task 4): WIN.PANEL_SHIFT_MIN moved from 900 to 990 -- at 900
+  -- the item column landed at 92px, well under its own declared min (180). 990 is derived so
+  -- that even with BOTH optional columns dropped, the item column still clears 180: 88
+  -- (CONTENT_LEFT) + 32 (GUTTER) + 332 (inset) + 356 (fixed columns) + 180 (item min) = 988,
+  -- rounded up. These three widths pin the boundary exactly on either side of that floor.
+  it("keeps the plain gutter anchor at 989, one pixel short of WIN.PANEL_SHIFT_MIN", function()
+    local frame = buildFrame()
+    frame.GetWidth = function() return 989 end
+
+    frame.applyPanelInset(true)
+
+    assert.are.equal(-32, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
+    assert.are.equal(0, frame.panelInset)
+  end)
+
+  it("shifts the deals list at exactly WIN.PANEL_SHIFT_MIN (990)", function()
+    local frame = buildFrame()
+    frame.GetWidth = function() return 990 end
+
+    frame.applyPanelInset(true)
+
+    assert.are.equal(-364, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
+    assert.are.equal(332, frame.panelInset)
+  end)
+
+  it("keeps shifting the deals list one pixel past WIN.PANEL_SHIFT_MIN (991)", function()
+    local frame = buildFrame()
+    frame.GetWidth = function() return 991 end
+
+    frame.applyPanelInset(true)
+
+    assert.are.equal(-364, lastOffsetX(frame.scroll, "BOTTOMRIGHT"))
+    assert.are.equal(332, frame.panelInset)
   end)
 
   it("resets to the plain gutter anchor once the panel closes, even on a wide window", function()

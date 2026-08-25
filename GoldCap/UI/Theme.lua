@@ -404,7 +404,7 @@ end
 -- why the value must never close over `fs`), so SetScale's re-font pass now reaches every
 -- Label too, not just Num/Chip fontstrings.
 --
--- Deliberately NOT extended to ROW_H (Theme.ROW_H, ~28px) or the dialog's own pixel budgets --
+-- Deliberately NOT extended to ROW_H (Theme.ROW_H, 32px) or the dialog's own pixel budgets --
 -- those stay fixed regardless of T.Scale(). At 1.3x a Label's text can get visually tight
 -- against an unscaled row/dialog height; that's an accepted tradeoff here (the in-game
 -- checklist covers verifying it reads fine at the scale extremes), not a bug to fix by also

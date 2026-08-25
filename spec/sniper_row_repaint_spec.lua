@@ -31,6 +31,11 @@ describe("Sniper row repaint skip", function()
     function w:Hide() self.shown = false end
     function w:Enable() self.enabled = true end
     function w:Disable() self.enabled = false end
+    -- Fix 1 repaint spec (below): layoutRow/anchorColumns touch these on every column cell and
+    -- on nameText -- no-ops, since this suite only cares whether Show/Hide/Enable/Disable ran.
+    function w:SetPoint() end
+    function w:ClearAllPoints() end
+    function w:SetWidth() end
     return w
   end
 
@@ -102,11 +107,17 @@ describe("Sniper row repaint skip", function()
     -- repaintToggledRow, which is itself an upvalue of the public GC.Sniper._TogglePin.
     local repaintToggledRow = getUpvalue(GC.Sniper._TogglePin, "repaintToggledRow")
     local flashRow = getUpvalue(repaintToggledRow, "flashRow")
+    -- Fix 1: layoutRow is createRow's own upvalue (createRow calls it directly at the end of
+    -- construction) -- reached the same "one more link in the chain" way every other upvalue
+    -- above is, off createRow which is itself an upvalue of refreshRows.
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local layoutRow = getUpvalue(createRow, "layoutRow")
 
     return {
       GC = GC,
       setRowDeal = setRowDeal,
       flashRow = flashRow,
+      layoutRow = layoutRow,
       verdicts = verdicts,
       itemLoads = function() return itemLoads end,
       setTrend = function(v) trendValue = v end,
@@ -256,6 +267,41 @@ describe("Sniper row repaint skip", function()
     ctx.setRowDeal(row, deal(7)) -- reassigned later, content-identical to before
 
     assert.is_true(row:IsShown(), "a reused row must never stay hidden just because its content repeats")
+  end)
+
+  -- Fix 1 (check-panel-deals-list, task 4): a watching row's Buy button must stay inert across
+  -- ANY column re-layout, not just survive the setRowDeal call that first hid it. Opening the
+  -- check panel at >= WIN.PANEL_SHIFT_MIN drives applyColumnVisibility, which re-runs layoutRow
+  -- (and therefore anchorColumns) over every pooled row -- and anchorColumns unconditionally
+  -- cell:Show()s every VISIBLE fixed column, "buy" included, since "buy" is a fixed column, never
+  -- one of the responsive optional ones computeHidden ever drops. Before this fix that re-Show
+  -- brought back an ENABLED button carrying the slot's last construction label, clickable
+  -- through both its own OnClick and the row's whole-row click guard (onBuyClick has no
+  -- pinPlaceholder check of its own). Needs row.cells wired up (anchorColumns reads
+  -- row.cells[col.key]) -- added additively here since fakeRow above only builds named fields.
+  it("keeps a watching row's Buy button hidden and disabled across a column re-layout", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+    row.cells = {
+      tier = row.tierChip, disc = row.discountText, unit = row.unitText,
+      total = row.priceText, profit = row.profitText, trend = row.trendText, buy = row.buy,
+    }
+
+    ctx.setRowDeal(row, deal(7, {
+      pinPlaceholder = true, unitPrice = 500, qty = 1, profit = 0, discount = 0,
+      tier = "WATCH", action = "Check", priceUnknown = false,
+    }))
+    assert.is_false(row.buy.shown)
+
+    -- Simulates applyColumnVisibility's re-layout pass over every pooled row (e.g. triggered by
+    -- the check panel opening/closing at WIN.PANEL_SHIFT_MIN).
+    ctx.layoutRow(row)
+
+    assert.is_false(row.buy.shown,
+      "a watching row's Buy button must stay hidden across a column re-layout")
+    assert.is_false(row.buy.enabled,
+      "a watching row's Buy button must stay disabled across a column re-layout")
   end)
 
   -- Fix 3: a pin placeholder (renderList's fabricated row for a pin that fell out of the deals

@@ -68,8 +68,9 @@ WIN.RESIZE_MAX_WIDTH = 1100
 -- stack = 416. The drawer itself is (window height - CH.TITLEBAR(32)); smallest multiple of 10
 -- such that (RESIZE_MIN_HEIGHT - 32) - 416 >= 8 (an 8px safety margin, not zero-clearance) is
 -- 460: 460 - 32 = 428, 428 - 416 = 12 >= 8. The F5 details-open guard (applyDetailsState) still
--- refuses at this floor by a wide margin -- it needs DG.FIXED_HEIGHT_OPEN(562) +
--- diagnosticGaps(8) + diagnosticMinimumHeight(36) = 606, and the drawer here is only 428.
+-- refuses at this floor by a wide margin -- it needs DG.FIXED_HEIGHT_OPEN(562) alone for the
+-- default (debug off) player, or +diagnosticGaps(8)+diagnosticMinimumHeight(36) = 606 once
+-- GC.db.settings.sniper.debug is on, and the drawer here is only 428 either way.
 WIN.RESIZE_MIN_HEIGHT = 460
 WIN.RESIZE_MAX_HEIGHT = 900
 
@@ -81,12 +82,19 @@ WIN.CONTENT_LEFT = WIN.RAIL_W + Theme.pad.m   -- content starts right of the rai
 WIN.CONTENT_RIGHT_GUTTER = 32
 
 -- The check panel (DG.WIDTH, a 320px sheet -- see createDialog) shifts the deals list aside
--- only when the window is wide enough to fit both without crushing either -- below this the
--- panel overlays instead (see applyPanelInset in createFrame). The docked-in-the-AH host is
--- ~805px wide, comfortably under this floor, so it always keeps the overlay.
-WIN.PANEL_SHIFT_MIN = 900
+-- only when the window is wide enough to fit both without crushing the item column below its
+-- own declared min (COLUMNS.item.min = 180) -- below this floor the panel overlays instead
+-- (see applyPanelInset in createFrame). Derived, not guessed: contentWidth = window width -
+-- WIN.CONTENT_LEFT(88) - WIN.CONTENT_RIGHT_GUTTER(32) - inset(DG.WIDTH(320) + Theme.pad.m(12)
+-- = 332); with both optional columns dropped the fixed-column budget is 356 (fixedColumnBudget
+-- above: tier 48 + disc 56 + unit 76 + profit 84 + buy 52 = 316, plus 5 * Theme.pad.s(8) = 40),
+-- so item = contentWidth - 356, and item >= 180 needs contentWidth >= 536, i.e. window width >=
+-- 88 + 32 + 332 + 356 + 180 = 988 -- rounded up to 990. The docked-in-the-AH host is 792px wide
+-- (AuctionHouseFrame's own 806px, minus the dock's 7px inset on each side), well under this
+-- floor, so it always keeps the overlay.
+WIN.PANEL_SHIFT_MIN = 990
 
-WIN.ICON_SIZE = 20 -- row/dialog item icon size; no Theme equivalent (Theme has no icon factory)
+WIN.ICON_SIZE = 20 -- row item icon size; no Theme equivalent (Theme has no icon factory)
 
 -- E.2 sortable headers -- unchanged mapping (only "tier"/"pct"/"price"/"profit" were ever
 -- sortable; the two columns COLUMNS adds for Sniper v3, unit/trend, stay inert like "buy").
@@ -837,11 +845,19 @@ local function setRowDeal(row, deal)
     -- row's own left-click handler (below) only fires when `row.buy:IsShown() and
     -- row.buy:IsEnabled()`, so a hidden button already makes the whole row un-clickable with no
     -- second guard needed.
+    --
+    -- Hide() alone is not enough: a column re-layout (applyColumnVisibility, triggered e.g. by
+    -- the check panel opening/closing) re-runs anchorColumns over every pooled row, and
+    -- anchorColumns unconditionally cell:Show()s every VISIBLE fixed column -- including this
+    -- one, since "buy" is a fixed column, never one of the responsive optional ones a re-layout
+    -- can drop. Disable() keeps the button inert even where layoutRow's own placeholder re-Hide
+    -- (below) is bypassed or raced.
     row.buy:Hide()
+    row.buy:Disable()
     row:SetAlpha(0.55)
   else
     row:SetAlpha(1)
-    row.buy:Show() -- undo the placeholder branch's Hide() for a pooled row reused after one
+    row.buy:Show() -- undo the placeholder branch's Hide() for a pooled row reused after a placeholder
     row.buy:Enable()
     if verdict and verdict.buyable then
       row.buy:SetLabel("Buy")
@@ -4529,7 +4545,17 @@ local function createDialog()
     -- silently spilling the grid past the drawer's actual bottom -- a lying toggle (says "open"
     -- while the rows are cut off) is worse than a plain refusal. This runs AFTER the persist
     -- above on purpose (see that comment): only this session's visuals get forced shut.
-    if d.detailsOpen and d:GetHeight() < DG.FIXED_HEIGHT_OPEN + d.diagnosticGaps + d.diagnosticMinimumHeight then
+    --
+    -- (fix round, "docked SHOW DETAILS dead") The diagnostic block (diagnosticGaps +
+    -- diagnosticMinimumHeight) is only ever laid out by resizeDialogDiagnostics's debugOn
+    -- branch -- a normal player draws nothing there. Reserving it here unconditionally made the
+    -- guard demand DG.FIXED_HEIGHT_OPEN(562) + 8 + 36 = 606 even for players who will never see
+    -- a diagnostic block at all, and the docked AH drawer (~565px, no resize handle) can never
+    -- clear that -- a dead toggle with an impossible instruction. Same predicate
+    -- resizeDialogDiagnostics itself reads, so the two can never disagree about what's reserved.
+    local debugOn = (cfg and cfg.debug) and true or false
+    if d.detailsOpen and d:GetHeight() < DG.FIXED_HEIGHT_OPEN
+        + (debugOn and (d.diagnosticGaps + d.diagnosticMinimumHeight) or 0) then
       d.detailsOpen = false
       setDialogStatus("Enlarge the window to see details")
     end
@@ -4843,6 +4869,9 @@ end
 
 layoutRow = function(row)
   local flexAnchor = anchorColumns(row, hiddenColumns, function(col) return row.cells[col.key] end)
+  -- anchorColumns shows every fixed cell unconditionally; a watching row (pin placeholder) has
+  -- no action to take, so hide the Buy button back down after the fact.
+  if row.deal and row.deal.pinPlaceholder then row.buy:Hide() end
   -- nameText is the one flexible widget, anchored on BOTH sides (icon's RIGHT, the first
   -- VISIBLE fixed column's LEFT via flexAnchor) so it soaks up whatever space is left over --
   -- this can never again drift out of sync with where the Buy button actually sits, since
