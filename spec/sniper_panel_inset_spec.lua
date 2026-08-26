@@ -27,6 +27,15 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     error("missing upvalue " .. wanted)
   end
 
+  local function getUpvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
   -- Copied from spec/loadorder_spec.lua's own stubFrame(): every widget method createFrame's
   -- real construction path touches, from Theme.Card/TitleBar/Rail/Button down to GC.Sell.Attach
   -- and GC.Sold.Attach. Kept as a per-spec double (addon/AGENTS.md: "when a widget starts
@@ -115,6 +124,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       EnableKeyboard = function() end,
       SetPropagateKeyboardInput = function() end,
       SetAutoFocus = function() end,
+      SetNumeric = function() end,
       SetMaxLetters = function() end,
       GetText = function() return "" end,
       ClearFocus = function() end,
@@ -362,6 +372,59 @@ describe("Sniper check panel inset (applyPanelInset)", function()
 
       -- Must not error just because no dialog has ever been constructed.
       frame.scripts.OnSizeChanged(frame, 1000)
+    end)
+  end)
+
+  -- Item 10 (addon polish batch): the F5 guard itself (openDialog's own createDialog closure,
+  -- ~4658-4715) only had SOURCE-TEXT coverage before this (sniper_dialog_verdict_spec.lua's
+  -- "Details toggle wiring (source)" describe) -- nothing actually drove a real dialog short
+  -- enough to trip it. createDialog() needs no purchase-flow plumbing (dialog stays the nil
+  -- module upvalue throughout, since this never goes through openDialog), so it is called
+  -- directly here, the same "real construction, not a synthetic double" approach as
+  -- applyPanelInset above.
+  describe("Evidence-grid F5 guard (real createDialog)", function()
+    it("closes the grid on a real dialog too short for it, even with a saved 'open' preference", function()
+      local _, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = true } } }
+
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local createDialog = getUpvalue(openDialog, "createDialog")
+
+      local d = createDialog()
+      assert.is_true(d.detailsOpen) -- construction seed: fits at its own just-set height
+
+      -- Simulate a real narrow/short window: GetHeight now comes back too small for
+      -- DG.FIXED_HEIGHT_OPEN, the way a drag-resize genuinely shrinks the dialog.
+      d.GetHeight = function() return 100 end
+      d.applyDetailsState(true)
+
+      assert.is_false(d.detailsOpen)
+    end)
+
+    -- Counterpart: proves the guard is genuinely height-gated, not just "any re-apply closes
+    -- it" -- without this, the test above could pass for the wrong reason.
+    it("keeps the grid open on a re-apply when the dialog is tall enough for it", function()
+      local _, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = true } } }
+
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local createDialog = getUpvalue(openDialog, "createDialog")
+
+      local d = createDialog()
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+
+      assert.is_true(d.detailsOpen)
     end)
   end)
 end)

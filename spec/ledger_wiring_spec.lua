@@ -213,6 +213,22 @@ describe("Ledger event wiring", function()
     assert.equal(1, _G.GoldCapDB.settings.sniper.dialogDetailsOpenVersion)
   end)
 
+  -- Item 10 (addon polish batch): explicit two-login proof, same shape as "a second load must
+  -- not widen again" above -- a player who turns the grid back off after the one-time migration
+  -- opened it must not be silently re-opened on their very next login.
+  it("does not flip a pre-rail save back open on a second login after the player closes it again", function()
+    _G.GoldCapDB = { settings = { sniper = { dialogDetailsOpen = false } } }
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap") -- migrates: false -> true, versioned
+    assert.is_true(_G.GoldCapDB.settings.sniper.dialogDetailsOpen)
+
+    _G.GoldCapDB.settings.sniper.dialogDetailsOpen = false -- the player's own real toggle-off
+    onEvent(nil, "ADDON_LOADED", "GoldCap") -- a second login must not re-open it
+
+    assert.is_false(_G.GoldCapDB.settings.sniper.dialogDetailsOpen)
+    assert.equal(1, _G.GoldCapDB.settings.sniper.dialogDetailsOpenVersion)
+  end)
+
   -- Once versioned, a player's own "off" choice (the toggle's real write) must survive --
   -- exactly the "never runs the tier migration twice" contract above, applied here.
   it("never re-opens a versioned dialogDetailsOpen, even if it is false", function()
