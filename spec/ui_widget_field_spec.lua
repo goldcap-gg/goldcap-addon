@@ -26,6 +26,7 @@ describe("widget fields the real client actually has", function()
     "GoldCap/UI/SettingsFrame.lua",
     "GoldCap/UI/Theme.lua",
     "GoldCap/UI/ImportDialog.lua",
+    "GoldCap/UI/CompanionDialog.lua",
     "GoldCap/UI/AuctionHouseTab.lua",
     "GoldCap/UI/Tooltip.lua",
     "GoldCap/UI/SellViewModel.lua",
