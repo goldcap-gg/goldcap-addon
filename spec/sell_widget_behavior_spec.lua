@@ -310,7 +310,10 @@ describe("Sell widget geometry and manual cost", function()
   -- fallback forever (only a manual Refresh cleared emptyAnswers), even though nothing else in
   -- the tab treats a one-off empty answer as permanent -- see EMPTY_ANSWER_AGE and
   -- uniqueQuoteItemIDs's own re-query staleness check just above where this lives.
-  it("shows the market-value fallback again once an empty answer goes stale", function()
+  -- MINOR-1 (fix round 1): STATUS now reads the same age-gated `emptyKnown` MARKET's fallback
+  -- decides from, so a stale empty answer can't leave MARKET showing "≈…" while STATUS still
+  -- insists "Nothing listed on the AH right now".
+  it("shows the market-value fallback again once an empty answer goes stale, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     set(render, "emptyAnswers", { [42] = 0 }) -- load()'s _G.time() returns 77 -- 77s old, past EMPTY_ANSWER_AGE (60)
@@ -321,17 +324,23 @@ describe("Sell widget geometry and manual cost", function()
     })
     assert.equal("≈10g", rows[1].cells.market.text)
     assert.is_true(rows[1].marketFallback)
+    assert.equal("Waiting for a live price", rows[1].cells.status.text)
   end)
 
   -- A stale empty answer becomes "due" for re-query (uniqueQuoteItemIDs), and the walk only
   -- ever has one request in flight (refresh.pending) -- while THIS item is the one being asked
   -- again, the row must not flicker fallback-in only to flicker back to a real answer moments
-  -- later.
-  it("keeps 'none' while the walk is actively re-querying a now-stale empty answer", function()
+  -- later. STATUS must stay consistent with MARKET here too: both still call it "none" known,
+  -- not stale-and-unknown, while the re-query is in flight.
+  it("keeps 'none' while the walk is actively re-querying a now-stale empty answer, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     set(render, "emptyAnswers", { [42] = 0 })
-    set(render, "refresh", { pending = { itemID = 42 } })
+    -- MINOR-4 (fix round 1): sets .pending on the REAL shared `refresh` table (real shape:
+    -- generation/phase/queue/index/pending/awaiting/drain) instead of replacing the whole
+    -- upvalue with a one-field double -- renderRows only happens to read `.pending` today, but
+    -- a double this thin is the "fakes richer than the real widget" trap in reverse.
+    upvalue(render, "refresh").pending = { itemID = 42 }
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -339,6 +348,7 @@ describe("Sell widget geometry and manual cost", function()
     })
     assert.equal("none", rows[1].cells.market.text)
     assert.is_false(rows[1].marketFallback)
+    assert.equal("Nothing listed on the AH right now", rows[1].cells.status.text)
   end)
 
   -- "Unknown · 1 partial · 37 missing" used to render in the same confident green as a real

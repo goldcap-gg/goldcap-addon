@@ -2312,7 +2312,11 @@ renderRows = function()
           -- player is holding sellable stock: say what is missing to price it.
           -- "Waiting" when the answer already arrived and was "nothing on sale"
           -- is a lie that reads as the addon being slow -- name the real state.
-          if p.displayMarketUnit == nil and emptyAnswers[p.itemID] then
+          -- MINOR-1 (fix round 1): reuses the same age-gated `emptyKnown` the MARKET column
+          -- decides its fallback from, above -- a bare `emptyAnswers[p.itemID]` here disagreed
+          -- with MARKET once the answer went stale (MARKET said "≈…", STATUS still said
+          -- "Nothing listed").
+          if p.displayMarketUnit == nil and emptyKnown then
             row.cells.status:SetText("Nothing listed on the AH right now")
           else
             row.cells.status:SetText("Waiting for a live price")
