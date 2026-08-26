@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.4.0 (unreleased)
+## 0.4.0 (2026-08-26)
 
 - **Left navigation rail replaces the tab row.** Deals, Sell, and Sold are now
   big icon buttons running down a rail on the window's left edge — with a
