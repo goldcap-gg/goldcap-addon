@@ -2512,7 +2512,6 @@ renderRows = function()
       local zc2 = Theme.color.zebra
       row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
       if entry.kind == "position" then
-        row.itemInset = 26
         row.spine:Hide()
         row.divider:Show()
         row.zebra:Show()
@@ -2526,6 +2525,10 @@ renderRows = function()
           local ok, texture = pcall(C_Item.GetItemIconByID, p.itemID)
           icon = ok and texture or nil
         end
+        -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old
+        -- unconditional 26 left the name floating in a blank gap for a row with no
+        -- resolvable icon.
+        row.itemInset = icon and 26 or 0
         if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
       else
         row.itemInset = 34

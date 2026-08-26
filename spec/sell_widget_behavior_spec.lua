@@ -194,6 +194,31 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_false(rows[1].notOnHand)
   end)
 
+  -- Item 4 (addon polish batch): row.itemInset used to be set to 26 unconditionally, before the
+  -- icon lookup even ran -- a position with no resolvable icon (no _G.C_Item stub, the default
+  -- in every fixture in this file) showed the item name indented into a blank gap.
+  it("does not indent the item name when no icon resolves", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+    })
+    assert.equal(0, rows[1].itemInset)
+  end)
+
+  it("indents the item name for the icon's width when one resolves", function()
+    _G.C_Item = { GetItemIconByID = function() return "Interface\\Icons\\INV_Misc_Ore_01" end }
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+    })
+    assert.equal(26, rows[1].itemInset)
+    _G.C_Item = nil
+  end)
+
   -- I2 (fix wave, sell honesty): an unresolved position (unassigned_acquisition/
   -- pending_purchase/paid_sale/ambiguous_sale, see Core/SellPositions.lua) has no stock to be
   -- "elsewhere" -- there IS no batch/lot backing it yet, so the mail/bank/alt claim above would

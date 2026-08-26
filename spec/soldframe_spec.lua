@@ -381,6 +381,29 @@ describe("SoldFrame", function()
     assert.truthy(colorEquals(loseRow.cells.profit.colorValue, GC.Theme.color.red))
   end)
 
+  -- Item 4 (addon polish batch): row.itemInset used to be set to 26 unconditionally, before
+  -- paintSaleCells even attempted the icon lookup -- a sale/position with no resolvable icon
+  -- (no itemID, or C_Item.GetItemIconByID returning nothing, which is every row in this spec
+  -- file's default fixtures since _G.C_Item is never stubbed) showed the item name indented
+  -- into a blank gap with nothing to justify it.
+  it("does not indent the item name when no icon resolves", function()
+    GC.AppLedger.GetSummary = function() return summary() end -- default fixture: no _G.C_Item stub
+    GC.Sold.RefreshIfShown()
+    local row = rowWithText("Server Ore")
+    assert.truthy(row)
+    assert.equal(0, row.itemInset)
+  end)
+
+  it("indents the item name for the icon's width when one resolves", function()
+    _G.C_Item = { GetItemIconByID = function() return "Interface\\Icons\\INV_Misc_Ore_01" end }
+    GC.AppLedger.GetSummary = function() return summary() end
+    GC.Sold.RefreshIfShown()
+    local row = rowWithText("Server Ore")
+    assert.truthy(row)
+    assert.equal(26, row.itemInset)
+    _G.C_Item = nil
+  end)
+
   it("shows the WHEN column as a formatted date, or a dim 'in the mail' while pending", function()
     -- Same honesty the old inline "[not yet paid out]" suffix carried: the
     -- sale exists, the gold is just in transit -- now the WHEN column's own

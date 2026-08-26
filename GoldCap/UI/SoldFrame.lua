@@ -303,12 +303,14 @@ local function paintSaleCells(row, name, itemID, qty, total, at, pending)
   -- Item icon, same guarded C_Item.GetItemIconByID call SellFrame's position
   -- rows use -- headless/pcall-safe, no icon rather than an error when the
   -- client doesn't have one cached yet.
-  row.itemInset = 26
   local icon = nil
   if itemID and C_Item and C_Item.GetItemIconByID then
     local ok, texture = pcall(C_Item.GetItemIconByID, itemID)
     icon = ok and texture or nil
   end
+  -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old unconditional
+  -- 26 left the name floating in a blank gap for a row with no resolvable icon.
+  row.itemInset = icon and 26 or 0
   if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
 
   -- The sale exists, the gold is just in transit -- same honesty the old
