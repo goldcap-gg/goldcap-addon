@@ -4998,8 +4998,12 @@ local function resetAllPurchases()
   end
   -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own
   -- OnLeave, so clear the hover pin here too -- otherwise it could sit pinned to a hidden
-  -- row across the next Auction House session.
-  hoveredRow = nil
+  -- row across the next Auction House session. clearHover() (fix round 1, IMPORTANT-2): a
+  -- bare `hoveredRow = nil` released the pin but left the row's highlight/rail textures
+  -- painted -- nothing else ever hides `row.highlight` (setRowDeal only touches `rail`), so a
+  -- row left hovered when the AH closes kept a permanent gold wash until hovered and left
+  -- again.
+  clearHover()
   if dialog then
     dialog.row = nil
     requoteArmToken = requoteArmToken + 1 -- invalidate any countdown still in flight

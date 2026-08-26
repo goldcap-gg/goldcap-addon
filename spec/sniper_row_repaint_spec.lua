@@ -656,9 +656,13 @@ describe("Sniper window OnHide clears the hover pin", function()
       SetMovable = function() end,
       EnableMouse = function() end,
       RegisterForDrag = function() end,
-      Show = function() end,
-      Hide = function() end,
-      IsShown = function() return false end,
+      -- Stateful (unlike sniper_panel_inset_spec.lua's own copy of this double, which never
+      -- needs to read Show/Hide back): fix round 1's IMPORTANT-2 case asserts a texture's
+      -- shown state after clearHover() runs.
+      shown = false,
+      Show = function(self) self.shown = true end,
+      Hide = function(self) self.shown = false end,
+      IsShown = function(self) return self.shown end,
       SetText = function() end,
       SetTexture = function() end,
       SetTextColor = function() end,
@@ -867,5 +871,40 @@ describe("Sniper window OnHide clears the hover pin", function()
     local frame = buildFrame()
 
     assert.has_no.errors(function() frame.scripts.OnHide(frame) end)
+  end)
+
+  -- Fix round 1, IMPORTANT-2: resetAllPurchases() (run from the real AH-close path,
+  -- GC.Sniper.OnAuctionHouseClosed) used to release the pin with a bare `hoveredRow = nil`,
+  -- leaving row.highlight/rail painted -- nothing else ever hides row.highlight (setRowDeal
+  -- only ever touches rail), so a row left hovered when the AH closes kept a permanent gold
+  -- wash until it was hovered and left again.
+  it("hides the hovered row's highlight on the AH-close/reset path, and lets refreshRows repaint it", function()
+    local _, GC = buildFrame()
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local renderList = getUpvalue(refreshRows, "renderList")
+    local sortedDeals = getUpvalue(renderList, "sortedDeals")
+    local deals = getUpvalue(sortedDeals, "deals")
+    local rows = getUpvalue(refreshRows, "rows")
+
+    deals[1234] = { itemID = 1234, unitPrice = 1000, qty = 1, profit = 100, discount = 0.1, tier = "GOOD" }
+    refreshRows()
+    local row = rows[1]
+    assert.is_not_nil(row)
+
+    row.scripts.OnEnter(row) -- hovers it -- highlight shown, hoveredRow pinned to this row
+    assert.is_true(row.highlight:IsShown())
+
+    GC.Sniper.OnAuctionHouseClosed() -- the real AH-close path: resetAllPurchases() -> clearHover()
+
+    assert.is_false(row.highlight:IsShown())
+
+    -- The pin is released too, so a fresh render is free to repaint this pooled row into
+    -- whatever comes next (OnAuctionHouseClosed's own clearDeals() already wiped `deals`,
+    -- matching a real AH close).
+    deals[5678] = { itemID = 5678, unitPrice = 2000, qty = 1, profit = 200, discount = 0.2, tier = "GOOD" }
+    refreshRows()
+
+    assert.are.equal(5678, row.deal.itemID)
   end)
 end)
