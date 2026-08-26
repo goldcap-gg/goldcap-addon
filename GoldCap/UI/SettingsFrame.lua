@@ -340,10 +340,10 @@ end
 --
 -- Batch 5: the default geometry comes straight from GC.Sniper.DefaultWindowSize() (SniperFrame
 -- .lua, next to its other GC.Sniper.* exports) instead of a mirrored local constant here -- this
--- file used to carry its own DEFAULT_WINDOW_WIDTH/HEIGHT = 640, 520, and that copy had already
--- gone stale (SniperFrame.lua's real default had moved to 720x520) with nothing to catch the
--- drift. Reading the live table field instead of a second copy makes that class of bug
--- impossible.
+-- file used to carry its own DEFAULT_WINDOW_WIDTH/HEIGHT, and that copy had already gone stale
+-- against SniperFrame.lua's real WIN.FRAME_WIDTH/HEIGHT with nothing to catch the drift. Reading
+-- the live values through the function instead of a second copy makes that class of bug
+-- impossible -- whatever WIN.FRAME_WIDTH/HEIGHT are today, this always matches.
 local function resetWindow()
   local c = cfg()
   if c then c.window = nil end
