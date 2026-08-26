@@ -259,6 +259,10 @@ describe("TOC load order", function()
       chunk("GoldCap", GC)
     end
 
+    -- Item 6 (addon polish batch): a second, shorter slash alias -- both strings share the
+    -- same SlashCmdList.GOLDCAP handler, no new command-table entry needed.
+    assert.equal("/goldcap", _G.SLASH_GOLDCAP1)
+    assert.equal("/gc", _G.SLASH_GOLDCAP2)
     assert.is_function(GC.slashHandlers.import)
     assert.is_function(GC.slashHandlers.status)
     assert.is_function(GC.UI.ShowImportDialog)
@@ -303,6 +307,7 @@ describe("TOC load order", function()
     _G.C_AddOns = nil
     _G.GoldCap_MarketData = nil
     _G.SLASH_GOLDCAP1 = nil
+    _G.SLASH_GOLDCAP2 = nil
     _G.hooksecurefunc = nil
     _G.GetTime = nil
     _G.PlaySound = nil

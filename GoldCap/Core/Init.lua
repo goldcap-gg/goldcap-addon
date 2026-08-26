@@ -476,7 +476,7 @@ function GC.OnSlash(msg)
   if handler then
     handler()
   else
-    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger")
+    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)")
   end
 end
 
@@ -546,4 +546,7 @@ GC.slashHandlers.sales = function()
 end
 
 SLASH_GOLDCAP1 = "/goldcap"
+-- Item 6 (addon polish batch): a second, shorter alias -- both strings share the same command
+-- table entry, no handler change needed.
+SLASH_GOLDCAP2 = "/gc"
 SlashCmdList.GOLDCAP = GC.OnSlash
