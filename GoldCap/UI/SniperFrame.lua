@@ -1143,28 +1143,63 @@ end
 -- after every full scan completes (deals are the moment the player is about to act on
 -- prices, so that's when staleness should be freshest), not on a timer -- the age only
 -- matters at those decision points.
+--
+-- Companion nudge: GC.Data.OriginState() ("none"|"manual"|"app") is the one source of truth
+-- for where these prices came from (Core/Data.lua). "none" and "manual" both point the player
+-- at the free Companion (/goldcap companion) rather than leading with the manual paste, and
+-- the banner itself becomes a click target for the same dialog -- see the lazily-built
+-- frame.staleHit region below. "app" data already comes from the Companion, so its wording
+-- and lack of a click target are both unchanged.
 local function refreshStaleText()
   if not frame or not frame.staleText then return end
+  -- Lazily built once: an invisible hit-region tracking staleText's own bounds (FontString/
+  -- Texture objects can't take mouse scripts themselves -- same pattern as createHeaderRow's
+  -- header hit-frames and the purchase dialog's itemHit). EnableMouse is re-set on every
+  -- refresh below rather than at construction, since it depends on the current origin.
+  if not frame.staleHit then
+    local hit = CreateFrame("Frame", nil, frame)
+    hit:SetAllPoints(frame.staleText)
+    hit:SetScript("OnMouseUp", function() GC.CompanionUI.Show() end)
+    frame.staleHit = hit
+  end
+
   local age = importAgeSeconds()
-  -- Companion sync (Task A): db.imported.origin == "app" means Core/Data.lua's
-  -- AdoptAppData loaded this data from GoldCap_AppData rather than a manual paste --
-  -- thresholds/colors below are unchanged, only the label differs.
-  local isAppData = GC.db and GC.db.imported and GC.db.imported.origin == "app"
-  if not age then
-    frame.staleText:SetText("no import -- /goldcap import")
+  local origin = GC.Data.OriginState()
+  frame.staleHit:EnableMouse(origin ~= "app")
+
+  if origin == "none" then
+    frame.staleText:SetText("no prices yet -- install GoldCap Companion (/goldcap companion) or /goldcap import")
     frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
-  elseif age < LIM.STALE_YELLOW_SECONDS then
-    frame.staleText:Hide()
-  elseif age < LIM.STALE_RED_SECONDS then
-    local label = isAppData and "auto-synced %dh ago" or "import %dh old"
-    frame.staleText:SetText(label:format(math.floor(age / 3600)))
-    frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
-    frame.staleText:Show()
-  else
-    frame.staleText:SetText(isAppData and "auto-synced data stale -- /goldcap import" or "import stale -- /goldcap import")
-    frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-    frame.staleText:Show()
+  elseif origin == "app" then
+    if age < LIM.STALE_YELLOW_SECONDS then
+      frame.staleText:Hide()
+    elseif age < LIM.STALE_RED_SECONDS then
+      frame.staleText:SetText(("auto-synced %dh ago"):format(math.floor(age / 3600)))
+      frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
+      frame.staleText:Show()
+    else
+      frame.staleText:SetText("auto-synced data stale -- /goldcap import")
+      frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+      frame.staleText:Show()
+    end
+  else -- manual
+    if age < LIM.STALE_YELLOW_SECONDS then
+      -- Fresh manual data used to hide the banner entirely; it now stays up, dim, as the
+      -- nudge toward the Companion -- the whole point is that "fresh" here still means
+      -- "will go stale on its own", unlike auto-synced data.
+      frame.staleText:SetText("manual import -- Companion keeps this fresh: /goldcap companion")
+      frame.staleText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      frame.staleText:Show()
+    elseif age < LIM.STALE_RED_SECONDS then
+      frame.staleText:SetText(("import %dh old"):format(math.floor(age / 3600)))
+      frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
+      frame.staleText:Show()
+    else
+      frame.staleText:SetText("import stale -- /goldcap import or /goldcap companion")
+      frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
+      frame.staleText:Show()
+    end
   end
 end
 
