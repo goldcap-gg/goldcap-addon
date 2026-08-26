@@ -120,6 +120,18 @@ function GC.Data.GetStatus()
   }
 end
 
+-- One source of truth for "where did these prices come from" -- used by the Sniper header,
+-- the empty-board copy and the stale-import warning so they agree with each other and with
+-- GC.Data.GetStatus()'s importedOrigin field. Mirrors ImportDialog's slash-status rule: a
+-- nil origin marker (SavedVariables written before the marker existed, or a manual paste,
+-- which always wins the marker back to nil-equivalent "manual") reads the same as "manual".
+function GC.Data.OriginState()
+  local imp = db and db.imported
+  if not imp or not imp.ts then return "none" end
+  if imp.origin == "app" then return "app" end
+  return "manual"
+end
+
 function GC.Data.GetWatchlist(fallbackN)
   local imp = db and db.imported
   if not imp then return {} end

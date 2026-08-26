@@ -130,6 +130,26 @@ describe("Data", function()
     assert.equal(2, st.bundledCount)
   end)
 
+  describe("OriginState", function()
+    it("reports none when nothing has been imported", function()
+      assert.equal("none", GC.Data.OriginState())
+    end)
+
+    it("reports manual after a manual paste (nil origin marker)", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 1 } }, watchlist = {} })
+      assert.equal("manual", GC.Data.OriginState())
+    end)
+
+    it("reports app after the companion adopts its data", function()
+      _G.GoldCap_AppData = {
+        importString = "GCS1;eu;silvermoon;2000;I:42=4000=3",
+      }
+      GC.Data.AdoptAppData()
+      assert.equal("app", GC.Data.OriginState())
+    end)
+  end)
+
   it("falls back to us when the portal cvar is unavailable", function()
     _G.GetCVar = nil
     local GC2 = helper.loadModule("Core/Util.lua")
