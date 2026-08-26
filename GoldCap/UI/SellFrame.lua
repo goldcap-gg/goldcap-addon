@@ -2220,8 +2220,21 @@ renderRows = function()
         -- answer (an empty one included -- the AH answered "none", which outranks a guess from
         -- the last import), but showing it beats a "—" that reads as "the addon hasn't checked
         -- yet" for as long as the pricing walk takes to reach this row.
+        -- Item 5 (addon polish batch): a bare `emptyAnswers[p.itemID]` presence check made a
+        -- ONE-OFF empty AH answer hide the fallback forever -- only a manual Refresh (which
+        -- wipes emptyAnswers outright) brought it back. Age-gate it the same way
+        -- uniqueQuoteItemIDs already does for re-query eligibility, so a stale empty answer
+        -- lets the fallback show again instead of only a fresh one suppressing it. While the
+        -- walk is actively re-querying THIS exact item (refresh.pending, the walk's one
+        -- in-flight slot), keep "none" rather than flicker the fallback in for the few seconds
+        -- until the real (still probably empty) answer lands.
+        local answeredEmptyAt = emptyAnswers[p.itemID]
+        local answeredEmptyFresh = type(answeredEmptyAt) == "number"
+          and (time() - answeredEmptyAt) <= EMPTY_ANSWER_AGE
+        local requeryingThis = refresh.pending and refresh.pending.itemID == p.itemID
+        local emptyKnown = answeredEmptyFresh or requeryingThis
         local marketFallback = p.displayMarketUnit == nil and type(p.marketValue) == "number"
-          and p.marketValue > 0 and not emptyAnswers[p.itemID]
+          and p.marketValue > 0 and not emptyKnown
         row.marketFallback = marketFallback
         local marketText
         if p.displayMarketUnit then
@@ -2229,7 +2242,7 @@ renderRows = function()
         elseif marketFallback then
           marketText = "≈" .. formatCell(p.marketValue)
         else
-          marketText = emptyAnswers[p.itemID] and "none" or "—"
+          marketText = emptyKnown and "none" or "—"
         end
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
           marketText = marketText .. (" · stale %ds"):format(p.quoteAge)

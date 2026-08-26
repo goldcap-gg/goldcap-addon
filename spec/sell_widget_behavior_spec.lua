@@ -303,6 +303,41 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_false(rows[1].marketFallback)
   end)
 
+  -- Item 5 (addon polish batch): a one-off empty AH answer used to hide the market-value
+  -- fallback forever (only a manual Refresh cleared emptyAnswers), even though nothing else in
+  -- the tab treats a one-off empty answer as permanent -- see EMPTY_ANSWER_AGE and
+  -- uniqueQuoteItemIDs's own re-query staleness check just above where this lives.
+  it("shows the market-value fallback again once an empty answer goes stale", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "emptyAnswers", { [42] = 0 }) -- load()'s _G.time() returns 77 -- 77s old, past EMPTY_ANSWER_AGE (60)
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
+    })
+    assert.equal("≈10g", rows[1].cells.market.text)
+    assert.is_true(rows[1].marketFallback)
+  end)
+
+  -- A stale empty answer becomes "due" for re-query (uniqueQuoteItemIDs), and the walk only
+  -- ever has one request in flight (refresh.pending) -- while THIS item is the one being asked
+  -- again, the row must not flicker fallback-in only to flicker back to a real answer moments
+  -- later.
+  it("keeps 'none' while the walk is actively re-querying a now-stale empty answer", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "emptyAnswers", { [42] = 0 })
+    set(render, "refresh", { pending = { itemID = 42 } })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED", marketValue = 100000 },
+    })
+    assert.equal("none", rows[1].cells.market.text)
+    assert.is_false(rows[1].marketFallback)
+  end)
+
   -- "Unknown · 1 partial · 37 missing" used to render in the same confident green as a real
   -- profit, which read as a number the addon stood behind. A non-number is an absence: dim.
   it("paints a non-numeric summary profit dim instead of a confident green", function()
