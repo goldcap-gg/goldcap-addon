@@ -43,6 +43,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
         EnableMouse = function(self, v) self.mouseEnabled = v end,
         SetScript = function(self, ev, fn) self.scripts[ev] = fn end,
         SetAllPoints = function(self, rel) self.allPointsTarget = rel end,
+        RegisterForDrag = function(self, button) self.dragButton = button end,
       }
     end
 
@@ -71,7 +72,14 @@ describe("Sniper stale-text banner (companion nudge)", function()
     helper.loadModule("Core/WatchSet.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
-    staleFrame = { staleText = fontString() }
+    -- IsMovable/StartMoving/StopMovingOrSizing back the drag-forwarding the hit region does
+    -- (I-1): a docked window flips movable off, so moving() must not be called unconditionally.
+    staleFrame = {
+      staleText = fontString(), movable = true, movingCalled = false, stoppedCalled = false,
+      IsMovable = function(self) return self.movable end,
+      StartMoving = function(self) self.movingCalled = true end,
+      StopMovingOrSizing = function(self) self.stoppedCalled = true end,
+    }
     set(GC.Sniper.OnAuctionHouseShow, "frame", staleFrame)
 
     return GC
@@ -96,8 +104,35 @@ describe("Sniper stale-text banner (companion nudge)", function()
     assert.same({ 1, 0, 0 }, staleFrame.staleText.colors)
     assert.is_true(staleFrame.staleText.shown)
     assert.is_true(staleFrame.staleHit.mouseEnabled)
-    staleFrame.staleHit.scripts.OnMouseUp()
+    staleFrame.staleHit.scripts.OnMouseUp(staleFrame.staleHit, "LeftButton")
     assert.is_true(companionShown)
+  end)
+
+  it("ignores a right-click on the banner", function()
+    local GC = loadSniper()
+    origin = "none"
+    refresh(GC)
+    staleFrame.staleHit.scripts.OnMouseUp(staleFrame.staleHit, "RightButton")
+    assert.is_false(companionShown)
+  end)
+
+  it("forwards drag on the hit region to the window's own move, guarded by IsMovable", function()
+    local GC = loadSniper()
+    origin = "none"
+    refresh(GC)
+    assert.equal("LeftButton", staleFrame.staleHit.dragButton)
+
+    staleFrame.staleHit.scripts.OnDragStart()
+    assert.is_true(staleFrame.movingCalled)
+    staleFrame.staleHit.scripts.OnDragStop()
+    assert.is_true(staleFrame.stoppedCalled)
+
+    -- Docked mode (SetDocked) flips SetMovable off -- StartMoving on an immovable frame is a
+    -- Lua error, not a no-op, so the hit region must check IsMovable() first.
+    staleFrame.movable = false
+    staleFrame.movingCalled = false
+    staleFrame.staleHit.scripts.OnDragStart()
+    assert.is_false(staleFrame.movingCalled)
   end)
 
   it("shows a dim companion nudge for a fresh manual import instead of hiding", function()

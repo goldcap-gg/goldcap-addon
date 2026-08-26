@@ -1159,7 +1159,18 @@ local function refreshStaleText()
   if not frame.staleHit then
     local hit = CreateFrame("Frame", nil, frame)
     hit:SetAllPoints(frame.staleText)
-    hit:SetScript("OnMouseUp", function() GC.CompanionUI.Show() end)
+    hit:SetScript("OnMouseUp", function(_, button)
+      if button == "LeftButton" then GC.CompanionUI.Show() end
+    end)
+    -- The banner sits inside the 32px title bar, right-justified against the close button, so
+    -- an EnableMouse'd hit region here would otherwise swallow the title bar's own drag (see
+    -- Theme.TitleBar's `bar`, a sibling frame at the same level) for its whole width. Forward
+    -- drag exactly the way Theme.lua's TitleBar does, IsMovable guard included -- a docked
+    -- window (GC.Sniper.SetDocked) flips SetMovable off, and StartMoving on an immovable frame
+    -- is a Lua error, not a no-op.
+    hit:RegisterForDrag("LeftButton")
+    hit:SetScript("OnDragStart", function() if frame:IsMovable() then frame:StartMoving() end end)
+    hit:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
     frame.staleHit = hit
   end
 
