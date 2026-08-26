@@ -1165,10 +1165,18 @@ local function refreshStaleText()
 
   local age = importAgeSeconds()
   local origin = GC.Data.OriginState()
+  -- Defensive: OriginState() and importAgeSeconds() both read GC.db.imported.ts today, so a
+  -- non-"none" origin with no age should never happen -- but nothing enforces that invariant
+  -- across the two functions, and "attempt to compare nil with number" below would be an ugly
+  -- way to find out it broke. Treat the divergence as "none" rather than raising.
+  if origin ~= "none" and not age then origin = "none" end
   frame.staleHit:EnableMouse(origin ~= "app")
 
   if origin == "none" then
-    frame.staleText:SetText("no prices yet -- install GoldCap Companion (/goldcap companion) or /goldcap import")
+    -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
+    -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
+    -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
+    frame.staleText:SetText("no prices yet -- /goldcap companion or /goldcap import")
     frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
     frame.staleText:Show()
   elseif origin == "app" then

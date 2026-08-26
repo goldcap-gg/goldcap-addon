@@ -89,7 +89,9 @@ describe("Sniper stale-text banner (companion nudge)", function()
     local GC = loadSniper()
     origin = "none"
     refresh(GC)
-    assert.equal("no prices yet -- install GoldCap Companion (/goldcap companion) or /goldcap import",
+    -- Short enough to fit the non-wrapping, right-justified banner at the window's
+    -- RESIZE_MIN_WIDTH (640): the old, longer wording risked overlapping the title.
+    assert.equal("no prices yet -- /goldcap companion or /goldcap import",
       staleFrame.staleText.text)
     assert.same({ 1, 0, 0 }, staleFrame.staleText.colors)
     assert.is_true(staleFrame.staleText.shown)
@@ -133,6 +135,16 @@ describe("Sniper stale-text banner (companion nudge)", function()
     refresh(GC)
     assert.equal("auto-synced data stale -- /goldcap import", staleFrame.staleText.text)
     assert.is_false(staleFrame.staleHit.mouseEnabled)
+  end)
+
+  it("falls back to the none rendering if OriginState disagrees with the age math (defensive)", function()
+    local GC = loadSniper()
+    origin = "manual" -- no GC.db.imported set, so importAgeSeconds() is nil -- a divergence
+    -- that should never happen given OriginState's own contract, but must not raise "compare
+    -- nil with number" if it ever does.
+    refresh(GC)
+    assert.equal("no prices yet -- /goldcap companion or /goldcap import", staleFrame.staleText.text)
+    assert.is_true(staleFrame.staleHit.mouseEnabled)
   end)
 
   it("still hides fresh app-synced data, not clickable", function()
