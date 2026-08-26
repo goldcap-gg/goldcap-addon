@@ -5584,7 +5584,7 @@ local function createFrame()
   -- Chrome: Theme.TitleBar owns the drag region (title bar only, not the whole window),
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, "GoldCap Sniper")
-  f.gearBtn, f.closeBtn = titleBar.gear, titleBar.close
+  f.closeBtn = titleBar.close
   -- Kept as a field so docked mode (GC.Sniper.SetDocked below) can blank the duplicate
   -- chrome: inside the auction house the AH frame already provides the title and the close.
   f.titleBar = titleBar
@@ -5624,6 +5624,10 @@ local function createFrame()
   -- other callers, this window just doesn't show two of them.
   titleBar.gear:Hide()
   rail.gear:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
+  -- Item 8 (addon polish batch): point the field at the live control, not the hidden
+  -- title-bar one just above -- a trap for future code reading f.gearBtn expecting a wired
+  -- Settings button.
+  f.gearBtn = rail.gear
 
   -- Theme.TitleBar anchors the title at the window's own LEFT edge, which the rail now covers
   -- (it owns x in [0, RAIL_W]) -- without this the title text renders underneath/behind the

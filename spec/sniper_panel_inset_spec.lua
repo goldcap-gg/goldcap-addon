@@ -296,6 +296,17 @@ describe("Sniper check panel inset (applyPanelInset)", function()
     assert.are.equal(0, frame.panelInset)
   end)
 
+  -- Item 8 (addon polish batch): Settings moved to rail.gear when the nav rail replaced the tab
+  -- row -- titleBar.gear is hidden immediately after (createFrame's own comment: "TitleBar
+  -- still builds its gear for other callers, this window just doesn't show two of them"), so
+  -- f.gearBtn pointing at it was a hidden, unwired control -- a trap for future code that reads
+  -- it expecting a live Settings button.
+  it("points gearBtn at the live rail gear, not the hidden title-bar one", function()
+    local frame = buildFrame()
+    assert.is_truthy(frame.rail and frame.rail.gear)
+    assert.equal(frame.rail.gear, frame.gearBtn)
+  end)
+
   -- Fix wave (check panel v2 review): an open evidence grid painted its rows straight over
   -- BUY/CANCEL when the window shrank to the 470 floor (no SetClipsChildren anywhere), and
   -- enlarging again after the F5 refusal needed a manual toggle click. createFrame's own
