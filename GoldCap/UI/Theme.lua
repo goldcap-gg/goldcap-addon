@@ -221,7 +221,6 @@ function T.RailButton(parent, iconFile, labelText)
   b:SetScript("OnEnable", function() b.highlightTexture:SetAlpha(1) end)
 
   b.badge = CreateFrame("Frame", nil, b)
-  b.badge:SetHeight(14)
   b.badge:SetPoint("TOPRIGHT", -4, -4)
   -- badge.png/BADGE_SLICE, not card.png/CARD_SLICE or plaque.png/PLAQUE_SLICE: the badge is
   -- 14px tall and both of those margins exceed half that (see BADGE_SLICE's own comment).
@@ -238,6 +237,9 @@ function T.RailButton(parent, iconFile, labelText)
     if count then
       b.badge.text:SetText(tostring(count))
       b.badge:SetWidth((14 + 6 * #tostring(count)) * T.Scale())
+      -- Item 7 (addon polish batch): height scales the same way -- it used to stay a fixed 14,
+      -- distorting the pill's aspect ratio at the font-scale slider's extremes.
+      b.badge:SetHeight(14 * T.Scale())
       b.badge:Show()
     else
       b.badge:Hide()

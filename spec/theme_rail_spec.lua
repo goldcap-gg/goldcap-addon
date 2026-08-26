@@ -81,6 +81,17 @@ describe("Theme.Rail navigation widgets", function()
     assert.same({ 6, 6, 6, 6 }, b.badge.bg.slice)
   end)
 
+  -- Item 7 (addon polish batch): SetBadge already scales the badge's WIDTH by T.Scale() (the
+  -- digit-count-dependent part), but its height stayed a fixed 14 -- at the 0.9x-1.3x
+  -- font-scale slider extremes the pill's aspect ratio no longer matched its own width.
+  it("RailButton: badge height scales with T.Scale() the same way its width already does", function()
+    GC.Theme.SetScale(1.3)
+    local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sell.png", "SELL")
+    b:SetBadge(3)
+    assert.equal(14 * 1.3, b.badge.height)
+    GC.Theme.SetScale(1.0)
+  end)
+
   it("RailButton: hover is the engine HIGHLIGHT layer on a mouse-enabled button", function()
     local b = GC.Theme.RailButton(stubFrame(), GC.Theme.MEDIA .. "icon_sold.png", "SOLD")
     assert.is_true(b.mouseEnabled)
