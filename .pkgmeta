@@ -24,6 +24,8 @@ ignore:
   - addon/CHANGELOG.md
   - addon/README.md
   - addon/spec
+  - addon/store
+  - addon/STORE.md
   - addon/tools
   - addon/.busted
   - addon/.luacheckrc
