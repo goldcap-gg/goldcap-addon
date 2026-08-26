@@ -4918,6 +4918,12 @@ local function openDialog(row, deal)
     end
     if dialog.verdictAmount then
       dialog.verdictAmount:SetText("—")
+      -- Item 3 (addon polish batch): the dialog is a session-long singleton, and the refusal
+      -- branch above only Hides this widget -- it never resets its color, since a real refusal
+      -- has nothing to show at all. Without this, a dash left over from an earlier buyable
+      -- (green) check rendered CHECKING in leftover green, exactly like verdictLabel right
+      -- above already resets.
+      dialog.verdictAmount:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       dialog.verdictAmount:Show()
     end
     -- Fix round 1: caption goes with the amount, checking or not (see stampDialogFromDecision's

@@ -227,6 +227,57 @@ describe("Sniper buy dialog verdict block", function()
     assert.is_false(d.verdictAmountNote.shown) -- Fix round 1: not orphaned when the amount hides
   end)
 
+  -- Item 3 (addon polish batch): the dialog is a session-long singleton, and the refusal branch
+  -- above only Hides verdictAmount (never resets its color -- there is nothing to clear on a
+  -- real refusal, the amount is gone). openDialog's own CHECKING placeholder re-Shows it with a
+  -- neutral "--" but, before this fix, never re-tinted it, so a dash left over from an earlier
+  -- buyable (green) check rendered as a green "checking..." verdict -- reading as a live
+  -- positive verdict before the requote even lands.
+  it("keeps the CHECKING verdict amount dim, not leftover green from an earlier buyable check", function()
+    _G.GetTime = function() return 100 end
+    local GC, stamp = load()
+    local d = fakeDialog({
+      verdictLabel = fakeVerdictLabel(),
+      verdictAmount = fakeVerdictAmount(),
+      verdictAmountNote = fakeVerdictAmountNote(),
+      cancelBtn = { SetLabel = function() end, Enable = function() end },
+      primaryBtn = { Disable = function() end },
+      Show = function() end,
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    -- First dialog resolves buyable -- the real stamp path, same as the test above.
+    stamp({ itemID = 42 }, {
+      status = "SAFE", buyable = true, quantity = 1, entryTotal = 2000000,
+      stressProfit = 1000000, reasons = {},
+    })
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      d.verdictAmount.colors[#d.verdictAmount.colors])
+
+    -- Second dialog, a different deal, opened fresh (no .stale/.prewarm -- takes openDialog's
+    -- CHECKING branch). `dialog` is a shared upvalue across the whole file, so this is the
+    -- SAME fake `d` stamp just painted green.
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    setUpvalue(openDialog, "hideRequoteBanner", function() end)
+    setUpvalue(openDialog, "setDialogHeader", function() end)
+    setUpvalue(openDialog, "setPrimaryLabel", function() end)
+    setUpvalue(openDialog, "setDialogStatus", function() end)
+    setUpvalue(openDialog, "startRequery", function() end)
+
+    openDialog({}, { itemID = 43 })
+
+    assert.equal("—", d.verdictAmount.text)
+    assert.is_true(d.verdictAmount.shown)
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
+      d.verdictAmount.colors[#d.verdictAmount.colors])
+    _G.GetTime = nil
+  end)
+
   it("stamps the ENTRY AVG / STRESS EXIT cards from the same two values as the evidence grid, and swaps them for the suspect note on a SUSPECT tier", function()
     -- Check panel v2. The two amounts are owned by stampDialogFromDecision (same as
     -- unitPriceText/exitUnitText); which of the cards-vs-note pair is shown is owned by
