@@ -1,5 +1,77 @@
 # GoldCap
 
+## 0.4.0 (unreleased)
+
+- **Left navigation rail replaces the tab row.** Deals, Sell, and Sold are now
+  big icon buttons running down a rail on the window's left edge — with a
+  gear button for Settings — instead of the old three-word tab strip that
+  was easy to miss entirely.
+- **Rounded card look throughout.** The window frame, rows, chips, buttons,
+  and toolbars are drawn on a new rounded-corner visual kit, replacing the
+  old flat, square-edged panels.
+- **Buy/check confirmation rebuilt as a right-side panel.** Buying or
+  checking a deal now opens a full-height drawer on the window's right edge
+  — the deals list stays visible beside it on windows wide enough (900px+),
+  and the panel overlays on narrower ones. It leads with a LIVE VERDICT card
+  showing the signed profit at a glance, followed by entry/exit price cards,
+  a kit-styled quantity row with quick-fill buttons, a tier pill, and an
+  evidence grid that's open by default now (existing saved profiles get
+  switched over once, automatically).
+- **Deals rows show tier dots, signed profit, and click anywhere to act.**
+  Each row's tier now reads as a small colored dot plus label; profit gets
+  a leading "+" when positive; a newly-HOT deal flashes on its own
+  highlight instead of interfering with the row's hover glow; and clicking
+  anywhere on a row — not just its Buy button — takes the row's action. A
+  pinned item that's fallen out of deal range now reads "· watching" in the
+  row itself instead of showing a disabled "Watching" button.
+- **Settings panel redesigned.** Two columns of grouped cards (Deal
+  Thresholds, Safety, Posting, Automation & Alerts, Display) replace the old
+  single list, checkboxes become pill toggles, auction duration is now a
+  12H/24H/48H segmented control instead of a cycling button, and the
+  font-scale slider has a proper kit-styled thumb. The rail's gear icon
+  itself lights up gold while Settings is open.
+- **Sold tab restyled.** Mono section labels under a gold rule, rounded row
+  fills, an item icon on every sale row, and a REALIZED PROFIT figure
+  called out in the header band alongside the sale count and sync age.
+- **Sell tab visuals brought to the same kit.** Rounded row fills,
+  badge-style action buttons, mono column headers, a visibly highlighted
+  active filter chip (previously invisible), and a rounded cost-entry
+  dialog, plus an honest empty state that distinguishes "nothing to sell"
+  from "no items match this filter."
+- **Sell tab keeps showing a price instead of going blank.** A position
+  without a fresh Auction House quote now shows goldcap.gg's own imported
+  market value, dimmed and marked with "≈", instead of a bare dash — so the
+  tab isn't empty right after logging in and stays populated until a live
+  quote arrives.
+- **Est. profit adds up what it actually knows.** A position missing a cost
+  or a live price no longer forces the whole summary to read "Unknown" —
+  it's excluded from the total instead, with the excluded count shown in a
+  tooltip. Items with nothing in your bags and nothing listed are now
+  labeled "· not on hand" rather than showing a permanent dash, and sort to
+  the bottom of the list.
+- **Auto mode no longer fights with the Sell tab.** Switching to Sell now
+  automatically pauses the Deals Auto scan (it resumes when you go back to
+  Deals), and the Sell tab's own price-fetching says "Waiting for the
+  Auction House…" while the search slot is busy instead of implying
+  something is stuck.
+- **Fixed a phantom Sell row.** A sale that settled long ago no longer
+  conjures a sell position with no stock behind it.
+- **Window widens to make room for the rail.** The default window width
+  grew to fit the new navigation rail, and anyone who'd resized their
+  window before this update gets that space handed back automatically,
+  once.
+- **Polish pass.** A hovered deal row no longer freezes with a stale price
+  and a stuck gold highlight if you close the window mid-hover; a partial
+  Est. profit total on the Sell tab now carries a trailing `*` instead of
+  reading like a complete number; the buy dialog's "CHECKING" verdict no
+  longer flashes green left over from an earlier check; sale/sell rows with
+  no resolvable icon no longer indent the item name into empty space; and
+  the Sell tab's "≈ market value" fallback comes back once a one-off empty
+  Auction House answer goes stale, instead of hiding for the rest of the
+  session.
+- **`/gc` slash alias.** A shorter alternative to `/goldcap` for every
+  command.
+
 ## 0.3.0 (2026-08-26)
 
 - **Sniper redesign, on brand.** The sniper window is rebuilt on goldcap.gg's
