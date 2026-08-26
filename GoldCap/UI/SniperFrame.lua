@@ -5882,7 +5882,7 @@ local function createFrame()
   -- feeds the responsive column-drop decision (applyColumnVisibility) for both.
   --
   -- The check panel shifts the list aside only when there is room for both (>= WIN.PANEL_
-  -- SHIFT_MIN, 900 wide); narrower windows -- the docked AH is ~805 -- get an opaque overlay
+  -- SHIFT_MIN, 990 wide); narrower windows -- the docked AH is ~805 -- get an opaque overlay
   -- instead (see createDialog's sheet alpha). One function owns every right-edge anchor
   -- (scroll's BOTTOMRIGHT, f.headerRow's TOPRIGHT, verifyBtn's TOPRIGHT) plus the derived
   -- content width, so they can never drift apart -- called from here on every resize, and from

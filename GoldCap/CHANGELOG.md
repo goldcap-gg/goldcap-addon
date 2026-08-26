@@ -11,7 +11,7 @@
   old flat, square-edged panels.
 - **Buy/check confirmation rebuilt as a right-side panel.** Buying or
   checking a deal now opens a full-height drawer on the window's right edge
-  — the deals list stays visible beside it on windows wide enough (900px+),
+  — the deals list stays visible beside it on windows wide enough (990px+),
   and the panel overlays on narrower ones. It leads with a LIVE VERDICT card
   showing the signed profit at a glance, followed by entry/exit price cards,
   a kit-styled quantity row with quick-fill buttons, a tier pill, and an
