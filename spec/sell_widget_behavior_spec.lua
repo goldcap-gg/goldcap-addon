@@ -216,7 +216,10 @@ describe("Sell widget geometry and manual cost", function()
         listedQty = 0, sources = {}, status = "UNLISTED" },
     })
     assert.equal(26, rows[1].itemInset)
-    _G.C_Item = nil
+    -- MINOR-5 (fix round 1): no inline `_G.C_Item = nil` here on purpose -- the file's own
+    -- after_each (top of this describe block) already clears it unconditionally, even if an
+    -- assertion above this point had failed. A cleanup line living only on this test's last
+    -- line ran only when nothing above it failed first.
   end)
 
   -- I2 (fix wave, sell honesty): an unresolved position (unassigned_acquisition/
