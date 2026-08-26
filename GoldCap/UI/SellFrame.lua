@@ -2034,10 +2034,11 @@ local function updateSummary(filtered)
   container.summary.cost:SetText(formatCell(text.knownCost))
   container.summary.listed:SetText(formatCell(text.listedValue))
   if type(text.profit) == "number" then
-    container.summary.profit:SetText(formatAmount(text.profit))
-    -- No longer always nil: the number is a sum over only the positions that individually
-    -- cleared both gates, so it can still be a partial total, and the card's own hit frame
-    -- (below) shows that detail on hover exactly like the "Unknown · ..." case does.
+    -- Item 2 (addon polish batch): the number is a sum over only the positions that
+    -- individually cleared both gates, so it can still be a partial total -- the card's own
+    -- hit frame (below) shows the detail on hover, but a player who never hovers must not read
+    -- a partial sum as the whole picture. profitMarker carries that onto the number itself.
+    container.summary.profit:SetText(formatAmount(text.profit) .. (text.profitMarker or ""))
     container.summaryProfitDetail = text.profitDetail
   else
     -- SellViewModel.SummaryText's non-number reads "Unknown" or "Unknown · 12 partial · 37

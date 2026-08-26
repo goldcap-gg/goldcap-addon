@@ -141,6 +141,7 @@ function GC.SellViewModel.SummaryText(summary)
   local unknown = summary.unknownCount or 0
   local profit = summary.profit
   local profitDetail
+  local isPartial = false
   if profit == nil then
     local suffix = {}
     if partial > 0 then suffix[#suffix + 1] = ("%d partial"):format(partial) end
@@ -158,8 +159,13 @@ function GC.SellViewModel.SummaryText(summary)
     if noCost > 0 then parts[#parts + 1] = ("%d without cost"):format(noCost) end
     if noPrice > 0 then parts[#parts + 1] = ("%d without a price"):format(noPrice) end
     profitDetail = table.concat(parts, " · ")
+    -- Item 2 (addon polish batch): a partial total painted with full confidence contradicts the
+    -- comment above this one -- the number itself must carry a marker, not just the tooltip a
+    -- player might never hover.
+    isPartial = noCost > 0 or noPrice > 0
   end
-  return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = profit, profitDetail = profitDetail }
+  return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = profit,
+    profitDetail = profitDetail, partial = isPartial, profitMarker = isPartial and "*" or nil }
 end
 
 function GC.SellViewModel.Expansion(position)

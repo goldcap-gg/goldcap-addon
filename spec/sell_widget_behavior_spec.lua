@@ -366,6 +366,25 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("over 1 position · 1 without cost · 1 without a price", container.summaryProfitDetail)
   end)
 
+  -- Item 2 (addon polish batch): a partial total painting the number itself in full confidence
+  -- (only the tooltip said otherwise) is exactly the failure mode the exclusion-detail fix above
+  -- was meant to close -- the card's own text must carry the marker too. Real (unstubbed)
+  -- SellViewModel.SummaryText here, so this proves the frame actually renders profitMarker, not
+  -- just that the view model computes it (see spec/sell_view_model_spec.lua for that half).
+  it("marks the profit card itself when the total is partial, not only its tooltip", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.SummaryText = function(summary)
+      return { knownCost = summary.knownCost, listedValue = summary.listedValue,
+        profit = 900000, profitDetail = "over 1 position · 1 without cost", partial = true,
+        profitMarker = "*" }
+    end
+    local _, container = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 0, listedValue = 0, sources = {} },
+    })
+    assert.equal("90g*", container.summary.profit:GetText())
+  end)
+
   -- The PROFIT / UNIT cell has never had a numeric assertion of its own -- every existing test
   -- either stubs ProfitText to "Unknown" or checks the row it lives on for something else. Row
   -- 1: a known cost with no hold price renders the plain per-unit figure, untouched -- the
