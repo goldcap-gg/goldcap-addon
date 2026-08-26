@@ -476,7 +476,7 @@ function GC.OnSlash(msg)
   if handler then
     handler()
   else
-    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)")
+    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)")
   end
 end
 
