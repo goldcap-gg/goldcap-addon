@@ -14,6 +14,11 @@ local function createDialog()
   local f = CreateFrame("Frame", "GoldCapCompanionDialog", UIParent, "BasicFrameTemplateWithInset")
   f:SetSize(420, 160)
   f:SetPoint("CENTER")
+  -- Reachable from a click inside the docked AH window (SniperFrame.lua's staleText banner),
+  -- which sits at the AH's own strata with a much higher frame level than a bare MEDIUM frame --
+  -- without this the dialog renders behind it. Same rule SniperFrame.lua/SellFrame.lua's own
+  -- dialogs follow (see AGENTS.md's "a popup needs three things" note).
+  f:SetFrameStrata("DIALOG")
   f:SetMovable(true)
   f:EnableMouse(true)
   f:RegisterForDrag("LeftButton")
