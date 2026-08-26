@@ -1220,10 +1220,10 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   end
   local screened = GC.Sniper._screenedCount or 0
   local text
-  if not importAgeSeconds() then
-    text = "No deals to show -- and no realm prices imported.\n"
-      .. "Without an import, almost nothing can be safety-checked.\n"
-      .. "Get your realm's data at goldcap.gg, then type /goldcap import."
+  if GC.Data.OriginState() == "none" then
+    text = "No deals to show -- and no realm prices yet.\n"
+      .. "Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),\n"
+      .. "or paste a string from goldcap.gg with /goldcap import."
   elseif refusedCount > 0 or screened > 0 then
     local parts = {}
     if screened > 0 then
@@ -1249,9 +1249,15 @@ local function maybeWarnStale()
   if age and age < LIM.STALE_RED_SECONDS then return end -- fresh or yellow: no warning yet
   staleWarnedThisSession = true
   if age then
-    GC.Print(("your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."):format(math.floor(age / 3600)))
+    local msg = ("your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."):format(math.floor(age / 3600))
+    -- Only for a manual paste: app-synced data is already the Companion's own output, so
+    -- telling the player to go get the Companion would be nonsensical there.
+    if GC.Data.OriginState() == "manual" then
+      msg = msg .. " Companion keeps this fresh: /goldcap companion."
+    end
+    GC.Print(msg)
   else
-    GC.Print("you haven't imported realm prices yet -- prices may be off. Paste a string from goldcap.gg (/goldcap import).")
+    GC.Print("you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import).")
   end
 end
 

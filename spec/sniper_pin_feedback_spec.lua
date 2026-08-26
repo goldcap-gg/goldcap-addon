@@ -43,6 +43,10 @@ describe("Sniper pin feedback and empty state", function()
     _G.GetCoinTextureString = function(copper) return tostring(copper) .. "c" end
     _G.ITEM_QUALITY_COLORS = {}
 
+    -- Declared before GC so OriginState's closure (below) captures THIS table, not whatever
+    -- name `GC` resolves to at the point the anonymous function is defined -- `local GC = {...}`
+    -- only brings the new local into scope after the whole initializer has run.
+    local db = { settings = { sniper = { watchPins = pins or {} } } }
     local GC = {
       Theme = {
         ROW_H = 20,
@@ -57,9 +61,18 @@ describe("Sniper pin feedback and empty state", function()
           PauseReasons = function() return {} end, Tick = function() end }
       end },
       Scanner = { New = function() return { Start = function() end, Stop = function() end } end },
-      Data = { GetItemValue = function() return nil end },
+      -- OriginState mirrors Core/Data.lua's real rule (ts nil -> "none", origin "app" -> "app",
+      -- else "manual") so the "names the hidden and refused counts"/"suggests scanning" tests
+      -- below -- which only ever set db.imported.ts, no origin -- keep landing past the "none"
+      -- branch the empty-state companion nudge now gates on.
+      Data = { GetItemValue = function() return nil end, OriginState = function()
+        local imp = db.imported
+        if not imp or not imp.ts then return "none" end
+        if imp.origin == "app" then return "app" end
+        return "manual"
+      end },
       FullScan = {},
-      db = { settings = { sniper = { watchPins = pins or {} } } },
+      db = db,
     }
     helper.loadModule("Core/WatchSet.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
@@ -172,12 +185,13 @@ describe("Sniper pin feedback and empty state", function()
       assert.is_false(emptyText.shown)
     end)
 
-    it("points at the missing realm import first", function()
+    it("points at the Companion first, with manual import as the alternative", function()
       local GC, _, emptyText = loadSniper()
       GC.Sniper._UpdateEmptyState(0)
       assert.is_true(emptyText.shown)
+      assert.matches("no realm prices yet", emptyText.text)
+      assert.matches("goldcap companion", emptyText.text)
       assert.matches("goldcap import", emptyText.text)
-      assert.matches("no realm prices imported", emptyText.text)
     end)
 
     it("names the hidden and refused counts when the filters emptied the board", function()
