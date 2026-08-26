@@ -631,3 +631,241 @@ describe("Row click wiring (whole-row left-click acts)", function()
     assert.same({}, calls)
   end)
 end)
+
+-- Item 1 (addon polish batch): OnEnter pins the hovered row into `hoveredRow` so refreshRows()
+-- leaves its content alone while the cursor sits over it (see sortedDeals()'s hoveredItemID
+-- exclusion) -- correct while the window stays open, but the window's own OnHide never released
+-- that pin. Escaping or clicking the title-bar X while a row was hovered left that pooled row
+-- excluded from every future refreshRows() forever after (OnLeave, which normally clears the
+-- pin, is not reliably delivered when a frame hides under a stationary cursor -- see
+-- addon/AGENTS.md). Driven against a REAL createFrame()-built window via the same full-toc-load
+-- recipe spec/sniper_panel_inset_spec.lua uses (`buildFrame()`), so this proves the actual
+-- registered OnHide script, not a synthetic stand-in for it.
+describe("Sniper window OnHide clears the hover pin", function()
+  -- Same exhaustive per-spec double as spec/sniper_panel_inset_spec.lua's own stubFrame():
+  -- every widget method createFrame's (and, here, createRow's) real construction path touches.
+  local function stubFrame()
+    local f
+    f = {
+      RegisterEvent = function() end,
+      UnregisterEvent = function() end,
+      scripts = {},
+      SetScript = function(self, name, fn) self.scripts = self.scripts or {}; self.scripts[name] = fn end,
+      SetSize = function() end,
+      SetPoint = function() end,
+      SetMovable = function() end,
+      EnableMouse = function() end,
+      RegisterForDrag = function() end,
+      Show = function() end,
+      Hide = function() end,
+      IsShown = function() return false end,
+      SetText = function() end,
+      SetTexture = function() end,
+      SetTextColor = function() end,
+      SetJustifyH = function() end,
+      SetWidth = function() end,
+      SetScrollChild = function() end,
+      StartMoving = function() end,
+      StopMovingOrSizing = function() end,
+      CreateFontString = function() return stubFrame() end,
+      CreateTexture = function() return stubFrame() end,
+      TitleText = { SetText = function() end },
+      EnableMouseWheel = function() end,
+      SetVerticalScroll = function() end,
+      GetVerticalScroll = function() return 0 end,
+      GetVerticalScrollRange = function() return 0 end,
+      SetWordWrap = function() end,
+      SetMaxLines = function() end,
+      SetSpacing = function() end,
+      Enable = function() end,
+      Disable = function() end,
+      GetFontString = function() return nil end,
+      SetResizable = function() end,
+      SetResizeBounds = function() end,
+      StartSizing = function() end,
+      ClearAllPoints = function() end,
+      GetPoint = function() return nil end,
+      GetHeight = function() return 0 end,
+      GetFrameLevel = function() return 1 end,
+      SetFrameLevel = function() end,
+      SetColorTexture = function() end,
+      SetBlendMode = function() end,
+      SetTextureSliceMargins = function() end,
+      SetVertexColor = function() end,
+      SetAllPoints = function() end,
+      SetHeight = function() end,
+      SetFont = function() end,
+      GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
+      RegisterForClicks = function() end,
+      SetFrameStrata = function() end,
+      GetWidth = function() return 0 end,
+      HookScript = function() end,
+      IsEnabled = function() return true end,
+      SetAlpha = function() end,
+      CreateAnimationGroup = function()
+        return {
+          CreateAnimation = function()
+            return {
+              SetFromAlpha = function() end,
+              SetToAlpha = function() end,
+              SetDuration = function() end,
+              SetSmoothing = function() end,
+              SetOrder = function() end,
+              SetTarget = function() end,
+            }
+          end,
+          SetLooping = function() end,
+          SetScript = function() end,
+          Play = function() end,
+          Stop = function() end,
+          IsPlaying = function() return false end,
+        }
+      end,
+      EnableKeyboard = function() end,
+      SetPropagateKeyboardInput = function() end,
+      SetAutoFocus = function() end,
+      SetMaxLetters = function() end,
+      GetText = function() return "" end,
+      ClearFocus = function() end,
+      SetChecked = function() end,
+      GetChecked = function() return false end,
+      SetCheckedTexture = function() end,
+      SetOrientation = function() end,
+      SetMinMaxValues = function() end,
+      SetValueStep = function() end,
+      SetObeyStepOnDrag = function() end,
+      SetThumbTexture = function() end,
+      SetValue = function() end,
+      GetValue = function() return 0 end,
+    }
+    return f
+  end
+
+  local function getUpvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  -- Builds a real GoldCap addon table via the exact same load-order recipe
+  -- spec/sniper_panel_inset_spec.lua uses, then constructs the real Sniper window through
+  -- GC.Sniper.Toggle() (which does `frame = frame or createFrame()`), and hands back that real
+  -- frame plus GC so a spec can reach the real OnHide script off `frame.scripts.OnHide`.
+  local function buildFrame()
+    _G.CreateFrame = function(_, name)
+      local f = stubFrame()
+      if name and name ~= "" then
+        _G[name] = f
+      end
+      return f
+    end
+    _G.UISpecialFrames = _G.UISpecialFrames or {}
+    _G.SlashCmdList = {}
+    _G.C_AddOns = { GetAddOnMetadata = function() return "test" end }
+    _G.hooksecurefunc = _G.hooksecurefunc or function() end
+    _G.GetTime = _G.GetTime or function() return 0 end
+    _G.PlaySound = _G.PlaySound or function() end
+    _G.SOUNDKIT = _G.SOUNDKIT or { MAP_PING = 3175, RAID_WARNING = 1 }
+    _G.C_Timer = _G.C_Timer or { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+    _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
+    _G.ITEM_QUALITY_COLORS = {}
+    _G.time = os.time
+    -- Needed for setRowDeal (runs inside refreshRows) to resolve an item's name/icon, the same
+    -- fake as this file's own describe("Sniper row repaint skip") load().
+    _G.Item = { CreateFromItemID = function(_, itemID)
+      return {
+        ContinueOnItemLoad = function(_, cb) cb() end,
+        GetItemIcon = function() return "icon:" .. itemID end,
+        GetItemQuality = function() return nil end,
+        GetItemName = function() return "Item " .. itemID end,
+      }
+    end }
+    -- setRowDeal/OnEnter don't check anything on it in this scenario -- any-method-is-a-no-op
+    -- covers whichever of GameTooltip's methods either happens to reach.
+    _G.GameTooltip = setmetatable({}, { __index = function() return function() end end })
+
+    local GC = {}
+    local toc = assert(io.open("GoldCap/GoldCap.toc", "r"))
+    local files = {}
+    for rawLine in toc:lines() do
+      local line = rawLine:gsub("%s+$", "")
+      if line ~= "" and not line:match("^##") then
+        files[#files + 1] = line
+      end
+    end
+    toc:close()
+    for _, rel in ipairs(files) do
+      local chunk, err = loadfile("GoldCap/" .. rel:gsub("\\", "/"))
+      assert(chunk, err)
+      chunk("GoldCap", GC)
+    end
+
+    GC.Sniper.Toggle() -- constructs and shows the real window; frame = frame or createFrame()
+    local frame = _G.GoldCapSniperFrame
+    assert(frame, "GC.Sniper.Toggle() did not publish _G.GoldCapSniperFrame")
+    assert.is_function(frame.scripts.OnHide)
+
+    return frame, GC
+  end
+
+  local function teardown()
+    _G.CreateFrame = nil
+    _G.GoldCapSniperFrame = nil
+    _G.UISpecialFrames = nil
+    _G.SlashCmdList = nil
+    _G.C_AddOns = nil
+    _G.GoldCap_MarketData = nil
+    _G.SLASH_GOLDCAP1 = nil
+    _G.SLASH_GOLDCAP2 = nil
+    _G.hooksecurefunc = nil
+    _G.GetTime = nil
+    _G.PlaySound = nil
+    _G.SOUNDKIT = nil
+    _G.C_Timer = nil
+    _G.GetCoinTextureString = nil
+    _G.ITEM_QUALITY_COLORS = nil
+    _G.time = nil
+    _G.Item = nil
+    _G.GameTooltip = nil
+  end
+
+  after_each(teardown)
+
+  it("repaints a pooled row that was hovered when the window was hidden", function()
+    local frame, GC = buildFrame()
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local renderList = getUpvalue(refreshRows, "renderList")
+    local sortedDeals = getUpvalue(renderList, "sortedDeals")
+    local deals = getUpvalue(sortedDeals, "deals")
+    local rows = getUpvalue(refreshRows, "rows")
+
+    deals[1234] = { itemID = 1234, unitPrice = 1000, qty = 1, profit = 100, discount = 0.1, tier = "GOOD" }
+    refreshRows()
+    local row = rows[1]
+    assert.is_not_nil(row)
+    assert.are.equal(1234, row.deal.itemID)
+
+    row.scripts.OnEnter(row) -- pins hoveredRow to this row, same as a real mouse hover
+
+    -- The item moves on (price no longer qualifies) and a different deal takes its place --
+    -- exactly the situation refreshRows() must be free to repaint this pooled row into.
+    deals[1234] = nil
+    deals[5678] = { itemID = 5678, unitPrice = 2000, qty = 1, profit = 200, discount = 0.2, tier = "GOOD" }
+
+    frame.scripts.OnHide(frame) -- window closes (Escape / title-bar X) while still "hovering"
+
+    refreshRows()
+
+    assert.are.equal(5678, row.deal.itemID)
+  end)
+
+  it("is a no-op when no row is hovered", function()
+    local frame = buildFrame()
+
+    assert.has_no.errors(function() frame.scripts.OnHide(frame) end)
+  end)
+end)

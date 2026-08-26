@@ -513,6 +513,24 @@ local function isPinned(itemID)
   return false
 end
 
+-- Fix batch (stuck-hover freeze): shared by OnEnter/OnLeave's hover pin (createRow, below) and
+-- the window's own OnHide -- releases the hover pin and hides the accent painted for it. OnLeave
+-- is not reliably delivered when a frame hides under a stationary cursor (see addon/AGENTS.md),
+-- so OnHide calls this directly rather than counting on OnLeave firing first. Without it, hiding
+-- the window (Escape, the title-bar X) while a row was hovered left `hoveredRow` pointing at a
+-- pooled row forever: refreshRows() skips a row that still equals hoveredRow, and sortedDeals()
+-- also excludes hoveredRow's own itemID from the list -- so that row could neither repaint nor
+-- ever show anything else again.
+local function clearHover()
+  if not hoveredRow then return end
+  local row = hoveredRow
+  row.highlight:Hide()
+  -- A watched row keeps its blue rail up even once unhovered -- see the matching comment in
+  -- setRowDeal.
+  if not (row.deal and isPinned(row.deal.itemID)) then row.rail:Hide() end
+  hoveredRow = nil
+end
+
 -- The last unit price any observation reported for this item, so a pinned placeholder shows a
 -- real number rather than a dash. Filled by driver.onObservation; nil until the loop has been
 -- round the set once, which is why the placeholder must tolerate 0.
@@ -5204,13 +5222,14 @@ createRow = function(parent, index)
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function(self)
-    self.highlight:Hide()
-    -- A watched row keeps its blue rail after the cursor leaves -- that is the whole point of
-    -- it. Only the plain hover accent goes away here.
-    if not (self.deal and isPinned(self.deal.itemID)) then self.rail:Hide() end
     if hoveredRow == self then
-      hoveredRow = nil
+      clearHover()
       refreshRows()
+    else
+      self.highlight:Hide()
+      -- A watched row keeps its blue rail after the cursor leaves -- that is the whole point of
+      -- it. Only the plain hover accent goes away here.
+      if not (self.deal and isPinned(self.deal.itemID)) then self.rail:Hide() end
     end
     -- A left press that started on this row and then dragged off it (cursor left before the
     -- button came back up) must not act when it eventually lifts somewhere else -- see
@@ -5969,6 +5988,11 @@ local function createFrame()
   end)
   f:SetScript("OnHide", function()
     feedAuto("tabHidden")
+    -- Fix batch (stuck-hover freeze): a hidden window never fires the hovered row's own OnLeave
+    -- reliably (see clearHover's comment) -- release the pin here too, or that row is stuck
+    -- excluded from every future refreshRows() until the exact same screen position is
+    -- re-hovered.
+    clearHover()
     -- F2 (whole-branch review): the drawer is now a CHILD of this window frame (createDialog's
     -- own re-host), not a UIParent-anchored sibling -- hiding the window no longer implies
     -- hiding it. Blizzard's engine hides children visually when a parent hides, but does NOT
