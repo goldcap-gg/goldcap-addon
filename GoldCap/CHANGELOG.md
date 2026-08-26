@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.4.1 (unreleased)
+
+- **The addon now tells you about the Companion.** No-import and manual-import
+  states point to the free GoldCap Companion first — with `/goldcap companion`
+  opening a copy-the-link dialog — and the manual paste stays as the
+  alternative.
+
 ## 0.4.0 (2026-08-26)
 
 - **Left navigation rail replaces the tab row.** Deals, Sell, and Sold are now
