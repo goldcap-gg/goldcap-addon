@@ -34,6 +34,7 @@ GC.Locales.ptBR = {
   ["%s — %d unit%s without a cost"] = "%s — %d unidade%s sem custo",
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "De 15 a 60 segundos em reinos movimentados. Sem recarga -- varra de novo quando quiser.",
+  ["24h trend"] = "Tendência 24h",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Uma pista, não uma promessa: revenda a 95% do valor de mercado importado, na quantidade que o próprio Check aprovaria.",
   ["AH answered empty %ds ago"] = "a casa de leilões respondeu vazia há %ds",
@@ -46,6 +47,8 @@ GC.Locales.ptBR = {
     "Auto: mantém o Full Scan rodando sem parar e cede na hora quando você compra, ",
   ["Avoid"] = "Evitar",
   ["Background check"] = "Verificação em segundo plano",
+  ["Bundled %s data"] = "Dados %s inclusos",
+  ["Bundled data"] = "Dados inclusos",
   ["Buy"] = "Comprar",
   ["Buy %d × %s for %s"] = "Comprar %d × %s por %s",
   ["CANCEL %d"] = "CANCELAR %d",
@@ -104,7 +107,9 @@ GC.Locales.ptBR = {
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "O GoldCap não consegue identificar qual pilha da bolsa é esta",
+  ["GoldCap data age"] = "Idade dos dados GoldCap",
   ["GoldCap re-checks the top "] = "O GoldCap reconfere os ",
+  ["GoldCap value"] = "Valor GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Importar preços do reino",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: verificado ao vivo -- pode comprar",
@@ -136,6 +141,7 @@ GC.Locales.ptBR = {
   ["Last result: none yet this visit"] = "Último resultado: nenhum nesta visita",
   ["Listed at %s — far below market. Repost."] =
     "Anunciado a %s — bem abaixo do mercado. Reanuncie.",
+  ["Listings"] = "Anúncios",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lote cancelado; espere ele voltar para as bolsas",
   ["MARKET / UNIT"] = "MERCADO / UNIDADE",
@@ -235,6 +241,7 @@ GC.Locales.ptBR = {
     "As vendas são custeadas a partir das suas unidades mais antigas",
   ["Set cost"] = "Definir custo",
   ["Settings"] = "Configurações",
+  ["Sold per day"] = "Vendas por dia",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordene por ele para decidir o que verificar primeiro, não o que comprar.",
   ["Source age"] = "Idade da fonte",
@@ -260,6 +267,7 @@ GC.Locales.ptBR = {
   ["Watching — pinned, but not a deal right now"] =
     "Acompanhando — fixado, mas agora não é uma oportunidade",
   ["Window position & size"] = "Posição e tamanho da janela",
+  ["You paid"] = "Você pagou",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "um desconto tão extremo costuma significar que o valor de mercado está errado, não que seja uma pechincha",
   ["auto off"] = "auto desligado",

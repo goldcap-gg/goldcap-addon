@@ -37,6 +37,7 @@ GC.Locales.ukUA = {
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "15-60 секунд на завантажених реалмах. Без відкату -- скануйте будь-коли.",
+  ["24h trend"] = "Тренд за 24г",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Орієнтир, а не обіцянка: перепродаж за 95% імпортованої ринкової вартості, на кількість, яку схвалить сама перевірка.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
@@ -48,6 +49,8 @@ GC.Locales.ukUA = {
     "Авто: тримає Full Scan увімкненим постійно й миттєво поступається, коли ви купуєте, ",
   ["Avoid"] = "Уникати",
   ["Background check"] = "Фонова перевірка",
+  ["Bundled %s data"] = "Вбудовані дані %s",
+  ["Bundled data"] = "Вбудовані дані",
   ["Buy"] = "Купити",
   ["Buy %d × %s for %s"] = "Купити %d × %s за %s",
   ["CANCEL %d"] = "СКАСУВАТИ %d",
@@ -106,7 +109,9 @@ GC.Locales.ukUA = {
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap не може точно визначити, який це стек у сумці",
+  ["GoldCap data age"] = "Вік даних GoldCap",
   ["GoldCap re-checks the top "] = "GoldCap перевіряє верхні ",
+  ["GoldCap value"] = "Оцінка GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Імпорт цін реалму",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: перевірено наживо -- безпечно купувати",
@@ -138,6 +143,7 @@ GC.Locales.ukUA = {
   ["Last result: none yet this visit"] = "Останній результат: ще не було цього візиту",
   ["Listed at %s — far below market. Repost."] =
     "Виставлено за %s — значно нижче ринку. Перевиставте.",
+  ["Listings"] = "Лотів",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",
   ["MARKET / UNIT"] = "РИНОК / ШТ",
@@ -237,6 +243,7 @@ GC.Locales.ukUA = {
     "Продажі списуються спершу з найстаріших одиниць",
   ["Set cost"] = "Задати собівартість",
   ["Settings"] = "Налаштування",
+  ["Sold per day"] = "Продажів на день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортуйте за ним, щоб вирішити, що перевірити першим, а не що купувати.",
   ["Source age"] = "Вік джерела",
@@ -262,6 +269,7 @@ GC.Locales.ukUA = {
   ["Watching — pinned, but not a deal right now"] =
     "Стежимо — закріплено, але зараз це не угода",
   ["Window position & size"] = "Позиція та розмір вікна",
+  ["You paid"] = "Ви заплатили",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "така величезна знижка зазвичай означає хибну ринкову вартість, а не вигідну покупку",
   ["auto off"] = "авто вимкнено",

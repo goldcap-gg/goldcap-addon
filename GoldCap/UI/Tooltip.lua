@@ -8,28 +8,31 @@ GC.Tooltip = {}
 function GC.Tooltip.BuildLines(v, now, opts)
   if not v or not v.mv then return nil end
   opts = opts or {}
-  local lines = { { kind = "money", label = "GoldCap value", copper = v.mv } }
+  local lines = { { kind = "money", label = GC.L["GoldCap value"], copper = v.mv } }
   -- Import-path only: MarketData.lua's bundled entries never carry a trend (see
   -- ImportString.Parse and generateAddonData.ts). A flat 0% is not worth a line.
   if type(v.trend) == "number" and v.trend ~= 0 then
-    lines[#lines + 1] = { kind = "text", left = "24h trend", right = string.format("%+d%%", v.trend) }
+    lines[#lines + 1] = { kind = "text", left = GC.L["24h trend"], right = string.format("%+d%%", v.trend) }
   end
   if v.sold then
-    lines[#lines + 1] = { kind = "text", left = "Sold per day", right = string.format("%.1f", v.sold) }
+    lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = string.format("%.1f", v.sold) }
   elseif v.listings then
-    lines[#lines + 1] = { kind = "text", left = "Listings", right = tostring(v.listings) }
+    lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = tostring(v.listings) }
   end
   if opts.unitCost then
-    lines[#lines + 1] = { kind = "money", label = "You paid", copper = opts.unitCost }
+    lines[#lines + 1] = { kind = "money", label = GC.L["You paid"], copper = opts.unitCost }
   end
   local age = now - (v.ts or 0)
   if v.source == "bundled" then
     -- Bundled data is stale by construction -- it was baked into the release -- and it is
     -- region-wide, not this realm's. Saying so is not optional.
-    local label = opts.region and ("Bundled " .. string.upper(opts.region) .. " data") or "Bundled data"
+    -- A format, not concatenation: word order around the region code is the translator's
+    -- to choose, and "Bundled %s data" is the only shape that lets them choose it.
+    local label = opts.region and (GC.L["Bundled %s data"]):format(string.upper(opts.region))
+      or GC.L["Bundled data"]
     lines[#lines + 1] = { kind = "text", left = label, right = GC.Util.FormatAge(age) }
   elseif age > 48 * 3600 then
-    lines[#lines + 1] = { kind = "text", left = "GoldCap data age", right = GC.Util.FormatAge(age) }
+    lines[#lines + 1] = { kind = "text", left = GC.L["GoldCap data age"], right = GC.Util.FormatAge(age) }
   end
   return lines
 end

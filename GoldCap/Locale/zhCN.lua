@@ -35,6 +35,7 @@ GC.Locales.zhCN = {
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "繁忙服务器约 15-60 秒。没有冷却 -- 随时可重新扫描。",
+  ["24h trend"] = "24小时走势",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "这是线索而非承诺：按导入市场价的 95% 转卖，数量以 Check 本身会批准的为准。",
   ["AH answered empty %ds ago"] = "%d 秒前拍卖行返回为空",
@@ -46,6 +47,8 @@ GC.Locales.zhCN = {
     "自动：持续运行 Full Scan，你购买时立即让出，",
   ["Avoid"] = "避开",
   ["Background check"] = "后台检查",
+  ["Bundled %s data"] = "内置 %s 数据",
+  ["Bundled data"] = "内置数据",
   ["Buy"] = "购买",
   ["Buy %d × %s for %s"] = "购买 %d × %s，价格 %s",
   ["CANCEL %d"] = "取消 %d",
@@ -102,7 +105,9 @@ GC.Locales.zhCN = {
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] = "GoldCap 无法确定这是背包中的哪一堆",
+  ["GoldCap data age"] = "GoldCap 数据时效",
   ["GoldCap re-checks the top "] = "GoldCap 会重新检查前 ",
+  ["GoldCap value"] = "GoldCap 估价",
   ["GoldCap — Import realm prices"] = "GoldCap — 导入服务器价格",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap：已实时检查 -- 可安全购买",
@@ -133,6 +138,7 @@ GC.Locales.zhCN = {
   ["Last result: %ds ago"] = "上次结果：%d 秒前",
   ["Last result: none yet this visit"] = "上次结果：本次还没有",
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 远低于市场价。请重新上架。",
+  ["Listings"] = "挂单数",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；请等待它回到背包",
   ["MARKET / UNIT"] = "市场价 / 件",
   ["Market per unit"] = "每件市场价",
@@ -222,6 +228,7 @@ GC.Locales.zhCN = {
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Set cost"] = "设置成本",
   ["Settings"] = "设置",
+  ["Sold per day"] = "日销量",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "用它排序来决定先检查什么，而不是决定买什么。",
   ["Source age"] = "数据年龄",
@@ -246,6 +253,7 @@ GC.Locales.zhCN = {
   ["Watching closely: %d item%s"] = "密切关注：%d 个物品%s",
   ["Watching — pinned, but not a deal right now"] = "关注中 — 已置顶，但当前不算交易",
   ["Window position & size"] = "窗口位置和大小",
+  ["You paid"] = "你的成本",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "这么离谱的折扣通常说明市场价有误，而不是捡到便宜",
   ["auto off"] = "自动已关闭",

@@ -92,6 +92,43 @@ describe("locale contract", function()
     end
   end)
 
+  -- Every guard above compares WRAPPED keys against the base, which makes all of them blind
+  -- to a file carrying no wrapped keys at all: an entire surface can stay English and the
+  -- contract still passes clean. UI/Tooltip.lua did exactly that -- seven labels on the most
+  -- seen surface in the addon, inside the AddDoubleLine calls the plan named explicitly,
+  -- missed by the bulk pass and invisible to everything here. So a file that hands text to
+  -- the client has to show it went through the layer, or say below why it does not.
+  it("lets no text-emitting file skip the string layer", function()
+    local EXEMPT = {
+      -- A widget factory: every SetText takes its text from the caller, already translated
+      -- there. Its only literals are the brand -- "GoldCap" and the "G" of the logo glyph.
+      ["GoldCap/UI/Theme.lua"] = true,
+      -- Its one SetText is the brand name on the auction house tab.
+      ["GoldCap/UI/AuctionHouseTab.lua"] = true,
+    }
+    local EMITS = { "AddDoubleLine", "AddLine%(", "SetText%(", "GC%.Print%(" }
+
+    local listing = io.popen('find GoldCap/Core GoldCap/UI -name "*.lua"')
+    local checked = 0
+    for path in listing:lines() do
+      local file = assert(io.open(path))
+      local text = file:read("*a")
+      file:close()
+      local emits = false
+      for _, pattern in ipairs(EMITS) do
+        if text:find(pattern) then emits = true break end
+      end
+      if emits and not EXEMPT[path] then
+        checked = checked + 1
+        assert.is_truthy(text:find("GC%.L%["),
+          ("%s puts text in front of the player without going through GC.L"):format(path))
+      end
+    end
+    listing:close()
+    -- A find that matched nothing would pass this test in silence.
+    assert.is_true(checked >= 8, ("only %d files were checked"):format(checked))
+  end)
+
   it("keeps a started language from going mostly English", function()
     local base = GC.Locales.enUS
     local total = 0

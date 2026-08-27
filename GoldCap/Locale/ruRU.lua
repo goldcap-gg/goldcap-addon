@@ -33,6 +33,7 @@ GC.Locales.ruRU = {
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "15-60 секунд на загруженных реалмах. Без отката -- сканируйте когда угодно.",
+  ["24h trend"] = "Тренд за 24ч",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Ориентир, а не обещание: перепродажа по 95% импортированной рыночной стоимости, на количество, которое одобрит сама проверка.",
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
@@ -44,6 +45,8 @@ GC.Locales.ruRU = {
     "Авто: держит Full Scan включённым постоянно и мгновенно уступает, когда вы покупаете, ",
   ["Avoid"] = "Избегать",
   ["Background check"] = "Фоновая проверка",
+  ["Bundled %s data"] = "Встроенные данные %s",
+  ["Bundled data"] = "Встроенные данные",
   ["Buy"] = "Купить",
   ["Buy %d × %s for %s"] = "Купить %d × %s за %s",
   ["CANCEL %d"] = "ОТМЕНИТЬ %d",
@@ -102,7 +105,9 @@ GC.Locales.ruRU = {
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap не может точно определить, какой это стек в сумке",
+  ["GoldCap data age"] = "Возраст данных GoldCap",
   ["GoldCap re-checks the top "] = "GoldCap перепроверяет верхние ",
+  ["GoldCap value"] = "Оценка GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Импорт цен реалма",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: проверено вживую -- покупать безопасно",
@@ -134,6 +139,7 @@ GC.Locales.ruRU = {
   ["Last result: none yet this visit"] = "Последний результат: пока не было в этот визит",
   ["Listed at %s — far below market. Repost."] =
     "Выставлено за %s — намного ниже рынка. Перевыставьте.",
+  ["Listings"] = "Лотов",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот отменён; дождитесь его возврата в сумки",
   ["MARKET / UNIT"] = "РЫНОК / ШТ",
@@ -231,6 +237,7 @@ GC.Locales.ruRU = {
     "Продажи списываются сначала со старейших единиц",
   ["Set cost"] = "Задать себестоимость",
   ["Settings"] = "Настройки",
+  ["Sold per day"] = "Продаж в день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортируйте по нему, чтобы решить, что проверить первым, а не что покупать.",
   ["Source age"] = "Возраст источника",
@@ -256,6 +263,7 @@ GC.Locales.ruRU = {
   ["Watching — pinned, but not a deal right now"] =
     "Следим — закреплено, но сейчас это не сделка",
   ["Window position & size"] = "Позиция и размер окна",
+  ["You paid"] = "Вы заплатили",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "такая огромная скидка обычно означает ошибочную рыночную стоимость, а не выгодную покупку",
   ["auto off"] = "авто выключено",

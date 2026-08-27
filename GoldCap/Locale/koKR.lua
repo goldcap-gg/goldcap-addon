@@ -34,6 +34,7 @@ GC.Locales.koKR = {
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "붐비는 서버에서 15~60초. 대기시간 없음 -- 언제든 다시 검색하세요.",
+  ["24h trend"] = "24시간 추세",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "약속이 아니라 실마리입니다: 가져온 시세의 95%로 재판매할 때, Check가 승인할 수량 기준입니다.",
   ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
@@ -45,6 +46,8 @@ GC.Locales.koKR = {
     "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. ",
   ["Avoid"] = "회피",
   ["Background check"] = "백그라운드 확인",
+  ["Bundled %s data"] = "내장된 %s 데이터",
+  ["Bundled data"] = "내장된 데이터",
   ["Buy"] = "구매",
   ["Buy %d × %s for %s"] = "%d개 × %s, 가격 %s",
   ["CANCEL %d"] = "취소 %d",
@@ -102,7 +105,9 @@ GC.Locales.koKR = {
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap이 가방의 어느 묶음인지 특정하지 못했습니다",
+  ["GoldCap data age"] = "GoldCap 데이터 경과",
   ["GoldCap re-checks the top "] = "GoldCap이 다시 확인하는 상위 ",
+  ["GoldCap value"] = "GoldCap 시세",
   ["GoldCap — Import realm prices"] = "GoldCap — 서버 시세 가져오기",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: 실시간 확인 완료 -- 구매해도 안전합니다",
@@ -133,6 +138,7 @@ GC.Locales.koKR = {
   ["Last result: %ds ago"] = "마지막 결과: %d초 전",
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
   ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
+  ["Listings"] = "등록 수",
   ["Lot cancelled; wait for it to return to bags"] = "물량을 취소했습니다. 가방으로 돌아올 때까지 기다리세요",
   ["MARKET / UNIT"] = "시세 / 개",
   ["Market per unit"] = "개당 시세",
@@ -223,6 +229,7 @@ GC.Locales.koKR = {
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Set cost"] = "원가 입력",
   ["Settings"] = "설정",
+  ["Sold per day"] = "일일 판매량",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "무엇을 살지가 아니라, 무엇을 먼저 확인할지 정할 때 이 기준으로 정렬하세요.",
   ["Source age"] = "자료 경과 시간",
@@ -247,6 +254,7 @@ GC.Locales.koKR = {
   ["Watching closely: %d item%s"] = "자세히 주시 중: 아이템 %d개%s",
   ["Watching — pinned, but not a deal right now"] = "주시 중 — 고정했지만 지금은 거래가 아닙니다",
   ["Window position & size"] = "창 위치와 크기",
+  ["You paid"] = "구매가",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "이 정도로 극단적인 할인은 대개 싼 물건이라는 뜻이 아니라 시세가 잘못됐다는 뜻입니다",
   ["auto off"] = "자동 꺼짐",
