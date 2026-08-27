@@ -325,6 +325,8 @@ GC.Locales.zhCN = {
   ["placing bid..."] = "正在出价...",
   ["price confirmed -- click Buy to purchase"] = "价格已确认 -- 点击 Buy 购买",
   ["price rose %.1fx — still safe, confirm"] = "价格上涨 %.1f 倍 — 仍然安全，请确认",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "已载入的价格来自 %s（%s），但你所在的区域是 %s — 所有折扣与利润都是按另一个市场计算的",
   ["purchase canceled"] = "购买已取消",
   ["purchase pending exact cost"] = "购买等待精确成本",
   ["purchase total unavailable — inspect mailbox"] = "无法获取购买总额 — 请查看邮箱",
@@ -334,6 +336,8 @@ GC.Locales.zhCN = {
   ["recent sales (newest first):"] = "最近的销售（从新到旧）：",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "地区 %s — 内置：%d 个物品（%s），导入：%s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "已修正 %d 条账目的区域；%d 笔销售重新对上了库存",
   ["relisting now would lock in a loss or a stall -- hold"] = "现在重新上架会锁定亏损或滞销 -- 先保留",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
     "已删除邮件扫描错误留下的 %d 条重复购买记录%s",

@@ -20,6 +20,8 @@ GC.DEFAULTS = {
   mailOccurrences = {},
   mailOccurrenceSeq = 0,
   mailOccurrenceGeneration = 0,
+  -- One-shot marker for the 2026-08-28 region repair (see the ADDON_LOADED handler below).
+  ledgerRegionRepairVersion = 0,
   -- itemID -> true/false, "does this item sell as a commodity". Learned from
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
@@ -288,6 +290,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- Core/Data.lua's AdoptAppData for the full contract. Runs after Init above so
       -- db.imported already reflects the prior session's state to compare against.
       GC.Data.AdoptAppData()
+      -- A snapshot adopted in an earlier session is just as wrong as one pasted now, and
+      -- nothing else revisits it -- SetImported only fires when an import actually lands.
+      if GC.Data.WarnRegionMismatch then GC.Data.WarnRegionMismatch() end
     end
     if GC.AppLedger then
       -- Sold tab: adopt the companion-written ledger summary the same way
@@ -311,6 +316,33 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if rescanned > 0 and GC.Print then
         GC.Print((GC.L["removed %d duplicate sale record%s left by a mail-scan bug"]):format(
           rescanned, rescanned == 1 and "" or "s"))
+      end
+    end
+    -- One-shot repair of the 2026-08-28 region defect: rows stamped with the region of the
+    -- last IMPORT instead of the region the character plays in (see GC.Ledger.Context and
+    -- GC.Data.ClientRegion). Runs after Acquisitions is up, because a repaired SALE has to
+    -- be offered back to reconciliation -- its position was left open when the sale first
+    -- arrived under a region no purchase of it could share, and nothing else would ever
+    -- retry it: mail reconciliation only fires for rows a fresh inbox scan produces.
+    if GC.Ledger and GC.Ledger.RepairCharacterRegions
+        and GoldCapDB.ledgerRegionRepairVersion ~= 1 then
+      local context = GC.Ledger.Context and GC.Ledger.Context() or {}
+      local repairedRows = GC.Ledger.RepairCharacterRegions(context.char, context.region)
+      GoldCapDB.ledgerRegionRepairVersion = 1
+      local reconciled = 0
+      if GC.Acquisitions and GC.Acquisitions.ReconcileSale then
+        for _, entry in ipairs(repairedRows) do
+          if entry.kind == "sale" then
+            local result = GC.Acquisitions.ReconcileSale(entry)
+            if type(result) == "table" and result.status == "applied" then reconciled = reconciled + 1 end
+          end
+        end
+      end
+      -- Two plain counts, no "record%s" plural trick: this string has to survive eleven
+      -- translations, and the trick only ever worked in English anyway.
+      if #repairedRows > 0 and GC.Print then
+        GC.Print((GC.L["region corrected on %d ledger rows; %d sales matched back to their stock"])
+          :format(#repairedRows, reconciled))
       end
     end
     if GC.PurchaseCapture and GC.PurchaseCapture.Init and hooksecurefunc and C_AuctionHouse then

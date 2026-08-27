@@ -332,6 +332,8 @@ GC.Locales.koKR = {
   ["placing bid..."] = "입찰 중...",
   ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",
   ["price rose %.1fx — still safe, confirm"] = "가격이 %.1f배 올랐습니다 — 여전히 안전합니다, 확정하세요",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "불러온 시세는 %s(%s)인데 접속 지역은 %s입니다 — 모든 할인율과 수익이 다른 시장 기준으로 계산됩니다",
   ["purchase canceled"] = "구매를 취소했습니다",
   ["purchase pending exact cost"] = "정확한 원가를 기다리는 구매",
   ["purchase total unavailable — inspect mailbox"] = "구매 총액을 알 수 없습니다 — 우편함을 확인하세요",
@@ -342,6 +344,8 @@ GC.Locales.koKR = {
   ["recent sales (newest first):"] = "최근 판매 (최신순):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "지역 %s — 내장: 아이템 %d개 (%s), 가져옴: %s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "장부 %d줄의 지역을 바로잡고, 판매 %d건을 재고와 다시 연결했습니다",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "지금 재등록하면 손실이나 정체가 확정됩니다 -- 보류하세요",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] =

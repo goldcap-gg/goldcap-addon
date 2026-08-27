@@ -346,6 +346,8 @@ GC.Locales.ruRU = {
   ["price confirmed -- click Buy to purchase"] = "цена подтверждена -- нажмите Buy, чтобы купить",
   ["price rose %.1fx — still safe, confirm"] =
     "цена выросла в %.1fx — всё ещё безопасно, подтвердите",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "загружены цены %s (%s), а играете вы в %s — все скидки и прибыль считаются по чужому рынку",
   ["purchase canceled"] = "покупка отменена",
   ["purchase pending exact cost"] = "покупка ждёт точной себестоимости",
   ["purchase total unavailable — inspect mailbox"] =
@@ -357,6 +359,8 @@ GC.Locales.ruRU = {
   ["recent sales (newest first):"] = "последние продажи (свежие сверху):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "регион %s — встроено: %d предметов (%s), импортировано: %s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "регион исправлен в %d записях; %d продаж сопоставлено со своим запасом",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "перевыставление сейчас зафиксирует убыток или застой -- придержите",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] =

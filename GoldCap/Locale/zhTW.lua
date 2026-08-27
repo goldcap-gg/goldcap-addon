@@ -326,6 +326,8 @@ GC.Locales.zhTW = {
   ["placing bid..."] = "正在出價...",
   ["price confirmed -- click Buy to purchase"] = "價格已確認 -- 按 Buy 購買",
   ["price rose %.1fx — still safe, confirm"] = "價格上漲 %.1f 倍 — 仍然安全，請確認",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "已載入的價格來自 %s（%s），但你所在的地區是 %s — 所有折扣與利潤都是按另一個市場計算的",
   ["purchase canceled"] = "購買已取消",
   ["purchase pending exact cost"] = "購買等待精確成本",
   ["purchase total unavailable — inspect mailbox"] = "無法取得購買總額 — 請查看信箱",
@@ -335,6 +337,8 @@ GC.Locales.zhTW = {
   ["recent sales (newest first):"] = "最近的販售（新到舊）：",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "地區 %s — 內建：%d 個道具（%s），匯入：%s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "已修正 %d 筆帳目的地區；%d 筆銷售重新對上了庫存",
   ["relisting now would lock in a loss or a stall -- hold"] = "現在重新上架會鎖住虧損或滯銷 -- 先保留",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
     "已刪除信件掃描錯誤留下的 %d 筆重複購買紀錄%s",

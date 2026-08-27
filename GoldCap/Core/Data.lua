@@ -18,11 +18,15 @@ end
 -- Taiwanese realms in particular connect through the Korean portal, so TW cannot be
 -- detected at all. Hence this is only the fallback: adoptRegion below prefers the region
 -- named by the imported string, which the player (or the companion) chose explicitly.
-local function detectRegion()
+local function portalRegion()
   local ok, portal = pcall(function() return GetCVar and GetCVar("portal") end)
   portal = ok and type(portal) == "string" and portal:lower() or nil
   if portal and GC.ImportString and GC.ImportString.REGIONS[portal] then return portal end
-  return "us"
+  return nil
+end
+
+local function detectRegion()
+  return portalRegion() or "us"
 end
 
 -- One place that decides which region we are in and which bundled table backs it, called
@@ -39,6 +43,38 @@ end
 function GC.Data.Init(database)
   db = database
   adoptRegion()
+end
+
+-- The region the CLIENT is connected to -- a different question from GetStatus().region,
+-- which is the region whose PRICES are loaded. Those two are the same for almost every
+-- player and diverge the moment somebody imports another region's snapshot, which is a
+-- perfectly reasonable thing to do (comparing markets, testing, a companion pointed at the
+-- wrong realm). Callers that record a FACT about where the player is -- the ledger above
+-- all -- must ask this one; callers that value an item must keep asking GetStatus().
+--
+-- nil, never a guess: detectRegion above answers "us" when the portal CVar is unreadable
+-- because a price table has to come from somewhere, but stamping a guessed region onto an
+-- accounting row is exactly the defect this function exists to end. A caller that gets nil
+-- should fall back to whatever it did before, not invent an answer here.
+--
+-- Note that TW clients connect through the Korean portal and so report `kr` (see
+-- portalRegion's own note). That is a wrong LABEL but a consistent one: every row a TW
+-- player records carries it, buys and sales alike, so nothing fails to pair. The defect
+-- being fixed is inconsistency over time, not the label.
+function GC.Data.ClientRegion()
+  return portalRegion()
+end
+
+--- Non-nil when the loaded snapshot is from a different region than the client is playing
+-- in -- i.e. every discount, tier and profit figure on screen is being measured against a
+-- market the player is not standing in. Silent until now; the caller is expected to say so.
+function GC.Data.RegionMismatch()
+  local imported = db and db.imported
+  local importedRegion = imported and imported.region
+  local client = portalRegion()
+  if type(importedRegion) ~= "string" or importedRegion == "" then return nil end
+  if not client or client == importedRegion then return nil end
+  return { imported = importedRegion, client = client, realm = imported.realm }
 end
 
 -- Human sentences for ImportString.Parse's error codes. The manual dialog used to print
@@ -87,6 +123,28 @@ function GC.Data.SetImported(parsed)
   end
   db.imported = imported
   adoptRegion()
+  GC.Data.WarnRegionMismatch()
+end
+
+-- Said once per distinct mismatch per session -- an import and the login check both call
+-- this, and repeating it on every companion sync would train the player to ignore it.
+local warnedFor = nil
+
+--- Tells the player, in the one place they will see it, that the prices on screen are from
+-- a market they are not standing in. Nothing said this before: an EU account running a KR
+-- snapshot saw KR discounts, KR tiers and KR profit on every EU auction for a full day, and
+-- the only symptom was that Check kept refusing deals the board called HOT.
+function GC.Data.WarnRegionMismatch()
+  local mismatch = GC.Data.RegionMismatch()
+  if not mismatch then warnedFor = nil return nil end
+  local token = mismatch.imported .. "\1" .. mismatch.client
+  if warnedFor == token then return mismatch end
+  warnedFor = token
+  if GC.Print then
+    GC.Print((GC.L["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"])
+      :format(mismatch.imported:upper(), tostring(mismatch.realm or "?"), mismatch.client:upper()))
+  end
+  return mismatch
 end
 
 -- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --

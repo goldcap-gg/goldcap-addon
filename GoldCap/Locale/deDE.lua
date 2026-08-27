@@ -348,6 +348,8 @@ GC.Locales.deDE = {
   ["price confirmed -- click Buy to purchase"] = "Preis bestätigt -- Buy klicken zum Kaufen",
   ["price rose %.1fx — still safe, confirm"] =
     "Preis stieg um %.1fx — weiterhin sicher, bestätige",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "geladene Preise sind %s (%s), du spielst aber in %s — jeder Rabatt und Gewinn wird an einem anderen Markt gemessen",
   ["purchase canceled"] = "Kauf abgebrochen",
   ["purchase pending exact cost"] = "Kauf wartet auf genaue Kosten",
   ["purchase total unavailable — inspect mailbox"] =
@@ -359,6 +361,8 @@ GC.Locales.deDE = {
   ["recent sales (newest first):"] = "letzte Verkäufe (neueste zuerst):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "Region %s — mitgeliefert: %d Gegenstände (%s), importiert: %s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "Region bei %d Buchungen korrigiert; %d Verkäufe wieder ihrem Bestand zugeordnet",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "jetzt neu einzustellen würde einen Verlust oder Stillstand festschreiben -- halten",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] =

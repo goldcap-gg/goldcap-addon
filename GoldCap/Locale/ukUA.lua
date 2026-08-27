@@ -352,6 +352,8 @@ GC.Locales.ukUA = {
   ["price confirmed -- click Buy to purchase"] =
     "ціну підтверджено -- натисніть Buy, щоб купити",
   ["price rose %.1fx — still safe, confirm"] = "ціна зросла в %.1fx — усе ще безпечно, підтвердіть",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "завантажено ціни %s (%s), а граєте ви в %s — усі знижки й прибуток рахуються за чужим ринком",
   ["purchase canceled"] = "купівлю скасовано",
   ["purchase pending exact cost"] = "купівля очікує точної собівартості",
   ["purchase total unavailable — inspect mailbox"] =
@@ -363,6 +365,8 @@ GC.Locales.ukUA = {
   ["recent sales (newest first):"] = "останні продажі (найновіші зверху):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "регіон %s — вбудовано: %d предметів (%s), імпортовано: %s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "регіон виправлено в %d записах; %d продажів зіставлено зі своїм запасом",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "перевиставлення зараз зафіксує збиток або застій -- притримайте",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] =

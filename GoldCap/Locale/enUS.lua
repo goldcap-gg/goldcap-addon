@@ -296,6 +296,8 @@ GC.Locales.enUS = {
   ["placing bid..."] = "placing bid...",
   ["price confirmed -- click Buy to purchase"] = "price confirmed -- click Buy to purchase",
   ["price rose %.1fx — still safe, confirm"] = "price rose %.1fx — still safe, confirm",
+  ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
+    "prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market",
   ["purchase canceled"] = "purchase canceled",
   ["purchase pending exact cost"] = "purchase pending exact cost",
   ["purchase total unavailable — inspect mailbox"] = "purchase total unavailable — inspect mailbox",
@@ -304,6 +306,8 @@ GC.Locales.enUS = {
   ["quote expired -- Refresh to re-check the price"] = "quote expired -- Refresh to re-check the price",
   ["recent sales (newest first):"] = "recent sales (newest first):",
   ["region %s — bundled: %d items (%s), imported: %s"] = "region %s — bundled: %d items (%s), imported: %s",
+  ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
+    "region corrected on %d ledger rows; %d sales matched back to their stock",
   ["relisting now would lock in a loss or a stall -- hold"] = "relisting now would lock in a loss or a stall -- hold",
   ["removed %d duplicate purchase record%s left by a mail-scan bug"] = "removed %d duplicate purchase record%s left by a mail-scan bug",
   ["removed %d duplicate sale record%s left by a mail-scan bug"] = "removed %d duplicate sale record%s left by a mail-scan bug",

@@ -628,14 +628,79 @@ end
 
 --- "Name-Realm" plus region, for stamping entries. Every lookup is guarded
 -- because specs (and the TOC load-order spec) run with no player present.
+--
+-- The region comes from the CLIENT, not from GetStatus() -- see GC.Data.ClientRegion for
+-- the full reasoning. In short: this row records where a transaction happened, and that
+-- cannot depend on which region's price snapshot the player last imported. It did, and an
+-- EU account that imported a KR snapshot spent a day writing `kr` onto EU sales, which the
+-- server's FIFO could never pair with the `eu` buys behind them.
+--
+-- GetStatus() survives only as the fallback for a client that cannot name its own portal:
+-- there, this is exactly the old behaviour and never worse than it.
 function GC.Ledger.Context()
   local name = UnitName and UnitName("player") or nil
   local realm = GetRealmName and GetRealmName() or nil
   local status = GC.Data and GC.Data.GetStatus and GC.Data.GetStatus() or nil
+  local client = GC.Data and GC.Data.ClientRegion and GC.Data.ClientRegion() or nil
   return {
     char = (name and realm) and (name .. "-" .. realm) or name,
-    region = status and status.region or nil,
+    region = client or (status and status.region) or nil,
   }
+end
+
+--- Repairs rows already written with a region the character cannot have been in.
+--
+-- A "Name-Realm" exists in exactly ONE region -- a realm belongs to a region and never
+-- moves -- so every row a character wrote must agree on it. Where they disagree, the
+-- majority is the truth: the corruption is a burst (one import, a few scans) inside a long
+-- history, never the other way round. That rule needs no knowledge of realms, so it repairs
+-- characters the player is not logged into and regions this build has never heard of.
+--
+-- Deliberately NOT "rewrite anything that disagrees with the current client": a player who
+-- genuinely plays two regions from one install shares this SavedVariables file, and that
+-- rule would silently rewrite their other region's whole history. A tie is left alone for
+-- the same reason -- with no majority there is no evidence, only a guess -- except for the
+-- character actually at the keyboard, whose live portal IS evidence and is passed in.
+--
+-- Repaired rows lose `uploaded` so they go up again. The server's copy is what feeds the
+-- website's FIFO, and it carries the wrong region until it is re-sent.
+function GC.Ledger.RepairCharacterRegions(currentChar, currentRegion)
+  if not db or type(db.ledger) ~= "table" then return {} end
+
+  local tally = {}
+  for _, entry in ipairs(db.ledger) do
+    local char, region = entry.char, entry.region
+    if type(char) == "string" and char ~= "" and type(region) == "string" and region ~= "" then
+      local counts = tally[char] or {}
+      counts[region] = (counts[region] or 0) + 1
+      tally[char] = counts
+    end
+  end
+
+  local truth = {}
+  for char, counts in pairs(tally) do
+    local best, bestCount, tied = nil, 0, false
+    for region, count in pairs(counts) do
+      if count > bestCount then best, bestCount, tied = region, count, false
+      elseif count == bestCount then tied = true end
+    end
+    if tied and char == currentChar and type(currentRegion) == "string" and currentRegion ~= ""
+        and counts[currentRegion] then
+      best, tied = currentRegion, false
+    end
+    if best and not tied then truth[char] = best end
+  end
+
+  local repaired = {}
+  for _, entry in ipairs(db.ledger) do
+    local want = entry.char and truth[entry.char] or nil
+    if want and type(entry.region) == "string" and entry.region ~= "" and entry.region ~= want then
+      entry.region = want
+      entry.uploaded = nil
+      repaired[#repaired + 1] = entry
+    end
+  end
+  return repaired
 end
 
 -- ~7 months of five-minute samples at typical play rates. The curve exists to
