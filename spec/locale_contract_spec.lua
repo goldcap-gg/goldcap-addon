@@ -53,6 +53,41 @@ describe("locale contract", function()
     end
   end)
 
+  -- The base is generated from the source, and a generator that escapes a key twice produces
+  -- an entry nothing ever looks up: the lookup falls back to English forever, in every
+  -- language, with nothing failing to say so. This caught exactly that on the one key
+  -- containing an escaped quote.
+  it("holds exactly the keys the source asks for", function()
+    local asked = {}
+    local function scan(dir)
+      local listing = io.popen('find GoldCap/' .. dir .. ' -name "*.lua"')
+      for path in listing:lines() do
+        if not path:find("Locale/") and not path:find("MarketData") then
+          local file = assert(io.open(path))
+          local text = file:read("*a")
+          file:close()
+          for raw in text:gmatch('GC%.L%["(.-)"%]') do
+            -- The match is the SOURCE spelling, where a quote is \" and a newline is \n.
+            -- GC.Locales.enUS holds those after Lua parsed them, so undo the escapes before
+            -- comparing -- otherwise this guard fires on every key that contains one.
+            local key = raw:gsub('\\n', '\n'):gsub('\\"', '"'):gsub('\\\\', '\\')
+            asked[key] = path
+          end
+        end
+      end
+      listing:close()
+    end
+    scan("Core"); scan("UI"); scan("Data")
+
+    for key, path in pairs(asked) do
+      assert.is_not_nil(GC.Locales.enUS[key],
+        ("%s asks for %q, which the English base does not carry"):format(path, key))
+    end
+    for key in pairs(GC.Locales.enUS) do
+      assert.is_not_nil(asked[key], ("the English base carries %q, which no file asks for"):format(key))
+    end
+  end)
+
   it("keeps a started language from going mostly English", function()
     local base = GC.Locales.enUS
     local total = 0

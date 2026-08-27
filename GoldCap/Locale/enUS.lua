@@ -23,8 +23,7 @@ GC.Locales.enUS = {
   ["%d held back from posting"] = "%d held back from posting",
   ["%d missing"] = "%d missing",
   ["%d partial"] = "%d partial",
-  ["%d refused by live checks -- press \\\"HIDDEN %d\\\" above to review them"] =
-    "%d refused by live checks -- press \\\"HIDDEN %d\\\" above to review them",
+  ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
   ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
   ["%d without a price"] = "%d without a price",
   ["%d without cost"] = "%d without cost",
