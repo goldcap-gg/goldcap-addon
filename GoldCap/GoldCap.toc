@@ -17,6 +17,7 @@ Core/Util.lua
 Locale/Core.lua
 Locale/deDE.lua
 Locale/enUS.lua
+Locale/frFR.lua
 Locale/koKR.lua
 Locale/ruRU.lua
 Locale/ukUA.lua
