@@ -409,19 +409,19 @@ local function build(sniperFrame)
   -- automation/display on the right).
   local title = Theme.Label(panel, 14)
   title:SetPoint("TOPLEFT", 16, -12)
-  title:SetText("Settings")
+  title:SetText(GC.L["Settings"])
 
   local subtitle = Theme.Num(panel, 9)
   subtitle:SetJustifyH("LEFT")
   subtitle:SetWordWrap(false)
   subtitle:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  subtitle:SetText("SAVED INSTANTLY · ESC OR DONE TO CLOSE")
+  subtitle:SetText(GC.L["SAVED INSTANTLY · ESC OR DONE TO CLOSE"])
   subtitle:SetPoint("LEFT", title, "RIGHT", 12, 0)
 
   local done = Theme.Button(panel, "active", "plaque")
   done:SetSize(64, 26)
   done:SetPoint("TOPRIGHT", -16, -7)
-  done:SetLabel("DONE")
+  done:SetLabel(GC.L["DONE"])
   done:SetScript("OnClick", function() GC.SettingsUI.Toggle() end)
 
   do
@@ -529,7 +529,7 @@ local function build(sniperFrame)
     label:SetWordWrap(false)
     -- M11: "Auction duration" truncated to "Auction du..." at the 640 minimum / 1.3x scale --
     -- relabeled to the shorter "Duration" (no spec pins on the string).
-    label:SetText("Duration")
+    label:SetText(GC.L["Duration"])
 
     refreshers[#refreshers + 1] = bindDurationSegments({ h12, h24, h48 }, { 12, 24, 48 })
   end
@@ -563,7 +563,7 @@ local function build(sniperFrame)
   local scaleLabel = Theme.Label(display, 12)
   scaleLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(1))
   scaleLabel:SetWordWrap(false)
-  scaleLabel:SetText("Font scale")
+  scaleLabel:SetText(GC.L["Font scale"])
 
   local slider, sliderTrack = makeSlider(display, 110, 0.9, 1.3, 0.05)
   sliderTrack:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(1) - 8)
@@ -579,12 +579,12 @@ local function build(sniperFrame)
   local windowLabel = Theme.Label(display, 12)
   windowLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(2))
   windowLabel:SetWordWrap(false)
-  windowLabel:SetText("Window position & size")
+  windowLabel:SetText(GC.L["Window position & size"])
 
   local resetBtn = Theme.Button(display, "ghost", "plaque")
   resetBtn:SetSize(120, 26)
   resetBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(2) + 3)
-  resetBtn:SetLabel("RESET WINDOW")
+  resetBtn:SetLabel(GC.L["RESET WINDOW"])
   resetBtn:SetScript("OnClick", resetWindow)
 
   windowLabel:SetPoint("RIGHT", resetBtn, "LEFT", -Theme.pad.s, 0)

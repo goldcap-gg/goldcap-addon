@@ -302,14 +302,14 @@ frame:SetScript("OnEvent", function(_, event, ...)
       local repaired = GC.Acquisitions.RepairDuplicateMailBuys
         and GC.Acquisitions.RepairDuplicateMailBuys() or 0
       if repaired > 0 and GC.Print then
-        GC.Print(("removed %d duplicate purchase record%s left by a mail-scan bug"):format(
+        GC.Print((GC.L["removed %d duplicate purchase record%s left by a mail-scan bug"]):format(
           repaired, repaired == 1 and "" or "s"))
       end
       -- Same announcement rule for the 2026-08-19 double-scan sale duplicates.
       local rescanned = GC.Acquisitions.RepairRescannedMailSales
         and GC.Acquisitions.RepairRescannedMailSales() or 0
       if rescanned > 0 and GC.Print then
-        GC.Print(("removed %d duplicate sale record%s left by a mail-scan bug"):format(
+        GC.Print((GC.L["removed %d duplicate sale record%s left by a mail-scan bug"]):format(
           rescanned, rescanned == 1 and "" or "s"))
       end
     end
@@ -484,7 +484,7 @@ function GC.OnSlash(msg)
   if handler then
     handler()
   else
-    GC.Print("v" .. GC.version .. " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)")
+    GC.Print("v" .. GC.version .. GC.L[" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"])
   end
 end
 
@@ -510,7 +510,7 @@ GC.slashHandlers.ledger = function()
       end
     end
   end
-  GC.Print(("last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent")
+  GC.Print((GC.L["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"])
     :format(sales, GetCoinTextureString(gross), GetCoinTextureString(cut),
       buys, GetCoinTextureString(spent)))
 end
@@ -533,10 +533,10 @@ GC.slashHandlers.sales = function()
   end
   table.sort(sales, function(left, right) return (left.at or 0) > (right.at or 0) end)
   if #sales == 0 then
-    GC.Print("no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices")
+    GC.Print(GC.L["no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices"])
     return
   end
-  GC.Print("recent sales (newest first):")
+  GC.Print(GC.L["recent sales (newest first):"])
   for i = 1, math.min(#sales, 15) do
     local sale = sales[i]
     local qty = (type(sale.qty) == "number" and sale.qty > 0) and sale.qty or 1
@@ -546,7 +546,7 @@ GC.slashHandlers.sales = function()
       local ok, formatted = pcall(_G.date, "%d %b %H:%M", sale.at)
       if ok then when = formatted end
     end
-    GC.Print((" %s  %s  x%d at %s each  (%s total, %s cut)%s"):format(
+    GC.Print((GC.L[" %s  %s  x%d at %s each  (%s total, %s cut)%s"]):format(
       when, sale.itemName, qty, GetCoinTextureString(math.floor(total / qty)),
       GetCoinTextureString(total), GetCoinTextureString(sale.cut or 0),
       sale.pending and "  [not yet paid out]" or ""))
@@ -565,7 +565,7 @@ function GoldCap_OnAddonCompartmentEnter(_, button)
   if not GameTooltip or not button then return end
   GameTooltip:SetOwner(button, "ANCHOR_LEFT")
   GameTooltip:AddLine("GoldCap")
-  GameTooltip:AddLine("Open the deals board. /gc for commands.", 1, 1, 1)
+  GameTooltip:AddLine(GC.L["Open the deals board. /gc for commands."], 1, 1, 1)
   GameTooltip:Show()
 end
 

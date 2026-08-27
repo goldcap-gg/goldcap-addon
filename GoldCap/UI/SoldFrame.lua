@@ -318,7 +318,7 @@ local function paintSaleCells(row, name, itemID, qty, total, at, pending)
   -- rather than an appendix to it.
   -- Transit is the one thing worth calling out in this column -- the gold
   -- tint says "still moving", dates stay dim like the rest of the row.
-  row.cells.when:SetText(pending and "in the mail" or formatWhen(at))
+  row.cells.when:SetText(pending and GC.L["in the mail"] or formatWhen(at))
   setColor(row.cells.when, pending and Theme.color.gold or Theme.color.fgDim)
 
   row.cells.qty:SetText(tostring(qty or 0))
@@ -441,7 +441,7 @@ local function paintRow(row, entry, index)
       row.cells.profit:SetText(text)
       setColor(row.cells.profit, basis.profit >= 0 and Theme.color.green or Theme.color.red)
     elseif basis then
-      row.cells.profit:SetText("cost unknown")
+      row.cells.profit:SetText(GC.L["cost unknown"])
       setColor(row.cells.profit, Theme.color.fgDim)
     end
     -- else: free tier, no basis at all -- row.cells.profit stays "" (M2/
@@ -615,7 +615,7 @@ local function createBand(parent)
 
   local profitLabel = Theme.Num(parent, 9)
   setColor(profitLabel, Theme.color.fgDim)
-  profitLabel:SetText("REALIZED PROFIT")
+  profitLabel:SetText(GC.L["REALIZED PROFIT"])
   profitLabel:SetPoint("TOPRIGHT", 0, -4)
 
   -- Both lines' RIGHT edge is bound to profitLabel's LEFT, not profit's:
@@ -689,7 +689,7 @@ local function renderRows()
   for _, entry in ipairs(entries) do
     if entry.kind == "totals" then
       local t = entry.summary.totals
-      band.totals:SetText(("%d sales · %s proceeds · %s in the mail"):format(
+      band.totals:SetText((GC.L["%d sales · %s proceeds · %s in the mail"]):format(
         t.salesCount, formatAmount(t.proceeds), formatAmount(t.pending)))
       setColor(band.totals, Theme.color.fgMuted)
       if t.realized then
@@ -698,7 +698,7 @@ local function renderRows()
         band.profitLabel:Show()
       end
     elseif entry.kind == "age" then
-      band.age:SetText(("data from goldcap.gg · synced %s ago"):format(
+      band.age:SetText((GC.L["data from goldcap.gg · synced %s ago"]):format(
         GC.Util.FormatAge(entry.age)))
       if entry.age >= STALE_RED_SECONDS then
         setColor(band.age, Theme.color.red)
