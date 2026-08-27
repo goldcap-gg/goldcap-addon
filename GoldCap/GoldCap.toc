@@ -16,6 +16,7 @@
 Core/Util.lua
 Locale/Core.lua
 Locale/enUS.lua
+Locale/koKR.lua
 Locale/ruRU.lua
 Locale/ukUA.lua
 Core/ImportString.lua

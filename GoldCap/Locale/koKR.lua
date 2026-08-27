@@ -1,0 +1,388 @@
+local _, GC = ...
+
+-- Korean. Terminology follows apps/web/messages/ko.json where the site has the same concept.
+-- On this locale the kit draws with the client's own font (Theme.RefreshFonts): the bundled
+-- monospace face has no CJK coverage at all.
+-- Format specifiers must stay in the key's order: Lua 5.1 has no positional %1$s.
+GC.Locales.koKR = {
+  [" %s  %s  x%d at %s each  (%s total, %s cut)%s"] =
+    " %s  %s  x%d개, 개당 %s  (총 %s, 수수료 %s)%s",
+  [" Companion keeps this fresh: /goldcap companion."] =
+    " Companion이 자동으로 갱신합니다: /goldcap companion.",
+  [" rows against the live auction house about every "] = " 줄을 실시간 경매장과 대조합니다. 주기는 약 ",
+  [" |cffff4040v|r"] = " |cffff4040v|r",
+  [" · below cost"] = " · 원가 미만",
+  [" · stale %ds"] = " · %d초 지남",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
+    " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (짧게 /gc)",
+  ["%d (whole lot)"] = "%d (전체 물량)",
+  ["%d deals from your last scan -- Full Scan to refresh"] =
+    "지난 검색의 거래 %d건 -- 갱신하려면 Full Scan",
+  ["%d filtered out as hard to resell"] = "재판매가 어려워 %d건 제외",
+  ["%d held back"] = "%d건 보류",
+  ["%d held back from posting"] = "등록에서 %d건 보류",
+  ["%d missing"] = "%d건 없음",
+  ["%d partial"] = "%d건 일부",
+  ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
+    "실시간 확인에서 %d건 거부 -- 위의 \"HIDDEN %d\"를 눌러 확인하세요",
+  ["%d sales · %s proceeds · %s in the mail"] = "판매 %d건 · 수익 %s · 우편함 %s",
+  ["%d without a price"] = "가격 없음 %d건",
+  ["%d without cost"] = "원가 없음 %d건",
+  ["%d · %d/%d covered"] = "%d · %d/%d 확인됨",
+  ["%d/%d covered"] = "%d/%d 확인됨",
+  ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 개당    총 %s -> %s",
+  ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
+  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "붐비는 서버에서 15~60초. 대기시간 없음 -- 언제든 다시 검색하세요.",
+  ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
+    "약속이 아니라 실마리입니다: 가져온 시세의 95%로 재판매할 때, Check가 승인할 수량 기준입니다.",
+  ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
+  ["AUTO"] = "자동",
+  ["AUTO · PAUSED: "] = "자동 · 일시중지: ",
+  ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
+  ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
+    "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. ",
+  ["Avoid"] = "회피",
+  ["Background check"] = "백그라운드 확인",
+  ["Buy"] = "구매",
+  ["Buy %d × %s for %s"] = "%d개 × %s, 가격 %s",
+  ["CANCEL %d"] = "취소 %d",
+  ["CANCEL LOT?"] = "물량 취소?",
+  ["CANCELLING…"] = "취소 중…",
+  ["CONFIRM"] = "확인",
+  ["CONFIRM PURCHASE"] = "구매 확인",
+  ["COST / UNIT"] = "원가 / 개",
+  ["Cancel"] = "취소",
+  ["Cancel lot?"] = "물량 취소?",
+  ["Cancel this lot and lose its deposit — click again to confirm"] =
+    "이 물량을 취소하고 등록비를 잃습니다 — 다시 클릭하면 확정됩니다",
+  ["Cancel timed out"] = "취소 시간이 초과되었습니다",
+  ["Cancelling lot…"] = "물량 취소 중…",
+  ["Cannot post this position"] = "이 항목은 등록할 수 없습니다",
+  ["Cannot remove this entry"] = "이 기록은 삭제할 수 없습니다",
+  ["Cannot repost this lot"] = "이 물량은 다시 등록할 수 없습니다",
+  ["Check"] = "확인",
+  ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
+    "Check는 골드가 움직이기 전에 실시간 호가로 다시 계산하며, 마지막 가져오기 이후 시장이 바뀌었다면 더 낮게 나오거나 거부할 수 있습니다.",
+  ["Checked: %d of the top %d on screen"] = "확인: %d개 (화면 상위 %d개 중)",
+  ["Checking prices…"] = "가격 확인 중…",
+  ["Checking this item's price…"] = "이 아이템의 가격을 확인하는 중…",
+  ["Click Confirm to post"] = "Confirm을 눌러 등록하세요",
+  ["Close"] = "닫기",
+  ["Companion sync rejected:"] = "Companion 동기화가 거부됨:",
+  ["Confirm"] = "확인",
+  ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
+  ["Could not find the queue's next item to post — try again"] =
+    "등록 대기열의 다음 아이템을 찾지 못했습니다 — 다시 시도하세요",
+  ["Could not find the queue's next lot to cancel — try again"] =
+    "취소 대기열의 다음 물량을 찾지 못했습니다 — 다시 시도하세요",
+  ["DONE"] = "완료",
+  ["Duration"] = "기간",
+  ["ENTRY AVG"] = "평균 진입가",
+  ["EST. PROFIT AFTER AH CUT"] = "수수료 후 예상 수익",
+  ["Enlarge the window to see details"] = "세부 정보를 보려면 창을 키우세요",
+  ["Enter a whole quantity"] = "정수 수량을 입력하세요",
+  ["Enter an exact positive cost"] = "정확한 양수 원가를 입력하세요",
+  ["Entry price (avg fill)"] = "진입가 (평균 체결)",
+  ["Entry total"] = "진입 총액",
+  ["Est. profit"] = "예상 수익",
+  ["FIFO allocations"] = "선입선출 배분",
+  ["Fetching a fresh price for this item — press Post again in a moment"] =
+    "이 아이템의 최신 가격을 가져오는 중 — 잠시 후 Post를 다시 누르세요",
+  ["Fetching a fresh price for this lot — press Repost again in a moment"] =
+    "이 물량의 최신 가격을 가져오는 중 — 잠시 후 Repost를 다시 누르세요",
+  ["Finish the pending post first"] = "진행 중인 등록을 먼저 끝내세요",
+  ["Finish the pending post or repost first"] = "진행 중인 등록 또는 재등록을 먼저 끝내세요",
+  ["Font scale"] = "글꼴 크기",
+  ["Full pass over them: %.1fs"] = "전체 순회: %.1f초",
+  ["Full pass over them: measuring..."] = "전체 순회: 측정 중...",
+  ["GOOD = solid discount + profit"] = "GOOD = 확실한 할인 + 수익",
+  ["GoldCap Companion"] = "GoldCap Companion",
+  ["GoldCap Sniper"] = "GoldCap Sniper",
+  ["GoldCap can't pin down which bag stack this is"] =
+    "GoldCap이 가방의 어느 묶음인지 특정하지 못했습니다",
+  ["GoldCap re-checks the top "] = "GoldCap이 다시 확인하는 상위 ",
+  ["GoldCap — Import realm prices"] = "GoldCap — 서버 시세 가져오기",
+  ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- safe to buy"] = "GoldCap: 실시간 확인 완료 -- 구매해도 안전합니다",
+  ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
+    "회색이면 시세가 오래된 것입니다. Post와 Repost는 실행 전에 시세를 갱신합니다.",
+  ["HIDDEN 0"] = "숨김 0",
+  ["HIDE DETAILS ▾"] = "세부 정보 숨기기 ▾",
+  ["HOT = big discount + high profit + proven sales/day"] =
+    "HOT = 큰 할인 + 높은 수익 + 검증된 일일 판매량",
+  ["Held back from cancelling"] = "취소에서 보류됨",
+  ["Held back from the queue"] = "대기열에서 보류됨",
+  ["ITEM"] = "아이템",
+  ["Import"] = "가져오기",
+  ["Import failed:"] = "가져오기 실패:",
+  ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
+    "무료 GoldCap Companion을 설치하면 시세가 자동으로 갱신됩니다 (/goldcap companion),",
+  ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
+    "이것은 빨리 팔려면 이겨야 할 가격이지, 아이템의 가치가 아닙니다. 급한 판매자 한 명이 가치보다 훨씬 낮게 내놓을 수 있으며 GoldCap은 그 아래로 따라가지 않습니다. 실제 등록 가격은 WHAT TO DO를 보세요.",
+  ["Item"] = "아이템",
+  ["Item %d"] = "아이템 %d",
+  ["LISTED"] = "등록됨",
+  ["LIVE VERDICT · CHECKING"] = "실시간 판정 · 확인 중",
+  ["LIVE VERDICT · REFUSED"] = "실시간 판정 · 거부",
+  ["LIVE VERDICT · SAFE"] = "실시간 판정 · 안전",
+  ["Language"] = "언어",
+  ["Language changed. Type /reload to apply it everywhere."] =
+    "언어를 바꿨습니다. 모든 곳에 적용하려면 /reload를 입력하세요.",
+  ["Last result: %ds ago"] = "마지막 결과: %d초 전",
+  ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
+  ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
+  ["Lot cancelled; wait for it to return to bags"] = "물량을 취소했습니다. 가방으로 돌아올 때까지 기다리세요",
+  ["MARKET / UNIT"] = "시세 / 개",
+  ["Market per unit"] = "개당 시세",
+  ["Market reference"] = "시세 기준",
+  ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
+    "아직 GOLDCAP.GG에 없음 — /RELOAD 또는 접속 종료 시 동기화",
+  ["NOTHING TO CANCEL"] = "취소할 것 없음",
+  ["NOTHING TO POST"] = "등록할 것 없음",
+  ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
+  ["No deals to show -- and no realm prices yet."] = "표시할 거래가 없습니다 -- 서버 시세도 아직 없습니다.",
+  ["No deals yet."] = "아직 거래가 없습니다.",
+  ["No exact auction key"] = "정확한 경매 키가 없습니다",
+  ["No exact bag stack"] = "정확한 가방 묶음이 없습니다",
+  ["No exact bag variant"] = "정확한 가방 변형이 없습니다",
+  ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
+    "기록된 판매가 없습니다 -- GoldCap을 켠 채 우편함을 여세요",
+  ["Not in your bags or listed — mail or bank?"] = "가방에도 없고 등록도 안 됨 — 우편함이나 은행인가요?",
+  ["Not on hand — the stock is in the mail, the bank, or on another character"] =
+    "보유 중이 아님 — 물량이 우편함, 은행 또는 다른 캐릭터에 있습니다",
+  ["Nothing is being held back."] = "보류된 것이 없습니다.",
+  ["Nothing listed on the AH right now"] = "지금 경매장에 등록된 것이 없습니다",
+  ["Nothing queued to cancel"] = "취소 대기열이 비었습니다",
+  ["Nothing queued to post"] = "등록 대기열이 비었습니다",
+  ["Nothing to remove"] = "삭제할 것이 없습니다",
+  ["ON GOLDCAP.GG — LAST %d DAYS"] = "GOLDCAP.GG 기준 — 최근 %d일",
+  ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
+    "GOLDCAP.GG 기준 — 최근 %d일, 최신 %d/%d",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
+    "페이지 단위 조회로 경매장 전체를 한 번 검색합니다. 소요 시간은 약 ",
+  ["Open the Auction House first."] = "먼저 경매장을 여세요.",
+  ["Open the Auction House to begin scanning."] = "검색을 시작하려면 경매장을 여세요.",
+  ["Open the deals board. /gc for commands."] = "거래 목록을 엽니다. 명령어는 /gc.",
+  ["POST %d"] = "등록 %d",
+  ["POSTING…"] = "등록 중…",
+  ["PRICE ROSE %.1fx"] = "가격이 %.1f배 올랐습니다",
+  ["PROFIT / UNIT"] = "수익 / 개",
+  ["Pair or update the GoldCap Companion to see profit from goldcap.gg"] =
+    "goldcap.gg의 수익을 보려면 GoldCap Companion을 연결하거나 갱신하세요",
+  ["Paste your realm string from goldcap.gg and press Import."] =
+    "goldcap.gg의 서버 문자열을 붙여넣고 Import를 누르세요.",
+  ["Position scope changed"] = "항목 범위가 바뀌었습니다",
+  ["Positions without a cost or a live price are excluded."] =
+    "원가나 실시간 가격이 없는 항목은 제외됩니다.",
+  ["Post"] = "등록",
+  ["Post confirmation expired"] = "등록 확인이 만료되었습니다",
+  ["Post the next queued item"] = "대기열의 다음 아이템 등록",
+  ["Posting failed"] = "등록에 실패했습니다",
+  ["Posting timed out"] = "등록 시간이 초과되었습니다",
+  ["Posting unavailable"] = "등록할 수 없습니다",
+  ["Posting…"] = "등록 중…",
+  ["Press Full Scan to find deals."] = "거래를 찾으려면 Full Scan을 누르세요.",
+  ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
+    "경매장 전체를 한 번 검색하려면 Scan을, 계속 검색하려면 Auto를 누르세요.",
+  ["Previous removal selection cleared"] = "이전 삭제 선택을 해제했습니다",
+  ["Previous repost selection cleared"] = "이전 재등록 선택을 해제했습니다",
+  ["Prices up to date"] = "시세가 최신입니다",
+  ["Prices up to date · %d did not answer"] = "시세가 최신입니다 · %d건은 응답 없음",
+  ["Pricing %d/%d…"] = "가격 조회 %d/%d…",
+  ["Pricing…"] = "가격 조회 중…",
+  ["Profit tracking is a goldcap.gg Pro feature"] = "수익 추적은 goldcap.gg Pro 기능입니다",
+  ["QTY"] = "수량",
+  ["Quantity exceeds missing units"] = "수량이 부족분을 초과합니다",
+  ["REALIZED PROFIT"] = "실현 수익",
+  ["REFRESH"] = "새로고침",
+  ["RESET WINDOW"] = "창 초기화",
+  ["Refresh waiting for prior result"] = "이전 결과를 기다리는 중입니다",
+  ["Refreshing listings…"] = "등록 목록 갱신 중…",
+  ["Refused so far: %d"] = "지금까지 거부: %d건",
+  ["Removal confirmation expired"] = "삭제 확인이 만료되었습니다",
+  ["Remove"] = "삭제",
+  ["Remove?"] = "삭제할까요?",
+  ["Removes every entered-by-hand purchase in this run -- click again to confirm"] =
+    "이 묶음에서 직접 입력한 구매를 모두 삭제합니다 -- 다시 클릭하면 확정됩니다",
+  ["Removes this entered-by-hand purchase -- click again to confirm"] =
+    "직접 입력한 이 구매를 삭제합니다 -- 다시 클릭하면 확정됩니다",
+  ["Repost"] = "재등록",
+  ["Repost confirmation expired"] = "재등록 확인이 만료되었습니다",
+  ["Right-click to stop watching this item"] = "이 아이템 주시를 멈추려면 우클릭",
+  ["Right-click to watch this item closely"] = "이 아이템을 자세히 주시하려면 우클릭",
+  ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "즉시 저장됨 · ESC 또는 DONE으로 닫기",
+  ["SCAN"] = "검색",
+  ["SCANNING…"] = "검색 중…",
+  ["SESSION %s%s · %d BUYS"] = "세션 %s%s · 구매 %d건",
+  ["SHOW DETAILS ▸"] = "세부 정보 보기 ▸",
+  ["STRESS EXIT"] = "스트레스 청산가",
+  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
+    "SUSPECT = 할인이 지나쳐 사기이거나 시세가 잘못된 아이템일 가능성이 큼",
+  ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
+  ["Set cost"] = "원가 입력",
+  ["Settings"] = "설정",
+  ["Sort by it to decide what to Check first, not to decide what to buy."] =
+    "무엇을 살지가 아니라, 무엇을 먼저 확인할지 정할 때 이 기준으로 정렬하세요.",
+  ["Source age"] = "자료 경과 시간",
+  ["Stress exit unit"] = "스트레스 청산 단가",
+  ["Stress profit"] = "스트레스 수익",
+  ["The Companion is syncing, but this addon could not read what it wrote:"] =
+    "Companion은 동기화 중이지만, 이 애드온이 기록된 내용을 읽지 못했습니다:",
+  ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
+    "실시간 경매장 조회에서 다른 사람이 부르는 가장 싼 가격입니다. 본인 등록분은 제외되므로 이 숫자가 스스로를 따라 내려가지 않습니다.",
+  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
+    "무료 데스크톱 Companion이 시세를 자동으로 갱신하고 판매를 동기화합니다. 링크를 복사(Ctrl+C)해 브라우저에서 여세요:",
+  ["Unknown"] = "알 수 없음",
+  ["Unknown item"] = "알 수 없는 아이템",
+  ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
+  ["WATCH = discounted but unproven liquidity or small profit"] =
+    "WATCH = 할인은 있으나 유동성이 검증되지 않았거나 수익이 적음",
+  ["WHAT TO DO"] = "할 일",
+  ["Waiting for Auction House…"] = "경매장을 기다리는 중…",
+  ["Waiting for a live price"] = "실시간 가격을 기다리는 중",
+  ["Waiting for the Auction House…"] = "경매장을 기다리는 중…",
+  ["Waiting for the purchase to finish…"] = "구매가 끝나기를 기다리는 중…",
+  ["Watching closely: %d item%s"] = "자세히 주시 중: 아이템 %d개%s",
+  ["Watching — pinned, but not a deal right now"] = "주시 중 — 고정했지만 지금은 거래가 아닙니다",
+  ["Window position & size"] = "창 위치와 크기",
+  ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
+    "이 정도로 극단적인 할인은 대개 싼 물건이라는 뜻이 아니라 시세가 잘못됐다는 뜻입니다",
+  ["auto off"] = "자동 꺼짐",
+  ["auto-synced %dh ago"] = "%d시간 전 자동 동기화",
+  ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",
+  ["auto-synced data stale -- /goldcap import"] = "자동 동기화 자료가 오래됨 -- /goldcap import",
+  ["auto: paused"] = "자동: 일시중지",
+  ["big buy"] = "대량 구매",
+  ["bought %d x item %d"] = "%d개 구매 · 아이템 %d",
+  ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
+  ["buying commodity..."] = "상품 구매 중...",
+  ["checking live price..."] = "실시간 가격 확인 중...",
+  ["checking live safety..."] = "실시간 안전성 확인 중...",
+  ["commodity no longer available -- someone bought it out"] =
+    "상품이 더 이상 없습니다 -- 누군가 이미 사갔습니다",
+  ["commodity purchase failed"] = "상품 구매에 실패했습니다",
+  ["confirmed commodity purchase failed after AH close"] =
+    "경매장 종료 후 확정된 상품 구매가 실패했습니다",
+  ["confirming purchase..."] = "구매 확정 중...",
+  ["cost basis incomplete -- set costs to get repost advice"] =
+    "원가 정보가 불완전합니다 -- 재등록 조언을 받으려면 원가를 입력하세요",
+  ["cost unknown"] = "원가 모름",
+  ["data from goldcap.gg · synced %s ago"] = "goldcap.gg 자료 · %s 전 동기화",
+  ["due -- will be asked next pass"] = "차례 -- 다음 순회에 조회합니다",
+  ["finish the pending buy first"] = "진행 중인 구매를 먼저 끝내세요",
+  ["full scan already in progress"] = "전체 검색이 이미 진행 중입니다",
+  ["full scan complete: %d deal%s from %d item group%s%s"] =
+    "전체 검색 완료: 거래 %d건%s · 아이템 그룹 %d개%s%s",
+  ["full scan interrupted -- confirm your purchase"] = "전체 검색이 중단됨 -- 구매를 확정하세요",
+  ["full scan stalled -- press Full Scan to retry"] =
+    "전체 검색이 멈췄습니다 -- Full Scan을 눌러 다시 시도하세요",
+  ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
+  ["gone / price changed"] = "사라짐 / 가격 변경",
+  ["identity unresolved (variant item -- not priced by design)"] =
+    "식별 실패 (변형 아이템 -- 의도적으로 가격을 매기지 않음)",
+  ["import %dh old"] = "가져오기 %d시간 경과",
+  ["import stale -- /goldcap import or /goldcap companion"] =
+    "가져온 자료가 오래됨 -- /goldcap import 또는 /goldcap companion",
+  ["imported %d items for %s (%s) — prices are live now."] =
+    "아이템 %d개를 가져왔습니다 · %s (%s) — 이제 시세가 반영됩니다.",
+  ["in the mail"] = "우편함에 있음",
+  ["item %d"] = "아이템 %d",
+  ["item %d: %s"] = "아이템 %d: %s",
+  ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
+    "item=%d computed=%s public=%s buyable=%s reasons=%s",
+  ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
+    "최근 24시간 — 판매 %d건, 총액 %s, 수수료 %s, 구매 %d건, 지출 %s",
+  ["listing gone -- already bought out or price changed"] =
+    "등록이 사라짐 -- 이미 팔렸거나 가격이 바뀌었습니다",
+  ["live safety confirmed -- click Buy to purchase"] = "실시간 안전 확인 완료 -- Buy를 눌러 구매하세요",
+  ["live verification required"] = "실시간 확인이 필요합니다",
+  ["manual import -- Companion keeps this fresh: /goldcap companion"] =
+    "수동 가져오기 -- Companion이 자동 갱신합니다: /goldcap companion",
+  ["needs a fresh price -- press Refresh"] = "최신 가격이 필요합니다 -- Refresh를 누르세요",
+  ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
+    "서버 확인이 없습니다 -- 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
+  ["no prices yet -- /goldcap companion or /goldcap import"] =
+    "아직 시세가 없습니다 -- /goldcap companion 또는 /goldcap import",
+  ["no purchase confirmation received -- Cancel and retry"] =
+    "구매 확인을 받지 못했습니다 -- Cancel 후 다시 시도하세요",
+  ["no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices"] =
+    "기록된 판매가 없습니다 — GoldCap을 켠 채 우편함을 열면 청구서에서 읽어옵니다",
+  ["no stock in bags or listed -- nothing to price for"] =
+    "가방에도 없고 등록도 없습니다 -- 가격을 매길 대상이 없습니다",
+  ["none"] = "없음",
+  ["not enough gold -- total %s, you have %s"] = "골드가 부족합니다 -- 총 %s, 보유 %s",
+  ["not enough gold for this quote -- Cancel"] = "이 가격에 필요한 골드가 부족합니다 -- Cancel",
+  ["not ready to cancel"] = "취소할 준비가 되지 않았습니다",
+  ["not ready to post"] = "등록할 준비가 되지 않았습니다",
+  ["nothing listed"] = "등록된 것이 없습니다",
+  ["of %d"] = "/ %d",
+  ["or paste a string from goldcap.gg with /goldcap import."] =
+    "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
+  ["placing bid..."] = "입찰 중...",
+  ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",
+  ["price rose %.1fx — still safe, confirm"] = "가격이 %.1f배 올랐습니다 — 여전히 안전합니다, 확정하세요",
+  ["purchase canceled"] = "구매를 취소했습니다",
+  ["purchase pending exact cost"] = "정확한 원가를 기다리는 구매",
+  ["purchase total unavailable — inspect mailbox"] = "구매 총액을 알 수 없습니다 — 우편함을 확인하세요",
+  ["quote %s -- click Confirm to buy"] = "시세 %s -- Confirm을 눌러 구매하세요",
+  ["quote %ss ago"] = "시세 %s초 전",
+  ["quote expired -- Refresh to re-check the price"] =
+    "시세가 만료됨 -- Refresh로 가격을 다시 확인하세요",
+  ["recent sales (newest first):"] = "최근 판매 (최신순):",
+  ["region %s — bundled: %d items (%s), imported: %s"] =
+    "지역 %s — 내장: 아이템 %d개 (%s), 가져옴: %s",
+  ["relisting now would lock in a loss or a stall -- hold"] =
+    "지금 재등록하면 손실이나 정체가 확정됩니다 -- 보류하세요",
+  ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
+    "우편 검사 오류로 남은 중복 구매 기록 %d건%s을 삭제했습니다",
+  ["removed %d duplicate sale record%s left by a mail-scan bug"] =
+    "우편 검사 오류로 남은 중복 판매 기록 %d건%s을 삭제했습니다",
+  ["s. Rows it refuses are hidden. Buying always stays a click you make."] =
+    "초입니다. 거부된 줄은 숨겨집니다. 구매는 언제나 직접 누르는 클릭입니다.",
+  ["sale proceeds pending"] = "판매 대금 대기 중",
+  ["scanned %d listings over %d passes"] = "등록 %d건을 %d번 순회로 검색했습니다",
+  ["scanning auction house..."] = "경매장 검색 중...",
+  ["scanning… %d results · %d deals%s"] = "검색 중… 결과 %d건 · 거래 %d건%s",
+  ["search the Auction House yourself, or check your mail. Click to toggle."] =
+    "경매장을 직접 검색하거나 우편함을 확인하세요. 클릭하면 전환됩니다.",
+  ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
+    "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
+  ["sells %s/day"] = "하루 %s개 판매",
+  ["session: %d snipes, spent %s, ~%s est. profit"] =
+    "세션: 저격 %d건, 지출 %s, 예상 수익 약 %s",
+  ["sniped (listing changed on rescan)"] = "저격됨 (재검색에서 등록이 바뀜)",
+  ["starting full scan..."] = "전체 검색을 시작합니다...",
+  ["stopped watching %s"] = "%s 주시를 멈췄습니다",
+  ["the Companion wrote prices this addon could not read --"] =
+    "Companion이 기록한 시세를 이 애드온이 읽지 못했습니다 --",
+  ["the import failed (%s)"] = "가져오기에 실패했습니다 (%s)",
+  ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
+    "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
+  ["unknown evidence"] = "알 수 없는 근거",
+  ["waiting for previous commodity purchase to settle"] = "이전 상품 구매가 끝나기를 기다리는 중",
+  ["waiting for previous search result to settle"] = "이전 검색 결과를 기다리는 중",
+  ["waiting for server... full scan will start automatically"] =
+    "서버를 기다리는 중... 전체 검색이 자동으로 시작됩니다",
+  ["watching %s closely -- re-checked every few seconds"] =
+    "%s을(를) 자세히 주시 중 -- 몇 초마다 다시 확인합니다",
+  ["would sell at a loss"] = "손해를 보고 팔게 됩니다",
+  ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
+    "아직 서버 시세를 가져오지 않았습니다 -- GoldCap Companion을 설치하거나(/goldcap companion) goldcap.gg의 문자열을 붙여넣으세요(/goldcap import).",
+  ["you should clear about %s"] = "약 %s를 남기게 됩니다",
+  ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
+    "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
+  ["» needs price"] = "» 가격 필요",
+  ["×%d in bags"] = "가방에 ×%d",
+  ["×%d in your bags · Post lists %d of them, the largest stack"] =
+    "가방에 ×%d · Post는 그중 가장 큰 묶음 %d개를 등록합니다",
+  ["×%d in your bags · no stack GoldCap can identify exactly"] =
+    "가방에 ×%d · GoldCap이 정확히 식별할 수 있는 묶음이 없습니다",
+  ["×%d in your bags, ready to list"] = "가방에 ×%d, 등록 준비됨",
+  ["×%d listed"] = "×%d 등록됨",
+  ["×%d listed at %s each"] = "×%d, 개당 %s에 등록됨",
+  ["×%d%s · bought %s · %s · %s"] = "×%d%s · 구매 %s · %s · %s",
+  ["≈ goldcap.gg market value — no live quote yet"] =
+    "≈ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
+}
