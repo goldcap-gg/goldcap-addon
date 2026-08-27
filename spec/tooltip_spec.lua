@@ -83,6 +83,13 @@ describe("Tooltip.BuildLines", function()
     assert.equal("Bundled data", lines[#lines].left)
   end)
 
+  it("reads the region without walking the item tables", function()
+    local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
+    assert.is_nil(text:find("GetStatus", 1, true),
+      "the tooltip path must not call GetStatus -- it counts every bundled and imported item")
+    assert.is_truthy(text:find("GC.Data.Region", 1, true))
+  end)
+
   it("still hides the age line for fresh imported data", function()
     local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "import" }, 3600)
     assert.equal(1, #lines)

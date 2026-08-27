@@ -63,6 +63,13 @@ function GC.Data.AppDataError()
   return db and db.appDataError or nil
 end
 
+-- Just the region. GetStatus() also counts every bundled and imported item, which is a
+-- full walk of tables holding thousands of entries -- fine for a slash command, ruinous
+-- on the tooltip path, which runs on every mouseover.
+function GC.Data.Region()
+  return region
+end
+
 function GC.Data.SetImported(parsed)
   local imported = {
     region = parsed.region,

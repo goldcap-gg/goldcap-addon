@@ -44,7 +44,7 @@ local function onTooltip(tooltip, data)
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), time(), {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,
-    region = GC.Data.GetStatus and GC.Data.GetStatus().region or nil,
+    region = GC.Data.Region and GC.Data.Region() or nil,
   })
   if not lines then return end
   for _, ln in ipairs(lines) do
