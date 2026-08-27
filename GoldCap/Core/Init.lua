@@ -545,6 +545,26 @@ GC.slashHandlers.sales = function()
   end
 end
 
+-- The minimap's addon compartment (TOC directives, Patch 10.1.0) is the engine's own
+-- answer to "give the addon a button", so no minimap-icon library is embedded for it.
+-- Patch 11.0.0 dropped the third menuButtonFrame argument from automatic registrations:
+-- the click handler receives (addonName, buttonName) and needs neither.
+function GoldCap_OnAddonCompartmentClick()
+  GC.Sniper.Toggle()
+end
+
+function GoldCap_OnAddonCompartmentEnter(_, button)
+  if not GameTooltip or not button then return end
+  GameTooltip:SetOwner(button, "ANCHOR_LEFT")
+  GameTooltip:AddLine("GoldCap")
+  GameTooltip:AddLine("Open the deals board. /gc for commands.", 1, 1, 1)
+  GameTooltip:Show()
+end
+
+function GoldCap_OnAddonCompartmentLeave()
+  if GameTooltip then GameTooltip:Hide() end
+end
+
 SLASH_GOLDCAP1 = "/goldcap"
 -- Item 6 (addon polish batch): a second, shorter alias -- both strings share the same command
 -- table entry, no handler change needed.

@@ -8,6 +8,9 @@
 ## X-Curse-Project-ID: 1668448
 ## X-Wago-ID: v6330D6b
 ## IconTexture: Interface\AddOns\GoldCap\Media\GoldCap
+## AddonCompartmentFunc: GoldCap_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: GoldCap_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: GoldCap_OnAddonCompartmentLeave
 ## OptionalDeps: GoldCap_AppData
 
 Core/Util.lua
