@@ -1240,9 +1240,20 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   local screened = GC.Sniper._screenedCount or 0
   local text
   if GC.Data.OriginState() == "none" then
-    text = "No deals to show -- and no realm prices yet.\n"
-      .. "Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),\n"
-      .. "or paste a string from goldcap.gg with /goldcap import."
+    -- A companion that is syncing into an addon that cannot read what it writes looks
+    -- exactly like a companion that is not running. Say which one it is -- but only here,
+    -- where there are no prices at all: a player who already has a working import is
+    -- better served by the filtered/refused counts below, and hears about the failed sync
+    -- in chat and in /goldcap status.
+    local appErr = GC.Data.AppDataError and GC.Data.AppDataError()
+    if appErr then
+      text = "The Companion is syncing, but this addon could not read what it wrote:\n"
+        .. GC.Data.DescribeImportError(appErr.reason) .. "."
+    else
+      text = "No deals to show -- and no realm prices yet.\n"
+        .. "Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),\n"
+        .. "or paste a string from goldcap.gg with /goldcap import."
+    end
   elseif refusedCount > 0 or screened > 0 then
     local parts = {}
     if screened > 0 then

@@ -41,6 +41,28 @@ function GC.Data.Init(database)
   adoptRegion()
 end
 
+-- Human sentences for ImportString.Parse's error codes. The manual dialog used to print
+-- the bare code ("Import failed: bad_header"), and the companion path printed nothing at
+-- all -- a player whose sync silently did nothing had no way to tell a broken file from an
+-- addon that simply does not support their region.
+local IMPORT_ERRORS = {
+  bad_region = "this build of GoldCap does not know that region -- update the addon",
+  bad_header = "that does not look like a GoldCap import string",
+  too_long = "that string is too long to import",
+  no_items = "that string carried no prices",
+  empty = "there was nothing to import",
+}
+
+function GC.Data.DescribeImportError(reason)
+  return IMPORT_ERRORS[reason] or ("the import failed (" .. tostring(reason) .. ")")
+end
+
+-- nil, or { reason = <parser code>, writtenAt = <companion's stamp> }. Read by /goldcap
+-- status and the Sniper's empty board so both say the same thing.
+function GC.Data.AppDataError()
+  return db and db.appDataError or nil
+end
+
 function GC.Data.SetImported(parsed)
   local imported = {
     region = parsed.region,
@@ -72,8 +94,21 @@ function GC.Data.AdoptAppData()
   local appData = _G.GoldCap_AppData
   if type(appData) ~= "table" or type(appData.importString) ~= "string" then return end
 
-  local parsed = GC.ImportString.Parse(appData.importString)
-  if not parsed then return end
+  local parsed, reason = GC.ImportString.Parse(appData.importString)
+  if not parsed then
+    local writtenAt = type(appData.writtenAt) == "number" and appData.writtenAt or nil
+    local previous = db and db.appDataError
+    -- Once per companion write, never once per login: this runs on every ADDON_LOADED and
+    -- a per-call print would be indistinguishable from spam.
+    local isNew = not previous or previous.writtenAt ~= writtenAt or previous.reason ~= reason
+    if db then db.appDataError = { reason = reason, writtenAt = writtenAt } end
+    if isNew and GC.Print then
+      GC.Print("the Companion wrote prices this addon could not read -- "
+        .. GC.Data.DescribeImportError(reason))
+    end
+    return
+  end
+  if db then db.appDataError = nil end
 
   local existing = db and db.imported
   if existing and parsed.ts <= existing.ts then return end

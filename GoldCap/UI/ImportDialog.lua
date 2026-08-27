@@ -44,7 +44,7 @@ local function createDialog()
   btn:SetScript("OnClick", function()
     local parsed, err = GC.ImportString.Parse(f.edit:GetText() or "")
     if not parsed then
-      f.status:SetText("|cffff4040Import failed: " .. tostring(err) .. "|r")
+      f.status:SetText("|cffff4040Import failed: " .. GC.Data.DescribeImportError(err) .. "|r")
       return
     end
     GC.Data.SetImported(parsed)
@@ -83,4 +83,9 @@ GC.slashHandlers.status = function()
         st.importedCount, st.importedRealm, GC.Util.FormatAge(now - st.importedTs), originLabel)
       or "none"
   ))
+  -- Only when there is something to report: the normal case stays a single line.
+  local appErr = GC.Data.AppDataError()
+  if appErr then
+    GC.Print("Companion sync rejected: " .. GC.Data.DescribeImportError(appErr.reason))
+  end
 end

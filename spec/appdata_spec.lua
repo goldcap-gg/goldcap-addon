@@ -97,6 +97,41 @@ describe("Data.AdoptAppData", function()
     assert.is_nil(db.imported)
   end)
 
+  it("records why a companion payload was rejected", function()
+    _G.GoldCap_AppData = { importString = "GCS1;zz;silvermoon;1;I:1=10", writtenAt = 9999 }
+    GC.Data.AdoptAppData()
+    local err = GC.Data.AppDataError()
+    assert.equal("bad_region", err.reason)
+    assert.equal(9999, err.writtenAt)
+  end)
+
+  it("complains once per writtenAt, not once per call", function()
+    local printed = {}
+    GC.Print = function(msg) printed[#printed + 1] = msg end
+    _G.GoldCap_AppData = { importString = "GCS1;zz;silvermoon;1;I:1=10", writtenAt = 9999 }
+    GC.Data.AdoptAppData()
+    GC.Data.AdoptAppData()
+    assert.equal(1, #printed)
+    _G.GoldCap_AppData.writtenAt = 10000
+    GC.Data.AdoptAppData()
+    assert.equal(2, #printed)
+  end)
+
+  it("clears the recorded error once a good payload arrives", function()
+    _G.GoldCap_AppData = { importString = "GCS1;zz;silvermoon;1;I:1=10", writtenAt = 9999 }
+    GC.Data.AdoptAppData()
+    _G.GoldCap_AppData = { importString = FIXTURE_TS2000, writtenAt = 10000 }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.AppDataError())
+    assert.equal("app", db.imported.origin)
+  end)
+
+  it("describes each error code in a sentence a player can act on", function()
+    assert.is_truthy(GC.Data.DescribeImportError("bad_region"):find("update", 1, true))
+    assert.is_string(GC.Data.DescribeImportError("no_items"))
+    assert.is_string(GC.Data.DescribeImportError("something-new"))
+  end)
+
   it("is a no-op when importString is missing or not a string", function()
     _G.GoldCap_AppData = { writtenAt = 2000 }
     assert.has_no.errors(function() GC.Data.AdoptAppData() end)
