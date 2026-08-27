@@ -112,14 +112,14 @@ function GC.SellViewModel.SourceText(position)
       parts[#parts + 1] = ("%s ×%d"):format(SOURCE_LABELS[source], quantity)
     end
   end
-  return #parts > 0 and table.concat(parts, " · ") or "Missing cost"
+  return #parts > 0 and table.concat(parts, " · ") or GC.L["Missing cost"]
 end
 
 function GC.SellViewModel.CostText(position)
-  if not position then return "Unknown" end
+  if not position then return GC.L["Unknown"] end
   if position.unresolved then
     return type(position.knownCost) == "number" and position.knownCost > 0
-      and (tostring(position.knownCost) .. " · identity unresolved") or "Unknown"
+      and (tostring(position.knownCost) .. GC.L[" · identity unresolved"]) or GC.L["Unknown"]
   end
   if position.coverage ~= "COMPLETE" then
     local known = type(position.knownCost) == "number" and position.knownCost or 0
@@ -131,7 +131,7 @@ function GC.SellViewModel.CostText(position)
 end
 
 function GC.SellViewModel.ProfitText(position)
-  if not position or position.profit == nil then return "Unknown" end
+  if not position or position.profit == nil then return GC.L["Unknown"] end
   return position.profit
 end
 
@@ -146,14 +146,14 @@ function GC.SellViewModel.SummaryText(summary)
     local suffix = {}
     if partial > 0 then suffix[#suffix + 1] = (GC.L["%d partial"]):format(partial) end
     if unknown > 0 then suffix[#suffix + 1] = (GC.L["%d missing"]):format(unknown) end
-    profit = "Unknown" .. (#suffix > 0 and (" · " .. table.concat(suffix, " · ")) or "")
+    profit = GC.L["Unknown"] .. (#suffix > 0 and (" · " .. table.concat(suffix, " · ")) or "")
   else
     -- The number is a real total now (SellPositions.Summary sums only the positions that
     -- individually clear both gates), but it is still a partial one whenever something got
     -- left out -- say so here, the same way the "Unknown · N partial · M missing" string above
     -- carries its own detail, so the stat card's tooltip can show it without a second query.
     local n = summary.countedCount or 0
-    local parts = { ("over %d position%s"):format(n, n == 1 and "" or "s") }
+    local parts = { (GC.L["over %d position%s"]):format(n, n == 1 and "" or "s") }
     local noCost = summary.excludedNoCost or 0
     local noPrice = summary.excludedNoPrice or 0
     if noCost > 0 then parts[#parts + 1] = (GC.L["%d without cost"]):format(noCost) end
@@ -230,10 +230,10 @@ function GC.SellViewModel.Expansion(position)
   if position.facts and position.facts.pendingPurchase then facts[#facts + 1] = GC.L["purchase pending exact cost"] end
   if position.facts and position.facts.undercut then facts[#facts + 1] = "undercut" end
   if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
-  if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = "paid sale unresolved" end
-  if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = "sale name ambiguous" end
-  if position.unresolvedKind == "unassigned_acquisition" then facts[#facts + 1] = "item variant unresolved" end
-  if position.unresolvedKind == "pending_purchase" then facts[#facts + 1] = "purchase identity unresolved" end
+  if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = GC.L["paid sale unresolved"] end
+  if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = GC.L["sale name ambiguous"] end
+  if position.unresolvedKind == "unassigned_acquisition" then facts[#facts + 1] = GC.L["item variant unresolved"] end
+  if position.unresolvedKind == "pending_purchase" then facts[#facts + 1] = GC.L["purchase identity unresolved"] end
   return {
     positionKey = position.positionKey, coverage = position.coverage, batches = batches,
     ownedLots = copy(position.ownedLots), displayMarketUnit = position.displayMarketUnit,

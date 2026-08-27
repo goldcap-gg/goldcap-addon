@@ -49,7 +49,7 @@ end
 -- Mirrors SellFrame's formatAmount: plain "65g24s" text, coin icons only
 -- below one gold (icon escapes truncate mid-escape in clipped FontStrings).
 local function formatAmount(amount)
-  if amount == nil then return "Unknown" end
+  if amount == nil then return GC.L["Unknown"] end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
@@ -180,8 +180,11 @@ local COLUMNS = {
   { key = "profit", w = 110, num = true, size = 12, bold = true },
 }
 
-local HEADER_TEXT = { item = "ITEM", when = "WHEN", qty = "QTY", unit = "UNIT",
-                       total = "TOTAL", profit = "PROFIT" }
+-- Already uppercase in the key, and never passed through :upper() -- Lua's upper is
+-- byte-wise and leaves every non-ASCII letter alone, so a translated header would come
+-- back half-cased. The Sell tab settled this the same way (SellFrame's header build).
+local HEADER_TEXT = { item = GC.L["ITEM"], when = GC.L["WHEN"], qty = GC.L["QTY"],
+                       unit = GC.L["UNIT"], total = GC.L["TOTAL"], profit = GC.L["PROFIT"] }
 
 -- Anchors every visible fixed COLUMNS entry's RIGHT edge right-to-left off
 -- `host`'s own RIGHT edge, skipping any key present in `hidden`; returns the
@@ -559,7 +562,7 @@ local function createHeaderRow(parent)
       setColor(label, Theme.color.fgDim)
       label:SetAllPoints()
       label:SetJustifyH(col.num and "RIGHT" or "LEFT")
-      label:SetText((HEADER_TEXT[col.key] or ""):upper())
+      label:SetText(HEADER_TEXT[col.key] or "")
       hit.label = label
       header.cells[col.key] = hit
     end
@@ -574,7 +577,7 @@ local function createHeaderRow(parent)
   setColor(itemLabel, Theme.color.fgDim)
   itemLabel:SetAllPoints()
   itemLabel:SetJustifyH("LEFT")
-  itemLabel:SetText(HEADER_TEXT.item:upper())
+  itemLabel:SetText(HEADER_TEXT.item)
   itemHit.label = itemLabel
   -- Not read by any production code; exposed so the behavior spec can reach the ITEM cell.
   header.itemCell = itemHit

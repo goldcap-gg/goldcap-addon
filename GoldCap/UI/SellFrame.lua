@@ -191,7 +191,7 @@ local function paintRefreshButton()
     -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
     -- because every entry is a round trip on the same throttled slot the Sniper's scans use.
     label = (#refresh.queue > 0 and refresh.index > 0)
-      and ("PRICING %d/%d"):format(refresh.index, #refresh.queue) or "PRICING…"
+      and (GC.L["PRICING %d/%d"]):format(refresh.index, #refresh.queue) or GC.L["PRICING…"]
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -218,7 +218,7 @@ end
 -- painted lot labels as "bought 17 Aug at 1|..." in game. Sub-gold amounts keep the icons,
 -- where they fit. Mirrors the Deals board's formatColumnAmount rule.
 local function formatAmount(amount)
-  if amount == nil then return "Unknown" end
+  if amount == nil then return GC.L["Unknown"] end
   if amount < 0 then return "-" .. formatAmount(-amount) end
   if amount >= 10000 then
     local gold = math.floor(amount / 10000)
@@ -1497,7 +1497,7 @@ local function onRemoveClick(row)
     end
     disarmRemove()
     setStatus(removed > 0
-      and (removed > 1 and ("Removed %d entries"):format(removed) or "Removed")
+      and (removed > 1 and (GC.L["Removed %d entries"]):format(removed) or GC.L["Removed"])
       or GC.L["Nothing to remove"])
     GC.Sell.Refresh()
     return
@@ -1683,7 +1683,7 @@ local function openCostDialog(position)
   -- before touching any of the numbers below. The dialog used to be anonymous: nothing on
   -- it said which of several open positions it belonged to.
   dialog.header:SetText((GC.L["%s — %d unit%s without a cost"]):format(
-    position.itemName or "Item", missing, missing == 1 and "" or "s"))
+    position.itemName or GC.L["Item"], missing, missing == 1 and "" or "s"))
   -- Defaults to the full uncosted count, not "1" -- entering a cost for stock GoldCap never
   -- saw the player buy is the ordinary case this dialog exists for, and "1" made the player
   -- retype the real quantity every single time.

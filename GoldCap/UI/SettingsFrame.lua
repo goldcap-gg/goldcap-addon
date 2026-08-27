@@ -447,25 +447,25 @@ local function build(sniperFrame)
   end
 
   -- Left column: DEAL THRESHOLDS above SAFETY, both spanning panel-left to panel-CENTER-7.
-  local thresholds = card(panel, "DEAL THRESHOLDS", 4)
+  local thresholds = card(panel, GC.L["DEAL THRESHOLDS"], 4)
   thresholds:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
   thresholds:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
-  local safety = card(panel, "SAFETY", 5)
+  local safety = card(panel, GC.L["SAFETY"], 5)
   safety:SetPoint("TOPLEFT", thresholds, "BOTTOMLEFT", 0, -12)
   safety:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
-  local posting = card(panel, "POSTING", 1)
+  local posting = card(panel, GC.L["POSTING"], 1)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local automation = card(panel, "AUTOMATION & ALERTS", 2)
+  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], 2)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local display = card(panel, "DISPLAY", 3)
+  local display = card(panel, GC.L["DISPLAY"], 3)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
   display:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -489,20 +489,20 @@ local function build(sniperFrame)
     toUI = function(v) return v / 10000 end,
     toStorage = function(v) return v * 10000 end }
 
-  fieldRow(thresholds, 1, "HOT — min discount %", "hotDiscount", PCT)
-  fieldRow(thresholds, 2, "HOT — min sold/day", "hotMinSold", { min = 0, max = 1000 })
-  fieldRow(thresholds, 3, "GOOD — min discount %", "goodDiscount", PCT)
-  fieldRow(thresholds, 4, "GOOD — min sold/day", "goodMinSold", { min = 0, max = 1000 })
+  fieldRow(thresholds, 1, GC.L["HOT — min discount %"], "hotDiscount", PCT)
+  fieldRow(thresholds, 2, GC.L["HOT — min sold/day"], "hotMinSold", { min = 0, max = 1000 })
+  fieldRow(thresholds, 3, GC.L["GOOD — min discount %"], "goodDiscount", PCT)
+  fieldRow(thresholds, 4, GC.L["GOOD — min sold/day"], "goodMinSold", { min = 0, max = 1000 })
 
-  fieldRow(safety, 1, "Max wallet per buy %", "maxCapitalShare", WALLET_PCT)
-  fieldRow(safety, 2, "Min profit per buy (gold)", "minimumProfitCopper", GOLD)
-  fieldRow(safety, 3, "Dump-trend cap %", "dumpTrendPct", { min = 1, max = 99 })
+  fieldRow(safety, 1, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT)
+  fieldRow(safety, 2, GC.L["Min profit per buy (gold)"], "minimumProfitCopper", GOLD)
+  fieldRow(safety, 3, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99 })
   -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
   -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
   -- the box can never store a value the engine would then silently re-clamp.
-  fieldRow(safety, 4, "Spike-trend threshold %", "spikeTrendPct", { min = 1, max = 500 })
+  fieldRow(safety, 4, GC.L["Spike-trend threshold %"], "spikeTrendPct", { min = 1, max = 500 })
   -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
-  fieldRow(safety, 5, "Wall absorb window (hours)", "wallAbsorbHours", { min = 0, max = 6 })
+  fieldRow(safety, 5, GC.L["Wall absorb window (hours)"], "wallAbsorbHours", { min = 0, max = 6 })
 
   -- Segmented duration, not a fieldRow: three 40x20 kit buttons chained from the card's right
   -- edge, rightmost (48H) placed first so each earlier one anchors off the one already placed.
@@ -548,12 +548,12 @@ local function build(sniperFrame)
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
   end
 
-  toggleRow(automation, 1, "Sound on HOT deal", "sound")
+  toggleRow(automation, 1, GC.L["Sound on HOT deal"], "sound")
   -- Final fix wave (item 5): the plain "Auto-scan by default" label read as if toggling it
   -- would also start/stop a session already in progress -- it only decides whether Auto is
   -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
-  toggleRow(automation, 2, "Auto-scan on next AH visit", "auto")
+  toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto")
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
   -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px

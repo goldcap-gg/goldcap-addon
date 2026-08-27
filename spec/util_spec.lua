@@ -71,4 +71,69 @@ describe("Util", function()
     it("formats hours under 48h", function() assert.equal("5h", GC.Util.FormatAge(5 * 3600 + 120)) end)
     it("formats days from 48h", function() assert.equal("3d", GC.Util.FormatAge(3 * 86400 + 3600)) end)
   end)
+
+  -- FormatAge above is deliberately coarse -- it answers "is my whole snapshot stale",
+  -- where anything under an hour is equally fine. A freshness figure on a decision the
+  -- player is one click from acting on is a different question: the check panel printed
+  -- "3384s", which is both unreadable and, through FormatAge, would have collapsed to
+  -- "<1h" and lost the very resolution that matters there.
+  describe("FormatElapsed", function()
+    it("keeps seconds while they are what the player is watching", function()
+      assert.equal("0s", GC.Util.FormatElapsed(0))
+      assert.equal("45s", GC.Util.FormatElapsed(45))
+    end)
+
+    it("switches to whole minutes at a minute", function()
+      assert.equal("1m", GC.Util.FormatElapsed(60))
+      assert.equal("56m", GC.Util.FormatElapsed(3384))
+    end)
+
+    it("switches to hours, then days", function()
+      assert.equal("1h", GC.Util.FormatElapsed(3600))
+      assert.equal("5h", GC.Util.FormatElapsed(5 * 3600 + 120))
+      assert.equal("3d", GC.Util.FormatElapsed(3 * 86400 + 3600))
+    end)
+
+    it("floors rather than rounds up -- never claims fresher than it is", function()
+      assert.equal("59s", GC.Util.FormatElapsed(59.9))
+      assert.equal("1m", GC.Util.FormatElapsed(119))
+    end)
+
+    it("refuses a corrupt or negative number rather than printing one", function()
+      assert.is_nil(GC.Util.FormatElapsed(-1))
+      assert.is_nil(GC.Util.FormatElapsed(0 / 0))
+      assert.is_nil(GC.Util.FormatElapsed(math.huge))
+      assert.is_nil(GC.Util.FormatElapsed("60"))
+    end)
+  end)
+
+  -- The panel printed a region-wide commodity's turnover as "856146.0": a trailing .0 on
+  -- a figure whose last five digits carry no decision, in a 64px-wide cell.
+  describe("FormatCount", function()
+    it("prints small counts exactly -- three a day is a decision", function()
+      assert.equal("0", GC.Util.FormatCount(0))
+      assert.equal("3", GC.Util.FormatCount(3))
+      assert.equal("999", GC.Util.FormatCount(999))
+    end)
+
+    it("drops a fraction rather than showing .0", function()
+      assert.equal("3", GC.Util.FormatCount(3.0))
+      assert.equal("3", GC.Util.FormatCount(3.4))
+      assert.equal("4", GC.Util.FormatCount(3.6))
+    end)
+
+    it("compacts thousands and millions", function()
+      assert.equal("1.2k", GC.Util.FormatCount(1234))
+      assert.equal("12k", GC.Util.FormatCount(12345))
+      assert.equal("856k", GC.Util.FormatCount(856146))
+      assert.equal("1.4M", GC.Util.FormatCount(1420000))
+    end)
+
+    it("refuses a corrupt number rather than printing one", function()
+      assert.is_nil(GC.Util.FormatCount(0 / 0))
+      assert.is_nil(GC.Util.FormatCount(math.huge))
+      assert.is_nil(GC.Util.FormatCount(-1))
+      assert.is_nil(GC.Util.FormatCount("3"))
+    end)
+  end)
 end)

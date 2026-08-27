@@ -39,3 +39,37 @@ function GC.Util.FormatSupplyDays(qty, soldPerDay)
   if whole > 99 then return "99d+" end
   return whole .. "d"
 end
+
+-- How long ago, for a figure the player is reading while deciding. FormatAge above answers
+-- a coarser question ("is my whole snapshot stale") and collapses everything under an hour
+-- to "<1h" -- which is exactly the resolution that matters on a live check. The Sniper's
+-- check panel printed a raw "3384s" instead; this is what it should have been saying.
+--
+-- Floors at every step: a freshness figure that rounds UP claims the data is older than it
+-- is, which is harmless, while rounding down would claim it is fresher, which is not.
+function GC.Util.FormatElapsed(seconds)
+  if type(seconds) ~= "number" or seconds ~= seconds
+      or seconds == math.huge or seconds == -math.huge or seconds < 0 then return nil end
+  if seconds < 60 then return math.floor(seconds) .. "s" end
+  if seconds < 3600 then return math.floor(seconds / 60) .. "m" end
+  if seconds < 48 * 3600 then return math.floor(seconds / 3600) .. "h" end
+  return math.floor(seconds / 86400) .. "d"
+end
+
+-- A count, in the width a panel cell actually has. Small numbers stay exact because they
+-- carry the decision -- three sales a day is the difference between a trade and a trap --
+-- while a region-wide commodity's turnover does not: the check panel was printing
+-- "856146.0", where both the trailing .0 and the last five digits were noise.
+function GC.Util.FormatCount(value)
+  if type(value) ~= "number" or value ~= value
+      or value == math.huge or value == -math.huge or value < 0 then return nil end
+  if value < 1000 then return tostring(math.floor(value + 0.5)) end
+  if value < 1000000 then
+    local thousands = value / 1000
+    if thousands < 10 then return ("%.1fk"):format(math.floor(thousands * 10) / 10) end
+    return math.floor(thousands + 0.5) .. "k"
+  end
+  local millions = value / 1000000
+  if millions < 10 then return ("%.1fM"):format(math.floor(millions * 10) / 10) end
+  return math.floor(millions + 0.5) .. "M"
+end

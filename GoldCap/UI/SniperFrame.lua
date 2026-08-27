@@ -1693,7 +1693,7 @@ local function applyFullScanResults(rowsList, groupCount)
     -- the whole market: a player who cannot see the number cannot tell a quiet market from a
     -- strict filter.
     local hidden = (GC.Sniper._screenedCount or 0) > 0
-      and (", %d hidden as unsellable"):format(GC.Sniper._screenedCount) or ""
+      and (GC.L[", %d hidden as unsellable"]):format(GC.Sniper._screenedCount) or ""
     -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
     -- held announcement costs nothing -- the next pass rewrites it.
     setStatus((GC.L["full scan complete: %d deal%s from %d item group%s%s"]):format(
@@ -1974,7 +1974,7 @@ local function advanceBrowseScan(token)
     -- filters. setStatus, not SetText: this line lands on every page, and it must lose to a
     -- held one-shot announcement (see setStatus).
     local screenedNote = (GC.Sniper._screenedCount or 0) > 0
-      and (" · %d hidden"):format(GC.Sniper._screenedCount) or ""
+      and (GC.L[" · %d hidden"]):format(GC.Sniper._screenedCount) or ""
     setStatus((GC.L["scanning… %d results · %d deals%s"]):format(n, #scanDeals, screenedNote))
     requestNextPage(token)
   end
@@ -2090,7 +2090,7 @@ local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail
 local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell" }
 
 local function autoButtonText(state, reasons)
-  if state == "SCANNING" then return "AUTO · SCANNING" end
+  if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
       if reasons[reason] then return GC.L["AUTO · PAUSED: "] .. AUTO_PAUSE_LABEL[reason] end
@@ -2610,9 +2610,14 @@ local function stampDialogFromDecision(deal, decision)
   if dialog.exitValue then dialog.exitValue:SetText(displayDecisionAmount(decision.exitUnit)) end
   dialog.profitText:SetText(displayDecisionAmount(decision.stressProfit))
   dialog.mvText:SetText(displayDecisionAmount(market.marketValue))
-  dialog.soldText:SetText(market.soldPerDay and ("%.1f"):format(market.soldPerDay) or "—")
-  dialog.sellThroughText:SetText(market.sellThroughBps and ("%.1f%%"):format(market.sellThroughBps / 100) or "—")
-  dialog.sourceAgeText:SetText(sourceAge and ("%ds"):format(sourceAge) or "—")
+  -- Formatted, not printed raw. These three cells were showing "856146.0", "95.4%" and
+  -- "3384s" in a 64px column: a trailing .0 on a figure whose last five digits carry no
+  -- decision, a tenth of a percent nobody acts on, and an age in seconds. See
+  -- GC.Util.FormatCount / FormatElapsed for why each rounds the way it does.
+  dialog.soldText:SetText(market.soldPerDay and GC.Util.FormatCount(market.soldPerDay) or "—")
+  dialog.sellThroughText:SetText(market.sellThroughBps
+    and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "—")
+  dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "—")
   dialog.reasonText:SetText(GC.SniperDecision.ReasonText(firstReason))
   if decision.status == "SAFE" then
     dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
@@ -2859,7 +2864,7 @@ local function showGoneState(row, message)
   if dialog and dialog.row == row then
     dialog.row = nil
     dialog.primaryBtn:Disable()
-    setPrimaryLabel("Gone")
+    setPrimaryLabel(GC.L["Gone"])
     setDialogStatus(message, 1, 0.3, 0.3)
     dialog.cancelBtn:SetLabel(GC.L["Close"])
     -- Fix 2 x Fix 3 (review): the row just left its purchase stage, so the Quantity box/
@@ -2879,7 +2884,7 @@ local function scheduleArmTimeout(row, deal, decision)
         and dialog and dialog.row == row then
       row.purchaseStage = "expired"
       dialog.primaryBtn:Enable()
-      setPrimaryLabel("Refresh")
+      setPrimaryLabel(GC.L["Refresh"])
       -- Task 2 restyle: red, not amber (Theme.color.red's own literal values -- see
       -- setDialogStatus's own comment for why this file hardcodes rather than reads the live
       -- table). The Kit's status color rule is green on armReady's own Buy confirmation, red on
@@ -3249,7 +3254,7 @@ stampVerdict = function(deal, data, manual)
     and data.isCommodity) and true or false
   local status, reason
   if not data then
-    status, reason = "Gone", "listing gone -- bought out or repriced"
+    status, reason = "Gone", GC.L["listing gone -- bought out or repriced"]
   else
     status = decision and decision.status or "WATCH"
     local token = decision and decision.reasons and decision.reasons[1]
@@ -3611,7 +3616,7 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
   local row = pendingAuction[auctionID]
   if not row then return end
   local deal = row.purchaseDeal
-  resolvePurchase(row, true, deal and ("sniped for " .. GetCoinTextureString(deal.unitPrice * deal.qty)) or "purchase complete")
+  resolvePurchase(row, true, deal and (GC.L["sniped for "] .. GetCoinTextureString(deal.unitPrice * deal.qty)) or GC.L["purchase complete"])
 end
 
 -- Read-only ownership checks used by Core/PurchaseCapture.lua's post-call observers. The
@@ -3659,7 +3664,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     pending.cancelRequested = true
     drainCommodityPurchase(row)
     armCheck(row, deal, nil,
-      GC.SniperDecision.ReasonText("requote_broke_safety") .. " — Check again", true)
+      GC.SniperDecision.ReasonText("requote_broke_safety") .. GC.L[" — Check again"], true)
     return
   end
 
@@ -4671,16 +4676,16 @@ local function createDialog()
     d.evidenceRows[#d.evidenceRows + 1] = { label = labelFS, value = valueFS }
     return valueFS
   end
-  local decisionStatusText = evidenceRow(1, "Status")
+  local decisionStatusText = evidenceRow(1, GC.L["Status"])
   local unitPriceText = evidenceRow(2, GC.L["Entry price (avg fill)"])
   local totalCostText = evidenceRow(3, GC.L["Entry total"])
   local exitUnitText = evidenceRow(4, GC.L["Stress exit unit"])
   local profitText = evidenceRow(5, GC.L["Stress profit"])
   local mvText = evidenceRow(6, GC.L["Market reference"])
-  local soldText = evidenceRow(7, "Sold/day")
-  local sellThroughText = evidenceRow(8, "Sell-through")
+  local soldText = evidenceRow(7, GC.L["Sold/day"])
+  local sellThroughText = evidenceRow(8, GC.L["Sell-through"])
   local sourceAgeText = evidenceRow(9, GC.L["Source age"])
-  local reasonText = evidenceRow(10, "Reason")
+  local reasonText = evidenceRow(10, GC.L["Reason"])
   d.decisionStatusText = decisionStatusText
   d.unitPriceText, d.totalCostText, d.exitUnitText = unitPriceText, totalCostText, exitUnitText
   d.profitText, d.mvText, d.soldText = profitText, mvText, soldText
@@ -5506,18 +5511,21 @@ local function createHeaderRow(f)
   -- key) -- unlike "total", "unit" is never one of the responsively-dropped columns, so it's
   -- always available as a by-price sort even at window widths where "total" itself is hidden.
   local SORT_KEY = { tier = "tier", disc = "pct", unit = "unit", total = "price", profit = "profit" }
-  local HEADER_TEXT = { item = "Item", tier = "Tier", disc = "Disc", unit = "Unit", total = "Price", profit = "Profit", trend = "Trend", buy = "" }
+  -- Uppercase in the key, never through :upper(): Lua's upper is byte-wise and leaves
+  -- every non-ASCII letter alone, so a translated header would come back half-cased.
+  local HEADER_TEXT = { item = GC.L["ITEM"], tier = GC.L["TIER"], disc = GC.L["DISC"],
+    unit = GC.L["UNIT"], total = GC.L["PRICE"], profit = GC.L["PROFIT"], trend = GC.L["TREND"], buy = "" }
   local TOOLTIP = {
     tier = {
-      "Tier",
+      GC.L["Tier"],
       GC.L["HOT = big discount + high profit + proven sales/day"],
       GC.L["GOOD = solid discount + profit"],
       GC.L["WATCH = discounted but unproven liquidity or small profit"],
       GC.L["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"],
     },
-    disc = { "Discount", "Discount vs market value from your GoldCap import" },
-    unit = { "Unit price", "Per-unit price of this auction" },
-    total = { "Price", "Total cost to buy this auction" },
+    disc = { GC.L["Discount"], GC.L["Discount vs market value from your GoldCap import"] },
+    unit = { GC.L["Unit price"], GC.L["Per-unit price of this auction"] },
+    total = { GC.L["Price"], GC.L["Total cost to buy this auction"] },
     -- This column used to be measured against a lot size the engine would never approve --
     -- a day's sold volume, capped at 200 -- while Check would go on to authorise one unit.
     -- Rows advertised five figures and the very next click refused them, which is not a
@@ -5528,7 +5536,7 @@ local function createHeaderRow(f)
     -- the import's snapshot of stock and turnover; Check reads the order book that exists at
     -- the moment of the click. So Check can still land lower or refuse -- because the market
     -- moved, not because the number here was inflated on purpose.
-    profit = { "Profit",
+    profit = { GC.L["Profit"],
       GC.L["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."],
       GC.L["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."],
       GC.L["Sort by it to decide what to Check first, not to decide what to buy."] },
@@ -5537,7 +5545,7 @@ local function createHeaderRow(f)
   local function buildHeaderCell(col)
     local hit = CreateFrame("Frame", nil, header)
     hit:SetHeight(CH.HEADER)
-    local baseText = (HEADER_TEXT[col.key] or ""):upper()
+    local baseText = HEADER_TEXT[col.key] or ""
     local label = Theme.Num(hit, 9)
     label:SetAllPoints()
     label:SetJustifyH(col.num and "RIGHT" or "LEFT")
