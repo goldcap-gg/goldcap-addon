@@ -24,7 +24,7 @@ end
 --- Every locale file that ships. Spelled out rather than globbed: the list IS the contract,
 --- so adding a language without listing it here is a visible omission, and the specs stay
 --- independent of the shell. Codes are added as their files land.
-helper.LOCALE_CODES = { "deDE", "enUS", "frFR", "koKR", "ruRU", "ukUA", "zhCN", "zhTW" }
+helper.LOCALE_CODES = { "deDE", "enUS", "esES", "esMX", "frFR", "koKR", "ruRU", "ukUA", "zhCN", "zhTW" }
 
 function helper.localeCodes()
   return helper.LOCALE_CODES

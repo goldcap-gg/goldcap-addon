@@ -1,0 +1,409 @@
+local _, GC = ...
+
+-- Spanish (Spain). Terminology follows apps/web/messages/es.json. Note "coste", which is the
+-- peninsular form -- esMX uses "costo", and that is the main difference between the two files.
+-- Format specifiers must stay in the key's order: Lua 5.1 has no positional %1$s.
+GC.Locales.esES = {
+  [" %s  %s  x%d at %s each  (%s total, %s cut)%s"] =
+    " %s  %s  x%d a %s cada uno  (%s en total, %s de comisión)%s",
+  [" Companion keeps this fresh: /goldcap companion."] =
+    " Companion lo mantiene al día: /goldcap companion.",
+  [" rows against the live auction house about every "] =
+    " filas contra la casa de subastas en vivo, cada ",
+  [" |cffff4040v|r"] = " |cffff4040v|r",
+  [" · below cost"] = " · por debajo del coste",
+  [" · stale %ds"] = " · %ds de antigüedad",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
+    " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (o /gc para abreviar)",
+  ["%d (whole lot)"] = "%d (lote completo)",
+  ["%d deals from your last scan -- Full Scan to refresh"] =
+    "%d oportunidades del último escaneo -- pulsa Full Scan para actualizar",
+  ["%d filtered out as hard to resell"] = "%d descartadas por ser difíciles de revender",
+  ["%d held back"] = "%d retenidas",
+  ["%d held back from posting"] = "%d sin publicar",
+  ["%d missing"] = "faltan %d",
+  ["%d partial"] = "%d parciales",
+  ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
+    "%d rechazadas por la comprobación en vivo -- pulsa «HIDDEN %d» arriba para verlas",
+  ["%d sales · %s proceeds · %s in the mail"] = "%d ventas · %s de ingresos · %s en el correo",
+  ["%d without a price"] = "%d sin precio",
+  ["%d without cost"] = "%d sin coste",
+  ["%d · %d/%d covered"] = "%d · %d/%d cubiertos",
+  ["%d/%d covered"] = "%d/%d cubiertos",
+  ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidad    total %s -> %s",
+  ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin coste",
+  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "De 15 a 60 segundos en reinos concurridos. Sin espera -- vuelve a escanear cuando quieras.",
+  ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
+    "Una pista, no una promesa: reventa al 95% del valor de mercado importado, para la cantidad que Check aprobaría.",
+  ["AH answered empty %ds ago"] = "la casa de subastas respondió vacío hace %ds",
+  ["AUTO"] = "AUTO",
+  ["AUTO · PAUSED: "] = "AUTO · EN PAUSA: ",
+  ["Auction House did not answer — press Refresh"] =
+    "La casa de subastas no respondió — pulsa Refresh",
+  ["Auction House is not open"] = "La casa de subastas no está abierta",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
+    "Auto: mantiene Full Scan en marcha y cede al instante cuando compras, ",
+  ["Avoid"] = "Evitar",
+  ["Background check"] = "Comprobación en segundo plano",
+  ["Buy"] = "Comprar",
+  ["Buy %d × %s for %s"] = "Comprar %d × %s por %s",
+  ["CANCEL %d"] = "CANCELAR %d",
+  ["CANCEL LOT?"] = "¿CANCELAR EL LOTE?",
+  ["CANCELLING…"] = "CANCELANDO…",
+  ["CONFIRM"] = "CONFIRMAR",
+  ["CONFIRM PURCHASE"] = "CONFIRMAR LA COMPRA",
+  ["COST / UNIT"] = "COSTE / UNIDAD",
+  ["Cancel"] = "Cancelar",
+  ["Cancel lot?"] = "¿Cancelar el lote?",
+  ["Cancel this lot and lose its deposit — click again to confirm"] =
+    "Cancelar este lote y perder el depósito — pulsa otra vez para confirmar",
+  ["Cancel timed out"] = "La cancelación agotó el tiempo",
+  ["Cancelling lot…"] = "Cancelando el lote…",
+  ["Cannot post this position"] = "No se puede publicar esta posición",
+  ["Cannot remove this entry"] = "No se puede borrar esta entrada",
+  ["Cannot repost this lot"] = "No se puede volver a publicar este lote",
+  ["Check"] = "Comprobar",
+  ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
+    "Check lo recalcula contra el libro de órdenes en vivo antes de que se mueva el oro, y aún puede salir más bajo — o rechazar — si el mercado ha cambiado desde tu última importación.",
+  ["Checked: %d of the top %d on screen"] = "Comprobadas: %d de las %d primeras en pantalla",
+  ["Checking prices…"] = "Comprobando precios…",
+  ["Checking this item's price…"] = "Comprobando el precio de este objeto…",
+  ["Click Confirm to post"] = "Pulsa Confirm para publicar",
+  ["Close"] = "Cerrar",
+  ["Companion sync rejected:"] = "Sincronización de Companion rechazada:",
+  ["Confirm"] = "Confirmar",
+  ["Cost unknown for %d of %d"] = "Coste desconocido en %d de %d",
+  ["Could not find the queue's next item to post — try again"] =
+    "No se encontró el siguiente objeto de la cola para publicar — inténtalo otra vez",
+  ["Could not find the queue's next lot to cancel — try again"] =
+    "No se encontró el siguiente lote de la cola para cancelar — inténtalo otra vez",
+  ["DONE"] = "LISTO",
+  ["Duration"] = "Duración",
+  ["ENTRY AVG"] = "ENTRADA MEDIA",
+  ["EST. PROFIT AFTER AH CUT"] = "BENEFICIO EST. TRAS LA COMISIÓN",
+  ["Enlarge the window to see details"] = "Agranda la ventana para ver los detalles",
+  ["Enter a whole quantity"] = "Introduce una cantidad entera",
+  ["Enter an exact positive cost"] = "Introduce un coste exacto y positivo",
+  ["Entry price (avg fill)"] = "Precio de entrada (ejecución media)",
+  ["Entry total"] = "Total de entrada",
+  ["Est. profit"] = "Beneficio est.",
+  ["FIFO allocations"] = "Asignaciones FIFO",
+  ["Fetching a fresh price for this item — press Post again in a moment"] =
+    "Obteniendo un precio nuevo para este objeto — vuelve a pulsar Post en un momento",
+  ["Fetching a fresh price for this lot — press Repost again in a moment"] =
+    "Obteniendo un precio nuevo para este lote — vuelve a pulsar Repost en un momento",
+  ["Finish the pending post first"] = "Termina antes la publicación pendiente",
+  ["Finish the pending post or repost first"] =
+    "Termina antes la publicación o republicación pendiente",
+  ["Font scale"] = "Tamaño de fuente",
+  ["Full pass over them: %.1fs"] = "Pasada completa: %.1fs",
+  ["Full pass over them: measuring..."] = "Pasada completa: midiendo...",
+  ["GOOD = solid discount + profit"] = "GOOD = descuento sólido + beneficio",
+  ["GoldCap Companion"] = "GoldCap Companion",
+  ["GoldCap Sniper"] = "GoldCap Sniper",
+  ["GoldCap can't pin down which bag stack this is"] =
+    "GoldCap no puede determinar qué montón de la bolsa es este",
+  ["GoldCap re-checks the top "] = "GoldCap vuelve a comprobar las ",
+  ["GoldCap — Import realm prices"] = "GoldCap — Importar precios del reino",
+  ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- safe to buy"] = "GoldCap: comprobado en vivo -- seguro comprar",
+  ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
+    "En gris significa que la cotización ha envejecido; Post y Repost la actualizan antes de actuar.",
+  ["HIDDEN 0"] = "OCULTAS 0",
+  ["HIDE DETAILS ▾"] = "OCULTAR DETALLES ▾",
+  ["HOT = big discount + high profit + proven sales/day"] =
+    "HOT = gran descuento + beneficio alto + ventas/día demostradas",
+  ["Held back from cancelling"] = "Retenido de la cancelación",
+  ["Held back from the queue"] = "Retenido de la cola",
+  ["ITEM"] = "OBJETO",
+  ["Import"] = "Importar",
+  ["Import failed:"] = "Fallo al importar:",
+  ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
+    "Instala el GoldCap Companion gratuito para mantener los precios al día automáticamente (/goldcap companion),",
+  ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
+    "Es el precio que debes batir para vender rápido, no lo que vale el objeto. Un vendedor con prisa puede ponerlo muy por debajo de su valor, y GoldCap no le seguirá hacia abajo: mira WHAT TO DO para ver el precio al que publicaría de verdad.",
+  ["Item"] = "Objeto",
+  ["Item %d"] = "Objeto %d",
+  ["LISTED"] = "PUBLICADO",
+  ["LIVE VERDICT · CHECKING"] = "VEREDICTO EN VIVO · COMPROBANDO",
+  ["LIVE VERDICT · REFUSED"] = "VEREDICTO EN VIVO · RECHAZADO",
+  ["LIVE VERDICT · SAFE"] = "VEREDICTO EN VIVO · SEGURO",
+  ["Language"] = "Idioma",
+  ["Language changed. Type /reload to apply it everywhere."] =
+    "Idioma cambiado. Escribe /reload para aplicarlo en todas partes.",
+  ["Last result: %ds ago"] = "Último resultado: hace %ds",
+  ["Last result: none yet this visit"] = "Último resultado: ninguno en esta visita",
+  ["Listed at %s — far below market. Repost."] =
+    "Publicado a %s — muy por debajo del mercado. Vuelve a publicarlo.",
+  ["Lot cancelled; wait for it to return to bags"] =
+    "Lote cancelado; espera a que vuelva a las bolsas",
+  ["MARKET / UNIT"] = "MERCADO / UNIDAD",
+  ["Market per unit"] = "Mercado por unidad",
+  ["Market reference"] = "Referencia de mercado",
+  ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
+    "AÚN NO ESTÁ EN GOLDCAP.GG — SE SINCRONIZA CON /RELOAD O AL SALIR",
+  ["NOTHING TO CANCEL"] = "NADA QUE CANCELAR",
+  ["NOTHING TO POST"] = "NADA QUE PUBLICAR",
+  ["No deals passed the safety checks right now."] =
+    "Ahora mismo ninguna oportunidad pasa las comprobaciones de seguridad.",
+  ["No deals to show -- and no realm prices yet."] =
+    "No hay oportunidades que mostrar -- ni precios del reino todavía.",
+  ["No deals yet."] = "Aún no hay oportunidades.",
+  ["No exact auction key"] = "Sin clave de subasta exacta",
+  ["No exact bag stack"] = "Sin montón exacto en la bolsa",
+  ["No exact bag variant"] = "Sin variante exacta en la bolsa",
+  ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
+    "Aún no hay ventas registradas -- abre el buzón con GoldCap cargado",
+  ["Not in your bags or listed — mail or bank?"] =
+    "Ni en tus bolsas ni publicado — ¿correo o banco?",
+  ["Not on hand — the stock is in the mail, the bank, or on another character"] =
+    "No disponible — las existencias están en el correo, el banco u otro personaje",
+  ["Nothing is being held back."] = "No se está reteniendo nada.",
+  ["Nothing listed on the AH right now"] = "Ahora mismo no hay nada publicado en la subasta",
+  ["Nothing queued to cancel"] = "Nada en cola para cancelar",
+  ["Nothing queued to post"] = "Nada en cola para publicar",
+  ["Nothing to remove"] = "Nada que borrar",
+  ["ON GOLDCAP.GG — LAST %d DAYS"] = "EN GOLDCAP.GG — ÚLTIMOS %d DÍAS",
+  ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
+    "EN GOLDCAP.GG — ÚLTIMOS %d DÍAS, ÚLTIMAS %d DE %d",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
+    "Un único escaneo de toda la casa de subastas mediante consultas paginadas. Tarda unos ",
+  ["Open the Auction House first."] = "Abre primero la casa de subastas.",
+  ["Open the Auction House to begin scanning."] =
+    "Abre la casa de subastas para empezar a escanear.",
+  ["Open the deals board. /gc for commands."] = "Abre el tablero de oportunidades. /gc para los comandos.",
+  ["POST %d"] = "PUBLICAR %d",
+  ["POSTING…"] = "PUBLICANDO…",
+  ["PRICE ROSE %.1fx"] = "EL PRECIO SUBIÓ %.1fx",
+  ["PROFIT / UNIT"] = "BENEFICIO / UNIDAD",
+  ["Pair or update the GoldCap Companion to see profit from goldcap.gg"] =
+    "Vincula o actualiza el GoldCap Companion para ver el beneficio de goldcap.gg",
+  ["Paste your realm string from goldcap.gg and press Import."] =
+    "Pega la cadena de tu reino desde goldcap.gg y pulsa Import.",
+  ["Position scope changed"] = "El ámbito de la posición ha cambiado",
+  ["Positions without a cost or a live price are excluded."] =
+    "Se excluyen las posiciones sin coste o sin precio en vivo.",
+  ["Post"] = "Publicar",
+  ["Post confirmation expired"] = "La confirmación de publicación ha caducado",
+  ["Post the next queued item"] = "Publicar el siguiente objeto de la cola",
+  ["Posting failed"] = "Fallo al publicar",
+  ["Posting timed out"] = "La publicación agotó el tiempo",
+  ["Posting unavailable"] = "Publicación no disponible",
+  ["Posting…"] = "Publicando…",
+  ["Press Full Scan to find deals."] = "Pulsa Full Scan para buscar oportunidades.",
+  ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
+    "Pulsa Scan para recorrer toda la casa de subastas una vez, o Auto para escanear sin parar.",
+  ["Previous removal selection cleared"] = "Selección de borrado anterior descartada",
+  ["Previous repost selection cleared"] = "Selección de republicación anterior descartada",
+  ["Prices up to date"] = "Precios al día",
+  ["Prices up to date · %d did not answer"] = "Precios al día · %d sin respuesta",
+  ["Pricing %d/%d…"] = "Consultando precios %d/%d…",
+  ["Pricing…"] = "Consultando precios…",
+  ["Profit tracking is a goldcap.gg Pro feature"] =
+    "El seguimiento de beneficios es una función de goldcap.gg Pro",
+  ["QTY"] = "CANT",
+  ["Quantity exceeds missing units"] = "La cantidad supera las unidades que faltan",
+  ["REALIZED PROFIT"] = "BENEFICIO REALIZADO",
+  ["REFRESH"] = "ACTUALIZAR",
+  ["RESET WINDOW"] = "RESTABLECER VENTANA",
+  ["Refresh waiting for prior result"] = "La actualización espera el resultado anterior",
+  ["Refreshing listings…"] = "Actualizando las publicaciones…",
+  ["Refused so far: %d"] = "Rechazadas hasta ahora: %d",
+  ["Removal confirmation expired"] = "La confirmación de borrado ha caducado",
+  ["Remove"] = "Borrar",
+  ["Remove?"] = "¿Borrar?",
+  ["Removes every entered-by-hand purchase in this run -- click again to confirm"] =
+    "Borra todas las compras introducidas a mano en este grupo -- pulsa otra vez para confirmar",
+  ["Removes this entered-by-hand purchase -- click again to confirm"] =
+    "Borra esta compra introducida a mano -- pulsa otra vez para confirmar",
+  ["Repost"] = "Republicar",
+  ["Repost confirmation expired"] = "La confirmación de republicación ha caducado",
+  ["Right-click to stop watching this item"] = "Clic derecho para dejar de vigilar este objeto",
+  ["Right-click to watch this item closely"] = "Clic derecho para vigilar de cerca este objeto",
+  ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SE GUARDA AL INSTANTE · ESC O DONE PARA CERRAR",
+  ["SCAN"] = "ESCANEAR",
+  ["SCANNING…"] = "ESCANEANDO…",
+  ["SESSION %s%s · %d BUYS"] = "SESIÓN %s%s · %d COMPRAS",
+  ["SHOW DETAILS ▸"] = "MOSTRAR DETALLES ▸",
+  ["STRESS EXIT"] = "SALIDA BAJO PRESIÓN",
+  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
+    "SUSPECT = descuento tan extremo que seguramente sea una estafa o un mercado mal valorado",
+  ["Sales are costed from your oldest units first"] =
+    "Las ventas se imputan primero a tus unidades más antiguas",
+  ["Set cost"] = "Definir coste",
+  ["Settings"] = "Ajustes",
+  ["Sort by it to decide what to Check first, not to decide what to buy."] =
+    "Ordena por él para decidir qué comprobar primero, no qué comprar.",
+  ["Source age"] = "Antigüedad de la fuente",
+  ["Stress exit unit"] = "Precio de salida bajo presión",
+  ["Stress profit"] = "Beneficio bajo presión",
+  ["The Companion is syncing, but this addon could not read what it wrote:"] =
+    "El Companion está sincronizando, pero este addon no pudo leer lo que escribió:",
+  ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
+    "El precio más barato que pide AHORA OTRA persona, según una consulta en vivo a la casa de subastas. Tus propias publicaciones quedan excluidas, así que el número nunca se persigue a sí mismo hacia abajo.",
+  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
+    "La aplicación de escritorio Companion, gratuita, mantiene tus precios al día automáticamente y sincroniza tus ventas. Copia el enlace (Ctrl+C) y ábrelo en un navegador:",
+  ["Unknown"] = "Desconocido",
+  ["Unknown item"] = "Objeto desconocido",
+  ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
+  ["WATCH = discounted but unproven liquidity or small profit"] =
+    "WATCH = con descuento pero con liquidez no demostrada o beneficio pequeño",
+  ["WHAT TO DO"] = "QUÉ HACER",
+  ["Waiting for Auction House…"] = "Esperando a la casa de subastas…",
+  ["Waiting for a live price"] = "Esperando un precio en vivo",
+  ["Waiting for the Auction House…"] = "Esperando a la casa de subastas…",
+  ["Waiting for the purchase to finish…"] = "Esperando a que termine la compra…",
+  ["Watching closely: %d item%s"] = "Vigilando de cerca: %d objeto%s",
+  ["Watching — pinned, but not a deal right now"] =
+    "Vigilando — fijado, pero ahora mismo no es una oportunidad",
+  ["Window position & size"] = "Posición y tamaño de la ventana",
+  ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
+    "un descuento tan extremo suele significar que el valor de mercado está mal, no que sea una ganga",
+  ["auto off"] = "auto desactivado",
+  ["auto-synced %dh ago"] = "sincronizado automáticamente hace %dh",
+  ["auto-synced data for %s loaded (%s old)"] =
+    "datos sincronizados de %s cargados (%s de antigüedad)",
+  ["auto-synced data stale -- /goldcap import"] =
+    "los datos sincronizados están caducados -- /goldcap import",
+  ["auto: paused"] = "auto: en pausa",
+  ["big buy"] = "compra grande",
+  ["bought %d x item %d"] = "comprados %d x objeto %d",
+  ["bought %d x item %d after AH close"] =
+    "comprados %d x objeto %d tras cerrar la casa de subastas",
+  ["buying commodity..."] = "comprando mercancía...",
+  ["checking live price..."] = "comprobando el precio en vivo...",
+  ["checking live safety..."] = "comprobando la seguridad en vivo...",
+  ["commodity no longer available -- someone bought it out"] =
+    "la mercancía ya no está disponible -- alguien la compró entera",
+  ["commodity purchase failed"] = "falló la compra de la mercancía",
+  ["confirmed commodity purchase failed after AH close"] =
+    "la compra confirmada de mercancía falló tras cerrar la casa de subastas",
+  ["confirming purchase..."] = "confirmando la compra...",
+  ["cost basis incomplete -- set costs to get repost advice"] =
+    "la base de coste está incompleta -- define los costes para recibir consejo de republicación",
+  ["cost unknown"] = "coste desconocido",
+  ["data from goldcap.gg · synced %s ago"] = "datos de goldcap.gg · sincronizados hace %s",
+  ["due -- will be asked next pass"] = "pendiente -- se consultará en la próxima pasada",
+  ["finish the pending buy first"] = "termina primero la compra pendiente",
+  ["full scan already in progress"] = "el escaneo completo ya está en marcha",
+  ["full scan complete: %d deal%s from %d item group%s%s"] =
+    "escaneo completo terminado: %d oportunidad%s de %d grupo%s de objetos%s",
+  ["full scan interrupted -- confirm your purchase"] =
+    "escaneo completo interrumpido -- confirma tu compra",
+  ["full scan stalled -- press Full Scan to retry"] =
+    "el escaneo completo se ha atascado -- pulsa Full Scan para reintentar",
+  ["full scan stalled -- retrying shortly"] =
+    "el escaneo completo se ha atascado -- se reintentará en breve",
+  ["gone / price changed"] = "desaparecido / precio cambiado",
+  ["identity unresolved (variant item -- not priced by design)"] =
+    "identidad sin resolver (objeto con variantes -- sin precio por diseño)",
+  ["import %dh old"] = "importación de hace %dh",
+  ["import stale -- /goldcap import or /goldcap companion"] =
+    "importación caducada -- /goldcap import o /goldcap companion",
+  ["imported %d items for %s (%s) — prices are live now."] =
+    "importados %d objetos para %s (%s) — los precios ya están activos.",
+  ["in the mail"] = "en el correo",
+  ["item %d"] = "objeto %d",
+  ["item %d: %s"] = "objeto %d: %s",
+  ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
+    "item=%d computed=%s public=%s buyable=%s reasons=%s",
+  ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
+    "últimas 24 h — %d ventas, %s bruto, %s de comisión, %d compras, %s gastados",
+  ["listing gone -- already bought out or price changed"] =
+    "la publicación ha desaparecido -- ya la compraron o cambió el precio",
+  ["live safety confirmed -- click Buy to purchase"] =
+    "seguridad confirmada en vivo -- pulsa Buy para comprar",
+  ["live verification required"] = "se requiere verificación en vivo",
+  ["manual import -- Companion keeps this fresh: /goldcap companion"] =
+    "importación manual -- Companion lo mantiene al día: /goldcap companion",
+  ["needs a fresh price -- press Refresh"] = "necesita un precio nuevo -- pulsa Refresh",
+  ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
+    "sin confirmación del servidor -- la compra puede haberse completado igualmente, revisa tu correo. Cerrar esto no la deshará.",
+  ["no prices yet -- /goldcap companion or /goldcap import"] =
+    "todavía no hay precios -- /goldcap companion o /goldcap import",
+  ["no purchase confirmation received -- Cancel and retry"] =
+    "no se recibió confirmación de compra -- pulsa Cancel y reinténtalo",
+  ["no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices"] =
+    "aún no hay ventas registradas — abre el buzón con GoldCap cargado y se leerán de las facturas",
+  ["no stock in bags or listed -- nothing to price for"] =
+    "sin existencias en bolsas ni publicadas -- nada que cotizar",
+  ["none"] = "ninguno",
+  ["not enough gold -- total %s, you have %s"] = "no hay oro suficiente -- total %s, tienes %s",
+  ["not enough gold for this quote -- Cancel"] =
+    "no hay oro suficiente para esta cotización -- Cancel",
+  ["not ready to cancel"] = "aún no se puede cancelar",
+  ["not ready to post"] = "aún no se puede publicar",
+  ["nothing listed"] = "nada publicado",
+  ["of %d"] = "de %d",
+  ["or paste a string from goldcap.gg with /goldcap import."] =
+    "o pega una cadena de goldcap.gg con /goldcap import.",
+  ["placing bid..."] = "pujando...",
+  ["price confirmed -- click Buy to purchase"] = "precio confirmado -- pulsa Buy para comprar",
+  ["price rose %.1fx — still safe, confirm"] = "el precio subió %.1fx — sigue siendo seguro, confirma",
+  ["purchase canceled"] = "compra cancelada",
+  ["purchase pending exact cost"] = "compra pendiente del coste exacto",
+  ["purchase total unavailable — inspect mailbox"] =
+    "no se puede obtener el total de la compra — revisa el buzón",
+  ["quote %s -- click Confirm to buy"] = "cotización %s -- pulsa Confirm para comprar",
+  ["quote %ss ago"] = "cotización de hace %ss",
+  ["quote expired -- Refresh to re-check the price"] =
+    "cotización caducada -- pulsa Refresh para volver a comprobar el precio",
+  ["recent sales (newest first):"] = "ventas recientes (las más nuevas primero):",
+  ["region %s — bundled: %d items (%s), imported: %s"] =
+    "región %s — incluidos: %d objetos (%s), importados: %s",
+  ["relisting now would lock in a loss or a stall -- hold"] =
+    "republicar ahora fijaría una pérdida o un estancamiento -- espera",
+  ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
+    "borrados %d registro%s de compra duplicados que dejó un fallo al leer el correo",
+  ["removed %d duplicate sale record%s left by a mail-scan bug"] =
+    "borrados %d registro%s de venta duplicados que dejó un fallo al leer el correo",
+  ["s. Rows it refuses are hidden. Buying always stays a click you make."] =
+    " s. Las filas rechazadas se ocultan. Comprar sigue siendo siempre un clic tuyo.",
+  ["sale proceeds pending"] = "ingresos de la venta pendientes",
+  ["scanned %d listings over %d passes"] = "escaneadas %d publicaciones en %d pasadas",
+  ["scanning auction house..."] = "escaneando la casa de subastas...",
+  ["scanning… %d results · %d deals%s"] = "escaneando… %d resultados · %d oportunidades%s",
+  ["search the Auction House yourself, or check your mail. Click to toggle."] =
+    "busca tú mismo en la casa de subastas, o revisa el correo. Haz clic para alternar.",
+  ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
+    "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
+  ["sells %s/day"] = "vende %s/día",
+  ["session: %d snipes, spent %s, ~%s est. profit"] =
+    "sesión: %d capturas, %s gastados, ~%s de beneficio est.",
+  ["sniped (listing changed on rescan)"] = "se lo llevaron (la publicación cambió al reescanear)",
+  ["starting full scan..."] = "iniciando el escaneo completo...",
+  ["stopped watching %s"] = "se dejó de vigilar %s",
+  ["the Companion wrote prices this addon could not read --"] =
+    "el Companion escribió precios que este addon no pudo leer --",
+  ["the import failed (%s)"] = "la importación falló (%s)",
+  ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
+    "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
+  ["unknown evidence"] = "evidencia desconocida",
+  ["waiting for previous commodity purchase to settle"] =
+    "esperando a que se liquide la compra de mercancía anterior",
+  ["waiting for previous search result to settle"] =
+    "esperando el resultado de la búsqueda anterior",
+  ["waiting for server... full scan will start automatically"] =
+    "esperando al servidor... el escaneo completo empezará solo",
+  ["watching %s closely -- re-checked every few seconds"] =
+    "vigilando %s de cerca -- se recomprueba cada pocos segundos",
+  ["would sell at a loss"] = "se vendería con pérdidas",
+  ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
+    "aún no has importado los precios del reino -- instala GoldCap Companion (/goldcap companion) o pega una cadena de goldcap.gg (/goldcap import).",
+  ["you should clear about %s"] = "deberías sacar unos %s",
+  ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
+    "tu importación tiene %d horas -- los precios pueden estar desviados. Pega una cadena nueva de goldcap.gg (/goldcap import).",
+  ["» needs price"] = "» falta precio",
+  ["×%d in bags"] = "×%d en bolsas",
+  ["×%d in your bags · Post lists %d of them, the largest stack"] =
+    "×%d en tus bolsas · Post publica %d de ellos, el montón más grande",
+  ["×%d in your bags · no stack GoldCap can identify exactly"] =
+    "×%d en tus bolsas · ningún montón que GoldCap pueda identificar con exactitud",
+  ["×%d in your bags, ready to list"] = "×%d en tus bolsas, listos para publicar",
+  ["×%d listed"] = "×%d publicados",
+  ["×%d listed at %s each"] = "×%d publicados a %s cada uno",
+  ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprado %s · %s · %s",
+  ["≈ goldcap.gg market value — no live quote yet"] =
+    "≈ valor de mercado de goldcap.gg — aún sin cotización en vivo",
+}
