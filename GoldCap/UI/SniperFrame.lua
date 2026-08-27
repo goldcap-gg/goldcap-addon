@@ -5657,6 +5657,18 @@ local function createFrame()
   f:SetMovable(true)
   f:EnableMouse(true) -- blocks clicks from passing through to whatever's behind the window
 
+  -- Layering. This window shipped with neither of these, so it sat at UIParent's own level:
+  -- under the auction house, under the bags, under every Blizzard panel a goldmaker has
+  -- open at once -- and clicking it did not bring it forward, because only a TOPLEVEL frame
+  -- raises itself within its strata. Both are required; strata alone still loses to a
+  -- sibling at HIGH, and toplevel alone cannot climb out of a lower strata.
+  --
+  -- HIGH, not DIALOG: the confirmation sheet above sits at DIALOG precisely so it clears
+  -- this window, and Blizzard's own popups live there too. See GC.Sniper.SetDocked, which
+  -- undoes both while the window is a child of the auction house panel.
+  f:SetFrameStrata("HIGH")
+  f:SetToplevel(true)
+
   -- Chrome: Theme.TitleBar owns the drag region (title bar only, not the whole window),
   -- the close button (outer top-right), and the gear (inboard-left of close).
   local titleBar = Theme.TitleBar(f, GC.L["GoldCap Sniper"])
@@ -6145,6 +6157,12 @@ function GC.Sniper.SetDocked(host)
     if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText("") end
     if frame.closeBtn then frame.closeBtn:Hide() end
     frame:SetParent(host)
+    -- Give up the floating window's own layering (createFrame: HIGH + toplevel). Docked,
+    -- this is a CHILD of the host panel and has to stack WITH it -- keeping HIGH would paint
+    -- our content over the auction house's own dropdowns and its close button, and keeping
+    -- toplevel would yank the whole thing forward on every click inside it.
+    frame:SetFrameStrata(host:GetFrameStrata())
+    frame:SetToplevel(false)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT")
     frame:SetPoint("BOTTOMRIGHT")
@@ -6157,6 +6175,9 @@ function GC.Sniper.SetDocked(host)
     frame.goldcapDockHost = nil
     frame:Hide()
     frame:SetParent(UIParent)
+    -- Back to a window of its own: see createFrame for why both calls are needed.
+    frame:SetFrameStrata("HIGH")
+    frame:SetToplevel(true)
     frame:SetMovable(true)
     if frame.resizeHandle then frame.resizeHandle:Show() end
     if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText(GC.L["GoldCap Sniper"]) end

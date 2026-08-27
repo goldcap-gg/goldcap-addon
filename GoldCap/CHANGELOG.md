@@ -2,6 +2,33 @@
 
 ## 0.4.1 (unreleased)
 
+- **Your profit stopped adding up if you ever imported another region.** A
+  ledger row's region was copied from whichever price snapshot was loaded, not
+  from the character it happened on — so importing, say, a Korean snapshot while
+  playing in Europe stamped every sale afterwards as Korean. goldcap.gg matches
+  a sale to the purchase behind it within one region, so those sales showed
+  "cost unknown", the stock behind them never left your Sell list, and "earned
+  through GoldCap" collapsed. Rows are now stamped from the client, rows already
+  written are repaired once on login, and a snapshot from a region you are not
+  playing in says so instead of quietly re-pricing your whole board.
+
+- **The window no longer hides behind everything.** The deals window sat under
+  the auction house, the bags and most Blizzard panels, and clicking it did not
+  bring it forward. It now floats above them and raises on a click — and still
+  layers correctly with the auction house while docked inside it.
+
+- **Text you can read in your own language.** Labels were drawn in the game
+  client's own font, which only covers the language that client shipped for —
+  so choosing Russian or Ukrainian on an English client turned most of the
+  interface into empty boxes. Those now draw in the addon's bundled font, which
+  covers the whole Cyrillic range. Picking a language your client has no font
+  for at all (Korean or Chinese on a Western client) now warns you instead.
+
+- **The addon icon is the GoldCap mark again.** The icon in the AddOns list and
+  the minimap compartment was a 64px image with a black background baked in, so
+  it showed as a dark tile. It is now the same transparent mark the website and
+  the store listings use.
+
 - **The addon now tells you about the Companion.** No-import and manual-import
   states point to the free GoldCap Companion first — with `/goldcap companion`
   opening a copy-the-link dialog — and the manual paste stays as the

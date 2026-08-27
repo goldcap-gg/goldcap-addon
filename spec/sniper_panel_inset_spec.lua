@@ -98,6 +98,10 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end,
       RegisterForClicks = function() end,
       SetFrameStrata = function() end,
+      -- The window declares its own layering (SniperFrame's createFrame/SetDocked):
+      -- HIGH + toplevel while floating, the host's strata while docked.
+      SetToplevel = function() end,
+      GetFrameStrata = function() return "MEDIUM" end,
       GetWidth = function() return 0 end,
       HookScript = function() end,
       IsEnabled = function() return true end,

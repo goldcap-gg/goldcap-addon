@@ -82,6 +82,10 @@ describe("TOC load order", function()
         -- its own strata, and persistWindowGeometry reads GetWidth alongside the pre-existing
         -- GetHeight now that the window is width-resizable too.
         SetFrameStrata = function() end,
+        -- The window declares its own layering (SniperFrame's createFrame/SetDocked):
+        -- HIGH + toplevel while floating, the host's strata while docked.
+        SetToplevel = function() end,
+        GetFrameStrata = function() return "MEDIUM" end,
         GetWidth = function() return 0 end,
         -- Sniper v3 fix round 1: setPlainTooltip now HookScript's onto fullScanBtn/toggleBtn
         -- (I4, so it doesn't clobber Theme.Button's own OnEnter/OnLeave hover-brighten) --
