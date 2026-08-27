@@ -9,7 +9,7 @@ GC.Sell = GC.Sell or {}
 -- bare assignment, so this is a plain field write on the standard `_G` table rather than a new
 -- global luacheck would need to be told about.
 _G.BINDING_HEADER_GOLDCAP = "GoldCap"
-_G.BINDING_NAME_GOLDCAP_POST_NEXT = "Post the next queued item"
+_G.BINDING_NAME_GOLDCAP_POST_NEXT = GC.L["Post the next queued item"]
 
 local Theme = GC.Theme
 local ROW_HEIGHT, ROW_WIDTH
@@ -244,13 +244,13 @@ local DIM_HEX = "|cff9d9d9d"
 -- short queue is the same lie as a silently short deals list; naming the reason in plain words
 -- is what keeps it from being a DIFFERENT lie instead.
 local QUEUE_SKIP_TEXT = {
-  no_fresh_price = "needs a fresh price -- press Refresh",
-  below_breakeven = "would sell at a loss",
-  unresolved_identity = "GoldCap can't pin down which bag stack this is",
+  no_fresh_price = GC.L["needs a fresh price -- press Refresh"],
+  below_breakeven = GC.L["would sell at a loss"],
+  unresolved_identity = GC.L["GoldCap can't pin down which bag stack this is"],
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
-  advised_hold = "relisting now would lock in a loss or a stall -- hold",
-  no_advice = "cost basis incomplete -- set costs to get repost advice",
+  advised_hold = GC.L["relisting now would lock in a loss or a stall -- hold"],
+  no_advice = GC.L["cost basis incomplete -- set costs to get repost advice"],
 }
 
 -- The real body, promised by the forward declaration above. Needs formatCell (just above) and
@@ -368,7 +368,7 @@ local function recommendationText(recommendation)
   local reason = type(recommendation.reason) == "string" and recommendation.reason or nil
   local text = action .. (reason and (" (" .. reason .. ")") or "")
     .. (unit and (" @ " .. formatCell(unit)) or "")
-  if recommendation.belowCost then text = text .. " · below cost" end
+  if recommendation.belowCost then text = text .. GC.L[" · below cost"] end
   return text
 end
 
@@ -417,7 +417,7 @@ local function itemName(itemID)
     local ok, name = pcall(C_Item.GetItemNameByID, itemID)
     if ok and type(name) == "string" and name ~= "" then return name end
   end
-  return ("Item %d"):format(itemID or 0)
+  return (GC.L["Item %d"]):format(itemID or 0)
 end
 
 local function quoteDriver()
@@ -765,8 +765,8 @@ local function finishQuoteWalk()
   refresh.pending, refresh.awaiting = nil, nil
   local skipped = refresh.skipped or 0
   setStatus(skipped > 0
-    and ("Prices up to date · %d did not answer"):format(skipped)
-    or "Prices up to date")
+    and (GC.L["Prices up to date · %d did not answer"]):format(skipped)
+    or GC.L["Prices up to date"])
   renderRows()
   scheduleNextWalk()
 end
@@ -1047,7 +1047,7 @@ local function quoteResolved(kind, itemID, unit, levels)
   refresh.pending = nil
   refresh.phase = "pricing"
   markProgress()
-  emptyAnswers[itemID] = nil -- a real price supersedes any remembered "nothing listed"
+  emptyAnswers[itemID] = nil -- a real price supersedes any remembered GC.L["nothing listed"]
   GC.QuoteCache.Set(quotes, itemID, unit, time())
   -- Mirror the result into the persisted store: whatever Set just did to `quotes[itemID]` --
   -- write it in (it never clears here, since `unit` is already known-valid above, but the
@@ -1498,7 +1498,7 @@ local function onRemoveClick(row)
     disarmRemove()
     setStatus(removed > 0
       and (removed > 1 and ("Removed %d entries"):format(removed) or "Removed")
-      or "Nothing to remove")
+      or GC.L["Nothing to remove"])
     GC.Sell.Refresh()
     return
   end
@@ -1516,8 +1516,8 @@ local function onRemoveClick(row)
   row.removeStage = "armed"
   row.action.helpKey = "Remove?"; row.action:SetLabel(GC.L["Remove?"])
   setStatus(#ids > 1
-    and "Removes every entered-by-hand purchase in this run -- click again to confirm"
-    or "Removes this entered-by-hand purchase -- click again to confirm")
+    and GC.L["Removes every entered-by-hand purchase in this run -- click again to confirm"]
+    or GC.L["Removes this entered-by-hand purchase -- click again to confirm"])
   removeArmToken = removeArmToken + 1
   local token = removeArmToken
   if C_Timer and C_Timer.After then
@@ -1701,26 +1701,26 @@ local function confirmCostDialog(dialog)
   -- the same conversion the live preview already showed, so what gets recorded is never a
   -- surprise. Everything from here down is copper, exactly as it always was.
   local quantity, total = dialogExactPositive(dialog.quantity), dialogGoldPositive(dialog.total)
-  if not quantity or quantity < 1 then return setDialogError(dialog, "Enter a whole quantity") end
-  if quantity > dialog.maximum then return setDialogError(dialog, "Quantity exceeds missing units") end
-  if not total then return setDialogError(dialog, "Enter an exact positive cost") end
+  if not quantity or quantity < 1 then return setDialogError(dialog, GC.L["Enter a whole quantity"]) end
+  if quantity > dialog.maximum then return setDialogError(dialog, GC.L["Quantity exceeds missing units"]) end
+  if not total then return setDialogError(dialog, GC.L["Enter an exact positive cost"]) end
   if dialog.costMode == "unit" then
     local unit = dialogGoldPositive(dialog.unit)
     if not unit or safeMultiply(quantity, unit) ~= total then
-      return setDialogError(dialog, "Enter an exact positive cost")
+      return setDialogError(dialog, GC.L["Enter an exact positive cost"])
     end
   elseif dialog.costMode ~= "total" then
-    return setDialogError(dialog, "Enter an exact positive cost")
+    return setDialogError(dialog, GC.L["Enter an exact positive cost"])
   end
   local position = dialog.position
   local scope = activeScope(position)
-  if not scope then return setDialogError(dialog, "Position scope changed") end
+  if not scope then return setDialogError(dialog, GC.L["Position scope changed"]) end
   local batch
   if dialog.pendingRepair then
     local pending = pendingRepairFor(position, scope)
     if not pending or pending.id ~= dialog.pendingRepair.id or not dialog.repairID
         or not (GC.Acquisitions and GC.Acquisitions.RepairPendingManual) then
-      return setDialogError(dialog, "Position scope changed")
+      return setDialogError(dialog, GC.L["Position scope changed"])
     end
     batch = GC.Acquisitions.RepairPendingManual({ pendingID = pending.id, repairID = dialog.repairID,
       itemID = position.itemID, positionKey = position.positionKey, itemName = position.itemName,
@@ -1730,7 +1730,7 @@ local function confirmCostDialog(dialog)
       itemName = position.itemName, quantity = quantity, total = total, acquiredAt = time(),
       character = scope.char, region = scope.region })
   end
-  if batch then dialog.submitted = true; dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, "Enter an exact positive cost") end
+  if batch then dialog.submitted = true; dialog:Hide(); GC.Sell.Refresh() else setDialogError(dialog, GC.L["Enter an exact positive cost"]) end
 end
 
 -- The item name is the one column that must stay readable: every other cell is a number that
@@ -1999,10 +1999,10 @@ end
 local HEADER_HELP = {
   cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price." } },
   listed = { "Listed value", { "What your live auctions for this item add up to at their current asking price." } },
-  market = { "Market per unit", {
-    "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
-    "It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",
-    "Greyed out means the quote has aged; Post and Repost refresh it before they act." } },
+  market = { GC.L["Market per unit"], {
+    GC.L["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."],
+    GC.L["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."],
+    GC.L["Greyed out means the quote has aged; Post and Repost refresh it before they act."] } },
   profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete -- fill it in with Set cost." } },
   status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
 }
@@ -2141,7 +2141,7 @@ renderRows = function()
       end
       if #detail.batches > 0 then
         entries[#entries + 1] = { kind = "group", position = position, title = "WHAT YOU PAID",
-          hint = "Sales are costed from your oldest units first" }
+          hint = GC.L["Sales are costed from your oldest units first"] }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
     end
@@ -2180,8 +2180,8 @@ renderRows = function()
         -- bought, which was most of what a seller actually has to sell.
         local listedQty, bagQty = p.listedQty or 0, p.bagQty or 0
         local stockParts = {}
-        if bagQty > 0 then stockParts[#stockParts + 1] = ("×%d in bags"):format(bagQty) end
-        if listedQty > 0 then stockParts[#stockParts + 1] = ("×%d listed"):format(listedQty) end
+        if bagQty > 0 then stockParts[#stockParts + 1] = (GC.L["×%d in bags"]):format(bagQty) end
+        if listedQty > 0 then stockParts[#stockParts + 1] = (GC.L["×%d listed"]):format(listedQty) end
         -- The quality pip goes in the label rather than beside it: this row and
         -- the Sniper's deal row anchor their cells completely differently, and an
         -- inline atlas escape needs no layout in either. Empty for the vast
@@ -2254,7 +2254,7 @@ renderRows = function()
           marketText = emptyKnown and "none" or "—"
         end
         if p.displayMarketUnit and not p.freshMarketUnit and type(p.quoteAge) == "number" then
-          marketText = marketText .. (" · stale %ds"):format(p.quoteAge)
+          marketText = marketText .. (GC.L[" · stale %ds"]):format(p.quoteAge)
         end
         row.cells.market:SetText(marketText)
         setColor(row.cells.market, (marketFallback or (p.displayMarketUnit and not p.freshMarketUnit))
@@ -2355,7 +2355,7 @@ renderRows = function()
         if bagQty > 0 then
           showRowAction(row, "Post", function() onPostClick(row) end)
         elseif canSetCost(p) then
-          showRowAction(row, "Set cost", function() openCostDialog(p) end)
+          showRowAction(row, GC.L["Set cost"], function() openCostDialog(p) end)
         else
           row.action:Hide()
         end
@@ -2374,10 +2374,10 @@ renderRows = function()
           if type(d.quoteAge) == "number" then lead = lead .. (" · age %ss"):format(d.quoteAge) end
           facts[#facts + 1] = lead
         elseif type(d.quoteAge) == "number" then
-          facts[#facts + 1] = ("quote %ss ago"):format(d.quoteAge)
+          facts[#facts + 1] = (GC.L["quote %ss ago"]):format(d.quoteAge)
         end
         if type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
-        if d.sold ~= nil then facts[#facts + 1] = ("sells %s/day"):format(d.sold) end
+        if d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
         if type(d.days) == "number" then facts[#facts + 1] = ("clears in ~%dd"):format(math.floor(d.days + 0.5)) end
         if d.factsText then facts[#facts + 1] = d.factsText end
         -- I3 (fix wave, sell honesty): "pricing..." promises the walk will reach this row, but
@@ -2439,7 +2439,7 @@ renderRows = function()
         row.subItem:SetText((GC.L["×%d%s · bought %s · %s · %s"]):format(
           entry.batch.originalQty or entry.batch.quantity or 0,
           purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
-          when, sourceLabel, entry.batch.evidence or "unknown evidence"))
+          when, sourceLabel, entry.batch.evidence or GC.L["unknown evidence"]))
         row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
         row.cells.profit:SetText("")
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
@@ -2525,7 +2525,7 @@ renderRows = function()
         -- the ordinary case -- and the coverage flag would have hidden the
         -- button for exactly those.
         if canSetCost(p) then
-          showRowAction(row, "Set cost", function() openCostDialog(p) end)
+          showRowAction(row, GC.L["Set cost"], function() openCostDialog(p) end)
         else
           row.action:Hide()
         end
@@ -2765,7 +2765,7 @@ function GC.Sell.Attach(f, geometry)
   -- at mono-10 and Theme.Scale() 1.3 (JetBrains Mono ~0.6em/char -> 7.8px/char) -- a button
   -- sized for "REFRESH" alone would have let that overflow its own edges into the filter chip
   -- beside it.
-  refreshButton:SetSize(104, 26); refreshButton:SetPoint(GC.L["TOPRIGHT"], 0, -30); refreshButton:SetLabel(GC.L["REFRESH"])
+  refreshButton:SetSize(104, 26); refreshButton:SetPoint("TOPRIGHT", 0, -30); refreshButton:SetLabel(GC.L["REFRESH"])
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
@@ -2792,7 +2792,7 @@ function GC.Sell.Attach(f, geometry)
   -- what is in the bags and what is already up; provenance stays on the tooltip.
   for _, mode in ipairs({ "missing_cost", "listed", "sellable", "goldcap", "all" }) do
     local button = Theme.Button(container, "ghost", "badge")
-    button:SetSize(widths[mode] or 36, 20); button:SetPoint(GC.L["RIGHT"], previous, GC.L["LEFT"], -2, 0); button:SetLabel(labels[mode])
+    button:SetSize(widths[mode] or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
     button:SetScript("OnClick", function() filterMode = mode; paintFilterChips(); renderRows() end)
     container.filterButtons[mode] = button
     previous = button
@@ -2845,7 +2845,7 @@ function GC.Sell.Attach(f, geometry)
     else
       for _, skip in ipairs(queueSkipped) do
         GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
-          QUEUE_SKIP_TEXT[skip.reason] or "not ready to post"), 0.85, 0.85, 0.85, true)
+          QUEUE_SKIP_TEXT[skip.reason] or GC.L["not ready to post"]), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -2889,7 +2889,7 @@ function GC.Sell.Attach(f, geometry)
     else
       for _, skip in ipairs(cancelSkipped) do
         GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
-          QUEUE_SKIP_TEXT[skip.reason] or "not ready to cancel"), 0.85, 0.85, 0.85, true)
+          QUEUE_SKIP_TEXT[skip.reason] or GC.L["not ready to cancel"]), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -3036,7 +3036,7 @@ function GC.Sell.Attach(f, geometry)
   -- at all and every amount typed here was read as bare copper.
   local FIELD_LABEL_Y, FIELD_BOX_Y = -40, -54
   for i, field in ipairs({ { dialog.quantity, "Quantity" }, { dialog.unit, "Unit cost (gold)" }, { dialog.total, "Total cost (gold)" } }) do
-    local label = Theme.Label(dialog, 10); label:SetPoint(GC.L["TOPLEFT"], 12 + (i - 1) * 82, FIELD_LABEL_Y); label:SetText(field[2])
+    local label = Theme.Label(dialog, 10); label:SetPoint("TOPLEFT", 12 + (i - 1) * 82, FIELD_LABEL_Y); label:SetText(field[2])
     field[1]:SetSize(70, 20); field[1]:SetPoint("TOPLEFT", 12 + (i - 1) * 82, FIELD_BOX_Y); field[1]:SetAutoFocus(false)
   end
   -- Live coin readout of exactly what Total will record, under the Total field itself. This
@@ -3046,8 +3046,8 @@ function GC.Sell.Attach(f, geometry)
   dialog.totalPreview:SetPoint("TOPRIGHT", -12, FIELD_BOX_Y - 24)
   setColor(dialog.totalPreview, Theme.color.fgDim)
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, FIELD_BOX_Y - 44); setColor(dialog.error, Theme.color.red)
-  local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint(GC.L["BOTTOMLEFT"], 12, 10); cancel:SetLabel(GC.L["Cancel"]); cancel:SetScript(GC.L["OnClick"], function() dialog:Hide() end)
-  local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint(GC.L["BOTTOMRIGHT"], -12, 10); confirm:SetLabel(GC.L["Confirm"]); confirm:SetScript(GC.L["OnClick"], function() confirmCostDialog(dialog) end)
+  local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel(GC.L["Cancel"]); cancel:SetScript("OnClick", function() dialog:Hide() end)
+  local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel(GC.L["Confirm"]); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
   local function syncText(edit, text)
     dialog.syncing = true
     edit:SetText(text)
@@ -3065,13 +3065,13 @@ function GC.Sell.Attach(f, geometry)
     if not q or not unitCopper then
       syncText(dialog.total, "")
       updateTotalPreview(dialog, nil)
-      return setDialogError(dialog, "Enter an exact positive cost")
+      return setDialogError(dialog, GC.L["Enter an exact positive cost"])
     end
     local totalCopper = safeMultiply(q, unitCopper)
     if not totalCopper then
       syncText(dialog.total, "")
       updateTotalPreview(dialog, nil)
-      return setDialogError(dialog, "Enter an exact positive cost")
+      return setDialogError(dialog, GC.L["Enter an exact positive cost"])
     end
     setDialogError(dialog)
     syncText(dialog.total, copperToGoldText(totalCopper))
@@ -3085,7 +3085,7 @@ function GC.Sell.Attach(f, geometry)
       elseif dialog.costMode == "total" then syncText(dialog.unit, "")
       else syncText(dialog.unit, ""); syncText(dialog.total, "") end
       updateTotalPreview(dialog, nil)
-      return setDialogError(dialog, "Enter a whole quantity")
+      return setDialogError(dialog, GC.L["Enter a whole quantity"])
     end
     if dialog.maximum then
       local clamped = math.max(1, math.min(dialog.maximum, quantity))
@@ -3097,7 +3097,7 @@ function GC.Sell.Attach(f, geometry)
       if not totalCopper then
         syncText(dialog.total, "")
         updateTotalPreview(dialog, nil)
-        return setDialogError(dialog, "Enter an exact positive cost")
+        return setDialogError(dialog, GC.L["Enter an exact positive cost"])
       end
       syncText(dialog.total, copperToGoldText(totalCopper))
       updateTotalPreview(dialog, totalCopper)
@@ -3107,7 +3107,7 @@ function GC.Sell.Attach(f, geometry)
       if not totalCopper then
         syncText(dialog.unit, "")
         updateTotalPreview(dialog, nil)
-        return setDialogError(dialog, "Enter an exact positive cost")
+        return setDialogError(dialog, GC.L["Enter an exact positive cost"])
       end
       syncText(dialog.unit, copperToGoldText(math.floor(totalCopper / quantity)))
       updateTotalPreview(dialog, totalCopper)
@@ -3121,7 +3121,7 @@ function GC.Sell.Attach(f, geometry)
     if not q or not totalCopper then
       syncText(dialog.unit, "")
       updateTotalPreview(dialog, nil)
-      return setDialogError(dialog, "Enter an exact positive cost")
+      return setDialogError(dialog, GC.L["Enter an exact positive cost"])
     end
     syncText(dialog.unit, copperToGoldText(math.floor(totalCopper / q)))
     updateTotalPreview(dialog, totalCopper)
@@ -3179,13 +3179,13 @@ GC.slashHandlers.sellstate = function()
       local restingAt = emptyAnswers[position.itemID]
       local why
       if position.unresolved and not commodity then
-        why = "identity unresolved (variant item -- not priced by design)"
+        why = GC.L["identity unresolved (variant item -- not priced by design)"]
       elseif not (inBags or listed) then
-        why = "no stock in bags or listed -- nothing to price for"
+        why = GC.L["no stock in bags or listed -- nothing to price for"]
       elseif type(restingAt) == "number" and (time() - restingAt) <= EMPTY_ANSWER_AGE then
-        why = ("AH answered empty %ds ago"):format(time() - restingAt)
+        why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
       else
-        why = "due -- will be asked next pass"
+        why = GC.L["due -- will be asked next pass"]
       end
       shown = shown + 1
       GC.Print(("  %s (%d): %s"):format(tostring(position.itemName or "?"), position.itemID, why))

@@ -33,6 +33,26 @@ describe("locale contract", function()
     end
   end)
 
+  -- A pass that wraps strings in bulk can catch a frame anchor, a draw layer or a script
+  -- handler name -- all of which are English words the client matches EXACTLY. Wrapped, they
+  -- keep working in English (the fallback returns the key) and break the moment somebody
+  -- translates them, which is the worst possible failure shape: silent until it is somebody
+  -- else's language. TOPLEFT and friends were caught exactly this way.
+  it("never treats a client constant as a translatable string", function()
+    local TECHNICAL = {
+      TOP = true, BOTTOM = true, LEFT = true, RIGHT = true, CENTER = true,
+      TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true,
+      OVERLAY = true, ARTWORK = true, BACKGROUND = true, BORDER = true, HIGHLIGHT = true,
+      DIALOG = true, TOOLTIP = true, MEDIUM = true, HIGH = true, LOW = true, WORLD = true,
+      LeftButton = true, RightButton = true, AnyUp = true, AnyDown = true,
+      OnClick = true, OnEnter = true, OnLeave = true, OnShow = true, OnHide = true,
+      ADD = true, BLEND = true,
+    }
+    for key in pairs(GC.Locales.enUS) do
+      assert.is_nil(TECHNICAL[key], ("%q is a client constant, not player-facing text"):format(key))
+    end
+  end)
+
   it("keeps a started language from going mostly English", function()
     local base = GC.Locales.enUS
     local total = 0

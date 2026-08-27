@@ -437,8 +437,10 @@ describe("Sniper buy dialog verdict block", function()
     it("does not announce the F5 refusal while a resize's own re-apply is in flight (detailsQuiet)", function()
       local text = source()
       local body = section(text, "local function applyDetailsState(open)", "detailsToggle:SetScript(\"OnClick\"")
+      -- Pinned through the string layer: the sentence is now a GC.L key, so the source reads
+      -- setDialogStatus(GC.L[...]) while the words themselves are unchanged.
       assert.is_truthy(body:find(
-        "if dialog and not d.detailsQuiet then setDialogStatus(\"Enlarge the window to see details\") end",
+        "if dialog and not d.detailsQuiet then setDialogStatus(GC.L[\"Enlarge the window to see details\"]) end",
         1, true))
     end)
 

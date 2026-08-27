@@ -95,11 +95,11 @@ local function buildEntries()
     entries[#entries + 1] = { kind = "age", age = math.max(0, now - summary.generatedAt) }
     if not summary.pro then
       entries[#entries + 1] = { kind = "hint",
-        text = "Profit tracking is a goldcap.gg Pro feature" }
+        text = GC.L["Profit tracking is a goldcap.gg Pro feature"] }
     end
   else
     entries[#entries + 1] = { kind = "hint",
-      text = "Pair or update the GoldCap Companion to see profit from goldcap.gg" }
+      text = GC.L["Pair or update the GoldCap Companion to see profit from goldcap.gg"] }
   end
 
   -- Local section: ledger sales the snapshot cannot contain yet. Exact-key
@@ -120,7 +120,7 @@ local function buildEntries()
   table.sort(localSales, function(a, b) return (a.at or 0) > (b.at or 0) end)
   if #localSales > 0 then
     entries[#entries + 1] = { kind = "section",
-      text = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT" }
+      text = GC.L["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] }
     for _, sale in ipairs(localSales) do
       entries[#entries + 1] = { kind = "localSale", sale = sale,
         realized = sale.key and realizedByKey[sale.key] or nil }
@@ -134,9 +134,9 @@ local function buildEntries()
     -- totals.salesCount says the server holds more than that, the header
     -- admits this section is a tail rather than silently under-counting the
     -- window (M3).
-    local header = ("ON GOLDCAP.GG — LAST %d DAYS"):format(summary.days)
+    local header = (GC.L["ON GOLDCAP.GG — LAST %d DAYS"]):format(summary.days)
     if summary.totals.salesCount > #summary.sales then
-      header = ("ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"):format(
+      header = (GC.L["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"]):format(
         summary.days, #summary.sales, summary.totals.salesCount)
     end
     entries[#entries + 1] = { kind = "section", text = header }
@@ -147,7 +147,7 @@ local function buildEntries()
 
   if #localSales == 0 and not (summary and #summary.sales > 0) then
     entries[#entries + 1] = { kind = "hint",
-      text = "No sales recorded yet -- open your mailbox with GoldCap loaded" }
+      text = GC.L["No sales recorded yet -- open your mailbox with GoldCap loaded"] }
   end
 
   return entries
@@ -412,7 +412,7 @@ local function paintRow(row, entry, index)
     row.sectionRule:Show()
   elseif entry.kind == "localSale" then
     local sale = entry.sale
-    paintSaleCells(row, sale.itemName or "Unknown item", sale.itemID, sale.qty or 0,
+    paintSaleCells(row, sale.itemName or GC.L["Unknown item"], sale.itemID, sale.qty or 0,
       sale.total, sale.at, sale.pending)
     if entry.realized and type(entry.realized.profit) == "number" then
       -- entry.realized.profit (Core/Acquisitions.lua's ReconcileSale:

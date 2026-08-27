@@ -36,7 +36,7 @@ local function evidenceLabel(batch)
       or batch.evidence == "manual" or batch.evidence == "unknown evidence" then
     return batch.evidence
   end
-  return "unknown evidence"
+  return GC.L["unknown evidence"]
 end
 
 function GC.SellViewModel.Filter(positions, mode)
@@ -125,7 +125,7 @@ function GC.SellViewModel.CostText(position)
     local known = type(position.knownCost) == "number" and position.knownCost or 0
     local knownQty = type(position.knownQty) == "number" and position.knownQty or 0
     local exposureQty = type(position.exposureQty) == "number" and position.exposureQty or 0
-    return ("%d · %d/%d covered"):format(known, knownQty, exposureQty)
+    return (GC.L["%d · %d/%d covered"]):format(known, knownQty, exposureQty)
   end
   return position.knownCost
 end
@@ -144,8 +144,8 @@ function GC.SellViewModel.SummaryText(summary)
   local isPartial = false
   if profit == nil then
     local suffix = {}
-    if partial > 0 then suffix[#suffix + 1] = ("%d partial"):format(partial) end
-    if unknown > 0 then suffix[#suffix + 1] = ("%d missing"):format(unknown) end
+    if partial > 0 then suffix[#suffix + 1] = (GC.L["%d partial"]):format(partial) end
+    if unknown > 0 then suffix[#suffix + 1] = (GC.L["%d missing"]):format(unknown) end
     profit = "Unknown" .. (#suffix > 0 and (" · " .. table.concat(suffix, " · ")) or "")
   else
     -- The number is a real total now (SellPositions.Summary sums only the positions that
@@ -156,8 +156,8 @@ function GC.SellViewModel.SummaryText(summary)
     local parts = { ("over %d position%s"):format(n, n == 1 and "" or "s") }
     local noCost = summary.excludedNoCost or 0
     local noPrice = summary.excludedNoPrice or 0
-    if noCost > 0 then parts[#parts + 1] = ("%d without cost"):format(noCost) end
-    if noPrice > 0 then parts[#parts + 1] = ("%d without a price"):format(noPrice) end
+    if noCost > 0 then parts[#parts + 1] = (GC.L["%d without cost"]):format(noCost) end
+    if noPrice > 0 then parts[#parts + 1] = (GC.L["%d without a price"]):format(noPrice) end
     profitDetail = table.concat(parts, " · ")
     -- Item 2 (addon polish batch): a partial total painted with full confidence contradicts the
     -- comment above this one -- the number itself must carry a marker, not just the tooltip a
@@ -227,9 +227,9 @@ function GC.SellViewModel.Expansion(position)
   end
   batches = collapsed
   local facts = {}
-  if position.facts and position.facts.pendingPurchase then facts[#facts + 1] = "purchase pending exact cost" end
+  if position.facts and position.facts.pendingPurchase then facts[#facts + 1] = GC.L["purchase pending exact cost"] end
   if position.facts and position.facts.undercut then facts[#facts + 1] = "undercut" end
-  if position.facts and position.facts.soldPending then facts[#facts + 1] = "sale proceeds pending" end
+  if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
   if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = "paid sale unresolved" end
   if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = "sale name ambiguous" end
   if position.unresolvedKind == "unassigned_acquisition" then facts[#facts + 1] = "item variant unresolved" end
@@ -240,8 +240,8 @@ function GC.SellViewModel.Expansion(position)
     marketState = marketState, marketFresh = marketFresh, marketStale = marketStale,
     quoteAge = position.quoteAge, ahead = position.ahead,
     sold = position.soldPerDay, days = position.outlook and position.outlook.days,
-    recommendation = position.recommendation, note = "FIFO allocations",
-    coverageText = ("%d/%d covered"):format(position.knownQty or 0, position.exposureQty or 0),
+    recommendation = position.recommendation, note = GC.L["FIFO allocations"],
+    coverageText = (GC.L["%d/%d covered"]):format(position.knownQty or 0, position.exposureQty or 0),
     pendingAcquisitions = copy(position.pendingAcquisitions),
     sellerEvidence = copy(position.sellerEvidence), facts = position.facts,
     factsText = #facts > 0 and table.concat(facts, " · ") or nil,
