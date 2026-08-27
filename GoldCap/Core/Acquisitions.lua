@@ -1589,3 +1589,22 @@ function GC.Acquisitions.Consume(positionKey, quantity, evidenceKey, at, context
     allocations = plan.allocations,
   }
 end
+
+-- What the player still has money tied up in for this item, per unit. Sums the FIFO
+-- batches that have stock left (remainingQty > 0) rather than every batch ever recorded:
+-- cost already recovered by a sale is not what "you paid" means on a tooltip. Returns nil
+-- when nothing is held, which the tooltip renders as no line at all.
+function GC.Acquisitions.UnitCostFor(itemID)
+  if not db or type(db.acquisitions) ~= "table" then return nil end
+  local qty, total = 0, 0
+  for _, batch in ipairs(db.acquisitions) do
+    if batch.itemID == itemID and isPositiveInteger(batch.remainingQty)
+        and isExactInteger(batch.remainingTotal) then
+      qty = qty + batch.remainingQty
+      total = total + batch.remainingTotal
+    end
+  end
+  if qty <= 0 then return nil end
+  return math.floor(total / qty)
+end
+

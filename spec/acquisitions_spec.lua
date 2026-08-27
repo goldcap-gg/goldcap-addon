@@ -28,6 +28,16 @@ describe("Acquisition store", function()
     assert.equal("auction_house", batch.source)
   end)
 
+  it("averages unit cost over batches that still hold stock", function()
+    record({ evidenceKey = "tx:a", quantity = 2, total = 200 })  -- 100/unit
+    record({ evidenceKey = "tx:b", quantity = 2, total = 400 })  -- 200/unit
+    assert.equal(150, GC.Acquisitions.UnitCostFor(42))
+  end)
+
+  it("returns nil for an item with no recorded purchase", function()
+    assert.is_nil(GC.Acquisitions.UnitCostFor(999))
+  end)
+
   it("deduplicates one evidence key but keeps distinct identical buys", function()
     local first = record()
     local duplicate, isNew = record()
