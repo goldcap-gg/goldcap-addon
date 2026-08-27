@@ -384,6 +384,8 @@ GC.Locales.koKR = {
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "아직 서버 시세를 가져오지 않았습니다 -- GoldCap Companion을 설치하거나(/goldcap companion) goldcap.gg의 문자열을 붙여넣으세요(/goldcap import).",
   ["you should clear about %s"] = "약 %s를 남기게 됩니다",
+  ["your game client has no font for this language — the text will show as empty boxes"] =
+    "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
   ["» needs price"] = "» 가격 필요",

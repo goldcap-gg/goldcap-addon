@@ -45,4 +45,49 @@ describe("Theme fonts per locale", function()
     GC.Theme.RefreshFonts("koKR")
     assert.matches("JetBrainsMono", GC.Theme.FONT_UI)
   end)
+
+  -- T.Label inherits GameFontHighlightSmall, i.e. the CLIENT's own face, on the assumption
+  -- that a client can draw whatever language is on screen. That holds only while the addon
+  -- speaks the client's language -- and the whole point of the picker is that it need not.
+  -- An English client cannot draw Cyrillic, so picking Russian turned every Label in the
+  -- addon into empty boxes (reported in-game 2026-08-28) while the mono-faced numbers and
+  -- headers beside them read perfectly.
+  --
+  -- FONT_LABEL is nil for "keep the inherited face" and a path for "override it".
+  describe("label face", function()
+    it("keeps the client's own face when the client speaks that language", function()
+      _G.GetLocale = function() return "ruRU" end
+      GC.Theme.RefreshFonts("ruRU")
+      assert.is_nil(GC.Theme.FONT_LABEL)
+    end)
+
+    it("keeps the client's own face for latin, which every client face draws", function()
+      _G.GetLocale = function() return "ruRU" end
+      GC.Theme.RefreshFonts("deDE")
+      assert.is_nil(GC.Theme.FONT_LABEL)
+    end)
+
+    it("overrides with the bundled face for cyrillic on a client that cannot draw it", function()
+      _G.GetLocale = function() return "enUS" end
+      for _, code in ipairs({ "ruRU", "ukUA" }) do
+        GC.Theme.RefreshFonts(code)
+        assert.matches("JetBrainsMono", GC.Theme.FONT_LABEL)
+      end
+    end)
+
+    -- Nothing in the install can draw Hangul on an English client, so there is no face to
+    -- switch to. FONT_UI's own CJK rule already reaches for the client face; Label follows
+    -- it rather than inventing a second answer, and the picker is what has to warn.
+    it("follows FONT_UI on CJK, where no bundled face can help", function()
+      _G.GetLocale = function() return "enUS" end
+      GC.Theme.RefreshFonts("koKR")
+      assert.equal(GC.Theme.FONT_UI, GC.Theme.FONT_LABEL)
+    end)
+
+    it("survives a client that will not name its locale", function()
+      _G.GetLocale = nil
+      GC.Theme.RefreshFonts("ruRU")
+      assert.matches("JetBrainsMono", GC.Theme.FONT_LABEL)
+    end)
+  end)
 end)

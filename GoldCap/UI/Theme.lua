@@ -54,10 +54,54 @@ T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
 -- idea for the places that ask for the mono face by name.
 local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
+-- Locales the CLIENT's own face can only draw when the client itself runs them. A client
+-- font always covers Latin, plus exactly the script of the locale it shipped for -- so an
+-- English client draws German and Spanish, and nothing else here.
+local NON_LATIN_LOCALES = { ruRU = true, ukUA = true, koKR = true, zhCN = true, zhTW = true }
+
 T.FONT_UI = T.FONT_MONO
 T.FONT_UI_BOLD = T.FONT_MONO_BOLD
 
+-- The face T.Label draws with, or nil to keep the one it inherits from
+-- GameFontHighlightSmall. Nil is the normal answer and the one that preserves the kit's
+-- look: prose and item names in the game's own face, figures and headers in the mono.
+--
+-- It stops being the right answer the moment the addon speaks a language the client does
+-- not. That is not an edge case -- it is what the language picker is FOR (there is no
+-- Ukrainian client at all), and it shipped broken: on an English client, choosing Russian
+-- turned every Label in the addon into empty boxes while the mono-faced numbers beside
+-- them read fine, because FRIZQT__.TTF has no Cyrillic. Measured, not assumed.
+T.FONT_LABEL = nil
+
+local function clientLocale()
+  local ok, code = pcall(function() return GetLocale and GetLocale() end)
+  return ok and type(code) == "string" and code ~= "" and code or nil
+end
+
+--- False when NOTHING available can draw `code`: a CJK language on a client that did not
+-- ship for it. The bundled face has no CJK glyphs and the client's own has only its own
+-- script, so the text would be empty boxes and no font choice can rescue it. The picker
+-- warns rather than letting the player conclude the addon is broken.
+function T.LocaleIsDrawable(code)
+  if not NON_LATIN_LOCALES[code] then return true end
+  if code == clientLocale() then return true end
+  return not CJK_LOCALES[code]
+end
+
 function T.RefreshFonts(code)
+  -- Latin needs nothing; a script the client shipped for needs nothing. Anything else has
+  -- to come from the bundled face, which covers Cyrillic and Greek -- and for CJK cannot
+  -- help at all, so Label follows whatever FONT_UI settled on rather than inventing a
+  -- second answer that is equally unreadable.
+  --
+  -- Spelled as an if, not `cond and nil or T.FONT_MONO`: that idiom cannot yield nil in Lua,
+  -- so it silently forced the mono face on every locale.
+  if not NON_LATIN_LOCALES[code] or code == clientLocale() then
+    T.FONT_LABEL = nil
+  else
+    T.FONT_LABEL = T.FONT_MONO
+  end
+
   if not CJK_LOCALES[code] then
     T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
     return T.FONT_UI
@@ -74,6 +118,10 @@ function T.RefreshFonts(code)
   else
     T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
   end
+  -- CJK: the bundled face has no glyphs at all, so there is nothing better for Label to use
+  -- than whatever FONT_UI just settled on. Set explicitly rather than left nil, because the
+  -- inherited GameFontHighlightSmall is not necessarily the same face GameFontNormal names.
+  T.FONT_LABEL = T.FONT_UI
   return T.FONT_UI
 end
 
@@ -462,6 +510,9 @@ end
 function T.Label(parent, size)
   local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   local fontPath, _, flags = fs:GetFont()
+  -- T.FONT_LABEL overrides the inherited face only where the client cannot draw the active
+  -- language -- see its declaration. Normally nil, and the inherited face stands.
+  fontPath = T.FONT_LABEL or fontPath
   if fontPath then
     fs:SetFont(fontPath, size * T.Scale(), flags)
     widgetFonts[fs] = { path = fontPath, size = size }

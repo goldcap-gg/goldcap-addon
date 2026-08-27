@@ -375,6 +375,8 @@ GC.Locales.zhTW = {
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "你還沒有匯入伺服器價格 -- 請安裝 GoldCap Companion（/goldcap companion）或貼上 goldcap.gg 的字串（/goldcap import）。",
   ["you should clear about %s"] = "你大約可以淨賺 %s",
+  ["your game client has no font for this language — the text will show as empty boxes"] =
+    "你的遊戲客戶端沒有這種語言的字型 — 文字會顯示為空白方塊",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
   ["» needs price"] = "» 需要價格",

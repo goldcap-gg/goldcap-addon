@@ -400,6 +400,8 @@ GC.Locales.ruRU = {
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "вы ещё не импортировали цены реалма -- установите GoldCap Companion (/goldcap companion) или вставьте строку с goldcap.gg (/goldcap import).",
   ["you should clear about %s"] = "вы должны получить примерно %s",
+  ["your game client has no font for this language — the text will show as empty boxes"] =
+    "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
   ["» needs price"] = "» нужна цена",

@@ -633,6 +633,12 @@ local function build(sniperFrame)
         -- language until they are rebuilt. Saying so beats pretending the switch is total.
         if GC.Print then
           GC.Print(GC.L["Language changed. Type /reload to apply it everywhere."])
+          -- A language the installed fonts cannot draw renders as empty boxes, and nothing
+          -- on our side can change that -- an English client has no Hangul anywhere in it.
+          -- Say so here rather than let the player read a wall of squares as a broken addon.
+          if GC.Theme and GC.Theme.LocaleIsDrawable and not GC.Theme.LocaleIsDrawable(code) then
+            GC.Print(GC.L["your game client has no font for this language — the text will show as empty boxes"])
+          end
         end
       end,
       unpack(entries))

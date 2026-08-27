@@ -404,6 +404,8 @@ GC.Locales.ptBR = {
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "você ainda não importou os preços do reino -- instale o GoldCap Companion (/goldcap companion) ou cole uma string do goldcap.gg (/goldcap import).",
   ["you should clear about %s"] = "você deve embolsar cerca de %s",
+  ["your game client has no font for this language — the text will show as empty boxes"] =
+    "seu cliente do jogo não tem fonte para este idioma — o texto aparecerá como quadrados vazios",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "sua importação tem %d horas -- os preços podem estar errados. Cole uma string nova do goldcap.gg (/goldcap import).",
   ["» needs price"] = "» falta preço",

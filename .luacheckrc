@@ -15,7 +15,7 @@ globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLe
 read_globals = {
   "CreateFrame", "UIParent", "GameTooltip", "ItemRefTooltip",
   "GetCoinTextureString",
-  "GetCVar", "GetRealmName", "time",
+  "GetCVar", "GetRealmName", "GetLocale", "time",
   "C_Item", "C_AddOns", "GetAddOnMetadata", "Item",
   "Enum", "TooltipDataProcessor", "print", "ChatFontNormal",
   "C_AuctionHouse", "C_Timer", "PlaySound", "SOUNDKIT", "ITEM_QUALITY_COLORS",

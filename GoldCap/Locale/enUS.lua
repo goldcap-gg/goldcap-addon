@@ -336,6 +336,8 @@ GC.Locales.enUS = {
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import).",
   ["you should clear about %s"] = "you should clear about %s",
+  ["your game client has no font for this language — the text will show as empty boxes"] =
+    "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
   ["» needs price"] = "» needs price",
