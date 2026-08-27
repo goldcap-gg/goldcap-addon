@@ -28,6 +28,48 @@ describe("Tooltip.BuildLines", function()
     assert.equal("14", lines[2].right)
   end)
 
+  -- currentQty and listings ride the import string's verification token, which the server
+  -- writes for commodities only (routes/addon.ts). So the depth line is an imported-commodity
+  -- line by construction: the bundled snapshot carries no verification at all, and a realm
+  -- item from an I token has no depth to report.
+  it("shows the shelf and how long it lasts for a verified commodity", function()
+    local lines = GC.Tooltip.BuildLines(
+      { mv = 12400, sold = 86, currentQty = 4210, listings = 68, ts = 1000, source = "import" }, 2000)
+    assert.equal("Sold per day", lines[2].left)
+    assert.equal("Listed", lines[3].left)
+    assert.equal("4210 · 48d", lines[3].right)
+  end)
+
+  it("shows the shelf alone when nothing is selling to divide by", function()
+    local lines = GC.Tooltip.BuildLines(
+      { mv = 12400, currentQty = 4210, listings = 68, ts = 1000, source = "import" }, 2000)
+    assert.equal("Listed", lines[2].left)
+    assert.equal("4210", lines[2].right)
+    for _, ln in ipairs(lines) do
+      assert.not_equal("Listings", ln.left) -- the shelf count replaces the auction count
+    end
+  end)
+
+  it("falls back to the auction count when the shelf is empty or unknown", function()
+    for _, value in ipairs({
+      { mv = 990000, listings = 14, ts = 1000 },
+      { mv = 990000, listings = 14, currentQty = 0, ts = 1000, source = "import" },
+    }) do
+      local lines = GC.Tooltip.BuildLines(value, 2000)
+      assert.equal("Listings", lines[2].left)
+      assert.equal("14", lines[2].right)
+    end
+  end)
+
+  -- The two lines were an if/elseif before the shelf line existed, so no item ever showed
+  -- both. Nothing in the bundled table sets `s` and `l` together today, but the exclusivity
+  -- is what the tooltip's width was drawn against -- keep it rather than rely on that.
+  it("never shows the auction count next to a sales rate", function()
+    local lines = GC.Tooltip.BuildLines({ mv = 12400, sold = 86, listings = 68, ts = 1000 }, 2000)
+    assert.equal(2, #lines)
+    assert.equal("Sold per day", lines[2].left)
+  end)
+
   it("appends an age line when data is older than 48h", function()
     local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0 }, 3 * 86400)
     assert.equal("GoldCap data age", lines[#lines].left)

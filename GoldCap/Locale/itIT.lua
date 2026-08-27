@@ -138,6 +138,7 @@ GC.Locales.itIT = {
     "Lingua cambiata. Digita /reload per applicarla ovunque.",
   ["Last result: %ds ago"] = "Ultimo risultato: %ds fa",
   ["Last result: none yet this visit"] = "Ultimo risultato: nessuno in questa visita",
+  ["Listed"] = "In vendita",
   ["Listed at %s — far below market. Repost."] =
     "In vendita a %s — molto sotto mercato. Rimettilo in vendita.",
   ["Listings"] = "Vendite",

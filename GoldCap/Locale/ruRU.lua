@@ -137,6 +137,7 @@ GC.Locales.ruRU = {
     "Язык изменён. Введите /reload, чтобы применить его везде.",
   ["Last result: %ds ago"] = "Последний результат: %dс назад",
   ["Last result: none yet this visit"] = "Последний результат: пока не было в этот визит",
+  ["Listed"] = "Выставлено",
   ["Listed at %s — far below market. Repost."] =
     "Выставлено за %s — намного ниже рынка. Перевыставьте.",
   ["Listings"] = "Лотов",

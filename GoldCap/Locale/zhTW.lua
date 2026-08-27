@@ -138,6 +138,7 @@ GC.Locales.zhTW = {
     "語言已變更。輸入 /reload 讓它套用到所有地方。",
   ["Last result: %ds ago"] = "上次結果：%d 秒前",
   ["Last result: none yet this visit"] = "上次結果：這次還沒有",
+  ["Listed"] = "在售數量",
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 遠低於市價。請重新上架。",
   ["Listings"] = "上架數",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；請等它回到背包",

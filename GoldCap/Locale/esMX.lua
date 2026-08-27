@@ -141,6 +141,7 @@ GC.Locales.esMX = {
     "Idioma cambiado. Escribe /reload para aplicarlo en todas partes.",
   ["Last result: %ds ago"] = "Último resultado: hace %ds",
   ["Last result: none yet this visit"] = "Último resultado: ninguno en esta visita",
+  ["Listed"] = "Publicados",
   ["Listed at %s — far below market. Repost."] =
     "Publicado a %s — muy por debajo del mercado. Vuelve a publicarlo.",
   ["Listings"] = "Publicaciones",

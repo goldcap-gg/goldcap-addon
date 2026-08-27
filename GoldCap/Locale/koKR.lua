@@ -137,6 +137,7 @@ GC.Locales.koKR = {
     "언어를 바꿨습니다. 모든 곳에 적용하려면 /reload를 입력하세요.",
   ["Last result: %ds ago"] = "마지막 결과: %d초 전",
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
+  ["Listed"] = "등록 수량",
   ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
   ["Listings"] = "등록 수",
   ["Lot cancelled; wait for it to return to bags"] = "물량을 취소했습니다. 가방으로 돌아올 때까지 기다리세요",

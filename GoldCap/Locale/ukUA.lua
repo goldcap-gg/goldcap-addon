@@ -141,6 +141,7 @@ GC.Locales.ukUA = {
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",
   ["Last result: none yet this visit"] = "Останній результат: ще не було цього візиту",
+  ["Listed"] = "Виставлено",
   ["Listed at %s — far below market. Repost."] =
     "Виставлено за %s — значно нижче ринку. Перевиставте.",
   ["Listings"] = "Лотів",

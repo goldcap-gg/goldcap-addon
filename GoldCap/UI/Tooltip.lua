@@ -16,7 +16,21 @@ function GC.Tooltip.BuildLines(v, now, opts)
   end
   if v.sold then
     lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = string.format("%.1f", v.sold) }
-  elseif v.listings then
+  end
+  -- Depth. `currentQty` (units on the region's shelf) and `listings` (auctions holding them)
+  -- ride the import string's verification token, which the server writes for commodities
+  -- only -- so this is an imported-commodity line by construction: the bundled snapshot
+  -- carries no verification at all, and a realm item from an I token has no depth to report.
+  -- The shelf count is the better answer to the same question the auction count was
+  -- answering, so it takes that slot rather than adding a fourth number.
+  if v.currentQty and v.currentQty > 0 then
+    local right = tostring(v.currentQty)
+    local supply = GC.Util.FormatSupplyDays(v.currentQty, v.sold)
+    if supply then right = right .. " · " .. supply end
+    lines[#lines + 1] = { kind = "text", left = GC.L["Listed"], right = right }
+  elseif v.listings and not v.sold then
+    -- `not v.sold` keeps the exclusivity these two lines had when they were one if/elseif:
+    -- no item has ever shown a sales rate and an auction count together.
     lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = tostring(v.listings) }
   end
   if opts.unitCost then

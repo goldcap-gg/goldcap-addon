@@ -137,6 +137,7 @@ GC.Locales.zhCN = {
     "语言已更改。输入 /reload 使其在所有界面生效。",
   ["Last result: %ds ago"] = "上次结果：%d 秒前",
   ["Last result: none yet this visit"] = "上次结果：本次还没有",
+  ["Listed"] = "在售数量",
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 远低于市场价。请重新上架。",
   ["Listings"] = "挂单数",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；请等待它回到背包",

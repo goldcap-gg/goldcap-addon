@@ -138,6 +138,7 @@ GC.Locales.frFR = {
     "Langue changée. Tapez /reload pour l'appliquer partout.",
   ["Last result: %ds ago"] = "Dernier résultat : il y a %ds",
   ["Last result: none yet this visit"] = "Dernier résultat : aucun pour cette visite",
+  ["Listed"] = "En vente",
   ["Listed at %s — far below market. Repost."] =
     "En vente à %s — bien sous le marché. Remettez en vente.",
   ["Listings"] = "Ventes",

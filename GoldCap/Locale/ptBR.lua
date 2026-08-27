@@ -139,6 +139,7 @@ GC.Locales.ptBR = {
     "Idioma alterado. Digite /reload para aplicá-lo em tudo.",
   ["Last result: %ds ago"] = "Último resultado: há %ds",
   ["Last result: none yet this visit"] = "Último resultado: nenhum nesta visita",
+  ["Listed"] = "Anunciados",
   ["Listed at %s — far below market. Repost."] =
     "Anunciado a %s — bem abaixo do mercado. Reanuncie.",
   ["Listings"] = "Anúncios",

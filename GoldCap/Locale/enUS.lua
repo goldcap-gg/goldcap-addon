@@ -127,6 +127,7 @@ GC.Locales.enUS = {
   ["Language changed. Type /reload to apply it everywhere."] = "Language changed. Type /reload to apply it everywhere.",
   ["Last result: %ds ago"] = "Last result: %ds ago",
   ["Last result: none yet this visit"] = "Last result: none yet this visit",
+  ["Listed"] = "Listed",
   ["Listed at %s — far below market. Repost."] = "Listed at %s — far below market. Repost.",
   ["Listings"] = "Listings",
   ["Lot cancelled; wait for it to return to bags"] = "Lot cancelled; wait for it to return to bags",

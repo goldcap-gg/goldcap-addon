@@ -136,6 +136,7 @@ GC.Locales.deDE = {
     "Sprache geändert. Gib /reload ein, damit sie überall greift.",
   ["Last result: %ds ago"] = "Letztes Ergebnis: vor %ds",
   ["Last result: none yet this visit"] = "Letztes Ergebnis: bei diesem Besuch noch keins",
+  ["Listed"] = "Eingestellt",
   ["Listed at %s — far below market. Repost."] =
     "Eingestellt zu %s — weit unter Markt. Neu einstellen.",
   ["Listings"] = "Angebote",
