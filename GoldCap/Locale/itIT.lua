@@ -38,8 +38,12 @@ GC.Locales.itIT = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "Da 15 a 60 secondi sui reami affollati. Nessuna attesa -- riscansiona quando vuoi.",
   ["24h trend"] = "Andamento 24h",
+  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
+    "Una merce viene messa in vendita per l'intero totale delle borse in una volta; un oggetto normale mette in vendita una pila, la più grande che GoldCap sappia identificare con esattezza.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Un indizio, non una promessa: rivendita al 95% del valore di mercato importato, per la quantità che Check stesso approverebbe.",
+  ["A run of several purchases collapsed onto one line removes every one of them."] =
+    "Se più acquisti sono raggruppati su una riga, vengono rimossi tutti.",
   ["AH answered empty %ds ago"] = "la casa d'aste ha risposto vuota %ds fa",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · IN PAUSA: ",
@@ -68,7 +72,11 @@ GC.Locales.itIT = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Annulla questo lotto e perdi la cauzione — clicca di nuovo per confermare",
   ["Cancel timed out"] = "Annullamento scaduto",
+  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
+    "Annullare fa perdere il deposito, quindi serve un secondo clic per confermare.",
   ["Cancelling lot…"] = "Annullamento del lotto…",
+  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
+    "Annulla questa asta attiva. NON la ripubblica: il deposito è perso e gli oggetti annullati tornano per posta, non direttamente nelle borse.",
   ["Cannot post this position"] = "Impossibile mettere in vendita questa posizione",
   ["Cannot remove this entry"] = "Impossibile eliminare questa voce",
   ["Cannot repost this lot"] = "Impossibile rimettere in vendita questo lotto",
@@ -79,9 +87,15 @@ GC.Locales.itIT = {
   ["Checking prices…"] = "Controllo dei prezzi…",
   ["Checking this item's price…"] = "Controllo del prezzo di questo oggetto…",
   ["Click Confirm to post"] = "Clicca Confirm per mettere in vendita",
+  ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
+    "Un altro clic annulla l'asta attiva. Non la ripubblica: il deposito è perso e gli oggetti tornano per posta anziché direttamente nelle borse.",
+  ["Clicking again deletes this hand-entered cost for good."] =
+    "Un altro clic elimina definitivamente questo costo inserito a mano.",
   ["Close"] = "Chiudi",
   ["Companion sync rejected:"] = "Sincronizzazione Companion rifiutata:",
   ["Confirm"] = "Conferma",
+  ["Confirm the cancel"] = "Conferma l'annullamento",
+  ["Confirm the removal"] = "Conferma la rimozione",
   ["Cost unknown for %d of %d"] = "Costo sconosciuto per %d su %d",
   ["Could not find the queue's next item to post — try again"] =
     "Non trovo il prossimo oggetto in coda da mettere in vendita — riprova",
@@ -91,6 +105,8 @@ GC.Locales.itIT = {
   ["DISC"] = "SCONTO",
   ["DISPLAY"] = "VISUALIZZAZIONE",
   ["DONE"] = "FATTO",
+  ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
+    "Elimina un costo inserito a mano in Imposta costo — mai un acquisto che GoldCap ha rilevato o abbinato alla tua posta.",
   ["Discount"] = "Sconto",
   ["Discount vs market value from your GoldCap import"] =
     "Sconto rispetto al valore di mercato del tuo import GoldCap",
@@ -146,6 +162,10 @@ GC.Locales.itIT = {
     "Installa il GoldCap Companion gratuito per tenere i prezzi aggiornati da soli (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "È il prezzo da battere per vendere in fretta, non quanto vale l'oggetto. Un venditore di fretta può metterlo molto sotto il valore, e GoldCap non lo seguirà al ribasso: guarda WHAT TO DO per il prezzo a cui metterebbe davvero in vendita.",
+  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
+    "Metterà in vendita anche scorte il cui acquisto GoldCap non ha mai visto: non sapere quanto è costato qualcosa è un motivo per dichiarare il profitto ignoto, non per rifiutarsi di venderlo.",
+  ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
+    "Non inventerà un costo dal prezzo di mercato, quindi il profitto resta ignoto finché non ne inserisci uno.",
   ["Item"] = "Oggetto",
   ["Item %d"] = "Oggetto %d",
   ["LISTED"] = "IN VENDITA",
@@ -161,6 +181,8 @@ GC.Locales.itIT = {
   ["Listed at %s — far below market. Repost."] =
     "In vendita a %s — molto sotto mercato. Rimettilo in vendita.",
   ["Listings"] = "Vendite",
+  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
+    "Mette in vendita ciò che hai nelle borse al prezzo mostrato sotto COSA FARE.",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lotto annullato; aspetta che torni nelle borse",
   ["MARKET / UNIT"] = "MERCATO / UNITÀ",
@@ -195,6 +217,8 @@ GC.Locales.itIT = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "SU GOLDCAP.GG — ULTIMI %d GIORNI",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "SU GOLDCAP.GG — ULTIMI %d GIORNI, PIÙ RECENTI %d DI %d",
+  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
+    "Quando arriva la posta, rimettilo in vendita tu al nuovo prezzo — da questa stessa riga.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "Una scansione unica di tutta la casa d'aste tramite query paginate. Richiede circa ",
   ["Open the Auction House first."] = "Apri prima la casa d'aste.",
@@ -249,6 +273,7 @@ GC.Locales.itIT = {
   ["Refused so far: %d"] = "Rifiutate finora: %d",
   ["Removal confirmation expired"] = "La conferma di eliminazione è scaduta",
   ["Remove"] = "Elimina",
+  ["Remove this cost"] = "Rimuovi questo costo",
   ["Remove?"] = "Eliminare?",
   ["Removed"] = "Rimosso",
   ["Removed %d entries"] = "%d voci rimosse",
@@ -289,12 +314,20 @@ GC.Locales.itIT = {
   ["TIER"] = "LIVELLO",
   ["TOTAL"] = "TOTALE",
   ["TREND"] = "TENDENZA",
+  ["Tell GoldCap what you actually paid for these units."] =
+    "Di' a GoldCap quanto hai davvero pagato per queste unità.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Il Companion sta sincronizzando, ma questo addon non è riuscito a leggere ciò che ha scritto:",
+  ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
+    "Il pulsante attende un momento prima di poter essere premuto, così un doppio clic accidentale non basta mai.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "È il prezzo più basso che sta chiedendo QUALCUN ALTRO adesso, da una query dal vivo alla casa d'aste. Le tue vendite sono escluse, così il numero non insegue mai se stesso verso il basso.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "Il Companion gratuito per computer tiene i prezzi aggiornati da solo e sincronizza le tue vendite. Copia il link (Ctrl+C) e aprilo in un browser:",
+  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
+    "Il prezzo è l'ultimo recuperato da GoldCap, vecchio al massimo di 45 secondi, non un controllo fatto al momento del clic. Se cambia tra l'armamento della pubblicazione e la conferma, la pubblicazione viene abbandonata anziché inviata al vecchio prezzo.",
+  ["There is no undo. Clicking asks for a second click to confirm."] =
+    "Non si può annullare. Il primo clic ne chiede un secondo per confermare.",
   ["Tier"] = "Livello",
   ["Total cost to buy this auction"] = "Costo totale per comprare questa asta",
   ["UNIT"] = "UNITÀ",
@@ -315,6 +348,8 @@ GC.Locales.itIT = {
   ["Watching — pinned, but not a deal right now"] =
     "Sorvegliato — fissato, ma al momento non è un'occasione",
   ["Window position & size"] = "Posizione e dimensione della finestra",
+  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
+    "Conviene quando qualcuno ti ha sottoquotato; non conviene se il prezzo si è mosso appena.",
   ["You paid"] = "Hai pagato",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "uno sconto così estremo di solito significa che il valore di mercato è sbagliato, non che sia un affare",

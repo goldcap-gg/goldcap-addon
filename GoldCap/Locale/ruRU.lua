@@ -38,8 +38,12 @@ GC.Locales.ruRU = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "15-60 секунд на загруженных реалмах. Без отката -- сканируйте когда угодно.",
   ["24h trend"] = "Тренд за 24ч",
+  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
+    "Товар выставляется всем объёмом из сумок сразу; обычный предмет — одним стеком, самым большим, который GoldCap может опознать точно.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Ориентир, а не обещание: перепродажа по 95% импортированной рыночной стоимости, на количество, которое одобрит сама проверка.",
+  ["A run of several purchases collapsed onto one line removes every one of them."] =
+    "Если несколько покупок свёрнуты в одну строку, удалятся они все.",
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
   ["AUTO"] = "АВТО",
   ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
@@ -67,7 +71,11 @@ GC.Locales.ruRU = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Отменить лот и потерять залог — нажмите ещё раз для подтверждения",
   ["Cancel timed out"] = "Время на отмену истекло",
+  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
+    "Отмена лишает залога, поэтому нужен второй клик для подтверждения.",
   ["Cancelling lot…"] = "Отменяем лот…",
+  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
+    "Отменяет этот активный лот. Заново он НЕ выставляется: залог теряется, а снятые предметы приходят почтой, а не сразу в сумки.",
   ["Cannot post this position"] = "Нельзя выставить эту позицию",
   ["Cannot remove this entry"] = "Нельзя удалить эту запись",
   ["Cannot repost this lot"] = "Нельзя перевыставить этот лот",
@@ -78,9 +86,15 @@ GC.Locales.ruRU = {
   ["Checking prices…"] = "Проверяем цены…",
   ["Checking this item's price…"] = "Проверяем цену этого предмета…",
   ["Click Confirm to post"] = "Нажмите Confirm, чтобы выставить",
+  ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
+    "Ещё один клик отменит активный лот. Заново он не выставляется: залог теряется, а предметы придут почтой, а не сразу в сумки.",
+  ["Clicking again deletes this hand-entered cost for good."] =
+    "Ещё один клик удалит эту введённую вручную себестоимость навсегда.",
   ["Close"] = "Закрыть",
   ["Companion sync rejected:"] = "Синхронизация Companion отклонена:",
   ["Confirm"] = "Подтвердить",
+  ["Confirm the cancel"] = "Подтвердить отмену",
+  ["Confirm the removal"] = "Подтвердить удаление",
   ["Cost unknown for %d of %d"] = "Себестоимость неизвестна для %d из %d",
   ["Could not find the queue's next item to post — try again"] =
     "Не нашли следующий предмет в очереди на выставление — попробуйте ещё раз",
@@ -90,6 +104,8 @@ GC.Locales.ruRU = {
   ["DISC"] = "СКИДКА",
   ["DISPLAY"] = "ОТОБРАЖЕНИЕ",
   ["DONE"] = "ГОТОВО",
+  ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
+    "Удаляет только себестоимость, введённую вручную в «Указать цену», — но не покупку, которую GoldCap поймал сам или сопоставил с почтой.",
   ["Discount"] = "Скидка",
   ["Discount vs market value from your GoldCap import"] =
     "Скидка от рыночной стоимости из вашего импорта GoldCap",
@@ -145,6 +161,10 @@ GC.Locales.ruRU = {
     "Установите бесплатный GoldCap Companion, чтобы цены обновлялись сами (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "Это то, что нужно перебить, чтобы продать быстро — а не то, сколько предмет стоит. Один спешащий продавец может опустить цену намного ниже стоимости, и GoldCap не пойдёт за ним вниз: смотрите WHAT TO DO, чтобы увидеть цену, по которой он действительно выставит.",
+  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
+    "Выставится и то, покупки чего GoldCap не видел: незнание себестоимости — повод показать прибыль как неизвестную, а не повод отказаться продавать.",
+  ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
+    "Себестоимость не выдумывается из рыночной цены — пока вы её не введёте, прибыль останется неизвестной.",
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
   ["LISTED"] = "ВЫСТАВЛЕНО",
@@ -160,6 +180,8 @@ GC.Locales.ruRU = {
   ["Listed at %s — far below market. Repost."] =
     "Выставлено за %s — намного ниже рынка. Перевыставьте.",
   ["Listings"] = "Лотов",
+  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
+    "Выставляет то, что лежит в сумках, по цене из колонки ЧТО ДЕЛАТЬ.",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот отменён; дождитесь его возврата в сумки",
   ["MARKET / UNIT"] = "РЫНОК / ШТ",
@@ -193,6 +215,8 @@ GC.Locales.ruRU = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "НА GOLDCAP.GG — ПОСЛЕДНИЕ %d ДНЕЙ",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "НА GOLDCAP.GG — ПОСЛЕДНИЕ %d ДНЕЙ, СВЕЖИЕ %d ИЗ %d",
+  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
+    "Когда придёт почта, выставьте заново сами по новой цене — из этой же строки.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "Разовое сканирование всего аукциона постраничными запросами. Занимает примерно ",
   ["Open the Auction House first."] = "Сначала откройте аукцион.",
@@ -246,6 +270,7 @@ GC.Locales.ruRU = {
   ["Refused so far: %d"] = "Отклонено на данный момент: %d",
   ["Removal confirmation expired"] = "Подтверждение удаления просрочено",
   ["Remove"] = "Удалить",
+  ["Remove this cost"] = "Удалить эту себестоимость",
   ["Remove?"] = "Удалить?",
   ["Removed"] = "Удалено",
   ["Removed %d entries"] = "Удалено записей: %d",
@@ -287,12 +312,20 @@ GC.Locales.ruRU = {
   ["TIER"] = "КЛАСС",
   ["TOTAL"] = "ИТОГО",
   ["TREND"] = "ТРЕНД",
+  ["Tell GoldCap what you actually paid for these units."] =
+    "Укажите, сколько вы на самом деле заплатили за эти единицы.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронизируется, но аддон не смог прочитать то, что он записал:",
+  ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
+    "Кнопка становится нажимаемой не сразу, поэтому случайный двойной клик её не сработает.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "Самая дешёвая цена, которую сейчас просит КТО-ТО ДРУГОЙ, по живому запросу к аукциону. Ваши собственные лоты исключены, поэтому число никогда не гонится само за собой вниз.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "Бесплатное приложение Companion само обновляет ваши цены и синхронизирует продажи. Скопируйте ссылку (Ctrl+C) и откройте её в браузере:",
+  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
+    "Цена — последняя, которую получил GoldCap, не старше 45 секунд, а не свежая проверка в момент клика. Если она изменится между подготовкой и подтверждением, выставление отменяется, а не уходит по старой цене.",
+  ["There is no undo. Clicking asks for a second click to confirm."] =
+    "Отменить нельзя. Первый клик просит второй для подтверждения.",
   ["Tier"] = "Класс",
   ["Total cost to buy this auction"] = "Полная стоимость покупки этого лота",
   ["UNIT"] = "ЗА ШТ",
@@ -313,6 +346,8 @@ GC.Locales.ruRU = {
   ["Watching — pinned, but not a deal right now"] =
     "Следим — закреплено, но сейчас это не сделка",
   ["Window position & size"] = "Позиция и размер окна",
+  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
+    "Стоит делать, когда вас перебили по цене; не стоит, если цена почти не сдвинулась.",
   ["You paid"] = "Вы заплатили",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "такая огромная скидка обычно означает ошибочную рыночную стоимость, а не выгодную покупку",

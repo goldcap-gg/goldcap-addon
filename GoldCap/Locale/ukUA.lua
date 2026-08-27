@@ -42,8 +42,12 @@ GC.Locales.ukUA = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "15-60 секунд на завантажених реалмах. Без відкату -- скануйте будь-коли.",
   ["24h trend"] = "Тренд за 24г",
+  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
+    "Товар виставляється всім обсягом із сумок одразу; звичайний предмет — одним стеком, найбільшим, який GoldCap може розпізнати точно.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Орієнтир, а не обіцянка: перепродаж за 95% імпортованої ринкової вартості, на кількість, яку схвалить сама перевірка.",
+  ["A run of several purchases collapsed onto one line removes every one of them."] =
+    "Якщо кілька покупок згорнуті в один рядок, видаляться вони всі.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
   ["AUTO"] = "АВТО",
   ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
@@ -71,7 +75,11 @@ GC.Locales.ukUA = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Скасувати цей лот і втратити заставу — натисніть ще раз для підтвердження",
   ["Cancel timed out"] = "Час на скасування вичерпано",
+  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
+    "Скасування позбавляє застави, тому потрібен другий клік для підтвердження.",
   ["Cancelling lot…"] = "Скасовуємо лот…",
+  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
+    "Скасовує цей активний лот. Заново він НЕ виставляється: застава втрачається, а зняті предмети приходять поштою, а не одразу в сумки.",
   ["Cannot post this position"] = "Не можна виставити цю позицію",
   ["Cannot remove this entry"] = "Не можна видалити цей запис",
   ["Cannot repost this lot"] = "Не можна перевиставити цей лот",
@@ -82,9 +90,15 @@ GC.Locales.ukUA = {
   ["Checking prices…"] = "Перевіряємо ціни…",
   ["Checking this item's price…"] = "Перевіряємо ціну цього предмета…",
   ["Click Confirm to post"] = "Натисніть Confirm, щоб виставити",
+  ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
+    "Ще один клік скасує активний лот. Заново він не виставляється: застава втрачається, а предмети прийдуть поштою, а не одразу в сумки.",
+  ["Clicking again deletes this hand-entered cost for good."] =
+    "Ще один клік видалить цю введену вручну собівартість назавжди.",
   ["Close"] = "Закрити",
   ["Companion sync rejected:"] = "Синхронізацію Companion відхилено:",
   ["Confirm"] = "Підтвердити",
+  ["Confirm the cancel"] = "Підтвердити скасування",
+  ["Confirm the removal"] = "Підтвердити видалення",
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
   ["Could not find the queue's next item to post — try again"] =
     "Не вдалося знайти наступний предмет у черзі на виставлення — спробуйте ще раз",
@@ -94,6 +108,8 @@ GC.Locales.ukUA = {
   ["DISC"] = "ЗНИЖКА",
   ["DISPLAY"] = "ВІДОБРАЖЕННЯ",
   ["DONE"] = "ГОТОВО",
+  ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
+    "Видаляє лише собівартість, введену вручну у «Вказати ціну», — але не покупку, яку GoldCap упіймав сам чи зіставив із поштою.",
   ["Discount"] = "Знижка",
   ["Discount vs market value from your GoldCap import"] =
     "Знижка від ринкової вартості з вашого імпорту GoldCap",
@@ -149,6 +165,10 @@ GC.Locales.ukUA = {
     "Встановіть безкоштовний GoldCap Companion, щоб ціни оновлювались самі (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "Це те, що треба перебити, аби продати швидко — а не те, скільки предмет вартий. Один продавець поспіхом може опустити ціну значно нижче вартості, і GoldCap не піде за ним униз: дивіться WHAT TO DO, щоб побачити ціну, за якою він справді виставить.",
+  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
+    "Виставиться й те, покупки чого GoldCap не бачив: незнання собівартості — привід показати прибуток як невідомий, а не привід відмовитися продавати.",
+  ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
+    "Собівартість не вигадується з ринкової ціни — доки ви її не введете, прибуток лишиться невідомим.",
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
   ["LISTED"] = "ВИСТАВЛЕНО",
@@ -164,6 +184,8 @@ GC.Locales.ukUA = {
   ["Listed at %s — far below market. Repost."] =
     "Виставлено за %s — значно нижче ринку. Перевиставте.",
   ["Listings"] = "Лотів",
+  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
+    "Виставляє те, що лежить у сумках, за ціною з колонки ЩО РОБИТИ.",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",
   ["MARKET / UNIT"] = "РИНОК / ШТ",
@@ -198,6 +220,8 @@ GC.Locales.ukUA = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "НА GOLDCAP.GG — ОСТАННІ %d ДНІВ",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "НА GOLDCAP.GG — ОСТАННІ %d ДНІВ, НАЙНОВІШІ %d З %d",
+  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
+    "Коли прийде пошта, виставте заново самі за новою ціною — із цього ж рядка.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "Одноразове сканування всього аукціону сторінковими запитами. Триває приблизно ",
   ["Open the Auction House first."] = "Спершу відкрийте аукціон.",
@@ -252,6 +276,7 @@ GC.Locales.ukUA = {
   ["Refused so far: %d"] = "Відхилено наразі: %d",
   ["Removal confirmation expired"] = "Підтвердження видалення протерміновано",
   ["Remove"] = "Видалити",
+  ["Remove this cost"] = "Видалити цю собівартість",
   ["Remove?"] = "Видалити?",
   ["Removed"] = "Видалено",
   ["Removed %d entries"] = "Видалено записів: %d",
@@ -293,12 +318,20 @@ GC.Locales.ukUA = {
   ["TIER"] = "КЛАС",
   ["TOTAL"] = "РАЗОМ",
   ["TREND"] = "ТРЕНД",
+  ["Tell GoldCap what you actually paid for these units."] =
+    "Вкажіть, скільки ви насправді заплатили за ці одиниці.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронізується, але аддон не зміг прочитати те, що він записав:",
+  ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
+    "Кнопка стає натискною не одразу, тож випадковий подвійний клік її не спрацює.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "Найдешевша ціна, яку зараз просить ХТОСЬ ІНШИЙ, за живим запитом до аукціону. Ваші власні лоти виключено, тому число ніколи не женеться саме за собою вниз.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "Безкоштовний застосунок Companion сам оновлює ваші ціни й синхронізує продажі. Скопіюйте посилання (Ctrl+C) і відкрийте його в браузері:",
+  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
+    "Ціна — остання, яку отримав GoldCap, не старша за 45 секунд, а не свіжа перевірка в момент кліку. Якщо вона зміниться між підготовкою та підтвердженням, виставлення скасовується, а не йде за старою ціною.",
+  ["There is no undo. Clicking asks for a second click to confirm."] =
+    "Скасувати не можна. Перший клік просить другий для підтвердження.",
   ["Tier"] = "Клас",
   ["Total cost to buy this auction"] = "Повна вартість купівлі цього лота",
   ["UNIT"] = "ЗА ШТ",
@@ -319,6 +352,8 @@ GC.Locales.ukUA = {
   ["Watching — pinned, but not a deal right now"] =
     "Стежимо — закріплено, але зараз це не угода",
   ["Window position & size"] = "Позиція та розмір вікна",
+  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
+    "Варто робити, коли вас перебили за ціною; не варто, якщо ціна майже не зрушила.",
   ["You paid"] = "Ви заплатили",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "така величезна знижка зазвичай означає хибну ринкову вартість, а не вигідну покупку",

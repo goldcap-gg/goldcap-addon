@@ -37,8 +37,12 @@ GC.Locales.enUS = {
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] = "15-60 seconds on busy realms. No cooldown -- rescan anytime.",
   ["24h trend"] = "24h trend",
+  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
+    "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
+  ["A run of several purchases collapsed onto one line removes every one of them."] =
+    "A run of several purchases collapsed onto one line removes every one of them.",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · PAUSED: ",
@@ -65,7 +69,11 @@ GC.Locales.enUS = {
   ["Cancel lot?"] = "Cancel lot?",
   ["Cancel this lot and lose its deposit — click again to confirm"] = "Cancel this lot and lose its deposit — click again to confirm",
   ["Cancel timed out"] = "Cancel timed out",
+  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
+    "Cancelling forfeits the deposit, so this asks for a second click to confirm.",
   ["Cancelling lot…"] = "Cancelling lot…",
+  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
+    "Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags.",
   ["Cannot post this position"] = "Cannot post this position",
   ["Cannot remove this entry"] = "Cannot remove this entry",
   ["Cannot repost this lot"] = "Cannot repost this lot",
@@ -76,9 +84,15 @@ GC.Locales.enUS = {
   ["Checking prices…"] = "Checking prices…",
   ["Checking this item's price…"] = "Checking this item's price…",
   ["Click Confirm to post"] = "Click Confirm to post",
+  ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
+    "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.",
+  ["Clicking again deletes this hand-entered cost for good."] =
+    "Clicking again deletes this hand-entered cost for good.",
   ["Close"] = "Close",
   ["Companion sync rejected:"] = "Companion sync rejected:",
   ["Confirm"] = "Confirm",
+  ["Confirm the cancel"] = "Confirm the cancel",
+  ["Confirm the removal"] = "Confirm the removal",
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
   ["Could not find the queue's next item to post — try again"] = "Could not find the queue's next item to post — try again",
   ["Could not find the queue's next lot to cancel — try again"] = "Could not find the queue's next lot to cancel — try again",
@@ -86,6 +100,8 @@ GC.Locales.enUS = {
   ["DISC"] = "DISC",
   ["DISPLAY"] = "DISPLAY",
   ["DONE"] = "DONE",
+  ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
+    "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.",
   ["Discount"] = "Discount",
   ["Discount vs market value from your GoldCap import"] =
     "Discount vs market value from your GoldCap import",
@@ -136,6 +152,10 @@ GC.Locales.enUS = {
     "Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",
+  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
+    "It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it.",
+  ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
+    "It will not invent a cost from the market price, so profit stays unknown until you enter one.",
   ["Item"] = "Item",
   ["Item %d"] = "Item %d",
   ["LISTED"] = "LISTED",
@@ -149,6 +169,8 @@ GC.Locales.enUS = {
   ["Listed"] = "Listed",
   ["Listed at %s — far below market. Repost."] = "Listed at %s — far below market. Repost.",
   ["Listings"] = "Listings",
+  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
+    "Lists what is sitting in your bags at the price shown under WHAT TO DO.",
   ["Lot cancelled; wait for it to return to bags"] = "Lot cancelled; wait for it to return to bags",
   ["MARKET / UNIT"] = "MARKET / UNIT",
   ["Market per unit"] = "Market per unit",
@@ -176,6 +198,8 @@ GC.Locales.enUS = {
   ["Nothing to remove"] = "Nothing to remove",
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "ON GOLDCAP.GG — LAST %d DAYS",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] = "ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d",
+  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
+    "Once the mail arrives, list it again yourself at the new price -- from this same row.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "One-shot scan of the entire Auction House via paged browse queries. Takes roughly ",
   ["Open the Auction House first."] = "Open the Auction House first.",
@@ -226,6 +250,7 @@ GC.Locales.enUS = {
   ["Refused so far: %d"] = "Refused so far: %d",
   ["Removal confirmation expired"] = "Removal confirmation expired",
   ["Remove"] = "Remove",
+  ["Remove this cost"] = "Remove this cost",
   ["Remove?"] = "Remove?",
   ["Removed"] = "Removed",
   ["Removed %d entries"] = "Removed %d entries",
@@ -261,11 +286,19 @@ GC.Locales.enUS = {
   ["TIER"] = "TIER",
   ["TOTAL"] = "TOTAL",
   ["TREND"] = "TREND",
+  ["Tell GoldCap what you actually paid for these units."] =
+    "Tell GoldCap what you actually paid for these units.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] = "The Companion is syncing, but this addon could not read what it wrote:",
+  ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
+    "The button waits a moment before it can be pressed, so this is never an accidental double-click.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:",
+  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
+    "The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price.",
+  ["There is no undo. Clicking asks for a second click to confirm."] =
+    "There is no undo. Clicking asks for a second click to confirm.",
   ["Tier"] = "Tier",
   ["Total cost to buy this auction"] = "Total cost to buy this auction",
   ["UNIT"] = "UNIT",
@@ -284,6 +317,8 @@ GC.Locales.enUS = {
   ["Watching closely: %d item%s"] = "Watching closely: %d item%s",
   ["Watching — pinned, but not a deal right now"] = "Watching — pinned, but not a deal right now",
   ["Window position & size"] = "Window position & size",
+  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
+    "Worth doing when someone has undercut you; not worth it if the price barely moved.",
   ["You paid"] = "You paid",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "a discount this extreme usually means the market value is wrong, not that this is a bargain",

@@ -41,8 +41,12 @@ GC.Locales.zhTW = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "繁忙伺服器約 15-60 秒。沒有冷卻 -- 隨時可再掃描。",
   ["24h trend"] = "24小時走勢",
+  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
+    "商品會把包裡的全部數量一次性上架；普通物品只上架一組，即 GoldCap 能準確識別的最大一堆。",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "這是線索而非承諾：以匯入市價的 95% 轉售，數量以 Check 本身會核可的為準。",
+  ["A run of several purchases collapsed onto one line removes every one of them."] =
+    "若多筆購買被合併成一行，會一併全部刪除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍賣場回應為空",
   ["AUTO"] = "自動",
   ["AUTO · PAUSED: "] = "自動 · 已暫停：",
@@ -70,7 +74,11 @@ GC.Locales.zhTW = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "取消這批並損失押金 — 再按一次確認",
   ["Cancel timed out"] = "取消逾時",
+  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
+    "取消會損失手續費，因此需要再點一次確認。",
   ["Cancelling lot…"] = "正在取消…",
+  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
+    "取消這筆在售拍賣。它不會自動重新上架：手續費不退，取消的物品透過信件寄回，而不是直接進包。",
   ["Cannot post this position"] = "無法上架這個項目",
   ["Cannot remove this entry"] = "無法刪除這筆紀錄",
   ["Cannot repost this lot"] = "無法重新上架這批",
@@ -81,9 +89,14 @@ GC.Locales.zhTW = {
   ["Checking prices…"] = "正在檢查價格…",
   ["Checking this item's price…"] = "正在檢查這個道具的價格…",
   ["Click Confirm to post"] = "按 Confirm 上架",
+  ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
+    "再點一次將取消這筆在售拍賣。它不會自動重新上架：手續費不退，物品透過信件寄回而不是直接進包。",
+  ["Clicking again deletes this hand-entered cost for good."] = "再點一次將永久刪除這筆手動填寫的成本。",
   ["Close"] = "關閉",
   ["Companion sync rejected:"] = "Companion 同步遭拒：",
   ["Confirm"] = "確認",
+  ["Confirm the cancel"] = "確認取消",
+  ["Confirm the removal"] = "確認刪除",
   ["Cost unknown for %d of %d"] = "成本未知：%d 筆 / 共 %d 筆",
   ["Could not find the queue's next item to post — try again"] =
     "找不到佇列中下一個要上架的道具 — 請再試一次",
@@ -93,6 +106,8 @@ GC.Locales.zhTW = {
   ["DISC"] = "折扣",
   ["DISPLAY"] = "顯示",
   ["DONE"] = "完成",
+  ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
+    "只刪除你在「填寫成本」裡手動輸入的值 — 絕不會刪掉 GoldCap 自己捕獲或與信件匹配上的買入紀錄。",
   ["Discount"] = "折扣",
   ["Discount vs market value from your GoldCap import"] = "相對於你匯入的 GoldCap 市場價的折扣",
   ["Dump-trend cap %"] = "跌勢上限 %",
@@ -145,6 +160,10 @@ GC.Locales.zhTW = {
     "安裝免費的 GoldCap Companion 讓價格自動更新（/goldcap companion），",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "這是你要打敗才能快速賣出的價格，而不是道具的價值。一個急著出手的賣家可能開得遠低於價值，GoldCap 不會跟著往下追：實際上架價請看 WHAT TO DO。",
+  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
+    "它也會上架 GoldCap 沒見過你買入的庫存 — 不知道成本是把利潤標為未知的理由，而不是拒絕出售的理由。",
+  ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
+    "它不會拿市場價當成本，所以在你填寫之前利潤始終顯示為未知。",
   ["Item"] = "道具",
   ["Item %d"] = "道具 %d",
   ["LISTED"] = "已上架",
@@ -159,6 +178,8 @@ GC.Locales.zhTW = {
   ["Listed"] = "在售數量",
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 遠低於市價。請重新上架。",
   ["Listings"] = "上架數",
+  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
+    "按「該做什麼」一欄顯示的價格上架你包裡的物品。",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；請等它回到背包",
   ["MARKET / UNIT"] = "市價 / 件",
   ["Market per unit"] = "每件市價",
@@ -189,6 +210,8 @@ GC.Locales.zhTW = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "GOLDCAP.GG 上 — 最近 %d 天",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 上 — 最近 %d 天，最新 %d / %d",
+  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
+    "信件到了之後，在這一行裡自己按新價重新上架。",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "以分頁瀏覽查詢對整個拍賣場做一次掃描。約需 ",
   ["Open the Auction House first."] = "請先開啟拍賣場。",
@@ -241,6 +264,7 @@ GC.Locales.zhTW = {
   ["Refused so far: %d"] = "目前已拒絕：%d 筆",
   ["Removal confirmation expired"] = "刪除確認已逾期",
   ["Remove"] = "刪除",
+  ["Remove this cost"] = "刪除該成本",
   ["Remove?"] = "要刪除嗎？",
   ["Removed"] = "已刪除",
   ["Removed %d entries"] = "已刪除 %d 筆記錄",
@@ -278,12 +302,18 @@ GC.Locales.zhTW = {
   ["TIER"] = "等級",
   ["TOTAL"] = "合計",
   ["TREND"] = "走勢",
+  ["Tell GoldCap what you actually paid for these units."] = "告訴 GoldCap 你實際為這些物品付了多少。",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion 正在同步，但這個插件讀不懂它寫入的內容：",
+  ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
+    "按鈕會先等待片刻才可按下，因此誤雙擊不會觸發。",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "這是即時查詢拍賣場後，別人目前開出的最低價。你自己的上架已排除，所以這個數字不會自己追著自己往下掉。",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "免費的桌面版 Companion 會自動更新價格並同步你的販售紀錄。複製連結（Ctrl+C）並在瀏覽器開啟：",
+  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
+    "價格是 GoldCap 最後一次取得的，最多 45 秒前，並非點擊瞬間的即時查詢。若在準備上架與確認之間發生變化，會放棄本次上架，而不是按舊價發出。",
+  ["There is no undo. Clicking asks for a second click to confirm."] = "無法復原。點擊後需再點一次確認。",
   ["Tier"] = "等級",
   ["Total cost to buy this auction"] = "買下該拍賣的總花費",
   ["UNIT"] = "單價",
@@ -303,6 +333,8 @@ GC.Locales.zhTW = {
   ["Watching closely: %d item%s"] = "密切關注：%d 個道具%s",
   ["Watching — pinned, but not a deal right now"] = "關注中 — 已釘選，但目前不算交易",
   ["Window position & size"] = "視窗位置與大小",
+  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
+    "有人壓你價時值得這麼做；價格幾乎沒動時不值。",
   ["You paid"] = "你的成本",
   ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
     "這麼誇張的折扣通常表示市價有誤，而不是撿到便宜",
