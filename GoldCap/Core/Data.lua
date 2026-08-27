@@ -12,18 +12,33 @@ local function countItems(t)
   return n
 end
 
+-- The portal CVar is the only region signal the client offers, and it is not a reliable
+-- one: warcraft.wiki.gg notes GetCurrentRegion() derives from this same CVar and "does
+-- not necessarily indicate the region of the realm that the player is logged into" --
+-- Taiwanese realms in particular connect through the Korean portal, so TW cannot be
+-- detected at all. Hence this is only the fallback: adoptRegion below prefers the region
+-- named by the imported string, which the player (or the companion) chose explicitly.
 local function detectRegion()
   local ok, portal = pcall(function() return GetCVar and GetCVar("portal") end)
   portal = ok and type(portal) == "string" and portal:lower() or nil
-  if portal == "eu" then return "eu" end
+  if portal and GC.ImportString and GC.ImportString.REGIONS[portal] then return portal end
   return "us"
+end
+
+-- One place that decides which region we are in and which bundled table backs it, called
+-- both at load and whenever an import lands. An import arriving mid-session used to leave
+-- `region` on whatever the portal guessed, so GetStatus() reported the wrong region and
+-- GetItemValue fell back to another region's bundled prices.
+local function adoptRegion()
+  local imported = db and db.imported
+  region = (imported and imported.region) or detectRegion()
+  local all = _G.GoldCap_MarketData
+  bundled = all and all[region] or nil
 end
 
 function GC.Data.Init(database)
   db = database
-  region = detectRegion()
-  local all = _G.GoldCap_MarketData
-  bundled = all and all[region] or nil
+  adoptRegion()
 end
 
 function GC.Data.SetImported(parsed)
@@ -40,6 +55,7 @@ function GC.Data.SetImported(parsed)
     imported.verification = parsed.verification
   end
   db.imported = imported
+  adoptRegion()
 end
 
 -- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --

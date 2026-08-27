@@ -2,6 +2,13 @@ local _, GC = ...
 
 GC.ImportString = { MAX_LEN = 60000 }
 
+-- The one list of regions this addon understands, shared with Core/Data.lua's region
+-- detection. Mirrors regionSchema in packages/schema (us/eu/kr/tw): the server has
+-- emitted kr and tw import strings ever since those regions started ingesting, and
+-- the companion app has known them for as long -- this list refusing them was the
+-- only reason those two regions never worked.
+GC.ImportString.REGIONS = { us = true, eu = true, kr = true, tw = true }
+
 function GC.ImportString.Parse(str)
   if type(str) ~= "string" then return nil, "empty" end
   if #str > GC.ImportString.MAX_LEN then return nil, "too_long" end
@@ -15,7 +22,10 @@ function GC.ImportString.Parse(str)
   local region, realm, ts, rest =
     str:match("^GCS1;(%l%l);([%l%d%-]+);(%d+);(.+)$")
   if not region then return nil, "bad_header" end
-  if region ~= "eu" and region ~= "us" then return nil, "bad_header" end
+  -- Distinct from bad_header on purpose: "the string is shaped right but names a region
+  -- this build does not know" is the one failure a player can act on (update the addon),
+  -- and Core/Data.lua's companion path says exactly that.
+  if not GC.ImportString.REGIONS[region] then return nil, "bad_region" end
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),

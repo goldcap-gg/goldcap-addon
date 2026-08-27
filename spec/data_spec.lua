@@ -158,6 +158,40 @@ describe("Data", function()
     assert.equal("us", GC2.Data.GetStatus().region)
   end)
 
+  it("detects kr and tw from the portal cvar", function()
+    for portal, expected in pairs({ KR = "kr", TW = "tw", US = "us" }) do
+      _G.GetCVar = function(k) if k == "portal" then return portal end end
+      local GC2 = helper.loadModule("Core/Util.lua")
+      helper.loadModule("Core/ImportString.lua", GC2)
+      helper.loadModule("Core/Data.lua", GC2)
+      GC2.Data.Init({ settings = {} })
+      assert.equal(expected, GC2.Data.GetStatus().region)
+    end
+  end)
+
+  it("prefers the imported string's region over the detected one", function()
+    _G.GetCVar = function(k) if k == "portal" then return "KR" end end
+    local GC2 = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ImportString.lua", GC2)
+    helper.loadModule("Core/Data.lua", GC2)
+    GC2.Data.Init({ settings = {}, imported = { region = "tw", realm = "skywall", ts = 5, items = {} } })
+    assert.equal("tw", GC2.Data.GetStatus().region)
+  end)
+
+  it("re-reads the region when an import arrives mid-session", function()
+    _G.GetCVar = function(k) if k == "portal" then return "US" end end
+    _G.GoldCap_MarketData = { us = { ts = 1, items = { [7] = { m = 5 } } },
+                              kr = { ts = 2, items = { [7] = { m = 50 } } } }
+    local GC2 = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ImportString.lua", GC2)
+    helper.loadModule("Core/Data.lua", GC2)
+    GC2.Data.Init({ settings = {} })
+    assert.equal("us", GC2.Data.GetStatus().region)
+    GC2.Data.SetImported({ region = "kr", realm = "azshara", ts = 9, items = {}, watchlist = {} })
+    assert.equal("kr", GC2.Data.GetStatus().region)
+    assert.equal(50, GC2.Data.GetItemValue(7).mv) -- bundled table followed the region
+  end)
+
   describe("watchlist", function()
     it("persists the watchlist from an import", function()
       GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,

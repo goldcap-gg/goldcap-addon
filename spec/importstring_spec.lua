@@ -43,9 +43,22 @@ describe("ImportString.Parse", function()
     assert.is_nil(r); assert.equal("bad_header", err)
   end)
 
-  it("rejects unknown regions", function()
+  it("accepts all four supported regions", function()
+    for _, region in ipairs({ "us", "eu", "kr", "tw" }) do
+      local r = GC.ImportString.Parse(("GCS1;%s;azshara;1;I:1=10"):format(region))
+      assert.is_table(r)
+      assert.equal(region, r.region)
+    end
+  end)
+
+  it("rejects an unsupported region with its own error code", function()
     local r, err = GC.ImportString.Parse("GCS1;zz;silvermoon;1;I:1=10")
-    assert.is_nil(r); assert.equal("bad_header", err)
+    assert.is_nil(r); assert.equal("bad_region", err)
+  end)
+
+  it("accepts a hyphenated kr/tw realm slug", function()
+    local r = GC.ImportString.Parse("GCS1;tw;krol-blade;1;I:1=10")
+    assert.equal("krol-blade", r.realm)
   end)
 
   it("rejects uppercase realm slugs", function()
