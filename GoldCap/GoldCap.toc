@@ -14,6 +14,8 @@
 ## OptionalDeps: GoldCap_AppData
 
 Core/Util.lua
+Locale/Core.lua
+Locale/enUS.lua
 Core/ImportString.lua
 Core/Data.lua
 Core/AppLedger.lua
