@@ -21,6 +21,7 @@ Locale/esES.lua
 Locale/esMX.lua
 Locale/frFR.lua
 Locale/koKR.lua
+Locale/ptBR.lua
 Locale/ruRU.lua
 Locale/ukUA.lua
 Locale/zhCN.lua
