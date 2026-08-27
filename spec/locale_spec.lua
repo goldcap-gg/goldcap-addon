@@ -31,6 +31,34 @@ describe("locale layer", function()
     assert.has_error(function() GC.L["Post"] = "nope" end)
   end)
 
+  it("applies the saved setting over the client locale", function()
+    _G.GetLocale = function() return "deDE" end
+    GC.Locales.deDE = { ["Post"] = "Einstellen" }
+    GC.Locales.ukUA = { ["Post"] = "Виставити" }
+    GC.db = { settings = { locale = "auto" } }
+    GC.ApplyLocale()
+    assert.equal("Einstellen", GC.L["Post"])
+    GC.db.settings.locale = "ukUA"
+    GC.ApplyLocale()
+    assert.equal("Виставити", GC.L["Post"])
+    _G.GetLocale = nil
+  end)
+
+  it("offers every language as a choice, in its own language, auto first", function()
+    local choices = GC.LOCALE_CHOICES
+    assert.equal("auto", choices[1].code)
+    local seen = {}
+    for _, choice in ipairs(choices) do
+      assert.is_string(choice.label)
+      assert.is_nil(seen[choice.code], "duplicate choice " .. tostring(choice.code))
+      seen[choice.code] = true
+    end
+    -- Ukrainian is the reason this picker exists: GetLocale() never returns it.
+    assert.is_true(seen.ukUA)
+    assert.is_true(seen.koKR)
+    assert.equal(13, #choices) -- auto + 11 client locales + ukUA
+  end)
+
   it("resolves the client locale on auto and the chosen one otherwise", function()
     assert.equal("deDE", GC.ResolveLocale("auto", "deDE"))
     assert.equal("enUS", GC.ResolveLocale("auto", nil))

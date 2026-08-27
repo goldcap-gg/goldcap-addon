@@ -465,7 +465,7 @@ local function build(sniperFrame)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local display = card(panel, "DISPLAY", 2)
+  local display = card(panel, "DISPLAY", 3)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
   display:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -588,6 +588,57 @@ local function build(sniperFrame)
   resetBtn:SetScript("OnClick", resetWindow)
 
   windowLabel:SetPoint("RIGHT", resetBtn, "LEFT", -Theme.pad.s, 0)
+
+  -- Language. A twelve-way choice is not a segment group, and this addon embeds no dropdown
+  -- library -- MenuUtil is the engine's own menu framework (Patch 11.0, the replacement for
+  -- the deprecated UIDropDownMenu), so the button just opens a radio context menu.
+  --
+  -- The picker exists because Ukrainian cannot be detected: there is no Ukrainian WoW client
+  -- and GetLocale() never returns ukUA. It serves anyone on an English client who would
+  -- rather read their own language too, but that is the side effect, not the reason.
+  local langLabel = Theme.Label(display, 12)
+  langLabel:SetPoint("TOPLEFT", Theme.pad.m, display.rowY(3))
+  langLabel:SetWordWrap(false)
+  langLabel:SetText(GC.L["Language"])
+
+  local langBtn = Theme.Button(display, "ghost", "plaque")
+  langBtn:SetSize(120, 26)
+  langBtn:SetPoint("TOPRIGHT", -Theme.pad.m, display.rowY(3) + 3)
+
+  langLabel:SetPoint("RIGHT", langBtn, "LEFT", -Theme.pad.s, 0)
+
+  local function localeSetting()
+    return (GC.db and GC.db.settings and GC.db.settings.locale) or "auto"
+  end
+
+  local function displayLanguage()
+    langBtn:SetLabel(GC.LocaleChoiceLabel(localeSetting()))
+  end
+
+  langBtn:SetScript("OnClick", function(self)
+    local menu = _G.MenuUtil
+    if not menu or not menu.CreateRadioContextMenu then return end
+    local entries = {}
+    for _, choice in ipairs(GC.LOCALE_CHOICES) do
+      entries[#entries + 1] = { choice.label, choice.code }
+    end
+    menu.CreateRadioContextMenu(self,
+      function(code) return localeSetting() == code end,
+      function(code)
+        if not (GC.db and GC.db.settings) then return end
+        GC.db.settings.locale = code
+        GC.ApplyLocale()
+        displayLanguage()
+        -- Labels are written when a widget is built, so already-built frames keep the old
+        -- language until they are rebuilt. Saying so beats pretending the switch is total.
+        if GC.Print then
+          GC.Print(GC.L["Language changed. Type /reload to apply it everywhere."])
+        end
+      end,
+      unpack(entries))
+  end)
+
+  refreshers[#refreshers + 1] = displayLanguage
 
   -- Re-syncs every control from GC.db.settings.sniper (and Theme.Scale()) each time the overlay
   -- is shown -- covers external changes made while it was closed, e.g. the toolbar's own Auto

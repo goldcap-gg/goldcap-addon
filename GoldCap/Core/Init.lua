@@ -46,6 +46,10 @@ GC.DEFAULTS = {
   gold = {},
   settings = {
     tooltip = true,
+    -- "auto" follows GetLocale(); anything else is the player's own pick from Settings.
+    -- That pick is the ONLY way to reach Ukrainian, which no WoW client reports (see
+    -- Locale/Core.lua's LOCALE_CHOICES).
+    locale = "auto",
     sniper = {
       autoOpen = true,
       auto = false,
@@ -273,6 +277,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     migrateSniperDialogDetails(GoldCapDB)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     GC.db = GoldCapDB
+    -- Before any frame is built: every widget reads its label through GC.L at construction,
+    -- so the active language has to be settled first. After ApplyDefaults, because it reads
+    -- settings.locale.
+    if GC.ApplyLocale then GC.ApplyLocale() end
     if GC.Data then
       GC.Data.Init(GC.db)
       -- Companion sync (Task A): adopts `GoldCap_AppData` (see the .toc's OptionalDeps)

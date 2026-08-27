@@ -283,6 +283,33 @@ describe("Settings controls", function()
     assert.equal("plaque", done.rounded)
   end)
 
+  it("offers a language picker that writes the setting and re-applies it", function()
+    GC.SettingsUI.Toggle()
+    local button = buttonLabeled(_G.GoldCapSniperFrame, "Game language")
+    assert.is_not_nil(button)
+
+    -- MenuUtil is the engine's own menu framework (Patch 11.0, replacing the deprecated
+    -- UIDropDownMenu). Stubbed here to capture what the picker hands it.
+    local captured
+    _G.MenuUtil = {
+      CreateRadioContextMenu = function(owner, isSelected, setSelected, ...)
+        captured = { owner = owner, isSelected = isSelected, setSelected = setSelected,
+                     entries = { ... } }
+      end,
+    }
+    button.scripts.OnClick(button)
+
+    assert.equal(13, #captured.entries) -- auto + 11 client locales + ukUA
+    assert.is_true(captured.isSelected("auto"))
+    captured.setSelected("ukUA")
+    assert.equal("ukUA", GC.db.settings.locale)
+    assert.is_true(captured.isSelected("ukUA"))
+    assert.is_false(captured.isSelected("auto"))
+    assert.equal("Українська", button.label)
+
+    _G.MenuUtil = nil
+  end)
+
   it("rail gear lights up while the overlay is open (T6)", function()
     local gear = _G.GoldCapSniperFrame.rail.gear
     GC.SettingsUI.Toggle() -- opens: build() then Show()
