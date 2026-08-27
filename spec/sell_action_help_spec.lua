@@ -56,4 +56,31 @@ describe("Sell action help text", function()
     local status = table.concat(headerHelp.status[2], " ")
     assert.matches("Breakeven", status, 1, true)
   end)
+
+  -- The help is keyed by the ENGLISH action name. Before showRowAction carried that key, the
+  -- lookup went through the button's visible label -- which meant translating the interface
+  -- silently removed the help from every button that spends gold, in every language but
+  -- English, with nothing failing anywhere to say so.
+  it("keys the help by the English action, not the translated label", function()
+    local renderRows = upvalue(GC.Sell.Attach, "renderRows")
+    local createRow = upvalue(renderRows, "createRow")
+    local actionHelp = upvalue(createRow, "ACTION_HELP")
+    local showRowAction = upvalue(renderRows, "showRowAction")
+
+    GC.Locales = { deDE = { ["Post"] = "Einstellen" } }
+    GC.ActivateLocale("deDE")
+
+    local row = { action = { labels = {} } }
+    function row.action:SetLabel(text) self.label = text end
+    function row.action:SetScript() end
+    function row.action:Show() end
+
+    showRowAction(row, "Post")
+
+    assert.equal("Einstellen", row.action.label)   -- the player reads their own language
+    assert.equal("Post", row.action.helpKey)       -- the lookup still finds the help
+    assert.is_not_nil(actionHelp[row.action.helpKey])
+
+    GC.ActivateLocale(nil)
+  end)
 end)

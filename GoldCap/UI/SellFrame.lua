@@ -129,19 +129,19 @@ local function paintCancelButton() end
 local function restorePostRow(row)
   if not row then return end
   row.postStage = nil
-  if row.action then row.action:Enable(); row.action:SetLabel("Post") end
+  if row.action then row.action:Enable(); row.action.helpKey = "Post"; row.action:SetLabel(GC.L["Post"]) end
 end
 
 local function restoreRepostRow(row)
   if not row then return end
   row.repostStage, row.repostReady = nil, nil
-  if row.action then row.action:Enable(); row.action:SetLabel("Repost") end
+  if row.action then row.action:Enable(); row.action.helpKey = "Repost"; row.action:SetLabel(GC.L["Repost"]) end
 end
 
 local function restoreRemoveRow(row)
   if not row then return end
   row.removeStage = nil
-  if row.action then row.action:Enable(); row.action:SetLabel("Remove") end
+  if row.action then row.action:Enable(); row.action.helpKey = "Remove"; row.action:SetLabel(GC.L["Remove"]) end
 end
 
 local function flushDeferredRender()
@@ -273,26 +273,26 @@ paintQueueButton = function()
     -- never claim "CONFIRM" for a click that would land on the wrong row.
     local sameHead = head and postingRow.position and postingRow.position.positionKey == head.positionKey
     if sameHead and postingRow.postStage == "confirm" then
-      button:SetLabel("CONFIRM"); button:Enable()
+      button:SetLabel(GC.L["CONFIRM"]); button:Enable()
     else
-      button:SetLabel("POSTING…"); button:Disable()
+      button:SetLabel(GC.L["POSTING…"]); button:Disable()
     end
     if label and head then label:SetText(head.itemName or "") end
   elseif not head then
-    button:SetLabel("NOTHING TO POST")
+    button:SetLabel(GC.L["NOTHING TO POST"])
     button:Disable()
     if label then label:SetText("") end
   else
-    button:SetLabel(("POST %d"):format(#queueEntries))
+    button:SetLabel((GC.L["POST %d"]):format(#queueEntries))
     button:Enable()
-    if label then label:SetText(("%s @ %s"):format(head.itemName or "Item", formatCell(head.unitPrice))) end
+    if label then label:SetText(("%s @ %s"):format(head.itemName or GC.L["Item"], formatCell(head.unitPrice))) end
   end
   if heldBack then
     if #queueSkipped > 0 then
       -- "from posting", because the cancel queue paints an identical counter near its own
       -- button (paintCancelButton below) and two bare "N held back" strings on one screen
       -- would leave the reader guessing which queue each one describes.
-      heldBack:SetText(("%d held back from posting"):format(#queueSkipped))
+      heldBack:SetText((GC.L["%d held back from posting"]):format(#queueSkipped))
       heldBack:Show()
       if heldBackHit then heldBackHit:Show() end
     else
@@ -321,25 +321,25 @@ paintCancelButton = function()
     local sameHead = head and repostPin and repostPin.auctionID == head.auctionID
     button:SetVariant("danger")
     if sameHead and repostingRow.repostStage == "cancelling" then
-      button:SetLabel("CANCELLING…"); button:Disable()
+      button:SetLabel(GC.L["CANCELLING…"]); button:Disable()
     elseif sameHead and repostingRow.repostStage == "armed" then
-      button:SetLabel("CANCEL LOT?")
+      button:SetLabel(GC.L["CANCEL LOT?"])
       if repostingRow.repostReady then button:Enable() else button:Disable() end
     else
-      button:SetLabel(("CANCEL %d"):format(#cancelEntries)); button:Disable()
+      button:SetLabel((GC.L["CANCEL %d"]):format(#cancelEntries)); button:Disable()
     end
   elseif not head then
     button:SetVariant("ghost")
-    button:SetLabel("NOTHING TO CANCEL")
+    button:SetLabel(GC.L["NOTHING TO CANCEL"])
     button:Disable()
   else
     button:SetVariant("danger")
-    button:SetLabel(("CANCEL %d"):format(#cancelEntries))
+    button:SetLabel((GC.L["CANCEL %d"]):format(#cancelEntries))
     button:Enable()
   end
   if heldBack then
     if #cancelSkipped > 0 then
-      heldBack:SetText(("%d held back"):format(#cancelSkipped))
+      heldBack:SetText((GC.L["%d held back"]):format(#cancelSkipped))
       heldBack:Show()
       if heldBackHit then heldBackHit:Show() end
     else
@@ -834,7 +834,7 @@ local function armPhaseWatchdog()
     if time() - (refresh.progressAt or 0) >= PHASE_WATCHDOG_SECONDS then
       abandonInFlightQuote()
       refresh.phase = "error"
-      setStatus("Auction House did not answer — press Refresh")
+      setStatus(GC.L["Auction House did not answer — press Refresh"])
       scheduleNextWalk()
       return
     end
@@ -856,7 +856,7 @@ advanceQuote = function()
     -- Yielding is the walk working correctly, not stalling, so the watchdog must
     -- not read it as an unanswered request.
     markProgress()
-    setStatus("Waiting for the purchase to finish…")
+    setStatus(GC.L["Waiting for the purchase to finish…"])
     return
   end
   if not driver.isReady() then
@@ -868,7 +868,7 @@ advanceQuote = function()
     markProgress()
     if not refresh.waitingNoted then
       refresh.waitingNoted = true
-      setStatus("Waiting for the Auction House…")
+      setStatus(GC.L["Waiting for the Auction House…"])
     end
     return
   end
@@ -886,7 +886,7 @@ advanceQuote = function()
     if tombstone then
       tombstone.resumeGeneration = refresh.generation
       refresh.phase = "draining"
-      setStatus("Refresh waiting for prior result")
+      setStatus(GC.L["Refresh waiting for prior result"])
       return
     end
     refresh.awaiting = nil
@@ -894,7 +894,7 @@ advanceQuote = function()
     refresh.pending = { itemID = itemID, kind = kind, generation = refresh.generation, at = time() }
     refresh.phase = "waiting_result"
     markProgress()
-    setStatus(("Pricing %d/%d…"):format(refresh.index, #refresh.queue))
+    setStatus((GC.L["Pricing %d/%d…"]):format(refresh.index, #refresh.queue))
     driver.send(itemID)
     scheduleQuoteTimeout(refresh.pending)
   else
@@ -994,7 +994,7 @@ function GC.Sell.OnOwnedAuctions()
     end
     if not stillOwned then
       disarmRepost()
-      setStatus("Lot cancelled; wait for it to return to bags")
+      setStatus(GC.L["Lot cancelled; wait for it to return to bags"])
     end
   end
   onOwnedAuctionsReady()
@@ -1007,7 +1007,7 @@ function GC.Sell.OnThrottleReady()
       refresh.phase = "owned"
     elseif not waiting then
       refresh.phase = "idle"
-      setStatus("Auction House is not open")
+      setStatus(GC.L["Auction House is not open"])
     end
     return
   end
@@ -1197,7 +1197,7 @@ local function startQuoteRefreshFor(position)
   local itemID = type(position) == "table" and position.itemID or nil
   if not itemID then return GC.Sell.Refresh() end
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then
-    setStatus("Auction House is not open")
+    setStatus(GC.L["Auction House is not open"])
     return
   end
   if refresh.phase == "idle" or refresh.phase == "done" or refresh.phase == "error" then
@@ -1205,11 +1205,11 @@ local function startQuoteRefreshFor(position)
     refresh.queue, refresh.index = { itemID }, 0
     refresh.pending, refresh.awaiting = nil, nil
     refresh.phase = "pricing"
-    setStatus("Checking this item's price…")
+    setStatus(GC.L["Checking this item's price…"])
     advanceQuote()
   else
     table.insert(refresh.queue, math.min(refresh.index + 1, #refresh.queue + 1), itemID)
-    setStatus("Checking this item's price…")
+    setStatus(GC.L["Checking this item's price…"])
   end
 end
 
@@ -1228,7 +1228,7 @@ local function schedulePostTimeout(row)
     if token == postTimeoutToken and postingRow == row
         and (row.postStage == "posting" or row.postStage == "confirm" or row.postStage == "confirming") then
       disarmPost()
-      setStatus("Posting timed out")
+      setStatus(GC.L["Posting timed out"])
     end
   end)
 end
@@ -1243,12 +1243,12 @@ local function onPostClick(row)
     -- toolbar, a window's width from the button that was just pressed -- so the
     -- button says it too. The next render restores the label once the price
     -- lands, which is one query away now rather than a whole pass.
-    if row.action then row.action:SetLabel("Pricing…") end
-    setStatus("Fetching a fresh price for this item — press Post again in a moment")
+    if row.action then row.action:SetLabel(GC.L["Pricing…"]) end
+    setStatus(GC.L["Fetching a fresh price for this item — press Post again in a moment"])
     startQuoteRefreshFor(position); return
   end
   if postingRow and postingRow ~= row then
-    setStatus("Finish the pending post first")
+    setStatus(GC.L["Finish the pending post first"])
     return
   end
   if postingRow == row and row.postStage ~= "confirm" then return end
@@ -1274,10 +1274,10 @@ local function onPostClick(row)
         or (pin.duration ~= 1 and pin.duration ~= 2 and pin.duration ~= 3) then
       disarmPost()
       if not sameQuote then startQuoteRefreshFor(position)
-      else setStatus("Post confirmation expired") end
+      else setStatus(GC.L["Post confirmation expired"]) end
       return
     end
-    row.postStage = "confirming"; row.action:Disable(); setStatus("Posting…")
+    row.postStage = "confirming"; row.action:Disable(); setStatus(GC.L["Posting…"])
     if pin.isCommodity then
       C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
     else
@@ -1288,7 +1288,7 @@ local function onPostClick(row)
   local bagState = liveBagState(position)
   local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true })
   if not plan then
-    setStatus(reason == "ambiguous_variant" and "No exact bag variant" or "Cannot post this position")
+    setStatus(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
     return
   end
   local scope, scopeKey = activeScope(position)
@@ -1296,36 +1296,36 @@ local function onPostClick(row)
       or plan.positionKey ~= position.positionKey or plan.scopeKey ~= position.scopeKey
       or plan.scopeKey ~= scopeKey or plan.itemID ~= position.itemID
       or not exact(plan.quantity) or plan.quantity <= 0 or not exact(plan.unitPrice) or plan.unitPrice <= 0 then
-    setStatus("Cannot post this position")
+    setStatus(GC.L["Cannot post this position"])
     return
   end
   local info = driver.keyInfo(plan.itemID)
-  if not info then setStatus("No exact auction key"); return end
+  if not info then setStatus(GC.L["No exact auction key"]); return end
   if (info.isCommodity and not (C_AuctionHouse and C_AuctionHouse.PostCommodity))
       or (not info.isCommodity and not (C_AuctionHouse and C_AuctionHouse.PostItem)) then
-    setStatus("Posting unavailable")
+    setStatus(GC.L["Posting unavailable"])
     return
   end
   local buyout = not info.isCommodity and safeMultiply(plan.unitPrice, plan.quantity) or nil
-  if not info.isCommodity and not buyout then setStatus("Cannot post this position"); return end
+  if not info.isCommodity and not buyout then setStatus(GC.L["Cannot post this position"]); return end
   local commodityTotal = info.isCommodity and safeMultiply(plan.unitPrice, plan.quantity) or nil
   if info.isCommodity and (not commodityTotal or not exact(bagState.exactQty) or bagState.exactQty < plan.quantity) then
-    setStatus("No exact bag stack")
+    setStatus(GC.L["No exact bag stack"])
     return
   end
   if not ItemLocation or not ItemLocation.CreateFromBagAndSlot or not bagState.bag or not bagState.slot then
-    setStatus("No exact bag stack")
+    setStatus(GC.L["No exact bag stack"])
     return
   end
   if not info.isCommodity then
     bagState = liveBagState(position, plan.quantity)
     if not bagState.bag or not bagState.slot or not bagState.stackQty or bagState.stackQty < plan.quantity then
-      setStatus("No exact bag stack")
+      setStatus(GC.L["No exact bag stack"])
       return
     end
   end
   local location = ItemLocation:CreateFromBagAndSlot(bagState.bag, bagState.slot)
-  if not location then setStatus("No exact bag stack"); return end
+  if not location then setStatus(GC.L["No exact bag stack"]); return end
   postingRow = row
   -- Pinned once, here, rather than re-read at Confirm time: everything else about a post is
   -- pinned the same way (unitPrice, quantity, ...) precisely so the two clicks of a two-click
@@ -1338,7 +1338,7 @@ local function onPostClick(row)
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
     duration = duration }
-  row.postStage = "posting"; row.action:Disable(); setStatus("Posting…")
+  row.postStage = "posting"; row.action:Disable(); setStatus(GC.L["Posting…"])
   local needsConfirmation
   if info.isCommodity then
     needsConfirmation = C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)
@@ -1346,8 +1346,8 @@ local function onPostClick(row)
     needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
   end
   if needsConfirmation then
-    row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel("Confirm")
-    setStatus("Click Confirm to post")
+    row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel(GC.L["Confirm"])
+    setStatus(GC.L["Click Confirm to post"])
   end
   schedulePostTimeout(row)
 end
@@ -1356,7 +1356,7 @@ local function onRepostClick(row, auctionID)
   local position = row.position
   if repostingRow and repostingRow ~= row then
     disarmRepost()
-    setStatus("Previous repost selection cleared")
+    setStatus(GC.L["Previous repost selection cleared"])
     return
   end
   local quote = freshQuote(position)
@@ -1364,7 +1364,7 @@ local function onRepostClick(row, auctionID)
     if repostingRow == row then disarmRepost() end
     -- Previously this refreshed the quote and returned in silence, so a first click looked like
     -- a dead button. Say what is happening; the click that follows is the one that arms.
-    setStatus("Fetching a fresh price for this lot — press Repost again in a moment")
+    setStatus(GC.L["Fetching a fresh price for this lot — press Repost again in a moment"])
     startQuoteRefreshFor(position); return
   end
   if row.repostStage == "armed" then
@@ -1372,7 +1372,7 @@ local function onRepostClick(row, auctionID)
     local pin = repostPin
     if not exactRenderEntry(row, pin) then
       disarmRepost()
-      setStatus("Repost confirmation expired")
+      setStatus(GC.L["Repost confirmation expired"])
       return
     end
     local scope, scopeKey = pin and activeScope(pin.position) or nil, nil
@@ -1385,7 +1385,7 @@ local function onRepostClick(row, auctionID)
     end
     if not (C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots) then
       disarmRepost()
-      setStatus("Repost confirmation expired")
+      setStatus(GC.L["Repost confirmation expired"])
       return
     end
     ownedLots = GC.SellPositions.NormalizeOwnedLots(
@@ -1407,18 +1407,18 @@ local function onRepostClick(row, auctionID)
         or quote ~= pin.quote or quote.at ~= pin.quoteAt or quote.unit ~= pin.quoteUnit
         or not (C_AuctionHouse and C_AuctionHouse.CancelAuction) then
       disarmRepost()
-      setStatus("Repost confirmation expired")
+      setStatus(GC.L["Repost confirmation expired"])
       return
     end
     row.repostStage = "cancelling"; row.action:Disable()
     C_AuctionHouse.CancelAuction(plan.auctionID)
-    setStatus("Cancelling lot…")
+    setStatus(GC.L["Cancelling lot…"])
     if C_Timer and C_Timer.After then
       local token = repostArmToken
       C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
         if token == repostArmToken and repostingRow == row and row.repostStage == "cancelling" then
           disarmRepost()
-          setStatus("Cancel timed out")
+          setStatus(GC.L["Cancel timed out"])
         end
       end)
     end
@@ -1432,13 +1432,13 @@ local function onRepostClick(row, auctionID)
       or not exact(plan.auctionID) or plan.auctionID <= 0 or plan.auctionID ~= auctionID
       or not exact(plan.quantity) or plan.quantity <= 0
       or not exact(plan.unitPrice) or plan.unitPrice <= 0 then
-    setStatus("Cannot repost this lot")
+    setStatus(GC.L["Cannot repost this lot"])
     return
   end
   local lot
   for _, candidate in ipairs(position.ownedLots or {}) do if candidate.auctionID == plan.auctionID then lot = candidate break end end
   if not lot or lot.quantity ~= plan.quantity or not exact(lot.unitPrice) or lot.unitPrice <= 0 then
-    setStatus("Cannot repost this lot")
+    setStatus(GC.L["Cannot repost this lot"])
     return
   end
   repostingRow, repostPin = row, { scopeKey = plan.scopeKey, positionKey = plan.positionKey, auctionID = plan.auctionID,
@@ -1446,8 +1446,8 @@ local function onRepostClick(row, auctionID)
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region }
   row.repostStage, row.repostReady = "armed", false
-  row.action:Disable(); row.action:SetLabel("Cancel lot?")
-  setStatus("Cancel this lot and lose its deposit — click again to confirm")
+  row.action.helpKey = "Cancel lot?"; row.action:Disable(); row.action:SetLabel(GC.L["Cancel lot?"])
+  setStatus(GC.L["Cancel this lot and lose its deposit — click again to confirm"])
   repostArmToken = repostArmToken + 1
   local token = repostArmToken
   if C_Timer and C_Timer.After then
@@ -1462,7 +1462,7 @@ local function onRepostClick(row, auctionID)
     C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
       if token == repostArmToken and repostingRow == row and row.repostStage == "armed" then
         disarmRepost()
-        setStatus("Repost confirmation expired")
+        setStatus(GC.L["Repost confirmation expired"])
       end
     end)
   end
@@ -1481,14 +1481,14 @@ end
 local function onRemoveClick(row)
   if removingRow and removingRow ~= row then
     disarmRemove()
-    setStatus("Previous removal selection cleared")
+    setStatus(GC.L["Previous removal selection cleared"])
     return
   end
   if row.removeStage == "armed" then
     local pin = removePin
     if not exactRenderEntry(row, pin) then
       disarmRemove()
-      setStatus("Removal confirmation expired")
+      setStatus(GC.L["Removal confirmation expired"])
       return
     end
     local removed = 0
@@ -1503,18 +1503,18 @@ local function onRemoveClick(row)
     return
   end
   if postingRow or repostingRow then
-    setStatus("Finish the pending post or repost first")
+    setStatus(GC.L["Finish the pending post or repost first"])
     return
   end
   local ids = row.batch and row.batch.ids
   if type(ids) ~= "table" or #ids == 0 or type(row.renderEntryID) ~= "string" or row.renderEntryID == "" then
-    setStatus("Cannot remove this entry")
+    setStatus(GC.L["Cannot remove this entry"])
     return
   end
   removingRow, removePin = row, { ids = ids, row = row, action = row.action,
     position = row.position, renderEntryID = row.renderEntryID }
   row.removeStage = "armed"
-  row.action:SetLabel("Remove?")
+  row.action.helpKey = "Remove?"; row.action:SetLabel(GC.L["Remove?"])
   setStatus(#ids > 1
     and "Removes every entered-by-hand purchase in this run -- click again to confirm"
     or "Removes this entered-by-hand purchase -- click again to confirm")
@@ -1524,7 +1524,7 @@ local function onRemoveClick(row)
     C_Timer.After(REMOVE_TIMEOUT_SECONDS, function()
       if token == removeArmToken and removingRow == row and row.removeStage == "armed" then
         disarmRemove()
-        setStatus("Removal confirmation expired")
+        setStatus(GC.L["Removal confirmation expired"])
       end
     end)
   end
@@ -1548,7 +1548,7 @@ end
 function GC.Sell.OnPostError()
   disarmPost()
   disarmRepost()
-  setStatus("Posting failed")
+  setStatus(GC.L["Posting failed"])
   GC.Sell.Refresh()
 end
 
@@ -1682,7 +1682,7 @@ local function openCostDialog(position)
   -- Which item, and how many of its units have no cost -- the two facts a player needs
   -- before touching any of the numbers below. The dialog used to be anonymous: nothing on
   -- it said which of several open positions it belonged to.
-  dialog.header:SetText(("%s — %d unit%s without a cost"):format(
+  dialog.header:SetText((GC.L["%s — %d unit%s without a cost"]):format(
     position.itemName or "Item", missing, missing == 1 and "" or "s"))
   -- Defaults to the full uncosted count, not "1" -- entering a cost for stock GoldCap never
   -- saw the player buy is the ordinary case this dialog exists for, and "1" made the player
@@ -1895,10 +1895,10 @@ local function createRow(parent)
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
       if self.marketFallback then
-        GameTooltip:AddLine("≈ goldcap.gg market value — no live quote yet", 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine(GC.L["≈ goldcap.gg market value — no live quote yet"], 0.85, 0.85, 0.85, true)
       end
       if self.notOnHand then
-        GameTooltip:AddLine("Not on hand — the stock is in the mail, the bank, or on another character",
+        GameTooltip:AddLine(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"],
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
@@ -1956,7 +1956,11 @@ local function createRow(parent)
   if row.action.HookScript then
     row.action:HookScript("OnEnter", function(self)
       if not GameTooltip then return end
-      local help = ACTION_HELP[self.label] or ACTION_HELP[(self.label or ""):gsub("%s*%(.*", "")]
+      -- helpKey is the English action name the row set; self.label is display text and may be
+      -- in any language. Fall back to the label for buttons that predate the key.
+      local help = ACTION_HELP[self.helpKey or ""]
+        or ACTION_HELP[self.label]
+        or ACTION_HELP[(self.label or ""):gsub("%s*%(.*", "")]
       if not help then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:AddLine(help[1], 1, 0.82, 0)
@@ -2003,11 +2007,16 @@ local HEADER_HELP = {
   status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
 }
 
-local function showRowAction(row, label, onClick)
+-- `key` is the ENGLISH action name, not display text. ACTION_HELP is keyed by it, so once the
+-- interface is translated a lookup by the visible label would miss every time and silently
+-- drop the help from exactly the buttons that spend gold. The key is remembered on the button;
+-- the label is only what the player reads.
+local function showRowAction(row, key, onClick)
   -- Deliberately does NOT clear `status` any more: that cell holds the recommendation -- what
   -- to do, at what unit price, and the breakeven under it -- and blanking it was the reason a
   -- player could never tell what a Post or Repost was about to charge.
-  row.action:SetLabel(label)
+  row.action.helpKey = key
+  row.action:SetLabel(GC.L[key])
   if onClick then row.action:SetScript("OnClick", onClick) end
   row.action:Show()
 end
@@ -2045,7 +2054,7 @@ local function updateSummary(filtered)
     -- missing" -- at Theme.Scale() 1.3 the longer form doesn't fit the mono value line, so the
     -- card itself stays a plain "Unknown" and everything after the first " · " moves to
     -- summaryProfitHit's own tooltip (see the stat-card loop below), read live at hover time.
-    container.summary.profit:SetText("Unknown")
+    container.summary.profit:SetText(GC.L["Unknown"])
     local sepStart, sepEnd = text.profit:find(" · ", 1, true)
     container.summaryProfitDetail = sepStart and text.profit:sub(sepEnd + 1) or nil
   end
@@ -2301,7 +2310,7 @@ renderRows = function()
           -- 18g against a 92g market. This is the one thing on the row that has
           -- to be read before anything else, so it takes the column and the
           -- alarm colour, and the advice moves aside for it.
-          row.cells.status:SetText(("Listed at %s — far below market. Repost."):format(
+          row.cells.status:SetText((GC.L["Listed at %s — far below market. Repost."]):format(
             formatCell(p.underpricedUnit)))
           setColor(row.cells.status, Theme.color.red)
         elseif p.recommendation then
@@ -2317,19 +2326,19 @@ renderRows = function()
           -- with MARKET once the answer went stale (MARKET said "≈…", STATUS still said
           -- "Nothing listed").
           if p.displayMarketUnit == nil and emptyKnown then
-            row.cells.status:SetText("Nothing listed on the AH right now")
+            row.cells.status:SetText(GC.L["Nothing listed on the AH right now"])
           else
-            row.cells.status:SetText("Waiting for a live price")
+            row.cells.status:SetText(GC.L["Waiting for a live price"])
           end
           setColor(row.cells.status, Theme.color.fgDim)
         elseif not p.unresolved and (p.listedQty or 0) == 0 then
           -- Nothing in the bags AND nothing listed: the stock this row tracks is in the
           -- mail, the bank, or on another character. Cost coverage is a real question too,
           -- but "where is my ore?" is the one the player is actually asking here.
-          row.cells.status:SetText("Not in your bags or listed — mail or bank?")
+          row.cells.status:SetText(GC.L["Not in your bags or listed — mail or bank?"])
           setColor(row.cells.status, Theme.color.fgDim)
         elseif p.coverage ~= "COMPLETE" then
-          row.cells.status:SetText(("Cost unknown for %d of %d"):format(
+          row.cells.status:SetText((GC.L["Cost unknown for %d of %d"]):format(
             math.max(0, exposureQty - knownQty), exposureQty))
           setColor(row.cells.status, Theme.color.fgDim)
         else
@@ -2427,7 +2436,7 @@ renderRows = function()
         -- Pooled rows keep whatever colour the last kind painted: a dim detail line must not
         -- bleed into the next render's batch text.
         setColor(row.subItem, Theme.color.fg)
-        row.subItem:SetText(("×%d%s · bought %s · %s · %s"):format(
+        row.subItem:SetText((GC.L["×%d%s · bought %s · %s · %s"]):format(
           entry.batch.originalQty or entry.batch.quantity or 0,
           purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
           when, sourceLabel, entry.batch.evidence or "unknown evidence"))
@@ -2452,7 +2461,7 @@ renderRows = function()
         -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to
         -- a player, so it moves to the tooltip and the row says what is actually listed.
         setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
-        row.subItem:SetText(("×%d listed at %s each"):format(
+        row.subItem:SetText((GC.L["×%d listed at %s each"]):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.cost:SetText(""); row.cells.listed:SetText(formatCell(total))
         -- What Repost will actually list at. BuildRepostPlan prices a repost at exactly the
@@ -2462,7 +2471,7 @@ renderRows = function()
           row.cells.market:SetText("» " .. formatCell(p.displayMarketUnit))
           setColor(row.cells.market, Theme.color.gold)
         else
-          row.cells.market:SetText("» needs price")
+          row.cells.market:SetText(GC.L["» needs price"])
           setColor(row.cells.market, Theme.color.fgDim)
         end
         row.cells.profit:SetText("")
@@ -2487,12 +2496,12 @@ renderRows = function()
         local postable = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
         setColor(row.subItem, Theme.color.fg) -- see the batch branch: pooled rows keep colour
         if postable > 0 and postable < inBags then
-          row.subItem:SetText(("×%d in your bags · Post lists %d of them, the largest stack"):format(
+          row.subItem:SetText((GC.L["×%d in your bags · Post lists %d of them, the largest stack"]):format(
             inBags, postable))
         elseif postable > 0 then
-          row.subItem:SetText(("×%d in your bags, ready to list"):format(postable))
+          row.subItem:SetText((GC.L["×%d in your bags, ready to list"]):format(postable))
         else
-          row.subItem:SetText(("×%d in your bags · no stack GoldCap can identify exactly"):format(inBags))
+          row.subItem:SetText((GC.L["×%d in your bags · no stack GoldCap can identify exactly"]):format(inBags))
         end
         row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
         if postable > 0 then
@@ -2501,7 +2510,7 @@ renderRows = function()
             row.cells.market:SetText("» " .. formatCell(p.displayMarketUnit))
             setColor(row.cells.market, Theme.color.gold)
           else
-            row.cells.market:SetText("» needs price")
+            row.cells.market:SetText(GC.L["» needs price"])
             setColor(row.cells.market, Theme.color.fgDim)
           end
           row.cells.status:SetText(recommendationText(p.recommendation))
@@ -2591,7 +2600,7 @@ end
 -- status line saying so and can press the control again once a render has actually happened.
 local function onQueueClick()
   if #queueEntries == 0 then
-    setStatus("Nothing queued to post")
+    setStatus(GC.L["Nothing queued to post"])
     return
   end
   filterMode = "queue"
@@ -2606,7 +2615,7 @@ local function onQueueClick()
   if row and row.IsShown and row:IsShown() and row.kind == "position" then
     onPostClick(row)
   else
-    setStatus("Could not find the queue's next item to post — try again")
+    setStatus(GC.L["Could not find the queue's next item to post — try again"])
   end
 end
 
@@ -2618,7 +2627,7 @@ end
 -- see spec/sell_post_wiring_spec.lua's static guard on exactly that.
 local function onCancelQueueClick()
   if #cancelEntries == 0 then
-    setStatus("Nothing queued to cancel")
+    setStatus(GC.L["Nothing queued to cancel"])
     return
   end
   local head = cancelEntries[1]
@@ -2641,7 +2650,7 @@ local function onCancelQueueClick()
     onRepostClick(target, head.auctionID)
     paintCancelButton()
   else
-    setStatus("Could not find the queue's next lot to cancel — try again")
+    setStatus(GC.L["Could not find the queue's next lot to cancel — try again"])
   end
 end
 
@@ -2703,7 +2712,7 @@ function GC.Sell.Refresh(automatic)
   -- when the answer to "what could I sell" was sitting in the player's bags.
   composePositions()
   renderRows()
-  setStatus(automatic and "Checking prices…" or "Refreshing listings…")
+  setStatus(automatic and GC.L["Checking prices…"] or GC.L["Refreshing listings…"])
   if automatic then
     -- The repeat prices only. Owned lots change through OWNED_AUCTIONS_UPDATED /
     -- AUCTION_CANCELED events regardless, and re-querying them here cost a throttled round
@@ -2716,10 +2725,10 @@ function GC.Sell.Refresh(automatic)
   local sent, waiting = requestOwnedAuctions()
   if waiting then
     refresh.phase = "waiting_owned"
-    setStatus("Waiting for Auction House…")
+    setStatus(GC.L["Waiting for Auction House…"])
   elseif not sent then
     refresh.phase = "idle"
-    setStatus("Auction House is not open")
+    setStatus(GC.L["Auction House is not open"])
   end
   armPhaseWatchdog()
 end
@@ -2756,7 +2765,7 @@ function GC.Sell.Attach(f, geometry)
   -- at mono-10 and Theme.Scale() 1.3 (JetBrains Mono ~0.6em/char -> 7.8px/char) -- a button
   -- sized for "REFRESH" alone would have let that overflow its own edges into the filter chip
   -- beside it.
-  refreshButton:SetSize(104, 26); refreshButton:SetPoint("TOPRIGHT", 0, -30); refreshButton:SetLabel("REFRESH")
+  refreshButton:SetSize(104, 26); refreshButton:SetPoint(GC.L["TOPRIGHT"], 0, -30); refreshButton:SetLabel(GC.L["REFRESH"])
   container.refreshButton = refreshButton
   -- Wrapped, not passed directly: OnClick hands the handler (self, button, down),
   -- so GC.Sell.Refresh would receive the button as its `automatic` flag -- truthy
@@ -2783,7 +2792,7 @@ function GC.Sell.Attach(f, geometry)
   -- what is in the bags and what is already up; provenance stays on the tooltip.
   for _, mode in ipairs({ "missing_cost", "listed", "sellable", "goldcap", "all" }) do
     local button = Theme.Button(container, "ghost", "badge")
-    button:SetSize(widths[mode] or 36, 20); button:SetPoint("RIGHT", previous, "LEFT", -2, 0); button:SetLabel(labels[mode])
+    button:SetSize(widths[mode] or 36, 20); button:SetPoint(GC.L["RIGHT"], previous, GC.L["LEFT"], -2, 0); button:SetLabel(labels[mode])
     button:SetScript("OnClick", function() filterMode = mode; paintFilterChips(); renderRows() end)
     container.filterButtons[mode] = button
     previous = button
@@ -2830,12 +2839,12 @@ function GC.Sell.Attach(f, geometry)
   queueHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Held back from the queue", 1, 0.82, 0)
+    GameTooltip:AddLine(GC.L["Held back from the queue"], 1, 0.82, 0)
     if #queueSkipped == 0 then
-      GameTooltip:AddLine("Nothing is being held back.", 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.L["Nothing is being held back."], 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(queueSkipped) do
-        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or "Item",
+        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
           QUEUE_SKIP_TEXT[skip.reason] or "not ready to post"), 0.85, 0.85, 0.85, true)
       end
     end
@@ -2874,12 +2883,12 @@ function GC.Sell.Attach(f, geometry)
   cancelHeldBackHit:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Held back from cancelling", 1, 0.82, 0)
+    GameTooltip:AddLine(GC.L["Held back from cancelling"], 1, 0.82, 0)
     if #cancelSkipped == 0 then
-      GameTooltip:AddLine("Nothing is being held back.", 0.85, 0.85, 0.85, true)
+      GameTooltip:AddLine(GC.L["Nothing is being held back."], 0.85, 0.85, 0.85, true)
     else
       for _, skip in ipairs(cancelSkipped) do
-        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or "Item",
+        GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
           QUEUE_SKIP_TEXT[skip.reason] or "not ready to cancel"), 0.85, 0.85, 0.85, true)
       end
     end
@@ -2945,9 +2954,9 @@ function GC.Sell.Attach(f, geometry)
       hit:SetScript("OnEnter", function(self)
         if not GameTooltip or not container.summaryProfitDetail then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Est. profit", 1, 0.82, 0)
+        GameTooltip:AddLine(GC.L["Est. profit"], 1, 0.82, 0)
         GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine("Positions without a cost or a live price are excluded.",
+        GameTooltip:AddLine(GC.L["Positions without a cost or a live price are excluded."],
           0.85, 0.85, 0.85, true)
         GameTooltip:Show()
       end)
@@ -2958,7 +2967,7 @@ function GC.Sell.Attach(f, geometry)
   local header = CreateFrame("Frame", nil, container); header:SetPoint("TOPLEFT", 0, -106); header:SetPoint("TOPRIGHT", 0, -106); header:SetHeight(16); header.cells = {}
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(({ item = "ITEM", cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT", profit = "PROFIT / UNIT", status = "WHAT TO DO", action = "", expand = "" })[column.key]); header.cells[column.key] = cell
+    local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(({ item = GC.L["ITEM"], cost = GC.L["COST / UNIT"], listed = GC.L["LISTED"], market = GC.L["MARKET / UNIT"], profit = GC.L["PROFIT / UNIT"], status = GC.L["WHAT TO DO"], action = "", expand = "" })[column.key]); header.cells[column.key] = cell
     setColor(cell, Theme.color.fgDim)
     -- Headings must sit over their own numbers. createRow right-aligns every numeric cell, but
     -- these were left at the default left alignment, so each heading floated to the left edge
@@ -3027,7 +3036,7 @@ function GC.Sell.Attach(f, geometry)
   -- at all and every amount typed here was read as bare copper.
   local FIELD_LABEL_Y, FIELD_BOX_Y = -40, -54
   for i, field in ipairs({ { dialog.quantity, "Quantity" }, { dialog.unit, "Unit cost (gold)" }, { dialog.total, "Total cost (gold)" } }) do
-    local label = Theme.Label(dialog, 10); label:SetPoint("TOPLEFT", 12 + (i - 1) * 82, FIELD_LABEL_Y); label:SetText(field[2])
+    local label = Theme.Label(dialog, 10); label:SetPoint(GC.L["TOPLEFT"], 12 + (i - 1) * 82, FIELD_LABEL_Y); label:SetText(field[2])
     field[1]:SetSize(70, 20); field[1]:SetPoint("TOPLEFT", 12 + (i - 1) * 82, FIELD_BOX_Y); field[1]:SetAutoFocus(false)
   end
   -- Live coin readout of exactly what Total will record, under the Total field itself. This
@@ -3037,8 +3046,8 @@ function GC.Sell.Attach(f, geometry)
   dialog.totalPreview:SetPoint("TOPRIGHT", -12, FIELD_BOX_Y - 24)
   setColor(dialog.totalPreview, Theme.color.fgDim)
   dialog.error = Theme.Label(dialog, 10); dialog.error:SetPoint("TOPLEFT", 12, FIELD_BOX_Y - 44); setColor(dialog.error, Theme.color.red)
-  local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint("BOTTOMLEFT", 12, 10); cancel:SetLabel("Cancel"); cancel:SetScript("OnClick", function() dialog:Hide() end)
-  local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint("BOTTOMRIGHT", -12, 10); confirm:SetLabel("Confirm"); confirm:SetScript("OnClick", function() confirmCostDialog(dialog) end)
+  local cancel = Theme.Button(dialog, "ghost", "badge"); cancel:SetSize(70, 20); cancel:SetPoint(GC.L["BOTTOMLEFT"], 12, 10); cancel:SetLabel(GC.L["Cancel"]); cancel:SetScript(GC.L["OnClick"], function() dialog:Hide() end)
+  local confirm = Theme.Button(dialog, "primary", "badge"); confirm:SetSize(70, 20); confirm:SetPoint(GC.L["BOTTOMRIGHT"], -12, 10); confirm:SetLabel(GC.L["Confirm"]); confirm:SetScript(GC.L["OnClick"], function() confirmCostDialog(dialog) end)
   local function syncText(edit, text)
     dialog.syncing = true
     edit:SetText(text)
@@ -3146,7 +3155,7 @@ end
 GC.slashHandlers = GC.slashHandlers or {}
 GC.slashHandlers.sellstate = function()
   local pending = refresh.pending
-  GC.Print(("sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"):format(
+  GC.Print((GC.L["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"]):format(
     tostring(refresh.phase), #refresh.queue, refresh.index or 0, refresh.skipped or 0,
     time() - (refresh.progressAt or 0),
     pending and (" · pending item %s for %ds"):format(tostring(pending.itemID), time() - pending.at) or ""))
@@ -3155,7 +3164,7 @@ GC.slashHandlers.sellstate = function()
   for _, at in pairs(emptyAnswers) do
     if time() - at <= EMPTY_ANSWER_AGE then rested = rested + 1 end
   end
-  GC.Print(("throttle ready=%s · sniper busy=%s · empty answers resting=%d"):format(
+  GC.Print((GC.L["throttle ready=%s · sniper busy=%s · empty answers resting=%d"]):format(
     tostring(driver and driver.isReady and driver.isReady() or false),
     tostring(blocking and blocking() or false), rested))
   -- Every row without a market price, and the EXACT reason the walk is not asking about it --
