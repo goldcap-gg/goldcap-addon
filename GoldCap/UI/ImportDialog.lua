@@ -14,11 +14,11 @@ local function createDialog()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f.TitleText:SetText("GoldCap — Import realm prices")
+  f.TitleText:SetText(GC.L["GoldCap — Import realm prices"])
 
   local hint = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   hint:SetPoint("TOPLEFT", 12, -28)
-  hint:SetText("Paste your realm string from goldcap.gg and press Import.")
+  hint:SetText(GC.L["Paste your realm string from goldcap.gg and press Import."])
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", 12, -48)
@@ -40,17 +40,18 @@ local function createDialog()
   local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   btn:SetSize(100, 22)
   btn:SetPoint("BOTTOMRIGHT", -12, 10)
-  btn:SetText("Import")
+  btn:SetText(GC.L["Import"])
   btn:SetScript("OnClick", function()
     local parsed, err = GC.ImportString.Parse(f.edit:GetText() or "")
     if not parsed then
-      f.status:SetText("|cffff4040Import failed: " .. GC.Data.DescribeImportError(err) .. "|r")
+      f.status:SetText("|cffff4040" .. GC.L["Import failed:"] .. " "
+        .. GC.Data.DescribeImportError(err) .. "|r")
       return
     end
     GC.Data.SetImported(parsed)
     GC.db.imported.origin = "manual" -- a manual paste always wins the origin marker back from "app"
     local st = GC.Data.GetStatus()
-    GC.Print(("imported %d items for %s (%s) — prices are live now.")
+    GC.Print(GC.L["imported %d items for %s (%s) — prices are live now."]
       :format(st.importedCount, st.importedRealm, parsed.region))
     f.edit:SetText("")
     f:Hide()
@@ -74,18 +75,18 @@ GC.slashHandlers.status = function()
   -- importedOrigin is nil for SavedVariables written before the origin marker existed --
   -- treat that the same as "manual" since every import used to be a manual paste.
   local originLabel = st.importedOrigin == "app" and "auto-synced" or "manual import"
-  GC.Print(("region %s — bundled: %d items (%s), imported: %s"):format(
+  GC.Print(GC.L["region %s — bundled: %d items (%s), imported: %s"]:format(
     st.region,
     st.bundledCount,
     st.bundledTs and st.bundledTs > 0 and GC.Util.FormatAge(now - st.bundledTs) or "none",
     st.importedTs
       and ("%d items for %s (%s, %s)"):format(
         st.importedCount, st.importedRealm, GC.Util.FormatAge(now - st.importedTs), originLabel)
-      or "none"
+      or GC.L["none"]
   ))
   -- Only when there is something to report: the normal case stays a single line.
   local appErr = GC.Data.AppDataError()
   if appErr then
-    GC.Print("Companion sync rejected: " .. GC.Data.DescribeImportError(appErr.reason))
+    GC.Print(GC.L["Companion sync rejected:"] .. " " .. GC.Data.DescribeImportError(appErr.reason))
   end
 end

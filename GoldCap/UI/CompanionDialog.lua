@@ -24,15 +24,14 @@ local function createDialog()
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f.TitleText:SetText("GoldCap Companion")
+  f.TitleText:SetText(GC.L["GoldCap Companion"])
 
   local hint = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   hint:SetPoint("TOPLEFT", 12, -28)
   hint:SetWidth(396)
   hint:SetJustifyH("LEFT")
   hint:SetWordWrap(true)
-  hint:SetText("The free desktop Companion keeps your prices fresh automatically and syncs "
-    .. "your sales. Copy the link (Ctrl+C) and open it in a browser:")
+  hint:SetText(GC.L["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"])
 
   local edit = CreateFrame("EditBox", nil, f)
   edit:SetFontObject(ChatFontNormal)
@@ -54,7 +53,7 @@ local function createDialog()
   local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   closeBtn:SetSize(100, 22)
   closeBtn:SetPoint("BOTTOMRIGHT", -12, 10)
-  closeBtn:SetText("Close")
+  closeBtn:SetText(GC.L["Close"])
   closeBtn:SetScript("OnClick", function() f:Hide() end)
   f.closeBtn = closeBtn
 

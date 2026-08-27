@@ -54,7 +54,9 @@ local IMPORT_ERRORS = {
 }
 
 function GC.Data.DescribeImportError(reason)
-  return IMPORT_ERRORS[reason] or ("the import failed (" .. tostring(reason) .. ")")
+  local sentence = IMPORT_ERRORS[reason]
+  if sentence then return GC.L[sentence] end
+  return GC.L["the import failed (%s)"]:format(tostring(reason))
 end
 
 -- nil, or { reason = <parser code>, writtenAt = <companion's stamp> }. Read by /goldcap
@@ -110,7 +112,7 @@ function GC.Data.AdoptAppData()
     local isNew = not previous or previous.writtenAt ~= writtenAt or previous.reason ~= reason
     if db then db.appDataError = { reason = reason, writtenAt = writtenAt } end
     if isNew and GC.Print then
-      GC.Print("the Companion wrote prices this addon could not read -- "
+      GC.Print(GC.L["the Companion wrote prices this addon could not read --"] .. " "
         .. GC.Data.DescribeImportError(reason))
     end
     return
@@ -126,7 +128,7 @@ function GC.Data.AdoptAppData()
   local age = time() - parsed.ts
   if age < 0 then age = 0 end -- clock skew must never show a negative age, see importAgeSeconds
   if GC.Print then
-    GC.Print(("auto-synced data for %s loaded (%s old)"):format(parsed.realm, GC.Util.FormatAge(age)))
+    GC.Print(GC.L["auto-synced data for %s loaded (%s old)"]:format(parsed.realm, GC.Util.FormatAge(age)))
   end
 end
 
