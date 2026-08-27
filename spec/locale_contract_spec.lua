@@ -8,7 +8,11 @@ describe("locale contract", function()
 
   local function specifiers(text)
     local found = {}
-    for spec in text:gmatch("%%[-+ #0]*%d*%.?%d*[diouxXeEfgGqcs]") do
+    -- The space flag ("% d") is deliberately NOT accepted here. It is legal Lua, but this
+    -- addon never uses it, while literal percentages in prose are common -- "95% of the
+    -- imported market value" would otherwise read as a "% o" specifier and fail every
+    -- translation that renders the percent differently.
+    for spec in text:gmatch("%%[-+#0]*%d*%.?%d*[diouxXeEfgGqcs]") do
       found[#found + 1] = spec
     end
     return found
