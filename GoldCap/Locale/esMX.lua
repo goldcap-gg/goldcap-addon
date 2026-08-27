@@ -231,7 +231,7 @@ GC.Locales.esMX = {
   ["STRESS EXIT"] = "SALIDA BAJO PRESIÓN",
   ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
     "SUSPECT = descuento tan extremo que seguramente sea una estafa o un mercado mal valorado",
-  ["Sales are costod from your oldest units first"] =
+  ["Sales are costed from your oldest units first"] =
     "Las ventas se imputan primero a tus unidades más antiguas",
   ["Set cost"] = "Definir costo",
   ["Settings"] = "Ajustes",

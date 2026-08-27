@@ -20,6 +20,7 @@ Locale/enUS.lua
 Locale/esES.lua
 Locale/esMX.lua
 Locale/frFR.lua
+Locale/itIT.lua
 Locale/koKR.lua
 Locale/ptBR.lua
 Locale/ruRU.lua
