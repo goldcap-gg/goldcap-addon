@@ -38,6 +38,45 @@ T.ROW_H = 32
 T.FONT_MONO = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Regular.ttf"
 T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
 
+-- The bundled monospace face covers Latin, Greek and all of Cyrillic (verified from its cmap,
+-- so Russian and Ukrainian need nothing here) and no CJK at all. On Korean and both Chinese
+-- locales anything drawn with it would be empty boxes, so mono LABELS fall back to the
+-- client's own font -- which the client guarantees can draw its own language.
+--
+-- This covers T.Num too, not just buttons and chips. T.Num draws the column headers and band
+-- labels as well as the figures, so leaving it on the bundled face would render those headers
+-- as empty boxes on exactly the locales this batch exists for. The trade is real and taken
+-- deliberately: on CJK the digits stop being monospaced, so number columns line up by their
+-- RIGHT anchor rather than by character width. Boxes would be worse.
+--
+-- The brand logo keeps the bundled face: it is always the Latin "G".
+-- T.Label already does the equivalent by inheriting GameFontHighlightSmall; this is the same
+-- idea for the places that ask for the mono face by name.
+local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
+
+T.FONT_UI = T.FONT_MONO
+T.FONT_UI_BOLD = T.FONT_MONO_BOLD
+
+function T.RefreshFonts(code)
+  if not CJK_LOCALES[code] then
+    T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
+    return T.FONT_UI
+  end
+  -- GameFontNormal is one of the client's own Font objects, so its path is whatever face the
+  -- running client uses for its locale. pcall because a Font object is not guaranteed to be
+  -- there at every point in load order, and an unreadable one must degrade to a face that at
+  -- least draws Latin rather than blanking the interface.
+  local ok, path = pcall(function()
+    return _G.GameFontNormal and _G.GameFontNormal:GetFont()
+  end)
+  if ok and type(path) == "string" and path ~= "" then
+    T.FONT_UI, T.FONT_UI_BOLD = path, path
+  else
+    T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
+  end
+  return T.FONT_UI
+end
+
 local scale, hooks = 1.0, {}
 
 -- Widget-bound re-fonting (Chip/Num fontstrings, created afresh on every row/cell) is
@@ -205,10 +244,10 @@ function T.RailButton(parent, iconFile, labelText)
   b.icon:SetPoint("TOP", 0, -8)
 
   b.text = b:CreateFontString(nil, "OVERLAY")
-  b.text:SetFont(T.FONT_MONO_BOLD, 8 * T.Scale(), "")
+  b.text:SetFont(T.FONT_UI_BOLD, 8 * T.Scale(), "")
   b.text:SetPoint("BOTTOM", 0, 7)
   b.text:SetText(labelText)
-  widgetFonts[b.text] = { path = T.FONT_MONO_BOLD, size = 8 }
+  widgetFonts[b.text] = { path = T.FONT_UI_BOLD, size = 8 }
 
   b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
   b.highlightTexture:SetAllPoints()
@@ -227,10 +266,10 @@ function T.RailButton(parent, iconFile, labelText)
   b.badge.bg = slicedTexture(b.badge, "BACKGROUND", T.MEDIA .. "badge.png", T.color.gold, BADGE_SLICE)
   b.badge.bg:SetAllPoints()
   b.badge.text = b.badge:CreateFontString(nil, "OVERLAY")
-  b.badge.text:SetFont(T.FONT_MONO_BOLD, 9 * T.Scale(), "")
+  b.badge.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
   b.badge.text:SetPoint("CENTER")
   b.badge.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  widgetFonts[b.badge.text] = { path = T.FONT_MONO_BOLD, size = 9 }
+  widgetFonts[b.badge.text] = { path = T.FONT_UI_BOLD, size = 9 }
   b.badge:Hide()
 
   function b:SetBadge(count)
@@ -346,7 +385,7 @@ function T.Chip(parent)
   f.bg:SetAllPoints()
 
   f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_MONO_BOLD, 9 * T.Scale(), "")
+  f.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
   f.text:SetJustifyH("CENTER")
   -- Bounded to the pill's own width (a bare CENTER point has no width limit at all) and
   -- non-wrapping, so a long label (e.g. "SUSPECT") truncates inside the pill instead of
@@ -355,7 +394,7 @@ function T.Chip(parent)
   f.text:SetPoint("RIGHT", -4, 0)
   f.text:SetWordWrap(false)
 
-  widgetFonts[f.text] = { path = T.FONT_MONO_BOLD, size = 9 }
+  widgetFonts[f.text] = { path = T.FONT_UI_BOLD, size = 9 }
 
   function f:SetLabel(text, colorTable)
     f.text:SetText(text)
@@ -383,10 +422,10 @@ function T.TierMark(parent)
   f.dot:SetPoint("LEFT")
 
   f.text = f:CreateFontString(nil, "OVERLAY")
-  f.text:SetFont(T.FONT_MONO_BOLD, 10 * T.Scale(), "")
+  f.text:SetFont(T.FONT_UI_BOLD, 10 * T.Scale(), "")
   f.text:SetJustifyH("LEFT")
   f.text:SetPoint("LEFT", f.dot, "RIGHT", 5, 0)
-  widgetFonts[f.text] = { path = T.FONT_MONO_BOLD, size = 10 }
+  widgetFonts[f.text] = { path = T.FONT_UI_BOLD, size = 10 }
 
   function f:SetLabel(text, colorTable)
     f.text:SetText(text)
@@ -401,7 +440,7 @@ end
 -- Num: mono font, size*Scale(), RIGHT-justified. Re-fonts on rescale.
 function T.Num(parent, size, bold)
   local fs = parent:CreateFontString(nil, "OVERLAY")
-  local font = bold and T.FONT_MONO_BOLD or T.FONT_MONO
+  local font = bold and T.FONT_UI_BOLD or T.FONT_UI
   fs:SetFont(font, size * T.Scale(), "")
   fs:SetJustifyH("RIGHT")
   widgetFonts[fs] = { path = font, size = size }
@@ -539,8 +578,8 @@ function T.Button(parent, variant, rounded)
   b.text:ClearAllPoints()
   b.text:SetPoint("CENTER")
   if roundedSpec then
-    b.text:SetFont(T.FONT_MONO, 10 * T.Scale(), "")
-    widgetFonts[b.text] = { path = T.FONT_MONO, size = 10 }
+    b.text:SetFont(T.FONT_UI, 10 * T.Scale(), "")
+    widgetFonts[b.text] = { path = T.FONT_UI, size = 10 }
   end
 
   -- `b.label` is the contract every caller and every spec test double already assumed --
