@@ -41,6 +41,7 @@ Core/PostQueue.lua
 Core/CancelQueue.lua
 Core/Book.lua
 Core/SniperDecision.lua
+Core/CheckVerdict.lua
 Core/DealMath.lua
 Core/Scanner.lua
 Core/FullScan.lua

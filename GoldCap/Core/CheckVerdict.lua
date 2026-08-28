@@ -1,0 +1,225 @@
+local _, GC = ...
+
+-- What the check panel SAYS, decided away from the panel that draws it.
+--
+-- UI/SniperFrame.lua owns the layout; this owns the content. The split exists because
+-- every content decision made inside that 6,400-line file is one nothing can test
+-- directly -- several specs already have to reach into it through debug.getupvalue chains
+-- -- and these are exactly the decisions the owner's in-game session found wrong: a panel
+-- that reserved 94px for a figure a refusal never has, printed the same sentence three
+-- times, and offered a quantity box on a verdict where nothing could be bought.
+--
+-- Nothing here formats. Money stays copper, rates stay basis points, and the panel decides
+-- how to draw them -- GetCoinTextureString is a client global this file must never need.
+-- Prose stays as GC.L keys resolved by the caller, for the same reason.
+GC.CheckVerdict = {}
+
+-- The engine's own gates, so a meter's tick is where the refusal actually happens rather
+-- than a number picked to look right. Keep these equal to SniperDecision's thresholds --
+-- spec/check_verdict_spec.lua pins the behaviour, not the constants.
+local MIN_LISTINGS = 3
+local MIN_SOLD_PER_DAY = 3
+local MIN_SELL_THROUGH_BPS = 7000
+local MIN_CONFIDENCE = 70
+
+-- A meter needs a ceiling to be honest, and these two have none of their own -- a seller
+-- count and a daily sales rate are unbounded. Both are drawn against a multiple of their
+-- own gate, so the bar reads "how far past the line", which is the only question either
+-- one answers. Far enough past and it simply fills.
+local SELLERS_CEILING = MIN_LISTINGS * 6
+local VELOCITY_CEILING = MIN_SOLD_PER_DAY * 20
+
+-- Refusals about the VALUE itself. On any of these the panel must not print a profit or a
+-- loss: the figure would be derived from the very number the engine has just said it
+-- cannot stand behind, and dressing that up as "-1,240g" is a more confident lie than the
+-- dash it replaces.
+local UNPRICEABLE_REASONS = {
+  live_verification_required = true, realm_item_unverified = true,
+  bundled_data_unverified = true, source_stale = true, market_value_estimated = true,
+  price_history_sparse = true, listings_too_low = true, invalid_input = true,
+  book_missing = true, competing_ask_missing = true, stress_exit_missing = true,
+  deposit_missing = true, shadow_validation = true,
+}
+
+-- Refusals where the price may be perfectly fine and the trap is TIME. Gold is the wrong
+-- unit for these: what the player needs is how long their capital would be stuck.
+local TIME_REASONS = {
+  velocity_missing = true, velocity_too_low = true,
+  sell_through_too_low = true, liquidity_confidence_low = true,
+}
+
+local function positive(value)
+  return type(value) == "number" and value == value and value ~= math.huge
+    and value ~= -math.huge and value > 0
+end
+
+local function number(value)
+  return type(value) == "number" and value == value
+    and value ~= math.huge and value ~= -math.huge
+end
+
+local function clamp01(value)
+  if value < 0 then return 0 end
+  if value > 1 then return 1 end
+  return value
+end
+
+--- The reason a headline should show: the first that actually refused. SniperDecision
+-- files some reasons at severity 0 as NOTES (`informational`) and orders them ahead of
+-- the gate that really bit, so `reasons[1]` can be a note while the true reason hides
+-- further down -- a headline reading it blind explains the wrong thing.
+local function headlineReason(decision)
+  local reasons = type(decision.reasons) == "table" and decision.reasons or {}
+  local informational = type(decision.informational) == "table" and decision.informational or {}
+  for i = 1, #reasons do
+    if not informational[reasons[i]] then return reasons[i] end
+  end
+  return reasons[1]
+end
+
+local function meter(at, gate)
+  return { at = clamp01(at), gate = clamp01(gate) }
+end
+
+local function sellersFact(market)
+  if not number(market.listings) then return nil end
+  return {
+    id = "sellers", count = market.listings,
+    tone = market.listings < MIN_LISTINGS and "bad" or "plain",
+    meter = meter(market.listings / SELLERS_CEILING, MIN_LISTINGS / SELLERS_CEILING),
+  }
+end
+
+local function velocityFact(market)
+  if not number(market.soldPerDay) then return nil end
+  return {
+    id = "soldPerDay", count = market.soldPerDay,
+    tone = market.soldPerDay < MIN_SOLD_PER_DAY and "bad" or "plain",
+    meter = meter(market.soldPerDay / VELOCITY_CEILING, MIN_SOLD_PER_DAY / VELOCITY_CEILING),
+  }
+end
+
+local function sellThroughFact(market)
+  if not number(market.sellThroughBps) then return nil end
+  return {
+    id = "sellThrough", bps = market.sellThroughBps,
+    tone = market.sellThroughBps < MIN_SELL_THROUGH_BPS and "bad" or "plain",
+    meter = meter(market.sellThroughBps / 10000, MIN_SELL_THROUGH_BPS / 10000),
+  }
+end
+
+local function confidenceFact(market)
+  if not number(market.liquidityConfidence) then return nil end
+  return {
+    id = "confidence", count = market.liquidityConfidence,
+    tone = market.liquidityConfidence < MIN_CONFIDENCE and "bad" or "plain",
+    meter = meter(market.liquidityConfidence / 100, MIN_CONFIDENCE / 100),
+  }
+end
+
+local function flat(id, field, value, tone)
+  if not number(value) then return nil end
+  return { id = id, [field] = value, tone = tone or "plain" }
+end
+
+-- What you pay against what you get back, sharing one ceiling. The comparison IS the
+-- point on a profit refusal, so both are drawn on the larger of the two and the shortfall
+-- is visible before either number is read.
+local function moneyPair(decision)
+  if not positive(decision.entryTotal) or not number(decision.stressProfit) then return nil, nil end
+  local proceeds = decision.entryTotal + decision.stressProfit
+  if proceeds < 0 then proceeds = 0 end
+  local ceiling = math.max(decision.entryTotal, proceeds)
+  if ceiling <= 0 then return nil, nil end
+  return {
+    id = "youPay", copper = decision.entryTotal, tone = "plain",
+    meter = meter(decision.entryTotal / ceiling, 1),
+  }, {
+    id = "youGet", copper = proceeds,
+    tone = proceeds < decision.entryTotal and "bad" or "good",
+    meter = meter(proceeds / ceiling, 1),
+  }
+end
+
+local function take(facts, ...)
+  for _, fact in ipairs({ ... }) do
+    if fact and #facts < 4 then facts[#facts + 1] = fact end
+  end
+  return facts
+end
+
+--- Builds the panel's content from a decision and the market snapshot behind it.
+-- `context.tier` is the tier the DEALS BOARD showed, which comes from the imported
+-- snapshot rather than the live book -- the two can disagree, and when they do the player
+-- is owed the reconciliation rather than two contradictory badges 320 pixels apart.
+function GC.CheckVerdict.Build(decision, market, context)
+  decision = type(decision) == "table" and decision or {}
+  market = type(market) == "table" and market or {}
+  context = type(context) == "table" and context or {}
+
+  local buyable = decision.buyable == true
+  local informational = type(decision.informational) == "table" and decision.informational or {}
+  local reason = headlineReason(decision)
+
+  local tone = "refuse"
+  if buyable then
+    tone = informational.demand_limit and "adjust" or "clear"
+  end
+
+  local hero
+  if tone == "clear" then
+    hero = number(decision.stressProfit) and { kind = "gold", copper = decision.stressProfit }
+      or { kind = "unpriceable" }
+  elseif tone == "adjust" then
+    hero = positive(decision.quantity) and { kind = "units", quantity = decision.quantity }
+      or { kind = "unpriceable" }
+  elseif reason and UNPRICEABLE_REASONS[reason] then
+    hero = { kind = "unpriceable" }
+  elseif reason and TIME_REASONS[reason] and positive(market.soldPerDay)
+      and positive(decision.quantity)
+      and decision.quantity / market.soldPerDay >= 1 then
+    -- Whole days, floored, and only when there IS at least one: 200 units at 412 a day
+    -- floors to "0 days", which reads as instant rather than as fast. Under a day the
+    -- time framing says nothing, so the gold branch below answers instead.
+    hero = { kind = "days", days = math.floor(decision.quantity / market.soldPerDay) }
+  elseif number(decision.stressProfit) then
+    hero = { kind = "gold", copper = decision.stressProfit }
+  else
+    hero = { kind = "unpriceable" }
+  end
+
+  -- Four facts, chosen to explain THIS verdict rather than to fill a fixed grid. The old
+  -- panel showed the same ten rows every time, five of them dashes on any refusal.
+  local facts = {}
+  local pay, get = moneyPair(decision)
+  if tone == "refuse" and reason and UNPRICEABLE_REASONS[reason] then
+    take(facts, sellersFact(market), confidenceFact(market),
+      flat("liveAsk", "copper", decision.entryUnitDisplay),
+      flat("snapshotValue", "copper", market.marketValue, "muted"),
+      velocityFact(market))
+  elseif tone == "refuse" and reason and TIME_REASONS[reason] then
+    take(facts, velocityFact(market), sellThroughFact(market),
+      flat("goldTiedUp", "copper", decision.entryTotal),
+      flat("ifItClears", "copper", decision.stressProfit,
+        number(decision.stressProfit) and decision.stressProfit >= 0 and "good" or "bad"))
+  elseif tone == "adjust" then
+    take(facts, velocityFact(market), sellThroughFact(market),
+      flat("youPayFlat", "copper", decision.entryTotal),
+      flat("worstCaseBack", "copper", decision.stressProfit, "good"))
+  else
+    take(facts, pay, get, sellThroughFact(market), sellersFact(market),
+      flat("snapshotValue", "copper", market.marketValue, "muted"))
+  end
+
+  return {
+    tone = tone,
+    reason = reason,
+    hero = hero,
+    facts = facts,
+    actionable = tone ~= "refuse",
+    -- Only worth saying when the two actually disagree. A refusal under a WATCH tier is
+    -- the board and the panel agreeing, and saying so would be noise.
+    reconcile = tone == "refuse" and type(context.tier) == "string"
+      and (context.tier == "HOT" or context.tier == "GOOD") or false,
+  }
+end
