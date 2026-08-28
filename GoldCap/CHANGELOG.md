@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-08-28)
 
 - **The addon speaks eleven languages.** German, English, Spanish (Spain and Latin
   America), French, Italian, Korean, Portuguese, Russian, Ukrainian, and Chinese in both
