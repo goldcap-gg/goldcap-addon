@@ -2168,12 +2168,18 @@ local function createRow(parent)
   -- position with no price at all.
   -- Re-entrant by construction: ClearFocus below raises OnEditFocusLost, which is bound to
   -- this same function. One extra pass would be harmless, but a loop inside the client is
-  -- not the kind of thing to leave to luck on a path that spends gold.
-  local committing = false
+  -- not the kind of thing to leave to luck on a path that spends gold. The same flag is what
+  -- renderRows raises when it has to take the box away from a row it just rebound.
   local function commitPrice(box)
-    if committing then return end
+    if row.priceCommitting then return end
     local key = overrideKey(row.position)
-    if not key then return end
+    -- Rows are POOLED: a refresh between the click into the box and this commit can rebind
+    -- this very row to a different position. `priceEditingKey` is the position the typing
+    -- started on, and a price typed for one item must never land on another.
+    if not key or key ~= row.priceEditingKey then
+      row.priceEditingKey = nil
+      return
+    end
     local text = box:GetText() or ""
     if text:match("^%s*$") then
       priceOverrides[key] = nil
@@ -2185,17 +2191,25 @@ local function createRow(parent)
       end
       priceOverrides[key] = copper
     end
-    committing = true
+    row.priceEditingKey = nil
+    row.priceCommitting = true
     box:ClearFocus()
-    committing = false
+    row.priceCommitting = false
     renderRows()
   end
+  -- Remembers which position the typing belongs to, for the pooled-row check above.
+  row.priceBox:SetScript("OnEditFocusGained", function()
+    row.priceEditingKey = overrideKey(row.position)
+  end)
   row.priceBox:SetScript("OnEnterPressed", commitPrice)
   -- Committing on focus loss as well: a price typed and then clicked away from is still a
   -- price the seller typed, and the alternative is a box that silently reverts.
   row.priceBox:SetScript("OnEditFocusLost", commitPrice)
   row.priceBox:SetScript("OnEscapePressed", function(box)
+    row.priceEditingKey = nil
+    row.priceCommitting = true
     box:ClearFocus()
+    row.priceCommitting = false
     renderRows() -- puts the committed price back, discarding whatever was half-typed
   end)
 
@@ -2781,8 +2795,26 @@ renderRows = function()
         local risk = GC.SellPositions.PriceRisk(p, unit)
         setColor(row.subItem, chosen and Theme.color.gold or Theme.color.fgDim)
         row.subItem:SetText(GC.L["YOUR PRICE"])
-        row.priceBox:SetText(unit and copperToGoldText(unit) or "")
-        row.priceBox:Show()
+        -- The Sell tab re-renders on its own, all the time: the quote walk finishes an item,
+        -- an owned-auction scan lands, a refresh ticks. Stamping the box unconditionally meant
+        -- every one of those wiped whatever was half-typed back to the recommendation -- so a
+        -- price typed and not yet committed was gone before Enter could reach it.
+        local box = row.priceBox
+        local focused = box.HasFocus and box:HasFocus() or false
+        -- Someone typing into this box, on this same position, owns it -- the render leaves
+        -- their text alone until they commit it or press Escape.
+        if not (focused and row.priceEditingKey == overrideKey(p)) then
+          if focused then
+            -- A pooled row rebound to a different position while its box held the cursor.
+            -- Take the focus back WITHOUT committing: the text belongs to the old position.
+            row.priceEditingKey = nil
+            row.priceCommitting = true
+            box:ClearFocus()
+            row.priceCommitting = false
+          end
+          box:SetText(unit and copperToGoldText(unit) or "")
+        end
+        box:Show()
 
         -- The warning outranks the arithmetic. Both of these are the addon telling the seller
         -- something it would otherwise have silently prevented -- a floor raise, or a refusal

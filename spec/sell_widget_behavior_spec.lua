@@ -31,6 +31,8 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetAutoFocus() end
     -- The price box commits on Enter and on focus loss, and both clear focus afterwards.
     function value:ClearFocus() self.focused = false end
+    function value:SetFocus() self.focused = true end
+    function value:HasFocus() return self.focused == true end
     function value:SetScrollChild(child) self.scrollChild = child end
     -- Rows own textures now (zebra banding, hover highlight, the bottom rule, the child spine
     -- and the item icon), so the double has to hand back regions for them like the real API.
@@ -610,6 +612,15 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("×5", row.priceNote.text, 1, true)
     end)
 
+    -- A real commit starts in the box: the focus is what tells the row which position the
+    -- typing belongs to, and a commit with no focus behind it is refused (pooled rows).
+    local function typePrice(row, text)
+      row.priceBox.scripts.OnEditFocusGained(row.priceBox)
+      row.priceBox.focused = true
+      row.priceBox.text = text
+      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+    end
+
     -- Asserted through the box the seller looks at, not through the table behind it: what
     -- matters is that the number they typed is the number the row now shows and prices with.
     it("takes a price the seller types and says it is theirs now", function()
@@ -617,8 +628,7 @@ describe("Sell widget geometry and manual cost", function()
       local row = priceRow(GC)
       -- Above the 40g break-even on purpose: a price under it gets the loss warning instead,
       -- which is its own test below.
-      row.priceBox.text = "45"
-      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      typePrice(row, "45")
       local after = priceRow(GC)
       assert.equal("45", after.priceBox.text)
       assert.matches("yours", after.priceNote.text, 1, true)
@@ -628,11 +638,8 @@ describe("Sell widget geometry and manual cost", function()
     it("hands the decision back to GoldCap when the box is cleared", function()
       local GC = load(700, { calls = {} })
       local row = priceRow(GC)
-      row.priceBox.text = "45"
-      row.priceBox.scripts.OnEnterPressed(row.priceBox)
-      row = priceRow(GC)
-      row.priceBox.text = "  "
-      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      typePrice(row, "45")
+      typePrice(priceRow(GC), "  ")
       local after = priceRow(GC)
       assert.equal("43", after.priceBox.text)
       assert.matches("GoldCap's", after.priceNote.text, 1, true)
@@ -651,17 +658,69 @@ describe("Sell widget geometry and manual cost", function()
         realClear(self)
         if clears < 5 then row.priceBox.scripts.OnEditFocusLost(row.priceBox) end
       end
-      row.priceBox.text = "45"
-      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      typePrice(row, "45")
       assert.equal(1, clears)
       assert.equal("45", priceRow(GC).priceBox.text)
     end)
 
+    -- Reported in-game 2026-08-28: "из-за того, что делается постоянно refresh, цена
+    -- сбивается до 40.3 хотя вводил другую". This tab re-renders on its own constantly -- the
+    -- quote walk finishes an item, an owned-auction scan lands, a refresh ticks -- and the
+    -- render stamped the box every time, so a price typed and not yet committed was wiped
+    -- back to the recommendation before Enter could ever reach it.
+    it("does not type over the seller when the list refreshes under them", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      row.priceBox.scripts.OnEditFocusGained(row.priceBox)
+      row.priceBox.focused = true
+      row.priceBox.text = "45"        -- typed, NOT committed
+
+      local again = priceRow(GC)      -- the refresh the player did not ask for
+      assert.equal("45", again.priceBox.text)
+
+      -- And the commit that follows records what was actually typed, not what the render
+      -- would have put back.
+      again.priceBox.scripts.OnEnterPressed(again.priceBox)
+      assert.equal("45", priceRow(GC).priceBox.text)
+      assert.matches("yours", priceRow(GC).priceNote.text, 1, true)
+    end)
+
+    -- The other half of the same defect: rows are POOLED, so a refresh can hand the row --
+    -- and the box holding the cursor -- to a different position. A price typed for one item
+    -- must never be committed against another.
+    it("gives up a half-typed price rather than moving it to another item", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      row.priceBox.scripts.OnEditFocusGained(row.priceBox)
+      row.priceBox.focused = true
+      row.priceBox.text = "45"
+
+      -- Same pooled row, now rendering a different position.
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:99"] = true })
+      topRows(GC, {
+        { itemID = 99, itemName = "Other", positionKey = "commodity:99", coverage = "UNKNOWN",
+          exposureQty = 1, knownQty = 0, knownCost = 0, listedValue = 0,
+          bagQty = 1, listedQty = 0, sources = {}, postRecommendation = { unit = 700000 } },
+      })
+      assert.is_false(row.priceBox:HasFocus())
+      assert.equal("70", row.priceBox.text)
+
+      -- And nothing was recorded for either item.
+      set(render, "expanded", { ["commodity:42"] = true })
+      assert.equal("43", priceRow(GC).priceBox.text)
+    end)
+
+    -- Nothing is recorded, and the typo is left where the seller can see and fix it: the box
+    -- keeps the cursor rather than silently reverting under them. Escape is the way out.
     it("refuses a price it cannot read rather than recording a nonsense one", function()
       local GC = load(700, { calls = {} })
       local row = priceRow(GC)
-      row.priceBox.text = "not a price"
-      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      typePrice(row, "not a price")
+      assert.equal("not a price", row.priceBox.text)
+      assert.is_true(row.priceBox:HasFocus())
+
+      row.priceBox.scripts.OnEscapePressed(row.priceBox)
       assert.equal("43", priceRow(GC).priceBox.text)
     end)
 
