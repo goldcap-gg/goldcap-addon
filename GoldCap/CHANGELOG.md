@@ -24,6 +24,19 @@
   covers the whole Cyrillic range. Picking a language your client has no font
   for at all (Korean or Chinese on a Western client) now warns you instead.
 
+- **Your own language, everywhere it was still English.** Whole surfaces stayed
+  English in all eleven languages because they never went through the string
+  layer: the entire Settings screen, the Deals and Sold column headings and
+  their tooltips, the Sell tab's action help, and — worst of them — every
+  sentence the buy check shows when it refuses, which is the most-read prose in
+  the addon. A second, quieter fault froze four more tables to English even
+  though their translations existed. Both are fixed, and both now have a guard
+  that fails the build rather than shipping silently.
+
+- **Numbers you can read.** The buy check was printing a region's daily turnover
+  as "856146.0" and the age of its data as "3384s", in a column 64 pixels wide.
+  They now read "856k" and "56m".
+
 - **The addon icon is the GoldCap mark again.** The icon in the AddOns list and
   the minimap compartment was a 64px image with a black background baked in, so
   it showed as a dark tile. It is now the same transparent mark the website and
