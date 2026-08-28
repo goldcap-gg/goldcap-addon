@@ -104,6 +104,12 @@ local sessionCommodityKind = {}
 -- can I list" would trade one blind spot for another. What changed is the order
 -- -- everything postable now sorts to the top (see SellViewModel.Order) -- and a
 -- Sellable chip for narrowing to it deliberately.
+-- Prices the seller typed, keyed by position. Deliberately NOT persisted and deliberately not
+-- a second source of truth about what to list at: BuildPostPlan is still the one place a post
+-- price is decided, and this is only what gets handed to it. Cleared when the position is
+-- posted (the stock leaves the bags and the row with it) or when the box is emptied.
+local priceOverrides = {}
+
 local expanded, filterMode = {}, "all"
 local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil, drain = {} }
 local quoteTimeoutToken = 0
@@ -427,6 +433,30 @@ local function safeMultiply(left, right)
   return left * right
 end
 
+-- One key per position for the typed price. The scope key carries the character and region as
+-- well, which is what keeps a price chosen on one character from following the same item onto
+-- another; positionKey alone is the fallback for a position composed before a scope exists.
+local function overrideKey(position)
+  if type(position) ~= "table" then return nil end
+  -- positionKey, not scopeKey: the decoration (Core/SellPositions) has to key the same table,
+  -- and it runs over positions that do not all carry a scope yet. The Sell tab composes for
+  -- one character at a time anyway, so this cannot leak a price across characters in practice.
+  local key = position.positionKey
+  return type(key) == "string" and key ~= "" and key or nil
+end
+
+-- What Post would list this position at right now: the seller's own number when they have
+-- given one, otherwise whatever GoldCap worked out. Both go through the SAME silver-grid
+-- rounding BuildPostPlan applies, so the figure in the box is the figure that gets sent.
+local function effectivePostUnit(position)
+  local key = overrideKey(position)
+  local chosen = key and priceOverrides[key] or nil
+  local rec = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
+  local unit = chosen or rec
+  if not exact(unit) or unit <= 0 then return nil, chosen ~= nil end
+  return (GC.Flips.SilverUp and GC.Flips.SilverUp(unit)) or unit, chosen ~= nil
+end
+
 local function context()
   return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
 end
@@ -603,6 +633,11 @@ local function composePositions()
     pendingAcquisitions = pending,
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = ownedLots,
     bagStock = bagStock, quotes = quotes, statsByItemID = stats, context = scope, now = time(),
+    -- A price the seller typed has to reach the decoration, not just the post: the PROFIT
+    -- column, the posting queue's own label and the plan all read the recommendation, and
+    -- this file has twice shipped a bug where the price shown and the price sent were two
+    -- different numbers.
+    chosenUnits = priceOverrides,
     quoteMaxAge = SELL_QUOTE_ACTION_AGE })
   -- Stamped in the same walk this function already does over every position, rather than a
   -- second pass triggered from SellableCount() -- see that function for why a fresh compose
@@ -1326,7 +1361,12 @@ local function onPostClick(row)
     return
   end
   local bagState = liveBagState(position)
-  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true })
+  -- Passed explicitly as well as through the decoration above: BuildPostPlan's own floor and
+  -- queue raises can only ever raise, and a raise on top of a chosen price would silently undo
+  -- the choice. The override branch there skips both.
+  local chosenKey = overrideKey(position)
+  local plan, reason = GC.SellPositions.BuildPostPlan(position, bagState, { unit = quote.unit, fresh = true },
+    { overrideUnit = chosenKey and priceOverrides[chosenKey] or nil })
   if not plan then
     setStatus(reason == "ambiguous_variant" and GC.L["No exact bag variant"] or GC.L["Cannot post this position"])
     return
@@ -1581,6 +1621,10 @@ function GC.Sell.OnAuctionCreated()
   if valid and GC.Acquisitions and GC.Acquisitions.RecordPost then
     GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), pin.character, pin.region, pin.quantity, time())
   end
+  -- The choice was for THIS listing. Keeping it would quietly price the next batch of the same
+  -- item at a number chosen against a book that has since moved -- which is the one real risk
+  -- of letting the price be typed at all.
+  if type(pin.positionKey) == "string" then priceOverrides[pin.positionKey] = nil end
   disarmPost()
   GC.Sell.Refresh()
 end
@@ -1826,12 +1870,53 @@ end
 -- The book's own four columns, mirroring the design: price, depth at that price, a bar for
 -- that depth, and the units queued in front of it. Fixed, and deliberately independent of
 -- shownColumns -- a book row shows the same four things at every window width.
+-- The price control's own row: a label, the box, a note, then four fills packed to the right.
+-- Same reasoning as the book's columns -- this row shows the same things at every width, so it
+-- is laid out independently of the shedding column set.
+local PRICE_LABEL_W, PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 78, 84, 18, 52
+-- The chips, by slot. Two parallel tables rather than one of {id, label} pairs: the contract
+-- scanner reads every literal inside an @localised-keys table, and an id sitting in the same
+-- table would be collected as a translatable string nobody ever shows.
+-- @localised-keys
+local PRICE_CHIP_LABELS = {
+  "MATCH", "UNDERCUT", "MARKET", "COST",
+}
+-- What each slot fills from. The SLOT is the stable key the click handler switches on, never
+-- the label -- a translated label would look up nothing (addon/AGENTS.md's own rule).
+local PRICE_CHIP_IDS = { "match", "under", "market", "cost" }
+
 local BOOK_PRICE_W, BOOK_UNITS_W, BOOK_CUMUL_W, BOOK_BAR_H = 84, 58, 62, 6
 -- The fill is sized in pixels rather than by fraction of a live frame: GetWidth on a frame
 -- anchored LEFT+RIGHT is only resolved after a layout pass, and this runs during one. The bar
 -- itself stretches with the row; the fill is capped at what the narrowest sensible row leaves,
 -- so a full bar never overruns the cumulative column on a narrow window.
 local BOOK_BAR_MAX_W = 120
+
+local function layoutPriceRow(row)
+  local left = row.itemInset or 2
+  row.subItem:ClearAllPoints()
+  row.subItem:SetPoint("LEFT", row, "LEFT", left, 0)
+  row.subItem:SetWidth(PRICE_LABEL_W)
+
+  row.priceBox:ClearAllPoints()
+  row.priceBox:SetPoint("LEFT", row, "LEFT", left + PRICE_LABEL_W + Theme.pad.s, 0)
+
+  local prev
+  for i = #row.priceChips, 1, -1 do
+    local chip = row.priceChips[i]
+    chip:ClearAllPoints()
+    if prev then
+      chip:SetPoint("RIGHT", prev, "LEFT", -Theme.pad.xs, 0)
+    else
+      chip:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.m, 0)
+    end
+    prev = chip
+  end
+
+  row.priceNote:ClearAllPoints()
+  row.priceNote:SetPoint("LEFT", row.priceBox, "RIGHT", Theme.pad.s, 0)
+  row.priceNote:SetPoint("RIGHT", prev, "LEFT", -Theme.pad.s, 0)
+end
 
 local function layoutBookRow(row)
   local left = row.itemInset or 2
@@ -2060,6 +2145,66 @@ local function createRow(parent)
   row.bookBar.fill:SetPoint("BOTTOMLEFT")
   row.bookBar.fill:SetWidth(1)
   row.bookBar:Hide()
+
+  -- The price control. The one number on this screen that spends real gold was, until now, the
+  -- one number a seller could not see the workings of or change: GoldCap picked it and Post
+  -- sent it. The box is prefilled with exactly what Post would list at, in gold, and emptying
+  -- it hands the decision back to GoldCap rather than leaving nothing behind.
+  row.priceBox = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+  row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
+  row.priceBox:SetAutoFocus(false)
+  row.priceBox:Hide()
+
+  row.priceNote = Theme.Label(row, 10)
+  row.priceNote:SetJustifyH("LEFT")
+  row.priceNote:SetWordWrap(false)
+  row.priceNote:Hide()
+
+  -- Four one-click fills, each from a number already on the screen. They exist beside the box,
+  -- not instead of it: the box is what the owner asked for, and these are what stop the common
+  -- cases from needing arithmetic.
+  -- Reads the box and records (or clears) the seller's choice. Emptying it is a real answer,
+  -- not a failure to type one: it hands the decision back to GoldCap rather than leaving the
+  -- position with no price at all.
+  local function commitPrice(box)
+    local key = overrideKey(row.position)
+    if not key then return end
+    local text = box:GetText() or ""
+    if text:match("^%s*$") then
+      priceOverrides[key] = nil
+    else
+      local copper = dialogGoldPositive(box)
+      if not copper then
+        setStatus(GC.L["Type a price in gold, or clear the box to use GoldCap's"])
+        return
+      end
+      priceOverrides[key] = copper
+    end
+    box:ClearFocus()
+    renderRows()
+  end
+  row.priceBox:SetScript("OnEnterPressed", commitPrice)
+  -- Committing on focus loss as well: a price typed and then clicked away from is still a
+  -- price the seller typed, and the alternative is a box that silently reverts.
+  row.priceBox:SetScript("OnEditFocusLost", commitPrice)
+  row.priceBox:SetScript("OnEscapePressed", function(box)
+    box:ClearFocus()
+    renderRows() -- puts the committed price back, discarding whatever was half-typed
+  end)
+
+  row.priceChips = {}
+  for slot = 1, #PRICE_CHIP_LABELS do
+    local chip = Theme.Button(row, "ghost", "badge")
+    chip:SetSize(PRICE_CHIP_W, PRICE_BOX_H)
+    chip:SetScript("OnClick", function(self)
+      local key = overrideKey(row.position)
+      if not key or not self.priceSource then return end
+      priceOverrides[key] = self.priceSource
+      renderRows()
+    end)
+    chip:Hide()
+    row.priceChips[slot] = chip
+  end
   -- Sub-rows (detail/batch/lot/listing) write into their own widget, one size down from a
   -- position's name (11, not 12) -- the flex column's box is shared by three mutually
   -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and layoutCells anchors
@@ -2279,6 +2424,11 @@ renderRows = function()
     if expanded[position.positionKey] then
       local detail = GC.SellViewModel.Expansion(position)
       entries[#entries + 1] = { kind = "detail", position = position, detail = detail }
+      -- The price the seller can actually change comes before everything that justifies it:
+      -- the book below is the evidence for this number, not a section in its own right.
+      if (position.bagQty or 0) > 0 then
+        entries[#entries + 1] = { kind = "price", position = position, detail = detail }
+      end
       -- The book comes first of the three sections: it is what the price on the row was
       -- derived FROM, and until now the seller could see the price and nothing it stood on.
       if detail.book then
@@ -2619,6 +2769,53 @@ renderRows = function()
         else
           row.action:Hide()
         end
+      elseif entry.kind == "price" then
+        local unit, chosen = effectivePostUnit(p)
+        local risk = GC.SellPositions.PriceRisk(p, unit)
+        setColor(row.subItem, chosen and Theme.color.gold or Theme.color.fgDim)
+        row.subItem:SetText(GC.L["YOUR PRICE"])
+        row.priceBox:SetText(unit and copperToGoldText(unit) or "")
+        row.priceBox:Show()
+
+        -- The warning outranks the arithmetic. Both of these are the addon telling the seller
+        -- something it would otherwise have silently prevented -- a floor raise, or a refusal
+        -- -- and the whole point of letting the price be typed is that it says so instead.
+        if risk.belowCost then
+          row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
+          setColor(row.priceNote, Theme.color.red)
+        elseif risk.belowFloor then
+          row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
+          setColor(row.priceNote, Theme.color.red)
+        elseif unit then
+          local bagQty = p.bagQty or 0
+          local total = safeMultiply(unit, bagQty)
+          row.priceNote:SetText(("%s · ×%d · %s"):format(
+            chosen and GC.L["yours"] or GC.L["GoldCap's"], bagQty, total and formatCell(total) or "—"))
+          setColor(row.priceNote, Theme.color.fgDim)
+        else
+          row.priceNote:SetText(GC.L["no live price yet"])
+          setColor(row.priceNote, Theme.color.fgDim)
+        end
+        row.priceNote:Show()
+
+        -- Every fill comes from a number already on this screen, so none of them can invent a
+        -- price: a chip with nothing behind it is disabled rather than quietly filling zero.
+        local book = entry.detail and entry.detail.book or nil
+        local sources = {
+          match = book and book.cheapestCompeting or nil,
+          under = book and book.cheapestCompeting and (book.cheapestCompeting - 100) or nil,
+          market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
+          cost = risk.paidUnit,
+        }
+        for slot, chip in ipairs(row.priceChips) do
+          local source = sources[PRICE_CHIP_IDS[slot]]
+          chip:SetLabel(GC.L[PRICE_CHIP_LABELS[slot]])
+          chip.priceSource = source
+          if source then chip:Enable() else chip:Disable() end
+          chip:Show()
+        end
+        for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
+        row.action:Hide()
       elseif entry.kind == "level" then
         -- One price level of the live book: what it costs, how deep it is, and how much stock
         -- is queued in front of it. Colour carries the two things a seller cannot work out
@@ -2738,6 +2935,10 @@ renderRows = function()
       if entry.kind ~= "level" then
         row.bookUnits:Hide(); row.bookCumul:Hide(); row.bookBar:Hide(); row.bookTint:Hide()
       end
+      if entry.kind ~= "price" then
+        row.priceBox:Hide(); row.priceNote:Hide()
+        for _, chip in ipairs(row.priceChips) do chip:Hide() end
+      end
       if entry.kind == "position" then
         row.spine:Hide()
         row.divider:Show()
@@ -2782,6 +2983,7 @@ renderRows = function()
       end
       layoutCells(row)
       if entry.kind == "level" then layoutBookRow(row) end
+      if entry.kind == "price" then layoutPriceRow(row) end
     end
   end
   content:SetHeight(math.max(1, #entries) * ROW_HEIGHT)

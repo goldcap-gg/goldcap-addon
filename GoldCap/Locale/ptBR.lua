@@ -73,6 +73,7 @@ GC.Locales.ptBR = {
   ["CANCEL LOT?"] = "CANCELAR O LOTE?",
   ["CANCELLING…"] = "CANCELANDO…",
   ["CONFIRM"] = "CONFIRMAR",
+  ["COST"] = "CUSTO",
   ["COST / UNIT"] = "CUSTO / UNIDADE",
   ["Can't price this"] = "Sem preço confiável",
   ["Cancel"] = "Cancelar",
@@ -161,6 +162,7 @@ GC.Locales.ptBR = {
   ["GoldCap re-checks the top "] = "O GoldCap reconfere os ",
   ["GoldCap value"] = "Valor GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Importar preços do reino",
+  ["GoldCap's"] = "do GoldCap",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "A sugestão do GoldCap para este item e o preço que ele usaria.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
@@ -206,7 +208,9 @@ GC.Locales.ptBR = {
   ["Live ask"] = "Preço ao vivo",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lote cancelado; espere ele voltar para as bolsas",
+  ["MARKET"] = "MERCADO",
   ["MARKET / UNIT"] = "MERCADO / UNIDADE",
+  ["MATCH"] = "IGUALAR",
   ["Market per unit"] = "Mercado por unidade",
   ["Market reference"] = "Referência de mercado",
   ["Max wallet per buy %"] = "Máx. do seu ouro por compra %",
@@ -398,6 +402,9 @@ GC.Locales.ptBR = {
   ["Too little price history to trust the value."] =
     "Histórico de preços insuficiente para confiar no valor.",
   ["Total cost to buy this auction"] = "Custo total para comprar este leilão",
+  ["Type a price in gold, or clear the box to use GoldCap's"] =
+    "Digite um preço em ouro, ou limpe o campo para usar o do GoldCap",
+  ["UNDERCUT"] = "ABAIXAR",
   ["UNIT"] = "UNIDADE",
   ["Unit price"] = "Preço por unidade",
   ["Unknown"] = "Desconhecido",
@@ -430,6 +437,7 @@ GC.Locales.ptBR = {
   ["Worst case back"] = "Retorno no pior caso",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Vale a pena quando alguém te baixou o preço; não vale se o preço mal se mexeu.",
+  ["YOUR PRICE"] = "SEU PREÇO",
   ["You paid"] = "Você pagou",
   ["You pay"] = "Você paga",
   ["You would get"] = "Você receberia",
@@ -443,6 +451,7 @@ GC.Locales.ptBR = {
   ["auto-synced data stale -- /goldcap import"] =
     "os dados sincronizados estão velhos -- /goldcap import",
   ["auto: paused"] = "auto: pausado",
+  ["below the %s you paid"] = "abaixo dos %s que você pagou",
   ["big buy"] = "compra grande",
   ["blue is already yours"] = "o azul já é seu",
   ["bought %d x item %d"] = "comprados %d x item %d",
@@ -509,6 +518,7 @@ GC.Locales.ptBR = {
   ["needs a fresh price -- press Refresh"] = "precisa de um preço novo -- clique em Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sem confirmação do servidor -- a compra ainda pode ter passado, confira seu correio. Fechar isto não desfaz.",
+  ["no live price yet"] = "ainda sem preço ao vivo",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "ainda sem preços -- /goldcap companion ou /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -579,6 +589,7 @@ GC.Locales.ptBR = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "para escoar %d unidades a %s vendas por dia, com %s parado esse tempo todo",
+  ["under GoldCap's own floor of %s"] = "abaixo do piso do GoldCap, %s",
   ["unknown evidence"] = "evidência desconhecida",
   ["waiting for previous commodity purchase to settle"] =
     "esperando a compra de mercadoria anterior ser liquidada",
@@ -596,6 +607,7 @@ GC.Locales.ptBR = {
     "seu cliente do jogo não tem fonte para este idioma — o texto aparecerá como quadrados vazios",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "sua importação tem %d horas -- os preços podem estar errados. Cole uma string nova do goldcap.gg (/goldcap import).",
+  ["yours"] = "seu",
   ["» needs price"] = "» falta preço",
   ["×%d in bags"] = "×%d nas bolsas",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

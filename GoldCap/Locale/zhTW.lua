@@ -74,6 +74,7 @@ GC.Locales.zhTW = {
   ["CANCEL LOT?"] = "取消這批？",
   ["CANCELLING…"] = "取消中…",
   ["CONFIRM"] = "確認",
+  ["COST"] = "成本",
   ["COST / UNIT"] = "成本 / 件",
   ["Can't price this"] = "無法給出價格",
   ["Cancel"] = "取消",
@@ -155,6 +156,7 @@ GC.Locales.zhTW = {
   ["GoldCap re-checks the top "] = "GoldCap 會重新檢查前 ",
   ["GoldCap value"] = "GoldCap 估價",
   ["GoldCap — Import realm prices"] = "GoldCap — 匯入伺服器價格",
+  ["GoldCap's"] = "GoldCap 的",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCap 對這件物品的建議，以及它會用的價格。",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
@@ -198,7 +200,9 @@ GC.Locales.zhTW = {
     "按「該做什麼」一欄顯示的價格上架你包裡的物品。",
   ["Live ask"] = "即時要價",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；請等它回到背包",
+  ["MARKET"] = "市價",
   ["MARKET / UNIT"] = "市價 / 件",
+  ["MATCH"] = "持平",
   ["Market per unit"] = "每件市價",
   ["Market reference"] = "市價參考",
   ["Max wallet per buy %"] = "單次購買最大資金佔比 %",
@@ -365,6 +369,8 @@ GC.Locales.zhTW = {
   ["Too little of what is listed actually sells."] = "掛出來的貨裡真正賣掉的太少。",
   ["Too little price history to trust the value."] = "價格歷史太少，無法信任這個估值。",
   ["Total cost to buy this auction"] = "買下該拍賣的總花費",
+  ["Type a price in gold, or clear the box to use GoldCap's"] = "按金幣輸入價格，或清空輸入框以使用 GoldCap 的價格",
+  ["UNDERCUT"] = "壓一檔",
   ["UNIT"] = "單價",
   ["Unit price"] = "單價",
   ["Unknown"] = "未知",
@@ -396,6 +402,7 @@ GC.Locales.zhTW = {
   ["Worst case back"] = "最壞情況回款",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "有人壓你價時值得這麼做；價格幾乎沒動時不值。",
+  ["YOUR PRICE"] = "你的價格",
   ["You paid"] = "你的成本",
   ["You pay"] = "你支付",
   ["You would get"] = "你會拿回",
@@ -407,6 +414,7 @@ GC.Locales.zhTW = {
   ["auto-synced data for %s loaded (%s old)"] = "已載入 %s 的自動同步資料（已過 %s）",
   ["auto-synced data stale -- /goldcap import"] = "自動同步的資料已過期 -- /goldcap import",
   ["auto: paused"] = "自動：已暫停",
+  ["below the %s you paid"] = "低於你付出的 %s",
   ["big buy"] = "大額購買",
   ["blue is already yours"] = "藍色是你已經掛上的",
   ["bought %d x item %d"] = "已購買 %d 件 · 道具 %d",
@@ -465,6 +473,7 @@ GC.Locales.zhTW = {
   ["needs a fresh price -- press Refresh"] = "需要最新價格 -- 請按 Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "伺服器沒有回覆確認 -- 購買仍可能已完成，請檢查信箱。關閉此視窗不會取消它。",
+  ["no live price yet"] = "還沒有即時價格",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "還沒有價格 -- /goldcap companion 或 /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] = "沒有收到購買確認 -- 按 Cancel 後重試",
@@ -530,6 +539,7 @@ GC.Locales.zhTW = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "要賣完 %d 件，按每天 %s 件的速度，期間 %s 一直占用著",
+  ["under GoldCap's own floor of %s"] = "低於 GoldCap 自己的下限 %s",
   ["unknown evidence"] = "未知的依據",
   ["waiting for previous commodity purchase to settle"] = "等待前一筆商品購買結算",
   ["waiting for previous search result to settle"] = "等待前一次搜尋結果",
@@ -545,6 +555,7 @@ GC.Locales.zhTW = {
     "你的遊戲客戶端沒有這種語言的字型 — 文字會顯示為空白方塊",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
+  ["yours"] = "你的",
   ["» needs price"] = "» 需要價格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

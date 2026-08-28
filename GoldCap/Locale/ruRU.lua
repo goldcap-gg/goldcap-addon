@@ -71,6 +71,7 @@ GC.Locales.ruRU = {
   ["CANCEL LOT?"] = "ОТМЕНИТЬ ЛОТ?",
   ["CANCELLING…"] = "ОТМЕНА…",
   ["CONFIRM"] = "ПОДТВЕРДИТЬ",
+  ["COST"] = "ЗАКУП",
   ["COST / UNIT"] = "СЕБЕСТ. / ШТ",
   ["Can't price this"] = "Цену не оценить",
   ["Cancel"] = "Отмена",
@@ -159,6 +160,7 @@ GC.Locales.ruRU = {
   ["GoldCap re-checks the top "] = "GoldCap перепроверяет верхние ",
   ["GoldCap value"] = "Оценка GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Импорт цен реалма",
+  ["GoldCap's"] = "от GoldCap",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Что GoldCap советует по этому предмету и по какой цене.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
@@ -204,7 +206,9 @@ GC.Locales.ruRU = {
   ["Live ask"] = "Цена в стакане",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот отменён; дождитесь его возврата в сумки",
+  ["MARKET"] = "РЫНОК",
   ["MARKET / UNIT"] = "РЫНОК / ШТ",
+  ["MATCH"] = "СРАВНЯТЬ",
   ["Market per unit"] = "Рынок за штуку",
   ["Market reference"] = "Рыночный ориентир",
   ["Max wallet per buy %"] = "Макс. доля кошелька на покупку %",
@@ -396,6 +400,9 @@ GC.Locales.ruRU = {
   ["Too little price history to trust the value."] =
     "Слишком мало истории цен, чтобы верить этой стоимости.",
   ["Total cost to buy this auction"] = "Полная стоимость покупки этого лота",
+  ["Type a price in gold, or clear the box to use GoldCap's"] =
+    "Введите цену в золоте или очистите поле, чтобы взять цену GoldCap",
+  ["UNDERCUT"] = "НИЖЕ",
   ["UNIT"] = "ЗА ШТ",
   ["Unit price"] = "Цена за штуку",
   ["Unknown"] = "Неизвестно",
@@ -428,6 +435,7 @@ GC.Locales.ruRU = {
   ["Worst case back"] = "Вернётся в худшем случае",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Стоит делать, когда вас перебили по цене; не стоит, если цена почти не сдвинулась.",
+  ["YOUR PRICE"] = "ВАША ЦЕНА",
   ["You paid"] = "Вы заплатили",
   ["You pay"] = "Вы платите",
   ["You would get"] = "Вы получите",
@@ -441,6 +449,7 @@ GC.Locales.ruRU = {
   ["auto-synced data stale -- /goldcap import"] =
     "автосинхронизированные данные устарели -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["below the %s you paid"] = "ниже %s, которые вы заплатили",
   ["big buy"] = "крупная покупка",
   ["blue is already yours"] = "синее — уже ваше",
   ["bought %d x item %d"] = "куплено %d x предмет %d",
@@ -506,6 +515,7 @@ GC.Locales.ruRU = {
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил -- покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
+  ["no live price yet"] = "живой цены пока нет",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цен пока нет -- /goldcap companion или /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -577,6 +587,7 @@ GC.Locales.ruRU = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "чтобы распродать %d шт. при %s продажах в день, и всё это время %s заморожено",
+  ["under GoldCap's own floor of %s"] = "ниже собственного порога GoldCap — %s",
   ["unknown evidence"] = "неизвестное подтверждение",
   ["waiting for previous commodity purchase to settle"] =
     "ждём завершения предыдущей покупки товара",
@@ -594,6 +605,7 @@ GC.Locales.ruRU = {
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
+  ["yours"] = "ваша",
   ["» needs price"] = "» нужна цена",
   ["×%d in bags"] = "×%d в сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

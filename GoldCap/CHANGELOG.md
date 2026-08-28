@@ -24,6 +24,18 @@
   measured against. The numeric columns now shrink before anything is dropped,
   and what you paid is the last column to go rather than nearly the first.
 
+- **You can set the price yourself now.** The one number on the Sell tab that
+  spends real gold was the one number you could not touch: GoldCap picked it and
+  Post sent it. An expanded row now has that price in a box, prefilled with
+  exactly what Post would list at, and you can type over it — or take one click
+  from the book (match the cheapest seller who is not you, undercut them by a
+  silver), from the market value, or from your own break-even. Clearing the box
+  hands the decision back to GoldCap. What you choose is what the profit column,
+  the posting queue and the post itself all use — they were never allowed to
+  disagree and they still cannot. GoldCap will not quietly raise your price to
+  its own floor any more, but it says so, in red, next to the box: under the
+  floor, or under what you paid, before you click rather than after.
+
 - **The Sell tab finally shows the book it has been pricing against.** Every
   price decision on that screen already read the live order book — the
   underprice floor, the recommended price, how much stock sits ahead of your own

@@ -244,7 +244,7 @@ local function addLot(position, ownedLot)
   position.listedQty, position.listedValue = listedQty, listedValue
 end
 
-local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge)
+local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits)
   table.sort(position.ownedLots, stableLotOrder)
   local fresh, display, age = quoteInfo(quotes, position.itemID, now, quoteMaxAge)
   position.freshMarketUnit, position.displayMarketUnit, position.quoteAge = fresh, display, age
@@ -431,6 +431,22 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
         trendPct = marketStats and marketStats.trend })
   else
     position.postRecommendation = nil
+  end
+
+  -- A price the seller typed replaces the recommendation EVERYWHERE it is read, not only at
+  -- the moment of posting: the row's PROFIT column, the posting queue's own label and the plan
+  -- all have to be one number. This file has carried that defect twice already (see the
+  -- floor-raise comment in BuildPostPlan) -- the displayed price and the posted price being
+  -- two different numbers is the bug, not the fix. Rounded onto the silver grid here for the
+  -- same reason BuildPostPlan rounds: the projection below must price at what will be listed.
+  local chosen = chosenUnits and type(position.positionKey) == "string"
+    and chosenUnits[position.positionKey] or nil
+  if positive(chosen) and type(position.postRecommendation) == "table" then
+    position.chosenUnit = GC.Flips.SilverUp(chosen) or chosen
+    position.postRecommendation.unit = position.chosenUnit
+    -- Not "queue" any more: the queue-at-exit raise in BuildPostPlan keys off that mode, and a
+    -- raise applied on top of a chosen price would silently undo the choice.
+    position.postRecommendation.mode = "chosen"
   end
 
   -- Projected income and profit, computed HERE -- after the recommendations -- so the row's
@@ -713,12 +729,33 @@ function GC.SellPositions.Build(args)
   end
   local result = {}
   for _, position in pairs(positions) do
-    decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now, args.quoteMaxAge)
+    decoratePosition(position, args.quotes or {}, args.statsByItemID or {}, args.now,
+      args.quoteMaxAge, args.chosenUnits)
     result[#result + 1] = position
   end
   for _, unresolvedPosition in ipairs(unresolvedRows) do result[#result + 1] = unresolvedPosition end
   table.sort(result, stablePositionOrder)
   return result
+end
+
+--- What listing at `unit` would mean for this position: under the underprice floor, under what
+-- the stock cost, or neither. Shared by BuildPostPlan and by the Sell tab's own price control,
+-- deliberately -- the warning a seller reads beside the box has to be computed the same way as
+-- the flag the plan carries, or the screen and the post can disagree about the same number.
+--
+-- `paidUnit` is knownCost/knownQty and only exists on COMPLETE coverage: a partial basis is
+-- not a break-even, and claiming one would invent a cost the addon does not have.
+function GC.SellPositions.PriceRisk(position, unit)
+  position = type(position) == "table" and position or {}
+  if not positive(unit) then return { belowFloor = false, belowCost = false } end
+  local paidUnit = position.coverage == "COMPLETE" and positive(position.knownQty)
+    and math.floor((position.knownCost or 0) / position.knownQty) or nil
+  return {
+    paidUnit = paidUnit,
+    floor = positive(position.postFloor) and position.postFloor or nil,
+    belowFloor = positive(position.postFloor) and unit < position.postFloor or false,
+    belowCost = paidUnit ~= nil and unit < paidUnit or false,
+  }
 end
 
 -- What Post will actually list, priced at the fresh quote.
@@ -734,7 +771,7 @@ end
 -- the bags, so "what is in the bags" is already exactly "what is not yet listed" -- the old
 -- min(trackedQty - listedQty, bags) capped a real 200-unit stack at the 5 units GoldCap happened
 -- to have a receipt for.
-function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
+function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
   if type(position) ~= "table" or position.unresolved or position.protectedAction == false
@@ -756,24 +793,35 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   end
   local quantity = bagState.exactQty
   if quantity <= 0 then return nil, "no_unlisted_quantity" end
-  -- The displayed recommendation and the price Post actually used were two
-  -- different numbers: the plan took the raw cheapest competing ask. Apply the
-  -- floor here as well, so what is listed is what was shown. It can only ever
-  -- RAISE the price, so the freshness contract above is untouched -- a stale
-  -- floor cannot cause an underpriced sale, which is the failure that matters.
-  if positive(position.postFloor) and position.postFloor > unit then
-    unit = position.postFloor
-  end
-  -- Queue-at-exit raise (F5), same asymmetry as the floor raise above: when RecommendPost
-  -- decided this position should queue at its underwritten exit rather than match the wall it
-  -- was bought from, the plan must list at that same number -- the displayed recommendation
-  -- and the posted price being two different numbers is exactly the defect the floor raise
-  -- comment describes. A raise can only ever increase the price, so a stale queue quote can
-  -- delay a sale but never cause an underpriced one, which is the failure that matters.
-  local queueRec = position.postRecommendation
-  if type(queueRec) == "table" and queueRec.mode == "queue"
-      and positive(queueRec.unit) and queueRec.unit > unit then
-    unit = queueRec.unit
+  -- A price the seller typed replaces the derived one outright -- both raises below included.
+  -- Those raises exist to stop the ADDON from underpricing on its own, against a thin cheap
+  -- lot it cannot tell from a real market; they were never meant as a veto on a seller who
+  -- has read the book and chosen. What this does instead of clamping is REPORT: `belowFloor`
+  -- and `belowCost` ride on the plan so the caller can say it out loud before the second
+  -- click, rather than quietly listing at a number the player did not ask for.
+  local chosen = positive(opts and opts.overrideUnit) and opts.overrideUnit or nil
+  if chosen then
+    unit = chosen
+  else
+    -- The displayed recommendation and the price Post actually used were two
+    -- different numbers: the plan took the raw cheapest competing ask. Apply the
+    -- floor here as well, so what is listed is what was shown. It can only ever
+    -- RAISE the price, so the freshness contract above is untouched -- a stale
+    -- floor cannot cause an underpriced sale, which is the failure that matters.
+    if positive(position.postFloor) and position.postFloor > unit then
+      unit = position.postFloor
+    end
+    -- Queue-at-exit raise (F5), same asymmetry as the floor raise above: when RecommendPost
+    -- decided this position should queue at its underwritten exit rather than match the wall it
+    -- was bought from, the plan must list at that same number -- the displayed recommendation
+    -- and the posted price being two different numbers is exactly the defect the floor raise
+    -- comment describes. A raise can only ever increase the price, so a stale queue quote can
+    -- delay a sale but never cause an underpriced one, which is the failure that matters.
+    local queueRec = position.postRecommendation
+    if type(queueRec) == "table" and queueRec.mode == "queue"
+        and positive(queueRec.unit) and queueRec.unit > unit then
+      unit = queueRec.unit
+    end
   end
   -- Part 0 of the posting-queue design (2026-08-17): PostCommodity/PostItem silently reject any
   -- price with a non-zero copper remainder, and neither the raw live quote above nor postFloor
@@ -784,9 +832,13 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote)
   if not unit then return nil, "invalid_price" end
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
+  -- Measured AFTER SilverUp, against the final number this plan will actually list at -- the
+  -- caller's warning has to describe the price that gets sent, not the one before rounding.
+  local risk = GC.SellPositions.PriceRisk(position, unit)
   return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
     quantity = quantity, cost = complete and allocation.knownCost or nil, costKnown = complete,
-    allocations = allocation and allocation.allocations or {}, unitPrice = unit }
+    allocations = allocation and allocation.allocations or {}, unitPrice = unit,
+    chosen = chosen ~= nil, belowFloor = risk.belowFloor, belowCost = risk.belowCost }
 end
 
 function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)

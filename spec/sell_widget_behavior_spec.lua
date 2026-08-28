@@ -29,6 +29,8 @@ describe("Sell widget geometry and manual cost", function()
     function value:SetWordWrap(enabled) self.wordWrap = enabled end
     function value:SetTextColor(...) self.color = { ... } end
     function value:SetAutoFocus() end
+    -- The price box commits on Enter and on focus loss, and both clear focus afterwards.
+    function value:ClearFocus() self.focused = false end
     function value:SetScrollChild(child) self.scrollChild = child end
     -- Rows own textures now (zebra banding, hover highlight, the bottom rule, the child spine
     -- and the item icon), so the double has to hand back regions for them like the real API.
@@ -106,14 +108,12 @@ describe("Sell widget geometry and manual cost", function()
         SummaryText = function(summary) return { knownCost = summary.knownCost, listedValue = summary.listedValue, profit = "Unknown" } end,
         Expansion = function() return { batches = {}, ownedLots = {}, note = "FIFO allocations" } end,
       },
-      SellPositions = {
-        Summary = function() return { invested = nil, projected = nil, profit = nil } end,
-        -- Refresh composes from the bags before it asks the server anything, so
-        -- the tab shows what you could sell even away from an auctioneer. Tests
-        -- that drive Refresh therefore need a Build; those that assert on rows
-        -- they injected by hand stub Refresh out instead.
-        Build = function() return {} end,
-      },
+      -- Summary/Build stay doubles (see their own note below), but the rest of this module is
+      -- loaded for real just after: the price control reads GC.SellPositions.PriceRisk, and a
+      -- hand-written stand-in for that rule would let the warning a seller reads drift away
+      -- from the flag BuildPostPlan actually carries -- which is the exact thing PriceRisk
+      -- exists to keep in one place.
+      SellPositions = {},
       Acquisitions = {
         RecordManual = function(args) record.calls[#record.calls + 1] = args; return {} end,
         RepairPendingManual = function(args) record.repairs[#record.repairs + 1] = args; return {} end,
@@ -124,6 +124,14 @@ describe("Sell widget geometry and manual cost", function()
     -- the .toc loads it long before this file, so a double without it is the spec lying about
     -- what the frame runs against.
     helper.loadModule("Core/Util.lua", GC)
+    helper.loadModule("Core/Flips.lua", GC)
+    helper.loadModule("Core/SellPositions.lua", GC)
+    -- Back over the real module: Refresh composes from the bags before it asks the server
+    -- anything, so the tab shows what you could sell even away from an auctioneer. Tests that
+    -- drive Refresh need a Build; those that assert on rows they injected by hand stub Refresh
+    -- out instead, and neither wants the real composition walk here.
+    GC.SellPositions.Summary = function() return { invested = nil, projected = nil, profit = nil } end
+    GC.SellPositions.Build = function() return {} end
     helper.loadModule("UI/SellFrame.lua", GC)
     local root = region("Frame")
     root.HookScript = function(_, name, fn) root.scripts[name] = fn end
@@ -570,6 +578,130 @@ describe("Sell widget geometry and manual cost", function()
     end)
   end)
 
+  -- The one number on this screen that spends real gold was, until now, the one number a
+  -- seller could not see the workings of or change: GoldCap picked it and Post sent it. These
+  -- cover the control that changed that -- and, just as much, the two warnings that are the
+  -- price of allowing it, since the floor those warnings name used to be enforced by refusing.
+  describe("the price control in an expanded row", function()
+    local function priceRow(GC, over)
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations",
+          book = { rows = {}, levels = 3, totalUnits = 300, widest = 100,
+            cheapestCompeting = 420500, yourUnit = 420400, yourRow = nil } }
+      end
+      local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 2000000, listedValue = 0, -- 400000/unit paid
+        bagQty = 5, listedQty = 0, sources = {}, marketValue = 500000,
+        postRecommendation = { unit = 430000 } }
+      for k, v in pairs(over or {}) do p[k] = v end
+      local rows = topRows(GC, { p })
+      for _, row in ipairs(rows) do if row.kind == "price" then return row, rows, GC end end
+      error("no price row rendered")
+    end
+
+    it("prefills the box with the price Post would actually list at", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      assert.equal("YOUR PRICE", row.subItem.text)
+      assert.equal("43", row.priceBox.text) -- 430000 copper, in gold, as the box takes it
+      assert.matches("GoldCap's", row.priceNote.text, 1, true)
+      assert.matches("×5", row.priceNote.text, 1, true)
+    end)
+
+    -- Asserted through the box the seller looks at, not through the table behind it: what
+    -- matters is that the number they typed is the number the row now shows and prices with.
+    it("takes a price the seller types and says it is theirs now", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      -- Above the 40g break-even on purpose: a price under it gets the loss warning instead,
+      -- which is its own test below.
+      row.priceBox.text = "45"
+      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      local after = priceRow(GC)
+      assert.equal("45", after.priceBox.text)
+      assert.matches("yours", after.priceNote.text, 1, true)
+    end)
+
+    -- Emptying the box is an answer, not a failure to give one.
+    it("hands the decision back to GoldCap when the box is cleared", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      row.priceBox.text = "45"
+      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      row = priceRow(GC)
+      row.priceBox.text = "  "
+      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      local after = priceRow(GC)
+      assert.equal("43", after.priceBox.text)
+      assert.matches("GoldCap's", after.priceNote.text, 1, true)
+    end)
+
+    it("refuses a price it cannot read rather than recording a nonsense one", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      row.priceBox.text = "not a price"
+      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      assert.equal("43", priceRow(GC).priceBox.text)
+    end)
+
+    -- Every fill comes from a number already on the screen, so none of them can invent a price.
+    it("fills from the book, the market and the cost, and disables a chip with nothing behind it", function()
+      local function fill(slot)
+        local GC = load(700, { calls = {} })
+        local row = priceRow(GC)
+        row.priceChips[slot].scripts.OnClick(row.priceChips[slot])
+        return priceRow(GC).priceBox.text
+      end
+      assert.equal("42.05", fill(1)) -- MATCH: the cheapest ask that is not yours
+      assert.equal("42.04", fill(2)) -- UNDERCUT: one silver under it
+      assert.equal("50", fill(3))    -- MARKET: the imported market value
+      assert.equal("40", fill(4))    -- COST: the break-even, 2000000 over 5 units
+
+      -- No cost basis, no COST chip: the alternative is a chip that fills a cost the addon
+      -- does not have.
+      local bare = load(700, { calls = {} })
+      local row2 = priceRow(bare, { coverage = "UNKNOWN", knownQty = 0, knownCost = 0 })
+      assert.is_false(row2.priceChips[4].enabled)
+      assert.is_true(row2.priceChips[1].enabled)
+    end)
+
+    -- The price of letting the price be typed: the addon says what it would otherwise have
+    -- quietly prevented, at the moment of the decision rather than after the gold is gone.
+    it("says out loud when the chosen price is under GoldCap's own floor", function()
+      local GC = load(700, { calls = {} })
+      -- No cost basis, so the floor is the only thing this price is under.
+      local row = priceRow(GC, { coverage = "UNKNOWN", knownQty = 0, knownCost = 0,
+        postFloor = 450000, postRecommendation = { unit = 300000 } })
+      assert.matches("under GoldCap's own floor", row.priceNote.text, 1, true)
+      assert.same({ 1, 0, 0, 1 }, row.priceNote.color)
+    end)
+
+    -- Below what it cost outranks below the floor: one is a loss, the other is a rule.
+    it("leads with the loss when the price is under what the stock cost", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC, { postFloor = 450000, postRecommendation = { unit = 300000 } })
+      assert.matches("below the 40g you paid", row.priceNote.text, 1, true)
+      assert.same({ 1, 0, 0, 1 }, row.priceNote.color)
+    end)
+
+    it("draws no price control for a position with nothing in the bags", function()
+      local GC = load(700, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations" }
+      end
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 5, knownQty = 5, knownCost = 10, listedValue = 0,
+          bagQty = 0, listedQty = 0, sources = {} },
+      })
+      for _, row in ipairs(rows) do assert.not_equal("price", row.kind) end
+    end)
+  end)
+
   -- The Sell tab has priced against the live order book since it existed and never showed it:
   -- the floor, the recommendation and the depth ahead of your own lot all read `levels`, and
   -- the seller got a price with nothing to say what it was standing on. These drive the real
@@ -589,6 +721,20 @@ describe("Sell widget geometry and manual cost", function()
       })
     end
 
+    -- By kind, not by index: the expansion gained the price control ahead of the book, and a
+    -- test that counts rows breaks every time a section is added rather than when the thing it
+    -- is about changes.
+    local function nth(rows, kind, n)
+      local seen = 0
+      for _, row in ipairs(rows) do
+        if row.kind == kind then
+          seen = seen + 1
+          if seen == (n or 1) then return row end
+        end
+      end
+      error(("no %s row #%d"):format(kind, n or 1))
+    end
+
     local BOOK = {
       levels = 4, totalUnits = 1062, truncated = false, widest = 620,
       cheapestCompeting = 418800, yourUnit = 420400, yourRow = 2,
@@ -605,13 +751,13 @@ describe("Sell widget geometry and manual cost", function()
       -- The heading carries its own hint inline: the status cell it used to sit in is the
       -- first column a narrow window sheds, and the cheapest ask that is not yours is the one
       -- line worth keeping when the window is too small to show much else.
-      assert.matches("^THE BOOK", rows[3].sectionLabel.text)
-      assert.matches("cheapest not yours", rows[3].sectionLabel.text, 1, true)
-      assert.matches("1062 units", rows[3].sectionLabel.text, 1, true)
-      assert.matches("4 prices", rows[3].sectionLabel.text, 1, true)
+      assert.matches("^THE BOOK", nth(rows, "group").sectionLabel.text)
+      assert.matches("cheapest not yours", nth(rows, "group").sectionLabel.text, 1, true)
+      assert.matches("1062 units", nth(rows, "group").sectionLabel.text, 1, true)
+      assert.matches("4 prices", nth(rows, "group").sectionLabel.text, 1, true)
       -- The colour legend is said once, in the heading, because the rows carry the two facts
       -- in colour rather than in a marker glyph the bundled face does not have.
-      assert.matches("gold is where your price lands", rows[3].sectionLabel.text, 1, true)
+      assert.matches("gold is where your price lands", nth(rows, "group").sectionLabel.text, 1, true)
     end)
 
     -- Depth and queue live in the book's OWN widgets, not in the position columns: those shed
@@ -620,12 +766,12 @@ describe("Sell widget geometry and manual cost", function()
     it("prints each level with its own depth and the queue standing in front of it", function()
       local GC = load(620, { calls = {} })
       local rows = bookRows(GC, BOOK)
-      assert.equal("12", rows[4].bookUnits.text)
-      assert.equal("12", rows[4].bookCumul.text)
-      assert.equal("340", rows[5].bookUnits.text)
-      assert.equal("352", rows[5].bookCumul.text)  -- 12 + 340 ahead of this price
-      assert.is_true(rows[4].bookUnits.shown)
-      assert.is_true(rows[4].bookBar.shown)
+      assert.equal("12", nth(rows, "level", 1).bookUnits.text)
+      assert.equal("12", nth(rows, "level", 1).bookCumul.text)
+      assert.equal("340", nth(rows, "level", 2).bookUnits.text)
+      assert.equal("352", nth(rows, "level", 2).bookCumul.text)  -- 12 + 340 ahead of this price
+      assert.is_true(nth(rows, "level", 1).bookUnits.shown)
+      assert.is_true(nth(rows, "level", 1).bookBar.shown)
     end)
 
     -- Colour carries the two things a seller cannot work out from one recommended number.
@@ -635,28 +781,30 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local rows = bookRows(GC, BOOK)
       local GOLD, WATCH = GC.Theme.color.gold, GC.Theme.color.watch
-      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[5].subItem.color)
-      assert.is_true(rows[5].bookTint.shown)
-      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[6].subItem.color)
-      assert.is_true(rows[6].bookTint.shown)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, nth(rows, "level", 2).subItem.color)
+      assert.is_true(nth(rows, "level", 2).bookTint.shown)
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, nth(rows, "level", 3).subItem.color)
+      assert.is_true(nth(rows, "level", 3).bookTint.shown)
       -- A level that is neither is just a price: no tint, no marker in the text.
-      assert.is_false(rows[4].bookTint.shown)
-      assert.equal("", rows[4].subItem.text:gsub("[%d%a]", ""):gsub("%s", ""))
+      assert.is_false(nth(rows, "level", 1).bookTint.shown)
+      assert.equal("", nth(rows, "level", 1).subItem.text:gsub("[%d%a]", ""):gsub("%s", ""))
     end)
 
     -- Rows are pooled and rebound to a different kind on every render, so a book row's own
     -- widgets have to be put away by whichever kind takes the row next.
     it("puts the book widgets away on a row that stops being a level", function()
       local GC = load(620, { calls = {} })
-      local rows = bookRows(GC, BOOK)
-      assert.is_true(rows[4].bookUnits.shown)
+      -- The row OBJECT is captured before the second render, not looked up again after it:
+      -- rows are pooled, and a pooled row that goes unused keeps the kind it last carried.
+      local reused = nth(bookRows(GC, BOOK), "level", 1)
+      assert.is_true(reused.bookUnits.shown)
       bookRows(GC, nil)
-      assert.is_false(rows[4].bookUnits.shown)
-      assert.is_false(rows[4].bookBar.shown)
-      assert.is_false(rows[4].bookTint.shown)
+      assert.is_false(reused.bookUnits.shown)
+      assert.is_false(reused.bookBar.shown)
+      assert.is_false(reused.bookTint.shown)
       -- And the fixed price-column width goes with them: a leftover width fights the
       -- LEFT/RIGHT pair every other sub-row is anchored with.
-      assert.equal(0, rows[4].subItem.width)
+      assert.equal(0, reused.subItem.width)
     end)
 
     it("draws no book section at all when the addon has no live book", function()

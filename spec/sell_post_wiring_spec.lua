@@ -100,3 +100,52 @@ describe("Sell posting wiring", function()
     assert.is_function(GC.Sell.Attach)
   end)
 end)
+
+-- The seller can type a price now, and that price spends real gold. Two things have to hold
+-- for that to be safe, and both are structural rather than visual: the number the row SHOWS
+-- and the number the post SENDS must be one number, and the raises that exist to stop the
+-- addon underpricing on its own must not silently undo a price the seller chose on purpose.
+describe("a price the seller chose reaches the post intact", function()
+  local function source()
+    local f = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
+    local text = f:read("*a")
+    f:close()
+    return text
+  end
+
+  it("hands the chosen price to the plan at the click, not just to the display", function()
+    local text = source()
+    local clickStart = assert(text:find("local function onPostClick(row)", 1, true))
+    local clickEnd = assert(text:find("local function onRepostClick(row, auctionID)", clickStart, true))
+    local click = text:sub(clickStart, clickEnd - 1)
+    -- BuildPostPlan's floor and queue raises can only ever RAISE, and a raise applied on top
+    -- of a chosen price would list above what the seller asked for without saying so. The
+    -- override branch there skips both, so the plan has to be told explicitly.
+    assert.is_truthy(click:find("overrideUnit = chosenKey and priceOverrides[chosenKey] or nil", 1, true))
+  end)
+
+  it("also feeds it to the composition, so the displayed price is the posted price", function()
+    local text = source()
+    -- PROFIT / UNIT, the posting queue's own label and the plan all read the recommendation.
+    -- This file has twice shipped a defect where the price shown and the price sent were two
+    -- different numbers (see BuildPostPlan's own floor-raise comment); one source, not two.
+    assert.is_truthy(text:find("chosenUnits = priceOverrides", 1, true))
+  end)
+
+  -- The choice was made against a book that will move. Keeping it would price the next batch
+  -- of the same item at a number chosen for a market that is gone.
+  it("spends the chosen price when the auction it was chosen for is created", function()
+    local text = source()
+    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(%)(.-)\nend"))
+    assert.is_truthy(created:find("priceOverrides[pin.positionKey] = nil", 1, true))
+  end)
+
+  -- Nothing writes a post price outside these two paths: a render must never decide one.
+  it("keeps the override table out of every path but the control and the post", function()
+    local text = source()
+    local writes = 0
+    for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
+    -- commitPrice (set), commitPrice (clear), the chip click, and OnAuctionCreated's clear.
+    assert.equal(4, writes)
+  end)
+end)

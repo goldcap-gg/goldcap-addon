@@ -70,6 +70,7 @@ GC.Locales.enUS = {
   ["CANCEL LOT?"] = "CANCEL LOT?",
   ["CANCELLING…"] = "CANCELLING…",
   ["CONFIRM"] = "CONFIRM",
+  ["COST"] = "COST",
   ["COST / UNIT"] = "COST / UNIT",
   ["Can't price this"] = "Can't price this",
   ["Cancel"] = "Cancel",
@@ -151,6 +152,7 @@ GC.Locales.enUS = {
   ["GoldCap re-checks the top "] = "GoldCap re-checks the top ",
   ["GoldCap value"] = "GoldCap value",
   ["GoldCap — Import realm prices"] = "GoldCap — Import realm prices",
+  ["GoldCap's"] = "GoldCap's",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCap's suggestion for this item, and the price it would use.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
@@ -192,7 +194,9 @@ GC.Locales.enUS = {
     "Lists what is sitting in your bags at the price shown under WHAT TO DO.",
   ["Live ask"] = "Live ask",
   ["Lot cancelled; wait for it to return to bags"] = "Lot cancelled; wait for it to return to bags",
+  ["MARKET"] = "MARKET",
   ["MARKET / UNIT"] = "MARKET / UNIT",
+  ["MATCH"] = "MATCH",
   ["Market per unit"] = "Market per unit",
   ["Market reference"] = "Market reference",
   ["Max wallet per buy %"] = "Max wallet per buy %",
@@ -364,6 +368,9 @@ GC.Locales.enUS = {
   ["Too little of what is listed actually sells."] = "Too little of what is listed actually sells.",
   ["Too little price history to trust the value."] = "Too little price history to trust the value.",
   ["Total cost to buy this auction"] = "Total cost to buy this auction",
+  ["Type a price in gold, or clear the box to use GoldCap's"] =
+    "Type a price in gold, or clear the box to use GoldCap's",
+  ["UNDERCUT"] = "UNDERCUT",
   ["UNIT"] = "UNIT",
   ["Unit price"] = "Unit price",
   ["Unknown"] = "Unknown",
@@ -394,6 +401,7 @@ GC.Locales.enUS = {
   ["Worst case back"] = "Worst case back",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Worth doing when someone has undercut you; not worth it if the price barely moved.",
+  ["YOUR PRICE"] = "YOUR PRICE",
   ["You paid"] = "You paid",
   ["You pay"] = "You pay",
   ["You would get"] = "You would get",
@@ -405,6 +413,7 @@ GC.Locales.enUS = {
   ["auto-synced data for %s loaded (%s old)"] = "auto-synced data for %s loaded (%s old)",
   ["auto-synced data stale -- /goldcap import"] = "auto-synced data stale -- /goldcap import",
   ["auto: paused"] = "auto: paused",
+  ["below the %s you paid"] = "below the %s you paid",
   ["big buy"] = "big buy",
   ["blue is already yours"] = "blue is already yours",
   ["bought %d x item %d"] = "bought %d x item %d",
@@ -456,6 +465,7 @@ GC.Locales.enUS = {
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it.",
+  ["no live price yet"] = "no live price yet",
   ["no prices yet -- /goldcap companion or /goldcap import"] = "no prices yet -- /goldcap companion or /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] = "no purchase confirmation received -- Cancel and retry",
   ["no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices"] =
@@ -511,6 +521,7 @@ GC.Locales.enUS = {
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] = "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "to clear %d units at %s sold a day, with %s tied up the whole time",
+  ["under GoldCap's own floor of %s"] = "under GoldCap's own floor of %s",
   ["unknown evidence"] = "unknown evidence",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
@@ -525,6 +536,7 @@ GC.Locales.enUS = {
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
+  ["yours"] = "yours",
   ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",

@@ -1118,3 +1118,85 @@ describe("Sell positions", function()
     end)
   end)
 end)
+
+-- A seller could see the price GoldCap picked and had no way to see it, question it or change
+-- it -- the one number on the Sell tab that spends real gold was the one number they could not
+-- touch. The floor and queue raises below it exist to stop the ADDON underpricing on its own,
+-- against a thin cheap lot it cannot tell from a real market; they were never a veto on a
+-- seller who has read the book. So a chosen price REPLACES them, and the plan reports what
+-- that means instead of clamping it back.
+describe("a price the seller chose", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/Flips.lua", GC)
+    helper.loadModule("Core/Acquisitions.lua", GC)
+    helper.loadModule("Core/SellPositions.lua", GC)
+  end)
+
+  local function position(over)
+    local p = {
+      positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42", itemID = 42,
+      coverage = "UNKNOWN", batches = {}, ownedLots = {}, listedQty = 0,
+      knownQty = 0, knownCost = 0, postFloor = 500000,
+    }
+    for k, v in pairs(over or {}) do p[k] = v end
+    return p
+  end
+  local BAGS = { itemID = 42, exactQty = 10, positionKey = "commodity:42" }
+  local QUOTE = { unit = 300000, fresh = true }
+
+  it("raises to the underprice floor when nobody has chosen a price", function()
+    local plan = GC.SellPositions.BuildPostPlan(position(), BAGS, QUOTE)
+    assert.equal(500000, plan.unitPrice)
+    assert.is_false(plan.chosen)
+    assert.is_false(plan.belowFloor)
+  end)
+
+  it("lists at the chosen price instead, floor and all", function()
+    local plan = GC.SellPositions.BuildPostPlan(position(), BAGS, QUOTE, { overrideUnit = 420000 })
+    assert.equal(420000, plan.unitPrice)
+    assert.is_true(plan.chosen)
+    -- Reported, not refused: the caller says it out loud before the second click.
+    assert.is_true(plan.belowFloor)
+  end)
+
+  it("does not report a floor breach for a chosen price above it", function()
+    local plan = GC.SellPositions.BuildPostPlan(position(), BAGS, QUOTE, { overrideUnit = 900000 })
+    assert.equal(900000, plan.unitPrice)
+    assert.is_false(plan.belowFloor)
+  end)
+
+  -- PostCommodity/PostItem silently reject a price with a non-zero copper remainder, so a
+  -- typed number has to land on the same 100-copper grid every derived one does. SilverUp,
+  -- never down: rounding a chosen price DOWN would list under what the seller asked for.
+  it("rounds a typed price up onto the silver grid the auction house accepts", function()
+    local plan = GC.SellPositions.BuildPostPlan(position(), BAGS, QUOTE, { overrideUnit = 420001 })
+    assert.equal(0, plan.unitPrice % 100)
+    assert.is_true(plan.unitPrice >= 420001)
+  end)
+
+  it("says when a chosen price lists below what the stock cost", function()
+    local p = position({ coverage = "COMPLETE", knownQty = 10, knownCost = 6000000 }) -- 600000/unit
+    local under = GC.SellPositions.BuildPostPlan(p, BAGS, QUOTE, { overrideUnit = 550000 })
+    assert.is_true(under.belowCost)
+    local over = GC.SellPositions.BuildPostPlan(p, BAGS, QUOTE, { overrideUnit = 650000 })
+    assert.is_false(over.belowCost)
+  end)
+
+  it("cannot be talked into a nonsense price", function()
+    for _, bad in ipairs({ 0, -1, 0 / 0, math.huge }) do
+      local plan = GC.SellPositions.BuildPostPlan(position(), BAGS, QUOTE, { overrideUnit = bad })
+      assert.is_false(plan.chosen)
+      assert.equal(500000, plan.unitPrice) -- the derived price, untouched
+    end
+    assert.is_false(GC.SellPositions.BuildPostPlan(position(), BAGS, QUOTE, {}).chosen)
+  end)
+
+  -- The freshness contract is untouched: a chosen price still needs a live quote behind it,
+  -- because everything else about the post -- the pin, the requote check -- is built on one.
+  it("still refuses without a fresh quote, chosen price or not", function()
+    assert.is_nil(GC.SellPositions.BuildPostPlan(position(), BAGS, nil, { overrideUnit = 420000 }))
+  end)
+end)

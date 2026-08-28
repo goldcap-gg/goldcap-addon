@@ -72,6 +72,7 @@ GC.Locales.itIT = {
   ["CANCEL LOT?"] = "ANNULLARE IL LOTTO?",
   ["CANCELLING…"] = "ANNULLAMENTO…",
   ["CONFIRM"] = "CONFERMA",
+  ["COST"] = "COSTO",
   ["COST / UNIT"] = "COSTO / UNITÀ",
   ["Can't price this"] = "Prezzo non affidabile",
   ["Cancel"] = "Annulla",
@@ -160,6 +161,7 @@ GC.Locales.itIT = {
   ["GoldCap re-checks the top "] = "GoldCap ricontrolla le prime ",
   ["GoldCap value"] = "Valore GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Importa i prezzi del reame",
+  ["GoldCap's"] = "di GoldCap",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Il suggerimento di GoldCap per questo oggetto e il prezzo che userebbe.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
@@ -205,7 +207,9 @@ GC.Locales.itIT = {
   ["Live ask"] = "Prezzo attuale",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lotto annullato; aspetta che torni nelle borse",
+  ["MARKET"] = "MERCATO",
   ["MARKET / UNIT"] = "MERCATO / UNITÀ",
+  ["MATCH"] = "PAREGGIA",
   ["Market per unit"] = "Mercato per unità",
   ["Market reference"] = "Riferimento di mercato",
   ["Max wallet per buy %"] = "Max. del tuo oro per acquisto %",
@@ -397,6 +401,9 @@ GC.Locales.itIT = {
   ["Too little price history to trust the value."] =
     "Troppo poco storico dei prezzi per fidarsi del valore.",
   ["Total cost to buy this auction"] = "Costo totale per comprare questa asta",
+  ["Type a price in gold, or clear the box to use GoldCap's"] =
+    "Scrivi un prezzo in oro, o svuota il campo per usare quello di GoldCap",
+  ["UNDERCUT"] = "RIBASSA",
   ["UNIT"] = "UNITÀ",
   ["Unit price"] = "Prezzo unitario",
   ["Unknown"] = "Sconosciuto",
@@ -429,6 +436,7 @@ GC.Locales.itIT = {
   ["Worst case back"] = "Rientro nel caso peggiore",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Conviene quando qualcuno ti ha sottoquotato; non conviene se il prezzo si è mosso appena.",
+  ["YOUR PRICE"] = "IL TUO PREZZO",
   ["You paid"] = "Hai pagato",
   ["You pay"] = "Paghi",
   ["You would get"] = "Riceveresti",
@@ -442,6 +450,7 @@ GC.Locales.itIT = {
   ["auto-synced data stale -- /goldcap import"] =
     "i dati sincronizzati sono scaduti -- /goldcap import",
   ["auto: paused"] = "auto: in pausa",
+  ["below the %s you paid"] = "sotto i %s che hai pagato",
   ["big buy"] = "acquisto grosso",
   ["blue is already yours"] = "il blu è già tuo",
   ["bought %d x item %d"] = "comprati %d x oggetto %d",
@@ -509,6 +518,7 @@ GC.Locales.itIT = {
   ["needs a fresh price -- press Refresh"] = "serve un prezzo aggiornato -- premi Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "nessuna conferma dal server -- l'acquisto potrebbe essere andato a buon fine lo stesso, controlla la posta. Chiudere questa finestra non lo annulla.",
+  ["no live price yet"] = "ancora nessun prezzo dal vivo",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "ancora nessun prezzo -- /goldcap companion o /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -579,6 +589,7 @@ GC.Locales.itIT = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "per smaltire %d unità a %s vendite al giorno, con %s immobilizzato per tutto il tempo",
+  ["under GoldCap's own floor of %s"] = "sotto la soglia di GoldCap, %s",
   ["unknown evidence"] = "prova sconosciuta",
   ["waiting for previous commodity purchase to settle"] =
     "in attesa che si chiuda l'acquisto di merce precedente",
@@ -597,6 +608,7 @@ GC.Locales.itIT = {
     "il tuo client di gioco non ha un font per questa lingua — il testo apparirà come quadrati vuoti",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "la tua importazione ha %d ore -- i prezzi possono essere sbagliati. Incolla una stringa fresca da goldcap.gg (/goldcap import).",
+  ["yours"] = "il tuo",
   ["» needs price"] = "» serve il prezzo",
   ["×%d in bags"] = "×%d nelle borse",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

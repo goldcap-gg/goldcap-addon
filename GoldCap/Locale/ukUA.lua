@@ -75,6 +75,7 @@ GC.Locales.ukUA = {
   ["CANCEL LOT?"] = "СКАСУВАТИ ЛОТ?",
   ["CANCELLING…"] = "СКАСУВАННЯ…",
   ["CONFIRM"] = "ПІДТВЕРДИТИ",
+  ["COST"] = "ЗАКУП",
   ["COST / UNIT"] = "СОБІВАРТІСТЬ / ШТ",
   ["Can't price this"] = "Ціну не оцінити",
   ["Cancel"] = "Скасувати",
@@ -162,6 +163,7 @@ GC.Locales.ukUA = {
   ["GoldCap re-checks the top "] = "GoldCap перевіряє верхні ",
   ["GoldCap value"] = "Оцінка GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Імпорт цін реалму",
+  ["GoldCap's"] = "від GoldCap",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Що GoldCap радить щодо цього предмета і за якою ціною.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
@@ -207,7 +209,9 @@ GC.Locales.ukUA = {
   ["Live ask"] = "Ціна в стакані",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",
+  ["MARKET"] = "РИНОК",
   ["MARKET / UNIT"] = "РИНОК / ШТ",
+  ["MATCH"] = "ЗРІВНЯТИ",
   ["Market per unit"] = "Ринок за штуку",
   ["Market reference"] = "Ринковий орієнтир",
   ["Max wallet per buy %"] = "Макс. частка гаманця на купівлю %",
@@ -398,6 +402,9 @@ GC.Locales.ukUA = {
     "Із виставленого реально продається надто мало.",
   ["Too little price history to trust the value."] = "Замало історії цін, щоб вірити цій вартості.",
   ["Total cost to buy this auction"] = "Повна вартість купівлі цього лота",
+  ["Type a price in gold, or clear the box to use GoldCap's"] =
+    "Введіть ціну в золоті або очистіть поле, щоб узяти ціну GoldCap",
+  ["UNDERCUT"] = "НИЖЧЕ",
   ["UNIT"] = "ЗА ШТ",
   ["Unit price"] = "Ціна за штуку",
   ["Unknown"] = "Невідомо",
@@ -430,6 +437,7 @@ GC.Locales.ukUA = {
   ["Worst case back"] = "Повернеться в найгіршому разі",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Варто робити, коли вас перебили за ціною; не варто, якщо ціна майже не зрушила.",
+  ["YOUR PRICE"] = "ВАША ЦІНА",
   ["You paid"] = "Ви заплатили",
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",
@@ -443,6 +451,7 @@ GC.Locales.ukUA = {
   ["auto-synced data stale -- /goldcap import"] =
     "автосинхронізовані дані застаріли -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
   ["blue is already yours"] = "синє — вже ваше",
   ["bought %d x item %d"] = "куплено %d x предмет %d",
@@ -508,6 +517,7 @@ GC.Locales.ukUA = {
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
+  ["no live price yet"] = "живої ціни ще немає",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -579,6 +589,7 @@ GC.Locales.ukUA = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "щоб розпродати %d шт. за %s продажів на день, і весь цей час %s заморожено",
+  ["under GoldCap's own floor of %s"] = "нижче власного порога GoldCap — %s",
   ["unknown evidence"] = "невідоме підтвердження",
   ["waiting for previous commodity purchase to settle"] =
     "чекаємо, поки завершиться попередня купівля товару",
@@ -597,6 +608,7 @@ GC.Locales.ukUA = {
     "у вашому клієнті гри немає шрифту для цієї мови — текст відображатиметься порожніми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
+  ["yours"] = "ваша",
   ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

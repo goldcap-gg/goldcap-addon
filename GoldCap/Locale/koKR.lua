@@ -72,6 +72,7 @@ GC.Locales.koKR = {
   ["CANCEL LOT?"] = "물량 취소?",
   ["CANCELLING…"] = "취소 중…",
   ["CONFIRM"] = "확인",
+  ["COST"] = "원가",
   ["COST / UNIT"] = "원가 / 개",
   ["Can't price this"] = "가격을 낼 수 없음",
   ["Cancel"] = "취소",
@@ -155,6 +156,7 @@ GC.Locales.koKR = {
   ["GoldCap re-checks the top "] = "GoldCap이 다시 확인하는 상위 ",
   ["GoldCap value"] = "GoldCap 시세",
   ["GoldCap — Import realm prices"] = "GoldCap — 서버 시세 가져오기",
+  ["GoldCap's"] = "GoldCap 가격",
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "이 아이템에 대한 GoldCap의 제안과, 그때 쓸 가격.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
@@ -198,7 +200,9 @@ GC.Locales.koKR = {
     "가방에 있는 물량을 무엇을 할지 항목에 표시된 가격으로 등록합니다.",
   ["Live ask"] = "현재 호가",
   ["Lot cancelled; wait for it to return to bags"] = "물량을 취소했습니다. 가방으로 돌아올 때까지 기다리세요",
+  ["MARKET"] = "시세",
   ["MARKET / UNIT"] = "시세 / 개",
+  ["MATCH"] = "맞추기",
   ["Market per unit"] = "개당 시세",
   ["Market reference"] = "시세 기준",
   ["Max wallet per buy %"] = "1회 구매 최대 지갑 비중 %",
@@ -371,6 +375,9 @@ GC.Locales.koKR = {
   ["Too little of what is listed actually sells."] = "등록된 물량 중 실제로 팔리는 비율이 너무 낮습니다.",
   ["Too little price history to trust the value."] = "가격 기록이 너무 적어 이 값을 믿을 수 없습니다.",
   ["Total cost to buy this auction"] = "이 경매를 사는 총 비용",
+  ["Type a price in gold, or clear the box to use GoldCap's"] =
+    "골드 단위로 가격을 입력하거나, 칸을 비우면 GoldCap 가격을 씁니다",
+  ["UNDERCUT"] = "한 단계 밑",
   ["UNIT"] = "단가",
   ["Unit price"] = "단가",
   ["Unknown"] = "알 수 없음",
@@ -402,6 +409,7 @@ GC.Locales.koKR = {
   ["Worst case back"] = "최악의 경우 회수",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "누군가 더 싸게 걸었을 때는 할 만하지만, 가격이 거의 변하지 않았다면 그럴 가치가 없습니다.",
+  ["YOUR PRICE"] = "내 가격",
   ["You paid"] = "구매가",
   ["You pay"] = "지불 금액",
   ["You would get"] = "받게 될 금액",
@@ -413,6 +421,7 @@ GC.Locales.koKR = {
   ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",
   ["auto-synced data stale -- /goldcap import"] = "자동 동기화 자료가 오래됨 -- /goldcap import",
   ["auto: paused"] = "자동: 일시중지",
+  ["below the %s you paid"] = "지불한 %s보다 낮음",
   ["big buy"] = "대량 구매",
   ["blue is already yours"] = "파란색은 이미 내 물량",
   ["bought %d x item %d"] = "%d개 구매 · 아이템 %d",
@@ -475,6 +484,7 @@ GC.Locales.koKR = {
   ["needs a fresh price -- press Refresh"] = "최신 가격이 필요합니다 -- Refresh를 누르세요",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "서버 확인이 없습니다 -- 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
+  ["no live price yet"] = "아직 실시간 가격 없음",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "아직 시세가 없습니다 -- /goldcap companion 또는 /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -544,6 +554,7 @@ GC.Locales.koKR = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "%d개를 하루 %s개 속도로 파는 동안 %s이(가) 계속 묶입니다",
+  ["under GoldCap's own floor of %s"] = "GoldCap 자체 하한 %s보다 낮음",
   ["unknown evidence"] = "알 수 없는 근거",
   ["waiting for previous commodity purchase to settle"] = "이전 상품 구매가 끝나기를 기다리는 중",
   ["waiting for previous search result to settle"] = "이전 검색 결과를 기다리는 중",
@@ -560,6 +571,7 @@ GC.Locales.koKR = {
     "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
+  ["yours"] = "내 가격",
   ["» needs price"] = "» 가격 필요",
   ["×%d in bags"] = "가방에 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
