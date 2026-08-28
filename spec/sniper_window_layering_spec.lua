@@ -272,6 +272,72 @@ describe("Sniper window layering", function()
     end)
   end)
 
+  -- The Settings screen is an OVERLAY on the window's own content -- an opaque Theme.Panel
+  -- drawn over the deals/sell/sold list, never a second floating window. It shipped pinned to
+  -- SetFrameStrata("HIGH"), which sat above the list for exactly as long as the WINDOW did not
+  -- also declare HIGH. The moment createFrame started (above), the overlay landed in its own
+  -- parent's strata -- and SetFrameStrata reassigns the level within the strata it moves to, so
+  -- the overlay came out UNDER the scroll rows it exists to cover. Reported in-game 2026-08-28
+  -- with a screenshot of the Sold list reading straight through the settings cards.
+  --
+  -- The strata is not the overlay's to pick anyway: docking adopts the auction house's for the
+  -- whole window (SetDocked above), and an overlay pinned one strata higher would paint over the
+  -- host's dropdowns exactly the way the window itself must not. So it stays in its parent's
+  -- strata and wins on LEVEL, which is what decides inside one strata.
+  describe("the settings overlay against the list it covers", function()
+    -- The panel is a file-local in UI/SettingsFrame.lua, built lazily on the first gear click
+    -- and never published on a frame or on GC -- the same upvalue reach the check drawer needs
+    -- above, one hop shorter because Toggle() itself closes over it.
+    local function settingsPanel(GC)
+      GC.SettingsUI.Toggle() -- builds it (first call) and shows it, exactly as the gear does
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(GC.SettingsUI.Toggle, i)
+        if not name then break end
+        if name == "panel" then return assert(value, "GC.SettingsUI.Toggle() built no panel") end
+      end
+      error("missing upvalue panel")
+    end
+
+    it("keeps its parent's strata rather than pinning one that can fall level with it", function()
+      local frame, GC = buildFrame()
+      local panel = settingsPanel(GC)
+      assert.equal("HIGH", frame.strata)
+      assert.is_nil(panel.strata)
+    end)
+
+    it("out-levels the window whose content it covers", function()
+      local frame, GC = buildFrame()
+      local panel = settingsPanel(GC)
+      assert.is_true((panel.level or 0) > (frame.level or 1))
+    end)
+
+    -- Docking changes the window's strata, and the engine reassigns levels when it does -- so
+    -- an overlay that only chose its level once, at build time, is back under the rows the
+    -- first time the auction house opens with Settings already showing.
+    it("re-derives its level when docking moves the window", function()
+      local frame, GC = buildFrame()
+      local panel = settingsPanel(GC)
+      local host = stubFrame()
+      host:SetFrameStrata("DIALOG")
+      frame:SetFrameLevel(7)
+      panel:SetFrameLevel(0) -- whatever the engine reassigned it to under the new strata
+      GC.Sniper.SetDocked(host)
+      assert.is_true((panel.level or 0) > 7)
+    end)
+
+    it("follows the window back down when the auction house closes", function()
+      local frame, GC = buildFrame()
+      local panel = settingsPanel(GC)
+      local host = stubFrame()
+      host:SetFrameStrata("DIALOG")
+      GC.Sniper.SetDocked(host)
+      frame:SetFrameLevel(3)
+      panel:SetFrameLevel(0)
+      GC.Sniper.SetDocked(nil)
+      assert.is_true((panel.level or 0) > 3)
+    end)
+  end)
+
   it("goes back to floating above everything when the auction house closes", function()
     local frame, GC = buildFrame()
     local host = stubFrame()

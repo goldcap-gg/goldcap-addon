@@ -62,6 +62,10 @@ describe("Settings controls", function()
     function r:EnableKeyboard() end
     function r:SetPropagateKeyboardInput() end
     function r:SetFrameStrata(s) self.strata = s end
+    -- The overlay derives its own frame LEVEL off the Sniper window's rather than pinning a
+    -- strata (see UI/SettingsFrame.lua's raiseLevel), so the double has to answer both.
+    function r:GetFrameLevel() return self.level or 1 end
+    function r:SetFrameLevel(level) self.level = level end
     function r:SetScript(name, fn)
       -- Real CheckButtons flip their own checked state BEFORE OnClick fires (documented
       -- WidgetAPI behavior) -- production's bindCheckbox reads self:GetChecked() inside its
@@ -182,13 +186,18 @@ describe("Settings controls", function()
     return found
   end
 
-  -- The overlay panel itself: the sole direct Frame child of GoldCapSniperFrame with HIGH
-  -- strata (build() sets that right after Theme.Panel -- see SettingsFrame.lua). Module-level
-  -- `panel` inside SettingsFrame.lua isn't otherwise reachable from a spec.
+  -- The overlay panel itself. Module-level `panel` inside SettingsFrame.lua isn't reachable
+  -- from a spec any other way, and it can no longer be picked out of the window's children by
+  -- its strata: it deliberately pins none now (it wins on frame LEVEL inside its parent's
+  -- strata -- see raiseLevel there, and spec/sniper_window_layering_spec.lua for why). The
+  -- upvalue is exact where a shape match was only ever a guess.
   local function settingsPanel()
-    for _, child in ipairs(_G.GoldCapSniperFrame.children) do
-      if child.kind == "Frame" and child.strata == "HIGH" then return child end
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(GC.SettingsUI.Toggle, i)
+      if not name then break end
+      if name == "panel" then return value end
     end
+    error("missing upvalue panel")
   end
 
   before_each(function()

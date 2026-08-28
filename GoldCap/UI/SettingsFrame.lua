@@ -367,10 +367,29 @@ local FIELD_W = 64
 
 local function build(sniperFrame)
   local panel = Theme.Panel(sniperFrame)
-  -- HIGH strata guarantees this draws above every other child of sniperFrame regardless of
-  -- build order -- it's necessarily constructed well AFTER the rest of the window (lazy, on
-  -- first gear click), so relying on creation-order z-stacking alone would be fragile.
-  panel:SetFrameStrata("HIGH")
+  -- Layering. This shipped as SetFrameStrata("HIGH"), which drew above the window's own
+  -- content for exactly as long as the WINDOW was not also HIGH. Once createFrame started
+  -- declaring HIGH + toplevel (SniperFrame.lua, for a window that used to sit under the
+  -- auction house), the overlay landed in its parent's own strata -- and SetFrameStrata
+  -- reassigns the level within the strata it moves to, so it came out UNDER the scroll rows
+  -- it exists to cover: the Sold list read straight through the settings cards.
+  --
+  -- The strata is not this panel's to pick anyway. Docking adopts the auction house's for the
+  -- whole window (GC.Sniper.SetDocked), and an overlay pinned one strata above would paint
+  -- over the host's dropdowns exactly the way the window itself must not. So it stays in
+  -- whatever strata its parent is in and wins on LEVEL, which is what decides inside one
+  -- strata: +50 clears the ScrollFrame, its pooled rows and the resize handle (scroll level
+  -- + 10), while the check drawer -- a whole strata above the window -- still draws on top.
+  --
+  -- Re-derived rather than chosen once: the engine reassigns a child's level whenever the
+  -- parent changes strata, which docking does. Called again from panel:OnShow below and from
+  -- SetDocked (both directions), the same way the check drawer's raiseStrata is.
+  local function raiseLevel()
+    local base = (sniperFrame.GetFrameLevel and sniperFrame:GetFrameLevel()) or 0
+    panel:SetFrameLevel(base + 50)
+  end
+  panel.raiseLevel = raiseLevel
+  raiseLevel()
   -- Covers everything below the 32px title bar (Theme.TitleBar's own fixed height) and clear
   -- of the rail (Theme.RAIL_W) -- title text/gear/close stay visible and live above this
   -- overlay, and the overlay owns the content area only: the rail stays visible and clickable,
@@ -650,6 +669,9 @@ local function build(sniperFrame)
   -- is shown -- covers external changes made while it was closed, e.g. the toolbar's own Auto
   -- on/off button (SniperFrame.lua's onAutoToggleClick) also writes sniper.auto directly.
   panel:SetScript("OnShow", function()
+    -- The window's own strata (and with it every child level the engine reassigned) can have
+    -- changed since this panel was built -- docking adopts the auction house's.
+    raiseLevel()
     for _, refresh in ipairs(refreshers) do refresh() end
   end)
 
@@ -726,4 +748,12 @@ end
 -- already hidden -- unlike Toggle, this never opens it.
 function GC.SettingsUI.Hide()
   if panel and panel:IsShown() then panel:Hide() end
+end
+
+-- Called from SniperFrame.lua's GC.Sniper.SetDocked, both directions, beside the check
+-- drawer's own raiseStrata: docking changes the window's strata, and the engine reassigns
+-- every child's level when it does -- so an overlay ALREADY open when the auction house
+-- opens would drop back under the rows it covers. No-op before the first gear click.
+function GC.SettingsUI.Raise()
+  if panel and panel.raiseLevel then panel.raiseLevel() end
 end

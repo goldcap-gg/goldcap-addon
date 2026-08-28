@@ -5763,6 +5763,14 @@ local function createHeaderRow(f)
     hit:SetHeight(CH.HEADER)
     local baseText = HEADER_TEXT[col.key] or ""
     local label = Theme.Num(hit, 9)
+    -- One line, no wrapping -- the same pair buildRowCell puts on every deals row cell, and
+    -- the same one the Sold and Sell headings carry. It is not cosmetic here: this label is
+    -- SetAllPoints() onto a cell only CH.HEADER (16px) tall, and a wrapped line that does not
+    -- fit the height it is given is not drawn at all. The whole heading row came out blank
+    -- in-game with the hairline under it still showing and the cells still raising their
+    -- tooltips -- text that is there, in a box that refuses to draw it.
+    label:SetWordWrap(false)
+    label:SetMaxLines(1)
     label:SetAllPoints()
     label:SetJustifyH(col.num and "RIGHT" or "LEFT")
     label:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3], Theme.color.fgDim[4] or 1)
@@ -5806,10 +5814,17 @@ local function createHeaderRow(f)
 
   local itemHit = CreateFrame("Frame", nil, header)
   itemHit.label = Theme.Num(itemHit, 9)
+  itemHit.label:SetWordWrap(false) -- see buildHeaderCell above for why both of these matter
+  itemHit.label:SetMaxLines(1)
   itemHit.label:SetAllPoints()
   itemHit.label:SetJustifyH("LEFT")
   itemHit.label:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3], Theme.color.fgDim[4] or 1)
   itemHit.label:SetText(GC.L["ITEM"])
+
+  -- Not read by any production code; exposed so the heading spec can reach the ITEM cell,
+  -- which is not in header.cells (the flex column has no themed cell of its own). Same
+  -- affordance UI/SoldFrame.lua's own header.itemCell exists for.
+  header.itemCell = itemHit
 
   -- Re-anchors the visible-only column chain (see anchorColumns) and the item header cell's
   -- RIGHT edge to match -- callable again on a resize (applyColumnVisibility) without
@@ -6391,6 +6406,9 @@ function GC.Sniper.SetDocked(host)
     -- window level with a drawer that was pinned one strata above the UNDOCKED window, and
     -- level with is enough for the deals rows to draw through an opaque sheet.
     if dialog and dialog.raiseStrata then dialog.raiseStrata() end
+    -- The settings overlay follows for the same reason: it wins on LEVEL inside the window's
+    -- own strata, and the engine reassigns child levels when the parent's strata changes.
+    if GC.SettingsUI and GC.SettingsUI.Raise then GC.SettingsUI.Raise() end
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT")
     frame:SetPoint("BOTTOMRIGHT")
@@ -6407,6 +6425,7 @@ function GC.Sniper.SetDocked(host)
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
     if dialog and dialog.raiseStrata then dialog.raiseStrata() end
+    if GC.SettingsUI and GC.SettingsUI.Raise then GC.SettingsUI.Raise() end
     frame:SetMovable(true)
     if frame.resizeHandle then frame.resizeHandle:Show() end
     if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText(GC.L["GoldCap Sniper"]) end

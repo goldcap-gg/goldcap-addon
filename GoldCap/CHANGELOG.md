@@ -1,5 +1,22 @@
 # GoldCap
 
+## 0.5.1 (2026-08-28)
+
+- **The Settings screen was see-through.** Opening it drew the whole panel over
+  the deals list — and the list drew straight back through it: rows, prices and
+  item names on top of the settings cards, unreadable both ways. The screen is
+  an overlay on the window's own content, and it had been told to sit in a
+  layer that stopped being above the window the moment 0.5.0 raised the window
+  itself out from under the auction house. It now layers against whatever the
+  window is in, docked or floating, so it is opaque either way.
+
+- **The deals table lost its column headings.** ITEM, TIER, DISC, UNIT, PRICE,
+  PROFIT and TREND were blank space: the line under them was drawn, hovering
+  one still raised its tooltip, and the words themselves were never painted.
+  Each heading sits in a 16-pixel-tall cell and was the one label in the addon
+  still allowed to wrap onto a second line — which does not fit, so nothing was
+  drawn at all. They are single-line now, like every other cell in the table.
+
 ## 0.5.0 (2026-08-28)
 
 - **The addon speaks eleven languages.** German, English, Spanish (Spain and Latin
