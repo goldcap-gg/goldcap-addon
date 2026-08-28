@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.6.1 (unreleased)
+## 0.6.1 (2026-08-29)
 
 - **Buying no longer gets stuck behind an earlier buy.** If the price moved in
   the instant between the quote and your Buy click, the auction house asks for
