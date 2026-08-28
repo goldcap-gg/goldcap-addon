@@ -1,6 +1,15 @@
 # GoldCap
 
-## 0.4.1 (unreleased)
+## 0.5.0 (unreleased)
+
+- **The addon speaks eleven languages.** German, English, Spanish (Spain and Latin
+  America), French, Italian, Korean, Portuguese, Russian, Ukrainian, and Chinese in both
+  Simplified and Traditional. It follows the game's own language by default, and Settings
+  → Display now has a language picker — which is the only way to reach Ukrainian, since
+  no Ukrainian WoW client exists. On Korean and Chinese the interface switches to the
+  client's own font, because the addon's bundled one cannot draw those characters at all.
+  The translations were not reviewed by native speakers; anything untranslated falls back
+  to English rather than going blank.
 
 - **Your profit stopped adding up if you ever imported another region.** A
   ledger row's region was copied from whichever price snapshot was loaded, not
@@ -114,27 +123,21 @@
   addon recognises their realms, and a sync it cannot read explains itself
   in chat, in `/goldcap status` and on the deals board instead of failing
   silently.
+
 - **Tooltips say more.** The 24-hour trend, and what you paid for stock you
   are still holding, now sit under the market value. Prices that came
   bundled with the release are labelled as such, with their age, so they are
   never mistaken for live ones.
+
 - **Tooltips show how deep the market is.** For commodities, a `Listed` line
   gives the units standing on the region's shelf and how many days they last
   at the rate the market is clearing them — so a cheap price you are about to
   buy into, or a stack you are about to post, comes with the supply behind it.
   It needs imported data; the snapshot bundled with the release does not carry
   depth.
+
 - **A button you can find.** GoldCap now appears in the minimap's addon
   compartment and opens the deals board from there.
-- **The addon speaks eleven languages.** German, English, Spanish (Spain and Latin
-  America), French, Italian, Korean, Portuguese, Russian, Ukrainian, and Chinese in both
-  Simplified and Traditional. It follows the game's own language by default, and Settings
-  → Display now has a language picker — which is the only way to reach Ukrainian, since
-  no Ukrainian WoW client exists. On Korean and Chinese the interface switches to the
-  client's own font, because the addon's bundled one cannot draw those characters at all.
-  The translations were not reviewed by native speakers; anything untranslated falls back
-  to English rather than going blank. The item tooltip was missed by the first pass and is
-  translated too.
 
 - **Bundled prices are fresh at release.** The snapshot shipped inside the
   addon is rebuilt for all four regions every time a version is released,
