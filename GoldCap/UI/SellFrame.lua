@@ -9,7 +9,12 @@ GC.Sell = GC.Sell or {}
 -- bare assignment, so this is a plain field write on the standard `_G` table rather than a new
 -- global luacheck would need to be told about.
 _G.BINDING_HEADER_GOLDCAP = "GoldCap"
-_G.BINDING_NAME_GOLDCAP_POST_NEXT = GC.L["Post the next queued item"]
+-- Assigned through GC.SellUI.RefreshBindingName, called from Init once the locale is
+-- active. Resolving GC.L here would capture the English fallback: this file loads long
+-- before ApplyLocale picks a language, so the binding would read English forever.
+function GC.SellUI_RefreshBindingName()
+  _G.BINDING_NAME_GOLDCAP_POST_NEXT = GC.L["Post the next queued item"]
+end
 
 local Theme = GC.Theme
 local ROW_HEIGHT, ROW_WIDTH
@@ -243,14 +248,19 @@ local DIM_HEX = "|cff9d9d9d"
 -- -- see that module's own `evaluate` comment for what each one means structurally. A silently
 -- short queue is the same lie as a silently short deals list; naming the reason in plain words
 -- is what keeps it from being a DIFFERENT lie instead.
+-- @localised-keys: literals in this table ARE GC.L keys, looked up where the table is
+-- READ, not here. This is file scope, and GC.L only resolves once ApplyLocale has run
+-- at ADDON_LOADED -- a lookup here captures the English fallback and keeps it in every
+-- language. The table has to close with a `}` on its own line: that is where the
+-- contract spec's scanner stops.
 local QUEUE_SKIP_TEXT = {
-  no_fresh_price = GC.L["needs a fresh price -- press Refresh"],
-  below_breakeven = GC.L["would sell at a loss"],
-  unresolved_identity = GC.L["GoldCap can't pin down which bag stack this is"],
+  no_fresh_price = "needs a fresh price -- press Refresh",
+  below_breakeven = "would sell at a loss",
+  unresolved_identity = "GoldCap can't pin down which bag stack this is",
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
-  advised_hold = GC.L["relisting now would lock in a loss or a stall -- hold"],
-  no_advice = GC.L["cost basis incomplete -- set costs to get repost advice"],
+  advised_hold = "relisting now would lock in a loss or a stall -- hold",
+  no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
 -- The real body, promised by the forward declaration above. Needs formatCell (just above) and
@@ -1817,13 +1827,21 @@ end
 
 -- Keyed by the label the button currently carries. Every one of these either spends gold or
 -- destroys a deposit, so none of them should be a word a player has to guess at.
+--
+-- English here on purpose, and translated where it is READ (actionHelp below). This table
+-- is built at file scope, and GC.L only resolves once ApplyLocale has run at ADDON_LOADED
+-- -- so GC.L[...] in these entries would capture the English fallback once and stay English
+-- in every language. The outer KEYS stay English for a different reason: they are the
+-- stable helpKey the buttons carry, which is the defect helpKey was introduced to fix.
+-- @localised-keys: literals in this table ARE GC.L keys; see the comment above for why
+-- the lookup happens where the table is read rather than where it is built.
 local ACTION_HELP = {
-  ["Set cost"] = { GC.L["Set cost"], { GC.L["Tell GoldCap what you actually paid for these units."], GC.L["It will not invent a cost from the market price, so profit stays unknown until you enter one."] } },
-  ["Post"] = { GC.L["Post"], { GC.L["Lists what is sitting in your bags at the price shown under WHAT TO DO."], GC.L["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."], GC.L["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."], GC.L["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] } },
-  ["Repost"] = { GC.L["Repost"], { GC.L["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."], GC.L["Cancelling forfeits the deposit, so this asks for a second click to confirm."], GC.L["Once the mail arrives, list it again yourself at the new price -- from this same row."], GC.L["Worth doing when someone has undercut you; not worth it if the price barely moved."] } },
-  ["Cancel lot?"] = { GC.L["Confirm the cancel"], { GC.L["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."], GC.L["The button waits a moment before it can be pressed, so this is never an accidental double-click."] } },
-  ["Remove"] = { GC.L["Remove this cost"], { GC.L["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."], GC.L["There is no undo. Clicking asks for a second click to confirm."] } },
-  ["Remove?"] = { GC.L["Confirm the removal"], { GC.L["Clicking again deletes this hand-entered cost for good."], GC.L["A run of several purchases collapsed onto one line removes every one of them."] } },
+  ["Set cost"] = { "Set cost", { "Tell GoldCap what you actually paid for these units.", "It will not invent a cost from the market price, so profit stays unknown until you enter one." } },
+  ["Post"] = { "Post", { "Lists what is sitting in your bags at the price shown under WHAT TO DO.", "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.", "It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it.", "The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price." } },
+  ["Repost"] = { "Repost", { "Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags.", "Cancelling forfeits the deposit, so this asks for a second click to confirm.", "Once the mail arrives, list it again yourself at the new price -- from this same row.", "Worth doing when someone has undercut you; not worth it if the price barely moved." } },
+  ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
+  ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
+  ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
 }
 
 local function createRow(parent)
@@ -1963,8 +1981,10 @@ local function createRow(parent)
         or ACTION_HELP[(self.label or ""):gsub("%s*%(.*", "")]
       if not help then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:AddLine(help[1], 1, 0.82, 0)
-      for _, line in ipairs(help[2]) do GameTooltip:AddLine(line, 0.85, 0.85, 0.85, true) end
+      -- Translated at READ time -- see ACTION_HELP's own comment for why the table itself
+      -- cannot hold GC.L lookups.
+      GameTooltip:AddLine(GC.L[help[1]], 1, 0.82, 0)
+      for _, line in ipairs(help[2]) do GameTooltip:AddLine(GC.L[line], 0.85, 0.85, 0.85, true) end
       GameTooltip:Show()
     end)
     row.action:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -1996,13 +2016,18 @@ local function explain(frame, title, body)
   end)
 end
 
+-- @localised-keys: literals in this table ARE GC.L keys, looked up where the table is
+-- READ, not here. This is file scope, and GC.L only resolves once ApplyLocale has run
+-- at ADDON_LOADED -- a lookup here captures the English fallback and keeps it in every
+-- language. The table has to close with a `}` on its own line: that is where the
+-- contract spec's scanner stops.
 local HEADER_HELP = {
   cost = { "Cost per unit", { "What one of these actually cost you, averaged over the purchases still on hand.", "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price." } },
   listed = { "Listed value", { "What your live auctions for this item add up to at their current asking price." } },
-  market = { GC.L["Market per unit"], {
-    GC.L["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."],
-    GC.L["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."],
-    GC.L["Greyed out means the quote has aged; Post and Repost refresh it before they act."] } },
+  market = { "Market per unit", {
+    "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
+    "It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at.",
+    "Greyed out means the quote has aged; Post and Repost refresh it before they act." } },
   profit = { "Profit per unit", { "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.", "Unknown means the cost side is incomplete -- fill it in with Set cost." } },
   status = { "What to do", { "GoldCap's suggestion for this item, and the price it would use.", "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money." } },
 }
@@ -2845,7 +2870,8 @@ function GC.Sell.Attach(f, geometry)
     else
       for _, skip in ipairs(queueSkipped) do
         GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
-          QUEUE_SKIP_TEXT[skip.reason] or GC.L["not ready to post"]), 0.85, 0.85, 0.85, true)
+          (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
+            or GC.L["not ready to post"])), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -2889,7 +2915,8 @@ function GC.Sell.Attach(f, geometry)
     else
       for _, skip in ipairs(cancelSkipped) do
         GameTooltip:AddLine(("%s — %s"):format(skip.itemName or GC.L["Item"],
-          QUEUE_SKIP_TEXT[skip.reason] or GC.L["not ready to cancel"]), 0.85, 0.85, 0.85, true)
+          (QUEUE_SKIP_TEXT[skip.reason] and GC.L[QUEUE_SKIP_TEXT[skip.reason]]
+            or GC.L["not ready to cancel"])), 0.85, 0.85, 0.85, true)
       end
     end
     GameTooltip:Show()
@@ -2981,7 +3008,11 @@ function GC.Sell.Attach(f, geometry)
       local hit = CreateFrame("Frame", nil, header)
       hit:SetAllPoints(cell)
       hit:EnableMouse(true)
-      explain(hit, help[1], help[2])
+      -- Translated at READ time -- see HEADER_HELP's own comment for why the table
+      -- itself cannot hold GC.L lookups.
+      local body = {}
+      for i = 1, #help[2] do body[i] = GC.L[help[2][i]] end
+      explain(hit, GC.L[help[1]], body)
     end
   end
   -- Separates the column headings from the first row now that both read in the same mono

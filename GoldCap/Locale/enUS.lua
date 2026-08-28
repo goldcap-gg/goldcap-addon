@@ -39,6 +39,8 @@ GC.Locales.enUS = {
   ["24h trend"] = "24h trend",
   ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
     "A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly.",
+  ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
+    "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
@@ -55,6 +57,8 @@ GC.Locales.enUS = {
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, ",
   ["Avoid"] = "Avoid",
   ["Background check"] = "Background check",
+  ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
+    "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money.",
   ["Bundled %s data"] = "Bundled %s data",
   ["Bundled data"] = "Bundled data",
   ["Buy"] = "Buy",
@@ -77,6 +81,8 @@ GC.Locales.enUS = {
   ["Cannot post this position"] = "Cannot post this position",
   ["Cannot remove this entry"] = "Cannot remove this entry",
   ["Cannot repost this lot"] = "Cannot repost this lot",
+  ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
+    "Cheaper listings remain, but at this item's pace they sell through within hours.",
   ["Check"] = "Check",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import.",
@@ -93,7 +99,10 @@ GC.Locales.enUS = {
   ["Confirm"] = "Confirm",
   ["Confirm the cancel"] = "Confirm the cancel",
   ["Confirm the removal"] = "Confirm the removal",
+  ["Cost per unit"] = "Cost per unit",
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
+  ["Costs more than your per-buy wallet limit allows."] =
+    "Costs more than your per-buy wallet limit allows.",
   ["Could not find the queue's next item to post — try again"] = "Could not find the queue's next item to post — try again",
   ["Could not find the queue's next lot to cancel — try again"] = "Could not find the queue's next lot to cancel — try again",
   ["DEAL THRESHOLDS"] = "DEAL THRESHOLDS",
@@ -133,6 +142,8 @@ GC.Locales.enUS = {
   ["GoldCap re-checks the top "] = "GoldCap re-checks the top ",
   ["GoldCap value"] = "GoldCap value",
   ["GoldCap — Import realm prices"] = "GoldCap — Import realm prices",
+  ["GoldCap's suggestion for this item, and the price it would use."] =
+    "GoldCap's suggestion for this item, and the price it would use.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: checked live -- safe to buy",
   ["Gone"] = "Gone",
@@ -168,6 +179,7 @@ GC.Locales.enUS = {
   ["Last result: none yet this visit"] = "Last result: none yet this visit",
   ["Listed"] = "Listed",
   ["Listed at %s — far below market. Repost."] = "Listed at %s — far below market. Repost.",
+  ["Listed value"] = "Listed value",
   ["Listings"] = "Listings",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "Lists what is sitting in your bags at the price shown under WHAT TO DO.",
@@ -181,17 +193,26 @@ GC.Locales.enUS = {
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT",
   ["NOTHING TO CANCEL"] = "NOTHING TO CANCEL",
   ["NOTHING TO POST"] = "NOTHING TO POST",
+  ["Needs a live price check before it can be bought."] =
+    "Needs a live price check before it can be bought.",
   ["No deals passed the safety checks right now."] = "No deals passed the safety checks right now.",
   ["No deals to show -- and no realm prices yet."] = "No deals to show -- and no realm prices yet.",
   ["No deals yet."] = "No deals yet.",
   ["No exact auction key"] = "No exact auction key",
   ["No exact bag stack"] = "No exact bag stack",
   ["No exact bag variant"] = "No exact bag variant",
+  ["No live listings came back for this item."] = "No live listings came back for this item.",
+  ["No safe resale price could be worked out."] = "No safe resale price could be worked out.",
+  ["No sales data for this item."] = "No sales data for this item.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] = "No sales recorded yet -- open your mailbox with GoldCap loaded",
+  ["Not enough units on the Auction House to fill that quantity."] =
+    "Not enough units on the Auction House to fill that quantity.",
   ["Not in your bags or listed — mail or bank?"] = "Not in your bags or listed — mail or bank?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Not on hand — the stock is in the mail, the bank, or on another character",
   ["Nothing is being held back."] = "Nothing is being held back.",
+  ["Nothing left to sell against after this buy, so there is no exit price."] =
+    "Nothing left to sell against after this buy, so there is no exit price.",
   ["Nothing listed on the AH right now"] = "Nothing listed on the AH right now",
   ["Nothing queued to cancel"] = "Nothing queued to cancel",
   ["Nothing queued to post"] = "Nothing queued to post",
@@ -232,14 +253,20 @@ GC.Locales.enUS = {
   ["Previous removal selection cleared"] = "Previous removal selection cleared",
   ["Previous repost selection cleared"] = "Previous repost selection cleared",
   ["Price"] = "Price",
+  ["Priced from bundled sample data, not from your realm."] =
+    "Priced from bundled sample data, not from your realm.",
   ["Prices up to date"] = "Prices up to date",
   ["Prices up to date · %d did not answer"] = "Prices up to date · %d did not answer",
   ["Pricing %d/%d…"] = "Pricing %d/%d…",
   ["Pricing…"] = "Pricing…",
   ["Profit"] = "Profit",
+  ["Profit per unit"] = "Profit per unit",
   ["Profit tracking is a goldcap.gg Pro feature"] = "Profit tracking is a goldcap.gg Pro feature",
+  ["Purchases are turned off in this build."] = "Purchases are turned off in this build.",
   ["QTY"] = "QTY",
   ["Quantity exceeds missing units"] = "Quantity exceeds missing units",
+  ["Quantity is capped by how fast this item actually sells."] =
+    "Quantity is capped by how fast this item actually sells.",
   ["REALIZED PROFIT"] = "REALIZED PROFIT",
   ["REFRESH"] = "REFRESH",
   ["RESET WINDOW"] = "RESET WINDOW",
@@ -272,6 +299,8 @@ GC.Locales.enUS = {
     "SUSPECT = discount so extreme it's probably a scam/mispriced-market item",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
   ["Sell-through"] = "Sell-through",
+  ["Sells too rarely -- you would be holding it for a long time."] =
+    "Sells too rarely -- you would be holding it for a long time.",
   ["Set cost"] = "Set cost",
   ["Settings"] = "Settings",
   ["Sold per day"] = "Sold per day",
@@ -288,23 +317,46 @@ GC.Locales.enUS = {
   ["TREND"] = "TREND",
   ["Tell GoldCap what you actually paid for these units."] =
     "Tell GoldCap what you actually paid for these units.",
+  ["The Auction House would not quote a deposit, so the cost is unknown."] =
+    "The Auction House would not quote a deposit, so the cost is unknown.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] = "The Companion is syncing, but this addon could not read what it wrote:",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "The button waits a moment before it can be pressed, so this is never an accidental double-click.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
+  ["The data for this item is malformed, so GoldCap refuses to guess."] =
+    "The data for this item is malformed, so GoldCap refuses to guess.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:",
+  ["The liquidity data is not reliable enough to act on."] =
+    "The liquidity data is not reliable enough to act on.",
+  ["The market value is an estimate, not a measurement."] =
+    "The market value is an estimate, not a measurement.",
+  ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
+    "The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads.",
+  ["The price is falling; buying into it is how you get stuck."] =
+    "The price is falling; buying into it is how you get stuck.",
   ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
     "The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price.",
+  ["The price moved and the trade is no longer safe."] =
+    "The price moved and the trade is no longer safe.",
+  ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
+    "The profit does not clear your minimum once the 5% cut and deposit are paid.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "There is no undo. Clicking asks for a second click to confirm.",
+  ["This is a realm item, and GoldCap only verifies commodity prices."] =
+    "This is a realm item, and GoldCap only verifies commodity prices.",
   ["Tier"] = "Tier",
+  ["Too few sellers to read a real price."] = "Too few sellers to read a real price.",
+  ["Too little of what is listed actually sells."] = "Too little of what is listed actually sells.",
+  ["Too little price history to trust the value."] = "Too little price history to trust the value.",
   ["Total cost to buy this auction"] = "Total cost to buy this auction",
   ["UNIT"] = "UNIT",
   ["Unit price"] = "Unit price",
   ["Unknown"] = "Unknown",
   ["Unknown item"] = "Unknown item",
+  ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
+    "Unknown means the cost side is incomplete -- fill it in with Set cost.",
   ["WATCH (computed SAFE)"] = "WATCH (computed SAFE)",
   ["WATCH = discounted but unproven liquidity or small profit"] = "WATCH = discounted but unproven liquidity or small profit",
   ["WHAT TO DO"] = "WHAT TO DO",
@@ -316,6 +368,13 @@ GC.Locales.enUS = {
   ["Wall absorb window (hours)"] = "Wall absorb window (hours)",
   ["Watching closely: %d item%s"] = "Watching closely: %d item%s",
   ["Watching — pinned, but not a deal right now"] = "Watching — pinned, but not a deal right now",
+  ["What one of these actually cost you, averaged over the purchases still on hand."] =
+    "What one of these actually cost you, averaged over the purchases still on hand.",
+  ["What to do"] = "What to do",
+  ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
+    "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.",
+  ["What your live auctions for this item add up to at their current asking price."] =
+    "What your live auctions for this item add up to at their current asking price.",
   ["Window position & size"] = "Window position & size",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Worth doing when someone has undercut you; not worth it if the price barely moved.",

@@ -44,6 +44,8 @@ GC.Locales.ukUA = {
   ["24h trend"] = "Тренд за 24г",
   ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
     "Товар виставляється всім обсягом із сумок одразу; звичайний предмет — одним стеком, найбільшим, який GoldCap може розпізнати точно.",
+  ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
+    "Прочерк означає, що собівартість відома не за всіма одиницями — з ринкової ціни вона ніколи не вигадується.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Орієнтир, а не обіцянка: перепродаж за 95% імпортованої ринкової вартості, на кількість, яку схвалить сама перевірка.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
@@ -60,6 +62,8 @@ GC.Locales.ukUA = {
     "Авто: тримає Full Scan увімкненим постійно й миттєво поступається, коли ви купуєте, ",
   ["Avoid"] = "Уникати",
   ["Background check"] = "Фонова перевірка",
+  ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
+    "Точка беззбитковості — найнижча ціна, яка після комісії ще повертає вашу собівартість. Нижче — збиток.",
   ["Bundled %s data"] = "Вбудовані дані %s",
   ["Bundled data"] = "Вбудовані дані",
   ["Buy"] = "Купити",
@@ -83,6 +87,8 @@ GC.Locales.ukUA = {
   ["Cannot post this position"] = "Не можна виставити цю позицію",
   ["Cannot remove this entry"] = "Не можна видалити цей запис",
   ["Cannot repost this lot"] = "Не можна перевиставити цей лот",
+  ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
+    "Дешевші лоти ще є, але за такої швидкості їх розберуть за години.",
   ["Check"] = "Перевірити",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Перевірка перераховує це за живою книгою заявок, перш ніж рушить золото, і може дати менше — або відмовити — якщо ринок змінився після останнього імпорту.",
@@ -99,7 +105,10 @@ GC.Locales.ukUA = {
   ["Confirm"] = "Підтвердити",
   ["Confirm the cancel"] = "Підтвердити скасування",
   ["Confirm the removal"] = "Підтвердити видалення",
+  ["Cost per unit"] = "Собівартість за штуку",
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
+  ["Costs more than your per-buy wallet limit allows."] =
+    "Коштує більше, ніж дозволяє ваш ліміт на одну купівлю.",
   ["Could not find the queue's next item to post — try again"] =
     "Не вдалося знайти наступний предмет у черзі на виставлення — спробуйте ще раз",
   ["Could not find the queue's next lot to cancel — try again"] =
@@ -145,6 +154,8 @@ GC.Locales.ukUA = {
   ["GoldCap re-checks the top "] = "GoldCap перевіряє верхні ",
   ["GoldCap value"] = "Оцінка GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Імпорт цін реалму",
+  ["GoldCap's suggestion for this item, and the price it would use."] =
+    "Що GoldCap радить щодо цього предмета і за якою ціною.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: перевірено наживо -- безпечно купувати",
   ["Gone"] = "Зник",
@@ -183,6 +194,7 @@ GC.Locales.ukUA = {
   ["Listed"] = "Виставлено",
   ["Listed at %s — far below market. Repost."] =
     "Виставлено за %s — значно нижче ринку. Перевиставте.",
+  ["Listed value"] = "Виставлено на суму",
   ["Listings"] = "Лотів",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "Виставляє те, що лежить у сумках, за ціною з колонки ЩО РОБИТИ.",
@@ -198,6 +210,8 @@ GC.Locales.ukUA = {
     "ЩЕ НЕ НА GOLDCAP.GG — СИНХРОНІЗУЄТЬСЯ ПІСЛЯ /RELOAD АБО ВИХОДУ",
   ["NOTHING TO CANCEL"] = "НЕМА ЩО СКАСОВУВАТИ",
   ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
+  ["Needs a live price check before it can be bought."] =
+    "Перед покупкою потрібна жива перевірка ціни.",
   ["No deals passed the safety checks right now."] =
     "Зараз жодна угода не пройшла перевірок безпеки.",
   ["No deals to show -- and no realm prices yet."] =
@@ -206,13 +220,21 @@ GC.Locales.ukUA = {
   ["No exact auction key"] = "Немає точного ключа аукціону",
   ["No exact bag stack"] = "Немає точного стека в сумці",
   ["No exact bag variant"] = "Немає точного варіанта в сумці",
+  ["No live listings came back for this item."] =
+    "За цим предметом не прийшло жодного живого лота.",
+  ["No safe resale price could be worked out."] = "Безпечну ціну перепродажу обчислити не вдалося.",
+  ["No sales data for this item."] = "Немає даних про продажі цього предмета.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Продажів ще не записано -- відкрийте пошту з увімкненим GoldCap",
+  ["Not enough units on the Auction House to fill that quantity."] =
+    "На аукціоні не вистачає одиниць, щоб набрати цю кількість.",
   ["Not in your bags or listed — mail or bank?"] =
     "Немає в сумках і не виставлено — пошта чи банк?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Немає під рукою — запас у пошті, банку або на іншому персонажі",
   ["Nothing is being held back."] = "Нічого не притримано.",
+  ["Nothing left to sell against after this buy, so there is no exit price."] =
+    "Після цієї покупки не лишиться того, у що продавати, — ціни виходу немає.",
   ["Nothing listed on the AH right now"] = "Зараз на аукціоні нічого не виставлено",
   ["Nothing queued to cancel"] = "У черзі на скасування нічого немає",
   ["Nothing queued to post"] = "У черзі на виставлення нічого немає",
@@ -257,15 +279,21 @@ GC.Locales.ukUA = {
   ["Previous removal selection cleared"] = "Попередній вибір для видалення скинуто",
   ["Previous repost selection cleared"] = "Попередній вибір для перевиставлення скинуто",
   ["Price"] = "Ціна",
+  ["Priced from bundled sample data, not from your realm."] =
+    "Ціна з вкладеного зразка даних, а не з вашого реалму.",
   ["Prices up to date"] = "Ціни актуальні",
   ["Prices up to date · %d did not answer"] = "Ціни актуальні · %d не відповіли",
   ["Pricing %d/%d…"] = "Оцінюємо %d/%d…",
   ["Pricing…"] = "Оцінюємо…",
   ["Profit"] = "Прибуток",
+  ["Profit per unit"] = "Прибуток за штуку",
   ["Profit tracking is a goldcap.gg Pro feature"] =
     "Облік прибутку — функція goldcap.gg Pro",
+  ["Purchases are turned off in this build."] = "У цій збірці покупки вимкнено.",
   ["QTY"] = "К-ТЬ",
   ["Quantity exceeds missing units"] = "Кількість перевищує відсутні одиниці",
+  ["Quantity is capped by how fast this item actually sells."] =
+    "Кількість обмежена тим, як швидко предмет реально продається.",
   ["REALIZED PROFIT"] = "РЕАЛІЗОВАНИЙ ПРИБУТОК",
   ["REFRESH"] = "ОНОВИТИ",
   ["RESET WINDOW"] = "СКИНУТИ ВІКНО",
@@ -303,6 +331,8 @@ GC.Locales.ukUA = {
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Sell-through"] = "Викуповуваність",
+  ["Sells too rarely -- you would be holding it for a long time."] =
+    "Продається надто рідко — триматимете його довго.",
   ["Set cost"] = "Задати собівартість",
   ["Settings"] = "Налаштування",
   ["Sold per day"] = "Продажів на день",
@@ -320,24 +350,48 @@ GC.Locales.ukUA = {
   ["TREND"] = "ТРЕНД",
   ["Tell GoldCap what you actually paid for these units."] =
     "Вкажіть, скільки ви насправді заплатили за ці одиниці.",
+  ["The Auction House would not quote a deposit, so the cost is unknown."] =
+    "Аукціон не назвав заставу, тому вартість невідома.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронізується, але аддон не зміг прочитати те, що він записав:",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка стає натискною не одразу, тож випадковий подвійний клік її не спрацює.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "Найдешевша ціна, яку зараз просить ХТОСЬ ІНШИЙ, за живим запитом до аукціону. Ваші власні лоти виключено, тому число ніколи не женеться саме за собою вниз.",
+  ["The data for this item is malformed, so GoldCap refuses to guess."] =
+    "Дані щодо цього предмета пошкоджені, і GoldCap відмовляється вгадувати.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "Безкоштовний застосунок Companion сам оновлює ваші ціни й синхронізує продажі. Скопіюйте посилання (Ctrl+C) і відкрийте його в браузері:",
+  ["The liquidity data is not reliable enough to act on."] =
+    "Дані про ліквідність недостатньо надійні, щоб на них діяти.",
+  ["The market value is an estimate, not a measurement."] =
+    "Ринкова вартість — це оцінка, а не вимірювання.",
+  ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
+    "Даним про ціни більше трьох годин. Синхронізуйте Companion і зробіть /reload — аддон читає свої дані лише під час завантаження інтерфейсу.",
+  ["The price is falling; buying into it is how you get stuck."] =
+    "Ціна падає; заходити в неї — це і є спосіб застрягти.",
   ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
     "Ціна — остання, яку отримав GoldCap, не старша за 45 секунд, а не свіжа перевірка в момент кліку. Якщо вона зміниться між підготовкою та підтвердженням, виставлення скасовується, а не йде за старою ціною.",
+  ["The price moved and the trade is no longer safe."] =
+    "Ціна зрушила, і угода більше не безпечна.",
+  ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
+    "Прибуток не дотягує до вашого мінімуму після 5% комісії та застави.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Скасувати не можна. Перший клік просить другий для підтвердження.",
+  ["This is a realm item, and GoldCap only verifies commodity prices."] =
+    "Це предмет реалму, а GoldCap перевіряє лише ціни товарів.",
   ["Tier"] = "Клас",
+  ["Too few sellers to read a real price."] = "Замало продавців, щоб прочитати справжню ціну.",
+  ["Too little of what is listed actually sells."] =
+    "Із виставленого реально продається надто мало.",
+  ["Too little price history to trust the value."] = "Замало історії цін, щоб вірити цій вартості.",
   ["Total cost to buy this auction"] = "Повна вартість купівлі цього лота",
   ["UNIT"] = "ЗА ШТ",
   ["Unit price"] = "Ціна за штуку",
   ["Unknown"] = "Невідомо",
   ["Unknown item"] = "Невідомий предмет",
+  ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
+    "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
   ["WATCH (computed SAFE)"] = "WATCH (розраховано БЕЗПЕЧНО)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = зі знижкою, але ліквідність не підтверджена або прибуток малий",
@@ -351,6 +405,13 @@ GC.Locales.ukUA = {
   ["Watching closely: %d item%s"] = "Пильно стежимо: %d предмет%s",
   ["Watching — pinned, but not a deal right now"] =
     "Стежимо — закріплено, але зараз це не угода",
+  ["What one of these actually cost you, averaged over the purchases still on hand."] =
+    "Скільки насправді коштувала одна штука, у середньому за ще не проданими покупками.",
+  ["What to do"] = "Що робити",
+  ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
+    "Скільки лишається з однієї штуки при продажу за ринком: ціна продажу мінус 5% комісії аукціону мінус ваша собівартість.",
+  ["What your live auctions for this item add up to at their current asking price."] =
+    "У скільки складаються ваші активні лоти цього предмета за поточною ціною.",
   ["Window position & size"] = "Позиція та розмір вікна",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Варто робити, коли вас перебили за ціною; не варто, якщо ціна майже не зрушила.",

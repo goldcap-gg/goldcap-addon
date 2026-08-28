@@ -152,7 +152,13 @@ local function resultTemplate()
   }
 end
 
--- The set of reasons the engine can return, and the sentence each one shows a player. Kept
+-- The set of reasons the engine can return, and the sentence each one shows a player.
+--
+-- Through GC.L, even though nothing in this file draws anything. These are the most-read
+-- sentences in the addon -- the check panel leads with one every time it refuses -- and
+-- they sat English in eleven languages because every localisation guard looks for files
+-- that EMIT text (SetText, AddLine, GC.Print). A file that hands prose to a caller is
+-- invisible to that test; spec/locale_contract_spec.lua now pins this table directly. Kept
 -- beside REASON_ORDER so a new gate cannot be added without deciding both its rank and its
 -- explanation; the spec walks REASONS and fails if any is unexplained.
 --
@@ -160,6 +166,8 @@ end
 -- "source_stale" is useless, "the price data is over two hours old" plus how to refresh it is
 -- an instruction.
 GC.SniperDecision.REASONS = {}
+-- @localised-keys: literals in this table ARE GC.L keys; see the comment above for why
+-- the lookup happens where the table is read rather than where it is built.
 local REASON_TEXT = {
   live_verification_required = "Needs a live price check before it can be bought.",
   realm_item_unverified = "This is a realm item, and GoldCap only verifies commodity prices.",
@@ -189,7 +197,11 @@ local REASON_TEXT = {
 
 function GC.SniperDecision.ReasonText(reason)
   if type(reason) ~= "string" then return "" end
-  return REASON_TEXT[reason] or reason
+  -- Looked up HERE, not where the table is built. GC.L resolves through the locale
+  -- ApplyLocale activates, and that runs at ADDON_LOADED -- long after this file. A
+  -- table of GC.L[...] at file scope would capture the English fallback once and stay
+  -- English in every language, forever, with nothing failing to say so.
+  return GC.L[REASON_TEXT[reason] or reason]
 end
 
 local REASON_ORDER = {

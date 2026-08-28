@@ -70,6 +70,17 @@ describe("locale contract", function()
           local file = assert(io.open(path))
           local text = file:read("*a")
           file:close()
+          -- A table marked @localised-keys holds its keys as bare literals and is looked
+          -- up where it is READ, not where it is built -- the only way a table at FILE
+          -- SCOPE can be translated at all, since GC.L resolves through the locale that
+          -- ApplyLocale activates at ADDON_LOADED, long after every file has loaded. Its
+          -- literals are keys exactly as a GC.L["..."] is, so they are collected too;
+          -- without this every one of them reads as an orphan in the base.
+          for body in text:gmatch('@localised%-keys.-\n(.-)\n}') do
+            for literal in body:gmatch('"(.-)"') do
+              asked[literal:gsub('\\n', '\n'):gsub('\\"', '"'):gsub('\\\\', '\\')] = path
+            end
+          end
           for raw in text:gmatch('GC%.L%["(.-)"%]') do
             -- The match is the SOURCE spelling, where a quote is \" and a newline is \n.
             -- GC.Locales.enUS holds those after Lua parsed them, so undo the escapes before

@@ -40,6 +40,8 @@ GC.Locales.itIT = {
   ["24h trend"] = "Andamento 24h",
   ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
     "Una merce viene messa in vendita per l'intero totale delle borse in una volta; un oggetto normale mette in vendita una pila, la più grande che GoldCap sappia identificare con esattezza.",
+  ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
+    "Un trattino significa che GoldCap non conosce ancora il costo di ogni unità: non lo indovinerà mai dal prezzo di mercato.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "Un indizio, non una promessa: rivendita al 95% del valore di mercato importato, per la quantità che Check stesso approverebbe.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
@@ -57,6 +59,8 @@ GC.Locales.itIT = {
     "Auto: tiene Full Scan sempre attivo e cede subito il passo quando compri, ",
   ["Avoid"] = "Da evitare",
   ["Background check"] = "Controllo in background",
+  ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
+    "Il pareggio è il prezzo più basso che copre ancora il tuo costo dopo la commissione. Sotto quello ci rimetti.",
   ["Bundled %s data"] = "Dati %s inclusi",
   ["Bundled data"] = "Dati inclusi",
   ["Buy"] = "Compra",
@@ -80,6 +84,8 @@ GC.Locales.itIT = {
   ["Cannot post this position"] = "Impossibile mettere in vendita questa posizione",
   ["Cannot remove this entry"] = "Impossibile eliminare questa voce",
   ["Cannot repost this lot"] = "Impossibile rimettere in vendita questo lotto",
+  ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
+    "Restano aste più economiche, ma al ritmo di questo oggetto si esauriscono in poche ore.",
   ["Check"] = "Controlla",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Check ricalcola sul book degli ordini dal vivo prima che l'oro si muova, e può comunque risultare più basso — o rifiutare — se il mercato si è mosso dall'ultima importazione.",
@@ -96,7 +102,10 @@ GC.Locales.itIT = {
   ["Confirm"] = "Conferma",
   ["Confirm the cancel"] = "Conferma l'annullamento",
   ["Confirm the removal"] = "Conferma la rimozione",
+  ["Cost per unit"] = "Costo per unità",
   ["Cost unknown for %d of %d"] = "Costo sconosciuto per %d su %d",
+  ["Costs more than your per-buy wallet limit allows."] =
+    "Costa più di quanto consenta il tuo limite per acquisto.",
   ["Could not find the queue's next item to post — try again"] =
     "Non trovo il prossimo oggetto in coda da mettere in vendita — riprova",
   ["Could not find the queue's next lot to cancel — try again"] =
@@ -142,6 +151,8 @@ GC.Locales.itIT = {
   ["GoldCap re-checks the top "] = "GoldCap ricontrolla le prime ",
   ["GoldCap value"] = "Valore GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Importa i prezzi del reame",
+  ["GoldCap's suggestion for this item, and the price it would use."] =
+    "Il suggerimento di GoldCap per questo oggetto e il prezzo che userebbe.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: controllato dal vivo -- acquisto sicuro",
   ["Gone"] = "Sparito",
@@ -180,6 +191,7 @@ GC.Locales.itIT = {
   ["Listed"] = "In vendita",
   ["Listed at %s — far below market. Repost."] =
     "In vendita a %s — molto sotto mercato. Rimettilo in vendita.",
+  ["Listed value"] = "Valore in vendita",
   ["Listings"] = "Vendite",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "Mette in vendita ciò che hai nelle borse al prezzo mostrato sotto COSA FARE.",
@@ -195,6 +207,8 @@ GC.Locales.itIT = {
     "NON ANCORA SU GOLDCAP.GG — SI SINCRONIZZA CON /RELOAD O ALL'USCITA",
   ["NOTHING TO CANCEL"] = "NIENTE DA ANNULLARE",
   ["NOTHING TO POST"] = "NIENTE DA METTERE IN VENDITA",
+  ["Needs a live price check before it can be bought."] =
+    "Serve un controllo del prezzo dal vivo prima di poterlo comprare.",
   ["No deals passed the safety checks right now."] =
     "Al momento nessuna occasione ha superato i controlli di sicurezza.",
   ["No deals to show -- and no realm prices yet."] =
@@ -203,13 +217,22 @@ GC.Locales.itIT = {
   ["No exact auction key"] = "Nessuna chiave d'asta esatta",
   ["No exact bag stack"] = "Nessuna pila esatta nella borsa",
   ["No exact bag variant"] = "Nessuna variante esatta nella borsa",
+  ["No live listings came back for this item."] =
+    "Nessuna asta attiva è tornata per questo oggetto.",
+  ["No safe resale price could be worked out."] =
+    "Non è stato possibile calcolare un prezzo di rivendita sicuro.",
+  ["No sales data for this item."] = "Nessun dato di vendita per questo oggetto.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Ancora nessuna vendita registrata -- apri la cassetta postale con GoldCap caricato",
+  ["Not enough units on the Auction House to fill that quantity."] =
+    "Non ci sono abbastanza unità alla casa d'aste per quella quantità.",
   ["Not in your bags or listed — mail or bank?"] =
     "Né nelle borse né in vendita — posta o banca?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Non a portata di mano — la scorta è nella posta, in banca o su un altro personaggio",
   ["Nothing is being held back."] = "Non è trattenuto nulla.",
+  ["Nothing left to sell against after this buy, so there is no exit price."] =
+    "Dopo questo acquisto non resta nulla contro cui vendere, quindi non c'è prezzo di uscita.",
   ["Nothing listed on the AH right now"] = "Al momento non c'è nulla in vendita all'asta",
   ["Nothing queued to cancel"] = "Nulla in coda da annullare",
   ["Nothing queued to post"] = "Nulla in coda da mettere in vendita",
@@ -254,15 +277,21 @@ GC.Locales.itIT = {
   ["Previous removal selection cleared"] = "Selezione di eliminazione precedente annullata",
   ["Previous repost selection cleared"] = "Selezione di rimessa in vendita precedente annullata",
   ["Price"] = "Prezzo",
+  ["Priced from bundled sample data, not from your realm."] =
+    "Prezzo preso dai dati di esempio inclusi, non dal tuo reame.",
   ["Prices up to date"] = "Prezzi aggiornati",
   ["Prices up to date · %d did not answer"] = "Prezzi aggiornati · %d non hanno risposto",
   ["Pricing %d/%d…"] = "Quotazione %d/%d…",
   ["Pricing…"] = "Quotazione…",
   ["Profit"] = "Profitto",
+  ["Profit per unit"] = "Profitto per unità",
   ["Profit tracking is a goldcap.gg Pro feature"] =
     "Il tracciamento del profitto è una funzione goldcap.gg Pro",
+  ["Purchases are turned off in this build."] = "Gli acquisti sono disattivati in questa build.",
   ["QTY"] = "QTÀ",
   ["Quantity exceeds missing units"] = "La quantità supera le unità mancanti",
+  ["Quantity is capped by how fast this item actually sells."] =
+    "La quantità è limitata da quanto in fretta l'oggetto si vende davvero.",
   ["REALIZED PROFIT"] = "PROFITTO REALIZZATO",
   ["REFRESH"] = "AGGIORNA",
   ["RESET WINDOW"] = "REIMPOSTA FINESTRA",
@@ -299,6 +328,8 @@ GC.Locales.itIT = {
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
   ["Sell-through"] = "Tasso di vendita",
+  ["Sells too rarely -- you would be holding it for a long time."] =
+    "Si vende troppo di rado: te lo terresti a lungo.",
   ["Set cost"] = "Imposta il costo",
   ["Settings"] = "Impostazioni",
   ["Sold per day"] = "Vendite al giorno",
@@ -316,24 +347,49 @@ GC.Locales.itIT = {
   ["TREND"] = "TENDENZA",
   ["Tell GoldCap what you actually paid for these units."] =
     "Di' a GoldCap quanto hai davvero pagato per queste unità.",
+  ["The Auction House would not quote a deposit, so the cost is unknown."] =
+    "La casa d'aste non ha indicato un deposito, quindi il costo è ignoto.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Il Companion sta sincronizzando, ma questo addon non è riuscito a leggere ciò che ha scritto:",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Il pulsante attende un momento prima di poter essere premuto, così un doppio clic accidentale non basta mai.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "È il prezzo più basso che sta chiedendo QUALCUN ALTRO adesso, da una query dal vivo alla casa d'aste. Le tue vendite sono escluse, così il numero non insegue mai se stesso verso il basso.",
+  ["The data for this item is malformed, so GoldCap refuses to guess."] =
+    "I dati di questo oggetto sono malformati, quindi GoldCap si rifiuta di indovinare.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "Il Companion gratuito per computer tiene i prezzi aggiornati da solo e sincronizza le tue vendite. Copia il link (Ctrl+C) e aprilo in un browser:",
+  ["The liquidity data is not reliable enough to act on."] =
+    "I dati di liquidità non sono abbastanza affidabili per agire.",
+  ["The market value is an estimate, not a measurement."] =
+    "Il valore di mercato è una stima, non una misura.",
+  ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
+    "I dati di prezzo hanno più di tre ore. Sincronizza il Companion e poi fai /reload: l'addon legge i suoi dati solo al caricamento dell'interfaccia.",
+  ["The price is falling; buying into it is how you get stuck."] =
+    "Il prezzo sta scendendo; entrarci è il modo per restare incastrato.",
   ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
     "Il prezzo è l'ultimo recuperato da GoldCap, vecchio al massimo di 45 secondi, non un controllo fatto al momento del clic. Se cambia tra l'armamento della pubblicazione e la conferma, la pubblicazione viene abbandonata anziché inviata al vecchio prezzo.",
+  ["The price moved and the trade is no longer safe."] =
+    "Il prezzo si è mosso e l'operazione non è più sicura.",
+  ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
+    "Il profitto non raggiunge il tuo minimo una volta pagati il 5 % di commissione e il deposito.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "Non si può annullare. Il primo clic ne chiede un secondo per confermare.",
+  ["This is a realm item, and GoldCap only verifies commodity prices."] =
+    "È un oggetto di reame, e GoldCap verifica solo i prezzi delle merci.",
   ["Tier"] = "Livello",
+  ["Too few sellers to read a real price."] = "Troppo pochi venditori per leggere un prezzo reale.",
+  ["Too little of what is listed actually sells."] =
+    "Troppo poco di ciò che è in vendita viene davvero venduto.",
+  ["Too little price history to trust the value."] =
+    "Troppo poco storico dei prezzi per fidarsi del valore.",
   ["Total cost to buy this auction"] = "Costo totale per comprare questa asta",
   ["UNIT"] = "UNITÀ",
   ["Unit price"] = "Prezzo unitario",
   ["Unknown"] = "Sconosciuto",
   ["Unknown item"] = "Oggetto sconosciuto",
+  ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
+    "Ignoto significa che il lato costi è incompleto: completalo con Imposta costo.",
   ["WATCH (computed SAFE)"] = "WATCH (calcolato SICURO)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = scontato ma con liquidità non dimostrata o profitto piccolo",
@@ -347,6 +403,13 @@ GC.Locales.itIT = {
   ["Watching closely: %d item%s"] = "Sorvegliati da vicino: %d oggetto%s",
   ["Watching — pinned, but not a deal right now"] =
     "Sorvegliato — fissato, ma al momento non è un'occasione",
+  ["What one of these actually cost you, averaged over the purchases still on hand."] =
+    "Quanto ti è costata davvero una unità, in media sugli acquisti ancora in magazzino.",
+  ["What to do"] = "Cosa fare",
+  ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
+    "Quanto ti resta su un'unità se si vende al prezzo di mercato: prezzo di vendita, meno il 5 % di commissione, meno il tuo costo.",
+  ["What your live auctions for this item add up to at their current asking price."] =
+    "Quanto fanno in totale le tue aste attive per questo oggetto al prezzo attuale.",
   ["Window position & size"] = "Posizione e dimensione della finestra",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Conviene quando qualcuno ti ha sottoquotato; non conviene se il prezzo si è mosso appena.",

@@ -41,6 +41,8 @@ GC.Locales.koKR = {
   ["24h trend"] = "24시간 추세",
   ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
     "상품(commodity)은 가방 전체 수량을 한 번에 등록하고, 일반 아이템은 GoldCap이 정확히 식별할 수 있는 가장 큰 묶음 하나를 등록합니다.",
+  ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
+    "대시(—)는 아직 모든 수량의 매입가를 모른다는 뜻입니다. 시세로 추측하는 일은 없습니다.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
     "약속이 아니라 실마리입니다: 가져온 시세의 95%로 재판매할 때, Check가 승인할 수량 기준입니다.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
@@ -57,6 +59,8 @@ GC.Locales.koKR = {
     "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. ",
   ["Avoid"] = "회피",
   ["Background check"] = "백그라운드 확인",
+  ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
+    "손익분기점은 수수료를 내고도 매입가를 회수하는 최저 가격입니다. 그 아래로 팔면 손해입니다.",
   ["Bundled %s data"] = "내장된 %s 데이터",
   ["Bundled data"] = "내장된 데이터",
   ["Buy"] = "구매",
@@ -80,6 +84,8 @@ GC.Locales.koKR = {
   ["Cannot post this position"] = "이 항목은 등록할 수 없습니다",
   ["Cannot remove this entry"] = "이 기록은 삭제할 수 없습니다",
   ["Cannot repost this lot"] = "이 물량은 다시 등록할 수 없습니다",
+  ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
+    "더 싼 매물이 남아 있지만, 이 아이템의 속도라면 몇 시간 안에 소진됩니다.",
   ["Check"] = "확인",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Check는 골드가 움직이기 전에 실시간 호가로 다시 계산하며, 마지막 가져오기 이후 시장이 바뀌었다면 더 낮게 나오거나 거부할 수 있습니다.",
@@ -96,7 +102,9 @@ GC.Locales.koKR = {
   ["Confirm"] = "확인",
   ["Confirm the cancel"] = "취소 확인",
   ["Confirm the removal"] = "삭제 확인",
+  ["Cost per unit"] = "개당 매입가",
   ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
+  ["Costs more than your per-buy wallet limit allows."] = "1회 구매 한도보다 비쌉니다.",
   ["Could not find the queue's next item to post — try again"] =
     "등록 대기열의 다음 아이템을 찾지 못했습니다 — 다시 시도하세요",
   ["Could not find the queue's next lot to cancel — try again"] =
@@ -140,6 +148,8 @@ GC.Locales.koKR = {
   ["GoldCap re-checks the top "] = "GoldCap이 다시 확인하는 상위 ",
   ["GoldCap value"] = "GoldCap 시세",
   ["GoldCap — Import realm prices"] = "GoldCap — 서버 시세 가져오기",
+  ["GoldCap's suggestion for this item, and the price it would use."] =
+    "이 아이템에 대한 GoldCap의 제안과, 그때 쓸 가격.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: 실시간 확인 완료 -- 구매해도 안전합니다",
   ["Gone"] = "사라짐",
@@ -177,6 +187,7 @@ GC.Locales.koKR = {
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
   ["Listed"] = "등록 수량",
   ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
+  ["Listed value"] = "등록 금액",
   ["Listings"] = "등록 수",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "가방에 있는 물량을 무엇을 할지 항목에 표시된 가격으로 등록합니다.",
@@ -191,18 +202,25 @@ GC.Locales.koKR = {
     "아직 GOLDCAP.GG에 없음 — /RELOAD 또는 접속 종료 시 동기화",
   ["NOTHING TO CANCEL"] = "취소할 것 없음",
   ["NOTHING TO POST"] = "등록할 것 없음",
+  ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
   ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
   ["No deals to show -- and no realm prices yet."] = "표시할 거래가 없습니다 -- 서버 시세도 아직 없습니다.",
   ["No deals yet."] = "아직 거래가 없습니다.",
   ["No exact auction key"] = "정확한 경매 키가 없습니다",
   ["No exact bag stack"] = "정확한 가방 묶음이 없습니다",
   ["No exact bag variant"] = "정확한 가방 변형이 없습니다",
+  ["No live listings came back for this item."] = "이 아이템의 실시간 매물이 하나도 오지 않았습니다.",
+  ["No safe resale price could be worked out."] = "안전한 재판매 가격을 산출할 수 없었습니다.",
+  ["No sales data for this item."] = "이 아이템의 판매 데이터가 없습니다.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "기록된 판매가 없습니다 -- GoldCap을 켠 채 우편함을 여세요",
+  ["Not enough units on the Auction House to fill that quantity."] = "경매장에 그 수량을 채울 만큼의 물량이 없습니다.",
   ["Not in your bags or listed — mail or bank?"] = "가방에도 없고 등록도 안 됨 — 우편함이나 은행인가요?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "보유 중이 아님 — 물량이 우편함, 은행 또는 다른 캐릭터에 있습니다",
   ["Nothing is being held back."] = "보류된 것이 없습니다.",
+  ["Nothing left to sell against after this buy, so there is no exit price."] =
+    "이번 구매 뒤에는 되팔 상대 물량이 남지 않아 매도 기준가가 없습니다.",
   ["Nothing listed on the AH right now"] = "지금 경매장에 등록된 것이 없습니다",
   ["Nothing queued to cancel"] = "취소 대기열이 비었습니다",
   ["Nothing queued to post"] = "등록 대기열이 비었습니다",
@@ -247,14 +265,19 @@ GC.Locales.koKR = {
   ["Previous removal selection cleared"] = "이전 삭제 선택을 해제했습니다",
   ["Previous repost selection cleared"] = "이전 재등록 선택을 해제했습니다",
   ["Price"] = "가격",
+  ["Priced from bundled sample data, not from your realm."] =
+    "함께 포함된 샘플 데이터 기준이며, 당신의 서버 시세가 아닙니다.",
   ["Prices up to date"] = "시세가 최신입니다",
   ["Prices up to date · %d did not answer"] = "시세가 최신입니다 · %d건은 응답 없음",
   ["Pricing %d/%d…"] = "가격 조회 %d/%d…",
   ["Pricing…"] = "가격 조회 중…",
   ["Profit"] = "수익",
+  ["Profit per unit"] = "개당 수익",
   ["Profit tracking is a goldcap.gg Pro feature"] = "수익 추적은 goldcap.gg Pro 기능입니다",
+  ["Purchases are turned off in this build."] = "이 빌드에서는 구매가 꺼져 있습니다.",
   ["QTY"] = "수량",
   ["Quantity exceeds missing units"] = "수량이 부족분을 초과합니다",
+  ["Quantity is capped by how fast this item actually sells."] = "수량은 이 아이템이 실제로 팔리는 속도에 의해 제한됩니다.",
   ["REALIZED PROFIT"] = "실현 수익",
   ["REFRESH"] = "새로고침",
   ["RESET WINDOW"] = "창 초기화",
@@ -288,6 +311,7 @@ GC.Locales.koKR = {
     "SUSPECT = 할인이 지나쳐 사기이거나 시세가 잘못된 아이템일 가능성이 큼",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Sell-through"] = "판매 소진율",
+  ["Sells too rarely -- you would be holding it for a long time."] = "너무 드물게 팔립니다 — 오래 들고 있게 됩니다.",
   ["Set cost"] = "원가 입력",
   ["Settings"] = "설정",
   ["Sold per day"] = "일일 판매량",
@@ -304,24 +328,44 @@ GC.Locales.koKR = {
   ["TOTAL"] = "합계",
   ["TREND"] = "추세",
   ["Tell GoldCap what you actually paid for these units."] = "이 물량을 실제로 얼마에 샀는지 GoldCap에 알려 주세요.",
+  ["The Auction House would not quote a deposit, so the cost is unknown."] =
+    "경매장이 등록비를 알려주지 않아 비용을 알 수 없습니다.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion은 동기화 중이지만, 이 애드온이 기록된 내용을 읽지 못했습니다:",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "버튼은 잠시 뒤에야 눌립니다. 실수로 두 번 클릭해도 실행되지 않습니다.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "실시간 경매장 조회에서 다른 사람이 부르는 가장 싼 가격입니다. 본인 등록분은 제외되므로 이 숫자가 스스로를 따라 내려가지 않습니다.",
+  ["The data for this item is malformed, so GoldCap refuses to guess."] =
+    "이 아이템의 데이터가 손상되어 GoldCap이 추측하지 않습니다.",
   ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
     "무료 데스크톱 Companion이 시세를 자동으로 갱신하고 판매를 동기화합니다. 링크를 복사(Ctrl+C)해 브라우저에서 여세요:",
+  ["The liquidity data is not reliable enough to act on."] = "유동성 데이터가 판단 근거로 삼기엔 신뢰도가 낮습니다.",
+  ["The market value is an estimate, not a measurement."] = "시세는 측정값이 아니라 추정값입니다.",
+  ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
+    "시세 데이터가 세 시간이 넘었습니다. Companion을 동기화한 뒤 /reload 하세요 — 애드온은 UI를 불러올 때만 데이터를 읽습니다.",
+  ["The price is falling; buying into it is how you get stuck."] =
+    "가격이 내려가는 중입니다. 여기서 사면 물리기 딱 좋습니다.",
   ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
     "가격은 GoldCap이 마지막으로 받아온 값으로, 최대 45초 전의 것입니다 — 클릭하는 순간 새로 확인한 값이 아닙니다. 등록을 준비한 뒤 확인하기 전에 값이 바뀌면, 옛 가격으로 보내지 않고 등록을 포기합니다.",
+  ["The price moved and the trade is no longer safe."] = "가격이 움직여 더 이상 안전한 거래가 아닙니다.",
+  ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
+    "5% 수수료와 등록비를 내고 나면 설정한 최소 수익에 미치지 못합니다.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "되돌릴 수 없습니다. 한 번 누르면 확인을 위해 한 번 더 눌러야 합니다.",
+  ["This is a realm item, and GoldCap only verifies commodity prices."] =
+    "서버 전용 아이템이며, GoldCap은 상품(commodity) 시세만 검증합니다.",
   ["Tier"] = "등급",
+  ["Too few sellers to read a real price."] = "판매자가 너무 적어 실제 시세를 읽을 수 없습니다.",
+  ["Too little of what is listed actually sells."] = "등록된 물량 중 실제로 팔리는 비율이 너무 낮습니다.",
+  ["Too little price history to trust the value."] = "가격 기록이 너무 적어 이 값을 믿을 수 없습니다.",
   ["Total cost to buy this auction"] = "이 경매를 사는 총 비용",
   ["UNIT"] = "단가",
   ["Unit price"] = "단가",
   ["Unknown"] = "알 수 없음",
   ["Unknown item"] = "알 수 없는 아이템",
+  ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
+    "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
   ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = 할인은 있으나 유동성이 검증되지 않았거나 수익이 적음",
@@ -334,6 +378,13 @@ GC.Locales.koKR = {
   ["Wall absorb window (hours)"] = "물량 흡수 기간 (시간)",
   ["Watching closely: %d item%s"] = "자세히 주시 중: 아이템 %d개%s",
   ["Watching — pinned, but not a deal right now"] = "주시 중 — 고정했지만 지금은 거래가 아닙니다",
+  ["What one of these actually cost you, averaged over the purchases still on hand."] =
+    "아직 보유 중인 매입 건들을 평균해서, 한 개가 실제로 얼마였는지.",
+  ["What to do"] = "무엇을 할지",
+  ["What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost."] =
+    "시세에 팔렸을 때 한 개로 남는 돈: 판매가에서 경매장 수수료 5%와 매입가를 뺀 값.",
+  ["What your live auctions for this item add up to at their current asking price."] =
+    "이 아이템으로 올려둔 경매들의 현재 호가 합계.",
   ["Window position & size"] = "창 위치와 크기",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "누군가 더 싸게 걸었을 때는 할 만하지만, 가격이 거의 변하지 않았다면 그럴 가치가 없습니다.",

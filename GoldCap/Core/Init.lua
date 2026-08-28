@@ -283,6 +283,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
     if GC.ApplyLocale then GC.ApplyLocale() end
+    -- Anything resolved through GC.L at FILE scope would have captured the English
+    -- fallback, since every file loads before the line above picks a language. The
+    -- keybinding label is the one such value that cannot wait to be read lazily.
+    if GC.SellUI_RefreshBindingName then GC.SellUI_RefreshBindingName() end
     if GC.Data then
       GC.Data.Init(GC.db)
       -- Companion sync (Task A): adopts `GoldCap_AppData` (see the .toc's OptionalDeps)

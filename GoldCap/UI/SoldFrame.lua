@@ -183,8 +183,16 @@ local COLUMNS = {
 -- Already uppercase in the key, and never passed through :upper() -- Lua's upper is
 -- byte-wise and leaves every non-ASCII letter alone, so a translated header would come
 -- back half-cased. The Sell tab settled this the same way (SellFrame's header build).
-local HEADER_TEXT = { item = GC.L["ITEM"], when = GC.L["WHEN"], qty = GC.L["QTY"],
-                       unit = GC.L["UNIT"], total = GC.L["TOTAL"], profit = GC.L["PROFIT"] }
+-- Keys, not translations: this table is built at FILE SCOPE, and GC.L only resolves once
+-- ApplyLocale has run at ADDON_LOADED. Translating here would freeze the English fallback
+-- into every language. headerText() below looks up when the header is actually built.
+-- @localised-keys: literals in this table ARE GC.L keys; see the comment above for why
+-- the lookup happens where the table is read rather than where it is built. The table has to
+-- close with a `}` on its own line -- that is where the spec's scanner stops.
+local HEADER_TEXT = {
+  item = "ITEM", when = "WHEN", qty = "QTY", unit = "UNIT", total = "TOTAL", profit = "PROFIT",
+}
+local function headerText(key) return GC.L[HEADER_TEXT[key] or ""] end
 
 -- Anchors every visible fixed COLUMNS entry's RIGHT edge right-to-left off
 -- `host`'s own RIGHT edge, skipping any key present in `hidden`; returns the
@@ -562,7 +570,7 @@ local function createHeaderRow(parent)
       setColor(label, Theme.color.fgDim)
       label:SetAllPoints()
       label:SetJustifyH(col.num and "RIGHT" or "LEFT")
-      label:SetText(HEADER_TEXT[col.key] or "")
+      label:SetText(headerText(col.key))
       hit.label = label
       header.cells[col.key] = hit
     end
@@ -577,7 +585,7 @@ local function createHeaderRow(parent)
   setColor(itemLabel, Theme.color.fgDim)
   itemLabel:SetAllPoints()
   itemLabel:SetJustifyH("LEFT")
-  itemLabel:SetText(HEADER_TEXT.item)
+  itemLabel:SetText(headerText("item"))
   itemHit.label = itemLabel
   -- Not read by any production code; exposed so the behavior spec can reach the ITEM cell.
   header.itemCell = itemHit
