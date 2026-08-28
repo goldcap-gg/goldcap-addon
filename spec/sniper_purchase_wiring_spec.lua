@@ -1443,4 +1443,183 @@ describe("Sniper purchase wiring", function()
     _G.C_Timer, _G.C_AuctionHouse, _G.GetMoney, _G.GetTime = nil, nil, nil, nil
     _G.time = os.time
   end)
+  -- Blizzard's own buy dialog keeps listening for COMMODITY_PRICE_UPDATED after
+  -- ConfirmCommoditiesPurchase: when the price moved between the quote and the Confirm click
+  -- the server re-quotes instead of buying, and the player has to confirm again. The Sniper
+  -- used to drop that event in "confirming" -- and a re-quote is never followed by a terminal
+  -- event, so the confirmed attempt sat forever as an owned pending, then (after an AH close)
+  -- as a confirmed tombstone that refused every later commodity Buy with "waiting for previous
+  -- commodity purchase to settle" until /reload.
+  it("re-quotes a confirmed attempt when the server updates the price after Confirm", function()
+    local cancelCalls, timers = 0, {}
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() end,
+      GetNumCommoditySearchResults = function() return 2 end,
+      GetCommoditySearchResultInfo = function(_, index)
+        if index == 1 then return { unitPrice = 1000000, quantity = 1 } end
+        return { unitPrice = 2105265, quantity = 1 }
+      end,
+    }
+    _G.C_Timer = { After = function(delay, fn) timers[#timers + 1] = { delay = delay, fn = fn } end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function()
+        return {
+          mv = 3000000, kind = "region_commodity", source = "import", sourceAt = 92800,
+          stressUnit = 2105264, sold = 100000, sellThroughBps = 7000,
+          liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12,
+          madBps = 0, trend = -9,
+        }
+      end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local deal = { itemID = 42, isCommodity = true }
+    local quote = { token = 7, itemID = 42, quantity = 1, total = 1000000, decision = { status = "SAFE", buyable = true } }
+    local row = {
+      purchaseStage = "confirming", purchaseToken = 7, deal = deal, purchaseDeal = deal,
+      decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1 },
+      quoteSnapshot = quote,
+    }
+    local pending = { row = row, itemID = 42, token = 7, confirmed = true, deal = deal, quote = quote }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+    GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- server re-quote, 4% above the confirmed quote
+
+    -- No gold moved: the server is waiting for a fresh Confirm, so the attempt is unconfirmed
+    -- again and its old immutable quote is gone with it.
+    assert.is_falsy(pending.confirmed)
+    assert.is_nil(pending.quote)
+    assert.are_not.equal("confirming", row.purchaseStage)
+    -- ...and the ordinary requote path judged the new price: it broke safety, so the attempt
+    -- was cancelled and drained into a tombstone that retires on its own timer.
+    assert.equal(1, cancelCalls)
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+    local draining = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
+    assert.is_table(draining)
+    assert.is_falsy(draining.confirmed)
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+  end)
+
+  -- A confirmed attempt whose terminal event never comes (dropped event, disconnect, a server
+  -- that answered with nothing) must not hold the single commodity slot until /reload. Its
+  -- bookkeeping is released after a generous window and the player is told to check the
+  -- mailbox -- the honest statement, since the buy may or may not have gone through.
+  it("releases a confirmed attempt that never hears back from the server", function()
+    _G.C_AuctionHouse = { CancelCommoditiesPurchase = function() end }
+    _G.GetTime = function() return 0 end
+    _G.time = function() return 100000 end
+    local printed = {}
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function()
+        return {
+          mv = 3000000, kind = "region_commodity", source = "import", sourceAt = 92800,
+          stressUnit = 2105264, sold = 100000, sellThroughBps = 7000,
+          liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12,
+          madBps = 0, trend = -9,
+        }
+      end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    GC.Print = function(text) printed[#printed + 1] = text end
+    local stranded = { row = {}, itemID = 42, token = 5, confirmed = true, deal = { itemID = 42, isCommodity = true } }
+
+    -- The AH-close tombstone slot...
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", stranded)
+    GC.Sniper._ReleaseStrandedConfirmed(stranded)
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+    assert.equal(1, #printed)
+    assert.is_truthy(printed[1]:find("inspect mailbox", 1, true))
+
+    -- ...and the live owned slot alike.
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", stranded)
+    GC.Sniper._ReleaseStrandedConfirmed(stranded)
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+
+    -- Bound to the exact attempt it was armed for: a later attempt in either slot is untouched.
+    local other = { row = {}, itemID = 43, token = 6, confirmed = true }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", other)
+    GC.Sniper._ReleaseStrandedConfirmed(stranded)
+    assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == other)
+    assert.equal(2, #printed)
+
+    -- Armed by the hardware Confirm click itself, right where the attempt becomes confirmed.
+    local click = section(source(), "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local confirmAt = assert(click:find("pending.confirmed = true", 1, true))
+    local releaseAt = assert(click:find("_ReleaseStrandedConfirmed", 1, true))
+    assert.is_true(confirmAt < releaseAt)
+
+    _G.C_AuctionHouse, _G.GetTime, _G.time = nil, nil, nil
+  end)
 end)

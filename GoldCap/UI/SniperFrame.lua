@@ -3832,8 +3832,27 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   local pending = commodityPurchase
   local row = pending and pending.row
   if not row or pending.itemID == nil or pending.token == nil
-      or row.purchaseToken ~= pending.token or row.purchaseStage == "confirming" then
+      or row.purchaseToken ~= pending.token then
     return -- a late event cannot take ownership of a newer row/token
+  end
+  if row.purchaseStage == "confirming" then
+    -- A price update AFTER Confirm is the server re-quoting, not a stray echo: the price moved
+    -- between the quote and the Confirm click, the purchase did not happen, and Blizzard's own
+    -- buy dialog handles exactly this by showing the new price and asking for another click
+    -- (Blizzard_AuctionHouseBuyDialog.lua keeps COMMODITY_PRICE_UPDATED live through
+    -- BuyState.Purchasing). No terminal event ever follows a re-quote, so treating the stage as
+    -- deaf here left the attempt confirmed-and-owned forever: the dialog sat on "confirming
+    -- purchase...", and after an AH close the confirmed tombstone refused every later commodity
+    -- Buy with "waiting for previous commodity purchase to settle" until /reload. Unconfirm the
+    -- attempt -- no gold moved -- and let the ordinary requote path below judge the new price
+    -- exactly as it would have before Confirm (cancel on broken safety, else re-arm Confirm).
+    if not pending.confirmed then return end
+    pending.confirmed = nil
+    pending.deal = nil
+    pending.quote = nil
+    row.quoteSnapshot = nil
+    row.purchaseStage = "buying"
+    if dialog and dialog.row == row then dialog.cancelBtn:Enable() end
   end
   local deal = row.purchaseDeal
   local decision = row.decisionSnapshot
@@ -4012,6 +4031,24 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   resolvePurchase(row, false, GC.L["commodity purchase failed"])
 end
 
+-- Armed by the hardware Confirm click for the exact attempt it confirmed. A confirmed attempt
+-- normally settles through one of the three terminal events within a second or two; when none
+-- ever arrives (dropped event, disconnect mid-buy, a server that answered with nothing) the
+-- attempt must not hold the single commodity slot -- owned or as a tombstone -- until /reload,
+-- with every later Buy refused. Release the bookkeeping and tell the player the honest thing:
+-- the buy may or may not have gone through, inspect the mailbox. Deliberately NOT a resolve of
+-- the row: gold may have moved, so the row is never freed for a silent retry here -- closing the
+-- dialog does that, and only after this release has cleared the ownership that would otherwise
+-- make Esc/Cancel a no-op. Bound to `pending` by identity, so a later attempt in either slot is
+-- never touched.
+function GC.Sniper._ReleaseStrandedConfirmed(pending)
+  if not pending or not pending.confirmed then return end
+  local stranded = false
+  if commodityPurchase == pending then commodityPurchase = nil; stranded = true end
+  if commodityDraining == pending then commodityDraining = nil; stranded = true end
+  if stranded then settleDetachedConfirmed(pending, "unavailable") end
+end
+
 -- Sniper v3 §3 pause routers, forwarded from Core/Init.lua's MAIL_SHOW/MAIL_CLOSED dispatch
 -- (MAIL_SHOW is also the P2 ledger's own inbox-scan trigger -- this is a second, independent
 -- forward of the same event, not a replacement). Reading mail and driving the Sniper's own
@@ -4108,6 +4145,9 @@ local function onDialogPrimaryClick()
       dialog.cancelBtn:Enable()
       setDialogStatus(GC.L["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."], 1, 0.82, 0)
     end)
+    -- 60s (inline, same 200-local ceiling): far beyond any real server round trip, so a genuine
+    -- terminal event always lands first -- see GC.Sniper._ReleaseStrandedConfirmed.
+    C_Timer.After(60, function() GC.Sniper._ReleaseStrandedConfirmed(pending) end)
     end
     return
   end

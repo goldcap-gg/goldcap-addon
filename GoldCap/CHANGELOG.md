@@ -1,5 +1,16 @@
 # GoldCap
 
+## 0.6.1 (unreleased)
+
+- **Buying no longer gets stuck behind an earlier buy.** If the price moved in
+  the instant between the quote and your Buy click, the auction house asks for
+  the price again instead of selling — and the sniper used to treat that as a
+  purchase still in flight, refusing every later Buy with "waiting for previous
+  commodity purchase to settle" until you reloaded. It now shows you the new
+  price and lets you confirm or walk away, the same way the game's own window
+  does. A buy the server never answers at all is let go after a minute, with a
+  reminder to check your mail.
+
 ## 0.6.0 (2026-08-29)
 
 - **The Sell tab is built around two decks now.** One is what you can put up
