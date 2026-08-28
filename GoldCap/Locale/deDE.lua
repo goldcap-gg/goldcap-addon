@@ -24,7 +24,6 @@ GC.Locales.deDE = {
   ["%d held back"] = "%d zurückgehalten",
   ["%d held back from posting"] = "%d nicht eingestellt",
   ["%d missing"] = "%d fehlen",
-  ["%d of these are yours"] = "%d davon gehören dir",
   ["%d partial"] = "%d teilweise",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d von der Live-Prüfung abgelehnt -- oben auf \"HIDDEN %d\" klicken, um sie zu sehen",
@@ -444,6 +443,7 @@ GC.Locales.deDE = {
     "automatisch synchronisierte Daten veraltet -- /goldcap import",
   ["auto: paused"] = "auto: pausiert",
   ["big buy"] = "großer Kauf",
+  ["blue is already yours"] = "blau ist schon deins",
   ["bought %d x item %d"] = "%d x Gegenstand %d gekauft",
   ["bought %d x item %d after AH close"] =
     "%d x Gegenstand %d nach Schließen des Auktionshauses gekauft",
@@ -472,6 +472,9 @@ GC.Locales.deDE = {
   ["full scan stalled -- press Full Scan to retry"] =
     "vollständiger Scan hängt -- Full Scan drücken, um es erneut zu versuchen",
   ["full scan stalled -- retrying shortly"] = "vollständiger Scan hängt -- gleich neuer Versuch",
+  ["gold is where your price lands"] = "Gold ist, wo dein Preis landet",
+  ["gold is where your price lands, blue is already yours"] =
+    "Gold ist, wo dein Preis landet, blau ist schon deins",
   ["gone / price changed"] = "weg / Preis geändert",
   ["high"] = "hoch",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -593,7 +596,6 @@ GC.Locales.deDE = {
     "dein Spielclient hat keine Schrift für diese Sprache — der Text erscheint als leere Kästchen",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "dein Import ist %d Stunden alt -- die Preise können abweichen. Füge eine frische Zeichenkette von goldcap.gg ein (/goldcap import).",
-  ["your price lands here"] = "hier landet dein Preis",
   ["» needs price"] = "» braucht Preis",
   ["×%d in bags"] = "×%d in Taschen",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

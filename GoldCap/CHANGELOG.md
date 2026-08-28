@@ -12,14 +12,29 @@
   written are repaired once on login, and a snapshot from a region you are not
   playing in says so instead of quietly re-pricing your whole board.
 
+- **Every item on the Sell tab looked truncated.** The name and the "×246 in
+  bags · ×11 listed" line under it shared one label, and that label draws a
+  single line — so the second line was never drawn and every name on the screen
+  ended in "…", however short it was. They are two lines now, and both are
+  there.
+
+- **"What you paid" was being pushed off the screen.** COST / UNIT was the first
+  number the layout gave up once the window was anything but wide, which left a
+  market price and a profit with nothing on screen saying what either was
+  measured against. The numeric columns now shrink before anything is dropped,
+  and what you paid is the last column to go rather than nearly the first.
+
 - **The Sell tab finally shows the book it has been pricing against.** Every
   price decision on that screen already read the live order book — the
   underprice floor, the recommended price, how much stock sits ahead of your own
   lot — and you could see none of it. Expanding a row now shows the cheapest
   price that is not your own, how many units are standing on each price, how
   much stock is queued in front of it, which levels are already yours, and where
-  the price GoldCap picked would put you. The three headings in an expanded row
-  were also still English in every language; they are translated now.
+  the price GoldCap picked would put you — in its own four columns, with a bar
+  for the depth at each price. Gold marks where your price would land, blue a
+  price you are already standing on. The three headings in an expanded row were
+  also still English in every language; they are translated now, and each one
+  carries its hint inline rather than in a column a narrow window drops.
 
 - **The buy check window rebuilt around one answer.** It used to open the same
   shape whatever it had to say: a headline that ran off the edge into "…", a

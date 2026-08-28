@@ -26,7 +26,6 @@ GC.Locales.koKR = {
   ["%d held back"] = "%d건 보류",
   ["%d held back from posting"] = "등록에서 %d건 보류",
   ["%d missing"] = "%d건 없음",
-  ["%d of these are yours"] = "이 중 %d개가 내 것",
   ["%d partial"] = "%d건 일부",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "실시간 확인에서 %d건 거부 -- 위의 \"HIDDEN %d\"를 눌러 확인하세요",
@@ -415,6 +414,7 @@ GC.Locales.koKR = {
   ["auto-synced data stale -- /goldcap import"] = "자동 동기화 자료가 오래됨 -- /goldcap import",
   ["auto: paused"] = "자동: 일시중지",
   ["big buy"] = "대량 구매",
+  ["blue is already yours"] = "파란색은 이미 내 물량",
   ["bought %d x item %d"] = "%d개 구매 · 아이템 %d",
   ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
   ["buying commodity..."] = "상품 구매 중...",
@@ -441,6 +441,8 @@ GC.Locales.koKR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "전체 검색이 멈췄습니다 -- Full Scan을 눌러 다시 시도하세요",
   ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
+  ["gold is where your price lands"] = "금색이 내 가격이 놓이는 자리",
+  ["gold is where your price lands, blue is already yours"] = "금색이 내 가격이 놓이는 자리, 파란색은 이미 내 물량",
   ["gone / price changed"] = "사라짐 / 가격 변경",
   ["high"] = "높음",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -558,7 +560,6 @@ GC.Locales.koKR = {
     "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
-  ["your price lands here"] = "내 가격이 여기 놓임",
   ["» needs price"] = "» 가격 필요",
   ["×%d in bags"] = "가방에 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

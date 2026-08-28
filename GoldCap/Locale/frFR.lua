@@ -25,7 +25,6 @@ GC.Locales.frFR = {
   ["%d held back"] = "%d retenues",
   ["%d held back from posting"] = "%d non mises en vente",
   ["%d missing"] = "%d manquantes",
-  ["%d of these are yours"] = "%d de ces unités sont à toi",
   ["%d partial"] = "%d partielles",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d refusées par la vérification en direct -- cliquez sur « HIDDEN %d » au-dessus pour les voir",
@@ -444,6 +443,7 @@ GC.Locales.frFR = {
     "données synchronisées périmées -- /goldcap import",
   ["auto: paused"] = "auto : en pause",
   ["big buy"] = "gros achat",
+  ["blue is already yours"] = "le bleu est déjà à toi",
   ["bought %d x item %d"] = "acheté %d x objet %d",
   ["bought %d x item %d after AH close"] =
     "acheté %d x objet %d après la fermeture de l'hôtel des ventes",
@@ -472,6 +472,9 @@ GC.Locales.frFR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "scan complet bloqué -- appuyez sur Full Scan pour réessayer",
   ["full scan stalled -- retrying shortly"] = "scan complet bloqué -- nouvelle tentative bientôt",
+  ["gold is where your price lands"] = "l'or marque où ton prix se place",
+  ["gold is where your price lands, blue is already yours"] =
+    "l'or marque où ton prix se place, le bleu est déjà à toi",
   ["gone / price changed"] = "disparu / prix modifié",
   ["high"] = "élevée",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -593,7 +596,6 @@ GC.Locales.frFR = {
     "votre client de jeu n'a pas de police pour cette langue — le texte s'affichera en carrés vides",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "votre import date de %d heures -- les prix peuvent être faux. Collez une chaîne fraîche depuis goldcap.gg (/goldcap import).",
-  ["your price lands here"] = "ton prix se place ici",
   ["» needs price"] = "» prix requis",
   ["×%d in bags"] = "×%d en sacs",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

@@ -14,10 +14,14 @@ describe("Grouped Sell wiring", function()
     -- `status`, which erased the recommendation -- the only place the target price is written.
     -- `listed` is the optional column now: its total is already in the summary, while the market
     -- price is what every decision on this screen turns on.
-    assert.is_truthy(text:find('{ key = "cost", w = 92, num = true }', 1, true))
+    -- `min` is the width a numeric column shrinks to before ANY column is dropped: without
+    -- it the layout went straight from full width to losing COST/UNIT, and at the default
+    -- 720-wide window it lost it -- a market price and a profit with nothing on screen saying
+    -- what either was measured against.
+    assert.is_truthy(text:find('{ key = "cost", w = 92, min = 72, num = true }', 1, true))
     assert.is_truthy(text:find('{ key = "listed", w = 88, num = true, optional = true }', 1, true))
-    assert.is_truthy(text:find('{ key = "market", w = 92, num = true }', 1, true))
-    assert.is_truthy(text:find('{ key = "profit", w = 96, num = true, bold = true }', 1, true))
+    assert.is_truthy(text:find('{ key = "market", w = 92, min = 72, num = true }', 1, true))
+    assert.is_truthy(text:find('{ key = "profit", w = 96, min = 76, num = true, bold = true }', 1, true))
     assert.is_truthy(text:find('{ key = "status", w = 176 }', 1, true))
     assert.is_truthy(text:find('{ key = "action", w = 88 }', 1, true))
     assert.is_nil(text:find("BuildRow", 1, true))

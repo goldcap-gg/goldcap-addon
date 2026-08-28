@@ -25,7 +25,6 @@ GC.Locales.ruRU = {
   ["%d held back"] = "%d придержано",
   ["%d held back from posting"] = "%d придержано от выставления",
   ["%d missing"] = "%d не хватает",
-  ["%d of these are yours"] = "из них %d ваши",
   ["%d partial"] = "%d частично",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d отклонено живой проверкой -- нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
@@ -443,6 +442,7 @@ GC.Locales.ruRU = {
     "автосинхронизированные данные устарели -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
   ["big buy"] = "крупная покупка",
+  ["blue is already yours"] = "синее — уже ваше",
   ["bought %d x item %d"] = "куплено %d x предмет %d",
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d после закрытия аукциона",
   ["buying commodity..."] = "покупаем товар...",
@@ -470,6 +470,9 @@ GC.Locales.ruRU = {
   ["full scan stalled -- press Full Scan to retry"] =
     "полное сканирование застряло -- нажмите Full Scan ещё раз",
   ["full scan stalled -- retrying shortly"] = "полное сканирование застряло -- скоро повторим",
+  ["gold is where your price lands"] = "золотое — куда встанет ваша цена",
+  ["gold is where your price lands, blue is already yours"] =
+    "золотое — куда встанет ваша цена, синее — уже ваше",
   ["gone / price changed"] = "исчезло / цена изменилась",
   ["high"] = "высокая",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -591,7 +594,6 @@ GC.Locales.ruRU = {
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
-  ["your price lands here"] = "ваша цена встанет здесь",
   ["» needs price"] = "» нужна цена",
   ["×%d in bags"] = "×%d в сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

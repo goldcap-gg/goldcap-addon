@@ -68,10 +68,14 @@ local PHASE_WATCHDOG_SECONDS = 15
 -- the summary, whereas the market price is what every decision on this screen turns on.
 local COLUMNS = {
   { key = "item", flex = true, min = 200 },
-  { key = "cost", w = 92, num = true },
+  -- `min` is what a numeric column shrinks to before anything is DROPPED. Without it the
+  -- shedding order jumped straight from "everything at full width" to "COST/UNIT is gone",
+  -- and at the default 720-wide window it landed on the gone side: a seller looking at a
+  -- market price and a profit with nothing on screen saying what either was measured against.
+  { key = "cost", w = 92, min = 72, num = true },
   { key = "listed", w = 88, num = true, optional = true },
-  { key = "market", w = 92, num = true },
-  { key = "profit", w = 96, num = true, bold = true },
+  { key = "market", w = 92, min = 72, num = true },
+  { key = "profit", w = 96, min = 76, num = true, bold = true },
   { key = "status", w = 176 },
   { key = "action", w = 88 },
   { key = "expand", w = 22 },
@@ -378,6 +382,18 @@ local function bookHint(book)
     parts[#parts + 1] = (GC.L["cheapest not yours %s"]):format(formatCell(book.cheapestCompeting))
   end
   parts[#parts + 1] = (GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0)
+  -- Said once, here, rather than on every row: the rows carry the two facts in COLOUR (the
+  -- marker glyphs the design drew are not in the bundled face and rendered as empty boxes),
+  -- and a colour nobody explained is a colour nobody reads.
+  local mine = false
+  for i = 1, #(book.rows or {}) do if book.rows[i].mine then mine = true break end end
+  if book.yourRow and mine then
+    parts[#parts + 1] = GC.L["gold is where your price lands, blue is already yours"]
+  elseif book.yourRow then
+    parts[#parts + 1] = GC.L["gold is where your price lands"]
+  elseif mine then
+    parts[#parts + 1] = GC.L["blue is already yours"]
+  end
   return table.concat(parts, " · ")
 end
 
@@ -1764,7 +1780,9 @@ end
 -- instead: the listed total (already in the summary), then squeeze the advice text, then drop
 -- it entirely (the action button carries the same guidance on its tooltip), and only then the
 -- cost per unit (which the expansion spells out per purchase).
-local ITEM_MIN = 200
+-- 160, was 200. The name has its own truncation and a tooltip carrying it in full; COST/UNIT
+-- has neither, and at 200 the name's floor was what pushed it off the screen.
+local ITEM_MIN = 160
 local STATUS_MIN = 110
 local columnWidth = {}
 
@@ -1787,6 +1805,14 @@ local function shownColumns()
     if remaining() < ITEM_MIN then dropped.listed = true end
     if remaining() < ITEM_MIN then columnWidth.status = STATUS_MIN end
     if remaining() < ITEM_MIN then dropped.status = true; columnWidth.status = nil end
+    -- Squeeze every number that has a floor before giving one of them up. What you paid is
+    -- the question this tab exists to answer, so COST/UNIT is the last thing to go and only
+    -- once its own minimum still does not fit.
+    if remaining() < ITEM_MIN then
+      for _, column in ipairs(COLUMNS) do
+        if column.min then columnWidth[column.key] = column.min end
+      end
+    end
     if remaining() < ITEM_MIN then dropped.cost = true end
   end
 
@@ -1795,6 +1821,35 @@ local function shownColumns()
     if not dropped[column.key] then shown[#shown + 1] = column end
   end
   return shown, dropped
+end
+
+-- The book's own four columns, mirroring the design: price, depth at that price, a bar for
+-- that depth, and the units queued in front of it. Fixed, and deliberately independent of
+-- shownColumns -- a book row shows the same four things at every window width.
+local BOOK_PRICE_W, BOOK_UNITS_W, BOOK_CUMUL_W, BOOK_BAR_H = 84, 58, 62, 6
+-- The fill is sized in pixels rather than by fraction of a live frame: GetWidth on a frame
+-- anchored LEFT+RIGHT is only resolved after a layout pass, and this runs during one. The bar
+-- itself stretches with the row; the fill is capped at what the narrowest sensible row leaves,
+-- so a full bar never overruns the cumulative column on a narrow window.
+local BOOK_BAR_MAX_W = 120
+
+local function layoutBookRow(row)
+  local left = row.itemInset or 2
+  row.subItem:ClearAllPoints()
+  row.subItem:SetPoint("LEFT", row, "LEFT", left, 0)
+  row.subItem:SetWidth(BOOK_PRICE_W)
+
+  row.bookCumul:ClearAllPoints()
+  row.bookCumul:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.m, 0)
+  row.bookCumul:SetWidth(BOOK_CUMUL_W)
+
+  row.bookUnits:ClearAllPoints()
+  row.bookUnits:SetPoint("LEFT", row, "LEFT", left + BOOK_PRICE_W + Theme.pad.s, 0)
+  row.bookUnits:SetWidth(BOOK_UNITS_W)
+
+  row.bookBar:ClearAllPoints()
+  row.bookBar:SetPoint("LEFT", row.bookUnits, "RIGHT", Theme.pad.s, 0)
+  row.bookBar:SetPoint("RIGHT", row.bookCumul, "LEFT", -Theme.pad.s, 0)
 end
 
 local function layoutCells(row)
@@ -1810,12 +1865,26 @@ local function layoutCells(row)
       -- row.subItem (a detail/batch/lot/listing sub-row) and row.sectionLabel (a group heading)
       -- -- exactly one of which is shown per row (the kind branch in renderRows), so all three
       -- get the same anchors rather than fighting over layout.
-      cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
-      cell:SetPoint("RIGHT", right, "LEFT", -4, 0)
+      -- The name sits in the upper half of the row and its stock line in the lower half; the
+      -- header row and every sub-row keep the whole box, centred, because they carry one line.
+      -- 8, not 7: at Theme.Scale 1.3 a 12px name is ~15.6 tall and a 10px stock line ~13, so
+      -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
+      local nameY = row.itemStock and 8 or 0
+      cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
+      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY)
+      if row.itemStock then
+        row.itemStock:ClearAllPoints()
+        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -8)
+        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -8)
+      end
       -- The column header row (below) shares this function but carries neither widget -- it is
       -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
       if row.subItem then
         row.subItem:ClearAllPoints()
+        -- Clears the fixed width layoutBookRow gives it. Rows are pooled: a row that drew a
+        -- book level last render would otherwise keep an 84px price column forever, fighting
+        -- the LEFT/RIGHT pair below for the rest of its life.
+        row.subItem:SetWidth(0)
         row.subItem:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
         row.subItem:SetPoint("RIGHT", right, "LEFT", -4, 0)
       end
@@ -1949,6 +2018,48 @@ local function createRow(parent)
     row.cells[column.key] = cell
   end
   row.cells.item:SetJustifyH("LEFT")
+  -- The stock line ("×246 in bags · ×11 listed") used to ride in cells.item as a second line
+  -- behind a "\n". cells.item is SetWordWrap(false) like every other cell, which renders ONE
+  -- line and marks the rest with an ellipsis -- so the second line was never drawn at all and
+  -- every item on the screen appeared truncated, whatever its name. Its own FontString, its
+  -- own anchor (layoutCells splits the flex box in half vertically for the pair).
+  row.itemStock = Theme.Label(row, 10)
+  row.itemStock:SetJustifyH("LEFT")
+  row.itemStock:SetWordWrap(false)
+  row.itemStock:Hide()
+
+  -- A book level is not a position, and borrowing the position's columns for it was wrong in
+  -- the way that matters: those columns SHED on a narrow window, so the depth and the queue
+  -- behind each price -- the whole reason to draw a book -- disappeared and left a bare list
+  -- of numbers. Its own four widgets, its own anchors, laid out by layoutBookRow below.
+  row.bookTint = row:CreateTexture(nil, "BACKGROUND", nil, 2)
+  row.bookTint:SetPoint("TOPLEFT", 2, -1)
+  row.bookTint:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.bookTint:Hide()
+
+  row.bookUnits = Theme.Num(row, 11)
+  row.bookUnits:SetJustifyH("RIGHT")
+  row.bookUnits:SetWordWrap(false)
+  row.bookUnits:Hide()
+
+  row.bookCumul = Theme.Num(row, 11)
+  row.bookCumul:SetJustifyH("RIGHT")
+  row.bookCumul:SetWordWrap(false)
+  row.bookCumul:Hide()
+
+  -- Depth at this price, drawn against the deepest level on screen. A bar is honest here for
+  -- the reason the check panel's facts are not always: every row shares one ceiling, so the
+  -- lengths are comparable to each other rather than to a number nobody chose.
+  row.bookBar = CreateFrame("Frame", nil, row)
+  row.bookBar:SetHeight(BOOK_BAR_H)
+  row.bookBar.track = row.bookBar:CreateTexture(nil, "BACKGROUND")
+  row.bookBar.track:SetAllPoints()
+  row.bookBar.track:SetColorTexture(1, 1, 1, 0.05)
+  row.bookBar.fill = row.bookBar:CreateTexture(nil, "ARTWORK")
+  row.bookBar.fill:SetPoint("TOPLEFT")
+  row.bookBar.fill:SetPoint("BOTTOMLEFT")
+  row.bookBar.fill:SetWidth(1)
+  row.bookBar:Hide()
   -- Sub-rows (detail/batch/lot/listing) write into their own widget, one size down from a
   -- position's name (11, not 12) -- the flex column's box is shared by three mutually
   -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and layoutCells anchors
@@ -2257,8 +2368,9 @@ renderRows = function()
         -- `not p.unresolved` guard further down.
         local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
         row.notOnHand = notOnHand
-        row.cells.item:SetText(named .. "\n"
-          .. (#stockParts > 0 and table.concat(stockParts, " · ") or GC.SellViewModel.SourceText(p))
+        row.cells.item:SetText(named)
+        row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
+          or GC.SellViewModel.SourceText(p))
           .. (notOnHand and "|cff8c8a85 · not on hand|r" or ""))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.
@@ -2442,11 +2554,13 @@ renderRows = function()
         row.cells.profit:SetText(""); row.cells.status:SetText(recommendationText(d.recommendation)); row.cells.expand:SetText("")
         row.action:Hide()
       elseif entry.kind == "group" then
-        row.sectionLabel:SetText(entry.title)
-        row.cells.cost:SetText(""); row.cells.listed:SetText(""); row.cells.market:SetText("")
-        row.cells.profit:SetText(""); row.cells.expand:SetText("")
-        row.cells.status:SetText(entry.hint or "")
-        setColor(row.cells.status, Theme.color.fgDim)
+        -- The hint rides IN the heading, not in the status cell. That cell is the first thing
+        -- a narrow window sheds, and the book's own hint -- the cheapest ask that is not yours
+        -- -- is the single most useful line in the section: losing it exactly when the window
+        -- is too small to show much else is backwards.
+        row.sectionLabel:SetText(entry.title
+          .. (entry.hint and entry.hint ~= "" and ("  " .. DIM_HEX .. entry.hint .. "|r") or ""))
+        for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
         row.action:Hide()
       elseif entry.kind == "batch" then
         -- Was "goldcap · at 1786831966 · 5 original / 2 left / 2 FIFO · unit 100 · captured".
@@ -2506,36 +2620,37 @@ renderRows = function()
           row.action:Hide()
         end
       elseif entry.kind == "level" then
-        -- One price level of the live book. The marker is the whole point of the row: "◆" is
-        -- stock you already have standing at this price, and "▸" is where the price GoldCap
-        -- picked would put you -- the two questions a seller cannot answer from a single
-        -- recommended number.
+        -- One price level of the live book: what it costs, how deep it is, and how much stock
+        -- is queued in front of it. Colour carries the two things a seller cannot work out
+        -- from a single recommended number -- gold is where GoldCap's price would put you,
+        -- blue is stock you are already standing on. Deliberately no ◆/▸ marker glyphs: the
+        -- bundled face does not carry them and they drew as empty boxes in game.
         local level = entry.level
-        local marker, colour = "", Theme.color.fg
+        local colour, tint = Theme.color.fg, nil
         if entry.yours then
-          marker, colour = "▸ ", Theme.color.gold
+          colour, tint = Theme.color.gold, Theme.color.gold
         elseif level.mine then
-          marker, colour = "◆ ", Theme.color.watch
+          colour, tint = Theme.color.watch, Theme.color.watch
         end
         setColor(row.subItem, colour)
-        row.subItem:SetText(marker .. formatCell(level.unit))
-        row.cells.cost:SetText(GC.Util.FormatCount(level.units) or "—")
-        setColor(row.cells.cost, Theme.color.fg)
-        row.cells.listed:SetText(GC.Util.FormatCount(level.cumulative) or "—")
-        setColor(row.cells.listed, Theme.color.fgDim)
-        row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
-        -- Only says something when there IS something: a level nobody owns and nobody is about
-        -- to join is just a price, and a "—" in every one of eight rows is the noise the check
-        -- panel was rebuilt to stop repeating here.
-        if entry.yours then
-          row.cells.status:SetText(GC.L["your price lands here"])
-          setColor(row.cells.status, Theme.color.gold)
-        elseif level.mine then
-          row.cells.status:SetText((GC.L["%d of these are yours"]):format(level.ownerUnits))
-          setColor(row.cells.status, Theme.color.watch)
+        row.subItem:SetText(formatCell(level.unit))
+        row.bookUnits:SetText(GC.Util.FormatCount(level.units) or "—")
+        setColor(row.bookUnits, colour)
+        row.bookCumul:SetText(GC.Util.FormatCount(level.cumulative) or "—")
+        setColor(row.bookCumul, Theme.color.fgDim)
+        local widest = entry.book and entry.book.widest or 0
+        local span = widest > 0 and (level.units / widest) or 0
+        row.bookBar.fill:SetWidth(math.max(1, math.floor(BOOK_BAR_MAX_W * span + 0.5)))
+        if tint then
+          row.bookBar.fill:SetColorTexture(tint[1], tint[2], tint[3], 0.8)
+          row.bookTint:SetColorTexture(tint[1], tint[2], tint[3], 0.12)
+          row.bookTint:Show()
         else
-          row.cells.status:SetText("")
+          row.bookBar.fill:SetColorTexture(1, 1, 1, 0.22)
+          row.bookTint:Hide()
         end
+        row.bookUnits:Show(); row.bookCumul:Show(); row.bookBar:Show()
+        for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
         row.action:Hide()
       elseif entry.kind == "lot" then
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
@@ -2618,12 +2733,18 @@ renderRows = function()
       -- to a different kind on every render (a "batch" this pass can be a "position" the next).
       local zc2 = Theme.color.zebra
       row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
+      -- Pooled rows are rebound to a different kind on every render, so a book row's own
+      -- widgets have to be put away by whatever kind takes the row next.
+      if entry.kind ~= "level" then
+        row.bookUnits:Hide(); row.bookCumul:Hide(); row.bookBar:Hide(); row.bookTint:Hide()
+      end
       if entry.kind == "position" then
         row.spine:Hide()
         row.divider:Show()
         row.zebra:Show()
         row.well:Hide()
         row.cells.item:Show()
+        row.itemStock:Show()
         row.subItem:Hide()
         row.sectionLabel:Hide()
         row.sectionRule:Hide()
@@ -2648,6 +2769,7 @@ renderRows = function()
         row.zebra:Hide()
         row.well:Show()
         row.cells.item:Hide()
+        row.itemStock:Hide()
         if entry.kind == "group" then
           row.subItem:Hide()
           row.sectionLabel:Show()
@@ -2659,6 +2781,7 @@ renderRows = function()
         end
       end
       layoutCells(row)
+      if entry.kind == "level" then layoutBookRow(row) end
     end
   end
   content:SetHeight(math.max(1, #entries) * ROW_HEIGHT)

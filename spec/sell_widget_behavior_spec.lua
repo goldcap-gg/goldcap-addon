@@ -79,7 +79,10 @@ describe("Sell widget geometry and manual cost", function()
     local theme = {
       color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
         zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
-        gold = { 0.83, 0.64, 0.22 }, panel = { 0.078, 0.086, 0.110 }, panelHi = { 0.102, 0.114, 0.141 } },
+        gold = { 0.83, 0.64, 0.22 }, panel = { 0.078, 0.086, 0.110 }, panelHi = { 0.102, 0.114, 0.141 },
+        -- `watch` is the book's "this level is already yours" tint: its own colour on
+        -- purpose, since gold already means "where your price would land".
+        watch = { 0.35, 0.72, 0.90 } },
       pad = { xs = 4, s = 8, m = 12, l = 16 },
       MEDIA = "",
       Label = function(parent) return region("FontString", parent) end,
@@ -171,7 +174,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
         bagQty = 0, listedQty = 0, sources = {} },
     })
-    assert.matches("· not on hand", rows[1].cells.item.text, 1, true)
+    assert.matches("· not on hand", rows[1].itemStock.text, 1, true)
     assert.is_true(rows[1].notOnHand)
     local tooltipLines = {}
     _G.GameTooltip = {
@@ -194,7 +197,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED" },
     })
-    assert.not_matches("· not on hand", rows[1].cells.item.text, 1, true)
+    assert.not_matches("· not on hand", rows[1].itemStock.text, 1, true)
     assert.is_false(rows[1].notOnHand)
   end)
 
@@ -238,7 +241,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 5, knownQty = 5, knownCost = 500, listedValue = 0,
         bagQty = 0, listedQty = 0, sources = {}, unresolved = true },
     })
-    assert.not_matches("· not on hand", rows[1].cells.item.text, 1, true)
+    assert.not_matches("· not on hand", rows[1].itemStock.text, 1, true)
     assert.is_false(rows[1].notOnHand)
     local tooltipLines = {}
     _G.GameTooltip = {
@@ -599,35 +602,61 @@ describe("Sell widget geometry and manual cost", function()
     it("heads the section with the price to actually beat, not the cheapest row on screen", function()
       local GC = load(620, { calls = {} })
       local rows = bookRows(GC, BOOK)
-      assert.equal("THE BOOK", rows[3].sectionLabel.text)
-      -- 418800 copper -> the file's own formatCell spelling. The point is that the header
-      -- names a competing price and the size of the market behind it.
-      assert.matches("cheapest not yours", rows[3].cells.status.text, 1, true)
-      assert.matches("1062 units", rows[3].cells.status.text, 1, true)
-      assert.matches("4 prices", rows[3].cells.status.text, 1, true)
+      -- The heading carries its own hint inline: the status cell it used to sit in is the
+      -- first column a narrow window sheds, and the cheapest ask that is not yours is the one
+      -- line worth keeping when the window is too small to show much else.
+      assert.matches("^THE BOOK", rows[3].sectionLabel.text)
+      assert.matches("cheapest not yours", rows[3].sectionLabel.text, 1, true)
+      assert.matches("1062 units", rows[3].sectionLabel.text, 1, true)
+      assert.matches("4 prices", rows[3].sectionLabel.text, 1, true)
+      -- The colour legend is said once, in the heading, because the rows carry the two facts
+      -- in colour rather than in a marker glyph the bundled face does not have.
+      assert.matches("gold is where your price lands", rows[3].sectionLabel.text, 1, true)
     end)
 
+    -- Depth and queue live in the book's OWN widgets, not in the position columns: those shed
+    -- on a narrow window, which is exactly how the first cut of this ended up drawing a bare
+    -- list of prices with the two numbers that matter missing.
     it("prints each level with its own depth and the queue standing in front of it", function()
       local GC = load(620, { calls = {} })
       local rows = bookRows(GC, BOOK)
-      assert.equal("12", rows[4].cells.cost.text)
-      assert.equal("12", rows[4].cells.listed.text)   -- cumulative
-      assert.equal("340", rows[5].cells.cost.text)
-      assert.equal("352", rows[5].cells.listed.text)  -- 12 + 340 ahead of this price
+      assert.equal("12", rows[4].bookUnits.text)
+      assert.equal("12", rows[4].bookCumul.text)
+      assert.equal("340", rows[5].bookUnits.text)
+      assert.equal("352", rows[5].bookCumul.text)  -- 12 + 340 ahead of this price
+      assert.is_true(rows[4].bookUnits.shown)
+      assert.is_true(rows[4].bookBar.shown)
     end)
 
-    -- The two markers are the whole reason to draw the book: one says "you are already
-    -- standing here", the other "this is where the price GoldCap picked would put you".
-    it("marks where your price lands and which levels are already yours", function()
+    -- Colour carries the two things a seller cannot work out from one recommended number.
+    -- Deliberately not a ◆/▸ glyph: the bundled face has neither, and they drew as empty
+    -- boxes in game.
+    it("colours where your price lands and which levels are already yours", function()
       local GC = load(620, { calls = {} })
       local rows = bookRows(GC, BOOK)
-      assert.matches("^▸ ", rows[5].subItem.text)
-      assert.equal("your price lands here", rows[5].cells.status.text)
-      assert.matches("^◆ ", rows[6].subItem.text)
-      assert.matches("90", rows[6].cells.status.text, 1, true)
-      -- and a level that is neither says nothing rather than a dash in every row
-      assert.equal("", rows[4].cells.status.text)
-      assert.is_false(rows[4].subItem.text:find("◆", 1, true) ~= nil)
+      local GOLD, WATCH = GC.Theme.color.gold, GC.Theme.color.watch
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[5].subItem.color)
+      assert.is_true(rows[5].bookTint.shown)
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[6].subItem.color)
+      assert.is_true(rows[6].bookTint.shown)
+      -- A level that is neither is just a price: no tint, no marker in the text.
+      assert.is_false(rows[4].bookTint.shown)
+      assert.equal("", rows[4].subItem.text:gsub("[%d%a]", ""):gsub("%s", ""))
+    end)
+
+    -- Rows are pooled and rebound to a different kind on every render, so a book row's own
+    -- widgets have to be put away by whichever kind takes the row next.
+    it("puts the book widgets away on a row that stops being a level", function()
+      local GC = load(620, { calls = {} })
+      local rows = bookRows(GC, BOOK)
+      assert.is_true(rows[4].bookUnits.shown)
+      bookRows(GC, nil)
+      assert.is_false(rows[4].bookUnits.shown)
+      assert.is_false(rows[4].bookBar.shown)
+      assert.is_false(rows[4].bookTint.shown)
+      -- And the fixed price-column width goes with them: a leftover width fights the
+      -- LEFT/RIGHT pair every other sub-row is anchored with.
+      assert.equal(0, rows[4].subItem.width)
     end)
 
     it("draws no book section at all when the addon has no live book", function()
@@ -807,7 +836,7 @@ describe("Sell widget geometry and manual cost", function()
   end)
 
   it("uses the header's ordered cell chain for real rows and sizes expansion scroll content", function()
-    local function assertRow(width, listed)
+    local function assertRow(width, listed, advice)
       local GC = load(width, { calls = {} })
       GC.SellViewModel.Expansion = function()
         return { note = "FIFO allocations", batches = { { source = "goldcap", remainingQty = 1 } },
@@ -820,20 +849,26 @@ describe("Sell widget geometry and manual cost", function()
       for _, child in ipairs(container.children) do if child.cells then header = child break end end
       local row = rows[1]
       assert.equal(listed, row.cells.listed.shown)
-      assert.equal(listed, row.cells.status.shown)
+      assert.equal(advice, row.cells.status.shown)
       assert.is_true(row.cells.market.shown)
+      -- What you paid survives every one of these widths now: it is the question the tab
+      -- exists to answer, and it used to be dropped before the window even left its default.
+      assert.is_true(row.cells.cost.shown)
       assert.is_nil(row.cells.queue)
       assert.equal(row.cells.expand, row.cells.action.points[1].relative)
-      if listed then
-        assert.equal(row.cells.action, row.cells.status.points[1].relative)
-        assert.equal(row.cells.status, row.cells.profit.points[1].relative)
-        assert.equal(row.cells.profit, row.cells.market.points[1].relative)
-        assert.equal(row.cells.market, row.cells.listed.points[1].relative)
-        assert.equal(row.cells.listed, row.cells.cost.points[1].relative)
-      else
-        assert.equal(row.cells.action, row.cells.profit.points[1].relative)
-        assert.equal(row.cells.profit, row.cells.market.points[1].relative)
-        assert.equal(row.cells.market, row.cells.cost.points[1].relative)
+      -- Each shown column anchors to the one on its right, right to left, whichever of the
+      -- optional two survived this width. Built from the shown set rather than branched per
+      -- case: the three widths below now produce three different chains, not two.
+      local chain = { "cost" }
+      if listed then chain[#chain + 1] = "listed" end
+      chain[#chain + 1] = "market"
+      chain[#chain + 1] = "profit"
+      if advice then chain[#chain + 1] = "status" end
+      chain[#chain + 1] = "action"
+      chain[#chain + 1] = "expand"
+      for i = 1, #chain - 1 do
+        assert.equal(row.cells[chain[i + 1]], row.cells[chain[i]].points[1].relative,
+          chain[i] .. " does not anchor to " .. chain[i + 1])
       end
       assert.equal(row.cells.cost, row.cells.item.points[2].relative)
       assert.equal(header.cells.expand, header.cells.action.points[1].relative)
@@ -846,16 +881,17 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(6 * 24, content.height)
       assert.equal("detail", rows[2].kind)
       assert.equal("group", rows[3].kind)
-      assert.equal("ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
+      assert.matches("^ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
       assert.equal("lot", rows[4].kind)
       assert.equal("group", rows[5].kind)
-      assert.equal("WHAT YOU PAID", rows[5].sectionLabel.text)
+      assert.matches("^WHAT YOU PAID", rows[5].sectionLabel.text)
       assert.equal("batch", rows[6].kind)
     end
-    -- 700 and 620 both land past the advice column being shed; 1100 keeps every column.
-    assertRow(700, false)
-    assertRow(620, false)
-    assertRow(1100, true)
+    -- 700 sheds the listed total but keeps the advice at its own minimum; 620 sheds the
+    -- advice as well; 1100 keeps every column at full width. COST/UNIT survives all three.
+    assertRow(700, false, true)
+    assertRow(620, false, false)
+    assertRow(1100, true, true)
   end)
 
   it("opens Set cost for listed partial and unknown orphan positions", function()
@@ -1223,7 +1259,7 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_false(rows[3].cells.item.shown)
     assert.is_false(rows[3].subItem.shown)
     assert.is_true(rows[3].sectionLabel.shown)
-    assert.equal("ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
+    assert.matches("^ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
     for _, child in ipairs(container.children) do
       if child.label == "GC" then child.scripts.OnClick() end
     end
@@ -1332,7 +1368,7 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     assert.equal("group", rows[3].kind)
-    assert.equal("WHAT YOU PAID", rows[3].sectionLabel.text)
+    assert.matches("^WHAT YOU PAID", rows[3].sectionLabel.text)
     -- The count sits right after the quantity: the sub-row cell ellipsizes at narrow widths and
     -- the tail is the first thing lost, so trailing the count would hide exactly the fact the
     -- collapse exists to show. Headless there is no date(), so the raw stamps stand in for

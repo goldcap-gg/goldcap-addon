@@ -143,7 +143,7 @@ describe("Sell tab, bags to Post", function()
     assert.equal("commodity:23427", row.position.positionKey)
     -- 200 + 46, added across both stacks.
     assert.equal(246, row.position.bagQty)
-    assert.match("×246 in bags", row.cells.item.text)
+    assert.match("×246 in bags", row.itemStock.text)
     assert.equal("Post", row.action.label)
     assert.is_true(row.action.shown)
   end)

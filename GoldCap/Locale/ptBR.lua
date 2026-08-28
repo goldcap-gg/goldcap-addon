@@ -26,7 +26,6 @@ GC.Locales.ptBR = {
   ["%d held back"] = "%d retidas",
   ["%d held back from posting"] = "%d não anunciadas",
   ["%d missing"] = "faltam %d",
-  ["%d of these are yours"] = "%d destas são suas",
   ["%d partial"] = "%d parciais",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d recusadas pela verificação ao vivo -- clique em \"HIDDEN %d\" acima para vê-las",
@@ -445,6 +444,7 @@ GC.Locales.ptBR = {
     "os dados sincronizados estão velhos -- /goldcap import",
   ["auto: paused"] = "auto: pausado",
   ["big buy"] = "compra grande",
+  ["blue is already yours"] = "o azul já é seu",
   ["bought %d x item %d"] = "comprados %d x item %d",
   ["bought %d x item %d after AH close"] =
     "comprados %d x item %d depois que a casa de leilões fechou",
@@ -473,6 +473,9 @@ GC.Locales.ptBR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "a varredura completa travou -- clique em Full Scan para tentar de novo",
   ["full scan stalled -- retrying shortly"] = "a varredura completa travou -- nova tentativa em breve",
+  ["gold is where your price lands"] = "o dourado é onde seu preço cai",
+  ["gold is where your price lands, blue is already yours"] =
+    "o dourado é onde seu preço cai, o azul já é seu",
   ["gone / price changed"] = "sumiu / preço mudou",
   ["high"] = "alta",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -593,7 +596,6 @@ GC.Locales.ptBR = {
     "seu cliente do jogo não tem fonte para este idioma — o texto aparecerá como quadrados vazios",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "sua importação tem %d horas -- os preços podem estar errados. Cole uma string nova do goldcap.gg (/goldcap import).",
-  ["your price lands here"] = "seu preço cai aqui",
   ["» needs price"] = "» falta preço",
   ["×%d in bags"] = "×%d nas bolsas",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

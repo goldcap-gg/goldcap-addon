@@ -29,7 +29,6 @@ GC.Locales.ukUA = {
   ["%d held back"] = "%d притримано",
   ["%d held back from posting"] = "%d притримано від виставлення",
   ["%d missing"] = "%d бракує",
-  ["%d of these are yours"] = "з них %d ваші",
   ["%d partial"] = "%d частково",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d відхилено живою перевіркою -- натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
@@ -445,6 +444,7 @@ GC.Locales.ukUA = {
     "автосинхронізовані дані застаріли -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
   ["big buy"] = "велика купівля",
+  ["blue is already yours"] = "синє — вже ваше",
   ["bought %d x item %d"] = "куплено %d x предмет %d",
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
@@ -472,6 +472,9 @@ GC.Locales.ukUA = {
   ["full scan stalled -- press Full Scan to retry"] =
     "повне сканування зупинилося -- натисніть Full Scan ще раз",
   ["full scan stalled -- retrying shortly"] = "повне сканування зупинилося -- скоро повторимо",
+  ["gold is where your price lands"] = "золоте — куди стане ваша ціна",
+  ["gold is where your price lands, blue is already yours"] =
+    "золоте — куди стане ваша ціна, синє — вже ваше",
   ["gone / price changed"] = "зникло / ціна змінилася",
   ["high"] = "висока",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -594,7 +597,6 @@ GC.Locales.ukUA = {
     "у вашому клієнті гри немає шрифту для цієї мови — текст відображатиметься порожніми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
-  ["your price lands here"] = "ваша ціна стане тут",
   ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

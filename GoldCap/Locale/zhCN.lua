@@ -27,7 +27,6 @@ GC.Locales.zhCN = {
   ["%d held back"] = "%d 笔已保留",
   ["%d held back from posting"] = "%d 笔未上架",
   ["%d missing"] = "缺少 %d 笔",
-  ["%d of these are yours"] = "其中 %d 件是你的",
   ["%d partial"] = "%d 笔部分",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "实时检查拒绝了 %d 笔 -- 按上方的“HIDDEN %d”查看",
@@ -408,6 +407,7 @@ GC.Locales.zhCN = {
   ["auto-synced data stale -- /goldcap import"] = "自动同步的数据已过期 -- /goldcap import",
   ["auto: paused"] = "自动：已暂停",
   ["big buy"] = "大额购买",
+  ["blue is already yours"] = "蓝色是你已经挂上的",
   ["bought %d x item %d"] = "已购买 %d 件 · 物品 %d",
   ["bought %d x item %d after AH close"] = "拍卖行关闭后购买 %d 件 · 物品 %d",
   ["buying commodity..."] = "正在购买商品...",
@@ -431,6 +431,8 @@ GC.Locales.zhCN = {
   ["full scan interrupted -- confirm your purchase"] = "完整扫描被中断 -- 请确认你的购买",
   ["full scan stalled -- press Full Scan to retry"] = "完整扫描卡住了 -- 按 Full Scan 重试",
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
+  ["gold is where your price lands"] = "金色是你的价格落点",
+  ["gold is where your price lands, blue is already yours"] = "金色是你的价格落点，蓝色是你已经挂上的",
   ["gone / price changed"] = "已消失 / 价格已变",
   ["high"] = "高",
   ["identity unresolved (variant item -- not priced by design)"] =
@@ -542,7 +544,6 @@ GC.Locales.zhCN = {
     "你的游戏客户端没有这种语言的字体 — 文字会显示为空白方块",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的导入数据已过 %d 小时 -- 价格可能有偏差。请从 goldcap.gg 粘贴新的字符串（/goldcap import）。",
-  ["your price lands here"] = "你的价格落在这里",
   ["» needs price"] = "» 需要价格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

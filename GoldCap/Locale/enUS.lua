@@ -26,7 +26,6 @@ GC.Locales.enUS = {
   ["%d held back"] = "%d held back",
   ["%d held back from posting"] = "%d held back from posting",
   ["%d missing"] = "%d missing",
-  ["%d of these are yours"] = "%d of these are yours",
   ["%d partial"] = "%d partial",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
   ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
@@ -407,6 +406,7 @@ GC.Locales.enUS = {
   ["auto-synced data stale -- /goldcap import"] = "auto-synced data stale -- /goldcap import",
   ["auto: paused"] = "auto: paused",
   ["big buy"] = "big buy",
+  ["blue is already yours"] = "blue is already yours",
   ["bought %d x item %d"] = "bought %d x item %d",
   ["bought %d x item %d after AH close"] = "bought %d x item %d after AH close",
   ["buying commodity..."] = "buying commodity...",
@@ -428,6 +428,9 @@ GC.Locales.enUS = {
   ["full scan interrupted -- confirm your purchase"] = "full scan interrupted -- confirm your purchase",
   ["full scan stalled -- press Full Scan to retry"] = "full scan stalled -- press Full Scan to retry",
   ["full scan stalled -- retrying shortly"] = "full scan stalled -- retrying shortly",
+  ["gold is where your price lands"] = "gold is where your price lands",
+  ["gold is where your price lands, blue is already yours"] =
+    "gold is where your price lands, blue is already yours",
   ["gone / price changed"] = "gone / price changed",
   ["high"] = "high",
   ["identity unresolved (variant item -- not priced by design)"] = "identity unresolved (variant item -- not priced by design)",
@@ -522,7 +525,6 @@ GC.Locales.enUS = {
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
-  ["your price lands here"] = "your price lands here",
   ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",
