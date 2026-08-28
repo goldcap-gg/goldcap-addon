@@ -25,11 +25,13 @@ GC.Locales.ruRU = {
   ["%d held back"] = "%d придержано",
   ["%d held back from posting"] = "%d придержано от выставления",
   ["%d missing"] = "%d не хватает",
+  ["%d of these are yours"] = "из них %d ваши",
   ["%d partial"] = "%d частично",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d отклонено живой проверкой -- нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
   ["%d sales · %s proceeds · %s in the mail"] = "%d продаж · %s выручка · %s в почте",
   ["%d units"] = "%d шт.",
+  ["%d units · %d prices"] = "%d шт. · %d цен",
   ["%d without a price"] = "%d без цены",
   ["%d without cost"] = "%d без себестоимости",
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
@@ -245,6 +247,7 @@ GC.Locales.ruRU = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "НА GOLDCAP.GG — ПОСЛЕДНИЕ %d ДНЕЙ",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "НА GOLDCAP.GG — ПОСЛЕДНИЕ %d ДНЕЙ, СВЕЖИЕ %d ИЗ %d",
+  ["ON THE AUCTION HOUSE"] = "НА АУКЦИОНЕ",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "Когда придёт почта, выставьте заново сами по новой цене — из этой же строки.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -348,6 +351,7 @@ GC.Locales.ruRU = {
   ["Status"] = "Статус",
   ["Stress exit unit"] = "Цена стресс-выхода",
   ["Stress profit"] = "Стресс-прибыль",
+  ["THE BOOK"] = "СТАКАН ЗАЯВОК",
   ["TIER"] = "КЛАСС",
   ["TOTAL"] = "ИТОГО",
   ["TREND"] = "ТРЕНД",
@@ -403,6 +407,7 @@ GC.Locales.ruRU = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = со скидкой, но ликвидность не подтверждена или прибыль мала",
   ["WHAT TO DO"] = "ЧТО ДЕЛАТЬ",
+  ["WHAT YOU PAID"] = "СКОЛЬКО ВЫ ЗАПЛАТИЛИ",
   ["WHEN"] = "КОГДА",
   ["Waiting for Auction House…"] = "Ждём аукцион…",
   ["Waiting for a live price"] = "Ждём живую цену",
@@ -441,6 +446,7 @@ GC.Locales.ruRU = {
   ["bought %d x item %d"] = "куплено %d x предмет %d",
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d после закрытия аукциона",
   ["buying commodity..."] = "покупаем товар...",
+  ["cheapest not yours %s"] = "дешевле всех не ваш %s",
   ["checking live price..."] = "проверяем живую цену...",
   ["checking live safety..."] = "проверяем безопасность вживую...",
   ["commodity no longer available -- someone bought it out"] =
@@ -585,6 +591,7 @@ GC.Locales.ruRU = {
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
+  ["your price lands here"] = "ваша цена встанет здесь",
   ["» needs price"] = "» нужна цена",
   ["×%d in bags"] = "×%d в сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

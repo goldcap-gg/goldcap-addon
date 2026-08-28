@@ -305,6 +305,11 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- queue-at-exit recommendation does not exist yet at this point in the walk.
 
   local levels = type(quotes and quotes[position.itemID]) == "table" and quotes[position.itemID].levels or nil
+  -- Kept on the position, not just used and dropped. Every price decision below already reads
+  -- the live book -- the floor, the recommendation, the depth ahead of your own lot -- and the
+  -- one thing the seller could never see was the book itself. The Sell tab shows a price it
+  -- picked and, until now, nothing about what that price is standing on.
+  position.levels = levels
   local marketStats = statsByItemID and statsByItemID[position.itemID]
   position.marketValue = marketStats and marketStats.mv or nil
   position.soldPerDay = marketStats and marketStats.sold or nil

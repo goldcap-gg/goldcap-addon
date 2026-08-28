@@ -26,11 +26,13 @@ GC.Locales.koKR = {
   ["%d held back"] = "%d건 보류",
   ["%d held back from posting"] = "등록에서 %d건 보류",
   ["%d missing"] = "%d건 없음",
+  ["%d of these are yours"] = "이 중 %d개가 내 것",
   ["%d partial"] = "%d건 일부",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "실시간 확인에서 %d건 거부 -- 위의 \"HIDDEN %d\"를 눌러 확인하세요",
   ["%d sales · %s proceeds · %s in the mail"] = "판매 %d건 · 수익 %s · 우편함 %s",
   ["%d units"] = "%d개",
+  ["%d units · %d prices"] = "%d개 · 가격 %d단",
   ["%d without a price"] = "가격 없음 %d건",
   ["%d without cost"] = "원가 없음 %d건",
   ["%d · %d/%d covered"] = "%d · %d/%d 확인됨",
@@ -233,6 +235,7 @@ GC.Locales.koKR = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "GOLDCAP.GG 기준 — 최근 %d일",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 기준 — 최근 %d일, 최신 %d/%d",
+  ["ON THE AUCTION HOUSE"] = "경매장에 올린 것",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "우편이 도착하면 이 줄에서 직접 새 가격으로 다시 등록하세요.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -330,6 +333,7 @@ GC.Locales.koKR = {
   ["Status"] = "상태",
   ["Stress exit unit"] = "스트레스 청산 단가",
   ["Stress profit"] = "스트레스 수익",
+  ["THE BOOK"] = "호가창",
   ["TIER"] = "등급",
   ["TOTAL"] = "합계",
   ["TREND"] = "추세",
@@ -378,6 +382,7 @@ GC.Locales.koKR = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = 할인은 있으나 유동성이 검증되지 않았거나 수익이 적음",
   ["WHAT TO DO"] = "할 일",
+  ["WHAT YOU PAID"] = "내가 지불한 값",
   ["WHEN"] = "시점",
   ["Waiting for Auction House…"] = "경매장을 기다리는 중…",
   ["Waiting for a live price"] = "실시간 가격을 기다리는 중",
@@ -413,6 +418,7 @@ GC.Locales.koKR = {
   ["bought %d x item %d"] = "%d개 구매 · 아이템 %d",
   ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
   ["buying commodity..."] = "상품 구매 중...",
+  ["cheapest not yours %s"] = "내 것이 아닌 최저가 %s",
   ["checking live price..."] = "실시간 가격 확인 중...",
   ["checking live safety..."] = "실시간 안전성 확인 중...",
   ["commodity no longer available -- someone bought it out"] =
@@ -552,6 +558,7 @@ GC.Locales.koKR = {
     "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
+  ["your price lands here"] = "내 가격이 여기 놓임",
   ["» needs price"] = "» 가격 필요",
   ["×%d in bags"] = "가방에 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

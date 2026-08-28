@@ -28,11 +28,13 @@ GC.Locales.esMX = {
   ["%d held back"] = "%d retenidas",
   ["%d held back from posting"] = "%d sin publicar",
   ["%d missing"] = "faltan %d",
+  ["%d of these are yours"] = "%d de estas son tuyas",
   ["%d partial"] = "%d parciales",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d rechazadas por la comprobación en vivo -- pulsa «HIDDEN %d» arriba para verlas",
   ["%d sales · %s proceeds · %s in the mail"] = "%d ventas · %s de ingresos · %s en el correo",
   ["%d units"] = "%d uds.",
+  ["%d units · %d prices"] = "%d unidades · %d precios",
   ["%d without a price"] = "%d sin precio",
   ["%d without cost"] = "%d sin costo",
   ["%d · %d/%d covered"] = "%d · %d/%d cubiertos",
@@ -250,6 +252,7 @@ GC.Locales.esMX = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "EN GOLDCAP.GG — ÚLTIMOS %d DÍAS",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "EN GOLDCAP.GG — ÚLTIMOS %d DÍAS, ÚLTIMAS %d DE %d",
+  ["ON THE AUCTION HOUSE"] = "EN LA CASA DE SUBASTAS",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "Cuando llegue el correo, vuelve a publicarlo tú mismo al nuevo precio, desde esta misma fila.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -352,6 +355,7 @@ GC.Locales.esMX = {
   ["Status"] = "Estado",
   ["Stress exit unit"] = "Precio de salida bajo presión",
   ["Stress profit"] = "Beneficio bajo presión",
+  ["THE BOOK"] = "EL LIBRO DE ÓRDENES",
   ["TIER"] = "NIVEL",
   ["TOTAL"] = "TOTAL",
   ["TREND"] = "TENDENCIA",
@@ -405,6 +409,7 @@ GC.Locales.esMX = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = con descuento pero con liquidez no demostrada o beneficio pequeño",
   ["WHAT TO DO"] = "QUÉ HACER",
+  ["WHAT YOU PAID"] = "LO QUE PAGASTE",
   ["WHEN"] = "CUÁNDO",
   ["Waiting for Auction House…"] = "Esperando a la casa de subastas…",
   ["Waiting for a live price"] = "Esperando un precio en vivo",
@@ -444,6 +449,7 @@ GC.Locales.esMX = {
   ["bought %d x item %d after AH close"] =
     "comprados %d x objeto %d tras cerrar la casa de subastas",
   ["buying commodity..."] = "comprando mercancía...",
+  ["cheapest not yours %s"] = "el más barato que no es tuyo %s",
   ["checking live price..."] = "comprobando el precio en vivo...",
   ["checking live safety..."] = "comprobando la seguridad en vivo...",
   ["commodity no longer available -- someone bought it out"] =
@@ -590,6 +596,7 @@ GC.Locales.esMX = {
     "tu cliente del juego no tiene fuente para este idioma — el texto se verá como cuadros vacíos",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "tu importación tiene %d horas -- los precios pueden estar desviados. Pega una cadena nueva de goldcap.gg (/goldcap import).",
+  ["your price lands here"] = "aquí cae tu precio",
   ["» needs price"] = "» falta precio",
   ["×%d in bags"] = "×%d en bolsas",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

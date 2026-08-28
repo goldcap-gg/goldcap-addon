@@ -117,6 +117,10 @@ describe("Sell widget geometry and manual cost", function()
       },
       Ledger = { Context = function() return { char = "A-R", region = "eu" } end },
     }
+    -- Core/Util.lua: the order book formats its unit counts through GC.Util.FormatCount, and
+    -- the .toc loads it long before this file, so a double without it is the spec lying about
+    -- what the frame runs against.
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("UI/SellFrame.lua", GC)
     local root = region("Frame")
     root.HookScript = function(_, name, fn) root.scripts[name] = fn end
@@ -560,6 +564,80 @@ describe("Sell widget geometry and manual cost", function()
       })
       assert.equal("no live quote yet — pricing…", rows[2].subItem.text)
       assert.same({ .5, .5, .5, 1 }, rows[2].subItem.color)
+    end)
+  end)
+
+  -- The Sell tab has priced against the live order book since it existed and never showed it:
+  -- the floor, the recommendation and the depth ahead of your own lot all read `levels`, and
+  -- the seller got a price with nothing to say what it was standing on. These drive the real
+  -- renderRows, so they cover the rows a player actually sees rather than the model behind
+  -- them (spec/sell_book_spec.lua covers that).
+  describe("the order book in an expanded row", function()
+    local function bookRows(GC, book)
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book }
+      end
+      return topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+          exposureQty = 5, knownQty = 5, knownCost = 10, listedValue = 0,
+          bagQty = 5, listedQty = 0, sources = {} },
+      })
+    end
+
+    local BOOK = {
+      levels = 4, totalUnits = 1062, truncated = false, widest = 620,
+      cheapestCompeting = 418800, yourUnit = 420400, yourRow = 2,
+      rows = {
+        { unit = 418800, units = 12, ownerUnits = 0, mine = false, cumulative = 12 },
+        { unit = 420500, units = 340, ownerUnits = 0, mine = false, cumulative = 352 },
+        { unit = 426000, units = 90, ownerUnits = 90, mine = true, cumulative = 442 },
+      },
+    }
+
+    it("heads the section with the price to actually beat, not the cheapest row on screen", function()
+      local GC = load(620, { calls = {} })
+      local rows = bookRows(GC, BOOK)
+      assert.equal("THE BOOK", rows[3].sectionLabel.text)
+      -- 418800 copper -> the file's own formatCell spelling. The point is that the header
+      -- names a competing price and the size of the market behind it.
+      assert.matches("cheapest not yours", rows[3].cells.status.text, 1, true)
+      assert.matches("1062 units", rows[3].cells.status.text, 1, true)
+      assert.matches("4 prices", rows[3].cells.status.text, 1, true)
+    end)
+
+    it("prints each level with its own depth and the queue standing in front of it", function()
+      local GC = load(620, { calls = {} })
+      local rows = bookRows(GC, BOOK)
+      assert.equal("12", rows[4].cells.cost.text)
+      assert.equal("12", rows[4].cells.listed.text)   -- cumulative
+      assert.equal("340", rows[5].cells.cost.text)
+      assert.equal("352", rows[5].cells.listed.text)  -- 12 + 340 ahead of this price
+    end)
+
+    -- The two markers are the whole reason to draw the book: one says "you are already
+    -- standing here", the other "this is where the price GoldCap picked would put you".
+    it("marks where your price lands and which levels are already yours", function()
+      local GC = load(620, { calls = {} })
+      local rows = bookRows(GC, BOOK)
+      assert.matches("^▸ ", rows[5].subItem.text)
+      assert.equal("your price lands here", rows[5].cells.status.text)
+      assert.matches("^◆ ", rows[6].subItem.text)
+      assert.matches("90", rows[6].cells.status.text, 1, true)
+      -- and a level that is neither says nothing rather than a dash in every row
+      assert.equal("", rows[4].cells.status.text)
+      assert.is_false(rows[4].subItem.text:find("◆", 1, true) ~= nil)
+    end)
+
+    it("draws no book section at all when the addon has no live book", function()
+      local GC = load(620, { calls = {} })
+      local rows = bookRows(GC, nil)
+      for _, row in ipairs(rows) do
+        if row.sectionLabel and row.sectionLabel.text == "THE BOOK" then
+          error("a book section was rendered with no book behind it")
+        end
+      end
     end)
   end)
 

@@ -27,11 +27,13 @@ GC.Locales.zhCN = {
   ["%d held back"] = "%d 笔已保留",
   ["%d held back from posting"] = "%d 笔未上架",
   ["%d missing"] = "缺少 %d 笔",
+  ["%d of these are yours"] = "其中 %d 件是你的",
   ["%d partial"] = "%d 笔部分",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "实时检查拒绝了 %d 笔 -- 按上方的“HIDDEN %d”查看",
   ["%d sales · %s proceeds · %s in the mail"] = "%d 笔销售 · 收入 %s · 邮件 %s",
   ["%d units"] = "%d 件",
+  ["%d units · %d prices"] = "%d 件 · %d 个价位",
   ["%d without a price"] = "%d 笔没有价格",
   ["%d without cost"] = "%d 笔没有成本",
   ["%d · %d/%d covered"] = "%d · %d/%d 已覆盖",
@@ -232,6 +234,7 @@ GC.Locales.zhCN = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "GOLDCAP.GG 上 — 最近 %d 天",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 上 — 最近 %d 天，最新 %d / %d",
+  ["ON THE AUCTION HOUSE"] = "拍卖行上的",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "邮件到了之后，在这一行里自己按新价重新上架。",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -327,6 +330,7 @@ GC.Locales.zhCN = {
   ["Status"] = "状态",
   ["Stress exit unit"] = "压力退出单价",
   ["Stress profit"] = "压力利润",
+  ["THE BOOK"] = "挂单簿",
   ["TIER"] = "等级",
   ["TOTAL"] = "合计",
   ["TREND"] = "走势",
@@ -371,6 +375,7 @@ GC.Locales.zhCN = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = 有折扣但流动性未验证，或利润偏小",
   ["WHAT TO DO"] = "该怎么做",
+  ["WHAT YOU PAID"] = "你的成本",
   ["WHEN"] = "时间",
   ["Waiting for Auction House…"] = "等待拍卖行…",
   ["Waiting for a live price"] = "等待实时价格",
@@ -406,6 +411,7 @@ GC.Locales.zhCN = {
   ["bought %d x item %d"] = "已购买 %d 件 · 物品 %d",
   ["bought %d x item %d after AH close"] = "拍卖行关闭后购买 %d 件 · 物品 %d",
   ["buying commodity..."] = "正在购买商品...",
+  ["cheapest not yours %s"] = "非你的最低价 %s",
   ["checking live price..."] = "正在检查实时价格...",
   ["checking live safety..."] = "正在实时检查安全性...",
   ["commodity no longer available -- someone bought it out"] = "该商品已不存在 -- 有人先买走了",
@@ -536,6 +542,7 @@ GC.Locales.zhCN = {
     "你的游戏客户端没有这种语言的字体 — 文字会显示为空白方块",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的导入数据已过 %d 小时 -- 价格可能有偏差。请从 goldcap.gg 粘贴新的字符串（/goldcap import）。",
+  ["your price lands here"] = "你的价格落在这里",
   ["» needs price"] = "» 需要价格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

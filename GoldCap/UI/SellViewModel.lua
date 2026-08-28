@@ -168,6 +168,70 @@ function GC.SellViewModel.SummaryText(summary)
     profitDetail = profitDetail, partial = isPartial, profitMarker = isPartial and "*" or nil }
 end
 
+-- How many price levels the expanded row shows. The book runs to 100 (Core/SellPositions'
+-- boundedLevels), and nobody undercuts the 40th cheapest seller -- what a seller is deciding
+-- is where to stand among the first handful. Levels beyond the cut are still counted in the
+-- totals, so the header never claims the book is smaller than it is.
+local BOOK_ROWS = 8
+
+--- The live order book, as the expanded Sell row needs to read it.
+--
+-- Everything here comes off `position.levels`, which the addon has been fetching all along to
+-- price with and never showed. Three things a seller cannot answer without it: what the
+-- cheapest price that is NOT mine is, how much stock is sitting on it, and where my own price
+-- would land in the queue. `ownerQty` is what makes the first one answerable -- the commodity
+-- API aggregates a whole price point into one row, so the player's own units have to be
+-- subtracted rather than the level skipped (see CheapestCompetingUnit for the same reasoning).
+local function book(position)
+  local levels = type(position.levels) == "table" and position.levels or nil
+  if not levels or #levels == 0 then return nil end
+
+  local rows, totalUnits, sellerLevels, running = {}, 0, 0, 0
+  for i = 1, #levels do
+    local level = levels[i]
+    if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
+      local units = type(level.quantity) == "number" and level.quantity or 0
+      local ownerUnits
+      if type(level.ownerQty) == "number" then
+        ownerUnits = level.ownerQty
+      elseif level.ownerItem == true then
+        ownerUnits = units -- unsplittable: the whole level reads as the player's own
+      else
+        ownerUnits = 0
+      end
+      totalUnits = totalUnits + units
+      sellerLevels = sellerLevels + 1
+      if #rows < BOOK_ROWS then
+        running = running + units
+        rows[#rows + 1] = { unit = level.unitPrice, units = units, ownerUnits = ownerUnits,
+          mine = ownerUnits > 0, cumulative = running }
+      end
+    end
+  end
+  if #rows == 0 then return nil end
+
+  -- Where the price GoldCap picked would sit. `postRecommendation` is the bag-stock answer
+  -- (see its own comment in SellPositions) -- the same number Post lists at -- so this marks
+  -- the row the seller is about to join rather than one they already hold.
+  local yours = type(position.postRecommendation) == "table" and position.postRecommendation.unit or nil
+  local yourRow
+  if type(yours) == "number" and yours > 0 then
+    for i = 1, #rows do
+      if rows[i].unit >= yours then yourRow = i break end
+    end
+  end
+
+  local widest = 0
+  for i = 1, #rows do if rows[i].units > widest then widest = rows[i].units end end
+  return {
+    rows = rows, levels = sellerLevels, totalUnits = totalUnits, widest = widest,
+    truncated = sellerLevels > #rows,
+    yourUnit = yours, yourRow = yourRow,
+    cheapestCompeting = GC.SellPositions and GC.SellPositions.CheapestCompetingUnit
+      and GC.SellPositions.CheapestCompetingUnit(levels) or nil,
+  }
+end
+
 function GC.SellViewModel.Expansion(position)
   position = position or {}
   local marketFresh = position.displayMarketUnit ~= nil and position.freshMarketUnit ~= nil
@@ -245,5 +309,6 @@ function GC.SellViewModel.Expansion(position)
     pendingAcquisitions = copy(position.pendingAcquisitions),
     sellerEvidence = copy(position.sellerEvidence), facts = position.facts,
     factsText = #facts > 0 and table.concat(facts, " · ") or nil,
+    book = book(position),
   }
 end

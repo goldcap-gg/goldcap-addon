@@ -25,11 +25,13 @@ GC.Locales.frFR = {
   ["%d held back"] = "%d retenues",
   ["%d held back from posting"] = "%d non mises en vente",
   ["%d missing"] = "%d manquantes",
+  ["%d of these are yours"] = "%d de ces unités sont à toi",
   ["%d partial"] = "%d partielles",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d refusées par la vérification en direct -- cliquez sur « HIDDEN %d » au-dessus pour les voir",
   ["%d sales · %s proceeds · %s in the mail"] = "%d ventes · %s de recettes · %s dans le courrier",
   ["%d units"] = "%d unités",
+  ["%d units · %d prices"] = "%d unités · %d prix",
   ["%d without a price"] = "%d sans prix",
   ["%d without cost"] = "%d sans prix d'achat",
   ["%d · %d/%d covered"] = "%d · %d/%d couverts",
@@ -246,6 +248,7 @@ GC.Locales.frFR = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "SUR GOLDCAP.GG — %d DERNIERS JOURS",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "SUR GOLDCAP.GG — %d DERNIERS JOURS, DERNIÈRES %d SUR %d",
+  ["ON THE AUCTION HOUSE"] = "À L'HÔTEL DES VENTES",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "Une fois le courrier arrivé, remettez-le en vente vous-même au nouveau prix — depuis cette même ligne.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -350,6 +353,7 @@ GC.Locales.frFR = {
   ["Status"] = "Statut",
   ["Stress exit unit"] = "Prix de sortie sous stress",
   ["Stress profit"] = "Bénéfice sous stress",
+  ["THE BOOK"] = "LE CARNET D'ORDRES",
   ["TIER"] = "PALIER",
   ["TOTAL"] = "TOTAL",
   ["TREND"] = "TENDANCE",
@@ -404,6 +408,7 @@ GC.Locales.frFR = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = remisé mais liquidité non prouvée ou bénéfice faible",
   ["WHAT TO DO"] = "QUE FAIRE",
+  ["WHAT YOU PAID"] = "CE QUE TU AS PAYÉ",
   ["WHEN"] = "QUAND",
   ["Waiting for Auction House…"] = "En attente de l'hôtel des ventes…",
   ["Waiting for a live price"] = "En attente d'un prix en direct",
@@ -443,6 +448,7 @@ GC.Locales.frFR = {
   ["bought %d x item %d after AH close"] =
     "acheté %d x objet %d après la fermeture de l'hôtel des ventes",
   ["buying commodity..."] = "achat de la marchandise...",
+  ["cheapest not yours %s"] = "le moins cher qui n'est pas à toi %s",
   ["checking live price..."] = "vérification du prix en direct...",
   ["checking live safety..."] = "vérification de la sécurité en direct...",
   ["commodity no longer available -- someone bought it out"] =
@@ -587,6 +593,7 @@ GC.Locales.frFR = {
     "votre client de jeu n'a pas de police pour cette langue — le texte s'affichera en carrés vides",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "votre import date de %d heures -- les prix peuvent être faux. Collez une chaîne fraîche depuis goldcap.gg (/goldcap import).",
+  ["your price lands here"] = "ton prix se place ici",
   ["» needs price"] = "» prix requis",
   ["×%d in bags"] = "×%d en sacs",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

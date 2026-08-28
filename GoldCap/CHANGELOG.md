@@ -12,6 +12,15 @@
   written are repaired once on login, and a snapshot from a region you are not
   playing in says so instead of quietly re-pricing your whole board.
 
+- **The Sell tab finally shows the book it has been pricing against.** Every
+  price decision on that screen already read the live order book — the
+  underprice floor, the recommended price, how much stock sits ahead of your own
+  lot — and you could see none of it. Expanding a row now shows the cheapest
+  price that is not your own, how many units are standing on each price, how
+  much stock is queued in front of it, which levels are already yours, and where
+  the price GoldCap picked would put you. The three headings in an expanded row
+  were also still English in every language; they are translated now.
+
 - **The buy check window rebuilt around one answer.** It used to open the same
   shape whatever it had to say: a headline that ran off the edge into "…", a
   quantity box on verdicts where nothing could be bought, ten rows of numbers of

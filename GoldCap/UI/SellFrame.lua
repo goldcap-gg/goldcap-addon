@@ -367,6 +367,20 @@ end
 -- one number that matters cut off (owner, 2026-08-19). What survives the trim
 -- is only what changes the player's next move: RepostAdvice's one-word hold
 -- reason ("loss"/"slow"), and the below-cost warning.
+-- The one line a seller needs before reading a single price: who is actually under me, and
+-- how much stock is sitting there. `cheapestCompeting` subtracts the player's own units from a
+-- shared price level rather than dropping the level (see CheapestCompetingUnit), so this is
+-- the price to beat, not the cheapest row on screen.
+local function bookHint(book)
+  if type(book) ~= "table" then return "" end
+  local parts = {}
+  if book.cheapestCompeting then
+    parts[#parts + 1] = (GC.L["cheapest not yours %s"]):format(formatCell(book.cheapestCompeting))
+  end
+  parts[#parts + 1] = (GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0)
+  return table.concat(parts, " · ")
+end
+
 local function recommendationText(recommendation)
   if type(recommendation) == "string" then return recommendation end
   if type(recommendation) ~= "table" then return "" end
@@ -2154,18 +2168,28 @@ renderRows = function()
     if expanded[position.positionKey] then
       local detail = GC.SellViewModel.Expansion(position)
       entries[#entries + 1] = { kind = "detail", position = position, detail = detail }
+      -- The book comes first of the three sections: it is what the price on the row was
+      -- derived FROM, and until now the seller could see the price and nothing it stood on.
+      if detail.book then
+        entries[#entries + 1] = { kind = "group", position = position, title = GC.L["THE BOOK"],
+          hint = bookHint(detail.book) }
+        for i, level in ipairs(detail.book.rows) do
+          entries[#entries + 1] = { kind = "level", position = position, level = level,
+            book = detail.book, yours = detail.book.yourRow == i }
+        end
+      end
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
       if #detail.ownedLots > 0 or inBags > 0 then
-        entries[#entries + 1] = { kind = "group", position = position, title = "ON THE AUCTION HOUSE" }
+        entries[#entries + 1] = { kind = "group", position = position, title = GC.L["ON THE AUCTION HOUSE"] }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
       if inBags > 0 then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
       if #detail.batches > 0 then
-        entries[#entries + 1] = { kind = "group", position = position, title = "WHAT YOU PAID",
+        entries[#entries + 1] = { kind = "group", position = position, title = GC.L["WHAT YOU PAID"],
           hint = GC.L["Sales are costed from your oldest units first"] }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
@@ -2481,6 +2505,38 @@ renderRows = function()
         else
           row.action:Hide()
         end
+      elseif entry.kind == "level" then
+        -- One price level of the live book. The marker is the whole point of the row: "◆" is
+        -- stock you already have standing at this price, and "▸" is where the price GoldCap
+        -- picked would put you -- the two questions a seller cannot answer from a single
+        -- recommended number.
+        local level = entry.level
+        local marker, colour = "", Theme.color.fg
+        if entry.yours then
+          marker, colour = "▸ ", Theme.color.gold
+        elseif level.mine then
+          marker, colour = "◆ ", Theme.color.watch
+        end
+        setColor(row.subItem, colour)
+        row.subItem:SetText(marker .. formatCell(level.unit))
+        row.cells.cost:SetText(GC.Util.FormatCount(level.units) or "—")
+        setColor(row.cells.cost, Theme.color.fg)
+        row.cells.listed:SetText(GC.Util.FormatCount(level.cumulative) or "—")
+        setColor(row.cells.listed, Theme.color.fgDim)
+        row.cells.market:SetText(""); row.cells.profit:SetText(""); row.cells.expand:SetText("")
+        -- Only says something when there IS something: a level nobody owns and nobody is about
+        -- to join is just a price, and a "—" in every one of eight rows is the noise the check
+        -- panel was rebuilt to stop repeating here.
+        if entry.yours then
+          row.cells.status:SetText(GC.L["your price lands here"])
+          setColor(row.cells.status, Theme.color.gold)
+        elseif level.mine then
+          row.cells.status:SetText((GC.L["%d of these are yours"]):format(level.ownerUnits))
+          setColor(row.cells.status, Theme.color.watch)
+        else
+          row.cells.status:SetText("")
+        end
+        row.action:Hide()
       elseif entry.kind == "lot" then
         local total = safeMultiply(entry.lot.unitPrice, entry.lot.quantity)
         -- The auction ID is the addon's handle for cancelling the right lot; it means nothing to

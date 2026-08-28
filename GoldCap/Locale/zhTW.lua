@@ -28,11 +28,13 @@ GC.Locales.zhTW = {
   ["%d held back"] = "%d 筆保留",
   ["%d held back from posting"] = "%d 筆未上架",
   ["%d missing"] = "缺少 %d 筆",
+  ["%d of these are yours"] = "其中 %d 件是你的",
   ["%d partial"] = "%d 筆部分",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "即時檢查拒絕了 %d 筆 -- 按上方的「HIDDEN %d」查看",
   ["%d sales · %s proceeds · %s in the mail"] = "%d 筆販售 · 收入 %s · 信箱 %s",
   ["%d units"] = "%d 件",
+  ["%d units · %d prices"] = "%d 件 · %d 個價位",
   ["%d without a price"] = "%d 筆沒有價格",
   ["%d without cost"] = "%d 筆沒有成本",
   ["%d · %d/%d covered"] = "%d · %d/%d 已涵蓋",
@@ -233,6 +235,7 @@ GC.Locales.zhTW = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "GOLDCAP.GG 上 — 最近 %d 天",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 上 — 最近 %d 天，最新 %d / %d",
+  ["ON THE AUCTION HOUSE"] = "拍賣場上的",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "信件到了之後，在這一行裡自己按新價重新上架。",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -328,6 +331,7 @@ GC.Locales.zhTW = {
   ["Status"] = "狀態",
   ["Stress exit unit"] = "壓力出場單價",
   ["Stress profit"] = "壓力利潤",
+  ["THE BOOK"] = "掛單簿",
   ["TIER"] = "等級",
   ["TOTAL"] = "合計",
   ["TREND"] = "走勢",
@@ -372,6 +376,7 @@ GC.Locales.zhTW = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = 有折扣但流動性未驗證，或利潤偏小",
   ["WHAT TO DO"] = "該怎麼做",
+  ["WHAT YOU PAID"] = "你的成本",
   ["WHEN"] = "時間",
   ["Waiting for Auction House…"] = "等待拍賣場…",
   ["Waiting for a live price"] = "等待即時價格",
@@ -407,6 +412,7 @@ GC.Locales.zhTW = {
   ["bought %d x item %d"] = "已購買 %d 件 · 道具 %d",
   ["bought %d x item %d after AH close"] = "拍賣場關閉後購買 %d 件 · 道具 %d",
   ["buying commodity..."] = "正在購買商品...",
+  ["cheapest not yours %s"] = "非你的最低價 %s",
   ["checking live price..."] = "正在檢查即時價格...",
   ["checking live safety..."] = "正在即時檢查安全性...",
   ["commodity no longer available -- someone bought it out"] = "商品已不存在 -- 有人先買走了",
@@ -537,6 +543,7 @@ GC.Locales.zhTW = {
     "你的遊戲客戶端沒有這種語言的字型 — 文字會顯示為空白方塊",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
+  ["your price lands here"] = "你的價格落在這裡",
   ["» needs price"] = "» 需要價格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

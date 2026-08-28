@@ -25,11 +25,13 @@ GC.Locales.itIT = {
   ["%d held back"] = "%d trattenute",
   ["%d held back from posting"] = "%d non messe in vendita",
   ["%d missing"] = "ne mancano %d",
+  ["%d of these are yours"] = "%d di queste sono tue",
   ["%d partial"] = "%d parziali",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d rifiutate dal controllo dal vivo -- premi \"HIDDEN %d\" sopra per vederle",
   ["%d sales · %s proceeds · %s in the mail"] = "%d vendite · %s di ricavo · %s nella posta",
   ["%d units"] = "%d unità",
+  ["%d units · %d prices"] = "%d unità · %d prezzi",
   ["%d without a price"] = "%d senza prezzo",
   ["%d without cost"] = "%d senza costo",
   ["%d · %d/%d covered"] = "%d · %d/%d coperti",
@@ -247,6 +249,7 @@ GC.Locales.itIT = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "SU GOLDCAP.GG — ULTIMI %d GIORNI",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "SU GOLDCAP.GG — ULTIMI %d GIORNI, PIÙ RECENTI %d DI %d",
+  ["ON THE AUCTION HOUSE"] = "ALLA CASA D'ASTE",
   ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
     "Quando arriva la posta, rimettilo in vendita tu al nuovo prezzo — da questa stessa riga.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
@@ -350,6 +353,7 @@ GC.Locales.itIT = {
   ["Status"] = "Stato",
   ["Stress exit unit"] = "Prezzo d'uscita sotto stress",
   ["Stress profit"] = "Profitto sotto stress",
+  ["THE BOOK"] = "IL BOOK",
   ["TIER"] = "LIVELLO",
   ["TOTAL"] = "TOTALE",
   ["TREND"] = "TENDENZA",
@@ -404,6 +408,7 @@ GC.Locales.itIT = {
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = scontato ma con liquidità non dimostrata o profitto piccolo",
   ["WHAT TO DO"] = "COSA FARE",
+  ["WHAT YOU PAID"] = "QUANTO HAI PAGATO",
   ["WHEN"] = "QUANDO",
   ["Waiting for Auction House…"] = "In attesa della casa d'aste…",
   ["Waiting for a live price"] = "In attesa di un prezzo dal vivo",
@@ -443,6 +448,7 @@ GC.Locales.itIT = {
   ["bought %d x item %d after AH close"] =
     "comprati %d x oggetto %d dopo la chiusura della casa d'aste",
   ["buying commodity..."] = "acquisto della merce...",
+  ["cheapest not yours %s"] = "il più basso che non è tuo %s",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
   ["checking live safety..."] = "controllo della sicurezza dal vivo...",
   ["commodity no longer available -- someone bought it out"] =
@@ -588,6 +594,7 @@ GC.Locales.itIT = {
     "il tuo client di gioco non ha un font per questa lingua — il testo apparirà come quadrati vuoti",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "la tua importazione ha %d ore -- i prezzi possono essere sbagliati. Incolla una stringa fresca da goldcap.gg (/goldcap import).",
+  ["your price lands here"] = "il tuo prezzo finisce qui",
   ["» needs price"] = "» serve il prezzo",
   ["×%d in bags"] = "×%d nelle borse",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
