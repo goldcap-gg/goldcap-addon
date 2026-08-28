@@ -32,6 +32,7 @@ describe("Theme.Button real-widget label contract", function()
     function f:EnableMouse(enabled) self.mouseEnabled = enabled end
     function f:SetJustifyH(v) self.justify = v end
     function f:SetWordWrap(v) self.wordWrap = v end
+    function f:SetMaxLines(n) self.maxLines = n end
     function f:SetText(text) self.rawText = text end
     function f:GetText() return self.rawText or "" end
     function f:SetTextColor(...) self.color = { ... } end
@@ -90,6 +91,38 @@ describe("Theme.Button real-widget label contract", function()
     bar.title:SetText("")
     assert.equal("", bar.title.rawText)
     assert.is_truthy(bar.bar)
+  end)
+
+  -- A CENTER-anchored FontString has no width: it grows both ways until the label fits,
+  -- straight over whatever sits beside the button. English hid it (every label is short);
+  -- "Set cost" as "Задати собівартість" in the Sell tab's 88px action column did not -- it
+  -- painted across the price column to its left. Bounded LEFT..RIGHT, the engine truncates
+  -- inside the button instead. Asserted on the REAL widget for the same reason the rest of
+  -- this file is: a fake with a `SetPoint` that records nothing proves none of it.
+  it("bounds the label to the button's own width so a long translation cannot paint outside it", function()
+    local parent = stubFrame()
+    local btn = GC.Theme.Button(parent, "ghost")
+    local sides = {}
+    for _, point in ipairs(btn.text.points) do sides[point[1]] = point end
+    assert.is_truthy(sides.LEFT)
+    assert.is_truthy(sides.RIGHT)
+    assert.is_nil(sides.CENTER) -- an unbounded CENTER anchor is exactly the bug
+    assert.equal(btn, sides.LEFT[2])
+    assert.equal(btn, sides.RIGHT[2])
+    -- Flush to both edges: callers size these buttons to their longest English label to the
+    -- pixel (row.action's 86 fits "Cancel lot?" at 85.8px), so an inset here would clip a
+    -- label that fits today. Symmetric either way, so a centred label stays centred.
+    assert.equal(0, sides.LEFT[4])
+    assert.equal(0, sides.RIGHT[4])
+  end)
+
+  -- Word wrap off alone is not enough: a label that wraps inside a ~22px button draws NOTHING,
+  -- which is worse than a clipped one. Both calls, or neither is worth making.
+  it("keeps a bounded label on one line rather than wrapping it out of sight", function()
+    local parent = stubFrame()
+    local btn = GC.Theme.Button(parent, "primary")
+    assert.is_false(btn.text.wordWrap)
+    assert.equal(1, btn.text.maxLines)
   end)
 
   -- The exact failure mode: UI/SellFrame.lua's ACTION_HELP tooltip keys off

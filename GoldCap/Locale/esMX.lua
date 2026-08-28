@@ -27,6 +27,7 @@ GC.Locales.esMX = {
   ["%d filtered out as hard to resell"] = "%d descartadas por ser difíciles de revender",
   ["%d held back"] = "%d retenidas",
   ["%d held back from posting"] = "%d sin publicar",
+  ["%d hidden -- the live check refused them"] = "%d ocultos -- la comprobación en vivo los rechazó",
   ["%d missing"] = "faltan %d",
   ["%d partial"] = "%d parciales",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -79,7 +80,7 @@ GC.Locales.esMX = {
   ["COST / UNIT"] = "COSTO / UNIDAD",
   ["Can't price this"] = "Sin precio confiable",
   ["Cancel"] = "Cancelar",
-  ["Cancel lot?"] = "¿Cancelar el lote?",
+  ["Cancel lot?"] = "¿Cancelar?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Cancelar este lote y perder el depósito — pulsa otra vez para confirmar",
   ["Cancel timed out"] = "La cancelación agotó el tiempo",
@@ -95,7 +96,7 @@ GC.Locales.esMX = {
     "Limitado por qué tan rápido se vende de verdad, no por tu bolsa.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Quedan subastas más baratas, pero al ritmo de este objeto se agotan en horas.",
-  ["Check"] = "Comprobar",
+  ["Check"] = "Revisar",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Check lo recalcula contra el libro de órdenes en vivo antes de que se mueva el oro, y aún puede salir más bajo — o rechazar — si el mercado ha cambiado desde tu última importación.",
   ["Checked against the live order book a moment ago."] =
@@ -169,6 +170,7 @@ GC.Locales.esMX = {
     "La sugerencia de GoldCap para este objeto y el precio que usaría.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: comprobado en vivo -- seguro comprar",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: aún sin comprobar contra la casa de subastas en vivo",
   ["Gone"] = "Ya no está",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "En gris significa que la cotización ha envejecido; Post y Repost la actualizan antes de actuar.",
@@ -345,7 +347,7 @@ GC.Locales.esMX = {
   ["Sellers"] = "Vendedores",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Se vende demasiado poco: te lo quedarías mucho tiempo.",
-  ["Set cost"] = "Definir costo",
+  ["Set cost"] = "Costo",
   ["Settings"] = "Ajustes",
   ["Snapshot value"] = "Valor del snapshot",
   ["Sold per day"] = "Ventas por día",

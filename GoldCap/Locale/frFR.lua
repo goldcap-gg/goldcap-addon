@@ -24,6 +24,7 @@ GC.Locales.frFR = {
   ["%d filtered out as hard to resell"] = "%d écartées car difficiles à revendre",
   ["%d held back"] = "%d retenues",
   ["%d held back from posting"] = "%d non mises en vente",
+  ["%d hidden -- the live check refused them"] = "%d masqués -- la vérification en direct les a refusés",
   ["%d missing"] = "%d manquantes",
   ["%d partial"] = "%d partielles",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -76,7 +77,7 @@ GC.Locales.frFR = {
   ["COST / UNIT"] = "COÛT / UNITÉ",
   ["Can't price this"] = "Prix non fiable",
   ["Cancel"] = "Annuler",
-  ["Cancel lot?"] = "Annuler le lot ?",
+  ["Cancel lot?"] = "Annuler ?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Annuler ce lot et perdre la caution — cliquez à nouveau pour confirmer",
   ["Cancel timed out"] = "Délai dépassé pour l'annulation",
@@ -166,6 +167,7 @@ GC.Locales.frFR = {
     "La suggestion de GoldCap pour cet objet, et le prix qu'il utiliserait.",
   ["GoldCap: %s -- %s"] = "GoldCap : %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap : vérifié en direct -- achat sûr",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap : pas encore vérifié auprès de l'hôtel des ventes en direct",
   ["Gone"] = "Parti",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Grisé signifie que la cotation a vieilli ; Post et Repost la rafraîchissent avant d'agir.",
@@ -323,7 +325,7 @@ GC.Locales.frFR = {
     "Supprime tous les achats saisis à la main dans ce groupe -- cliquez à nouveau pour confirmer",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Supprime cet achat saisi à la main -- cliquez à nouveau pour confirmer",
-  ["Repost"] = "Remettre en vente",
+  ["Repost"] = "Remettre",
   ["Repost confirmation expired"] = "Confirmation de remise en vente expirée",
   ["Right-click to stop watching this item"] =
     "Clic droit pour arrêter de surveiller cet objet",
@@ -343,7 +345,7 @@ GC.Locales.frFR = {
   ["Sellers"] = "Vendeurs",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Se vend trop rarement — vous le garderiez longtemps.",
-  ["Set cost"] = "Définir le coût",
+  ["Set cost"] = "Coût payé",
   ["Settings"] = "Réglages",
   ["Snapshot value"] = "Valeur de l'instantané",
   ["Sold per day"] = "Ventes par jour",

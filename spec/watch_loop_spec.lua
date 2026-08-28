@@ -225,7 +225,7 @@ describe("Watch loop", function()
     -- A live commodity book is already fetched by the poll; the decision engine says SAFE.
     decision = { status = "SAFE", buyable = true, quantity = 5, reasons = {} }
     observe(42, { itemID = 42, unitPrice = 100, qty = 5, isCommodity = true })
-    local verdicts = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "tickAutoVerify"), "verdicts")
+    local verdicts = upvalue(upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "tickAutoVerify"), "stepVerifyWalk"), "verdicts")
     assert.is_true(verdicts[42].buyable)
     assert.same({}, searched)          -- not one additional SendSearchQuery
   end)
@@ -398,7 +398,7 @@ describe("Watch loop", function()
     local GC = load()
     GC.Sniper._TogglePin(42)
     set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(42, 100) })
-    local verdicts = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "tickAutoVerify"), "verdicts")
+    local verdicts = upvalue(upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "tickAutoVerify"), "stepVerifyWalk"), "verdicts")
     verdicts[42] = { unitPrice = 100, at = 100, buyable = false, status = "AVOID", reason = "x" }
     assert.equal(1, #renderList(GC))
     -- `renderList` here is this file's own wrapper (see its declaration above), which closes

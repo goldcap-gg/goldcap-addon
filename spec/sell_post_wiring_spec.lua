@@ -140,12 +140,26 @@ describe("a price the seller chose reaches the post intact", function()
     assert.is_truthy(created:find("priceOverrides[pin.positionKey] = nil", 1, true))
   end)
 
-  -- Nothing writes a post price outside these two paths: a render must never decide one.
-  it("keeps the override table out of every path but the control and the post", function()
+  -- Nothing writes a post price outside the paths a PLAYER drives: a render must never decide
+  -- one. Typing counts as a player driving it -- OnTextChanged fires on the keystroke and is
+  -- guarded on `byUser`, so a SetText from a render cannot reach it.
+  it("keeps the override table out of every path but the ones a player drives", function()
     local text = source()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
-    -- commitPrice (set), commitPrice (clear), the chip click, and OnAuctionCreated's clear.
-    assert.equal(4, writes)
+    -- commitPrice (set), commitPrice (clear), OnTextChanged (set), OnTextChanged (clear),
+    -- the chip click, and OnAuctionCreated's clear.
+    assert.equal(6, writes)
+  end)
+
+  -- The live-preview handler is the newest way into that table and the easiest to get wrong:
+  -- without the byUser guard, the SetText a render performs would re-enter the render that
+  -- performed it, and without the pooled-row key check a price typed for one item could land
+  -- on whichever position the row was rebound to.
+  it("guards the live price preview on real typing and on the row's own position", function()
+    local text = source()
+    local handler = assert(text:match('OnTextChanged", function%(box, byUser%)(.-)\n  end%)'))
+    assert.is_truthy(handler:find("if not byUser or row.priceCommitting then return end", 1, true))
+    assert.is_truthy(handler:find("key ~= row.priceEditingKey", 1, true))
   end)
 end)

@@ -169,18 +169,45 @@ describe("Sell quote persistence across a reload", function()
   end)
 
   describe("Reset", function()
-    it("wipes the persisted store along with the live quote cache", function()
+    -- Reset's only caller is the auction house CLOSING, which is the live session ending and
+    -- not the player asking to forget anything. Wiping the store there re-priced every position
+    -- from a dash on the next visit -- the tab spent its first half-minute saying "—" about
+    -- prices it had known thirty seconds before ("ЦІНИ 4/17" on a list of seventeen, in game).
+    it("keeps the persisted store when the auction house session ends", function()
       local now = { value = 100000 }
       _G.time = function() return now.value end
       local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
       helper.loadModule("Core/QuoteCache.lua", GC)
       helper.loadModule("UI/SellFrame.lua", GC)
-      GC.db = { sellQuotes = {
+      local stored = {
         [42] = { unit = 1500, at = now.value - 100 },
         [7] = { unit = 20, at = now.value - 5 },
-      } }
+      }
+      GC.db = { sellQuotes = stored }
       GC.Sell.Reset()
-      assert.same({}, GC.db.sellQuotes)
+      assert.same(stored, GC.db.sellQuotes)
+    end)
+
+    it("clears the live cache and arms seeding again, so the next visit refills from the store", function()
+      local now = { value = 100000 }
+      _G.time = function() return now.value end
+      local GC = { Sell = {}, SellPositions = { Build = function() return {} end } }
+      helper.loadModule("Core/QuoteCache.lua", GC)
+      helper.loadModule("UI/SellFrame.lua", GC)
+      GC.db = { sellQuotes = { [42] = { unit = 1500, at = now.value - 100 } } }
+
+      local compose = upvalue(GC.Sell.SellableCount, "composePositions")
+      compose()
+      assert.equal(1500, upvalue(compose, "quotes")[42].unit)
+
+      GC.Sell.Reset()
+      -- The live cache is genuinely gone: a quote is a claim about an order book, and there is
+      -- no order book once the session is over.
+      assert.is_nil(upvalue(compose, "quotes")[42])
+      -- ...but the next compose puts the remembered price back, rather than starting from a
+      -- dash and re-walking every item.
+      compose()
+      assert.equal(1500, upvalue(compose, "quotes")[42].unit)
     end)
   end)
 end)

@@ -24,6 +24,7 @@ GC.Locales.ruRU = {
   ["%d filtered out as hard to resell"] = "%d отсеяно как трудные для перепродажи",
   ["%d held back"] = "%d придержано",
   ["%d held back from posting"] = "%d придержано от выставления",
+  ["%d hidden -- the live check refused them"] = "%d скрыто -- живая проверка их отклонила",
   ["%d missing"] = "%d не хватает",
   ["%d partial"] = "%d частично",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -75,7 +76,7 @@ GC.Locales.ruRU = {
   ["COST / UNIT"] = "СЕБЕСТ. / ШТ",
   ["Can't price this"] = "Цену не оценить",
   ["Cancel"] = "Отмена",
-  ["Cancel lot?"] = "Отменить лот?",
+  ["Cancel lot?"] = "Отменить?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Отменить лот и потерять залог — нажмите ещё раз для подтверждения",
   ["Cancel timed out"] = "Время на отмену истекло",
@@ -91,7 +92,7 @@ GC.Locales.ruRU = {
     "Ограничено скоростью продаж, а не вашим золотом.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Более дешёвые лоты ещё есть, но при этой скорости их разберут за часы.",
-  ["Check"] = "Проверить",
+  ["Check"] = "Проверка",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Проверка пересчитывает это по живой книге заявок, прежде чем тронется золото, и может дать меньше — или отказать — если рынок сдвинулся после последнего импорта.",
   ["Checked against the live order book a moment ago."] =
@@ -165,6 +166,7 @@ GC.Locales.ruRU = {
     "Что GoldCap советует по этому предмету и по какой цене.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: проверено вживую -- покупать безопасно",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ещё не проверено на живом аукционе",
   ["Gone"] = "Ушёл",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Серый цвет означает, что котировка устарела; Post и Repost обновят её перед действием.",
@@ -320,7 +322,7 @@ GC.Locales.ruRU = {
     "Удаляет все введённые вручную покупки в этой группе -- нажмите ещё раз для подтверждения",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Удаляет эту введённую вручную покупку -- нажмите ещё раз для подтверждения",
-  ["Repost"] = "Перевыставить",
+  ["Repost"] = "Заново",
   ["Repost confirmation expired"] = "Подтверждение перевыставления просрочено",
   ["Right-click to stop watching this item"] =
     "Правый клик, чтобы перестать следить за предметом",
@@ -341,7 +343,7 @@ GC.Locales.ruRU = {
   ["Sellers"] = "Продавцов",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Продаётся слишком редко — будете держать его долго.",
-  ["Set cost"] = "Задать себестоимость",
+  ["Set cost"] = "Затраты",
   ["Settings"] = "Настройки",
   ["Snapshot value"] = "Значение из снимка",
   ["Sold per day"] = "Продаж в день",

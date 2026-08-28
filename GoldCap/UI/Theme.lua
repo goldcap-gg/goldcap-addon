@@ -736,7 +736,24 @@ function T.Button(parent, variant, rounded)
   b.text = T.Label(b, 12)
   b.text:SetJustifyH("CENTER")
   b.text:ClearAllPoints()
-  b.text:SetPoint("CENTER")
+  -- Bounded LEFT-to-RIGHT rather than pinned at CENTER. A CENTER-anchored FontString has no
+  -- width of its own: it grows in both directions until the whole label fits, straight over
+  -- whatever sits beside the button. English never showed it -- every label here is short --
+  -- but the longer translations do, most visibly the Sell tab's "Set cost" in its 88px action
+  -- column, which painted across the price column to its left. Word wrap off and one line mean
+  -- the engine truncates within these bounds instead, so an over-long translation degrades to a
+  -- clipped label inside its own button rather than damaging the row around it. SetMaxLines is
+  -- not redundant with SetWordWrap: a label that still wraps in a ~22px button draws NOTHING at
+  -- all, which is the worse of the two failures.
+  -- Zero inset, deliberately. Callers already size these buttons to their longest ENGLISH
+  -- label down to the pixel -- row.action's 86 is "the largest width that still leaves >=2px
+  -- clearance" for "Cancel lot?" at 85.8px -- so any inset here would clip a label that fits
+  -- today. Bounding at exactly the button's own edges takes nothing away from what already
+  -- fits and only bites on the labels that are painting outside the button anyway.
+  b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
+  b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+  b.text:SetWordWrap(false)
+  b.text:SetMaxLines(1)
   if roundedSpec then
     b.text:SetFont(T.FONT_UI, 10 * T.Scale(), "")
     widgetFonts[b.text] = { role = "ui", path = T.FONT_UI, size = 10 }

@@ -116,8 +116,17 @@ describe("Deals background verification", function()
       tick = upvalue(show, "tickAutoVerify"),
       refreshRows = upvalue(show, "refreshRows"),
     }
-    api.renderList = upvalue(api.tick, "renderList")
-    api.verdicts = upvalue(api.tick, "verdicts")
+    -- One hop further than it used to be: the walk was split so the slot arbiter can TAKE a
+    -- turn with it (GC.Sniper.OnThrottleReady), leaving tickAutoVerify as the ticker path that
+    -- calls into it. Both still exist and the upvalue names are unchanged.
+    api.step = upvalue(api.tick, "stepVerifyWalk")
+    -- The gates the walk stands down for moved into their own predicate when the walk was
+    -- split, because the ticker has to ask them BEFORE spending its once-a-second turn and the
+    -- arbiter has to ask them before offering a slot. `view` is a module-level local, so
+    -- setting it through this closure sets it for every reader.
+    api.standsDown = upvalue(api.step, "verifyWalkStandsDown")
+    api.renderList = upvalue(api.step, "renderList")
+    api.verdicts = upvalue(api.step, "verdicts")
     api.rows = upvalue(api.refreshRows, "rows")
 
     set(api.refreshRows, "content", { SetHeight = function() end })
@@ -266,6 +275,74 @@ describe("Deals background verification", function()
     assert.same({ 1, 1 }, sent)
   end)
 
+  -- THE bug this walk existed to have and did not: it used to run only on the 0.25s ticker,
+  -- and only if it happened to catch the throttled system idle. GC.Sniper.OnThrottleReady
+  -- hands that slot to the browse scan synchronously the instant it opens, so under Auto --
+  -- where the scan pages continuously -- the ticker essentially never found an idle moment.
+  -- The board therefore filled with UNVERIFIED rows that were checked, and refused, only once
+  -- the player pressed Stop. From the player's chair that read as "stopping the scan deleted
+  -- my deals". The walk is a slot consumer now, so it gets its turn while the scan pages.
+  it("gets its turn from the arbiter while a browse scan is paging", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200) })
+    local ready = api.GC.Sniper.OnThrottleReady
+    local paged = 0
+    set(ready, "sendBrowsePage", function() paged = paged + 1 end)
+    -- The scan is hungry every single time, exactly as it is under Auto. No watch loop, so the
+    -- contest is browse-vs-verify and nothing else.
+    api.GC.Sniper.scanner = nil
+
+    for _ = 1, 4 do
+      set(ready, "pendingBrowsePage", true)
+      ready()
+    end
+
+    -- The old arbiter would have spent all four on paging. One of them belongs to the walk.
+    assert.same({ 1 }, sent)
+    assert.equal(3, paged)
+  end)
+
+  it("never lets the walk take two turns in a row while the scan wants slots", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200), deal(3, 300) })
+    local ready = api.GC.Sniper.OnThrottleReady
+    local order = {}
+    set(ready, "sendBrowsePage", function() order[#order + 1] = "page" end)
+    set(api.step, "maybeStartPrewarm", function(target)
+      order[#order + 1] = "verify:" .. target.itemID
+      return true
+    end)
+    api.GC.Sniper.scanner = nil
+
+    for _ = 1, 6 do
+      set(ready, "pendingBrowsePage", true)
+      ready()
+    end
+
+    -- Strict alternation: the walk is a peer of the scan, never a replacement for it. A walk
+    -- that could take the slot whenever it had work would stall discovery outright.
+    assert.same({ "page", "verify:1", "page", "verify:1", "page", "verify:1" }, order)
+  end)
+
+  -- The other half of the same contract: a walk with nothing to check must not cost the scan a
+  -- slot. A split that manufactures idle slots is worse than no split at all.
+  it("hands the slot straight back when the walk has nothing to check", function()
+    local api = loadSniper(safe)
+    board(api, {})
+    local ready = api.GC.Sniper.OnThrottleReady
+    local paged = 0
+    set(ready, "sendBrowsePage", function() paged = paged + 1 end)
+    api.GC.Sniper.scanner = nil
+
+    for _ = 1, 4 do
+      set(ready, "pendingBrowsePage", true)
+      ready()
+    end
+
+    assert.equal(4, paged)
+    assert.same({}, sent)
+  end)
+
   it("stands down for the auction house, the tab, the window and the search slot", function()
     local api = loadSniper(safe)
     local show = api.GC.Sniper.OnAuctionHouseShow
@@ -276,10 +353,10 @@ describe("Deals background verification", function()
     assert.same({}, sent)
     set(show, "ahOpen", true)
 
-    set(api.tick, "view", "sell")
+    set(api.standsDown, "view", "sell")
     tickAt(api, 102)
     assert.same({}, sent)
-    set(api.tick, "view", "deals")
+    set(api.standsDown, "view", "deals")
 
     set(show, "frame", { IsShown = function() return false end })
     tickAt(api, 103)
@@ -639,13 +716,84 @@ describe("Deals background verification", function()
     assert.equal(0, #api.renderList())
   end)
 
+  -- The board empties in bursts, because the walk competes for one throttled slot and a run of
+  -- refusals therefore lands together. Before this, nothing on screen accounted for it -- the
+  -- explanation was a number on a toolbar button nobody was watching -- so a shrinking list
+  -- read as the addon losing deals rather than as it refusing them.
+  it("says so on the status line when a live check takes a row off the board", function()
+    local api = loadSniper(avoid)
+    local said = {}
+    set(api.GC.Sniper.OnAuctionHouseShow, "frame", {
+      IsShown = function() return true end, Hide = function() end,
+      status = { SetText = function(_, text) said[#said + 1] = text end },
+    })
+    board(api, { deal(1, 100) })
+
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+
+    assert.equal(1, upvalue(api.renderList, "refusedCount"))
+    local told = false
+    for _, text in ipairs(said) do
+      if text:find("1", 1, true) and text:find("hidden", 1, true) then told = true end
+    end
+    assert.is_true(told)
+  end)
+
+  -- A Check the player ran themselves never removes its own row, so announcing a removal for
+  -- one would be describing something that did not happen.
+  it("stays quiet about a refusal the player asked for themselves", function()
+    local api = loadSniper(avoid)
+    local said = {}
+    set(api.GC.Sniper.OnAuctionHouseShow, "frame", {
+      IsShown = function() return true end, Hide = function() end,
+      status = { SetText = function(_, text) said[#said + 1] = text end },
+    })
+    board(api, { deal(1, 100) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+
+    stamp(deal(1, 100), { isCommodity = true, decision = avoid() }, true)
+
+    for _, text in ipairs(said) do
+      assert.is_nil(text:find("hidden", 1, true))
+    end
+  end)
+
+  -- An unverified row shows a tier, a discount and a profit, every one of them read off the
+  -- imported market snapshot rather than confirmed against the live auction house. The only
+  -- thing that separated it from a row a live check HAD approved was the word on the button,
+  -- which is too thin a line for that difference to rest on. Pinned as source text because the
+  -- branch lives in createRow's OnEnter, which needs the whole themed widget tree to reach.
+  it("tells the tooltip when nothing has checked the row yet", function()
+    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local text = file:read("*a")
+    file:close()
+    local from = assert(text:find("local verdict = verdictFor(self.deal)", 1, true))
+    local to = assert(text:find("if self.deal.pinPlaceholder then", from, true))
+    local branch = text:sub(from, to)
+
+    assert.is_truthy(branch:find("GoldCap: checked live -- safe to buy", 1, true))
+    -- The third state, the one that used to render as silence.
+    assert.is_truthy(branch:find("not checked against the live auction house yet", 1, true))
+    -- A pin that is not currently a deal has nothing to check, so it must not be told it is
+    -- unchecked -- its own line below says what it actually is.
+    assert.is_truthy(branch:find("elseif not self.deal.pinPlaceholder then", 1, true))
+  end)
+
   it("buys nothing: the verify path holds no purchase call and no click handler", function()
     local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
     local text = file:read("*a")
     file:close()
-    local from = assert(text:find("local function tickAutoVerify()", 1, true))
+    -- Anchored at the stand-down predicate, not at tickAutoVerify: the walk was split so the
+    -- slot arbiter could take a turn with it, and tickAutoVerify is now the SHORTER half,
+    -- below stepVerifyWalk in the file. Slicing from it would have left this test passing
+    -- while covering none of the code it exists to police.
+    local from = assert(text:find("local function verifyWalkStandsDown()", 1, true))
     local to = assert(text:find("-- Router functions the Init.lua event frame dispatches into.", from, true))
     local walk = text:sub(from, to)
+    assert.is_truthy(walk:find("local function stepVerifyWalk()", 1, true))
+    assert.is_truthy(walk:find("local function tickAutoVerify()", 1, true))
 
     assert.is_nil(walk:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
     assert.is_nil(walk:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))

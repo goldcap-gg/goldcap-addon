@@ -28,6 +28,7 @@ GC.Locales.zhTW = {
   ["%d filtered out as hard to resell"] = "%d 筆因難以轉售而濾除",
   ["%d held back"] = "%d 筆保留",
   ["%d held back from posting"] = "%d 筆未上架",
+  ["%d hidden -- the live check refused them"] = "已隱藏 %d 項 -- 即時核對已拒絕",
   ["%d missing"] = "缺少 %d 筆",
   ["%d partial"] = "%d 筆部分",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -162,6 +163,7 @@ GC.Locales.zhTW = {
     "GoldCap 對這件物品的建議，以及它會用的價格。",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap：已即時檢查 -- 可安全購買",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap：尚未在即時拍賣場核對",
   ["Gone"] = "已消失",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "灰色表示報價已過期；Post 與 Repost 會在動作前先更新。",

@@ -27,6 +27,7 @@ GC.Locales.zhCN = {
   ["%d filtered out as hard to resell"] = "%d 笔因难以转卖被过滤",
   ["%d held back"] = "%d 笔已保留",
   ["%d held back from posting"] = "%d 笔未上架",
+  ["%d hidden -- the live check refused them"] = "已隐藏 %d 项 -- 实时核对已拒绝",
   ["%d missing"] = "缺少 %d 笔",
   ["%d partial"] = "%d 笔部分",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -161,6 +162,7 @@ GC.Locales.zhCN = {
     "GoldCap 对这件物品的建议，以及它会用的价格。",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap：已实时检查 -- 可安全购买",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap：尚未在实时拍卖行核对",
   ["Gone"] = "已消失",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "灰色表示报价已过期；Post 和 Repost 会在操作前先刷新。",

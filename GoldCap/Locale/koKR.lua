@@ -26,6 +26,7 @@ GC.Locales.koKR = {
   ["%d filtered out as hard to resell"] = "재판매가 어려워 %d건 제외",
   ["%d held back"] = "%d건 보류",
   ["%d held back from posting"] = "등록에서 %d건 보류",
+  ["%d hidden -- the live check refused them"] = "%d개 숨김 -- 실시간 확인에서 거부됨",
   ["%d missing"] = "%d건 없음",
   ["%d partial"] = "%d건 일부",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -162,6 +163,7 @@ GC.Locales.koKR = {
     "이 아이템에 대한 GoldCap의 제안과, 그때 쓸 가격.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: 실시간 확인 완료 -- 구매해도 안전합니다",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: 아직 실시간 경매장에서 확인하지 않음",
   ["Gone"] = "사라짐",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "회색이면 시세가 오래된 것입니다. Post와 Repost는 실행 전에 시세를 갱신합니다.",

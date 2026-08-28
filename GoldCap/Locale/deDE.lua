@@ -23,6 +23,7 @@ GC.Locales.deDE = {
   ["%d filtered out as hard to resell"] = "%d als schwer verkäuflich aussortiert",
   ["%d held back"] = "%d zurückgehalten",
   ["%d held back from posting"] = "%d nicht eingestellt",
+  ["%d hidden -- the live check refused them"] = "%d ausgeblendet -- die Live-Prüfung hat sie abgelehnt",
   ["%d missing"] = "%d fehlen",
   ["%d partial"] = "%d teilweise",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -74,7 +75,7 @@ GC.Locales.deDE = {
   ["COST / UNIT"] = "KOSTEN / STÜCK",
   ["Can't price this"] = "Kein belastbarer Preis",
   ["Cancel"] = "Abbrechen",
-  ["Cancel lot?"] = "Posten abbrechen?",
+  ["Cancel lot?"] = "Abbrechen?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Diesen Posten abbrechen und die Gebühr verlieren — zum Bestätigen erneut klicken",
   ["Cancel timed out"] = "Zeitüberschreitung beim Abbrechen",
@@ -164,6 +165,7 @@ GC.Locales.deDE = {
     "GoldCaps Vorschlag für diesen Gegenstand und der Preis, den es nehmen würde.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: live geprüft -- Kauf ist sicher",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: noch nicht gegen das laufende Auktionshaus geprüft",
   ["Gone"] = "Weg",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Ausgegraut heißt, der Kurs ist veraltet; Post und Repost aktualisieren ihn vor dem Handeln.",
@@ -321,7 +323,7 @@ GC.Locales.deDE = {
     "Löscht jeden von Hand eingetragenen Kauf in dieser Gruppe -- zum Bestätigen erneut klicken",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Löscht diesen von Hand eingetragenen Kauf -- zum Bestätigen erneut klicken",
-  ["Repost"] = "Neu einstellen",
+  ["Repost"] = "Neu setzen",
   ["Repost confirmation expired"] = "Bestätigung zum Neueinstellen abgelaufen",
   ["Right-click to stop watching this item"] =
     "Rechtsklick, um diesen Gegenstand nicht mehr zu beobachten",
@@ -342,7 +344,7 @@ GC.Locales.deDE = {
   ["Sellers"] = "Verkäufer",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Verkauft sich zu selten — du würdest lange darauf sitzen.",
-  ["Set cost"] = "Kosten setzen",
+  ["Set cost"] = "Kosten",
   ["Settings"] = "Einstellungen",
   ["Snapshot value"] = "Snapshot-Wert",
   ["Sold per day"] = "Verkäufe pro Tag",

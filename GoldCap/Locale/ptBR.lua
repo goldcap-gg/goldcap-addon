@@ -25,6 +25,7 @@ GC.Locales.ptBR = {
   ["%d filtered out as hard to resell"] = "%d descartadas por serem difíceis de revender",
   ["%d held back"] = "%d retidas",
   ["%d held back from posting"] = "%d não anunciadas",
+  ["%d hidden -- the live check refused them"] = "%d ocultos -- a verificação ao vivo os recusou",
   ["%d missing"] = "faltam %d",
   ["%d partial"] = "%d parciais",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -77,7 +78,7 @@ GC.Locales.ptBR = {
   ["COST / UNIT"] = "CUSTO / UNIDADE",
   ["Can't price this"] = "Sem preço confiável",
   ["Cancel"] = "Cancelar",
-  ["Cancel lot?"] = "Cancelar o lote?",
+  ["Cancel lot?"] = "Cancelar?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Cancelar este lote e perder o depósito — clique de novo para confirmar",
   ["Cancel timed out"] = "O cancelamento expirou",
@@ -93,7 +94,7 @@ GC.Locales.ptBR = {
     "Limitado pela velocidade real de venda, não pela sua bolsa.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Ainda há anúncios mais baratos, mas no ritmo deste item eles somem em horas.",
-  ["Check"] = "Verificar",
+  ["Check"] = "Checar",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "O Check recalcula pelo livro de ofertas ao vivo antes de qualquer ouro sair, e ainda pode dar menos — ou recusar — se o mercado mudou desde a sua última importação.",
   ["Checked against the live order book a moment ago."] =
@@ -167,6 +168,7 @@ GC.Locales.ptBR = {
     "A sugestão do GoldCap para este item e o preço que ele usaria.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: verificado ao vivo -- pode comprar",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ainda não verificado na casa de leilões ao vivo",
   ["Gone"] = "Sumiu",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Cinza significa que a cotação envelheceu; Post e Repost a atualizam antes de agir.",
@@ -344,7 +346,7 @@ GC.Locales.ptBR = {
   ["Sellers"] = "Vendedores",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Vende raramente demais — você ficaria com ele por muito tempo.",
-  ["Set cost"] = "Definir custo",
+  ["Set cost"] = "Custo",
   ["Settings"] = "Configurações",
   ["Snapshot value"] = "Valor do snapshot",
   ["Sold per day"] = "Vendas por dia",

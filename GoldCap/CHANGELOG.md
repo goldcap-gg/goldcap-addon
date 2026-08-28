@@ -1,5 +1,61 @@
 # GoldCap
 
+## 0.6.0 (2026-08-29)
+
+- **The Sell tab is built around two decks now.** One is what you can put up
+  from your bags, the other is what you already have live. They were a single
+  list before, with a filter you had to remember to set, and the two jobs
+  read nothing alike: posting is about stock and a price, watching your lots is
+  about who has undercut you. Each deck carries its own columns — YOU GET,
+  PRICE / UNIT and MARGIN on one; LISTED AS, YOUR PRICE, LOT VALUE and UNDER
+  YOU on the other — and the switch at the top counts what is waiting in each.
+
+- **Two chips narrow the posting deck**: READY hides anything you cannot post
+  right now, NO COST shows the positions GoldCap has no purchase price for, so
+  the bookkeeping you owe is a click away instead of a hunt.
+
+- **Opening a position no longer buries the list.** The detail used to unfold
+  as a dozen more rows and push everything else off the screen. It is one panel
+  now, in place, with the price ladder and the numbers behind the
+  recommendation.
+
+- **Your prices survive closing the auction house.** Type a price, walk away,
+  come back — it is still there. They used to be thrown away the moment the
+  window closed, so an evening of pricing was gone by the next visit.
+
+- **The price you type updates everything immediately.** You had to press Enter
+  or wait for a refresh before the row agreed with you.
+
+- **The list stops jumping while it refreshes.** Rows keep their place as prices
+  come in, instead of resorting under the cursor mid-click — which made the
+  first few seconds on the Sell tab unusable.
+
+- **Stopping a scan looked like it deleted your deals.** It never did. GoldCap
+  re-checks the deals on screen against the live auction house, and rows it
+  refuses are taken off the list — but that check and the scan share one
+  request slot, and a running scan took every one of them. So the check barely
+  ran while you scanned, and the moment you pressed Stop it caught up all at
+  once and cleared the board. The check now takes its turn while the scan pages,
+  so rows are confirmed or refused as they arrive instead of in one sweep at
+  the end.
+
+- **The list is no longer allowed to get shorter without saying so.** When a
+  live check takes rows off the board, the status line now says how many and
+  why. The HIDDEN button on the toolbar still shows the running total and still
+  brings them back for a look.
+
+- **A deal nothing has checked yet says so.** Hovering a row that no live check
+  has reached tells you that in as many words. The tier, the discount and the
+  profit on an unchecked row are GoldCap's own read of the imported market data,
+  not a confirmed finding, and only the word on the button used to separate the
+  two.
+
+- **Buttons wrote over the numbers next to them in every language but English.**
+  "Set cost" is eight characters; the same button in Ukrainian was nineteen, and
+  it drew straight across the prices to its left. Twenty-one labels across eight
+  languages were over their button's width. They are shorter now, and no button
+  can paint outside itself again.
+
 ## 0.5.2 (2026-08-28)
 
 - **Korean and Chinese were empty boxes.** Choosing one of them redrew the whole

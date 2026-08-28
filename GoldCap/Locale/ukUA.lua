@@ -28,6 +28,7 @@ GC.Locales.ukUA = {
   ["%d filtered out as hard to resell"] = "%d відсіяно як важкі для перепродажу",
   ["%d held back"] = "%d притримано",
   ["%d held back from posting"] = "%d притримано від виставлення",
+  ["%d hidden -- the live check refused them"] = "%d приховано -- жива перевірка їх відхилила",
   ["%d missing"] = "%d бракує",
   ["%d partial"] = "%d частково",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -79,7 +80,7 @@ GC.Locales.ukUA = {
   ["COST / UNIT"] = "СОБІВАРТІСТЬ / ШТ",
   ["Can't price this"] = "Ціну не оцінити",
   ["Cancel"] = "Скасувати",
-  ["Cancel lot?"] = "Скасувати лот?",
+  ["Cancel lot?"] = "Скасувати?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Скасувати цей лот і втратити заставу — натисніть ще раз для підтвердження",
   ["Cancel timed out"] = "Час на скасування вичерпано",
@@ -95,7 +96,7 @@ GC.Locales.ukUA = {
     "Обмежено швидкістю продажу, а не вашим золотом.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Дешевші лоти ще є, але за такої швидкості їх розберуть за години.",
-  ["Check"] = "Перевірити",
+  ["Check"] = "Перевір",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Перевірка перераховує це за живою книгою заявок, перш ніж рушить золото, і може дати менше — або відмовити — якщо ринок змінився після останнього імпорту.",
   ["Checked against the live order book a moment ago."] = "Щойно звірено з живим стаканом заявок.",
@@ -140,6 +141,7 @@ GC.Locales.ukUA = {
   ["Entry price (avg fill)"] = "Ціна входу (середнє виконання)",
   ["Entry total"] = "Разом на вході",
   ["Est. profit"] = "Орієнт. прибуток",
+  ["Every position in your bags already has a cost on record"] = "У всього, що в сумках, собівартість уже відома",
   ["FIFO allocations"] = "Розподіл FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Отримуємо свіжу ціну для цього предмета — натисніть Post ще раз за мить",
@@ -168,6 +170,7 @@ GC.Locales.ukUA = {
     "Що GoldCap радить щодо цього предмета і за якою ціною.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: перевірено наживо -- безпечно купувати",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ще не перевірено на живому аукціоні",
   ["Gone"] = "Зник",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Сірий колір означає, що котирування застаріло; Post і Repost оновлять його перед дією.",
@@ -179,6 +182,7 @@ GC.Locales.ukUA = {
   ["HOT — min sold/day"] = "HOT — мінімум продажів на день",
   ["Held back from cancelling"] = "Притримано від скасування",
   ["Held back from the queue"] = "Притримано з черги",
+  ["IN THE LOT"] = "У ЛОТІ",
   ["ITEM"] = "ПРЕДМЕТ",
   ["If it clears"] = "Якщо продасться",
   ["Import"] = "Імпорт",
@@ -194,6 +198,8 @@ GC.Locales.ukUA = {
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
   ["LISTED"] = "ВИСТАВЛЕНО",
+  ["LISTED AS"] = "ВИСТАВЛЕНО",
+  ["LOT VALUE"] = "СУМА ЛОТА",
   ["Language"] = "Мова",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
@@ -209,9 +215,11 @@ GC.Locales.ukUA = {
   ["Live ask"] = "Ціна в стакані",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",
+  ["MARGIN"] = "МАРЖА",
   ["MARKET"] = "РИНОК",
   ["MARKET / UNIT"] = "РИНОК / ШТ",
   ["MATCH"] = "ЗРІВНЯТИ",
+  ["MY LOTS %d"] = "МОЇ ЛОТИ %d",
   ["Market per unit"] = "Ринок за штуку",
   ["Market reference"] = "Ринковий орієнтир",
   ["Max wallet per buy %"] = "Макс. частка гаманця на купівлю %",
@@ -219,6 +227,7 @@ GC.Locales.ukUA = {
   ["Missing cost"] = "Немає собівартості",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЩЕ НЕ НА GOLDCAP.GG — СИНХРОНІЗУЄТЬСЯ ПІСЛЯ /RELOAD АБО ВИХОДУ",
+  ["NO COST"] = "БЕЗ ЧЕКА",
   ["NOTHING TO CANCEL"] = "НЕМА ЩО СКАСОВУВАТИ",
   ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
   ["Needs a live price check before it can be bought."] =
@@ -233,6 +242,7 @@ GC.Locales.ukUA = {
   ["No exact bag variant"] = "Немає точного варіанта в сумці",
   ["No live listings came back for this item."] =
     "За цим предметом не прийшло жодного живого лота.",
+  ["No live auctions on this character"] = "На цьому персонажі немає активних лотів",
   ["No safe resale price could be worked out."] = "Безпечну ціну перепродажу обчислити не вдалося.",
   ["No sales data for this item."] = "Немає даних про продажі цього предмета.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
@@ -243,9 +253,11 @@ GC.Locales.ukUA = {
     "Немає в сумках і не виставлено — пошта чи банк?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
     "Немає під рукою — запас у пошті, банку або на іншому персонажі",
+  ["Nothing in your bags to list"] = "У сумках немає чого виставити",
   ["Nothing is being held back."] = "Нічого не притримано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Після цієї покупки не лишиться того, у що продавати, — ціни виходу немає.",
+  ["Nothing is priced yet - the Auction House is still answering"] = "Ціни ще не отримані — аукціон досі відповідає",
   ["Nothing listed on the AH right now"] = "Зараз на аукціоні нічого не виставлено",
   ["Nothing queued to cancel"] = "У черзі на скасування нічого немає",
   ["Nothing queued to post"] = "У черзі на виставлення нічого немає",
@@ -265,6 +277,7 @@ GC.Locales.ukUA = {
   ["POSTING"] = "ВИСТАВЛЕННЯ",
   ["POSTING…"] = "ВИСТАВЛЯЄМО…",
   ["PRICE"] = "ЦІНА",
+  ["PRICE / UNIT"] = "ЦІНА / ШТ",
   ["PRICE ROSE %.1fx"] = "ЦІНА ЗРОСЛА В %.1fx",
   ["PRICING %d/%d"] = "ЦІНИ %d/%d",
   ["PRICING…"] = "ЦІНИ…",
@@ -306,6 +319,7 @@ GC.Locales.ukUA = {
   ["Quantity exceeds missing units"] = "Кількість перевищує відсутні одиниці",
   ["Quantity is capped by how fast this item actually sells."] =
     "Кількість обмежена тим, як швидко предмет реально продається.",
+  ["READY"] = "ГОТОВЕ",
   ["REALIZED PROFIT"] = "РЕАЛІЗОВАНИЙ ПРИБУТОК",
   ["REFRESH"] = "ОНОВИТИ",
   ["RESET WINDOW"] = "СКИНУТИ ВІКНО",
@@ -324,7 +338,7 @@ GC.Locales.ukUA = {
     "Видаляє всі введені вручну купівлі в цій групі -- натисніть ще раз для підтвердження",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Видаляє цю введену вручну купівлю -- натисніть ще раз для підтвердження",
-  ["Repost"] = "Перевиставити",
+  ["Repost"] = "Заново",
   ["Repost confirmation expired"] = "Підтвердження перевиставлення протерміновано",
   ["Right-click to stop watching this item"] =
     "Правий клік, щоб перестати стежити за предметом",
@@ -345,7 +359,7 @@ GC.Locales.ukUA = {
   ["Sellers"] = "Продавців",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Продається надто рідко — триматимете його довго.",
-  ["Set cost"] = "Задати собівартість",
+  ["Set cost"] = "Витрати",
   ["Settings"] = "Налаштування",
   ["Snapshot value"] = "Значення зі знімка",
   ["Sold per day"] = "Продажів на день",
@@ -360,6 +374,7 @@ GC.Locales.ukUA = {
   ["Stress profit"] = "Стрес-прибуток",
   ["THE BOOK"] = "СТАКАН ЗАЯВОК",
   ["TIER"] = "КЛАС",
+  ["TO POST %d"] = "ВИСТАВИТИ %d",
   ["TOTAL"] = "РАЗОМ",
   ["TREND"] = "ТРЕНД",
   ["Tell GoldCap what you actually paid for these units."] =
@@ -404,6 +419,7 @@ GC.Locales.ukUA = {
   ["Total cost to buy this auction"] = "Повна вартість купівлі цього лота",
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "Введіть ціну в золоті або очистіть поле, щоб узяти ціну GoldCap",
+  ["UNDER YOU"] = "ПІД ТОБОЮ",
   ["UNDERCUT"] = "НИЖЧЕ",
   ["UNIT"] = "ЗА ШТ",
   ["Unit price"] = "Ціна за штуку",
@@ -437,6 +453,7 @@ GC.Locales.ukUA = {
   ["Worst case back"] = "Повернеться в найгіршому разі",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Варто робити, коли вас перебили за ціною; не варто, якщо ціна майже не зрушила.",
+  ["YOU GET"] = "ОТРИМАЄШ",
   ["YOUR PRICE"] = "ВАША ЦІНА",
   ["You paid"] = "Ви заплатили",
   ["You pay"] = "Ви платите",
@@ -531,11 +548,13 @@ GC.Locales.ukUA = {
   ["not enough gold for this quote -- Cancel"] = "недостатньо золота за цією ціною -- Cancel",
   ["not ready to cancel"] = "не готово до скасування",
   ["not ready to post"] = "не готово до виставлення",
+  ["nothing in your bags to price"] = "у сумках немає чого оцінювати",
   ["nothing listed"] = "нічого не виставлено",
   ["of %d"] = "з %d",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "або вставте рядок з goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позиціях%s",
+  ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
   ["placing bid..."] = "робимо ставку...",
   ["price confirmed -- click Buy to purchase"] =
@@ -584,6 +603,7 @@ GC.Locales.ukUA = {
   ["stopped watching %s"] = "перестали стежити за %s",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion записав ціни, які аддон не зміг прочитати --",
+  ["the Auction House has not answered for this item yet"] = "аукціон ще не відповів по цьому предмету",
   ["the import failed (%s)"] = "імпорт не вдався (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -608,6 +628,8 @@ GC.Locales.ukUA = {
     "у вашому клієнті гри немає шрифту для цієї мови — текст відображатиметься порожніми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
+  ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
+  ["your price stands %d of %d"] = "твоя ціна стане %d з %d",
   ["yours"] = "ваша",
   ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",

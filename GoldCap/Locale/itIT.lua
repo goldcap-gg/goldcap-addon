@@ -24,6 +24,7 @@ GC.Locales.itIT = {
   ["%d filtered out as hard to resell"] = "%d scartate perché difficili da rivendere",
   ["%d held back"] = "%d trattenute",
   ["%d held back from posting"] = "%d non messe in vendita",
+  ["%d hidden -- the live check refused them"] = "%d nascoste -- la verifica dal vivo le ha rifiutate",
   ["%d missing"] = "ne mancano %d",
   ["%d partial"] = "%d parziali",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
@@ -60,7 +61,7 @@ GC.Locales.itIT = {
   ["Auto-scan on next AH visit"] = "Scansione automatica alla prossima visita alla CA",
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
     "Auto: tiene Full Scan sempre attivo e cede subito il passo quando compri, ",
-  ["Avoid"] = "Da evitare",
+  ["Avoid"] = "Evita",
   ["Background check"] = "Controllo in background",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Il pareggio è il prezzo più basso che copre ancora il tuo costo dopo la commissione. Sotto quello ci rimetti.",
@@ -76,7 +77,7 @@ GC.Locales.itIT = {
   ["COST / UNIT"] = "COSTO / UNITÀ",
   ["Can't price this"] = "Prezzo non affidabile",
   ["Cancel"] = "Annulla",
-  ["Cancel lot?"] = "Annullare il lotto?",
+  ["Cancel lot?"] = "Annullare?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Annulla questo lotto e perdi la cauzione — clicca di nuovo per confermare",
   ["Cancel timed out"] = "Annullamento scaduto",
@@ -92,7 +93,7 @@ GC.Locales.itIT = {
     "Limitato da quanto in fretta si vende davvero, non dal tuo portafoglio.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Restano aste più economiche, ma al ritmo di questo oggetto si esauriscono in poche ore.",
-  ["Check"] = "Controlla",
+  ["Check"] = "Verifica",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Check ricalcola sul book degli ordini dal vivo prima che l'oro si muova, e può comunque risultare più basso — o rifiutare — se il mercato si è mosso dall'ultima importazione.",
   ["Checked against the live order book a moment ago."] =
@@ -166,6 +167,7 @@ GC.Locales.itIT = {
     "Il suggerimento di GoldCap per questo oggetto e il prezzo che userebbe.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: controllato dal vivo -- acquisto sicuro",
+  ["GoldCap: not checked against the live auction house yet"] = "GoldCap: non ancora verificato sulla casa d'aste dal vivo",
   ["Gone"] = "Sparito",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "In grigio significa che la quotazione è invecchiata; Post e Repost la aggiornano prima di agire.",
@@ -323,7 +325,7 @@ GC.Locales.itIT = {
     "Elimina tutti gli acquisti inseriti a mano in questo gruppo -- clicca di nuovo per confermare",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Elimina questo acquisto inserito a mano -- clicca di nuovo per confermare",
-  ["Repost"] = "Rimetti in vendita",
+  ["Repost"] = "Rimetti",
   ["Repost confirmation expired"] = "La conferma di rimessa in vendita è scaduta",
   ["Right-click to stop watching this item"] =
     "Clic destro per smettere di sorvegliare questo oggetto",
@@ -343,7 +345,7 @@ GC.Locales.itIT = {
   ["Sellers"] = "Venditori",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Si vende troppo di rado: te lo terresti a lungo.",
-  ["Set cost"] = "Imposta il costo",
+  ["Set cost"] = "Costo",
   ["Settings"] = "Impostazioni",
   ["Snapshot value"] = "Valore dello snapshot",
   ["Sold per day"] = "Vendite al giorno",

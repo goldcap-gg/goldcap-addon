@@ -350,11 +350,14 @@ GC.Sniper.session = { buys = 0, spent = 0, estProfit = 0 }
 -- :Cancel() on AH close -- see GC.Sniper.OnAuctionHouseShow/OnAuctionHouseClosed).
 local autoScan
 local autoScanTicker
--- Slot arbiter. The browse scan and the watch loop are both BACKGROUND consumers of one
--- throttled search slot; `watchTurn` alternates between them so speeding up watching cannot
--- silently stop discovery. Starts true so the watch loop takes the first contested slot -- it
--- is the latency-sensitive one, and the browse scan is a marathon either way.
-local watchTurn = true
+-- Slot arbiter. The browse scan, the watch loop and the background verify walk are all
+-- BACKGROUND consumers of one throttled search slot; the rotation below hands it round so
+-- speeding up any one of them cannot silently stop the other two. Starts on the watch loop --
+-- it is the latency-sensitive one, and the browse scan is a marathon either way. The order is
+-- the rotation, so it is a table rather than three booleans: adding a fourth consumer must not
+-- mean rewriting the arbiter's branching.
+local SLOT_ORDER = { "watch", "browse", "verify" }
+local slotTurn = 1
 -- True only for the instant a grant is open. Core/Scanner.lua's advance() reads this through
 -- driver.mayScan and will not send outside it, which is what stops it chaining result -> send
 -- straight past the arbiter.
@@ -710,7 +713,14 @@ local COLUMNS = {
   { key = "total",  w = 84,  num = true, size = 12, optional = true },
   { key = "profit", w = 84,  num = true, size = 13, bold = true },
   { key = "trend",  w = 44,  num = true, size = 11, optional = true },
-  { key = "buy",    w = 52 },
+  -- 64, not the 52 it shipped with. 52 was sized for English -- "Check" is five characters --
+  -- and every other language's word for it is eight or nine, so the label drew straight across
+  -- the profit figure to its left in nine of the eleven locales. Theme.Button now clips a label
+  -- to its own button rather than letting it paint outside, but clipping "Comprobar" to fit 52
+  -- is not a fix either; 64 holds the longest of them with the translations shortened to match
+  -- (spec/button_label_width_spec.lua carries the budget). The 12px comes out of the flexible
+  -- item column, which has 180 to give.
+  { key = "buy",    w = 64 },
 }
 
 -- Anchors every VISIBLE fixed COLUMNS entry's RIGHT edge right-to-left off `container`'s own
@@ -3377,6 +3387,20 @@ stampVerdict = function(deal, data, manual)
   }
   refreshRows()
 
+  -- A row leaving the board has to account for itself where the player is looking. The count on
+  -- the toolbar toggle is the standing answer, but it is a number on a button nobody watches,
+  -- and refusals do not arrive evenly: the walk competes for one throttled slot, so a run of
+  -- them lands together and the list visibly shortens with nothing on screen explaining it.
+  -- Reported here, at the one place a verdict is ever recorded, rather than from renderList --
+  -- that runs on hover and on every repaint, and a status line that fires on hover would say
+  -- this over and over about rows that left minutes ago. `manual` is excluded because a Check
+  -- the player ran themselves never removes its own row (see this function's own contract) and
+  -- announcing a removal that did not happen is its own lie. refreshRows above has already
+  -- recomputed refusedCount, so the number quoted is the one the toggle is about to show.
+  if not manual and not buyable and not isPinned(deal.itemID) and refusedCount > 0 then
+    setStatus((GC.L["%d hidden -- the live check refused them"]):format(refusedCount), 4)
+  end
+
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
   -- Per ITEM, never a global mute. A watched item whose floor is reset every few seconds is a
   -- real sequence of opportunities and every one of them still SHOWS -- but a bell every five
@@ -3437,26 +3461,34 @@ end
 -- real verdicts instead of thirty identical Check clicks. The click that spends gold stays
 -- exactly where it was.
 -- ---------------------------------------------------------------------------
-local function tickAutoVerify()
+-- One step of the walk: pick the row that most needs a live look and spend one query on it.
+-- Returns true only if a query actually went out, which is what makes it usable as a slot
+-- consumer -- see GC.Sniper.OnThrottleReady, where "does the walk want this slot" is answered
+-- by trying to take it. Deliberately does NOT gate on driver.isReady(): the arbiter calls this
+-- from inside the throttle-ready handler, where readiness is the event's own premise, and
+-- maybeStartPrewarm re-checks it anyway before sending.
+-- Everything that makes the walk stand down no matter whose turn it is. Its own function
+-- because BOTH entry points need it and they need it at different moments: the arbiter asks
+-- before offering a slot, the ticker asks before spending its once-a-second turn -- and a
+-- stood-down walk must not burn that turn, which is the whole reason this is checked ahead of
+-- the clock rather than inside the walk.
+local function verifyWalkStandsDown()
   -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
   -- buying a browse result, or reading their own search -- their click outranks this
   -- background walk.
-  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return end
-  if not ahOpen then return end
-  if view ~= "deals" then return end -- the Sell tab is up; verifying what nobody is reading just costs throttle
-  if not frame or not frame:IsShown() then return end
-  if prewarmAttempt then return end -- one query in flight globally, shared with the hover pre-warm
-  if GC.Sniper.IsSearchCritical() then return end -- a Check or a purchase owns the search slot
-  -- Checked BEFORE the once-a-second gate below, and deliberately so. Under Auto the browse
-  -- scan is paging almost continuously, so the throttled system is unready most of the time --
-  -- letting a busy moment consume the walk's turn meant the walk mostly ran during the
-  -- fraction of a second it could do nothing, and the next opening a whole second away.
-  if not driver.isReady() then return end
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return true end
+  if not ahOpen then return true end
+  if view ~= "deals" then return true end -- the Sell tab is up; verifying what nobody is reading just costs throttle
+  if not frame or not frame:IsShown() then return true end
+  if prewarmAttempt then return true end -- one query in flight globally, shared with the hover pre-warm
+  if GC.Sniper.IsSearchCritical() then return true end -- a Check or a purchase owns the search slot
+  return false
+end
+
+local function stepVerifyWalk()
+  if verifyWalkStandsDown() then return false end
 
   local now = GetTime()
-  if now < verifyWalkAt then return end
-  verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
-
   local list = renderList()
   local limit = math.min(#list, LIM.VERIFY_TOP_ROWS)
 
@@ -3481,7 +3513,10 @@ local function tickAutoVerify()
         -- send is not progress and must not end the walk: its blocker may never clear (an
         -- uncached item key, the drain fence), and treating it as work in flight is what let one
         -- row at the top hold the whole list hostage. Move on and check the next one.
-        if maybeStartPrewarm(deal, true) then return end
+        if maybeStartPrewarm(deal, true) then
+          verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+          return true
+        end
       end
     end
   end
@@ -3498,11 +3533,34 @@ local function tickAutoVerify()
         local interval = (v.status == "AVOID") and LIM.VERIFY_AVOID_INTERVAL_SECONDS
           or LIM.VERIFY_INTERVAL_SECONDS
         if (now - v.at) >= interval then
-          if maybeStartPrewarm(deal, true) then return end
+          if maybeStartPrewarm(deal, true) then
+            verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+            return true
+          end
         end
       end
     end
   end
+  return false
+end
+
+-- The ticker path. The arbiter (GC.Sniper.OnThrottleReady) is where the walk gets its slot
+-- while anything else is competing for one; this is what keeps it moving when nothing is --
+-- an idle Auction House produces no throttle-ready traffic to ride on, and the walk still has
+-- rows to cover. Readiness is checked BEFORE the once-a-second gate, deliberately: letting a
+-- busy moment consume the walk's turn meant the turn was mostly spent at the one instant it
+-- could do nothing, with the next opening a whole second away.
+local function tickAutoVerify()
+  if not driver.isReady() then return end
+  if verifyWalkStandsDown() then return end
+  local now = GetTime()
+  if now < verifyWalkAt then return end
+  -- Stamped before the walk rather than after a successful send: the walk sorts and filters the
+  -- whole deals list, and re-running that four times a second only to find nothing due is the
+  -- cost this gate exists to avoid. Everything that could make the turn a waste has already
+  -- been asked above, so what is being spent here is a turn the walk genuinely wanted.
+  verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+  stepVerifyWalk()
 end
 
 -- Router functions the Init.lua event frame dispatches into.
@@ -3601,27 +3659,46 @@ function GC.Sniper.OnThrottleReady()
     return
   end
 
-  -- The even split, between the only two consumers that are genuinely optional. The watch poll
-  -- stands down when the Deals view is not the one on screen, exactly as tickAutoVerify already
-  -- does (it early-returns on `view ~= "deals"`): polling for a screen nobody is looking at was
-  -- never the point, and the Sell tab is the consumer that starves first when the watch loop
-  -- treats every ready tick as its own.
-  local scanner = GC.Sniper.scanner
-  local watchWants = (scanner and scanner.Wants and view == "deals" and scanner:Wants()) and true or false
-  if not watchWants and not pendingBrowsePage then return end
-
-  -- Alternate only while BOTH are hungry. If one has nothing to do the other takes the slot:
-  -- a split that manufactures idle slots is worse than no split at all.
-  local giveWatch = watchWants
-  if watchWants and pendingBrowsePage then giveWatch = watchTurn end
-
-  if giveWatch then
-    watchTurn = false
-    GC.Sniper._GrantWatchSlot()
-  else
-    watchTurn = true
-    pendingBrowsePage = false
-    sendBrowsePage(fullScanToken)
+  -- The split, between the three consumers that are genuinely optional. The watch poll stands
+  -- down when the Deals view is not the one on screen, exactly as the verify walk already does:
+  -- polling for a screen nobody is looking at was never the point, and the Sell tab is the
+  -- consumer that starves first when a background loop treats every ready tick as its own.
+  --
+  -- The verify walk is the third one, and adding it here is a bug fix, not a tidy-up. It used
+  -- to live only on the 0.25s ticker, sending only if it happened to catch the throttled system
+  -- idle -- but this handler gives the slot away synchronously the instant it opens, so under
+  -- Auto, with the browse scan always hungry, the ticker essentially never saw an idle moment.
+  -- The walk therefore only ran once the scan STOPPED. That is the whole of "stopping the scan
+  -- deleted my deals": the rows had been sitting there unverified the entire time, and stopping
+  -- is simply when the checks finally got to run and refuse them.
+  --
+  -- Round-robin rather than the old two-way boolean: begin at whoever follows the last one
+  -- served and take the first that is hungry, so a consumer with nothing to do never costs a
+  -- slot and no consumer can be starved by the other two. The walk is asked by TRYING it --
+  -- deciding whether it wants a slot is the same work as taking one, so stepVerifyWalk both
+  -- answers and acts.
+  for step = 0, #SLOT_ORDER - 1 do
+    local index = (slotTurn - 1 + step) % #SLOT_ORDER + 1
+    local who = SLOT_ORDER[index]
+    local served = false
+    if who == "watch" then
+      local scanner = GC.Sniper.scanner
+      if scanner and scanner.Wants and view == "deals" and scanner:Wants() then
+        served = GC.Sniper._GrantWatchSlot()
+      end
+    elseif who == "browse" then
+      if pendingBrowsePage then
+        pendingBrowsePage = false
+        sendBrowsePage(fullScanToken)
+        served = true
+      end
+    else
+      served = stepVerifyWalk()
+    end
+    if served then
+      slotTurn = index % #SLOT_ORDER + 1
+      return
+    end
   end
 end
 
@@ -5512,6 +5589,14 @@ createRow = function(parent, index)
         GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
           verdict.reason or GC.L["live verification required"]), 1, 0.82, 0)
       end
+    elseif not self.deal.pinPlaceholder then
+      -- Saying nothing here read as approval. The row already shows a tier, a discount and a
+      -- profit -- all of it computed from the imported market snapshot, none of it confirmed
+      -- against the live auction house -- and the only thing separating it from a row a live
+      -- check HAD approved was the word on the button. That is too thin a line to carry the
+      -- difference between an estimate and a finding, so the tooltip states it outright.
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
     end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.

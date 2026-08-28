@@ -16,6 +16,7 @@ local function stubFrame()
   function f:EnableMouse(enabled) self.mouseEnabled = enabled end
   function f:SetJustifyH(v) self.justify = v end
   function f:SetWordWrap(v) self.wordWrap = v end
+  function f:SetMaxLines(n) self.maxLines = n end
   function f:SetText(text) self.rawText = text end
   function f:GetText() return self.rawText or "" end
   function f:SetTextColor(...) self.color = { ... } end

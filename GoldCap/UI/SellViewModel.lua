@@ -57,6 +57,63 @@ function GC.SellViewModel.Filter(positions, mode)
   return filtered
 end
 
+--- The deck a position belongs to, and the chip filters on top of it.
+--
+-- Two decks, because "what can I list" and "what is already listed" are two different jobs and
+-- the single table had to change the verb in its action column from row to row to serve both.
+-- `Filter` above is untouched and still serves the provenance and coverage cuts; this is the
+-- split the tab's own chrome is built on.
+--
+-- POST is deliberately "not on the auction house right now", not "has bag stock": a position
+-- with nothing in the bags AND nothing listed is real cost history whose stock is in the mail,
+-- the bank or on another character, and it has to stay reachable or Set cost goes with it.
+-- SellViewModel.Order already ranks those last, so they sit at the bottom of the deck rather
+-- than among the rows a player is acting on.
+--
+-- A position can be on BOTH decks and that is correct, not a leak: 40 units in the bags and 20
+-- listed is forty to post and twenty to watch.
+local function onPostDeck(position)
+  local bags = type(position.bagQty) == "number" and position.bagQty or 0
+  local listed = type(position.listedQty) == "number" and position.listedQty or 0
+  return bags > 0 or listed == 0
+end
+
+local function onListedDeck(position)
+  return (type(position.listedQty) == "number" and position.listedQty or 0) > 0
+end
+
+-- "Ready" is what Post can act on THIS second: stock in the bags and a price the addon will
+-- stand behind. Deliberately not "has any price" -- a stale quote is what Post refreshes before
+-- it acts, and calling that ready would promise a click that turns into a wait.
+local function isReady(position)
+  local bags = type(position.bagQty) == "number" and position.bagQty or 0
+  return bags > 0 and position.freshMarketUnit ~= nil
+end
+
+local function needsCost(position)
+  return position.coverage == "PARTIAL" or position.coverage == "UNKNOWN"
+end
+
+--- Positions for one deck, in reading order.
+-- @param deck string  "post" (default) or "listed"
+-- @param chips table   optional { ready = boolean, noCost = boolean }
+function GC.SellViewModel.Deck(positions, deck, chips)
+  chips = type(chips) == "table" and chips or {}
+  local belongs = deck == "listed" and onListedDeck or onPostDeck
+  local picked = {}
+  for _, position in ipairs(positions or {}) do
+    local include = belongs(position)
+    -- Both chips ask POST-deck questions: a live lot is already priced and already paid for, so
+    -- neither narrows anything there. Applying them anyway would silently empty the deck.
+    if include and deck ~= "listed" then
+      if chips.ready and not isReady(position) then include = false end
+      if chips.noCost and not needsCost(position) then include = false end
+    end
+    if include then picked[#picked + 1] = position end
+  end
+  return GC.SellViewModel.Order and GC.SellViewModel.Order(picked) or picked
+end
+
 -- Reading order, not storage order. SellPositions.Build sorts by scope and
 -- position key, which is stable and completely meaningless to a seller: it put
 -- an item you can list right now below thirty rows of finished business.
@@ -101,6 +158,49 @@ function GC.SellViewModel.Order(positions)
     if weight[left] ~= weight[right] then return weight[left] > weight[right] end
     return original[left] < original[right]
   end)
+  return ordered
+end
+
+--- Hold the order the list has already settled on.
+--
+-- Order() answers "what should this list look like when it is built". This answers the other
+-- question, which the tab could not answer at all: what should it look like on the NEXT render,
+-- two seconds later, when one more quote has landed.
+--
+-- The pricing walk fills freshMarketUnit one item at a time, and Order ranks a priced bag stack
+-- above an unpriced one and then sorts by value -- so every single answer from the auction
+-- house moved a row, and for the first half-minute after opening the tab the list rearranged
+-- itself under the cursor. That is the complaint this exists to end: a refresh changes the
+-- NUMBERS on a row, never where the row is.
+--
+-- `places` is the caller's memory, mutated here: a position keeps the place it was given until
+-- the caller throws the table away, which it does only when the player asks for a new order
+-- (Refresh, a deck change, a chip). Anything the caller has never seen is appended in Order's
+-- own sequence, so a stack that appears mid-session lands at the bottom rather than shouldering
+-- into the middle of a list somebody is working down.
+function GC.SellViewModel.Settle(positions, places)
+  if type(places) ~= "table" then return positions or {} end
+  local highest = 0
+  for _, place in pairs(places) do
+    if type(place) == "number" and place > highest then highest = place end
+  end
+  local ordered, place = {}, {}
+  for index, position in ipairs(positions or {}) do
+    ordered[index] = position
+    local key = position.positionKey
+    if type(key) == "string" and key ~= "" then
+      if places[key] == nil then
+        highest = highest + 1
+        places[key] = highest
+      end
+      place[position] = places[key]
+    else
+      -- No key to remember it by: keep it in the incoming order, after everything that has
+      -- one, rather than letting an unkeyed row jitter against the settled ones.
+      place[position] = 1e9 + index
+    end
+  end
+  table.sort(ordered, function(left, right) return place[left] < place[right] end)
   return ordered
 end
 
