@@ -42,6 +42,9 @@ describe("Sniper window layering", function()
       SetTexture = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
+      -- Check panel v3: the hero caption and the reconciliation note are fixed-height wrapped
+      -- blocks, so they top-align their text rather than centring it in the slot.
+      SetJustifyV = function() end,
       SetWidth = function() end,
       SetScrollChild = function() end,
       StartMoving = function() end,
@@ -65,8 +68,8 @@ describe("Sniper window layering", function()
       ClearAllPoints = function() end,
       GetPoint = function() return nil end,
       GetHeight = function() return 0 end,
-      GetFrameLevel = function() return 1 end,
-      SetFrameLevel = function() end,
+      GetFrameLevel = function(self) return self.level or 1 end,
+      SetFrameLevel = function(self, level) self.level = level end,
       SetParent = function() end,
       SetColorTexture = function() end,
       SetBlendMode = function() end,
@@ -187,6 +190,86 @@ describe("Sniper window layering", function()
     GC.Sniper.SetDocked(host)
     assert.equal("MEDIUM", frame.strata)
     assert.is_false(frame.toplevel)
+  end)
+
+  -- The check drawer overlays the deals list on any window narrower than WIN.PANEL_SHIFT_MIN,
+  -- which the docked auction house always is, and it is an OPAQUE sheet so the rows do not
+  -- ghost through. A texture cannot cross a strata boundary, so that only holds while the
+  -- drawer is in a HIGHER strata than the rows -- and docking adopts the host's strata for the
+  -- window, which put the two level whenever the host sat where the drawer was pinned.
+  -- Reported in-game 2026-08-28 as "видишь просвечивается".
+  describe("the check drawer against the list it covers", function()
+    local function upvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    -- Builds the drawer AND publishes it as the module's own `dialog`, the way openDialog does
+    -- on the first Buy click. SetDocked can only follow a drawer that exists; one built behind
+    -- its back would make every assertion below pass for the wrong reason.
+    local function drawerOf(GC)
+      local clearDeals = upvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = upvalue(clearDeals, "refreshRows")
+      local createRow = upvalue(refreshRows, "createRow")
+      local buildRowCell = upvalue(createRow, "buildRowCell")
+      local onBuyClick = upvalue(buildRowCell, "onBuyClick")
+      local openDialog = upvalue(onBuyClick, "openDialog")
+      local drawer = upvalue(openDialog, "createDialog")()
+      -- Upvalues from one enclosing scope are shared, so setting it through this closure sets
+      -- the same `dialog` every other function in the file reads.
+      for i = 1, math.huge do
+        local name = debug.getupvalue(openDialog, i)
+        if not name then error("missing upvalue dialog") end
+        if name == "dialog" then debug.setupvalue(openDialog, i, drawer) break end
+      end
+      return drawer
+    end
+
+    it("sits one strata above the window, whatever strata that is", function()
+      local frame, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      assert.equal("HIGH", frame.strata)
+      assert.equal("DIALOG", drawer.strata)
+
+      -- The case that broke it: a host already in the drawer's own strata.
+      local host = stubFrame()
+      host:SetFrameStrata("DIALOG")
+      GC.Sniper.SetDocked(host)
+      assert.equal("DIALOG", frame.strata)
+      assert.not_equal(frame.strata, drawer.strata)
+      assert.equal("FULLSCREEN", drawer.strata)
+    end)
+
+    it("never climbs over a tooltip, however high the host is", function()
+      local _, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      local host = stubFrame()
+      host:SetFrameStrata("FULLSCREEN_DIALOG")
+      GC.Sniper.SetDocked(host)
+      assert.equal("FULLSCREEN_DIALOG", drawer.strata)
+    end)
+
+    -- Belt and braces for the same failure: should the two ever land in one strata anyway,
+    -- the level has to decide, and a scroll child must not be able to out-level the sheet.
+    it("also out-levels the window it is anchored to", function()
+      local frame, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      assert.is_true((drawer.level or 0) > (frame.level or 1))
+    end)
+
+    it("follows the window back down when the auction house closes", function()
+      local _, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      local host = stubFrame()
+      host:SetFrameStrata("DIALOG")
+      GC.Sniper.SetDocked(host)
+      GC.Sniper.SetDocked(nil)
+      assert.equal("DIALOG", drawer.strata)
+    end)
   end)
 
   it("goes back to floating above everything when the auction house closes", function()

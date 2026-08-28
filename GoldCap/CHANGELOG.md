@@ -48,6 +48,14 @@
   also still English in every language; they are translated now, and each one
   carries its hint inline rather than in a column a narrow window drops.
 
+- **The buy check panel stopped being see-through.** Docked inside the auction
+  house, the deals list showed straight through the panel covering it. The panel
+  is an opaque sheet, but "opaque" only holds while it is layered above the rows
+  it covers — and docking adopts the auction house's own layer for the window,
+  which put the two level whenever the game placed the auction house where the
+  panel expected to be alone. The panel now takes its layer from the window
+  rather than assuming one, so no host can repeat it.
+
 - **The buy check window rebuilt around one answer.** It used to open the same
   shape whatever it had to say: a headline that ran off the edge into "…", a
   quantity box on verdicts where nothing could be bought, ten rows of numbers of

@@ -4387,6 +4387,21 @@ CH.HEADER = 16      -- column header row height
 -- (measured in the 2026-08-24 screenshot: logo top ~= 59px, portrait bottom ~= 70px at 1x);
 -- 28 clears it with margin. Passed to rail.SetTopInset in SetDocked below.
 CH.DOCK_RAIL_INSET = 28
+-- One strata up from whatever the window itself is in. The check drawer overlays the deals
+-- list on any window narrower than WIN.PANEL_SHIFT_MIN -- which the docked auction house
+-- always is -- and it is an OPAQUE sheet precisely so the rows underneath do not ghost
+-- through it. A texture cannot cross a strata boundary, so "opaque" only holds while the
+-- drawer is in a HIGHER strata than the rows; land the two in the SAME strata and the fight
+-- is decided by frame level instead, which a scroll child can win. That is exactly what
+-- docking started doing: GC.Sniper.SetDocked adopts the auction house's own strata for the
+-- window, and if the host sits in DIALOG the window lands level with a drawer hardcoded to
+-- DIALOG. Derived from the host rather than pinned, so no future host can reproduce it.
+-- Capped below TOOLTIP: a purchase sheet must never draw over a tooltip.
+CH.STRATA_ABOVE = {
+  BACKGROUND = "LOW", LOW = "MEDIUM", MEDIUM = "HIGH", HIGH = "DIALOG",
+  DIALOG = "FULLSCREEN", FULLSCREEN = "FULLSCREEN_DIALOG",
+  FULLSCREEN_DIALOG = "FULLSCREEN_DIALOG", TOOLTIP = "TOOLTIP",
+}
 
 -- Builds the single reusable confirmation dialog (see createDialog/openDialog usage below).
 -- Created lazily on the first Buy click of a session, same pattern as GoldCapImportDialog --
@@ -4408,7 +4423,17 @@ local function createDialog()
   d.diagnosticMinimumHeight = DG.DIAGNOSTIC_MIN_H
   d.baseHeight = d.fixedHeight + d.diagnosticGaps + d.diagnosticMinimumHeight
   d:SetSize(DG.WIDTH, d.baseHeight)
-  d:SetFrameStrata("DIALOG") -- must float above the sniper list frame it's anchored to
+  -- Re-derived on every show and on every dock/undock, never pinned: see CH.STRATA_ABOVE.
+  d.raiseStrata = function()
+    local host = (frame and frame.GetFrameStrata and frame:GetFrameStrata()) or "HIGH"
+    d:SetFrameStrata(CH.STRATA_ABOVE[host] or "DIALOG")
+    -- Belt and braces. SetFrameStrata reassigns the level within the new strata, so this comes
+    -- after it: should the two ever land in one strata anyway, the level still decides, and a
+    -- scroll child cannot out-level this.
+    local base = (frame and frame.GetFrameLevel and frame:GetFrameLevel()) or 0
+    d:SetFrameLevel(base + 50)
+  end
+  d.raiseStrata()
   -- Check drawer (Sniper v4): full-height sheet on the window's right edge. TOP+BOTTOM
   -- anchors own the height -- the engine ignores every SetHeight below them, so the
   -- dialog's height bookkeeping (baseHeight/fixedHeight and their call sites) keeps
@@ -5099,6 +5124,10 @@ local function createDialog()
   -- Mirror of the OnHide reset above: every time the sheet actually shows, the deals list
   -- shifts aside behind it (still gated on the window being wide enough -- see applyPanelInset).
   d:SetScript("OnShow", function()
+    -- The window's own strata can have changed since this sheet was built -- docking adopts
+    -- the auction house's -- and the sheet's opacity is only worth anything while it is in a
+    -- strata above the rows it covers.
+    d.raiseStrata()
     if frame and frame.applyPanelInset then frame.applyPanelInset(true) end
   end)
 
@@ -6358,6 +6387,10 @@ function GC.Sniper.SetDocked(host)
     -- toplevel would yank the whole thing forward on every click inside it.
     frame:SetFrameStrata(host:GetFrameStrata())
     frame:SetToplevel(false)
+    -- The drawer follows the window up: adopting the host's strata can otherwise land the
+    -- window level with a drawer that was pinned one strata above the UNDOCKED window, and
+    -- level with is enough for the deals rows to draw through an opaque sheet.
+    if dialog and dialog.raiseStrata then dialog.raiseStrata() end
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT")
     frame:SetPoint("BOTTOMRIGHT")
@@ -6373,6 +6406,7 @@ function GC.Sniper.SetDocked(host)
     -- Back to a window of its own: see createFrame for why both calls are needed.
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
+    if dialog and dialog.raiseStrata then dialog.raiseStrata() end
     frame:SetMovable(true)
     if frame.resizeHandle then frame.resizeHandle:Show() end
     if frame.titleBar and frame.titleBar.title then frame.titleBar.title:SetText(GC.L["GoldCap Sniper"]) end
