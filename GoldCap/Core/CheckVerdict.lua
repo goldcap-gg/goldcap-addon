@@ -48,6 +48,80 @@ local TIME_REASONS = {
   sell_through_too_low = true, liquidity_confidence_low = true,
 }
 
+-- The prose, as GC.L KEYS -- looked up by the panel that draws them, never here. A GC.L
+-- lookup evaluated while this file loads resolves before GC.ApplyLocale has chosen a
+-- language and freezes to English in every locale (spec/locale_load_time_spec.lua is the
+-- guard); the @localised-keys marker is what tells spec/locale_contract_spec.lua that these
+-- literals still have to exist in all twelve locale files.
+-- @localised-keys
+GC.CheckVerdict.TONE_WORD = {
+  refuse = "Won't buy",
+  adjust = "Buy less",
+  clear = "Clear to buy",
+}
+
+-- What the headline figure is OF. Keyed by the hero's unit rather than by the reason, because
+-- that is what actually changes the sentence: gold up and gold down are the same number read
+-- from opposite ends, and neither is a hold time.
+-- @localised-keys
+GC.CheckVerdict.HERO_CAPTION = {
+  gold_up = "worst case, selling all %d back into the price standing there now",
+  gold_down = "if you buy all %d and sell them back at the price standing there now",
+  days = "to clear %d units at %s sold a day, with %s tied up the whole time",
+  units = "is what this market absorbs — past that you are buying stock you will sit on",
+  unpriceable = "any figure here would be invented out of the very number being refused",
+}
+
+-- The sentence under the hero on the two verdicts that are not a refusal. A refusal already
+-- has one: the reason SniperDecision filed.
+-- @localised-keys
+GC.CheckVerdict.TONE_SENTENCE = {
+  adjust = "Capped by how fast this actually sells, not by your wallet.",
+  clear = "Checked against the live order book a moment ago.",
+}
+
+-- Said beside the board's own tier chip, and only when the two disagree.
+-- @localised-keys
+GC.CheckVerdict.RECONCILE_TEXT = {
+  line = "The board tiered this off the imported snapshot. The live book does not back it.",
+}
+
+-- One label per fact id. The ids are stable; the wording is not.
+-- @localised-keys
+GC.CheckVerdict.FACT_LABEL = {
+  sellers = "Sellers",
+  soldPerDay = "Sold per day",
+  sellThrough = "Sell-through",
+  confidence = "Confidence",
+  liveAsk = "Live ask",
+  snapshotValue = "Snapshot value",
+  youPay = "You would pay",
+  youGet = "You would get",
+  goldTiedUp = "Gold tied up",
+  ifItClears = "If it clears",
+  youPayFlat = "You pay",
+  worstCaseBack = "Worst case back",
+}
+
+-- A confidence score is 0-100 with no unit, so a bare "90" says nothing a player can act on.
+-- The meter beside it carries the precision; this carries the reading. MIN_CONFIDENCE is the
+-- engine's own line, so "low" is exactly the band that refuses.
+-- @localised-keys
+GC.CheckVerdict.CONFIDENCE_WORD = {
+  low = "low",
+  fair = "fair",
+  high = "high",
+}
+
+--- Which of CONFIDENCE_WORD's keys a score reads as. Here rather than in the panel because it
+-- is a judgement about the number, not about how to draw it.
+function GC.CheckVerdict.ConfidenceBand(value)
+  if type(value) ~= "number" then return nil end
+  if value < MIN_CONFIDENCE then return "low" end
+  if value < 85 then return "fair" end
+  return "high"
+end
+
 local function positive(value)
   return type(value) == "number" and value == value and value ~= math.huge
     and value ~= -math.huge and value > 0

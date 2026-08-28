@@ -8,7 +8,12 @@ local helper = require("spec.spec_helper")
 describe("Sniper dialog reason humanization", function()
   local function baseGC()
     return {
-      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } } },
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        -- Check panel v3 tints the verdict band, the headline figure and every fact from
+        -- these, so the palette is no longer optional in a Theme double.
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
@@ -20,9 +25,11 @@ describe("Sniper dialog reason humanization", function()
   local function loadSniper(GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
   end
 

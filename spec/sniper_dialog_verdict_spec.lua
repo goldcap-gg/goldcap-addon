@@ -86,12 +86,34 @@ describe("Sniper buy dialog verdict block", function()
     return w
   end
 
-  -- Check panel v2: state-tracking double shared by the new entryCard/exitCard/suspectNote
-  -- fields below -- Show()/Hide() record which one last ran (nil until either does, same
-  -- "starts nil" shape as fakeVerdictAmount/fakeVerdictSub above), so the cards-vs-note
-  -- assertions are non-vacuous.
-  local function fakeShowHide()
-    local w = { shown = nil }
+  -- Check panel v3: one fact row is a label, a value, and EITHER a meter or a leader line --
+  -- never both. Recording `shown` on each is what lets a test assert the choice rather than
+  -- the pixels.
+  local function fakeFactRows()
+    local rows = {}
+    for i = 1, 4 do
+      local function region()
+        local w = { text = "", shown = nil, colors = {} }
+        function w:SetText(t) self.text = t end
+        function w:SetTextColor(r, g, b) self.colors[#self.colors + 1] = { r, g, b } end
+        function w:SetWidth(n) self.width = n end
+        function w:SetColorTexture() end
+        function w:ClearAllPoints() end
+        function w:SetPoint() end
+        function w:Show() self.shown = true end
+        function w:Hide() self.shown = false end
+        return w
+      end
+      rows[i] = { label = region(), value = region(), meter = region(),
+        leader = region(), fill = region(), tick = region() }
+    end
+    return rows
+  end
+
+  local function fakeHeroText()
+    local w = { text = "", shown = nil }
+    function w:SetText(t) self.text = t end
+    function w:SetTextColor() end
     function w:Show() self.shown = true end
     function w:Hide() self.shown = false end
     return w
@@ -130,48 +152,57 @@ describe("Sniper buy dialog verdict block", function()
       Data = { GetItemValue = function() return {} end },
       db = { settings = { sniper = dbOverrides or {} } },
     }
+    -- Core/Util.lua: the facts block formats counts through GC.Util.FormatCount (see its own
+    -- comment there for why "856k" beats "856146.0" in a 90px column).
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local stamp = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "stampDialogFromDecision")
     setUpvalue(stamp, "marketForDecision", function() return {} end)
     return GC, stamp
   end
 
-  it("names the action and its cost when the decision is buyable, with a quiet stress-profit sub-line", function()
+  -- Check panel v3. The verdict block stopped narrating the click ("Buy 3 × Argentleaf for
+  -- 453g" said what the header and the primary button already said, twice) and stopped
+  -- printing the same profit figure a third time in a sub-line. What is left is the sentence
+  -- that says why the answer is what it is.
+  it("states why the trade is clear, and never repeats the figure in a sub-line", function()
     local GC, stamp = load()
     local d = fakeDialog()
     setUpvalue(stamp, "dialog", d)
 
-    -- Both amounts stay >= formatColumnAmount's 100g compaction threshold so the expected
-    -- strings are exact without also having to stub GetCoinTextureString.
     stamp({ itemID = 42 }, {
       status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
       stressProfit = 1200000, reasons = {},
     })
 
-    assert.equal("Buy 3 × item 42 for 453g", d.verdictHead.text)
-    assert.equal("you should clear about 120g", d.verdictSub.text)
-    assert.is_true(d.verdictSub.shown)
+    assert.equal("Checked against the live order book a moment ago.", d.verdictHead.text)
+    assert.is_false(d.verdictSub.shown)
     assert.same({ GC.Theme.color.fg[1], GC.Theme.color.fg[2], GC.Theme.color.fg[3] },
       d.verdictHead.colors[#d.verdictHead.colors])
   end)
 
-  it("uses the item name/icon cache setRowDeal populates, not a fresh Item lookup", function()
+  -- The item's own name belongs to the header, which resolves it asynchronously and colours it
+  -- by quality. Repeating it inside the verdict meant the one line with room for a REASON was
+  -- spending most of its width on an identity the player was already looking at.
+  it("leaves the item's identity to the header rather than restating it in the verdict", function()
     local _, stamp = load()
     local d = fakeDialog()
     setUpvalue(stamp, "dialog", d)
-    local nameIconCache = getUpvalue(stamp, "nameIconCache")
-    nameIconCache[42] = { icon = "icon", named = "|cffffffffArgentleaf|r" }
 
     stamp({ itemID = 42 }, {
-      status = "SAFE", buyable = true, quantity = 1, entryTotal = 2000000, stressProfit = 1000000, reasons = {},
+      status = "SAFE", buyable = true, quantity = 1, entryTotal = 2000000,
+      stressProfit = 1000000, reasons = {},
     })
 
-    assert.equal("Buy 1 × |cffffffffArgentleaf|r for 200g", d.verdictHead.text)
+    assert.is_nil(d.verdictHead.text:find("42", 1, true))
+    assert.is_nil(d.verdictHead.text:find("item", 1, true))
   end)
 
   it("shows the refusal sentence in refusal red and hides the sub-line when not buyable", function()
@@ -190,16 +221,17 @@ describe("Sniper buy dialog verdict block", function()
     assert.is_false(d.verdictSub.shown)
   end)
 
-  it("stamps the live-verdict kicker and big signed profit figure when both widgets exist, buyable then refusal", function()
-    -- Task 2 restyle. A fakeDialog WITHOUT verdictLabel/verdictAmount/verdictAmountNote is
-    -- exactly what every other test in this file already builds (fakeDialog()'s own base
-    -- shape, unmodified) -- those must keep stamping fine (they do, elsewhere in this file);
-    -- this test is the additive counterpart with a fakeDialog that HAS them.
+  -- Check panel v3. The kicker names the ANSWER ("Won't buy"), not the machine's state
+  -- ("LIVE VERDICT · REFUSED"), and the figure below it changes UNIT rather than disappearing:
+  -- a refusal about the price still has a loss to show, and only a refusal about the VALUE has
+  -- no honest number at all. The old panel hid the figure on every refusal and left a 94px hole.
+  it("names the answer and keeps a figure on a refusal that still has one", function()
     local GC, stamp = load()
     local d = fakeDialog({
       verdictLabel = fakeVerdictLabel(),
       verdictAmount = fakeVerdictAmount(),
       verdictAmountNote = fakeVerdictAmountNote(),
+      heroText = fakeHeroText(),
     })
     setUpvalue(stamp, "dialog", d)
 
@@ -207,24 +239,49 @@ describe("Sniper buy dialog verdict block", function()
       status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
       stressProfit = 1200000, reasons = {},
     })
-    assert.equal("LIVE VERDICT · SAFE", d.verdictLabel.text)
+    assert.equal("Clear to buy", d.verdictLabel.text)
     assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
       d.verdictLabel.colors[#d.verdictLabel.colors])
-    assert.equal("+120g", d.verdictAmount.text) -- same 1200000-copper figure verdictSub's own sentence uses
-    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
-      d.verdictAmount.colors[#d.verdictAmount.colors])
+    assert.equal("+120g", d.verdictAmount.text)
     assert.is_true(d.verdictAmount.shown)
-    assert.is_true(d.verdictAmountNote.shown) -- Fix round 1: the caption goes with the amount
+    assert.is_false(d.heroText.shown)
+    assert.is_true(d.verdictAmountNote.shown)
 
     stamp({ itemID = 42 }, {
-      status = "WATCH", buyable = false, quantity = 0,
-      reasons = { "stress_profit_below_buffer" },
+      status = "WATCH", buyable = false, quantity = 200, entryTotal = 6220000,
+      stressProfit = -960000, reasons = { "stress_profit_below_buffer" },
     })
-    assert.equal("LIVE VERDICT · REFUSED", d.verdictLabel.text)
+    assert.equal("Won't buy", d.verdictLabel.text)
     assert.same({ GC.Theme.color.red[1], GC.Theme.color.red[2], GC.Theme.color.red[3] },
       d.verdictLabel.colors[#d.verdictLabel.colors])
+    -- The loss IS the answer here, in the same slot the profit used.
+    assert.equal("-96g", d.verdictAmount.text)
+    assert.is_true(d.verdictAmount.shown)
+    assert.is_true(d.verdictAmountNote.shown) -- the caption goes with whatever the figure is
+  end)
+
+  -- The owner's own screenshot: a HOT lot at -81%, refused because the value cannot be trusted.
+  -- Printing "-1,240g" there would invent precision out of the very number being refused, and a
+  -- bare "—" would read as a value that failed to load. The words go in the figure's slot, at
+  -- the figure's weight.
+  it("says it cannot price the lot instead of inventing a figure it has just refused", function()
+    local _, stamp = load()
+    local d = fakeDialog({
+      verdictLabel = fakeVerdictLabel(),
+      verdictAmount = fakeVerdictAmount(),
+      verdictAmountNote = fakeVerdictAmountNote(),
+      heroText = fakeHeroText(),
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42 }, {
+      status = "WATCH", buyable = false, quantity = 200, entryTotal = 6220000,
+      stressProfit = -1240000, reasons = { "price_history_sparse" },
+    })
+
     assert.is_false(d.verdictAmount.shown)
-    assert.is_false(d.verdictAmountNote.shown) -- Fix round 1: not orphaned when the amount hides
+    assert.is_true(d.heroText.shown)
+    assert.equal("Can't price this", d.heroText.text)
   end)
 
   -- Item 3 (addon polish batch): the dialog is a session-long singleton, and the refusal branch
@@ -278,46 +335,92 @@ describe("Sniper buy dialog verdict block", function()
     _G.GetTime = nil
   end)
 
-  it("stamps the ENTRY AVG / STRESS EXIT cards from the same two values as the evidence grid, and swaps them for the suspect note on a SUSPECT tier", function()
-    -- Check panel v2. The two amounts are owned by stampDialogFromDecision (same as
-    -- unitPriceText/exitUnitText); which of the cards-vs-note pair is shown is owned by
-    -- setDialogHeader instead -- both guarded on the same new dialog.* fields, exercised
-    -- together here the way openDialog/armReady/armCheck actually call them in sequence.
-    local GC, stamp = load()
-    local d = fakeDialog({
-      entryValue = textSink(), exitValue = textSink(),
-      entryCard = fakeShowHide(), exitCard = fakeShowHide(),
-      tierChip = { SetLabel = function() end },
-      suspectNote = fakeShowHide(),
-      nameText = textSink(), icon = { SetTexture = function() end },
-    })
+  -- Check panel v3 replaced the ENTRY AVG / STRESS EXIT plaques (two numbers the evidence grid
+  -- already carried, in a slot that went blank on every SUSPECT deal) with four facts chosen to
+  -- explain THIS verdict. A meter is drawn only where CheckVerdict handed one out -- a bar with
+  -- no honest ceiling is decoration competing with the figure above it.
+  it("backs the verdict with four facts, metering only where a real scale exists", function()
+    local _, stamp = load()
+    setUpvalue(stamp, "marketForDecision", function()
+      return { marketValue = 3040000, soldPerDay = 412, sellThroughBps = 8800,
+        liquidityConfidence = 90, listings = 17 }
+    end)
+    local d = fakeDialog({ factRows = fakeFactRows() })
     setUpvalue(stamp, "dialog", d)
 
     stamp({ itemID = 42 }, {
-      status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
-      stressProfit = 1200000, exitUnit = 1600000, reasons = {},
+      status = "WATCH", buyable = false, quantity = 200, entryTotal = 6220000,
+      stressProfit = -960000, reasons = { "stress_profit_below_buffer" },
     })
-    assert.equal(d.unitPriceText.text, d.entryValue.text)
-    assert.equal(d.exitUnitText.text, d.exitValue.text)
 
-    _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
-    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
-    local refreshRows = getUpvalue(clearDeals, "refreshRows")
-    local createRow = getUpvalue(refreshRows, "createRow")
-    local buildRowCell = getUpvalue(createRow, "buildRowCell")
-    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
-    local openDialog = getUpvalue(onBuyClick, "openDialog")
-    local setDialogHeader = getUpvalue(openDialog, "setDialogHeader")
+    -- What you pay against what you get back, on one shared ceiling: the comparison is the
+    -- whole point of a profit refusal, so both carry a bar.
+    assert.equal("You would pay", d.factRows[1].label.text)
+    assert.equal("622g", d.factRows[1].value.text)
+    assert.is_true(d.factRows[1].meter.shown)
+    assert.is_false(d.factRows[1].leader.shown)
+    assert.equal("You would get", d.factRows[2].label.text)
+    assert.equal("526g", d.factRows[2].value.text)
+    assert.is_true(d.factRows[2].meter.shown)
+    -- Sell-through is already a percentage, so it meters against the engine's own 70% gate.
+    assert.equal("Sell-through", d.factRows[3].label.text)
+    assert.equal("88%", d.factRows[3].value.text)
+    assert.is_true(d.factRows[3].meter.shown)
+  end)
 
-    setDialogHeader({ itemID = 42, tier = "WATCH" }, {})
-    assert.is_true(d.entryCard.shown)
-    assert.is_true(d.exitCard.shown)
-    assert.is_false(d.suspectNote.shown)
+  -- A liquidity refusal is about TIME, and a seller count has no ceiling of its own -- so the
+  -- gold tied up gets the leader line, not a bar drawn against a number nobody chose.
+  it("gives a figure with no natural ceiling a leader line instead of a bar", function()
+    local _, stamp = load()
+    setUpvalue(stamp, "marketForDecision", function()
+      return { marketValue = 3040000, soldPerDay = 3, sellThroughBps = 4100,
+        liquidityConfidence = 90, listings = 17 }
+    end)
+    local d = fakeDialog({ factRows = fakeFactRows() })
+    setUpvalue(stamp, "dialog", d)
 
-    setDialogHeader({ itemID = 42, tier = "SUSPECT" }, {})
-    assert.is_false(d.entryCard.shown)
-    assert.is_false(d.exitCard.shown)
-    assert.is_true(d.suspectNote.shown)
+    stamp({ itemID = 42 }, {
+      status = "WATCH", buyable = false, quantity = 200, entryTotal = 6220000,
+      stressProfit = 184000, reasons = { "velocity_too_low" },
+    })
+
+    assert.equal("Gold tied up", d.factRows[3].label.text)
+    assert.is_false(d.factRows[3].meter.shown)
+    assert.is_true(d.factRows[3].leader.shown)
+    -- The sign is the point on this one, unlike what you PAY.
+    assert.equal("If it clears", d.factRows[4].label.text)
+    assert.equal("+18g40s", d.factRows[4].value.text)
+  end)
+
+  -- A refusal under a HOT board tier is the window arguing with itself: the tier came from the
+  -- imported snapshot, the verdict from the live book. The reconciliation block is stacked only
+  -- when the two actually disagree -- a WATCH tier next to "won't buy" is them agreeing.
+  it("stacks the reconciliation block only when the board's tier contradicts the verdict", function()
+    local _, stamp = load()
+    local shapes = {}
+    local d = fakeDialog({
+      reconcileText = textSink(),
+      layoutBlocks = function(shape) shapes[#shapes + 1] = shape end,
+    })
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42, tier = "HOT" }, {
+      status = "WATCH", buyable = false, quantity = 0, reasons = { "price_history_sparse" },
+    })
+    assert.is_true(shapes[#shapes].reconcile)
+    assert.is_false(shapes[#shapes].actionable) -- and nothing to buy, so no quantity block
+
+    stamp({ itemID = 42, tier = "WATCH" }, {
+      status = "WATCH", buyable = false, quantity = 0, reasons = { "price_history_sparse" },
+    })
+    assert.is_false(shapes[#shapes].reconcile)
+
+    stamp({ itemID = 42, tier = "HOT" }, {
+      status = "SAFE", buyable = true, quantity = 3, entryTotal = 4530000,
+      stressProfit = 1200000, reasons = {},
+    })
+    assert.is_false(shapes[#shapes].reconcile) -- the board and the verdict agree
+    assert.is_true(shapes[#shapes].actionable)
   end)
 
   it("hides the diagnostic line and contributes no height to it by default", function()
@@ -382,9 +485,12 @@ describe("Sniper buy dialog verdict block", function()
       return text:sub(from, to - 1)
     end
 
+    -- Check panel v3: the quantity control moved into its own block frame (qtyBlock), which is
+    -- what lets layoutBlocks drop it entirely on a refusal. It still has to be built -- and
+    -- therefore stacked -- above the toggle and the rows the toggle hides.
     it("keeps Quantity and its quick-fill row above the Details toggle, not behind it", function()
       local text = source()
-      local qtyPos = assert(text:find("local qtyBox = makeQtyEditBox(d,", 1, true))
+      local qtyPos = assert(text:find("local qtyBox = makeQtyEditBox(qtyBlock,", 1, true))
       local quickFillPos = assert(text:find("local quickFillBtns = {}", 1, true))
       local togglePos = assert(text:find("local detailsToggle = Theme.Button(d,", 1, true))
       local evidenceRowsPos = assert(text:find("d.evidenceRows = {}", 1, true))
@@ -404,11 +510,19 @@ describe("Sniper buy dialog verdict block", function()
       assert.is_truthy(body:find("pair.value:Hide()", 1, true))
     end)
 
-    it("switches between the two precomputed fixed-height budgets, never recomputing DG live", function()
+    -- Check panel v3: the budgets are no longer two constants. layoutBlocks writes
+    -- d.fixedHeightClosed/Open from the blocks THIS verdict actually shows, and the DG pair is
+    -- only the construction-time seed -- a refusal with no quantity block is 50px shorter than
+    -- the old single worst case, which is what let the toggle open inside the docked drawer at
+    -- all. What must not come back is recomputing geometry here: this still only picks.
+    it("picks between the two measured budgets rather than recomputing geometry", function()
       local text = source()
       local body = section(text, "local function applyDetailsState(open)", "detailsToggle:SetScript(\"OnClick\"")
       assert.is_truthy(body:find(
-        "d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED", 1, true))
+        "d.fixedHeight = d.detailsOpen and (d.fixedHeightOpen or DG.FIXED_HEIGHT_OPEN)", 1, true))
+      assert.is_truthy(body:find("(d.fixedHeightClosed or DG.FIXED_HEIGHT_CLOSED)", 1, true))
+      -- The fit guard measures the same layout it is about to draw, not a worst case.
+      assert.is_truthy(body:find("local openHeight = d.fixedHeightOpen or DG.FIXED_HEIGHT_OPEN", 1, true))
     end)
 
     it("persists the open/closed choice under GC.db.settings.sniper.dialogDetailsOpen", function()
@@ -452,18 +566,24 @@ describe("Sniper buy dialog verdict block", function()
     end)
   end)
 
-  it("DG's open/closed height budgets differ by exactly one evidence grid, with no overlap or negative geometry", function()
+  it("swaps the four facts for the ten-row transcript rather than stacking both", function()
     -- A behavioural sanity check on the actual production constants (not a stand-in), reached
     -- as a direct upvalue of createDialog -- DG's own fields are referenced right in its body.
-    local Theme = { RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 } }
+    -- The REAL pad scale (UI/Theme.lua's own T.pad), not the shrunken double the behavioural
+    -- tests above use: every number in this test is a pixel budget measured against the drawer
+    -- the docked auction-house tab actually gives this panel, and a 4/8/12 -> 2/4/8 substitution
+    -- would quietly make each of those assertions pass on geometry nobody ships.
+    local Theme = { RAIL_W = 76, pad = { xs = 4, s = 8, m = 12, l = 16 } }
     local GC = { Theme = Theme,
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
       Data = { GetItemValue = function() return {} end },
     }
+    helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     -- Same debug.getupvalue chain the wiring suite documents and uses throughout:
     -- clearDeals -> refreshRows -> createRow -> buildRowCell -> onBuyClick -> openDialog.
@@ -476,15 +596,34 @@ describe("Sniper buy dialog verdict block", function()
     local createDialog = getUpvalue(openDialog, "createDialog")
     local DG = getUpvalue(createDialog, "DG")
 
-    assert.equal(DG.GRID_ROWS * DG.GRID_ROW_H, DG.FIXED_HEIGHT_OPEN - DG.FIXED_HEIGHT_CLOSED)
+    -- Check panel v3: opening Details costs the DIFFERENCE between the transcript and the four
+    -- facts it replaces, not the whole transcript on top of them. Reserving both at once is
+    -- what made the toggle refuse to open in the docked AH drawer and then tell the player to
+    -- enlarge a window with no resize handle.
+    assert.equal(DG.GRID_H - DG.FACTS_H, DG.FIXED_HEIGHT_OPEN - DG.FIXED_HEIGHT_CLOSED)
     assert.is_true(DG.FIXED_HEIGHT_CLOSED > 0)
-    -- Stacked top-to-bottom without overlap: verdict, then Quantity, then the toggle, each
-    -- strictly below the one before it.
-    assert.is_true(DG.VERDICT_TOP > DG.QTY_TOP)
-    assert.is_true(DG.QTY_TOP > DG.CARDS_TOP)
-    assert.is_true(DG.CARDS_TOP > DG.TOGGLE_TOP)
-    assert.is_true(DG.TOGGLE_TOP > DG.GRID_TOP)
-    assert.is_true(DG.GRID_TOP > DG.EVIDENCE_BOTTOM_OPEN)
-    assert.is_true(DG.TOGGLE_TOP > DG.EVIDENCE_BOTTOM_CLOSED)
+    assert.is_true(DG.GRID_H > DG.FACTS_H) -- the transcript is the longer of the two
+
+    -- Both shapes fit the drawer the docked auction-house tab actually gives this panel. The
+    -- old pair was 548 closed / 728 open against the same ceiling.
+    local DOCKED_CEILING = 565
+    assert.equal(446, DG.FIXED_HEIGHT_CLOSED)
+    assert.equal(550, DG.FIXED_HEIGHT_OPEN)
+    assert.is_true(DG.FIXED_HEIGHT_OPEN <= DOCKED_CEILING,
+      ("a purchase with Details open needs %d of %d"):format(DG.FIXED_HEIGHT_OPEN, DOCKED_CEILING))
+    -- A refusal drops the quantity block and gains the reconciliation line: 536.
+    assert.is_true(DG.FIXED_HEIGHT_OPEN - DG.QTY_BLOCK_H + DG.RECONCILE_H <= DOCKED_CEILING)
+
+    -- Every block is a positive height, so nothing can stack backwards over its neighbour.
+    for _, field in ipairs({ "HEADER_H", "HERO_H", "RECONCILE_H", "QTY_BLOCK_H", "FACTS_H",
+        "TOGGLE_BLOCK_H", "GRID_H", "STATUS_H", "CONTROLS_H" }) do
+      assert.is_true(DG[field] > 0, field .. " is not a positive height")
+    end
+    -- The hero's own slots add up to the band that has to hold them.
+    assert.equal(DG.HERO_H, Theme.pad.s + DG.HERO_KICKER_H + Theme.pad.xs + DG.HERO_FIGURE_H
+      + Theme.pad.xs + DG.HERO_CAPTION_H + Theme.pad.xs + DG.HERO_SENTENCE_H + Theme.pad.s)
+    -- Three columns and two gaps fill the content width exactly -- no fact row can overhang.
+    assert.equal(DG.WIDTH - 2 * Theme.pad.m,
+      DG.FACT_LABEL_W + Theme.pad.s + DG.FACT_METER_W + Theme.pad.s + DG.FACT_VALUE_W)
   end)
 end)

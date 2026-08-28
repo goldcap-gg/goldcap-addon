@@ -55,28 +55,28 @@ WIN.FRAME_HEIGHT = 600
 -- restores the same worst-case content width the 560 floor used to give.
 WIN.RESIZE_MIN_WIDTH = 640
 WIN.RESIZE_MAX_WIDTH = 1100
--- 470, was 460 (check panel v2: DG.FIXED_HEIGHT_CLOSED alone -- 368, a pure top-down sum --
--- is NOT the real closed-drawer floor. resizeDialogDiagnostics's own non-debug branch (the one
--- every real player sees) anchors `status` BOTTOM-UP, independently of the top-down stack, and
--- reserves the banner slot ABOVE it -- so the true minimum has to fit BOTH stacks without them
--- overlapping, not just the top-down sum. Recomputed straight off that function's own
--- anchoring, each term named:
---   DG.HEADER_H(52) + DG.VERDICT_H(94) + DG.QTY_H(42) + DG.CARDS_H(48) + DG.TOGGLE_H(22)
---     = 258  (top-down, through the Details toggle -- this magnitude IS DG.GRID_TOP)
---   + Theme.pad.xs(4)                                                       = 262  (gap after
---     the toggle, mirroring DG.EVIDENCE_BOTTOM_CLOSED's own toggle-to-content offset)
---   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 312  (the banner
+-- 470. DG.FIXED_HEIGHT_CLOSED alone is NOT the real closed-drawer floor:
+-- resizeDialogDiagnostics's own non-debug branch (the one every real player sees) anchors
+-- `status` BOTTOM-UP, independently of the top-down stack, and reserves the banner slot ABOVE
+-- it -- so the true minimum has to fit BOTH stacks without them overlapping. Recomputed
+-- straight off that function's own anchoring, each term named (check panel v3 blocks):
+--   DG.HEADER_H(52) + DG.HERO_H(124) + DG.QTY_BLOCK_H(50) + DG.FACTS_H(84)
+--     = 310  (top-down, through the four facts -- the tallest closed shape, a purchase)
+--   + DG.TOGGLE_BLOCK_H(26)                                                 = 336  (the gap
+--     after the facts plus the toggle itself)
+--   + LIM.REQUOTE_BANNER_HEIGHT(46) + Theme.pad.xs(4)                       = 386  (the banner
 --     slot createDialog reserves above the status line, plus the pad.xs gap under it)
---   + DG.STATUS_H(32)                                                       = 344  (status's
+--   + DG.STATUS_H(32)                                                       = 418  (status's
 --     own reserved line height, anchored at DG.CONTROLS_H by resizeDialogDiagnostics)
---   + DG.CONTROLS_H(78)                                                     = 422  (bottom
+--   + DG.CONTROLS_H(78)                                                     = 496  (bottom
 --     margin + Cancel + gap + Buy + gap-to-status)
--- stack = 422. The drawer itself is (window height - CH.TITLEBAR(32)); smallest multiple of 10
--- such that (RESIZE_MIN_HEIGHT - 32) - 422 >= 8 (an 8px safety margin, not zero-clearance) is
--- 470: 470 - 32 = 438, 438 - 422 = 16 >= 8. The F5 details-open guard (applyDetailsState) still
--- refuses at this floor by a wide margin -- it needs DG.FIXED_HEIGHT_OPEN(548) alone for the
--- default (debug off) player, or +diagnosticGaps(8)+diagnosticMinimumHeight(36) = 592 once
--- GC.db.settings.sniper.debug is on, and the drawer here is only 438 either way.
+-- That is 496 against a drawer of (RESIZE_MIN_HEIGHT - CH.TITLEBAR(32)) = 438, so at the very
+-- smallest window the banner slot and the top stack DO meet. Left at 470 deliberately: the
+-- banner is the requote alarm, which only exists mid-purchase, and raising the floor to 540
+-- would cost every player 70px of deals list to reserve a slot most sessions never draw. What
+-- the v3 layout did buy is the Details toggle: it needs DG.FIXED_HEIGHT_OPEN(550) for a
+-- purchase and 536 for a refusal (no quantity block), both now inside the docked AH drawer's
+-- ~565 ceiling -- the old pair was 548/728 and could never open there at all.
 WIN.RESIZE_MIN_HEIGHT = 470
 WIN.RESIZE_MAX_HEIGHT = 900
 
@@ -2299,18 +2299,11 @@ end
 -- identity guard here since the dialog can outlive the row being reassigned.
 local function setDialogHeader(deal, decision)
   local color = Theme.tier[deal.tier] or Theme.tier.WATCH
+  -- Check panel v3: the chip is drawn, but WHETHER it is on screen belongs to the verdict --
+  -- it sits in the reconciliation block, which layoutBlocks only stacks when the board's tier
+  -- and the live verdict disagree. Setting the label here is still right: the tier is known at
+  -- open time and the decision is not.
   dialog.tierChip:SetLabel(deal.tier, color)
-  local suspect = deal.tier == "SUSPECT"
-  if suspect then dialog.suspectNote:Show() else dialog.suspectNote:Hide() end
-  -- Check panel v2: the cards slot doubles as the suspect-note slot -- never both. Guarded
-  -- (entryCard/exitCard are new fields) so every fakeDialog in sniper_dialog_verdict_spec /
-  -- sniper_purchase_wiring_spec without them keeps passing unmodified.
-  if dialog.entryCard then
-    if suspect then dialog.entryCard:Hide() else dialog.entryCard:Show() end
-  end
-  if dialog.exitCard then
-    if suspect then dialog.exitCard:Hide() else dialog.exitCard:Show() end
-  end
   local quantity = decision and decision.quantity or nil
   local suffix = quantity and quantity > 0 and ("  x%d"):format(quantity) or ""
   dialog.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. suffix)
@@ -2359,75 +2352,99 @@ DG.QTY_QUICKFILL_PCTS = { 25, 50, 75, 100 }
 -- ("<unit> -> <unit> per unit    total <total> -> <total>" at DG.WIDTH), and the
 -- suspect/mv notes must never clip a second line either; both budgets sized for two lines
 -- of Theme.Label(d, 11) at this width, not one.
--- Check panel v2: no longer read by DG.HEADER_H (the suspect note left the header for the
--- cards slot below) -- kept defined as the reserved-note-height figure in case a future budget
--- needs it again; nothing currently reads it.
-DG.NOTE_H = 36   -- reserved height for a 2-line suspect note at this width/font
 DG.DIAGNOSTIC_MIN_H = 36
 DG.STATUS_H = 32
 DG.PRIMARY_H = 32 -- Task 2 restyle (was 26): kit-value GC.L["big buy"] plaque height
 DG.CANCEL_H = 22 -- Task 2 restyle (was 20)
--- Check panel v2: the header no longer reserves a blank note slot under the item name -- that
--- was the single biggest hole the second in-game pass called out ("это окно надо улучшить").
--- d.suspectNote now shares the cards slot after the Quantity row (see DG.CARDS_TOP below)
--- instead of living here. Header is just top margin + icon + gap.
+-- Header is just top margin + icon + gap: the item, and nothing that competes with it.
 -- 12 + 32 + 8 = 52
 DG.HEADER_H = Theme.pad.m + DG.ICON + Theme.pad.s
+-- The "ESC" hint's own column, and what is left for the item's name beside it. The name gets
+-- ONE anchor and this width rather than a LEFT/RIGHT pair -- see its own comment in
+-- createDialog for why that pair is a trap here.
+DG.HEADER_ESC_W = 30
+-- 320 - 12 - 32 - 8 - 30 - 8 - 12 = 218
+DG.HEADER_NAME_W = DG.WIDTH - Theme.pad.m - DG.ICON - Theme.pad.s
+  - DG.HEADER_ESC_W - Theme.pad.s - Theme.pad.m
 
--- Verdict block: a small live-status kicker (d.verdictLabel), the headline -- what the click
--- DOES and what it costs when buyable, the refusal sentence in refusal red when it is not --
--- a big signed profit figure (d.verdictAmount) with its own caption, and a quieter sub-line
--- naming the stress profit. VERDICT_HEAD_H covers the kicker+headline pair, VERDICT_SUB_H the
--- amount+sub-line pair; both are fixed reservations (the headline no longer wraps -- one line
--- now, see createDialog), not GetStringHeight()-measured -- diagnosticText already owns the one
--- dynamically-measured block this dialog needs.
-DG.VERDICT_HEAD_H = 32 -- Task 2 restyle (was 28): label + headline
-DG.VERDICT_SUB_H = 42 -- Task 2 restyle (was 26): amount line + sub-line
--- 8 + 32 + 4 + 42 + 8 = 94 (controller ruling: the plan's kit-values table said 90, an addition
--- slip -- this is the verified sum of the components above)
-DG.VERDICT_H = Theme.pad.s + DG.VERDICT_HEAD_H + Theme.pad.xs + DG.VERDICT_SUB_H + Theme.pad.s
+-- Check panel v3 -- docs/design/2026-08-28-check-panel, the design the owner approved after
+-- two in-game passes called this window cramped and hard to read. The panel stopped being one
+-- fixed stack with holes punched in it: a REFUSAL and a PURCHASE are different shapes of
+-- window, and every block below is present only when it has something to say. The old layout
+-- reserved 94px for a profit figure a refusal never has, offered a quantity box on verdicts
+-- where nothing could be bought, and printed the same sentence in three places.
+--
+-- Each block is a container frame built once by createDialog, with its children anchored
+-- inside it at fixed offsets; layoutDialogBlocks stacks the ones that are shown and adds up
+-- their heights. Nothing below is a *_TOP offset any more -- those could not survive blocks
+-- that come and go.
 
--- Quantity + its quick-fill row: the one interactive control in this dialog besides the
--- buttons, so it stays visible above the Details toggle rather than being hidden behind it.
--- 18px box (Task 2 restyle, DG.QTY_BOX_H below); check panel v2 stopped tying this to
--- DG.GRID_ROW_H (now 18, was 20) once the evidence grid and the QTY row needed different row
--- heights -- 20 (label line) + pad.xs (gap) + DG.QTY_QUICKFILL_H (18, the chip row).
-DG.QTY_H = 20 + Theme.pad.xs + DG.QTY_QUICKFILL_H -- 20 + 4 + 18 = 42
--- Check panel v2: the qty edit box's own height, split out from DG.GRID_ROW_H now that the
--- grid row shrank to 18 and the box did not need to shrink with it.
+-- THE ANSWER, edge to edge and tinted: the verdict word, then ONE figure that changes UNIT
+-- rather than going blank (gold, days, units, or "can't price this" at the same weight), its
+-- caption, and the sentence saying why. See Core/CheckVerdict.lua, which decides all of it.
+-- 8 + 12 + 4 + 28 + 4 + 26 + 4 + 30 + 8 = 124
+DG.HERO_KICKER_H = 12
+DG.HERO_FIGURE_H = 28
+DG.HERO_CAPTION_H = 26 -- two lines of Theme.Label(10) at this width
+DG.HERO_SENTENCE_H = 30 -- two lines of Theme.Label(12)
+DG.HERO_H = Theme.pad.s + DG.HERO_KICKER_H + Theme.pad.xs + DG.HERO_FIGURE_H + Theme.pad.xs
+  + DG.HERO_CAPTION_H + Theme.pad.xs + DG.HERO_SENTENCE_H + Theme.pad.s
+
+-- Shown only when the board's tier and this verdict actually disagree. A HOT chip 320 pixels
+-- from "won't buy" is the window arguing with itself, and the tier came from the imported
+-- snapshot while the verdict came from the live book -- so the chip lives HERE, beside the
+-- sentence that reconciles the two, instead of in the header where it read as a peer of the
+-- item's own name. 8 + 20 (chip) + 8 = 36, with room for a two-line note beside it.
+DG.RECONCILE_H = 36
+
+-- Quantity + its quick-fill chips, plus the gap under them. Present only when there IS
+-- something to buy: on a refusal the box and its four chips are the bulk of what a player has
+-- to read past to reach the reason.
+-- 20 (label line) + 4 + 18 (chip row) = 42, + 8 gap = 50
+DG.QTY_H = 20 + Theme.pad.xs + DG.QTY_QUICKFILL_H
+DG.QTY_BLOCK_H = Theme.pad.s + DG.QTY_H
 DG.QTY_BOX_H = 18
+
+-- THE FACTS -- four, chosen to explain THIS verdict rather than to fill a fixed grid. Three
+-- columns: the label, then a meter where a real scale exists (a percentage, a threshold the
+-- engine itself applies, or a pair sharing one ceiling) or a quiet leader line where it does
+-- not, then the value. A bar with no honest ceiling is a decoration competing with the figure
+-- above it, which is why CheckVerdict hands out `meter` on some facts and not others.
+-- 96 + 8 + 94 + 8 + 90 = 296 = the content width at DG.WIDTH.
+DG.FACT_ROWS = 4
+DG.FACT_ROW_H = 19
+DG.FACT_LABEL_W = 96
+DG.FACT_VALUE_W = 90
+DG.FACT_METER_W = DG.WIDTH - 2 * Theme.pad.m - DG.FACT_LABEL_W - DG.FACT_VALUE_W - 2 * Theme.pad.s
+DG.FACT_METER_H = 4
+DG.FACTS_H = Theme.pad.s + DG.FACT_ROWS * DG.FACT_ROW_H -- 8 + 76 = 84
+
 -- Task 2 restyle: no longer tied to DG.GRID_ROW_H (20) -- the kit gives the toggle its own
 -- height (22), so it needs its own field now that the two numbers differ.
 DG.TOGGLE_H = 22
+DG.TOGGLE_BLOCK_H = Theme.pad.xs + DG.TOGGLE_H -- 26
 
--- Measured down from the header, in the order the dialog actually stacks: verdict, then
--- Quantity, then the ENTRY AVG / STRESS EXIT cards (or the suspect note, sharing the same
--- slot), then the Details toggle, then (only while open) the evidence grid.
-DG.VERDICT_TOP = -DG.HEADER_H
-DG.QTY_TOP = DG.VERDICT_TOP - DG.VERDICT_H
--- Check panel v2: two 40px-tall cards side by side (kit-value height) plus pad.s below them,
--- same idiom as DG.VERDICT_H/DG.CONTROLS_H above (a fixed component sum, not a bare literal).
-DG.CARDS_H = 40 + Theme.pad.s -- 48
-DG.CARDS_TOP = DG.QTY_TOP - DG.QTY_H
-DG.TOGGLE_TOP = DG.CARDS_TOP - DG.CARDS_H
-DG.GRID_TOP = DG.TOGGLE_TOP - DG.TOGGLE_H
--- Where the diagnostic/status block starts: right after the (shown) evidence grid when
--- Details is open, or right after the toggle itself -- the grid simply skipped -- when it is
--- closed. resizeDialogDiagnostics picks between these depending on dialog.detailsOpen.
-DG.EVIDENCE_BOTTOM_OPEN = DG.GRID_TOP - DG.GRID_ROWS * DG.GRID_ROW_H - Theme.pad.xs
-DG.EVIDENCE_BOTTOM_CLOSED = DG.TOGGLE_TOP - DG.TOGGLE_H - Theme.pad.xs
+-- The full transcript, behind the toggle. It REPLACES the four facts rather than stacking
+-- under them: four of these ten rows ARE those facts, and reserving 84 + 188 at once is what
+-- made the toggle refuse to open in the docked AH drawer (~565px, no resize handle) and print
+-- "Enlarge the window" at a window that cannot be enlarged.
+-- 8 + 10 * 18 = 188
+DG.GRID_H = Theme.pad.s + DG.GRID_ROWS * DG.GRID_ROW_H
 
 -- bottom margin + cancel + gap + primary + gap-to-status, measured up from the dialog's own
--- bottom edge (mirrors DG.GRID_TOP's measured-down-from-top pattern above).
+-- bottom edge.
 -- 12 + 32 + 4 + 22 + 8 = 78
 DG.CONTROLS_H = Theme.pad.m + DG.PRIMARY_H + Theme.pad.xs + DG.CANCEL_H + Theme.pad.s
--- Two fixed-height budgets, Details closed and open -- resizeDialogDiagnostics only ever
--- READS dialog.fixedHeight (same contract as before); applyDetailsState (createDialog) is
--- the one place that picks between these and writes it, on open/close.
--- 52 + 94 + 42 + 48 + 22 + 32 + 78 = 368 (check panel v2, was 362)
-DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.VERDICT_H + DG.QTY_H + DG.CARDS_H + DG.TOGGLE_H
-  + DG.STATUS_H + DG.CONTROLS_H
-DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H -- 368 + 180 = 548
+-- Construction-time defaults, before any verdict is known: the TALLEST shape, a purchase with
+-- the quantity block in. layoutDialogBlocks writes d.fixedHeightClosed/d.fixedHeightOpen per
+-- verdict from the blocks actually shown, and applyDetailsState prefers those when they exist
+-- -- so the fit guard measures the window the player is looking at, not a worst case.
+-- 52 + 124 + 50 + 84 + 26 + 32 + 78 = 446
+DG.FIXED_HEIGHT_CLOSED = DG.HEADER_H + DG.HERO_H + DG.QTY_BLOCK_H + DG.FACTS_H
+  + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
+-- 446 - 84 + 188 = 550, and a refusal (no quantity block) is 500 -- both inside the docked
+-- drawer's own ceiling, which the old 548-closed/728-open pair never was.
+DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED - DG.FACTS_H + DG.GRID_H
 
 -- The diagnostic is evidence, not a purchase surface, and (fix round N) is now hidden unless
 -- the player has turned on GC.db.settings.sniper.debug -- it is a bug-report transcript, not
@@ -2451,7 +2468,12 @@ DG.FIXED_HEIGHT_OPEN = DG.FIXED_HEIGHT_CLOSED + DG.GRID_ROWS * DG.GRID_ROW_H -- 
 -- than the default one (see the accepted evidence-rows-9-10-under-banner ruling), so the
 -- default path every real player sees is the one this fix actually needs to cover.
 local function resizeDialogDiagnostics()
-  local evidenceBottom = dialog.detailsOpen and dialog.evidenceTopOpen or dialog.evidenceTopClosed
+  -- One number since check panel v3 (layoutBlocks writes it): the blocks above this point come
+  -- and go with the verdict, so there is no longer a fixed open/closed pair to pick between.
+  -- The pair is still read as a fallback for the hand-built fakeDialogs in the verdict specs,
+  -- which never run layoutBlocks.
+  local evidenceBottom = dialog.evidenceTop
+    or (dialog.detailsOpen and dialog.evidenceTopOpen or dialog.evidenceTopClosed)
   dialog.mvNote:ClearAllPoints()
   dialog.mvNote:SetPoint("TOPLEFT", Theme.pad.m, evidenceBottom)
   dialog.mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
@@ -2496,6 +2518,155 @@ end
 local refreshQtyRow
 local updateBuyAffordance
 
+-- Draws what Core/CheckVerdict.lua decided (check panel v3). Named drawVerdict, not
+-- stampVerdict: that name is already taken by the row-level recorder forward-declared far
+-- above, and shadowing it left the recorder permanently nil. Nothing here decides anything:
+-- the tone, the UNIT of the headline figure, which four facts back it, whether there is
+-- anything left to act on and whether the board's tier needs reconciling are all settled
+-- before this runs -- see that file's header for why the split exists at all.
+--
+-- Every write is guarded on the field existing: two protected specs stamp a hand-built
+-- fakeDialog that carries only the handful of widgets they assert on, and a purchase must
+-- never fail because a cosmetic slot is missing.
+local function drawVerdict(deal, decision, market)
+  local CV = GC.CheckVerdict
+  local verdict = CV.Build(decision, market, { tier = deal.tier })
+  local tone = verdict.tone
+  local accent = Theme.color.green
+  if tone == "refuse" then accent = Theme.color.red
+  elseif tone == "adjust" then accent = Theme.color.gold end
+
+  if dialog.setHeroTone then dialog.setHeroTone(accent) end
+  if dialog.verdictLabel then
+    dialog.verdictLabel:SetText(GC.L[CV.TONE_WORD[tone] or ""])
+    dialog.verdictLabel:SetTextColor(accent[1], accent[2], accent[3])
+  end
+
+  -- THE FIGURE. It changes unit rather than going blank: a refusal about the VALUE has no
+  -- honest number at all, and printing "—" in a 28px slot reads as a value that failed to
+  -- load rather than as a refusal to invent one.
+  -- Each branch formats its OWN caption rather than collecting args for a shared
+  -- `caption:format(unpack(args))`: `unpack` is a global in the game's Lua 5.1 and gone in the
+  -- 5.4+ that runs the specs, so that spelling passes here and errors on the buy path.
+  local hero, quantity = verdict.hero, decision.quantity or 0
+  local figure, figureColor, caption
+  if hero.kind == "gold" then
+    local up = hero.copper >= 0
+    figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
+    figureColor = up and Theme.color.green or Theme.color.red
+    caption = (GC.L[CV.HERO_CAPTION[up and "gold_up" or "gold_down"]]):format(quantity)
+  elseif hero.kind == "days" then
+    figure = (GC.L["%d days"]):format(hero.days)
+    figureColor = Theme.color.gold
+    caption = (GC.L[CV.HERO_CAPTION.days]):format(quantity,
+      GC.Util.FormatCount(market.soldPerDay) or "—", displayDecisionAmount(decision.entryTotal))
+  elseif hero.kind == "units" then
+    figure = (GC.L["%d units"]):format(hero.quantity)
+    figureColor = Theme.color.gold
+    caption = GC.L[CV.HERO_CAPTION.units]
+  else
+    caption = GC.L[CV.HERO_CAPTION.unpriceable]
+  end
+
+  if dialog.verdictAmount then
+    if figure then
+      dialog.verdictAmount:SetText(figure)
+      dialog.verdictAmount:SetTextColor(figureColor[1], figureColor[2], figureColor[3])
+      dialog.verdictAmount:Show()
+    else
+      dialog.verdictAmount:Hide()
+    end
+  end
+  -- The unpriceable case says so at the SAME weight the figures get, in words, because that is
+  -- the answer -- not a missing one.
+  if dialog.heroText then
+    if figure then
+      dialog.heroText:Hide()
+    else
+      dialog.heroText:SetText(GC.L["Can't price this"])
+      dialog.heroText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+      dialog.heroText:Show()
+    end
+  end
+  if dialog.verdictAmountNote then
+    dialog.verdictAmountNote:SetText(caption)
+    dialog.verdictAmountNote:Show()
+  end
+
+  -- The sentence. On a refusal it is the reason the engine actually filed -- wrapped now, so
+  -- it stops ending in the "…" the owner's screenshot caught.
+  local sentence = tone == "refuse" and GC.SniperDecision.ReasonText(verdict.reason)
+    or GC.L[CV.TONE_SENTENCE[tone] or ""]
+  dialog.verdictHead:SetText(sentence)
+  if tone == "refuse" then
+    dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
+  else
+    dialog.verdictHead:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
+  end
+  -- The old third copy of the same profit figure. Nothing shows it again.
+  if dialog.verdictSub then dialog.verdictSub:Hide() end
+
+  if dialog.reconcileText and verdict.reconcile then
+    dialog.reconcileText:SetText(GC.L[CV.RECONCILE_TEXT.line])
+  end
+
+  -- THE FACTS. A meter only where CheckVerdict handed one out -- a bar drawn against a ceiling
+  -- that does not exist is decoration competing with the figure above it.
+  if dialog.factRows then
+    for i = 1, #dialog.factRows do
+      local slot, fact = dialog.factRows[i], verdict.facts[i]
+      if not fact then
+        slot.label:SetText("")
+        slot.value:SetText("")
+        slot.meter:Hide()
+        slot.leader:Hide()
+      else
+        local color = Theme.color.fg
+        if fact.tone == "bad" then color = Theme.color.red
+        elseif fact.tone == "good" then color = Theme.color.green
+        elseif fact.tone == "muted" then color = Theme.color.fgDim end
+
+        local value
+        if fact.copper then
+          -- A signed figure only where the sign is the point: "+184g" answers "and if it
+          -- does clear?", while a signed "+622g" against what you PAY reads as a gain.
+          local signed = fact.id == "ifItClears" or fact.id == "worstCaseBack"
+          value = ((signed and fact.copper >= 0) and "+" or "") .. displayDecisionAmount(fact.copper)
+        elseif fact.bps then
+          value = ("%d%%"):format(math.floor(fact.bps / 100 + 0.5))
+        elseif fact.id == "confidence" then
+          value = GC.L[CV.CONFIDENCE_WORD[CV.ConfidenceBand(fact.count) or ""] or ""]
+        else
+          value = GC.Util.FormatCount(fact.count) or "—"
+        end
+
+        slot.label:SetText(GC.L[CV.FACT_LABEL[fact.id] or fact.id])
+        slot.value:SetText(value)
+        slot.value:SetTextColor(color[1], color[2], color[3])
+
+        if fact.meter then
+          slot.leader:Hide()
+          slot.fill:SetWidth(math.max(1, math.floor(DG.FACT_METER_W * fact.meter.at + 0.5)))
+          slot.fill:SetColorTexture(color[1], color[2], color[3], 0.8)
+          local tickX = math.floor(DG.FACT_METER_W * fact.meter.gate + 0.5)
+          slot.tick:ClearAllPoints()
+          slot.tick:SetPoint("TOP", slot.meter, "TOPLEFT", tickX, 0)
+          slot.tick:SetPoint("BOTTOM", slot.meter, "BOTTOMLEFT", tickX, 0)
+          slot.meter:Show()
+        else
+          slot.meter:Hide()
+          slot.leader:Show()
+        end
+      end
+    end
+  end
+
+  if dialog.layoutBlocks then
+    dialog.layoutBlocks({ reconcile = verdict.reconcile, actionable = verdict.actionable })
+  end
+  return verdict
+end
+
 -- The dialog is a projection of the immutable decision snapshot, not another pricing model.
 -- The only raw market number is explicitly labelled as a reference; every buy-facing number
 -- comes from SniperDecision's live-book calculation.
@@ -2520,68 +2691,10 @@ local function stampDialogFromDecision(deal, decision)
   end
   firstReason = firstReason or (decision.reasons and decision.reasons[1]) or "live_verification_required"
 
-  -- Verdict block: what a click DOES, not a debug dump. Money is formatColumnAmount (via
-  -- displayDecisionAmount) and this decision snapshot alone -- nothing here is recomputed.
-  -- The item label reuses the SAME per-itemID name/icon cache setRowDeal populates -- the
-  -- dialog only ever opens from a row's own Buy click, so that row has already resolved it;
-  -- "item <id>" is the same placeholder setDialogHeader itself falls back to when it has not.
-  local itemLabel = (nameIconCache[deal.itemID] and nameIconCache[deal.itemID].named)
-    or ("item " .. deal.itemID)
-  if decision.buyable then
-    dialog.verdictHead:SetText((GC.L["Buy %d × %s for %s"]):format(
-      quantity, itemLabel, displayDecisionAmount(entryTotal)))
-    dialog.verdictHead:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    -- Sniper v4 check drawer: tints the card behind the verdict headline/sub-line. Guarded --
-    -- not every dialog stand-in in the test suite builds a real createDialog widget tree (the
-    -- protected purchase-wiring/verdict specs stamp a hand-built fakeDialog without this
-    -- field), and this is purely visual, so a stand-in without it just skips the tint.
-    if dialog.verdictCard then
-      dialog.verdictCard:SetTint(
-        { Theme.color.green[1], Theme.color.green[2], Theme.color.green[3], 0.06 },
-        { Theme.color.green[1], Theme.color.green[2], Theme.color.green[3], 0.30 })
-    end
-    -- Task 2 restyle: the live-verdict kicker above the headline and the big signed profit
-    -- figure below it -- same guard as verdictCard just above (the protected purchase-wiring/
-    -- verdict specs' fakeDialog stand-ins don't build these either), same profit value
-    -- verdictSub's own sentence uses just below so the two never disagree.
-    if dialog.verdictLabel then
-      dialog.verdictLabel:SetText(GC.L["LIVE VERDICT · SAFE"])
-      dialog.verdictLabel:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
-    end
-    if dialog.verdictAmount then
-      dialog.verdictAmount:SetText(decision.stressProfit
-        and ("+" .. displayDecisionAmount(decision.stressProfit)) or "—")
-      dialog.verdictAmount:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
-      dialog.verdictAmount:Show()
-    end
-    -- Fix round 1: the caption is orphaned (still visible, captioning nothing) if it isn't
-    -- hidden alongside verdictAmount on refusal -- same guard, shown here.
-    if dialog.verdictAmountNote then dialog.verdictAmountNote:Show() end
-    dialog.verdictSub:SetText(decision.stressProfit
-      and (GC.L["you should clear about %s"]):format(displayDecisionAmount(decision.stressProfit))
-      or "")
-    dialog.verdictSub:Show()
-  else
-    -- Same refusal red as profitText below, and the same firstReason logic above -- never a
-    -- second copy of either.
-    dialog.verdictHead:SetText(GC.SniperDecision.ReasonText(firstReason))
-    dialog.verdictHead:SetTextColor(1, 0.3, 0.3)
-    -- See the buyable branch's own comment above -- same guard, refusal tint.
-    if dialog.verdictCard then
-      dialog.verdictCard:SetTint(
-        { Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.07 },
-        { Theme.color.red[1], Theme.color.red[2], Theme.color.red[3], 0.30 })
-    end
-    -- Task 2 restyle: same guard as the buyable branch above. There is nothing to clear when
-    -- a decision refuses, so the amount hides rather than showing a misleading "—".
-    if dialog.verdictLabel then
-      dialog.verdictLabel:SetText(GC.L["LIVE VERDICT · REFUSED"])
-      dialog.verdictLabel:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-    end
-    if dialog.verdictAmount then dialog.verdictAmount:Hide() end
-    if dialog.verdictAmountNote then dialog.verdictAmountNote:Hide() end
-    dialog.verdictSub:Hide()
-  end
+  -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
+  -- own name is not repeated here -- the header carries it, and "Buy 3 × Argentleaf for 453g"
+  -- said the same thing the primary button says two inches below it.
+  drawVerdict(deal, decision, market)
 
   local publicStatus = decision.status or "WATCH"
   local computedStatus = decision.computedStatus or publicStatus
@@ -2604,10 +2717,8 @@ local function stampDialogFromDecision(deal, decision)
   dialog.stampedTotal = entryTotal
   if dialog.qtyBox and quantity > 0 then dialog.qtyBox.editBox:SetText(tostring(quantity)) end
   dialog.unitPriceText:SetText(displayDecisionAmount(average))
-  if dialog.entryValue then dialog.entryValue:SetText(displayDecisionAmount(average)) end
   dialog.totalCostText:SetText(displayDecisionAmount(entryTotal))
   dialog.exitUnitText:SetText(displayDecisionAmount(decision.exitUnit))
-  if dialog.exitValue then dialog.exitValue:SetText(displayDecisionAmount(decision.exitUnit)) end
   dialog.profitText:SetText(displayDecisionAmount(decision.stressProfit))
   dialog.mvText:SetText(displayDecisionAmount(market.marketValue))
   -- Formatted, not printed raw. These three cells were showing "856146.0", "95.4%" and
@@ -4338,38 +4449,42 @@ local function createDialog()
   -- out at -(pad.m+16)+10 = -(pad.m+6)). This deliberately drops M13's old "never drift from
   -- the list's own tier column" sync: the dialog's chip now needs to fit "SUSPECT" at this
   -- bigger geometry, and the two surfaces (row chip, dialog chip) have diverged on purpose.
-  local tierChip = Theme.Chip(d)
-  tierChip:SetWidth(60)
-  tierChip:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + 6))
-  d.tierChip = tierChip
-
-  local nameText = Theme.Label(d, 13)
-  nameText:SetPoint("TOPLEFT", icon, "TOPRIGHT", Theme.pad.s, 0)
-  nameText:SetPoint("RIGHT", tierChip, "LEFT", -Theme.pad.s, 0)
-  nameText:SetWordWrap(false)
-  d.nameText = nameText
-
-  -- New (Task 2 restyle): the old title kicker's text, now a caption under the item name
-  -- instead of a line above it. RIGHT-bound to nameText's own right edge purely so itemHit
-  -- below (icon+name+subtitle) gets a clean two-point BOTTOMRIGHT anchor -- the text itself is
-  -- short and LEFT-justified, so the bound never clips it.
+  -- Check panel v3: the header is IDENTITY and nothing else -- the item, and the one key that
+  -- gets you out. "CONFIRM PURCHASE" (a document title above the thing it titled) and the tier
+  -- chip both left: the chip is the imported snapshot's opinion, which belongs beside the
+  -- verdict that disagrees with it, not level with the item's own name.
   local subtitle = Theme.Num(d, 9)
-  subtitle:SetJustifyH("LEFT")
-  subtitle:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
-  subtitle:SetPoint("RIGHT", nameText, "RIGHT", 0, 0)
+  subtitle:SetJustifyH("RIGHT")
+  subtitle:SetWidth(DG.HEADER_ESC_W)
+  subtitle:SetPoint("TOPRIGHT", -Theme.pad.m, -(Theme.pad.m + 10))
   subtitle:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  subtitle:SetText(GC.L["CONFIRM PURCHASE"])
+  -- Not wrapped: "ESC" is the key cap the client itself prints, and a translated key name
+  -- names a key the player's keyboard does not have.
+  subtitle:SetText("ESC")
   d.subtitle = subtitle
 
-  -- A: hover tooltip over the icon+name+subtitle header, same as a row (see createRow) --
-  -- Texture and FontString objects can't take mouse scripts themselves, so this is an
-  -- invisible Frame spanning all three, same pattern as createHeaderRow's own header hit-frames.
-  -- Task 2 restyle: BOTTOMRIGHT now targets subtitle (was nameText) so the hit region covers
-  -- the new caption line too -- subtitle's own RIGHT anchor above keeps this the same width as
-  -- before.
+  local nameText = Theme.Label(d, 13)
+  -- ONE anchor plus an explicit width, deliberately -- not LEFT + RIGHT. Both of those are
+  -- centre-Y constraints, and here they would disagree (the icon's centre against the ESC
+  -- hint's), which is the exact trap the qtyLotText comment further down already records.
+  -- Centred on the icon: with the old "CONFIRM PURCHASE" caption gone there is nothing under
+  -- the name to balance a top-flush anchor against.
+  nameText:SetPoint("LEFT", icon, "RIGHT", Theme.pad.s, 0)
+  nameText:SetWidth(DG.HEADER_NAME_W)
+  nameText:SetWordWrap(false)
+  nameText:SetMaxLines(1)
+  d.nameText = nameText
+
+  -- Hover tooltip over the icon + name, same as a row (see createRow) -- Texture and
+  -- FontString objects can't take mouse scripts themselves, so this is an invisible Frame
+  -- spanning both, the same pattern createHeaderRow's own header hit-frames use.
   local itemHit = CreateFrame("Frame", nil, d)
   itemHit:SetPoint("TOPLEFT", icon, "TOPLEFT")
-  itemHit:SetPoint("BOTTOMRIGHT", subtitle, "BOTTOMRIGHT")
+  -- One corner pair, both off the icon, with the name's own column added to the right edge:
+  -- anchoring the bottom to nameText instead would size the hit region to a single line of
+  -- text and leave the lower half of the icon dead.
+  itemHit:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT",
+    Theme.pad.s + DG.HEADER_NAME_W, 0)
   itemHit:EnableMouse(true)
   itemHit:SetScript("OnEnter", function(self)
     if not dialog.deal then return end
@@ -4380,149 +4495,133 @@ local function createDialog()
   itemHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
   d.itemHit = itemHit
 
-  -- A four-letter yellow tier chip lost to a green five-figure profit on 2026-08-10.
-  -- Check panel v2: this used to live under the header, in its own reserved blank slot
-  -- (DG.NOTE_H) that the second in-game pass called the single biggest hole in the dialog when
-  -- a deal wasn't SUSPECT. It now shares the cards slot after the Quantity row instead -- the
-  -- same rect ENTRY AVG/STRESS EXIT occupy (setDialogHeader's Show/Hide toggle below picks one
-  -- or the other, never both).
-  local suspectNote = Theme.Label(d, 11)
-  suspectNote:SetPoint("TOPLEFT", Theme.pad.m, DG.CARDS_TOP)
-  suspectNote:SetPoint("RIGHT", -Theme.pad.m, 0)
-  suspectNote:SetWordWrap(true)
-  suspectNote:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
-  suspectNote:SetText(GC.L["a discount this extreme usually means the market value is wrong, not that this is a bargain"])
-  suspectNote:Hide()
-  d.suspectNote = suspectNote
+  -- THE ANSWER (check panel v3). Edge to edge and tinted: the verdict word, one figure that
+  -- changes UNIT rather than going blank, its caption, and the sentence saying why. What goes
+  -- in each slot is decided in Core/CheckVerdict.lua -- this block only draws it.
+  local heroBlock = CreateFrame("Frame", nil, d)
+  d.heroBlock = heroBlock
 
-  -- Verdict card: a rounded, tinted highlight behind the headline/sub-line, in reading order
-  -- if not in draw order -- (F6a correction) Theme.Card is a CHILD FRAME, which defaults to
-  -- frameLevel d+1 and therefore composites ABOVE every one of `d`'s own regions, verdictHead/
-  -- verdictSub included, regardless of creation order. It reads as "behind" the text purely
-  -- because its fill sits at 6-7% alpha (stampDialogFromDecision's SetTint calls below) -- the
-  -- text shows straight through a wash that thin. The 2px ring (up to 30% alpha) stays clear
-  -- of the glyphs because the card is padded Theme.pad.s beyond the text's own bounds, so the
-  -- outline never crosses over a character. stampDialogFromDecision tints it green/red beside
-  -- the two dialog.verdictHead:SetTextColor sets it already makes -- see the
-  -- `dialog.verdictCard:SetTint(...)` calls there, the only lines this task adds outside this
-  -- function.
-  local verdictCard = Theme.Card(d, nil, nil, true)
-  verdictCard:SetPoint("TOPLEFT", Theme.pad.m - Theme.pad.s, DG.VERDICT_TOP + Theme.pad.s)
-  -- The bottom edge is measured from the dialog's TOP, like every other DG.*_TOP offset: a bare
-  -- SetPoint("BOTTOMRIGHT", x, y) would take y from the dialog's own BOTTOMRIGHT and put the
-  -- card's bottom ~180px BELOW the drawer (a full-height green ring down into the action bars
-  -- in the second in-game pass). Sits just inside the verdict block's reserved bottom
-  -- (DG.VERDICT_TOP - DG.VERDICT_H), padded the same Theme.pad.s as the other three edges.
-  verdictCard:SetPoint("BOTTOMRIGHT", d, "TOPRIGHT", -(Theme.pad.m - Theme.pad.s), DG.VERDICT_TOP - DG.VERDICT_H + Theme.pad.s)
-  d.verdictCard = verdictCard
+  -- A flat wash with two hairlines, not Theme.Card: the band runs the full width of the sheet,
+  -- and a rounded card inset by pad.s reads as a plaque sitting ON the panel rather than as the
+  -- panel's own answer. stampDialogFromDecision tints all three through d.setHeroTone below.
+  local heroFill = heroBlock:CreateTexture(nil, "BACKGROUND")
+  heroFill:SetAllPoints()
+  local heroEdgeTop = heroBlock:CreateTexture(nil, "BORDER")
+  heroEdgeTop:SetPoint("TOPLEFT")
+  heroEdgeTop:SetPoint("TOPRIGHT")
+  heroEdgeTop:SetHeight(1)
+  local heroEdgeBottom = heroBlock:CreateTexture(nil, "BORDER")
+  heroEdgeBottom:SetPoint("BOTTOMLEFT")
+  heroEdgeBottom:SetPoint("BOTTOMRIGHT")
+  heroEdgeBottom:SetHeight(1)
+  -- Exposed as one call rather than three tinted fields: the wash and the two hairlines are a
+  -- single visual decision (which colour this verdict is), and stampDialogFromDecision has no
+  -- business knowing there are three textures. Guarded at every call site anyway -- the verdict
+  -- specs stamp a hand-built fakeDialog that has none of this.
+  d.setHeroTone = function(c)
+    heroFill:SetColorTexture(c[1], c[2], c[3], 0.075)
+    heroEdgeTop:SetColorTexture(c[1], c[2], c[3], 0.22)
+    heroEdgeBottom:SetColorTexture(c[1], c[2], c[3], 0.22)
+  end
+  d.setHeroTone(Theme.color.fgDim)
 
-  -- Verdict block, directly under the item header: a small live-status kicker
-  -- (d.verdictLabel: LIVE VERDICT · SAFE/REFUSED/CHECKING), a prominent one-line headline (buy
-  -- action or refusal sentence), a big signed profit figure (d.verdictAmount) with its own
-  -- caption, and a quieter sub-line naming the stress profit -- see stampDialogFromDecision and
-  -- openDialog for the text/color logic. verdictHead no longer wraps (Task 2 restyle -- the
-  -- sentence fits one line at this width/font); verdictSub still does, into the fixed
-  -- DG.VERDICT_HEAD_H/DG.VERDICT_SUB_H budgets above.
-  -- Fix round 1: x = Theme.pad.s + Theme.pad.xs (12), NOT Theme.pad.m + Theme.pad.s (20) --
-  -- the kit-values table (binding over the brief's own prose) puts every line in this block
-  -- 8px inside the card rect, aligned with verdictHead/verdictAmount/verdictSub below (all of
-  -- which inherit this x via their own 0-offset BOTTOMLEFT anchors off this widget/each other).
-  local verdictLabel = Theme.Num(d, 9, true)
+  -- The verdict word: "Won't buy" / "Buy less" / "Clear to buy". Not a status code -- the old
+  -- "LIVE VERDICT · REFUSED" named the machine's state, not the player's answer.
+  local verdictLabel = Theme.Num(heroBlock, 9, true)
   verdictLabel:SetJustifyH("LEFT")
-  verdictLabel:SetPoint("TOPLEFT", Theme.pad.s + Theme.pad.xs, DG.VERDICT_TOP - Theme.pad.s)
+  verdictLabel:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.s)
   d.verdictLabel = verdictLabel
 
-  local verdictHead = Theme.Label(d, 12)
-  verdictHead:SetPoint("TOPLEFT", verdictLabel, "BOTTOMLEFT", 0, -4)
-  verdictHead:SetPoint("RIGHT", -Theme.pad.m, 0)
-  verdictHead:SetWordWrap(false)
-  d.verdictHead = verdictHead
-
-  -- Fix round 1: SetWordWrap(false) + SetMaxLines(1), no RIGHT bound -- a RIGHT anchor here
-  -- would be circular with verdictAmountNote's own LEFT anchor (BOTTOMRIGHT of this widget), so
-  -- the caption is the one that ellipsizes at the sheet's edge (see verdictAmountNote just
-  -- below); this just keeps a long "1234g56s" figure from wrapping into a second line and
-  -- blowing the fixed DG.VERDICT_SUB_H budget.
-  local verdictAmount = Theme.Num(d, 22, true)
+  -- The figure. Two widgets sharing one slot rather than one that re-fonts itself: Theme.Num
+  -- registers its size in Theme's rescale table at creation (see widgetFonts there), so a
+  -- SetFont behind Theme's back would be undone the next time the player changes UI scale.
+  -- verdictAmount carries the numbers; heroText carries "Can't price this" at the same weight,
+  -- which is the whole point of the unpriceable case -- a dash would read as a missing value
+  -- rather than as a refusal to invent one.
+  local verdictAmount = Theme.Num(heroBlock, 22, true)
   verdictAmount:SetJustifyH("LEFT")
-  verdictAmount:SetPoint("TOPLEFT", verdictHead, "BOTTOMLEFT", 0, -4)
+  verdictAmount:SetPoint("TOPLEFT", Theme.pad.m, -(Theme.pad.s + DG.HERO_KICKER_H + Theme.pad.xs))
+  verdictAmount:SetPoint("RIGHT", -Theme.pad.m, 0)
   verdictAmount:SetWordWrap(false)
   verdictAmount:SetMaxLines(1)
   d.verdictAmount = verdictAmount
 
-  -- Fix round 1: bounded on the RIGHT (dialog's own right inset, same idiom verdictHead uses
-  -- two-point-anchor style just above) + SetWordWrap(false) -- at Theme.Scale 1.3 a big amount
-  -- plus this caption's full 24 characters can run past the 320px sheet; this caption is the
-  -- one that ellipsizes, not the amount (see verdictAmount's own comment above).
-  local verdictAmountNote = Theme.Num(d, 9)
-  verdictAmountNote:SetJustifyH("LEFT")
-  verdictAmountNote:SetPoint("BOTTOMLEFT", verdictAmount, "BOTTOMRIGHT", Theme.pad.s, 3)
+  local heroText = Theme.Label(heroBlock, 16)
+  heroText:SetPoint("TOPLEFT", Theme.pad.m, -(Theme.pad.s + DG.HERO_KICKER_H + Theme.pad.xs + 2))
+  heroText:SetPoint("RIGHT", -Theme.pad.m, 0)
+  heroText:SetWordWrap(false)
+  heroText:SetMaxLines(1)
+  heroText:Hide()
+  d.heroText = heroText
+
+  -- The caption under the figure, wrapped: what the figure is OF. It used to sit beside the
+  -- amount reading "EST. PROFIT AFTER AH CUT" on every verdict, including the ones with no
+  -- figure at all.
+  local verdictAmountNote = Theme.Label(heroBlock, 10)
+  verdictAmountNote:SetPoint("TOPLEFT", Theme.pad.m,
+    -(Theme.pad.s + DG.HERO_KICKER_H + Theme.pad.xs + DG.HERO_FIGURE_H + Theme.pad.xs))
   verdictAmountNote:SetPoint("RIGHT", -Theme.pad.m, 0)
-  verdictAmountNote:SetWordWrap(false)
-  verdictAmountNote:SetMaxLines(1)
-  verdictAmountNote:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  verdictAmountNote:SetText(GC.L["EST. PROFIT AFTER AH CUT"])
+  verdictAmountNote:SetWordWrap(true)
+  verdictAmountNote:SetHeight(DG.HERO_CAPTION_H)
+  verdictAmountNote:SetJustifyV("TOP")
+  verdictAmountNote:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   d.verdictAmountNote = verdictAmountNote
 
-  local verdictSub = Theme.Num(d, 9)
-  verdictSub:SetJustifyH("LEFT")
-  verdictSub:SetPoint("TOPLEFT", verdictAmount, "BOTTOMLEFT", 0, -4)
-  verdictSub:SetPoint("RIGHT", -Theme.pad.m, 0)
-  verdictSub:SetWordWrap(true)
-  verdictSub:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  -- The sentence: why the engine answered the way it did. Wraps now (it did not before -- a
+  -- one-line SetWordWrap(false) headline is what put the "…" in the owner's screenshot).
+  local verdictHead = Theme.Label(heroBlock, 12)
+  verdictHead:SetPoint("TOPLEFT", Theme.pad.m, -(DG.HERO_H - Theme.pad.s - DG.HERO_SENTENCE_H))
+  verdictHead:SetPoint("RIGHT", -Theme.pad.m, 0)
+  verdictHead:SetWordWrap(true)
+  verdictHead:SetHeight(DG.HERO_SENTENCE_H)
+  verdictHead:SetJustifyV("TOP")
+  d.verdictHead = verdictHead
+
+  -- Kept as a field, never drawn: the old third copy of the same profit figure the hero and the
+  -- facts already carry. Two specs stamp a fakeDialog that supplies it, so the field survives;
+  -- the widget is hidden at construction and nothing shows it again.
+  local verdictSub = Theme.Label(heroBlock, 10)
+  verdictSub:SetPoint("TOPLEFT", Theme.pad.m, -DG.HERO_H)
+  verdictSub:Hide()
   d.verdictSub = verdictSub
 
-  -- Label/value grid: one row per number the player needs to decide with, aligned two-column
-  -- (Theme.Label left, Theme.Num right) -- updateDialogAmounts re-stamps the value slots in
-  -- place as fresher quotes come in; the grid itself never grows or reflows (fixed Y per row,
-  -- same reasoning as DG.GRID_TOP/DG.GRID_ROW_H above: a chained anchor would let a wrapped
-  -- neighbor note reflow rows underneath it).
-  local function gridRow(top, index, label)
-    local y = top - (index - 1) * DG.GRID_ROW_H
-    local labelFS = Theme.Label(d, 11)
-    labelFS:SetPoint("TOPLEFT", Theme.pad.m, y)
-    labelFS:SetText(label)
+  -- THE RECONCILIATION. Only built into the layout when the board's tier and this verdict
+  -- disagree; the tier chip lives here rather than in the header because that is the one place
+  -- the tier is worth reading -- next to the sentence explaining why it is not the answer.
+  local reconcileBlock = CreateFrame("Frame", nil, d)
+  d.reconcileBlock = reconcileBlock
 
-    local valueFS = Theme.Num(d, 12)
-    valueFS:SetPoint("TOPRIGHT", -Theme.pad.m, y)
-    -- Bounded on the left by its own label, right-justified, single line: an unbounded
-    -- TOPRIGHT-only FontString grows leftward without limit, and the Reason row's full
-    -- sentence ("Cheaper listings remain...") was painting straight past the dialog's edge
-    -- onto whatever the window sat over. Bounded, the engine ellipsizes it instead.
-    valueFS:SetPoint("LEFT", labelFS, "RIGHT", Theme.pad.s, 0)
-    valueFS:SetJustifyH("RIGHT")
-    valueFS:SetWordWrap(false)
-    valueFS:SetMaxLines(1)
-    return labelFS, valueFS
-  end
+  local tierChip = Theme.Chip(reconcileBlock)
+  tierChip:SetWidth(60)
+  tierChip:SetPoint("TOPLEFT", Theme.pad.m, -Theme.pad.s)
+  d.tierChip = tierChip
 
-  -- Quantity + its quick-fill row: the one interactive control in this dialog besides Buy/
-  -- Cancel, so it lives here -- above the Details toggle, always reachable -- rather than
-  -- inside the collapsible evidence grid below. Fix 2: commodities only editable (via qtyBox);
-  -- an item auction's row instead shows this plain dim qtyLotText ("N (whole lot)"), since a
-  -- lot cannot be split. refreshQtyRow (above) toggles which of the two is shown/enabled.
-  -- Task 2 restyle: a bespoke "QTY" kicker (Theme.Num, fgDim, uppercase), not gridRow's shared
-  -- Theme.Label(d, 11) -- the evidence grid below still uses gridRow as-is (out of scope for
-  -- this restyle), and gridRow itself cannot change without also restyling every evidence row.
-  -- The row reads left to right like the mockup -- QTY, the box, "of N" -- instead of a kicker
-  -- stranded at the left with the box and chips right-aligned (the second in-game pass called
-  -- that "crooked"). The label's TOP sits 4px under DG.QTY_TOP so its ~11px line centres on the
-  -- 18px box; the box and the "of N" text then hang off the label's vertical centre.
-  local qtyLabel = Theme.Num(d, 9)
+  local reconcileText = Theme.Label(reconcileBlock, 10)
+  reconcileText:SetPoint("TOPLEFT", tierChip, "TOPRIGHT", Theme.pad.s, 0)
+  reconcileText:SetPoint("RIGHT", -Theme.pad.m, 0)
+  reconcileText:SetWordWrap(true)
+  reconcileText:SetHeight(DG.RECONCILE_H - Theme.pad.s)
+  reconcileText:SetJustifyV("TOP")
+  reconcileText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  d.reconcileText = reconcileText
+
+  -- HOW MANY. Its own block now, and out of the layout entirely on a refusal: the box and its
+  -- four quick-fill chips were the bulk of what a player had to read past to reach the reason,
+  -- on a verdict where nothing could be bought at any quantity.
+  local qtyBlock = CreateFrame("Frame", nil, d)
+  d.qtyBlock = qtyBlock
+
+  local qtyLabel = Theme.Num(qtyBlock, 9)
   qtyLabel:SetJustifyH("LEFT")
-  qtyLabel:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP - 4)
+  qtyLabel:SetPoint("TOPLEFT", Theme.pad.m, -(Theme.pad.s + 4))
   qtyLabel:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   qtyLabel:SetText(GC.L["QTY"])
   d.qtyLabel = qtyLabel
 
   -- Non-commodity fallback ("N (whole lot)"): takes the box's place after the label, bounded on
-  -- the right so a long lot count ellipsizes instead of growing past the sheet (gridRow's own
-  -- valueFS reasoning -- an unbounded single-point FontString grows without limit).
-  -- TOPLEFT off qtyLabel's TOPRIGHT, not LEFT: a LEFT+RIGHT pair are both centre-Y constraints,
-  -- and they disagreed here -- LEFT centred on qtyLabel, RIGHT centred on the whole drawer -- so
-  -- the anchor that actually pinned the top was accidental. TOPLEFT supplies the top explicitly;
-  -- RIGHT still bounds the width for the ellipsis.
-  local qtyLotText = Theme.Num(d, 12)
+  -- the right so a long lot count ellipsizes instead of growing past the sheet (an unbounded
+  -- single-point FontString grows without limit).
+  local qtyLotText = Theme.Num(qtyBlock, 12)
   qtyLotText:SetJustifyH("LEFT")
   qtyLotText:SetPoint("TOPLEFT", qtyLabel, "TOPRIGHT", Theme.pad.s, 0)
   qtyLotText:SetPoint("RIGHT", -Theme.pad.m, 0)
@@ -4531,13 +4630,11 @@ local function createDialog()
   qtyLotText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   d.qtyLotText = qtyLotText
 
-  -- 64x18: check panel v2 split this off DG.GRID_ROW_H (now 18, the evidence grid's own row
-  -- height) into its own DG.QTY_BOX_H constant, since the two no longer share one number.
-  local qtyBox = makeQtyEditBox(d, 64, DG.QTY_BOX_H)
+  local qtyBox = makeQtyEditBox(qtyBlock, 64, DG.QTY_BOX_H)
   qtyBox:SetPoint("LEFT", qtyLabel, "RIGHT", Theme.pad.s, 0)
   d.qtyBox = qtyBox
 
-  local qtyOfLabel = Theme.Label(d, 11) -- dim "of N" -- shown when the true available qty is known
+  local qtyOfLabel = Theme.Label(qtyBlock, 11) -- dim "of N" -- shown when the true available qty is known
   qtyOfLabel:SetPoint("LEFT", qtyBox, "RIGHT", Theme.pad.s, 0)
   qtyOfLabel:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   qtyOfLabel:Hide()
@@ -4569,24 +4666,20 @@ local function createDialog()
     end
   end
 
-  -- Fix 2 quick-fill: row 2, right under Quantity -- four small ghost buttons that jump
-  -- straight to a percentage of qtyMaxAvailable(deal) and commit immediately via
-  -- applyChosenQty (same path qtyBox.onCommit uses -- see applyQuickFillQty). Laid out left to
-  -- right from the dialog's left margin (25% ... 100%), under the QTY row it belongs to -- the
-  -- mockup's chip strip; four 36px chips plus "of N" do not fit beside the box at 320 wide.
+  -- Quick-fill: four small ghost buttons that jump straight to a percentage of
+  -- qtyMaxAvailable(deal) and commit immediately via applyChosenQty (the same path
+  -- qtyBox.onCommit uses). Their own row under the box -- four 36px chips plus "of N" do not
+  -- fit beside it at 320 wide.
   local quickFillBtns = {}
   local prevBtn
   for i = 1, #DG.QTY_QUICKFILL_PCTS do
     local pct = DG.QTY_QUICKFILL_PCTS[i]
-    local btn = Theme.Button(d, "ghost", "badge")
+    local btn = Theme.Button(qtyBlock, "ghost", "badge")
     btn:SetSize(DG.QTY_QUICKFILL_W, DG.QTY_QUICKFILL_H)
     if prevBtn then
       btn:SetPoint("TOPLEFT", prevBtn, "TOPRIGHT", Theme.pad.xs, 0)
     else
-      -- 24 = the 20px label line + pad.xs(4) gap above this row -- DG.QTY_H's own two
-      -- components (see that constant's comment) -- not DG.GRID_ROW_H, which is the unrelated
-      -- evidence-grid row height and no longer sized to match.
-      btn:SetPoint("TOPLEFT", Theme.pad.m, DG.QTY_TOP - 24)
+      btn:SetPoint("TOPLEFT", Theme.pad.m, -(Theme.pad.s + 24))
     end
     btn:SetLabel(pct .. "%")
     btn:SetScript("OnClick", function() applyQuickFillQty(pct) end)
@@ -4595,75 +4688,96 @@ local function createDialog()
   end
   d.quickFillBtns = quickFillBtns
 
-  -- Check panel v2: ENTRY AVG / STRESS EXIT cards, directly under the Quantity row -- the
-  -- mockup's own layout, and the fix for the dialog reading as a column of holes (no header
-  -- note, no summary before the collapsed grid). Two Theme.Card(small=true) plaques side by
-  -- side, split at the dialog's own horizontal center so each gets an equal half of the
-  -- content width. d.suspectNote (above) shares this exact rect for SUSPECT deals -- the
-  -- setDialogHeader Show/Hide toggle beside its own suspectNote line picks one or the other.
-  local entryCard = Theme.Card(d, nil, nil, true)
-  entryCard:SetHeight(40)
-  entryCard:SetPoint("TOPLEFT", Theme.pad.m, DG.CARDS_TOP)
-  entryCard:SetPoint("RIGHT", d, "CENTER", -Theme.pad.xs, 0)
-  d.entryCard = entryCard
+  -- THE FACTS. Four rows, each label / meter-or-leader / value. The meter's tick is the
+  -- engine's OWN threshold, so a short bar reads as a shortfall rather than as a small number;
+  -- a fact with no honest ceiling gets the leader line instead, which is what stops the bars
+  -- from competing with the figure above them. Fixed Y per row, like the evidence grid below
+  -- and for the same reason: a chained anchor would let one wrapped row reflow the rest.
+  local factsBlock = CreateFrame("Frame", nil, d)
+  d.factsBlock = factsBlock
+  d.factRows = {}
+  for i = 1, DG.FACT_ROWS do
+    local y = -(Theme.pad.s + (i - 1) * DG.FACT_ROW_H)
+    local rowFacts = {}
 
-  -- fix round 1: bounded on the RIGHT + SetWordWrap(false) -- the file's own gridRow/
-  -- verdictAmountNote comments already warn that an unbounded single-point FontString grows
-  -- without limit; a caption this short never actually reaches the card's right edge, but the
-  -- pattern stays consistent rather than being the one label in this dialog left unbounded.
-  local entryCaption = Theme.Num(entryCard, 9)
-  entryCaption:SetJustifyH("LEFT")
-  entryCaption:SetPoint("TOPLEFT", Theme.pad.s, -6)
-  entryCaption:SetPoint("RIGHT", -Theme.pad.s, 0)
-  entryCaption:SetWordWrap(false)
-  entryCaption:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  entryCaption:SetText(GC.L["ENTRY AVG"])
+    rowFacts.label = Theme.Label(factsBlock, 11)
+    rowFacts.label:SetPoint("TOPLEFT", Theme.pad.m, y - 2)
+    rowFacts.label:SetWidth(DG.FACT_LABEL_W)
+    rowFacts.label:SetWordWrap(false)
+    rowFacts.label:SetMaxLines(1)
+    rowFacts.label:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
 
-  local entryValue = Theme.Num(entryCard, 12, true)
-  entryValue:SetJustifyH("LEFT")
-  entryValue:SetPoint("TOPLEFT", entryCaption, "BOTTOMLEFT", 0, -2)
-  entryValue:SetPoint("RIGHT", -Theme.pad.s, 0)
-  entryValue:SetWordWrap(false)
-  -- fix round 1: Theme.Num does not tint (see its own comment -- callers own color), so without
-  -- this the amount rendered in the font's raw white rather than the dialog's own fg tone every
-  -- other stamped number in this dialog uses.
-  entryValue:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-  d.entryValue = entryValue
+    rowFacts.value = Theme.Num(factsBlock, 11)
+    rowFacts.value:SetPoint("TOPRIGHT", -Theme.pad.m, y - 2)
+    rowFacts.value:SetWidth(DG.FACT_VALUE_W)
+    rowFacts.value:SetWordWrap(false)
+    rowFacts.value:SetMaxLines(1)
 
-  local exitCard = Theme.Card(d, nil, nil, true)
-  exitCard:SetHeight(40)
-  exitCard:SetPoint("LEFT", d, "CENTER", Theme.pad.xs, 0)
-  exitCard:SetPoint("TOPRIGHT", -Theme.pad.m, DG.CARDS_TOP)
-  d.exitCard = exitCard
+    local meterX = Theme.pad.m + DG.FACT_LABEL_W + Theme.pad.s
+    local meterY = y - math.floor((DG.FACT_ROW_H - DG.FACT_METER_H) / 2)
+    local meter = CreateFrame("Frame", nil, factsBlock)
+    meter:SetSize(DG.FACT_METER_W, DG.FACT_METER_H)
+    meter:SetPoint("TOPLEFT", meterX, meterY)
+    meter:Hide()
+    rowFacts.meter = meter
 
-  local exitCaption = Theme.Num(exitCard, 9)
-  exitCaption:SetJustifyH("LEFT")
-  exitCaption:SetPoint("TOPLEFT", Theme.pad.s, -6)
-  exitCaption:SetPoint("RIGHT", -Theme.pad.s, 0)
-  exitCaption:SetWordWrap(false)
-  exitCaption:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-  exitCaption:SetText(GC.L["STRESS EXIT"])
+    local track = meter:CreateTexture(nil, "BACKGROUND")
+    track:SetAllPoints()
+    track:SetColorTexture(1, 1, 1, 0.055)
 
-  local exitValue = Theme.Num(exitCard, 12, true)
-  exitValue:SetJustifyH("LEFT")
-  exitValue:SetPoint("TOPLEFT", exitCaption, "BOTTOMLEFT", 0, -2)
-  exitValue:SetPoint("RIGHT", -Theme.pad.s, 0)
-  exitValue:SetWordWrap(false)
-  exitValue:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-  d.exitValue = exitValue
+    rowFacts.fill = meter:CreateTexture(nil, "ARTWORK")
+    rowFacts.fill:SetPoint("TOPLEFT")
+    rowFacts.fill:SetPoint("BOTTOMLEFT")
+    rowFacts.fill:SetWidth(1)
 
-  -- Details toggle: the 12-row evidence grid used to be the whole dialog below the item
-  -- header; now it is opt-in, collapsed by default, restored per the player's own last choice
-  -- (GC.db.settings.sniper.dialogDetailsOpen) rather than re-defaulting shut every time.
-  -- "badge", not "plaque": DG.TOGGLE_H is 22px (Task 2 restyle, was 17 -- a shared layout
-  -- constant that DG.GRID_TOP and the FIXED_HEIGHT_* budgets flow from). PLAQUE_SLICE (12) is
-  -- not below half of 22 (11) -- Theme.lua's own margin invariant (see PLAQUE_SLICE's
-  -- comment) -- so plaque would notch this button's corners; BADGE_SLICE (6) is safely below.
+    -- The engine's threshold, drawn ON the bar. Without it a 41% fill is just a short bar;
+    -- with it the bar says "the line is at 70 and this is under it".
+    rowFacts.tick = meter:CreateTexture(nil, "OVERLAY")
+    rowFacts.tick:SetPoint("TOP")
+    rowFacts.tick:SetPoint("BOTTOM")
+    rowFacts.tick:SetWidth(1)
+    rowFacts.tick:SetColorTexture(1, 1, 1, 0.38)
+
+    rowFacts.leader = factsBlock:CreateTexture(nil, "BACKGROUND")
+    rowFacts.leader:SetHeight(1)
+    rowFacts.leader:SetWidth(DG.FACT_METER_W)
+    rowFacts.leader:SetPoint("TOPLEFT", meterX, meterY - 2)
+    rowFacts.leader:SetColorTexture(1, 1, 1, 0.045)
+    rowFacts.leader:Hide()
+
+    d.factRows[i] = rowFacts
+  end
+
+  -- Details toggle: the full transcript is opt-in, collapsed by default, restored per the
+  -- player's own last choice (GC.db.settings.sniper.dialogDetailsOpen).
+  -- "badge", not "plaque": DG.TOGGLE_H is 22px and PLAQUE_SLICE (12) is not below half of it
+  -- (Theme.lua's own margin invariant), so plaque would notch this button's corners.
   local detailsToggle = Theme.Button(d, "ghost", "badge")
   detailsToggle:SetHeight(DG.TOGGLE_H)
-  detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, DG.TOGGLE_TOP)
-  detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, DG.TOGGLE_TOP)
   d.detailsToggle = detailsToggle
+
+  -- Label/value grid: one row per number, aligned two-column (Theme.Label left, Theme.Num
+  -- right). Fixed Y per row -- a chained anchor would let a wrapped neighbour reflow the rows
+  -- underneath it.
+  local gridBlock = CreateFrame("Frame", nil, d)
+  d.gridBlock = gridBlock
+  local function gridRow(index, label)
+    local y = -(Theme.pad.s + (index - 1) * DG.GRID_ROW_H)
+    local labelFS = Theme.Label(gridBlock, 11)
+    labelFS:SetPoint("TOPLEFT", Theme.pad.m, y)
+    labelFS:SetText(label)
+
+    local valueFS = Theme.Num(gridBlock, 12)
+    valueFS:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+    -- Bounded on the left by its own label, right-justified, single line: an unbounded
+    -- TOPRIGHT-only FontString grows leftward without limit, and the Reason row's full
+    -- sentence was painting straight past the dialog's edge onto whatever the window sat over.
+    valueFS:SetPoint("LEFT", labelFS, "RIGHT", Theme.pad.s, 0)
+    valueFS:SetJustifyH("RIGHT")
+    valueFS:SetWordWrap(false)
+    valueFS:SetMaxLines(1)
+    return labelFS, valueFS
+  end
 
   -- The ten immutable decision/evidence fields -- collapsed behind Details above. Every pair
   -- this loop builds is tracked in d.evidenceRows purely so applyDetailsState (below) can
@@ -4672,7 +4786,7 @@ local function createDialog()
   -- Details never shows anything stale.
   d.evidenceRows = {}
   local function evidenceRow(index, label)
-    local labelFS, valueFS = gridRow(DG.GRID_TOP, index, label)
+    local labelFS, valueFS = gridRow(index, label)
     d.evidenceRows[#d.evidenceRows + 1] = { label = labelFS, value = valueFS }
     return valueFS
   end
@@ -4691,15 +4805,64 @@ local function createDialog()
   d.profitText, d.mvText, d.soldText = profitText, mvText, soldText
   d.sellThroughText, d.sourceAgeText, d.reasonText = sellThroughText, sourceAgeText, reasonText
 
-  -- Where diagnosticText/mvNote/status actually sit is a function of dialog.detailsOpen --
-  -- resizeDialogDiagnostics (above) re-anchors them on every stamp and every toggle click, so
-  -- the SetPoint calls below are only a safe initial placement before that first runs.
-  d.evidenceTopOpen = DG.EVIDENCE_BOTTOM_OPEN
-  d.evidenceTopClosed = DG.EVIDENCE_BOTTOM_CLOSED
+  -- Stacks the blocks that are actually shown and measures what that costs. Called from every
+  -- authoritative stamp (carrying the verdict's own shape) and from every Details toggle.
+  -- A block with nothing to say is HIDDEN, not left as a reserved hole -- reserved holes are
+  -- what made this panel read as a column of dashes on a refusal.
+  --
+  -- The four facts and the ten-row transcript share one slot rather than stacking: four of
+  -- those ten rows ARE the facts, and reserving both at once is what made the toggle refuse to
+  -- open inside the docked AH drawer and then tell the player to enlarge a window that has no
+  -- resize handle.
+  local function layoutBlocks(shape)
+    shape = shape or d.blockShape or {}
+    d.blockShape = shape
+    local y = -DG.HEADER_H
+    local function place(block, height, shown)
+      if not shown then block:Hide() return end
+      block:ClearAllPoints()
+      block:SetPoint("TOPLEFT", d, "TOPLEFT", 0, y)
+      block:SetPoint("TOPRIGHT", d, "TOPRIGHT", 0, y)
+      block:SetHeight(height)
+      block:Show()
+      y = y - height
+    end
+    local reconcile = shape.reconcile and true or false
+    -- Default TRUE: the shape is only known once a decision has been stamped, and before that
+    -- the panel is showing a quantity it fully intends to buy.
+    local actionable = shape.actionable ~= false
+    place(heroBlock, DG.HERO_H, true)
+    place(reconcileBlock, DG.RECONCILE_H, reconcile)
+    place(qtyBlock, DG.QTY_BLOCK_H, actionable)
+    place(factsBlock, DG.FACTS_H, not d.detailsOpen)
+    place(gridBlock, DG.GRID_H, d.detailsOpen and true or false)
+
+    y = y - Theme.pad.xs
+    detailsToggle:ClearAllPoints()
+    detailsToggle:SetPoint("TOPLEFT", Theme.pad.m, y)
+    detailsToggle:SetPoint("TOPRIGHT", -Theme.pad.m, y)
+    y = y - DG.TOGGLE_H
+
+    -- One number now, not an open/closed pair: this IS the current layout either way.
+    -- resizeDialogDiagnostics still falls back to the old pair for the hand-built fakeDialogs
+    -- in the verdict specs, which never run this function.
+    d.evidenceTop = y - Theme.pad.xs
+    d.evidenceTopOpen, d.evidenceTopClosed = d.evidenceTop, d.evidenceTop
+
+    local above = DG.HEADER_H + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
+      + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
+    d.fixedHeightClosed = above + DG.FACTS_H
+    d.fixedHeightOpen = above + DG.GRID_H
+    -- Kept in step here too, not only in applyDetailsState: a verdict can drop the quantity
+    -- block without the Details state changing at all, and resizeDialogDiagnostics measures
+    -- the flowing block below off this number.
+    d.fixedHeight = d.detailsOpen and d.fixedHeightOpen or d.fixedHeightClosed
+  end
+  d.layoutBlocks = layoutBlocks
 
   -- Sits between the grid and the status line; shown only when the clamp above actually bit.
   local mvNote = Theme.Label(d, 11)
-  mvNote:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
+  mvNote:SetPoint("TOPLEFT", Theme.pad.m, -DG.FIXED_HEIGHT_CLOSED)
   mvNote:SetPoint("RIGHT", -Theme.pad.m, 0)
   mvNote:SetWordWrap(true)
   mvNote:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
@@ -4710,7 +4873,7 @@ local function createDialog()
   -- what a bug report gets copied from, not something a player one click from spending gold
   -- needs to see by default. The text it is given stays byte-identical either way.
   local diagnosticText = Theme.Label(d, 11)
-  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
+  diagnosticText:SetPoint("TOPLEFT", Theme.pad.m, -DG.FIXED_HEIGHT_CLOSED)
   diagnosticText:SetPoint("RIGHT", -Theme.pad.m, 0)
   diagnosticText:SetHeight(d.diagnosticMinimumHeight)
   diagnosticText:SetJustifyH("LEFT")
@@ -4723,7 +4886,7 @@ local function createDialog()
   -- row like the grid above it. setDialogStatus (above) still owns text/color.
   local status = Theme.Num(d, 10)
   status:SetJustifyH("CENTER")
-  status:SetPoint("TOPLEFT", Theme.pad.m, DG.EVIDENCE_BOTTOM_CLOSED)
+  status:SetPoint("TOPLEFT", Theme.pad.m, -DG.FIXED_HEIGHT_CLOSED)
   status:SetPoint("RIGHT", -Theme.pad.m, 0)
   status:SetWordWrap(true)
   d.status = status
@@ -4768,7 +4931,12 @@ local function createDialog()
     -- clear that -- a dead toggle with an impossible instruction. Same predicate
     -- resizeDialogDiagnostics itself reads, so the two can never disagree about what's reserved.
     local debugOn = (cfg and cfg.debug) and true or false
-    local needed = DG.FIXED_HEIGHT_OPEN + (debugOn and (d.diagnosticGaps + d.diagnosticMinimumHeight) or 0)
+    -- Check panel v3: measured against THIS verdict's own open layout (layoutBlocks writes
+    -- d.fixedHeightOpen from the blocks actually shown), not against a worst case that assumed
+    -- every block was present. A refusal has no quantity block, so it clears the docked
+    -- drawer's ceiling by 50px the old fixed budget spent on a control it did not draw.
+    local openHeight = d.fixedHeightOpen or DG.FIXED_HEIGHT_OPEN
+    local needed = openHeight + (debugOn and (d.diagnosticGaps + d.diagnosticMinimumHeight) or 0)
     -- Check panel v2 fix round 1: `d:SetSize` (createDialog, above) always gives `d` a real,
     -- positive height before this ever runs, and every anchor in this dialog resolves against
     -- that already-sized frame -- `h` is not actually expected to come back nil/0 here. The
@@ -4790,7 +4958,11 @@ local function createDialog()
       -- down instead of just quietly closing the grid.
       if dialog and not d.detailsQuiet then setDialogStatus(GC.L["Enlarge the window to see details"]) end
     end
-    d.fixedHeight = d.detailsOpen and DG.FIXED_HEIGHT_OPEN or DG.FIXED_HEIGHT_CLOSED
+    -- layoutBlocks (called at the foot of this function) rewrites both of these for the shape
+    -- that is actually on screen; the DG constants are the construction-time seed, before any
+    -- verdict has been stamped.
+    d.fixedHeight = d.detailsOpen and (d.fixedHeightOpen or DG.FIXED_HEIGHT_OPEN)
+      or (d.fixedHeightClosed or DG.FIXED_HEIGHT_CLOSED)
     -- Task 2 restyle: uppercase kit-value labels (were "Show/Hide details"); the
     -- `d.detailsToggle:SetLabel(` call prefix itself is the pinned text (sniper_dialog_
     -- verdict_spec's "Details toggle wiring" describe block), not these strings.
@@ -4804,6 +4976,9 @@ local function createDialog()
         pair.value:Hide()
       end
     end
+    -- The facts block and the transcript share one slot, so opening or closing Details moves
+    -- everything under them. Runs AFTER the fit guard above has settled d.detailsOpen.
+    layoutBlocks()
     if dialog then resizeDialogDiagnostics() end
   end
   detailsToggle:SetScript("OnClick", function() applyDetailsState(not d.detailsOpen) end)
@@ -4990,7 +5165,9 @@ local function openDialog(row, deal)
     -- to the neutral CHECKING state for exactly that window. Guarded the same way every other
     -- verdictLabel/verdictAmount write is.
     if dialog.verdictLabel then
-      dialog.verdictLabel:SetText(GC.L["LIVE VERDICT · CHECKING"])
+      -- Check panel v3: the kicker slot says the ANSWER in words now, so "LIVE VERDICT ·
+      -- CHECKING" would be the only line left speaking the old machine-status voice.
+      dialog.verdictLabel:SetText(GC.L["Checking..."])
       dialog.verdictLabel:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
     if dialog.verdictAmount then
@@ -5003,9 +5180,19 @@ local function openDialog(row, deal)
       dialog.verdictAmount:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
       dialog.verdictAmount:Show()
     end
-    -- Fix round 1: caption goes with the amount, checking or not (see stampDialogFromDecision's
-    -- own show/hide pair for the buyable/refusal branches).
-    if dialog.verdictAmountNote then dialog.verdictAmountNote:Show() end
+    -- Check panel v3: the discovery stamp above may have left the words "Can't price this"
+    -- sitting in the figure's own slot, and the dash is now drawn over the top of them --
+    -- they share the slot precisely because only one of the two is ever the answer.
+    if dialog.heroText then dialog.heroText:Hide() end
+    -- Same reason the amount is re-tinted: this band is a session-long singleton and would
+    -- otherwise still be wearing the last deal's verdict colour while it says "Checking...".
+    if dialog.setHeroTone then dialog.setHeroTone(Theme.color.fgDim) end
+    -- The caption is shown but EMPTIED: whatever the discovery stamp captioned belongs to a
+    -- figure that is no longer on screen.
+    if dialog.verdictAmountNote then
+      dialog.verdictAmountNote:SetText("")
+      dialog.verdictAmountNote:Show()
+    end
     setDialogStatus(GC.L["checking live safety..."])
     startRequery(row, deal) -- pins the row ("requerying"); only a SAFE commodity decision arms Buy
   end

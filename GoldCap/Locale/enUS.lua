@@ -20,6 +20,7 @@ GC.Locales.enUS = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
+  ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
   ["%d filtered out as hard to resell"] = "%d filtered out as hard to resell",
   ["%d held back"] = "%d held back",
@@ -28,6 +29,7 @@ GC.Locales.enUS = {
   ["%d partial"] = "%d partial",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
   ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
+  ["%d units"] = "%d units",
   ["%d without a price"] = "%d without a price",
   ["%d without cost"] = "%d without cost",
   ["%d · %d/%d covered"] = "%d · %d/%d covered",
@@ -62,13 +64,13 @@ GC.Locales.enUS = {
   ["Bundled %s data"] = "Bundled %s data",
   ["Bundled data"] = "Bundled data",
   ["Buy"] = "Buy",
-  ["Buy %d × %s for %s"] = "Buy %d × %s for %s",
+  ["Buy less"] = "Buy less",
   ["CANCEL %d"] = "CANCEL %d",
   ["CANCEL LOT?"] = "CANCEL LOT?",
   ["CANCELLING…"] = "CANCELLING…",
   ["CONFIRM"] = "CONFIRM",
-  ["CONFIRM PURCHASE"] = "CONFIRM PURCHASE",
   ["COST / UNIT"] = "COST / UNIT",
+  ["Can't price this"] = "Can't price this",
   ["Cancel"] = "Cancel",
   ["Cancel lot?"] = "Cancel lot?",
   ["Cancel this lot and lose its deposit — click again to confirm"] = "Cancel this lot and lose its deposit — click again to confirm",
@@ -81,14 +83,20 @@ GC.Locales.enUS = {
   ["Cannot post this position"] = "Cannot post this position",
   ["Cannot remove this entry"] = "Cannot remove this entry",
   ["Cannot repost this lot"] = "Cannot repost this lot",
+  ["Capped by how fast this actually sells, not by your wallet."] =
+    "Capped by how fast this actually sells, not by your wallet.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Cheaper listings remain, but at this item's pace they sell through within hours.",
   ["Check"] = "Check",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import.",
+  ["Checked against the live order book a moment ago."] =
+    "Checked against the live order book a moment ago.",
   ["Checked: %d of the top %d on screen"] = "Checked: %d of the top %d on screen",
   ["Checking prices…"] = "Checking prices…",
   ["Checking this item's price…"] = "Checking this item's price…",
+  ["Checking..."] = "Checking...",
+  ["Clear to buy"] = "Clear to buy",
   ["Click Confirm to post"] = "Click Confirm to post",
   ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
     "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.",
@@ -96,6 +104,7 @@ GC.Locales.enUS = {
     "Clicking again deletes this hand-entered cost for good.",
   ["Close"] = "Close",
   ["Companion sync rejected:"] = "Companion sync rejected:",
+  ["Confidence"] = "Confidence",
   ["Confirm"] = "Confirm",
   ["Confirm the cancel"] = "Confirm the cancel",
   ["Confirm the removal"] = "Confirm the removal",
@@ -116,8 +125,6 @@ GC.Locales.enUS = {
     "Discount vs market value from your GoldCap import",
   ["Dump-trend cap %"] = "Dump-trend cap %",
   ["Duration"] = "Duration",
-  ["ENTRY AVG"] = "ENTRY AVG",
-  ["EST. PROFIT AFTER AH CUT"] = "EST. PROFIT AFTER AH CUT",
   ["Enlarge the window to see details"] = "Enlarge the window to see details",
   ["Enter a whole quantity"] = "Enter a whole quantity",
   ["Enter an exact positive cost"] = "Enter an exact positive cost",
@@ -135,6 +142,7 @@ GC.Locales.enUS = {
   ["GOOD = solid discount + profit"] = "GOOD = solid discount + profit",
   ["GOOD — min discount %"] = "GOOD — min discount %",
   ["GOOD — min sold/day"] = "GOOD — min sold/day",
+  ["Gold tied up"] = "Gold tied up",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] = "GoldCap can't pin down which bag stack this is",
@@ -157,6 +165,7 @@ GC.Locales.enUS = {
   ["Held back from cancelling"] = "Held back from cancelling",
   ["Held back from the queue"] = "Held back from the queue",
   ["ITEM"] = "ITEM",
+  ["If it clears"] = "If it clears",
   ["Import"] = "Import",
   ["Import failed:"] = "Import failed:",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
@@ -170,9 +179,6 @@ GC.Locales.enUS = {
   ["Item"] = "Item",
   ["Item %d"] = "Item %d",
   ["LISTED"] = "LISTED",
-  ["LIVE VERDICT · CHECKING"] = "LIVE VERDICT · CHECKING",
-  ["LIVE VERDICT · REFUSED"] = "LIVE VERDICT · REFUSED",
-  ["LIVE VERDICT · SAFE"] = "LIVE VERDICT · SAFE",
   ["Language"] = "Language",
   ["Language changed. Type /reload to apply it everywhere."] = "Language changed. Type /reload to apply it everywhere.",
   ["Last result: %ds ago"] = "Last result: %ds ago",
@@ -183,6 +189,7 @@ GC.Locales.enUS = {
   ["Listings"] = "Listings",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "Lists what is sitting in your bags at the price shown under WHAT TO DO.",
+  ["Live ask"] = "Live ask",
   ["Lot cancelled; wait for it to return to bags"] = "Lot cancelled; wait for it to return to bags",
   ["MARKET / UNIT"] = "MARKET / UNIT",
   ["Market per unit"] = "Market per unit",
@@ -294,15 +301,16 @@ GC.Locales.enUS = {
   ["SCANNING…"] = "SCANNING…",
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d BUYS",
   ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
-  ["STRESS EXIT"] = "STRESS EXIT",
   ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
     "SUSPECT = discount so extreme it's probably a scam/mispriced-market item",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
   ["Sell-through"] = "Sell-through",
+  ["Sellers"] = "Sellers",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Sells too rarely -- you would be holding it for a long time.",
   ["Set cost"] = "Set cost",
   ["Settings"] = "Settings",
+  ["Snapshot value"] = "Snapshot value",
   ["Sold per day"] = "Sold per day",
   ["Sold/day"] = "Sold/day",
   ["Sort by it to decide what to Check first, not to decide what to buy."] = "Sort by it to decide what to Check first, not to decide what to buy.",
@@ -320,6 +328,8 @@ GC.Locales.enUS = {
   ["The Auction House would not quote a deposit, so the cost is unknown."] =
     "The Auction House would not quote a deposit, so the cost is unknown.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] = "The Companion is syncing, but this addon could not read what it wrote:",
+  ["The board tiered this off the imported snapshot. The live book does not back it."] =
+    "The board tiered this off the imported snapshot. The live book does not back it.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "The button waits a moment before it can be pressed, so this is never an accidental double-click.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
@@ -376,11 +386,16 @@ GC.Locales.enUS = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "What your live auctions for this item add up to at their current asking price.",
   ["Window position & size"] = "Window position & size",
+  ["Won't buy"] = "Won't buy",
+  ["Worst case back"] = "Worst case back",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Worth doing when someone has undercut you; not worth it if the price barely moved.",
   ["You paid"] = "You paid",
-  ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
-    "a discount this extreme usually means the market value is wrong, not that this is a bargain",
+  ["You pay"] = "You pay",
+  ["You would get"] = "You would get",
+  ["You would pay"] = "You would pay",
+  ["any figure here would be invented out of the very number being refused"] =
+    "any figure here would be invented out of the very number being refused",
   ["auto off"] = "auto off",
   ["auto-synced %dh ago"] = "auto-synced %dh ago",
   ["auto-synced data for %s loaded (%s old)"] = "auto-synced data for %s loaded (%s old)",
@@ -400,6 +415,7 @@ GC.Locales.enUS = {
   ["cost unknown"] = "cost unknown",
   ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
+  ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
   ["full scan already in progress"] = "full scan already in progress",
   ["full scan complete: %d deal%s from %d item group%s%s"] = "full scan complete: %d deal%s from %d item group%s%s",
@@ -407,11 +423,16 @@ GC.Locales.enUS = {
   ["full scan stalled -- press Full Scan to retry"] = "full scan stalled -- press Full Scan to retry",
   ["full scan stalled -- retrying shortly"] = "full scan stalled -- retrying shortly",
   ["gone / price changed"] = "gone / price changed",
+  ["high"] = "high",
   ["identity unresolved (variant item -- not priced by design)"] = "identity unresolved (variant item -- not priced by design)",
+  ["if you buy all %d and sell them back at the price standing there now"] =
+    "if you buy all %d and sell them back at the price standing there now",
   ["import %dh old"] = "import %dh old",
   ["import stale -- /goldcap import or /goldcap companion"] = "import stale -- /goldcap import or /goldcap companion",
   ["imported %d items for %s (%s) — prices are live now."] = "imported %d items for %s (%s) — prices are live now.",
   ["in the mail"] = "in the mail",
+  ["is what this market absorbs — past that you are buying stock you will sit on"] =
+    "is what this market absorbs — past that you are buying stock you will sit on",
   ["item %d"] = "item %d",
   ["item %d: %s"] = "item %d: %s",
   ["item variant unresolved"] = "item variant unresolved",
@@ -421,6 +442,7 @@ GC.Locales.enUS = {
   ["listing gone -- bought out or repriced"] = "listing gone -- bought out or repriced",
   ["live safety confirmed -- click Buy to purchase"] = "live safety confirmed -- click Buy to purchase",
   ["live verification required"] = "live verification required",
+  ["low"] = "low",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
@@ -478,15 +500,18 @@ GC.Locales.enUS = {
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the import failed (%s)"] = "the import failed (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] = "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
+  ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
+    "to clear %d units at %s sold a day, with %s tied up the whole time",
   ["unknown evidence"] = "unknown evidence",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["waiting for server... full scan will start automatically"] = "waiting for server... full scan will start automatically",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
+  ["worst case, selling all %d back into the price standing there now"] =
+    "worst case, selling all %d back into the price standing there now",
   ["would sell at a loss"] = "would sell at a loss",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import).",
-  ["you should clear about %s"] = "you should clear about %s",
   ["your game client has no font for this language — the text will show as empty boxes"] =
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =

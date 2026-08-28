@@ -22,6 +22,7 @@ GC.Locales.ukUA = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
     " — команди: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (або коротко /gc)",
   ["%d (whole lot)"] = "%d (увесь лот)",
+  ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d угод з останнього сканування -- Full Scan, щоб оновити",
   ["%d filtered out as hard to resell"] = "%d відсіяно як важкі для перепродажу",
@@ -32,6 +33,7 @@ GC.Locales.ukUA = {
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d відхилено живою перевіркою -- натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
   ["%d sales · %s proceeds · %s in the mail"] = "%d продажів · %s виторг · %s у пошті",
+  ["%d units"] = "%d шт.",
   ["%d without a price"] = "%d без ціни",
   ["%d without cost"] = "%d без собівартості",
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
@@ -67,13 +69,13 @@ GC.Locales.ukUA = {
   ["Bundled %s data"] = "Вбудовані дані %s",
   ["Bundled data"] = "Вбудовані дані",
   ["Buy"] = "Купити",
-  ["Buy %d × %s for %s"] = "Купити %d × %s за %s",
+  ["Buy less"] = "Купити менше",
   ["CANCEL %d"] = "СКАСУВАТИ %d",
   ["CANCEL LOT?"] = "СКАСУВАТИ ЛОТ?",
   ["CANCELLING…"] = "СКАСУВАННЯ…",
   ["CONFIRM"] = "ПІДТВЕРДИТИ",
-  ["CONFIRM PURCHASE"] = "ПІДТВЕРДИТИ КУПІВЛЮ",
   ["COST / UNIT"] = "СОБІВАРТІСТЬ / ШТ",
+  ["Can't price this"] = "Ціну не оцінити",
   ["Cancel"] = "Скасувати",
   ["Cancel lot?"] = "Скасувати лот?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
@@ -87,14 +89,19 @@ GC.Locales.ukUA = {
   ["Cannot post this position"] = "Не можна виставити цю позицію",
   ["Cannot remove this entry"] = "Не можна видалити цей запис",
   ["Cannot repost this lot"] = "Не можна перевиставити цей лот",
+  ["Capped by how fast this actually sells, not by your wallet."] =
+    "Обмежено швидкістю продажу, а не вашим золотом.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Дешевші лоти ще є, але за такої швидкості їх розберуть за години.",
   ["Check"] = "Перевірити",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Перевірка перераховує це за живою книгою заявок, перш ніж рушить золото, і може дати менше — або відмовити — якщо ринок змінився після останнього імпорту.",
+  ["Checked against the live order book a moment ago."] = "Щойно звірено з живим стаканом заявок.",
   ["Checked: %d of the top %d on screen"] = "Перевірено: %d з %d верхніх на екрані",
   ["Checking prices…"] = "Перевіряємо ціни…",
   ["Checking this item's price…"] = "Перевіряємо ціну цього предмета…",
+  ["Checking..."] = "Перевіряю...",
+  ["Clear to buy"] = "Можна купувати",
   ["Click Confirm to post"] = "Натисніть Confirm, щоб виставити",
   ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
     "Ще один клік скасує активний лот. Заново він не виставляється: застава втрачається, а предмети прийдуть поштою, а не одразу в сумки.",
@@ -102,6 +109,7 @@ GC.Locales.ukUA = {
     "Ще один клік видалить цю введену вручну собівартість назавжди.",
   ["Close"] = "Закрити",
   ["Companion sync rejected:"] = "Синхронізацію Companion відхилено:",
+  ["Confidence"] = "Достовірність",
   ["Confirm"] = "Підтвердити",
   ["Confirm the cancel"] = "Підтвердити скасування",
   ["Confirm the removal"] = "Підтвердити видалення",
@@ -124,8 +132,6 @@ GC.Locales.ukUA = {
     "Знижка від ринкової вартості з вашого імпорту GoldCap",
   ["Dump-trend cap %"] = "Поріг спадного тренду %",
   ["Duration"] = "Тривалість",
-  ["ENTRY AVG"] = "СЕРЕДНІЙ ВХІД",
-  ["EST. PROFIT AFTER AH CUT"] = "ОРІЄНТ. ПРИБУТОК ПІСЛЯ КОМІСІЇ",
   ["Enlarge the window to see details"] = "Збільшіть вікно, щоб побачити деталі",
   ["Enter a whole quantity"] = "Введіть цілу кількість",
   ["Enter an exact positive cost"] = "Введіть точну додатну собівартість",
@@ -146,6 +152,7 @@ GC.Locales.ukUA = {
   ["GOOD = solid discount + profit"] = "GOOD = добра знижка + прибуток",
   ["GOOD — min discount %"] = "GOOD — мінімальна знижка %",
   ["GOOD — min sold/day"] = "GOOD — мінімум продажів на день",
+  ["Gold tied up"] = "Заморожено золота",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
@@ -170,6 +177,7 @@ GC.Locales.ukUA = {
   ["Held back from cancelling"] = "Притримано від скасування",
   ["Held back from the queue"] = "Притримано з черги",
   ["ITEM"] = "ПРЕДМЕТ",
+  ["If it clears"] = "Якщо продасться",
   ["Import"] = "Імпорт",
   ["Import failed:"] = "Імпорт не вдався:",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
@@ -183,9 +191,6 @@ GC.Locales.ukUA = {
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
   ["LISTED"] = "ВИСТАВЛЕНО",
-  ["LIVE VERDICT · CHECKING"] = "ЖИВИЙ ВЕРДИКТ · ПЕРЕВІРКА",
-  ["LIVE VERDICT · REFUSED"] = "ЖИВИЙ ВЕРДИКТ · ВІДМОВА",
-  ["LIVE VERDICT · SAFE"] = "ЖИВИЙ ВЕРДИКТ · БЕЗПЕЧНО",
   ["Language"] = "Мова",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
@@ -198,6 +203,7 @@ GC.Locales.ukUA = {
   ["Listings"] = "Лотів",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "Виставляє те, що лежить у сумках, за ціною з колонки ЩО РОБИТИ.",
+  ["Live ask"] = "Ціна в стакані",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",
   ["MARKET / UNIT"] = "РИНОК / ШТ",
@@ -325,16 +331,17 @@ GC.Locales.ukUA = {
   ["SCANNING…"] = "СКАНУЄМО…",
   ["SESSION %s%s · %d BUYS"] = "СЕСІЯ %s%s · %d КУПІВЕЛЬ",
   ["SHOW DETAILS ▸"] = "ПОКАЗАТИ ДЕТАЛІ ▸",
-  ["STRESS EXIT"] = "СТРЕС-ВИХІД",
   ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
     "SUSPECT = знижка настільки велика, що це радше шахрайство чи хибна ціна ринку",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Sell-through"] = "Викуповуваність",
+  ["Sellers"] = "Продавців",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Продається надто рідко — триматимете його довго.",
   ["Set cost"] = "Задати собівартість",
   ["Settings"] = "Налаштування",
+  ["Snapshot value"] = "Значення зі знімка",
   ["Sold per day"] = "Продажів на день",
   ["Sold/day"] = "Продажів на день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
@@ -354,6 +361,8 @@ GC.Locales.ukUA = {
     "Аукціон не назвав заставу, тому вартість невідома.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронізується, але аддон не зміг прочитати те, що він записав:",
+  ["The board tiered this off the imported snapshot. The live book does not back it."] =
+    "Дошка оцінила лот за імпортованим знімком. Живий стакан цього не підтверджує.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка стає натискною не одразу, тож випадковий подвійний клік її не спрацює.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
@@ -413,11 +422,16 @@ GC.Locales.ukUA = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "У скільки складаються ваші активні лоти цього предмета за поточною ціною.",
   ["Window position & size"] = "Позиція та розмір вікна",
+  ["Won't buy"] = "Не куплю",
+  ["Worst case back"] = "Повернеться в найгіршому разі",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Варто робити, коли вас перебили за ціною; не варто, якщо ціна майже не зрушила.",
   ["You paid"] = "Ви заплатили",
-  ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
-    "така величезна знижка зазвичай означає хибну ринкову вартість, а не вигідну покупку",
+  ["You pay"] = "Ви платите",
+  ["You would get"] = "Ви отримаєте",
+  ["You would pay"] = "Ви заплатите",
+  ["any figure here would be invented out of the very number being refused"] =
+    "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["auto off"] = "авто вимкнено",
   ["auto-synced %dh ago"] = "автосинхронізація %dг тому",
   ["auto-synced data for %s loaded (%s old)"] =
@@ -442,6 +456,7 @@ GC.Locales.ukUA = {
   ["cost unknown"] = "собівартість невідома",
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
+  ["fair"] = "середня",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["full scan already in progress"] = "повне сканування вже триває",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -452,14 +467,19 @@ GC.Locales.ukUA = {
     "повне сканування зупинилося -- натисніть Full Scan ще раз",
   ["full scan stalled -- retrying shortly"] = "повне сканування зупинилося -- скоро повторимо",
   ["gone / price changed"] = "зникло / ціна змінилася",
+  ["high"] = "висока",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не вдалося визначити (варіативний предмет -- ціна не рахується навмисно)",
+  ["if you buy all %d and sell them back at the price standing there now"] =
+    "якщо купити всі %d і продати назад за ціною, що стоїть там зараз",
   ["import %dh old"] = "імпорту %dг",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "імпорт застарів -- /goldcap import або /goldcap companion",
   ["imported %d items for %s (%s) — prices are live now."] =
     "імпортовано %d предметів для %s (%s) — ціни вже живі.",
   ["in the mail"] = "у пошті",
+  ["is what this market absorbs — past that you are buying stock you will sit on"] =
+    "стільки цей ринок перетравлює — понад те ви купуєте товар, що зависне",
   ["item %d"] = "предмет %d",
   ["item %d: %s"] = "предмет %d: %s",
   ["item variant unresolved"] = "варіант предмета не визначено",
@@ -473,6 +493,7 @@ GC.Locales.ukUA = {
   ["live safety confirmed -- click Buy to purchase"] =
     "безпеку підтверджено наживо -- натисніть Buy, щоб купити",
   ["live verification required"] = "потрібна жива перевірка",
+  ["low"] = "низька",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
@@ -547,6 +568,8 @@ GC.Locales.ukUA = {
   ["the import failed (%s)"] = "імпорт не вдався (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
+  ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
+    "щоб розпродати %d шт. за %s продажів на день, і весь цей час %s заморожено",
   ["unknown evidence"] = "невідоме підтвердження",
   ["waiting for previous commodity purchase to settle"] =
     "чекаємо, поки завершиться попередня купівля товару",
@@ -556,10 +579,11 @@ GC.Locales.ukUA = {
     "чекаємо на сервер... повне сканування почнеться саме",
   ["watching %s closely -- re-checked every few seconds"] =
     "пильно стежимо за %s -- перевірка кожні кілька секунд",
+  ["worst case, selling all %d back into the price standing there now"] =
+    "у найгіршому разі, якщо продати всі %d за ціною, що стоїть там зараз",
   ["would sell at a loss"] = "продалося б у збиток",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "ви ще не імпортували ціни реалму -- встановіть GoldCap Companion (/goldcap companion) або вставте рядок з goldcap.gg (/goldcap import).",
-  ["you should clear about %s"] = "ви маєте отримати приблизно %s",
   ["your game client has no font for this language — the text will show as empty boxes"] =
     "у вашому клієнті гри немає шрифту для цієї мови — текст відображатиметься порожніми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =

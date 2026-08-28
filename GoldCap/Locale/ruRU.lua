@@ -18,6 +18,7 @@ GC.Locales.ruRU = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
     " — команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (или коротко /gc)",
   ["%d (whole lot)"] = "%d (весь лот)",
+  ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d сделок с последнего сканирования -- Full Scan, чтобы обновить",
   ["%d filtered out as hard to resell"] = "%d отсеяно как трудные для перепродажи",
@@ -28,6 +29,7 @@ GC.Locales.ruRU = {
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d отклонено живой проверкой -- нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
   ["%d sales · %s proceeds · %s in the mail"] = "%d продаж · %s выручка · %s в почте",
+  ["%d units"] = "%d шт.",
   ["%d without a price"] = "%d без цены",
   ["%d without cost"] = "%d без себестоимости",
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
@@ -63,13 +65,13 @@ GC.Locales.ruRU = {
   ["Bundled %s data"] = "Встроенные данные %s",
   ["Bundled data"] = "Встроенные данные",
   ["Buy"] = "Купить",
-  ["Buy %d × %s for %s"] = "Купить %d × %s за %s",
+  ["Buy less"] = "Купить меньше",
   ["CANCEL %d"] = "ОТМЕНИТЬ %d",
   ["CANCEL LOT?"] = "ОТМЕНИТЬ ЛОТ?",
   ["CANCELLING…"] = "ОТМЕНА…",
   ["CONFIRM"] = "ПОДТВЕРДИТЬ",
-  ["CONFIRM PURCHASE"] = "ПОДТВЕРДИТЬ ПОКУПКУ",
   ["COST / UNIT"] = "СЕБЕСТ. / ШТ",
+  ["Can't price this"] = "Цену не оценить",
   ["Cancel"] = "Отмена",
   ["Cancel lot?"] = "Отменить лот?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
@@ -83,14 +85,20 @@ GC.Locales.ruRU = {
   ["Cannot post this position"] = "Нельзя выставить эту позицию",
   ["Cannot remove this entry"] = "Нельзя удалить эту запись",
   ["Cannot repost this lot"] = "Нельзя перевыставить этот лот",
+  ["Capped by how fast this actually sells, not by your wallet."] =
+    "Ограничено скоростью продаж, а не вашим золотом.",
   ["Cheaper listings remain, but at this item's pace they sell through within hours."] =
     "Более дешёвые лоты ещё есть, но при этой скорости их разберут за часы.",
   ["Check"] = "Проверить",
   ["Check re-derives it against the live order book before any gold moves, and can still land lower — or refuse — if the market has moved since your last import."] =
     "Проверка пересчитывает это по живой книге заявок, прежде чем тронется золото, и может дать меньше — или отказать — если рынок сдвинулся после последнего импорта.",
+  ["Checked against the live order book a moment ago."] =
+    "Только что сверено с живым стаканом заявок.",
   ["Checked: %d of the top %d on screen"] = "Проверено: %d из %d верхних на экране",
   ["Checking prices…"] = "Проверяем цены…",
   ["Checking this item's price…"] = "Проверяем цену этого предмета…",
+  ["Checking..."] = "Проверяю...",
+  ["Clear to buy"] = "Можно покупать",
   ["Click Confirm to post"] = "Нажмите Confirm, чтобы выставить",
   ["Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags."] =
     "Ещё один клик отменит активный лот. Заново он не выставляется: залог теряется, а предметы придут почтой, а не сразу в сумки.",
@@ -98,6 +106,7 @@ GC.Locales.ruRU = {
     "Ещё один клик удалит эту введённую вручную себестоимость навсегда.",
   ["Close"] = "Закрыть",
   ["Companion sync rejected:"] = "Синхронизация Companion отклонена:",
+  ["Confidence"] = "Достоверность",
   ["Confirm"] = "Подтвердить",
   ["Confirm the cancel"] = "Подтвердить отмену",
   ["Confirm the removal"] = "Подтвердить удаление",
@@ -120,8 +129,6 @@ GC.Locales.ruRU = {
     "Скидка от рыночной стоимости из вашего импорта GoldCap",
   ["Dump-trend cap %"] = "Порог падающего тренда %",
   ["Duration"] = "Срок",
-  ["ENTRY AVG"] = "СРЕДНИЙ ВХОД",
-  ["EST. PROFIT AFTER AH CUT"] = "ОРИЕНТ. ПРИБЫЛЬ ПОСЛЕ КОМИССИИ",
   ["Enlarge the window to see details"] = "Увеличьте окно, чтобы видеть детали",
   ["Enter a whole quantity"] = "Введите целое количество",
   ["Enter an exact positive cost"] = "Введите точную положительную себестоимость",
@@ -142,6 +149,7 @@ GC.Locales.ruRU = {
   ["GOOD = solid discount + profit"] = "GOOD = хорошая скидка + прибыль",
   ["GOOD — min discount %"] = "GOOD — минимальная скидка %",
   ["GOOD — min sold/day"] = "GOOD — минимум продаж в день",
+  ["Gold tied up"] = "Заморожено золота",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] =
@@ -166,6 +174,7 @@ GC.Locales.ruRU = {
   ["Held back from cancelling"] = "Придержано от отмены",
   ["Held back from the queue"] = "Придержано из очереди",
   ["ITEM"] = "ПРЕДМЕТ",
+  ["If it clears"] = "Если продастся",
   ["Import"] = "Импорт",
   ["Import failed:"] = "Импорт не удался:",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
@@ -179,9 +188,6 @@ GC.Locales.ruRU = {
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
   ["LISTED"] = "ВЫСТАВЛЕНО",
-  ["LIVE VERDICT · CHECKING"] = "ЖИВОЙ ВЕРДИКТ · ПРОВЕРКА",
-  ["LIVE VERDICT · REFUSED"] = "ЖИВОЙ ВЕРДИКТ · ОТКАЗ",
-  ["LIVE VERDICT · SAFE"] = "ЖИВОЙ ВЕРДИКТ · БЕЗОПАСНО",
   ["Language"] = "Язык",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Язык изменён. Введите /reload, чтобы применить его везде.",
@@ -194,6 +200,7 @@ GC.Locales.ruRU = {
   ["Listings"] = "Лотов",
   ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
     "Выставляет то, что лежит в сумках, по цене из колонки ЧТО ДЕЛАТЬ.",
+  ["Live ask"] = "Цена в стакане",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот отменён; дождитесь его возврата в сумки",
   ["MARKET / UNIT"] = "РЫНОК / ШТ",
@@ -320,16 +327,17 @@ GC.Locales.ruRU = {
   ["SCANNING…"] = "СКАНИРУЕМ…",
   ["SESSION %s%s · %d BUYS"] = "СЕССИЯ %s%s · %d ПОКУПОК",
   ["SHOW DETAILS ▸"] = "ПОКАЗАТЬ ДЕТАЛИ ▸",
-  ["STRESS EXIT"] = "СТРЕСС-ВЫХОД",
   ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
     "SUSPECT = скидка настолько велика, что это скорее обман или ошибочная цена рынка",
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["Sell-through"] = "Выкупаемость",
+  ["Sellers"] = "Продавцов",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Продаётся слишком редко — будете держать его долго.",
   ["Set cost"] = "Задать себестоимость",
   ["Settings"] = "Настройки",
+  ["Snapshot value"] = "Значение из снимка",
   ["Sold per day"] = "Продаж в день",
   ["Sold/day"] = "Продаж в день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
@@ -349,6 +357,8 @@ GC.Locales.ruRU = {
     "Аукцион не назвал залог, поэтому стоимость неизвестна.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронизируется, но аддон не смог прочитать то, что он записал:",
+  ["The board tiered this off the imported snapshot. The live book does not back it."] =
+    "Доска оценила лот по импортированному снимку. Живой стакан этого не подтверждает.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка становится нажимаемой не сразу, поэтому случайный двойной клик её не сработает.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
@@ -410,11 +420,16 @@ GC.Locales.ruRU = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "Во сколько складываются ваши активные лоты этого предмета по текущей цене.",
   ["Window position & size"] = "Позиция и размер окна",
+  ["Won't buy"] = "Не куплю",
+  ["Worst case back"] = "Вернётся в худшем случае",
   ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
     "Стоит делать, когда вас перебили по цене; не стоит, если цена почти не сдвинулась.",
   ["You paid"] = "Вы заплатили",
-  ["a discount this extreme usually means the market value is wrong, not that this is a bargain"] =
-    "такая огромная скидка обычно означает ошибочную рыночную стоимость, а не выгодную покупку",
+  ["You pay"] = "Вы платите",
+  ["You would get"] = "Вы получите",
+  ["You would pay"] = "Вы заплатите",
+  ["any figure here would be invented out of the very number being refused"] =
+    "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["auto off"] = "авто выключено",
   ["auto-synced %dh ago"] = "автосинхронизация %dч назад",
   ["auto-synced data for %s loaded (%s old)"] =
@@ -439,6 +454,7 @@ GC.Locales.ruRU = {
   ["cost unknown"] = "себестоимость неизвестна",
   ["data from goldcap.gg · synced %s ago"] = "данные с goldcap.gg · синхронизировано %s назад",
   ["due -- will be asked next pass"] = "очередь -- спросим следующим проходом",
+  ["fair"] = "средняя",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["full scan already in progress"] = "полное сканирование уже идёт",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -449,14 +465,19 @@ GC.Locales.ruRU = {
     "полное сканирование застряло -- нажмите Full Scan ещё раз",
   ["full scan stalled -- retrying shortly"] = "полное сканирование застряло -- скоро повторим",
   ["gone / price changed"] = "исчезло / цена изменилась",
+  ["high"] = "высокая",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не удалось определить (вариативный предмет -- цена не считается намеренно)",
+  ["if you buy all %d and sell them back at the price standing there now"] =
+    "если купить все %d и продать обратно по цене, которая стоит там сейчас",
   ["import %dh old"] = "импорту %dч",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "импорт устарел -- /goldcap import или /goldcap companion",
   ["imported %d items for %s (%s) — prices are live now."] =
     "импортировано %d предметов для %s (%s) — цены теперь живые.",
   ["in the mail"] = "в почте",
+  ["is what this market absorbs — past that you are buying stock you will sit on"] =
+    "столько этот рынок переваривает — сверх того вы покупаете товар, который зависнет",
   ["item %d"] = "предмет %d",
   ["item %d: %s"] = "предмет %d: %s",
   ["item variant unresolved"] = "вариант предмета не определён",
@@ -470,6 +491,7 @@ GC.Locales.ruRU = {
   ["live safety confirmed -- click Buy to purchase"] =
     "безопасность подтверждена вживую -- нажмите Buy, чтобы купить",
   ["live verification required"] = "требуется живая проверка",
+  ["low"] = "низкая",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
@@ -544,6 +566,8 @@ GC.Locales.ruRU = {
   ["the import failed (%s)"] = "импорт не удался (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
+  ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
+    "чтобы распродать %d шт. при %s продажах в день, и всё это время %s заморожено",
   ["unknown evidence"] = "неизвестное подтверждение",
   ["waiting for previous commodity purchase to settle"] =
     "ждём завершения предыдущей покупки товара",
@@ -552,10 +576,11 @@ GC.Locales.ruRU = {
     "ждём сервер... полное сканирование начнётся само",
   ["watching %s closely -- re-checked every few seconds"] =
     "пристально следим за %s -- перепроверка каждые несколько секунд",
+  ["worst case, selling all %d back into the price standing there now"] =
+    "в худшем случае, если продать все %d по цене, которая стоит там сейчас",
   ["would sell at a loss"] = "продалось бы в убыток",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "вы ещё не импортировали цены реалма -- установите GoldCap Companion (/goldcap companion) или вставьте строку с goldcap.gg (/goldcap import).",
-  ["you should clear about %s"] = "вы должны получить примерно %s",
   ["your game client has no font for this language — the text will show as empty boxes"] =
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =

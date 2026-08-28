@@ -63,6 +63,9 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       SetTexture = function() end,
       SetTextColor = function() end,
       SetJustifyH = function() end,
+      -- Check panel v3: the hero caption and the reconciliation note are fixed-height
+      -- wrapped blocks, so they top-align their text rather than centring it in the slot.
+      SetJustifyV = function() end,
       SetWidth = function() end,
       SetScrollChild = function() end,
       StartMoving = function() end,
@@ -376,6 +379,118 @@ describe("Sniper check panel inset (applyPanelInset)", function()
 
       -- Must not error just because no dialog has ever been constructed.
       frame.scripts.OnSizeChanged(frame, 1000)
+    end)
+  end)
+
+  -- Check panel v3 (docs/design/2026-08-28-check-panel). The panel is no longer one fixed
+  -- stack: a refusal has no quantity block and a reconciliation line, a purchase has the
+  -- reverse, and the four facts and the ten-row transcript share one slot. All of that is
+  -- arithmetic in layoutBlocks, and arithmetic in a 6,400-line file with no test is how the
+  -- old panel ended up reserving 94px for a figure a refusal never has. This drives the REAL
+  -- createDialog and reads back where each block actually landed.
+  describe("Check panel block stack (real createDialog)", function()
+    local function realDialog(saved)
+      local _, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = saved } } }
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      return getUpvalue(openDialog, "createDialog")()
+    end
+
+    -- Replaces the four methods layoutBlocks drives on a block frame with recorders. The stub
+    -- frames are per-CreateFrame tables (see stubFrame above), so patching one block cannot
+    -- perturb another.
+    local function watch(block)
+      local rec = {}
+      block.ClearAllPoints = function() end
+      block.SetPoint = function(_, point, _, _, _, y)
+        if point == "TOPLEFT" then rec.top = y end
+      end
+      block.SetHeight = function(_, h) rec.height = h end
+      block.Show = function() rec.shown = true end
+      block.Hide = function() rec.shown = false end
+      return rec
+    end
+
+    local function watchAll(d)
+      return {
+        hero = watch(d.heroBlock), reconcile = watch(d.reconcileBlock),
+        qty = watch(d.qtyBlock), facts = watch(d.factsBlock), grid = watch(d.gridBlock),
+      }
+    end
+
+    it("stacks the shown blocks head to tail, with nothing overlapping", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.layoutBlocks({ reconcile = false, actionable = true })
+
+      -- Every offset is measured DOWN from the dialog's own top, so these are negative and
+      -- each block starts exactly where the one above it ended.
+      assert.is_true(rec.hero.shown)
+      assert.equal(rec.hero.top - rec.hero.height, rec.qty.top)
+      assert.equal(rec.qty.top - rec.qty.height, rec.facts.top)
+      assert.is_false(rec.reconcile.shown) -- skipped, and it costs no space
+      assert.is_false(rec.grid.shown)      -- Details closed: the facts hold the slot
+    end)
+
+    it("drops the quantity block on a refusal and puts the reconciliation in its place", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.layoutBlocks({ reconcile = true, actionable = false })
+
+      assert.is_true(rec.reconcile.shown)
+      assert.is_false(rec.qty.shown)
+      -- Hero, then the reconciliation, then straight on to the facts -- no hole where the
+      -- quantity box would have been.
+      assert.equal(rec.hero.top - rec.hero.height, rec.reconcile.top)
+      assert.equal(rec.reconcile.top - rec.reconcile.height, rec.facts.top)
+      -- A refusal is the SHORTER shape, which is what let the toggle open in the docked drawer.
+      assert.is_true(d.fixedHeightOpen < 550)
+    end)
+
+    it("swaps the facts for the transcript rather than stacking both", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.layoutBlocks({ reconcile = false, actionable = true })
+      local factsTop, closedBudget = rec.facts.top, d.fixedHeightClosed
+
+      d.GetHeight = function() return 10000 end -- tall enough that the fit guard allows it
+      d.applyDetailsState(true)
+
+      assert.is_true(d.detailsOpen)
+      assert.is_false(rec.facts.shown)
+      assert.is_true(rec.grid.shown)
+      assert.equal(factsTop, rec.grid.top) -- the same slot, not a second one under it
+      assert.is_true(d.fixedHeightOpen > closedBudget)
+      assert.equal(d.fixedHeightOpen, d.fixedHeight)
+    end)
+
+    -- The shape is only known once a decision has been stamped. Before that the panel is
+    -- showing a quantity it fully intends to buy, so the quantity block has to be in.
+    it("keeps the quantity block before any verdict has set a shape", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.layoutBlocks()
+      assert.is_true(rec.qty.shown)
+      assert.is_false(rec.reconcile.shown)
+    end)
+
+    -- A Details toggle must not silently undo the verdict's own shape: layoutBlocks remembers
+    -- the last shape it was given precisely so opening the transcript on a refusal does not
+    -- bring the quantity box back.
+    it("remembers the verdict's shape across a Details toggle", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.layoutBlocks({ reconcile = true, actionable = false })
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+
+      assert.is_false(rec.qty.shown)
+      assert.is_true(rec.reconcile.shown)
     end)
   end)
 

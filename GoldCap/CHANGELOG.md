@@ -12,6 +12,23 @@
   written are repaired once on login, and a snapshot from a region you are not
   playing in says so instead of quietly re-pricing your whole board.
 
+- **The buy check window rebuilt around one answer.** It used to open the same
+  shape whatever it had to say: a headline that ran off the edge into "…", a
+  quantity box on verdicts where nothing could be bought, ten rows of numbers of
+  which half were dashes, and a 94-pixel gap where a profit figure would have
+  gone if there had been one. It now leads with a single figure that changes
+  unit rather than going blank — the gold you would lose, the days your gold
+  would sit there, the number of units the market can actually absorb — and says
+  "can't price this" in words when the value itself is what it does not trust,
+  instead of inventing a loss out of the number it just refused. Under it are
+  four facts chosen for that verdict, each with a bar only where a real
+  threshold exists, so a short bar means "under the line" rather than "small
+  number". A HOT badge next to a refusal now explains itself instead of sitting
+  there contradicting the verdict. And the whole thing finally fits the drawer
+  when GoldCap is docked inside the auction house — including "all numbers",
+  which used to refuse to open there and tell you to enlarge a window that has
+  no resize handle.
+
 - **The window no longer hides behind everything.** The deals window sat under
   the auction house, the bags and most Blizzard panels, and clicking it did not
   bring it forward. It now floats above them and raises on a click — and still
