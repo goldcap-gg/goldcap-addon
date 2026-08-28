@@ -632,6 +632,13 @@ local function build(sniperFrame)
 
   local function displayLanguage()
     langBtn:SetLabel(GC.LocaleChoiceLabel(localeSetting()))
+    -- This label is the ONE piece of text in the addon rewritten in the newly picked language
+    -- on the spot -- every other widget still says what it said in the old one until the
+    -- /reload below. So this is the one widget whose FACE has to move with it, and the whole
+    -- kit deliberately does not (Theme.RefontWidget's own comment covers why moving the rest
+    -- is worse). Without it the control the player had just used came back as "♦♦♦": Hangul
+    -- written into a FontString still pinned to the bundled latin mono.
+    if Theme.RefontWidget then Theme.RefontWidget(langBtn.text) end
   end
 
   langBtn:SetScript("OnClick", function(self)

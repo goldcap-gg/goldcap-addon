@@ -1,8 +1,9 @@
 local _, GC = ...
 
 -- Korean. Terminology follows apps/web/messages/ko.json where the site has the same concept.
--- On this locale the kit draws with the client's own font (Theme.RefreshFonts): the bundled
--- monospace face has no CJK coverage at all.
+-- On this locale the kit draws in one of Blizzard's own faces for the script, taken from the
+-- client's data rather than from the client's active font (Theme.RefreshFonts / CJK_FACES):
+-- the bundled monospace face has no CJK coverage at all.
 -- Format specifiers must stay in the key's order: Lua 5.1 has no positional %1$s.
 GC.Locales.koKR = {
   [" %s  %s  x%d at %s each  (%s total, %s cut)%s"] =

@@ -10,7 +10,14 @@ local helper = require("spec.spec_helper")
 -- MODE table (ours is empty -- shows nothing of theirs), compares modes by identity, and
 -- numTabs/selectedTab feed insecure UI code only (UpdateTitle), never a protected path.
 describe("Auction House tab", function()
-  local GC, ah, created, docked, clock
+  local GC, ah, created, docked, clock, deferred
+
+  -- Runs whatever the module scheduled for the next frame, in order.
+  local function runDeferred()
+    local pending = deferred
+    deferred = {}
+    for _, fn in ipairs(pending) do fn() end
+  end
 
   local function widget(kind, parent)
     local w = { kind = kind, parent = parent, points = {}, scripts = {}, shown = true }
@@ -20,9 +27,27 @@ describe("Auction House tab", function()
     function w:SetText(t) self.text = t end
     function w:SetLabel(t) self.label = t end
     function w:SetScript(name, fn) self.scripts[name] = fn end
-    function w:Show() self.shown = true end
-    function w:Hide() self.shown = false end
+    -- Show/Hide run the frame's own OnShow/OnHide, the way the engine does: the module docks
+    -- and undocks the window off those hooks now, because on the LibAHTab path the LIBRARY is
+    -- what shows and hides the dock and there is no call site of ours to hang it on.
+    function w:Show()
+      self.shown = true
+      if self.scripts.OnShow then self.scripts.OnShow(self) end
+    end
+    function w:Hide()
+      self.shown = false
+      if self.scripts.OnHide then self.scripts.OnHide(self) end
+    end
+    function w:HookScript(name, fn)
+      local existing = self.scripts[name]
+      self.scripts[name] = existing and function(...) existing(...) fn(...) end or fn
+    end
     function w:IsShown() return self.shown end
+    -- Screen position, which is what decides where the bar actually ends -- array order does
+    -- not: another addon's tab can be appended after ours and still anchor itself to a tab
+    -- BEFORE ours. Left nil unless a test sets it, so the anchor falls back to array order the
+    -- way it does on a bar that has not been laid out yet.
+    function w:GetRight() return self.right end
     return w
   end
 
@@ -45,6 +70,11 @@ describe("Auction House tab", function()
     }
     clock = 1000
     _G.time = function() return clock end
+    -- The module defers its second anchor pass by one frame (C_Timer.After(0)); the spec runs
+    -- them on demand via runDeferred() rather than pretending they fire inline, so a test that
+    -- does NOT call it still exercises the inline pass on its own.
+    deferred = {}
+    _G.C_Timer = { After = function(_, fn) deferred[#deferred + 1] = fn end }
     _G.CreateFrame = function(kind, name, parent, template)
       local w = widget(kind, parent)
       w.template, w.name = template, name
@@ -109,6 +139,46 @@ describe("Auction House tab", function()
     assert.equal(4, ah.tabsForDisplayMode[tab.displayMode])
     assert.equal(ah.Tabs[3], tab.points[1][2]) -- anchored to the last Blizzard tab
   end)
+
+  -- Auctionator adds four tabs of its own and anchors them to Blizzard's last one. Whether
+  -- they exist when ours is built is a load-order race, and when they do not, both addons
+  -- anchor to the same tab and one of the two draws underneath the other. Reported in-game
+  -- 2026-08-28: Buy / Sell / Auctions / Shopping / Selling / Cancelling / Auctionator, and no
+  -- GoldCap anywhere on the bar.
+  it("moves clear of tabs another addon added after ours", function()
+    GC.AuctionHouseTab.Install()
+    local tab = tabButton()
+    local foreign = widget("Button", ah)
+    ah.Tabs[#ah.Tabs + 1] = foreign
+    for index, entry in ipairs(ah.Tabs) do entry.right = index * 100 end
+    foreign.right = 900
+
+    GC.AuctionHouseTab.Install() -- the next auction house visit
+
+    assert.equal(1, #tab.points)
+    assert.equal(foreign, tab.points[1][2])
+    assert.equal(5, #ah.Tabs) -- and no second tab of ours
+  end)
+
+  -- The FIRST auction house of a session is the case the inline pass cannot answer: nothing on
+  -- the bar has been laid out when AUCTION_HOUSE_SHOW fires, so every GetRight is nil, and an
+  -- addon adding its own tabs off the same event may not have run yet. Both are settled one
+  -- frame later.
+  it("re-anchors a frame later, once the bar exists and every other addon has had its turn",
+    function()
+      GC.AuctionHouseTab.Install() -- nothing measurable yet: array order decides
+      local tab = tabButton()
+      assert.equal(ah.Tabs[3], tab.points[1][2])
+
+      local foreign = widget("Button", ah)
+      ah.Tabs[#ah.Tabs + 1] = foreign
+      for index, entry in ipairs(ah.Tabs) do entry.right = index * 100 end
+      foreign.right = 900
+      runDeferred()
+
+      assert.equal(foreign, tab.points[1][2])
+      assert.equal(5, ah.numTabs) -- and the count covers our index again
+    end)
 
   it("installs once however many times the auction house opens", function()
     GC.AuctionHouseTab.Install()
@@ -324,8 +394,56 @@ describe("Auction House tab", function()
   -- One predicate the background tickers in UI/SniperFrame.lua read: the player is busy if
   -- they are posting, buying, or reading their own search -- any one of the three outranks
   -- background traffic for the shared request throttle.
+  -- Another addon's auction-house tab. LibAHTab clears AuctionHouseFrame.displayMode to nil
+  -- when one of its tabs is selected (LibAHTab.lua's SetSelected, read verbatim), which is a
+  -- state Blizzard's own tabs never leave the frame in -- every one of theirs sets a mode. So
+  -- "no display mode, and our own dock is not the thing on screen" means someone else's panel
+  -- owns the auction house.
+  --
+  -- It has to count as busy. The player posting through Auctionator's Selling tab could not
+  -- click Post: it greyed out and only flickered back occasionally, because GoldCap's own
+  -- background traffic -- the verify walk and the watch loop, neither of which Auto gates --
+  -- was spending the auction house's shared request budget the whole time. Reported in-game
+  -- 2026-08-28. PlayerIsPosting never saw it: it reads Blizzard's display mode, and Blizzard
+  -- had no idea a sell form was on screen.
+  describe("PlayerIsUsingAnotherTab", function()
+    before_each(function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+    end)
+
+    it("is false while one of Blizzard's own panels is up", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsUsingAnotherTab())
+    end)
+
+    it("is true once the display mode is cleared and our dock is not what replaced it", function()
+      ah.displayMode = nil
+      assert.is_true(GC.AuctionHouseTab.PlayerIsUsingAnotherTab())
+    end)
+
+    it("is false when the panel with no display mode behind it is our own", function()
+      ah.displayMode = nil
+      dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsUsingAnotherTab())
+    end)
+
+    it("is false when there is no auction house to read", function()
+      _G.AuctionHouseFrame = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsUsingAnotherTab())
+    end)
+
+
+    it("makes the background traffic yield", function()
+      ah.displayMode = nil
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+  end)
+
   describe("PlayerIsBusy", function()
-    it("is false when none of the three are true", function()
+    -- Also the "nothing has been selected yet" case for PlayerIsUsingAnotherTab: an auction
+    -- house that has chosen nothing has no display mode either, and reading THAT as "the player
+    -- is busy" would silence the sniper for a whole session.
+    it("is false when none of the four are true", function()
       assert.is_false(GC.AuctionHouseTab.PlayerIsBusy())
     end)
 

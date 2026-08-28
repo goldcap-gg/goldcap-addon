@@ -1,5 +1,52 @@
 # GoldCap
 
+## 0.5.2 (2026-08-28)
+
+- **Korean and Chinese were empty boxes.** Choosing one of them redrew the whole
+  interface in the font your client happens to be running — which on a Western
+  client is a Latin face with no CJK in it at all. Blizzard ships the faces for
+  those scripts inside the game's own data whatever language you installed, so
+  the addon now asks for the face that belongs to the script: Korean in 2002,
+  Simplified Chinese in ARKai, Traditional in its own faces, each falling
+  through to the next one your client actually has. The warning that used to
+  claim your client had no font for the language is gone with it — it was
+  printed, ironically, in perfectly legible Korean.
+
+- **The language button became unreadable the moment you used it.** Picking
+  Korean wrote Hangul into a button still drawing in the Latin face, so the one
+  control you had just touched turned into three empty diamonds. It now moves
+  to the new script's face with its own text. The rest of the interface
+  deliberately does not: it is still written in the language you came from, and
+  a face has to match the text it draws — switching everything early turned
+  Ukrainian into "м□н□мальна", since the Korean face has Cyrillic but no і or є.
+  The /reload the picker asks for is still what changes the words.
+
+- **The GoldCap tab was invisible with Auctionator installed.** Both addons
+  anchored their tabs to the last one they could see, and neither can see the
+  other's — Auctionator's live in a shared tab library, ours in Blizzard's own
+  list. Ours was on the bar the whole time, drawn underneath Shopping. GoldCap
+  now registers through that same library when another addon has brought it,
+  which puts every tab in one row in the order they were added, and hands the
+  library the job of hiding whichever panel is not in front.
+
+- **Auctionator's panel stayed on screen behind ours.** Same root: the library
+  hides its panels when the auction house switches to a mode with content in
+  it, and the mode GoldCap set was deliberately empty. Registering properly
+  settles it in both directions.
+
+- **Posting through another addon could not be clicked.** With Auctionator's
+  Selling tab open, Post greyed out and only flickered back now and then:
+  GoldCap's background work — the verify pass and the watch loop, neither of
+  which the Auto switch governs — was spending the auction house's shared
+  request budget while you were trying to use it. GoldCap could not tell,
+  because it asked Blizzard what was on screen and Blizzard does not know about
+  another addon's sell form. It now yields to any tab that is not its own, the
+  same way it already yields to Blizzard's.
+
+- **Labels lost their outline at any font scale but the default.** The first
+  move of the font-scale slider redrew every label without the flags it was
+  built with.
+
 ## 0.5.1 (2026-08-28)
 
 - **The Settings screen was see-through.** Opening it drew the whole panel over

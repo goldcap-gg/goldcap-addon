@@ -32,6 +32,10 @@ GC.AuctionHouseTab = {}
 
 local tab, dock, installed, hookedTabs = nil, nil, false, false
 local registered = false
+-- Set when the tab was created through LibAHTab-1-0 (see libAHTab below) rather than built
+-- here: the library then owns its position, its click, and its visibility.
+local libRegistered = false
+local LIB_TAB_ID = "GoldCap"
 -- The Blizzard mode last recorded by the SetDisplayMode hook below -- nil until the hook has
 -- fired at least once. Read by PlayerIsPosting().
 local currentMode = nil
@@ -51,6 +55,61 @@ local function blizzardTabs(ah)
     index = index + 1
   end
   return found
+end
+
+-- Where our tab sits on the bar: beside whatever is furthest RIGHT right now and is not us.
+-- Position, not array order -- another addon's tab can be created after ours and still anchor
+-- itself to a tab BEFORE ours. Auctionator's four do exactly that (they hang off Blizzard's
+-- last), so when ours was built first both addons anchored to the same tab and ours drew
+-- underneath: the bar showed Buy / Sell / Auctions and Auctionator's four, and no GoldCap
+-- anywhere (reported in-game 2026-08-28). Which of us gets there first is a load-order race
+-- nobody wins reliably, so this is recomputed on EVERY auction house visit rather than pinned
+-- once at install.
+--
+-- Array order is the fallback for a bar that has not been laid out yet (GetRight is nil until
+-- it has), which is exactly the state at the first install of a session.
+local function anchorTab(ah)
+  if not tab then return end
+  local rightmost, rightmostEdge, lastInArray
+  for _, candidate in ipairs(blizzardTabs(ah)) do
+    if candidate ~= tab then
+      lastInArray = candidate
+      local ok, edge = pcall(candidate.GetRight, candidate)
+      if ok and type(edge) == "number" and (not rightmostEdge or edge > rightmostEdge) then
+        rightmost, rightmostEdge = candidate, edge
+      end
+    end
+  end
+  local anchor = rightmost or lastInArray
+  pcall(function()
+    tab:ClearAllPoints()
+    if anchor then
+      -- Blizzard's own tabs sit at -15, but our resized button rides visibly onto the tab
+      -- before it at that offset (seen in game 2026-08-17) -- ease it out to -10.
+      tab:SetPoint("TOPLEFT", anchor, "TOPRIGHT", -10, 0)
+    else
+      tab:SetPoint("TOPLEFT", ah, "BOTTOMLEFT", 11, 2)
+    end
+  end)
+end
+
+-- Anchoring twice: once now, once a frame later. The FIRST auction house of a session is the
+-- case the inline pass cannot answer -- nothing on the bar has been laid out when
+-- AUCTION_HOUSE_SHOW fires, so every GetRight is nil and only array order is available, and an
+-- addon that adds its own tabs off the same event may not have run yet. C_Timer.After(0) lands
+-- after both: every handler for this event, and the layout pass.
+local function scheduleAnchor(ah)
+  anchorTab(ah)
+  if not (_G.C_Timer and _G.C_Timer.After) then return end
+  pcall(_G.C_Timer.After, 0, function()
+    anchorTab(ah)
+    -- Reclaim the tab count in the same breath. Another addon setting it to ITS OWN total
+    -- after we set ours leaves our index outside frame.numTabs, and Blizzard's
+    -- PanelTemplates_UpdateTabs then walks straight past our tab.
+    pcall(function()
+      if registered and ah.Tabs then PanelTemplates_SetNumTabs(ah, #ah.Tabs) end
+    end)
+  end)
 end
 
 local function buildTab(ah)
@@ -76,17 +135,18 @@ local function buildTab(ah)
   return built, false
 end
 
-local function showDock()
+-- Docking is driven off the dock's own visibility rather than from each call site that changes
+-- it. On the LibAHTab path below the library owns Show/Hide -- it hides every registered tab's
+-- frame whenever any other tab is picked -- so hooking the frame is the only way to hear about
+-- it; on the native path our own showDock/hideDock trip the same hooks. One rule, both paths.
+local function attachWindow()
   if not dock then return end
   if GC.Sniper and GC.Sniper.SetDocked then
     pcall(GC.Sniper.SetDocked, dock)
   end
-  dock:Show()
 end
 
-local function hideDock()
-  if not dock or not dock:IsShown() then return end
-  dock:Hide()
+local function detachWindow()
   -- The window is a CHILD of the dock, so visually it is already gone -- but its own shown
   -- flag would stay true, and everything that reads IsWindowShown (Auto's pause causes, the
   -- Sell tab badge) would believe the player is still looking at it. Hide it for real.
@@ -96,11 +156,112 @@ local function hideDock()
   end
 end
 
+local function showDock()
+  if dock then dock:Show() end
+end
+
+local function hideDock()
+  if dock and dock:IsShown() then dock:Hide() end
+end
+
+-- One hook, both directions on the native path: our mode up -> show the dock, any other mode
+-- -> hide it. Their OnClick is a template script we must not replace, so hook the frame method
+-- it calls. On the LibAHTab path the library already hides every registered tab's frame -- ours
+-- included -- whenever a mode with content is set, so the hook only records the mode there:
+-- doing it twice would have us hide the dock in the same breath the library shows it.
+local function installSetDisplayModeHook(ah)
+  if hookedTabs or not ah.SetDisplayMode then return end
+  hookedTabs = true
+  pcall(hooksecurefunc, ah, "SetDisplayMode", function(_, mode)
+    -- SetDisplayMode itself resolves a Sell-family request (ItemSell/CommoditiesSell/
+    -- WoWTokenSell) against whichever SellFrame actually has an item loaded before it stores
+    -- self.displayMode (Blizzard_AuctionHouseFrame.lua, read verbatim) -- so read the RESOLVED
+    -- field back off `ah` here, hooksecurefunc runs after the original, rather than trust the
+    -- raw `mode` argument this hook was called with.
+    currentMode = ah.displayMode
+    if libRegistered then return end
+    if mode == DISPLAY_MODE then
+      showDock()
+    else
+      hideDock()
+    end
+  end)
+end
+
+-- LibAHTab-1-0 is the shared registry for auction-house tabs that AuctionHouseFrame.Tabs is
+-- not. Auctionator embeds it, and its tabs live nowhere we could ever have found them: not in
+-- ah.Tabs, not among the auction house's children, but in the library's own chain hanging off
+-- a root frame of its own -- and walking UIParent to look for them is not allowed at all (the
+-- engine refuses an addon access to protected frames mid-walk). So two addons each anchoring
+-- to "the last tab I can see" both land on Auctions, and one draws underneath the other: seven
+-- tabs on the bar and no GoldCap, reported in-game 2026-08-28. Our tab WAS there, shown,
+-- exactly under Auctionator's Shopping.
+--
+-- Registering through the library is the fix, not a workaround: it chains our tab after every
+-- other tab it owns, hides the other tabs' frames when ours is picked and ours when theirs is,
+-- deselects the auction house's own tabs, and sets the title. Source read verbatim from
+-- Auctionator/Libs_ModernAH/LibAHTab/LibAHTab.lua (version 4).
+--
+-- Two paths, and only because the library is not ours to require: with no LibAHTab loaded
+-- (nobody on the machine embeds it) the native tab below is the one that works, and it is what
+-- shipped. Returns the library only if it can actually take a tab.
+local function libAHTab()
+  local LibStub = _G.LibStub
+  if type(LibStub) ~= "function" and type(LibStub) ~= "table" then return nil end
+  local ok, lib = pcall(LibStub, "LibAHTab-1-0", true)
+  if not ok or type(lib) ~= "table" then return nil end
+  if type(lib.CreateTab) ~= "function" or type(lib.GetButton) ~= "function" then return nil end
+  return lib
+end
+
 function GC.AuctionHouseTab.Install()
-  if installed then return end
   local ah = _G.AuctionHouseFrame
   if not ah or not CreateFrame then return end
+  if installed then
+    -- Every visit, not just the first: the bar can have grown since we were built. See
+    -- anchorTab for the collision this exists to get out of. The library owns the position of
+    -- a tab it created, so this is the native path's business only.
+    if not libRegistered then scheduleAnchor(ah) end
+    return
+  end
   installed = true
+
+  -- The content host, built FIRST: the window docks INTO it (SetDocked), so one Show/Hide
+  -- moves everything -- and LibAHTab's CreateTab takes the frame its tab shows as an argument,
+  -- so on that path the dock has to exist before the tab does. Anchors leave the title bar
+  -- above and the money strip below visible: both live outside the display-mode lists and stay
+  -- useful.
+  pcall(function()
+    dock = CreateFrame("Frame", "GoldCapAuctionHouseDock", ah)
+    dock:SetPoint("TOPLEFT", 7, -28)
+    dock:SetPoint("BOTTOMRIGHT", -7, 32)
+    dock:Hide()
+  end)
+  if dock and dock.HookScript then
+    -- Whoever changes the dock's visibility -- our own tab, the library on somebody else's tab,
+    -- Blizzard hiding it with the rest of a display mode -- the window follows.
+    pcall(dock.HookScript, dock, "OnShow", attachWindow)
+    pcall(dock.HookScript, dock, "OnHide", detachWindow)
+  end
+
+  local lib = dock and libAHTab()
+  if lib then
+    local ok = pcall(lib.CreateTab, lib, LIB_TAB_ID, dock, "GoldCap")
+    if ok then
+      local gotButton, button = pcall(lib.GetButton, lib, LIB_TAB_ID)
+      tab = gotButton and button or nil
+      libRegistered = tab ~= nil
+    end
+  end
+
+  if libRegistered then
+    -- Everything else the native path sets up below -- our own OnClick, the anchor, the
+    -- display-mode registration -- is the library's job now, and doing it twice is how two
+    -- owners of one tab disagree. The SetDisplayMode hook still goes in: PlayerIsPosting and
+    -- PlayerIsBuying read the mode it records, on every path.
+    installSetDisplayModeHook(ah)
+    return
+  end
 
   local native
   tab, native = buildTab(ah)
@@ -128,35 +289,9 @@ function GC.AuctionHouseTab.Install()
     registered = true
   end
 
-  -- The anchor is the last tab that is NOT ours: ours is already in ah.Tabs (see above), and
-  -- a frame cannot anchor to itself.
-  local last
-  for _, candidate in ipairs(blizzardTabs(ah)) do
-    if candidate ~= tab then last = candidate end
-  end
-  pcall(function()
-    tab:ClearAllPoints()
-    if last then
-      -- Blizzard's own tabs sit at -15, but our resized button rides visibly onto the
-      -- Auctions tab at that offset (seen in game 2026-08-17) -- ease it out to -10. The
-      -- anchor is "the last tab that is not ours" in ah.Tabs, so another tab-adding addon
-      -- (Auctionator does exactly this) slots in cleanly whichever of us installs first.
-      tab:SetPoint("TOPLEFT", last, "TOPRIGHT", -10, 0)
-    else
-      tab:SetPoint("TOPLEFT", ah, "BOTTOMLEFT", 11, 2)
-    end
-  end)
-
-  -- The content host: a plain panel over the area Blizzard's own panels vacate while our
-  -- mode is up. The window docks INTO it (SetDocked), so one Show/Hide moves everything.
-  -- Anchors leave the title bar above and the money strip below visible -- both live outside
-  -- the display-mode lists and stay useful.
-  pcall(function()
-    dock = CreateFrame("Frame", "GoldCapAuctionHouseDock", ah)
-    dock:SetPoint("TOPLEFT", 7, -28)
-    dock:SetPoint("BOTTOMRIGHT", -7, 32)
-    dock:Hide()
-  end)
+  -- Ours is already in ah.Tabs (see above), and a frame cannot anchor to itself -- anchorTab
+  -- skips it and runs again a frame later, and on every later visit.
+  scheduleAnchor(ah)
 
   tab:SetScript("OnClick", function()
     local frame = _G.AuctionHouseFrame
@@ -173,24 +308,7 @@ function GC.AuctionHouseTab.Install()
     end
   end)
 
-  -- One hook, both directions: our mode up -> dock and show; any other mode -> hide. Their
-  -- OnClick is a template script we must not replace, so hook the frame method it calls.
-  if not hookedTabs and ah.SetDisplayMode then
-    hookedTabs = true
-    pcall(hooksecurefunc, ah, "SetDisplayMode", function(_, mode)
-      -- SetDisplayMode itself resolves a Sell-family request (ItemSell/CommoditiesSell/
-      -- WoWTokenSell) against whichever SellFrame actually has an item loaded before it stores
-      -- self.displayMode (Blizzard_AuctionHouseFrame.lua, read verbatim) -- so read the
-      -- RESOLVED field back off `ah` here, hooksecurefunc runs after the original, rather than
-      -- trust the raw `mode` argument this hook was called with.
-      currentMode = ah.displayMode
-      if mode == DISPLAY_MODE then
-        showDock()
-      else
-        hideDock()
-      end
-    end)
-  end
+  installSetDisplayModeHook(ah)
 end
 
 -- True while Blizzard's own auction house is showing the Create Auction form (the ItemSell or
@@ -255,8 +373,36 @@ end
 -- tickAutoVerify, and the watch-loop poll): the player outranks all of it for the shared
 -- request throttle whether they are posting, buying a browse result, or reading their own
 -- search -- any one of the three means a hardware click could land at any moment.
+-- True while ANOTHER addon's tab owns the auction house window. LibAHTab clears
+-- AuctionHouseFrame.displayMode to nil when one of its tabs is selected (LibAHTab.lua's
+-- SetSelected, read verbatim) -- a state Blizzard's own tabs never leave the frame in, since
+-- every one of theirs sets a mode. So "no display mode, and the panel that replaced it is not
+-- our dock" is exactly "somebody else's tab is up".
+--
+-- This has to count as busy, and PlayerIsPosting could never have caught it: it reads
+-- Blizzard's display mode, and Blizzard does not know a sell form is on screen when the form
+-- belongs to Auctionator. A player posting through Auctionator's Selling tab found Post greyed
+-- out, flickering back only occasionally, because GoldCap's own background traffic -- the
+-- verify walk and the watch loop, neither of which Auto gates -- was spending the auction
+-- house's shared request budget the entire time (reported in-game 2026-08-28). Whatever the
+-- player is doing on another addon's panel outranks all of it, exactly as it does on
+-- Blizzard's own.
+function GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
+  local ah = _G.AuctionHouseFrame
+  if not ah then return false end
+  -- Nothing has been selected yet this session: fail open, the same way the detectors above do.
+  -- `currentMode` is what the hook read back DURING SetDisplayMode, and LibAHTab clears the
+  -- field to nil only afterwards -- so a library tab leaves currentMode holding the empty table
+  -- it passed and ah.displayMode nil, which is precisely the pair this distinguishes from
+  -- "the auction house has never chosen anything".
+  if not currentMode then return false end
+  if ah.displayMode ~= nil then return false end
+  return not (dock and dock:IsShown())
+end
+
 function GC.AuctionHouseTab.PlayerIsBusy(now)
   return GC.AuctionHouseTab.PlayerIsPosting() or GC.AuctionHouseTab.PlayerIsBuying()
+    or GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
     or GC.AuctionHouseTab.PlayerIsSearching(now)
 end
 
@@ -266,7 +412,10 @@ end
 function GC.AuctionHouseTab.OnWindowHidden()
   local ah = _G.AuctionHouseFrame
   if not ah or not dock or not dock:IsShown() then return end
-  if ah.displayMode ~= DISPLAY_MODE then return end
+  -- On the LibAHTab path the auction house's own displayMode is nil while our tab is selected
+  -- (the library sets it to nil after clearing the mode), so the dock being up is the whole
+  -- condition there.
+  if not libRegistered and ah.displayMode ~= DISPLAY_MODE then return end
   local buy = _G.AuctionHouseFrameDisplayMode and _G.AuctionHouseFrameDisplayMode.Buy
   if buy and ah.SetDisplayMode then
     pcall(ah.SetDisplayMode, ah, buy) -- the hook above hides the dock

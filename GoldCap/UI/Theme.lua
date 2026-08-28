@@ -40,8 +40,9 @@ T.FONT_MONO_BOLD = "Interface\\AddOns\\GoldCap\\Media\\JetBrainsMono-Bold.ttf"
 
 -- The bundled monospace face covers Latin, Greek and all of Cyrillic (verified from its cmap,
 -- so Russian and Ukrainian need nothing here) and no CJK at all. On Korean and both Chinese
--- locales anything drawn with it would be empty boxes, so mono LABELS fall back to the
--- client's own font -- which the client guarantees can draw its own language.
+-- locales anything drawn with it would be empty boxes, so those locales draw in one of
+-- Blizzard's own faces for the script instead -- see CJK_FACES below for which, and for why
+-- "the client's own font" is NOT the same thing.
 --
 -- This covers T.Num too, not just buttons and chips. T.Num draws the column headers and band
 -- labels as well as the figures, so leaving it on the bundled face would render those headers
@@ -56,7 +57,8 @@ local CJK_LOCALES = { koKR = true, zhCN = true, zhTW = true }
 
 -- Locales the CLIENT's own face can only draw when the client itself runs them. A client
 -- font always covers Latin, plus exactly the script of the locale it shipped for -- so an
--- English client draws German and Spanish, and nothing else here.
+-- English client's FRIZQT__.TTF draws German and Spanish, and nothing else here. Which is
+-- not the same as the client having no face for those scripts at all: see CJK_FACES.
 local NON_LATIN_LOCALES = { ruRU = true, ukUA = true, koKR = true, zhCN = true, zhTW = true }
 
 T.FONT_UI = T.FONT_MONO
@@ -78,21 +80,79 @@ local function clientLocale()
   return ok and type(code) == "string" and code ~= "" and code or nil
 end
 
---- False when NOTHING available can draw `code`: a CJK language on a client that did not
--- ship for it. The bundled face has no CJK glyphs and the client's own has only its own
--- script, so the text would be empty boxes and no font choice can rescue it. The picker
--- warns rather than letting the player conclude the addon is broken.
+-- Blizzard's locale faces live in the CLIENT's own data, not in the locale install -- probed
+-- in-game on an enUS-only install 2026-08-28: Fonts\ARKai_T.ttf, Fonts\ARHei.ttf,
+-- Fonts\2002.TTF, Fonts\2002B.TTF and Fonts\bKAI00M.ttf all load; bLEI00D, bHEI01B,
+-- bHEI00M and ARKai_C do not. Reading "the client's own face" instead (GameFontNormal) hands
+-- back Fonts\FRIZQT__.TTF there, which has no CJK at all -- so the whole interface drew empty
+-- boxes while the language picker beside it drew 한국어 and 简体中文 perfectly, and the
+-- "your game client has no font for this language" warning printed in flawless Korean.
+-- Blizzard's own font OBJECTS reach these faces; our SetFont(path) pinned the latin one.
+--
+-- Ordered best-first per locale and PROBED, never assumed: an install missing one has to fall
+-- through to the next face of the SAME script before borrowing another's, and an install
+-- missing all of them keeps the old answer rather than blanking the kit. The regular/bold
+-- split mirrors Blizzard's own roman->CJK mapping, so bold stays a real weight where the
+-- script has one instead of collapsing into the regular face.
+local CJK_FACES = {
+  koKR = { regular = { "2002.TTF" }, bold = { "2002B.TTF", "2002.TTF" } },
+  zhCN = { regular = { "ARKai_T.ttf", "ARHei.ttf" }, bold = { "ARHei.ttf", "ARKai_T.ttf" } },
+  zhTW = {
+    regular = { "bLEI00D.ttf", "bKAI00M.ttf", "ARKai_T.ttf" },
+    bold = { "bHEI01B.ttf", "bKAI00M.ttf", "ARHei.ttf" },
+  },
+}
+
+-- One scratch FontString, built once and never shown, purely to ask the engine whether a face
+-- loads: SetFont returns false for a file this client does not have. pcall throughout because
+-- this runs at ADDON_LOADED and must degrade to "no face found" rather than error -- and
+-- because only an explicit `true` counts, a client whose SetFont returns nothing leaves the
+-- previous behaviour exactly as it was instead of losing a face that already worked.
+local probeFontString, faceCache = nil, {}
+local function faceLoads(path)
+  if not probeFontString then
+    local ok, fs = pcall(function()
+      return _G.UIParent and _G.UIParent:CreateFontString(nil, "OVERLAY")
+    end)
+    if not ok or not fs then return false end
+    probeFontString = fs
+  end
+  local cached = faceCache[path]
+  if cached ~= nil then return cached end
+  local ok, valid = pcall(probeFontString.SetFont, probeFontString, path, 12, "")
+  local loads = (ok and valid == true) and true or false
+  faceCache[path] = loads
+  return loads
+end
+
+--- First face in `list` this client actually has, or nil.
+local function firstFace(list)
+  if not list then return nil end
+  for _, file in ipairs(list) do
+    local path = "Fonts\\" .. file
+    if faceLoads(path) then return path end
+  end
+  return nil
+end
+
+--- False only when NOTHING in the client can draw `code`. Cyrillic is always drawable (the
+-- bundled face covers it); CJK is drawable exactly when one of Blizzard's own faces for that
+-- script is present. Derived from the same probe RefreshFonts uses, so the picker can no
+-- longer warn that a client cannot draw a language while the menu item under the cursor is
+-- drawing it.
 function T.LocaleIsDrawable(code)
   if not NON_LATIN_LOCALES[code] then return true end
   if code == clientLocale() then return true end
-  return not CJK_LOCALES[code]
+  if not CJK_LOCALES[code] then return true end
+  local faces = CJK_FACES[code]
+  return firstFace(faces and faces.regular) ~= nil
 end
 
 function T.RefreshFonts(code)
-  -- Latin needs nothing; a script the client shipped for needs nothing. Anything else has
-  -- to come from the bundled face, which covers Cyrillic and Greek -- and for CJK cannot
-  -- help at all, so Label follows whatever FONT_UI settled on rather than inventing a
-  -- second answer that is equally unreadable.
+  -- Latin needs nothing; a script the client shipped for needs nothing. Cyrillic comes from
+  -- the bundled face, which covers it. CJK the bundled face cannot help with at all, so Label
+  -- follows whatever FONT_UI settles on below -- one script, one face, rather than a second
+  -- answer that would only be a second guess.
   --
   -- Spelled as an if, not `cond and nil or T.FONT_MONO`: that idiom cannot yield nil in Lua,
   -- so it silently forced the mono face on every locale.
@@ -106,10 +166,22 @@ function T.RefreshFonts(code)
     T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
     return T.FONT_UI
   end
-  -- GameFontNormal is one of the client's own Font objects, so its path is whatever face the
-  -- running client uses for its locale. pcall because a Font object is not guaranteed to be
-  -- there at every point in load order, and an unreadable one must degrade to a face that at
-  -- least draws Latin rather than blanking the interface.
+  -- The face for the SCRIPT, taken from the client's own data (see CJK_FACES). This is the
+  -- answer whenever the client has it, including on a client already running that language --
+  -- there it resolves to the same file GameFontNormal would have named.
+  local faces = CJK_FACES[code]
+  local regular = firstFace(faces and faces.regular)
+  if regular then
+    T.FONT_UI = regular
+    T.FONT_UI_BOLD = firstFace(faces.bold) or regular
+    T.FONT_LABEL = T.FONT_UI
+    return T.FONT_UI
+  end
+  -- Nothing for that script in this install. GameFontNormal is one of the client's own Font
+  -- objects, so its path is whatever face the running client uses for its locale -- right on a
+  -- CJK client, and the least-wrong latin face anywhere else. pcall because a Font object is
+  -- not guaranteed to be there at every point in load order, and an unreadable one must
+  -- degrade to a face that at least draws Latin rather than blanking the interface.
   local ok, path = pcall(function()
     return _G.GameFontNormal and _G.GameFontNormal:GetFont()
   end)
@@ -118,9 +190,9 @@ function T.RefreshFonts(code)
   else
     T.FONT_UI, T.FONT_UI_BOLD = T.FONT_MONO, T.FONT_MONO_BOLD
   end
-  -- CJK: the bundled face has no glyphs at all, so there is nothing better for Label to use
-  -- than whatever FONT_UI just settled on. Set explicitly rather than left nil, because the
-  -- inherited GameFontHighlightSmall is not necessarily the same face GameFontNormal names.
+  -- CJK: the bundled face has no glyphs at all, so Label draws in whatever FONT_UI just
+  -- settled on. Set explicitly rather than left nil, because the inherited
+  -- GameFontHighlightSmall is not necessarily the same face this just chose.
   T.FONT_LABEL = T.FONT_UI
   return T.FONT_UI
 end
@@ -147,6 +219,40 @@ function T.OnRescale(fn)
   hooks[#hooks + 1] = fn
 end
 
+local function applyFont(fs, info)
+  if not info.path then return end
+  -- Flags come from the widget, not from "": a Label inherits its outline from
+  -- GameFontHighlightSmall, and passing "" here used to strip it off every label the first
+  -- time the font-scale slider moved.
+  pcall(fs.SetFont, fs, info.path, info.size * scale, info.flags or "")
+end
+
+--- Moves ONE already-built widget onto the face in force now, and pins it there (a later
+-- rescale keeps it). Deliberately not a wholesale pass over every widget: the text on screen
+-- is still written in the language it was built in, and moving all of it onto the new script's
+-- face is actively worse -- switching from Ukrainian to Korean drew the still-Ukrainian
+-- interface in Fonts\2002.TTF, which has Cyrillic but no і, є or ї, so half the words came
+-- back with boxes punched through the middle of them. A face has to match the text it draws,
+-- and the text only changes on the /reload the picker asks for.
+--
+-- The exception is a widget whose text is rewritten in the new language right there and then.
+-- That is the Settings language button, and it is the one that matters most: picking Korean
+-- wrote Hangul into a FontString still pinned to the bundled latin mono, so the control that
+-- had just been used read as three empty diamonds.
+function T.RefontWidget(fs)
+  local info = fs and widgetFonts[fs]
+  if not info then return end
+  local role = info.role
+  local path
+  if role == "mono" then path = T.FONT_MONO_BOLD       -- the brand "G": latin, always
+  elseif role == "uiBold" then path = T.FONT_UI_BOLD
+  elseif role == "label" then path = T.FONT_LABEL or info.inherited
+  else path = T.FONT_UI end
+  if not path then return end
+  info.path = path
+  applyFont(fs, info)
+end
+
 function T.SetScale(s)
   scale = math.max(0.9, math.min(1.3, s or 1.0))
   if GC.db and GC.db.settings and GC.db.settings.sniper then
@@ -156,7 +262,7 @@ function T.SetScale(s)
     fn(scale)
   end
   for fs, info in pairs(widgetFonts) do
-    fs:SetFont(info.path, info.size * scale, "")
+    applyFont(fs, info)
   end
 end
 
@@ -295,7 +401,7 @@ function T.RailButton(parent, iconFile, labelText)
   b.text:SetFont(T.FONT_UI_BOLD, 8 * T.Scale(), "")
   b.text:SetPoint("BOTTOM", 0, 7)
   b.text:SetText(labelText)
-  widgetFonts[b.text] = { path = T.FONT_UI_BOLD, size = 8 }
+  widgetFonts[b.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 8 }
 
   b.highlightTexture = b:CreateTexture(nil, "HIGHLIGHT")
   b.highlightTexture:SetAllPoints()
@@ -317,7 +423,7 @@ function T.RailButton(parent, iconFile, labelText)
   b.badge.text:SetFont(T.FONT_UI_BOLD, 9 * T.Scale(), "")
   b.badge.text:SetPoint("CENTER")
   b.badge.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  widgetFonts[b.badge.text] = { path = T.FONT_UI_BOLD, size = 9 }
+  widgetFonts[b.badge.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 9 }
   b.badge:Hide()
 
   function b:SetBadge(count)
@@ -374,7 +480,7 @@ function T.Rail(parent)
   logo.text:SetPoint("CENTER")
   logo.text:SetText("G")
   logo.text:SetTextColor(BADGE_TEXT[1], BADGE_TEXT[2], BADGE_TEXT[3])
-  widgetFonts[logo.text] = { path = T.FONT_MONO_BOLD, size = 16 }
+  widgetFonts[logo.text] = { role = "mono", path = T.FONT_MONO_BOLD, size = 16 }
 
   local buttons = {}
   local order = {
@@ -442,7 +548,7 @@ function T.Chip(parent)
   f.text:SetPoint("RIGHT", -4, 0)
   f.text:SetWordWrap(false)
 
-  widgetFonts[f.text] = { path = T.FONT_UI_BOLD, size = 9 }
+  widgetFonts[f.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 9 }
 
   function f:SetLabel(text, colorTable)
     f.text:SetText(text)
@@ -473,7 +579,7 @@ function T.TierMark(parent)
   f.text:SetFont(T.FONT_UI_BOLD, 10 * T.Scale(), "")
   f.text:SetJustifyH("LEFT")
   f.text:SetPoint("LEFT", f.dot, "RIGHT", 5, 0)
-  widgetFonts[f.text] = { path = T.FONT_UI_BOLD, size = 10 }
+  widgetFonts[f.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 10 }
 
   function f:SetLabel(text, colorTable)
     f.text:SetText(text)
@@ -491,7 +597,7 @@ function T.Num(parent, size, bold)
   local font = bold and T.FONT_UI_BOLD or T.FONT_UI
   fs:SetFont(font, size * T.Scale(), "")
   fs:SetJustifyH("RIGHT")
-  widgetFonts[fs] = { path = font, size = size }
+  widgetFonts[fs] = { role = bold and "uiBold" or "ui", path = font, size = size }
   return fs
 end
 
@@ -509,13 +615,16 @@ end
 -- scaling layout geometry.
 function T.Label(parent, size)
   local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  local fontPath, _, flags = fs:GetFont()
+  local inherited, _, flags = fs:GetFont()
   -- T.FONT_LABEL overrides the inherited face only where the client cannot draw the active
   -- language -- see its declaration. Normally nil, and the inherited face stands.
-  fontPath = T.FONT_LABEL or fontPath
+  local fontPath = T.FONT_LABEL or inherited
   if fontPath then
     fs:SetFont(fontPath, size * T.Scale(), flags)
-    widgetFonts[fs] = { path = fontPath, size = size }
+    -- Both faces are kept: `path` is what this label draws in now, `inherited` is what it
+    -- goes back to if T.RefontWidget ever moves it and the override has since been dropped.
+    widgetFonts[fs] = { role = "label", path = fontPath, inherited = inherited, size = size,
+      flags = flags }
   end
   fs:SetJustifyH("LEFT")
   return fs
@@ -630,7 +739,7 @@ function T.Button(parent, variant, rounded)
   b.text:SetPoint("CENTER")
   if roundedSpec then
     b.text:SetFont(T.FONT_UI, 10 * T.Scale(), "")
-    widgetFonts[b.text] = { path = T.FONT_UI, size = 10 }
+    widgetFonts[b.text] = { role = "ui", path = T.FONT_UI, size = 10 }
   end
 
   -- `b.label` is the contract every caller and every spec test double already assumed --
