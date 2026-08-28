@@ -2166,7 +2166,12 @@ local function createRow(parent)
   -- Reads the box and records (or clears) the seller's choice. Emptying it is a real answer,
   -- not a failure to type one: it hands the decision back to GoldCap rather than leaving the
   -- position with no price at all.
+  -- Re-entrant by construction: ClearFocus below raises OnEditFocusLost, which is bound to
+  -- this same function. One extra pass would be harmless, but a loop inside the client is
+  -- not the kind of thing to leave to luck on a path that spends gold.
+  local committing = false
   local function commitPrice(box)
+    if committing then return end
     local key = overrideKey(row.position)
     if not key then return end
     local text = box:GetText() or ""
@@ -2180,7 +2185,9 @@ local function createRow(parent)
       end
       priceOverrides[key] = copper
     end
+    committing = true
     box:ClearFocus()
+    committing = false
     renderRows()
   end
   row.priceBox:SetScript("OnEnterPressed", commitPrice)

@@ -638,6 +638,25 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("GoldCap's", after.priceNote.text, 1, true)
     end)
 
+    -- ClearFocus raises OnEditFocusLost, which is bound to the same commit -- so a commit
+    -- re-enters itself once by construction. A loop inside the client on a path that spends
+    -- gold is not something to leave to luck.
+    it("does not re-enter itself when committing clears the focus", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      local clears = 0
+      local realClear = row.priceBox.ClearFocus
+      row.priceBox.ClearFocus = function(self)
+        clears = clears + 1
+        realClear(self)
+        if clears < 5 then row.priceBox.scripts.OnEditFocusLost(row.priceBox) end
+      end
+      row.priceBox.text = "45"
+      row.priceBox.scripts.OnEnterPressed(row.priceBox)
+      assert.equal(1, clears)
+      assert.equal("45", priceRow(GC).priceBox.text)
+    end)
+
     it("refuses a price it cannot read rather than recording a nonsense one", function()
       local GC = load(700, { calls = {} })
       local row = priceRow(GC)
