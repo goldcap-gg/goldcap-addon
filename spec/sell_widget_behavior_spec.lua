@@ -98,6 +98,9 @@ describe("Sell widget geometry and manual cost", function()
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       Card = function(parent) local card = region("Frame", parent); function card:SetTint() end return card end,
       SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      -- The real one reads the owner's place on screen; the double lets a test plant the answer
+      -- on the owner and checks the widget passes it through rather than assuming a side.
+      TooltipAnchor = function(owner) return owner.tooltipAnchor or "ANCHOR_RIGHT" end,
     }
     -- Loaded into its own table so borrowing Deck below cannot drag the rest of the real view
     -- model (SourceText, CostText, SummaryText) into a double these tests deliberately control.
@@ -213,6 +216,32 @@ describe("Sell widget geometry and manual cost", function()
     rows[1].scripts.OnEnter(rows[1])
     local joined = table.concat(tooltipLines, " ")
     assert.matches("Not on hand", joined, 1, true)
+    _G.GameTooltip = nil
+  end)
+
+  -- The action button lives in the far-right column, and its help (four paragraphs for Post)
+  -- opened ANCHOR_RIGHT -- into space a screen-wide window does not have. The client clamped
+  -- the tooltip back over the list, the header and the very button under the cursor. Which
+  -- side has room is Theme.TooltipAnchor's call, from where the button sits on screen; the
+  -- button's job is to ask it rather than assume.
+  it("opens the action button's help on the side Theme.TooltipAnchor picks for it", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
+        listedQty = 0, sources = {}, status = "UNLISTED" },
+    })
+    local action = rows[1].action
+    action.helpKey = "Post"
+    action.tooltipAnchor = "ANCHOR_BOTTOMLEFT"
+    local anchor, shown = nil, false
+    _G.GameTooltip = {
+      SetOwner = function(_, owner, a) assert.equal(action, owner); anchor = a end,
+      Show = function() shown = true end, Hide = function() end, AddLine = function() end,
+    }
+    action.scripts.OnEnter(action)
+    assert.equal("ANCHOR_BOTTOMLEFT", anchor)
+    assert.is_true(shown)
     _G.GameTooltip = nil
   end)
 

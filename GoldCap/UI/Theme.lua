@@ -962,3 +962,32 @@ function T.WithQuality(name, itemID, size)
   if markup == "" then return name end
   return markup .. " " .. tostring(name)
 end
+
+--- The GameTooltip anchor that opens a tooltip from `owner` into the part of the screen
+-- that has room for it.
+--
+-- SetOwner's ANCHOR_RIGHT pins the tooltip's bottom-left corner to the owner's top-right,
+-- so it grows up and to the right. That is empty space for a control on the left of the
+-- screen and no space at all for one in the right-hand column of a window that fills it:
+-- the client clamps the tooltip back inside the screen, which drags it left across the
+-- list it describes and over the very button under the cursor, and a long body runs into
+-- the top edge the same way. So the side is chosen from where the owner sits -- leftward
+-- in the right half of the screen, downward in the top half -- and the tooltip lands
+-- beside the control every time.
+--
+-- GetCenter answers in the owner's own scaled space, and the Sniper window carries its own
+-- scale, so both centres are brought to screen pixels before they are compared. Falls back
+-- to ANCHOR_RIGHT wherever a position cannot be read: a frame with no anchors yet, or the
+-- headless test bed with no UIParent.
+function T.TooltipAnchor(owner)
+  local screen = UIParent
+  if not (owner and owner.GetCenter and screen and screen.GetCenter) then return "ANCHOR_RIGHT" end
+  local x, y = owner:GetCenter()
+  local midX, midY = screen:GetCenter()
+  if not (x and y and midX and midY) then return "ANCHOR_RIGHT" end
+  local ownerScale, screenScale = owner:GetEffectiveScale(), screen:GetEffectiveScale()
+  local right = x * ownerScale > midX * screenScale
+  local top = y * ownerScale > midY * screenScale
+  if right then return top and "ANCHOR_BOTTOMLEFT" or "ANCHOR_LEFT" end
+  return top and "ANCHOR_BOTTOMRIGHT" or "ANCHOR_RIGHT"
+end

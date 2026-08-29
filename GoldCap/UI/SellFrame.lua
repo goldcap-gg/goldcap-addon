@@ -2482,7 +2482,11 @@ local function createRow(parent)
         or ACTION_HELP[self.label]
         or ACTION_HELP[(self.label or ""):gsub("%s*%(.*", "")]
       if not help then return end
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      -- Not ANCHOR_RIGHT: this button sits in the far-right column of a window that can fill
+      -- the screen, and a tooltip told to grow rightward from there gets clamped back over the
+      -- list, the header and the button itself. Theme reads where the button is and opens the
+      -- tooltip on the side that has room.
+      GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       -- Translated at READ time -- see ACTION_HELP's own comment for why the table itself
       -- cannot hold GC.L lookups.
       GameTooltip:AddLine(GC.L[help[1]], 1, 0.82, 0)
