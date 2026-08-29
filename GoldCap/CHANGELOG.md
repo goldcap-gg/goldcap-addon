@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.6.2 (unreleased)
+## 0.6.2 (2026-08-29)
 
 - **Items goldcap.gg could not name now get their names from your game.** A
   handful of auction-house items (Tuskarr Jerky, Decorated Truffle and about a
