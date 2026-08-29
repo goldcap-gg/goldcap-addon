@@ -75,4 +75,31 @@ describe("Item names for the site", function()
     GC.ItemNames.OnItemInfoReceived(db, 8, true, function() return info() end, "enUS", 5001)
     assert.is_nil(db.itemNames[8])
   end)
+
+  it("an id that lost the cap race during Sync is not recorded by a stray GET_ITEM_INFO_RECEIVED, even once a cap slot frees up", function()
+    local wanted = {}
+    for i = 1, 305 do wanted[i] = i end
+    GC.ItemNames.Sync(db, wanted, function() return info() end, "enUS", 5000)
+    -- id 301 is one of the 5 that lost the cap race: the lookup answered (successfully), so
+    -- nothing about it should be left "outstanding".
+    assert.is_nil(db.itemNames[301])
+
+    -- Drop id 1 from the wanted list (freeing a cap slot) while 301 stays wanted. If the cap
+    -- loss had wrongly left 301 marked "outstanding", this is exactly the setup where a
+    -- stray GET_ITEM_INFO_RECEIVED could sneak it in now that the cap has room again --
+    -- the cap check alone no longer protects it, only a correctly-scoped `awaiting` does.
+    local stillWanted = {}
+    for i = 2, 305 do stillWanted[#stillWanted + 1] = i end
+    GC.ItemNames.Prune(db, stillWanted)
+
+    GC.ItemNames.OnItemInfoReceived(db, 301, true, function() return info() end, "enUS", 5001)
+    assert.is_nil(db.itemNames[301])
+  end)
+
+  it("a wanted id Prune has since dropped is not resurrected by a stray GET_ITEM_INFO_RECEIVED", function()
+    GC.ItemNames.Sync(db, { 7 }, function() return nil end, "enUS", 5000)
+    GC.ItemNames.Prune(db, { 8 })
+    GC.ItemNames.OnItemInfoReceived(db, 7, true, function() return info() end, "enUS", 5001)
+    assert.is_nil(db.itemNames[7])
+  end)
 end)

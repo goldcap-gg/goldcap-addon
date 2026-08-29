@@ -13,7 +13,13 @@ GC.ItemNames = {
   BATCH_DELAY = 0.5,
 }
 
-local awaiting = {} -- itemID -> true while a client data request is outstanding
+-- itemID -> true while a client data request is outstanding for a still-wanted id. Set only
+-- when a lookup answers nil (the client has not cached it yet); a lookup that answered but
+-- failed to persist (e.g. the 300-entry cap) is not "outstanding" and must not sit here, or a
+-- later GET_ITEM_INFO_RECEIVED for that id would re-admit it past Prune. Cleared by a
+-- successful lookup, by OnItemInfoReceived once it has answered, and by Prune when the id
+-- drops out of the wanted list -- so this table never outlives the current wanted list either.
+local awaiting = {}
 
 local function isPositiveInteger(v)
   return type(v) == "number" and v == math.floor(v) and v > 0
@@ -56,10 +62,16 @@ function GC.ItemNames.Pending(database, wanted, now)
 end
 
 -- Forget ids the site stopped asking for, so the save file only ever holds the current list.
+-- Also drops `awaiting` entries for ids no longer wanted -- otherwise a GET_ITEM_INFO_RECEIVED
+-- that arrives late for an id an earlier wanted list asked about could re-admit it after this
+-- one dropped it.
 function GC.ItemNames.Prune(database, wanted)
-  if type(database) ~= "table" or type(database.itemNames) ~= "table" then return end
   local keep = {}
   for _, id in ipairs(wanted or {}) do keep[id] = true end
+  for id in pairs(awaiting) do
+    if not keep[id] then awaiting[id] = nil end
+  end
+  if type(database) ~= "table" or type(database.itemNames) ~= "table" then return end
   for id in pairs(database.itemNames) do
     if not keep[id] then database.itemNames[id] = nil end
   end
@@ -73,12 +85,18 @@ function GC.ItemNames.Sync(database, wanted, lookup, locale, now)
   local recorded, unresolved = 0, {}
   for _, id in ipairs(GC.ItemNames.Pending(database, wanted, now)) do
     local info = lookup(id)
-    if info and GC.ItemNames.Record(database, id, info, locale, now) then
-      recorded = recorded + 1
-      awaiting[id] = nil
-    else
+    if info == nil then
+      -- Not recorded yet, and the client hasn't answered -- GET_ITEM_INFO_RECEIVED follows.
       unresolved[#unresolved + 1] = id
       awaiting[id] = true
+    else
+      -- The client answered, one way or another; nothing is outstanding for this id anymore.
+      awaiting[id] = nil
+      if GC.ItemNames.Record(database, id, info, locale, now) then
+        recorded = recorded + 1
+      else
+        unresolved[#unresolved + 1] = id
+      end
     end
   end
   return recorded, unresolved
@@ -127,7 +145,12 @@ function GC.ItemNames.Start(database, imported)
     local pending = GC.ItemNames.Pending(database, slice, time())
     for _, id in ipairs(pending) do
       local info = GC.ItemNames.EngineLookup(id)
-      if not (info and GC.ItemNames.Record(database, id, info, locale, time())) then awaiting[id] = true end
+      if info == nil then
+        awaiting[id] = true
+      else
+        awaiting[id] = nil
+        GC.ItemNames.Record(database, id, info, locale, time())
+      end
     end
     if index <= #wanted and C_Timer then C_Timer.After(GC.ItemNames.BATCH_DELAY, step) end
   end
