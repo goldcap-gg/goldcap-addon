@@ -164,6 +164,12 @@ function GC.ItemNames.OnEnteringWorld(database, imported)
 end
 
 function GC.ItemNames.OnEngineItemInfo(database, itemID, success)
+  -- GET_ITEM_INFO_RECEIVED fires for every item query any addon makes for the
+  -- whole session, not just ours -- checking awaiting[itemID] first means the
+  -- common case (nothing outstanding) costs nothing, instead of paying for a
+  -- GetLocale()/time() call on every stray event. OnItemInfoReceived below
+  -- has its own gate too; keep it, this is just cheaper for the common miss.
+  if not awaiting[itemID] then return nil end
   local locale = GetLocale and GetLocale() or "enUS"
   return GC.ItemNames.OnItemInfoReceived(database, itemID, success, GC.ItemNames.EngineLookup, locale, time())
 end
