@@ -40,7 +40,7 @@ describe("Data.AdoptAppData", function()
     local keys = {}
     for k in pairs(db.imported) do keys[#keys + 1] = k end
     table.sort(keys)
-    assert.same({ "items", "origin", "realm", "region", "ts", "watchlist" }, keys)
+    assert.same({ "items", "namesWanted", "origin", "realm", "region", "ts", "watchlist" }, keys)
   end)
 
   it("adopts app data when strictly newer than the existing (manual) import", function()

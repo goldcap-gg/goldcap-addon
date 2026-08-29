@@ -29,6 +29,7 @@ Locale/zhCN.lua
 Locale/zhTW.lua
 Core/ImportString.lua
 Core/Data.lua
+Core/ItemNames.lua
 Core/AppLedger.lua
 Core/Acquisitions.lua
 Core/PurchaseCapture.lua

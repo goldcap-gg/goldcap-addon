@@ -21,6 +21,16 @@ describe("ImportString.Parse", function()
     assert.same({ 190396, 201234 }, r.watchlist)
   end)
 
+  it("parses the N section into namesWanted", function()
+    local r = GC.ImportString.Parse("GCS1;eu;silvermoon;1751990400;I:42=1000;N:201420,201421")
+    assert.same({ 201420, 201421 }, r.namesWanted)
+  end)
+
+  it("leaves namesWanted empty when the section is absent", function()
+    local r = GC.ImportString.Parse("GCS1;eu;silvermoon;1751990400;I:42=1000")
+    assert.same({}, r.namesWanted)
+  end)
+
   it("tolerates surrounding whitespace/newlines (paste artifacts)", function()
     local r = GC.ImportString.Parse("  GCS1;us;area-52;1;I:1=10\n")
     assert.equal(10, r.items[1].m)

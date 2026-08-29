@@ -115,6 +115,7 @@ function GC.Data.SetImported(parsed)
     ts = parsed.ts,
     items = parsed.items,
     watchlist = parsed.watchlist or {},
+    namesWanted = parsed.namesWanted or {},
   }
   -- Keep pre-V SavedVariables byte-for-byte shaped as before; a supplied non-empty V section
   -- is persisted alongside its I records and adopted by the companion through this same path.
@@ -124,6 +125,9 @@ function GC.Data.SetImported(parsed)
   db.imported = imported
   adoptRegion()
   GC.Data.WarnRegionMismatch()
+  -- A fresh import can carry a fresh wanted list; resolve it now if the client is already
+  -- in the world (the login path starts the first pass from Core/Init.lua instead).
+  if GC.ItemNames and GC.ItemNames.Start then GC.ItemNames.Start(db, imported) end
 end
 
 -- Said once per distinct mismatch per session -- an import and the login check both call

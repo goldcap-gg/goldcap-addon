@@ -29,7 +29,7 @@ function GC.ImportString.Parse(str)
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),
-    items = {}, verification = {}, watchlist = {},
+    items = {}, verification = {}, watchlist = {}, namesWanted = {},
   }
   local count = 0
 
@@ -71,6 +71,12 @@ function GC.ImportString.Parse(str)
     elseif kind == "W" then
       for id in body:gmatch("%d+") do
         result.watchlist[#result.watchlist + 1] = tonumber(id)
+      end
+    elseif kind == "N" then
+      -- Item ids the site has no name for (Blizzard's API 404s them). Core/ItemNames.lua
+      -- resolves them from the client and the Companion reports the names back.
+      for id in body:gmatch("%d+") do
+        result.namesWanted[#result.namesWanted + 1] = tonumber(id)
       end
     end
   end

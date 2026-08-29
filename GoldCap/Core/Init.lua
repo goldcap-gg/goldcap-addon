@@ -41,6 +41,9 @@ GC.DEFAULTS = {
   -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
   -- contract as `flips` above.
   liveObservations = {},
+  -- Names the client resolved for items the site cannot name (Core/ItemNames.lua), for the
+  -- Companion to upload. Same empty-table ApplyDefaults contract as `flips` above.
+  itemNames = {},
   -- P2 ledger + gold curve. Same ApplyDefaults contract as `flips` above: an
   -- empty table default only fills in when the persisted value isn't already a
   -- table, so a populated SavedVariables array is never truncated on login.
@@ -205,6 +208,11 @@ frame:RegisterEvent("MAIL_INBOX_UPDATE")
 frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
 frame:RegisterEvent("PLAYER_LOGOUT")
+-- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
+-- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
+-- resolves an id it did not have cached yet. Core/ItemNames.lua.
+frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 
 local function migrateSniperProfitFloor(db)
   local settings = type(db) == "table" and db.settings or nil
@@ -505,6 +513,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
+    -- here. Fires again on every loading screen, which Pending() makes harmless.
+    if GC.ItemNames and GC.db then GC.ItemNames.OnEnteringWorld(GC.db, GC.db.imported) end
+  elseif event == "GET_ITEM_INFO_RECEIVED" then
+    local itemID, success = ...
+    if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
   end

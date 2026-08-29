@@ -53,6 +53,13 @@ describe("Data", function()
     assert.equal("bundled", GC.Data.GetItemValue(43).source)
   end)
 
+  it("keeps namesWanted on the imported snapshot", function()
+    GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                          items = { [42] = { m = 4000 } }, watchlist = {},
+                          namesWanted = { 201421 } })
+    assert.same({ 201421 }, db.imported.namesWanted)
+  end)
+
   it("passes an imported entry's trend through as `trend`", function()
     GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
                           items = { [42] = { m = 4000, t = -12 } }, watchlist = {} })

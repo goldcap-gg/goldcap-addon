@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.6.2 (unreleased)
+
+- **Items goldcap.gg could not name now get their names from your game.** A
+  handful of auction-house items (Tuskarr Jerky, Decorated Truffle and about a
+  hundred more) exist only through Blizzard hotfixes, so the site knew them as
+  "Item #201421" and its search could not find them. The addon now looks them
+  up in your client and the Companion sends the names to the site; nothing
+  changes in-game.
+
 ## 0.6.1 (2026-08-29)
 
 - **Buying no longer gets stuck behind an earlier buy.** If the price moved in
