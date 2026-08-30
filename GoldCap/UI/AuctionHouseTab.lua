@@ -139,11 +139,26 @@ end
 -- it. On the LibAHTab path below the library owns Show/Hide -- it hides every registered tab's
 -- frame whenever any other tab is picked -- so hooking the frame is the only way to hear about
 -- it; on the native path our own showDock/hideDock trip the same hooks. One rule, both paths.
+-- The one self-initiated Companion intro: the player has just opened GoldCap's own tab and
+-- there are no prices at all, so nothing on the board can work yet -- the exact moment the
+-- Companion's pitch answers a question the player is actually asking. Once ever per save
+-- (the flag persists in SavedVariables), and only while the save still has no import at
+-- all; a click before SavedVariables load neither errors nor spends the shot.
+local function maybeShowCompanionIntro()
+  local db = GC.db
+  if not db or db.companionIntroShown then return end
+  if not (GC.Data and GC.Data.OriginState) or GC.Data.OriginState() ~= "none" then return end
+  if not (GC.CompanionUI and GC.CompanionUI.Show) then return end
+  db.companionIntroShown = true
+  pcall(GC.CompanionUI.Show)
+end
+
 local function attachWindow()
   if not dock then return end
   if GC.Sniper and GC.Sniper.SetDocked then
     pcall(GC.Sniper.SetDocked, dock)
   end
+  maybeShowCompanionIntro()
 end
 
 local function detachWindow()

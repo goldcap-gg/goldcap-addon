@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.6.4 (unreleased)
+
+- **The addon now tells you when the Companion would help.** Tooltip prices
+  that come from the bundled snapshot or a stale import end with a one-line
+  reminder that the free Companion keeps them fresh. Opening the GoldCap
+  auction-house tab for the very first time with no prices loaded opens the
+  Companion dialog once, and that dialog now explains what installing it
+  actually changes instead of only handing you the link.
+
 ## 0.6.3 (2026-08-30)
 
 - **The Post button's help no longer covers the list.** Hovering an action

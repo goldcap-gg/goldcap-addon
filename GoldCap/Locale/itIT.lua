@@ -106,11 +106,15 @@ GC.Locales.itIT = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Un altro clic elimina definitivamente questo costo inserito a mano.",
   ["Close"] = "Chiudi",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "Companion tiene i prezzi aggiornati — /goldcap companion",
   ["Companion sync rejected:"] = "Sincronizzazione Companion rifiutata:",
   ["Confidence"] = "Affidabilità",
   ["Confirm"] = "Conferma",
   ["Confirm the cancel"] = "Conferma l'annullamento",
   ["Confirm the removal"] = "Conferma la rimozione",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] =
+    "Copia il link (Ctrl+C) e aprilo in un browser:",
   ["Cost per unit"] = "Costo per unità",
   ["Cost unknown for %d of %d"] = "Costo sconosciuto per %d su %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -145,6 +149,8 @@ GC.Locales.itIT = {
   ["Finish the pending post or repost first"] =
     "Completa prima la vendita o la rimessa in vendita in corso",
   ["Font scale"] = "Dimensione del carattere",
+  ["Free, sits in the tray, nothing to set up in game."] =
+    "Gratuito, sta nella barra di sistema, niente da configurare nel gioco.",
   ["Full pass over them: %.1fs"] = "Passaggio completo: %.1fs",
   ["Full pass over them: measuring..."] = "Passaggio completo: misurazione...",
   ["GOOD = solid discount + profit"] = "GOOD = sconto solido + profitto",
@@ -369,8 +375,6 @@ GC.Locales.itIT = {
     "È il prezzo più basso che sta chiedendo QUALCUN ALTRO adesso, da una query dal vivo alla casa d'aste. Le tue vendite sono escluse, così il numero non insegue mai se stesso verso il basso.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "I dati di questo oggetto sono malformati, quindi GoldCap si rifiuta di indovinare.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Il Companion gratuito per computer tiene i prezzi aggiornati da solo e sincronizza le tue vendite. Copia il link (Ctrl+C) e aprilo in un browser:",
   ["The liquidity data is not reliable enough to act on."] =
     "I dati di liquidità non sono abbastanza affidabili per agire.",
   ["The market value is an estimate, not a measurement."] =
@@ -427,6 +431,10 @@ GC.Locales.itIT = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "Quanto fanno in totale le tue aste attive per questo oggetto al prezzo attuale.",
   ["Window position & size"] = "Posizione e dimensione della finestra",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "Con lui i prezzi del tuo reame si aggiornano da soli e le tue vendite e il profitto arrivano su goldcap.gg.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "Senza, GoldCap usa i prezzi fermi alla data di rilascio — le occasioni si cercano con prezzi vecchi.",
   ["Won't buy"] = "Non compro",
   ["Worst case back"] = "Rientro nel caso peggiore",
   ["YOUR PRICE"] = "IL TUO PREZZO",

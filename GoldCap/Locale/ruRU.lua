@@ -105,11 +105,15 @@ GC.Locales.ruRU = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Ещё один клик удалит эту введённую вручную себестоимость навсегда.",
   ["Close"] = "Закрыть",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "Companion сам обновляет цены — /goldcap companion",
   ["Companion sync rejected:"] = "Синхронизация Companion отклонена:",
   ["Confidence"] = "Достоверность",
   ["Confirm"] = "Подтвердить",
   ["Confirm the cancel"] = "Подтвердить отмену",
   ["Confirm the removal"] = "Подтвердить удаление",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] =
+    "Скопируйте ссылку (Ctrl+C) и откройте её в браузере:",
   ["Cost per unit"] = "Себестоимость за штуку",
   ["Cost unknown for %d of %d"] = "Себестоимость неизвестна для %d из %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -144,6 +148,8 @@ GC.Locales.ruRU = {
   ["Finish the pending post or repost first"] =
     "Сначала завершите текущее выставление или перевыставление",
   ["Font scale"] = "Масштаб шрифта",
+  ["Free, sits in the tray, nothing to set up in game."] =
+    "Бесплатный, живёт в трее, в игре ничего настраивать не нужно.",
   ["Full pass over them: %.1fs"] = "Полный проход по ним: %.1fс",
   ["Full pass over them: measuring..."] = "Полный проход по ним: измеряем...",
   ["GOOD = solid discount + profit"] = "GOOD = хорошая скидка + прибыль",
@@ -367,8 +373,6 @@ GC.Locales.ruRU = {
     "Самая дешёвая цена, которую сейчас просит КТО-ТО ДРУГОЙ, по живому запросу к аукциону. Ваши собственные лоты исключены, поэтому число никогда не гонится само за собой вниз.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "Данные по этому предмету битые, и GoldCap отказывается гадать.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Бесплатное приложение Companion само обновляет ваши цены и синхронизирует продажи. Скопируйте ссылку (Ctrl+C) и откройте её в браузере:",
   ["The liquidity data is not reliable enough to act on."] =
     "Данные о ликвидности недостаточно надёжны, чтобы на них действовать.",
   ["The market value is an estimate, not a measurement."] =
@@ -426,6 +430,10 @@ GC.Locales.ruRU = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "Во сколько складываются ваши активные лоты этого предмета по текущей цене.",
   ["Window position & size"] = "Позиция и размер окна",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "С ним цены вашего реалма обновляются сами, а продажи и прибыль попадают на goldcap.gg.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "Без него GoldCap живёт на срезе цен с даты релиза — сделки ищутся по устаревшим ценам.",
   ["Won't buy"] = "Не куплю",
   ["Worst case back"] = "Вернётся в худшем случае",
   ["YOUR PRICE"] = "ВАША ЦЕНА",

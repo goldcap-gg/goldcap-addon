@@ -48,6 +48,16 @@ function GC.Tooltip.BuildLines(v, now, opts)
   elseif age > 48 * 3600 then
     lines[#lines + 1] = { kind = "text", left = GC.L["GoldCap data age"], right = GC.Util.FormatAge(age) }
   end
+  -- The nudge: prices that did not come from the Companion say so, once, in a muted trailing
+  -- line -- the tooltip is the only GoldCap surface a player sees without ever opening the AH
+  -- tab, so this is where the largest audience learns the Companion exists. `origin` is
+  -- GC.Data.OriginState()'s word for the save as a whole (an "app" player never sees this,
+  -- whatever table answered for this one item), passed by the caller like `region` is, and
+  -- allowlisted so a caller that does not know the origin nudges nobody.
+  if (opts.origin == "none" or opts.origin == "manual")
+      and (v.source == "bundled" or age > 48 * 3600) then
+    lines[#lines + 1] = { kind = "hint", text = GC.L["Companion keeps prices fresh — /goldcap companion"] }
+  end
   return lines
 end
 
@@ -62,11 +72,14 @@ local function onTooltip(tooltip, data)
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,
     region = GC.Data.Region and GC.Data.Region() or nil,
+    origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
   })
   if not lines then return end
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
       tooltip:AddDoubleLine(ln.label, GetCoinTextureString(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+    elseif ln.kind == "hint" then
+      tooltip:AddLine(ln.text, 0.55, 0.55, 0.55, true)
     else
       tooltip:AddDoubleLine(ln.left, ln.right, 0.65, 0.82, 1, 1, 1, 1)
     end

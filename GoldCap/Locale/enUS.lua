@@ -103,11 +103,15 @@ GC.Locales.enUS = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Clicking again deletes this hand-entered cost for good.",
   ["Close"] = "Close",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "Companion keeps prices fresh — /goldcap companion",
   ["Companion sync rejected:"] = "Companion sync rejected:",
   ["Confidence"] = "Confidence",
   ["Confirm"] = "Confirm",
   ["Confirm the cancel"] = "Confirm the cancel",
   ["Confirm the removal"] = "Confirm the removal",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] =
+    "Copy the link (Ctrl+C) and open it in a browser:",
   ["Cost per unit"] = "Cost per unit",
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -138,6 +142,8 @@ GC.Locales.enUS = {
   ["Finish the pending post first"] = "Finish the pending post first",
   ["Finish the pending post or repost first"] = "Finish the pending post or repost first",
   ["Font scale"] = "Font scale",
+  ["Free, sits in the tray, nothing to set up in game."] =
+    "Free, sits in the tray, nothing to set up in game.",
   ["Full pass over them: %.1fs"] = "Full pass over them: %.1fs",
   ["Full pass over them: measuring..."] = "Full pass over them: measuring...",
   ["GOOD = solid discount + profit"] = "GOOD = solid discount + profit",
@@ -351,8 +357,6 @@ GC.Locales.enUS = {
     "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "The data for this item is malformed, so GoldCap refuses to guess.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:",
   ["The liquidity data is not reliable enough to act on."] =
     "The liquidity data is not reliable enough to act on.",
   ["The market value is an estimate, not a measurement."] =
@@ -406,6 +410,10 @@ GC.Locales.enUS = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "What your live auctions for this item add up to at their current asking price.",
   ["Window position & size"] = "Window position & size",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices.",
   ["Won't buy"] = "Won't buy",
   ["Worst case back"] = "Worst case back",
   ["YOU GET"] = "YOU GET",

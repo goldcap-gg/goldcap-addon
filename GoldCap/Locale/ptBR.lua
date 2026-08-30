@@ -107,11 +107,15 @@ GC.Locales.ptBR = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Clicar de novo apaga de vez este custo digitado à mão.",
   ["Close"] = "Fechar",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "O Companion mantém os preços atualizados — /goldcap companion",
   ["Companion sync rejected:"] = "Sincronização do Companion recusada:",
   ["Confidence"] = "Confiança",
   ["Confirm"] = "Confirmar",
   ["Confirm the cancel"] = "Confirmar o cancelamento",
   ["Confirm the removal"] = "Confirmar a remoção",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] =
+    "Copie o link (Ctrl+C) e abra no navegador:",
   ["Cost per unit"] = "Custo por unidade",
   ["Cost unknown for %d of %d"] = "Custo desconhecido em %d de %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -146,6 +150,8 @@ GC.Locales.ptBR = {
   ["Finish the pending post or repost first"] =
     "Termine primeiro o anúncio ou reanúncio pendente",
   ["Font scale"] = "Tamanho da fonte",
+  ["Free, sits in the tray, nothing to set up in game."] =
+    "Gratuito, fica na bandeja do sistema e não há nada para configurar no jogo.",
   ["Full pass over them: %.1fs"] = "Passagem completa: %.1fs",
   ["Full pass over them: measuring..."] = "Passagem completa: medindo...",
   ["GOOD = solid discount + profit"] = "GOOD = desconto sólido + lucro",
@@ -370,8 +376,6 @@ GC.Locales.ptBR = {
     "É o menor preço que OUTRA pessoa está pedindo agora, por uma consulta ao vivo à casa de leilões. Os seus próprios anúncios ficam de fora, então o número nunca persegue a si mesmo para baixo.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "Os dados deste item estão malformados, então o GoldCap se recusa a adivinhar.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "O Companion gratuito para computador mantém seus preços atualizados sozinho e sincroniza suas vendas. Copie o link (Ctrl+C) e abra no navegador:",
   ["The liquidity data is not reliable enough to act on."] =
     "Os dados de liquidez não são confiáveis o bastante para agir.",
   ["The market value is an estimate, not a measurement."] =
@@ -428,6 +432,10 @@ GC.Locales.ptBR = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "Quanto somam seus leilões ativos deste item pelo preço atual.",
   ["Window position & size"] = "Posição e tamanho da janela",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "Com ele, os preços do seu reino se atualizam sozinhos e suas vendas e lucro vão para o goldcap.gg.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "Sem ele, o GoldCap usa os preços congelados na data de lançamento — as oportunidades são buscadas com preços velhos.",
   ["Won't buy"] = "Não vou comprar",
   ["Worst case back"] = "Retorno no pior caso",
   ["YOUR PRICE"] = "SEU PREÇO",

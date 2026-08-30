@@ -12,7 +12,7 @@ local dialog
 
 local function createDialog()
   local f = CreateFrame("Frame", "GoldCapCompanionDialog", UIParent, "BasicFrameTemplateWithInset")
-  f:SetSize(420, 160)
+  f:SetSize(420, 230)
   f:SetPoint("CENTER")
   -- Reachable from a click inside the docked AH window (SniperFrame.lua's staleText banner),
   -- which sits at the AH's own strata with a much higher frame level than a bare MEDIUM frame --
@@ -26,17 +26,31 @@ local function createDialog()
   f:SetScript("OnDragStop", f.StopMovingOrSizing)
   f.TitleText:SetText(GC.L["GoldCap Companion"])
 
+  -- Why before where: this dialog is the landing spot of every Companion nudge in the addon
+  -- (the tooltip hint, the sniper's staleness banner, the empty board, the first-open intro),
+  -- so it carries the actual case for installing, not just the link.
+  local why = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  why:SetPoint("TOPLEFT", 12, -28)
+  why:SetWidth(396)
+  why:SetJustifyH("LEFT")
+  why:SetWordWrap(true)
+  why:SetText("\226\128\162 " .. GC.L["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."]
+    .. "\n\226\128\162 " .. GC.L["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."]
+    .. "\n\226\128\162 " .. GC.L["Free, sits in the tray, nothing to set up in game."])
+  f.why = why
+
   local hint = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  hint:SetPoint("TOPLEFT", 12, -28)
+  hint:SetPoint("TOPLEFT", why, "BOTTOMLEFT", 0, -10)
   hint:SetWidth(396)
   hint:SetJustifyH("LEFT")
   hint:SetWordWrap(true)
-  hint:SetText(GC.L["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"])
+  hint:SetText(GC.L["Copy the link (Ctrl+C) and open it in a browser:"])
+  f.hint = hint
 
   local edit = CreateFrame("EditBox", nil, f)
   edit:SetFontObject(ChatFontNormal)
   edit:SetSize(396, 20)
-  edit:SetPoint("TOPLEFT", 12, -86)
+  edit:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
   edit:SetAutoFocus(true)
   edit:SetText(COMPANION_URL)
   edit:SetScript("OnEscapePressed", function() f:Hide() end)

@@ -136,4 +136,45 @@ describe("Tooltip.BuildLines", function()
     local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "import" }, 3600)
     assert.equal(1, #lines)
   end)
+
+  -- The nudge. Prices that did not come from the Companion say so in one muted line --
+  -- the tooltip is the only GoldCap surface a player sees without ever opening the AH
+  -- tab, so this is where the largest audience learns the Companion exists. `origin` is
+  -- GC.Data.OriginState()'s word, passed by the caller like `region` is: it describes
+  -- the save as a whole, not this value, so it does not belong inside `v`.
+  it("nudges toward the Companion under a bundled-data line", function()
+    local lines = GC.Tooltip.BuildLines({ mv = 1000, ts = 0, source = "bundled" }, 3600,
+      { region = "eu", origin = "none" })
+    assert.equal("hint", lines[#lines].kind)
+    assert.equal("Companion keeps prices fresh — /goldcap companion", lines[#lines].text)
+  end)
+
+  it("nudges when a manual import has gone stale", function()
+    local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "import" }, 3 * 86400,
+      { origin = "manual" })
+    assert.equal("hint", lines[#lines].kind)
+  end)
+
+  it("never nudges a player whose prices already come from the Companion", function()
+    for _, value in ipairs({
+      { mv = 1000, ts = 0, source = "bundled" }, -- bundled fallback for one item
+      { mv = 100, ts = 0, source = "import" },   -- app-synced data gone stale
+    }) do
+      for _, ln in ipairs(GC.Tooltip.BuildLines(value, 3 * 86400, { origin = "app" })) do
+        assert.not_equal("hint", ln.kind)
+      end
+    end
+  end)
+
+  it("stays quiet on a fresh manual import", function()
+    local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "import" }, 3600,
+      { origin = "manual" })
+    assert.equal(1, #lines)
+  end)
+
+  it("reads the origin from the one source of truth", function()
+    local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
+    assert.is_truthy(text:find("GC.Data.OriginState", 1, true))
+  end)
+
 end)

@@ -105,11 +105,13 @@ GC.Locales.zhCN = {
     "再点一次将取消这条在售拍卖。它不会自动重新上架：手续费不退，物品通过邮件寄回而不是直接进包。",
   ["Clicking again deletes this hand-entered cost for good."] = "再点一次将永久删除这条手动填写的成本。",
   ["Close"] = "关闭",
+  ["Companion keeps prices fresh — /goldcap companion"] = "Companion 会自动更新价格：/goldcap companion",
   ["Companion sync rejected:"] = "Companion 同步被拒绝：",
   ["Confidence"] = "置信度",
   ["Confirm"] = "确认",
   ["Confirm the cancel"] = "确认取消",
   ["Confirm the removal"] = "确认删除",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] = "复制链接（Ctrl+C）并在浏览器中打开：",
   ["Cost per unit"] = "每件成本",
   ["Cost unknown for %d of %d"] = "成本未知：%d 笔 / 共 %d 笔",
   ["Costs more than your per-buy wallet limit allows."] = "花费超过你设定的单次购买上限。",
@@ -141,6 +143,7 @@ GC.Locales.zhCN = {
   ["Finish the pending post first"] = "请先完成进行中的上架",
   ["Finish the pending post or repost first"] = "请先完成进行中的上架或重新上架",
   ["Font scale"] = "字体缩放",
+  ["Free, sits in the tray, nothing to set up in game."] = "免费，常驻系统托盘，游戏内无需任何设置。",
   ["Full pass over them: %.1fs"] = "完整走一轮：%.1f 秒",
   ["Full pass over them: measuring..."] = "完整走一轮：测量中...",
   ["GOOD = solid discount + profit"] = "GOOD = 明确折扣 + 利润",
@@ -344,8 +347,6 @@ GC.Locales.zhCN = {
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "这是实时查询拍卖行后，别人当前挂出的最低价。你自己的挂单已排除，因此这个数字不会自己追着自己往下走。",
   ["The data for this item is malformed, so GoldCap refuses to guess."] = "该物品的数据有误，GoldCap 拒绝靠猜。",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "免费的桌面版 Companion 会自动更新价格并同步你的销售记录。复制链接（Ctrl+C）并在浏览器中打开：",
   ["The liquidity data is not reliable enough to act on."] = "流动性数据的可靠度不足以据此下手。",
   ["The market value is an estimate, not a measurement."] = "该市场价是估算，不是实测。",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
@@ -393,6 +394,10 @@ GC.Locales.zhCN = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "你这件物品在售拍卖按当前要价的合计金额。",
   ["Window position & size"] = "窗口位置和大小",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "有了它，你所在服务器的价格会自动更新，销售记录和利润会同步到 goldcap.gg。",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "没有它，GoldCap 只能用发布日期时的价格快照 — 用过时的价格找交易。",
   ["Won't buy"] = "不买",
   ["Worst case back"] = "最坏情况回款",
   ["YOUR PRICE"] = "你的价格",

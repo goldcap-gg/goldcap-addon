@@ -105,11 +105,14 @@ GC.Locales.koKR = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "한 번 더 누르면 직접 입력한 이 매입가가 영구히 삭제됩니다.",
   ["Close"] = "닫기",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "Companion이 시세를 자동으로 갱신합니다 — /goldcap companion",
   ["Companion sync rejected:"] = "Companion 동기화가 거부됨:",
   ["Confidence"] = "신뢰도",
   ["Confirm"] = "확인",
   ["Confirm the cancel"] = "취소 확인",
   ["Confirm the removal"] = "삭제 확인",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] = "링크를 복사(Ctrl+C)해 브라우저에서 여세요:",
   ["Cost per unit"] = "개당 매입가",
   ["Cost unknown for %d of %d"] = "원가 모름: %d개 / 전체 %d개",
   ["Costs more than your per-buy wallet limit allows."] = "1회 구매 한도보다 비쌉니다.",
@@ -141,6 +144,7 @@ GC.Locales.koKR = {
   ["Finish the pending post first"] = "진행 중인 등록을 먼저 끝내세요",
   ["Finish the pending post or repost first"] = "진행 중인 등록 또는 재등록을 먼저 끝내세요",
   ["Font scale"] = "글꼴 크기",
+  ["Free, sits in the tray, nothing to set up in game."] = "무료이고 트레이에 상주하며, 게임 안에서 설정할 것이 없습니다.",
   ["Full pass over them: %.1fs"] = "전체 순회: %.1f초",
   ["Full pass over them: measuring..."] = "전체 순회: 측정 중...",
   ["GOOD = solid discount + profit"] = "GOOD = 확실한 할인 + 수익",
@@ -349,8 +353,6 @@ GC.Locales.koKR = {
     "실시간 경매장 조회에서 다른 사람이 부르는 가장 싼 가격입니다. 본인 등록분은 제외되므로 이 숫자가 스스로를 따라 내려가지 않습니다.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "이 아이템의 데이터가 손상되어 GoldCap이 추측하지 않습니다.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "무료 데스크톱 Companion이 시세를 자동으로 갱신하고 판매를 동기화합니다. 링크를 복사(Ctrl+C)해 브라우저에서 여세요:",
   ["The liquidity data is not reliable enough to act on."] = "유동성 데이터가 판단 근거로 삼기엔 신뢰도가 낮습니다.",
   ["The market value is an estimate, not a measurement."] = "시세는 측정값이 아니라 추정값입니다.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
@@ -401,6 +403,10 @@ GC.Locales.koKR = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "이 아이템으로 올려둔 경매들의 현재 호가 합계.",
   ["Window position & size"] = "창 위치와 크기",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "있으면 서버 시세가 자동으로 갱신되고, 판매 기록과 수익이 goldcap.gg에 쌓입니다.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "없으면 GoldCap은 릴리스 시점의 시세 스냅샷으로 돌아갑니다 — 오래된 시세로 거래를 찾게 됩니다.",
   ["Won't buy"] = "사지 않음",
   ["Worst case back"] = "최악의 경우 회수",
   ["YOUR PRICE"] = "내 가격",

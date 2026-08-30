@@ -109,11 +109,15 @@ GC.Locales.esMX = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Otro clic borra definitivamente este costo ingresado a mano.",
   ["Close"] = "Cerrar",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "Companion mantiene los precios al día — /goldcap companion",
   ["Companion sync rejected:"] = "Sincronización de Companion rechazada:",
   ["Confidence"] = "Confianza",
   ["Confirm"] = "Confirmar",
   ["Confirm the cancel"] = "Confirmar la cancelación",
   ["Confirm the removal"] = "Confirmar la eliminación",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] =
+    "Copia el enlace (Ctrl+C) y ábrelo en un navegador:",
   ["Cost per unit"] = "Costo por unidad",
   ["Cost unknown for %d of %d"] = "Costo desconocido en %d de %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -148,6 +152,8 @@ GC.Locales.esMX = {
   ["Finish the pending post or repost first"] =
     "Termina antes la publicación o republicación pendiente",
   ["Font scale"] = "Tamaño de fuente",
+  ["Free, sits in the tray, nothing to set up in game."] =
+    "Gratis, vive en la bandeja del sistema y no hay nada que configurar en el juego.",
   ["Full pass over them: %.1fs"] = "Pasada completa: %.1fs",
   ["Full pass over them: measuring..."] = "Pasada completa: midiendo...",
   ["GOOD = solid discount + profit"] = "GOOD = descuento sólido + beneficio",
@@ -371,8 +377,6 @@ GC.Locales.esMX = {
     "El precio más barato que pide AHORA OTRA persona, según una consulta en vivo a la casa de subastas. Tus propias publicaciones quedan excluidas, así que el número nunca se persigue a sí mismo hacia abajo.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "Los datos de este objeto están mal formados, así que GoldCap no va a adivinar.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "La aplicación de escritorio Companion, gratuita, mantiene tus precios al día automáticamente y sincroniza tus ventas. Copia el enlace (Ctrl+C) y ábrelo en un navegador:",
   ["The liquidity data is not reliable enough to act on."] =
     "Los datos de liquidez no son lo bastante confiables para actuar.",
   ["The market value is an estimate, not a measurement."] =
@@ -428,6 +432,10 @@ GC.Locales.esMX = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "Lo que suman tus subastas activas de este objeto a su precio actual.",
   ["Window position & size"] = "Posición y tamaño de la ventana",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "Con él, los precios de tu reino se actualizan solos y tus ventas y ganancias llegan a goldcap.gg.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "Sin él, GoldCap funciona con precios congelados en la fecha de lanzamiento — las oportunidades se buscan con precios viejos.",
   ["Won't buy"] = "No voy a comprar",
   ["Worst case back"] = "Retorno en el peor caso",
   ["YOUR PRICE"] = "TU PRECIO",

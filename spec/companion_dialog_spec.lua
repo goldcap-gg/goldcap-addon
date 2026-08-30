@@ -116,4 +116,15 @@ describe("CompanionDialog", function()
     GC.CompanionUI.Hide()
     assert.is_false(_G.GoldCapCompanionDialog.shown)
   end)
+
+  it("explains what installing the Companion actually changes, not just where to get it", function()
+    GC.CompanionUI.Show()
+    local dialog = _G.GoldCapCompanionDialog
+    local why = dialog.why and dialog.why.text or ""
+    assert.matches("snapshot", why, 1, true)   -- what life without it looks like
+    assert.matches("goldcap.gg", why, 1, true) -- what syncs when it runs
+    assert.matches("tray", why, 1, true)       -- and that it costs nothing to keep around
+    assert.matches("Ctrl+C", dialog.hint and dialog.hint.text or "", 1, true)
+  end)
+
 end)

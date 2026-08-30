@@ -108,11 +108,15 @@ GC.Locales.ukUA = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Ще один клік видалить цю введену вручну собівартість назавжди.",
   ["Close"] = "Закрити",
+  ["Companion keeps prices fresh — /goldcap companion"] =
+    "Companion сам оновлює ціни — /goldcap companion",
   ["Companion sync rejected:"] = "Синхронізацію Companion відхилено:",
   ["Confidence"] = "Достовірність",
   ["Confirm"] = "Підтвердити",
   ["Confirm the cancel"] = "Підтвердити скасування",
   ["Confirm the removal"] = "Підтвердити видалення",
+  ["Copy the link (Ctrl+C) and open it in a browser:"] =
+    "Скопіюйте посилання (Ctrl+C) і відкрийте його в браузері:",
   ["Cost per unit"] = "Собівартість за штуку",
   ["Cost unknown for %d of %d"] = "Собівартість невідома для %d з %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -148,6 +152,8 @@ GC.Locales.ukUA = {
   ["Finish the pending post or repost first"] =
     "Спершу завершіть виставлення або перевиставлення, що триває",
   ["Font scale"] = "Масштаб шрифту",
+  ["Free, sits in the tray, nothing to set up in game."] =
+    "Безкоштовний, живе в треї, у грі нічого налаштовувати не треба.",
   ["Full pass over them: %.1fs"] = "Повний прохід по них: %.1fс",
   ["Full pass over them: measuring..."] = "Повний прохід по них: вимірюємо...",
   ["GOOD = solid discount + profit"] = "GOOD = добра знижка + прибуток",
@@ -384,8 +390,6 @@ GC.Locales.ukUA = {
     "Найдешевша ціна, яку зараз просить ХТОСЬ ІНШИЙ, за живим запитом до аукціону. Ваші власні лоти виключено, тому число ніколи не женеться саме за собою вниз.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =
     "Дані щодо цього предмета пошкоджені, і GoldCap відмовляється вгадувати.",
-  ["The free desktop Companion keeps your prices fresh automatically and syncs your sales. Copy the link (Ctrl+C) and open it in a browser:"] =
-    "Безкоштовний застосунок Companion сам оновлює ваші ціни й синхронізує продажі. Скопіюйте посилання (Ctrl+C) і відкрийте його в браузері:",
   ["The liquidity data is not reliable enough to act on."] =
     "Дані про ліквідність недостатньо надійні, щоб на них діяти.",
   ["The market value is an estimate, not a measurement."] =
@@ -442,6 +446,10 @@ GC.Locales.ukUA = {
   ["What your live auctions for this item add up to at their current asking price."] =
     "У скільки складаються ваші активні лоти цього предмета за поточною ціною.",
   ["Window position & size"] = "Позиція та розмір вікна",
+  ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
+    "З ним ціни вашого реалму оновлюються самі, а продажі та прибуток потрапляють на goldcap.gg.",
+  ["Without it, GoldCap runs on a price snapshot from its release date — deals get hunted with old prices."] =
+    "Без нього GoldCap живе на зрізі цін з дати релізу — угоди шукаються за застарілими цінами.",
   ["Won't buy"] = "Не куплю",
   ["Worst case back"] = "Повернеться в найгіршому разі",
   ["YOU GET"] = "ОТРИМАЄШ",
