@@ -43,8 +43,6 @@ GC.Locales.ptBR = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "De 15 a 60 segundos em reinos movimentados. Sem recarga -- varra de novo quando quiser.",
   ["24h trend"] = "Tendência 24h",
-  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
-    "Uma mercadoria é anunciada com o total inteiro da bolsa de uma vez; um item normal anuncia uma pilha, a maior que o GoldCap consiga identificar com exatidão.",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Um traço significa que o GoldCap ainda não sabe o custo de cada unidade — ele nunca vai adivinhar pelo preço de mercado.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
@@ -56,6 +54,7 @@ GC.Locales.ptBR = {
   ["AUTO · PAUSED: "] = "AUTO · PAUSADO: ",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
   ["AUTOMATION & ALERTS"] = "AUTOMAÇÃO E ALERTAS",
+  ["Asks for a second click to confirm."] = "Pede um segundo clique para confirmar.",
   ["Auction House did not answer — press Refresh"] =
     "A casa de leilões não respondeu — clique em Refresh",
   ["Auction House is not open"] = "A casa de leilões não está aberta",
@@ -82,11 +81,9 @@ GC.Locales.ptBR = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Cancelar este lote e perder o depósito — clique de novo para confirmar",
   ["Cancel timed out"] = "O cancelamento expirou",
-  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
-    "Cancelar faz perder o depósito, por isso pede um segundo clique para confirmar.",
   ["Cancelling lot…"] = "Cancelando o lote…",
-  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
-    "Cancela este leilão ativo. Ele NÃO é reanunciado: o depósito é perdido e os itens cancelados voltam pelo correio, não direto para as bolsas.",
+  ["Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive."] =
+    "Cancela este leilão ativo — ele NÃO é reanunciado. O depósito é perdido e os itens voltam pelo correio; anuncie de novo a partir desta linha quando chegarem.",
   ["Cannot post this position"] = "Não dá para anunciar esta posição",
   ["Cannot remove this entry"] = "Não dá para apagar este registro",
   ["Cannot repost this lot"] = "Não dá para reanunciar este lote",
@@ -188,8 +185,6 @@ GC.Locales.ptBR = {
     "Instale o GoldCap Companion gratuito para manter os preços atualizados sozinho (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "É o preço que você precisa bater para vender rápido — não o que o item vale. Um vendedor com pressa pode colocá-lo bem abaixo do valor, e o GoldCap não vai segui-lo para baixo: veja WHAT TO DO para o preço em que ele anunciaria de fato.",
-  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
-    "Ele também anuncia estoque cuja compra o GoldCap nunca viu — não saber quanto algo custou é motivo para informar o lucro como desconhecido, não para se recusar a vender.",
   ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
     "Ele não vai inventar um custo a partir do preço de mercado, então o lucro fica desconhecido até você informar um.",
   ["Item"] = "Item",
@@ -205,8 +200,8 @@ GC.Locales.ptBR = {
     "Anunciado a %s — bem abaixo do mercado. Reanuncie.",
   ["Listed value"] = "Valor anunciado",
   ["Listings"] = "Anúncios",
-  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
-    "Anuncia o que está nas suas bolsas pelo preço mostrado em O QUE FAZER.",
+  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
+    "Anuncia o que está nas suas bolsas pelo preço de O QUE FAZER: a bolsa inteira para uma mercadoria, uma pilha para um item normal.",
   ["Live ask"] = "Preço ao vivo",
   ["Lot cancelled; wait for it to return to bags"] =
     "Lote cancelado; espere ele voltar para as bolsas",
@@ -255,8 +250,6 @@ GC.Locales.ptBR = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "NO GOLDCAP.GG — ÚLTIMOS %d DIAS, MAIS RECENTES %d DE %d",
   ["ON THE AUCTION HOUSE"] = "NA CASA DE LEILÕES",
-  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
-    "Quando o correio chegar, anuncie de novo você mesmo pelo novo preço — a partir desta mesma linha.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "Uma varredura única de toda a casa de leilões por consultas paginadas. Leva cerca de ",
   ["Open the Auction House first."] = "Abra a casa de leilões primeiro.",
@@ -387,8 +380,8 @@ GC.Locales.ptBR = {
     "Os dados de preço têm mais de três horas. Sincronize o Companion e faça /reload — o addon só lê seus dados quando a interface carrega.",
   ["The price is falling; buying into it is how you get stuck."] =
     "O preço está caindo; entrar nisso é como você fica preso.",
-  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
-    "O preço é o último que o GoldCap buscou, com no máximo 45 segundos, não uma consulta nova feita no momento do clique. Se ele mudar entre preparar o anúncio e confirmá-lo, o anúncio é abandonado em vez de enviado pelo preço antigo.",
+  ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
+    "O preço é a última cotação, com no máximo 45 segundos. Se ele mudar antes de confirmar, o anúncio é abandonado em vez de enviado pelo preço antigo.",
   ["The price moved and the trade is no longer safe."] =
     "O preço se moveu e a operação não é mais segura.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
@@ -437,8 +430,6 @@ GC.Locales.ptBR = {
   ["Window position & size"] = "Posição e tamanho da janela",
   ["Won't buy"] = "Não vou comprar",
   ["Worst case back"] = "Retorno no pior caso",
-  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
-    "Vale a pena quando alguém te baixou o preço; não vale se o preço mal se mexeu.",
   ["YOUR PRICE"] = "SEU PREÇO",
   ["You paid"] = "Você pagou",
   ["You pay"] = "Você paga",

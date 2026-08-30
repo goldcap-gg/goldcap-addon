@@ -5,7 +5,8 @@
 - **The Post button's help no longer covers the list.** Hovering an action
   button in the Sell tab used to drop its explanation on top of the rows, the
   column headers and the button itself. It now opens beside the button, on
-  whichever side of the screen has room.
+  whichever side of the screen has room — and Post and Repost say what they
+  do in two short lines instead of four paragraphs.
 
 ## 0.6.2 (2026-08-29)
 

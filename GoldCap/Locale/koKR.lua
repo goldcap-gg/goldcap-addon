@@ -44,8 +44,6 @@ GC.Locales.koKR = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "붐비는 서버에서 15~60초. 대기시간 없음 -- 언제든 다시 검색하세요.",
   ["24h trend"] = "24시간 추세",
-  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
-    "상품(commodity)은 가방 전체 수량을 한 번에 등록하고, 일반 아이템은 GoldCap이 정확히 식별할 수 있는 가장 큰 묶음 하나를 등록합니다.",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "대시(—)는 아직 모든 수량의 매입가를 모른다는 뜻입니다. 시세로 추측하는 일은 없습니다.",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
@@ -57,6 +55,7 @@ GC.Locales.koKR = {
   ["AUTO · PAUSED: "] = "자동 · 일시중지: ",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
+  ["Asks for a second click to confirm."] = "확인을 위해 한 번 더 눌러야 합니다.",
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
   ["Auto-scan on next AH visit"] = "다음 경매장 방문 시 자동 검색",
@@ -82,11 +81,9 @@ GC.Locales.koKR = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "이 물량을 취소하고 등록비를 잃습니다 — 다시 클릭하면 확정됩니다",
   ["Cancel timed out"] = "취소 시간이 초과되었습니다",
-  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
-    "취소하면 등록비를 잃기 때문에 확인을 위해 한 번 더 눌러야 합니다.",
   ["Cancelling lot…"] = "물량 취소 중…",
-  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
-    "진행 중인 이 경매를 취소합니다. 다시 등록하지는 않습니다: 등록비는 돌려받지 못하고, 취소한 물품은 가방이 아니라 우편으로 돌아옵니다.",
+  ["Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive."] =
+    "진행 중인 이 경매를 취소합니다 — 다시 등록하지는 않습니다. 등록비는 돌려받지 못하고 물품은 우편으로 돌아옵니다; 도착하면 이 줄에서 다시 등록하세요.",
   ["Cannot post this position"] = "이 항목은 등록할 수 없습니다",
   ["Cannot remove this entry"] = "이 기록은 삭제할 수 없습니다",
   ["Cannot repost this lot"] = "이 물량은 다시 등록할 수 없습니다",
@@ -183,8 +180,6 @@ GC.Locales.koKR = {
     "무료 GoldCap Companion을 설치하면 시세가 자동으로 갱신됩니다 (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "이것은 빨리 팔려면 이겨야 할 가격이지, 아이템의 가치가 아닙니다. 급한 판매자 한 명이 가치보다 훨씬 낮게 내놓을 수 있으며 GoldCap은 그 아래로 따라가지 않습니다. 실제 등록 가격은 WHAT TO DO를 보세요.",
-  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
-    "GoldCap이 매입을 보지 못한 재고도 등록합니다 — 매입가를 모른다는 것은 수익을 알 수 없음으로 표시할 이유이지, 판매를 거부할 이유가 아닙니다.",
   ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
     "시세로 매입가를 지어내지 않으므로, 입력하기 전까지 수익은 알 수 없음으로 남습니다.",
   ["Item"] = "아이템",
@@ -199,8 +194,8 @@ GC.Locales.koKR = {
   ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
   ["Listed value"] = "등록 금액",
   ["Listings"] = "등록 수",
-  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
-    "가방에 있는 물량을 무엇을 할지 항목에 표시된 가격으로 등록합니다.",
+  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
+    "가방에 있는 물량을 무엇을 할지 항목의 가격으로 등록합니다: 상품은 가방 전체 수량을, 일반 아이템은 묶음 하나를.",
   ["Live ask"] = "현재 호가",
   ["Lot cancelled; wait for it to return to bags"] = "물량을 취소했습니다. 가방으로 돌아올 때까지 기다리세요",
   ["MARKET"] = "시세",
@@ -242,8 +237,6 @@ GC.Locales.koKR = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 기준 — 최근 %d일, 최신 %d/%d",
   ["ON THE AUCTION HOUSE"] = "경매장에 올린 것",
-  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
-    "우편이 도착하면 이 줄에서 직접 새 가격으로 다시 등록하세요.",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "페이지 단위 조회로 경매장 전체를 한 번 검색합니다. 소요 시간은 약 ",
   ["Open the Auction House first."] = "먼저 경매장을 여세요.",
@@ -364,8 +357,8 @@ GC.Locales.koKR = {
     "시세 데이터가 세 시간이 넘었습니다. Companion을 동기화한 뒤 /reload 하세요 — 애드온은 UI를 불러올 때만 데이터를 읽습니다.",
   ["The price is falling; buying into it is how you get stuck."] =
     "가격이 내려가는 중입니다. 여기서 사면 물리기 딱 좋습니다.",
-  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
-    "가격은 GoldCap이 마지막으로 받아온 값으로, 최대 45초 전의 것입니다 — 클릭하는 순간 새로 확인한 값이 아닙니다. 등록을 준비한 뒤 확인하기 전에 값이 바뀌면, 옛 가격으로 보내지 않고 등록을 포기합니다.",
+  ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
+    "가격은 마지막으로 받아온 값으로, 최대 45초 전의 것입니다. 확인하기 전에 값이 바뀌면 옛 가격으로 보내지 않고 등록을 포기합니다.",
   ["The price moved and the trade is no longer safe."] = "가격이 움직여 더 이상 안전한 거래가 아닙니다.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "5% 수수료와 등록비를 내고 나면 설정한 최소 수익에 미치지 못합니다.",
@@ -410,8 +403,6 @@ GC.Locales.koKR = {
   ["Window position & size"] = "창 위치와 크기",
   ["Won't buy"] = "사지 않음",
   ["Worst case back"] = "최악의 경우 회수",
-  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
-    "누군가 더 싸게 걸었을 때는 할 만하지만, 가격이 거의 변하지 않았다면 그럴 가치가 없습니다.",
   ["YOUR PRICE"] = "내 가격",
   ["You paid"] = "구매가",
   ["You pay"] = "지불 금액",

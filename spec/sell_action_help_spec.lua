@@ -46,6 +46,21 @@ describe("Sell action help text", function()
     assert.is_nil(cancel:find("immediately relists it at the shown price", 1, true))
   end)
 
+  -- Post's help ran to four paragraphs -- twenty wrapped lines beside a button in a list, a
+  -- block that covered the numbers of every row beneath it whichever side it opened on. A
+  -- tooltip is the one-breath answer to "what does this button do"; the reasoning behind
+  -- the behaviour lives in the code and the docs, not on the cursor.
+  it("keeps every action's help short enough to sit beside the button", function()
+    local renderRows = upvalue(GC.Sell.Attach, "renderRows")
+    local createRow = upvalue(renderRows, "createRow")
+    local actionHelp = upvalue(createRow, "ACTION_HELP")
+    for label, help in pairs(actionHelp) do
+      assert.is_true(#help[2] <= 2, ("%s: %d paragraphs"):format(label, #help[2]))
+      local body = table.concat(help[2], " ")
+      assert.is_true(#body <= 280, ("%s: %d characters"):format(label, #body))
+    end
+  end)
+
   -- Every other tooltip string audited against the code it describes (onPostClick, decoratePosition's
   -- market/profit fields, the 5% AH cut in Flips.lua's breakeven math): all matched. This is not
   -- exhaustive proof, just a sentinel that the two most load-bearing numeric claims stay intact.

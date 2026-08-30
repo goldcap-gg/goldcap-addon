@@ -45,8 +45,6 @@ GC.Locales.zhCN = {
   ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "繁忙服务器约 15-60 秒。没有冷却 -- 随时可重新扫描。",
   ["24h trend"] = "24小时走势",
-  ["A commodity lists the whole bag total at once; a normal item lists one stack, the largest GoldCap can identify exactly."] =
-    "商品会把包里的全部数量一次性上架；普通物品只上架一组，即 GoldCap 能准确识别的最大一堆。",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "破折号表示还不知道每一件的成本 — 它绝不会拿市场价去猜。",
   ["A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve."] =
@@ -58,6 +56,7 @@ GC.Locales.zhCN = {
   ["AUTO · PAUSED: "] = "自动 · 已暂停：",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
   ["AUTOMATION & ALERTS"] = "自动化与提醒",
+  ["Asks for a second click to confirm."] = "需要再点一次确认。",
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
@@ -83,11 +82,9 @@ GC.Locales.zhCN = {
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "取消该批并损失押金 — 再点一次确认",
   ["Cancel timed out"] = "取消超时",
-  ["Cancelling forfeits the deposit, so this asks for a second click to confirm."] =
-    "取消会损失手续费，因此需要再点一次确认。",
   ["Cancelling lot…"] = "正在取消…",
-  ["Cancels this live auction. It does NOT relist it: the deposit is forfeit, and the cancelled items come back by mail, not straight into your bags."] =
-    "取消这条在售拍卖。它不会自动重新上架：手续费不退，取消的物品通过邮件寄回，而不是直接进包。",
+  ["Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive."] =
+    "取消这条在售拍卖——它不会自动重新上架。手续费不退，物品通过邮件寄回；到了之后在这一行里重新上架。",
   ["Cannot post this position"] = "无法上架该条目",
   ["Cannot remove this entry"] = "无法删除该记录",
   ["Cannot repost this lot"] = "无法重新上架该批",
@@ -182,8 +179,6 @@ GC.Locales.zhCN = {
     "安装免费的 GoldCap Companion，让价格自动保持最新（/goldcap companion），",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
     "这是你要压过才能快速卖出的价格，而不是物品的价值。一个急于出手的卖家可能挂得远低于价值，GoldCap 不会跟着往下走：实际上架价请看 WHAT TO DO。",
-  ["It will list stock GoldCap never saw you buy — not knowing what something cost is a reason to report the profit as unknown, not a reason to refuse to sell it."] =
-    "它也会上架 GoldCap 没见过你买入的库存 — 不知道成本是把利润标为未知的理由，而不是拒绝出售的理由。",
   ["It will not invent a cost from the market price, so profit stays unknown until you enter one."] =
     "它不会拿市场价当成本，所以在你填写之前利润始终显示为未知。",
   ["Item"] = "物品",
@@ -198,8 +193,8 @@ GC.Locales.zhCN = {
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 远低于市场价。请重新上架。",
   ["Listed value"] = "在售金额",
   ["Listings"] = "挂单数",
-  ["Lists what is sitting in your bags at the price shown under WHAT TO DO."] =
-    "按“该做什么”一栏显示的价格上架你包里的物品。",
+  ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
+    "按“该做什么”一栏的价格上架你包里的物品：商品上架包里的全部数量，普通物品上架一组。",
   ["Live ask"] = "实时要价",
   ["Lot cancelled; wait for it to return to bags"] = "已取消；请等待它回到背包",
   ["MARKET"] = "市价",
@@ -241,8 +236,6 @@ GC.Locales.zhCN = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 上 — 最近 %d 天，最新 %d / %d",
   ["ON THE AUCTION HOUSE"] = "拍卖行上的",
-  ["Once the mail arrives, list it again yourself at the new price -- from this same row."] =
-    "邮件到了之后，在这一行里自己按新价重新上架。",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
     "通过分页浏览查询对整个拍卖行做一次扫描。大约需要 ",
   ["Open the Auction House first."] = "请先打开拍卖行。",
@@ -358,8 +351,8 @@ GC.Locales.zhCN = {
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "价格数据已超过三小时。同步 Companion 后执行 /reload — 插件只在界面加载时读取数据。",
   ["The price is falling; buying into it is how you get stuck."] = "价格正在下跌，此时接手正是被套的方式。",
-  ["The price is the last one GoldCap fetched, at most 45 seconds old — not a fresh check made at the moment you click. If it changes between arming the post and confirming it, the post is abandoned rather than sent at the old price."] =
-    "价格是 GoldCap 最后一次取得的，最多 45 秒前，并非点击瞬间的实时查询。若在准备上架与确认之间发生变化，会放弃本次上架，而不是按旧价发出。",
+  ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
+    "价格是最后一次取得的报价，最多 45 秒前。若在确认前发生变化，会放弃本次上架，而不是按旧价发出。",
   ["The price moved and the trade is no longer safe."] = "价格变动了，这笔交易不再安全。",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "扣掉 5% 手续费和上架费后，利润达不到你设定的下限。",
@@ -402,8 +395,6 @@ GC.Locales.zhCN = {
   ["Window position & size"] = "窗口位置和大小",
   ["Won't buy"] = "不买",
   ["Worst case back"] = "最坏情况回款",
-  ["Worth doing when someone has undercut you; not worth it if the price barely moved."] =
-    "有人压你价时值得这么做；价格几乎没动时不值。",
   ["YOUR PRICE"] = "你的价格",
   ["You paid"] = "你的成本",
   ["You pay"] = "你支付",
