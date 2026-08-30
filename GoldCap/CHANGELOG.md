@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.6.3 (unreleased)
+## 0.6.3 (2026-08-30)
 
 - **The Post button's help no longer covers the list.** Hovering an action
   button in the Sell tab used to drop its explanation on top of the rows, the
