@@ -18,6 +18,9 @@
 - **What you paid is now legible on a Sell row.** The cost per unit was there
   all along, in the same weight and colour as the words around it, and easy
   to look straight past. The amount now reads as money.
+- **Repost works on stock you did not buy through GoldCap.** On anything with
+  no purchase history — farmed, crafted, or bought before you installed the
+  addon — the Repost button did nothing at all when clicked.
 
 ## 0.6.4 (2026-08-31)
 

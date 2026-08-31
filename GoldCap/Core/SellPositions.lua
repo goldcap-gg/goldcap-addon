@@ -848,10 +848,22 @@ function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
       or position.invalid then return nil, "missing_position" end
   for _, ownedLot in ipairs(position.ownedLots or {}) do
     if ownedLot.auctionID == auctionID then
-      if not ownedLot.allocation or ownedLot.allocation.coverage ~= "COMPLETE" then return nil, "incomplete_cost" end
+      -- Cost is REPORTED, not required -- the same contract BuildPostPlan above has always
+      -- had. This used to return nil, "incomplete_cost" whenever the lot's FIFO slice was
+      -- anything but COMPLETE, and that refusal guarded nothing: a repost cancels a live
+      -- auction, no caller reads `cost` or `allocations` off a repost plan, and what the
+      -- units originally cost cannot make cancelling one unsafe. What it did do was kill the
+      -- Repost button outright on every listing GoldCap has no purchase record for -- farmed,
+      -- crafted, milled, or bought before it was installed -- while leaving the button on
+      -- screen and enabled, so the click died into a status line nobody was looking at. The
+      -- pair was inconsistent in the dangerous direction too: Post, which spends gold and
+      -- lists stock, has always been willing to proceed with costKnown = false.
+      local allocation = ownedLot.allocation
+      local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
       return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
-        auctionID = ownedLot.auctionID, quantity = ownedLot.quantity, cost = ownedLot.allocation.knownCost,
-        allocations = ownedLot.allocation.allocations, unitPrice = unit }
+        auctionID = ownedLot.auctionID, quantity = ownedLot.quantity,
+        cost = complete and allocation.knownCost or nil, costKnown = complete,
+        allocations = complete and allocation.allocations or {}, unitPrice = unit }
     end
   end
   return nil, "unknown_auction"

@@ -1030,18 +1030,29 @@ describe("Sell positions", function()
     assert.equal(12, plan.auctionID)
     assert.equal(2, plan.quantity)
     assert.equal(500, plan.cost)
+    assert.is_true(plan.costKnown)
     assert.equal("acq:2", plan.allocations[1].batchID)
   end)
 
-  it("rejects actions without a fresh quote or complete cost", function()
+  it("rejects an action without a fresh quote, but reposts stock it cannot cost", function()
     local p = build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) },
       ownedLots = { lot("commodity:42", 2, 200, 1) } })[1]
     local plan, reason = GC.SellPositions.BuildRepostPlan(p, 1, { unit = 150, stale = true })
     assert.is_nil(plan)
     assert.equal("stale_quote", reason)
-    plan, reason = GC.SellPositions.BuildRepostPlan(p, 1, 150)
-    assert.is_nil(plan)
-    assert.equal("incomplete_cost", reason)
+    -- A repost CANCELS a live lot. What its units cost cannot make cancelling unsafe, and no
+    -- caller reads plan.cost or plan.allocations for a repost at all -- so refusing on an
+    -- incomplete FIFO slice guarded nothing and left Repost permanently dead on every listing
+    -- GoldCap has no purchase record for: farmed, crafted, or bought before it was installed.
+    -- BuildPostPlan, which spends and lists, has always returned costKnown = false instead of
+    -- refusing; this is the pair being inconsistent in the more dangerous direction.
+    plan = GC.SellPositions.BuildRepostPlan(p, 1, 150)
+    assert.equal(1, plan.auctionID)
+    assert.equal(2, plan.quantity)
+    assert.equal(150, plan.unitPrice)
+    assert.is_false(plan.costKnown)
+    assert.is_nil(plan.cost)
+    assert.same({}, plan.allocations)
   end)
 
   it("fails closed when an action receives a timestamped quote without fresh proof", function()
