@@ -33,7 +33,23 @@ local function postDuration()
   return 2
 end
 local QUOTE_STALE_SECONDS = (GC.QuoteCache and GC.QuoteCache.MAX_AGE_SECONDS) or 10
-local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 3, 10
+-- REPOST_ARM_SECONDS is the deposit guard: how long after the first click a confirming second
+-- click does not count. It was 3, and three seconds of a greyed-out button that still reads
+-- "Cancel lot?" is indistinguishable from a broken control -- reported from a live client as
+-- "it glows like that for ages and then may not press at all". One second still defeats what
+-- the guard is actually for, an accidental double-click, which lands inside half of it.
+--
+-- REPOST_TIMEOUT_SECONDS is the other half of that report. At 10 it gave a player seven usable
+-- seconds to read "lose its deposit" and decide, after which the arm silently reverted to
+-- "Repost" and the next click armed it all over again. Twenty leaves nineteen, and the window
+-- still closes rather than staying armed across a render or a walk.
+local POST_TIMEOUT_SECONDS, REPOST_ARM_SECONDS, REPOST_TIMEOUT_SECONDS = 8, 1, 20
+-- The in-flight cancel is a SERVER round trip and gets its own, longer watchdog. It used to
+-- share REPOST_TIMEOUT_SECONDS, so a cancel the auction house took more than ten seconds to
+-- confirm was announced as "Cancel timed out" -- over a lot that had in fact been cancelled.
+-- That is the worst thing this control can say: it tells the player the opposite of what
+-- happened to their gold. Waiting longer before giving up is the honest side to err on.
+local REPOST_CANCEL_TIMEOUT_SECONDS = 30
 -- Removing a manual cost has no deposit at stake, so it skips REPOST_ARM_SECONDS' forced delay
 -- before the second click counts -- that delay exists to stop an accidental double-click from
 -- burning a deposit, and there is no deposit here. The confirmation window still expires, the
@@ -1584,7 +1600,7 @@ local function onRepostClick(row, auctionID)
     setStatus(GC.L["Cancelling lot…"])
     if C_Timer and C_Timer.After then
       local token = repostArmToken
-      C_Timer.After(REPOST_TIMEOUT_SECONDS, function()
+      C_Timer.After(REPOST_CANCEL_TIMEOUT_SECONDS, function()
         if token == repostArmToken and repostingRow == row and row.repostStage == "cancelling" then
           disarmRepost()
           setStatus(GC.L["Cancel timed out"])

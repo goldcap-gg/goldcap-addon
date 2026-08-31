@@ -21,6 +21,11 @@
 - **Repost works on stock you did not buy through GoldCap.** On anything with
   no purchase history — farmed, crafted, or bought before you installed the
   addon — the Repost button did nothing at all when clicked.
+- **Reposting no longer feels broken.** The button used to sit greyed out for
+  three seconds before a confirming click counted, then give up on you seven
+  seconds later without saying so. The pause is now a second, the window to
+  confirm is nineteen, and a cancel the auction house is slow to acknowledge
+  is no longer reported as having timed out when it has actually gone through.
 
 ## 0.6.4 (2026-08-31)
 
