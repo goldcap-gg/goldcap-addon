@@ -42,10 +42,18 @@ end
 --
 -- Skipped, and why:
 --   isBound        -- soulbound; the auction house will refuse it, so offering it is a lie.
---   hasNoValue     -- vendor-worthless junk the AH also refuses (quest items, conjured goods).
 --   classify = nil -- an item whose exact auction identity cannot be derived (a bonus-id bearing
 --                     link). Posting one under a guessed key is how the split-position bug
 --                     happened; leaving it out is the honest failure.
+--
+-- `hasNoValue` is deliberately NOT one of them, though it used to be. That flag means the
+-- VENDOR will not buy the item, which says nothing about the auction house -- and a great many
+-- of the best things to sell have no vendor price at all. Reading it as a refusal quietly
+-- deleted a seller's reagent inventory from this tab: a live bag dump had 322 Venomous
+-- Combatant's Heraldry, 850 Gloom Dust and 38 Greater Eternal Essence, all hasNoValue, all
+-- freely tradeable, all reported by the Sell tab as "not on hand" -- and, because the pricing
+-- walk only quotes a position with stock, all of them priceless and profitless too. What the
+-- auction house actually refuses is soulbound stock, which `isBound` above already catches.
 function GC.BagStock.Scan(driver, bags)
   if type(driver) ~= "table" or type(driver.numSlots) ~= "function"
       or type(driver.itemInfo) ~= "function" or type(driver.classify) ~= "function" then
@@ -58,7 +66,7 @@ function GC.BagStock.Scan(driver, bags)
       local info = driver.itemInfo(bag, slot)
       local quantity = info and info.stackCount or nil
       if info and exactPositive(info.itemID) and exactPositive(quantity)
-          and info.isBound ~= true and info.hasNoValue ~= true then
+          and info.isBound ~= true then
         local positionKey, isCommodity = driver.classify(info.itemID, info.hyperlink)
         if type(positionKey) == "string" and positionKey ~= "" then
           local entry = byKey[positionKey]

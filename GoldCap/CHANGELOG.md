@@ -1,5 +1,14 @@
 # GoldCap
 
+## 0.6.5 (unreleased)
+
+- **The Sell tab was hiding stock you can absolutely sell.** Anything the
+  vendor refuses to buy — most enchanting dust, many crafting reagents, a
+  stack of Venomous Combatant's Heraldry sitting in your bags — was left out
+  of the tab entirely. Those rows said "not on hand" and showed no price and
+  no margin, over items the auction house was happy to take. They are now
+  counted, priced and postable like everything else.
+
 ## 0.6.4 (2026-08-31)
 
 - **The addon now tells you when the Companion would help.** Tooltip prices

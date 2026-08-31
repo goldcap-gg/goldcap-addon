@@ -54,7 +54,9 @@ describe("Sell tab, bags to Post", function()
   -- Slot 1: 200 Eternium Ore, a commodity, freely sellable.
   -- Slot 2: 46 more of the same, so the aggregate has to add up across stacks.
   -- Slot 3: soulbound, which the auction house refuses.
-  -- Slot 4: vendor-worthless, likewise.
+  -- Slot 4: no link, so its exact auction identity cannot be derived and classify refuses it.
+  --         (It is also vendor-worthless, which is NOT why it is out -- see the regression
+  --         test below and Core/BagStock.lua's own note on `hasNoValue`.)
   local BAGS = {
     [0] = {
       { itemID = 23427, stackCount = 200, itemName = "Eternium Ore" },
@@ -152,8 +154,24 @@ describe("Sell tab, bags to Post", function()
     compose()
     local shown = 0
     for _, r in ipairs(rows) do if r.shown and r.kind == "position" then shown = shown + 1 end end
-    assert.equal(1, shown) -- the soulbound and the worthless are not positions
+    assert.equal(1, shown) -- the soulbound and the unidentifiable are not positions
     assert.equal(1, GC.Sell.SellableCount())
+  end)
+
+  -- Regression from a live client: `hasNoValue` means the VENDOR will not buy the item, which
+  -- says nothing about the auction house. Reading it as a refusal hid a seller's whole reagent
+  -- inventory -- a bag dump had 322 Venomous Combatant's Heraldry, 850 Gloom Dust and 38
+  -- Greater Eternal Essence, every one of them freely tradeable -- and the Sell row said "not
+  -- on hand" over a stack the Blizzard sell frame was offering to post. Pinned here, at the
+  -- call site, and not only over the pure walk in spec/bag_stock_spec.lua.
+  it("offers stock the vendor will not buy but the auction house will", function()
+    BAGS[0][#BAGS[0] + 1] =
+      { itemID = 23427, stackCount = 54, itemName = "Eternium Ore", hasNoValue = true }
+    compose()
+    local row = positionRow()
+    local bagQty = row and row.position.bagQty
+    BAGS[0][#BAGS[0]] = nil
+    assert.equal(300, bagQty) -- 200 + 46 + the 54 the vendor-value test used to throw away
   end)
 
   -- SellableCount used to call composePositions() itself on every read -- a full six-bag

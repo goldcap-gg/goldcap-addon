@@ -34,18 +34,46 @@ describe("BagStock", function()
   end)
 
   it("leaves out what the auction house would refuse", function()
-    -- Soulbound and vendor-worthless are both hard refusals at the auction house,
-    -- so offering them would be a lie the player only finds out about on click.
+    -- Soulbound is a hard refusal at the auction house, so offering it would be a lie
+    -- the player only finds out about on click. An empty stack is not stock at all.
     local stock = GC.BagStock.Scan(driverFor({
       [0] = {
         { itemID = 1, stackCount = 1, isBound = true },
-        { itemID = 2, stackCount = 1, hasNoValue = true },
         { itemID = 3, stackCount = 0 },
         { itemID = 4, stackCount = 1 },
       },
     }), { 0 })
     assert.equal(1, #stock)
     assert.equal(4, stock[1].itemID)
+  end)
+
+  it("keeps stock the vendor will not buy but the auction house will", function()
+    -- `hasNoValue` is "no VENDOR sell price", which says nothing about the auction
+    -- house. Reading it as a refusal hid a client's whole reagent inventory: a live
+    -- bag dump had 322 Venomous Combatant's Heraldry, 850 Gloom Dust and 38 Greater
+    -- Eternal Essence -- every one of them hasNoValue, bindType 0, isCommodity true,
+    -- and every one of them missing from the Sell tab, which reported "not on hand"
+    -- over a stack the Blizzard sell frame was offering to post.
+    local stock = GC.BagStock.Scan(driverFor({
+      [0] = {
+        { itemID = 275380, stackCount = 322, hasNoValue = true },
+        { itemID = 152875, stackCount = 850, hasNoValue = true, isBound = false },
+      },
+    }), { 0 })
+    assert.equal(2, #stock)
+    local byKey = {}
+    for _, entry in ipairs(stock) do byKey[entry.positionKey] = entry end
+    assert.equal(322, byKey["commodity:275380"].quantity)
+    assert.equal(850, byKey["commodity:152875"].quantity)
+  end)
+
+  it("still refuses a soulbound item that is also vendor-worthless", function()
+    -- The two flags travel together on most soulbound reagents (the same live dump had
+    -- 118 of them), so dropping the hasNoValue test must not weaken the bind test.
+    local stock = GC.BagStock.Scan(driverFor({
+      [0] = { { itemID = 210814, stackCount = 190, isBound = true, hasNoValue = true } },
+    }), { 0 })
+    assert.equal(0, #stock)
   end)
 
   it("leaves out an item whose auction identity cannot be derived", function()
