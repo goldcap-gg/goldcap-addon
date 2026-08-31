@@ -11,6 +11,10 @@
 - **The Sell tab's two counters were stuck on zero.** "TO POST" and "MY LOTS"
   were filled in once, before the list existed, and never again — so they read
   0 over a screen full of rows. They now follow the list.
+- **Hovering a row in Sold now shows the item, and what you paid for it.**
+  The tooltip is the item's own, the same one Deals and Sell already give
+  you, with a line for the per-unit cost the profit on that row was worked
+  out from.
 
 ## 0.6.4 (2026-08-31)
 

@@ -283,6 +283,46 @@ describe("SoldFrame", function()
     assert.equal("cost unknown", none.cells.profit:GetText())  -- None: no invented zero
   end)
 
+  -- Deals and the Sell tab both hand a row's item tooltip to the cursor; Sold's rows were the
+  -- only ones a seller could not hover to see what they had actually sold. The paid-per-unit
+  -- line rides along on the same tooltip because this tab has no column to spare for it -- a
+  -- seventh column would be the first one shed on a narrow window, which is exactly where the
+  -- room is scarcest. See UI/SoldFrame.lua's createRow.
+  it("shows the item tooltip and what the units cost, on hover", function()
+    local tooltip = { lines = {} }
+    function tooltip:SetOwner() end
+    function tooltip:SetItemByID(id) self.itemID = id end
+    function tooltip:AddLine(text) self.lines[#self.lines + 1] = text end
+    function tooltip:Show() self.shown = true end
+    function tooltip:Hide() self.shown = false end
+    _G.GameTooltip = tooltip
+
+    GC.AppLedger.GetSummary = function()
+      return summary({ sales = {
+        { name = "Alpha", item = 4242, qty = 2, total = 100, cut = 5, pending = false, at = 900,
+          basis = { matched = 2, unmatched = 0, cost = 50, profit = 45 } },
+        { name = "Bravo", item = 4343, qty = 1, total = 100, cut = 5, pending = false, at = 800,
+          basis = { matched = 0, unmatched = 1, cost = 0, profit = 0 } },
+      } })
+    end
+    GC.Sold.RefreshIfShown()
+
+    local alpha = rowWithText("Alpha")
+    alpha.scripts.OnEnter(alpha)
+    assert.equal(4242, tooltip.itemID)
+    -- 50 over the two MATCHED units, not over sale.qty -- see the serverSale branch.
+    assert.equal("paid 25c each", tooltip.lines[1])
+    assert.is_true(tooltip.shown)
+
+    -- Rows are pooled: a row FIFO could not cost must not inherit the previous row's number.
+    tooltip.lines, tooltip.itemID = {}, nil
+    local bravo = rowWithText("Bravo")
+    bravo.scripts.OnEnter(bravo)
+    assert.equal(4343, tooltip.itemID)
+    assert.equal("cost unknown", tooltip.lines[1])
+    _G.GameTooltip = nil
+  end)
+
   it("free tier shows the Pro hint and no profit column", function()
     GC.AppLedger.GetSummary = function()
       return summary({ pro = false,

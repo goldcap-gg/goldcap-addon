@@ -307,6 +307,11 @@ end
 -- sale row; PROFIT is painted separately by each caller since the two
 -- sections disagree on where a profit number even comes from.
 local function paintSaleCells(row, name, itemID, qty, total, at, pending)
+  -- What the row's OnEnter reads (createRow). Stamped here, beside the icon that comes from
+  -- the same itemID, so a row showing an icon and a row showing a tooltip can never disagree
+  -- about which item they are. A sale carrying no itemID -- every mail invoice the companion
+  -- has not yet paired with one -- simply has no tooltip, the same way it has no icon.
+  row.tooltipItemID = itemID
   local decorated = (itemID and Theme.WithQuality and Theme.WithQuality(name, itemID, 11)) or name
   row.item:SetText(decorated)
   setColor(row.item, Theme.color.fg)
@@ -380,6 +385,10 @@ local function clearRow(row)
   -- have nothing to show one for and stay flush left.
   row.itemInset = 0
   row.icon:Hide()
+  -- Rows are pooled and rebound every render, so what the tooltip reads has to be cleared
+  -- for EVERY kind, not written per branch -- a fact left over from an earlier sale would
+  -- otherwise ride along onto a hint or section row, or onto a different item.
+  row.tooltipItemID, row.tooltipPaidUnit, row.tooltipCostUnknown = nil, nil, false
   for _, col in ipairs(COLUMNS) do
     if not col.flex then
       row.cells[col.key]:SetText("")
@@ -434,6 +443,13 @@ local function paintRow(row, entry, index)
       -- from the sale's own recorded cut (I1) -- do not also subtract it in
       -- Core/Acquisitions.lua, or a future reader double-subtracts.
       local net = entry.realized.profit - (sale.cut or 0)
+      -- What one of these cost, for the tooltip. `cost` is the FIFO allocation's knownCost
+      -- over `quantity` units (Core/Acquisitions.lua's ReconcileSale), so the division is
+      -- the same average the PROFIT cell is already computed from -- read, never re-derived.
+      local cost, units = entry.realized.cost, entry.realized.quantity
+      if type(cost) == "number" and type(units) == "number" and units > 0 then
+        row.tooltipPaidUnit = math.floor(cost / units)
+      end
       row.cells.profit:SetText(signedProfit(net))
       setColor(row.cells.profit, net >= 0 and Theme.color.green or Theme.color.red)
     else
@@ -451,9 +467,13 @@ local function paintRow(row, entry, index)
       end
       row.cells.profit:SetText(text)
       setColor(row.cells.profit, basis.profit >= 0 and Theme.color.green or Theme.color.red)
+      -- Only over the MATCHED units: dividing by sale.qty would quietly average in the units
+      -- FIFO could not cost at all and report a cheaper purchase than ever happened.
+      row.tooltipPaidUnit = math.floor(basis.cost / basis.matched)
     elseif basis then
       row.cells.profit:SetText(GC.L["cost unknown"])
       setColor(row.cells.profit, Theme.color.fgDim)
+      row.tooltipCostUnknown = true
     end
     -- else: free tier, no basis at all -- row.cells.profit stays "" (M2/
     -- design: "free tier (no basis) -> empty"), never an invented dash.
@@ -514,6 +534,32 @@ createRow = function(parent)
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight = highlight
   row:EnableMouse(true)
+
+  -- The item's own tooltip on hover, the same affordance Deals and the Sell tab already give
+  -- their rows -- a seller reading "Apprentice's Scribbles x92" should not have to go find the
+  -- item elsewhere to see what it is. Wired ONCE here, on the pooled row, reading whatever
+  -- paintRow last stamped: hooking it per render would stack a handler per pass.
+  --
+  -- The `paid ... each` line rides along because this tab had no room for it anywhere else.
+  -- Sold already carries six columns that shed as the window narrows, and a seventh would be
+  -- the first to go -- taking the number off exactly the narrow window that needed the space.
+  -- A tooltip costs no width at all. It is read, not recomputed: the same FIFO cost the PROFIT
+  -- cell on this row was built from, so the two can never disagree.
+  row:SetScript("OnEnter", function(self)
+    if not GameTooltip or not self.tooltipItemID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
+    if self.tooltipPaidUnit then
+      GameTooltip:AddLine((GC.L["paid %s each"]):format(formatAmount(self.tooltipPaidUnit)),
+        0.85, 0.85, 0.85, true)
+    elseif self.tooltipCostUnknown then
+      GameTooltip:AddLine(GC.L["cost unknown"], 0.85, 0.85, 0.85, true)
+    end
+    GameTooltip:Show()
+  end)
+  row:SetScript("OnLeave", function()
+    if GameTooltip then GameTooltip:Hide() end
+  end)
 
   -- Section rows: mono micro-label + a hairline running to the row's right edge. The rule
   -- anchors to the label's RIGHT, so the label must stay single-point LEFT-anchored (its
