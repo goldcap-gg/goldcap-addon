@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.6.4 (unreleased)
+## 0.6.4 (2026-08-31)
 
 - **The addon now tells you when the Companion would help.** Tooltip prices
   that come from the bundled snapshot or a stale import end with a one-line
