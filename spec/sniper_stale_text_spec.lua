@@ -55,7 +55,7 @@ describe("Sniper stale-text banner (companion nudge)", function()
         ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 }, SUSPECT = { 1, 0.6, 0 } },
         color = { watch = { 0.35, 0.72, 0.9 }, gold = { 0.83, 0.64, 0.22 },
-          fgDim = { 0.5, 0.5, 0.5 }, fg = { 0.92, 0.91, 0.89 }, green = { 0, 1, 0 }, red = { 1, 0, 0 } },
+          fgDim = { 0.5, 0.5, 0.5 }, fgMuted = { 0.72, 0.71, 0.69 }, fg = { 0.92, 0.91, 0.89 }, green = { 0, 1, 0 }, red = { 1, 0, 0 } },
       },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end,

@@ -144,7 +144,7 @@ describe("Sniper buy dialog verdict block", function()
         -- Task 2 restyle: green/red added (additive -- every existing test in this file only
         -- ever reads fg/fgDim off this table) for stampDialogFromDecision's new guarded
         -- verdictLabel/verdictAmount tint calls.
-        color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 },
+        color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 }, fgMuted = { 0.72, 0.71, 0.69 },
           green = { 0.25, 0.85, 0.25 }, red = { 0.898, 0.283, 0.302 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }

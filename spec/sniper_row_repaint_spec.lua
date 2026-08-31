@@ -85,7 +85,7 @@ describe("Sniper row repaint skip", function()
     local GC = {
       Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
         tier = { HOT = { 1, 1, 1 }, GOOD = { 1, 1, 1 }, WATCH = { 1, 1, 1 } },
-        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 },
+        color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fgMuted = { 0.72, 0.71, 0.69 },
           fg = { 0.92, 0.91, 0.89 }, gold = { 0.83, 0.64, 0.22 }, watch = { 0.35, 0.72, 0.90 } },
       },
       AutoScan = { New = function()

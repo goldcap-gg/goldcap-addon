@@ -292,6 +292,15 @@ end
 -- inline and close with |r.
 local DIM_HEX = "|cff9d9d9d"
 
+-- Theme.color.goldHi as an inline escape, for the one number on the stock line that is money.
+-- The line under an item name is a run-on -- count, then listed, then what a unit cost -- drawn
+-- at size 10 in a single uniform weight, and the owner of a live client said of the cost he had
+-- asked to be shown: "I did not even see it, it just sits there." He was right. It is the figure
+-- the PRICE / UNIT column two feet to the right is meant to be compared against, and it carried
+-- no more emphasis than the word "in". Colouring the amount (never the words around it) gives
+-- the eye something to land on without adding a row, a column or a line.
+local MONEY_HEX = "|cffe8c15a"
+
 -- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
 -- -- see that module's own `evaluate` comment for what each one means structurally. A silently
 -- short queue is the same lie as a silently short deals list; naming the reason in plain words
@@ -2297,6 +2306,11 @@ local function createRow(parent)
   -- every item on the screen appeared truncated, whatever its name. Its own FontString, its
   -- own anchor (layoutCells splits the flex box in half vertically for the pair).
   row.itemStock = Theme.Label(row, 10)
+  -- Said out loud rather than inherited from the font template: this line is deliberately one
+  -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
+  -- the thing that steps forward. Leaving it on the template's own colour made the whole line
+  -- compete with the name and the cost compete with nothing.
+  row.itemStock:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   row.itemStock:SetJustifyH("LEFT")
   row.itemStock:SetWordWrap(false)
   row.itemStock:Hide()
@@ -2768,7 +2782,10 @@ renderRows = function()
         local paidUnit = nil
         if p.coverage == "COMPLETE" and exact(p.knownCost) and exact(p.knownQty) and p.knownQty > 0 then
           paidUnit = math.floor(p.knownCost / p.knownQty)
-          stockParts[#stockParts + 1] = (GC.L["paid %s each"]):format(formatCell(paidUnit))
+          -- Escaped around the AMOUNT, not around the whole phrase: a translation is free to
+          -- put the money anywhere in its own sentence, and only the money should light up.
+          stockParts[#stockParts + 1] =
+            (GC.L["paid %s each"]):format(MONEY_HEX .. formatCell(paidUnit) .. "|r")
         end
         -- The quality pip goes in the label rather than beside it: this row and
         -- the Sniper's deal row anchor their cells completely differently, and an

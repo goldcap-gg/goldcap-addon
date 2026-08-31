@@ -15,6 +15,9 @@
   The tooltip is the item's own, the same one Deals and Sell already give
   you, with a line for the per-unit cost the profit on that row was worked
   out from.
+- **What you paid is now legible on a Sell row.** The cost per unit was there
+  all along, in the same weight and colour as the words around it, and easy
+  to look straight past. The amount now reads as money.
 
 ## 0.6.4 (2026-08-31)
 

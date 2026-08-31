@@ -84,7 +84,7 @@ describe("Sell tab, bags to Post", function()
     GC = {
       Sell = {},
       Theme = {
-        color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
+        color = { fg = { 1, 1, 1 }, fgDim = { .5, .5, .5 }, fgMuted = { .72, .71, .69 }, red = { 1, 0, 0 }, green = { 0, 1, 0 },
           zebra = { 1, 1, 1, 0.04 }, hover = { 1, 1, 1, 0.08 }, border = { 1, 1, 1, 0.06 },
           gold = { 1, 1, 0 }, panel = { 0, 0, 0 }, panelHi = { 0.102, 0.114, 0.141 } },
         pad = { xs = 4, s = 8, m = 12, l = 16 },
@@ -156,6 +156,22 @@ describe("Sell tab, bags to Post", function()
     for _, r in ipairs(rows) do if r.shown and r.kind == "position" then shown = shown + 1 end end
     assert.equal(1, shown) -- the soulbound and the unidentifiable are not positions
     assert.equal(1, GC.Sell.SellableCount())
+  end)
+
+  -- The one number on that second line that is money had exactly the weight of the word "in"
+  -- next to it: one uniform size-10 run-on, no colour of its own. The owner of a live client,
+  -- looking at a row that had been showing him his own cost for weeks: "I did not even see it,
+  -- it just sits there." Only the AMOUNT is escaped -- a translation may put the money anywhere
+  -- in its own sentence, and colouring the whole phrase would light up the words too.
+  it("colours the money on the stock line, and only the money", function()
+    GC.Acquisitions.Record({ source = "goldcap", itemID = 23427,
+      positionKey = "commodity:23427", itemName = "Eternium Ore", quantity = 246,
+      total = 242457600, acquiredAt = 1, evidenceKey = "buy:money",
+      character = "Owner-Dentarg", region = "eu" })
+    compose()
+    local row = positionRow()
+    assert.equal("COMPLETE", row.position.coverage)
+    assert.equal("×246 in bags · paid |cffe8c15a98g56s|r each", row.itemStock.text)
   end)
 
   -- The deck switch is painted once at construction, when `positions` is still empty, and then

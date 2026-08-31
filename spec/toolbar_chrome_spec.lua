@@ -52,7 +52,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
         RAIL_W = 76,
         pad = { m = 8, s = 4, xs = 2 },
         tier = { WATCH = { 1, 1, 1 } },
-        color = { watch = { 0.35, 0.72, 0.90 }, gold = { 0.83, 0.64, 0.22 }, fgDim = { 0.5, 0.5, 0.5 },
+        color = { watch = { 0.35, 0.72, 0.90 }, gold = { 0.83, 0.64, 0.22 }, fgDim = { 0.5, 0.5, 0.5 }, fgMuted = { 0.72, 0.71, 0.69 },
           fg = { 0.92, 0.91, 0.89 }, green = { 0, 1, 0 }, red = { 1, 0, 0 } },
       },
       AutoScan = { New = function()
