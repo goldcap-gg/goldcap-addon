@@ -8,6 +8,9 @@
   of the tab entirely. Those rows said "not on hand" and showed no price and
   no margin, over items the auction house was happy to take. They are now
   counted, priced and postable like everything else.
+- **The Sell tab's two counters were stuck on zero.** "TO POST" and "MY LOTS"
+  were filled in once, before the list existed, and never again — so they read
+  0 over a screen full of rows. They now follow the list.
 
 ## 0.6.4 (2026-08-31)
 

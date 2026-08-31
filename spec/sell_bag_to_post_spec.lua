@@ -158,6 +158,17 @@ describe("Sell tab, bags to Post", function()
     assert.equal(1, GC.Sell.SellableCount())
   end)
 
+  -- The deck switch is painted once at construction, when `positions` is still empty, and then
+  -- only by its own buttons' OnClick. Nothing repainted it when the list was rebuilt, so both
+  -- counts read 0 over a full tab -- and a "TO POST 0" over thirteen bag-stock positions is
+  -- exactly what made an already-fixed bag bug look like it was still there.
+  it("keeps the deck counts in step with the list it is counting", function()
+    compose()
+    local container = upvalue(GC.Sell.Attach, "container")
+    assert.equal("TO POST 1", container.deckButtons.post.label)
+    assert.equal("MY LOTS 0", container.deckButtons.listed.label)
+  end)
+
   -- Regression from a live client: `hasNoValue` means the VENDOR will not buy the item, which
   -- says nothing about the auction house. Reading it as a refusal hid a seller's whole reagent
   -- inventory -- a bag dump had 322 Venomous Combatant's Heraldry, 850 Gloom Dust and 38

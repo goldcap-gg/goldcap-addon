@@ -740,6 +740,13 @@ local function composePositions()
     cancelEntries, cancelSkipped = {}, {}
   end
   paintCancelButton()
+  -- The deck switch's two counts are read straight off `positions`, so they have to be
+  -- repainted whenever `positions` moves. `container.paintDeckSwitch` was exported for exactly
+  -- this and then never called by anybody: the switch was painted once at construction, over an
+  -- empty table, and after that only when the player clicked one of its own two buttons. So it
+  -- sat at "TO POST 0 · MY LOTS 0" above a full list -- and that zero is what made a fixed
+  -- bag-stock bug look like it was still broken, twice, to two different readers.
+  if container and container.paintDeckSwitch then container.paintDeckSwitch() end
 end
 
 -- Which items the pricing walk asks the server about.
