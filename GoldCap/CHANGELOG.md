@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.6.5 (unreleased)
+## 0.6.5 (2026-09-01)
 
 - **The Sell tab was hiding stock you can absolutely sell.** Anything the
   vendor refuses to buy — most enchanting dust, many crafting reagents, a
