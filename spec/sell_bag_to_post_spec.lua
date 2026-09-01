@@ -174,6 +174,22 @@ describe("Sell tab, bags to Post", function()
     assert.equal("×246 in bags · paid |cffe8c15a98g56s|r each", row.itemStock.text)
   end)
 
+  -- SellPositions.Build cannot reach SavedVariables and must not, so the commodity-versus-item
+  -- contradiction it settles is only settleable if the CALLER hands it the client's cached
+  -- answer. A capability nothing feeds is the bug: this suite has shipped exactly that before,
+  -- a fix that was dead code because the call site never supplied what it needed.
+  it("hands SellPositions.Build the client's cached commodity answers", function()
+    GC.db = GC.db or {}
+    GC.db.commodityByItem = { [23427] = true }
+    local captured
+    local realBuild = GC.SellPositions.Build
+    GC.SellPositions.Build = function(args) captured = args; return realBuild(args) end
+    compose()
+    GC.SellPositions.Build = realBuild
+    assert.is_table(captured.commodityKinds)
+    assert.is_true(captured.commodityKinds[23427])
+  end)
+
   -- The deck switch is painted once at construction, when `positions` is still empty, and then
   -- only by its own buttons' OnClick. Nothing repainted it when the list was rebuilt, so both
   -- counts read 0 over a full tab -- and a "TO POST 0" over thirteen bag-stock positions is

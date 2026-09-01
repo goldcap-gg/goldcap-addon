@@ -671,24 +671,58 @@ function GC.SellPositions.Build(args)
       -- only one would misreport what the sale earned. That case still gets a repair row.
       if count and count > 1 then
         local proven = uniqueVariants(known[matched.itemID] or {}, {})
-        local provenIsCommodity = proven and proven:find("^commodity:") ~= nil
-        local contradicts = false
-        for _, activity in pairs(matchedByScope) do
-          local key = activity.positionKey
-          if proven and type(key) == "string" and key ~= proven
-              and (key:find("^commodity:") ~= nil) ~= provenIsCommodity then
-            contradicts = true
-          end
+        local provenIsCommodity = proven ~= nil and (proven:find("^commodity:") ~= nil) or nil
+        -- The purchase record is not the only authority on whether an item sells as a
+        -- commodity, and it is not the best one either: `commodityKinds` is what
+        -- C_AuctionHouse.GetItemKeyInfo told the client, cached in SavedVariables the first
+        -- time the item was seen at an auction house. It answers this exact question directly,
+        -- where a purchase only answers it by implication -- and it answers for items that
+        -- were never bought at all, which is where this used to give up. A live client's
+        -- enchant had two contradictory keys, no purchases, and a cached `true` sitting right
+        -- there; the sale went to a repair row anyway.
+        if provenIsCommodity == nil then
+          local kind = type(args.commodityKinds) == "table" and args.commodityKinds[matched.itemID]
+          if kind == true or kind == false then provenIsCommodity = kind end
         end
-        if contradicts then
-          local narrowed, narrowedCount
+        if provenIsCommodity ~= nil then
+          local contradicts = false
           for _, activity in pairs(matchedByScope) do
-            if activity.positionKey == proven then
-              narrowed, narrowedCount = activity, (narrowedCount or 0) + 1
+            local key = activity.positionKey
+            if type(key) == "string" and (key:find("^commodity:") ~= nil) ~= provenIsCommodity then
+              contradicts = true
             end
           end
-          if narrowedCount == 1 then matched, count = narrowed, 1 end
+          if contradicts then
+            -- Narrowed by FORM, and additionally by the exact key when a purchase proved one.
+            -- Form alone is all the cache can prove, and it is enough for the only thing this
+            -- branch is allowed to settle: `item:X:23:0:0` and `item:X:80:0:0` share a form,
+            -- so two genuine variants still both survive the filter and stay a question.
+            local narrowed, narrowedCount
+            for _, activity in pairs(matchedByScope) do
+              local key = activity.positionKey
+              if type(key) == "string" and (key:find("^commodity:") ~= nil) == provenIsCommodity
+                  and (proven == nil or key == proven) then
+                narrowed, narrowedCount = activity, (narrowedCount or 0) + 1
+              end
+            end
+            if narrowedCount == 1 then matched, count = narrowed, 1 end
+          end
         end
+      end
+      -- The same tiebreak the ledger's own reconciliation uses (Acquisitions.ReconcileSale):
+      -- where two candidates share an item NAME because they are two quality ranks of one
+      -- reagent, the price the sale went through at is what separates them. Deliberately kept
+      -- in step with that one -- this tab and the ledger disagreeing about which position a
+      -- sale belongs to would be worse than either of them refusing.
+      if count and count > 1 and positive(evidence.qty) and positive(evidence.total) then
+        local unit = math.floor(evidence.total / evidence.qty)
+        local narrowed, narrowedCount
+        for _, activity in pairs(matchedByScope) do
+          if GC.Acquisitions.WasListedAt(activity, unit, evidence.at) then
+            narrowed, narrowedCount = activity, (narrowedCount or 0) + 1
+          end
+        end
+        if narrowedCount == 1 then matched, count = narrowed, 1 end
       end
       -- A settled sale is the NORMAL end of owning something. Requiring `pending` here meant
       -- every paid sale fell through to a repair row with no itemID, no icon and no numbers --
@@ -711,12 +745,29 @@ function GC.SellPositions.Build(args)
           if evidence.pending == true then position.facts.soldPending = true end
           position.sellerEvidence[#position.sellerEvidence + 1] = evidence
         end
-      else
+      elseif evidence.pending == true then
+        -- A SETTLED sale never creates a row, whether or not it could be attributed. That is
+        -- the same rule the branch above already applies to a sale it did attribute -- attach
+        -- to a position that exists for another reason, never conjure one -- and there is no
+        -- reason it should hold for the sales GoldCap understood and not for the ones it did
+        -- not. The row it used to make could not be acted on and could never be resolved: no
+        -- itemID, no icon, a dash in every column and "Missing cost" underneath, one per
+        -- unattributable invoice, accumulating for as long as the ledger is kept. A live
+        -- client had seven, four of them the same reagent, and asked why sales that had
+        -- plainly gone through were still sitting in the Sell tab.
+        --
+        -- The information is not lost with the row. A sale GoldCap could not cost still says
+        -- so per sale, in Sold, where that sentence belongs -- "cost unknown" on the row for
+        -- that exact invoice. What disappears is only the claim that the SELL tab, which is
+        -- about what to do next, has something outstanding about it.
+        --
+        -- A PENDING sale is different and keeps its row: the proceeds are not collected yet,
+        -- so it is not finished business, and this tab saying "sale proceeds pending" is the
+        -- one useful thing left to say about it.
         unresolvedRows[#unresolvedRows + 1] = {
           unresolved = true, protectedAction = false,
           unresolvedKey = "seller-evidence:" .. evidence.key,
-          unresolvedKind = count and count > 1 and "ambiguous_sale"
-            or (evidence.pending == true and "pending_sale" or "paid_sale"),
+          unresolvedKind = count and count > 1 and "ambiguous_sale" or "pending_sale",
           itemName = evidence.itemName, character = context.char, region = context.region,
           batches = {}, pendingAcquisitions = {}, sellerEvidence = { evidence },
           ownedLots = {}, allocations = {}, sources = {}, trackedQty = 0,

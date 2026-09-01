@@ -159,7 +159,106 @@ describe("Sell positions", function()
 
   -- But a genuine variant question stays a question. Two different item variants of one itemID
   -- are two different things to sell, and guessing between them misreports what a sale earned.
+  -- Pinned on a PENDING sale, because that is the only kind that still earns a row at all --
+  -- see the settled case immediately below.
   it("still refuses a sale split across two genuine variants", function()
+    local positions = build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1, nil, nil, nil, "item:42:23:0:0") },
+      activities = {
+        activity("item:42:23:0:0", 42, "Herb", 1),
+        activity("item:42:80:0:0", 42, "Herb", 1),
+      },
+      sellerEvidence = { sale("Herb", 5, true) },
+    })
+
+    local ambiguous = 0
+    for _, position in ipairs(positions) do
+      if position.unresolvedKind == "ambiguous_sale" then ambiguous = ambiguous + 1 end
+    end
+    assert.equal(1, ambiguous)
+  end)
+
+  -- One itemID cannot be both a commodity and a variant item, so an activity set holding
+  -- `commodity:X` beside `item:X:...` is provable corruption -- a fossil from before owned lots
+  -- were classified, when GetOwnedAuctions reported no isCommodity and every lot was filed
+  -- under an item-style key. The purchase record settles it when there is one. When there is
+  -- not -- and on a live client there was not, for an item with no purchases at all -- the
+  -- client's OWN answer settles it: `commodityByItem` is what C_AuctionHouse.GetItemKeyInfo
+  -- said, cached in SavedVariables, and it is a better authority on this question than an
+  -- inference from what happened to have been bought.
+  it("settles a commodity-versus-item contradiction from the client's own item key info", function()
+    local positions = build({
+      activities = {
+        activity("commodity:42", 42, "Herb", 1),
+        activity("item:42:80:0:0", 42, "Herb", 1),
+      },
+      ownedLots = { lot("commodity:42", 1, 200, 1) },
+      commodityKinds = { [42] = true },
+      sellerEvidence = { sale("Herb", 5, true) },
+    })
+    for _, position in ipairs(positions) do
+      assert.not_equal("ambiguous_sale", position.unresolvedKind)
+    end
+    local attached
+    for _, position in ipairs(positions) do
+      if position.positionKey == "commodity:42" and #(position.sellerEvidence or {}) > 0 then
+        attached = position
+      end
+    end
+    assert.is_not_nil(attached)
+  end)
+
+  -- Two genuine variants of one itemID do NOT contradict each other -- they are two different
+  -- things to sell -- so the cache cannot settle that one, and it stays a question.
+  it("does not let item key info choose between two genuine variants", function()
+    local positions = build({
+      activities = {
+        activity("item:42:23:0:0", 42, "Herb", 1),
+        activity("item:42:80:0:0", 42, "Herb", 1),
+      },
+      commodityKinds = { [42] = false },
+      sellerEvidence = { sale("Herb", 5, true) },
+    })
+    local ambiguous = 0
+    for _, position in ipairs(positions) do
+      if position.unresolvedKind == "ambiguous_sale" then ambiguous = ambiguous + 1 end
+    end
+    assert.equal(1, ambiguous)
+  end)
+
+  -- The Sell tab has to reach the SAME answer the ledger reaches, or the two disagree about
+  -- which position a sale belonged to. Same signal, same shape: the price it sold at.
+  it("attributes a same-name sale to the position listed at that price", function()
+    local listed = activity("commodity:42", 42, "Herb", 1)
+    listed.listedUnits = { [345900] = 1 }
+    local other = activity("commodity:43", 43, "Herb", 1)
+    other.listedUnits = { [65500] = 1 }
+    local positions = build({
+      activities = { listed, other },
+      ownedLots = { lot("commodity:42", 1, 345900, 1) },
+      sellerEvidence = { { key = "mail:priced", kind = "sale", source = "mail", itemName = "Herb",
+        qty = 1, total = 345900, at = 5, char = context.char, region = context.region,
+        pending = true } },
+    })
+    for _, position in ipairs(positions) do
+      assert.not_equal("ambiguous_sale", position.unresolvedKind)
+    end
+    local attached
+    for _, position in ipairs(positions) do
+      if position.positionKey == "commodity:42" and #(position.sellerEvidence or {}) > 0 then
+        attached = position
+      end
+    end
+    assert.is_not_nil(attached)
+  end)
+
+  -- ...and a SETTLED one that cannot be attributed makes no row at all, the same way a settled
+  -- one that CAN be attributed never creates a position. A live client had seven of these --
+  -- four of them the same reagent, whose quality ranks share one item name -- with no itemID,
+  -- no icon, a dash in every column and no action that could ever clear them. "They were sold,
+  -- and they are still sitting here." The sale is not lost: Sold still says `cost unknown` on
+  -- that exact invoice, which is where an unattributable sale belongs.
+  it("makes no row for a settled sale it cannot attribute", function()
     local positions = build({
       acquisitions = { batch("acq:1", "auction_house", 3, 300, 1, nil, nil, nil, "item:42:23:0:0") },
       activities = {
@@ -168,12 +267,10 @@ describe("Sell positions", function()
       },
       sellerEvidence = { sale("Herb", 5, false) },
     })
-
-    local ambiguous = 0
     for _, position in ipairs(positions) do
-      if position.unresolvedKind == "ambiguous_sale" then ambiguous = ambiguous + 1 end
+      assert.not_equal("ambiguous_sale", position.unresolvedKind)
+      assert.not_equal("REPAIR_SALE", position.status)
     end
-    assert.equal(1, ambiguous)
   end)
 
   it("normalizes every owned auction into an independently priced position lot", function()
@@ -517,10 +614,12 @@ describe("Sell positions", function()
       { scopeKey = "eu\1A-R\1item:2:0:0:0", positionKey = "item:2:0:0:0", itemID = 2,
         itemName = "Shared", character = "A-R", region = "eu", firstSeenAt = 1 },
     }, sellerEvidence = {
+      -- Both pending: a settled sale makes no row at all now, attributable or not, so pinning
+      -- the two unattributable SHAPES needs the one kind of sale that still earns one.
       { key = "sale:paid-unresolved", kind = "sale", source = "mail", itemName = "No Activity",
-        qty = 1, total = 100, at = 5, char = "A-R", region = "eu", pending = false },
+        qty = 1, total = 100, at = 5, char = "A-R", region = "eu", pending = true },
       { key = "sale:ambiguous", kind = "sale", source = "mail", itemName = "Shared",
-        qty = 1, total = 100, at = 5, char = "A-R", region = "eu", pending = false },
+        qty = 1, total = 100, at = 5, char = "A-R", region = "eu", pending = true },
     } })
     local kinds = {}
     for _, position in ipairs(unresolved) do
@@ -533,7 +632,7 @@ describe("Sell positions", function()
     end
     assert.equal(1, kinds.pending_purchase)
     assert.equal(1, kinds.unassigned_acquisition)
-    assert.equal(1, kinds.paid_sale)
+    assert.equal(1, kinds.pending_sale)
     assert.equal(1, kinds.ambiguous_sale)
 
     local resolvable = batch("acq:item-only", "auction_house", 1, 75, 1, nil, nil, 77)

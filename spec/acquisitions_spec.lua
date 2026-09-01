@@ -492,6 +492,57 @@ describe("Acquisition store", function()
     assert.equal("ambiguous_name", result.reason)
   end)
 
+  -- The quality ranks of a reagent are different itemIDs with IDENTICAL names -- "Brilliant
+  -- Silver Ore" is both 237364 and 237365 -- and a seller's mail invoice carries the name and
+  -- no id at all, so by every field the invoice has the two are the same thing. A live client
+  -- had four such sales sitting uncosted, their purchase batches never consumed, which in turn
+  -- made the item's average cost a figure computed over stock he had already sold.
+  --
+  -- The price separates them: an auction sells at exactly the price it was listed at, and the
+  -- invoice's total over its quantity IS that price. His two ranks stood at 6g55s and 34g59s.
+  it("tells two same-name positions apart by the price each was listed at", function()
+    record({ itemID = 1, positionKey = "item:1:0:0:0", itemName = "Shared Name", evidenceKey = "buy:1" })
+    record({ itemID = 2, positionKey = "item:2:0:0:0", itemName = "Shared Name", evidenceKey = "buy:2" })
+    GC.Acquisitions.RecordPost("item:1:0:0:0", 1, "Shared Name", context.char, context.region, 2, 100, 65500)
+    GC.Acquisitions.RecordPost("item:2:0:0:0", 2, "Shared Name", context.char, context.region, 2, 100, 345900)
+
+    local result = GC.Acquisitions.ReconcileSale({ key = "sale:priced", kind = "sale", source = "mail",
+      itemName = "Shared Name", qty = 1, total = 345900, at = 200,
+      char = context.char, region = context.region, pending = false })
+    assert.equal("applied", result.status)
+    assert.equal("item:2:0:0:0", result.positionKey)
+  end)
+
+  -- A tiebreak, never an override. Two candidates standing at the same price are exactly as
+  -- indistinguishable as they were before the price was recorded, and saying so is the honest
+  -- answer -- picking one would misreport what the sale earned.
+  it("still refuses when both same-name positions were listed at the sale's price", function()
+    record({ itemID = 1, positionKey = "item:1:0:0:0", itemName = "Shared Name", evidenceKey = "buy:1" })
+    record({ itemID = 2, positionKey = "item:2:0:0:0", itemName = "Shared Name", evidenceKey = "buy:2" })
+    GC.Acquisitions.RecordPost("item:1:0:0:0", 1, "Shared Name", context.char, context.region, 2, 100, 500)
+    GC.Acquisitions.RecordPost("item:2:0:0:0", 2, "Shared Name", context.char, context.region, 2, 100, 500)
+
+    local result = GC.Acquisitions.ReconcileSale({ key = "sale:tied", kind = "sale", source = "mail",
+      itemName = "Shared Name", qty = 1, total = 500, at = 200,
+      char = context.char, region = context.region, pending = false })
+    assert.equal("unresolved", result.status)
+    assert.equal("ambiguous_name", result.reason)
+  end)
+
+  -- A price the position only reached AFTER the sale cannot be the price it sold at.
+  it("ignores a listing price first seen after the sale", function()
+    record({ itemID = 1, positionKey = "item:1:0:0:0", itemName = "Shared Name", evidenceKey = "buy:1" })
+    record({ itemID = 2, positionKey = "item:2:0:0:0", itemName = "Shared Name", evidenceKey = "buy:2" })
+    GC.Acquisitions.RecordPost("item:1:0:0:0", 1, "Shared Name", context.char, context.region, 2, 100, 700)
+    GC.Acquisitions.RecordPost("item:2:0:0:0", 2, "Shared Name", context.char, context.region, 2, 900, 700)
+
+    local result = GC.Acquisitions.ReconcileSale({ key = "sale:late", kind = "sale", source = "mail",
+      itemName = "Shared Name", qty = 1, total = 700, at = 200,
+      char = context.char, region = context.region, pending = false })
+    assert.equal("applied", result.status)
+    assert.equal("item:1:0:0:0", result.positionKey)
+  end)
+
   it("requires observed scoped activity at or before an exact-character paid sale", function()
     local batch = record({ itemName = "Ironclaw Ore", quantity = 2, total = 200 })
     local sale = { key = "sale:early", kind = "sale", source = "mail", itemName = "Ironclaw Ore",

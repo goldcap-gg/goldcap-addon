@@ -470,6 +470,63 @@ local function positionKeyMatchesItem(positionKey, itemID)
     and isSignedExactInteger(tonumber(itemSuffix)) and isExactInteger(tonumber(petSpecies))
 end
 
+-- The unit prices this scoped position has been seen listed at, and when. Bounded, because it
+-- is written on every owned-auction refresh and would otherwise live in SavedVariables forever.
+local LISTED_UNIT_LIMIT = 8
+
+local function validListedUnits(units)
+  if units == nil then return true end
+  if type(units) ~= "table" then return false end
+  local count = 0
+  for unit, at in pairs(units) do
+    if not isPositiveInteger(unit) or not isExactInteger(at) then return false end
+    count = count + 1
+    -- Generous against the live limit: a save written by a build with a larger cap must still
+    -- be READ, not rejected -- rejecting an activity record is how a sale loses its candidate.
+    if count > 64 then return false end
+  end
+  return true
+end
+
+local function rememberListedUnit(activity, unit, at)
+  if not isPositiveInteger(unit) or not isExactInteger(at) then return end
+  activity.listedUnits = type(activity.listedUnits) == "table" and activity.listedUnits or {}
+  local units = activity.listedUnits
+  -- Re-seeing a price refreshes it instead of adding a second entry, so one long-standing
+  -- listing cannot evict every other price on its own.
+  if units[unit] == nil or units[unit] < at then units[unit] = at end
+  local count = 0
+  for _ in pairs(units) do count = count + 1 end
+  while count > LISTED_UNIT_LIMIT do
+    local oldestUnit, oldestAt
+    for candidate, seenAt in pairs(units) do
+      if oldestAt == nil or seenAt < oldestAt then oldestUnit, oldestAt = candidate, seenAt end
+    end
+    if oldestUnit == nil then break end
+    units[oldestUnit] = nil
+    count = count - 1
+  end
+end
+
+--- Was this scoped position ever seen listed at `unit`, at or before `at`?
+--
+-- The one signal that separates two quality ranks of a reagent. Their item NAMES are identical
+-- -- "Brilliant Silver Ore" is two itemIDs -- and a seller's mail invoice carries a name and no
+-- id at all, so a sale of one is indistinguishable from a sale of the other by every field the
+-- invoice has. But an auction sells at exactly the price it was listed at, and the invoice's
+-- total over its quantity IS that price. A live client's two ranks stood at 6g55s and 34g59s;
+-- nothing else in the record told them apart.
+--
+-- Only ever used to break a tie that would otherwise be REFUSED, never to overrule a match, so
+-- the worst it can do is fail to help. Two candidates listed at the same price leave the sale
+-- exactly as ambiguous as it is today.
+function GC.Acquisitions.WasListedAt(activity, unit, at)
+  if type(activity) ~= "table" or type(activity.listedUnits) ~= "table" then return false end
+  if not isPositiveInteger(unit) or not isExactInteger(at) then return false end
+  local seenAt = activity.listedUnits[unit]
+  return isExactInteger(seenAt) and seenAt <= at
+end
+
 local function validStoredActivity(mapKey, activity)
   if not isNonEmptyString(mapKey) or type(activity) ~= "table"
       or not isPositiveInteger(activity.itemID)
@@ -478,7 +535,8 @@ local function validStoredActivity(mapKey, activity)
       or not isNonEmptyString(activity.region) or not isExactInteger(activity.firstSeenAt)
       or (activity.lastSeenAt ~= nil and not isExactInteger(activity.lastSeenAt))
       or (activity.lastPostedAt ~= nil and not isExactInteger(activity.lastPostedAt))
-      or (activity.lastPostedQty ~= nil and not isPositiveInteger(activity.lastPostedQty)) then
+      or (activity.lastPostedQty ~= nil and not isPositiveInteger(activity.lastPostedQty))
+      or not validListedUnits(activity.listedUnits) then
     return nil
   end
   local scopeKey = GC.Acquisitions.ScopeKey(activity.positionKey,
@@ -979,7 +1037,7 @@ local function validActivityArgs(positionKey, itemID, itemName, character, regio
     and isExactInteger(at)
 end
 
-local function recordActivity(positionKey, itemID, itemName, character, region, at, quantity)
+local function recordActivity(positionKey, itemID, itemName, character, region, at, quantity, unitPrice)
   if not db or not validActivityArgs(positionKey, itemID, itemName, character, region, at) then return nil end
   if quantity ~= nil and not isPositiveInteger(quantity) then return nil end
   local context = { char = character, region = region }
@@ -1001,18 +1059,22 @@ local function recordActivity(positionKey, itemID, itemName, character, region, 
     activity.lastPostedAt = isExactInteger(activity.lastPostedAt) and math.max(activity.lastPostedAt, at) or at
     activity.lastPostedQty = quantity
   end
+  -- Recorded whether the lot was posted through GoldCap or merely observed among the player's
+  -- own auctions: both are proof that this exact position stood on the auction house at this
+  -- price, which is all the tiebreak needs.
+  if unitPrice ~= nil then rememberListedUnit(activity, unitPrice, at) end
   return activity
 end
 
 -- Records positive evidence that a scoped position exists or was posted. It intentionally never
 -- interprets a later missing owned-auctions result as a sale; paid seller mail is the sole sale
 -- evidence that can consume a batch.
-function GC.Acquisitions.ObserveOwnedPosition(positionKey, itemID, itemName, character, region, at)
-  return recordActivity(positionKey, itemID, itemName, character, region, at)
+function GC.Acquisitions.ObserveOwnedPosition(positionKey, itemID, itemName, character, region, at, unitPrice)
+  return recordActivity(positionKey, itemID, itemName, character, region, at, nil, unitPrice)
 end
 
-function GC.Acquisitions.RecordPost(positionKey, itemID, itemName, character, region, quantity, at)
-  return recordActivity(positionKey, itemID, itemName, character, region, at, quantity)
+function GC.Acquisitions.RecordPost(positionKey, itemID, itemName, character, region, quantity, at, unitPrice)
+  return recordActivity(positionKey, itemID, itemName, character, region, at, quantity, unitPrice)
 end
 
 local function validSaleEntry(entry)
@@ -1059,7 +1121,7 @@ function GC.Acquisitions.ReconcileSale(entry)
   end
 
   if type(db.acquisitionActivity) ~= "table" then return unresolved("invalid_activity") end
-  local candidates = {}
+  local candidates, activityByScope = {}, {}
   for scopeKey, activity in pairs(db.acquisitionActivity) do
     if not validStoredActivity(scopeKey, activity) then return unresolved("invalid_activity") end
     local candidate = activeByScope[scopeKey]
@@ -1068,12 +1130,34 @@ function GC.Acquisitions.ReconcileSale(entry)
         and activity.character == entry.char and activity.region == entry.region
         and isExactInteger(activity.firstSeenAt) and activity.firstSeenAt <= entry.at then
       candidates[scopeKey] = candidate
+      activityByScope[scopeKey] = activity
     end
   end
 
   local candidate, count
   for _, value in pairs(candidates) do candidate, count = value, (count or 0) + 1 end
   if count == nil then return unresolved("no_position") end
+  if count ~= 1 then
+    -- Two candidates sharing one item NAME is not always two guesses. The quality ranks of a
+    -- reagent are different itemIDs with identical names -- "Brilliant Silver Ore" is both
+    -- 237364 and 237365 -- and a seller's invoice carries the name and no id, so by every field
+    -- the invoice has they are the same thing. What separates them is the price: an auction
+    -- sells at exactly the price it was listed at, and total/qty IS that price. On a live
+    -- client the two ranks stood at 6g55s and 34g59s, and every sale of either went uncosted
+    -- for want of this one comparison -- leaving the purchase batches unconsumed forever, so
+    -- the item's average cost was computed over stock the player had already sold.
+    --
+    -- A tiebreak, never an override: it runs only where the answer was going to be a refusal,
+    -- and if two candidates were both listed at the price it refuses exactly as before.
+    local unit = math.floor(entry.total / entry.qty)
+    local narrowed, narrowedCount
+    for scopeKey, value in pairs(candidates) do
+      if GC.Acquisitions.WasListedAt(activityByScope[scopeKey], unit, entry.at) then
+        narrowed, narrowedCount = value, (narrowedCount or 0) + 1
+      end
+    end
+    if narrowedCount == 1 then candidate, count = narrowed, 1 end
+  end
   if count ~= 1 then return unresolved("ambiguous_name") end
   if candidate.quantity < entry.qty then return unresolved("insufficient_quantity") end
 

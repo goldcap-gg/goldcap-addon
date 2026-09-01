@@ -177,6 +177,10 @@ local manualRepairNonce = 0
 -- Defined below, once normalizedPositionKey exists to derive an auction identity
 -- from a bag link; composePositions only ever calls it at runtime.
 local scanBagStock
+-- Forward-declared for the same reason: composePositions hands the store to
+-- SellPositions.Build (which uses it to settle a commodity-versus-item contradiction over one
+-- itemID), and it is defined much further down, beside the classifier that fills it.
+local commodityKindCache
 
 -- Forward-declared here rather than further down: disarmPost/disarmRepost below
 -- need to flush a render that was deferred while a purchase was armed.
@@ -731,6 +735,11 @@ local function composePositions()
     pendingAcquisitions = pending,
     activities = activities, sellerEvidence = sellerEvidence, ownedLots = ownedLots,
     bagStock = bagStock, quotes = quotes, statsByItemID = stats, context = scope, now = time(),
+    -- "Does this item sell as a commodity", straight from C_AuctionHouse.GetItemKeyInfo and
+    -- remembered. Build cannot reach SavedVariables and must not; it is handed the answer so
+    -- it can settle an activity set holding `commodity:X` and `item:X:...` for one itemID --
+    -- provable corruption that a purchase record can only settle when there IS a purchase.
+    commodityKinds = commodityKindCache and commodityKindCache() or nil,
     -- A price the seller typed has to reach the decoration, not just the post: the PROFIT
     -- column, the posting queue's own label and the plan all read the recommendation, and
     -- this file has twice shipped a bug where the price shown and the price sent were two
@@ -1136,7 +1145,11 @@ function GC.Sell.OnOwnedAuctions()
   local scope = context()
   if GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition and scope then
     for _, lot in ipairs(ownedLots) do
-      GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName(lot.itemID), scope.char, scope.region, time())
+      -- `lot.unitPrice` is what this position stands at on the auction house right now, and it
+      -- is the only thing that can later tell one quality rank of a reagent from another when a
+      -- mail invoice names both -- see GC.Acquisitions.WasListedAt.
+      GC.Acquisitions.ObserveOwnedPosition(lot.positionKey, lot.itemID, itemName(lot.itemID),
+        scope.char, scope.region, time(), lot.unitPrice)
     end
     -- Pure composition is allowed to display a currently unique variant, but
     -- it must never make that inference durable.  The controller has the
@@ -1291,7 +1304,7 @@ end
 -- the answer is remembered in SavedVariables the first time it is learned, and
 -- an item nobody has ever classified is left out rather than filed under a
 -- guessed key. Guessing is what split one item into two positions before.
-local function commodityKindCache()
+commodityKindCache = function()
   if GC.db then
     GC.db.commodityByItem = type(GC.db.commodityByItem) == "table" and GC.db.commodityByItem or {}
     return GC.db.commodityByItem
@@ -1724,7 +1737,12 @@ function GC.Sell.OnAuctionCreated()
     and exact(pin.total) and pin.total > 0 and type(pin.character) == "string" and pin.character ~= ""
     and type(pin.region) == "string" and pin.region ~= ""
   if valid and GC.Acquisitions and GC.Acquisitions.RecordPost then
-    GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), pin.character, pin.region, pin.quantity, time())
+    -- Derived as total/quantity rather than read off the pin, deliberately: a sale invoice
+    -- carries a total and a quantity and nothing else, so the price this remembers has to be
+    -- computed the same way the price it will be matched against is (Acquisitions.ReconcileSale).
+    local postedUnit = math.floor(pin.total / pin.quantity)
+    GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), pin.character,
+      pin.region, pin.quantity, time(), postedUnit)
   end
   -- The choice was for THIS listing. Keeping it would quietly price the next batch of the same
   -- item at a number chosen against a book that has since moved -- which is the one real risk

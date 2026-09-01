@@ -26,6 +26,14 @@
   seconds later without saying so. The pause is now a second, the window to
   confirm is nineteen, and a cancel the auction house is slow to acknowledge
   is no longer reported as having timed out when it has actually gone through.
+- **Sales you have already been paid for no longer sit in the Sell tab.** An
+  invoice GoldCap could not match to one of your positions used to leave a row
+  behind with no icon, no numbers and nothing you could do about it. Sold
+  still tells you, on that sale, when it could not work out what it cost.
+- **Reagent quality ranks stop confusing your sales.** The ranks of an ore or
+  a herb share one item name, and a sale invoice carries the name and nothing
+  else — so GoldCap could not tell which one you had sold, and left both
+  uncosted. It now tells them apart by the price the sale went through at.
 
 ## 0.6.4 (2026-08-31)
 

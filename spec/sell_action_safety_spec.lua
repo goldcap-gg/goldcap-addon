@@ -297,7 +297,10 @@ describe("Sell protected action state", function()
     local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
     post(row)
     GC.Sell.OnAuctionCreated()
-    assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100 }, records[1])
+    -- The trailing 200 is the posted UNIT price (pin.total / pin.quantity), remembered so a
+    -- later mail invoice naming two quality ranks of one reagent can be told apart by the
+    -- price it sold at -- see GC.Acquisitions.WasListedAt.
+    assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100, 200 }, records[1])
     assert.is_nil(row.postStage)
     assert.is_true(row.action.enabled)
     assert.equal("Post", row.action.label)
@@ -321,7 +324,7 @@ describe("Sell protected action state", function()
     post(row)
     scope = { char = "B-R", region = "us" }
     GC.Sell.OnAuctionCreated()
-    assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100 }, records[1])
+    assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100, 200 }, records[1])
   end)
 
   it("rejects a post plan whose scope cannot prove the clicked position", function()
