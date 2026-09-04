@@ -29,7 +29,7 @@ function GC.ImportString.Parse(str)
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),
-    items = {}, verification = {}, watchlist = {}, namesWanted = {},
+    items = {}, verification = {}, quarter = {}, watchlist = {}, namesWanted = {},
   }
   local count = 0
 
@@ -67,6 +67,16 @@ function GC.ImportString.Parse(str)
             flags = tonumber(flags),
           }
         end
+      end
+    elseif kind == "Q" then
+      -- Top of the cheap quarter (p25 over listings, copper), commodities only -- the
+      -- ceiling for posting above the cheapest ask (Flips.RecommendPost, overcut). Anchored
+      -- per token like V: a malformed token drops itself and nothing else. It is a section
+      -- rather than a fifth I field because the I parser above is not anchored, and builds
+      -- that predate this one skip unknown sections cleanly.
+      for token in body:gmatch("[^,]+") do
+        local id, p25 = token:match("^(%d+)=(%d+)$")
+        if id then result.quarter[tonumber(id)] = tonumber(p25) end
       end
     elseif kind == "W" then
       for id in body:gmatch("%d+") do
