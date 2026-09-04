@@ -279,6 +279,7 @@ GC.Locales.itIT = {
   ["Positions without a cost or a live price are excluded."] =
     "Le posizioni senza costo o senza prezzo dal vivo sono escluse.",
   ["Post"] = "Vendi",
+  ["Post above the cheapest"] = "Pubblica sopra il più economico",
   ["Post confirmation expired"] = "La conferma della vendita è scaduta",
   ["Post the next queued item"] = "Metti in vendita il prossimo oggetto in coda",
   ["Posting failed"] = "Messa in vendita fallita",
@@ -442,6 +443,8 @@ GC.Locales.itIT = {
   ["You pay"] = "Paghi",
   ["You would get"] = "Riceveresti",
   ["You would pay"] = "Pagheresti",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "sopra il più economico, nel quarto economico · %d davanti",
   ["any figure here would be invented out of the very number being refused"] =
     "qualsiasi cifra qui sarebbe inventata proprio dal numero che viene rifiutato",
   ["auto off"] = "auto disattivato",

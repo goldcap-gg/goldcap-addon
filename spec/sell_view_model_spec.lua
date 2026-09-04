@@ -82,6 +82,28 @@ describe("Sell view model", function()
     assert.not_equal(position.batches[1], expanded.batches[1])
   end)
 
+  it("explains an overcut recommendation in the facts line", function()
+    local position = { coverage = "COMPLETE", positionKey = "commodity:42",
+      postRecommendation = { unit = 11000, mode = "overcut", ahead = 700 } }
+    local d = GC.SellViewModel.Expansion(position)
+    assert.is_string(d.factsText)
+    assert.is_truthy(d.factsText:find("above the cheapest, inside the cheap quarter · 700 ahead", 1, true))
+  end)
+
+  it("reads the overcut reason from a listed lot's nested repost advice too", function()
+    local position = { coverage = "COMPLETE", positionKey = "commodity:42",
+      recommendation = { action = "repost", rec = { unit = 11000, mode = "overcut", ahead = 12 } } }
+    local d = GC.SellViewModel.Expansion(position)
+    assert.is_truthy(d.factsText:find("· 12 ahead", 1, true))
+  end)
+
+  it("says nothing about overcut when the mode did not fire", function()
+    local position = { coverage = "COMPLETE", positionKey = "commodity:42",
+      postRecommendation = { unit = 9900, mode = "undercut" } }
+    local d = GC.SellViewModel.Expansion(position)
+    assert.is_nil((d.factsText or ""):find("cheap quarter", 1, true))
+  end)
+
   it("does not mutate a deep position input through any pure view method", function()
     local position = { positionKey = "commodity:42", coverage = "COMPLETE", sources = { goldcap = 1 },
       batches = { { id = "a", remainingQty = 1, remainingTotal = 10, evidenceKeys = { x = true } } },

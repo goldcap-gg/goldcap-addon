@@ -291,6 +291,7 @@ GC.Locales.ukUA = {
   ["Positions without a cost or a live price are excluded."] =
     "Позиції без собівартості чи живої ціни не враховано.",
   ["Post"] = "Виставити",
+  ["Post above the cheapest"] = "Виставляти вище найдешевшого",
   ["Post confirmation expired"] = "Підтвердження виставлення протерміновано",
   ["Post the next queued item"] = "Виставити наступний предмет із черги",
   ["Posting failed"] = "Виставлення не вдалося",
@@ -458,6 +459,8 @@ GC.Locales.ukUA = {
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",
   ["You would pay"] = "Ви заплатите",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "вище найдешевшого, у дешевій чверті · попереду %d",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["auto off"] = "авто вимкнено",

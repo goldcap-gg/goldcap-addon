@@ -480,7 +480,7 @@ local function build(sniperFrame)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], 2)
+  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], 3)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -573,6 +573,10 @@ local function build(sniperFrame)
   -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
   toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto")
+
+  -- Sell tab overcut (Core/Flips.lua, RecommendPost): one rung above the cheapest, inside the
+  -- cheap quarter. Off = today's match/undercut exactly.
+  toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut")
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
   -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px

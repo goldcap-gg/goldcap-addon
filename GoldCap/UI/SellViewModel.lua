@@ -393,6 +393,17 @@ function GC.SellViewModel.Expansion(position)
   local facts = {}
   if position.facts and position.facts.pendingPurchase then facts[#facts + 1] = GC.L["purchase pending exact cost"] end
   if position.facts and position.facts.undercut then facts[#facts + 1] = "undercut" end
+  -- Overcut explains itself: the row shows a price above the cheapest ask, which every seller
+  -- has been taught is wrong, so the reason and the queue ahead ride next to it. Bag stock
+  -- carries the mode on postRecommendation; a listed lot's repost advice nests it under rec.
+  local rec = position.postRecommendation
+  if type(rec) ~= "table" or rec.mode ~= "overcut" then
+    rec = position.recommendation
+    if type(rec) == "table" and type(rec.rec) == "table" then rec = rec.rec end
+  end
+  if type(rec) == "table" and rec.mode == "overcut" and type(rec.ahead) == "number" then
+    facts[#facts + 1] = (GC.L["above the cheapest, inside the cheap quarter · %d ahead"]):format(rec.ahead)
+  end
   if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
   if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = GC.L["paid sale unresolved"] end
   if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = GC.L["sale name ambiguous"] end

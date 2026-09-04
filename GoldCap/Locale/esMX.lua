@@ -283,6 +283,7 @@ GC.Locales.esMX = {
   ["Positions without a cost or a live price are excluded."] =
     "Se excluyen las posiciones sin costo o sin precio en vivo.",
   ["Post"] = "Publicar",
+  ["Post above the cheapest"] = "Publicar arriba del más barato",
   ["Post confirmation expired"] = "La confirmación de publicación ha caducado",
   ["Post the next queued item"] = "Publicar el siguiente objeto de la cola",
   ["Posting failed"] = "Fallo al publicar",
@@ -443,6 +444,8 @@ GC.Locales.esMX = {
   ["You pay"] = "Pagas",
   ["You would get"] = "Recibirías",
   ["You would pay"] = "Pagarías",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "arriba del más barato, dentro del cuarto barato · %d adelante",
   ["any figure here would be invented out of the very number being refused"] =
     "cualquier cifra aquí saldría inventada del mismo número que se está rechazando",
   ["auto off"] = "auto desactivado",

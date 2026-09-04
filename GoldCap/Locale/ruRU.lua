@@ -277,6 +277,7 @@ GC.Locales.ruRU = {
   ["Positions without a cost or a live price are excluded."] =
     "Позиции без себестоимости или живой цены не учтены.",
   ["Post"] = "Выставить",
+  ["Post above the cheapest"] = "Выставлять выше самого дешёвого",
   ["Post confirmation expired"] = "Подтверждение выставления просрочено",
   ["Post the next queued item"] = "Выставить следующий предмет из очереди",
   ["Posting failed"] = "Выставление не удалось",
@@ -441,6 +442,8 @@ GC.Locales.ruRU = {
   ["You pay"] = "Вы платите",
   ["You would get"] = "Вы получите",
   ["You would pay"] = "Вы заплатите",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "выше самого дешёвого, в дешёвой четверти · впереди %d",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["auto off"] = "авто выключено",

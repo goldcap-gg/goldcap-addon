@@ -277,6 +277,7 @@ GC.Locales.deDE = {
   ["Positions without a cost or a live price are excluded."] =
     "Positionen ohne Einkaufspreis oder Live-Preis werden nicht mitgezählt.",
   ["Post"] = "Einstellen",
+  ["Post above the cheapest"] = "Über dem Günstigsten anbieten",
   ["Post confirmation expired"] = "Bestätigung zum Einstellen abgelaufen",
   ["Post the next queued item"] = "Nächsten Gegenstand aus der Warteschlange einstellen",
   ["Posting failed"] = "Einstellen fehlgeschlagen",
@@ -442,6 +443,8 @@ GC.Locales.deDE = {
   ["You pay"] = "Du zahlst",
   ["You would get"] = "Du bekämst",
   ["You would pay"] = "Du zahltest",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "über dem Günstigsten, im günstigen Viertel · %d davor",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
   ["auto off"] = "auto aus",

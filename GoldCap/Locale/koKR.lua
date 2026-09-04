@@ -264,6 +264,7 @@ GC.Locales.koKR = {
   ["Positions without a cost or a live price are excluded."] =
     "원가나 실시간 가격이 없는 항목은 제외됩니다.",
   ["Post"] = "등록",
+  ["Post above the cheapest"] = "최저가보다 높게 등록",
   ["Post confirmation expired"] = "등록 확인이 만료되었습니다",
   ["Post the next queued item"] = "대기열의 다음 아이템 등록",
   ["Posting failed"] = "등록에 실패했습니다",
@@ -414,6 +415,8 @@ GC.Locales.koKR = {
   ["You pay"] = "지불 금액",
   ["You would get"] = "받게 될 금액",
   ["You would pay"] = "지불할 금액",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "최저가보다 높게, 저가 구간 안 · 앞에 %d개",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
   ["auto off"] = "자동 꺼짐",

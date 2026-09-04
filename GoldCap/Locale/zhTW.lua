@@ -262,6 +262,7 @@ GC.Locales.zhTW = {
   ["Position scope changed"] = "項目範圍已變更",
   ["Positions without a cost or a live price are excluded."] = "沒有成本或即時價格的項目不列入計算。",
   ["Post"] = "上架",
+  ["Post above the cheapest"] = "高於最低價上架",
   ["Post confirmation expired"] = "上架確認已逾期",
   ["Post the next queued item"] = "上架佇列中的下一個道具",
   ["Posting failed"] = "上架失敗",
@@ -406,6 +407,8 @@ GC.Locales.zhTW = {
   ["You pay"] = "你支付",
   ["You would get"] = "你會拿回",
   ["You would pay"] = "你會支付",
+  ["above the cheapest, inside the cheap quarter · %d ahead"] =
+    "高於最低價，處於低價四分位內 · 前方 %d",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
   ["auto off"] = "自動已關閉",
