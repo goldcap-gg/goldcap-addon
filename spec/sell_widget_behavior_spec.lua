@@ -1579,9 +1579,11 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("» 9900", rows[4].cells.market.text)
   end)
 
-  -- Same "two different numbers" defect, the other sub-row: BuildRepostPlan now raises for
-  -- queue/overcut the same way BuildPostPlan does (Core/SellPositions.lua), so the cell beside
-  -- the Repost button has to show that raised unit too, not the raw fresh quote.
+  -- Same "two different numbers" defect, the other sub-row. Repost itself only cancels --
+  -- BuildRepostPlan prices at exactly the fresh quote and must keep doing so (its confirm guard
+  -- compares against that quote). The cell beside the button is a DISPLAY of what BuildPostPlan
+  -- will list at once the units are back in bags, so it shows the recommendation's unit, not
+  -- the raw fresh quote.
   it("shows the overcut-raised unit on a listed lot's repost sub-row, not the raw quote", function()
     local GC = load(620, { calls = {} })
     GC.SellViewModel.Expansion = function()
