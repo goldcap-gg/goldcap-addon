@@ -1,5 +1,15 @@
 # GoldCap
 
+## 0.7.0 (unreleased)
+
+- **The Sell tab now posts one step above the cheapest listing when the book
+  says that sells just as fast — and never above the cheap quarter.** Measured
+  over 3.2 million commodity listings: inside the cheapest quarter the odds of
+  selling within a day are the same as at the very bottom, so racing to the
+  cheapest was giving gold away. The row says why and how many units sit ahead
+  of you. Turn it off under Settings → "Post above the cheapest" if you prefer
+  the old behaviour.
+
 ## 0.6.5 (2026-09-01)
 
 - **The Sell tab was hiding stock you can absolutely sell.** Anything the
