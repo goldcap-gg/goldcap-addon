@@ -588,15 +588,78 @@ end
 -- still worth it.
 GC.Flips.UNDERCUT_MAX_SHARE = 0.02
 
+-- Overcut. The position-in-the-book study (docs/research/2026-08-31-position-in-the-book.md,
+-- design in docs/superpowers/specs/2026-09-04-sell-overcut-design.md) measured the 24h sale
+-- rate at the cheapest ask and anywhere inside the cheapest quarter of an item's listings as a
+-- tie (82.1% vs 82.8% US, 81.5% vs 81.4% EU), and found that inside one price level the newest
+-- lot sells first. So a fresh post one OCCUPIED rung above the cheapest ask joins the head of
+-- that rung: same units ahead as a made-up rung a silver lower, and it pays more.
+--
+-- Two guards keep that honest per item. The rung must sit under the server's quarter line
+-- (opts.quarterUnit -- p25 over listings, the client cannot see listing counts and its book is
+-- cut at 100 levels), and the units queued at or below it must fit OVERCUT_ABSORB_HOURS of the
+-- item's measured daily sales. The band average cannot see a wall just under p25; the budget
+-- can. Six hours rather than wallAbsorbHours' two: this is not reaching a flip's approved exit,
+-- it is landing inside the 24h horizon the study measured with room for sellers who arrive
+-- after you.
+--
+-- Returns the grid-normalised unit and the units strictly below it, or nil when the mode does
+-- not apply: no book, no velocity, no quarter line, cap at or under the cheapest, or the
+-- cheapest tier alone exceeds the budget (90k units at 5g moving 22k a day -- match, don't climb).
+GC.Flips.OVERCUT_ABSORB_HOURS = 6
+
+function GC.Flips.OvercutCandidate(marketUnit, opts)
+  opts = opts or {}
+  if not marketUnit or not opts.levels or not opts.levels[1] then return nil end
+  if type(opts.sold) ~= "number" or opts.sold <= 0 then return nil end
+  if type(opts.quarterUnit) ~= "number" or opts.quarterUnit <= 0 then return nil end
+  local cap = GC.Flips.SilverDown(opts.quarterUnit)
+  if not cap or cap <= marketUnit then return nil end
+
+  local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
+  local queued = 0
+  local best, bestAhead
+  local cheapestFits, cheapestQueued = false, 0
+  for _, lvl in ipairs(opts.levels) do
+    local qty = lvl.quantity or 0
+    if qty > 0 then
+      if lvl.unitPrice > cap then break end
+      local ahead = queued
+      queued = queued + qty
+      if queued > budget then break end
+      if lvl.unitPrice <= marketUnit then
+        cheapestFits, cheapestQueued = true, queued
+      else
+        best, bestAhead = lvl.unitPrice, ahead
+      end
+    end
+  end
+  if best then return GC.Flips.SilverDown(best), bestAhead end
+  if not cheapestFits then return nil end
+  -- No occupied rung under the cap: one grid step above the cheapest, if that stays under it.
+  local step = GC.Flips.SilverUp(marketUnit + 1)
+  if step and step <= cap then return step, cheapestQueued end
+  return nil
+end
+
 function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   opts = opts or {}
-  local mode, candidate
+  local mode, candidate, overcutAhead
+
+  -- Overcut runs FIRST. F3 below fires for nearly every liquid commodity (its condition is
+  -- "the cheapest tier turns over in half a day"), and the study says F3's answer -- match the
+  -- cheapest -- is never better than one rung up inside the quarter. Overcut is F3's
+  -- refinement, not an exception to it; when it declines, F3 and everything after run as before.
+  if marketUnit then
+    local over, ahead = GC.Flips.OvercutCandidate(marketUnit, opts)
+    if over then mode, candidate, overcutAhead = "overcut", over, ahead end
+  end
 
   -- Tier-depth/velocity match (F3, unchanged precedence): candidate is grid-normalized too,
   -- defensively -- a live marketUnit should already be whole silver (it couldn't have posted
   -- otherwise), so this is a no-op on every real input, and a fail-closed guard against whatever
   -- reaches this function with a marketUnit that isn't.
-  if marketUnit and opts.levels and opts.levels[1] and opts.sold and opts.sold > 0 then
+  if not mode and marketUnit and opts.levels and opts.levels[1] and opts.sold and opts.sold > 0 then
     local cheapest = opts.levels[1].unitPrice
     local tierDepth = 0
     for _, lvl in ipairs(opts.levels) do
@@ -698,6 +761,7 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     mode = mode,
     breakeven = breakeven,
     belowCost = (breakeven ~= nil and candidate < breakeven) or false,
+    ahead = mode == "overcut" and overcutAhead or nil,
   }
 end
 
@@ -736,7 +800,7 @@ end
 function GC.Flips.RepostAdvice(args)
   args = args or {}
   local rec = GC.Flips.RecommendPost(args.paidUnit, args.marketUnit, args.mv,
-    { levels = args.levels, sold = args.sold, floor = args.floor })
+    { levels = args.levels, sold = args.sold, floor = args.floor, quarterUnit = args.quarterUnit })
   if not rec then return nil end
 
   if rec.belowCost then
