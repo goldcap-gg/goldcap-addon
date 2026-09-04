@@ -29,6 +29,7 @@ describe("RecommendPost overcut", function()
     local r = GC.Flips.RecommendPost(nil, 10000, 12000, { levels = ladder, sold = 4000, quarterUnit = 12000 })
     assert.equal("overcut", r.mode)
     assert.equal(11000, r.unit)
+    assert.equal(700, r.ahead)
   end)
 
   it("takes one grid step above the cheapest when no occupied rung fits under the cap", function()
@@ -95,6 +96,27 @@ describe("RecommendPost overcut", function()
     assert.equal("overcut", r.mode)
     assert.equal(math.ceil(12000 / 0.95), r.breakeven)
     assert.is_true(r.belowCost)
+  end)
+
+  it("declines when levels at or below the ask exceed the budget across more than one entry", function()
+    -- 9500 (600) + 10000 (600) = 1200 units sit at or below the 10000 ask, budget is 1000: the
+    -- walk breaks trying to add the second level, but the full total still must be checked.
+    local levels = { level(9500, 600), level(10000, 600), level(10500, 100) }
+    local r = GC.Flips.RecommendPost(nil, 10000, 12000, { levels = levels, sold = 4000, quarterUnit = 11000 })
+    assert.not_equal("overcut", r.mode)
+  end)
+
+  it("declines when sold is NaN instead of failing the budget check open", function()
+    local r = GC.Flips.RecommendPost(nil, 10000, 12000, { levels = ladder, sold = 0 / 0, quarterUnit = 15000 })
+    assert.not_equal("overcut", r.mode)
+  end)
+
+  it("skips an occupied rung that rounds down onto the ask and takes the grid step instead", function()
+    local levels = { level(10000, 400), level(10050, 100) }
+    local r = GC.Flips.RecommendPost(nil, 10000, 12000, { levels = levels, sold = 4000, quarterUnit = 11000 })
+    assert.equal("overcut", r.mode)
+    assert.equal(10100, r.unit)
+    assert.equal(400, r.ahead)
   end)
 
   it("forwards quarterUnit through RepostAdvice", function()

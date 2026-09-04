@@ -611,15 +611,33 @@ GC.Flips.OVERCUT_ABSORB_HOURS = 6
 function GC.Flips.OvercutCandidate(marketUnit, opts)
   opts = opts or {}
   if not marketUnit or not opts.levels or not opts.levels[1] then return nil end
-  if type(opts.sold) ~= "number" or opts.sold <= 0 then return nil end
+  -- `opts.sold ~= opts.sold` catches NaN (a 0/0 upstream, say) -- `<= 0` alone lets it through,
+  -- since every comparison against NaN is false, which would turn the budget below into NaN and
+  -- silently disable every `queued > budget` guard in this function. Fail closed, same
+  -- convention as SilverDown/SilverUp's own NaN check.
+  if type(opts.sold) ~= "number" or opts.sold ~= opts.sold or opts.sold <= 0 then return nil end
   if type(opts.quarterUnit) ~= "number" or opts.quarterUnit <= 0 then return nil end
   local cap = GC.Flips.SilverDown(opts.quarterUnit)
   if not cap or cap <= marketUnit then return nil end
 
   local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
+
+  -- The full queue at or below the cheapest ask, computed independently of the ranked walk
+  -- below. That walk breaks out as soon as any single step pushes the cumulative queue over
+  -- budget -- which can happen partway through the levels at or below marketUnit, before every
+  -- one of them has been counted. The synthetic one-grid-step candidate is only eligible when
+  -- ALL of that queue fits, so it needs its own total rather than whatever partial sum the walk
+  -- happened to reach.
+  local totalAtOrBelowMarket = 0
+  for _, lvl in ipairs(opts.levels) do
+    if lvl.unitPrice <= marketUnit then
+      totalAtOrBelowMarket = totalAtOrBelowMarket + (lvl.quantity or 0)
+    end
+  end
+  local cheapestFits = totalAtOrBelowMarket <= budget
+
   local queued = 0
   local best, bestAhead
-  local cheapestFits, cheapestQueued = false, 0
   for _, lvl in ipairs(opts.levels) do
     local qty = lvl.quantity or 0
     if qty > 0 then
@@ -627,18 +645,23 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
       local ahead = queued
       queued = queued + qty
       if queued > budget then break end
-      if lvl.unitPrice <= marketUnit then
-        cheapestFits, cheapestQueued = true, queued
-      else
+      if lvl.unitPrice > marketUnit then
         best, bestAhead = lvl.unitPrice, ahead
       end
     end
   end
-  if best then return GC.Flips.SilverDown(best), bestAhead end
+  if best then
+    local normalized = GC.Flips.SilverDown(best)
+    -- An occupied rung can sit within one silver of the ask and round DOWN onto it on the grid
+    -- -- that is the match price wearing the overcut label, not a step up, and it would report
+    -- the queue at the wrong rung besides. Fall through to the synthetic-step branch instead of
+    -- returning a price that isn't actually ahead of marketUnit.
+    if normalized and normalized > marketUnit then return normalized, bestAhead end
+  end
   if not cheapestFits then return nil end
   -- No occupied rung under the cap: one grid step above the cheapest, if that stays under it.
   local step = GC.Flips.SilverUp(marketUnit + 1)
-  if step and step <= cap then return step, cheapestQueued end
+  if step and step <= cap then return step, totalAtOrBelowMarket end
   return nil
 end
 
