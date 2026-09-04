@@ -123,6 +123,17 @@ describe("RecommendPost overcut", function()
     assert.equal(500, r.ahead)
   end)
 
+  it("counts an occupied rung's ahead below the NORMALISED price it posts at, not the raw rung", function()
+    -- 10550 rounds down to 10500 -- the same grid price the 10500 rung already occupies -- so
+    -- the candidate posts at 10500 and the 300 units already AT 10500 are queued alongside it,
+    -- not below it. Only the 400 at the ask (10000) are strictly below the posted price.
+    local levels = { level(10000, 400), level(10500, 300), level(10550, 100) }
+    local r = GC.Flips.RecommendPost(nil, 10000, 12000, { levels = levels, sold = 4000, quarterUnit = 11000 })
+    assert.equal("overcut", r.mode)
+    assert.equal(10500, r.unit)
+    assert.equal(400, r.ahead)
+  end)
+
   it("forwards quarterUnit through RepostAdvice", function()
     local seen
     local real = GC.Flips.RecommendPost

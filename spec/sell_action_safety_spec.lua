@@ -561,6 +561,48 @@ describe("Sell protected action state", function()
     assert.equal(7, cancelID)
   end)
 
+  -- Repost is a cancel-only flow -- CancelAuction, then "Lot cancelled; wait for it to return
+  -- to bags" (see the comment right after CancelAuction in onRepostClick, and Core/Flips.lua's
+  -- "Repost's cancel step"). The actual relist happens later through the ordinary Post path
+  -- (BuildPostPlan, which already carries the queue/overcut raise) once the units are back in
+  -- the bags -- BuildRepostPlan.unitPrice is never posted at all. Its ONLY runtime consumer is
+  -- this confirm guard, which compares it against the RAW fresh quote (pin.quoteUnit, set from
+  -- quote.unit at arm time, never from the plan). If BuildRepostPlan raised its unit for a
+  -- "queue"/"overcut" recommendation the way BuildPostPlan does, that comparison would never
+  -- match on a row where overcut fired -- the second click would always read "Repost
+  -- confirmation expired" and the button could never confirm. Real BuildRepostPlan (not
+  -- stubbed), so this exercises the actual guard rather than a double that assumes the fix.
+  it("confirms an armed repost for an overcut-recommended lot without BuildRepostPlan raising the price", function()
+    local cancelCalls, cancelID = 0, nil
+    _G.C_AuctionHouse = {
+      CancelAuction = function(auctionID) cancelCalls = cancelCalls + 1; cancelID = auctionID end,
+      GetOwnedAuctions = function() return { { auctionID = 7 } } end,
+    }
+    local quote = { unit = 200, at = 100 }
+    local function overcutPosition()
+      return { itemID = 42, positionKey = "commodity:42", scopeKey = "eu\1A-R\1commodity:42",
+        character = "A-R", region = "eu", trackedQty = 1, listedQty = 1,
+        ownedLots = { { auctionID = 7, quantity = 1, unitPrice = 200 } },
+        recommendation = { action = "repost", rec = { mode = "overcut", unit = 11500, ahead = 12 } } }
+    end
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end } }
+    -- The REAL BuildRepostPlan/NormalizeOwnedLots, not a stub: a double that just passes
+    -- fresh.unit through would prove nothing about the guard this test exists to protect.
+    GC = helper.loadModule("Core/SellPositions.lua", GC)
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local _, repost = handlers(GC)
+    set(repost, "composePositions", function() end)
+    set(repost, "currentPosition", function() return overcutPosition() end)
+    local row = { position = overcutPosition(), action = button(), renderEntryID = "entry:lot:7" }
+    repost(row, 7)
+    assert.equal("armed", row.repostStage)
+    row.repostReady = true
+    repost(row, 7)
+    assert.equal(1, cancelCalls)
+    assert.equal(7, cancelID)
+    assert.equal("cancelling", row.repostStage)
+  end)
+
   it("reset disarms a repost without cancelling", function()
     local cancels = 0
     _G.C_AuctionHouse = { CancelAuction = function() cancels = cancels + 1 end }

@@ -899,6 +899,14 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
     chosen = chosen ~= nil, belowFloor = risk.belowFloor, belowCost = risk.belowCost }
 end
 
+-- Repost is a cancel-only click: this plan's `unitPrice` is never posted at anything. Its only
+-- runtime reader is onRepostClick's second-click confirm guard (UI/SellFrame.lua), which
+-- compares it against the RAW fresh quote the row armed on -- never against a raised number --
+-- so this must keep pricing at exactly the fresh quote. The actual relist happens later, once
+-- the cancelled units are back in the bags, through the ordinary Post path (BuildPostPlan
+-- above), which already carries the queue/overcut raise. A raise applied HERE instead would
+-- make the confirm guard's comparison fail on every overcut-recommended lot and the second
+-- click would read "Repost confirmation expired" forever.
 function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
   local unit, quoteReason = freshUnit(freshQuote)
   if not unit then return nil, quoteReason end
@@ -918,17 +926,6 @@ function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
       -- lists stock, has always been willing to proceed with costKnown = false.
       local allocation = ownedLot.allocation
       local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
-      -- Same raise as BuildPostPlan's queue-at-exit/overcut rule above, and the same asymmetry:
-      -- it can only ever RAISE the price. Without it, a row already advising "cancel and
-      -- relist at the overcut rung" (position.recommendation.rec) would repost right back at
-      -- the raw fresh quote -- the row and the click disagreeing about the number the row just
-      -- explained, the same "two different numbers" defect the queue-at-exit raise exists to
-      -- prevent.
-      local rec = type(position.recommendation) == "table" and position.recommendation.rec or nil
-      if type(rec) == "table" and (rec.mode == "queue" or rec.mode == "overcut")
-          and positive(rec.unit) and rec.unit > unit then
-        unit = rec.unit
-      end
       return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
         auctionID = ownedLot.auctionID, quantity = ownedLot.quantity,
         cost = complete and allocation.knownCost or nil, costKnown = complete,

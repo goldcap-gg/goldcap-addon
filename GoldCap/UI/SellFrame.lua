@@ -3241,14 +3241,18 @@ renderRows = function()
         row.subItem:SetText((GC.L["×%d listed at %s each"]):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.listed:SetText(formatCell(total))
-        -- What Repost will actually list at. BuildRepostPlan applies the same queue/overcut
-        -- raise BuildPostPlan does (only ever raising above the fresh quote), so this has to
-        -- show that raised unit too, not the raw quote -- the same "two different numbers"
-        -- defect the floor-raise comment in Core/SellPositions.lua describes.
+        -- Repost only cancels this lot -- Core/SellPositions.lua's BuildRepostPlan prices that
+        -- cancel at exactly the fresh quote, and nothing here ever posts at anything else. The
+        -- actual relist happens later, once the units are back in the bags, through the
+        -- ordinary Post path (BuildPostPlan), which DOES apply the queue/overcut/floor raise --
+        -- so this cell shows that as a DISPLAY of what the units will be posted at once they
+        -- are back on hand, not a number Repost itself uses. `queue` never reaches a listed
+        -- lot's own recommendation (RepostAdvice never passes it a targetUnit), so only
+        -- overcut/floor are worth predicting here.
         if p.displayMarketUnit and p.freshMarketUnit then
           local rec = type(p.recommendation) == "table" and p.recommendation.rec or nil
           local repostUnit = p.displayMarketUnit
-          if type(rec) == "table" and (rec.mode == "queue" or rec.mode == "overcut")
+          if type(rec) == "table" and (rec.mode == "overcut" or rec.mode == "floor")
               and type(rec.unit) == "number" and rec.unit > repostUnit then
             repostUnit = rec.unit
           end

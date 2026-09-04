@@ -644,17 +644,14 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   local cheapestFits = step ~= nil and totalBelowStep <= budget
 
   local queued = 0
-  local best, bestAhead
+  local best
   for _, lvl in ipairs(opts.levels) do
     local qty = lvl.quantity or 0
     if qty > 0 then
       if lvl.unitPrice > cap then break end
-      local ahead = queued
       queued = queued + qty
       if queued > budget then break end
-      if lvl.unitPrice > marketUnit then
-        best, bestAhead = lvl.unitPrice, ahead
-      end
+      if lvl.unitPrice > marketUnit then best = lvl.unitPrice end
     end
   end
   if best then
@@ -663,7 +660,21 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
     -- -- that is the match price wearing the overcut label, not a step up, and it would report
     -- the queue at the wrong rung besides. Fall through to the synthetic-step branch instead of
     -- returning a price that isn't actually ahead of marketUnit.
-    if normalized and normalized > marketUnit then return normalized, bestAhead end
+    if normalized and normalized > marketUnit then
+      -- Counting units strictly below the RAW rung `best` would be wrong: the candidate actually
+      -- POSTS at `normalized`, which SilverDown can put below `best` -- an off-grid rung folds
+      -- down onto the same grid price an occupied rung already held (the 10550 case, folding
+      -- onto 10500), and the units AT that occupied rung are queued alongside the new post, not
+      -- below it. Count strictly below the NORMALISED price actually posted, same fix as the
+      -- synthetic step above.
+      local aheadOfNormalized = 0
+      for _, lvl in ipairs(opts.levels) do
+        if lvl.unitPrice < normalized then
+          aheadOfNormalized = aheadOfNormalized + (lvl.quantity or 0)
+        end
+      end
+      return normalized, aheadOfNormalized
+    end
   end
   if not cheapestFits then return nil end
   -- No occupied rung under the cap: one grid step above the cheapest, if that stays under it.
