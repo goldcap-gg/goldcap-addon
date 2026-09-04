@@ -60,6 +60,19 @@ describe("Data", function()
     assert.same({ 201421 }, db.imported.namesWanted)
   end)
 
+  it("keeps the cheap-quarter line through SetImported", function()
+    local parsed = GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000=3.0;V:42=1=5000=1=1=1=1=1=1=0;Q:42=6500")
+    GC.Data.SetImported(parsed)
+    assert.equal(6500, GC.Data.GetItemValue(42).p25)
+    assert.equal(6500, db.imported.quarter[42])
+  end)
+
+  it("leaves no quarter field on a save when the string carried no Q section", function()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000"))
+    assert.is_nil(db.imported.quarter)
+    assert.is_nil(GC.Data.GetItemValue(42).p25)
+  end)
+
   it("passes an imported entry's trend through as `trend`", function()
     GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
                           items = { [42] = { m = 4000, t = -12 } }, watchlist = {} })

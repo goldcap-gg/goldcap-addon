@@ -122,6 +122,11 @@ function GC.Data.SetImported(parsed)
   if parsed.verification and next(parsed.verification) then
     imported.verification = parsed.verification
   end
+  -- Q section (cheap-quarter line per commodity). Same rule as V: persisted only when the
+  -- string carried one, so an older string leaves the save shaped exactly as before.
+  if parsed.quarter and next(parsed.quarter) then
+    imported.quarter = parsed.quarter
+  end
   db.imported = imported
   adoptRegion()
   GC.Data.WarnRegionMismatch()
