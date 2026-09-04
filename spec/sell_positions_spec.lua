@@ -111,6 +111,69 @@ describe("Sell positions", function()
     assert.equal(55, seen.spikePct)
   end)
 
+  -- The cheap-quarter line crosses from the import (statsByItemID.p25) into the sell-side
+  -- recommendation here and nowhere else, and only while the player has overcut on.
+  it("hands the cheap-quarter line to the post recommendation while overcut is on", function()
+    GC.db = { settings = { sniper = { overcut = true } } }
+    local seen
+    GC.Flips.RecommendPost = function(_, _, _, opts) seen = opts end
+    build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      statsByItemID = { [42] = { mv = 20000, sold = 40, p25 = 21000 } },
+    })
+    assert.equal(21000, seen.quarterUnit)
+  end)
+
+  it("withholds the cheap-quarter line when overcut is off", function()
+    GC.db = { settings = { sniper = { overcut = false } } }
+    local seen
+    GC.Flips.RecommendPost = function(_, _, _, opts) seen = opts end
+    build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      statsByItemID = { [42] = { mv = 20000, sold = 40, p25 = 21000 } },
+    })
+    assert.is_nil(seen.quarterUnit)
+  end)
+
+  it("hands the same cheap-quarter line to the repost advice for a listed lot", function()
+    GC.db = { settings = { sniper = {} } }
+    local seen
+    GC.Flips.RepostAdvice = function(args) seen = args; return nil end
+    build({
+      acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+      ownedLots = { lot("commodity:42", 2, 20000, 1) },
+      quotes = { [42] = { unit = 15000, at = 9, levels = { { unitPrice = 10000, quantity = 3 } } } },
+      statsByItemID = { [42] = { sold = 4, p25 = 16000 } },
+    })
+    assert.equal(16000, seen.quarterUnit)
+  end)
+
+  -- The displayed recommendation and the price Post uses must be one number. The plan already
+  -- raises for the queue-at-exit mode; overcut is the same asymmetry (a raise can only delay a
+  -- sale, never underprice one).
+  it("lists bag stock at the overcut rung, not the cheapest ask", function()
+    GC.db = { settings = { sniper = {} } }
+    local ladder = {
+      { unitPrice = 10000, quantity = 400 }, { unitPrice = 10500, quantity = 300 },
+      { unitPrice = 11000, quantity = 300 }, { unitPrice = 12000, quantity = 2000 },
+    }
+    local p = build({
+      bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 50,
+        isCommodity = true } },
+      quotes = { [42] = { unit = 10000, at = 9, levels = ladder } },
+      statsByItemID = { [42] = { mv = 12000, sold = 4000, p25 = 11000 } },
+    })[1]
+    assert.equal("overcut", p.postRecommendation.mode)
+    assert.equal(11000, p.postRecommendation.unit)
+
+    local plan, reason = GC.SellPositions.BuildPostPlan(p,
+      { itemID = 42, exactQty = 50, positionKey = "commodity:42" }, { unit = 10000, fresh = true })
+    assert.is_nil(reason)
+    assert.equal(11000, plan.unitPrice)
+  end)
+
   -- The same wiring, checked at the OTHER call site. `recommendation` (COMPLETE, nothing listed)
   -- and `postRecommendation` (bag stock, computed independently) both build a RecommendPost
   -- options table, and both carry a queue-at-exit targetUnit here -- so both must carry the

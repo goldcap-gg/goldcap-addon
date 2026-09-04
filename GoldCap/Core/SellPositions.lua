@@ -372,6 +372,11 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   local sniperSettings = GC.db and GC.db.settings and GC.db.settings.sniper or nil
   local absorbHours = sniperSettings and sniperSettings.wallAbsorbHours or nil
   local spikePct = sniperSettings and sniperSettings.spikeTrendPct or nil
+  -- The cheap-quarter line reaches RecommendPost only through here, and only while the player
+  -- has overcut on -- RecommendPost itself never reads settings. A save without the field yet
+  -- (ApplyDefaults runs at login) counts as on, matching the default.
+  local overcutOn = not sniperSettings or sniperSettings.overcut ~= false
+  local quarterUnit = overcutOn and marketStats and marketStats.p25 or nil
 
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
@@ -384,18 +389,18 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   if position.coverage == "COMPLETE" and position.listedQty > 0 then
     position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.knownQty),
       marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty,
-      floor = position.postFloor })
+      floor = position.postFloor, quarterUnit = quarterUnit })
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.knownQty),
       fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend })
+        trendPct = marketStats and marketStats.trend, quarterUnit = quarterUnit })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
     -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
     -- degrades to exactly that on a nil paidUnit, rather than inventing a cost from the market.
     position.recommendation = GC.Flips.RecommendPost(nil, fresh, position.marketValue,
-      { levels = levels, sold = position.soldPerDay, floor = position.postFloor })
+      { levels = levels, sold = position.soldPerDay, floor = position.postFloor, quarterUnit = quarterUnit })
   else
     position.recommendation = nil
   end
@@ -428,7 +433,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend })
+        trendPct = marketStats and marketStats.trend, quarterUnit = quarterUnit })
   else
     position.postRecommendation = nil
   end
@@ -868,8 +873,10 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
     -- and the posted price being two different numbers is exactly the defect the floor raise
     -- comment describes. A raise can only ever increase the price, so a stale queue quote can
     -- delay a sale but never cause an underpriced one, which is the failure that matters.
+    -- Overcut rides the same raise: the rung above the cheapest is the number the row shows, so
+    -- it is the number the post uses.
     local queueRec = position.postRecommendation
-    if type(queueRec) == "table" and queueRec.mode == "queue"
+    if type(queueRec) == "table" and (queueRec.mode == "queue" or queueRec.mode == "overcut")
         and positive(queueRec.unit) and queueRec.unit > unit then
       unit = queueRec.unit
     end
