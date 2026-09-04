@@ -443,8 +443,8 @@ GC.Locales.deDE = {
   ["You pay"] = "Du zahlst",
   ["You would get"] = "Du bekämst",
   ["You would pay"] = "Du zahltest",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "über dem Günstigsten, im günstigen Viertel · %d davor",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "über dem Günstigsten, im günstigen Viertel · %d Einheiten davor in der Schlange",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
   ["auto off"] = "auto aus",

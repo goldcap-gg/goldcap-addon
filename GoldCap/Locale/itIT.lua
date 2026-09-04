@@ -443,8 +443,8 @@ GC.Locales.itIT = {
   ["You pay"] = "Paghi",
   ["You would get"] = "Riceveresti",
   ["You would pay"] = "Pagheresti",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "sopra il più economico, nel quarto economico · %d davanti",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "sopra il più economico, nel quarto economico · %d unità in coda sotto",
   ["any figure here would be invented out of the very number being refused"] =
     "qualsiasi cifra qui sarebbe inventata proprio dal numero che viene rifiutato",
   ["auto off"] = "auto disattivato",

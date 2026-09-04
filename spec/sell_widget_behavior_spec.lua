@@ -1537,6 +1537,72 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("drawer", rows[2].kind)
   end)
 
+  -- Post charges postRecommendation.unit, floor/queue/overcut raises included -- not the raw
+  -- cheapest ask (see the "Say what Post will charge before it is clicked" comment in
+  -- SellFrame.lua). The sub-row cell has to name that same price, or it is the "two different
+  -- numbers" defect the queue-at-exit raise comment in Core/SellPositions.lua describes.
+  it("shows the overcut-raised unit on a bag-stock sub-row, not the raw cheapest ask", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {}, ownedLots = {} }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 5,
+        knownQty = 5, knownCost = 500, listedValue = 0, bagQty = 5, listedQty = 0, sources = { goldcap = 5 },
+        status = "UNLISTED", displayMarketUnit = 9900, freshMarketUnit = 9900,
+        postRecommendation = { unit = 11500, mode = "overcut", ahead = 12 } },
+    })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "liveBagState",
+      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+    rows[1].scripts.OnClick(rows[1])
+    rows = upvalue(render, "rows")
+    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row.
+    assert.equal("» 1g15s", rows[4].cells.market.text)
+  end)
+
+  it("falls back to the raw cheapest ask on a bag-stock sub-row when there is no recommendation", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {}, ownedLots = {} }
+    end
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 5,
+        knownQty = 5, knownCost = 500, listedValue = 0, bagQty = 5, listedQty = 0, sources = { goldcap = 5 },
+        status = "UNLISTED", displayMarketUnit = 9900, freshMarketUnit = 9900 },
+    })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "liveBagState",
+      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+    rows[1].scripts.OnClick(rows[1])
+    rows = upvalue(render, "rows")
+    assert.equal("» 9900", rows[4].cells.market.text)
+  end)
+
+  -- Same "two different numbers" defect, the other sub-row: BuildRepostPlan now raises for
+  -- queue/overcut the same way BuildPostPlan does (Core/SellPositions.lua), so the cell beside
+  -- the Repost button has to show that raised unit too, not the raw fresh quote.
+  it("shows the overcut-raised unit on a listed lot's repost sub-row, not the raw quote", function()
+    local GC = load(620, { calls = {} })
+    GC.SellViewModel.Expansion = function()
+      return { note = "FIFO allocations", batches = {},
+        ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } } }
+    end
+    -- listedQty makes this a LIVE LOT, so it needs the "listed" deck the same way the earlier
+    -- "listedQty makes this one a LIVE LOT" fixture above does.
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 2,
+        knownQty = 2, knownCost = 100, listedValue = 400, listedQty = 2, sources = { goldcap = 2 },
+        status = "LISTED", displayMarketUnit = 9900, freshMarketUnit = 9900,
+        recommendation = { action = "repost", rec = { unit = 11500, mode = "overcut", ahead = 12 } } },
+    }, "listed")
+    rows[1].scripts.OnClick(rows[1])
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    rows = upvalue(render, "rows")
+    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the lot.
+    assert.equal("» 1g15s", rows[4].cells.market.text)
+  end)
+
   it("renders a direct RecommendPost decision with its exact unit and mode", function()
     local GC = load(620, { calls = {} })
     GC.SellViewModel.Expansion = function()

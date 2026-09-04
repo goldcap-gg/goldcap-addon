@@ -918,6 +918,17 @@ function GC.SellPositions.BuildRepostPlan(position, auctionID, freshQuote)
       -- lists stock, has always been willing to proceed with costKnown = false.
       local allocation = ownedLot.allocation
       local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
+      -- Same raise as BuildPostPlan's queue-at-exit/overcut rule above, and the same asymmetry:
+      -- it can only ever RAISE the price. Without it, a row already advising "cancel and
+      -- relist at the overcut rung" (position.recommendation.rec) would repost right back at
+      -- the raw fresh quote -- the row and the click disagreeing about the number the row just
+      -- explained, the same "two different numbers" defect the queue-at-exit raise exists to
+      -- prevent.
+      local rec = type(position.recommendation) == "table" and position.recommendation.rec or nil
+      if type(rec) == "table" and (rec.mode == "queue" or rec.mode == "overcut")
+          and positive(rec.unit) and rec.unit > unit then
+        unit = rec.unit
+      end
       return { positionKey = position.positionKey, scopeKey = position.scopeKey, itemID = position.itemID,
         auctionID = ownedLot.auctionID, quantity = ownedLot.quantity,
         cost = complete and allocation.knownCost or nil, costKnown = complete,

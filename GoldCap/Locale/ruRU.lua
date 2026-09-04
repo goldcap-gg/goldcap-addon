@@ -442,8 +442,8 @@ GC.Locales.ruRU = {
   ["You pay"] = "Вы платите",
   ["You would get"] = "Вы получите",
   ["You would pay"] = "Вы заплатите",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "выше самого дешёвого, в дешёвой четверти · впереди %d",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "выше самого дешёвого, в дешёвой четверти · в очереди ниже %d шт.",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["auto off"] = "авто выключено",

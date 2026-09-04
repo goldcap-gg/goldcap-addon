@@ -174,6 +174,31 @@ describe("Sell positions", function()
     assert.equal(11000, plan.unitPrice)
   end)
 
+  -- Same defect, the OTHER call site: a listed lot's Repost used to price at exactly the fresh
+  -- quote, so a row already advising "cancel and relist at the overcut rung" (recommendation.rec)
+  -- would then repost the cancelled lot back at the raw cheapest ask -- the row and the click
+  -- disagreeing about the very number the row just explained. BuildRepostPlan must raise for
+  -- "queue" or "overcut" the same way BuildPostPlan's own raise does (SellFrame.lua's repost sub-
+  -- row cell shows this same unit -- see the comment there).
+  it("lists a repost at the overcut rung, not the raw fresh quote", function()
+    GC.db = { settings = { sniper = {} } }
+    local ladder = {
+      { unitPrice = 10000, quantity = 400 }, { unitPrice = 10500, quantity = 300 },
+      { unitPrice = 11000, quantity = 300 }, { unitPrice = 12000, quantity = 2000 },
+    }
+    local p = build({
+      acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
+      ownedLots = { lot("commodity:42", 2, 10000, 1) },
+      quotes = { [42] = { unit = 10000, at = 9, levels = ladder } },
+      statsByItemID = { [42] = { mv = 12000, sold = 4000, p25 = 11000 } },
+    })[1]
+    assert.equal("overcut", p.recommendation.rec.mode)
+    assert.equal(11000, p.recommendation.rec.unit)
+
+    local plan = GC.SellPositions.BuildRepostPlan(p, 1, { unit = 10000, fresh = true })
+    assert.equal(11000, plan.unitPrice)
+  end)
+
   -- The same wiring, checked at the OTHER call site. `recommendation` (COMPLETE, nothing listed)
   -- and `postRecommendation` (bag stock, computed independently) both build a RecommendPost
   -- options table, and both carry a queue-at-exit targetUnit here -- so both must carry the

@@ -116,7 +116,11 @@ describe("RecommendPost overcut", function()
     local r = GC.Flips.RecommendPost(nil, 10000, 12000, { levels = levels, sold = 4000, quarterUnit = 11000 })
     assert.equal("overcut", r.mode)
     assert.equal(10100, r.unit)
-    assert.equal(400, r.ahead)
+    -- The off-grid rung at 10050 rounds DOWN onto the ask on the grid, so it never surfaces as
+    -- its own occupied rung -- but a post at the synthetic step (10100) still queues behind it.
+    -- ahead has to count it: 400 at the ask plus 100 on the off-grid rung, both strictly below
+    -- the step.
+    assert.equal(500, r.ahead)
   end)
 
   it("forwards quarterUnit through RepostAdvice", function()

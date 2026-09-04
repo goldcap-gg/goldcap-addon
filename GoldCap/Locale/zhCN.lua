@@ -406,8 +406,8 @@ GC.Locales.zhCN = {
   ["You pay"] = "你支付",
   ["You would get"] = "你会拿回",
   ["You would pay"] = "你会支付",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "高于最低价，处于低价四分位内 · 前方 %d",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "高于最低价，处于低价四分位内 · 下方排队 %d 件",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
   ["auto off"] = "自动已关闭",

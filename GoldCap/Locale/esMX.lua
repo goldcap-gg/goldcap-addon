@@ -444,8 +444,8 @@ GC.Locales.esMX = {
   ["You pay"] = "Pagas",
   ["You would get"] = "Recibirías",
   ["You would pay"] = "Pagarías",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "arriba del más barato, dentro del cuarto barato · %d adelante",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "arriba del más barato, dentro del cuarto barato · %d unidades en fila por debajo",
   ["any figure here would be invented out of the very number being refused"] =
     "cualquier cifra aquí saldría inventada del mismo número que se está rechazando",
   ["auto off"] = "auto desactivado",

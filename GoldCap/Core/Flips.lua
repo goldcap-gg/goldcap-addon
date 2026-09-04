@@ -622,19 +622,26 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
 
   local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
 
-  -- The full queue at or below the cheapest ask, computed independently of the ranked walk
-  -- below. That walk breaks out as soon as any single step pushes the cumulative queue over
-  -- budget -- which can happen partway through the levels at or below marketUnit, before every
-  -- one of them has been counted. The synthetic one-grid-step candidate is only eligible when
-  -- ALL of that queue fits, so it needs its own total rather than whatever partial sum the walk
-  -- happened to reach.
-  local totalAtOrBelowMarket = 0
-  for _, lvl in ipairs(opts.levels) do
-    if lvl.unitPrice <= marketUnit then
-      totalAtOrBelowMarket = totalAtOrBelowMarket + (lvl.quantity or 0)
+  -- The synthetic candidate below is one grid step above the cheapest ask -- but an occupied
+  -- OFF-GRID rung can sit anywhere in (marketUnit, step) and round DOWN onto marketUnit, so it
+  -- never surfaces as its own occupied rung in the ranked walk below, and a post at STEP still
+  -- queues behind it. Counting only levels at-or-below marketUnit undercounts that queue by
+  -- exactly the off-grid stock between the ask and the step. The full queue BELOW STEP is what
+  -- a candidate at STEP would actually join behind, so both the budget gate and the reported
+  -- `ahead` for the synthetic candidate use it -- conservative in both directions: a smaller
+  -- eligible budget, and a larger reported queue. Computed independently of the ranked walk
+  -- below, which breaks out as soon as a single step pushes the cumulative queue over budget
+  -- and so cannot be trusted to have counted every level below STEP either.
+  local step = GC.Flips.SilverUp(marketUnit + 1)
+  local totalBelowStep = 0
+  if step then
+    for _, lvl in ipairs(opts.levels) do
+      if lvl.unitPrice < step then
+        totalBelowStep = totalBelowStep + (lvl.quantity or 0)
+      end
     end
   end
-  local cheapestFits = totalAtOrBelowMarket <= budget
+  local cheapestFits = step ~= nil and totalBelowStep <= budget
 
   local queued = 0
   local best, bestAhead
@@ -660,8 +667,7 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   end
   if not cheapestFits then return nil end
   -- No occupied rung under the cap: one grid step above the cheapest, if that stays under it.
-  local step = GC.Flips.SilverUp(marketUnit + 1)
-  if step and step <= cap then return step, totalAtOrBelowMarket end
+  if step and step <= cap then return step, totalBelowStep end
   return nil
 end
 

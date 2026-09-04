@@ -443,8 +443,8 @@ GC.Locales.frFR = {
   ["You pay"] = "Tu paies",
   ["You would get"] = "Tu recevrais",
   ["You would pay"] = "Tu paierais",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "au-dessus du moins cher, dans le quart bon marché · %d devant",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "au-dessus du moins cher, dans le quart bon marché · %d unités en file en dessous",
   ["any figure here would be invented out of the very number being refused"] =
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
   ["auto off"] = "auto désactivé",

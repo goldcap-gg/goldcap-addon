@@ -407,8 +407,8 @@ GC.Locales.zhTW = {
   ["You pay"] = "你支付",
   ["You would get"] = "你會拿回",
   ["You would pay"] = "你會支付",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "高於最低價，處於低價四分位內 · 前方 %d",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "高於最低價，處於低價四分位內 · 下方排隊 %d 件",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
   ["auto off"] = "自動已關閉",

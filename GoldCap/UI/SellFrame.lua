@@ -3241,11 +3241,18 @@ renderRows = function()
         row.subItem:SetText((GC.L["×%d listed at %s each"]):format(
           entry.lot.quantity, formatCell(entry.lot.unitPrice)))
         row.cells.listed:SetText(formatCell(total))
-        -- What Repost will actually list at. BuildRepostPlan prices a repost at exactly the
-        -- fresh quote unit, so showing that quote here answers "at what price?" before the
-        -- player commits to cancelling a live auction and eating its deposit.
+        -- What Repost will actually list at. BuildRepostPlan applies the same queue/overcut
+        -- raise BuildPostPlan does (only ever raising above the fresh quote), so this has to
+        -- show that raised unit too, not the raw quote -- the same "two different numbers"
+        -- defect the floor-raise comment in Core/SellPositions.lua describes.
         if p.displayMarketUnit and p.freshMarketUnit then
-          row.cells.market:SetText("» " .. formatCell(p.displayMarketUnit))
+          local rec = type(p.recommendation) == "table" and p.recommendation.rec or nil
+          local repostUnit = p.displayMarketUnit
+          if type(rec) == "table" and (rec.mode == "queue" or rec.mode == "overcut")
+              and type(rec.unit) == "number" and rec.unit > repostUnit then
+            repostUnit = rec.unit
+          end
+          row.cells.market:SetText("» " .. formatCell(repostUnit))
           setColor(row.cells.market, Theme.color.gold)
         else
           row.cells.market:SetText(GC.L["» needs price"])
@@ -3282,9 +3289,15 @@ renderRows = function()
         end
 
         if postable > 0 then
-          -- Say what Post will charge before it is clicked.
-          if p.displayMarketUnit and p.freshMarketUnit then
-            row.cells.market:SetText("» " .. formatCell(p.displayMarketUnit))
+          -- Say what Post will charge before it is clicked -- postRecommendation.unit when
+          -- there is one (floor/queue/overcut raises included), not the raw cheapest ask:
+          -- BuildPostPlan lists at postRecommendation.unit when it applies, and this cell has
+          -- to name the same price or it is exactly the "two different numbers" defect the
+          -- floor-raise comment in Core/SellPositions.lua describes.
+          local postUnit = type(p.postRecommendation) == "table" and type(p.postRecommendation.unit) == "number"
+            and p.postRecommendation.unit > 0 and p.postRecommendation.unit or p.displayMarketUnit
+          if postUnit and p.freshMarketUnit then
+            row.cells.market:SetText("» " .. formatCell(postUnit))
             setColor(row.cells.market, Theme.color.gold)
           else
             row.cells.market:SetText(GC.L["» needs price"])

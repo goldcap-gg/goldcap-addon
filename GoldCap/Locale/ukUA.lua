@@ -459,8 +459,8 @@ GC.Locales.ukUA = {
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",
   ["You would pay"] = "Ви заплатите",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "вище найдешевшого, у дешевій чверті · попереду %d",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["auto off"] = "авто вимкнено",

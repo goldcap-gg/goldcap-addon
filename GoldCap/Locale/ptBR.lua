@@ -444,8 +444,8 @@ GC.Locales.ptBR = {
   ["You pay"] = "Você paga",
   ["You would get"] = "Você receberia",
   ["You would pay"] = "Você pagaria",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "acima do mais barato, dentro do quarto barato · %d à frente",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "acima do mais barato, dentro do quarto barato · %d unidades na fila abaixo",
   ["any figure here would be invented out of the very number being refused"] =
     "qualquer valor aqui seria inventado a partir do mesmo número que está sendo recusado",
   ["auto off"] = "auto desligado",

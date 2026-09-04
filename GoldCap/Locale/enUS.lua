@@ -423,8 +423,8 @@ GC.Locales.enUS = {
   ["You pay"] = "You pay",
   ["You would get"] = "You would get",
   ["You would pay"] = "You would pay",
-  ["above the cheapest, inside the cheap quarter · %d ahead"] =
-    "above the cheapest, inside the cheap quarter · %d ahead",
+  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
+    "above the cheapest, inside the cheap quarter · %d units queued below",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
   ["auto off"] = "auto off",
