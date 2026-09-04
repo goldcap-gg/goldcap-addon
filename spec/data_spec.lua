@@ -362,4 +362,21 @@ describe("Data", function()
       end)
     end)
   end)
+
+  it("exposes the cheap-quarter line from the import, and nothing from bundled", function()
+    db.imported = {
+      ts = 2000,
+      items = { [42] = { m = 6000, s = 3 } },
+      verification = { [42] = { sourceAt = 1, stressUnit = 5000, sellThroughBps = 1,
+        liquidityConfidence = 1, currentQty = 1, listings = 1, observations = 1, madBps = 0, flags = 0 } },
+      quarter = { [42] = 6500 },
+    }
+    assert.equal(6500, GC.Data.GetItemValue(42).p25)
+    assert.is_nil(GC.Data.GetItemValue(43).p25) -- bundled only
+  end)
+
+  it("returns no p25 when the import predates the Q section", function()
+    db.imported = { ts = 2000, items = { [42] = { m = 6000 } } }
+    assert.is_nil(GC.Data.GetItemValue(42).p25)
+  end)
 end)

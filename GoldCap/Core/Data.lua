@@ -198,6 +198,9 @@ function GC.Data.GetItemValue(itemID)
   local imp = db and db.imported
   local e = imp and imp.items and imp.items[itemID]
   if e then
+    -- Cheap-quarter line (import Q section). Absent on imports that predate it and on every
+    -- realm item; the Sell tab's overcut simply stays off for those.
+    local p25 = imp.quarter and imp.quarter[itemID] or nil
     -- trend (24h market-value momentum) is import-path only: MarketData.lua's
     -- bundled entries never carry a `t` field (see ImportString.Parse), so
     -- there's nothing to pass through for the bundled branch below.
@@ -215,9 +218,10 @@ function GC.Data.GetItemValue(itemID)
         listings = fact.listings,
         observations = fact.observations,
         madBps = fact.madBps,
+        p25 = p25,
       }
     end
-    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item" }
+    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item", p25 = p25 }
   end
   e = bundled and bundled.items and bundled.items[itemID]
   if e then
