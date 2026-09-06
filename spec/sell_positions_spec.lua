@@ -349,6 +349,31 @@ describe("Sell positions", function()
     }, lots)
   end)
 
+  it("carries expiresAt as seenAt + timeLeftSeconds when the auction reports one", function()
+    local lots = GC.SellPositions.NormalizeOwnedLots({
+      { itemKey = { itemID = 42 }, isCommodity = true, quantity = 2, unitPrice = 90,
+        auctionID = 2, timeLeftSeconds = 3600 },
+      { itemKey = { itemID = 42 }, isCommodity = true, quantity = 3, unitPrice = 120,
+        auctionID = 3 }, -- no timeLeftSeconds reported
+    }, 1000)
+    assert.equal(4600, lots[1].expiresAt)
+    assert.is_nil(lots[2].expiresAt)
+  end)
+
+  it("does not treat a non-positive or fractional timeLeftSeconds as an expiry", function()
+    local lots = GC.SellPositions.NormalizeOwnedLots({
+      { itemKey = { itemID = 42 }, isCommodity = true, quantity = 1, unitPrice = 90,
+        auctionID = 2, timeLeftSeconds = 0 },
+      { itemKey = { itemID = 42 }, isCommodity = true, quantity = 1, unitPrice = 90,
+        auctionID = 3, timeLeftSeconds = -5 },
+      { itemKey = { itemID = 42 }, isCommodity = true, quantity = 1, unitPrice = 90,
+        auctionID = 4, timeLeftSeconds = 12.5 },
+    }, 1000)
+    assert.is_nil(lots[1].expiresAt)
+    assert.is_nil(lots[2].expiresAt)
+    assert.is_nil(lots[3].expiresAt)
+  end)
+
   it("does not attach accounting state to a caller-owned auction lot", function()
     local ownedLot = lot("commodity:42", 1, 200, 1)
     build({ acquisitions = { batch("acq:1", "goldcap", 1, 100, 1) }, ownedLots = { ownedLot } })

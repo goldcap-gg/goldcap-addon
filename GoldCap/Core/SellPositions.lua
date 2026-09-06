@@ -109,9 +109,14 @@ function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
     local quantity = positive(auction.quantity) and auction.quantity or 1
     local unitPrice = lotUnit(auction)
     if positionKey and positive(unitPrice) and positive(auction.auctionID) and exact(seenAt or 0) then
+      -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): carried here,
+      -- not computed later, because this is the one place that already has both the auction
+      -- and the seenAt it was read at. Only a genuine, positive, whole-second countdown counts
+      -- -- a fractional or non-positive timeLeftSeconds is not a real API answer.
+      local expiresAt = positive(auction.timeLeftSeconds) and ((seenAt or 0) + auction.timeLeftSeconds) or nil
       lots[#lots + 1] = { positionKey = positionKey, itemID = itemID, quantity = quantity,
         unitPrice = unitPrice, auctionID = auction.auctionID, firstSeenAt = seenAt or 0,
-        isCommodity = isCommodity == true }
+        isCommodity = isCommodity == true, expiresAt = expiresAt }
     end
   end
   return lots
