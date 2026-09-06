@@ -1143,6 +1143,11 @@ function GC.Sell.OnOwnedAuctions()
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
   ownedLots = GC.SellPositions.NormalizeOwnedLots(classifyOwnedAuctions(auctions), time())
   local scope = context()
+  -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): the roster this
+  -- read just produced is the roster the companion uploads, unchanged. No second query.
+  if GC.Data and GC.Data.RecordOwnedLots and scope then
+    GC.Data.RecordOwnedLots(GC.db, ownedLots, scope, time())
+  end
   if GC.Acquisitions and GC.Acquisitions.ObserveOwnedPosition and scope then
     for _, lot in ipairs(ownedLots) do
       -- `lot.unitPrice` is what this position stands at on the auction house right now, and it
@@ -1610,6 +1615,9 @@ local function onRepostClick(row, auctionID)
     end
     row.repostStage = "cancelling"; row.action:Disable()
     C_AuctionHouse.CancelAuction(plan.auctionID)
+    if GC.Data and GC.Data.MarkOwnedLotCancelled then
+      GC.Data.MarkOwnedLotCancelled(GC.db, plan.auctionID, time())
+    end
     setStatus(GC.L["Cancelling lot…"])
     if C_Timer and C_Timer.After then
       local token = repostArmToken

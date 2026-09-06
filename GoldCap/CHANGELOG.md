@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.8.0 (unreleased)
+
+- **Keeps goldcap.gg's My auctions page current, automatically.** Every lot the Sell tab's
+  own auction-house read sees — posted, repriced, or cancelled — is now saved for the
+  Companion to sync to the site, the same way ledger sales already do. Nothing changes on
+  screen; requires a matching Companion update to actually upload.
+
 ## 0.7.0 (2026-09-06)
 
 - **The Sell tab now posts one step above the cheapest listing when the book

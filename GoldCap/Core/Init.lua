@@ -498,9 +498,20 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnPostError then
       GC.Sell.OnPostError()
     end
-  elseif event == "OWNED_AUCTIONS_UPDATED" or event == "AUCTION_CANCELED" then
+  elseif event == "OWNED_AUCTIONS_UPDATED" then
     if GC.Sell.OnOwnedAuctions then
       GC.Sell.OnOwnedAuctions()
+    end
+  elseif event == "AUCTION_CANCELED" then
+    if GC.Sell.OnOwnedAuctions then
+      GC.Sell.OnOwnedAuctions()
+    end
+    -- My-auctions: the payload is not documented on every build (see the RegisterEvent
+    -- comment above), so only stamp a cancellation when the first arg is a genuine auctionID.
+    local auctionID = ...
+    if GC.Data and GC.Data.MarkOwnedLotCancelled and type(auctionID) == "number"
+        and auctionID == math.floor(auctionID) and auctionID > 0 then
+      GC.Data.MarkOwnedLotCancelled(GC.db, auctionID, time())
     end
   elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
     if GC.Ledger then
