@@ -41,6 +41,10 @@ GC.DEFAULTS = {
   -- to upload -- see Core/Data.lua's RecordLiveObservation. Same empty-table ApplyDefaults
   -- contract as `flips` above.
   liveObservations = {},
+  -- Owned lots: the roster the Sell tab's own GetOwnedAuctions read already produces, kept
+  -- for the companion to upload -- see Core/Data.lua's RecordOwnedLots. Same empty-table
+  -- ApplyDefaults contract as `flips` above.
+  ownedLots = {},
   -- Names the client resolved for items the site cannot name (Core/ItemNames.lua), for the
   -- Companion to upload. Same empty-table ApplyDefaults contract as `flips` above.
   itemNames = {},

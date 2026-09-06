@@ -562,3 +562,106 @@ function GC.Data.RecordLiveObservation(database, observation, now)
     totalQty = observation.totalQty, levels = levels }
   return true
 end
+
+-- Owned lots: the roster the Sell tab already reads via GetOwnedAuctions, kept for the
+-- companion to upload so goldcap.gg's My auctions page can track a lot from post through
+-- sale or cancellation (spec: docs/superpowers/specs/2026-09-06-my-auctions-design.md).
+-- Unlike live observations, a row here survives even when it drops out of the roster --
+-- absence IS the "gone by this account" signal the server reads, so the row must live long
+-- enough to be uploaded before it is pruned.
+GC.Data.OWNED_LOTS_CAP = 500
+GC.Data.OWNED_LOT_MAX_AGE = 3 * 24 * 60 * 60
+
+-- Deliberately GC.ImportString.REGIONS (us/eu/kr/tw), not RecordLiveObservation's narrower
+-- "us" or "eu" check above: that check predates the kr/tw region rollout, and
+-- GC.Ledger.Context().region -- this function's scope.region -- can genuinely be kr or tw
+-- (GC.Data.ClientRegion -> portalRegion reads the client's own portal CVar against this same
+-- list). Fixing RecordLiveObservation's narrower check is a separate change, not this one.
+local function knownRegion(value)
+  return GC.ImportString ~= nil and GC.ImportString.REGIONS ~= nil and GC.ImportString.REGIONS[value] == true
+end
+
+function GC.Data.RecordOwnedLots(database, lots, scope, now)
+  if type(database) ~= "table" then return nil end
+  if database.ownedLots == nil then database.ownedLots = {} end
+  if type(database.ownedLots) ~= "table" then return nil end
+  if type(scope) ~= "table" or type(scope.char) ~= "string" or scope.char == ""
+      or not knownRegion(scope.region) then return nil end
+  if not isPositiveInteger(now) then return nil end
+  if type(lots) ~= "table" then return nil end
+
+  local store = database.ownedLots
+  -- Index this character's existing rows for O(1) upsert lookup. Scoped to scope.char so a
+  -- roster from one character can never touch another's rows, even in the (never expected in
+  -- practice) case of an auctionID collision across characters.
+  local existingByAuction = {}
+  for _, row in ipairs(store) do
+    if type(row) == "table" and row.char == scope.char and isPositiveInteger(row.auctionID) then
+      existingByAuction[row.auctionID] = row
+    end
+  end
+
+  for _, incoming in ipairs(lots) do
+    if type(incoming) == "table" and isPositiveInteger(incoming.auctionID)
+        and isPositiveInteger(incoming.itemID) and isPositiveInteger(incoming.quantity)
+        and isPositiveInteger(incoming.unitPrice) then
+      local expiresAt = isPositiveInteger(incoming.expiresAt) and incoming.expiresAt or nil
+      local existing = existingByAuction[incoming.auctionID]
+      if existing then
+        -- Same price and quantity: not a new fact, cancelledAt (if any) survives. A changed
+        -- price or quantity IS a new fact -- see RecordOwnedLots' own spec section.
+        local samePriceQty = existing.quantity == incoming.quantity
+          and existing.unitPrice == incoming.unitPrice
+        existing.itemID = incoming.itemID
+        existing.isCommodity = incoming.isCommodity == true
+        existing.quantity = incoming.quantity
+        existing.unitPrice = incoming.unitPrice
+        existing.expiresAt = expiresAt
+        existing.region = scope.region
+        existing.seenAt = now
+        if not samePriceQty then existing.cancelledAt = nil end
+      else
+        local row = { auctionID = incoming.auctionID, itemID = incoming.itemID,
+          isCommodity = incoming.isCommodity == true, quantity = incoming.quantity,
+          unitPrice = incoming.unitPrice, expiresAt = expiresAt, char = scope.char,
+          region = scope.region, seenAt = now, cancelledAt = nil }
+        existingByAuction[incoming.auctionID] = row
+        store[#store + 1] = row
+      end
+    end
+  end
+  -- Rows for this char NOT in the roster, and every other char's rows, are left with their
+  -- old seenAt untouched: absence is what the server reads as "gone by this account".
+
+  -- Prune: anything past the retention window, for any character.
+  for index = #store, 1, -1 do
+    local row = store[index]
+    if type(row) ~= "table" or not isPositiveInteger(row.seenAt)
+        or now - row.seenAt > GC.Data.OWNED_LOT_MAX_AGE then
+      table.remove(store, index)
+    end
+  end
+  -- Cap: evict the oldest-seen row, across every character, until the table fits.
+  while #store > GC.Data.OWNED_LOTS_CAP do
+    local oldestIndex, oldestAt = 1, math.huge
+    for index, row in ipairs(store) do
+      if (row.seenAt or 0) < oldestAt then oldestIndex, oldestAt = index, row.seenAt or 0 end
+    end
+    table.remove(store, oldestIndex)
+  end
+
+  return true
+end
+
+function GC.Data.MarkOwnedLotCancelled(database, auctionID, now)
+  if type(database) ~= "table" or type(database.ownedLots) ~= "table" then return nil end
+  if not isPositiveInteger(auctionID) or not isPositiveInteger(now) then return nil end
+  local found = nil
+  for _, row in ipairs(database.ownedLots) do
+    if type(row) == "table" and row.auctionID == auctionID then
+      row.cancelledAt = now
+      found = true
+    end
+  end
+  return found
+end
