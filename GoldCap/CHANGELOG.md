@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.7.0 (unreleased)
+## 0.7.0 (2026-09-06)
 
 - **The Sell tab now posts one step above the cheapest listing when the book
   says that sells just as fast — and never above the cheap quarter.** Measured
