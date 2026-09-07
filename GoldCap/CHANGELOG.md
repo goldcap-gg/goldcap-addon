@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.8.0 (unreleased)
+## 0.8.0 (2026-09-08)
 
 - **Keeps goldcap.gg's My auctions page current, automatically.** Every lot the Sell tab's
   own auction-house read sees — posted, repriced, or cancelled — is now saved for the
