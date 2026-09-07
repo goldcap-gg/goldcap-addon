@@ -510,8 +510,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- comment above), so only stamp a cancellation when the first arg is a genuine auctionID.
     local auctionID = ...
     if GC.Data and GC.Data.MarkOwnedLotCancelled and type(auctionID) == "number"
-        and auctionID == math.floor(auctionID) and auctionID > 0 then
-      GC.Data.MarkOwnedLotCancelled(GC.db, auctionID, time())
+        and auctionID == math.floor(auctionID) and auctionID > 0 and GC.Ledger and GC.Ledger.Context then
+      GC.Data.MarkOwnedLotCancelled(GC.db, auctionID, GC.Ledger.Context(), time())
     end
   elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
     if GC.Ledger then

@@ -581,11 +581,18 @@ local function knownRegion(value)
   return GC.ImportString ~= nil and GC.ImportString.REGIONS ~= nil and GC.ImportString.REGIONS[value] == true
 end
 
+-- "Name-Realm", each half non-empty and no embedded hyphen (a realm name's own
+-- hyphens are stripped by the client's own unique-name format) -- guards the
+-- per-character scoping the upsert below and MarkOwnedLotCancelled rely on.
+local function validCharScope(value)
+  return type(value) == "string" and value:match("^[^-]+%-[^-]+$") ~= nil
+end
+
 function GC.Data.RecordOwnedLots(database, lots, scope, now)
   if type(database) ~= "table" then return nil end
   if database.ownedLots == nil then database.ownedLots = {} end
   if type(database.ownedLots) ~= "table" then return nil end
-  if type(scope) ~= "table" or type(scope.char) ~= "string" or scope.char == ""
+  if type(scope) ~= "table" or not validCharScope(scope.char)
       or not knownRegion(scope.region) then return nil end
   if not isPositiveInteger(now) then return nil end
   if type(lots) ~= "table" then return nil end
@@ -602,9 +609,13 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
   end
 
   for _, incoming in ipairs(lots) do
+    -- isCommodity must be an actual boolean -- coercing a missing/malformed
+    -- value to false would silently mislabel a commodity lot as a per-realm
+    -- item (or vice versa), which the server's watch set relies on being
+    -- correct. Drop the row rather than guess.
     if type(incoming) == "table" and isPositiveInteger(incoming.auctionID)
         and isPositiveInteger(incoming.itemID) and isPositiveInteger(incoming.quantity)
-        and isPositiveInteger(incoming.unitPrice) then
+        and isPositiveInteger(incoming.unitPrice) and type(incoming.isCommodity) == "boolean" then
       local expiresAt = isPositiveInteger(incoming.expiresAt) and incoming.expiresAt or nil
       local existing = existingByAuction[incoming.auctionID]
       if existing then
@@ -613,7 +624,7 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         local samePriceQty = existing.quantity == incoming.quantity
           and existing.unitPrice == incoming.unitPrice
         existing.itemID = incoming.itemID
-        existing.isCommodity = incoming.isCommodity == true
+        existing.isCommodity = incoming.isCommodity
         existing.quantity = incoming.quantity
         existing.unitPrice = incoming.unitPrice
         existing.expiresAt = expiresAt
@@ -622,7 +633,7 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
         if not samePriceQty then existing.cancelledAt = nil end
       else
         local row = { auctionID = incoming.auctionID, itemID = incoming.itemID,
-          isCommodity = incoming.isCommodity == true, quantity = incoming.quantity,
+          isCommodity = incoming.isCommodity, quantity = incoming.quantity,
           unitPrice = incoming.unitPrice, expiresAt = expiresAt, char = scope.char,
           region = scope.region, seenAt = now, cancelledAt = nil }
         existingByAuction[incoming.auctionID] = row
@@ -653,12 +664,15 @@ function GC.Data.RecordOwnedLots(database, lots, scope, now)
   return true
 end
 
-function GC.Data.MarkOwnedLotCancelled(database, auctionID, now)
+function GC.Data.MarkOwnedLotCancelled(database, auctionID, scope, now)
   if type(database) ~= "table" or type(database.ownedLots) ~= "table" then return nil end
   if not isPositiveInteger(auctionID) or not isPositiveInteger(now) then return nil end
+  -- Scoped to the current character, same as RecordOwnedLots' upsert: an
+  -- auctionID collision across characters must never stamp the wrong row.
+  if type(scope) ~= "table" or not validCharScope(scope.char) then return nil end
   local found = nil
   for _, row in ipairs(database.ownedLots) do
-    if type(row) == "table" and row.auctionID == auctionID then
+    if type(row) == "table" and row.auctionID == auctionID and row.char == scope.char then
       row.cancelledAt = now
       found = true
     end

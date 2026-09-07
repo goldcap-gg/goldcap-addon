@@ -36,7 +36,7 @@ describe("Owned lots store", function()
 
   it("keeps cancelledAt when a re-seen lot's price and quantity are unchanged", function()
     GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
-    GC.Data.MarkOwnedLotCancelled(db, 1932076389, 1050)
+    GC.Data.MarkOwnedLotCancelled(db, 1932076389, scope, 1050)
     GC.Data.RecordOwnedLots(db, { lot() }, scope, 1100)
     assert.equal(1050, db.ownedLots[1].cancelledAt)
     assert.equal(1100, db.ownedLots[1].seenAt)
@@ -44,7 +44,7 @@ describe("Owned lots store", function()
 
   it("clears cancelledAt when the price changes -- a new fact", function()
     GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
-    GC.Data.MarkOwnedLotCancelled(db, 1932076389, 1050)
+    GC.Data.MarkOwnedLotCancelled(db, 1932076389, scope, 1050)
     GC.Data.RecordOwnedLots(db, { lot({ unitPrice = 900000 }) }, scope, 1100)
     assert.is_nil(db.ownedLots[1].cancelledAt)
     assert.equal(900000, db.ownedLots[1].unitPrice)
@@ -52,7 +52,7 @@ describe("Owned lots store", function()
 
   it("clears cancelledAt when the quantity changes -- a new fact", function()
     GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
-    GC.Data.MarkOwnedLotCancelled(db, 1932076389, 1050)
+    GC.Data.MarkOwnedLotCancelled(db, 1932076389, scope, 1050)
     GC.Data.RecordOwnedLots(db, { lot({ quantity = 10 }) }, scope, 1100)
     assert.is_nil(db.ownedLots[1].cancelledAt)
   end)
@@ -115,6 +115,24 @@ describe("Owned lots store", function()
     assert.equal(0, #db.ownedLots)
   end)
 
+  it("rejects a scope whose char is not Name-Realm", function()
+    assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "NoRealm", region = "eu" }, 1000))
+    assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "Too-Many-Hyphens", region = "eu" }, 1000))
+    assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "", region = "eu" }, 1000))
+    assert.equal(0, #db.ownedLots)
+  end)
+
+  it("drops a lot whose isCommodity is not a boolean instead of coercing it to false", function()
+    -- A Lua table constructor cannot express "isCommodity explicitly nil"
+    -- through lot()'s override merge (assigning nil removes the key), so
+    -- this row is built by hand, entirely missing the field.
+    local missingField = { auctionID = 1932076389, itemID = 190316, quantity = 20, unitPrice = 921200 }
+    assert.is_true(GC.Data.RecordOwnedLots(db, { missingField }, scope, 1000))
+    assert.equal(0, #db.ownedLots)
+    assert.is_true(GC.Data.RecordOwnedLots(db, { lot({ isCommodity = "yes" }) }, scope, 1000))
+    assert.equal(0, #db.ownedLots)
+  end)
+
   it("tolerates a missing or corrupt ownedLots table", function()
     assert.is_nil(GC.Data.RecordOwnedLots({ ownedLots = "corrupt" }, { lot() }, scope, 1000))
     local fresh = {}
@@ -125,12 +143,19 @@ describe("Owned lots store", function()
   describe("MarkOwnedLotCancelled", function()
     it("stamps cancelledAt on the matching row", function()
       GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
-      assert.is_true(GC.Data.MarkOwnedLotCancelled(db, 1932076389, 1050))
+      assert.is_true(GC.Data.MarkOwnedLotCancelled(db, 1932076389, scope, 1050))
       assert.equal(1050, db.ownedLots[1].cancelledAt)
     end)
 
     it("returns nil for an auctionID it does not hold", function()
-      assert.is_nil(GC.Data.MarkOwnedLotCancelled(db, 404, 1050))
+      assert.is_nil(GC.Data.MarkOwnedLotCancelled(db, 404, scope, 1050))
+    end)
+
+    it("does not stamp a row belonging to a different character", function()
+      GC.Data.RecordOwnedLots(db, { lot() }, scope, 1000)
+      local other = { char = "Bjorn-Area52", region = "us" }
+      assert.is_nil(GC.Data.MarkOwnedLotCancelled(db, 1932076389, other, 1050))
+      assert.is_nil(db.ownedLots[1].cancelledAt)
     end)
   end)
 end)

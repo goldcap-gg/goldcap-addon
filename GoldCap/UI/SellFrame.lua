@@ -1615,8 +1615,8 @@ local function onRepostClick(row, auctionID)
     end
     row.repostStage = "cancelling"; row.action:Disable()
     C_AuctionHouse.CancelAuction(plan.auctionID)
-    if GC.Data and GC.Data.MarkOwnedLotCancelled then
-      GC.Data.MarkOwnedLotCancelled(GC.db, plan.auctionID, time())
+    if GC.Data and GC.Data.MarkOwnedLotCancelled and scope then
+      GC.Data.MarkOwnedLotCancelled(GC.db, plan.auctionID, scope, time())
     end
     setStatus(GC.L["Cancelling lot…"])
     if C_Timer and C_Timer.After then
