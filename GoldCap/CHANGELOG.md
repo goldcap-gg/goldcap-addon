@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.8.1 (unreleased)
+
+- **Reagent quality icons in the Sniper list now match the icon your own
+  tooltip shows.** They used to disagree with the game on some items.
+
 ## 0.8.0 (2026-09-08)
 
 - **Keeps goldcap.gg's My auctions page current, automatically.** Every lot the Sell tab's
