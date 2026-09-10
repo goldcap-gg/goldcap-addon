@@ -47,6 +47,7 @@ Core/DealMath.lua
 Core/Trigger.lua
 Core/Scanner.lua
 Core/FullScan.lua
+Core/BookPass.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
 Data/MarketData.lua

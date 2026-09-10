@@ -1,0 +1,132 @@
+local _, GC = ...
+
+-- Sniper fast loop, phase 1 (design doc §1 Book pass): a pure state machine over an injected
+-- driver, like Core/AutoScan.lua -- no WoW API calls live here. Pages one SendBrowseQuery to
+-- completion (HasFullBrowseResults), folding every row into
+-- book[itemID] = { floor, qty, seenAt } and firing driver.onHit for anything that crosses
+-- below its trigger. The caller (UI/SniperFrame.lua) owns the query's itemClassFilters (an
+-- Enum lookup, a WoW global this module never touches), the trigger formula
+-- (Core/Trigger.lua) and what happens with a hit or a row -- this module only knows "paging"
+-- vs "not", and "the book says X changed" vs "the book says X is the same as last time".
+GC.BookPass = {}
+
+function GC.BookPass.New(driver, opts)
+  opts = opts or {}
+  local widePassSeconds = opts.widePassSeconds or 300
+  local classFilters = opts.itemClassFilters or {}
+
+  local obj = {}
+  local book = {}          -- itemID -> { floor, qty, seenAt }; SURVIVES Abort() and every Start()
+  local kind = nil         -- nil | "classes" | "wide"
+  local paging = false
+  local pendingStart = false
+  local pendingPage = false
+  local rawWatermark = 0   -- #driver.getBrowseResults() already folded/emitted THIS pass
+  local pagesThisPass = 0
+  local passStartedAt = nil
+  -- The clock starts at construction, not at the first pass: an untouched addon load must
+  -- not force the very first pass (right after the AH opens, when speed matters most) to be
+  -- the slow unfiltered one.
+  local lastWideAt = driver.now()
+
+  local function queryFor(k)
+    if k == "wide" then
+      return { searchString = "", sorts = {}, filters = {}, itemClassFilters = {} }
+    end
+    return { searchString = "", sorts = {}, filters = {}, itemClassFilters = classFilters }
+  end
+
+  -- Hit = floor < trigger AND (floor changed since the previous pass OR qty grew). The first
+  -- sighting of an item ever (prev == nil) counts as "changed": it seeds the book AND hits,
+  -- per the design doc's "the first pass ... emits hits for everything below trigger".
+  local function foldRow(row)
+    local itemKey = row.itemKey
+    local itemID = itemKey and itemKey.itemID
+    local floor = row.minPrice
+    if not itemID or not floor or floor <= 0 then return end
+    local qty = row.totalQuantity
+    local prev = book[itemID]
+    local trigger = driver.triggerFor(itemID)
+    local hit = trigger and floor < trigger
+      and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
+    book[itemID] = { floor = floor, qty = qty, seenAt = driver.now() }
+    if hit then
+      driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
+    end
+  end
+
+  local function finishPass()
+    paging = false
+    if kind == "wide" then lastWideAt = driver.now() end
+    driver.onPassDone({ kind = kind, pages = pagesThisPass, items = rawWatermark,
+      seconds = passStartedAt and (driver.now() - passStartedAt) or 0 })
+    kind = nil
+  end
+
+  local function handleResults()
+    if not paging then return end
+    pagesThisPass = pagesThisPass + 1
+    local results = driver.getBrowseResults()
+    local tail = {}
+    for i = rawWatermark + 1, #results do tail[#tail + 1] = results[i] end
+    rawWatermark = #results
+    for i = 1, #tail do foldRow(tail[i]) end
+    driver.onRows(tail, rawWatermark)
+    if driver.hasFullBrowseResults() then
+      finishPass()
+    else
+      pendingPage = true
+    end
+  end
+
+  function obj:Start(k)
+    kind = k
+    paging = true
+    pendingPage = false
+    rawWatermark = 0
+    pagesThisPass = 0
+    passStartedAt = driver.now()
+    if k == "wide" then lastWideAt = driver.now() end
+    if driver.isReady() then
+      pendingStart = false
+      driver.sendBrowseQuery(queryFor(k))
+    else
+      pendingStart = true
+    end
+  end
+
+  function obj:OnResultsUpdated() handleResults() end
+  function obj:OnResultsAdded() handleResults() end
+
+  -- Sends whichever of "the pass hasn't started yet" or "a page is due" is pending, at most
+  -- one per call. Returns true only if it actually sent something -- the arbiter's own
+  -- contract (see UI/SniperFrame.lua's OnThrottleReady) for every slot consumer in this file.
+  function obj:OnThrottleReady()
+    if pendingStart then
+      pendingStart = false
+      driver.sendBrowseQuery(queryFor(kind))
+      return true
+    end
+    if not pendingPage then return false end
+    pendingPage = false
+    driver.requestMoreBrowseResults()
+    return true
+  end
+
+  function obj:Abort()
+    paging = false
+    pendingStart = false
+    pendingPage = false
+    kind = nil
+  end
+
+  function obj:IsPaging() return paging end
+
+  function obj:IsWidePassDue()
+    return (driver.now() - lastWideAt) >= widePassSeconds
+  end
+
+  function obj:Book() return book end
+
+  return obj
+end
