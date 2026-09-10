@@ -187,4 +187,55 @@ describe("Search slot arbiter", function()
     GC.Sniper._GrantWatchSlot()
     assert.is_false(mayScan())
   end)
+
+  -- Owner-reported: "confirming purchase..." sat for 5-10s on a busy board. The confirm call
+  -- itself is instant; what was slow was the throttled search SLOT, still being handed to
+  -- drill-downs/the book pass/the watch loop/the verify walk while the purchase waited on its
+  -- terminal event. A purchase in flight is tracked as a non-empty activeItemID (armed through
+  -- confirming -- see maybeStartPrewarm's own comment on this upvalue).
+  it("sends nothing while a purchase is in flight, and serves again once it resolves", function()
+    local GC = load()
+    armPage(GC) -- book pass has a page pending and would otherwise win outright
+    set(GC.Sniper.OnThrottleReady, "activeItemID", { [12345] = true })
+
+    for _ = 1, 3 do
+      GC.Sniper.OnThrottleReady()
+    end
+    assert.same({}, sent)
+
+    set(GC.Sniper.OnThrottleReady, "activeItemID", {})
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "page" }, sent) -- the parked page still wants sending, and is free to now
+  end)
+
+  -- A parked Check requery is step 1, ahead of the purchase-in-flight veto -- it is the
+  -- player's own click and has already stopped the loop as a courtesy, purchase or not.
+  it("still lets a parked Check requery through while a purchase is in flight", function()
+    local GC = load()
+    local searched = {}
+    set(GC.Sniper.OnThrottleReady, "driver", { sendSearch = function(id) searched[#searched + 1] = id end })
+    local attempt = { itemID = 42, token = 1, row = {}, deal = { itemID = 42 } }
+    upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[42] = attempt
+    set(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
+    set(GC.Sniper.OnThrottleReady, "activeItemID", { [99] = true })
+
+    GC.Sniper.OnThrottleReady()
+    assert.same({ 42 }, searched)
+    assert.same({}, sent)
+  end)
+
+  it("keeps mayScan closed while a purchase is in flight, even inside the watch loop's own grant", function()
+    local GC = load()
+    local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan
+    set(GC.Sniper.OnThrottleReady, "activeItemID", { [12345] = true })
+
+    local seenInside
+    GC.Sniper.scanner.OnSystemReady = function() seenInside = mayScan() end
+    GC.Sniper._GrantWatchSlot()
+    assert.is_false(seenInside) -- the grant window opens, but a purchase in flight still vetoes it
+
+    set(GC.Sniper.OnThrottleReady, "activeItemID", {})
+    GC.Sniper._GrantWatchSlot()
+    assert.is_true(seenInside) -- and resumes the moment the purchase clears
+  end)
 end)

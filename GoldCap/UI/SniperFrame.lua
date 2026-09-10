@@ -1427,6 +1427,13 @@ driver = {
     if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then
       return false
     end
+    -- Same purchase-in-flight veto as GC.Sniper.OnThrottleReady. That arbiter already refuses
+    -- to hand the watch loop a grant while a purchase is in flight, so this is normally
+    -- redundant -- but advance() (Core/Scanner.lua) is the one choke point every send passes
+    -- through, including the result-handler tail that fires straight from an event, off the
+    -- arbiter's own call stack. Checked here too so the veto holds even if that tail ever runs
+    -- with a stale watchGrant.
+    if next(activeItemID) ~= nil then return false end
     return watchGrant
   end,
 
@@ -3758,6 +3765,15 @@ function GC.Sniper.OnThrottleReady()
       return
     end
   end
+
+  -- A commodity purchase in flight (armed/requerying/buying/confirming -- see
+  -- maybeStartPrewarm's own comment on this same upvalue) owns the throttled search slot
+  -- until it resolves. Nothing below this line may compete with it: not a drill-down, not
+  -- the book pass's own page, not the watch loop, not the verify walk. Without this, a
+  -- purchase confirmation waiting on its terminal event was still losing slots to the scan/
+  -- watch/verify traffic underneath it, which is what stretched "confirming purchase..." out
+  -- to 5-10s on a busy board -- the confirm call itself was never slow, the SLOT was busy.
+  if next(activeItemID) ~= nil then return end
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
   -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),
