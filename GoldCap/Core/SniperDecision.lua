@@ -634,14 +634,22 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
   -- from the live lots so a price that rose between the two is caught here rather than shown.
   local trigger = GC.Trigger and GC.Trigger.ForRealm(reference, config) or nil
 
-  local best
+  -- Per UNIT, not per lot. A lot is one atomic purchase, but a stack of five is five items and
+  -- the reference is the price of ONE -- comparing a stack's total against it refuses bargains
+  -- (a stack of 5 at half price reads as 2.5x the reference) and understates the profit of the
+  -- ones it does accept by the size of the stack.
+  local best, bestUnit, bestQuantity
   for i = 1, #lots do
-    local candidate = lots[i]
-    if type(candidate) == "table" and isInteger(candidate.auctionID) and candidate.auctionID > 0
-        and isFinite(candidate.buyout) and candidate.buyout > 0 then
-      local level = isFinite(candidate.itemLevel) and candidate.itemLevel or 0
+    local lot = lots[i]
+    if type(lot) == "table" and isInteger(lot.auctionID) and lot.auctionID > 0
+        and isFinite(lot.buyout) and lot.buyout > 0 then
+      local level = isFinite(lot.itemLevel) and lot.itemLevel or 0
       if refIlvl == 0 or level >= refIlvl then
-        if not best or candidate.buyout < best.buyout then best = candidate end
+        local lotQuantity = (isInteger(lot.quantity) and lot.quantity > 0) and lot.quantity or 1
+        local unit = math.floor(lot.buyout / lotQuantity)
+        if not best or unit < bestUnit then
+          best, bestUnit, bestQuantity = lot, unit, lotQuantity
+        end
       end
     end
   end
@@ -650,12 +658,12 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
     out.reasons = { "no_comparable_lot" }
     return out
   end
-  if not trigger or best.buyout >= trigger then
+  if not trigger or bestUnit >= trigger then
     out.reasons = { "price_rose" }
     return out
   end
 
-  local quantity = (isInteger(best.quantity) and best.quantity > 0) and best.quantity or 1
+  local quantity = bestQuantity
   out.status = "WATCH"
   out.reasons = { "realm_item_unverified" }
   -- The same three fields the commodity result carries, so the check panel and the dialog can
@@ -671,11 +679,13 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
     quantity = quantity,
   }
   -- A 0..1 fraction, the same shape Core/DealMath.lua's `discount` carries, so the row and
-  -- the dialog format one number the same way wherever either of them shows it.
-  out.discountPct = 1 - best.buyout / reference
+  -- the dialog format one number the same way wherever either of them shows it. Per unit,
+  -- like the comparison it describes.
+  out.discountPct = 1 - bestUnit / reference
   -- The 5% auction house cut, and nothing else: an item auction pays no deposit to buy, and
-  -- there is no second lot to resell against the way a commodity book gives one.
-  out.estProfit = math.floor(reference * 0.95) - best.buyout
+  -- there is no second lot to resell against the way a commodity book gives one. Per unit,
+  -- then multiplied back out -- buying the whole stack is the only way to buy any of it.
+  out.estProfit = (math.floor(reference * 0.95) - bestUnit) * quantity
   return out
 end
 
