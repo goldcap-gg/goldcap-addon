@@ -186,6 +186,12 @@ frame:RegisterEvent("COMMODITY_PURCHASE_FAILED")
 frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
 frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_ADDED")
 frame:RegisterEvent("AUCTION_HOUSE_CLOSED")
+-- The client's own error channel, and the only signal an errored auction house action ever
+-- sends: an "Internal auction error." is followed by NONE of the three commodity terminal
+-- events and by no search result, so without this every wait the Sniper had open at that
+-- moment waited for something that would never arrive. One payload argument, `error`
+-- (Enum.AuctionHouseError) -- see UI/SniperFrame.lua's GC.Sniper.OnAuctionHouseError.
+frame:RegisterEvent("AUCTION_HOUSE_SHOW_ERROR")
 -- D: Sell view posting signals (verified against Blizzard_AuctionHouseUI's
 -- AuctionHouseFrameMixin:OnEvent, which reacts to both the same way: AUCTION_HOUSE_AUCTION_CREATED
 -- fires with no addon-usable per-post identity, and AUCTION_HOUSE_POST_ERROR the same -- GC.Sell
@@ -484,6 +490,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
     if GC.Sniper.OnBrowseResultsAdded then
       GC.Sniper.OnBrowseResultsAdded()
+    end
+  elseif event == "AUCTION_HOUSE_SHOW_ERROR" then
+    if GC.Sniper.OnAuctionHouseError then
+      local errorCode = ...
+      GC.Sniper.OnAuctionHouseError(errorCode)
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
     if GC.Sniper.OnAuctionHouseClosed then

@@ -2017,4 +2017,125 @@ describe("Sniper purchase wiring", function()
     _G.C_AuctionHouse, _G.C_Timer, _G.GetMoney, _G.time, _G.GetTime = nil, nil, nil, nil, nil
     _G.GetCoinTextureString = nil
   end)
+
+  -- The auction house's own error channel. Blizzard sends AUCTION_HOUSE_SHOW_ERROR and nothing
+  -- else -- no commodity terminal event, no search result -- so before this every wait open at
+  -- that moment waited forever: the board showed "Internal auction error." over the columns
+  -- and the purchase kept the search slot for the rest of the session.
+  describe("auction house errors", function()
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local function loadSniper()
+      _G.time = function() return 100000 end
+      _G.GetTime = function() return 100 end
+      _G.GetMoney = function() return 10000000000 end
+      _G.GetCoinTextureString = function(value) return tostring(value) end
+      _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+      _G.C_AuctionHouse = {
+        CalculateCommodityDeposit = function() return 0 end,
+        CancelCommoditiesPurchase = function() end,
+        MakeItemKey = function(itemID) return { itemID = itemID } end,
+        HasFullBrowseResults = function() return false end,
+      }
+      local GC = {
+        Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+          color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+            fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+            green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+        AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+          PauseReasons = function() return {} end, Tick = function() end } end },
+        Data = { GetItemValue = function() return nil end, GetWatchlist = function() return {} end },
+        Scanner = { New = function() return {} end },
+        Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end },
+        SniperDecision = { Evaluate = function() return {} end, MarketFromValue = function() return {} end,
+          ReasonText = function(t) return tostring(t) end },
+        FullScan = { RowsFromBrowse = function() return {} end, EvaluateDelta = function() return {}, 0, 0 end,
+          CollectNewHot = function() return {} end, MergeDeals = function(existing) return existing end },
+        WatchSet = { Observe = function() end, Select = function() return {} end },
+        Print = function() end,
+        db = { settings = { sniper = { sound = false } } },
+      }
+      helper.loadModule("Core/BookPass.lua", GC)
+      helper.loadModule("Core/DrillQueue.lua", GC)
+      helper.loadModule("Core/KeyPoll.lua", GC)
+      helper.loadModule("UI/SniperFrame.lua", GC)
+      return GC
+    end
+
+    after_each(function()
+      _G.time, _G.GetTime, _G.GetMoney, _G.C_Timer = os.time, nil, nil, nil
+      _G.C_AuctionHouse, _G.GetCoinTextureString = nil, nil
+    end)
+
+    it("is registered and routed to the Sniper", function()
+      local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+      local init = f:read("*a")
+      f:close()
+      assert.is_truthy(init:find('frame:RegisterEvent("AUCTION_HOUSE_SHOW_ERROR")', 1, true))
+      assert.is_truthy(init:find("GC.Sniper.OnAuctionHouseError(errorCode)", 1, true))
+    end)
+
+    it("settles an unconfirmed commodity purchase and clears the tombstones", function()
+      local GC = loadSniper()
+      local row = { purchaseStage = "buying", purchaseToken = 7,
+        purchaseDeal = { itemID = 42, isCommodity = true } }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 9, token = 1 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+      GC.Sniper.OnAuctionHouseError(3)
+
+      assert.is_nil(row.purchaseStage)
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+      assert.is_false(GC.Sniper.IsPurchaseQuiet()) -- and the board is free again
+    end)
+
+    -- ConfirmCommoditiesPurchase has already run: gold may have moved. Freeing the row here
+    -- would offer the player a retry that buys the same lot twice.
+    it("never resolves a confirmed attempt", function()
+      local GC = loadSniper()
+      local row = { purchaseStage = "confirming", purchaseToken = 7,
+        purchaseDeal = { itemID = 42, isCommodity = true } }
+      local pending = { row = row, itemID = 42, token = 7, confirmed = true }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+      GC.Sniper.OnAuctionHouseError(3)
+
+      assert.equal("confirming", row.purchaseStage)
+      assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase") == pending)
+    end)
+
+    it("fails a live Check instead of leaving it waiting for a result that never comes", function()
+      local GC = loadSniper()
+      local row = { purchaseStage = "requerying", purchaseToken = 3, deal = { itemID = 42 } }
+      local attempt = { row = row, itemID = 42, token = 3, deal = row.deal, sent = true }
+      getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42] = attempt
+
+      GC.Sniper.OnAuctionHouseError(3)
+
+      assert.equal("check", row.purchaseStage)
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42])
+      -- The search WAS sent, so its late untagged result must still drain before a new
+      -- authoritative Check can exist.
+      assert.is_true(getUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining")[42] == attempt)
+      assert.is_false(GC.Sniper.IsPurchaseQuiet())
+    end)
+  end)
 end)

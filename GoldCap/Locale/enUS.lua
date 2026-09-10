@@ -461,6 +461,7 @@ GC.Locales.enUS = {
     "against the region's own price for this item, after the 5% cut — if it sells",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
+  ["auction house error"] = "auction house error",
   ["auto off"] = "auto off",
   ["auto-synced %dh ago"] = "auto-synced %dh ago",
   ["auto-synced data for %s loaded (%s old)"] = "auto-synced data for %s loaded (%s old)",
@@ -581,6 +582,7 @@ GC.Locales.enUS = {
   ["starting full scan..."] = "starting full scan...",
   ["stopped watching %s"] = "stopped watching %s",
   ["the Auction House has not answered for this item yet"] = "the Auction House has not answered for this item yet",
+  ["the auction house reported an error"] = "the auction house reported an error",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the import failed (%s)"] = "the import failed (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] = "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

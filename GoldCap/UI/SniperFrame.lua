@@ -4696,6 +4696,69 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   resolvePurchase(row, false, GC.L["commodity purchase failed"])
 end
 
+-- AUCTION_HOUSE_SHOW_ERROR (Core/Init.lua). The client sends this and NOTHING else: the red
+-- "Internal auction error." the player sees over the columns is not accompanied by any of the
+-- three commodity terminal events, nor by a search-results event. So every wait this addon had
+-- open at that moment was waiting for something that will never arrive -- which is how a
+-- purchase ended up owning the search slot for the rest of the session, and how a Check sat on
+-- "..." until its own timeout. The error IS the terminal event; treat it as one.
+--
+-- Not a purchase call and not a cancel: an unconfirmed attempt is settled here as failed
+-- (nothing was confirmed, so no gold moved), and CancelCommoditiesPurchase stays where it
+-- already lives. A CONFIRMED attempt is never resolved from here for the same reason the
+-- confirming timeout does not resolve one -- gold may have moved and the row must not be freed
+-- for a retry that buys the same lot twice; it is told what happened and left to its own
+-- terminal event or GC.Sniper._ReleaseStrandedConfirmed. A success that already landed
+-- resolved its row and cleared the slot, so there is nothing here for this to swallow.
+-- The wiki documents one payload argument, `error` (Enum.AuctionHouseError), and no public
+-- mapping to text. Blizzard_AuctionHouseUI carries its own table, so ask the client for the
+-- sentence and fall back to our own rather than reimplementing 27 error strings.
+function GC.Sniper.OnAuctionHouseError(errorCode)
+  local text = GC.L["the auction house reported an error"]
+  local messages = _G.AuctionHouseErrorMessages
+  if type(messages) == "table" and type(messages[errorCode]) == "string" then
+    text = messages[errorCode]
+  end
+
+  local pending = commodityPurchase
+  local row = pending and pending.row
+  if row and row.purchaseToken == pending.token and GC.Sniper._StageIsQuiet(row.purchaseStage) then
+    if pending.confirmed then
+      if dialog and dialog.row == row then
+        dialog.cancelBtn:Enable()
+        setDialogStatus(text, 1, 0.3, 0.3)
+      end
+    else
+      commodityPurchase = nil
+      if commodityDraining and not commodityDraining.confirmed then commodityDraining = nil end
+      resolvePurchase(row, false, text)
+    end
+  end
+
+  -- Every live Check waiting on a search result, retired exactly as its own timeout retires
+  -- it: a search that was actually sent still has to drain before a new authoritative Check
+  -- can exist, and the row goes back to a button the player can press again.
+  local note = GC.L["auction house error"] .. GC.L[" — Check again"]
+  for itemID, attempt in pairs(awaitingRequery) do
+    awaitingRequery[itemID] = nil
+    awaitingKeyInfo[itemID] = nil
+    pendingRequerySend[itemID] = nil
+    if attempt.sent then requeryDraining[itemID] = attempt end
+    if attempt.row and attempt.deal and attempt.row.purchaseStage == "requerying" then
+      armCheck(attempt.row, attempt.deal, nil, note, true)
+    end
+    GC.Sniper._ResumePausedLiveRequery(attempt)
+  end
+  if prewarmAttempt then
+    if prewarmAttempt.sent then requeryDraining[prewarmAttempt.itemID] = prewarmAttempt end
+    prewarmAttempt = nil
+  end
+
+  -- The client's own words, held on the status line long enough to be read -- the board is
+  -- otherwise repainting a progress line several times a second over the top of it.
+  setStatus(text, 10)
+end
+
 -- Armed by the hardware Confirm click for the exact attempt it confirmed. A confirmed attempt
 -- normally settles through one of the three terminal events within a second or two; when none
 -- ever arrives (dropped event, disconnect mid-buy, a server that answered with nothing) the
