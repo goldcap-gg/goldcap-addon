@@ -133,6 +133,13 @@ function GC.Data.SetImported(parsed)
   if parsed.reach and next(parsed.reach) then
     imported.reach = parsed.reach
   end
+  -- T section (region reference price + item level per realm item). Named here for the same
+  -- reason R is: this function copies a named field list, so a section it does not name is
+  -- parsed and then lost on the way to the save. Absent on every string the companion wrote
+  -- before the section existed, and absent from the save in that case rather than empty.
+  if parsed.targets and next(parsed.targets) then
+    imported.targets = parsed.targets
+  end
   db.imported = imported
   adoptRegion()
   GC.Data.WarnRegionMismatch()
@@ -208,6 +215,11 @@ end
 function GC.Data.GetItemValue(itemID)
   local imp = db and db.imported
   local e = imp and imp.items and imp.items[itemID]
+  -- Region reference for a realm item (import T section): what the item goes for across the
+  -- region, and the item level that price was measured on. Import-path only, like p25 and
+  -- reach, and independent of the I section -- the region can know a reference for an item
+  -- this realm has no median for at all, which is the case the branch below exists for.
+  local target = imp and imp.targets and imp.targets[itemID] or nil
   if e then
     -- Cheap-quarter line (import Q section). Absent on imports that predate it and on every
     -- realm item, and now only the fallback ceiling -- see `reach` just below.
@@ -238,7 +250,16 @@ function GC.Data.GetItemValue(itemID)
       }
     end
     return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item",
-      p25 = p25, reach = reach }
+      p25 = p25, reach = reach,
+      ref = target and target.ref or nil, refIlvl = target and target.ilvl or nil }
+  end
+  if target then
+    -- No I entry, but the region named a reference: a realm item this realm has no median
+    -- for. There is no mv to return and nothing pretends there is -- GC.Trigger.RealmReference
+    -- takes whichever of the two exists, and everything that needs an mv (DealMath, the
+    -- commodity decision path) already refuses a value table without one.
+    return { ts = imp.ts, source = "import", kind = "realm_item",
+      ref = target.ref, refIlvl = target.ilvl }
   end
   e = bundled and bundled.items and bundled.items[itemID]
   if e then
@@ -273,6 +294,20 @@ function GC.Data.OriginState()
   if not imp or not imp.ts then return "none" end
   if imp.origin == "app" then return "app" end
   return "manual"
+end
+
+-- The item ids the region named as worth watching (import T section), ascending. The poll set
+-- Core/KeyPoll.lua walks is built from this plus the player's pins and the site watchlist.
+-- Sorted rather than pairs()-ordered so the round-robin cursor visits the same items in the
+-- same order across sessions, and an empty list -- not nil -- when the import carried no T
+-- section, which is every string written before the section existed.
+function GC.Data.TargetIds()
+  local imp = db and db.imported
+  local ids = {}
+  if not imp or not imp.targets then return ids end
+  for id in pairs(imp.targets) do ids[#ids + 1] = id end
+  table.sort(ids)
+  return ids
 end
 
 function GC.Data.GetWatchlist(fallbackN)

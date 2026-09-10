@@ -89,6 +89,44 @@ describe("Data", function()
     assert.equal(6500, GC.Data.GetItemValue(42).p25)
   end)
 
+  -- Sniper phase 2 (T section): the region reference price for a realm item, and the item
+  -- level of the variant that reference was measured on.
+  it("keeps the region reference line through SetImported", function()
+    local parsed = GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000;T:42=9000=610")
+    GC.Data.SetImported(parsed)
+    local v = GC.Data.GetItemValue(42)
+    assert.equal(9000, v.ref)
+    assert.equal(610, v.refIlvl)
+    assert.equal(6000, v.mv)
+    assert.equal(9000, db.imported.targets[42].ref)
+  end)
+
+  it("leaves no targets field on a save when the string carried no T section", function()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000"))
+    assert.is_nil(db.imported.targets)
+    assert.is_nil(GC.Data.GetItemValue(42).ref)
+  end)
+
+  -- A T item need not appear in I at all: the region knows a reference price for it while
+  -- this realm has no median of its own. Without a value table there is no trigger, and the
+  -- item would never be polled -- which is the whole point of the section.
+  it("answers for a target the I section never mentioned", function()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000;T:99=1234=0"))
+    local v = GC.Data.GetItemValue(99)
+    assert.equal(1234, v.ref)
+    assert.equal(0, v.refIlvl)
+    assert.is_nil(v.mv)
+    assert.equal("realm_item", v.kind)
+    assert.equal("import", v.source)
+  end)
+
+  it("returns the target ids in ascending order, and an empty list without a T section", function()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000;T:99=1234=0,7=50=0,42=9000=610"))
+    assert.same({ 7, 42, 99 }, GC.Data.TargetIds())
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;x;2001;I:42=6000"))
+    assert.same({}, GC.Data.TargetIds())
+  end)
+
   it("passes an imported entry's trend through as `trend`", function()
     GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
                           items = { [42] = { m = 4000, t = -12 } }, watchlist = {} })

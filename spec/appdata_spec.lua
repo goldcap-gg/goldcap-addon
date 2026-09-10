@@ -54,6 +54,23 @@ describe("Data.AdoptAppData", function()
     assert.equal(99900, GC.Data.GetItemValue(190396).reach)
   end)
 
+  -- Same contract for T: a companion build that predates the section writes none, and the
+  -- shape test above already pins that this path leaves no `targets` key behind for it.
+  it("carries a T section through the companion path", function()
+    _G.GoldCap_AppData = { writtenAt = 2000,
+      importString = "GCS1;eu;silvermoon;2000;I:190396=123400=52.3;T:190396=200000=623;W:190396" }
+    GC.Data.AdoptAppData()
+    assert.equal(200000, db.imported.targets[190396].ref)
+    assert.equal(623, GC.Data.GetItemValue(190396).refIlvl)
+    assert.same({ 190396 }, GC.Data.TargetIds())
+  end)
+
+  it("reports no targets at all for a companion string with no T section", function()
+    _G.GoldCap_AppData = { importString = FIXTURE_TS2000, writtenAt = 2000 }
+    GC.Data.AdoptAppData()
+    assert.same({}, GC.Data.TargetIds())
+  end)
+
   it("adopts app data when strictly newer than the existing (manual) import", function()
     GC.Data.SetImported({ region = "eu", realm = "oldrealm", ts = 1000,
                           items = { [1] = { m = 1 } }, watchlist = {} })

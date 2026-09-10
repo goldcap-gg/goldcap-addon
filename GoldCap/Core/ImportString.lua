@@ -29,7 +29,8 @@ function GC.ImportString.Parse(str)
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),
-    items = {}, verification = {}, quarter = {}, reach = {}, watchlist = {}, namesWanted = {},
+    items = {}, verification = {}, quarter = {}, reach = {}, targets = {},
+    watchlist = {}, namesWanted = {},
   }
   local count = 0
 
@@ -90,6 +91,19 @@ function GC.ImportString.Parse(str)
       for token in body:gmatch("[^,]+") do
         local id, reach = token:match("^(%d+)=(%d+)$")
         if id then result.reach[tonumber(id)] = tonumber(reach) end
+      end
+    elseif kind == "T" then
+      -- Region reference price per REALM item (copper), plus the item level of the variant it
+      -- was measured on (0 when unknown or when the item has no item level at all). Realm
+      -- items only: a commodity carries a V section instead, and the server excludes them
+      -- here. This is what lets the key poll (Core/KeyPoll.lua) judge gear, pets and recipes
+      -- against something other than this one realm's own median -- see Core/Trigger.lua's
+      -- ForRealm. Anchored per token exactly like Q and R, so a malformed token drops itself
+      -- and nothing else, and optional in both directions: a site build that predates the
+      -- section emits none, and a build that predates this parser skips it as unknown.
+      for token in body:gmatch("[^,]+") do
+        local id, ref, ilvl = token:match("^(%d+)=(%d+)=(%d+)$")
+        if id then result.targets[tonumber(id)] = { ref = tonumber(ref), ilvl = tonumber(ilvl) } end
       end
     elseif kind == "W" then
       for id in body:gmatch("%d+") do
