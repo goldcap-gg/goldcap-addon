@@ -70,7 +70,8 @@ function GC.ImportString.Parse(str)
       end
     elseif kind == "Q" then
       -- Top of the cheap quarter (p25 over listings, copper), commodities only -- the
-      -- ceiling for posting above the cheapest ask (Flips.RecommendPost, overcut). Anchored
+      -- FALLBACK ceiling for posting above the cheapest ask, used only when the R section
+      -- below carries no reach figure for the item (Flips.RecommendPost, overcut). Anchored
       -- per token like V: a malformed token drops itself and nothing else. It is a section
       -- rather than a fifth I field because the I parser above is not anchored, and builds
       -- that predate this one skip unknown sections cleanly.

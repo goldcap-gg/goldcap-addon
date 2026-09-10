@@ -210,7 +210,7 @@ function GC.Data.GetItemValue(itemID)
   local e = imp and imp.items and imp.items[itemID]
   if e then
     -- Cheap-quarter line (import Q section). Absent on imports that predate it and on every
-    -- realm item; the Sell tab's overcut simply stays off for those.
+    -- realm item, and now only the fallback ceiling -- see `reach` just below.
     local p25 = imp.quarter and imp.quarter[itemID] or nil
     -- reach24 (import R section): what the item's floor actually reaches within a day. The
     -- Sell tab's ceiling for posting above the cheapest ask, with p25 above as the fallback
