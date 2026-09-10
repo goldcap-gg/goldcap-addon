@@ -9,7 +9,6 @@ GC.Locales.itIT = {
     " Companion lo tiene aggiornato: /goldcap companion.",
   [" rows against the live auction house about every "] =
     " righe contro la casa d'aste dal vivo, all'incirca ogni ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · %d nascosti",
   [" · below cost"] = " · sotto il costo",
   [" · identity unresolved"] = " · identità non risolta",
@@ -153,7 +152,6 @@ GC.Locales.itIT = {
     "Gratuito, sta nella barra di sistema, niente da configurare nel gioco.",
   ["Full pass over them: %.1fs"] = "Passaggio completo: %.1fs",
   ["Full pass over them: measuring..."] = "Passaggio completo: misurazione...",
-  ["GOOD = solid discount + profit"] = "GOOD = sconto solido + profitto",
   ["GOOD — min discount %"] = "GOOD — sconto minimo %",
   ["GOOD — min sold/day"] = "GOOD — vendite min./giorno",
   ["Gold tied up"] = "Oro immobilizzato",
@@ -176,8 +174,6 @@ GC.Locales.itIT = {
     "In grigio significa che la quotazione è invecchiata; Post e Repost la aggiornano prima di agire.",
   ["HIDDEN 0"] = "NASCOSTE 0",
   ["HIDE DETAILS ▾"] = "NASCONDI DETTAGLI ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = sconto forte + profitto alto + vendite/giorno dimostrate",
   ["HOT — min discount %"] = "HOT — sconto minimo %",
   ["HOT — min sold/day"] = "HOT — vendite min./giorno",
   ["Held back from cancelling"] = "Trattenuto dall'annullamento",
@@ -333,14 +329,14 @@ GC.Locales.itIT = {
   ["Right-click to watch this item closely"] =
     "Clic destro per sorvegliare da vicino questo oggetto",
   ["SAFE +%s"] = "SICURO +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] =
+    "SICURO = il controllo dal vivo ha approvato questo acquisto, al profitto mostrato",
   ["SAFETY"] = "SICUREZZA",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVATO SUBITO · ESC O DONE PER CHIUDERE",
   ["SCAN"] = "SCANSIONA",
   ["SCANNING…"] = "SCANSIONE…",
   ["SESSION %s%s · %d BUYS"] = "SESSIONE %s%s · %d ACQUISTI",
   ["SHOW DETAILS ▸"] = "MOSTRA DETTAGLI ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = sconto così estremo che con ogni probabilità è una truffa o un mercato valutato male",
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
   ["Sell-through"] = "Tasso di vendita",
@@ -361,7 +357,6 @@ GC.Locales.itIT = {
   ["Stress exit unit"] = "Prezzo d'uscita sotto stress",
   ["Stress profit"] = "Profitto sotto stress",
   ["THE BOOK"] = "IL BOOK",
-  ["TIER"] = "LIVELLO",
   ["TOTAL"] = "TOTALE",
   ["TREND"] = "TENDENZA",
   ["Tell GoldCap what you actually paid for these units."] =
@@ -396,7 +391,6 @@ GC.Locales.itIT = {
     "Non si può annullare. Il primo clic ne chiede un secondo per confermare.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "È un oggetto di reame, e GoldCap verifica solo i prezzi delle merci.",
-  ["Tier"] = "Livello",
   ["Too few sellers to read a real price."] = "Troppo pochi venditori per leggere un prezzo reale.",
   ["Too little of what is listed actually sells."] =
     "Troppo poco di ciò che è in vendita viene davvero venduto.",
@@ -412,11 +406,12 @@ GC.Locales.itIT = {
   ["Unknown item"] = "Oggetto sconosciuto",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Ignoto significa che il lato costi è incompleto: completalo con Imposta costo.",
-  ["WATCH %s"] = "OSSERVA %s",
+  ["VERDICT"] = "VERDETTO",
+  ["Verdict"] = "Verdetto",
+  ["WATCH"] = "OSSERVA",
   ["WATCH (computed SAFE)"] = "WATCH (calcolato SICURO)",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = scontato ma con liquidità non dimostrata o profitto piccolo",
-  ["WATCH — checking…"] = "OSSERVA — verifica…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "OSSERVA = il controllo dal vivo lo ha rifiutato -- passa sulla riga per il motivo",
   ["WHAT TO DO"] = "COSA FARE",
   ["WHAT YOU PAID"] = "QUANTO HAI PAGATO",
   ["WHEN"] = "QUANDO",
@@ -627,6 +622,10 @@ GC.Locales.itIT = {
   ["×%d listed"] = "×%d in vendita",
   ["×%d listed at %s each"] = "×%d in vendita a %s l'uno",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprato %s · %s · %s",
+  ["— = nothing is checking this row right now"] =
+    "— = nulla sta controllando questa riga in questo momento",
+  ["… = a live check is queued for this row"] =
+    "… = un controllo dal vivo è in coda per questa riga",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ valore di mercato goldcap.gg — ancora nessuna quotazione dal vivo",
 }

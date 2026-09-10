@@ -6,8 +6,9 @@ local helper = require("spec.spec_helper")
 -- observation, on every verdict stamp, and off the 0.25s ticker. With up to WIN.ROW_CAP rows
 -- that is a lot of allocation for rows whose content never actually moved. These specs prove
 -- the fix skips a genuinely identical re-render while still repainting whenever anything the
--- player can see -- item, price, qty, tier, profit, verdict, pinned state, placeholder state --
--- actually changed, and that the itemID name/icon cache does not stop a real repaint.
+-- player can see -- item, price, qty, profit, verdict, whether anything is checking the row,
+-- pinned state, placeholder state -- actually changed, and that the itemID name/icon cache
+-- does not stop a real repaint.
 describe("Sniper row repaint skip", function()
   local function getUpvalue(fn, wanted)
     for i = 1, math.huge do
@@ -166,19 +167,39 @@ describe("Sniper row repaint skip", function()
     assert.equal("+9999c", row.profitText.text)
   end)
 
-  it("repaints when the unit price, quantity, or tier changes", function()
+  it("repaints when the unit price or the quantity changes", function()
     local ctx = load()
-    for _, field in ipairs({ "unitPrice", "qty", "tier" }) do
+    for _, field in ipairs({ "unitPrice", "qty" }) do
       local calls = { n = 0 }
       local row = fakeRow(calls)
       local base = deal(7)
       ctx.setRowDeal(row, base)
       local afterFirst = calls.n
       local changed = deal(7)
-      changed[field] = field == "tier" and "HOT" or (changed[field] + 1)
+      changed[field] = changed[field] + 1
       ctx.setRowDeal(row, changed)
       assert.is_true(calls.n > afterFirst, "expected a repaint when " .. field .. " changes")
     end
+  end)
+
+  -- The discovery tier is deliberately NOT in the signature any more: no cell renders it, so a
+  -- tier change moves no pixel. What the same cell renders now is whether anything is actually
+  -- checking this row, and that DOES have to survive the skip -- it changes with the sort and
+  -- with the drill queue, never with the deal table.
+  it("repaints when the row starts being checked, though the deal itself did not move", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+    local d = deal(7)
+
+    ctx.setRowDeal(row, d)
+    assert.equal("—", row.tierChip.label)
+    local afterFirst = calls.n
+
+    ctx.GC.Sniper._pendingRows = { [7] = true }
+    ctx.setRowDeal(row, d)
+    assert.is_true(calls.n > afterFirst)
+    assert.equal("…", row.tierChip.label)
   end)
 
   it("repaints when a background Check's verdict changes, even though the deal itself did not", function()

@@ -165,8 +165,6 @@ LIM.RING_FLOOR_SECONDS = 30
 LIM.WIDE_PASS_SECONDS = 300
 LIM.DRILL_PER_MINUTE = 60
 
-local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
-
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
 local rows = {}        -- pooled row widgets, grown lazily up to WIN.ROW_CAP
@@ -474,7 +472,14 @@ end
 -- sort key, sorting the list by price would become unreachable via the header at any window
 -- width <=724px. "unit" lives on the never-dropped COLUMNS "unit" column instead.
 local SORT_VALUE = {
-  tier = function(deal) return TIER_RANK[deal.tier] or 9 end,
+  -- The column is the VERDICT column now, so clicking its header sorts by what the live check
+  -- said -- GC.BoardRows' own bucket order, the same one the default view uses -- and not by
+  -- the discovery-time tier, which the row has not shown since the verdict replaced it.
+  -- "Pending" here is only the drill queue's own membership: the verify walk's window is
+  -- defined BY this sort's result, so reading it back in as an input would be circular.
+  tier = function(deal)
+    return GC.BoardRows.Rank(verdictFor(deal), GC.Sniper._drillQueue:Has(deal.itemID))
+  end,
   pct = function(deal) return deal.discount end,
   unit = function(deal) return deal.unitPrice end,
   price = function(deal) return deal.unitPrice * deal.qty end,
@@ -490,18 +495,27 @@ local SORT_VALUE = {
 -- comparator backs the header-click tiebreak below, so ties under any override key never look
 -- shuffled relative to the default view either.
 local function applySortOverride(list)
+  -- The unknown-key bailout returns `list` itself, so allocating the copy above it was work
+  -- thrown away on every render that hit it.
+  local valueOf = sortOverride and SORT_VALUE[sortOverride.key]
+  if sortOverride and not valueOf then return list end -- defensive: onHeaderSortClick never sets an unknown key
   local copy = {}
   for i, deal in ipairs(list) do copy[i] = deal end
-  if not sortOverride then
-    table.sort(copy, function(a, b) return GC.BoardRows.Compare(a, verdictFor(a), b, verdictFor(b)) end)
+  -- Whether a live look is already queued for this row -- the drill queue only, for the reason
+  -- SORT_VALUE.tier gives above.
+  local function pending(deal) return GC.Sniper._drillQueue:Has(deal.itemID) end
+  if not valueOf then
+    table.sort(copy, function(a, b)
+      return GC.BoardRows.Compare(a, verdictFor(a), pending(a), b, verdictFor(b), pending(b))
+    end)
     return copy
   end
-  local valueOf = SORT_VALUE[sortOverride.key]
-  if not valueOf then return list end -- defensive: onHeaderSortClick never sets an unknown key
   local desc = sortOverride.desc
   table.sort(copy, function(a, b)
     local va, vb = valueOf(a), valueOf(b)
-    if va == vb then return GC.BoardRows.Compare(a, verdictFor(a), b, verdictFor(b)) end
+    if va == vb then
+      return GC.BoardRows.Compare(a, verdictFor(a), pending(a), b, verdictFor(b), pending(b))
+    end
     if desc then return va > vb end
     return va < vb
   end)
@@ -643,6 +657,25 @@ local function renderList()
     end
   end
   for i = 1, #otherRows do pinnedRows[#pinnedRows + 1] = otherRows[i] end
+
+  -- Which rows may say "…" (something is checking this). Exactly two things check a row: the
+  -- drill queue, which holds a specific item at a specific floor, and the verify walk, which
+  -- only ever reaches the top LIM.VERIFY_TOP_ROWS of THIS list (see stepVerifyWalk, which
+  -- calls renderList and slices the same way). Every other row is simply not being looked at,
+  -- and the board used to promise all of them a check that was never coming. A pin placeholder
+  -- is excluded because the walk skips it outright -- there is no price on it to verify.
+  -- Published as a table field rather than a new top-level local: this file is at its
+  -- 200-local ceiling (see addon/AGENTS.md).
+  local pendingRows = {}
+  for i = 1, #pinnedRows do
+    local entry = pinnedRows[i]
+    if not entry.pinPlaceholder
+        and (i <= LIM.VERIFY_TOP_ROWS or GC.Sniper._drillQueue:Has(entry.itemID)) then
+      pendingRows[entry.itemID] = true
+    end
+  end
+  GC.Sniper._pendingRows = pendingRows
+
   return pinnedRows
 end
 
@@ -680,7 +713,16 @@ end
 -- ---------------------------------------------------------------------------
 local COLUMNS = {
   { key = "item",   flex = true, min = 180 },
-  { key = "tier",   w = 48 },
+  -- 72, not the 48 it shipped with. 48 was sized for a four-letter tier pill (HOT/GOOD/
+  -- WATCH/SUSPECT); the cell now carries the live verdict, whose longest form is
+  -- "SAFE +999g" -- ten characters, which at this project's measured ~6px per mono character
+  -- (see spec/button_label_width_spec.lua for where that figure comes from) needs about 61px
+  -- of text plus the 11px the TierMark's dot and its gap take. The 24px comes out of the
+  -- flexible item column, which has 180 to give. Theme.TierMark bounds its own FontString to
+  -- these edges besides, so a longer translation clips inside the cell instead of painting
+  -- across the discount and price columns beside it -- which is exactly what the old
+  -- "WATCH <whole sentence>" label did.
+  { key = "tier",   w = 72 },
   { key = "disc",   w = 56,  num = true, size = 15, bold = true },
   { key = "unit",   w = 76,  num = true, size = 12 },
   { key = "total",  w = 84,  num = true, size = 12, optional = true },
@@ -831,8 +873,8 @@ local function setRowDeal(row, deal)
   -- otherwise a row that goes empty and comes back showing the exact same deal would stay
   -- invisible, `row:Show()` below being the one thing the skip must never skip.
   local sig = table.concat({
-    deal.itemID, deal.unitPrice, deal.qty, tostring(deal.avail), tostring(deal.tier),
-    deal.falling and 1 or 0, deal.profit, tostring(deal.discount),
+    deal.itemID, deal.unitPrice, deal.qty, tostring(deal.avail),
+    (GC.Sniper._pendingRows or {})[deal.itemID] and 1 or 0, deal.profit, tostring(deal.discount),
     deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
     (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
@@ -906,7 +948,8 @@ local function setRowDeal(row, deal)
   else
     verdictColor = Theme.color.fgDim
   end
-  row.tierChip:SetLabel(GC.BoardRows.Label(deal, verdict), verdictColor)
+  row.tierChip:SetLabel(
+    GC.BoardRows.Label(verdict, (GC.Sniper._pendingRows or {})[deal.itemID]), verdictColor)
 
   -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
   -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
@@ -2332,12 +2375,20 @@ end
 -- load pattern but targeting the dialog's own widgets. dialog.deal (not row.deal) is the
 -- identity guard here since the dialog can outlive the row being reassigned.
 local function setDialogHeader(deal, decision)
-  local color = Theme.tier[deal.tier] or Theme.tier.WATCH
   -- Check panel v3: the chip is drawn, but WHETHER it is on screen belongs to the verdict --
-  -- it sits in the reconciliation block, which layoutBlocks only stacks when the board's tier
-  -- and the live verdict disagree. Setting the label here is still right: the tier is known at
-  -- open time and the decision is not.
-  dialog.tierChip:SetLabel(deal.tier, color)
+  -- it sits in the reconciliation block, which layoutBlocks only stacks when what the board
+  -- said and what this check found disagree. What the chip SAYS is the board's own label for
+  -- this row (GC.BoardRows), so the reconciliation sentence sits next to the exact words the
+  -- player just clicked on -- it used to show the discovery tier, which no row has displayed
+  -- since the verdict replaced it. Hidden outright when there is no verdict to disagree with.
+  local rowVerdict = verdictFor(deal)
+  if rowVerdict then
+    dialog.tierChip:SetLabel(GC.BoardRows.Label(rowVerdict),
+      rowVerdict.buyable and Theme.color.green or Theme.tier.WATCH)
+    dialog.tierChip:Show()
+  else
+    dialog.tierChip:Hide()
+  end
   local quantity = decision and decision.quantity or nil
   local suffix = quantity and quantity > 0 and ("  x%d"):format(quantity) or ""
   dialog.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. suffix)
@@ -5689,8 +5740,9 @@ createRow = function(parent, index)
       if verdict.buyable then
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
       else
+        -- The cell above says only WATCH; this is where the sentence behind it lives.
         GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",
-          verdict.reason or GC.L["live verification required"]), 1, 0.82, 0)
+          GC.BoardRows.Reason(verdict) or GC.L["live verification required"]), 1, 0.82, 0)
       end
     elseif not self.deal.pinPlaceholder then
       -- Saying nothing here read as approval. The row already shows a tier, a discount and a
@@ -5917,15 +5969,15 @@ local function createHeaderRow(f)
   local SORT_KEY = { tier = "tier", disc = "pct", unit = "unit", total = "price", profit = "profit" }
   -- Uppercase in the key, never through :upper(): Lua's upper is byte-wise and leaves
   -- every non-ASCII letter alone, so a translated header would come back half-cased.
-  local HEADER_TEXT = { item = GC.L["ITEM"], tier = GC.L["TIER"], disc = GC.L["DISC"],
+  local HEADER_TEXT = { item = GC.L["ITEM"], tier = GC.L["VERDICT"], disc = GC.L["DISC"],
     unit = GC.L["UNIT"], total = GC.L["PRICE"], profit = GC.L["PROFIT"], trend = GC.L["TREND"], buy = "" }
   local TOOLTIP = {
     tier = {
-      GC.L["Tier"],
-      GC.L["HOT = big discount + high profit + proven sales/day"],
-      GC.L["GOOD = solid discount + profit"],
-      GC.L["WATCH = discounted but unproven liquidity or small profit"],
-      GC.L["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"],
+      GC.L["Verdict"],
+      GC.L["SAFE = the live check approved this buy, at the profit shown"],
+      GC.L["WATCH = the live check refused it -- hover the row for the reason"],
+      GC.L["… = a live check is queued for this row"],
+      GC.L["— = nothing is checking this row right now"],
     },
     disc = { GC.L["Discount"], GC.L["Discount vs market value from your GoldCap import"] },
     unit = { GC.L["Unit price"], GC.L["Per-unit price of this auction"] },

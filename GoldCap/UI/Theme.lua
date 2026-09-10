@@ -578,7 +578,14 @@ function T.TierMark(parent)
   f.text = f:CreateFontString(nil, "OVERLAY")
   f.text:SetFont(T.FONT_UI_BOLD, 10 * T.Scale(), "")
   f.text:SetJustifyH("LEFT")
+  -- Bounded to the mark's own width and non-wrapping, exactly as T.Chip's label is (see its
+  -- comment): a bare LEFT point has no width limit at all, so a label longer than the cell
+  -- paints straight across whatever sits to its right instead of clipping. The Sniper board's
+  -- verdict cell is what found this -- a refusal sentence in that column ran over the discount
+  -- and price figures beside it.
   f.text:SetPoint("LEFT", f.dot, "RIGHT", 5, 0)
+  f.text:SetPoint("RIGHT")
+  f.text:SetWordWrap(false)
   widgetFonts[f.text] = { role = "uiBold", path = T.FONT_UI_BOLD, size = 10 }
 
   function f:SetLabel(text, colorTable)

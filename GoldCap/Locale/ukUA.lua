@@ -13,7 +13,6 @@ GC.Locales.ukUA = {
     " Companion оновлює це сам: /goldcap companion.",
   [" rows against the live auction house about every "] =
     " рядків проти живого аукціону приблизно кожні ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · приховано %d",
   [" · below cost"] = " · нижче собівартості",
   [" · identity unresolved"] = " · позиція не впізнана",
@@ -156,7 +155,6 @@ GC.Locales.ukUA = {
     "Безкоштовний, живе в треї, у грі нічого налаштовувати не треба.",
   ["Full pass over them: %.1fs"] = "Повний прохід по них: %.1fс",
   ["Full pass over them: measuring..."] = "Повний прохід по них: вимірюємо...",
-  ["GOOD = solid discount + profit"] = "GOOD = добра знижка + прибуток",
   ["GOOD — min discount %"] = "GOOD — мінімальна знижка %",
   ["GOOD — min sold/day"] = "GOOD — мінімум продажів на день",
   ["Gold tied up"] = "Заморожено золота",
@@ -179,8 +177,6 @@ GC.Locales.ukUA = {
     "Сірий колір означає, що котирування застаріло; Post і Repost оновлять його перед дією.",
   ["HIDDEN 0"] = "ПРИХОВАНО 0",
   ["HIDE DETAILS ▾"] = "СХОВАТИ ДЕТАЛІ ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = велика знижка + високий прибуток + підтверджені продажі/день",
   ["HOT — min discount %"] = "HOT — мінімальна знижка %",
   ["HOT — min sold/day"] = "HOT — мінімум продажів на день",
   ["Held back from cancelling"] = "Притримано від скасування",
@@ -346,6 +342,8 @@ GC.Locales.ukUA = {
   ["Right-click to watch this item closely"] =
     "Правий клік, щоб пильно стежити за предметом",
   ["SAFE +%s"] = "БЕЗПЕЧНО +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] =
+    "БЕЗПЕЧНО = жива перевірка схвалила цю купівлю із показаним прибутком",
   ["SAFETY"] = "БЕЗПЕКА",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "ЗБЕРІГАЄТЬСЯ ОДРАЗУ · ESC АБО DONE, ЩОБ ЗАКРИТИ",
@@ -353,8 +351,6 @@ GC.Locales.ukUA = {
   ["SCANNING…"] = "СКАНУЄМО…",
   ["SESSION %s%s · %d BUYS"] = "СЕСІЯ %s%s · %d КУПІВЕЛЬ",
   ["SHOW DETAILS ▸"] = "ПОКАЗАТИ ДЕТАЛІ ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = знижка настільки велика, що це радше шахрайство чи хибна ціна ринку",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Sell-through"] = "Викуповуваність",
@@ -375,7 +371,6 @@ GC.Locales.ukUA = {
   ["Stress exit unit"] = "Ціна стрес-виходу",
   ["Stress profit"] = "Стрес-прибуток",
   ["THE BOOK"] = "СТАКАН ЗАЯВОК",
-  ["TIER"] = "КЛАС",
   ["TO POST %d"] = "ВИСТАВИТИ %d",
   ["TOTAL"] = "РАЗОМ",
   ["TREND"] = "ТРЕНД",
@@ -411,7 +406,6 @@ GC.Locales.ukUA = {
     "Скасувати не можна. Перший клік просить другий для підтвердження.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Це предмет реалму, а GoldCap перевіряє лише ціни товарів.",
-  ["Tier"] = "Клас",
   ["Too few sellers to read a real price."] = "Замало продавців, щоб прочитати справжню ціну.",
   ["Too little of what is listed actually sells."] =
     "Із виставленого реально продається надто мало.",
@@ -427,11 +421,12 @@ GC.Locales.ukUA = {
   ["Unknown item"] = "Невідомий предмет",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
-  ["WATCH %s"] = "СТЕЖИТИ %s",
+  ["VERDICT"] = "ВЕРДИКТ",
+  ["Verdict"] = "Вердикт",
+  ["WATCH"] = "СТЕЖИТИ",
   ["WATCH (computed SAFE)"] = "WATCH (розраховано БЕЗПЕЧНО)",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = зі знижкою, але ліквідність не підтверджена або прибуток малий",
-  ["WATCH — checking…"] = "СТЕЖИТИ — перевірка…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "СТЕЖИТИ = жива перевірка відмовила -- наведіть на рядок, щоб побачити причину",
   ["WHAT TO DO"] = "ЩО РОБИТИ",
   ["WHAT YOU PAID"] = "СКІЛЬКИ ВИ ЗАПЛАТИЛИ",
   ["WHEN"] = "КОЛИ",
@@ -647,6 +642,9 @@ GC.Locales.ukUA = {
   ["×%d listed"] = "×%d виставлено",
   ["×%d listed at %s each"] = "×%d виставлено по %s за штуку",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · куплено %s · %s · %s",
+  ["— = nothing is checking this row right now"] = "— = зараз цей рядок ніхто не перевіряє",
+  ["… = a live check is queued for this row"] =
+    "… = для цього рядка жива перевірка вже в черзі",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ ринкова вартість goldcap.gg — живого котирування ще немає",
 }

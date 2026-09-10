@@ -3,8 +3,8 @@
 ## 0.8.1 (unreleased)
 
 - **The sniper finds a fresh dump in seconds, not half a minute, and the board tells you
-  the moment it has actually checked one — "SAFE +Ng" or a plain reason why not, in place
-  of a guess.**
+  the moment it has actually checked one — "SAFE +Ng" in place of a guess, and the reason
+  in full on the row you hover when the answer is no.**
 
 ## 0.8.0 (2026-09-08)
 

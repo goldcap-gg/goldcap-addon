@@ -10,7 +10,6 @@ GC.Locales.ptBR = {
     " O Companion mantém isso atualizado: /goldcap companion.",
   [" rows against the live auction house about every "] =
     " linhas contra a casa de leilões ao vivo, a cada ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · %d ocultos",
   [" · below cost"] = " · abaixo do custo",
   [" · identity unresolved"] = " · identidade não resolvida",
@@ -154,7 +153,6 @@ GC.Locales.ptBR = {
     "Gratuito, fica na bandeja do sistema e não há nada para configurar no jogo.",
   ["Full pass over them: %.1fs"] = "Passagem completa: %.1fs",
   ["Full pass over them: measuring..."] = "Passagem completa: medindo...",
-  ["GOOD = solid discount + profit"] = "GOOD = desconto sólido + lucro",
   ["GOOD — min discount %"] = "GOOD — desconto mínimo %",
   ["GOOD — min sold/day"] = "GOOD — vendas mín./dia",
   ["Gold tied up"] = "Ouro parado",
@@ -177,8 +175,6 @@ GC.Locales.ptBR = {
     "Cinza significa que a cotação envelheceu; Post e Repost a atualizam antes de agir.",
   ["HIDDEN 0"] = "OCULTAS 0",
   ["HIDE DETAILS ▾"] = "OCULTAR DETALHES ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = desconto grande + lucro alto + vendas/dia comprovadas",
   ["HOT — min discount %"] = "HOT — desconto mínimo %",
   ["HOT — min sold/day"] = "HOT — vendas mín./dia",
   ["Held back from cancelling"] = "Retido do cancelamento",
@@ -334,14 +330,14 @@ GC.Locales.ptBR = {
   ["Right-click to watch this item closely"] =
     "Clique com o botão direito para acompanhar este item de perto",
   ["SAFE +%s"] = "SEGURO +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] =
+    "SEGURO = a verificação ao vivo aprovou esta compra, com o lucro mostrado",
   ["SAFETY"] = "SEGURANÇA",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVO NA HORA · ESC OU DONE PARA FECHAR",
   ["SCAN"] = "VARRER",
   ["SCANNING…"] = "VARRENDO…",
   ["SESSION %s%s · %d BUYS"] = "SESSÃO %s%s · %d COMPRAS",
   ["SHOW DETAILS ▸"] = "MOSTRAR DETALHES ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = desconto tão extremo que provavelmente é golpe ou mercado mal precificado",
   ["Sales are costed from your oldest units first"] =
     "As vendas são custeadas a partir das suas unidades mais antigas",
   ["Sell-through"] = "Taxa de venda",
@@ -362,7 +358,6 @@ GC.Locales.ptBR = {
   ["Stress exit unit"] = "Preço de saída sob pressão",
   ["Stress profit"] = "Lucro sob pressão",
   ["THE BOOK"] = "O LIVRO DE OFERTAS",
-  ["TIER"] = "NÍVEL",
   ["TOTAL"] = "TOTAL",
   ["TREND"] = "TENDÊNCIA",
   ["Tell GoldCap what you actually paid for these units."] =
@@ -397,7 +392,6 @@ GC.Locales.ptBR = {
     "Não há como desfazer. O primeiro clique pede um segundo para confirmar.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Este é um item de reino, e o GoldCap só verifica preços de mercadorias.",
-  ["Tier"] = "Nível",
   ["Too few sellers to read a real price."] = "Vendedores de menos para ler um preço real.",
   ["Too little of what is listed actually sells."] =
     "Muito pouco do que está anunciado realmente vende.",
@@ -413,11 +407,12 @@ GC.Locales.ptBR = {
   ["Unknown item"] = "Item desconhecido",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Desconhecido significa que falta parte do custo — complete com Definir custo.",
-  ["WATCH %s"] = "OBSERVAR %s",
+  ["VERDICT"] = "VEREDITO",
+  ["Verdict"] = "Veredito",
+  ["WATCH"] = "OBSERVAR",
   ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = com desconto, mas liquidez não comprovada ou lucro pequeno",
-  ["WATCH — checking…"] = "OBSERVAR — verificando…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "OBSERVAR = a verificação ao vivo recusou -- passe o mouse na linha para ver o motivo",
   ["WHAT TO DO"] = "O QUE FAZER",
   ["WHAT YOU PAID"] = "O QUE VOCÊ PAGOU",
   ["WHEN"] = "QUANDO",
@@ -626,6 +621,9 @@ GC.Locales.ptBR = {
   ["×%d listed"] = "×%d anunciados",
   ["×%d listed at %s each"] = "×%d anunciados a %s cada",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprado %s · %s · %s",
+  ["— = nothing is checking this row right now"] = "— = nada está verificando esta linha agora",
+  ["… = a live check is queued for this row"] =
+    "… = há uma verificação ao vivo na fila para esta linha",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ valor de mercado do goldcap.gg — ainda sem cotação ao vivo",
 }

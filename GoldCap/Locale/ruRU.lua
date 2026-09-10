@@ -9,7 +9,6 @@ GC.Locales.ruRU = {
     " Companion обновляет это сам: /goldcap companion.",
   [" rows against the live auction house about every "] =
     " строк по живому аукциону примерно каждые ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · скрыто %d",
   [" · below cost"] = " · ниже себестоимости",
   [" · identity unresolved"] = " · позиция не опознана",
@@ -152,7 +151,6 @@ GC.Locales.ruRU = {
     "Бесплатный, живёт в трее, в игре ничего настраивать не нужно.",
   ["Full pass over them: %.1fs"] = "Полный проход по ним: %.1fс",
   ["Full pass over them: measuring..."] = "Полный проход по ним: измеряем...",
-  ["GOOD = solid discount + profit"] = "GOOD = хорошая скидка + прибыль",
   ["GOOD — min discount %"] = "GOOD — минимальная скидка %",
   ["GOOD — min sold/day"] = "GOOD — минимум продаж в день",
   ["Gold tied up"] = "Заморожено золота",
@@ -175,8 +173,6 @@ GC.Locales.ruRU = {
     "Серый цвет означает, что котировка устарела; Post и Repost обновят её перед действием.",
   ["HIDDEN 0"] = "СКРЫТО 0",
   ["HIDE DETAILS ▾"] = "СКРЫТЬ ДЕТАЛИ ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = большая скидка + высокая прибыль + подтверждённые продажи/день",
   ["HOT — min discount %"] = "HOT — минимальная скидка %",
   ["HOT — min sold/day"] = "HOT — минимум продаж в день",
   ["Held back from cancelling"] = "Придержано от отмены",
@@ -330,6 +326,8 @@ GC.Locales.ruRU = {
   ["Right-click to watch this item closely"] =
     "Правый клик, чтобы пристально следить за предметом",
   ["SAFE +%s"] = "БЕЗОПАСНО +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] =
+    "БЕЗОПАСНО = живая проверка одобрила эту покупку с показанной прибылью",
   ["SAFETY"] = "БЕЗОПАСНОСТЬ",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "СОХРАНЯЕТСЯ СРАЗУ · ESC ИЛИ DONE, ЧТОБЫ ЗАКРЫТЬ",
@@ -337,8 +335,6 @@ GC.Locales.ruRU = {
   ["SCANNING…"] = "СКАНИРУЕМ…",
   ["SESSION %s%s · %d BUYS"] = "СЕССИЯ %s%s · %d ПОКУПОК",
   ["SHOW DETAILS ▸"] = "ПОКАЗАТЬ ДЕТАЛИ ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = скидка настолько велика, что это скорее обман или ошибочная цена рынка",
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["Sell-through"] = "Выкупаемость",
@@ -359,7 +355,6 @@ GC.Locales.ruRU = {
   ["Stress exit unit"] = "Цена стресс-выхода",
   ["Stress profit"] = "Стресс-прибыль",
   ["THE BOOK"] = "СТАКАН ЗАЯВОК",
-  ["TIER"] = "КЛАСС",
   ["TOTAL"] = "ИТОГО",
   ["TREND"] = "ТРЕНД",
   ["Tell GoldCap what you actually paid for these units."] =
@@ -394,7 +389,6 @@ GC.Locales.ruRU = {
     "Отменить нельзя. Первый клик просит второй для подтверждения.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Это предмет реалма, а GoldCap проверяет только цены товаров.",
-  ["Tier"] = "Класс",
   ["Too few sellers to read a real price."] =
     "Слишком мало продавцов, чтобы прочитать настоящую цену.",
   ["Too little of what is listed actually sells."] =
@@ -411,11 +405,12 @@ GC.Locales.ruRU = {
   ["Unknown item"] = "Неизвестный предмет",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Неизвестно» значит, что себестоимость заполнена не вся — допишите её через «Указать цену».",
-  ["WATCH %s"] = "СЛЕДИТЬ %s",
+  ["VERDICT"] = "ВЕРДИКТ",
+  ["Verdict"] = "Вердикт",
+  ["WATCH"] = "СЛЕДИТЬ",
   ["WATCH (computed SAFE)"] = "WATCH (расчёт БЕЗОПАСНО)",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = со скидкой, но ликвидность не подтверждена или прибыль мала",
-  ["WATCH — checking…"] = "СЛЕДИТЬ — проверка…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "СЛЕДИТЬ = живая проверка отказала -- наведите на строку, чтобы увидеть причину",
   ["WHAT TO DO"] = "ЧТО ДЕЛАТЬ",
   ["WHAT YOU PAID"] = "СКОЛЬКО ВЫ ЗАПЛАТИЛИ",
   ["WHEN"] = "КОГДА",
@@ -624,6 +619,9 @@ GC.Locales.ruRU = {
   ["×%d listed"] = "×%d выставлено",
   ["×%d listed at %s each"] = "×%d выставлено по %s за штуку",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · куплено %s · %s · %s",
+  ["— = nothing is checking this row right now"] = "— = сейчас эту строку никто не проверяет",
+  ["… = a live check is queued for this row"] =
+    "… = для этой строки живая проверка уже в очереди",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ рыночная стоимость goldcap.gg — живой котировки пока нет",
 }

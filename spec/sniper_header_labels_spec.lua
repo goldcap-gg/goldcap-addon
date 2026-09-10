@@ -190,7 +190,7 @@ describe("Sniper deals column headings", function()
     local seen = {}
     for key, cell in pairs(frame.headerRow.cells) do seen[key] = cell.label.text end
     assert.equal("ITEM", frame.headerRow.itemCell.label.text)
-    assert.equal("TIER", seen.tier)
+    assert.equal("VERDICT", seen.tier)
     assert.equal("DISC", seen.disc)
     assert.equal("UNIT", seen.unit)
     assert.equal("PRICE", seen.total)

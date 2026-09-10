@@ -12,7 +12,6 @@ GC.Locales.esMX = {
     " Companion lo mantiene al día: /goldcap companion.",
   [" rows against the live auction house about every "] =
     " filas contra la casa de subastas en vivo, cada ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · %d ocultos",
   [" · below cost"] = " · por debajo del costo",
   [" · identity unresolved"] = " · identidad sin resolver",
@@ -156,7 +155,6 @@ GC.Locales.esMX = {
     "Gratis, vive en la bandeja del sistema y no hay nada que configurar en el juego.",
   ["Full pass over them: %.1fs"] = "Pasada completa: %.1fs",
   ["Full pass over them: measuring..."] = "Pasada completa: midiendo...",
-  ["GOOD = solid discount + profit"] = "GOOD = descuento sólido + beneficio",
   ["GOOD — min discount %"] = "GOOD — descuento mínimo %",
   ["GOOD — min sold/day"] = "GOOD — ventas mínimas/día",
   ["Gold tied up"] = "Oro inmovilizado",
@@ -179,8 +177,6 @@ GC.Locales.esMX = {
     "En gris significa que la cotización ha envejecido; Post y Repost la actualizan antes de actuar.",
   ["HIDDEN 0"] = "OCULTAS 0",
   ["HIDE DETAILS ▾"] = "OCULTAR DETALLES ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = gran descuento + beneficio alto + ventas/día demostradas",
   ["HOT — min discount %"] = "HOT — descuento mínimo %",
   ["HOT — min sold/day"] = "HOT — ventas mínimas/día",
   ["Held back from cancelling"] = "Retenido de la cancelación",
@@ -335,14 +331,14 @@ GC.Locales.esMX = {
   ["Right-click to stop watching this item"] = "Clic derecho para dejar de vigilar este objeto",
   ["Right-click to watch this item closely"] = "Clic derecho para vigilar de cerca este objeto",
   ["SAFE +%s"] = "SEGURO +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] =
+    "SEGURO = la verificación en vivo aprobó esta compra, con la ganancia mostrada",
   ["SAFETY"] = "SEGURIDAD",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SE GUARDA AL INSTANTE · ESC O DONE PARA CERRAR",
   ["SCAN"] = "ESCANEAR",
   ["SCANNING…"] = "ESCANEANDO…",
   ["SESSION %s%s · %d BUYS"] = "SESIÓN %s%s · %d COMPRAS",
   ["SHOW DETAILS ▸"] = "MOSTRAR DETALLES ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = descuento tan extremo que seguramente sea una estafa o un mercado mal valorado",
   ["Sales are costed from your oldest units first"] =
     "Las ventas se imputan primero a tus unidades más antiguas",
   ["Sell-through"] = "Tasa de venta",
@@ -363,7 +359,6 @@ GC.Locales.esMX = {
   ["Stress exit unit"] = "Precio de salida bajo presión",
   ["Stress profit"] = "Beneficio bajo presión",
   ["THE BOOK"] = "EL LIBRO DE ÓRDENES",
-  ["TIER"] = "NIVEL",
   ["TOTAL"] = "TOTAL",
   ["TREND"] = "TENDENCIA",
   ["Tell GoldCap what you actually paid for these units."] =
@@ -398,7 +393,6 @@ GC.Locales.esMX = {
     "No se puede deshacer. El primer clic pide un segundo para confirmar.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Es un objeto de reino, y GoldCap solo verifica precios de mercancías.",
-  ["Tier"] = "Nivel",
   ["Too few sellers to read a real price."] = "Hay muy pocos vendedores para leer un precio real.",
   ["Too little of what is listed actually sells."] = "Se vende muy poco de lo que hay publicado.",
   ["Too little price history to trust the value."] =
@@ -413,11 +407,12 @@ GC.Locales.esMX = {
   ["Unknown item"] = "Objeto desconocido",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Desconocido significa que falta parte del costo: complétalo con Fijar costo.",
-  ["WATCH %s"] = "VIGILAR %s",
+  ["VERDICT"] = "VEREDICTO",
+  ["Verdict"] = "Veredicto",
+  ["WATCH"] = "VIGILAR",
   ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = con descuento pero con liquidez no demostrada o beneficio pequeño",
-  ["WATCH — checking…"] = "VIGILAR — comprobando…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "VIGILAR = la verificación en vivo lo rechazó -- pasa el cursor por la fila para ver el motivo",
   ["WHAT TO DO"] = "QUÉ HACER",
   ["WHAT YOU PAID"] = "LO QUE PAGASTE",
   ["WHEN"] = "CUÁNDO",
@@ -629,6 +624,10 @@ GC.Locales.esMX = {
   ["×%d listed"] = "×%d publicados",
   ["×%d listed at %s each"] = "×%d publicados a %s cada uno",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprado %s · %s · %s",
+  ["— = nothing is checking this row right now"] =
+    "— = nada está verificando esta fila ahora mismo",
+  ["… = a live check is queued for this row"] =
+    "… = hay una verificación en vivo en cola para esta fila",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ valor de mercado de goldcap.gg — aún sin cotización en vivo",
 }

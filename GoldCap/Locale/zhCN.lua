@@ -12,7 +12,6 @@ GC.Locales.zhCN = {
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion 会自动更新：/goldcap companion。",
   [" rows against the live auction house about every "] = " 行与实时拍卖行核对，周期约 ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · 已隐藏 %d",
   [" · below cost"] = " · 低于成本",
   [" · identity unresolved"] = " · 归属未确定",
@@ -146,7 +145,6 @@ GC.Locales.zhCN = {
   ["Free, sits in the tray, nothing to set up in game."] = "免费，常驻系统托盘，游戏内无需任何设置。",
   ["Full pass over them: %.1fs"] = "完整走一轮：%.1f 秒",
   ["Full pass over them: measuring..."] = "完整走一轮：测量中...",
-  ["GOOD = solid discount + profit"] = "GOOD = 明确折扣 + 利润",
   ["GOOD — min discount %"] = "GOOD — 最低折扣 %",
   ["GOOD — min sold/day"] = "GOOD — 每日最低成交",
   ["Gold tied up"] = "占用金币",
@@ -168,8 +166,6 @@ GC.Locales.zhCN = {
     "灰色表示报价已过期；Post 和 Repost 会在操作前先刷新。",
   ["HIDDEN 0"] = "隐藏 0",
   ["HIDE DETAILS ▾"] = "隐藏详情 ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = 大幅折扣 + 高利润 + 已验证的日销量",
   ["HOT — min discount %"] = "HOT — 最低折扣 %",
   ["HOT — min sold/day"] = "HOT — 每日最低成交",
   ["Held back from cancelling"] = "已从取消中保留",
@@ -310,14 +306,13 @@ GC.Locales.zhCN = {
   ["Right-click to stop watching this item"] = "右键点击以停止关注该物品",
   ["Right-click to watch this item closely"] = "右键点击以密切关注该物品",
   ["SAFE +%s"] = "安全 +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] = "安全 = 实时检查已批准这笔买入，利润如所示",
   ["SAFETY"] = "安全",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "即时保存 · 按 ESC 或 DONE 关闭",
   ["SCAN"] = "扫描",
   ["SCANNING…"] = "扫描中…",
   ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 笔购买",
   ["SHOW DETAILS ▸"] = "显示详情 ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = 折扣离谱到多半是骗局或市场价错误的物品",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Sell-through"] = "售罄率",
   ["Sellers"] = "卖家",
@@ -336,7 +331,6 @@ GC.Locales.zhCN = {
   ["Stress exit unit"] = "压力退出单价",
   ["Stress profit"] = "压力利润",
   ["THE BOOK"] = "挂单簿",
-  ["TIER"] = "等级",
   ["TOTAL"] = "合计",
   ["TREND"] = "走势",
   ["Tell GoldCap what you actually paid for these units."] = "告诉 GoldCap 你实际为这些物品付了多少。",
@@ -363,7 +357,6 @@ GC.Locales.zhCN = {
   ["There is no undo. Clicking asks for a second click to confirm."] = "无法撤销。点击后需再点一次确认。",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "这是服务器物品，而 GoldCap 只校验商品类价格。",
-  ["Tier"] = "等级",
   ["Too few sellers to read a real price."] = "卖家太少，读不出真实价格。",
   ["Too little of what is listed actually sells."] = "挂出来的货里真正卖掉的太少。",
   ["Too little price history to trust the value."] = "价格历史太少，无法信任这个估值。",
@@ -376,11 +369,12 @@ GC.Locales.zhCN = {
   ["Unknown item"] = "未知物品",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "显示为未知说明成本侧不完整 — 用“填写成本”补上。",
-  ["WATCH %s"] = "观察 %s",
+  ["VERDICT"] = "判定",
+  ["Verdict"] = "判定",
+  ["WATCH"] = "观察",
   ["WATCH (computed SAFE)"] = "WATCH（计算结果为安全）",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = 有折扣但流动性未验证，或利润偏小",
-  ["WATCH — checking…"] = "观察 — 检查中…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "观察 = 实时检查拒绝了它 -- 将鼠标移到该行可看原因",
   ["WHAT TO DO"] = "该怎么做",
   ["WHAT YOU PAID"] = "你的成本",
   ["WHEN"] = "时间",
@@ -571,5 +565,7 @@ GC.Locales.zhCN = {
   ["×%d listed"] = "×%d 已上架",
   ["×%d listed at %s each"] = "×%d 已上架，每件 %s",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · 购买 %s · %s · %s",
+  ["— = nothing is checking this row right now"] = "— = 目前没有在检查该行",
+  ["… = a live check is queued for this row"] = "… = 该行的实时检查已排队",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市场价 — 尚无实时报价",
 }

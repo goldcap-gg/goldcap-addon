@@ -11,7 +11,6 @@ GC.Locales.koKR = {
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion이 자동으로 갱신합니다: /goldcap companion.",
   [" rows against the live auction house about every "] = " 줄을 실시간 경매장과 대조합니다. 주기는 약 ",
-  [" |cffff4040v|r"] = " |cffff4040v|r",
   [" · %d hidden"] = " · %d개 숨김",
   [" · below cost"] = " · 원가 미만",
   [" · identity unresolved"] = " · 대상 미확정",
@@ -147,7 +146,6 @@ GC.Locales.koKR = {
   ["Free, sits in the tray, nothing to set up in game."] = "무료이고 트레이에 상주하며, 게임 안에서 설정할 것이 없습니다.",
   ["Full pass over them: %.1fs"] = "전체 순회: %.1f초",
   ["Full pass over them: measuring..."] = "전체 순회: 측정 중...",
-  ["GOOD = solid discount + profit"] = "GOOD = 확실한 할인 + 수익",
   ["GOOD — min discount %"] = "GOOD — 최소 할인 %",
   ["GOOD — min sold/day"] = "GOOD — 최소 일일 판매",
   ["Gold tied up"] = "묶이는 골드",
@@ -170,8 +168,6 @@ GC.Locales.koKR = {
     "회색이면 시세가 오래된 것입니다. Post와 Repost는 실행 전에 시세를 갱신합니다.",
   ["HIDDEN 0"] = "숨김 0",
   ["HIDE DETAILS ▾"] = "세부 정보 숨기기 ▾",
-  ["HOT = big discount + high profit + proven sales/day"] =
-    "HOT = 큰 할인 + 높은 수익 + 검증된 일일 판매량",
   ["HOT — min discount %"] = "HOT — 최소 할인 %",
   ["HOT — min sold/day"] = "HOT — 최소 일일 판매",
   ["Held back from cancelling"] = "취소에서 보류됨",
@@ -314,14 +310,14 @@ GC.Locales.koKR = {
   ["Right-click to stop watching this item"] = "이 아이템 주시를 멈추려면 우클릭",
   ["Right-click to watch this item closely"] = "이 아이템을 자세히 주시하려면 우클릭",
   ["SAFE +%s"] = "안전 +%s",
+  ["SAFE = the live check approved this buy, at the profit shown"] =
+    "안전 = 실시간 확인이 이 구매를 승인했습니다, 표시된 수익 기준",
   ["SAFETY"] = "안전",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "즉시 저장됨 · ESC 또는 DONE으로 닫기",
   ["SCAN"] = "검색",
   ["SCANNING…"] = "검색 중…",
   ["SESSION %s%s · %d BUYS"] = "세션 %s%s · 구매 %d건",
   ["SHOW DETAILS ▸"] = "세부 정보 보기 ▸",
-  ["SUSPECT = discount so extreme it's probably a scam/mispriced-market item"] =
-    "SUSPECT = 할인이 지나쳐 사기이거나 시세가 잘못된 아이템일 가능성이 큼",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Sell-through"] = "판매 소진율",
   ["Sellers"] = "판매자",
@@ -340,7 +336,6 @@ GC.Locales.koKR = {
   ["Stress exit unit"] = "스트레스 청산 단가",
   ["Stress profit"] = "스트레스 수익",
   ["THE BOOK"] = "호가창",
-  ["TIER"] = "등급",
   ["TOTAL"] = "합계",
   ["TREND"] = "추세",
   ["Tell GoldCap what you actually paid for these units."] = "이 물량을 실제로 얼마에 샀는지 GoldCap에 알려 주세요.",
@@ -371,7 +366,6 @@ GC.Locales.koKR = {
     "되돌릴 수 없습니다. 한 번 누르면 확인을 위해 한 번 더 눌러야 합니다.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "서버 전용 아이템이며, GoldCap은 상품(commodity) 시세만 검증합니다.",
-  ["Tier"] = "등급",
   ["Too few sellers to read a real price."] = "판매자가 너무 적어 실제 시세를 읽을 수 없습니다.",
   ["Too little of what is listed actually sells."] = "등록된 물량 중 실제로 팔리는 비율이 너무 낮습니다.",
   ["Too little price history to trust the value."] = "가격 기록이 너무 적어 이 값을 믿을 수 없습니다.",
@@ -385,11 +379,12 @@ GC.Locales.koKR = {
   ["Unknown item"] = "알 수 없는 아이템",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
-  ["WATCH %s"] = "관찰 %s",
+  ["VERDICT"] = "판정",
+  ["Verdict"] = "판정",
+  ["WATCH"] = "관찰",
   ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
-  ["WATCH = discounted but unproven liquidity or small profit"] =
-    "WATCH = 할인은 있으나 유동성이 검증되지 않았거나 수익이 적음",
-  ["WATCH — checking…"] = "관찰 — 확인 중…",
+  ["WATCH = the live check refused it -- hover the row for the reason"] =
+    "관찰 = 실시간 확인이 거절했습니다 -- 줄에 마우스를 올리면 이유가 나옵니다",
   ["WHAT TO DO"] = "할 일",
   ["WHAT YOU PAID"] = "내가 지불한 값",
   ["WHEN"] = "시점",
@@ -589,6 +584,8 @@ GC.Locales.koKR = {
   ["×%d listed"] = "×%d 등록됨",
   ["×%d listed at %s each"] = "×%d, 개당 %s에 등록됨",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · 구매 %s · %s · %s",
+  ["— = nothing is checking this row right now"] = "— = 지금 이 줄을 확인하는 것은 없습니다",
+  ["… = a live check is queued for this row"] = "… = 이 줄의 실시간 확인이 대기 중입니다",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
 }
