@@ -186,11 +186,11 @@ frame:RegisterEvent("COMMODITY_PURCHASE_FAILED")
 frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
 frame:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_ADDED")
 frame:RegisterEvent("AUCTION_HOUSE_CLOSED")
--- The client's own error channel, and the only signal an errored auction house action ever
--- sends: an "Internal auction error." is followed by NONE of the three commodity terminal
--- events and by no search result, so without this every wait the Sniper had open at that
--- moment waited for something that would never arrive. One payload argument, `error`
--- (Enum.AuctionHouseError) -- see UI/SniperFrame.lua's GC.Sniper.OnAuctionHouseError.
+-- The client's own error channel. Observed live 2026-09-11: the red "Internal auction error."
+-- over the auction house columns arrived with NO commodity terminal event and NO search result
+-- behind it, so every wait the Sniper had open at that moment waited for something that never
+-- came. One payload argument, `error` (Enum.AuctionHouseError -- warcraft.wiki.gg's
+-- AUCTION_HOUSE_SHOW_ERROR); see UI/SniperFrame.lua's GC.Sniper.OnAuctionHouseError.
 frame:RegisterEvent("AUCTION_HOUSE_SHOW_ERROR")
 -- D: Sell view posting signals (verified against Blizzard_AuctionHouseUI's
 -- AuctionHouseFrameMixin:OnEvent, which reacts to both the same way: AUCTION_HOUSE_AUCTION_CREATED

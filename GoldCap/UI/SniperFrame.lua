@@ -4707,12 +4707,13 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   resolvePurchase(row, false, GC.L["commodity purchase failed"])
 end
 
--- AUCTION_HOUSE_SHOW_ERROR (Core/Init.lua). The client sends this and NOTHING else: the red
--- "Internal auction error." the player sees over the columns is not accompanied by any of the
--- three commodity terminal events, nor by a search-results event. So every wait this addon had
--- open at that moment was waiting for something that will never arrive -- which is how a
--- purchase ended up owning the search slot for the rest of the session, and how a Check sat on
--- "..." until its own timeout. The error IS the terminal event; treat it as one.
+-- AUCTION_HOUSE_SHOW_ERROR (Core/Init.lua). Observed live 2026-09-11: the red "Internal
+-- auction error." the player saw over the columns came with no commodity terminal event and no
+-- search result behind it, so every wait this addon had open at that moment was waiting for
+-- something that never arrived -- which is how a purchase ended up owning the search slot for
+-- the rest of the session, and how a Check sat on "..." until its own timeout. Blizzard
+-- documents no ordering guarantee either way, so this treats the error as the terminal event
+-- it appeared to be, and every path below is written to be harmless if a real one still lands.
 --
 -- Not a purchase call and not a cancel: an unconfirmed attempt is settled here as failed
 -- (nothing was confirmed, so no gold moved), and CancelCommoditiesPurchase stays where it
