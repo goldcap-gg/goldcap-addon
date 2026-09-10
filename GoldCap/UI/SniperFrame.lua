@@ -474,12 +474,10 @@ end
 local SORT_VALUE = {
   -- The column is the VERDICT column now, so clicking its header sorts by what the live check
   -- said -- GC.BoardRows' own bucket order, the same one the default view uses -- and not by
-  -- the discovery-time tier, which the row has not shown since the verdict replaced it.
-  -- "Pending" here is only the drill queue's own membership: the verify walk's window is
-  -- defined BY this sort's result, so reading it back in as an input would be circular.
-  tier = function(deal)
-    return GC.BoardRows.Rank(verdictFor(deal), GC.Sniper._drillQueue:Has(deal.itemID))
-  end,
+  -- the discovery-time tier, which the row has not shown since the verdict replaced it. The
+  -- second argument (whether a live look is already queued for this row) is sampled once per
+  -- render by the caller; every other entry here ignores it.
+  tier = function(deal, pending) return GC.BoardRows.Rank(verdictFor(deal), pending) end,
   pct = function(deal) return deal.discount end,
   unit = function(deal) return deal.unitPrice end,
   price = function(deal) return deal.unitPrice * deal.qty end,
@@ -499,22 +497,28 @@ local function applySortOverride(list)
   -- thrown away on every render that hit it.
   local valueOf = sortOverride and SORT_VALUE[sortOverride.key]
   if sortOverride and not valueOf then return list end -- defensive: onHeaderSortClick never sets an unknown key
-  local copy = {}
-  for i, deal in ipairs(list) do copy[i] = deal end
-  -- Whether a live look is already queued for this row -- the drill queue only, for the reason
-  -- SORT_VALUE.tier gives above.
-  local function pending(deal) return GC.Sniper._drillQueue:Has(deal.itemID) end
+  -- Whether a live look is already queued for each row, sampled ONCE per render rather than
+  -- inside the comparator, which table.sort calls O(n log n) times over up to a hundred rows.
+  -- The verify walk's own window is deliberately NOT folded in: that window is defined BY the
+  -- result of this sort, so feeding it back in as an input would rank whoever is already in
+  -- the top rows above every unverified row below them -- and so keep them there, permanently,
+  -- however much better the row underneath got.
+  local copy, pending = {}, {}
+  for i, deal in ipairs(list) do
+    copy[i] = deal
+    pending[deal.itemID] = GC.Sniper._drillQueue:Has(deal.itemID)
+  end
   if not valueOf then
     table.sort(copy, function(a, b)
-      return GC.BoardRows.Compare(a, verdictFor(a), pending(a), b, verdictFor(b), pending(b))
+      return GC.BoardRows.Compare(a, verdictFor(a), pending[a.itemID], b, verdictFor(b), pending[b.itemID])
     end)
     return copy
   end
   local desc = sortOverride.desc
   table.sort(copy, function(a, b)
-    local va, vb = valueOf(a), valueOf(b)
+    local va, vb = valueOf(a, pending[a.itemID]), valueOf(b, pending[b.itemID])
     if va == vb then
-      return GC.BoardRows.Compare(a, verdictFor(a), pending(a), b, verdictFor(b), pending(b))
+      return GC.BoardRows.Compare(a, verdictFor(a), pending[a.itemID], b, verdictFor(b), pending[b.itemID])
     end
     if desc then return va > vb end
     return va < vb
