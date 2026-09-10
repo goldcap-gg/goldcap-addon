@@ -1829,6 +1829,14 @@ local function applyFullScanResults(rowsList, groupCount, kind)
     end
     if #carried > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, carried, 100) end
   end
+  -- Sniper phase 2: the realm board rides across the replacement above, unconditionally. A
+  -- pass has nothing to say about a realm item -- a classes pass never browses one, and the
+  -- wide pass's own row is screened out for having no sell-through, velocity or liquidity
+  -- facts -- so the key poll's copy is the only account of it there is, and it stands until
+  -- the poll itself reports otherwise.
+  local realm = {}
+  for _, deal in pairs(GC.Sniper._realmDeals or {}) do realm[#realm + 1] = deal end
+  if #realm > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, realm, 100) end
   GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
   GC.WatchSet.Observe(GC.Sniper._churn, scanDeals, GC.Sniper._churnSeq)
   GC.Sniper._RefreshWatchSet()
@@ -2211,7 +2219,7 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- being rescued FROM here, and the row says "unverified" instead of pretending otherwise.
   onRows = function(results)
     local realmRows = GC.FullScan.RowsFromBrowse(results, GC.Sniper._RealmValue, GC.db.settings.sniper)
-    local fresh = {}
+    local fresh, qualified = {}, {}
     for i = 1, #realmRows do
       local row = realmRows[i]
       local value = GC.Sniper._RealmValue(row.itemID)
@@ -2228,13 +2236,39 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
         deal.action = "Check"
         deal.buyable = false
         fresh[#fresh + 1] = deal
+        qualified[row.itemID] = true
       end
     end
-    if #fresh == 0 then return end
-    scanDeals = GC.FullScan.MergeDeals(scanDeals, fresh, 100)
+    -- The realm board, kept separately from the pass's own: a completed pass REPLACES
+    -- scanDeals wholesale (applyFullScanResults), and a classes pass never looks at a realm
+    -- item at all -- so without its own copy every realm row would vanish a few seconds after
+    -- the poll found it, on the next pass that finished.
+    local asked = GC.Sniper._keysBatch
+    GC.Sniper._keysBatch = nil
+    if asked then
+      -- This batch asked about these items by name, so its silence about one is an answer:
+      -- sold out, or repriced back above the trigger. Either way it leaves the board with the
+      -- batch that found out, rather than sitting there until something else happens to
+      -- disprove it.
+      for i = 1, #asked do
+        local itemID = asked[i]
+        if not qualified[itemID] then
+          GC.Sniper._realmDeals[itemID] = nil
+          for index = #scanDeals, 1, -1 do
+            if scanDeals[index].itemID == itemID then table.remove(scanDeals, index) end
+          end
+        end
+      end
+    end
+    for i = 1, #fresh do GC.Sniper._realmDeals[fresh[i].itemID] = fresh[i] end
+    if #fresh > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, fresh, 100) end
     refreshRows()
   end,
 })
+
+-- itemID -> the deal the key poll last built for it. See onRows above for why the realm side
+-- of the board is kept here as well as in scanDeals.
+GC.Sniper._realmDeals = {}
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
@@ -3045,6 +3079,9 @@ GC.Sniper.detachedCommodityStatus = detachedCommodityStatus
 
 local function consumePurchasedDeal(deal)
   if deals[deal.itemID] == deal then deals[deal.itemID] = nil end
+  -- The key poll's own copy of the realm board (see its onRows) survives a completed pass, so
+  -- a bought realm lot has to be taken out of it too or the next pass puts it straight back.
+  if GC.Sniper._realmDeals then GC.Sniper._realmDeals[deal.itemID] = nil end
   -- A full-scan buy resolves against the LIVE deal finishRequery swapped in, not the original
   -- stale scan entry. Drop that consumed listing so it cannot reappear on the next refresh.
   for i = #scanDeals, 1, -1 do
@@ -3414,6 +3451,7 @@ local function applyRequeryResult(row, itemID, live)
   else
     showGoneState(row, GC.L["listing gone -- already bought out or price changed"])
     if deals[itemID] then deals[itemID] = nil end
+    if GC.Sniper._realmDeals then GC.Sniper._realmDeals[itemID] = nil end -- same reason as consumePurchasedDeal
     for i = #scanDeals, 1, -1 do
       if scanDeals[i].itemID == itemID then table.remove(scanDeals, i) end
     end
@@ -4040,6 +4078,9 @@ function GC.Sniper.OnThrottleReady()
       local keys = {}
       for i = 1, #batch do keys[i] = C_AuctionHouse.MakeItemKey(batch[i]) end
       GC.Sniper._keysAwaiting = time()
+      -- What this batch asked about, by name. The fold needs it to tell "no row came back for
+      -- this item" (sold out, or repriced) from "this item was not in the batch at all".
+      GC.Sniper._keysBatch = batch
       GC.Sniper._keysThisCycle = (GC.Sniper._keysThisCycle or 0) + #keys
       C_AuctionHouse.SearchForItemKeys(keys, {})
       return
@@ -7289,8 +7330,10 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- answer it -- the counters go with it so the next visit's readout counts its own traffic.
   GC.Sniper._keyPoll:Reset()
   GC.Sniper._keysAwaiting = nil
+  GC.Sniper._keysBatch = nil
   GC.Sniper._keysThisCycle = 0
   GC.Sniper._keysLastCycle = 0
+  for itemID in pairs(GC.Sniper._realmDeals) do GC.Sniper._realmDeals[itemID] = nil end
   GC.Sniper._drillQueue:Clear()
   GC.Sniper._wideExtras = nil
   -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live

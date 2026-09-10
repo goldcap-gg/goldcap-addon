@@ -188,6 +188,41 @@ describe("Key poll wiring", function()
       assert.is_nil(GC.Sniper._CurrentLiveDeal(42)) -- 5% under the reference is not a deal
     end)
 
+    -- A completed pass replaces the board wholesale, and a classes pass never browses a realm
+    -- item at all -- so before the poll kept its own copy, every realm row vanished a few
+    -- seconds after it appeared, on the next pass that finished.
+    it("keeps the realm row on the board across a completed pass", function()
+      local GC = loadSniper()
+      values[42] = realmValue()
+      targetIds = { 42 }
+      GC.Sniper._RebuildKeyTargets()
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 120000, 2) })
+      assert.is_table(GC.Sniper._CurrentLiveDeal(42))
+
+      -- A real pass, run to completion: HasFullBrowseResults() is true in this harness, so the
+      -- first results event finishes it and the board is rebuilt from the pass's own rows.
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper._bookPass:OnResultsUpdated()
+      assert.is_false(GC.Sniper._bookPass:IsPaging())
+      assert.is_table(GC.Sniper._CurrentLiveDeal(42))
+    end)
+
+    -- The batch asked about the item by name, so silence about it is an answer.
+    it("takes the row off the board when the batch it asked in comes back without it", function()
+      local GC = loadSniper()
+      values[42] = realmValue()
+      targetIds = { 42 }
+      GC.Sniper._RebuildKeyTargets()
+      GC.Sniper._keysBatch = { 42 }
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 120000, 2) })
+      assert.is_table(GC.Sniper._CurrentLiveDeal(42))
+
+      GC.Sniper._keysBatch = { 42 }
+      GC.Sniper._keyPoll:Fold({}) -- sold out: nothing came back for it
+      assert.is_nil(GC.Sniper._CurrentLiveDeal(42))
+      assert.is_nil(GC.Sniper._realmDeals[42])
+    end)
+
     it("ignores an item with no reference at all", function()
       local GC = loadSniper()
       values[42] = nil
