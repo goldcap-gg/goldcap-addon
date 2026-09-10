@@ -49,6 +49,7 @@ Core/Scanner.lua
 Core/FullScan.lua
 Core/BookPass.lua
 Core/DrillQueue.lua
+Core/KeyPoll.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua
