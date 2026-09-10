@@ -3228,6 +3228,8 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         row.purchaseDeal = nil
         row.decisionSnapshot = nil
         row.quoteSnapshot = nil
+        row.armedLevels = nil
+        row.armedItemID = nil
         -- `refreshRows()` only preserves pinned rows. Keep this unresolved server success
         -- visible (and its discovery deal excluded from a second attempt) until AH close or
         -- the player inspects the mailbox, rather than letting the pool repurpose it.
@@ -3258,6 +3260,8 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
   row.purchaseDeal = nil
   row.decisionSnapshot = nil
   row.quoteSnapshot = nil
+  row.armedLevels = nil
+  row.armedItemID = nil
   if dialog and dialog.row == row then
     dialog.row = nil
     dialog:Hide()
@@ -3392,6 +3396,17 @@ local function armReady(row, deal, decision, levels)
   row.purchaseDeal = nil
   row.decisionSnapshot = decision
   row.quoteSnapshot = nil
+  -- The book this decision was made on, kept ON THE ROW and stamped with the item it belongs
+  -- to. The client holds ONE commodity search buffer, and a dialog armed off a hover pre-warm
+  -- cache (openDialog's own shortcut, up to LIM.PREWARM_TTL_SECONDS old) opens with that
+  -- buffer already holding whatever the verify walk or a drill-down looked at last. The Buy
+  -- click's final re-evaluation used to read the buffer blind and refuse the purchase --
+  -- "the price moved and the trade is no longer safe" on a price that had not moved, which
+  -- a second Check fixed only because a Check re-fills the buffer with this item.
+  -- dialog.bookLevels cannot carry this: the dialog is a session-long singleton and the same
+  -- field is cleared and overwritten by later stages.
+  row.armedLevels = levels
+  row.armedItemID = deal.itemID
   activeItemID[deal.itemID] = true
   dialog.primaryBtn:Enable()
   hideRequoteBanner()
@@ -3414,6 +3429,8 @@ local function armCheck(row, deal, decision, note, clearSnapshots)
   if clearSnapshots then
     row.decisionSnapshot = nil
     row.quoteSnapshot = nil
+    row.armedLevels = nil
+    row.armedItemID = nil
     if dialog then dialog.bookLevels = nil end
   else
     row.decisionSnapshot = decision
@@ -4501,7 +4518,16 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
   pending.priceReceived = true
 
-  local levels = driver.commodityBook(deal.itemID)
+  -- The client keeps ONE commodity search buffer, shared with every other search this addon
+  -- and the player make, so "what is in the buffer" is not the same question as "what is this
+  -- item's book". driver.commodityResult is the proof: it reads level 1 for THIS itemID, and
+  -- comes back nil when the buffer belongs to something else. Only then is the buffer this
+  -- item's book; otherwise fall back to the book this attempt was actually armed on, which is
+  -- the one the SAFE decision was made against. The server's totalPrice below is still the
+  -- authority for what the entry costs -- the book only says what is being bought into.
+  local levels = driver.commodityResult(deal.itemID) and driver.commodityBook(deal.itemID) or nil
+  if not levels and row.armedItemID == deal.itemID then levels = row.armedLevels end
+  if not levels and dialog and dialog.row == row then levels = dialog.bookLevels end
   local finalDecision = evaluateLive(deal.itemID, levels, decision.quantity, totalPrice)
   if not finalDecision.buyable or finalDecision.status ~= "SAFE" then
     -- Visual price-change thresholds are never economic approval. A 1-copper or sub-5%

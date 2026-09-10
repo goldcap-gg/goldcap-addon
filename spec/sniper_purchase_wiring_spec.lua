@@ -308,6 +308,108 @@ describe("Sniper purchase wiring", function()
     _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
   end)
 
+  -- Owner-reported, reproducible on many items: BUY on a SAFE row bounced straight to "the
+  -- price moved and the trade is no longer safe" with an em dash for the entry price, and a
+  -- second Check came back SAFE at the SAME numbers, after which BUY worked. The client keeps
+  -- ONE commodity search buffer: a dialog armed off the hover pre-warm cache opens with that
+  -- buffer holding whatever the verify walk looked at last, and the final re-evaluation read
+  -- it blind. What the Check "fixed" was only the buffer.
+  it("re-checks against the armed book when the client's buffer holds another item", function()
+    local cancelCalls, confirmCalls = 0, 0
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end,
+      -- The buffer belongs to item 99 -- the last thing the background walk searched. Asking
+      -- it about item 42 is what the real API does: nothing for the item that was not queried.
+      GetNumCommoditySearchResults = function(itemID) return itemID == 99 and 2 or 0 end,
+      GetCommoditySearchResultInfo = function(itemID, index)
+        if itemID ~= 99 then return nil end
+        if index == 1 then return { unitPrice = 7, quantity = 500 } end
+        return { unitPrice = 9, quantity = 500 }
+      end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function()
+        return {
+          mv = 3000000, kind = "region_commodity", source = "import", sourceAt = 92800,
+          stressUnit = 2105264, sold = 100000, sellThroughBps = 7000,
+          liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12,
+          madBps = 0, trend = -9,
+        }
+      end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    -- The book the SAFE decision was actually made on, exactly as armReady stamped it.
+    local armed = { { unitPrice = 1000000, quantity = 1 }, { unitPrice = 2105265, quantity = 1 } }
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7,
+      purchaseDeal = { itemID = 42, isCommodity = true },
+      decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+        entryTotal = 1000000 },
+      armedLevels = armed, armedItemID = 42,
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+
+    -- Nothing moved: the server quotes the same total the decision was made at.
+    GC.Sniper.OnCommodityPriceUpdated(1000000, 1000000)
+    assert.equal(0, cancelCalls)
+    assert.equal(0, confirmCalls) -- only a hardware click confirms; this reaches "confirm"
+    assert.equal("confirm", row.purchaseStage)
+    assert.is_table(row.quoteSnapshot)
+    assert.equal(1000000, row.quoteSnapshot.total)
+
+    -- And the fallback is not a rubber stamp: a total that genuinely breaks the stress math
+    -- still cancels, off the very same armed book.
+    row.purchaseStage = "buying"
+    row.quoteSnapshot = nil
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000)
+    assert.equal(1, cancelCalls)
+    assert.equal(0, confirmCalls)
+    assert.equal("check", row.purchaseStage)
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+  end)
+
   -- CancelCommoditiesPurchase produces none of the three terminal events that consume a
   -- tombstone, so before this an unconfirmed cancellation blocked every later commodity buy
   -- with "waiting for previous commodity purchase to settle" until the player happened to close
