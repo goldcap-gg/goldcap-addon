@@ -30,6 +30,43 @@ function GC.Trigger.For(value, settings)
   return math.floor(trigger)
 end
 
+-- Sniper phase 2 (docs/superpowers/specs/2026-09-10-sniper-phase2-realm-items-design.md):
+-- the least a realm item has to be discounted before it is worth looking at. The profit
+-- formula above, run on a reference price alone, allows roughly a 14% discount -- fine for a
+-- commodity whose exit price is measured from a live tape, far too loose for a region
+-- reference, which is a median across realms and cannot be that precise about THIS realm.
+GC.Trigger.REALM_MIN_DISCOUNT = 0.25
+
+-- The one price a realm item is judged against: this realm's own median (import I section)
+-- and the region reference (import T section) are both estimates of the same thing, so the
+-- LOWER of the two is used whenever both exist -- the conservative choice, since it is the
+-- one that makes a discount look smaller and a trigger stricter. nil when neither exists, and
+-- an item with no reference is never polled and can never hit.
+function GC.Trigger.RealmReference(value)
+  if type(value) ~= "table" then return nil end
+  local mv = value.mv
+  local ref = value.ref
+  if type(mv) ~= "number" or mv ~= mv or mv <= 0 then mv = nil end
+  if type(ref) ~= "number" or ref ~= ref or ref <= 0 then ref = nil end
+  if mv and ref then return math.min(mv, ref) end
+  return mv or ref
+end
+
+-- The realm-item counterpart of GC.Trigger.For: the highest price at which a realm lot is
+-- still worth a live look. The stricter of the two floors applies -- the profit/ROI formula
+-- (run with the reference standing in for both the market value and the exit price, since a
+-- realm item has no stress figure of its own) and REALM_MIN_DISCOUNT. nil whenever the
+-- reference is unusable or the profit floor leaves no positive price, exactly like For.
+function GC.Trigger.ForRealm(reference, settings)
+  if type(reference) ~= "number" or reference ~= reference or reference <= 0 then return nil end
+  local byProfit = GC.Trigger.For({ mv = reference, stressUnit = reference }, settings)
+  if not byProfit then return nil end
+  local byDiscount = math.floor(reference * (1 - GC.Trigger.REALM_MIN_DISCOUNT))
+  local trigger = math.min(byProfit, byDiscount)
+  if trigger <= 0 then return nil end
+  return trigger
+end
+
 -- Whether AT LEAST ONE of the given itemIDs currently has a trigger -- the question the
 -- board's empty state asks: can the loaded import ever arm the sniper at all? Pure over an
 -- injected getValue (GC.Data.GetItemValue in production), so it needs no import-shape

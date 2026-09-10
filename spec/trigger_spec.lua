@@ -61,6 +61,72 @@ describe("Trigger", function()
   end)
 end)
 
+describe("Trigger.RealmReference", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Trigger.lua")
+  end)
+
+  it("is nil without a value, and without either price", function()
+    assert.is_nil(GC.Trigger.RealmReference(nil))
+    assert.is_nil(GC.Trigger.RealmReference({}))
+    assert.is_nil(GC.Trigger.RealmReference({ mv = 0, ref = -1 }))
+  end)
+
+  it("takes whichever price exists on its own", function()
+    assert.equal(500, GC.Trigger.RealmReference({ mv = 500 }))
+    assert.equal(900, GC.Trigger.RealmReference({ ref = 900 }))
+  end)
+
+  it("takes the lower of the two when both exist", function()
+    assert.equal(500, GC.Trigger.RealmReference({ mv = 500, ref = 900 }))
+    assert.equal(400, GC.Trigger.RealmReference({ mv = 500, ref = 400 }))
+  end)
+end)
+
+describe("Trigger.ForRealm", function()
+  local GC
+  local settings = { minimumProfitCopper = 50000, minimumRoi = 0.10 }
+
+  before_each(function()
+    GC = helper.loadModule("Core/Trigger.lua")
+  end)
+
+  it("is nil without a usable reference", function()
+    assert.is_nil(GC.Trigger.ForRealm(nil, settings))
+    assert.is_nil(GC.Trigger.ForRealm(0, settings))
+    assert.is_nil(GC.Trigger.ForRealm(250000, nil))
+  end)
+
+  it("binds on the minimum discount when the profit formula is looser", function()
+    -- For{ mv = 250000 } = 187500 (75% of the reference), but a region reference is not
+    -- precise enough for a 25% discount to count -- 250000 x 0.75 = 187500 either way here,
+    -- so take a reference where the two genuinely differ: at 1,000,000 the profit floor
+    -- allows 900,000 (netExit 950,000 - 50,000) while the discount floor allows 750,000.
+    assert.equal(750000, GC.Trigger.ForRealm(1000000, settings))
+  end)
+
+  it("binds on the profit formula when that is the stricter one", function()
+    -- netExit = 95000; byProfit = 45000, byRoi = 86363 -> 45000, below the discount floor's
+    -- 75000, so the stricter profit answer stands.
+    assert.equal(45000, GC.Trigger.ForRealm(100000, settings))
+  end)
+
+  it("is nil when the profit formula leaves nothing positive", function()
+    assert.is_nil(GC.Trigger.ForRealm(50000, settings))
+  end)
+
+  it("never allows less than the minimum discount", function()
+    for _, reference in ipairs({ 100000, 250000, 1000000, 50000000 }) do
+      local trigger = GC.Trigger.ForRealm(reference, settings)
+      if trigger then
+        assert.is_true(trigger <= reference * (1 - GC.Trigger.REALM_MIN_DISCOUNT))
+      end
+    end
+  end)
+end)
+
 describe("Trigger.AnyArmed", function()
   local GC
 
