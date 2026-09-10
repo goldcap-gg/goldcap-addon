@@ -199,21 +199,81 @@ describe("Search slot arbiter", function()
   -- Owner-reported: "confirming purchase..." sat for 5-10s on a busy board. The confirm call
   -- itself is instant; what was slow was the throttled search SLOT, still being handed to
   -- drill-downs/the book pass/the watch loop/the verify walk while the purchase waited on its
-  -- terminal event. A purchase in flight is tracked as a non-empty activeItemID (armed through
-  -- confirming -- see maybeStartPrewarm's own comment on this upvalue).
+  -- terminal event. A purchase in flight opens the quiet zone (GC.Sniper.IsPurchaseQuiet).
   it("sends nothing while a purchase is in flight, and serves again once it resolves", function()
     local GC = load()
     armPage(GC) -- book pass has a page pending and would otherwise win outright
-    set(GC.Sniper.OnThrottleReady, "activeItemID", { [12345] = true })
+    local row = { purchaseStage = "buying" }
+    set(GC.Sniper._QuietZoneOpen, "rows", { row })
 
     for _ = 1, 3 do
       GC.Sniper.OnThrottleReady()
     end
     assert.same({}, sent)
 
-    set(GC.Sniper.OnThrottleReady, "activeItemID", {})
+    row.purchaseStage = nil
     GC.Sniper.OnThrottleReady()
     assert.same({ "page" }, sent) -- the parked page still wants sending, and is free to now
+  end)
+
+  -- The quiet zone, stage by stage. "check", "expired" and "frozen" are rows the player is
+  -- READING -- nothing is in flight for them -- and the board has to keep working underneath.
+  -- "frozen" is the one that stopped the board for good before this: resolvePurchase pins a
+  -- server success with no final quote (activeItemID, deliberately, for the rest of the AH
+  -- session) so the row cannot be repooled, and the old `next(activeItemID) ~= nil` veto read
+  -- that display pin as a purchase and refused every search until the auction house closed.
+  it("is quiet for the stages a purchase is actually in flight for, and no others", function()
+    local GC = load()
+    local row = {}
+    set(GC.Sniper._QuietZoneOpen, "rows", { row })
+
+    for _, stage in ipairs({ "requerying", "ready", "buying", "confirm", "requote", "confirming" }) do
+      row.purchaseStage = stage
+      assert.is_true(GC.Sniper.IsPurchaseQuiet(), stage .. " must be quiet")
+    end
+    for _, stage in ipairs({ "check", "expired", "frozen" }) do
+      row.purchaseStage = stage
+      assert.is_false(GC.Sniper.IsPurchaseQuiet(), stage .. " must not be quiet")
+    end
+    row.purchaseStage = nil
+    assert.is_false(GC.Sniper.IsPurchaseQuiet())
+
+    -- A commodity attempt owns the client's single commodity flow whether or not any row is
+    -- still pinned to its item, so either tombstone holds the zone open on its own.
+    set(GC.Sniper._QuietZoneOpen, "commodityPurchase", { itemID = 42 })
+    assert.is_true(GC.Sniper.IsPurchaseQuiet())
+    set(GC.Sniper._QuietZoneOpen, "commodityPurchase", nil)
+    set(GC.Sniper._QuietZoneOpen, "commodityDraining", { itemID = 42 })
+    assert.is_true(GC.Sniper.IsPurchaseQuiet())
+    set(GC.Sniper._QuietZoneOpen, "commodityDraining", nil)
+    assert.is_false(GC.Sniper.IsPurchaseQuiet())
+  end)
+
+  -- The Sell tab's quote walk (UI/SellFrame.lua's advanceQuote) stands down on exactly this
+  -- predicate. A dialog sitting on an armed "ready" quote is the window in which a stray
+  -- commodity search costs the player the buy: the client keeps ONE commodity search buffer,
+  -- and the Buy click's final check reads it.
+  it("tells the Sell walk to yield for an armed dialog, not just for a live purchase", function()
+    local GC = load()
+    local row = { purchaseStage = "ready" }
+    set(GC.Sniper._QuietZoneOpen, "dialog", { row = row })
+    assert.is_true(GC.Sniper.IsSearchCritical())
+
+    row.purchaseStage = "check" -- the player is reading a refusal; nothing is in flight
+    assert.is_false(GC.Sniper.IsSearchCritical())
+  end)
+
+  it("keeps serving the board while a frozen row holds its display pin", function()
+    local GC = load()
+    -- Exactly what resolvePurchase's frozen branch leaves behind: the row pinned by itemID,
+    -- for the rest of the session, with no attempt in flight anywhere.
+    set(GC.Sniper._QuietZoneOpen, "rows", { { purchaseStage = "frozen" } })
+    -- The pin itself, on the shared upvalue every purchase-flow function reads.
+    set(upvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm"), "activeItemID", { [12345] = true })
+
+    armPage(GC)
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "page" }, sent)
   end)
 
   -- A parked Check requery is step 1, ahead of the purchase-in-flight veto -- it is the
@@ -225,7 +285,7 @@ describe("Search slot arbiter", function()
     local attempt = { itemID = 42, token = 1, row = {}, deal = { itemID = 42 } }
     upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[42] = attempt
     set(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
-    set(GC.Sniper.OnThrottleReady, "activeItemID", { [99] = true })
+    set(GC.Sniper._QuietZoneOpen, "rows", { { purchaseStage = "buying" } })
 
     GC.Sniper.OnThrottleReady()
     assert.same({ 42 }, searched)
@@ -328,11 +388,12 @@ describe("Search slot arbiter", function()
       GC.Sniper._bookPass:Abort()
       fullResults = true
       targets(GC, 1, 3)
-      set(GC.Sniper.OnThrottleReady, "activeItemID", { [12345] = true })
+      local row = { purchaseStage = "confirming" }
+      set(GC.Sniper._QuietZoneOpen, "rows", { row })
       GC.Sniper.OnThrottleReady()
       assert.same({}, sent)
 
-      set(GC.Sniper.OnThrottleReady, "activeItemID", {})
+      row.purchaseStage = nil
       GC.Sniper.OnThrottleReady()
       assert.same({ "keys:3" }, sent)
     end)
@@ -341,14 +402,15 @@ describe("Search slot arbiter", function()
   it("keeps mayScan closed while a purchase is in flight, even inside the watch loop's own grant", function()
     local GC = load()
     local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan
-    set(GC.Sniper.OnThrottleReady, "activeItemID", { [12345] = true })
+    local row = { purchaseStage = "buying" }
+    set(GC.Sniper._QuietZoneOpen, "rows", { row })
 
     local seenInside
     GC.Sniper.scanner.OnSystemReady = function() seenInside = mayScan() end
     GC.Sniper._GrantWatchSlot()
     assert.is_false(seenInside) -- the grant window opens, but a purchase in flight still vetoes it
 
-    set(GC.Sniper.OnThrottleReady, "activeItemID", {})
+    row.purchaseStage = nil
     GC.Sniper._GrantWatchSlot()
     assert.is_true(seenInside) -- and resumes the moment the purchase clears
   end)

@@ -405,13 +405,15 @@ describe("Deals background verification", function()
     assert.same({}, sent)
     set(show, "frame", { IsShown = function() return true end, status = { SetText = function() end } })
 
-    -- A purchase (or a Check) owns the throttled search slot. IsSearchCritical is the same
-    -- gate the Sell tab's own quote walker stands down for.
-    upvalue(api.GC.Sniper.IsBusy, "activeItemID")[1] = true
+    -- A purchase (or a Check) owns the throttled search slot: the quiet zone.
+    -- IsSearchCritical is the same gate the Sell tab's own quote walker stands down for.
+    local buying = { purchaseStage = "buying" }
+    local pool = upvalue(api.GC.Sniper._QuietZoneOpen, "rows")
+    pool[#pool + 1] = buying
     assert.is_true(api.GC.Sniper.IsSearchCritical())
     tickAt(api, 104)
     assert.same({}, sent)
-    upvalue(api.GC.Sniper.IsBusy, "activeItemID")[1] = nil
+    pool[#pool] = nil
 
     tickAt(api, 105)
     assert.same({ 1 }, sent)

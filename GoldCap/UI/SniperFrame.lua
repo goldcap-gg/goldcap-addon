@@ -1438,13 +1438,13 @@ driver = {
     if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then
       return false
     end
-    -- Same purchase-in-flight veto as GC.Sniper.OnThrottleReady. That arbiter already refuses
+    -- Same quiet-zone veto as GC.Sniper.OnThrottleReady. That arbiter already refuses
     -- to hand the watch loop a grant while a purchase is in flight, so this is normally
     -- redundant -- but advance() (Core/Scanner.lua) is the one choke point every send passes
     -- through, including the result-handler tail that fires straight from an event, off the
     -- arbiter's own call stack. Checked here too so the veto holds even if that tail ever runs
     -- with a stale watchGrant.
-    if next(activeItemID) ~= nil then return false end
+    if GC.Sniper.IsPurchaseQuiet() then return false end
     return watchGrant
   end,
 
@@ -3696,13 +3696,13 @@ local function maybeStartPrewarm(deal, auto)
   if activeItemID[deal.itemID] then return end -- a purchase (or its own live dialog requery) is already in flight for this item
   -- Final fix wave (item 2), coordinator ruling restoring spec §4: gate narrowed from
   -- GC.Sniper.IsBusy() (which also covered a paging Full Scan) to purchase traffic ONLY --
-  -- next(activeItemID) ~= nil is true while ANY purchase is mid-flight server-side (armed/
+  -- the quiet zone is open while a purchase attempt is mid-flight server-side (armed/
   -- requerying/buying/confirming on some row, not necessarily this one), so a pre-warm still
   -- never competes with a real buy requery on the shared throttled message system. Pre-warm
   -- MAY fire during a scan now: it's ready-gated (driver.isReady() below, plus the "one
   -- pre-warm in flight globally" slot), so at worst it costs the scan a single browse-page
   -- throttle slot for one cycle -- a one-cycle pagination delay, not starvation.
-  if next(activeItemID) ~= nil then return end
+  if GC.Sniper.IsPurchaseQuiet() then return end
   if prewarmAttempt then return end -- one pre-warm in flight globally
   if not driver.isReady() then return end -- never parks -- see comment above
 
@@ -4041,7 +4041,7 @@ function GC.Sniper._GrantWatchSlot()
 end
 
 -- The cheap global preconditions maybeStartPrewarm checks before it will send anything: no
--- AH session, a pre-warm already in flight, ANY purchase mid-flight, or a throttle that is not
+-- AH session, a pre-warm already in flight, the quiet zone, or a throttle that is not
 -- ready all refuse every caller equally, whatever item is asked about. Asked FIRST, before the
 -- drill queue is charged for a send, because a queue that charges for a refusal lets one
 -- undrillable item spend the whole 60/min budget on nothing. The per-item guards
@@ -4050,7 +4050,7 @@ end
 local function canDrillNow()
   if not ahOpen then return false end
   if prewarmAttempt then return false end
-  if next(activeItemID) ~= nil then return false end
+  if GC.Sniper.IsPurchaseQuiet() then return false end
   return driver.isReady() and true or false
 end
 
@@ -4075,14 +4075,15 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
-  -- A commodity purchase in flight (armed/requerying/buying/confirming -- see
-  -- maybeStartPrewarm's own comment on this same upvalue) owns the throttled search slot
-  -- until it resolves. Nothing below this line may compete with it: not a drill-down, not
-  -- the book pass's own page, not the watch loop, not the verify walk. Without this, a
-  -- purchase confirmation waiting on its terminal event was still losing slots to the scan/
-  -- watch/verify traffic underneath it, which is what stretched "confirming purchase..." out
-  -- to 5-10s on a busy board -- the confirm call itself was never slow, the SLOT was busy.
-  if next(activeItemID) ~= nil then return end
+  -- A purchase attempt in flight (the quiet zone -- see GC.Sniper.IsPurchaseQuiet) owns the
+  -- throttled search slot until it resolves. Nothing below this line may compete with it: not
+  -- a drill-down, not the book pass's own page, not the watch loop, not the verify walk.
+  -- Without this, a purchase confirmation waiting on its terminal event was still losing slots
+  -- to the scan/watch/verify traffic underneath it, which is what stretched "confirming
+  -- purchase..." out to 5-10s on a busy board -- the confirm call itself was never slow, the
+  -- SLOT was busy. Asked as the zone, not as `next(activeItemID) ~= nil`: that read also
+  -- counted a frozen row's permanent display pin, which stopped the board for good.
+  if GC.Sniper.IsPurchaseQuiet() then return end
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
   -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),
@@ -4191,19 +4192,59 @@ function GC.Sniper.OnThrottleReady()
   end
 end
 
--- D: true while a Full Scan is paging (or queued to start) or any row has a purchase pinned
--- (armed/requerying/buying/confirming) -- GC.Sell's own quote walker (SellFrame.lua) checks
--- this before every send and simply refuses/waits while it's true, so the Sell tab's traffic
--- can never compete with, or queue ahead of, a scan or a buy requery on the shared throttled
--- message system.
+-- ---------------------------------------------------------------------------
+-- The quiet zone: the one predicate every search sender asks before it sends.
+--
+-- It replaces `next(activeItemID) ~= nil`, which was the wrong question in both directions.
+-- activeItemID is a DISPLAY pin as well as a purchase pin -- resolvePurchase's "frozen" branch
+-- (a server success with no final quote) sets it deliberately for the rest of the AH session,
+-- so one such purchase used to veto every drill-down, book-pass page, watch poll and verify
+-- check until the player closed the auction house: the board froze on "AUTO · SCANNING" with
+-- every row showing "..." and no verdict ever landing again. And it was too narrow the other
+-- way: a commodity purchase that owns the client's single commodity flow (commodityPurchase /
+-- the commodityDraining tombstone) is not necessarily pinned to any row's itemID at all.
+--
+-- What the zone protects is the client's ONE commodity-search buffer and the throttled search
+-- slot the player is waiting on. A stage is quiet when the answer to "is a purchase attempt
+-- mid-flight for this row" is yes: the live requery a Check is waiting on, an armed quote, the
+-- server quote and its Confirm, the confirm itself. "check", "expired" and "frozen" are not:
+-- nothing is in flight, the player is reading, and the board must keep working underneath.
+function GC.Sniper._StageIsQuiet(stage)
+  return stage == "requerying" or stage == "ready" or stage == "buying"
+    or stage == "confirm" or stage == "requote" or stage == "confirming"
+end
+
+-- The raw read, with no expiry: is the zone open right now. Split out from IsPurchaseQuiet
+-- below so the bounded veto can ask the same question again after it has released what it can.
+function GC.Sniper._QuietZoneOpen()
+  if commodityPurchase or commodityDraining then return true end
+  local shown = dialog and dialog.row
+  if shown and GC.Sniper._StageIsQuiet(shown.purchaseStage) then return true end
+  for i = 1, #rows do
+    local stage = rows[i].purchaseStage
+    -- Cheap first: a pooled row is idle (stage nil) almost always, and this runs on every
+    -- throttle-ready event.
+    if stage and GC.Sniper._StageIsQuiet(stage) then return true end
+  end
+  return false
+end
+
+function GC.Sniper.IsPurchaseQuiet()
+  return GC.Sniper._QuietZoneOpen()
+end
+
+-- D: true while a Full Scan is paging (or queued to start) or a purchase attempt is mid-flight
+-- -- GC.Sell's own quote walker (SellFrame.lua) checks this before every send and simply
+-- refuses/waits while it's true, so the Sell tab's traffic can never compete with, or queue
+-- ahead of, a scan or a buy requery on the shared throttled message system.
 function GC.Sniper.IsBusy()
   if GC.Sniper._bookPass:IsPaging() then return true end
-  return next(activeItemID) ~= nil
+  return GC.Sniper.IsPurchaseQuiet()
 end
 
 -- Whether something the PLAYER is waiting on owns the throttled search slot: a
--- Check requery, or a purchase in flight. Short-lived, and nothing else may take
--- the slot out from under it.
+-- Check requery, or a purchase in flight -- the quiet zone above, in one word.
+-- Short-lived, and nothing else may take the slot out from under it.
 --
 -- Deliberately narrower than IsBusy, which also counts the full browse scan. The
 -- Sell tab used to stand aside for IsBusy, and under Auto the browse scan runs
@@ -4213,7 +4254,7 @@ end
 -- player is actually looking at; the scan may run slightly slower for it, and
 -- its own watchdog and Auto's retry already cover a disturbed pass.
 function GC.Sniper.IsSearchCritical()
-  return next(activeItemID) ~= nil
+  return GC.Sniper.IsPurchaseQuiet()
 end
 
 -- Task 9 fix round 1 (I4): one-line accessor over the existing `ahOpen` local (set true on
