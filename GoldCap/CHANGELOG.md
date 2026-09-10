@@ -16,6 +16,8 @@
   its tooltip beside the window instead of on top of it.
 - **The Sell tab now caps its posting price at what the item's floor actually reaches
   within a day, and joins the cheapest rung instead of undercutting it by a silver.**
+- **A purchase that the auction house never answers no longer stalls the scanner, and a Buy
+  no longer bounces to "price moved" when nothing moved.**
 
 ## 0.8.0 (2026-09-08)
 
