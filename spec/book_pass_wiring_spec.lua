@@ -312,4 +312,50 @@ describe("Book pass wiring", function()
     assert.is_false(boardHas(100))
     assert.is_true(boardHas(500))
   end)
+
+  -- Owner-reported gap: a SAFE verdict must not outlive the price it was computed at.
+  -- verdictFor already refuses one whose unitPrice no longer matches the row -- the piece this
+  -- proves is that the row's OWN price actually moves on the very next fold, in-class, with no
+  -- wait for anything else. FullScan.MergeDeals' "incoming wins unconditionally" contract is
+  -- what does it: a fold hands scanDeals a brand-new deal table for the item, never a mutation
+  -- of the old one, so the stale table a stored verdict was keyed against simply stops being
+  -- what's on the board.
+  it("refreshes an in-class item's price on the very next classes-pass fold", function()
+    local GC = loadSniper()
+    -- A higher mv than dealValue()'s default: both 19.23g and 27.61g need to stay a real
+    -- discount off it, or the repriced pass screens the row out as no longer a deal at all
+    -- instead of exercising the refresh this test is about.
+    GC.Data.GetItemValue = function() return dealValue({ mv = 500000, stressUnit = 400000 }) end
+
+    local function dealFor(itemID)
+      for _, deal in ipairs(upvalue(GC.Sniper.OnAuctionHouseShow, "scanDeals")) do
+        if deal.itemID == itemID then return deal end
+      end
+    end
+
+    browseResults = { browseRow(100, 192300) } -- 19.23g
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    local first = dealFor(100)
+    assert.is_not_nil(first)
+    assert.equal(192300, first.unitPrice)
+
+    -- A previous live Check stamped SAFE at exactly this price.
+    local clearDeals = upvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = upvalue(clearDeals, "refreshRows")
+    local setRowDeal = upvalue(refreshRows, "setRowDeal")
+    local verdictFor = upvalue(setRowDeal, "verdictFor")
+    local verdicts = upvalue(verdictFor, "verdicts")
+    verdicts[100] = { unitPrice = first.unitPrice, at = 100, buyable = true, status = "SAFE" }
+    assert.is_not_nil(verdictFor(dealFor(100)))
+
+    -- The next classes pass folds 100 again and reports a different floor.
+    browseResults = { browseRow(100, 276100) } -- 27.61g
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+
+    local refolded = dealFor(100)
+    assert.equal(276100, refolded.unitPrice)  -- the board carries the new floor
+    assert.is_nil(verdictFor(refolded))       -- and the old SAFE verdict no longer applies to it
+  end)
 end)

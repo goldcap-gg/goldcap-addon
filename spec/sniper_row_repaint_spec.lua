@@ -220,6 +220,32 @@ describe("Sniper row repaint skip", function()
     assert.equal("Buy", row.buy.label)
   end)
 
+  -- Owner-reported gap: a SAFE verdict is keyed by itemID+unitPrice (verdictFor already
+  -- refuses a stale one once the PRICE moves), but the row itself was still showing the OLD
+  -- floor until something re-stamped it with a fresh deal table -- a classes/wide pass fold
+  -- is exactly that re-stamp (FullScan.MergeDeals: the incoming row wins unconditionally, a
+  -- brand-new table, never a mutation of the old one). Proves the fold alone -- no fresh live
+  -- Check, no new verdict -- is enough to drop a SAFE label whose price is gone.
+  it("drops a SAFE verdict once a scan fold reports a new floor, with no fresh live Check", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+    local d = deal(7, { unitPrice = 192300 }) -- 19.23g
+
+    ctx.setRowDeal(row, d)
+    ctx.verdicts[7] = { unitPrice = d.unitPrice, at = 100, buyable = true, status = "SAFE", stressProfit = 50000 }
+    ctx.setRowDeal(row, d)
+    assert.equal("SAFE +5g", row.tierChip.label)
+
+    -- The next classes pass folds this item again and reports 27.61g -- a fresh deal table,
+    -- exactly what GC.FullScan.MergeDeals hands refreshRows on a fold.
+    local refolded = deal(7, { unitPrice = 276100 }) -- 27.61g
+    ctx.setRowDeal(row, refolded)
+
+    assert.equal(276100, row.deal.unitPrice) -- the row itself carries the new floor
+    assert.equal("—", row.tierChip.label)    -- and no longer advertises the old SAFE verdict
+  end)
+
   it("repaints when the item is pinned or unpinned, even though the deal itself did not change", function()
     local ctx = load()
     local calls = { n = 0 }
