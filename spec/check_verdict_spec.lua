@@ -230,6 +230,52 @@ describe("CheckVerdict", function()
     end)
   end)
 
+  -- Sniper phase 2. A realm lot the live check found under its region reference is neither a
+  -- refusal nor an approval: the price comparison is real and the dialog offers the buy, but
+  -- nothing measures how fast the item sells, so the panel must not print "Won't buy" over an
+  -- enabled buy button -- nor "Clear to buy", which would be the bigger lie.
+  describe("an unverified realm lot", function()
+    local function realmDecision(over)
+      local d = {
+        status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+        quantity = 1, entryTotal = 750000, entryUnitDisplay = 750000,
+        reference = 1000000, estProfit = 200000,
+        candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 },
+      }
+      for k, v in pairs(over or {}) do d[k] = v end
+      return d
+    end
+
+    it("gets its own tone, and is actionable", function()
+      local v = GC.CheckVerdict.Build(realmDecision(), market({ soldPerDay = NONE,
+        sellThroughBps = NONE, liquidityConfidence = NONE, listings = NONE }))
+      assert.equal("unverified", v.tone)
+      assert.is_true(v.actionable)
+      assert.is_false(v.reconcile)
+    end)
+
+    it("leads with what the lot clears against the reference, in its own unit", function()
+      local v = GC.CheckVerdict.Build(realmDecision(), market())
+      assert.equal("reference", v.hero.kind)
+      assert.equal(200000, v.hero.copper)
+    end)
+
+    it("shows only the two facts a realm item honestly has", function()
+      local v = GC.CheckVerdict.Build(realmDecision(), market({ soldPerDay = NONE,
+        sellThroughBps = NONE, liquidityConfidence = NONE, listings = NONE }))
+      assert.equal(2, #v.facts)
+      assert.equal(750000, factById(v, "youPayFlat").copper)
+      assert.equal(1000000, factById(v, "snapshotValue").copper)
+    end)
+
+    it("stays a refusal when the check named no lot to buy", function()
+      local v = GC.CheckVerdict.Build(
+        decision({ status = "AVOID", reasons = { "no_comparable_lot" } }), market())
+      assert.equal("refuse", v.tone)
+      assert.is_false(v.actionable)
+    end)
+  end)
+
   it("survives a decision it cannot read rather than erroring on the buy path", function()
     assert.is_table(GC.CheckVerdict.Build(nil, nil))
     assert.equal("refuse", GC.CheckVerdict.Build(nil, nil).tone)

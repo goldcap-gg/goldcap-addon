@@ -19,9 +19,14 @@ describe("Search slot arbiter", function()
   end
 
   local sent
+  -- Sniper phase 2: the browse buffer's own "settled" flag. False by default, which is what
+  -- keeps a page perpetually pending for the paging tests below AND what refuses a keys call
+  -- while a pass owns the buffer; the keys tests flip it.
+  local fullResults
 
   local function load()
     sent = {}
+    fullResults = false
     _G.GetTime = function() return 100 end
     _G.time = function() return 1000 end
     _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
@@ -34,8 +39,10 @@ describe("Search slot arbiter", function()
       IsThrottledMessageSystemReady = function() return true end,
       SendBrowseQuery = function() end,
       RequestMoreBrowseResults = function() sent[#sent + 1] = "page" end,
-      HasFullBrowseResults = function() return false end,
+      HasFullBrowseResults = function() return fullResults end,
       GetBrowseResults = function() return {} end,
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      SearchForItemKeys = function(keys) sent[#sent + 1] = "keys:" .. #keys end,
     }
     local GC = {
       Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
@@ -223,6 +230,112 @@ describe("Search slot arbiter", function()
     GC.Sniper.OnThrottleReady()
     assert.same({ 42 }, searched)
     assert.same({}, sent)
+  end)
+
+  -- Sniper phase 2 (the realm-item key poll). A keys call REPLACES the browse buffer, so the
+  -- one rule that makes it safe is that it never runs while a pass owns that buffer.
+  describe("key poll", function()
+    local function targets(GC, first, last)
+      local ids = {}
+      for id = first, last do ids[#ids + 1] = id end
+      GC.Sniper._keyPoll:SetTargets(ids)
+    end
+
+    -- Simulates the browse event a sent batch answers on, so the next grant is free to send
+    -- the following one.
+    local function foldKeys(GC)
+      GC.Sniper.OnBrowseResults()
+    end
+
+    it("sends no keys call while the book pass is paging", function()
+      local GC = load()
+      targets(GC, 1, 3)
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "page" }, sent)
+    end)
+
+    it("sends no keys call while the browse buffer is still being fetched", function()
+      local GC, watch = load()
+      watch.hungry = false
+      targets(GC, 1, 3)
+      GC.Sniper._bookPass:Abort() -- not paging any more...
+      -- ...but HasFullBrowseResults() is false, so the buffer is not ours to replace yet.
+      GC.Sniper.OnThrottleReady()
+      assert.same({}, sent)
+    end)
+
+    it("spends the gap between passes on one batch per grant, 100 keys at a time", function()
+      local GC, watch = load()
+      watch.hungry = false
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      targets(GC, 1, 250)
+
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:100" }, sent)
+      -- A second grant while the first batch is still unanswered sends nothing: one batch is
+      -- outstanding at a time, and its rows are what the next fold reads.
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:100" }, sent)
+
+      foldKeys(GC)
+      GC.Sniper.OnThrottleReady()
+      foldKeys(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:100", "keys:100", "keys:50" }, sent)
+
+      -- The cycle has now visited every target once. Nothing more goes out until a fresh pass
+      -- calls BeginCycle -- the loop is one pass plus one visit each, not keys forever.
+      foldKeys(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:100", "keys:100", "keys:50" }, sent)
+
+      -- A fresh pass is what re-arms it: startFullScan calls BeginCycle, and the poll starts
+      -- handing out batches again from where its cursor stopped.
+      GC.Sniper._keyPoll:BeginCycle()
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:100", "keys:100", "keys:50", "keys:100" }, sent)
+    end)
+
+    it("lets a queued drill-down go first, and does not drop a hit only the key poll saw", function()
+      local GC, watch = load()
+      watch.hungry = false
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      targets(GC, 1, 3)
+      -- The key poll has seen item 42 at 900; the book pass never has. The arbiter used to ask
+      -- only the book pass whether a queued hit was still live, which dropped every realm hit
+      -- before it could be drilled.
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 42 }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 42, floor = 900, estProfit = 1 })
+      set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+      set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+        sent[#sent + 1] = "drill"
+        return true
+      end)
+
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "drill" }, sent)
+      -- With the queue drained, the same slot's successor goes to the keys batch.
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "drill", "keys:3" }, sent)
+    end)
+
+    it("sends nothing for the key poll while a purchase is in flight", function()
+      local GC, watch = load()
+      watch.hungry = false
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      targets(GC, 1, 3)
+      set(GC.Sniper.OnThrottleReady, "activeItemID", { [12345] = true })
+      GC.Sniper.OnThrottleReady()
+      assert.same({}, sent)
+
+      set(GC.Sniper.OnThrottleReady, "activeItemID", {})
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3" }, sent)
+    end)
   end)
 
   it("keeps mayScan closed while a purchase is in flight, even inside the watch loop's own grant", function()

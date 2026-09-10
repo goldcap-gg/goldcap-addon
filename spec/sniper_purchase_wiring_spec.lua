@@ -1698,4 +1698,112 @@ describe("Sniper purchase wiring", function()
 
     _G.C_AuctionHouse, _G.GetTime, _G.time = nil, nil, nil
   end)
+
+  -- Sniper phase 2. A realm lot can never be SAFE or `buyable` -- nothing measures how fast a
+  -- realm item sells -- so it reaches PlaceBid on a different key: the candidate one live check
+  -- named. That is a second way into a protected call, and this pins BOTH halves of it: the bid
+  -- is exactly the candidate's own auction and price, and it happens nowhere but the click.
+  it("buys a realm candidate only through the dialog's own click handler, at the candidate's own price", function()
+    local bids = {}
+    _G.C_AuctionHouse = {
+      PlaceBid = function(auctionID, amount) bids[#bids + 1] = { auctionID = auctionID, amount = amount } end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetMoney = function() return 10000000000 end
+    _G.time = function() return 100000 end
+    _G.GetTime = function() return 100 end
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+        PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function() return nil end },
+      db = { settings = { sniper = {} } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local createDialog = getUpvalue(openDialog, "createDialog")
+    local primary = getUpvalue(createDialog, "onDialogPrimaryClick")
+
+    local deal = { itemID = 42, isCommodity = false, qty = 1, unitPrice = 1 }
+    local decision = {
+      version = 1, status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+      quantity = 1, entryTotal = 750000, reference = 1000000, estProfit = 200000,
+      candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 },
+    }
+    local row = { deal = deal, purchaseStage = "ready", purchaseToken = 1, decisionSnapshot = decision }
+    setUpvalue(primary, "dialog", {
+      row = row, deal = deal,
+      primaryBtn = { Disable = function() end, Enable = function() end, IsEnabled = function() return true end },
+      status = { SetText = function() end, SetTextColor = function() end },
+    })
+
+    primary()
+
+    assert.same({ { auctionID = 8801, amount = 750000 } }, bids)
+    assert.equal("buying", row.purchaseStage)
+    -- The deal takes the candidate's identity, or resolvePurchase could never clear the
+    -- pendingAuction entry this buy just created.
+    assert.equal(8801, deal.auctionID)
+
+    -- A realm decision with NO candidate is still Check-only: the same click must route to the
+    -- Check path instead of a purchase. armCheck is stubbed rather than run because the real
+    -- one repaints the whole panel, which is another spec's subject entirely.
+    local refused = 0
+    setUpvalue(primary, "armCheck", function() refused = refused + 1 end)
+    row.purchaseStage = "ready"
+    row.decisionSnapshot = { status = "WATCH", buyable = false, reasons = { "no_comparable_lot" } }
+    primary()
+    assert.equal(1, refused)
+    assert.equal(1, #bids)
+
+    -- Same for a candidate that names no auction: a partial one must never reach PlaceBid.
+    row.purchaseStage = "ready"
+    row.decisionSnapshot = { status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+      candidate = { buyout = 750000 } }
+    primary()
+    assert.equal(2, refused)
+    assert.equal(1, #bids)
+
+    -- And the bid is placed from the candidate itself, inside the click handler, nowhere else.
+    local click = section(source(), "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    assert.is_truthy(click:find("C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)", 1, true))
+    local _, placeBidCount = source():gsub("C_AuctionHouse%.PlaceBid", "")
+    assert.equal(1, placeBidCount)
+
+    _G.C_AuctionHouse, _G.C_Timer, _G.GetMoney, _G.time, _G.GetTime = nil, nil, nil, nil, nil
+  end)
 end)
