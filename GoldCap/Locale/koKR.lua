@@ -55,6 +55,8 @@ GC.Locales.koKR = {
   ["AUTO · SCANNING"] = "자동 · 검색 중",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
   ["AVOID"] = "회피",
+  ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
+    "24시간 동안 이 상승폭을 넘으면 시세를 급등으로 간주해 낮춰서 반영합니다.",
   ["Asks for a second click to confirm."] = "확인을 위해 한 번 더 눌러야 합니다.",
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
@@ -62,6 +64,7 @@ GC.Locales.koKR = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
     "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. ",
   ["Avoid"] = "회피",
+  ["BRAKES"] = "브레이크",
   ["Background check"] = "백그라운드 확인",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "손익분기점은 수수료를 내고도 매입가를 회수하는 최저 가격입니다. 그 아래로 팔면 손해입니다.",
@@ -120,10 +123,12 @@ GC.Locales.koKR = {
     "등록 대기열의 다음 아이템을 찾지 못했습니다 — 다시 시도하세요",
   ["Could not find the queue's next lot to cancel — try again"] =
     "취소 대기열의 다음 물량을 찾지 못했습니다 — 다시 시도하세요",
-  ["DEAL THRESHOLDS"] = "거래 기준",
+  ["DEFAULTS"] = "기본값",
   ["DISC"] = "할인",
   ["DISPLAY"] = "표시",
   ["DONE"] = "완료",
+  ["Default listing length for the Sell tab."] = "매도 탭의 기본 등록 기간입니다.",
+  ["Default: %s"] = "기본값: %s",
   ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
     "매입가 입력에 직접 적은 값만 삭제합니다 — GoldCap이 스스로 잡았거나 우편과 대조한 구매는 지우지 않습니다.",
   ["Discount"] = "할인",
@@ -147,8 +152,6 @@ GC.Locales.koKR = {
   ["Free, sits in the tray, nothing to set up in game."] = "무료이고 트레이에 상주하며, 게임 안에서 설정할 것이 없습니다.",
   ["Full pass over them: %.1fs"] = "전체 순회: %.1f초",
   ["Full pass over them: measuring..."] = "전체 순회: 측정 중...",
-  ["GOOD — min discount %"] = "GOOD — 최소 할인 %",
-  ["GOOD — min sold/day"] = "GOOD — 최소 일일 판매",
   ["Gold tied up"] = "묶이는 골드",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
@@ -169,10 +172,10 @@ GC.Locales.koKR = {
     "회색이면 시세가 오래된 것입니다. Post와 Repost는 실행 전에 시세를 갱신합니다.",
   ["HIDDEN 0"] = "숨김 0",
   ["HIDE DETAILS ▾"] = "세부 정보 숨기기 ▾",
-  ["HOT — min discount %"] = "HOT — 최소 할인 %",
-  ["HOT — min sold/day"] = "HOT — 최소 일일 판매",
   ["Held back from cancelling"] = "취소에서 보류됨",
   ["Held back from the queue"] = "대기열에서 보류됨",
+  ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
+    "청산가 아래 매물벽이 평소 판매량으로 몇 시간 분량까지 버틸 수 있는지, 넘으면 거래를 거부합니다.",
   ["ITEM"] = "아이템",
   ["If it clears"] = "팔린다면",
   ["Import"] = "가져오기",
@@ -207,12 +210,14 @@ GC.Locales.koKR = {
   ["Market reference"] = "시세 기준",
   ["Max wallet per buy %"] = "1회 구매 최대 지갑 비중 %",
   ["Min profit per buy (gold)"] = "1회 구매 최소 수익 (골드)",
+  ["Min return per buy %"] = "1회 구매 최소 수익률 %",
   ["Missing cost"] = "매입가 없음",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "아직 GOLDCAP.GG에 없음 — /RELOAD 또는 접속 종료 시 동기화",
   ["NOTHING TO CANCEL"] = "취소할 것 없음",
   ["NOTHING TO POST"] = "등록할 것 없음",
   ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
+  ["Never spend more than this share of your gold on one purchase."] = "한 번의 구매에 소지금의 이 비율을 넘게 쓰지 않습니다.",
   ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
   ["No deals to show -- and no realm prices yet."] = "표시할 거래가 없습니다 -- 서버 시세도 아직 없습니다.",
   ["No deals yet."] = "아직 거래가 없습니다.",
@@ -258,6 +263,7 @@ GC.Locales.koKR = {
   ["Paste your realm string from goldcap.gg and press Import."] =
     "goldcap.gg의 서버 문자열을 붙여넣고 Import를 누르세요.",
   ["Per-unit price of this auction"] = "이 경매의 개당 가격",
+  ["Play a sound when a checked deal turns SAFE."] = "검증된 거래가 SAFE가 되면 소리를 재생합니다.",
   ["Position scope changed"] = "항목 범위가 바뀌었습니다",
   ["Positions without a cost or a live price are excluded."] =
     "원가나 실시간 가격이 없는 항목은 제외됩니다.",
@@ -295,6 +301,8 @@ GC.Locales.koKR = {
   ["Refresh"] = "새로고침",
   ["Refresh waiting for prior result"] = "이전 결과를 기다리는 중입니다",
   ["Refreshing listings…"] = "등록 목록 갱신 중…",
+  ["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."] =
+    "최근 24시간 동안 가격이 이보다 더 떨어졌으면 구매를 거부합니다 — 계속 떨어질 수 있습니다.",
   ["Refused so far: %d"] = "지금까지 거부: %d건",
   ["Removal confirmation expired"] = "삭제 확인이 만료되었습니다",
   ["Remove"] = "삭제",
@@ -313,26 +321,32 @@ GC.Locales.koKR = {
   ["SAFE +%s"] = "안전 +%s",
   ["SAFE = the live check approved this buy, at the profit shown"] =
     "안전 = 실시간 확인이 이 구매를 승인했습니다, 표시된 수익 기준",
-  ["SAFETY"] = "안전",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "즉시 저장됨 · ESC 또는 DONE으로 닫기",
   ["SCAN"] = "검색",
   ["SCANNING…"] = "검색 중…",
   ["SESSION %s%s · %d BUYS"] = "세션 %s%s · 구매 %d건",
   ["SHOW DETAILS ▸"] = "세부 정보 보기 ▸",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
+  ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
+    "매도 탭은 주문서가 같은 속도로 팔린다고 볼 때 최저가보다 한 단계 위에 등록합니다.",
   ["Sell-through"] = "판매 소진율",
   ["Sellers"] = "판매자",
   ["Sells too rarely -- you would be holding it for a long time."] = "너무 드물게 팔립니다 — 오래 들고 있게 됩니다.",
   ["Set cost"] = "원가 입력",
   ["Settings"] = "설정",
+  ["Skip a buy unless it clears at least this much after the AH cut."] =
+    "경매장 수수료를 뗀 후에도 이 금액 이상 남지 않으면 구매를 건너뜁니다.",
+  ["Skip a buy unless the profit is at least this share of what you pay."] =
+    "수익이 지불액의 이 비율 이상이 아니면 구매를 건너뜁니다.",
   ["Snapshot value"] = "스냅숏 가치",
   ["Sold per day"] = "일일 판매량",
   ["Sold/day"] = "일일 판매량",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "무엇을 살지가 아니라, 무엇을 먼저 확인할지 정할 때 이 기준으로 정렬하세요.",
-  ["Sound on HOT deal"] = "HOT 매물에 소리 알림",
+  ["Sound on SAFE deal"] = "SAFE 매물에 소리 알림",
   ["Source age"] = "자료 경과 시간",
   ["Spike-trend threshold %"] = "급등 추세 기준 %",
+  ["Start scanning as soon as the auction house opens."] = "경매장을 열자마자 바로 검색을 시작합니다.",
   ["Status"] = "상태",
   ["Stress exit unit"] = "스트레스 청산 단가",
   ["Stress profit"] = "스트레스 수익",
@@ -386,6 +400,7 @@ GC.Locales.koKR = {
   ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
     "관찰 = 실시간 확인이 거절했습니다 -- 줄에 마우스를 올리면 이유가 나옵니다",
+  ["WHAT COUNTS AS A DEAL"] = "거래로 인정되는 조건",
   ["WHAT TO DO"] = "할 일",
   ["WHAT YOU PAID"] = "내가 지불한 값",
   ["WHEN"] = "시점",
@@ -503,6 +518,8 @@ GC.Locales.koKR = {
   ["not ready to post"] = "등록할 준비가 되지 않았습니다",
   ["nothing listed"] = "등록된 것이 없습니다",
   ["of %d"] = "/ %d",
+  ["off"] = "꺼짐",
+  ["on"] = "켜짐",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
   ["over %d position%s"] = "%d개 보유 항목 기준%s",

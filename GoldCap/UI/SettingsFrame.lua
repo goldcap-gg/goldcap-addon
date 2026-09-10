@@ -454,25 +454,97 @@ local function build(sniperFrame)
 
   local refreshers = {}
 
+  -- Hover explanation shared by a row's label and its control (edit box / toggle / duration
+  -- segment) -- GameTooltip:SetOwner reads whichever widget the cursor is actually over as its
+  -- owner, and Theme.TooltipAnchor(self) picks the side of the screen that has room from where
+  -- THAT widget sits, so the tooltip lands correctly no matter which half of the row triggered
+  -- it (see UI/Theme.lua's own comment on TooltipAnchor). Line 1 repeats the row's own label
+  -- (the tooltip is reachable from either widget, so it always names itself); line 2 is one
+  -- plain sentence; line 3 is the shipped default, computed once at build time from GC.DEFAULTS
+  -- so it can never drift out of sync with Core/Init.lua.
+  local function attachExplanation(widgets, labelText, sentence, defaultLineText)
+    local function onEnter(self)
+      GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
+      GameTooltip:AddLine(labelText)
+      GameTooltip:AddLine(sentence, 1, 1, 1, true)
+      GameTooltip:AddLine(defaultLineText, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      GameTooltip:Show()
+    end
+    local function onLeave() GameTooltip:Hide() end
+    for _, w in ipairs(widgets) do
+      w:SetScript("OnEnter", onEnter)
+      w:SetScript("OnLeave", onLeave)
+    end
+  end
+
+  -- Line 3 for a numeric field: the shipped default (GC.DEFAULTS.settings.sniper[key]),
+  -- converted through the SAME toUI the field itself displays with, then suffixed for the
+  -- field's own UI unit -- "g" (gold), "%" (percent) or " h" (hours) -- so the tooltip can
+  -- never show a number in a different unit than the box the player is looking at.
+  local function defaultLine(key, opts)
+    local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+    local stored = d and d[key]
+    local text = "?"
+    if stored ~= nil then
+      local ui = opts.toUI and opts.toUI(stored) or stored
+      text = string.format("%.0f", ui)
+      if opts.unit == "%" then text = text .. "%"
+      elseif opts.unit == "g" then text = text .. "g"
+      elseif opts.unit == "h" then text = text .. " h" end
+    end
+    return GC.L["Default: %s"]:format(text)
+  end
+
+  -- Line 3 for a toggle: the shipped default rendered as on/off rather than a unit figure.
+  local function boolDefaultLine(key)
+    local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+    local stored = d and d[key]
+    return GC.L["Default: %s"]:format(stored and GC.L["on"] or GC.L["off"])
+  end
+
   -- One card per settings group. Rows are laid out from the card's own top so the
   -- two columns can stack independently; height = 24 (title band) + n*STEP + 6.
-  local function card(parent, cardTitle, rowCount)
+  -- `withDefaultsButton` adds a small kit button (ghost/badge, like the duration segments) to
+  -- the title band, right-aligned, that resets every field THIS card built back to
+  -- GC.DEFAULTS -- only the two left cards (numeric-only) carry one; fieldRow below is what
+  -- actually populates c.resets/c.displays as each row is built.
+  local function card(parent, cardTitle, rowCount, withDefaultsButton)
     local c = Theme.Card(parent, Theme.color.panelHi, nil)
     c:SetHeight(24 + rowCount * STEP + 6)
     local t = Theme.Num(c, 9); t:SetJustifyH("LEFT"); t:SetPoint("TOPLEFT", Theme.pad.m, -8)
     t:SetText(cardTitle); t:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     function c.rowY(i) return -(24 + (i - 1) * STEP) end
+    if withDefaultsButton then
+      c.resets, c.displays = {}, {}
+      local resetBtn = Theme.Button(c, "ghost", "badge")
+      resetBtn:SetSize(56, 14)
+      resetBtn:SetPoint("TOPRIGHT", -Theme.pad.s, -7)
+      resetBtn:SetLabel(GC.L["DEFAULTS"])
+      resetBtn:SetScript("OnClick", function()
+        local cfgTable = cfg()
+        local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+        if not (cfgTable and d) then return end
+        for _, key in ipairs(c.resets) do cfgTable[key] = d[key] end
+        for _, display in ipairs(c.displays) do display() end
+      end)
+    end
     return c
   end
 
-  -- Left column: DEAL THRESHOLDS above SAFETY, both spanning panel-left to panel-CENTER-7.
-  local thresholds = card(panel, GC.L["DEAL THRESHOLDS"], 4)
-  thresholds:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
-  thresholds:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  -- Left column: WHAT COUNTS AS A DEAL above BRAKES, both spanning panel-left to
+  -- panel-CENTER-7. Replaces the old DEAL THRESHOLDS/SAFETY split -- HOT/GOOD tier discounts
+  -- moved out of the UI entirely (Core/DealMath.lua still reads their keys/defaults for row
+  -- ordering; only the settings surface for them is gone) because nobody outside this codebase
+  -- could say what "HOT -- min sold/day = 3" meant. What is left is the three numbers that
+  -- decide whether a buy happens at all, and the three that decide when the engine stops
+  -- trusting the data it is looking at.
+  local whatCounts = card(panel, GC.L["WHAT COUNTS AS A DEAL"], 3, true)
+  whatCounts:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
+  whatCounts:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
-  local safety = card(panel, GC.L["SAFETY"], 5)
-  safety:SetPoint("TOPLEFT", thresholds, "BOTTOMLEFT", 0, -12)
-  safety:SetPoint("RIGHT", panel, "CENTER", -7, 0)
+  local brakes = card(panel, GC.L["BRAKES"], 3, true)
+  brakes:SetPoint("TOPLEFT", whatCounts, "BOTTOMLEFT", 0, -12)
+  brakes:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
@@ -488,7 +560,7 @@ local function build(sniperFrame)
   display:SetPoint("TOPRIGHT", automation, "BOTTOMRIGHT", 0, -12)
   display:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local function fieldRow(cardFrame, i, labelText, key, opts)
+  local function fieldRow(cardFrame, i, labelText, key, opts, sentence)
     local box = makeEditBox(cardFrame, FIELD_W, ROW_H)
     box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
 
@@ -499,29 +571,45 @@ local function build(sniperFrame)
     label:SetWordWrap(false)
     label:SetText(labelText)
 
-    refreshers[#refreshers + 1] = bindNumberField(box, key, opts)
+    local refreshField = bindNumberField(box, key, opts)
+    refreshers[#refreshers + 1] = refreshField
+    if cardFrame.resets then
+      cardFrame.resets[#cardFrame.resets + 1] = key
+      cardFrame.displays[#cardFrame.displays + 1] = refreshField
+    end
+
+    attachExplanation({ label, box }, labelText, sentence, defaultLine(key, opts))
   end
 
-  local PCT = { min = 1, max = 90, toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end }
-  local WALLET_PCT = { min = 1, max = 20, toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end }
+  -- WALLET_PCT/GOLD keep their long-standing bounds; ROI is new (minimumRoi wasn't exposed in
+  -- the UI before). `unit` picks defaultLine's suffix above -- "g" for gold, "%" for percent.
+  local ROI = { min = 10, max = 200,
+    toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end, unit = "%" }
+  local WALLET_PCT = { min = 1, max = 20,
+    toUI = function(v) return v * 100 end, toStorage = function(v) return v / 100 end, unit = "%" }
   local GOLD = { min = 1, max = 100000,
     toUI = function(v) return v / 10000 end,
-    toStorage = function(v) return v * 10000 end }
+    toStorage = function(v) return v * 10000 end, unit = "g" }
 
-  fieldRow(thresholds, 1, GC.L["HOT — min discount %"], "hotDiscount", PCT)
-  fieldRow(thresholds, 2, GC.L["HOT — min sold/day"], "hotMinSold", { min = 0, max = 1000 })
-  fieldRow(thresholds, 3, GC.L["GOOD — min discount %"], "goodDiscount", PCT)
-  fieldRow(thresholds, 4, GC.L["GOOD — min sold/day"], "goodMinSold", { min = 0, max = 1000 })
+  fieldRow(whatCounts, 1, GC.L["Min profit per buy (gold)"], "minimumProfitCopper", GOLD,
+    GC.L["Skip a buy unless it clears at least this much after the AH cut."])
+  -- min 10 (10%) matches Core/SniperDecision.lua's normalizeConfig floor of 0.10 exactly --
+  -- the box must not accept anything that floor would just silently re-clamp back up.
+  fieldRow(whatCounts, 2, GC.L["Min return per buy %"], "minimumRoi", ROI,
+    GC.L["Skip a buy unless the profit is at least this share of what you pay."])
+  fieldRow(whatCounts, 3, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT,
+    GC.L["Never spend more than this share of your gold on one purchase."])
 
-  fieldRow(safety, 1, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT)
-  fieldRow(safety, 2, GC.L["Min profit per buy (gold)"], "minimumProfitCopper", GOLD)
-  fieldRow(safety, 3, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99 })
+  fieldRow(brakes, 1, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99, unit = "%" },
+    GC.L["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."])
   -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
   -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
   -- the box can never store a value the engine would then silently re-clamp.
-  fieldRow(safety, 4, GC.L["Spike-trend threshold %"], "spikeTrendPct", { min = 1, max = 500 })
+  fieldRow(brakes, 2, GC.L["Spike-trend threshold %"], "spikeTrendPct", { min = 1, max = 500, unit = "%" },
+    GC.L["Above this 24-hour rise the market value is treated as a spike and deflated."])
   -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
-  fieldRow(safety, 5, GC.L["Wall absorb window (hours)"], "wallAbsorbHours", { min = 0, max = 6 })
+  fieldRow(brakes, 3, GC.L["Wall absorb window (hours)"], "wallAbsorbHours", { min = 0, max = 6, unit = "h" },
+    GC.L["How many hours of normal sales a wall under your exit may hold before the deal is refused."])
 
   -- Segmented duration, not a fieldRow: three 40x20 kit buttons chained from the card's right
   -- edge, rightmost (48H) placed first so each earlier one anchors off the one already placed.
@@ -551,9 +639,19 @@ local function build(sniperFrame)
     label:SetText(GC.L["Duration"])
 
     refreshers[#refreshers + 1] = bindDurationSegments({ h12, h24, h48 }, { 12, 24, 48 })
+
+    -- Not a fieldRow, so it gets its own explanation wiring: the "control" side is all three
+    -- segment buttons rather than one edit box. Default hours read off GC.DEFAULTS.postDuration
+    -- through the same 1/2/3 -> hours mapping DURATION_INDEX inverts for storedDurationIndex.
+    local DEFAULT_HOURS = { [1] = 12, [2] = 24, [3] = 48 }
+    local d = GC.DEFAULTS and GC.DEFAULTS.settings and GC.DEFAULTS.settings.sniper
+    local defaultHours = (d and DEFAULT_HOURS[d.postDuration]) or 24
+    attachExplanation({ label, h12, h24, h48 }, GC.L["Duration"],
+      GC.L["Default listing length for the Sell tab."],
+      GC.L["Default: %s"]:format(defaultHours .. " h"))
   end
 
-  local function toggleRow(cardFrame, i, labelText, key)
+  local function toggleRow(cardFrame, i, labelText, key, sentence)
     local box = makeToggle(cardFrame)
     box:SetPoint("TOPRIGHT", -Theme.pad.m, cardFrame.rowY(i))
 
@@ -565,18 +663,23 @@ local function build(sniperFrame)
     label:SetText(labelText)
 
     refreshers[#refreshers + 1] = bindCheckbox(box, key)
+    attachExplanation({ label, box }, labelText, sentence, boolDefaultLine(key))
   end
 
-  toggleRow(automation, 1, GC.L["Sound on HOT deal"], "sound")
+  -- The board no longer has a HOT tier -- it rings on SAFE -- so the toggle follows.
+  toggleRow(automation, 1, GC.L["Sound on SAFE deal"], "sound",
+    GC.L["Play a sound when a checked deal turns SAFE."])
   -- Final fix wave (item 5): the plain "Auto-scan by default" label read as if toggling it
   -- would also start/stop a session already in progress -- it only decides whether Auto is
   -- armed the NEXT time the Auction House is opened; it deliberately does not touch a live
   -- Auto session (see Core/Init.lua's OnAuctionHouseShow / SniperFrame.lua's Auto wiring).
-  toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto")
+  toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto",
+    GC.L["Start scanning as soon as the auction house opens."])
 
   -- Sell tab overcut (Core/Flips.lua, RecommendPost): one rung above the cheapest, inside the
   -- cheap quarter. Off = today's match/undercut exactly.
-  toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut")
+  toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
+    GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
   -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px

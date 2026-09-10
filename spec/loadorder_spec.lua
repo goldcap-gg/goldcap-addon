@@ -143,7 +143,7 @@ describe("TOC load order", function()
         SetMaxLetters = function() end,
         GetText = function() return "" end,
         ClearFocus = function() end,
-        -- T10 CheckButton widgets (Sound on HOT deal / Auto-scan on next AH visit, batch-5 pill
+        -- T10 CheckButton widgets (Sound on SAFE deal / Auto-scan on next AH visit, batch-5 pill
         -- toggles): SetChecked runs for real
         -- (bindCheckbox's display() during construction); GetChecked/SetCheckedTexture back the
         -- OnClick script this test never fires -- kept for parity.

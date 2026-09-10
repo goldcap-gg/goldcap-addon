@@ -4778,7 +4778,9 @@ local function createDialog()
   itemHit:EnableMouse(true)
   itemHit:SetScript("OnEnter", function(self)
     if not dialog.deal then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    -- Outside the window, never over it -- the dialog sits on top of the board this tooltip
+    -- would otherwise cover (Theme.ItemTooltipOutside; see its own comment for the geometry).
+    Theme.ItemTooltipOutside(self, frame)
     GameTooltip:SetItemByID(dialog.deal.itemID)
     GameTooltip:Show()
   end)
@@ -5764,7 +5766,9 @@ createRow = function(parent, index)
     hoveredRow = self
     if not self.deal then return end
     maybeStartPrewarm(self.deal)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    -- Outside the window, never over it -- a row's own item tooltip used to cover the board
+    -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
+    Theme.ItemTooltipOutside(self, frame)
     GameTooltip:SetItemByID(self.deal.itemID)
     -- What the background check found, in words. A refused row that the toolbar toggle has
     -- brought back into view is otherwise a status code and nothing else.

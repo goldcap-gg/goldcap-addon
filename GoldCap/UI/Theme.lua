@@ -998,3 +998,52 @@ function T.TooltipAnchor(owner)
   if right then return top and "ANCHOR_BOTTOMLEFT" or "ANCHOR_LEFT" end
   return top and "ANCHOR_BOTTOMRIGHT" or "ANCHOR_RIGHT"
 end
+
+-- How much horizontal room an item tooltip needs beside the window before T.ItemTooltipOutside
+-- decides the right edge has space for it. Not measured off the real tooltip (its width
+-- depends on the item's own name/quality/flavor text, none of which is known before
+-- SetItemByID runs) -- 330 is a deliberately generous upper estimate so the check fails
+-- toward the side that is SURE to have room rather than clipping against the screen edge.
+local ITEM_TOOLTIP_WIDTH = 330
+
+--- Opens GameTooltip beside `windowFrame` -- its right edge, or its left edge when the right
+-- has no room -- never inside it. For an ITEM tooltip (SetItemByID), whose body can run long
+-- enough to cover the very row that opened it if it were anchored to the row the ordinary way.
+--
+-- `rowFrame` is the hovered row; the tooltip's TOP lands level with the row's own top (read
+-- off GetTop(), not GetCenter() -- a multi-line item tooltip grows DOWN from its anchor, so
+-- top-aligning is what keeps it beside the row that triggered it instead of drifting below).
+-- Whether the right edge has room is windowFrame's own right edge, converted to screen pixels
+-- via GetEffectiveScale() (the window carries its own scale, see T.SetScale) and compared
+-- against the screen's, the same coordinate-space conversion T.TooltipAnchor above uses.
+--
+-- Falls back to ANCHOR_RIGHT off `rowFrame` when either frame lacks real geometry -- a frame
+-- with no anchors yet, or the headless test bed with no UIParent.
+function T.ItemTooltipOutside(rowFrame, windowFrame)
+  local screen = UIParent
+  local ready = rowFrame and rowFrame.GetTop and windowFrame and windowFrame.GetTop
+    and windowFrame.GetRight and windowFrame.GetEffectiveScale
+    and screen and screen.GetRight and screen.GetEffectiveScale
+  local rowTop = ready and rowFrame:GetTop()
+  local windowTop = ready and windowFrame:GetTop()
+  local windowRight = ready and windowFrame:GetRight()
+  local screenRight = ready and screen:GetRight()
+
+  if not (rowTop and windowTop and windowRight and screenRight) then
+    GameTooltip:SetOwner(rowFrame, "ANCHOR_RIGHT")
+    return
+  end
+
+  GameTooltip:SetOwner(rowFrame, "ANCHOR_NONE")
+  GameTooltip:ClearAllPoints()
+
+  local windowScale, screenScale = windowFrame:GetEffectiveScale(), screen:GetEffectiveScale()
+  local fitsRight = (windowRight * windowScale + ITEM_TOOLTIP_WIDTH) <= (screenRight * screenScale)
+  local yOffset = rowTop - windowTop
+
+  if fitsRight then
+    GameTooltip:SetPoint("TOPLEFT", windowFrame, "TOPRIGHT", 8, yOffset)
+  else
+    GameTooltip:SetPoint("TOPRIGHT", windowFrame, "TOPLEFT", -8, yOffset)
+  end
+end

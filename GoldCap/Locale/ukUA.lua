@@ -57,6 +57,8 @@ GC.Locales.ukUA = {
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА ТА СПОВІЩЕННЯ",
   ["AVOID"] = "УНИКАТИ",
+  ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
+    "Вище цього зростання за 24 години ринкова вартість вважається стрибком і занижується.",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",
@@ -64,6 +66,7 @@ GC.Locales.ukUA = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
     "Авто: тримає Full Scan увімкненим постійно й миттєво поступається, коли ви купуєте, ",
   ["Avoid"] = "Уникати",
+  ["BRAKES"] = "ГАЛЬМА",
   ["Background check"] = "Фонова перевірка",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Точка беззбитковості — найнижча ціна, яка після комісії ще повертає вашу собівартість. Нижче — збиток.",
@@ -125,10 +128,12 @@ GC.Locales.ukUA = {
     "Не вдалося знайти наступний предмет у черзі на виставлення — спробуйте ще раз",
   ["Could not find the queue's next lot to cancel — try again"] =
     "Не вдалося знайти наступний лот у черзі на скасування — спробуйте ще раз",
-  ["DEAL THRESHOLDS"] = "ПОРОГИ УГОД",
+  ["DEFAULTS"] = "СТАНДАРТНІ",
   ["DISC"] = "ЗНИЖКА",
   ["DISPLAY"] = "ВІДОБРАЖЕННЯ",
   ["DONE"] = "ГОТОВО",
+  ["Default listing length for the Sell tab."] = "Стандартна тривалість виставлення для вкладки Продаж.",
+  ["Default: %s"] = "За замовчуванням: %s",
   ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
     "Видаляє лише собівартість, введену вручну у «Вказати ціну», — але не покупку, яку GoldCap упіймав сам чи зіставив із поштою.",
   ["Discount"] = "Знижка",
@@ -156,8 +161,6 @@ GC.Locales.ukUA = {
     "Безкоштовний, живе в треї, у грі нічого налаштовувати не треба.",
   ["Full pass over them: %.1fs"] = "Повний прохід по них: %.1fс",
   ["Full pass over them: measuring..."] = "Повний прохід по них: вимірюємо...",
-  ["GOOD — min discount %"] = "GOOD — мінімальна знижка %",
-  ["GOOD — min sold/day"] = "GOOD — мінімум продажів на день",
   ["Gold tied up"] = "Заморожено золота",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
@@ -178,10 +181,10 @@ GC.Locales.ukUA = {
     "Сірий колір означає, що котирування застаріло; Post і Repost оновлять його перед дією.",
   ["HIDDEN 0"] = "ПРИХОВАНО 0",
   ["HIDE DETAILS ▾"] = "СХОВАТИ ДЕТАЛІ ▾",
-  ["HOT — min discount %"] = "HOT — мінімальна знижка %",
-  ["HOT — min sold/day"] = "HOT — мінімум продажів на день",
   ["Held back from cancelling"] = "Притримано від скасування",
   ["Held back from the queue"] = "Притримано з черги",
+  ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
+    "Скільки годин звичайних продажів може тримати стіна під вашою ціною виходу, перш ніж угоду буде відхилено.",
   ["IN THE LOT"] = "У ЛОТІ",
   ["ITEM"] = "ПРЕДМЕТ",
   ["If it clears"] = "Якщо продасться",
@@ -223,6 +226,7 @@ GC.Locales.ukUA = {
   ["Market reference"] = "Ринковий орієнтир",
   ["Max wallet per buy %"] = "Макс. частка гаманця на купівлю %",
   ["Min profit per buy (gold)"] = "Мінімальний прибуток з купівлі (золото)",
+  ["Min return per buy %"] = "Мін. дохідність купівлі %",
   ["Missing cost"] = "Немає собівартості",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЩЕ НЕ НА GOLDCAP.GG — СИНХРОНІЗУЄТЬСЯ ПІСЛЯ /RELOAD АБО ВИХОДУ",
@@ -231,6 +235,8 @@ GC.Locales.ukUA = {
   ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
   ["Needs a live price check before it can be bought."] =
     "Перед покупкою потрібна жива перевірка ціни.",
+  ["Never spend more than this share of your gold on one purchase."] =
+    "Ніколи не витрачати на одну покупку більше цієї частки вашого золота.",
   ["No deals passed the safety checks right now."] =
     "Зараз жодна угода не пройшла перевірок безпеки.",
   ["No deals to show -- and no realm prices yet."] =
@@ -285,6 +291,7 @@ GC.Locales.ukUA = {
   ["Paste your realm string from goldcap.gg and press Import."] =
     "Вставте рядок свого реалму з goldcap.gg і натисніть Import.",
   ["Per-unit price of this auction"] = "Ціна за одну штуку в цьому лоті",
+  ["Play a sound when a checked deal turns SAFE."] = "Відтворювати звук, коли перевірена угода стає SAFE.",
   ["Position scope changed"] = "Область позиції змінилася",
   ["Positions without a cost or a live price are excluded."] =
     "Позиції без собівартості чи живої ціни не враховано.",
@@ -325,6 +332,8 @@ GC.Locales.ukUA = {
   ["Refresh"] = "Оновити",
   ["Refresh waiting for prior result"] = "Оновлення чекає на попередній результат",
   ["Refreshing listings…"] = "Оновлюємо лоти…",
+  ["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."] =
+    "Відхилити купівлю, якщо ціна впала більше ніж на це за останні 24 години — вона може падати й далі.",
   ["Refused so far: %d"] = "Відхилено наразі: %d",
   ["Removal confirmation expired"] = "Підтвердження видалення протерміновано",
   ["Remove"] = "Видалити",
@@ -345,7 +354,6 @@ GC.Locales.ukUA = {
   ["SAFE +%s"] = "БЕЗПЕЧНО +%s",
   ["SAFE = the live check approved this buy, at the profit shown"] =
     "БЕЗПЕЧНО = жива перевірка схвалила цю купівлю із показаним прибутком",
-  ["SAFETY"] = "БЕЗПЕКА",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "ЗБЕРІГАЄТЬСЯ ОДРАЗУ · ESC АБО DONE, ЩОБ ЗАКРИТИ",
   ["SCAN"] = "СКАН",
@@ -354,20 +362,28 @@ GC.Locales.ukUA = {
   ["SHOW DETAILS ▸"] = "ПОКАЗАТИ ДЕТАЛІ ▸",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
+  ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
+    "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
   ["Sellers"] = "Продавців",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Продається надто рідко — триматимете його довго.",
   ["Set cost"] = "Витрати",
   ["Settings"] = "Налаштування",
+  ["Skip a buy unless it clears at least this much after the AH cut."] =
+    "Пропустити купівлю, якщо після комісії аукціону вона дає менше цієї суми.",
+  ["Skip a buy unless the profit is at least this share of what you pay."] =
+    "Пропустити купівлю, якщо прибуток менший за цю частку від сплаченого.",
   ["Snapshot value"] = "Значення зі знімка",
   ["Sold per day"] = "Продажів на день",
   ["Sold/day"] = "Продажів на день",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Сортуйте за ним, щоб вирішити, що перевірити першим, а не що купувати.",
-  ["Sound on HOT deal"] = "Звук на угоді HOT",
+  ["Sound on SAFE deal"] = "Звук на угоді SAFE",
   ["Source age"] = "Вік джерела",
   ["Spike-trend threshold %"] = "Поріг стрибка ціни %",
+  ["Start scanning as soon as the auction house opens."] =
+    "Починати сканування одразу після відкриття аукціонного дому.",
   ["Status"] = "Статус",
   ["Stress exit unit"] = "Ціна стрес-виходу",
   ["Stress profit"] = "Стрес-прибуток",
@@ -428,6 +444,7 @@ GC.Locales.ukUA = {
   ["WATCH (computed SAFE)"] = "WATCH (розраховано БЕЗПЕЧНО)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
     "СТЕЖИТИ = жива перевірка відмовила -- наведіть на рядок, щоб побачити причину",
+  ["WHAT COUNTS AS A DEAL"] = "ЩО ВВАЖАЄТЬСЯ УГОДОЮ",
   ["WHAT TO DO"] = "ЩО РОБИТИ",
   ["WHAT YOU PAID"] = "СКІЛЬКИ ВИ ЗАПЛАТИЛИ",
   ["WHEN"] = "КОЛИ",
@@ -553,6 +570,8 @@ GC.Locales.ukUA = {
   ["nothing in your bags to price"] = "у сумках немає чого оцінювати",
   ["nothing listed"] = "нічого не виставлено",
   ["of %d"] = "з %d",
+  ["off"] = "вимк",
+  ["on"] = "увімк",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "або вставте рядок з goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позиціях%s",

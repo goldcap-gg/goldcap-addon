@@ -101,6 +101,10 @@ describe("Sell widget geometry and manual cost", function()
       -- The real one reads the owner's place on screen; the double lets a test plant the answer
       -- on the owner and checks the widget passes it through rather than assuming a side.
       TooltipAnchor = function(owner) return owner.tooltipAnchor or "ANCHOR_RIGHT" end,
+      -- The real geometry (right of the window, or left when there's no room) is covered by
+      -- theme_item_tooltip_outside_spec.lua against the real Theme.lua -- this double only has
+      -- to open SOME tooltip so the row's OnEnter can go on to AddLine the rest of its content.
+      ItemTooltipOutside = function(owner) GameTooltip:SetOwner(owner, "ANCHOR_RIGHT") end,
     }
     -- Loaded into its own table so borrowing Deck below cannot drag the rest of the real view
     -- model (SourceText, CostText, SummaryText) into a double these tests deliberately control.

@@ -128,6 +128,10 @@ describe("Settings controls", function()
       Num = function(parent) return region("FontString", parent) end,
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      -- Every numeric field/toggle wires a hover explanation through this -- the double just
+      -- has to hand back something SOMETHING can call, not pick a real side (that geometry is
+      -- theme_tooltip_anchor_spec.lua's job against the real Theme.lua).
+      TooltipAnchor = function() return "ANCHOR_RIGHT" end,
     }
   end
 
@@ -186,6 +190,44 @@ describe("Settings controls", function()
     return found
   end
 
+  -- The card frame itself, found via its own title FontString's parent -- both left cards now
+  -- carry a same-labeled DEFAULTS button, so a test that means ONE card's button needs the
+  -- card handle to scope the lookup rather than buttonLabeled's whole-panel walk.
+  local function cardByTitle(panel, titleText)
+    local found
+    walk(panel, function(node)
+      if node.kind == "FontString" and node.textValue == titleText then found = node.parent end
+    end)
+    assert.is_not_nil(found, "no card titled " .. tostring(titleText))
+    return found
+  end
+
+  local function buttonIn(cardFrame, text)
+    for _, child in ipairs(cardFrame.children) do
+      if child.kind == "Button" and child.label == text then return child end
+    end
+    return nil
+  end
+
+  -- A numeric field's editbox: fieldRow builds the box immediately before its own label (same
+  -- construction order toggleOf's own comment describes for toggleRow), so the label's
+  -- immediately-preceding sibling is its field box, carrying `.editBox` per makeEditBox.
+  local function fieldOf(panel, rowLabelText)
+    local labelNode
+    walk(panel, function(node)
+      if node.kind == "FontString" and node.textValue == rowLabelText then labelNode = node end
+    end)
+    assert.is_not_nil(labelNode, "no row label " .. tostring(rowLabelText))
+    local siblings = labelNode.parent.children
+    local labelIndex
+    for i, child in ipairs(siblings) do
+      if child == labelNode then labelIndex = i end
+    end
+    local box = siblings[labelIndex - 1]
+    assert.is_not_nil(box and box.editBox, "no field box immediately before row label " .. tostring(rowLabelText))
+    return box
+  end
+
   -- The overlay panel itself. Module-level `panel` inside SettingsFrame.lua isn't reachable
   -- from a spec any other way, and it can no longer be picked out of the window's children by
   -- its strata: it deliberately pins none now (it wins on frame LEVEL inside its parent's
@@ -202,12 +244,24 @@ describe("Settings controls", function()
 
   before_each(function()
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
+    -- Any-method-is-a-no-op stub: the hover explanation wiring (attachExplanation) calls
+    -- GameTooltip:SetOwner/AddLine/Show, none of which any test here asserts on -- the content
+    -- those calls build is Theme.TooltipAnchor's/GC.DEFAULTS' concern, already covered where
+    -- it lives (theme_tooltip_anchor_spec.lua, this file's DEFAULTS-button tests below).
+    _G.GameTooltip = setmetatable({}, { __index = function() return function() end end })
     GC = { db = { settings = { sniper = {
-      hotDiscount = 0.1, hotMinSold = 5, goodDiscount = 0.05, goodMinSold = 2,
-      maxCapitalShare = 0.1, minimumProfitCopper = 10000, dumpTrendPct = 40,
-      spikeTrendPct = 30, wallAbsorbHours = 2, sound = true, auto = false,
+      maxCapitalShare = 0.1, minimumProfitCopper = 10000, minimumRoi = 0.15,
+      dumpTrendPct = 40, spikeTrendPct = 30, wallAbsorbHours = 2, sound = true, auto = false,
       postDuration = 2,
     } } } }
+    -- Read by defaultLine/boolDefaultLine (the tooltip's line 3) and by each left card's own
+    -- DEFAULTS button -- deliberately different from the "current value" fixture above so a
+    -- test can tell a freshly-reset field apart from one that merely never changed.
+    GC.DEFAULTS = { settings = { sniper = {
+      maxCapitalShare = 0.05, minimumProfitCopper = 50000, minimumRoi = 0.10,
+      dumpTrendPct = 10, spikeTrendPct = 30, wallAbsorbHours = 2, sound = true, auto = false,
+      overcut = true, postDuration = 2,
+    } } }
     GC.Theme = fakeTheme()
     -- T7: RefreshRailActive is GC.Sniper's own export (SniperFrame.lua, right after setView) --
     -- SettingsFrame.lua's OnHide calls it to re-apply the active tab's Disable() on close. The
@@ -235,6 +289,7 @@ describe("Settings controls", function()
   after_each(function()
     _G.CreateFrame = nil
     _G.GoldCapSniperFrame = nil
+    _G.GameTooltip = nil
   end)
 
   it("paints the current auction duration as the active segment and switches on click", function()
@@ -255,7 +310,7 @@ describe("Settings controls", function()
   it("toggle knob follows the checked state and a click flips the setting", function()
     GC.db.settings.sniper.sound = true
     GC.SettingsUI.Toggle()
-    local t = toggleOf(_G.GoldCapSniperFrame, "Sound on HOT deal")
+    local t = toggleOf(_G.GoldCapSniperFrame, "Sound on SAFE deal")
     assert.equal("RIGHT", t.knob.points[1][1])
 
     t.checkButton.scripts.OnClick(t.checkButton)
@@ -267,7 +322,7 @@ describe("Settings controls", function()
   it("gives the toggle's checkbutton an engine-driven HIGHLIGHT hover wash (M10)", function()
     GC.db.settings.sniper.sound = true
     GC.SettingsUI.Toggle()
-    local t = toggleOf(_G.GoldCapSniperFrame, "Sound on HOT deal")
+    local t = toggleOf(_G.GoldCapSniperFrame, "Sound on SAFE deal")
     local hover
     for _, child in ipairs(t.checkButton.children) do
       if child.layer == "HIGHLIGHT" then hover = child end
@@ -278,18 +333,87 @@ describe("Settings controls", function()
     assert.same({ GC.Theme.color.gold[1], GC.Theme.color.gold[2], GC.Theme.color.gold[3], 0.18 }, hover.vertexColor)
   end)
 
-  it("builds the five kit cards and a rounded DONE button", function()
+  it("builds the five kit cards (WHAT COUNTS AS A DEAL/BRAKES replacing DEAL THRESHOLDS/SAFETY) and a rounded DONE button", function()
     GC.SettingsUI.Toggle()
     local titles = cardTitles(_G.GoldCapSniperFrame)
-    assert.is_true(titles["DEAL THRESHOLDS"])
-    assert.is_true(titles["SAFETY"])
+    assert.is_true(titles["WHAT COUNTS AS A DEAL"])
+    assert.is_true(titles["BRAKES"])
     assert.is_true(titles["POSTING"])
     assert.is_true(titles["AUTOMATION & ALERTS"])
     assert.is_true(titles["DISPLAY"])
+    assert.is_nil(titles["DEAL THRESHOLDS"])
+    assert.is_nil(titles["SAFETY"])
 
     local done = buttonLabeled(_G.GoldCapSniperFrame, "DONE")
     assert.is_not_nil(done)
     assert.equal("plaque", done.rounded)
+  end)
+
+  it("drops the HOT/GOOD tier fields from the UI entirely", function()
+    GC.SettingsUI.Toggle()
+    local labels = {}
+    walk(_G.GoldCapSniperFrame, function(node)
+      if node.kind == "FontString" and node.textValue then labels[node.textValue] = true end
+    end)
+    assert.is_nil(labels["HOT — min discount %"])
+    assert.is_nil(labels["HOT — min sold/day"])
+    assert.is_nil(labels["GOOD — min discount %"])
+    assert.is_nil(labels["GOOD — min sold/day"])
+  end)
+
+  it("Min profit/Min return/Max wallet live on WHAT COUNTS AS A DEAL, and the brakes on BRAKES", function()
+    GC.SettingsUI.Toggle()
+    local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+    local brakes = cardByTitle(_G.GoldCapSniperFrame, "BRAKES")
+    assert.is_not_nil(fieldOf(whatCounts, "Min profit per buy (gold)"))
+    assert.is_not_nil(fieldOf(whatCounts, "Min return per buy %"))
+    assert.is_not_nil(fieldOf(whatCounts, "Max wallet per buy %"))
+    assert.is_not_nil(fieldOf(brakes, "Dump-trend cap %"))
+    assert.is_not_nil(fieldOf(brakes, "Spike-trend threshold %"))
+    assert.is_not_nil(fieldOf(brakes, "Wall absorb window (hours)"))
+  end)
+
+  it("minimumRoi field round-trips UI percent 10..200 to a stored fraction 0.10..2.00, clamped at both ends", function()
+    GC.db.settings.sniper.minimumRoi = 0.15
+    GC.SettingsUI.Toggle()
+    local box = fieldOf(_G.GoldCapSniperFrame, "Min return per buy %")
+    assert.equal("15", box.editBox:GetText())
+
+    box.editBox:SetText("55")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(0.55, GC.db.settings.sniper.minimumRoi)
+    assert.equal("55", box.editBox:GetText())
+
+    -- Below Core/SniperDecision.lua's normalizeConfig floor of 0.10 (10%) -- the box must not
+    -- accept anything that floor would just silently re-clamp back up.
+    box.editBox:SetText("1")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(0.10, GC.db.settings.sniper.minimumRoi)
+
+    box.editBox:SetText("500")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(2.00, GC.db.settings.sniper.minimumRoi)
+  end)
+
+  it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()
+    GC.db.settings.sniper.minimumProfitCopper = 999999
+    GC.db.settings.sniper.minimumRoi = 1.5
+    GC.db.settings.sniper.maxCapitalShare = 0.19
+    GC.db.settings.sniper.dumpTrendPct = 77 -- BRAKES field -- must NOT move
+    GC.SettingsUI.Toggle()
+
+    local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+    local resetBtn = buttonIn(whatCounts, "DEFAULTS")
+    assert.is_not_nil(resetBtn)
+    resetBtn.scripts.OnClick(resetBtn)
+
+    assert.equal(GC.DEFAULTS.settings.sniper.minimumProfitCopper, GC.db.settings.sniper.minimumProfitCopper)
+    assert.equal(GC.DEFAULTS.settings.sniper.minimumRoi, GC.db.settings.sniper.minimumRoi)
+    assert.equal(GC.DEFAULTS.settings.sniper.maxCapitalShare, GC.db.settings.sniper.maxCapitalShare)
+    assert.equal(77, GC.db.settings.sniper.dumpTrendPct) -- untouched -- BRAKES owns its own button
+
+    local box = fieldOf(_G.GoldCapSniperFrame, "Max wallet per buy %")
+    assert.equal("5", box.editBox:GetText()) -- GC.DEFAULTS.maxCapitalShare 0.05 -> 5%
   end)
 
   it("offers a language picker that writes the setting and re-applies it", function()

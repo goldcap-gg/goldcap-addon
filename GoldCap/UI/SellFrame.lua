@@ -2314,7 +2314,9 @@ local function createRow(parent)
     -- Rows are pooled and rebound every render, so the item tooltip is wired once here and
     -- reads whatever position the row currently holds. Hooking it per render would stack.
     if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      -- Outside the window, never over it -- a row's own item tooltip used to cover the deck
+      -- it is describing (Theme.ItemTooltipOutside; see UI/Theme.lua's own comment on it).
+      Theme.ItemTooltipOutside(self, statusOwner)
       if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
       -- Flags painted onto the row at the same time as the cells they describe (MARKET/UNIT's
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,

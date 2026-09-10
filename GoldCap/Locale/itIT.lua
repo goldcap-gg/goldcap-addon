@@ -53,6 +53,8 @@ GC.Locales.itIT = {
   ["AUTO · SCANNING"] = "AUTO · SCANSIONE",
   ["AUTOMATION & ALERTS"] = "AUTOMAZIONE E AVVISI",
   ["AVOID"] = "EVITA",
+  ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
+    "Oltre questo aumento in 24 ore il valore di mercato è considerato un'impennata e viene ridotto.",
   ["Asks for a second click to confirm."] = "Chiede un secondo clic per confermare.",
   ["Auction House did not answer — press Refresh"] =
     "La casa d'aste non ha risposto — premi Refresh",
@@ -61,6 +63,7 @@ GC.Locales.itIT = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
     "Auto: tiene Full Scan sempre attivo e cede subito il passo quando compri, ",
   ["Avoid"] = "Evita",
+  ["BRAKES"] = "FRENI",
   ["Background check"] = "Controllo in background",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Il pareggio è il prezzo più basso che copre ancora il tuo costo dopo la commissione. Sotto quello ci rimetti.",
@@ -123,10 +126,12 @@ GC.Locales.itIT = {
     "Non trovo il prossimo oggetto in coda da mettere in vendita — riprova",
   ["Could not find the queue's next lot to cancel — try again"] =
     "Non trovo il prossimo lotto in coda da annullare — riprova",
-  ["DEAL THRESHOLDS"] = "SOGLIE AFFARI",
+  ["DEFAULTS"] = "PREDEFINITI",
   ["DISC"] = "SCONTO",
   ["DISPLAY"] = "VISUALIZZAZIONE",
   ["DONE"] = "FATTO",
+  ["Default listing length for the Sell tab."] = "Durata d'inserzione predefinita per la scheda Vendi.",
+  ["Default: %s"] = "Predefinito: %s",
   ["Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail."] =
     "Elimina un costo inserito a mano in Imposta costo — mai un acquisto che GoldCap ha rilevato o abbinato alla tua posta.",
   ["Discount"] = "Sconto",
@@ -153,8 +158,6 @@ GC.Locales.itIT = {
     "Gratuito, sta nella barra di sistema, niente da configurare nel gioco.",
   ["Full pass over them: %.1fs"] = "Passaggio completo: %.1fs",
   ["Full pass over them: measuring..."] = "Passaggio completo: misurazione...",
-  ["GOOD — min discount %"] = "GOOD — sconto minimo %",
-  ["GOOD — min sold/day"] = "GOOD — vendite min./giorno",
   ["Gold tied up"] = "Oro immobilizzato",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
@@ -175,10 +178,10 @@ GC.Locales.itIT = {
     "In grigio significa che la quotazione è invecchiata; Post e Repost la aggiornano prima di agire.",
   ["HIDDEN 0"] = "NASCOSTE 0",
   ["HIDE DETAILS ▾"] = "NASCONDI DETTAGLI ▾",
-  ["HOT — min discount %"] = "HOT — sconto minimo %",
-  ["HOT — min sold/day"] = "HOT — vendite min./giorno",
   ["Held back from cancelling"] = "Trattenuto dall'annullamento",
   ["Held back from the queue"] = "Trattenuto dalla coda",
+  ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
+    "Per quante ore di vendite normali un muro sotto il tuo prezzo d'uscita può reggere prima che l'affare venga rifiutato.",
   ["ITEM"] = "OGGETTO",
   ["If it clears"] = "Se si vende",
   ["Import"] = "Importa",
@@ -215,6 +218,7 @@ GC.Locales.itIT = {
   ["Market reference"] = "Riferimento di mercato",
   ["Max wallet per buy %"] = "Max. del tuo oro per acquisto %",
   ["Min profit per buy (gold)"] = "Profitto min. per acquisto (oro)",
+  ["Min return per buy %"] = "Rendimento min. per acquisto %",
   ["Missing cost"] = "Costo mancante",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "NON ANCORA SU GOLDCAP.GG — SI SINCRONIZZA CON /RELOAD O ALL'USCITA",
@@ -222,6 +226,8 @@ GC.Locales.itIT = {
   ["NOTHING TO POST"] = "NIENTE DA METTERE IN VENDITA",
   ["Needs a live price check before it can be bought."] =
     "Serve un controllo del prezzo dal vivo prima di poterlo comprare.",
+  ["Never spend more than this share of your gold on one purchase."] =
+    "Non spendere mai più di questa quota del tuo oro in un solo acquisto.",
   ["No deals passed the safety checks right now."] =
     "Al momento nessuna occasione ha superato i controlli di sicurezza.",
   ["No deals to show -- and no realm prices yet."] =
@@ -273,6 +279,8 @@ GC.Locales.itIT = {
   ["Paste your realm string from goldcap.gg and press Import."] =
     "Incolla la stringa del tuo reame da goldcap.gg e premi Import.",
   ["Per-unit price of this auction"] = "Prezzo unitario di questa asta",
+  ["Play a sound when a checked deal turns SAFE."] =
+    "Riproduci un suono quando un affare verificato diventa SAFE.",
   ["Position scope changed"] = "L'ambito della posizione è cambiato",
   ["Positions without a cost or a live price are excluded."] =
     "Le posizioni senza costo o senza prezzo dal vivo sono escluse.",
@@ -312,6 +320,8 @@ GC.Locales.itIT = {
   ["Refresh"] = "Aggiorna",
   ["Refresh waiting for prior result"] = "L'aggiornamento attende il risultato precedente",
   ["Refreshing listings…"] = "Aggiornamento delle vendite…",
+  ["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."] =
+    "Rifiuta un acquisto se il prezzo è sceso più di questo nelle ultime 24 ore — potrebbe continuare a scendere.",
   ["Refused so far: %d"] = "Rifiutate finora: %d",
   ["Removal confirmation expired"] = "La conferma di eliminazione è scaduta",
   ["Remove"] = "Elimina",
@@ -332,7 +342,6 @@ GC.Locales.itIT = {
   ["SAFE +%s"] = "SICURO +%s",
   ["SAFE = the live check approved this buy, at the profit shown"] =
     "SICURO = il controllo dal vivo ha approvato questo acquisto, al profitto mostrato",
-  ["SAFETY"] = "SICUREZZA",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVATO SUBITO · ESC O DONE PER CHIUDERE",
   ["SCAN"] = "SCANSIONA",
   ["SCANNING…"] = "SCANSIONE…",
@@ -340,20 +349,28 @@ GC.Locales.itIT = {
   ["SHOW DETAILS ▸"] = "MOSTRA DETTAGLI ▸",
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
+  ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
+    "La scheda Vendi pubblica un gradino sopra l'offerta più economica quando il libro ordini indica che si vende altrettanto in fretta.",
   ["Sell-through"] = "Tasso di vendita",
   ["Sellers"] = "Venditori",
   ["Sells too rarely -- you would be holding it for a long time."] =
     "Si vende troppo di rado: te lo terresti a lungo.",
   ["Set cost"] = "Costo",
   ["Settings"] = "Impostazioni",
+  ["Skip a buy unless it clears at least this much after the AH cut."] =
+    "Salta un acquisto se non frutta almeno questa cifra dopo la commissione della CA.",
+  ["Skip a buy unless the profit is at least this share of what you pay."] =
+    "Salta un acquisto se il profitto non è almeno questa quota di quanto paghi.",
   ["Snapshot value"] = "Valore dello snapshot",
   ["Sold per day"] = "Vendite al giorno",
   ["Sold/day"] = "Vendite/giorno",
   ["Sort by it to decide what to Check first, not to decide what to buy."] =
     "Ordina in base a esso per decidere cosa controllare per primo, non cosa comprare.",
-  ["Sound on HOT deal"] = "Suono su affare HOT",
+  ["Sound on SAFE deal"] = "Suono su affare SAFE",
   ["Source age"] = "Età della fonte",
   ["Spike-trend threshold %"] = "Soglia di impennata %",
+  ["Start scanning as soon as the auction house opens."] =
+    "Inizia la scansione non appena si apre la casa d'aste.",
   ["Status"] = "Stato",
   ["Stress exit unit"] = "Prezzo d'uscita sotto stress",
   ["Stress profit"] = "Profitto sotto stress",
@@ -413,6 +430,7 @@ GC.Locales.itIT = {
   ["WATCH (computed SAFE)"] = "WATCH (calcolato SICURO)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
     "OSSERVA = il controllo dal vivo lo ha rifiutato -- passa sulla riga per il motivo",
+  ["WHAT COUNTS AS A DEAL"] = "COSA CONTA COME AFFARE",
   ["WHAT TO DO"] = "COSA FARE",
   ["WHAT YOU PAID"] = "QUANTO HAI PAGATO",
   ["WHEN"] = "QUANDO",
@@ -538,6 +556,8 @@ GC.Locales.itIT = {
   ["not ready to post"] = "non ancora pronto per la vendita",
   ["nothing listed"] = "niente in vendita",
   ["of %d"] = "di %d",
+  ["off"] = "disattivo",
+  ["on"] = "attivo",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "oppure incolla una stringa da goldcap.gg con /goldcap import.",
   ["over %d position%s"] = "su %d posizioni%s",
