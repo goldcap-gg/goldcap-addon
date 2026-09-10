@@ -610,7 +610,11 @@ local function renderList()
     local pinned = isPinned(deal.itemID)
     -- `manual` rows are never pruned -- see stampVerdict. And they are not counted either:
     -- this number exists to explain a list that got shorter, and they did not shorten it.
-    if verdict and not verdict.buyable and not verdict.manual and not pinned then
+    -- `unverified` rows are not pruned and not counted either, for the same reason `manual`
+    -- ones are not: a realm lot the check found under its region reference did not shorten
+    -- this list, it is one of the things ON it (see stampVerdict).
+    if verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
+        and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -3709,6 +3713,12 @@ stampVerdict = function(deal, data, manual)
   local decision = data and data.decision
   local buyable = (decision and decision.buyable and decision.status == "SAFE"
     and data.isCommodity) and true or false
+  -- Sniper phase 2: a realm lot the check found under its region reference. It is not buyable
+  -- and never will be -- nothing measures how fast a realm item sells -- but it was not
+  -- REFUSED either, and the refused-rows filter below must not treat it as one. Without this
+  -- flag every realm row disappeared from the board the moment its own check came back, which
+  -- is the one moment it finally had something to say.
+  local unverified = (decision and decision.candidate and decision.status == "WATCH") and true or nil
   local status, reason
   if not data then
     status, reason = "Gone", GC.L["listing gone -- bought out or repriced"]
@@ -3719,7 +3729,7 @@ stampVerdict = function(deal, data, manual)
   end
   verdicts[deal.itemID] = {
     unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
-    buyable = buyable, status = status, reason = reason,
+    buyable = buyable, unverified = unverified, status = status, reason = reason,
     stressProfit = data and data.decision and data.decision.stressProfit,
   }
   refreshRows()
@@ -3734,7 +3744,7 @@ stampVerdict = function(deal, data, manual)
   -- the player ran themselves never removes its own row (see this function's own contract) and
   -- announcing a removal that did not happen is its own lie. refreshRows above has already
   -- recomputed refusedCount, so the number quoted is the one the toggle is about to show.
-  if not manual and not buyable and not isPinned(deal.itemID) and refusedCount > 0 then
+  if not manual and not buyable and not unverified and not isPinned(deal.itemID) and refusedCount > 0 then
     setStatus((GC.L["%d hidden -- the live check refused them"]):format(refusedCount), 4)
   end
 
@@ -4685,7 +4695,7 @@ local function onDialogPrimaryClick()
     -- deal.auctionID, and the completion line quotes deal.unitPrice * deal.qty, the same
     -- unit * qty = total convention the commodity path uses.
     deal.auctionID = candidate.auctionID
-    deal.qty = candidate.quantity or 1
+    deal.qty = math.max(1, candidate.quantity or 1) -- never 0: unitPrice divides by it below
     deal.unitPrice = math.floor(candidate.buyout / deal.qty)
     pendingAuction[deal.auctionID] = row
     -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit

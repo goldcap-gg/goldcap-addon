@@ -695,6 +695,35 @@ describe("Deals background verification", function()
     assert.equal("AVOID", api.rows[1].buy.label)
   end)
 
+  -- Sniper phase 2. A realm lot is never buyable and never will be, but a check that found one
+  -- under its region reference did not REFUSE it -- it is the offer. Pruned as a refusal, every
+  -- realm row left the board at the exact moment its own check finally had something to say.
+  it("keeps an unverified realm row the check found a lot for, and does not count it as refused", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d, deal(2, 200) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+
+    stamp(d, { isCommodity = false, decision = {
+      status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+      candidate = { auctionID = 7, buyout = 90, itemLevel = 623, quantity = 1 },
+    } })
+
+    local list = api.renderList()
+    assert.equal(2, #list)
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    assert.is_true(api.verdicts[1].unverified)
+    assert.is_false(api.verdicts[1].buyable)
+
+    -- A realm check that found nothing to buy IS a refusal, and prunes like any other.
+    stamp(d, { isCommodity = false, decision = {
+      status = "AVOID", buyable = false, reasons = { "no_comparable_lot" },
+    } })
+    assert.equal(1, #api.renderList())
+    assert.equal(1, upvalue(api.renderList, "refusedCount"))
+  end)
+
   it("does not let a background re-check quietly hide what the player kept", function()
     local api = loadSniper(avoid)
     local d = deal(1, 100)
