@@ -377,11 +377,15 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   local sniperSettings = GC.db and GC.db.settings and GC.db.settings.sniper or nil
   local absorbHours = sniperSettings and sniperSettings.wallAbsorbHours or nil
   local spikePct = sniperSettings and sniperSettings.spikeTrendPct or nil
-  -- The cheap-quarter line reaches RecommendPost only through here, and only while the player
+  -- The two posting ceilings reach RecommendPost only through here, and only while the player
   -- has overcut on -- RecommendPost itself never reads settings. A save without the field yet
-  -- (ApplyDefaults runs at login) counts as on, matching the default.
+  -- (ApplyDefaults runs at login) counts as on, matching the default. reach is the real
+  -- ceiling (what this item's floor actually reaches in a day, import R section); the
+  -- cheap-quarter line is the fallback for items and imports that carry no reach figure, and
+  -- both travel together so RecommendPost can say which one bound the price.
   local overcutOn = not sniperSettings or sniperSettings.overcut ~= false
   local quarterUnit = overcutOn and marketStats and marketStats.p25 or nil
+  local reachUnit = overcutOn and marketStats and marketStats.reach or nil
 
   position.ahead = GC.Flips.DepthBelow(levels, position.ownedLots[1] and position.ownedLots[1].unitPrice)
   position.outlook = GC.Flips.SellOutlook({ ahead = position.ahead, qty = position.exposureQty,
@@ -394,18 +398,19 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   if position.coverage == "COMPLETE" and position.listedQty > 0 then
     position.recommendation = GC.Flips.RepostAdvice({ paidUnit = position.knownCost and math.floor(position.knownCost / position.knownQty),
       marketUnit = fresh, levels = levels, sold = position.soldPerDay, qty = position.exposureQty,
-      floor = position.postFloor, quarterUnit = quarterUnit })
+      floor = position.postFloor, reachUnit = reachUnit, quarterUnit = quarterUnit })
   elseif position.coverage == "COMPLETE" then
     position.recommendation = GC.Flips.RecommendPost(position.knownCost and math.floor(position.knownCost / position.knownQty),
       fresh, position.marketValue, { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend, quarterUnit = quarterUnit })
+        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit })
   elseif positive(position.bagQty) and fresh then
     -- Stock GoldCap never bought still deserves an answer to "what should I list this at".
     -- No cost basis means no breakeven and no belowCost warning -- RecommendPost already
     -- degrades to exactly that on a nil paidUnit, rather than inventing a cost from the market.
     position.recommendation = GC.Flips.RecommendPost(nil, fresh, position.marketValue,
-      { levels = levels, sold = position.soldPerDay, floor = position.postFloor, quarterUnit = quarterUnit })
+      { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
+        reachUnit = reachUnit, quarterUnit = quarterUnit })
   else
     position.recommendation = nil
   end
@@ -438,7 +443,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
     position.postRecommendation = GC.Flips.RecommendPost(paidUnit, fresh, position.marketValue,
       { levels = levels, sold = position.soldPerDay, floor = position.postFloor,
         targetUnit = targetUnit, absorbHours = absorbHours, spikePct = spikePct,
-        trendPct = marketStats and marketStats.trend, quarterUnit = quarterUnit })
+        trendPct = marketStats and marketStats.trend, reachUnit = reachUnit, quarterUnit = quarterUnit })
   else
     position.postRecommendation = nil
   end

@@ -2,11 +2,13 @@ local helper = require("spec.spec_helper")
 
 -- Part 0 of the posting-queue design (2026-08-17): warcraft.wiki.gg, verbatim, on
 -- PostCommodity's unitPrice and PostItem's bid/buyout -- "Amount in copper, only accepts gold
--- and silver and silently fails for non-zero copper counts." GC.Flips.RecommendPost's undercut
--- mode used to return `marketUnit - 1`; against a whole-silver competitor -- the only kind that
--- can exist, since a non-whole-silver post could never have gone through in the first place --
--- that is always exactly one copper short of a silver, so every undercut post failed with no
--- error the player could see. This file is the property the fix exists to satisfy: every price
+-- and silver and silently fails for non-zero copper counts." GC.Flips.RecommendPost's old
+-- undercut mode returned `marketUnit - 1`; against a whole-silver competitor -- the only kind
+-- that can exist, since a non-whole-silver post could never have gone through in the first
+-- place -- that is always exactly one copper short of a silver, so every undercut post failed
+-- with no error the player could see. That mode is gone (v2, 2026-09-10) and the property is
+-- not: the climb and its two ceilings are new sources of arbitrary copper, and every one of
+-- them still has to come out on the grid. This file is the property the fix exists to satisfy: every price
 -- either RecommendPost or SellPositions.BuildPostPlan can hand back must land on the 100-copper
 -- grid, plus the specific shapes called out in the design doc.
 describe("The silver grid (Part 0)", function()
@@ -73,48 +75,32 @@ describe("The silver grid (Part 0)", function()
     end)
   end)
 
-  describe("GC.Flips.UNDERCUT_MAX_SHARE and the match/undercut boundary", function()
-    it("is 2%", function()
-      assert.equal(0.02, GC.Flips.UNDERCUT_MAX_SHARE)
-    end)
-
-    -- Against a whole-silver competitor the undercut step is a flat 100 copper (one silver), so
-    -- the 2% share rule reduces to a threshold on marketUnit itself: 100 > marketUnit * 0.02
-    -- solves to marketUnit < 5000 copper (50 silver / 0.5g). FLAGGING: the design doc's own
-    -- prose states this as "undercut only above 5g a unit... one silver is 2% of 5g" -- but 2%
-    -- of 5g is 10 silver, not 1, and 1 silver actually IS 2% of 0.5g. With SILVER=100 and
-    -- UNDERCUT_MAX_SHARE=0.02 exactly as specified, the boundary this code implements is 50
-    -- silver (0.5g), a factor of 10 below the doc's stated 5g. The two cases below sit far
-    -- enough from that whole 0.5g-5g gap to hold under either reading, so they don't paper over
-    -- the discrepancy -- see the implementation report for the flag raised to the owner.
-    it("above the boundary: undercut lands exactly one silver below the whole-silver competitor", function()
-      local r = GC.Flips.RecommendPost(nil, 100000, nil) -- 10g
-      assert.equal("undercut", r.mode)
-      assert.equal(99900, r.unit)
+  -- v2 (2026-09-10) retired the undercut mode and UNDERCUT_MAX_SHARE with it: a fresh post at
+  -- the cheapest rung already sells ahead of everything on that rung, so the one-silver step
+  -- below it bought nothing and the share rule had nothing left to decide. What survives is the
+  -- property the share rule existed to protect -- a match price is the competitor's own price,
+  -- and it is whole silver at every scale.
+  describe("match, at the competitor's own whole-silver price", function()
+    it("at 10g a unit", function()
+      local r = GC.Flips.RecommendPost(nil, 100000, nil)
+      assert.equal("match", r.mode)
+      assert.equal(100000, r.unit)
       assert.equal(0, r.unit % 100)
     end)
 
-    it("below the boundary: match, at the competitor's own (whole-silver) price", function()
-      local r = GC.Flips.RecommendPost(nil, 3000, nil) -- 30s
+    it("at 30s a unit", function()
+      local r = GC.Flips.RecommendPost(nil, 3000, nil)
       assert.equal("match", r.mode)
       assert.equal(3000, r.unit)
     end)
 
-    it("a competitor priced at exactly one silver never produces 0 or a sub-silver price", function()
-      local r = GC.Flips.RecommendPost(nil, 100, nil)
-      assert.is_not_nil(r)
-      assert.is_true(r.unit > 0)
-      assert.equal(0, r.unit % 100)
-    end)
-
-    -- The grid has no rung below one silver, so at an ask of exactly one silver the clamp hands
-    -- back the ask itself and the zero-copper step sails through the share test. The price is
-    -- right either way; what must not happen is the row announcing "undercutting" while posting
-    -- at precisely the competitor's number.
-    it("calls it a match, not an undercut, when the grid leaves no room to go lower", function()
+    -- The grid has no rung below one silver. Whatever else changes, the price handed back at
+    -- the very bottom of the grid must never be 0 or a sub-silver number the AH would refuse.
+    it("at exactly one silver, never 0 and never sub-silver", function()
       local r = GC.Flips.RecommendPost(nil, 100, nil)
       assert.equal("match", r.mode)
       assert.equal(100, r.unit)
+      assert.equal(0, r.unit % 100)
     end)
   end)
 
@@ -219,9 +205,15 @@ describe("The silver grid (Part 0)", function()
         local floor = coinFlip(rng) and randomAmount(rng) or nil
         local levels = randomLevels(rng, marketUnit or randomMarketUnit(rng))
         local sold = coinFlip(rng) and intIn(rng, 0, 2000) or nil
+        -- v2: the two ceilings are part of the reachable price space now, and neither is
+        -- generated on the grid -- reach24 is a percentile of an hourly series and the quarter
+        -- line is a percentile over listings, so both arrive as arbitrary copper.
+        local reachUnit = coinFlip(rng) and randomAmount(rng) or nil
+        local quarterUnit = coinFlip(rng) and randomAmount(rng) or nil
 
         local r = GC.Flips.RecommendPost(paidUnit, marketUnit, mv,
-          { levels = levels, sold = sold, floor = floor })
+          { levels = levels, sold = sold, floor = floor,
+            reachUnit = reachUnit, quarterUnit = quarterUnit })
         if r ~= nil then
           assert.is_true(r.unit > 0, "iteration " .. i .. ": unit must be positive")
           assert.equal(0, r.unit % GC.Flips.SILVER, "iteration " .. i .. ": unit must be whole silver")

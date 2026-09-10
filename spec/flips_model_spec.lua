@@ -653,19 +653,19 @@ describe("Flips row model (Sniper v3 §5)", function()
   end)
 
   describe("RecommendPost (design update)", function()
-    -- Part 0 (silver-grid fix): candidates are now normalized to whole silver, so the plain
-    -- undercut-by-1-copper number this test used to assert (499) is no longer reachable -- it
-    -- would silently fail to post. marketUnit=50000 (5g) sits well above the match/undercut
-    -- share boundary (see silver_grid_spec.lua for the derivation), so undercut still fires;
-    -- the candidate is one silver below, on the grid.
-    it("undercuts a live market quote by one whole silver", function()
+    -- v2 (2026-09-10): there is no undercut mode left. With no book to climb and no ceiling
+    -- to climb toward, a live quote is MATCHED -- a fresh post at the cheapest rung sells
+    -- ahead of everything already sitting on it, and a silver below it buys nothing the study
+    -- could measure.
+    it("matches a live market quote", function()
       local r = GC.Flips.RecommendPost(100, 50000, nil)
-      assert.equal(49900, r.unit)
+      assert.equal("match", r.mode)
+      assert.equal(50000, r.unit)
     end)
 
     -- Part 0: a price under one silver cannot be posted at all, so the grid's floor is 100
     -- copper, not 1 -- this replaces the old "floors at 1 copper" behavior.
-    it("floors the undercut candidate at one silver (never zero/sub-silver)", function()
+    it("floors the candidate at one silver (never zero/sub-silver)", function()
       local r = GC.Flips.RecommendPost(1, 1, nil)
       assert.equal(100, r.unit)
     end)
@@ -678,7 +678,7 @@ describe("Flips row model (Sniper v3 §5)", function()
     -- Part 0: same grid normalization as the first test above.
     it("prefers a live quote over mv when both are present", function()
       local r = GC.Flips.RecommendPost(100, 50000, 800)
-      assert.equal(49900, r.unit)
+      assert.equal(50000, r.unit)
     end)
 
     it("returns nil when neither marketUnit nor mv is known", function()
@@ -801,7 +801,7 @@ describe("Flips row model (Sniper v3 §5)", function()
     end)
 
     it("belowCost boundary: candidate exactly AT breakeven is NOT belowCost", function()
-      -- paidUnit=95 -> breakeven=ceil(95/0.95)=100; drive candidate to exactly 100 via mv (no -1 undercut)
+      -- paidUnit=95 -> breakeven=ceil(95/0.95)=100; drive candidate to exactly 100 via mv
       local r = GC.Flips.RecommendPost(95, nil, 100)
       assert.equal(100, r.breakeven)
       assert.equal(100, r.unit)
@@ -813,18 +813,15 @@ describe("Flips row model (Sniper v3 §5)", function()
       assert.is_false(r.belowCost)
     end)
 
-    describe("mode selection: match vs undercut (F3)", function()
-      -- Every price in this block is priced at 10g a unit, well clear of the 50-silver boundary
-      -- where a flat one-silver step stops being worth taking. These tests are about WHICH RULE
-      -- picks the mode -- tier depth and velocity -- so they must not sit at a price where the
-      -- grid's own share rule decides the answer before the tier rule is even consulted. An
-      -- earlier draft ran them at one silver, which is the one price where "undercut" cannot
-      -- exist at all; the tightest-edge-of-the-grid cases live in spec/silver_grid_spec.lua,
-      -- where they belong.
-      it("plain 3-arg call (no opts) still undercuts, mode='undercut'", function()
+    -- v2 (2026-09-10): every one of these ends in match. The tier-velocity rule (F3) and the
+    -- one-silver undercut it chose between are both gone -- newest-first collapsed them into
+    -- the same answer -- so what these pin now is that the DEFAULT is match in every shape of
+    -- missing input, and that only the climb (spec/overcut_spec.lua) can move off it.
+    describe("mode selection: match is what is left when the climb declines", function()
+      it("plain 3-arg call (no opts) matches, mode='match'", function()
         local r = GC.Flips.RecommendPost(50000, 100000, nil)
-        assert.equal("undercut", r.mode)
-        assert.equal(99900, r.unit)
+        assert.equal("match", r.mode)
+        assert.equal(100000, r.unit)
       end)
 
       it("mode is nil in the no-quote (mv) fallback branch, even with opts present", function()
@@ -833,56 +830,44 @@ describe("Flips row model (Sniper v3 §5)", function()
         assert.equal(800, r.unit)
       end)
 
-      it("recommends match when sold covers 2x the cheapest tier's depth", function()
-        -- cheapest tier (unitPrice=100) depth = 5+5=10; sold=20 -> 20 >= 2*10 -> match
+      it("matches with a book and a velocity but no ceiling to climb toward", function()
         local levels = {
           { unitPrice = 100, quantity = 5 }, { unitPrice = 100, quantity = 5 }, { unitPrice = 200, quantity = 50 },
         }
         local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 20 })
         assert.equal("match", r.mode)
-        assert.equal(100, r.unit) -- matches the ask, no -1c undercut
+        assert.equal(100, r.unit)
       end)
 
-      it("boundary: sold exactly 2x tierDepth triggers match", function()
-        local levels = { { unitPrice = 100, quantity = 10 } }
-        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 20 })
-        assert.equal("match", r.mode)
-      end)
-
-      it("boundary: sold just under 2x tierDepth stays undercut", function()
+      -- The old F3 boundary: a cheapest tier that turns over slowly used to mean undercut.
+      -- It means match now, like everything else without a ceiling.
+      it("matches even when the cheapest tier turns over slowly", function()
         local levels = { { unitPrice = 100000, quantity = 10 } }
         local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = levels, sold = 19 })
-        assert.equal("undercut", r.mode)
-        assert.equal(99900, r.unit) -- one whole silver below, the smallest step the grid allows
+        assert.equal("match", r.mode)
+        assert.equal(100000, r.unit)
       end)
 
-      it("only counts levels priced exactly at the cheapest tier toward tierDepth", function()
-        -- tierDepth = 3 (only the 100-priced level); sold=6 -> 6 >= 2*3 -> match
-        local levels = { { unitPrice = 100, quantity = 3 }, { unitPrice = 150, quantity = 100 } }
-        local r = GC.Flips.RecommendPost(50, 100, nil, { levels = levels, sold = 6 })
+      it("matches when opts.levels is missing", function()
+        local r = GC.Flips.RecommendPost(50000, 100000, nil, { sold = 1000 })
         assert.equal("match", r.mode)
       end)
 
-      it("falls back to undercut when opts.levels is missing", function()
-        local r = GC.Flips.RecommendPost(50000, 100000, nil, { sold = 1000 })
-        assert.equal("undercut", r.mode)
-      end)
-
-      it("falls back to undercut when opts.levels is empty (no levels[1] to read a cheapest price from)", function()
+      it("matches when opts.levels is empty", function()
         local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = {}, sold = 1000 })
-        assert.equal("undercut", r.mode)
+        assert.equal("match", r.mode)
       end)
 
-      it("falls back to undercut when opts.sold is missing", function()
+      it("matches when opts.sold is missing", function()
         local levels = { { unitPrice = 100000, quantity = 1 } }
         local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = levels })
-        assert.equal("undercut", r.mode)
+        assert.equal("match", r.mode)
       end)
 
-      it("falls back to undercut when opts.sold is zero (never a match with no measured velocity)", function()
+      it("matches when opts.sold is zero", function()
         local levels = { { unitPrice = 100000, quantity = 1 } }
         local r = GC.Flips.RecommendPost(50000, 100000, nil, { levels = levels, sold = 0 })
-        assert.equal("undercut", r.mode)
+        assert.equal("match", r.mode)
       end)
 
       it("belowCost/breakeven are still computed correctly in match mode", function()

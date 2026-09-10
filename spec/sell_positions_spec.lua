@@ -137,6 +137,33 @@ describe("Sell positions", function()
     assert.is_nil(seen.quarterUnit)
   end)
 
+  -- The reach line crosses the same seam, from statsByItemID.reach, and rides alongside the
+  -- quarter line rather than replacing it: RecommendPost decides which one binds.
+  it("hands the reach line to the post recommendation while overcut is on", function()
+    GC.db = { settings = { sniper = { overcut = true } } }
+    local seen
+    GC.Flips.RecommendPost = function(_, _, _, opts) seen = opts end
+    build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      statsByItemID = { [42] = { mv = 20000, sold = 40, p25 = 21000, reach = 20500 } },
+    })
+    assert.equal(20500, seen.reachUnit)
+    assert.equal(21000, seen.quarterUnit)
+  end)
+
+  it("withholds the reach line when overcut is off", function()
+    GC.db = { settings = { sniper = { overcut = false } } }
+    local seen
+    GC.Flips.RecommendPost = function(_, _, _, opts) seen = opts end
+    build({
+      acquisitions = { batch("acq:1", "auction_house", 3, 300, 1) },
+      activities = { activity("commodity:42", 42, "Herb", 1) },
+      statsByItemID = { [42] = { mv = 20000, sold = 40, p25 = 21000, reach = 20500 } },
+    })
+    assert.is_nil(seen.reachUnit)
+  end)
+
   it("hands the same cheap-quarter line to the repost advice for a listed lot", function()
     GC.db = { settings = { sniper = {} } }
     local seen
@@ -145,9 +172,10 @@ describe("Sell positions", function()
       acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
       ownedLots = { lot("commodity:42", 2, 20000, 1) },
       quotes = { [42] = { unit = 15000, at = 9, levels = { { unitPrice = 10000, quantity = 3 } } } },
-      statsByItemID = { [42] = { sold = 4, p25 = 16000 } },
+      statsByItemID = { [42] = { sold = 4, p25 = 16000, reach = 15500 } },
     })
     assert.equal(16000, seen.quarterUnit)
+    assert.equal(15500, seen.reachUnit)
   end)
 
   -- The displayed recommendation and the price Post uses must be one number. The plan already
@@ -163,7 +191,7 @@ describe("Sell positions", function()
       bagStock = { { positionKey = "commodity:42", itemID = 42, itemName = "Ore", quantity = 50,
         isCommodity = true } },
       quotes = { [42] = { unit = 10000, at = 9, levels = ladder } },
-      statsByItemID = { [42] = { mv = 12000, sold = 4000, p25 = 11000 } },
+      statsByItemID = { [42] = { mv = 12000, sold = 4000, reach = 11000 } },
     })[1]
     assert.equal("overcut", p.postRecommendation.mode)
     assert.equal(11000, p.postRecommendation.unit)
@@ -519,8 +547,8 @@ describe("Sell positions", function()
     -- ABOVE the live ask, and the bag-only branch above prices PROFIT/UNIT at that held price --
     -- correctly, it IS the price GoldCap would post at -- but nothing on the row said so, and a
     -- seller reading a green number assumed it was ordinary market profit. mv = 20000 pushes the
-    -- floor to 15000, well above the live ask of 10000, so RecommendPost's undercut candidate
-    -- (9900) gets overridden to the floor (15000, already whole-silver) before this position's
+    -- floor to 15000, well above the live ask of 10000, so RecommendPost's match candidate
+    -- (10000) gets overridden to the floor (15000, already whole-silver) before this position's
     -- profit is ever computed.
     it("prices bag-only profit at the held recommendation and flags it, when PostFloor holds the price above the live ask", function()
       local p = build({
@@ -539,9 +567,9 @@ describe("Sell positions", function()
       assert.equal(15000, p.profitAtHold)
     end)
 
-    -- Same shape, no mv: PostFloor refuses without one, so RecommendPost's own undercut
-    -- candidate (9900, already under the 10000 live ask) stands unmodified -- the ordinary
-    -- case, where the recommendation never rose above the market it is quoted against.
+    -- Same shape, no mv: PostFloor refuses without one, so RecommendPost's own match candidate
+    -- (10000, the live ask itself) stands unmodified -- the ordinary case, where the
+    -- recommendation never rose above the market it is quoted against.
     it("leaves the hold flag absent when the recommendation never rises above the live ask", function()
       local p = build({
         acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
@@ -549,7 +577,7 @@ describe("Sell positions", function()
         quotes = { [42] = { unit = 10000, at = 9 } },
       })[1]
       assert.equal("COMPLETE", p.coverage)
-      assert.equal(9900, p.postRecommendation.unit)
+      assert.equal(10000, p.postRecommendation.unit)
       assert.is_nil(p.profitAtHold)
       assert.is_not_nil(p.profit)
     end)
@@ -577,8 +605,8 @@ describe("Sell positions", function()
       assert.equal(15000, p.profitAtHold)
     end)
 
-    -- And the mirror: same mixed split, no mv, so the recommendation (9900) stays under the
-    -- ask and the flag stays absent.
+    -- And the mirror: same mixed split, no mv, so the recommendation (10000) matches the ask
+    -- rather than rising above it, and the flag stays absent.
     it("leaves the hold flag absent on a mixed position when the recommendation stays under the ask", function()
       local p = build({
         acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
@@ -587,7 +615,7 @@ describe("Sell positions", function()
         quotes = { [42] = { unit = 10000, at = 9 } },
       })[1]
       assert.equal("COMPLETE", p.coverage)
-      assert.equal(9900, p.postRecommendation.unit)
+      assert.equal(10000, p.postRecommendation.unit)
       assert.is_nil(p.profitAtHold)
       assert.is_not_nil(p.profit)
     end)
@@ -811,14 +839,11 @@ describe("Sell positions", function()
     assert.is_nil(p.profit)
   end)
 
-  -- Part 0 (silver-grid fix): this fixture originally priced the item at 150 copper (1s50c),
-  -- well under the match/undercut share boundary (50 silver -- see silver_grid_spec.lua for the
-  -- derivation), so RecommendPost now correctly recommends MATCH there instead of undercut --
-  -- and match's candidate (100, the grid floor) sits below this fixture's breakeven, flipping
-  -- the whole RepostAdvice outcome to hold/loss. Every copper figure below is scaled by 100x
-  -- (same ratios, same shape) to land back in "ordinary item worth a couple silver" territory,
-  -- comfortably above the boundary, so the test goes back to demonstrating what it's actually
-  -- for: ahead/outlook flowing through into a repost recommendation.
+  -- The figures here are scaled up from the original 150-copper fixture so the item is worth
+  -- an ordinary couple of silver: at the very bottom of the grid the recommendation lands on
+  -- the 100-copper clamp, under this fixture's breakeven, and the whole RepostAdvice outcome
+  -- flips to hold/loss for a reason that has nothing to do with what the test is for --
+  -- ahead/outlook flowing through into a repost recommendation.
   it("carries measured outlook and a pure recommendation rather than a status label", function()
     local p = build({ acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
       ownedLots = { lot("commodity:42", 2, 20000, 1) },
@@ -827,18 +852,17 @@ describe("Sell positions", function()
     assert.equal(3, p.ahead)
     assert.equal(4, p.soldPerDay)
     assert.equal("repost", p.recommendation.action)
-    assert.equal(14900, p.recommendation.rec.unit)
+    assert.equal(15000, p.recommendation.rec.unit)
     assert.equal(10527, p.recommendation.rec.breakeven)
   end)
 
-  -- Part 0: same reason as the test above -- scaled by 100x to sit above the match/undercut
-  -- share boundary so this still demonstrates an undercut decision.
+  -- Same scaling as the test above, for the same reason.
   it("carries a direct RecommendPost decision for unlisted exact stock and no fallback without a quote", function()
     local advised = build({ acquisitions = { batch("acq:1", "goldcap", 2, 20000, 1) },
       quotes = { [42] = { unit = 15000, at = 9, levels = { { unitPrice = 15000, quantity = 3 } } } },
       statsByItemID = { [42] = { sold = 5 } } })[1]
-    assert.equal(14900, advised.recommendation.unit)
-    assert.equal("undercut", advised.recommendation.mode)
+    assert.equal(15000, advised.recommendation.unit)
+    assert.equal("match", advised.recommendation.mode)
     assert.equal(10527, advised.recommendation.breakeven)
     assert.equal(5, advised.soldPerDay)
     local noQuote = build({ acquisitions = { batch("acq:2", "goldcap", 1, 100, 1) } })[1]

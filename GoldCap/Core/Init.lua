@@ -63,11 +63,11 @@ GC.DEFAULTS = {
       autoOpen = true,
       auto = false,
       sound = true,
-      -- Sell tab: post one occupied rung above the cheapest ask when the book says that sells
-      -- just as fast, never above the server's cheap-quarter line (Flips.RecommendPost's
-      -- overcut mode; docs/superpowers/specs/2026-09-04-sell-overcut-design.md). On by default
-      -- because the measurement says so; off restores match/undercut exactly. ApplyDefaults
-      -- fills it in on existing saves.
+      -- Sell tab: post at the highest occupied rung the item's floor still reaches within a
+      -- day, when the queue under it fits the item's own turnover (Flips.RecommendPost's
+      -- overcut mode; docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). On by
+      -- default because the measurement says so; off posts at the cheapest ask instead.
+      -- ApplyDefaults fills it in on existing saves.
       overcut = true,
       -- Whether the deals list shows rows the background live check has refused. Off by
       -- default: the point of checking in the background is that the list stops offering

@@ -379,51 +379,58 @@ function GC.Flips.EnrichOrphanRow(orphanRow, quote, stats)
   return row
 end
 
---- The row tooltip's "Recommended post" line (design update to the Sell-tab upgrade, per
--- direct player feedback: a price recommendation with a visible breakeven floor, not just a
--- bare status chip). Pure: `paidUnit`/`marketUnit`/`mv` are whatever the caller already has on
--- hand -- see UI/SellFrame.lua's createRow OnEnter for exactly what it passes as each.
+--- The row tooltip's "Recommended post" line -- and, because the Sell tab shows one price in
+-- three places, the number the Post button actually posts at (see UI/SellFrame.lua's
+-- onPostClick and Core/SellPositions.lua's BuildPostPlan). Pure: `paidUnit`/`marketUnit`/`mv`
+-- are whatever the caller already has on hand.
 --
--- candidate: undercut the live ask by one whole silver (`SilverDown(marketUnit - 1)`) when a
--- fresh quote exists AND the item is worth enough that one silver is a small share of the price;
--- otherwise fall back to `mv` (whatever the caller decided "the best available market read"
--- means when there's no live quote -- see the cross-reference comment on UI/SellFrame.lua's
--- onPostClick for why the row tooltip specifically feeds this flip.targetUnit rather than a
--- second, independently-fresh GC.Data.GetItemValue read: it must never show a different number
--- than what Post would actually post at). Every candidate is normalized to the 100-copper grid
--- (see GC.Flips.SilverDown/SilverUp below) -- PostCommodity/PostItem silently reject anything
--- else. nil candidate (both marketUnit and mv unknown) means nothing to recommend.
+-- v2, 2026-09-10 (docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). A post at
+-- unit price X sells within the day when the item's own floor visits X within the day. So the
+-- ceiling for climbing above the cheapest ask is `opts.reachUnit` -- reach24, the price this
+-- item's floor actually reached within 24 hours, measured from its own hourly history and
+-- carried in the import's R section. It is NOT a rank in today's book: p25 over LISTINGS put a
+-- Stinky Bright Potion at 209g over a 93g floor, because two dozen one-unit lots at 150-300g
+-- dragged the quarter line into a range nobody buys in. `opts.quarterUnit` survives only as
+-- the fallback for imports that predate R, and is capped there at `ask * 1.10`.
 --
--- breakeven: the unit price at which the AH's 5% cut exactly cancels out what was paid --
--- ceil (not floor) so a rounded-down breakeven couldn't itself understate a loss. nil whenever
+-- The rules, in order:
+--
+--   1. Climb, mode "overcut" (GC.Flips.OvercutCandidate below): the highest occupied rung at
+--      or under the cap whose units queued STRICTLY below it fit OVERCUT_ABSORB_HOURS of the
+--      item's measured daily sales. The rung's own units are not counted -- within one price
+--      level the newest lot sells first (284 of 287 items in the study), so a fresh post joins
+--      the head of the rung, never its tail.
+--   2. A synthetic rung AT the cap when no occupied rung qualified -- and only when a stocked
+--      level is visible ABOVE the cap, the same proof F5 demands of its own ceiling.
+--   3. Otherwise match, mode "match": the cheapest ask itself, on the grid. There is no
+--      "undercut" mode any more. Undercutting the cheapest rung by a silver buys nothing the
+--      study could measure (the paired test straddles zero), and a made-up rung one silver
+--      ABOVE the cheapest puts the post behind that entire rung to gain one silver. Both
+--      collapse into match once newest-first is known. The Sell tab's manual UNDERCUT chip
+--      keeps its own arithmetic (UI/SellFrame.lua) -- that is a price the player asked for,
+--      not one this function recommends.
+--   4. No live quote at all: `mv` on the grid, mode nil -- there is no ask to match.
+--   5. F5, queue-at-exit, for a flip carrying the exit it was underwritten at
+--      (opts.targetUnit) -- capped by reachUnit too: an approved exit above what the floor
+--      reaches in a day is a hold, not a post.
+--   6. The floor guard (opts.floor, see GC.Flips.PostFloor) runs LAST and rounds UP.
+--
+-- Every candidate is normalised onto the 100-copper grid (GC.Flips.SilverDown/SilverUp below)
+-- -- PostCommodity/PostItem silently reject anything else. A nil candidate (neither marketUnit
+-- nor mv known) means there is nothing to recommend, and the whole return is nil.
+--
+-- breakeven: the unit price at which the AH's 5% cut exactly cancels out what was paid -- ceil
+-- (not floor) so a rounded-down breakeven could not itself understate a loss. nil whenever
 -- paidUnit is unknown (an orphan row -- no recorded purchase, so no cost basis to break even
--- against; RecommendPost is deliberately not called for those rows at all, per the file header
--- above and UI/SellFrame.lua's OnEnter). Deliberately left UNNORMALIZED -- it is a displayed
--- threshold to compare a price against, never itself posted, so there is nothing for it to fail
--- to post at.
+-- against). Deliberately left UNNORMALIZED: it is a threshold to compare a price against,
+-- never itself posted, so there is nothing here for the grid to protect.
 --
--- belowCost: true when the recommended candidate would sell at a loss even before the 5% cut is
--- accounted for a second time -- i.e. candidate itself sits below the price where costs are
--- merely recovered. Surfaced as a loud, separate warning line rather than folded into the main
--- recommendation text.
+-- belowCost: true when the recommended candidate sits under that breakeven -- surfaced as a
+-- loud, separate warning line rather than folded into the recommendation text.
 --
--- F3 ("match, don't undercut"): `opts = { levels, sold }` (both optional; omitting either falls
--- through to the undercut/match choice below). Racing to the bottom one silver at a time is
--- wasted effort when the CHEAPEST price tier sells out fast enough that being anywhere IN that
--- tier is enough -- buyers consume the whole tier, not just the single lowest listing, so
--- undercutting it buys nothing but a smaller margin. When marketUnit, opts.levels (with a first
--- entry -- levels is assumed pre-sorted ascending, same convention DepthBelow's callers already
--- follow) and a positive opts.sold are ALL present: tierDepth sums quantity across every level
--- priced exactly at the book's own cheapest unit price. `opts.sold >= 2 * tierDepth` -- "the
--- whole cheapest tier turns over in half a day or less at current velocity" -- is a deliberately
--- coarse rule of thumb, not a probability model: sold/day is a single realm-wide daily figure
--- (GC.Data.GetItemValue), not a real-time fill-rate feed, so there is no honest way to derive a
--- sharper threshold from it. When it holds, mode="match" and the candidate becomes (a
--- grid-normalized) marketUnit itself; otherwise the match-vs-undercut choice falls to the
--- silver-grid share rule below, which is its own, independent reason to match (Part 0 of the
--- posting-queue design, 2026-08-17) -- either reason alone is sufficient, and this tier/velocity
--- rule keeps the precedence it already had. The no-quote (mv) fallback branch always leaves mode
--- nil -- there is no ask to match OR undercut, so neither label applies.
+-- `cap` and `capBy` ("reach" or "quarter") ride back on the return so the UI can name the line
+-- that bound the price, and `ahead` is the queue a climbing post would join behind.
+
 -- How far below the item's market value a live ask may sit before it stops being
 -- a price and starts being noise. Ordinary undercutting runs a few percent; a
 -- quarter off is not a market, it is one seller in a hurry.
@@ -579,153 +586,137 @@ function GC.Flips.SilverUp(copper)
   return math.max(GC.Flips.SILVER, math.ceil(copper / GC.Flips.SILVER) * GC.Flips.SILVER)
 end
 
--- The largest share of a unit's price a flat one-silver undercut is allowed to cost before
--- match wins instead. Against a whole-silver competitor (every real one, per the file header
--- above) the only undercut the grid allows is a flat 100 copper below, so solving
--- `SILVER > marketUnit * UNDERCUT_MAX_SHARE` puts the actual boundary this code implements at
--- marketUnit = 5,000 copper (50 silver / 0.5g): below that, a flat silver eats more than 2% of
--- the price and match wins; at 50s and above, the step is cheap enough that undercutting is
--- still worth it.
-GC.Flips.UNDERCUT_MAX_SHARE = 0.02
-
--- Overcut. The position-in-the-book study (docs/research/2026-08-31-position-in-the-book.md,
--- design in docs/superpowers/specs/2026-09-04-sell-overcut-design.md) measured the 24h sale
--- rate at the cheapest ask and anywhere inside the cheapest quarter of an item's listings as a
--- tie (82.1% vs 82.8% US, 81.5% vs 81.4% EU), and found that inside one price level the newest
--- lot sells first. So a fresh post one OCCUPIED rung above the cheapest ask joins the head of
--- that rung: same units ahead as a made-up rung a silver lower, and it pays more.
+-- Overcut v2 (docs/superpowers/specs/2026-09-10-sell-reach-pricing-design.md). The
+-- position-in-the-book study (docs/research/2026-08-31-position-in-the-book.md) measured the
+-- 24h sale rate at the cheapest ask and anywhere inside the cheapest quarter of an item's
+-- listings as a tie (82.1% vs 82.8% US, 81.5% vs 81.4% EU), and found that inside one price
+-- level the newest lot sells first. So a fresh post on an OCCUPIED rung above the cheapest ask
+-- joins the head of that rung: the same units ahead of it as a made-up rung a silver lower,
+-- and it pays more.
 --
--- Two guards keep that honest per item. The rung must sit under the server's quarter line
--- (opts.quarterUnit -- p25 over listings, the client cannot see listing counts and its book is
--- cut at 100 levels), and the units queued at or below it must fit OVERCUT_ABSORB_HOURS of the
--- item's measured daily sales. The band average cannot see a wall just under p25; the budget
--- can. Six hours rather than wallAbsorbHours' two: this is not reaching a flip's approved exit,
--- it is landing inside the 24h horizon the study measured with room for sellers who arrive
--- after you.
+-- Two things changed in v2: the ceiling, and the counting.
 --
--- Returns the grid-normalised unit and the units strictly below it, or nil when the mode does
--- not apply: no book, no velocity, no quarter line, cap at or under the cheapest, or the
--- cheapest tier alone exceeds the budget (90k units at 5g moving 22k a day -- match, don't climb).
+-- The ceiling is `opts.reachUnit` -- reach24, the price this item's floor actually rose to
+-- within a day, from its own hourly history. v1 used the server's p25 over LISTINGS, and a
+-- book with two big rungs at 93-94g plus two dozen one-unit lots at 150-300g has its
+-- listing-p25 at 209g: a price nobody buys at, recommended at a 170% premium over the floor.
+-- p25 is a fine BAND on average (the median item's sits 8-10% over the floor) and a
+-- catastrophe on the tail the average hides -- so `opts.quarterUnit` stays only as the
+-- fallback for imports that predate the R section, allowed the band (QUARTER_CAP_SHARE) and
+-- nothing beyond it.
+--
+-- The counting is now STRICTLY below the rung. A post at an occupied rung sells ahead of
+-- everything already sitting on it (newest-first), so that rung's own stock is behind the new
+-- post, not in front of it. What those units must fit -- OVERCUT_ABSORB_HOURS of the item's
+-- measured daily sales -- is unchanged, and is the guard against a fresh wall: 90k units at 5g
+-- moving 22k a day is a match, not a climb. Six hours rather than wallAbsorbHours' two: this
+-- is not reaching a flip's approved exit, it is landing inside the 24h horizon the study
+-- measured, with room for the sellers who arrive after you.
+--
+-- Gone with v1: the synthetic rung one silver above the cheapest ask. It put the post behind
+-- the entire cheapest rung in exchange for one silver.
+--
+-- Returns unit, ahead, cap, capBy. cap and capBy come back even when there is no candidate, so
+-- the caller can still name the line that was in force. unit is nil when the mode does not
+-- apply: no book, no velocity, no ceiling, a cap at or under the cheapest ask, or nothing
+-- reachable inside the budget.
 GC.Flips.OVERCUT_ABSORB_HOURS = 6
+
+-- How far above the cheapest ask the cheap-quarter FALLBACK may reach on its own -- the band
+-- the study measured, and not a copper more. Unused for any item whose import carries a reach
+-- line; it exists so a build running against an older string still cannot repeat the 209g
+-- recommendation that made v1 wrong.
+GC.Flips.QUARTER_CAP_SHARE = 1.10
 
 function GC.Flips.OvercutCandidate(marketUnit, opts)
   opts = opts or {}
-  if not marketUnit or not opts.levels or not opts.levels[1] then return nil end
+  if not marketUnit then return nil end
+
+  -- The ceiling, and which line set it. Computed before every early return below so a caller
+  -- that gets no candidate still learns what was binding.
+  local cap, capBy
+  local reach = type(opts.reachUnit) == "number" and opts.reachUnit > 0 and opts.reachUnit or nil
+  local quarter = type(opts.quarterUnit) == "number" and opts.quarterUnit > 0 and opts.quarterUnit or nil
+  if reach then
+    cap, capBy = GC.Flips.SilverDown(reach), "reach"
+  elseif quarter then
+    cap, capBy = GC.Flips.SilverDown(math.min(quarter, marketUnit * GC.Flips.QUARTER_CAP_SHARE)), "quarter"
+  end
+
+  if not opts.levels or not opts.levels[1] then return nil, nil, cap, capBy end
   -- `opts.sold ~= opts.sold` catches NaN (a 0/0 upstream, say) -- `<= 0` alone lets it through,
   -- since every comparison against NaN is false, which would turn the budget below into NaN and
-  -- silently disable every `queued > budget` guard in this function. Fail closed, same
-  -- convention as SilverDown/SilverUp's own NaN check.
-  if type(opts.sold) ~= "number" or opts.sold ~= opts.sold or opts.sold <= 0 then return nil end
-  if type(opts.quarterUnit) ~= "number" or opts.quarterUnit <= 0 then return nil end
-  local cap = GC.Flips.SilverDown(opts.quarterUnit)
-  if not cap or cap <= marketUnit then return nil end
+  -- silently disable every budget guard in this function. Fail closed, same convention as
+  -- SilverDown/SilverUp's own NaN check.
+  if type(opts.sold) ~= "number" or opts.sold ~= opts.sold or opts.sold <= 0 then
+    return nil, nil, cap, capBy
+  end
+  if not cap or cap <= marketUnit then return nil, nil, cap, capBy end
 
   local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
 
-  -- The synthetic candidate below is one grid step above the cheapest ask -- but an occupied
-  -- OFF-GRID rung can sit anywhere in (marketUnit, step) and round DOWN onto marketUnit, so it
-  -- never surfaces as its own occupied rung in the ranked walk below, and a post at STEP still
-  -- queues behind it. Counting only levels at-or-below marketUnit undercounts that queue by
-  -- exactly the off-grid stock between the ask and the step. The full queue BELOW STEP is what
-  -- a candidate at STEP would actually join behind, so both the budget gate and the reported
-  -- `ahead` for the synthetic candidate use it -- conservative in both directions: a smaller
-  -- eligible budget, and a larger reported queue. Computed independently of the ranked walk
-  -- below, which breaks out as soon as a single step pushes the cumulative queue over budget
-  -- and so cannot be trusted to have counted every level below STEP either.
-  local step = GC.Flips.SilverUp(marketUnit + 1)
-  local totalBelowStep = 0
-  if step then
-    for _, lvl in ipairs(opts.levels) do
-      if lvl.unitPrice < step then
-        totalBelowStep = totalBelowStep + (lvl.quantity or 0)
-      end
-    end
-  end
-  local cheapestFits = step ~= nil and totalBelowStep <= budget
-
-  local queued = 0
-  local best
+  -- One ascending pass. `below` is the units queued STRICTLY below the level being looked at:
+  -- a level's own quantity is folded in only once the price changes, so two entries sharing a
+  -- price (which a commodity book never has, but a caller's own lot list can) are treated as
+  -- the one rung they are.
+  local best, sawAboveCap = nil, false
+  local below, pendingPrice, pendingQty = 0, nil, 0
   for _, lvl in ipairs(opts.levels) do
+    local price = lvl.unitPrice
     local qty = lvl.quantity or 0
-    if qty > 0 then
-      if lvl.unitPrice > cap then break end
-      queued = queued + qty
-      if queued > budget then break end
-      if lvl.unitPrice > marketUnit then best = lvl.unitPrice end
+    if pendingPrice ~= nil and price ~= pendingPrice then
+      below = below + pendingQty
+      pendingQty = 0
+    end
+    pendingPrice, pendingQty = price, pendingQty + qty
+    if price > cap then
+      -- Levels arrive ascending and the book is cut at 100 of them, so a stocked level above
+      -- the cap is a fact worth remembering: it proves everything BELOW the cap was visible
+      -- and counted. See the synthetic branch after the loop.
+      if qty > 0 then sawAboveCap = true end
+    elseif qty > 0 and price > marketUnit and below <= budget then
+      -- An occupied rung can sit within one silver of the ask and round DOWN onto it on the
+      -- grid -- that is the match price wearing the overcut label, not a step up -- so a
+      -- normalised price that is not actually ahead of the ask is no candidate at all.
+      -- Eligibility is monotone in the price (the queue below a rung only grows as the rung
+      -- rises), so the last one this loop accepts is the highest one there is.
+      local normalized = GC.Flips.SilverDown(price)
+      if normalized and normalized > marketUnit then best = normalized end
     end
   end
-  if best then
-    local normalized = GC.Flips.SilverDown(best)
-    -- An occupied rung can sit within one silver of the ask and round DOWN onto it on the grid
-    -- -- that is the match price wearing the overcut label, not a step up, and it would report
-    -- the queue at the wrong rung besides. Fall through to the synthetic-step branch instead of
-    -- returning a price that isn't actually ahead of marketUnit.
-    if normalized and normalized > marketUnit then
-      -- Counting units strictly below the RAW rung `best` would be wrong: the candidate actually
-      -- POSTS at `normalized`, which SilverDown can put below `best` -- an off-grid rung folds
-      -- down onto the same grid price an occupied rung already held (the 10550 case, folding
-      -- onto 10500), and the units AT that occupied rung are queued alongside the new post, not
-      -- below it. Count strictly below the NORMALISED price actually posted, same fix as the
-      -- synthetic step above.
-      local aheadOfNormalized = 0
-      for _, lvl in ipairs(opts.levels) do
-        if lvl.unitPrice < normalized then
-          aheadOfNormalized = aheadOfNormalized + (lvl.quantity or 0)
-        end
-      end
-      return normalized, aheadOfNormalized
-    end
-  end
-  if not cheapestFits then return nil end
-  -- No occupied rung under the cap: one grid step above the cheapest, if that stays under it.
-  if step and step <= cap then return step, totalBelowStep end
-  return nil
+
+  -- `ahead` counts the units strictly below the price actually POSTED, not below the raw rung:
+  -- SilverDown can fold an off-grid rung onto a grid price an occupied rung already holds
+  -- (10550 onto 10500), and those units queue alongside the new post rather than below it.
+  if best then return best, GC.Flips.DepthBelow(opts.levels, best), cap, capBy end
+
+  -- No occupied rung qualified: the cap itself, but only with a stocked level visible above
+  -- it. A book that simply ENDS under the cap proves nothing about the units between its last
+  -- rung and the cap -- jumping past the end of a truncated book is how a post lands above a
+  -- queue nobody measured. Same proof F5 demands below.
+  local belowCap = GC.Flips.DepthBelow(opts.levels, cap) or 0
+  if sawAboveCap and belowCap <= budget then return cap, belowCap, cap, capBy end
+  return nil, nil, cap, capBy
 end
 
 function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   opts = opts or {}
-  local mode, candidate, overcutAhead
+  local mode, candidate, overcutAhead, cap, capBy
 
-  -- Overcut runs FIRST. F3 below fires for nearly every liquid commodity (its condition is
-  -- "the cheapest tier turns over in half a day"), and the study says F3's answer -- match the
-  -- cheapest -- is never better than one rung up inside the quarter. Overcut is F3's
-  -- refinement, not an exception to it; when it declines, F3 and everything after run as before.
+  -- Climb first, match second: the study says matching the cheapest ask is never better than a
+  -- rung above it that the floor still reaches, so match is what is left when the climb
+  -- declines -- not a rule the climb has to overrule.
   if marketUnit then
-    local over, ahead = GC.Flips.OvercutCandidate(marketUnit, opts)
+    local over, ahead, capUnit, capSource = GC.Flips.OvercutCandidate(marketUnit, opts)
+    cap, capBy = capUnit, capSource
     if over then mode, candidate, overcutAhead = "overcut", over, ahead end
   end
 
-  -- Tier-depth/velocity match (F3, unchanged precedence): candidate is grid-normalized too,
-  -- defensively -- a live marketUnit should already be whole silver (it couldn't have posted
-  -- otherwise), so this is a no-op on every real input, and a fail-closed guard against whatever
-  -- reaches this function with a marketUnit that isn't.
-  if not mode and marketUnit and opts.levels and opts.levels[1] and opts.sold and opts.sold > 0 then
-    local cheapest = opts.levels[1].unitPrice
-    local tierDepth = 0
-    for _, lvl in ipairs(opts.levels) do
-      if lvl.unitPrice == cheapest then tierDepth = tierDepth + (lvl.quantity or 0) end
-    end
-    if opts.sold >= 2 * tierDepth then
-      mode, candidate = "match", GC.Flips.SilverDown(marketUnit)
-    end
-  end
-
-  -- Silver-grid share rule (Part 0): a second, independent reason to match. Either this or the
-  -- tier/velocity rule above is sufficient on its own; neither is required when the other has
-  -- already fired.
+  -- Match. Grid-normalised defensively -- a live marketUnit is already whole silver (it could
+  -- not have been posted otherwise), so this is a no-op on every real input and a fail-closed
+  -- guard against whatever reaches this function with one that is not.
   if not mode and marketUnit then
-    local undercut = GC.Flips.SilverDown(marketUnit - 1)
-    local shareTooBig = undercut and (marketUnit - undercut) > marketUnit * GC.Flips.UNDERCUT_MAX_SHARE
-    -- `undercut < marketUnit` is not redundant with the share rule. At an ask of exactly one
-    -- silver, SilverDown's clamp -- the grid has no rung below 100 copper -- hands back the ask
-    -- itself, and a zero-copper step trivially passes the share test. Without this the row would
-    -- report "undercutting" while posting at precisely the competitor's price. The number would
-    -- have been right and the word wrong, which is the failure this whole batch is about.
-    if undercut and undercut < marketUnit and not shareTooBig then
-      mode, candidate = "undercut", undercut
-    else
-      mode, candidate = "match", GC.Flips.SilverDown(marketUnit)
-    end
+    mode, candidate = "match", GC.Flips.SilverDown(marketUnit)
   end
 
   if not mode then
@@ -742,7 +733,7 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
   -- `absorbHours` of the item's measured daily sales, that rung is reachable within the
   -- window -- post AT the highest reachable rung, capped by the target. The queue includes
   -- the rung's own stock (a new post joins that price's tail). Only positions with a target
-  -- get this: untracked bag stock keeps the match/undercut behaviour unchanged.
+  -- get this: untracked bag stock keeps the plain match behaviour unchanged.
   if opts.targetUnit and opts.levels and opts.sold and opts.sold > 0 then
     local hours = opts.absorbHours == nil and 2 or opts.absorbHours
     -- Spike deflation, same rule and threshold as the buy side (see SniperDecision's
@@ -755,7 +746,11 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     if type(opts.trendPct) == "number" and opts.trendPct > spikePct then
       target = math.floor(target / (1 + opts.trendPct / 100))
     end
-    local ceiling = GC.Flips.SilverDown(target)
+    -- v2: the reach line caps this ceiling too. An approved exit the item's floor does not
+    -- visit within a day is not a post that sells today; it is a hold, and holding is what the
+    -- lower ceiling produces -- the plain match price, with the flip's stock still in hand.
+    local reach = type(opts.reachUnit) == "number" and opts.reachUnit > 0 and opts.reachUnit or nil
+    local ceiling = GC.Flips.SilverDown(reach and math.min(target, reach) or target)
     if hours > 0 and ceiling and ceiling > candidate then
       local budget = opts.sold * hours / 24
       local best
@@ -802,6 +797,8 @@ function GC.Flips.RecommendPost(paidUnit, marketUnit, mv, opts)
     breakeven = breakeven,
     belowCost = (breakeven ~= nil and candidate < breakeven) or false,
     ahead = mode == "overcut" and overcutAhead or nil,
+    cap = cap,
+    capBy = capBy,
   }
 end
 
@@ -813,14 +810,17 @@ end
 -- comment on the armed/disarm pattern this reuses).
 -- ---------------------------------------------------------------------------
 
---- args = { paidUnit, marketUnit, mv, levels, sold, qty }. Returns nil, or
+--- args = { paidUnit, marketUnit, mv, levels, sold, qty, floor, reachUnit, quarterUnit }.
+-- Returns nil, or
 -- { action = "hold"|"repost", reason = "loss"|"slow" (hold only), rec = <RecommendPost's own
 -- return> }.
 --
 -- rec reuses GC.Flips.RecommendPost with the SAME inputs the row's own Post/tooltip flow already
 -- computes from -- one recommendation, one derivation, reused here rather than re-derived with
--- its own copy of the match/undercut branching. A nil rec (neither marketUnit nor mv known)
--- means there is nothing to advise on yet, so RepostAdvice itself returns nil too.
+-- its own copy of the climb/match branching. A nil rec (neither marketUnit nor mv known)
+-- means there is nothing to advise on yet, so RepostAdvice itself returns nil too. Every
+-- ceiling the caller has -- reachUnit and quarterUnit both -- has to be forwarded, or a listed
+-- lot's repost would be priced against a different rule than the same item's bag stock.
 --
 -- hold/loss: rec.belowCost already means posting AT THE RECOMMENDED PRICE would lock in a loss
 -- -- cancelling the existing (possibly still break-even-or-better) lot to chase that price is
@@ -840,7 +840,8 @@ end
 function GC.Flips.RepostAdvice(args)
   args = args or {}
   local rec = GC.Flips.RecommendPost(args.paidUnit, args.marketUnit, args.mv,
-    { levels = args.levels, sold = args.sold, floor = args.floor, quarterUnit = args.quarterUnit })
+    { levels = args.levels, sold = args.sold, floor = args.floor,
+      reachUnit = args.reachUnit, quarterUnit = args.quarterUnit })
   if not rec then return nil end
 
   if rec.belowCost then

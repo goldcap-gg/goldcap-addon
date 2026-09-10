@@ -67,13 +67,12 @@ describe("PostQueue", function()
 
   -- Three plain bag-stock positions (no acquisitions, no listings): the simplest shape that
   -- reaches SellPositions' `elseif positive(bagQty) and fresh` recommendation branch, which
-  -- always yields mode="undercut" with belowCost=false (no paidUnit means no breakeven), so
+  -- always yields mode="match" with belowCost=false (no paidUnit means no breakeven), so
   -- value/order is the only thing under test here.
   --
-  -- Part 0 (silver-grid fix): quotes are whole-silver and comfortably above the match/undercut
-  -- share boundary (50 silver -- see silver_grid_spec.lua), so the undercut candidate is a
-  -- clean one silver below each quote, on the grid, with no risk of RecommendPost switching to
-  -- match mode and changing which value wins.
+  -- The quotes are whole silver and no ceiling reaches this branch, so the recommendation is
+  -- the quote itself and each position's value is exactly unit * bagQty -- no rounding step
+  -- between the number written here and the number asserted below.
   local function threeOrderedPositions(quotes)
     local positions = build({
       bagStock = {
@@ -88,9 +87,9 @@ describe("PostQueue", function()
 
   it("orders included entries by value (unitPrice * bagQty) descending", function()
     local quotes = {}
-    setQuote(quotes, 1, 10100, 10)
-    setQuote(quotes, 2, 10100, 10)
-    setQuote(quotes, 3, 50100, 10)
+    setQuote(quotes, 1, 10000, 10)
+    setQuote(quotes, 2, 10000, 10)
+    setQuote(quotes, 3, 50000, 10)
     local positions = threeOrderedPositions(quotes)
 
     local entries, skipped = GC.PostQueue.Build(positions)
@@ -157,7 +156,7 @@ describe("PostQueue", function()
     local quotes = {}
     -- Part 0 (silver-grid fix): a 100c/unit ask is exactly one silver, so the undercut candidate
     -- clamps to the grid floor (100c), not the pre-fix 99c.
-    setQuote(quotes, 50, 100, 10) -- fresh ask 100c/unit -> undercut candidate 100c/unit (grid floor)
+    setQuote(quotes, 50, 100, 10) -- fresh ask 100c/unit -> match candidate 100c/unit (grid floor)
     local positions = build({
       -- Paid 200c/unit; breakeven = ceil(200/0.95) = 211c, well above the 100c candidate.
       acquisitions = { batch("acq:1", "goldcap", 5, 1000, 1, 50, "commodity:50") },
@@ -355,7 +354,7 @@ describe("PostQueue", function()
   -- deliberately unrealistic bag quantity, the same technique BagStock's own overflow spec uses.
   it("skips a position whose value overflows exact-integer arithmetic, rather than clamping it", function()
     local quotes = {}
-    setQuote(quotes, 7, 100000001, 10) -- undercut candidate: 100000000
+    setQuote(quotes, 7, 100000001, 10) -- match candidate, on the grid: 100000000
     local positions = build({
       bagStock = { stock("commodity:7", 7, "Absurd Stack", 100000000) },
       quotes = quotes,

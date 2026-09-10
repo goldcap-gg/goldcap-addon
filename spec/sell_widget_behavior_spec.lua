@@ -1613,7 +1613,7 @@ describe("Sell widget geometry and manual cost", function()
     local GC = load(620, { calls = {} })
     GC.SellViewModel.Expansion = function()
       return { note = "FIFO allocations", batches = {}, ownedLots = {},
-        recommendation = { unit = 199, mode = "undercut", belowCost = false } }
+        recommendation = { unit = 199, mode = "match", belowCost = false } }
     end
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 1,
@@ -1645,7 +1645,7 @@ describe("Sell widget geometry and manual cost", function()
     local GC = load(620, { calls = {} })
     GC.SellViewModel.Expansion = function()
       return { note = "FIFO allocations", batches = {}, ownedLots = {},
-        recommendation = { unit = 100, mode = "undercut", belowCost = true } }
+        recommendation = { unit = 100, mode = "match", belowCost = true } }
     end
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 1,
@@ -1662,7 +1662,7 @@ describe("Sell widget geometry and manual cost", function()
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 2, trackedQty = 2, listedQty = 2, knownQty = 2, knownCost = 100,
         listedValue = 400, sources = { goldcap = 1, auction_house = 1 }, status = "LISTED",
-        recommendation = { unit = 199, mode = "undercut", breakeven = 106 },
+        recommendation = { unit = 199, mode = "match", breakeven = 106 },
         batches = {
           { id = "a", source = "goldcap", originalQty = 1, remainingQty = 1, remainingTotal = 50,
             sniperEvidenceKey = "capture:1" },

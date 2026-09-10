@@ -676,8 +676,8 @@ local function build(sniperFrame)
   toggleRow(automation, 2, GC.L["Auto-scan on next AH visit"], "auto",
     GC.L["Start scanning as soon as the auction house opens."])
 
-  -- Sell tab overcut (Core/Flips.lua, RecommendPost): one rung above the cheapest, inside the
-  -- cheap quarter. Off = today's match/undercut exactly.
+  -- Sell tab overcut (Core/Flips.lua, RecommendPost): the highest occupied rung the item's
+  -- floor still reaches within a day. Off = post at the cheapest ask.
   toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
     GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
 
