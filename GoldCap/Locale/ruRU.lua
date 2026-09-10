@@ -185,6 +185,7 @@ GC.Locales.ruRU = {
   ["If it clears"] = "Если продастся",
   ["Import"] = "Импорт",
   ["Import failed:"] = "Импорт не удался:",
+  ["Import from goldcap.gg to arm the sniper"] = "Импортируйте данные с goldcap.gg, чтобы включить снайпер",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "Установите бесплатный GoldCap Companion, чтобы цены обновлялись сами (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =

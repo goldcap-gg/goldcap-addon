@@ -187,6 +187,7 @@ GC.Locales.esES = {
   ["If it clears"] = "Si se vende",
   ["Import"] = "Importar",
   ["Import failed:"] = "Fallo al importar:",
+  ["Import from goldcap.gg to arm the sniper"] = "Importa desde goldcap.gg para activar el francotirador",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "Instala el GoldCap Companion gratuito para mantener los precios al día automáticamente (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =

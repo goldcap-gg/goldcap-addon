@@ -179,6 +179,7 @@ GC.Locales.zhTW = {
   ["If it clears"] = "若能賣出",
   ["Import"] = "匯入",
   ["Import failed:"] = "匯入失敗：",
+  ["Import from goldcap.gg to arm the sniper"] = "從 goldcap.gg 匯入資料以啟用狙擊",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "安裝免費的 GoldCap Companion 讓價格自動更新（/goldcap companion），",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =

@@ -184,6 +184,7 @@ GC.Locales.deDE = {
   ["If it clears"] = "Wenn es durchgeht",
   ["Import"] = "Importieren",
   ["Import failed:"] = "Import fehlgeschlagen:",
+  ["Import from goldcap.gg to arm the sniper"] = "Importiere von goldcap.gg, um den Sniper zu aktivieren",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "Installiere den kostenlosen GoldCap Companion, damit Preise automatisch aktuell bleiben (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =

@@ -190,6 +190,7 @@ GC.Locales.ukUA = {
   ["If it clears"] = "Якщо продасться",
   ["Import"] = "Імпорт",
   ["Import failed:"] = "Імпорт не вдався:",
+  ["Import from goldcap.gg to arm the sniper"] = "Імпортуйте дані з goldcap.gg, щоб увімкнути снайпер",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "Встановіть безкоштовний GoldCap Companion, щоб ціни оновлювались самі (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =

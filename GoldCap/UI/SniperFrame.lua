@@ -1211,6 +1211,18 @@ local function refreshStaleText()
   end
 end
 
+-- Whether the loaded import can ever arm the sniper at all -- see Core/Trigger.lua's own
+-- comment. Only the verification-fact candidates matter: GC.Trigger.For needs a stressUnit,
+-- and only those entries carry one (GC.Data.GetItemValue's own branching).
+local function anyItemArmed()
+  local imp = GC.db and GC.db.imported
+  local verification = imp and imp.verification
+  if not verification then return false end
+  local ids = {}
+  for itemID in pairs(verification) do ids[#ids + 1] = itemID end
+  return GC.Trigger.AnyArmed(ids, GC.Data.GetItemValue, GC.db.settings.sniper)
+end
+
 -- The board's empty state. An empty list used to be exactly that -- rows silently absent,
 -- with the only explanations living in a toolbar counter and a scan-completion status line
 -- that the next write erased. That is the TSM failure mode this addon exists to avoid: the
@@ -1243,6 +1255,8 @@ function GC.Sniper._UpdateEmptyState(shownCount)
         .. GC.L["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] .. "\n"
         .. GC.L["or paste a string from goldcap.gg with /goldcap import."]
     end
+  elseif not anyItemArmed() then
+    text = GC.L["Import from goldcap.gg to arm the sniper"]
   elseif refusedCount > 0 or screened > 0 then
     local parts = {}
     if screened > 0 then

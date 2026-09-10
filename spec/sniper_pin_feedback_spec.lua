@@ -80,6 +80,7 @@ describe("Sniper pin feedback and empty state", function()
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/BoardRows.lua", GC)
+    helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     -- A status line and empty-state label the module-level `frame` cell points at, plus the
@@ -201,7 +202,10 @@ describe("Sniper pin feedback and empty state", function()
 
     it("names the hidden and refused counts when the filters emptied the board", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 990 }
+      GC.db.imported = { ts = 990, verification = { [1] = true } }
+      GC.db.settings.sniper.minimumProfitCopper = 50000
+      GC.db.settings.sniper.minimumRoi = 0.10
+      GC.Data.GetItemValue = function() return { mv = 250000, stressUnit = 200000 } end
       GC.Sniper._screenedCount = 5
       set(GC.Sniper._UpdateEmptyState, "refusedCount", 3)
       GC.Sniper._UpdateEmptyState(0)
@@ -213,11 +217,36 @@ describe("Sniper pin feedback and empty state", function()
 
     it("suggests scanning when there is simply nothing yet", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 990 }
+      GC.db.imported = { ts = 990, verification = { [1] = true } }
+      GC.db.settings.sniper.minimumProfitCopper = 50000
+      GC.db.settings.sniper.minimumRoi = 0.10
+      GC.Data.GetItemValue = function() return { mv = 250000, stressUnit = 200000 } end
       GC.Sniper._screenedCount = 0
       GC.Sniper._UpdateEmptyState(0)
       assert.is_true(emptyText.shown)
       assert.matches("Press Scan", emptyText.text)
+    end)
+
+    it("names the missing import when an import exists but nothing in it can ever arm", function()
+      local GC, _, emptyText = loadSniper()
+      GC.db.imported = { ts = 1000, verification = { [1] = true } } -- present, but no usable V fact
+      GC.db.settings.sniper.minimumProfitCopper = 50000
+      GC.db.settings.sniper.minimumRoi = 0.10
+      GC.Data.GetItemValue = function() return { mv = 100000 } end -- mv only, no stressUnit
+      GC.Sniper._UpdateEmptyState(0)
+      assert.is_true(emptyText.shown)
+      assert.matches("Import from goldcap.gg to arm the sniper", emptyText.text)
+    end)
+
+    it("still shows the refused/screened message once at least one item can arm", function()
+      local GC, _, emptyText = loadSniper()
+      GC.db.imported = { ts = 1000, verification = { [1] = true } }
+      GC.db.settings.sniper.minimumProfitCopper = 50000
+      GC.db.settings.sniper.minimumRoi = 0.10
+      GC.Data.GetItemValue = function() return { mv = 250000, stressUnit = 200000 } end
+      set(GC.Sniper._UpdateEmptyState, "refusedCount", 3)
+      GC.Sniper._UpdateEmptyState(0)
+      assert.matches("3 refused by live checks", emptyText.text)
     end)
 
     it("says nothing while a scan is streaming -- the status line narrates that", function()

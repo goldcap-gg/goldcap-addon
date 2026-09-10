@@ -180,6 +180,7 @@ GC.Locales.koKR = {
   ["If it clears"] = "팔린다면",
   ["Import"] = "가져오기",
   ["Import failed:"] = "가져오기 실패:",
+  ["Import from goldcap.gg to arm the sniper"] = "goldcap.gg에서 가져와 스나이퍼를 활성화하세요",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "무료 GoldCap Companion을 설치하면 시세가 자동으로 갱신됩니다 (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =

@@ -178,6 +178,7 @@ GC.Locales.enUS = {
   ["If it clears"] = "If it clears",
   ["Import"] = "Import",
   ["Import failed:"] = "Import failed:",
+  ["Import from goldcap.gg to arm the sniper"] = "Import from goldcap.gg to arm the sniper",
   ["Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),"] =
     "Install the free GoldCap Companion to keep prices fresh automatically (/goldcap companion),",
   ["It is what you must beat to sell quickly — not what the item is worth. One seller in a hurry can put it far below value, and GoldCap will refuse to follow them down: see WHAT TO DO for the price it would actually post at."] =
