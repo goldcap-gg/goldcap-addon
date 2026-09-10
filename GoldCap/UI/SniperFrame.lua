@@ -1214,13 +1214,30 @@ end
 -- Whether the loaded import can ever arm the sniper at all -- see Core/Trigger.lua's own
 -- comment. Only the verification-fact candidates matter: GC.Trigger.For needs a stressUnit,
 -- and only those entries carry one (GC.Data.GetItemValue's own branching).
+-- _UpdateEmptyState is driven by renderList()/refreshRows() and the 0.25s ticker, so a naive
+-- rebuild-and-walk here re-walks the whole verification table ~4x/second for as long as a
+-- large import's board stays empty. Memoized instead, keyed on the verification table's own
+-- identity (the import is replaced wholesale on a fresh import, never mutated in place) and
+-- the two settings GC.Trigger.For reads. Cached on GC.Sniper._armedCache -- a table field, not
+-- a new top-level local, so this costs no headroom (see addon/AGENTS.md's local-ceiling note).
 local function anyItemArmed()
   local imp = GC.db and GC.db.imported
   local verification = imp and imp.verification
   if not verification then return false end
+  local sniperSettings = GC.db.settings.sniper
+  local minimumProfitCopper = sniperSettings.minimumProfitCopper
+  local minimumRoi = sniperSettings.minimumRoi
+  local cache = GC.Sniper._armedCache
+  if cache and cache.verification == verification
+      and cache.minimumProfitCopper == minimumProfitCopper and cache.minimumRoi == minimumRoi then
+    return cache.result
+  end
   local ids = {}
   for itemID in pairs(verification) do ids[#ids + 1] = itemID end
-  return GC.Trigger.AnyArmed(ids, GC.Data.GetItemValue, GC.db.settings.sniper)
+  local result = GC.Trigger.AnyArmed(ids, GC.Data.GetItemValue, sniperSettings)
+  GC.Sniper._armedCache = { verification = verification, minimumProfitCopper = minimumProfitCopper,
+    minimumRoi = minimumRoi, result = result }
+  return result
 end
 
 -- The board's empty state. An empty list used to be exactly that -- rows silently absent,

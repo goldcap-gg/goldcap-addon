@@ -249,6 +249,29 @@ describe("Sniper pin feedback and empty state", function()
       assert.matches("3 refused by live checks", emptyText.text)
     end)
 
+    it("memoizes the armed check -- an unchanged import only walks GetItemValue once, a settings change forces one recompute", function()
+      local GC, _, emptyText = loadSniper()
+      GC.db.imported = { ts = 1000, verification = { [1] = true } }
+      GC.db.settings.sniper.minimumProfitCopper = 50000
+      GC.db.settings.sniper.minimumRoi = 0.10
+      local calls = 0
+      GC.Data.GetItemValue = function()
+        calls = calls + 1
+        return { mv = 100000 } -- no stressUnit: never arms -- the empty-board-on-a-large-import
+        -- case the finding is about, where a per-tick re-walk would be worst.
+      end
+
+      GC.Sniper._UpdateEmptyState(0)
+      GC.Sniper._UpdateEmptyState(0)
+      GC.Sniper._UpdateEmptyState(0)
+      assert.equals(1, calls) -- three ticks over an unchanged import: only the first walks it
+      assert.is_true(emptyText.shown)
+
+      GC.db.settings.sniper.minimumProfitCopper = 60000
+      GC.Sniper._UpdateEmptyState(0)
+      assert.equals(2, calls) -- the settings change invalidates the cache: exactly one recompute
+    end)
+
     it("says nothing while a scan is streaming -- the status line narrates that", function()
       local GC, _, emptyText = loadSniper()
       emptyText.shown = true
