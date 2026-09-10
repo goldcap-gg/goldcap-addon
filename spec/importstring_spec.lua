@@ -194,4 +194,31 @@ describe("ImportString.Parse", function()
       assert.equal(20, r.items[2].m)
     end)
   end)
+
+  -- R rides between Q and W, and neither of those may be disturbed by it: an older string
+  -- without R has to keep parsing exactly as before, and a newer one must not lose its
+  -- watchlist to the new section.
+  describe("R section (reach24)", function()
+    it("parses R tokens into reach, keyed by item id", function()
+      local r = GC.ImportString.Parse("GCS1;eu;x;1;I:1=10,2=20;Q:1=12,2=25;R:1=30,2=44;W:1")
+      assert.equal(30, r.reach[1])
+      assert.equal(44, r.reach[2])
+      assert.equal(12, r.quarter[1])
+      assert.same({ 1 }, r.watchlist)
+    end)
+
+    it("leaves reach empty when the section is absent", function()
+      local r = GC.ImportString.Parse("GCS1;eu;x;1;I:1=10;Q:1=12")
+      assert.same({}, r.reach)
+      assert.equal(12, r.quarter[1])
+    end)
+
+    it("drops only the malformed R token", function()
+      local r = GC.ImportString.Parse("GCS1;eu;x;1;I:1=10,2=20;R:1=30,2=bad,3=7=extra")
+      assert.equal(30, r.reach[1])
+      assert.is_nil(r.reach[2])
+      assert.is_nil(r.reach[3])
+      assert.equal(20, r.items[2].m)
+    end)
+  end)
 end)

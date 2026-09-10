@@ -127,6 +127,12 @@ function GC.Data.SetImported(parsed)
   if parsed.quarter and next(parsed.quarter) then
     imported.quarter = parsed.quarter
   end
+  -- R section (reach24 per commodity). Same rule again -- and it has to be listed HERE
+  -- explicitly, because this function copies a named field list rather than the parsed table:
+  -- a section the list does not name is parsed, ignored and lost on the way to the save.
+  if parsed.reach and next(parsed.reach) then
+    imported.reach = parsed.reach
+  end
   db.imported = imported
   adoptRegion()
   GC.Data.WarnRegionMismatch()
@@ -206,6 +212,10 @@ function GC.Data.GetItemValue(itemID)
     -- Cheap-quarter line (import Q section). Absent on imports that predate it and on every
     -- realm item; the Sell tab's overcut simply stays off for those.
     local p25 = imp.quarter and imp.quarter[itemID] or nil
+    -- reach24 (import R section): what the item's floor actually reaches within a day. The
+    -- Sell tab's ceiling for posting above the cheapest ask, with p25 above as the fallback
+    -- for imports that predate it. Import-path only, like p25 -- bundled data carries neither.
+    local reach = imp.reach and imp.reach[itemID] or nil
     -- trend (24h market-value momentum) is import-path only: MarketData.lua's
     -- bundled entries never carry a `t` field (see ImportString.Parse), so
     -- there's nothing to pass through for the bundled branch below.
@@ -224,9 +234,11 @@ function GC.Data.GetItemValue(itemID)
         observations = fact.observations,
         madBps = fact.madBps,
         p25 = p25,
+        reach = reach,
       }
     end
-    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item", p25 = p25 }
+    return { mv = e.m, sold = e.s, trend = e.t, ts = imp.ts, source = "import", kind = "realm_item",
+      p25 = p25, reach = reach }
   end
   e = bundled and bundled.items and bundled.items[itemID]
   if e then

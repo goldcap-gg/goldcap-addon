@@ -73,6 +73,22 @@ describe("Data", function()
     assert.is_nil(GC.Data.GetItemValue(42).p25)
   end)
 
+  -- SetImported copies a NAMED field list, so a new section reaches the save only if it is
+  -- named there. R was parsed and dropped on the floor until it was.
+  it("keeps the reach line through SetImported", function()
+    local parsed = GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000=3.0;Q:42=6500;R:42=6200")
+    GC.Data.SetImported(parsed)
+    assert.equal(6200, GC.Data.GetItemValue(42).reach)
+    assert.equal(6200, db.imported.reach[42])
+  end)
+
+  it("leaves no reach field on a save when the string carried no R section", function()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;x;2000;I:42=6000;Q:42=6500"))
+    assert.is_nil(db.imported.reach)
+    assert.is_nil(GC.Data.GetItemValue(42).reach)
+    assert.equal(6500, GC.Data.GetItemValue(42).p25)
+  end)
+
   it("passes an imported entry's trend through as `trend`", function()
     GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
                           items = { [42] = { m = 4000, t = -12 } }, watchlist = {} })
@@ -391,5 +407,28 @@ describe("Data", function()
   it("returns no p25 when the import predates the Q section", function()
     db.imported = { ts = 2000, items = { [42] = { m = 6000 } } }
     assert.is_nil(GC.Data.GetItemValue(42).p25)
+  end)
+
+  it("exposes the reach line from the import, and nothing from bundled", function()
+    db.imported = {
+      ts = 2000,
+      items = { [42] = { m = 6000, s = 3 } },
+      verification = { [42] = { sourceAt = 1, stressUnit = 5000, sellThroughBps = 1,
+        liquidityConfidence = 1, currentQty = 1, listings = 1, observations = 1, madBps = 0, flags = 0 } },
+      reach = { [42] = 6200 },
+    }
+    assert.equal(6200, GC.Data.GetItemValue(42).reach)
+    assert.is_nil(GC.Data.GetItemValue(43).reach) -- bundled only
+  end)
+
+  it("exposes reach on a realm-item entry too, with no verification record", function()
+    db.imported = { ts = 2000, items = { [42] = { m = 6000 } }, reach = { [42] = 6200 } }
+    assert.equal(6200, GC.Data.GetItemValue(42).reach)
+  end)
+
+  it("returns no reach when the import predates the R section", function()
+    db.imported = { ts = 2000, items = { [42] = { m = 6000 } }, quarter = { [42] = 6500 } }
+    assert.is_nil(GC.Data.GetItemValue(42).reach)
+    assert.equal(6500, GC.Data.GetItemValue(42).p25)
   end)
 end)

@@ -29,7 +29,7 @@ function GC.ImportString.Parse(str)
 
   local result = {
     region = region, realm = realm, ts = tonumber(ts),
-    items = {}, verification = {}, quarter = {}, watchlist = {}, namesWanted = {},
+    items = {}, verification = {}, quarter = {}, reach = {}, watchlist = {}, namesWanted = {},
   }
   local count = 0
 
@@ -77,6 +77,18 @@ function GC.ImportString.Parse(str)
       for token in body:gmatch("[^,]+") do
         local id, p25 = token:match("^(%d+)=(%d+)$")
         if id then result.quarter[tonumber(id)] = tonumber(p25) end
+      end
+    elseif kind == "R" then
+      -- reach24 (copper), commodities only: the price this item's floor actually rose to
+      -- within a day, measured from its own hourly history. It replaces Q as the ceiling for
+      -- posting above the cheapest ask (Flips.RecommendPost) -- see that file's own header for
+      -- why a rank in today's book was the wrong ceiling. Anchored per token exactly like Q, a
+      -- malformed token dropping itself and nothing else, and optional in both directions: a
+      -- site build that predates it emits no R section and the Sell tab falls back to Q, while
+      -- an addon build that predates it skips the section as an unknown one.
+      for token in body:gmatch("[^,]+") do
+        local id, reach = token:match("^(%d+)=(%d+)$")
+        if id then result.reach[tonumber(id)] = tonumber(reach) end
       end
     elseif kind == "W" then
       for id in body:gmatch("%d+") do

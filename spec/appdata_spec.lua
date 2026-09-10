@@ -43,6 +43,17 @@ describe("Data.AdoptAppData", function()
     assert.same({ "items", "namesWanted", "origin", "realm", "region", "ts", "watchlist" }, keys)
   end)
 
+  -- The companion writes whatever the site hands it, R section or not. The shape test above
+  -- pins the no-R case (no `reach` key at all); this one pins that a string carrying one does
+  -- reach the save through the same path.
+  it("carries an R section through the companion path", function()
+    _G.GoldCap_AppData = { writtenAt = 2000,
+      importString = "GCS1;eu;silvermoon;2000;I:190396=123400=52.3;R:190396=99900;W:190396" }
+    GC.Data.AdoptAppData()
+    assert.equal(99900, db.imported.reach[190396])
+    assert.equal(99900, GC.Data.GetItemValue(190396).reach)
+  end)
+
   it("adopts app data when strictly newer than the existing (manual) import", function()
     GC.Data.SetImported({ region = "eu", realm = "oldrealm", ts = 1000,
                           items = { [1] = { m = 1 } }, watchlist = {} })
