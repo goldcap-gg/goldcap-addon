@@ -273,4 +273,43 @@ describe("Book pass wiring", function()
     assert.is_true(boardHas(100))
     assert.is_false(boardHas(500))
   end)
+
+  -- The re-review's reproduction: "did not see" used to mean only "no browse row in THIS
+  -- classes pass", which cannot tell an out-of-class item from an in-class one that genuinely
+  -- sold out between passes -- the sold-out one got resurrected from _wideExtras for up to
+  -- widePassSeconds. SeenByClasses fixes it: an item a classes pass has EVER folded is known
+  -- in-class, and a later classes pass's silence about it means gone, not unseen.
+  it("does not resurrect an in-class item that sold out, even though a wide pass saw it too", function()
+    local GC = loadSniper()
+    GC.Data.GetItemValue = function() return dealValue() end
+
+    local function boardHas(itemID)
+      for _, deal in ipairs(upvalue(GC.Sniper.OnAuctionHouseShow, "scanDeals")) do
+        if deal.itemID == itemID then return true end
+      end
+      return false
+    end
+
+    -- 100 is in-class: an earlier classes pass has already folded it.
+    browseResults = { browseRow(100, 100000) }
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_true(boardHas(100))
+
+    -- A wide pass finds both 100 (still there) and 500, the genuine out-of-class find.
+    browseResults = { browseRow(100, 100000), browseRow(500, 100000) }
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_true(boardHas(100))
+    assert.is_true(boardHas(500))
+
+    -- 100 sells out: the next classes pass returns zero rows. Its silence about 100 is
+    -- authoritative (100 is in-class, the pass looked and found nothing), unlike its silence
+    -- about 500 (out-of-class, the pass never asked).
+    browseResults = {}
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_false(boardHas(100))
+    assert.is_true(boardHas(500))
+  end)
 end)

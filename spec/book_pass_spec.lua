@@ -250,6 +250,34 @@ describe("BookPass", function()
     end)
   end)
 
+  describe("SeenByClasses", function()
+    it("is true for an item folded by a classes pass", function()
+      local bp = newPass()
+      bp:Start("classes")
+      browseResults, hasFullResults = { row(1, 90, 10) }, true
+      bp:OnResultsUpdated()
+      assert.is_true(bp:SeenByClasses(1))
+    end)
+
+    it("is false for an item only ever folded by a wide pass", function()
+      local bp = newPass()
+      bp:Start("wide")
+      browseResults, hasFullResults = { row(1, 90, 10) }, true
+      bp:OnResultsUpdated()
+      assert.is_false(bp:SeenByClasses(1))
+    end)
+
+    it("goes false again after Reset", function()
+      local bp = newPass()
+      bp:Start("classes")
+      browseResults, hasFullResults = { row(1, 90, 10) }, true
+      bp:OnResultsUpdated()
+      assert.is_true(bp:SeenByClasses(1))
+      bp:Reset()
+      assert.is_false(bp:SeenByClasses(1))
+    end)
+  end)
+
   it("resets the wide-pass clock only when a wide pass actually completes", function()
     local bp = newPass({ widePassSeconds = 300 })
     now = 1000

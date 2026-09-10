@@ -1760,15 +1760,27 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- look at and no longer reports really is gone, and stays gone. A table field, not a new
   -- top-level local: this file is at its 200-local ceiling (see addon/AGENTS.md).
   if kind == "wide" then
+    -- Only the genuinely out-of-class finds are worth holding past this pass. An item a
+    -- classes pass has ever folded (GC.Sniper._bookPass:SeenByClasses) is in-class by
+    -- definition -- carrying it here would let it get resurrected from _wideExtras later even
+    -- after it sells out, instead of a classes pass's silence about it being trusted as "gone".
     local extras = {}
-    for _, deal in ipairs(scanDeals) do extras[deal.itemID] = deal end
+    for _, deal in ipairs(scanDeals) do
+      if not GC.Sniper._bookPass:SeenByClasses(deal.itemID) then extras[deal.itemID] = deal end
+    end
     GC.Sniper._wideExtras = extras
   elseif GC.Sniper._wideExtras then
     local seen = {}
     for _, row in ipairs(rowsList) do seen[row.itemID] = true end
     local carried = {}
     for itemID, deal in pairs(GC.Sniper._wideExtras) do
-      if not seen[itemID] then carried[#carried + 1] = deal end
+      -- "This pass did not see it" is not enough to keep an extra alive: an item this pass
+      -- did not report a row for but that IS in-class (SeenByClasses, from this or an earlier
+      -- classes pass) has genuinely sold out, not merely gone unmentioned -- carrying it would
+      -- resurrect it from the wide pass for up to widePassSeconds.
+      if not seen[itemID] and not GC.Sniper._bookPass:SeenByClasses(itemID) then
+        carried[#carried + 1] = deal
+      end
     end
     if #carried > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, carried, 100) end
   end

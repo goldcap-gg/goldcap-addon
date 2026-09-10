@@ -16,7 +16,9 @@ function GC.BookPass.New(driver, opts)
   local classFilters = opts.itemClassFilters or {}
 
   local obj = {}
-  local book = {}          -- itemID -> { floor, qty, seenAt }; SURVIVES Abort() and every Start()
+  local book = {}          -- itemID -> { floor, qty, seenAt, kind }; SURVIVES Abort() and every Start()
+  local classesSeen = {}   -- itemID -> true, for any item EVER folded by a classes pass this
+                            -- session (survives Abort()/Start(), cleared only by Reset())
   local kind = nil         -- nil | "classes" | "wide"
   local paging = false
   local pendingStart = false
@@ -49,7 +51,8 @@ function GC.BookPass.New(driver, opts)
     local trigger = driver.triggerFor(itemID)
     local hit = trigger and floor < trigger
       and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
-    book[itemID] = { floor = floor, qty = qty, seenAt = driver.now() }
+    book[itemID] = { floor = floor, qty = qty, seenAt = driver.now(), kind = kind }
+    if kind == "classes" then classesSeen[itemID] = true end
     if hit then
       driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
     end
@@ -128,6 +131,7 @@ function GC.BookPass.New(driver, opts)
   -- not make one more urgent.
   function obj:Reset()
     for itemID in pairs(book) do book[itemID] = nil end
+    for itemID in pairs(classesSeen) do classesSeen[itemID] = nil end
     kind = nil
     paging = false
     pendingStart = false
@@ -144,6 +148,12 @@ function GC.BookPass.New(driver, opts)
   end
 
   function obj:Book() return book end
+
+  -- True once an itemID has ever been folded by a CLASSES pass this session (i.e. it is
+  -- in-class), regardless of what pass folded it most recently. Distinct from "does the book
+  -- have a row for it right now" -- an item can leave the book (Reset) but classesSeen only
+  -- clears with it.
+  function obj:SeenByClasses(itemID) return classesSeen[itemID] == true end
 
   return obj
 end
