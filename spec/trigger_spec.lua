@@ -74,8 +74,16 @@ describe("Trigger.RealmReference", function()
     assert.is_nil(GC.Trigger.RealmReference({ mv = 0, ref = -1 }))
   end)
 
-  it("takes whichever price exists on its own", function()
-    assert.equal(500, GC.Trigger.RealmReference({ mv = 500 }))
+  -- Measured in game 2026-09-11, before the T section shipped: an item with two listings on
+  -- the realm (90,000 and 5.4 million) had a "median" of 2.7 million, and the board offered
+  -- the cheap one as 97% off with 2.5 million gold of profit that could never be realised.
+  -- A realm median is not a reference, however lonely the item.
+  it("refuses a realm median with no region reference behind it", function()
+    assert.is_nil(GC.Trigger.RealmReference({ mv = 500 }))
+    assert.is_nil(GC.Trigger.RealmReference({ mv = 2746440, ref = 0 }))
+  end)
+
+  it("takes the region reference on its own", function()
     assert.equal(900, GC.Trigger.RealmReference({ ref = 900 }))
   end)
 

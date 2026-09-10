@@ -25,6 +25,28 @@ describe("DealMath", function()
       assert.is_nil(GC.DealMath.Evaluate(live(100), { mv = 0 }, cfg))
     end)
 
+    -- Measured in game 2026-09-11, before the T section shipped: two listings of Leather
+    -- Gauntlets of the Sun, 90,000 and 5.4 million, made a realm "median" of 2.7 million -- so
+    -- the cheap one rendered as 97% off with 2.5 million gold of profit nobody could ever
+    -- collect. A realm item is a deal against the REGION's price for it or it is not a row.
+    it("returns nil for a realm item the region has no reference price for", function()
+      assert.is_nil(GC.DealMath.Evaluate(live(89999),
+        { mv = 2746440, kind = "realm_item", source = "import" }, cfg))
+    end)
+
+    it("evaluates the same realm item once a region reference exists", function()
+      local d = GC.DealMath.Evaluate(live(500000),
+        { mv = 1000000, ref = 1000000, kind = "realm_item", source = "import" }, cfg)
+      assert.is_table(d)
+      assert.equal(0.5, d.discount)
+    end)
+
+    it("leaves commodities alone -- their market value is a region figure already", function()
+      local d = GC.DealMath.Evaluate(live(500000),
+        { mv = 1000000, kind = "region_commodity", source = "import" }, cfg)
+      assert.is_table(d)
+    end)
+
     it("returns nil below the watch threshold", function()
       -- 5% discount
       assert.is_nil(GC.DealMath.Evaluate(live(9500000), { mv = 10000000 }, cfg))

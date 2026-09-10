@@ -268,6 +268,18 @@ describe("CheckVerdict", function()
       assert.equal(1000000, factById(v, "snapshotValue").copper)
     end)
 
+    -- No region reference means no candidate, so the "Your call" tone must not apply: there is
+    -- nothing to buy on, nothing to put in the headline figure, and no BUY button.
+    it("is not the unverified tone when there is no region reference", function()
+      local v = GC.CheckVerdict.Build(
+        decision({ status = "WATCH", reasons = { "realm_no_reference" }, stressProfit = nil }),
+        market())
+      assert.equal("refuse", v.tone)
+      assert.is_false(v.actionable)
+      assert.equal("unpriceable", v.hero.kind)
+      assert.equal("realm_no_reference", v.reason)
+    end)
+
     it("stays a refusal when the check named no lot to buy", function()
       local v = GC.CheckVerdict.Build(
         decision({ status = "AVOID", reasons = { "no_comparable_lot" } }), market())

@@ -226,6 +226,8 @@ GC.Locales.zhTW = {
   ["No exact bag stack"] = "沒有精確的背包堆疊",
   ["No exact bag variant"] = "沒有精確的背包變體",
   ["No live listings came back for this item."] = "沒有返回該物品的任何即時掛單。",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "該物品暫無區域參考價 — 等 goldcap.gg 發布後再匯入一次。",
   ["No safe resale price could be worked out."] = "算不出一個安全的轉售價。",
   ["No sales data for this item."] = "該物品沒有成交資料。",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =

@@ -227,6 +227,8 @@ GC.Locales.koKR = {
   ["No exact bag stack"] = "정확한 가방 묶음이 없습니다",
   ["No exact bag variant"] = "정확한 가방 변형이 없습니다",
   ["No live listings came back for this item."] = "이 아이템의 실시간 매물이 하나도 오지 않았습니다.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "이 아이템의 지역 기준가가 아직 없습니다 — goldcap.gg에 기준가가 올라오면 다시 가져오세요.",
   ["No safe resale price could be worked out."] = "안전한 재판매 가격을 산출할 수 없었습니다.",
   ["No sales data for this item."] = "이 아이템의 판매 데이터가 없습니다.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =

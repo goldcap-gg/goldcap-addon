@@ -28,6 +28,27 @@ describe("SniperDecision.EvaluateRealm", function()
     assert.equal("AVOID", GC.SniperDecision.EvaluateRealm({}, REFERENCE, 0, nil).status)
   end)
 
+  -- No region reference is not a fault and not a refusal: nothing is wrong with the item, the
+  -- addon simply has no honest price to judge it against yet. It never becomes AVOID, it never
+  -- offers a candidate, and the sentence says what would change it.
+  it("says so plainly when there is no region reference at all", function()
+    local result = GC.SniperDecision.EvaluateRealm(
+      { lot(11, 89999, 0), lot(12, 5400000, 0) }, nil, 0, config)
+    assert.equal("WATCH", result.status)
+    assert.is_false(result.buyable)
+    assert.same({ "realm_no_reference" }, result.reasons)
+    assert.is_nil(result.candidate)
+    assert.is_nil(result.reference)
+    assert.is_nil(result.estProfit)
+    local text = GC.SniperDecision.ReasonText("realm_no_reference")
+    assert.is_true(type(text) == "string" and #text > 0 and text ~= "realm_no_reference")
+  end)
+
+  it("still calls a reference that is present but unusable malformed input", function()
+    assert.same({ "invalid_input" }, GC.SniperDecision.EvaluateRealm({ lot(11, 1, 0) }, 0, 0, config).reasons)
+    assert.same({ "invalid_input" }, GC.SniperDecision.EvaluateRealm({ lot(11, 1, 0) }, -5, 0, config).reasons)
+  end)
+
   it("watches the cheapest lot under the trigger, and never calls it safe", function()
     local result = GC.SniperDecision.EvaluateRealm(
       { lot(11, 900000, 0), lot(12, 500000, 0, 1), lot(13, 600000, 0) }, REFERENCE, 0, config)

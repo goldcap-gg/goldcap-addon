@@ -88,9 +88,18 @@ describe("Key poll wiring", function()
       assert.equal(200000, GC.Sniper._RealmValue(42).mv)
       values[42] = realmValue({ mv = 150000 })
       assert.equal(150000, GC.Sniper._RealmValue(42).mv)
-      -- An import from before the T section existed: the realm median is all there is.
+    end)
+
+    -- An import from before the T section existed, or an item the region has no figure for:
+    -- the realm's own median is not a reference and does not stand in for one.
+    it("refuses a realm median with no region reference behind it", function()
+      local GC = loadSniper()
       values[42] = { kind = "realm_item", source = "import", mv = 250000 }
-      assert.equal(250000, GC.Sniper._RealmValue(42).mv)
+      assert.is_nil(GC.Sniper._RealmValue(42))
+      assert.is_true(GC.Sniper._RealmNeedsReference(42))
+      -- A commodity is not affected: its market value is measured across the region already.
+      values[43] = { kind = "region_commodity", source = "import", mv = 250000 }
+      assert.is_false(GC.Sniper._RealmNeedsReference(43))
     end)
 
     it("carries the reference item level through", function()
@@ -219,6 +228,21 @@ describe("Key poll wiring", function()
 
       GC.Sniper._keysBatch = { 42 }
       GC.Sniper._keyPoll:Fold({}) -- sold out: nothing came back for it
+      assert.is_nil(GC.Sniper._CurrentLiveDeal(42))
+      assert.is_nil(GC.Sniper._realmDeals[42])
+    end)
+
+    -- The board defect this rule exists for: with only a realm median to go on, the fold used
+    -- to publish a row claiming 97% off. There is no row now -- not a quieter one, none.
+    it("produces no row and no drill for a realm item with no region reference", function()
+      local GC = loadSniper()
+      values[42] = { kind = "realm_item", source = "import", mv = 2746440 }
+      targetIds = { 42 }
+      GC.Sniper._RebuildKeyTargets()
+      assert.equal(0, GC.Sniper._keyPoll:Count()) -- never even polled
+
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 89999, 2) })
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
       assert.is_nil(GC.Sniper._CurrentLiveDeal(42))
       assert.is_nil(GC.Sniper._realmDeals[42])
     end)

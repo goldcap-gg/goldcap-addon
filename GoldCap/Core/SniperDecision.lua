@@ -171,6 +171,7 @@ GC.SniperDecision.REASONS = {}
 local REASON_TEXT = {
   live_verification_required = "Needs a live price check before it can be bought.",
   realm_item_unverified = "This is a realm item, and GoldCap only verifies commodity prices.",
+  realm_no_reference = "No region reference for this item yet — import again once goldcap.gg publishes one.",
   bundled_data_unverified = "Priced from bundled sample data, not from your realm.",
   source_stale = "The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads.",
   market_value_estimated = "The market value is an estimate, not a measurement.",
@@ -209,6 +210,7 @@ end
 local REASON_ORDER = {
   live_verification_required = 10, realm_item_unverified = 11, bundled_data_unverified = 12,
   source_stale = 13, market_value_estimated = 14, price_history_sparse = 15,
+  realm_no_reference = 16,
   listings_too_low = 20, velocity_missing = 21, velocity_too_low = 22,
   sell_through_too_low = 23, liquidity_confidence_low = 24, market_falling = 25,
   book_missing = 30, book_exhausted = 31, competing_ask_missing = 32, deposit_missing = 33,
@@ -623,6 +625,16 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
     buyable = false,
     reasons = {},
   }
+  -- No region reference at all is not a fault and not a refusal: nothing is wrong with the
+  -- item, there is simply no honest price to judge it against yet (the import predates the T
+  -- section, or the region has not published one for this item). WATCH, no candidate, and a
+  -- sentence that says what would change it. A reference that is PRESENT but unusable is a
+  -- different thing entirely and still reads as malformed input.
+  if reference == nil and type(lots) == "table" and type(config) == "table" then
+    out.status = "WATCH"
+    out.reasons = { "realm_no_reference" }
+    return out
+  end
   if type(lots) ~= "table" or type(config) ~= "table"
       or not isFinite(reference) or reference <= 0 then
     out.reasons = { "invalid_input" }

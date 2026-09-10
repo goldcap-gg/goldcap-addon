@@ -35,6 +35,10 @@ local VELOCITY_CEILING = MIN_SOLD_PER_DAY * 20
 -- dash it replaces.
 local UNPRICEABLE_REASONS = {
   live_verification_required = true, realm_item_unverified = true,
+  -- Sniper phase 2: no region reference means no price to measure against at all, so there is
+  -- nothing to put in the headline slot. It is a refusal in tone (there is no candidate, so
+  -- the "Your call" branch below never applies) and unpriceable in figures.
+  realm_no_reference = true,
   bundled_data_unverified = true, source_stale = true, market_value_estimated = true,
   price_history_sparse = true, listings_too_low = true, invalid_input = true,
   book_missing = true, competing_ask_missing = true, stress_exit_missing = true,

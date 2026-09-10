@@ -218,6 +218,25 @@ describe("FullScan.RowsFromBrowse (no SniperDecision loaded)", function()
     assert.equal(0, #rows)
   end)
 
+  -- Sniper phase 2: a realm item with no region reference is not a row at all -- dropped here
+  -- as well as in DealMath, so it never reaches the streaming counters or the carried-deal
+  -- bookkeeping either. Commodities and referenced realm items are untouched.
+  it("drops a realm row the region has no reference price for", function()
+    local realmValues = {
+      [100] = { mv = 2746440, kind = "realm_item", source = "import" },        -- no ref
+      [101] = { mv = 1000000, ref = 900000, kind = "realm_item", source = "import" },
+      [102] = { mv = 1000000, kind = "region_commodity", source = "import" },
+    }
+    local rows = GC.FullScan.RowsFromBrowse({
+      { itemKey = { itemID = 100 }, totalQuantity = 2, minPrice = 89999 },
+      { itemKey = { itemID = 101 }, totalQuantity = 2, minPrice = 500000 },
+      { itemKey = { itemID = 102 }, totalQuantity = 2, minPrice = 500000 },
+    }, function(id) return realmValues[id] end, cfg)
+    assert.equal(2, #rows)
+    assert.equal(101, rows[1].itemID)
+    assert.equal(102, rows[2].itemID)
+  end)
+
   it("feeds Evaluate end-to-end so unitPrice comes out equal to minPrice", function()
     local rows = GC.FullScan.RowsFromBrowse({
       { itemKey = { itemID = 100 }, totalQuantity = 10000, minPrice = 777 },

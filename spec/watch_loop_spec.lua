@@ -375,6 +375,27 @@ describe("Watch loop", function()
     assert.equal("—", rows[1].priceText.text)
   end)
 
+  -- Sniper phase 2: a realm item the region has no reference price for is not a deal and never
+  -- reaches the board on its own. A PIN is an explicit instruction, though, and it still gets
+  -- its "Watching" placeholder -- with the live price and no invented discount or profit.
+  it("still shows a pinned realm item the region has no reference for", function()
+    local GC = load()
+    GC.Data.GetItemValue = function()
+      return { kind = "realm_item", source = "import", mv = 2746440 }
+    end
+    GC.Sniper._TogglePin(42)
+    local observe = upvalue(GC.Sniper.OnItemKeyInfo, "driver").onObservation
+    observe(42, nil) -- the poll saw a live price but there is no deal to be made of it
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", {})
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    refreshRows()
+    local rows = upvalue(refreshRows, "rows")
+    assert.equal(1, #rows)
+    assert.equal(42, rows[1].deal.itemID)
+    assert.is_true(rows[1].deal.pinPlaceholder)
+    assert.equal("—", rows[1].discountText.text) -- no percentage against a two-listing median
+  end)
+
   it("renders a real price once a placeholder pin has an observation", function()
     local GC = load()
     GC.Sniper._TogglePin(42)

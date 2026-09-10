@@ -8,6 +8,15 @@ local EPS = 1e-9
 
 function GC.DealMath.Evaluate(live, value, cfg)
   if not value or not value.mv or value.mv <= 0 then return nil end
+  -- A realm item is a deal only against the REGION's price for it (the import's T section,
+  -- exposed as `ref`). Its own realm median is not a second-best yardstick: a realm item can
+  -- sit at two listings for days, and a median of two is whatever the odd one out happens to
+  -- be. Measured in game 2026-09-11, before T shipped: two lots of Leather Gauntlets of the
+  -- Sun, 90,000 and 5.4 million, made a "median" of 2.7 million -- so the cheap one showed as
+  -- 97% off with 2.5 million gold of profit that could never be realised. Every one of those
+  -- rows was noise, and the honest answer is not a smaller number, it is no row at all.
+  -- Commodities are untouched: their market value is measured across the region already.
+  if value.kind == "realm_item" and not value.ref then return nil end
   local discount = 1 - (live.unitPrice / value.mv)
   if discount < cfg.watchDiscount - EPS then return nil end
 

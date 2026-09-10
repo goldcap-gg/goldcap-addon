@@ -225,6 +225,8 @@ GC.Locales.zhCN = {
   ["No exact bag stack"] = "没有精确的背包堆叠",
   ["No exact bag variant"] = "没有精确的背包变体",
   ["No live listings came back for this item."] = "没有返回该物品的任何实时挂单。",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "该物品暂无区域参考价 — 等 goldcap.gg 发布后再导入一次。",
   ["No safe resale price could be worked out."] = "算不出一个安全的转售价。",
   ["No sales data for this item."] = "该物品没有成交数据。",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =

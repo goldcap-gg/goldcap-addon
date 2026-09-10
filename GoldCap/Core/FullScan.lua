@@ -177,7 +177,13 @@ function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
     local itemKey = result.itemKey
     local itemID = itemKey and itemKey.itemID
     local minPrice = result.minPrice
-    if itemID and minPrice and minPrice > 0 then
+    -- A realm item with no region reference (import T section) is not a row at all -- see
+    -- Core/DealMath.lua for the measurement behind that. Dropped HERE as well as there so it
+    -- never reaches the streaming counters or the carried-deal bookkeeping either: a row whose
+    -- only possible outcome is a nil deal is work and noise, not discovery.
+    local value = itemID and getValue(itemID) or {}
+    local unreferenced = value.kind == "realm_item" and not value.ref
+    if itemID and minPrice and minPrice > 0 and not unreferenced then
       -- minPrice is the lowest per-unit buyout across the whole item group, but
       -- totalQuantity can run into the thousands for a staple commodity -- buying out an
       -- entire group is never realistic. Bound the flip quantity by SniperDecision's own
@@ -195,7 +201,6 @@ function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
       -- naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off item
       -- auction always was. 200 remains a hard sanity cap regardless of what the demand cap
       -- or the board says.
-      local value = getValue(itemID) or {}
       local estQty = 1
       if GC.SniperDecision and GC.SniperDecision.DemandCap and cfg then
         local market = GC.SniperDecision.MarketFromValue(value)

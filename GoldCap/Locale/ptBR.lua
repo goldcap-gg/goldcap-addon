@@ -240,6 +240,8 @@ GC.Locales.ptBR = {
   ["No exact bag stack"] = "Sem pilha exata na bolsa",
   ["No exact bag variant"] = "Sem variante exata na bolsa",
   ["No live listings came back for this item."] = "Nenhum anúncio ativo voltou para este item.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "Ainda não há preço de referência da região para este item — importe de novo quando o goldcap.gg publicar um.",
   ["No safe resale price could be worked out."] =
     "Não foi possível calcular um preço de revenda seguro.",
   ["No sales data for this item."] = "Sem dados de vendas para este item.",

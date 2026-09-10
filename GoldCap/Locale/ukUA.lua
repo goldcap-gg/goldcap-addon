@@ -250,6 +250,8 @@ GC.Locales.ukUA = {
   ["No live listings came back for this item."] =
     "За цим предметом не прийшло жодного живого лота.",
   ["No live auctions on this character"] = "На цьому персонажі немає активних лотів",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "Для цього предмета ще немає еталонної ціни регіону — імпортуйте знову, коли goldcap.gg її опублікує.",
   ["No safe resale price could be worked out."] = "Безпечну ціну перепродажу обчислити не вдалося.",
   ["No sales data for this item."] = "Немає даних про продажі цього предмета.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =

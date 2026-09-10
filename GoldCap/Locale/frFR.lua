@@ -240,6 +240,8 @@ GC.Locales.frFR = {
   ["No exact bag variant"] = "Pas de variante de sac exacte",
   ["No live listings came back for this item."] =
     "Aucune enchère active n'est revenue pour cet objet.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "Pas encore de prix de référence régional pour cet objet — réimporte dès que goldcap.gg en publie un.",
   ["No safe resale price could be worked out."] = "Impossible d'établir un prix de revente sûr.",
   ["No sales data for this item."] = "Aucune donnée de vente pour cet objet.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =

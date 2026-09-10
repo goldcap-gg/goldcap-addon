@@ -37,19 +37,25 @@ end
 -- reference, which is a median across realms and cannot be that precise about THIS realm.
 GC.Trigger.REALM_MIN_DISCOUNT = 0.25
 
--- The one price a realm item is judged against: this realm's own median (import I section)
--- and the region reference (import T section) are both estimates of the same thing, so the
--- LOWER of the two is used whenever both exist -- the conservative choice, since it is the
--- one that makes a discount look smaller and a trigger stricter. nil when neither exists, and
--- an item with no reference is never polled and can never hit.
+-- The one price a realm item is judged against: the REGION reference (import T section), taken
+-- down to this realm's own median (import I section) when that is lower -- the conservative
+-- choice of the two, since it is the one that makes a discount look smaller and a trigger
+-- stricter.
+--
+-- The region reference is REQUIRED, and a realm median alone is not a substitute. Measured in
+-- game on 2026-09-11, before T shipped: Leather Gauntlets of the Sun had two listings on the
+-- realm, 90,000 and 5.4 million, so its "median" was 2.7 million and the board offered a
+-- 97%-off gauntlet with 2.5 million gold of imaginary profit on it. A realm item can sit at
+-- two lots for days; a median of two lots is not a price, and the region's own figure -- a
+-- median across every realm -- is the whole reason this section exists. No ref, no reference:
+-- the item is never polled, never hits, and (Core/DealMath.lua) never becomes a row.
 function GC.Trigger.RealmReference(value)
   if type(value) ~= "table" then return nil end
   local mv = value.mv
   local ref = value.ref
-  if type(mv) ~= "number" or mv ~= mv or mv <= 0 then mv = nil end
-  if type(ref) ~= "number" or ref ~= ref or ref <= 0 then ref = nil end
-  if mv and ref then return math.min(mv, ref) end
-  return mv or ref
+  if type(ref) ~= "number" or ref ~= ref or ref <= 0 then return nil end
+  if type(mv) ~= "number" or mv ~= mv or mv <= 0 then return ref end
+  return math.min(mv, ref)
 end
 
 -- The realm-item counterpart of GC.Trigger.For: the highest price at which a realm lot is

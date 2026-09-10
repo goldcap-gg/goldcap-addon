@@ -232,6 +232,8 @@ GC.Locales.enUS = {
   ["No exact bag variant"] = "No exact bag variant",
   ["No live auctions on this character"] = "No live auctions on this character",
   ["No live listings came back for this item."] = "No live listings came back for this item.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "No region reference for this item yet — import again once goldcap.gg publishes one.",
   ["No safe resale price could be worked out."] = "No safe resale price could be worked out.",
   ["No sales data for this item."] = "No sales data for this item.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] = "No sales recorded yet -- open your mailbox with GoldCap loaded",

@@ -2171,6 +2171,16 @@ function GC.Sniper._RealmValue(itemID)
     trend = value.trend, ref = value.ref, refIlvl = value.refIlvl }
 end
 
+-- Whether this item is a realm item the region has published no price for -- the state that
+-- keeps it off the board entirely (Core/DealMath.lua) and that only a pin can put in front of
+-- the player. Read by the row tooltip; the Check panel gets the same answer from
+-- GC.SniperDecision.EvaluateRealm's own realm_no_reference verdict.
+function GC.Sniper._RealmNeedsReference(itemID)
+  if not (GC.Data and GC.Data.GetItemValue) then return false end
+  local value = GC.Data.GetItemValue(itemID)
+  return (value and value.kind == "realm_item" and not value.ref) and true or false
+end
+
 -- The poll set: the player's pins, the site watchlist the import carried (W section) and the
 -- region's own list of realm items worth watching (T section), realm items only. GetWatchlist(0)
 -- is deliberate -- with a zero fallback it answers with the W section or nothing, never the
@@ -4228,10 +4238,16 @@ local function evaluateLiveItemDeal(itemID)
   --
   -- Everything else keeps v1's behaviour exactly: Evaluate with no commodity book, which
   -- visibly explains why it remains WATCH and never constructs a candidate at all.
-  local value = GC.Sniper._RealmValue(itemID)
-  if value then
+  local stored = GC.Data.GetItemValue(itemID)
+  if stored and stored.kind == "realm_item" then
+    -- Every realm item answers here, with or without a region reference. Without one there is
+    -- no board row for it any more (Core/DealMath.lua), but a PIN is an explicit instruction
+    -- and a pinned row can still be Checked -- and the answer it gets has to be the sentence
+    -- that says what would change it, not a comparison against a two-listing median.
+    local value = GC.Sniper._RealmValue(itemID)
     return { isCommodity = false, decision = GC.SniperDecision.EvaluateRealm(
-      driver.itemLots(itemID), value.mv, value.refIlvl or 0, GC.db.settings.sniper) }
+      driver.itemLots(itemID), value and value.mv or nil, value and value.refIlvl or 0,
+      GC.db.settings.sniper) }
   end
   return { isCommodity = false, decision = evaluateLive(itemID, nil) }
 end
@@ -6172,6 +6188,13 @@ createRow = function(parent, index)
     if realmValue then
       GameTooltip:AddLine((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
         :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0),
+        Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    elseif GC.Sniper._RealmNeedsReference(self.deal.itemID) then
+      -- A pinned realm item the region has no price for. It is on the board because the player
+      -- put it there, and the row cannot say anything about value -- so the tooltip says the
+      -- same sentence a Check on it would, rather than leaving the blank cells to be read as
+      -- "nothing to report".
+      GameTooltip:AddLine(GC.SniperDecision.ReasonText("realm_no_reference"),
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
     end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to

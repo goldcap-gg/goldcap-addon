@@ -240,6 +240,8 @@ GC.Locales.itIT = {
   ["No exact bag variant"] = "Nessuna variante esatta nella borsa",
   ["No live listings came back for this item."] =
     "Nessuna asta attiva è tornata per questo oggetto.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "Nessun prezzo di riferimento regionale per questo oggetto — reimporta appena goldcap.gg ne pubblica uno.",
   ["No safe resale price could be worked out."] =
     "Non è stato possibile calcolare un prezzo di rivendita sicuro.",
   ["No sales data for this item."] = "Nessun dato di vendita per questo oggetto.",

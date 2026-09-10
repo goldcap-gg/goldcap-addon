@@ -238,6 +238,8 @@ GC.Locales.deDE = {
   ["No exact bag variant"] = "Keine exakte Taschenvariante",
   ["No live listings came back for this item."] =
     "Für diesen Gegenstand kamen keine Live-Angebote zurück.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "Für diesen Gegenstand gibt es noch keinen Regionspreis — importiere erneut, sobald goldcap.gg einen veröffentlicht.",
   ["No safe resale price could be worked out."] =
     "Es ließ sich kein sicherer Wiederverkaufspreis ermitteln.",
   ["No sales data for this item."] = "Keine Verkaufsdaten für diesen Gegenstand.",

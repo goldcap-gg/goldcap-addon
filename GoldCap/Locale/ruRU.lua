@@ -238,6 +238,8 @@ GC.Locales.ruRU = {
   ["No exact bag variant"] = "Нет точного варианта в сумке",
   ["No live listings came back for this item."] =
     "По этому предмету не пришло ни одного живого лота.",
+  ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
+    "Для этого предмета ещё нет эталонной цены региона — импортируйте снова, когда goldcap.gg её опубликует.",
   ["No safe resale price could be worked out."] =
     "Безопасную цену перепродажи вычислить не удалось.",
   ["No sales data for this item."] = "Нет данных о продажах этого предмета.",
