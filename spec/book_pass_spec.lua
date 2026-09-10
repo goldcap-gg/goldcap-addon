@@ -198,11 +198,6 @@ describe("BookPass", function()
     assert.is_false(bp:IsWidePassDue())
   end)
 
-  it("is not due for a wide pass immediately after construction", function()
-    local bp = newPass()
-    assert.is_false(bp:IsWidePassDue())
-  end)
-
   it("does not advance the wide-pass clock if Start('wide') is deferred and then aborted before firing", function()
     local bp = newPass({ widePassSeconds = 300 })
     sent.ready = false
@@ -211,6 +206,48 @@ describe("BookPass", function()
     now = 1300 + 1 -- 300+ seconds after construction
     bp:Abort() -- killed before OnThrottleReady grants a slot
     assert.is_true(bp:IsWidePassDue()) -- still due: pass never fired, clock unchanged
+  end)
+
+  describe("Reset", function()
+    it("re-seeds the book, so the next pass hits everything below trigger again", function()
+      local bp = newPass()
+      sent.triggers[1] = 100
+      browseResults, hasFullResults = { row(1, 50, 5) }, true
+      bp:Start("classes")
+      bp:OnResultsUpdated()
+      assert.equal(1, #hits)
+
+      -- Without the reset this is the "already seen at the same floor" case, and the second
+      -- pass says nothing at all.
+      bp:Reset()
+      hits = {}
+      bp:Start("classes")
+      bp:OnResultsUpdated()
+      assert.equal(1, #hits)
+      assert.equal(50, hits[1].floor)
+      assert.is_nil(hits[1].prev) -- a first sighting again, not a change against a stale book
+    end)
+
+    it("clears the paging state so a half-finished pass cannot resume", function()
+      local bp = newPass()
+      hasFullResults = false
+      bp:Start("classes")
+      assert.is_true(bp:IsPaging())
+      bp:Reset()
+      assert.is_false(bp:IsPaging())
+      sent.pages = 0
+      assert.is_false(bp:OnThrottleReady())
+      assert.equal(0, sent.pages)
+    end)
+
+    it("leaves the wide-pass clock alone", function()
+      local bp = newPass({ widePassSeconds = 300 })
+      now = 1000 + 299
+      bp:Reset()
+      assert.is_false(bp:IsWidePassDue()) -- the clock still runs from construction
+      now = 1000 + 300
+      assert.is_true(bp:IsWidePassDue())
+    end)
   end)
 
   it("resets the wide-pass clock only when a wide pass actually completes", function()

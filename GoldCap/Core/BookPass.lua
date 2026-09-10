@@ -119,6 +119,24 @@ function GC.BookPass.New(driver, opts)
     kind = nil
   end
 
+  -- Everything this module remembers is a claim about one Auction House session's order
+  -- book: the book itself (what each item's floor was last time we looked) and whatever pass
+  -- was mid-flight. Neither survives the AH closing -- a book kept across the close makes the
+  -- first pass of the next session silent about every item whose price has not moved since,
+  -- which is exactly the pass that most needs to say something. The wide-pass clock is NOT
+  -- reset: it paces an expensive unfiltered pass against wall time, and reopening the AH does
+  -- not make one more urgent.
+  function obj:Reset()
+    for itemID in pairs(book) do book[itemID] = nil end
+    kind = nil
+    paging = false
+    pendingStart = false
+    pendingPage = false
+    rawWatermark = 0
+    pagesThisPass = 0
+    passStartedAt = nil
+  end
+
   function obj:IsPaging() return paging end
 
   function obj:IsWidePassDue()
