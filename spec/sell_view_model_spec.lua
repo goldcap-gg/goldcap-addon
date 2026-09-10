@@ -82,11 +82,31 @@ describe("Sell view model", function()
     assert.not_equal(position.batches[1], expanded.batches[1])
   end)
 
-  it("explains an overcut recommendation in the facts line", function()
+  -- Which line held the price down is the interesting half of the sentence, so the hint names
+  -- it: the day's reach when the item has a reach figure, the cheap quarter on the fallback.
+  it("explains an overcut recommendation bound by the day's reach", function()
+    local position = { coverage = "COMPLETE", positionKey = "commodity:42",
+      postRecommendation = { unit = 11000, mode = "overcut", ahead = 700, capBy = "reach" } }
+    local d = GC.SellViewModel.Expansion(position)
+    assert.is_string(d.factsText)
+    assert.is_truthy(d.factsText:find(
+      "above the cheapest, within the day's reach · 700 units queued below", 1, true))
+  end)
+
+  it("explains an overcut recommendation bound by the cheap quarter", function()
+    local position = { coverage = "COMPLETE", positionKey = "commodity:42",
+      postRecommendation = { unit = 11000, mode = "overcut", ahead = 700, capBy = "quarter" } }
+    local d = GC.SellViewModel.Expansion(position)
+    assert.is_truthy(d.factsText:find(
+      "above the cheapest, inside the cheap quarter · 700 units queued below", 1, true))
+  end)
+
+  -- An import that predates the R section leaves capBy nil on a quarter-bound climb from an
+  -- older save; the quarter wording is the safe default, never a blank line.
+  it("falls back to the cheap-quarter wording when no line is named", function()
     local position = { coverage = "COMPLETE", positionKey = "commodity:42",
       postRecommendation = { unit = 11000, mode = "overcut", ahead = 700 } }
     local d = GC.SellViewModel.Expansion(position)
-    assert.is_string(d.factsText)
     assert.is_truthy(d.factsText:find(
       "above the cheapest, inside the cheap quarter · 700 units queued below", 1, true))
   end)
@@ -100,24 +120,25 @@ describe("Sell view model", function()
 
   it("says nothing about overcut when the mode did not fire", function()
     local position = { coverage = "COMPLETE", positionKey = "commodity:42",
-      postRecommendation = { unit = 9900, mode = "undercut" } }
+      postRecommendation = { unit = 9900, mode = "match" } }
     local d = GC.SellViewModel.Expansion(position)
     assert.is_nil((d.factsText or ""):find("cheap quarter", 1, true))
+    assert.is_nil((d.factsText or ""):find("day's reach", 1, true))
   end)
 
   it("does not say undercut when the row is actually overcut -- GoldCap chose that price", function()
     local position = { coverage = "COMPLETE", positionKey = "commodity:42",
       facts = { undercut = true },
-      postRecommendation = { unit = 11000, mode = "overcut", ahead = 700 } }
+      postRecommendation = { unit = 11000, mode = "overcut", ahead = 700, capBy = "reach" } }
     local d = GC.SellViewModel.Expansion(position)
-    assert.is_truthy(d.factsText:find("above the cheapest, inside the cheap quarter", 1, true))
+    assert.is_truthy(d.factsText:find("above the cheapest, within the day's reach", 1, true))
     assert.is_nil(d.factsText:find("undercut", 1, true))
   end)
 
   it("still says undercut when the recommendation is not overcut", function()
     local position = { coverage = "COMPLETE", positionKey = "commodity:42",
       facts = { undercut = true },
-      postRecommendation = { unit = 9900, mode = "undercut" } }
+      postRecommendation = { unit = 9900, mode = "match" } }
     local d = GC.SellViewModel.Expansion(position)
     assert.is_truthy(d.factsText:find("undercut", 1, true))
   end)

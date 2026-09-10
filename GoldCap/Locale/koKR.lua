@@ -432,6 +432,8 @@ GC.Locales.koKR = {
   ["You would pay"] = "지불할 금액",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "최저가보다 높게, 저가 구간 안 · 아래에 %d개 대기 중",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "최저가보다 높게, 하루 도달 범위 안 · 아래에 %d개 대기 중",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
   ["auto off"] = "자동 꺼짐",

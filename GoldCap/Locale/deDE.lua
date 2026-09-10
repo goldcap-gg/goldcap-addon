@@ -463,6 +463,8 @@ GC.Locales.deDE = {
   ["You would pay"] = "Du zahltest",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "über dem Günstigsten, im günstigen Viertel · %d Einheiten davor in der Schlange",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "über dem Günstigsten, innerhalb der Tagesreichweite · %d Einheiten davor in der Schlange",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
   ["auto off"] = "auto aus",

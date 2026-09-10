@@ -478,6 +478,8 @@ GC.Locales.ukUA = {
   ["You would pay"] = "Ви заплатите",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "вище найдешевшого, у межах денного розмаху · у черзі нижче %d шт.",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["auto off"] = "авто вимкнено",

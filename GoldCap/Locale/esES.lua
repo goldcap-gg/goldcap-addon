@@ -463,6 +463,8 @@ GC.Locales.esES = {
   ["You would pay"] = "Pagarías",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "por encima del más barato, dentro del cuarto barato · %d unidades en cola por debajo",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "por encima del más barato, dentro del alcance del día · %d unidades en cola por debajo",
   ["any figure here would be invented out of the very number being refused"] =
     "cualquier cifra aquí saldría inventada del mismo número que se está rechazando",
   ["auto off"] = "auto desactivado",

@@ -420,6 +420,8 @@ GC.Locales.zhCN = {
   ["You would pay"] = "你会支付",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "高于最低价，处于低价四分位内 · 下方排队 %d 件",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "高于最低价，处于当日可达价内 · 下方排队 %d 件",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
   ["auto off"] = "自动已关闭",

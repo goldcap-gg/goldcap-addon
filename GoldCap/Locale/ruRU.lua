@@ -462,6 +462,8 @@ GC.Locales.ruRU = {
   ["You would pay"] = "Вы заплатите",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "выше самого дешёвого, в дешёвой четверти · в очереди ниже %d шт.",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "выше самого дешёвого, в пределах дневного размаха · в очереди ниже %d шт.",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["auto off"] = "авто выключено",

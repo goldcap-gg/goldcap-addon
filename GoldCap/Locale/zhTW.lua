@@ -421,6 +421,8 @@ GC.Locales.zhTW = {
   ["You would pay"] = "你會支付",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "高於最低價，處於低價四分位內 · 下方排隊 %d 件",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "高於最低價，處於當日可達價內 · 下方排隊 %d 件",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
   ["auto off"] = "自動已關閉",

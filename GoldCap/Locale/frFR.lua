@@ -462,6 +462,8 @@ GC.Locales.frFR = {
   ["You would pay"] = "Tu paierais",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "au-dessus du moins cher, dans le quart bon marché · %d unités en file en dessous",
+  ["above the cheapest, within the day's reach · %d units queued below"] =
+    "au-dessus du moins cher, dans la portée du jour · %d unités en file en dessous",
   ["any figure here would be invented out of the very number being refused"] =
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
   ["auto off"] = "auto désactivé",
