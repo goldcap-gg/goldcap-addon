@@ -125,6 +125,13 @@ LIM.MAX_BOOK_LEVELS = 100
 LIM.ARM_TIMEOUT_SECONDS = 30
 LIM.BUY_TIMEOUT_SECONDS = 8
 LIM.REQUERY_TIMEOUT_SECONDS = 8
+-- How long the quiet zone (GC.Sniper.IsPurchaseQuiet) may veto every search sender before it
+-- is released. The zone is what stops a scan page or a watch poll from replacing the client's
+-- single commodity search buffer under an in-flight buy -- but a purchase the auction house
+-- never answers produces no terminal event at all, and an unbounded veto is how the whole
+-- board stopped. Longer than every purchase timeout above, so a real answer always lands
+-- first, and only ever applied with no dialog on screen.
+LIM.QUIET_ZONE_MAX_SECONDS = 30
 -- Task 8 hover pre-warm: how long a cached deal.prewarm result stays consumable by openDialog
 -- before it's treated as expired (falls back to today's requery-then-arm flow instead).
 LIM.PREWARM_TTL_SECONDS = 10
@@ -4229,8 +4236,79 @@ function GC.Sniper._QuietZoneOpen()
   return false
 end
 
+-- The bounded half of the veto. Commodity purchase events carry no attempt identifier and, as
+-- this batch learned the hard way, may never arrive at all: an "Internal auction error" fires
+-- none of the three terminal events, so the attempt that raised it holds the zone open for
+-- good. Everything still mid-flight is therefore returned to the player as a Check they can
+-- re-run, the unconfirmed tombstones are dropped, and the board starts moving again.
+--
+-- Never touches a CONFIRMED attempt (in either slot) or the row it owns: gold may have moved,
+-- so freeing that row for a silent retry could buy the same lot twice. Those settle through
+-- their own terminal event or GC.Sniper._ReleaseStrandedConfirmed, and the row they own is
+-- released by the NEXT window once that has happened.
+function GC.Sniper._ReleaseQuietZone()
+  local note = GC.L["no answer from the auction house"] .. GC.L[" — Check again"]
+  for i = 1, #rows do
+    local row = rows[i]
+    local stage = row.purchaseStage
+    local owned = (commodityPurchase and commodityPurchase.confirmed and commodityPurchase.row == row)
+      or (commodityDraining and commodityDraining.confirmed and commodityDraining.row == row)
+    if stage and GC.Sniper._StageIsQuiet(stage) and not owned then
+      local deal = row.purchaseDeal or row.deal
+      if deal and deal.itemID then
+        -- Retire the requery bookkeeping exactly as scheduleRequeryTimeout does: a search that
+        -- was actually sent still has to drain before a new authoritative Check can exist, or
+        -- its late untagged result becomes a quote for the next click.
+        local attempt = awaitingRequery[deal.itemID]
+        awaitingRequery[deal.itemID] = nil
+        awaitingKeyInfo[deal.itemID] = nil
+        pendingRequerySend[deal.itemID] = nil
+        if attempt and attempt.sent then requeryDraining[deal.itemID] = attempt end
+        armCheck(row, deal, nil, note, true)
+      else
+        row.purchaseStage = nil
+        row.purchaseDeal = nil
+      end
+    end
+  end
+  local pending = commodityPurchase
+  if pending and not pending.confirmed then
+    -- Non-protected, and the same settle abortRowPurchase performs: an opened server session
+    -- must not be left hanging just because nothing answered it here.
+    if not pending.cancelRequested then
+      C_AuctionHouse.CancelCommoditiesPurchase()
+      pending.cancelRequested = true
+    end
+    commodityPurchase = nil
+  end
+  if commodityDraining and not commodityDraining.confirmed then commodityDraining = nil end
+  refreshRows()
+end
+
 function GC.Sniper.IsPurchaseQuiet()
-  return GC.Sniper._QuietZoneOpen()
+  if not GC.Sniper._QuietZoneOpen() then
+    GC.Sniper._quietSince = nil
+    return false
+  end
+  local now = GetTime()
+  if not GC.Sniper._quietSince then
+    GC.Sniper._quietSince = now
+    return true
+  end
+  if now - GC.Sniper._quietSince <= LIM.QUIET_ZONE_MAX_SECONDS then return true end
+  -- A dialog on screen keeps the zone for as long as it is up: the player is mid-purchase and
+  -- the pass is paused for the dialog anyway (GC.Sniper.NotifyDialogOpened), so there is
+  -- nothing to release and nobody being starved. Closing it resolves the row.
+  if dialog and dialog.IsShown and dialog:IsShown() then return true end
+  GC.Sniper._ReleaseQuietZone()
+  if GC.Sniper._QuietZoneOpen() then
+    -- A confirmed attempt survived the release. Restart the clock rather than re-running the
+    -- release on every single call for the rest of its life.
+    GC.Sniper._quietSince = now
+    return true
+  end
+  GC.Sniper._quietSince = nil
+  return false
 end
 
 -- D: true while a Full Scan is paging (or queued to start) or a purchase attempt is mid-flight

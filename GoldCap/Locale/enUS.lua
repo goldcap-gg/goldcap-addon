@@ -516,6 +516,7 @@ GC.Locales.enUS = {
   ["low"] = "low",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",
+  ["no answer from the auction house"] = "no answer from the auction house",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it.",
   ["no live price yet"] = "no live price yet",

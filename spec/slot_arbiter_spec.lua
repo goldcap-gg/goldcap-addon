@@ -263,6 +263,85 @@ describe("Search slot arbiter", function()
     assert.is_false(GC.Sniper.IsSearchCritical())
   end)
 
+  -- The veto has to be bounded, or it is the same board freeze one layer down: an "Internal
+  -- auction error" fires NONE of the three commodity terminal events, so the attempt that
+  -- raised it would own the search slot for the rest of the session.
+  describe("bounded veto", function()
+    local function clockAt(seconds)
+      _G.GetTime = function() return seconds end
+    end
+
+    it("releases a stuck attempt after 30 seconds and returns its row to Check", function()
+      local GC = load()
+      local status = {}
+      local row = { purchaseStage = "buying", deal = { itemID = 42, isCommodity = true },
+        purchaseDeal = { itemID = 42, isCommodity = true } }
+      set(GC.Sniper._QuietZoneOpen, "rows", { row })
+      set(upvalue(GC.Sniper.OnCommodityPriceUpdated, "armCheck"), "frame",
+        { status = { SetText = function(_, text) status[#status + 1] = text end } })
+      -- This example is about the STATE the release leaves behind; the re-render it ends with
+      -- needs the whole window built, which this headless harness deliberately does not have.
+      set(GC.Sniper._ReleaseQuietZone, "refreshRows", function() end)
+      local cancels = 0
+      _G.C_AuctionHouse.CancelCommoditiesPurchase = function() cancels = cancels + 1 end
+      set(GC.Sniper._QuietZoneOpen, "commodityPurchase", { row = row, itemID = 42, token = 1 })
+
+      clockAt(100)
+      assert.is_true(GC.Sniper.IsPurchaseQuiet()) -- the clock starts on the first look
+      clockAt(125)
+      assert.is_true(GC.Sniper.IsPurchaseQuiet()) -- still inside the window
+
+      clockAt(131)
+      assert.is_false(GC.Sniper.IsPurchaseQuiet())
+      assert.equal("check", row.purchaseStage)
+      assert.is_nil(upvalue(GC.Sniper._QuietZoneOpen, "commodityPurchase"))
+      assert.equal(1, cancels) -- an opened server session is settled, not abandoned
+      assert.is_truthy(status[#status]:find("Check again", 1, true))
+
+      -- And the board is serving again on the very next slot.
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "page" }, sent)
+    end)
+
+    it("keeps the zone while the dialog is on screen, however long it has been open", function()
+      local GC = load()
+      local row = { purchaseStage = "ready", deal = { itemID = 42 } }
+      set(GC.Sniper._QuietZoneOpen, "rows", { row })
+      set(GC.Sniper._QuietZoneOpen, "dialog", { row = row, IsShown = function() return true end })
+
+      clockAt(100)
+      assert.is_true(GC.Sniper.IsPurchaseQuiet())
+      clockAt(400)
+      assert.is_true(GC.Sniper.IsPurchaseQuiet())
+      assert.equal("ready", row.purchaseStage)
+    end)
+
+    -- Gold may have moved. A confirmed attempt keeps its row and its tombstone until a
+    -- terminal event or GC.Sniper._ReleaseStrandedConfirmed settles it -- releasing it here
+    -- would free the row for a retry that buys the same lot twice.
+    it("never releases a confirmed attempt or the row it owns", function()
+      local GC = load()
+      local row = { purchaseStage = "confirming", deal = { itemID = 42 } }
+      local confirmed = { row = row, itemID = 42, token = 1, confirmed = true }
+      set(GC.Sniper._QuietZoneOpen, "rows", { row })
+      set(GC.Sniper._QuietZoneOpen, "commodityDraining", confirmed)
+
+      clockAt(100)
+      assert.is_true(GC.Sniper.IsPurchaseQuiet())
+      clockAt(200)
+      assert.is_true(GC.Sniper.IsPurchaseQuiet())
+      assert.equal("confirming", row.purchaseStage)
+      assert.is_true(upvalue(GC.Sniper._QuietZoneOpen, "commodityDraining") == confirmed)
+
+      -- Once its own release has dropped the tombstone, the next window frees the row.
+      set(GC.Sniper._QuietZoneOpen, "commodityDraining", nil)
+      clockAt(300)
+      assert.is_false(GC.Sniper.IsPurchaseQuiet())
+      assert.equal("check", row.purchaseStage)
+    end)
+  end)
+
   it("keeps serving the board while a frozen row holds its display pin", function()
     local GC = load()
     -- Exactly what resolvePurchase's frozen branch leaves behind: the row pinned by itemID,
