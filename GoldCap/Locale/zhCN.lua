@@ -523,6 +523,8 @@ GC.Locales.zhCN = {
     " 秒。被拒绝的行会隐藏。购买始终是你自己点下的动作。",
   ["sale name ambiguous"] = "销售名称有歧义",
   ["sale proceeds pending"] = "销售款项待入账",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "扫描结束：%d 笔交易%s，来自 %d 个物品%s（材料、消耗品、宝石、附魔）%s",
   ["scanned %d listings over %d passes"] = "扫描了 %d 条挂单，共 %d 轮",
   ["scanning auction house..."] = "正在扫描拍卖行...",
   ["scanning… %d results · %d deals%s"] = "扫描中… %d 条结果 · %d 笔交易%s",

@@ -540,6 +540,8 @@ GC.Locales.koKR = {
     "초입니다. 거부된 줄은 숨겨집니다. 구매는 언제나 직접 누르는 클릭입니다.",
   ["sale name ambiguous"] = "판매 항목 이름이 모호함",
   ["sale proceeds pending"] = "판매 대금 대기 중",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "검색 완료: 거래 %d건%s · 아이템 %d개%s (재료, 소모품, 보석, 마법부여)%s",
   ["scanned %d listings over %d passes"] = "등록 %d건을 %d번 순회로 검색했습니다",
   ["scanning auction house..."] = "경매장 검색 중...",
   ["scanning… %d results · %d deals%s"] = "검색 중… 결과 %d건 · 거래 %d건%s",

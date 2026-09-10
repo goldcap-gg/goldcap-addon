@@ -443,8 +443,10 @@ local function sortedDeals()
   end
   local list = {}
   if mode == "fullscan" then
-    -- GC.FullScan.Evaluate already returns tier-rank/profit sorted order; filtering out
-    -- pinned itemIDs preserves that order (no re-sort needed).
+    -- Order is not decided here and is not preserved from here: applySortOverride re-sorts
+    -- this list off the live verdict (GC.BoardRows.Compare) on every render, so all this loop
+    -- owes the caller is membership -- every scanned deal except the ones frozen under the
+    -- cursor or a purchase.
     for _, deal in ipairs(scanDeals) do
       if not activeItemID[deal.itemID] and deal.itemID ~= hoveredItemID
           and not (frozen and frozen[deal.itemID]) then
@@ -1224,7 +1226,8 @@ local function anyItemArmed()
   local imp = GC.db and GC.db.imported
   local verification = imp and imp.verification
   if not verification then return false end
-  local sniperSettings = GC.db.settings.sniper
+  local sniperSettings = GC.db.settings and GC.db.settings.sniper
+  if not sniperSettings then return false end
   local minimumProfitCopper = sniperSettings.minimumProfitCopper
   local minimumRoi = sniperSettings.minimumRoi
   local cache = GC.Sniper._armedCache
@@ -1693,10 +1696,35 @@ local function pingNewHotDeals(newHotDeals)
   end
 end
 
-local function applyFullScanResults(rowsList, groupCount)
+-- `kind` is the book pass's own "wide" or "classes" (Core/BookPass.lua's onPassDone) -- the
+-- difference matters twice below: what the status line may honestly claim to have looked at,
+-- and whether a deal this pass did not report is a deal that is GONE or merely one this pass
+-- could not see.
+local function applyFullScanResults(rowsList, groupCount, kind)
   local screened
   scanDeals, screened = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
   GC.Sniper._screenedCount = screened or 0
+  -- A classes pass browses four item classes; the wide pass browses everything. Replacing the
+  -- board wholesale from a classes pass therefore DELETED every out-of-class find the last
+  -- wide pass made -- a BoE the sniper flagged vanished a few seconds later, with nothing
+  -- having disproved it, and came back only on the next wide pass minutes away. So the wide
+  -- pass's own deals are kept aside, and after a classes pass the ones that pass did not even
+  -- LOOK at (no browse row for that item) are merged back in. Anything the classes pass did
+  -- look at and no longer reports really is gone, and stays gone. A table field, not a new
+  -- top-level local: this file is at its 200-local ceiling (see addon/AGENTS.md).
+  if kind == "wide" then
+    local extras = {}
+    for _, deal in ipairs(scanDeals) do extras[deal.itemID] = deal end
+    GC.Sniper._wideExtras = extras
+  elseif GC.Sniper._wideExtras then
+    local seen = {}
+    for _, row in ipairs(rowsList) do seen[row.itemID] = true end
+    local carried = {}
+    for itemID, deal in pairs(GC.Sniper._wideExtras) do
+      if not seen[itemID] then carried[#carried + 1] = deal end
+    end
+    if #carried > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, carried, 100) end
+  end
   GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
   GC.WatchSet.Observe(GC.Sniper._churn, scanDeals, GC.Sniper._churnSeq)
   GC.Sniper._RefreshWatchSet()
@@ -1715,8 +1743,16 @@ local function applyFullScanResults(rowsList, groupCount)
       and (GC.L[", %d hidden as unsellable"]):format(GC.Sniper._screenedCount) or ""
     -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
     -- held announcement costs nothing -- the next pass rewrites it.
-    setStatus((GC.L["full scan complete: %d deal%s from %d item group%s%s"]):format(
-      #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
+    -- Two sentences, because the two passes looked at different markets and only one of them
+    -- looked at all of them. A classes pass that reported "full scan complete" was claiming to
+    -- have swept an auction house it never asked about.
+    if kind == "classes" then
+      setStatus((GC.L["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"]):format(
+        #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
+    else
+      setStatus((GC.L["full scan complete: %d deal%s from %d item group%s%s"]):format(
+        #scanDeals, #scanDeals == 1 and "" or "s", groupCount, groupCount == 1 and "" or "s", hidden))
+    end
   end
   refreshRows()
   -- Sniper v3 §3 ping (fix round 1, I2): the completion reconcile needs its own ping pass
@@ -1926,6 +1962,14 @@ GC.Sniper._bookPass = GC.BookPass.New({
   -- own RowsFromBrowse + DealMath.Evaluate pipeline), so the drill queue's priority mirrors
   -- what a live Check would approve, not just how far under mv the floor sits.
   onHit = function(hit)
+    -- The same pre-screen Core/FullScan.lua applies before DealMath.Evaluate. Without it the
+    -- queue spent its budget verifying rows discovery would never have put on the board:
+    -- markets whose sell-through, velocity or liquidity already rule them out need no order
+    -- book to refuse, and a live query cannot change any of those answers.
+    local value = GC.Data.GetItemValue(hit.itemID)
+    local blocked = GC.SniperDecision and GC.SniperDecision.PreScreen
+      and GC.SniperDecision.PreScreen(GC.SniperDecision.MarketFromValue(value), GC.db.settings.sniper) or {}
+    if #blocked > 0 then return end
     local hitRows = GC.FullScan.RowsFromBrowse(
       { { itemKey = { itemID = hit.itemID }, minPrice = hit.floor, totalQuantity = hit.qty } },
       GC.Data.GetItemValue, GC.db.settings.sniper)
@@ -1962,7 +2006,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
       totalRawSeen, #scanDeals, screenedNote))
   end,
   onPassDone = function(info)
-    applyFullScanResults(streamRows, info.items)
+    applyFullScanResults(streamRows, info.items, info.kind)
   end,
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
@@ -3613,6 +3657,20 @@ function GC.Sniper._GrantWatchSlot()
   return true
 end
 
+-- The cheap global preconditions maybeStartPrewarm checks before it will send anything: no
+-- AH session, a pre-warm already in flight, ANY purchase mid-flight, or a throttle that is not
+-- ready all refuse every caller equally, whatever item is asked about. Asked FIRST, before the
+-- drill queue is charged for a send, because a queue that charges for a refusal lets one
+-- undrillable item spend the whole 60/min budget on nothing. The per-item guards
+-- (uncached item key, the drain fence, a still-fresh cached pre-warm) stay inside
+-- maybeStartPrewarm -- they are what the returned "did it actually send" answer is for.
+local function canDrillNow()
+  if not ahOpen then return false end
+  if prewarmAttempt then return false end
+  if next(activeItemID) ~= nil then return false end
+  return driver.isReady() and true or false
+end
+
 -- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
 -- the next slot before anything else -- the Check has already stopped Live in startRequery, so
 -- this works in watchlist mode without a scanner collision. Below that, a queued drill-down
@@ -3636,13 +3694,27 @@ function GC.Sniper.OnThrottleReady()
 
   -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
   -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),
-  -- never a dialog, never a purchase call. A decline (uncached item key, the drain fence, or
-  -- the shared "one pre-warm in flight" slot busy this tick) re-queues the hit rather than
-  -- dropping it -- the next ready tick tries again.
-  local hit = GC.Sniper._drillQueue:Pop()
-  if hit then
-    if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then return end
-    GC.Sniper._drillQueue:Push(hit)
+  -- never a dialog, never a purchase call.
+  --
+  -- Peek, then charge. Three outcomes, and only one of them costs a send: nothing can drill at
+  -- all this turn (fall through to the book pass, budget untouched); the head is describing a
+  -- floor the book has since moved off, so no query was ever worth making for it (dropped, no
+  -- charge, and the next hit gets this turn instead -- once, so a queue full of stale entries
+  -- cannot be walked in one tick); or it is live and sendable, in which case Pop charges and a
+  -- per-item decline inside maybeStartPrewarm (uncached item key, the drain fence, a fresh
+  -- cached pre-warm) re-queues it for the next ready tick.
+  for _ = 1, 2 do
+    local hit = GC.Sniper._drillQueue:Peek()
+    if not hit or not canDrillNow() then break end
+    local booked = GC.Sniper._bookPass:Book()[hit.itemID]
+    if not booked or booked.floor ~= hit.floor then
+      GC.Sniper._drillQueue:Drop(hit)
+    else
+      GC.Sniper._drillQueue:Pop()
+      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then return end
+      GC.Sniper._drillQueue:Push(hit)
+      break
+    end
   end
 
   -- 3. The current book pass's own send -- starting a fresh pass, or its next page. GC.Sniper
@@ -6829,6 +6901,15 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._churnSeq = 0
   for itemID in pairs(GC.Sniper._rangAt) do GC.Sniper._rangAt[itemID] = nil end
   for itemID in pairs(GC.Sniper._lastPrice) do GC.Sniper._lastPrice[itemID] = nil end
+  -- Same reasoning, and the same session boundary: the book is what each item's floor was the
+  -- last time we looked, and the drill queue is a list of prices worth a live look. Kept
+  -- across the close, the first pass of the next session says nothing about every item whose
+  -- price has not moved since -- the one pass that most needs to speak -- and the queue drills
+  -- prices nobody has seen for hours. The wide-pass clock is left alone on purpose (see
+  -- Core/BookPass.lua's Reset).
+  GC.Sniper._bookPass:Reset()
+  GC.Sniper._drillQueue:Clear()
+  GC.Sniper._wideExtras = nil
   -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live
   -- order book, and there is no live order book once the session is gone. scanDeals survives
   -- the close on purpose (see OnAuctionHouseShow) -- its verdicts must not, or the next visit

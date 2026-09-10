@@ -524,6 +524,8 @@ GC.Locales.zhTW = {
     " 秒。被拒絕的列會隱藏。購買永遠是你自己按下的動作。",
   ["sale name ambiguous"] = "銷售名稱有歧義",
   ["sale proceeds pending"] = "販售款項待入帳",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "掃描結束：%d 筆交易%s，來自 %d 個物品%s（材料、消耗品、寶石、附魔）%s",
   ["scanned %d listings over %d passes"] = "掃描了 %d 筆上架，共 %d 輪",
   ["scanning auction house..."] = "正在掃描拍賣場...",
   ["scanning… %d results · %d deals%s"] = "掃描中… %d 筆結果 · %d 筆交易%s",

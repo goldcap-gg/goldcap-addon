@@ -578,6 +578,8 @@ GC.Locales.esMX = {
     " s. Las filas rechazadas se ocultan. Comprar sigue siendo siempre un clic tuyo.",
   ["sale name ambiguous"] = "nombre de la venta ambiguo",
   ["sale proceeds pending"] = "ingresos de la venta pendientes",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "escaneo completo: %d oferta%s de %d objeto%s en materiales, consumibles, gemas, encantamientos%s",
   ["scanned %d listings over %d passes"] = "escaneadas %d publicaciones en %d pasadas",
   ["scanning auction house..."] = "escaneando la casa de subastas...",
   ["scanning… %d results · %d deals%s"] = "escaneando… %d resultados · %d oportunidades%s",

@@ -593,6 +593,8 @@ GC.Locales.ukUA = {
     "с. Відхилені рядки приховано. Купівля завжди лишається вашим кліком.",
   ["sale name ambiguous"] = "назва в продажу неоднозначна",
   ["sale proceeds pending"] = "виторг очікується",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "сканування завершено: %d угод%s із %d предметів%s у реагентах, витратних матеріалах, самоцвітах, чарах%s",
   ["scanned %d listings over %d passes"] = "проскановано %d лотів за %d проходів",
   ["scanning auction house..."] = "скануємо аукціон...",
   ["scanning… %d results · %d deals%s"] = "скануємо… %d результатів · %d угод%s",

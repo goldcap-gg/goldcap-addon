@@ -23,10 +23,26 @@ describe("Book pass wiring", function()
     error("missing upvalue " .. wanted)
   end
 
-  local browseSent, browseQueries
+  local browseSent, browseQueries, browseResults
+
+  -- One browse row in the shape C_AuctionHouse.GetBrowseResults() returns.
+  local function browseRow(itemID, minPrice, totalQuantity)
+    return { itemKey = { itemID = itemID }, minPrice = minPrice, totalQuantity = totalQuantity or 50 }
+  end
+
+  -- An import value rich enough to survive GC.SniperDecision.PreScreen AND to evaluate to a
+  -- deal: mv well above the asking prices below, a real stress exit, and liquidity facts past
+  -- every hard gate. Overrides let a test fail exactly one of them.
+  local function dealValue(overrides)
+    local value = { kind = "commodity", source = "import", mv = 250000, stressUnit = 200000,
+      sold = 12, sellThroughBps = 9000, liquidityConfidence = 90, listings = 20,
+      currentQty = 400, trend = 0 }
+    for k, v in pairs(overrides or {}) do value[k] = v end
+    return value
+  end
 
   local function loadSniper()
-    browseSent, browseQueries = 0, {}
+    browseSent, browseQueries, browseResults = 0, {}, {}
     _G.GetTime = function() return 100 end
     _G.time = function() return 1000 end
     _G.GetMoney = function() return 10 * 1000 * 10000 end
@@ -45,11 +61,17 @@ describe("Book pass wiring", function()
       end,
       RequestMoreBrowseResults = function() end,
       HasFullBrowseResults = function() return true end,
-      GetBrowseResults = function() return {} end,
+      GetBrowseResults = function() return browseResults end,
     }
 
+    -- The real Core/Init.lua sniper defaults for everything Core/DealMath.lua and
+    -- Core/SniperDecision.lua actually read -- a partial table here would make a missing
+    -- threshold look like a scan that found nothing.
     local GC = { db = { settings = { sniper = { sound = true, showRefused = false,
-      minimumProfitCopper = 50000, minimumRoi = 0.10 } } } }
+      minimumProfitCopper = 50000, minimumRoi = 0.10, watchDiscount = 0.10,
+      suspectDiscount = 0.90, hotDiscount = 0.40, hotProfit = 500000,
+      goodDiscount = 0.25, goodProfit = 100000, hotMinSold = 3, goodMinSold = 1,
+      dumpTrendPct = 10, watchPins = {} } } } }
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/DealMath.lua", GC)
@@ -106,6 +128,9 @@ describe("Book pass wiring", function()
     driverTbl.sendSearch = function(itemID) searched[#searched + 1] = itemID end
 
     set(GC.Sniper.OnAuctionHouseShow, "ahOpen", true)
+    -- The book has to agree that this is still the price the hit was flagged at, or the
+    -- arbiter (rightly) drops it as stale instead of spending a send on it.
+    GC.Sniper._bookPass:Book()[777] = { floor = 100 }
     GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 5000 })
     GC.Sniper.OnThrottleReady()
     assert.same({ 777 }, searched)
@@ -127,6 +152,7 @@ describe("Book pass wiring", function()
 
     -- A slot cycle: throttle is ready again, and a drill-down is queued ahead of the pass.
     _G.C_AuctionHouse.IsThrottledMessageSystemReady = function() return true end
+    GC.Sniper._bookPass:Book()[777] = { floor = 100 }
     GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 5000 })
     GC.Sniper.OnThrottleReady()
     assert.equal(0, browseSent) -- drill-down outranked the page this cycle
@@ -134,5 +160,117 @@ describe("Book pass wiring", function()
     -- Next cycle: the deferred start goes out.
     GC.Sniper.OnThrottleReady()
     assert.equal(1, browseSent)
+  end)
+
+  -- A drill-down that CANNOT be sent must not cost a send. Before this, the arbiter popped
+  -- (charging the 60/min budget) and only then asked whether a query could go out, so one
+  -- rich hit nothing could ever drill parked at the head of the queue and burned the whole
+  -- budget, tick after tick, for every other item on the board.
+  it("charges nothing for a drill-down the pre-warm slot refuses", function()
+    local GC = loadSniper()
+    local searched = {}
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    driverTbl.getKeyInfo = function() return { isCommodity = true } end
+    driverTbl.sendSearch = function(itemID) searched[#searched + 1] = itemID end
+
+    set(GC.Sniper.OnAuctionHouseShow, "ahOpen", true)
+    -- A one-send budget, so a charge is impossible to miss.
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time }, { perMinute = 1 })
+    GC.Sniper._bookPass:Book()[777] = { floor = 100 }
+    GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 5000 })
+
+    -- One pre-warm in flight globally: this drill-down cannot send this turn.
+    set(GC.Sniper.OnItemSearchResults, "prewarmAttempt", { itemID = 42, token = 1, deal = {} })
+    GC.Sniper.OnThrottleReady()
+    assert.same({}, searched)
+    assert.equal(1, GC.Sniper._drillQueue:Depth()) -- still queued
+
+    -- The slot frees up, and the one send in the budget is still there to spend.
+    set(GC.Sniper.OnItemSearchResults, "prewarmAttempt", nil)
+    GC.Sniper.OnThrottleReady()
+    assert.same({ 777 }, searched)
+  end)
+
+  it("drops a hit the book has already moved past, and serves the next one in the same turn", function()
+    local GC = loadSniper()
+    local searched = {}
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    driverTbl.getKeyInfo = function() return { isCommodity = true } end
+    driverTbl.sendSearch = function(itemID) searched[#searched + 1] = itemID end
+
+    set(GC.Sniper.OnAuctionHouseShow, "ahOpen", true)
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time }, { perMinute = 1 })
+    -- 777 is the richest hit queued, but the book has since read a different floor for it:
+    -- the price it was flagged at is gone, so there is nothing to drill.
+    GC.Sniper._bookPass:Book()[777] = { floor = 90 }
+    GC.Sniper._bookPass:Book()[888] = { floor = 200 }
+    GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 9000 })
+    GC.Sniper._drillQueue:Push({ itemID = 888, floor = 200, estProfit = 100 })
+
+    GC.Sniper.OnThrottleReady()
+    assert.same({ 888 }, searched)                 -- the stale head cost nothing, not even a turn
+    assert.equal(0, GC.Sniper._drillQueue:Depth()) -- and it is gone, not parked at the head again
+  end)
+
+  it("empties the book and the drill queue when the auction house closes", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 100 }
+    GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 5000 })
+
+    GC.Sniper.OnAuctionHouseClosed()
+
+    assert.is_nil(next(GC.Sniper._bookPass:Book()))
+    assert.equal(0, GC.Sniper._drillQueue:Depth())
+  end)
+
+  it("never queues a hit the discovery pre-screen would refuse", function()
+    local GC = loadSniper()
+    -- Below its trigger (140000 for this value at the default floors), so the book pass hits.
+    browseResults = { browseRow(500, 100000) }
+
+    GC.Data.GetItemValue = function() return dealValue({ sold = 0 }) end -- velocity_too_low
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.equal(0, GC.Sniper._drillQueue:Depth())
+
+    -- Same hit, same price, a market the pre-screen accepts: now it queues.
+    GC.Data.GetItemValue = function() return dealValue() end
+    GC.Sniper._bookPass:Reset()
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.equal(1, GC.Sniper._drillQueue:Depth())
+  end)
+
+  it("keeps the wide pass's out-of-class finds through a classes pass", function()
+    local GC = loadSniper()
+    GC.Data.GetItemValue = function() return dealValue() end
+
+    local function boardHas(itemID)
+      for _, deal in ipairs(upvalue(GC.Sniper.OnAuctionHouseShow, "scanDeals")) do
+        if deal.itemID == itemID then return true end
+      end
+      return false
+    end
+
+    -- A wide pass sees both: 100 is a reagent the classes filter covers, 500 is not.
+    browseResults = { browseRow(100, 100000), browseRow(500, 100000) }
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_true(boardHas(100))
+    assert.is_true(boardHas(500))
+
+    -- A classes pass cannot see 500 at all. Erasing it would mean the board forgot a deal
+    -- nothing has disproved, every few seconds, for as long as Auto runs.
+    browseResults = { browseRow(100, 100000) }
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_true(boardHas(100))
+    assert.is_true(boardHas(500))
+
+    -- The next wide pass DID look and did not find it: now it goes.
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_true(boardHas(100))
+    assert.is_false(boardHas(500))
   end)
 end)

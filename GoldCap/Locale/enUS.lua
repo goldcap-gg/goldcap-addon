@@ -529,6 +529,8 @@ GC.Locales.enUS = {
   ["s. Rows it refuses are hidden. Buying always stays a click you make."] = "s. Rows it refuses are hidden. Buying always stays a click you make.",
   ["sale name ambiguous"] = "sale name ambiguous",
   ["sale proceeds pending"] = "sale proceeds pending",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s",
   ["scanned %d listings over %d passes"] = "scanned %d listings over %d passes",
   ["scanning auction house..."] = "scanning auction house...",
   ["scanning… %d results · %d deals%s"] = "scanning… %d results · %d deals%s",

@@ -574,6 +574,8 @@ GC.Locales.ruRU = {
     "с. Отклонённые строки скрыты. Покупка всегда остаётся вашим кликом.",
   ["sale name ambiguous"] = "имя в продаже неоднозначно",
   ["sale proceeds pending"] = "выручка ожидается",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "сканирование завершено: %d сделок%s из %d предметов%s в реагентах, расходниках, самоцветах, чарах%s",
   ["scanned %d listings over %d passes"] = "просканировано %d лотов за %d проходов",
   ["scanning auction house..."] = "сканируем аукцион...",
   ["scanning… %d results · %d deals%s"] = "сканируем… %d результатов · %d сделок%s",

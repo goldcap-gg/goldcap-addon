@@ -575,6 +575,8 @@ GC.Locales.frFR = {
     " s. Les lignes refusées sont masquées. L'achat reste toujours un clic que vous faites.",
   ["sale name ambiguous"] = "nom de la vente ambigu",
   ["sale proceeds pending"] = "recettes de vente en attente",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "scan terminé : %d offre%s sur %d objet%s parmi composants, consommables, gemmes, enchantements%s",
   ["scanned %d listings over %d passes"] = "%d ventes scannées en %d passages",
   ["scanning auction house..."] = "scan de l'hôtel des ventes...",
   ["scanning… %d results · %d deals%s"] = "scan… %d résultats · %d affaires%s",

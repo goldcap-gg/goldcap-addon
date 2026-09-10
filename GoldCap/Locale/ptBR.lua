@@ -576,6 +576,8 @@ GC.Locales.ptBR = {
     " s. As linhas recusadas ficam ocultas. Comprar continua sendo sempre um clique seu.",
   ["sale name ambiguous"] = "nome da venda ambíguo",
   ["sale proceeds pending"] = "receita da venda pendente",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "varredura concluída: %d oferta%s de %d item%s em materiais, consumíveis, gemas, encantamentos%s",
   ["scanned %d listings over %d passes"] = "varridos %d anúncios em %d passagens",
   ["scanning auction house..."] = "varrendo a casa de leilões...",
   ["scanning… %d results · %d deals%s"] = "varrendo… %d resultados · %d oportunidades%s",

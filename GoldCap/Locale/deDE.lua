@@ -576,6 +576,8 @@ GC.Locales.deDE = {
     "s. Abgelehnte Zeilen werden ausgeblendet. Kaufen bleibt immer ein Klick, den du machst.",
   ["sale name ambiguous"] = "Verkaufsname mehrdeutig",
   ["sale proceeds pending"] = "Verkaufserlös ausstehend",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "Scan fertig: %d Angebot%s aus %d Gegenstand%s in Reagenzien, Verbrauchsgütern, Edelsteinen, Verzauberungen%s",
   ["scanned %d listings over %d passes"] = "%d Angebote in %d Durchläufen gescannt",
   ["scanning auction house..."] = "Auktionshaus wird gescannt...",
   ["scanning… %d results · %d deals%s"] = "scannt… %d Ergebnisse · %d Angebote%s",

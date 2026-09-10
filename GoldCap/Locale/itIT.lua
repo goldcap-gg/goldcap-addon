@@ -576,6 +576,8 @@ GC.Locales.itIT = {
     " s. Le righe rifiutate vengono nascoste. Comprare resta sempre un clic che fai tu.",
   ["sale name ambiguous"] = "nome della vendita ambiguo",
   ["sale proceeds pending"] = "ricavo della vendita in attesa",
+  ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
+    "scansione completata: %d affare%s da %d oggetto%s tra materiali, consumabili, gemme, incantesimi%s",
   ["scanned %d listings over %d passes"] = "scansionate %d vendite in %d passaggi",
   ["scanning auction house..."] = "scansione della casa d'aste...",
   ["scanning… %d results · %d deals%s"] = "scansione… %d risultati · %d occasioni%s",
