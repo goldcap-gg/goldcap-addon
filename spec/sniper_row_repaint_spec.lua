@@ -99,6 +99,9 @@ describe("Sniper row repaint skip", function()
     helper.loadModule("Core/AutoScan.lua", GC)
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
@@ -520,6 +523,9 @@ describe("Row click wiring (whole-row left-click acts)", function()
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
     helper.loadModule("Core/WatchSet.lua", GC) -- _TogglePin -> _RefreshWatchSet -> GC.WatchSet.Select
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")

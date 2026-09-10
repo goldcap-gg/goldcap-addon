@@ -545,8 +545,6 @@ GC.Locales.zhTW = {
   ["unknown evidence"] = "未知的依據",
   ["waiting for previous commodity purchase to settle"] = "等待前一筆商品購買結算",
   ["waiting for previous search result to settle"] = "等待前一次搜尋結果",
-  ["waiting for server... full scan will start automatically"] =
-    "等待伺服器... 完整掃描會自動開始",
   ["watching %s closely -- re-checked every few seconds"] = "密切關注 %s -- 每幾秒重新檢查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最壞情況下，把全部 %d 件按現在掛著的價格賣回去",

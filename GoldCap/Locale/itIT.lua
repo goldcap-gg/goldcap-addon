@@ -599,8 +599,6 @@ GC.Locales.itIT = {
     "in attesa che si chiuda l'acquisto di merce precedente",
   ["waiting for previous search result to settle"] =
     "in attesa del risultato di ricerca precedente",
-  ["waiting for server... full scan will start automatically"] =
-    "in attesa del server... la scansione completa partirà da sola",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s sorvegliato da vicino -- ricontrollato ogni pochi secondi",
   ["worst case, selling all %d back into the price standing there now"] =

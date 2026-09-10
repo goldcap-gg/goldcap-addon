@@ -26,6 +26,17 @@ describe("Search slot arbiter", function()
     _G.time = function() return 1000 end
     _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
+    -- The book pass now owns what used to be the bare pendingBrowsePage/sendBrowsePage
+    -- upvalues this spec poked directly -- RequestMoreBrowseResults is its own "a page sent"
+    -- signal, and HasFullBrowseResults staying false is what keeps a page perpetually pending
+    -- until the test arms one with armPage() below.
+    _G.C_AuctionHouse = {
+      IsThrottledMessageSystemReady = function() return true end,
+      SendBrowseQuery = function() end,
+      RequestMoreBrowseResults = function() sent[#sent + 1] = "page" end,
+      HasFullBrowseResults = function() return false end,
+      GetBrowseResults = function() return {} end,
+    }
     local GC = {
       Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
         color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 }, fgMuted = { 0.72, 0.71, 0.69 } } },
@@ -36,28 +47,51 @@ describe("Search slot arbiter", function()
       Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end },
       SniperDecision = { Evaluate = function() return {} end, MarketFromValue = function() return {} end,
         ReasonText = function(t) return tostring(t) end },
-      FullScan = {}, WatchSet = {}, Print = function() end,
+      -- The book pass's onRows driver callback runs the real streaming pipeline on every
+      -- results event (even an empty tail), so these four need real no-op shapes, not an
+      -- empty table -- this spec only cares about slot arbitration, never about deals.
+      FullScan = {
+        RowsFromBrowse = function() return {} end,
+        EvaluateDelta = function() return {}, 0, 0 end,
+        CollectNewHot = function() return {} end,
+        MergeDeals = function(existing) return existing end,
+      },
+      WatchSet = { Observe = function() end, Select = function() return {} end },
+      Print = function() end,
       db = { settings = { sniper = { sound = false } } },
     }
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     -- A fake watch scanner whose only job is to record that it was handed a slot.
     local watch = { hungry = true }
     function watch:Wants() return self.hungry end
     function watch:OnSystemReady() sent[#sent + 1] = "watch" end
     GC.Sniper.scanner = watch
-    set(GC.Sniper.OnThrottleReady, "sendBrowsePage", function() sent[#sent + 1] = "page" end)
-    set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+    -- Starts a real book pass so GC.Sniper._bookPass:IsPaging() is true and its own
+    -- OnThrottleReady() has something to arbitrate -- the first query send (via the
+    -- IsThrottledMessageSystemReady()==true stub above) doesn't touch `sent`, only
+    -- RequestMoreBrowseResults does.
+    GC.Sniper._bookPass:Start("classes")
     return GC, watch
+  end
+
+  -- Arms a pending page the same way a real OnBrowseResultsAdded would: HasFullBrowseResults
+  -- stays false (stubbed above), so this always leaves the book pass wanting one more page.
+  local function armPage(GC)
+    GC.Sniper._bookPass:OnResultsUpdated()
   end
 
   after_each(function()
     _G.GetTime, _G.time, _G.C_Timer, _G.GetCoinTextureString = nil, os.time, nil, nil
+    _G.C_AuctionHouse = nil
   end)
 
   it("splits contested slots evenly, watch first", function()
     local GC = load()
     for _ = 1, 6 do
-      set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+      armPage(GC)
       GC.Sniper.OnThrottleReady()
     end
     assert.same({ "watch", "page", "watch", "page", "watch", "page" }, sent)
@@ -67,13 +101,14 @@ describe("Search slot arbiter", function()
     local GC, watch = load()
     watch.hungry = false
     for _ = 1, 3 do
-      set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+      armPage(GC)
       GC.Sniper.OnThrottleReady()
     end
     assert.same({ "page", "page", "page" }, sent)
 
     watch.hungry = true
-    set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", false)
+    -- No armPage() this time: nothing is pending, so browse's turn is skipped and watch's
+    -- own hunger is what wins the next two slots instead.
     GC.Sniper.OnThrottleReady()
     GC.Sniper.OnThrottleReady()
     assert.same({ "page", "page", "page", "watch", "watch" }, sent)
@@ -83,7 +118,7 @@ describe("Search slot arbiter", function()
     local GC = load()
     set(GC.Sniper.OnThrottleReady, "view", "sell")
     for _ = 1, 3 do
-      set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+      armPage(GC)
       GC.Sniper.OnThrottleReady()
     end
     -- With the watch loop stood down, browse paging alone takes every slot -- none go to
@@ -91,7 +126,7 @@ describe("Search slot arbiter", function()
     assert.same({ "page", "page", "page" }, sent)
 
     set(GC.Sniper.OnThrottleReady, "view", "deals")
-    set(GC.Sniper.OnThrottleReady, "pendingBrowsePage", true)
+    armPage(GC)
     GC.Sniper.OnThrottleReady()
     assert.same({ "page", "page", "page", "watch" }, sent) -- watch resumes once Deals is back up
   end)

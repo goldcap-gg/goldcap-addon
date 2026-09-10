@@ -599,8 +599,6 @@ GC.Locales.esES = {
     "esperando a que se liquide la compra de mercancía anterior",
   ["waiting for previous search result to settle"] =
     "esperando el resultado de la búsqueda anterior",
-  ["waiting for server... full scan will start automatically"] =
-    "esperando al servidor... el escaneo completo empezará solo",
   ["watching %s closely -- re-checked every few seconds"] =
     "vigilando %s de cerca -- se recomprueba cada pocos segundos",
   ["worst case, selling all %d back into the price standing there now"] =

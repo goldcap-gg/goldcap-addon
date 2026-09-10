@@ -70,6 +70,9 @@ describe("Sniper stale-text banner (companion nudge)", function()
       db = db,
     }
     helper.loadModule("Core/WatchSet.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     -- IsMovable/StartMoving/StopMovingOrSizing back the drag-forwarding the hit region does

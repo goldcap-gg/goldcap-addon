@@ -561,8 +561,6 @@ GC.Locales.koKR = {
   ["unknown evidence"] = "알 수 없는 근거",
   ["waiting for previous commodity purchase to settle"] = "이전 상품 구매가 끝나기를 기다리는 중",
   ["waiting for previous search result to settle"] = "이전 검색 결과를 기다리는 중",
-  ["waiting for server... full scan will start automatically"] =
-    "서버를 기다리는 중... 전체 검색이 자동으로 시작됩니다",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s을(를) 자세히 주시 중 -- 몇 초마다 다시 확인합니다",
   ["worst case, selling all %d back into the price standing there now"] =

@@ -547,7 +547,6 @@ GC.Locales.enUS = {
   ["unknown evidence"] = "unknown evidence",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
-  ["waiting for server... full scan will start automatically"] = "waiting for server... full scan will start automatically",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
   ["worst case, selling all %d back into the price standing there now"] =
     "worst case, selling all %d back into the price standing there now",

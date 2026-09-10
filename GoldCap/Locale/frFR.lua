@@ -598,8 +598,6 @@ GC.Locales.frFR = {
     "en attente du règlement de l'achat de marchandise précédent",
   ["waiting for previous search result to settle"] =
     "en attente du résultat de recherche précédent",
-  ["waiting for server... full scan will start automatically"] =
-    "en attente du serveur... le scan complet démarrera tout seul",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s surveillé de près -- revérifié toutes les quelques secondes",
   ["worst case, selling all %d back into the price standing there now"] =

@@ -75,6 +75,9 @@ describe("Sniper pin feedback and empty state", function()
       db = db,
     }
     helper.loadModule("Core/WatchSet.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     -- A status line and empty-state label the module-level `frame` cell points at, plus the
@@ -218,7 +221,9 @@ describe("Sniper pin feedback and empty state", function()
     it("says nothing while a scan is streaming -- the status line narrates that", function()
       local GC, _, emptyText = loadSniper()
       emptyText.shown = true
-      set(GC.Sniper._UpdateEmptyState, "scanRunning", true)
+      -- GC.Sniper._bookPass is a field now, not an upvalue -- swap in a fake reporting
+      -- IsPaging() true rather than reaching for a removed local.
+      GC.Sniper._bookPass = { IsPaging = function() return true end }
       GC.Sniper._UpdateEmptyState(0)
       assert.is_false(emptyText.shown)
     end)

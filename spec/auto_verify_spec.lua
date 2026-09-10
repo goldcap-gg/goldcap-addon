@@ -81,6 +81,16 @@ describe("Deals background verification", function()
     _G.PlaySound = function(id) sounds[#sounds + 1] = id end
     _G.SOUNDKIT = { READY_CHECK = 8960, MAP_PING = 3175, RAID_WARNING = 1 }
     _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+    -- RequestMoreBrowseResults is reassigned per-test (a fresh closure over that test's own
+    -- `paged` local) by the three arbiter tests below that actually drive the book pass;
+    -- every other test in this file never starts a pass, so this default is never reached.
+    _G.C_AuctionHouse = {
+      IsThrottledMessageSystemReady = function() return true end,
+      SendBrowseQuery = function() end,
+      RequestMoreBrowseResults = function() end,
+      HasFullBrowseResults = function() return false end,
+      GetBrowseResults = function() return {} end,
+    }
 
     local GC = {
       Theme = {
@@ -104,10 +114,22 @@ describe("Deals background verification", function()
         MarketFromValue = function() return {} end,
         ReasonText = function(token) return "reason:" .. tostring(token) end,
       },
-      FullScan = {},
+      -- Real no-op shapes, not an empty table: the book pass's onRows driver callback runs
+      -- this pipeline on every results event, even an empty tail (see the three arbiter
+      -- tests below that actually start a pass).
+      FullScan = {
+        RowsFromBrowse = function() return {} end,
+        EvaluateDelta = function() return {}, 0, 0 end,
+        CollectNewHot = function() return {} end,
+        MergeDeals = function(existing) return existing end,
+      },
+      WatchSet = { Observe = function() end, Select = function() return {} end },
       Print = function() end,
       db = { settings = { sniper = { sound = true, showRefused = false } } },
     }
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local show = GC.Sniper.OnAuctionHouseShow
@@ -162,6 +184,7 @@ describe("Deals background verification", function()
   after_each(function()
     _G.GetTime, _G.time, _G.GetMoney, _G.GetCoinTextureString = nil, os.time, nil, nil
     _G.ITEM_QUALITY_COLORS, _G.Item, _G.PlaySound, _G.SOUNDKIT, _G.C_Timer = nil, nil, nil, nil, nil
+    _G.C_AuctionHouse = nil
   end)
 
   it("checks the top unverified row, one query per walk", function()
@@ -287,13 +310,14 @@ describe("Deals background verification", function()
     board(api, { deal(1, 100), deal(2, 200) })
     local ready = api.GC.Sniper.OnThrottleReady
     local paged = 0
-    set(ready, "sendBrowsePage", function() paged = paged + 1 end)
+    _G.C_AuctionHouse.RequestMoreBrowseResults = function() paged = paged + 1 end
     -- The scan is hungry every single time, exactly as it is under Auto. No watch loop, so the
     -- contest is browse-vs-verify and nothing else.
     api.GC.Sniper.scanner = nil
+    api.GC.Sniper._bookPass:Start("classes")
 
     for _ = 1, 4 do
-      set(ready, "pendingBrowsePage", true)
+      api.GC.Sniper._bookPass:OnResultsUpdated() -- arms a pending page (HasFullBrowseResults stubs false)
       ready()
     end
 
@@ -307,15 +331,16 @@ describe("Deals background verification", function()
     board(api, { deal(1, 100), deal(2, 200), deal(3, 300) })
     local ready = api.GC.Sniper.OnThrottleReady
     local order = {}
-    set(ready, "sendBrowsePage", function() order[#order + 1] = "page" end)
+    _G.C_AuctionHouse.RequestMoreBrowseResults = function() order[#order + 1] = "page" end
     set(api.step, "maybeStartPrewarm", function(target)
       order[#order + 1] = "verify:" .. target.itemID
       return true
     end)
     api.GC.Sniper.scanner = nil
+    api.GC.Sniper._bookPass:Start("classes")
 
     for _ = 1, 6 do
-      set(ready, "pendingBrowsePage", true)
+      api.GC.Sniper._bookPass:OnResultsUpdated()
       ready()
     end
 
@@ -331,11 +356,12 @@ describe("Deals background verification", function()
     board(api, {})
     local ready = api.GC.Sniper.OnThrottleReady
     local paged = 0
-    set(ready, "sendBrowsePage", function() paged = paged + 1 end)
+    _G.C_AuctionHouse.RequestMoreBrowseResults = function() paged = paged + 1 end
     api.GC.Sniper.scanner = nil
+    api.GC.Sniper._bookPass:Start("classes")
 
     for _ = 1, 4 do
-      set(ready, "pendingBrowsePage", true)
+      api.GC.Sniper._bookPass:OnResultsUpdated()
       ready()
     end
 

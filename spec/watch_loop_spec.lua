@@ -89,6 +89,9 @@ describe("Watch loop", function()
       db = { settings = { sniper = { sound = false, showRefused = false, watchPins = {} } } },
     }
     helper.loadModule("Core/WatchSet.lua", GC)          -- the REAL selector, not a stub
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     -- A fake poll scanner: records the target list it was started on, and every granted slot.

@@ -544,8 +544,6 @@ GC.Locales.zhCN = {
   ["unknown evidence"] = "未知的依据",
   ["waiting for previous commodity purchase to settle"] = "等待上一笔商品购买结算",
   ["waiting for previous search result to settle"] = "等待上一次搜索结果",
-  ["waiting for server... full scan will start automatically"] =
-    "等待服务器... 完整扫描会自动开始",
   ["watching %s closely -- re-checked every few seconds"] = "密切关注 %s -- 每几秒重新检查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最坏情况下，把全部 %d 件按现在挂着的价格卖回去",

@@ -598,8 +598,6 @@ GC.Locales.deDE = {
   ["waiting for previous commodity purchase to settle"] =
     "warte, bis der vorherige Warenkauf abgeschlossen ist",
   ["waiting for previous search result to settle"] = "warte auf das vorherige Suchergebnis",
-  ["waiting for server... full scan will start automatically"] =
-    "warte auf den Server... der vollständige Scan startet automatisch",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s wird genau beobachtet -- alle paar Sekunden neu geprüft",
   ["worst case, selling all %d back into the price standing there now"] =

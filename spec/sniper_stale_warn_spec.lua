@@ -40,6 +40,9 @@ describe("Sniper stale-import chat warning (companion nudge)", function()
       Print = function(msg) printed = msg end,
     }
     helper.loadModule("Core/WatchSet.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     return GC
   end

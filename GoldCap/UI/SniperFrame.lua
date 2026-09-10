@@ -160,6 +160,11 @@ LIM.WATCH_SET_SIZE = 10
 -- separate bell each time. See stampVerdict's own comment for why this is per item, not global.
 LIM.RING_FLOOR_SECONDS = 30
 
+-- Sniper fast loop, phase 1: the book-pass wide-pass cadence and the drill-down queue's
+-- per-minute SendSearchQuery budget. See Core/BookPass.lua / Core/DrillQueue.lua.
+LIM.WIDE_PASS_SECONDS = 300
+LIM.DRILL_PER_MINUTE = 60
+
 local TIER_RANK = { HOT = 1, GOOD = 2, WATCH = 3, SUSPECT = 4 }
 
 local frame           -- lazily created (see createFrame)
@@ -216,9 +221,6 @@ LIM.STALE_RED_SECONDS = 24 * 3600
 -- is no timestamp to track, and a scan is always safe to re-run immediately. fullScanToken is
 -- bumped on every new scan and on abort so any C_Timer watchdog closures from a
 -- superseded/aborted scan become no-ops instead of racing a newer scan's state.
-local scanRunning = false          -- true from startFullScan() until the browse pages finish, stall, or the scan is aborted
-local pendingFullScanStart = false -- Full Scan was clicked while the throttle system was busy; GC.Sniper.OnThrottleReady sends the initial query once it clears
-local pendingBrowsePage = false    -- a page (RequestMoreBrowseResults) is due but the throttle system was busy; GC.Sniper.OnThrottleReady sends it once it clears
 local lastBrowseEventAt = 0        -- time() of the last browse-results event seen for the current scan; armScanWatchdog compares this against each send
 local fullScanToken = 0
 
@@ -229,7 +231,6 @@ local fullScanToken = 0
 -- lengths -- conflating them would either re-convert already-converted raw entries or skip
 -- some on the next tail slice.
 local streamRows = {}      -- rows (RowsFromBrowse's { itemID, count, buyoutStack } shape) accumulated across every page of the CURRENT scan pass
-local streamRawCount = 0   -- #C_AuctionHouse.GetBrowseResults() already converted into streamRows -- the raw-array watermark
 local streamRowsCount = 0  -- #streamRows already handed to EvaluateDelta -- its fromIndex on the next call
 
 -- Purchase-flow bookkeeping. A row is "pinned" (activeItemID[itemID] = true) from the
@@ -1243,7 +1244,7 @@ end
 function GC.Sniper._UpdateEmptyState(shownCount)
   local label = frame and frame.emptyText
   if not label then return end
-  if shownCount > 0 or view ~= "deals" or scanRunning then
+  if shownCount > 0 or view ~= "deals" or GC.Sniper._bookPass:IsPaging() then
     label:Hide()
     return
   end
@@ -1611,8 +1612,7 @@ function GC.Sniper._ResumePausedLiveRequery(attempt)
   -- An exact Check owner may retire its Live pause only when no browse/Auto mode has claimed
   -- traffic in the meantime. A manual Scan can begin while Check is open; resuming Scanner
   -- into that browse session would create competing throttled searches.
-  if ahOpen and not scanning and not scanRunning and not pendingFullScanStart
-      and not pendingBrowsePage and autoScan:State() == "OFF" then
+  if ahOpen and not scanning and not GC.Sniper._bookPass:IsPaging() and autoScan:State() == "OFF" then
     GC.Sniper._ResumeLiveScanner()
   end
 end
@@ -1723,7 +1723,7 @@ local function applyFullScanResults(rowsList, groupCount)
   -- just replaced scanDeals wholesale from the full rows list, so whatever EvaluateDelta had
   -- already walked is moot. Reset here (the scan's one completion point) rather than in
   -- every caller.
-  streamRows, streamRawCount, streamRowsCount = {}, 0, 0
+  streamRows, streamRowsCount = {}, 0
   -- Sniper v3 §3: tells AutoScan the scan it started (if it was the one that started this
   -- one) is done, so it can start its breather countdown toward the next pass. A no-op
   -- whenever the machine's own state isn't SCANNING -- e.g. a manual "Scan" click while Auto
@@ -1870,10 +1870,9 @@ end
 local function armScanWatchdog(token)
   local sentAt = time()
   C_Timer.After(LIM.SCAN_WATCHDOG_SECONDS, function()
-    if token ~= fullScanToken or not scanRunning then return end -- superseded, aborted, or already finished
+    if token ~= fullScanToken or not GC.Sniper._bookPass:IsPaging() then return end -- superseded, aborted, or already finished
     if lastBrowseEventAt < sentAt then
-      scanRunning = false
-      pendingBrowsePage = false
+      GC.Sniper._bookPass:Abort()
       if frame then
         -- (fix round 1, M6) "press Full Scan to retry" is dead advice while Auto is armed --
         -- the feedAuto("scanFinished") below already queues its own breather-delayed retry,
@@ -1895,83 +1894,52 @@ local function armScanWatchdog(token)
   end)
 end
 
-local function sendBrowseQuery(token)
-  C_AuctionHouse.SendBrowseQuery({ searchString = "", sorts = {}, filters = {}, itemClassFilters = {} })
-  if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
-  armScanWatchdog(token)
-end
+GC.Sniper._drillQueue = GC.DrillQueue.New({ now = time }, { perMinute = LIM.DRILL_PER_MINUTE })
 
-local function sendBrowsePage(token)
-  C_AuctionHouse.RequestMoreBrowseResults()
-  armScanWatchdog(token)
-end
-
--- Requests the next page, but ONLY when the throttle system is ready --
--- RequestMoreBrowseResults silently no-ops while IsThrottledMessageSystemReady() is false
--- (routine mid-scan, since a full scan's own traffic saturates the throttle). If busy, park
--- the request in pendingBrowsePage for GC.Sniper.OnThrottleReady to flush once it clears.
-local function requestNextPage(token)
-  if driver.isReady() then
-    sendBrowsePage(token)
-  else
-    pendingBrowsePage = true
-  end
-end
-
--- Shared step for both browse events: a batch of itemKey aggregates arrived (the first
--- batch on OnBrowseResults, an increment on OnBrowseResultsAdded) -- either it's the final
--- page (HasFullBrowseResults) and the scan is done, or there's more to fetch.
---
--- T6: every call first converts only the NEW raw tail (browseResults[streamRawCount+1 .. n])
--- into rows and appends it to streamRows. RowsFromBrowse's per-row conversion has no
--- cross-row state (each row depends only on its own itemID via getValue), so this chunked
--- concatenation across pages is identical to running RowsFromBrowse once over the whole
--- browseResults array -- just without re-walking rows a prior page already converted. The
--- completion branch reuses streamRows for its own full reconcile for the same reason: by the
--- time HasFullBrowseResults() is true, the tail conversion above has already brought
--- streamRows fully up to date with browseResults, so there's nothing left to gain from
--- recomputing it from scratch.
-local function advanceBrowseScan(token)
-  local browseResults = C_AuctionHouse.GetBrowseResults()
-  local n = #browseResults
-
-  if n > streamRawCount then
-    local tail = {}
-    for i = streamRawCount + 1, n do tail[#tail + 1] = browseResults[i] end
-    -- The config is not optional here even though RowsFromBrowse tolerates its absence: the
-    -- quantity every row advertises is now SniperDecision's own demand cap, and that cap reads
-    -- maxDailyDemandShare/maxQuantity off these settings. Omitting it does not fall back to the
-    -- old sold/day estimate -- it fails closed to a quantity of 1 for every row on the board,
-    -- silently, which reads as "the scan found nothing worth buying" rather than as a bug.
+GC.Sniper._bookPass = GC.BookPass.New({
+  now = time,
+  isReady = function() return C_AuctionHouse.IsThrottledMessageSystemReady() end,
+  sendBrowseQuery = function(query)
+    C_AuctionHouse.SendBrowseQuery(query)
+    if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
+    armScanWatchdog(fullScanToken)
+  end,
+  requestMoreBrowseResults = function()
+    C_AuctionHouse.RequestMoreBrowseResults()
+    armScanWatchdog(fullScanToken)
+  end,
+  hasFullBrowseResults = function() return C_AuctionHouse.HasFullBrowseResults() end,
+  getBrowseResults = function() return C_AuctionHouse.GetBrowseResults() end,
+  triggerFor = function(itemID)
+    return GC.Trigger.For(GC.Data.GetItemValue(itemID), GC.db.settings.sniper)
+  end,
+  -- Scores a hit the SAME way discovery already scores a browse row (Core/FullScan.lua's
+  -- own RowsFromBrowse + DealMath.Evaluate pipeline), so the drill queue's priority mirrors
+  -- what a live Check would approve, not just how far under mv the floor sits.
+  onHit = function(hit)
+    local hitRows = GC.FullScan.RowsFromBrowse(
+      { { itemKey = { itemID = hit.itemID }, minPrice = hit.floor, totalQuantity = hit.qty } },
+      GC.Data.GetItemValue, GC.db.settings.sniper)
+    local row, estProfit = hitRows[1], 0
+    if row then
+      local deal = GC.DealMath.Evaluate(
+        { itemID = row.itemID, isCommodity = false,
+          unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
+        GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
+      if deal then estProfit = deal.estProfit end
+    end
+    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit })
+  end,
+  -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping, status),
+  -- just triggered from BookPass's own tail instead of from a raw browse event handler.
+  onRows = function(tail, totalRawSeen)
     local tailRows = GC.FullScan.RowsFromBrowse(tail, GC.Data.GetItemValue, GC.db.settings.sniper)
     for _, row in ipairs(tailRows) do streamRows[#streamRows + 1] = row end
-    streamRawCount = n
-  end
-
-  if C_AuctionHouse.HasFullBrowseResults() then
-    scanRunning = false
-    applyFullScanResults(streamRows, n)
-  else
-    -- Stream: evaluate only the rows added since the last event (EvaluateDelta's fromIndex),
-    -- mark them .stale exactly like the completion reconcile does (still just a per-itemKey
-    -- aggregate, not a resolved auction), and merge into whatever's already on screen --
-    -- MergeDeals' incoming-wins rule means a later page's fresher read of an item replaces an
-    -- earlier one instead of both lingering.
-    -- The third return is the pre-screen's removal count for THIS page. It used to be
-    -- discarded here, which meant the "hidden as unsellable" number stayed at zero for the
-    -- whole streaming phase and only appeared at the final reconcile -- mid-scan, a heavily
-    -- filtered board was indistinguishable from a quiet market. Accumulate it as pages land;
-    -- applyFullScanResults overwrites it with the authoritative full-walk count at the end.
     local deltaDeals, newRowsCount, deltaScreened = GC.FullScan.EvaluateDelta(
       streamRows, streamRowsCount, GC.Data.GetItemValue, GC.db.settings.sniper)
     streamRowsCount = newRowsCount
     GC.Sniper._screenedCount = (GC.Sniper._screenedCount or 0) + (deltaScreened or 0)
-    for _, deal in ipairs(deltaDeals) do
-      deal.stale = true
-    end
-    -- Sniper v3 §3 ping (fix round 1, I6): GC.FullScan.CollectNewHot is the SAME pure helper
-    -- applyFullScanResults' own completion branch uses, against the same seenHotDeals set --
-    -- see that call site's comment for why both branches need their own pass.
+    for _, deal in ipairs(deltaDeals) do deal.stale = true end
     local pingDeals = GC.FullScan.CollectNewHot(deltaDeals, seenHotDeals)
     GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
     GC.WatchSet.Observe(GC.Sniper._churn, deltaDeals, GC.Sniper._churnSeq)
@@ -1979,27 +1947,38 @@ local function advanceBrowseScan(token)
     scanDeals = GC.FullScan.MergeDeals(scanDeals, deltaDeals, 100)
     refreshRows()
     if #pingDeals > 0 then pingNewHotDeals(pingDeals) end
-    -- Spec: no page % (Blizzard doesn't expose total pages) -- result count + running deal
-    -- count instead, plus the running pre-screen count so a strict filter is visible WHILE it
-    -- filters. setStatus, not SetText: this line lands on every page, and it must lose to a
-    -- held one-shot announcement (see setStatus).
     local screenedNote = (GC.Sniper._screenedCount or 0) > 0
       and (GC.L[" · %d hidden"]):format(GC.Sniper._screenedCount) or ""
-    setStatus((GC.L["scanning… %d results · %d deals%s"]):format(n, #scanDeals, screenedNote))
-    requestNextPage(token)
-  end
-end
+    setStatus((GC.L["scanning… %d results · %d deals%s"]):format(
+      totalRawSeen, #scanDeals, screenedNote))
+  end,
+  onPassDone = function(info)
+    applyFullScanResults(streamRows, info.items)
+  end,
+}, {
+  widePassSeconds = LIM.WIDE_PASS_SECONDS,
+  -- Same Enum-with-numeric-fallback trick as the (unshipped) Spike.lua measurement spike:
+  -- an inline IIFE, not a named local -- this file is at its 200-local ceiling.
+  itemClassFilters = (function()
+    local ok, ids = pcall(function()
+      return { Enum.ItemClass.Tradegoods, Enum.ItemClass.Consumable,
+        Enum.ItemClass.Gem, Enum.ItemClass.ItemEnhancement }
+    end)
+    if not (ok and ids[1] and ids[2] and ids[3] and ids[4]) then ids = { 7, 0, 3, 8 } end
+    local filters = {}
+    for i = 1, #ids do filters[i] = { classID = ids[i] } end
+    return filters
+  end)(),
+})
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
 -- the player has left the Auction House -- browse results die with the AH session anyway.
 local function abortFullScan()
-  if scanRunning or pendingFullScanStart then
+  if GC.Sniper._bookPass:IsPaging() then
     fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
   end
-  scanRunning = false
-  pendingFullScanStart = false
-  pendingBrowsePage = false
+  GC.Sniper._bookPass:Abort()
 end
 
 -- AutoScan's `abortScan` action (Core/AutoScan.lua's actions.abortScan, called only while
@@ -2043,21 +2022,13 @@ end
 local function startFullScan()
   if scanning then stopScanning() end
   fullScanToken = fullScanToken + 1
-  local token = fullScanToken
-  scanRunning = true
-  pendingBrowsePage = false
   lastBrowseEventAt = 0
-  streamRows, streamRawCount, streamRowsCount = {}, 0, 0 -- T6: fresh pass, fresh streaming state
-  GC.Sniper._screenedCount = 0 -- fresh pass, fresh pre-screen tally (accumulated per page while streaming)
+  streamRows, streamRowsCount = {}, 0
+  GC.Sniper._screenedCount = 0
   mode = "fullscan"
-  refreshRows() -- reflect the mode switch immediately (shows the prior full-scan results, if any)
-
-  if driver.isReady() then
-    sendBrowseQuery(token)
-  else
-    pendingFullScanStart = true
-    if frame then frame.status:SetText(GC.L["waiting for server... full scan will start automatically"]) end
-  end
+  refreshRows()
+  local kind = GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes"
+  GC.Sniper._bookPass:Start(kind)
 end
 
 -- Sniper v3 §3: assigns the forward-declared `autoScan` local now that both actions it needs
@@ -2074,7 +2045,7 @@ end
 -- applyFullScanResults), which is all the machine needs to correctly continue from there.
 autoScan = GC.AutoScan.New({}, {
   startScan = function()
-    if scanRunning or pendingFullScanStart then return end
+    if GC.Sniper._bookPass:IsPaging() then return end
     -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
     -- buying a browse result, or reading their own search -- their click outranks a fresh
     -- background scan. The FSM's own state still advances to SCANNING regardless (see
@@ -2158,7 +2129,7 @@ end
 refreshScanButton = function(targetFrame)
   local f = targetFrame or frame
   if not f or not f.fullScanBtn then return end
-  local busy = scanRunning or pendingFullScanStart
+  local busy = GC.Sniper._bookPass:IsPaging()
   if f.fullScanBtn.lastBusy == busy then return end
   f.fullScanBtn.lastBusy = busy
   f.fullScanBtn:SetLabel(busy and GC.L["SCANNING…"] or GC.L["SCAN"])
@@ -2195,7 +2166,7 @@ local function onFullScanClick()
     return
   end
 
-  if scanRunning or pendingFullScanStart then
+  if GC.Sniper._bookPass:IsPaging() then
     frame.status:SetText(GC.L["full scan already in progress"])
     return
   end
@@ -3584,15 +3555,15 @@ end
 -- (and, symmetrically, never hijacks an in-flight scan's status/paging once ours already
 -- claimed the running state).
 function GC.Sniper.OnBrowseResults()
-  if not scanRunning then return end -- not our scan; ignore a manual Blizzard AH browse
+  if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   lastBrowseEventAt = time()
-  advanceBrowseScan(fullScanToken)
+  GC.Sniper._bookPass:OnResultsUpdated()
 end
 
 function GC.Sniper.OnBrowseResultsAdded()
-  if not scanRunning then return end
+  if not GC.Sniper._bookPass:IsPaging() then return end
   lastBrowseEventAt = time()
-  advanceBrowseScan(fullScanToken)
+  GC.Sniper._bookPass:OnResultsAdded()
 end
 
 -- Hands the watch loop exactly one send. The grant is a window, not a flag the scanner keeps:
@@ -3635,10 +3606,11 @@ end
 -- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
 -- the next slot before any optional browse traffic, exactly as before -- the Check has already
 -- stopped Live in startRequery, so this works in watchlist mode without a scanner collision.
--- Starting a Full Scan pass is next, keeping its place ahead of everything optional. What's
--- left after those two is the split this task adds: the watch loop and browse paging are the
--- only two consumers that are genuinely optional, so they alternate turns while both are
--- hungry, and whichever one is hungry alone takes the slot outright so no slot goes idle.
+-- What's left is the split this task adds: the watch loop, the book pass's own browse traffic
+-- (starting a fresh pass or continuing one already parked mid-page -- see GC.Sniper._bookPass,
+-- Core/BookPass.lua), and the verify walk are the three consumers that are genuinely optional,
+-- so they alternate turns while more than one is hungry, and whichever is hungry alone takes
+-- the slot outright so no slot goes idle.
 function GC.Sniper.OnThrottleReady()
   -- A parked Check wins outright, exactly as before: a player is waiting on it, and it has
   -- already stopped the loop as a courtesy besides.
@@ -3649,14 +3621,6 @@ function GC.Sniper.OnThrottleReady()
       driver.sendSearch(itemID)
       return
     end
-  end
-
-  -- Starting a pass is not a background page -- it is the one send that makes the scan exist
-  -- at all, and delaying it just leaves the scan idle. It keeps its place ahead of the split.
-  if pendingFullScanStart then
-    pendingFullScanStart = false
-    sendBrowseQuery(fullScanToken)
-    return
   end
 
   -- The split, between the three consumers that are genuinely optional. The watch poll stands
@@ -3687,11 +3651,11 @@ function GC.Sniper.OnThrottleReady()
         served = GC.Sniper._GrantWatchSlot()
       end
     elseif who == "browse" then
-      if pendingBrowsePage then
-        pendingBrowsePage = false
-        sendBrowsePage(fullScanToken)
-        served = true
-      end
+      -- GC.Sniper._bookPass now owns the pendingFullScanStart/pendingBrowsePage state this
+      -- used to read as module-level flags -- OnThrottleReady() sends whichever of "the pass
+      -- hasn't started yet" or "a page is due" is pending (at most one per call) and reports
+      -- back whether it actually sent something, exactly the same contract this arm always had.
+      served = GC.Sniper._bookPass:OnThrottleReady()
     else
       served = stepVerifyWalk()
     end
@@ -3708,7 +3672,7 @@ end
 -- can never compete with, or queue ahead of, a scan or a buy requery on the shared throttled
 -- message system.
 function GC.Sniper.IsBusy()
-  if scanRunning or pendingFullScanStart or pendingBrowsePage then return true end
+  if GC.Sniper._bookPass:IsPaging() then return true end
   return next(activeItemID) ~= nil
 end
 
@@ -4083,7 +4047,7 @@ function GC.Sniper.NotifyDialogOpened()
   -- next page of OUR scan. abortFullScan() clears all of that (and bumps fullScanToken,
   -- invalidating any in-flight watchdog closure from the aborted pass) regardless of who
   -- started it.
-  local wasScanning = scanRunning or pendingFullScanStart
+  local wasScanning = GC.Sniper._bookPass:IsPaging()
   abortFullScan()
   if wasScanning and frame then
     frame.status:SetText(GC.L["full scan interrupted -- confirm your purchase"])

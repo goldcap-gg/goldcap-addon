@@ -93,6 +93,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -245,6 +248,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -354,6 +360,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -429,6 +438,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -473,6 +485,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -529,6 +544,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -590,6 +608,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local row = {
@@ -701,6 +722,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function setUpvalue(fn, wanted, value)
       for i = 1, math.huge do
@@ -748,6 +772,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function setUpvalue(fn, wanted, value)
       for i = 1, math.huge do
@@ -818,6 +845,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function getUpvalue(fn, wanted)
       for i = 1, math.huge do
@@ -886,6 +916,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function setUpvalue(fn, wanted, value)
       for i = 1, math.huge do
@@ -936,6 +969,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local function getUpvalue(fn, wanted)
       for i = 1, math.huge do
@@ -1009,6 +1045,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1090,6 +1129,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1186,6 +1228,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1292,6 +1337,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1394,6 +1442,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/Book.lua", GC)
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function getUpvalue(fn, wanted)
@@ -1492,6 +1543,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)
@@ -1573,6 +1627,9 @@ describe("Sniper purchase wiring", function()
     helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("Core/CheckVerdict.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local function setUpvalue(fn, wanted, value)

@@ -68,6 +68,9 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
       WatchSet = { Select = function() return {} end },
     }
     helper.loadModule("Core/AutoScan.lua", GC) -- the real FSM, not the stub every other spec uses
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     return GC
   end

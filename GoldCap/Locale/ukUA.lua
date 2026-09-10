@@ -617,8 +617,6 @@ GC.Locales.ukUA = {
     "чекаємо, поки завершиться попередня купівля товару",
   ["waiting for previous search result to settle"] =
     "чекаємо, поки завершиться попередній пошук",
-  ["waiting for server... full scan will start automatically"] =
-    "чекаємо на сервер... повне сканування почнеться саме",
   ["watching %s closely -- re-checked every few seconds"] =
     "пильно стежимо за %s -- перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =
