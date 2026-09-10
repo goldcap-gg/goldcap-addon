@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.8.1 (unreleased)
+
+- **The sniper finds a fresh dump in seconds, not half a minute, and the board tells you
+  the moment it has actually checked one — "SAFE +Ng" or a plain reason why not, in place
+  of a guess.**
+
 ## 0.8.0 (2026-09-08)
 
 - **Keeps goldcap.gg's My auctions page current, automatically.** Every lot the Sell tab's
