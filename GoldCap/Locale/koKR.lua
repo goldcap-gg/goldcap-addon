@@ -12,6 +12,7 @@ GC.Locales.koKR = {
     " Companion이 자동으로 갱신합니다: /goldcap companion.",
   [" rows against the live auction house about every "] = " 줄을 실시간 경매장과 대조합니다. 주기는 약 ",
   [" · %d hidden"] = " · %d개 숨김",
+  [" · %d keys"] = " · 키 %d개",
   [" · below cost"] = " · 원가 미만",
   [" · identity unresolved"] = " · 대상 미확정",
   [" · stale %ds"] = " · %d초 지남",
@@ -65,6 +66,7 @@ GC.Locales.koKR = {
     "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. ",
   ["Avoid"] = "회피",
   ["BRAKES"] = "브레이크",
+  ["BUY — unverified"] = "구매 — 미검증",
   ["Background check"] = "백그라운드 확인",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "손익분기점은 수수료를 내고도 매입가를 회수하는 최저 가격입니다. 그 아래로 팔면 손해입니다.",
@@ -374,6 +376,8 @@ GC.Locales.koKR = {
   ["The market value is an estimate, not a measurement."] = "시세는 측정값이 아니라 추정값입니다.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "시세 데이터가 세 시간이 넘었습니다. Companion을 동기화한 뒤 /reload 하세요 — 애드온은 UI를 불러올 때만 데이터를 읽습니다.",
+  ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
+    "가격은 확인했습니다. 얼마나 빨리 팔리는지는 어디에서도 측정되지 않으니 직접 판단하세요.",
   ["The price is falling; buying into it is how you get stuck."] =
     "가격이 내려가는 중입니다. 여기서 사면 물리기 딱 좋습니다.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
@@ -434,10 +438,13 @@ GC.Locales.koKR = {
   ["You pay"] = "지불 금액",
   ["You would get"] = "받게 될 금액",
   ["You would pay"] = "지불할 금액",
+  ["Your call"] = "당신의 판단",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "최저가보다 높게, 저가 구간 안 · 아래에 %d개 대기 중",
   ["above the cheapest, within the day's reach · %d units queued below"] =
     "최저가보다 높게, 하루 도달 범위 안 · 아래에 %d개 대기 중",
+  ["against the region's own price for this item, after the 5% cut — if it sells"] =
+    "이 아이템의 지역 기준가 대비, 수수료 5% 제외 — 팔린다면",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
   ["auto off"] = "자동 꺼짐",
@@ -531,6 +538,8 @@ GC.Locales.koKR = {
   ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
   ["placing bid..."] = "입찰 중...",
+  ["price checked, sale speed unknown -- this one is your call"] =
+    "가격은 확인했지만 판매 속도는 알 수 없습니다 -- 판단은 당신 몫입니다",
   ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",
   ["price rose %.1fx — still safe, confirm"] = "가격이 %.1f배 올랐습니다 — 여전히 안전합니다, 확정하세요",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
@@ -544,6 +553,8 @@ GC.Locales.koKR = {
   ["quote %ss ago"] = "시세 %s초 전",
   ["quote expired -- Refresh to re-check the price"] =
     "시세가 만료됨 -- Refresh로 가격을 다시 확인하세요",
+  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
+    "서버 아이템 — 판매 속도 미검증 · 지역 기준가 %s (아이템 레벨 %d)",
   ["recent sales (newest first):"] = "최근 판매 (최신순):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "지역 %s — 내장: 아이템 %d개 (%s), 가져옴: %s",

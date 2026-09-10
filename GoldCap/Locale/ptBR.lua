@@ -11,6 +11,7 @@ GC.Locales.ptBR = {
   [" rows against the live auction house about every "] =
     " linhas contra a casa de leilões ao vivo, a cada ",
   [" · %d hidden"] = " · %d ocultos",
+  [" · %d keys"] = " · %d chaves",
   [" · below cost"] = " · abaixo do custo",
   [" · identity unresolved"] = " · identidade não resolvida",
   [" · stale %ds"] = " · %ds de idade",
@@ -65,6 +66,7 @@ GC.Locales.ptBR = {
     "Auto: mantém o Full Scan rodando sem parar e cede na hora quando você compra, ",
   ["Avoid"] = "Evitar",
   ["BRAKES"] = "FREIOS",
+  ["BUY — unverified"] = "COMPRAR — não verificado",
   ["Background check"] = "Verificação em segundo plano",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "O ponto de equilíbrio é o menor preço que ainda cobre o seu custo depois da comissão. Vender abaixo dá prejuízo.",
@@ -401,6 +403,8 @@ GC.Locales.ptBR = {
     "O valor de mercado é uma estimativa, não uma medição.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Os dados de preço têm mais de três horas. Sincronize o Companion e faça /reload — o addon só lê seus dados quando a interface carrega.",
+  ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
+    "O preço está conferido. A rapidez de venda não é medida em lugar nenhum, então o julgamento é seu.",
   ["The price is falling; buying into it is how you get stuck."] =
     "O preço está caindo; entrar nisso é como você fica preso.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
@@ -465,10 +469,13 @@ GC.Locales.ptBR = {
   ["You pay"] = "Você paga",
   ["You would get"] = "Você receberia",
   ["You would pay"] = "Você pagaria",
+  ["Your call"] = "Você decide",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "acima do mais barato, dentro do quarto barato · %d unidades na fila abaixo",
   ["above the cheapest, within the day's reach · %d units queued below"] =
     "acima do mais barato, dentro do alcance do dia · %d unidades na fila abaixo",
+  ["against the region's own price for this item, after the 5% cut — if it sells"] =
+    "em relação ao preço da região para este item, após a taxa de 5% — se vender",
   ["any figure here would be invented out of the very number being refused"] =
     "qualquer valor aqui seria inventado a partir do mesmo número que está sendo recusado",
   ["auto off"] = "auto desligado",
@@ -568,6 +575,8 @@ GC.Locales.ptBR = {
   ["over %d position%s"] = "em %d posições%s",
   ["paid sale unresolved"] = "venda paga não resolvida",
   ["placing bid..."] = "dando o lance...",
+  ["price checked, sale speed unknown -- this one is your call"] =
+    "preço conferido, velocidade de venda desconhecida -- essa é sua decisão",
   ["price confirmed -- click Buy to purchase"] = "preço confirmado -- clique em Buy para comprar",
   ["price rose %.1fx — still safe, confirm"] = "o preço subiu %.1fx — ainda seguro, confirme",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
@@ -582,6 +591,8 @@ GC.Locales.ptBR = {
   ["quote %ss ago"] = "cotação de %ss atrás",
   ["quote expired -- Refresh to re-check the price"] =
     "cotação expirada -- clique em Refresh para conferir o preço de novo",
+  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
+    "item de reino — velocidade de venda não verificada · referência da região %s (nível %d)",
   ["recent sales (newest first):"] = "vendas recentes (mais novas primeiro):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "região %s — inclusos: %d itens (%s), importados: %s",

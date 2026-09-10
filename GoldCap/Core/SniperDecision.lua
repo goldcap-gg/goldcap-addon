@@ -658,6 +658,12 @@ function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
   local quantity = (isInteger(best.quantity) and best.quantity > 0) and best.quantity or 1
   out.status = "WATCH"
   out.reasons = { "realm_item_unverified" }
+  -- The same three fields the commodity result carries, so the check panel and the dialog can
+  -- show what this costs without a second shape to understand. `entryTotal` is the lot price,
+  -- which for an item auction is also exactly what PlaceBid will pay.
+  out.quantity = quantity
+  out.entryTotal = best.buyout
+  out.entryUnitDisplay = math.floor(best.buyout / quantity)
   out.candidate = {
     auctionID = best.auctionID,
     buyout = best.buyout,

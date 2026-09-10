@@ -58,6 +58,11 @@ GC.CheckVerdict.TONE_WORD = {
   refuse = "Won't buy",
   adjust = "Buy less",
   clear = "Clear to buy",
+  -- Sniper phase 2. A fourth answer, for the one case that is neither: a realm lot whose
+  -- PRICE has been checked against the region reference and found far under it, while its
+  -- sale speed is not measured anywhere and never will be from an import. "Won't buy" would
+  -- be a lie over an enabled buy button, and "Clear to buy" would be a bigger one.
+  unverified = "Your call",
 }
 
 -- What the headline figure is OF. Keyed by the hero's unit rather than by the reason, because
@@ -70,6 +75,7 @@ GC.CheckVerdict.HERO_CAPTION = {
   days = "to clear %d units at %s sold a day, with %s tied up the whole time",
   units = "is what this market absorbs — past that you are buying stock you will sit on",
   unpriceable = "any figure here would be invented out of the very number being refused",
+  reference = "against the region's own price for this item, after the 5% cut — if it sells",
 }
 
 -- The sentence under the hero on the two verdicts that are not a refusal. A refusal already
@@ -78,6 +84,7 @@ GC.CheckVerdict.HERO_CAPTION = {
 GC.CheckVerdict.TONE_SENTENCE = {
   adjust = "Capped by how fast this actually sells, not by your wallet.",
   clear = "Checked against the live order book a moment ago.",
+  unverified = "The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge.",
 }
 
 -- Said beside the board's own tier chip, and only when the two disagree.
@@ -238,10 +245,20 @@ function GC.CheckVerdict.Build(decision, market, context)
   local tone = "refuse"
   if buyable then
     tone = informational.demand_limit and "adjust" or "clear"
+  elseif type(decision.candidate) == "table" then
+    -- Sniper phase 2: a realm decision that named a specific lot. Not an approval -- it is not
+    -- buyable and cannot become so -- but not a refusal either: the panel has a real price
+    -- comparison to show and a button that will act on it.
+    tone = "unverified"
   end
 
   local hero
-  if tone == "clear" then
+  if tone == "unverified" then
+    -- Its own kind, not "gold": the caption for a gold hero is about selling a commodity back
+    -- into a live book, and this figure is measured against a region reference instead.
+    hero = number(decision.estProfit) and { kind = "reference", copper = decision.estProfit }
+      or { kind = "unpriceable" }
+  elseif tone == "clear" then
     hero = number(decision.stressProfit) and { kind = "gold", copper = decision.stressProfit }
       or { kind = "unpriceable" }
   elseif tone == "adjust" then
@@ -280,6 +297,12 @@ function GC.CheckVerdict.Build(decision, market, context)
     take(facts, velocityFact(market), sellThroughFact(market),
       flat("youPayFlat", "copper", decision.entryTotal),
       flat("worstCaseBack", "copper", decision.stressProfit, "good"))
+  elseif tone == "unverified" then
+    -- Two facts, because two are all a realm item honestly has: what this lot costs, and the
+    -- reference it is being compared with. No sellers, no sell-through, no velocity -- an
+    -- import carries none of them for a realm item, and a dash in a row is not a fact.
+    take(facts, flat("youPayFlat", "copper", decision.entryTotal),
+      flat("snapshotValue", "copper", decision.reference, "muted"))
   else
     take(facts, pay, get, sellThroughFact(market), sellersFact(market),
       flat("snapshotValue", "copper", market.marketValue, "muted"))

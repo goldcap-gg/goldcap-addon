@@ -24,6 +24,7 @@ describe("Sniper pin row reservation", function()
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)

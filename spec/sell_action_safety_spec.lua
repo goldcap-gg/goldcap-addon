@@ -943,6 +943,7 @@ describe("Sell protected action state", function()
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     set(GC.Sniper.OnAuctionHouseClosed, "ahOpen", true)
     local post, repost = handlers(GC)

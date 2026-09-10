@@ -10,6 +10,7 @@ GC.Locales.ruRU = {
   [" rows against the live auction house about every "] =
     " строк по живому аукциону примерно каждые ",
   [" · %d hidden"] = " · скрыто %d",
+  [" · %d keys"] = " · ключей: %d",
   [" · below cost"] = " · ниже себестоимости",
   [" · identity unresolved"] = " · позиция не опознана",
   [" · stale %ds"] = " · устарело %dс",
@@ -63,6 +64,7 @@ GC.Locales.ruRU = {
     "Авто: держит Full Scan включённым постоянно и мгновенно уступает, когда вы покупаете, ",
   ["Avoid"] = "Избегать",
   ["BRAKES"] = "ТОРМОЗА",
+  ["BUY — unverified"] = "КУПИТЬ — без проверки",
   ["Background check"] = "Фоновая проверка",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Точка безубыточности — самая низкая цена, которая после комиссии всё ещё возвращает вашу себестоимость. Ниже — убыток.",
@@ -399,6 +401,8 @@ GC.Locales.ruRU = {
     "Рыночная стоимость — это оценка, а не измерение.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Данным о ценах больше трёх часов. Синхронизируйте Companion и сделайте /reload — аддон читает свои данные только при загрузке интерфейса.",
+  ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
+    "Цена проверена. Скорость продажи нигде не измеряется, так что судить вам.",
   ["The price is falling; buying into it is how you get stuck."] =
     "Цена падает; заходить в неё — это и есть способ застрять.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
@@ -464,10 +468,13 @@ GC.Locales.ruRU = {
   ["You pay"] = "Вы платите",
   ["You would get"] = "Вы получите",
   ["You would pay"] = "Вы заплатите",
+  ["Your call"] = "Решать вам",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "выше самого дешёвого, в дешёвой четверти · в очереди ниже %d шт.",
   ["above the cheapest, within the day's reach · %d units queued below"] =
     "выше самого дешёвого, в пределах дневного размаха · в очереди ниже %d шт.",
+  ["against the region's own price for this item, after the 5% cut — if it sells"] =
+    "против региональной цены этого предмета, за вычетом 5% — если он продастся",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["auto off"] = "авто выключено",
@@ -566,6 +573,8 @@ GC.Locales.ruRU = {
   ["over %d position%s"] = "по %d позициям%s",
   ["paid sale unresolved"] = "оплаченная продажа не сопоставлена",
   ["placing bid..."] = "делаем ставку...",
+  ["price checked, sale speed unknown -- this one is your call"] =
+    "цена проверена, скорость продажи неизвестна -- решать вам",
   ["price confirmed -- click Buy to purchase"] = "цена подтверждена -- нажмите Buy, чтобы купить",
   ["price rose %.1fx — still safe, confirm"] =
     "цена выросла в %.1fx — всё ещё безопасно, подтвердите",
@@ -581,6 +590,8 @@ GC.Locales.ruRU = {
   ["quote %ss ago"] = "котировка %sс назад",
   ["quote expired -- Refresh to re-check the price"] =
     "котировка просрочена -- Refresh, чтобы перепроверить цену",
+  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
+    "предмет реалма — скорость продажи не проверена · эталон региона %s (ур. предмета %d)",
   ["recent sales (newest first):"] = "последние продажи (свежие сверху):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "регион %s — встроено: %d предметов (%s), импортировано: %s",

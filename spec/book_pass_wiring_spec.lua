@@ -79,6 +79,7 @@ describe("Book pass wiring", function()
     helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/WatchSet.lua", GC)
     helper.loadModule("Core/AutoScan.lua", GC)
     GC.Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },

@@ -165,6 +165,11 @@ LIM.RING_FLOOR_SECONDS = 30
 LIM.WIDE_PASS_SECONDS = 300
 LIM.DRILL_PER_MINUTE = 60
 
+-- Sniper phase 2: how long a sent keys batch may go unanswered before the arbiter stops
+-- waiting for it. A batch answers in 200-400ms when it answers at all; this only exists so a
+-- browse event that never arrives cannot stop the poll for the rest of the session.
+LIM.KEYS_TIMEOUT_SECONDS = 8
+
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
 local rows = {}        -- pooled row widgets, grown lazily up to WIN.ROW_CAP
@@ -1533,6 +1538,37 @@ driver = {
     return best
   end,
 
+  -- Every lot currently listed for a realm item, from results the drill's own SendSearchQuery
+  -- has already landed -- this never issues a query of its own, exactly like commodityBook.
+  -- buyoutAmount is the whole lot's price (see itemResult above), and it is left that way:
+  -- GC.SniperDecision.EvaluateRealm compares lots to each other and to a reference, and
+  -- dividing here would only invent a per-unit price for a lot that cannot be split.
+  --
+  -- The player's own listings are skipped. Buying one is impossible, and letting one become
+  -- the "cheapest comparable lot" would have the addon offer the player their own auction.
+  itemLots = function(itemID)
+    local key = C_AuctionHouse.MakeItemKey(itemID)
+    local n = C_AuctionHouse.GetNumItemSearchResults(key)
+    if not n or n <= 0 then return {} end
+    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
+    local lots = {}
+    for i = 1, n do
+      local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
+      if info and info.auctionID and info.buyoutAmount and info.buyoutAmount > 0
+          and not info.containsOwnerItem then
+        lots[#lots + 1] = {
+          auctionID = info.auctionID,
+          buyout = info.buyoutAmount,
+          -- The variant's own item level, which is the whole reason a realm item needs its
+          -- own decision path: two lots of "the same" item can be twenty levels apart.
+          itemLevel = info.itemKey and info.itemKey.itemLevel or 0,
+          quantity = info.quantity or 1,
+        }
+      end
+    end
+    return lots
+  end,
+
   getValue = GC.Data.GetItemValue,
 
   onStatus = function(text)
@@ -1809,6 +1845,13 @@ local function applyFullScanResults(rowsList, groupCount, kind)
     -- strict filter.
     local hidden = (GC.Sniper._screenedCount or 0) > 0
       and (GC.L[", %d hidden as unsellable"]):format(GC.Sniper._screenedCount) or ""
+    -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended,
+    -- appended to the SAME trailing slot the hidden count uses. Both sentences below already
+    -- end in a "%s" for it, and adding a second specifier would reword the key -- which
+    -- orphans every translation of it, silently, back to English.
+    if (GC.Sniper._keysLastCycle or 0) > 0 then
+      hidden = hidden .. (GC.L[" · %d keys"]):format(GC.Sniper._keysLastCycle)
+    end
     -- setStatus, not SetText: under Auto this recurs every few seconds, so losing one to a
     -- held announcement costs nothing -- the next pass rewrites it.
     -- Two sentences, because the two passes looked at different markets and only one of them
@@ -1942,6 +1985,7 @@ function GC.Sniper._TogglePin(itemID)
     if cfg.watchPins[i] == itemID then
       table.remove(cfg.watchPins, i)
       GC.Sniper._RefreshWatchSet()
+      GC.Sniper._RebuildKeyTargets()
       refreshRows()
       repaintToggledRow(itemID)
       announcePin(itemID, false)
@@ -1950,6 +1994,9 @@ function GC.Sniper._TogglePin(itemID)
   end
   cfg.watchPins[#cfg.watchPins + 1] = itemID
   GC.Sniper._RefreshWatchSet()
+  -- A pinned realm item joins the key poll's set (and an unpinned one leaves it, above): a pin
+  -- is a standing instruction to watch, and the poll is what watching a realm item means now.
+  GC.Sniper._RebuildKeyTargets()
   refreshRows()
   repaintToggledRow(itemID)
   announcePin(itemID, true)
@@ -2092,6 +2139,103 @@ GC.Sniper._bookPass = GC.BookPass.New({
   end)(),
 })
 
+-- Sniper phase 2. The one rule for "what is a realm item worth here": the region reference
+-- from the import's T section and this realm's own median from its I section, whichever is
+-- lower (Core/Trigger.lua's RealmReference), presented as an ordinary value table so the
+-- board's existing pipeline -- RowsFromBrowse, DealMath.Evaluate -- can score the row without
+-- knowing anything new. nil for everything that is not a realm item with an IMPORTED
+-- reference: a commodity (the book pass's job, and it has a V fact to be judged by), and
+-- bundled sample data, which is not this realm's median and must not be treated as one.
+function GC.Sniper._RealmValue(itemID)
+  -- Guarded rather than assumed: this runs from the row tooltip and from the poll's own
+  -- driver, both of which are reachable before (and, in the specs, without) the data and
+  -- trigger modules being present. No data layer means no reference, which means no poll.
+  if not (GC.Data and GC.Data.GetItemValue and GC.Trigger) then return nil end
+  local value = GC.Data.GetItemValue(itemID)
+  if not value or value.source ~= "import" or value.kind == "region_commodity" then return nil end
+  local reference = GC.Trigger.RealmReference(value)
+  if not reference then return nil end
+  return { mv = reference, ts = value.ts, source = value.source, kind = "realm_item",
+    trend = value.trend, ref = value.ref, refIlvl = value.refIlvl }
+end
+
+-- The poll set: the player's pins, the site watchlist the import carried (W section) and the
+-- region's own list of realm items worth watching (T section), realm items only. GetWatchlist(0)
+-- is deliberate -- with a zero fallback it answers with the W section or nothing, never the
+-- top-N-by-value list it otherwise invents, which is not a watchlist and has no business being
+-- polled. A commodity the Sell tab has already classified is left out (the book pass sweeps
+-- those); an item nobody has classified is polled and answers for itself.
+--
+-- Called when the set can actually have changed -- AH open, a pin toggle, a fresh import --
+-- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that finds nothing
+-- new leaves a half-finished cycle exactly where it was.
+function GC.Sniper._RebuildKeyTargets()
+  local ids, seen = {}, {}
+  local commodities = GC.db and GC.db.commodityByItem or {}
+  local function add(itemID)
+    if type(itemID) ~= "number" or seen[itemID] then return end
+    if commodities[itemID] == true then return end
+    if not GC.Sniper._RealmValue(itemID) then return end
+    seen[itemID] = true
+    ids[#ids + 1] = itemID
+  end
+  local data = GC.Data or {}
+  for _, itemID in ipairs(GC.Sniper._WatchPins()) do add(itemID) end
+  for _, itemID in ipairs(data.GetWatchlist and data.GetWatchlist(0) or {}) do add(itemID) end
+  for _, itemID in ipairs(data.TargetIds and data.TargetIds() or {}) do add(itemID) end
+  GC.Sniper._keyPoll:SetTargets(ids)
+end
+
+-- The realm-item poll (Core/KeyPoll.lua), built beside the book pass above and driven from the
+-- same arbiter. A keys call REPLACES the browse buffer, so it only ever runs between passes --
+-- see GC.Sniper.OnThrottleReady.
+GC.Sniper._keyPoll = GC.KeyPoll.New({
+  now = time,
+  triggerFor = function(itemID)
+    local value = GC.Sniper._RealmValue(itemID)
+    return value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
+  end,
+  -- Same queue, same currency as a book-pass hit: what the lot would clear after the auction
+  -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it).
+  onHit = function(hit)
+    local value = GC.Sniper._RealmValue(hit.itemID)
+    if not value then return end
+    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
+      estProfit = math.floor(value.mv * 0.95) - hit.floor })
+  end,
+  -- Keys rows are browse rows: the same aggregate-per-itemKey shape a pass page produces, so
+  -- they go through the same RowsFromBrowse -> DealMath -> MergeDeals path, with the realm
+  -- reference standing in for the market value. NOT through FullScan.Evaluate, deliberately:
+  -- its pre-screen refuses anything without sell-through, velocity and liquidity facts, and a
+  -- realm item has none of the three by definition -- that screen is what a realm item is
+  -- being rescued FROM here, and the row says "unverified" instead of pretending otherwise.
+  onRows = function(results)
+    local realmRows = GC.FullScan.RowsFromBrowse(results, GC.Sniper._RealmValue, GC.db.settings.sniper)
+    local fresh = {}
+    for i = 1, #realmRows do
+      local row = realmRows[i]
+      local value = GC.Sniper._RealmValue(row.itemID)
+      local deal = value and GC.DealMath.Evaluate(
+        { itemID = row.itemID, isCommodity = false,
+          unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
+        value, GC.db.settings.sniper) or nil
+      if deal then
+        -- An aggregate across every seller, exactly like a browse row: no auctionID, no
+        -- resolved lot, nothing to buy from. Stale until a live drill resolves it.
+        deal.stale = true
+        deal.status = "WATCH"
+        deal.reason = "realm_item_unverified"
+        deal.action = "Check"
+        deal.buyable = false
+        fresh[#fresh + 1] = deal
+      end
+    end
+    if #fresh == 0 then return end
+    scanDeals = GC.FullScan.MergeDeals(scanDeals, fresh, 100)
+    refreshRows()
+  end,
+})
+
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
 -- the player has left the Auction House -- browse results die with the AH session anyway.
@@ -2148,6 +2292,13 @@ local function startFullScan()
   GC.Sniper._screenedCount = 0
   mode = "fullscan"
   refreshRows()
+  -- Sniper phase 2: one loop cycle is one pass plus one visit to every key-poll target, so a
+  -- fresh pass is what re-arms the poll. The count from the cycle that just ended is carried
+  -- over for the pass readout (applyFullScanResults) -- the keys for THIS cycle have not run
+  -- yet when that line is written.
+  GC.Sniper._keysLastCycle = GC.Sniper._keysThisCycle or 0
+  GC.Sniper._keysThisCycle = 0
+  GC.Sniper._keyPoll:BeginCycle()
   local kind = GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes"
   GC.Sniper._bookPass:Start(kind)
 end
@@ -2644,7 +2795,7 @@ local function drawVerdict(deal, decision, market)
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
-  elseif tone == "adjust" then accent = Theme.color.gold end
+  elseif tone == "adjust" or tone == "unverified" then accent = Theme.color.gold end
 
   if dialog.setHeroTone then dialog.setHeroTone(accent) end
   if dialog.verdictLabel then
@@ -2665,6 +2816,14 @@ local function drawVerdict(deal, decision, market)
     figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
     figureColor = up and Theme.color.green or Theme.color.red
     caption = (GC.L[CV.HERO_CAPTION[up and "gold_up" or "gold_down"]]):format(quantity)
+  elseif hero.kind == "reference" then
+    -- Sniper phase 2's own figure: what this lot would clear against the region reference,
+    -- with a caption that takes no arguments -- there is no quantity to name, an item auction
+    -- being one atomic lot.
+    local up = hero.copper >= 0
+    figure = (up and "+" or "") .. displayDecisionAmount(hero.copper)
+    figureColor = up and Theme.color.green or Theme.color.red
+    caption = GC.L[CV.HERO_CAPTION.reference]
   elseif hero.kind == "days" then
     figure = (GC.L["%d days"]):format(hero.days)
     figureColor = Theme.color.gold
@@ -2968,7 +3127,7 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
       pendingAuction[deal.auctionID] = nil
     end
     if success then
-      if not purchase then
+      if not purchase and deal.isCommodity then
         -- There is no trustworthy cost basis without the final server quote. Keep the row
         -- frozen for mailbox inspection rather than inventing a total from a search result.
         row.purchaseStage = "frozen"
@@ -2987,7 +3146,17 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         refreshRows()
         return
       end
-      recordPurchaseFacts(deal, purchase)
+      if purchase then
+        recordPurchaseFacts(deal, purchase)
+      else
+        -- A realm lot, bought at its buyout. An item auction has no server quote step at all
+        -- -- PlaceBid pays exactly the price the dialog showed -- so there is nothing unknown
+        -- to freeze the row over. It is not written to the ledger either: a sniper buy's cost
+        -- basis there is anchored to the SAFE decision that permitted it, and this purchase
+        -- deliberately never had one. What it must still do is stop the board advertising a
+        -- listing that is now gone.
+        consumePurchasedDeal(deal)
+      end
     end
   end
 
@@ -3206,6 +3375,35 @@ local function applyRequeryResult(row, itemID, live)
     if live.isCommodity and decision.buyable then
       armReady(row, deal, decision, live.levels)
       if frame then frame.status:SetText(GC.L["live safety confirmed -- click Buy to purchase"]) end
+    elseif not live.isCommodity and decision.status == "WATCH" and decision.candidate then
+      -- Sniper phase 2: a realm lot, checked live and found under its region reference. The
+      -- decision is deliberately not `buyable` -- nothing here measured how fast this item
+      -- sells -- so this arms its own way rather than through armReady, and the button says
+      -- what it is: a buy the player is making on their own judgement, not on a verdict.
+      row.purchaseStage = "ready"
+      row.purchaseDeal = nil
+      row.decisionSnapshot = decision
+      row.quoteSnapshot = nil
+      activeItemID[deal.itemID] = true
+      if dialog and dialog.row == row then
+        hideRequoteBanner()
+        setPrimaryLabel(GC.L["BUY — unverified"])
+        setDialogHeader(deal, decision)
+        stampDialogFromDecision(deal, decision)
+        -- Affordability, checked here rather than through updateBuyAffordance: that helper
+        -- ends by writing "price confirmed -- click Buy to purchase" in green, which is a
+        -- promise this path is not allowed to make.
+        local total = decision.candidate.buyout
+        if total > GetMoney() then
+          dialog.primaryBtn:Disable()
+          setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
+            :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
+        else
+          dialog.primaryBtn:Enable()
+          setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
+        end
+      end
+      scheduleArmTimeout(row, deal, decision)
     else
       -- A sentence, not the engine's token: "source_stale" names the gate, it does not tell the
       -- player that the import is two hours old and that a Companion sync needs a /reload to be
@@ -3684,13 +3882,28 @@ end
 -- mid-scan. Guard on scanRunning so a manual browse never gets mistaken for scan progress
 -- (and, symmetrically, never hijacks an in-flight scan's status/paging once ours already
 -- claimed the running state).
+-- Sniper phase 2: a keys batch answers on the SAME browse events a pass does, and replaces the
+-- browse buffer with its own rows. While one is outstanding those rows belong to the poll, not
+-- to a pass -- and the arbiter never grants a keys call while a pass is paging, so the two can
+-- never be waiting on the same event. Both browse events are routed here rather than only the
+-- documented one: if a client ever answers a keys call with the "added" event instead, the
+-- poll still folds its results rather than silently stalling out for the whole session.
+function GC.Sniper._FoldKeysBatch()
+  if not GC.Sniper._keysAwaiting then return false end
+  GC.Sniper._keysAwaiting = nil
+  GC.Sniper._keyPoll:Fold(C_AuctionHouse.GetBrowseResults())
+  return true
+end
+
 function GC.Sniper.OnBrowseResults()
+  if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   lastBrowseEventAt = time()
   GC.Sniper._bookPass:OnResultsUpdated()
 end
 
 function GC.Sniper.OnBrowseResultsAdded()
+  if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end
   lastBrowseEventAt = time()
   GC.Sniper._bookPass:OnResultsAdded()
@@ -3791,7 +4004,13 @@ function GC.Sniper.OnThrottleReady()
   for _ = 1, 2 do
     local hit = GC.Sniper._drillQueue:Peek()
     if not hit or not canDrillNow() then break end
+    -- Either book may be the one that saw this floor: commodities come from the book pass,
+    -- realm items from the key poll, and neither knows about the other's items. The hit is
+    -- still worth a query as long as ONE of them still shows the price it was queued for.
     local booked = GC.Sniper._bookPass:Book()[hit.itemID]
+    if not booked or booked.floor ~= hit.floor then
+      booked = GC.Sniper._keyPoll:Book()[hit.itemID]
+    end
     if not booked or booked.floor ~= hit.floor then
       GC.Sniper._drillQueue:Drop(hit)
     else
@@ -3802,15 +4021,40 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
-  -- 3. The current book pass's own send -- starting a fresh pass, or its next page. GC.Sniper
+  -- 3. One batch of item keys (Core/KeyPoll.lua), and only between book-pass pages. A keys
+  -- call REPLACES the browse buffer, so one granted mid-pass would delete the page the pass is
+  -- still folding -- hence both guards: IsPaging() goes false the moment the last page lands,
+  -- but HasFullBrowseResults() is what says the buffer is settled and not mid-fetch. The batch
+  -- is capped at 100 keys inside NextBatch (more than 100 disconnects the client), and only
+  -- one may be outstanding at a time; the timeout is there so a browse event that never
+  -- arrives cannot stop the poll for the rest of the session.
+  --
+  -- HasPending() is asked FIRST on purpose: with no poll set (no import, or nothing realm-side
+  -- worth watching) nothing below is evaluated and this costs one table lookup per slot.
+  if GC.Sniper._keyPoll:HasPending() and not GC.Sniper._bookPass:IsPaging()
+      and not (GC.Sniper._keysAwaiting
+        and (time() - GC.Sniper._keysAwaiting) < LIM.KEYS_TIMEOUT_SECONDS)
+      and C_AuctionHouse.HasFullBrowseResults() then
+    local batch = GC.Sniper._keyPoll:NextBatch()
+    if batch and #batch > 0 then
+      local keys = {}
+      for i = 1, #batch do keys[i] = C_AuctionHouse.MakeItemKey(batch[i]) end
+      GC.Sniper._keysAwaiting = time()
+      GC.Sniper._keysThisCycle = (GC.Sniper._keysThisCycle or 0) + #keys
+      C_AuctionHouse.SearchForItemKeys(keys, {})
+      return
+    end
+  end
+
+  -- 4. The current book pass's own send -- starting a fresh pass, or its next page. GC.Sniper
   -- ._bookPass owns the pendingFullScanStart/pendingBrowsePage state this used to read as
   -- module-level flags -- OnThrottleReady() sends whichever of "the pass hasn't started yet"
   -- or "a page is due" is pending (at most one per call) and reports back whether it actually
   -- sent something.
   if GC.Sniper._bookPass:OnThrottleReady() then return end
 
-  -- 4. What's left: the watch loop and the verify walk, round-robin, exactly as before minus
-  -- "browse" (now item 3 above). Both stand down when the Deals view isn't the one on screen --
+  -- 5. What's left: the watch loop and the verify walk, round-robin, exactly as before minus
+  -- "browse" (now item 4 above). Both stand down when the Deals view isn't the one on screen --
   -- polling for a screen nobody is looking at was never the point, and the Sell tab is the
   -- consumer that starves first when a background loop treats every ready tick as its own.
   --
@@ -3889,9 +4133,19 @@ end
 -- deal.prewarm cache and a live finishRequery landing are indistinguishable to
 -- applyRequeryResult by construction, not by coincidence.
 local function evaluateLiveItemDeal(itemID)
-  -- Realm/item auctions are discovery-only in v1. Evaluate them with no commodity book so the
-  -- result visibly explains why it remains WATCH, and never construct a PlaceBid candidate.
   if not driver.itemResult(itemID) then return nil end
+  -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
+  -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
+  -- across the region, naming that exact auction as a candidate. It is still never SAFE and
+  -- never `buyable`; what changed is that there is now something honest to compare against.
+  --
+  -- Everything else keeps v1's behaviour exactly: Evaluate with no commodity book, which
+  -- visibly explains why it remains WATCH and never constructs a candidate at all.
+  local value = GC.Sniper._RealmValue(itemID)
+  if value then
+    return { isCommodity = false, decision = GC.SniperDecision.EvaluateRealm(
+      driver.itemLots(itemID), value.mv, value.refIlvl or 0, GC.db.settings.sniper) }
+  end
   return { isCommodity = false, decision = evaluateLive(itemID, nil) }
 end
 
@@ -4336,11 +4590,24 @@ local function onDialogPrimaryClick()
     if row.purchaseStage ~= "ready" or not dialog.primaryBtn:IsEnabled() then return end
   end
 
-  -- Second overall click: only a current SAFE commodity decision may begin a protected server
-  -- purchase. Realm/item results remain Check-only, regardless of legacy discovery tier.
+  -- Second overall click. Two shapes of purchase reach this point, and each has its own gate.
+  -- A commodity may only be bought on a current SAFE, buyable decision, exactly as before.
+  -- A realm lot can never be either -- nothing measures how fast a realm item sells -- so it
+  -- is gated on the candidate instead: one specific auction, at one specific buyout, that a
+  -- live check found under the region reference (GC.SniperDecision.EvaluateRealm). Anything
+  -- without one of the two stays Check-only, regardless of legacy discovery tier.
   local deal = row.deal
   local decision = row.decisionSnapshot
-  if not deal.isCommodity or not decision or decision.status ~= "SAFE" or not decision.buyable then
+  local candidate = decision and decision.status == "WATCH" and decision.candidate or nil
+  if candidate and not (candidate.auctionID and candidate.buyout and candidate.buyout > 0) then
+    candidate = nil
+  end
+  if not deal.isCommodity and not candidate then
+    armCheck(row, deal, decision or { status = "WATCH", reasons = { "live_verification_required" } },
+      GC.L["live verification required"], false)
+    return
+  end
+  if deal.isCommodity and (not decision or decision.status ~= "SAFE" or not decision.buyable) then
     armCheck(row, deal, decision or { status = "WATCH", reasons = { "live_verification_required" } },
       GC.L["live verification required"], false)
     return
@@ -4372,15 +4639,19 @@ local function onDialogPrimaryClick()
     setDialogStatus(GC.L["buying commodity..."])
     if frame then frame.status:SetText(GC.L["buying commodity..."]) end
   else
-    -- Deliberately unreachable: v1 rejects non-commodity results above. Retaining this
-    -- protected-call branch makes its hardware-click-only placement mechanically auditable
-    -- while the decision gate ensures a realm/item scan can never reach PlaceBid.
+    -- A realm lot. The candidate IS the identity of what is being bought -- one auction, one
+    -- price -- so the deal takes that identity here: resolvePurchase clears pendingAuction by
+    -- deal.auctionID, and the completion line quotes deal.unitPrice * deal.qty, the same
+    -- unit * qty = total convention the commodity path uses.
+    deal.auctionID = candidate.auctionID
+    deal.qty = candidate.quantity or 1
+    deal.unitPrice = math.floor(candidate.buyout / deal.qty)
     pendingAuction[deal.auctionID] = row
     -- PlaceBid's bidAmount is the TOTAL price for the auction's whole lot, not a per-unit
-    -- price -- deal.unitPrice is per-unit (see driver.itemResult) -- multiply back out by
-    -- qty here, the same unitPrice * qty = total convention resolvePurchase and
-    -- GC.Sniper.OnPurchaseCompleted already use for session accounting and the status line.
-    C_AuctionHouse.PlaceBid(deal.auctionID, deal.unitPrice * deal.qty)
+    -- price, and candidate.buyout is exactly that total -- the number the player just read on
+    -- the dialog. It is passed through untouched rather than recomputed from unitPrice * qty,
+    -- which floors and could bid a copper under the buyout.
+    C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)
     setDialogStatus(GC.L["placing bid..."])
     if frame then frame.status:SetText(GC.L["placing bid..."]) end
   end
@@ -5791,6 +6062,16 @@ createRow = function(parent, index)
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(GC.L["GoldCap: not checked against the live auction house yet"], 0.7, 0.7, 0.7)
     end
+    -- Sniper phase 2: a realm row's price is measured against the region, not against a
+    -- verified market of its own, and the row's WATCH cell has no room to say so. The
+    -- tooltip does -- with the reference itself and the item level it was measured on, so
+    -- the player can see what the discount is a discount FROM.
+    local realmValue = GC.Sniper._RealmValue(self.deal.itemID)
+    if realmValue then
+      GameTooltip:AddLine((GC.L["realm item — sale speed unverified · region reference %s (ilvl %d)"])
+        :format(GC.Util.FormatMoney(realmValue.mv), realmValue.refIlvl or 0),
+        Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    end
     -- The hidden Buy button (setRowDeal's placeholder branch) leaves no control on this row to
     -- explain itself, so the tooltip carries the reason instead: watched, but nothing to buy.
     if self.deal.pinPlaceholder then
@@ -6849,6 +7130,11 @@ function GC.Sniper.OnAuctionHouseShow()
   -- _RefreshWatchSet) sits inert until a scan happens to run: nothing polls it. Must come
   -- after the scanner is built just above, or there is nothing for the refresh to Start.
   GC.Sniper._RefreshWatchSet()
+  -- Sniper phase 2: same reasoning for the realm poll. Its set comes from SavedVariables (the
+  -- pins) and the import (the site watchlist and the region's targets), none of which the AH
+  -- session knows about until something asks -- and the first cycle of the visit is the one
+  -- that most needs a set to walk.
+  GC.Sniper._RebuildKeyTargets()
 
   -- Sniper v3 §3: the AutoScan ticker only runs while the AH is open (nothing to drive
   -- otherwise -- SendBrowseQuery would silently no-op with no AH session live). This, the
@@ -6998,6 +7284,13 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- prices nobody has seen for hours. The wide-pass clock is left alone on purpose (see
   -- Core/BookPass.lua's Reset).
   GC.Sniper._bookPass:Reset()
+  -- The key poll's book is the same kind of claim about the same session (Core/KeyPoll.lua's
+  -- own Reset), and a batch that was in flight when the session ended has nothing left to
+  -- answer it -- the counters go with it so the next visit's readout counts its own traffic.
+  GC.Sniper._keyPoll:Reset()
+  GC.Sniper._keysAwaiting = nil
+  GC.Sniper._keysThisCycle = 0
+  GC.Sniper._keysLastCycle = 0
   GC.Sniper._drillQueue:Clear()
   GC.Sniper._wideExtras = nil
   -- Same reasoning for background verdicts, and one more: a verdict is a claim about a live

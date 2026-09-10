@@ -165,6 +165,7 @@ describe("Sniper buy dialog verdict block", function()
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     local stamp = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "stampDialogFromDecision")
     setUpvalue(stamp, "marketForDecision", function() return {} end)
@@ -590,6 +591,7 @@ describe("Sniper buy dialog verdict block", function()
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
     -- Same debug.getupvalue chain the wiring suite documents and uses throughout:
     -- clearDeals -> refreshRows -> createRow -> buildRowCell -> onBuyClick -> openDialog.

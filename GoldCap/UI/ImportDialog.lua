@@ -50,6 +50,10 @@ local function createDialog()
     end
     GC.Data.SetImported(parsed)
     GC.db.imported.origin = "manual" -- a manual paste always wins the origin marker back from "app"
+    -- A fresh import can carry a different set of realm items worth watching (T section), and
+    -- the sniper's key poll is built from it -- see GC.Sniper._RebuildKeyTargets. Guarded
+    -- because this file loads before UI/SniperFrame.lua and specs load it on its own.
+    if GC.Sniper and GC.Sniper._RebuildKeyTargets then GC.Sniper._RebuildKeyTargets() end
     local st = GC.Data.GetStatus()
     GC.Print(GC.L["imported %d items for %s (%s) — prices are live now."]
       :format(st.importedCount, st.importedRealm, parsed.region))

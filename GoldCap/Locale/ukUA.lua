@@ -14,6 +14,7 @@ GC.Locales.ukUA = {
   [" rows against the live auction house about every "] =
     " рядків проти живого аукціону приблизно кожні ",
   [" · %d hidden"] = " · приховано %d",
+  [" · %d keys"] = " · ключів: %d",
   [" · below cost"] = " · нижче собівартості",
   [" · identity unresolved"] = " · позиція не впізнана",
   [" · stale %ds"] = " · застаріло %dс",
@@ -67,6 +68,7 @@ GC.Locales.ukUA = {
     "Авто: тримає Full Scan увімкненим постійно й миттєво поступається, коли ви купуєте, ",
   ["Avoid"] = "Уникати",
   ["BRAKES"] = "ГАЛЬМА",
+  ["BUY — unverified"] = "КУПИТИ — без перевірки",
   ["Background check"] = "Фонова перевірка",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Точка беззбитковості — найнижча ціна, яка після комісії ще повертає вашу собівартість. Нижче — збиток.",
@@ -415,6 +417,8 @@ GC.Locales.ukUA = {
     "Ринкова вартість — це оцінка, а не вимірювання.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Даним про ціни більше трьох годин. Синхронізуйте Companion і зробіть /reload — аддон читає свої дані лише під час завантаження інтерфейсу.",
+  ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
+    "Ціну перевірено. Швидкість продажу ніде не вимірюється, тож судити вам.",
   ["The price is falling; buying into it is how you get stuck."] =
     "Ціна падає; заходити в неї — це і є спосіб застрягти.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
@@ -480,10 +484,13 @@ GC.Locales.ukUA = {
   ["You pay"] = "Ви платите",
   ["You would get"] = "Ви отримаєте",
   ["You would pay"] = "Ви заплатите",
+  ["Your call"] = "Вирішувати вам",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
   ["above the cheapest, within the day's reach · %d units queued below"] =
     "вище найдешевшого, у межах денного розмаху · у черзі нижче %d шт.",
+  ["against the region's own price for this item, after the 5% cut — if it sells"] =
+    "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["auto off"] = "авто вимкнено",
@@ -584,6 +591,8 @@ GC.Locales.ukUA = {
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
   ["placing bid..."] = "робимо ставку...",
+  ["price checked, sale speed unknown -- this one is your call"] =
+    "ціну перевірено, швидкість продажу невідома -- вирішувати вам",
   ["price confirmed -- click Buy to purchase"] =
     "ціну підтверджено -- натисніть Buy, щоб купити",
   ["price rose %.1fx — still safe, confirm"] = "ціна зросла в %.1fx — усе ще безпечно, підтвердіть",
@@ -599,6 +608,8 @@ GC.Locales.ukUA = {
   ["quote %ss ago"] = "котирування %sс тому",
   ["quote expired -- Refresh to re-check the price"] =
     "котирування протерміновано -- Refresh, щоб перевірити ціну ще раз",
+  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
+    "предмет реалму — швидкість продажу не перевірено · еталон регіону %s (рів. предмета %d)",
   ["recent sales (newest first):"] = "останні продажі (найновіші зверху):",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "регіон %s — вбудовано: %d предметів (%s), імпортовано: %s",

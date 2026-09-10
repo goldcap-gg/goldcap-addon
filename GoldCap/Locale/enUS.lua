@@ -12,6 +12,7 @@ GC.Locales.enUS = {
   [" Companion keeps this fresh: /goldcap companion."] = " Companion keeps this fresh: /goldcap companion.",
   [" rows against the live auction house about every "] = " rows against the live auction house about every ",
   [" · %d hidden"] = " · %d hidden",
+  [" · %d keys"] = " · %d keys",
   [" · below cost"] = " · below cost",
   [" · identity unresolved"] = " · identity unresolved",
   [" · stale %ds"] = " · stale %ds",
@@ -62,6 +63,7 @@ GC.Locales.enUS = {
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, ",
   ["Avoid"] = "Avoid",
   ["BRAKES"] = "BRAKES",
+  ["BUY — unverified"] = "BUY — unverified",
   ["Background check"] = "Background check",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money.",
@@ -383,6 +385,8 @@ GC.Locales.enUS = {
     "The market value is an estimate, not a measurement.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads.",
+  ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
+    "The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge.",
   ["The price is falling; buying into it is how you get stuck."] =
     "The price is falling; buying into it is how you get stuck.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
@@ -446,10 +450,13 @@ GC.Locales.enUS = {
   ["You pay"] = "You pay",
   ["You would get"] = "You would get",
   ["You would pay"] = "You would pay",
+  ["Your call"] = "Your call",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "above the cheapest, inside the cheap quarter · %d units queued below",
   ["above the cheapest, within the day's reach · %d units queued below"] =
     "above the cheapest, within the day's reach · %d units queued below",
+  ["against the region's own price for this item, after the 5% cut — if it sells"] =
+    "against the region's own price for this item, after the 5% cut — if it sells",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
   ["auto off"] = "auto off",
@@ -530,6 +537,8 @@ GC.Locales.enUS = {
   ["paid %s each"] = "paid %s each",
   ["paid sale unresolved"] = "paid sale unresolved",
   ["placing bid..."] = "placing bid...",
+  ["price checked, sale speed unknown -- this one is your call"] =
+    "price checked, sale speed unknown -- this one is your call",
   ["price confirmed -- click Buy to purchase"] = "price confirmed -- click Buy to purchase",
   ["price rose %.1fx — still safe, confirm"] = "price rose %.1fx — still safe, confirm",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
@@ -542,6 +551,8 @@ GC.Locales.enUS = {
   ["quote %s -- click Confirm to buy"] = "quote %s -- click Confirm to buy",
   ["quote %ss ago"] = "quote %ss ago",
   ["quote expired -- Refresh to re-check the price"] = "quote expired -- Refresh to re-check the price",
+  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
+    "realm item — sale speed unverified · region reference %s (ilvl %d)",
   ["recent sales (newest first):"] = "recent sales (newest first):",
   ["region %s — bundled: %d items (%s), imported: %s"] = "region %s — bundled: %d items (%s), imported: %s",
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =

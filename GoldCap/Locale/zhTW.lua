@@ -14,6 +14,7 @@ GC.Locales.zhTW = {
     " Companion 會自動更新：/goldcap companion。",
   [" rows against the live auction house about every "] = " 列與即時拍賣場核對，週期約 ",
   [" · %d hidden"] = " · 已隱藏 %d",
+  [" · %d keys"] = " · %d 個物品鍵",
   [" · below cost"] = " · 低於成本",
   [" · identity unresolved"] = " · 歸屬未確定",
   [" · stale %ds"] = " · 已過 %d 秒",
@@ -67,6 +68,7 @@ GC.Locales.zhTW = {
     "自動：持續執行 Full Scan，你購買時會立即讓出，",
   ["Avoid"] = "避開",
   ["BRAKES"] = "煞車",
+  ["BUY — unverified"] = "買入 — 未驗證",
   ["Background check"] = "背景檢查",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
     "保本價是扣掉拍賣場抽成後仍能收回成本的最低價。低於它就是虧錢。",
@@ -366,6 +368,8 @@ GC.Locales.zhTW = {
   ["The market value is an estimate, not a measurement."] = "該市場價是估算，不是實測。",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "價格資料已超過三小時。同步 Companion 後執行 /reload — 插件只在介面載入時讀取資料。",
+  ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
+    "價格已核對。售出速度無處可測，這一筆要你自己判斷。",
   ["The price is falling; buying into it is how you get stuck."] = "價格正在下跌，此時接手正是被套的方式。",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "價格是最後一次取得的報價，最多 45 秒前。若在確認前發生變化，會放棄本次上架，而不是按舊價發出。",
@@ -423,10 +427,13 @@ GC.Locales.zhTW = {
   ["You pay"] = "你支付",
   ["You would get"] = "你會拿回",
   ["You would pay"] = "你會支付",
+  ["Your call"] = "由你決定",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "高於最低價，處於低價四分位內 · 下方排隊 %d 件",
   ["above the cheapest, within the day's reach · %d units queued below"] =
     "高於最低價，處於當日可達價內 · 下方排隊 %d 件",
+  ["against the region's own price for this item, after the 5% cut — if it sells"] =
+    "對比該物品的區域價格，扣除 5% 手續費後 — 前提是能賣掉",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
   ["auto off"] = "自動已關閉",
@@ -514,6 +521,7 @@ GC.Locales.zhTW = {
   ["over %d position%s"] = "共 %d 個持倉%s",
   ["paid sale unresolved"] = "已入帳的銷售未匹配",
   ["placing bid..."] = "正在出價...",
+  ["price checked, sale speed unknown -- this one is your call"] = "價格已核對，售出速度未知 -- 這一筆由你決定",
   ["price confirmed -- click Buy to purchase"] = "價格已確認 -- 按 Buy 購買",
   ["price rose %.1fx — still safe, confirm"] = "價格上漲 %.1f 倍 — 仍然安全，請確認",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
@@ -526,6 +534,8 @@ GC.Locales.zhTW = {
   ["quote %s -- click Confirm to buy"] = "報價 %s -- 按 Confirm 購買",
   ["quote %ss ago"] = "報價 %s 秒前",
   ["quote expired -- Refresh to re-check the price"] = "報價已過期 -- 按 Refresh 重新檢查價格",
+  ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
+    "伺服器物品 — 售出速度未驗證 · 區域參考價 %s（物品等級 %d）",
   ["recent sales (newest first):"] = "最近的販售（新到舊）：",
   ["region %s — bundled: %d items (%s), imported: %s"] =
     "地區 %s — 內建：%d 個道具（%s），匯入：%s",
