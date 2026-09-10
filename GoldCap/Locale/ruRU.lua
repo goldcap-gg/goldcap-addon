@@ -52,6 +52,7 @@ GC.Locales.ruRU = {
   ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА И ОПОВЕЩЕНИЯ",
+  ["AVOID"] = "ИЗБЕГАТЬ",
   ["Asks for a second click to confirm."] = "Требует второй клик для подтверждения.",
   ["Auction House did not answer — press Refresh"] = "Аукцион не ответил — нажмите Refresh",
   ["Auction House is not open"] = "Аукцион не открыт",

@@ -51,6 +51,7 @@ GC.Locales.enUS = {
   ["AUTO · PAUSED: "] = "AUTO · PAUSED: ",
   ["AUTO · SCANNING"] = "AUTO · SCANNING",
   ["AUTOMATION & ALERTS"] = "AUTOMATION & ALERTS",
+  ["AVOID"] = "AVOID",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
   ["Auction House did not answer — press Refresh"] = "Auction House did not answer — press Refresh",
   ["Auction House is not open"] = "Auction House is not open",

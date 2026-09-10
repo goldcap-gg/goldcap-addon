@@ -717,16 +717,18 @@ end
 -- ---------------------------------------------------------------------------
 local COLUMNS = {
   { key = "item",   flex = true, min = 180 },
-  -- 72, not the 48 it shipped with. 48 was sized for a four-letter tier pill (HOT/GOOD/
-  -- WATCH/SUSPECT); the cell now carries the live verdict, whose longest form is
-  -- "SAFE +999g" -- ten characters, which at this project's measured ~6px per mono character
-  -- (see spec/button_label_width_spec.lua for where that figure comes from) needs about 61px
-  -- of text plus the 11px the TierMark's dot and its gap take. The 24px comes out of the
-  -- flexible item column, which has 180 to give. Theme.TierMark bounds its own FontString to
-  -- these edges besides, so a longer translation clips inside the cell instead of painting
-  -- across the discount and price columns beside it -- which is exactly what the old
-  -- "WATCH <whole sentence>" label did.
-  { key = "tier",   w = 72 },
+  -- 80, not the 48 it shipped with (and not the 72 it grew to first). 48 was sized for a
+  -- four-letter tier pill (HOT/GOOD/WATCH/SUSPECT); the cell now carries the live verdict,
+  -- and GC.BoardRows.Label floors SAFE's money to whole gold (never "61g35s" -- see
+  -- Core/BoardRows.lua), so its longest realistic form is "SAFE +9999g" -- eleven characters,
+  -- which at this project's measured ~6px per mono character (see spec/button_label_width_
+  -- spec.lua for where that figure comes from) needs about 66px of text plus the 11px the
+  -- TierMark's dot and its gap take: 77px, over the 72px this column shipped with. 80 leaves
+  -- 2px of the usual clearance. The 32px comes out of the flexible item column, which has 180
+  -- to give. Theme.TierMark bounds its own FontString to these edges besides, so a longer
+  -- translation clips inside the cell instead of painting across the discount and price
+  -- columns beside it -- which is exactly what the old "WATCH <whole sentence>" label did.
+  { key = "tier",   w = 80 },
   { key = "disc",   w = 56,  num = true, size = 15, bold = true },
   { key = "unit",   w = 76,  num = true, size = 12 },
   { key = "total",  w = 84,  num = true, size = 12, optional = true },

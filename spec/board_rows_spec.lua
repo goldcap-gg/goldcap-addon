@@ -41,16 +41,33 @@ describe("BoardRows", function()
       assert.equal("SAFE +5g", label)
     end)
 
+    -- The 72px verdict cell clipped "SAFE +61g35s" -- gold only, floored, never a second unit.
+    it("floors to whole gold, never gold+silver", function()
+      assert.equal("SAFE +61g", GC.BoardRows.Label({ buyable = true, stressProfit = 613500 }))
+    end)
+
+    it("shows silver below 1g, never a coin-icon string", function()
+      assert.equal("SAFE +64s", GC.BoardRows.Label({ buyable = true, stressProfit = 6435 }))
+    end)
+
     -- The cell is one column on a row, not a place to put a sentence: the reason lives in the
     -- row tooltip and in the dialog, where there is room to read it.
-    it("reads a bare WATCH for a refused verdict, whatever the reason says", function()
+    it("reads AVOID for a refused verdict whose live status is AVOID", function()
       local verdict = { buyable = false, status = "AVOID",
         reason = GC.SniperDecision.ReasonText("market_falling") }
-      assert.equal("WATCH", GC.BoardRows.Label(verdict))
+      assert.equal("AVOID", GC.BoardRows.Label(verdict))
       assert.equal("The price is falling; buying into it is how you get stuck.",
         GC.BoardRows.Reason(verdict))
       -- The whole point of the split: the sentence is far longer than the cell.
       assert.is_true(#GC.BoardRows.Reason(verdict) > #GC.BoardRows.Label(verdict) * 4)
+    end)
+
+    -- WATCH stays the label for every other non-buyable status -- WATCH itself, "Gone", or
+    -- anything else the live check can say that is not a flat AVOID. Bucket/sort are
+    -- unchanged either way; only the word printed differs.
+    it("reads WATCH for a refused verdict whose status is not AVOID", function()
+      assert.equal("WATCH", GC.BoardRows.Label({ buyable = false, status = "WATCH" }))
+      assert.equal("WATCH", GC.BoardRows.Label({ buyable = false, status = "Gone" }))
     end)
 
     it("reads an ellipsis while something is actually checking the row", function()
@@ -124,5 +141,29 @@ describe("GC.Util.FormatMoney", function()
 
   it("keeps the sign on a negative amount", function()
     assert.equal("-2g", GC.Util.FormatMoney(-20000))
+  end)
+end)
+
+describe("GC.Util.FormatGoldFloor", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+  end)
+
+  it("floors to whole gold at and above 1g", function()
+    assert.equal("61g", GC.Util.FormatGoldFloor(613500))
+  end)
+
+  it("drops a fractional gold rather than rounding it up", function()
+    assert.equal("1g", GC.Util.FormatGoldFloor(19999))
+  end)
+
+  it("shows whole silver below 1g", function()
+    assert.equal("64s", GC.Util.FormatGoldFloor(6435))
+  end)
+
+  it("keeps the sign on a negative amount", function()
+    assert.equal("-61g", GC.Util.FormatGoldFloor(-613500))
   end)
 end)

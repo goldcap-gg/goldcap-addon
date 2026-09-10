@@ -55,6 +55,7 @@ GC.Locales.zhCN = {
   ["AUTO · PAUSED: "] = "自动 · 已暂停：",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
   ["AUTOMATION & ALERTS"] = "自动化与提醒",
+  ["AVOID"] = "避开",
   ["Asks for a second click to confirm."] = "需要再点一次确认。",
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",

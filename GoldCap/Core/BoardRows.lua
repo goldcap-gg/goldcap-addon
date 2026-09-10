@@ -40,8 +40,17 @@ end
 function GC.BoardRows.Label(verdict, pending)
   local bucket = GC.BoardRows.Bucket(verdict, pending)
   if bucket == "SAFE" then
-    return (GC.L["SAFE +%s"]):format(GC.Util.FormatMoney(verdict.stressProfit or 0))
+    -- GC.Util.FormatGoldFloor, not FormatMoney: this cell is a fixed width and FormatMoney's
+    -- gold+silver form ("61g35s") is two units, wide enough to clip. Gold only, floored.
+    return (GC.L["SAFE +%s"]):format(GC.Util.FormatGoldFloor(verdict.stressProfit or 0))
   elseif bucket == "WATCH" then
+    -- AVOID gets its own word when the live verdict actually said AVOID -- everything else
+    -- non-buyable (WATCH itself, Gone, any other refusal status) keeps the WATCH label. Bucket
+    -- and sort are unchanged: both statuses are still the one non-buyable bucket, this only
+    -- changes which word the cell prints.
+    if verdict and verdict.status == "AVOID" then
+      return GC.L["AVOID"]
+    end
     return GC.L["WATCH"]
   elseif bucket == "PENDING" then
     return "…"

@@ -39,6 +39,19 @@ function GC.Util.FormatMoney(copper)
   return GetCoinTextureString(copper)
 end
 
+-- Whole-gold-or-whole-silver: a context with room for ONE unit, never two, and no coin icon
+-- (a plain string, for a FontString cell rather than a coin-texture readout). Sniper's SAFE
+-- board label is the reason this exists -- FormatMoney's "61g35s" is two units wide, and the
+-- 72px verdict cell it renders into clips it. Floors rather than rounds, same rule as
+-- FormatAge/FormatElapsed above: a figure that rounds up promises gold the trade didn't clear.
+function GC.Util.FormatGoldFloor(copper)
+  if copper < 0 then return "-" .. GC.Util.FormatGoldFloor(-copper) end
+  if copper >= 10000 then
+    return ("%dg"):format(math.floor(copper / 10000))
+  end
+  return ("%ds"):format(math.floor(copper / 100))
+end
+
 local function finitePositive(value)
   return type(value) == "number" and value == value
     and value ~= math.huge and value ~= -math.huge and value > 0

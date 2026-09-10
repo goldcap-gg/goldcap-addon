@@ -52,6 +52,7 @@ GC.Locales.itIT = {
   ["AUTO · PAUSED: "] = "AUTO · IN PAUSA: ",
   ["AUTO · SCANNING"] = "AUTO · SCANSIONE",
   ["AUTOMATION & ALERTS"] = "AUTOMAZIONE E AVVISI",
+  ["AVOID"] = "EVITA",
   ["Asks for a second click to confirm."] = "Chiede un secondo clic per confermare.",
   ["Auction House did not answer — press Refresh"] =
     "La casa d'aste non ha risposto — premi Refresh",

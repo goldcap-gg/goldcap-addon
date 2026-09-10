@@ -56,6 +56,7 @@ GC.Locales.ukUA = {
   ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА ТА СПОВІЩЕННЯ",
+  ["AVOID"] = "УНИКАТИ",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",

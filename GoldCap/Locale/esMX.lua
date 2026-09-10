@@ -55,6 +55,7 @@ GC.Locales.esMX = {
   ["AUTO · PAUSED: "] = "AUTO · EN PAUSA: ",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
   ["AUTOMATION & ALERTS"] = "AUTOMATIZACIÓN Y AVISOS",
+  ["AVOID"] = "EVITAR",
   ["Asks for a second click to confirm."] = "Pide un segundo clic para confirmar.",
   ["Auction House did not answer — press Refresh"] =
     "La casa de subastas no respondió — pulsa Refresh",

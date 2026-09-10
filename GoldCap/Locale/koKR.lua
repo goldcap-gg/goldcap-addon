@@ -54,6 +54,7 @@ GC.Locales.koKR = {
   ["AUTO · PAUSED: "] = "자동 · 일시중지: ",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
+  ["AVOID"] = "회피",
   ["Asks for a second click to confirm."] = "확인을 위해 한 번 더 눌러야 합니다.",
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",

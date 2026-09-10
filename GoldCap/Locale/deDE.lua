@@ -51,6 +51,7 @@ GC.Locales.deDE = {
   ["AUTO · PAUSED: "] = "AUTO · PAUSIERT: ",
   ["AUTO · SCANNING"] = "AUTO · SCANNT",
   ["AUTOMATION & ALERTS"] = "AUTOMATIK & HINWEISE",
+  ["AVOID"] = "MEIDEN",
   ["Asks for a second click to confirm."] = "Verlangt einen zweiten Klick zur Bestätigung.",
   ["Auction House did not answer — press Refresh"] = "Auktionshaus hat nicht geantwortet — Refresh drücken",
   ["Auction House is not open"] = "Auktionshaus ist nicht geöffnet",

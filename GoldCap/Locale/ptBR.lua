@@ -53,6 +53,7 @@ GC.Locales.ptBR = {
   ["AUTO · PAUSED: "] = "AUTO · PAUSADO: ",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
   ["AUTOMATION & ALERTS"] = "AUTOMAÇÃO E ALERTAS",
+  ["AVOID"] = "EVITAR",
   ["Asks for a second click to confirm."] = "Pede um segundo clique para confirmar.",
   ["Auction House did not answer — press Refresh"] =
     "A casa de leilões não respondeu — clique em Refresh",

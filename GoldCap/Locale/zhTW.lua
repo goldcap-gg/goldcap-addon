@@ -56,6 +56,7 @@ GC.Locales.zhTW = {
   ["AUTO · PAUSED: "] = "自動 · 已暫停：",
   ["AUTO · SCANNING"] = "自動 · 掃描中",
   ["AUTOMATION & ALERTS"] = "自動化與提醒",
+  ["AVOID"] = "避開",
   ["Asks for a second click to confirm."] = "需要再點一次確認。",
   ["Auction House did not answer — press Refresh"] = "拍賣場沒有回應 — 請按 Refresh",
   ["Auction House is not open"] = "拍賣場未開啟",

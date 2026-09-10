@@ -52,6 +52,7 @@ GC.Locales.frFR = {
   ["AUTO · PAUSED: "] = "AUTO · EN PAUSE : ",
   ["AUTO · SCANNING"] = "AUTO · SCAN",
   ["AUTOMATION & ALERTS"] = "AUTOMATISATION & ALERTES",
+  ["AVOID"] = "ÉVITER",
   ["Asks for a second click to confirm."] = "Demande un second clic pour confirmer.",
   ["Auction House did not answer — press Refresh"] =
     "L'hôtel des ventes n'a pas répondu — appuyez sur Refresh",
