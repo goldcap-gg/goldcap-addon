@@ -236,6 +236,8 @@ GC.Locales.koKR = {
   ["Nothing is being held back."] = "보류된 것이 없습니다.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "이번 구매 뒤에는 되팔 상대 물량이 남지 않아 매도 기준가가 없습니다.",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "기준 가격을 측정한 아이템 레벨에 맞는 매물이 없습니다.",
   ["Nothing listed on the AH right now"] = "지금 경매장에 등록된 것이 없습니다",
   ["Nothing queued to cancel"] = "취소 대기열이 비었습니다",
   ["Nothing queued to post"] = "등록 대기열이 비었습니다",
@@ -362,6 +364,8 @@ GC.Locales.koKR = {
     "목록은 가져온 스냅숏으로 등급을 매겼습니다. 실시간 호가창은 이를 뒷받침하지 않습니다.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "버튼은 잠시 뒤에야 눌립니다. 실수로 두 번 클릭해도 실행되지 않습니다.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "가장 싼 매물이 더 이상 기준 가격보다 충분히 낮지 않습니다.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "실시간 경매장 조회에서 다른 사람이 부르는 가장 싼 가격입니다. 본인 등록분은 제외되므로 이 숫자가 스스로를 따라 내려가지 않습니다.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

@@ -252,6 +252,8 @@ GC.Locales.itIT = {
   ["Nothing is being held back."] = "Non è trattenuto nulla.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Dopo questo acquisto non resta nulla contro cui vendere, quindi non c'è prezzo di uscita.",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "Nessuna inserzione raggiunge il livello oggetto su cui è stato misurato il prezzo di riferimento.",
   ["Nothing listed on the AH right now"] = "Al momento non c'è nulla in vendita all'asta",
   ["Nothing queued to cancel"] = "Nulla in coda da annullare",
   ["Nothing queued to post"] = "Nulla in coda da mettere in vendita",
@@ -387,6 +389,8 @@ GC.Locales.itIT = {
     "La lista lo ha classificato sullo snapshot importato. Il book in tempo reale non lo conferma.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Il pulsante attende un momento prima di poter essere premuto, così un doppio clic accidentale non basta mai.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "L'inserzione più economica non è più abbastanza sotto il prezzo di riferimento.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "È il prezzo più basso che sta chiedendo QUALCUN ALTRO adesso, da una query dal vivo alla casa d'aste. Le tue vendite sono escluse, così il numero non insegue mai se stesso verso il basso.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

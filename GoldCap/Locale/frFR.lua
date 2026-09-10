@@ -251,6 +251,8 @@ GC.Locales.frFR = {
   ["Nothing is being held back."] = "Rien n'est retenu.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Après cet achat il ne reste rien contre quoi vendre : il n'y a donc pas de prix de sortie.",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "Aucune vente n'atteint le niveau d'objet sur lequel le prix de référence a été mesuré.",
   ["Nothing listed on the AH right now"] = "Rien en vente à l'hôtel des ventes pour l'instant",
   ["Nothing queued to cancel"] = "Rien à annuler dans la file",
   ["Nothing queued to post"] = "Rien à mettre en vente dans la file",
@@ -386,6 +388,8 @@ GC.Locales.frFR = {
     "Le tableau l'a classé d'après l'instantané importé. Le carnet en direct ne le confirme pas.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Le bouton attend un instant avant d'être cliquable : un double-clic accidental ne suffit jamais.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "La vente la moins chère n'est plus assez en dessous du prix de référence.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "Le prix le plus bas demandé actuellement par QUELQU'UN D'AUTRE, d'après une requête en direct à l'hôtel des ventes. Vos propres ventes sont exclues, donc le chiffre ne se poursuit jamais lui-même vers le bas.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

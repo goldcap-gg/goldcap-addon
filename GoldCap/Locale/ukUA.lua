@@ -263,6 +263,8 @@ GC.Locales.ukUA = {
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Після цієї покупки не лишиться того, у що продавати, — ціни виходу немає.",
   ["Nothing is priced yet - the Auction House is still answering"] = "Ціни ще не отримані — аукціон досі відповідає",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "Жоден лот не дотягує до рівня предмета, на якому виміряно еталонну ціну.",
   ["Nothing listed on the AH right now"] = "Зараз на аукціоні нічого не виставлено",
   ["Nothing queued to cancel"] = "У черзі на скасування нічого немає",
   ["Nothing queued to post"] = "У черзі на виставлення нічого немає",
@@ -401,6 +403,8 @@ GC.Locales.ukUA = {
     "Дошка оцінила лот за імпортованим знімком. Живий стакан цього не підтверджує.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка стає натискною не одразу, тож випадковий подвійний клік її не спрацює.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "Найдешевший лот уже не настільки нижчий за еталонну ціну.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "Найдешевша ціна, яку зараз просить ХТОСЬ ІНШИЙ, за живим запитом до аукціону. Ваші власні лоти виключено, тому число ніколи не женеться саме за собою вниз.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

@@ -243,6 +243,8 @@ GC.Locales.enUS = {
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nothing left to sell against after this buy, so there is no exit price.",
   ["Nothing is priced yet - the Auction House is still answering"] = "Nothing is priced yet - the Auction House is still answering",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "Nothing listed matches the item level the reference price was measured on.",
   ["Nothing listed on the AH right now"] = "Nothing listed on the AH right now",
   ["Nothing queued to cancel"] = "Nothing queued to cancel",
   ["Nothing queued to post"] = "Nothing queued to post",
@@ -369,6 +371,8 @@ GC.Locales.enUS = {
     "The board tiered this off the imported snapshot. The live book does not back it.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "The button waits a moment before it can be pressed, so this is never an accidental double-click.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "The cheapest listing is no longer far enough under the reference price.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

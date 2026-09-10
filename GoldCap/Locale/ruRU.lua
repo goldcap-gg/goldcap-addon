@@ -250,6 +250,8 @@ GC.Locales.ruRU = {
   ["Nothing is being held back."] = "Ничего не придержано.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "После этой покупки не останется того, во что продавать, — цены выхода нет.",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "Ни один лот не дотягивает до уровня предмета, на котором измерена эталонная цена.",
   ["Nothing listed on the AH right now"] = "Сейчас на аукционе ничего не выставлено",
   ["Nothing queued to cancel"] = "В очереди на отмену ничего нет",
   ["Nothing queued to post"] = "В очереди на выставление ничего нет",
@@ -385,6 +387,8 @@ GC.Locales.ruRU = {
     "Доска оценила лот по импортированному снимку. Живой стакан этого не подтверждает.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка становится нажимаемой не сразу, поэтому случайный двойной клик её не сработает.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "Самый дешёвый лот уже недостаточно ниже эталонной цены.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "Самая дешёвая цена, которую сейчас просит КТО-ТО ДРУГОЙ, по живому запросу к аукциону. Ваши собственные лоты исключены, поэтому число никогда не гонится само за собой вниз.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

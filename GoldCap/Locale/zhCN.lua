@@ -234,6 +234,8 @@ GC.Locales.zhCN = {
   ["Nothing is being held back."] = "没有任何条目被保留。",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "买完之后没有可对手的挂单，也就没有出货价。",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "没有挂单达到参考价格所对应的物品等级。",
   ["Nothing listed on the AH right now"] = "目前拍卖行上没有挂单",
   ["Nothing queued to cancel"] = "取消队列为空",
   ["Nothing queued to post"] = "上架队列为空",
@@ -354,6 +356,8 @@ GC.Locales.zhCN = {
     "榜单是按导入的快照分级的，实时挂单簿并不支持这个结论。",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "按钮会先等待片刻才可按下，因此误双击不会触发。",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "最便宜的挂单已不再明显低于参考价格。",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "这是实时查询拍卖行后，别人当前挂出的最低价。你自己的挂单已排除，因此这个数字不会自己追着自己往下走。",
   ["The data for this item is malformed, so GoldCap refuses to guess."] = "该物品的数据有误，GoldCap 拒绝靠猜。",

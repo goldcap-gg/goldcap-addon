@@ -252,6 +252,8 @@ GC.Locales.ptBR = {
   ["Nothing is being held back."] = "Nada está sendo retido.",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Depois desta compra não sobra nada contra o que vender, então não há preço de saída.",
+  ["Nothing listed matches the item level the reference price was measured on."] =
+    "Nenhum anúncio alcança o nível de item em que o preço de referência foi medido.",
   ["Nothing listed on the AH right now"] = "Nada anunciado na casa de leilões agora",
   ["Nothing queued to cancel"] = "Nada na fila para cancelar",
   ["Nothing queued to post"] = "Nada na fila para anunciar",
@@ -387,6 +389,8 @@ GC.Locales.ptBR = {
     "O painel classificou isto pelo snapshot importado. O livro ao vivo não confirma.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "O botão espera um instante antes de poder ser pressionado, então um duplo clique acidental nunca basta.",
+  ["The cheapest listing is no longer far enough under the reference price."] =
+    "O anúncio mais barato já não está bem abaixo do preço de referência.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
     "É o menor preço que OUTRA pessoa está pedindo agora, por uma consulta ao vivo à casa de leilões. Os seus próprios anúncios ficam de fora, então o número nunca persegue a si mesmo para baixo.",
   ["The data for this item is malformed, so GoldCap refuses to guess."] =

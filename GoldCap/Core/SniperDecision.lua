@@ -182,6 +182,8 @@ local REASON_TEXT = {
   liquidity_confidence_low = "The liquidity data is not reliable enough to act on.",
   market_falling = "The price is falling; buying into it is how you get stuck.",
   book_missing = "No live listings came back for this item.",
+  no_comparable_lot = "Nothing listed matches the item level the reference price was measured on.",
+  price_rose = "The cheapest listing is no longer far enough under the reference price.",
   book_exhausted = "Not enough units on the Auction House to fill that quantity.",
   competing_ask_missing = "Nothing left to sell against after this buy, so there is no exit price.",
   deposit_missing = "The Auction House would not quote a deposit, so the cost is unknown.",
@@ -210,6 +212,7 @@ local REASON_ORDER = {
   listings_too_low = 20, velocity_missing = 21, velocity_too_low = 22,
   sell_through_too_low = 23, liquidity_confidence_low = 24, market_falling = 25,
   book_missing = 30, book_exhausted = 31, competing_ask_missing = 32, deposit_missing = 33,
+  no_comparable_lot = 34, price_rose = 35,
   capital_limit = 40, demand_limit = 41, wall_absorbed = 42,
   stress_exit_missing = 50, stress_profit_below_buffer = 51,
   invalid_input = 60, requote_broke_safety = 70,
@@ -588,6 +591,86 @@ function GC.SniperDecision.Evaluate(input)
   out.buyable = false
   orderReasons(out.reasons)
   return finalizePublicResult()
+end
+
+-- Sniper phase 2 (docs/superpowers/specs/2026-09-10-sniper-phase2-realm-items-design.md):
+-- the verdict for a REALM item -- gear, a pet, a recipe, a mount -- which Evaluate above
+-- cannot answer at all. Evaluate's whole engine is built on facts a realm item does not have:
+-- a commodity order book to walk, a measured sell-through, a stress exit price from a 24-hour
+-- tape. What IS known is a reference price for the item across the region, and what one lot
+-- is being asked for right now.
+--
+-- So this answers a smaller question honestly instead of a big one by guessing: is the
+-- cheapest COMPARABLE lot far enough under the reference to be worth the player's own
+-- judgement? Comparable means the lot's item level is at least the one the reference was
+-- measured on -- a 600 drop of a 623 item is a different item wearing the same name, and
+-- pricing one against the other is how a "90% discount" turns into a bag full of vendor trash.
+-- `refIlvl == 0` (an item with no item level, or a reference measured without one) makes every
+-- lot comparable.
+--
+-- The result is NEVER SAFE and never `buyable`: nothing here knows how fast the item sells,
+-- and the design says so rather than inventing a velocity. A WATCH result carries a candidate
+-- -- one specific auction and its buyout -- and the dialog offers it as "BUY - unverified".
+--
+-- `lot.buyout` is the whole lot's price, and `reference` is one unit's: an item auction is an
+-- atomic lot, and the overwhelming majority hold one item. A stack of several therefore reads
+-- as more expensive than it is, which under-claims the discount rather than over-claiming it
+-- -- the only direction a price comparison is allowed to be wrong in.
+function GC.SniperDecision.EvaluateRealm(lots, reference, refIlvl, config)
+  local out = {
+    version = GC.SniperDecision.VERSION,
+    status = "AVOID",
+    buyable = false,
+    reasons = {},
+  }
+  if type(lots) ~= "table" or type(config) ~= "table"
+      or not isFinite(reference) or reference <= 0 then
+    out.reasons = { "invalid_input" }
+    return out
+  end
+  out.reference = reference
+  refIlvl = (isFinite(refIlvl) and refIlvl > 0) and refIlvl or 0
+  -- The same trigger the poll uses to decide the item was worth a live look at all, recomputed
+  -- from the live lots so a price that rose between the two is caught here rather than shown.
+  local trigger = GC.Trigger and GC.Trigger.ForRealm(reference, config) or nil
+
+  local best
+  for i = 1, #lots do
+    local candidate = lots[i]
+    if type(candidate) == "table" and isInteger(candidate.auctionID) and candidate.auctionID > 0
+        and isFinite(candidate.buyout) and candidate.buyout > 0 then
+      local level = isFinite(candidate.itemLevel) and candidate.itemLevel or 0
+      if refIlvl == 0 or level >= refIlvl then
+        if not best or candidate.buyout < best.buyout then best = candidate end
+      end
+    end
+  end
+
+  if not best then
+    out.reasons = { "no_comparable_lot" }
+    return out
+  end
+  if not trigger or best.buyout >= trigger then
+    out.reasons = { "price_rose" }
+    return out
+  end
+
+  local quantity = (isInteger(best.quantity) and best.quantity > 0) and best.quantity or 1
+  out.status = "WATCH"
+  out.reasons = { "realm_item_unverified" }
+  out.candidate = {
+    auctionID = best.auctionID,
+    buyout = best.buyout,
+    itemLevel = isFinite(best.itemLevel) and best.itemLevel or 0,
+    quantity = quantity,
+  }
+  -- A 0..1 fraction, the same shape Core/DealMath.lua's `discount` carries, so the row and
+  -- the dialog format one number the same way wherever either of them shows it.
+  out.discountPct = 1 - best.buyout / reference
+  -- The 5% auction house cut, and nothing else: an item auction pays no deposit to buy, and
+  -- there is no second lot to resell against the way a commodity book gives one.
+  out.estProfit = math.floor(reference * 0.95) - best.buyout
+  return out
 end
 
 -- Discovery-time screen. A browse aggregate has no order book, so Evaluate cannot run on it --
