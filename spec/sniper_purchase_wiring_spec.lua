@@ -1806,4 +1806,113 @@ describe("Sniper purchase wiring", function()
 
     _G.C_AuctionHouse, _G.C_Timer, _G.GetMoney, _G.time, _G.GetTime = nil, nil, nil, nil, nil
   end)
+
+  -- A purchase is a purchase: gold left the player's bags and the books have to say so. A realm
+  -- buy has no SAFE decision behind it, so it is recorded as `unverified` rather than not at
+  -- all -- end to end here, through the real ledger, flip and acquisition stores.
+  it("writes one ledger row, one flip and one acquisition for a realm buy", function()
+    _G.C_AuctionHouse = { PlaceBid = function() end }
+    _G.C_Timer = { After = function() end }
+    _G.GetMoney = function() return 10000000000 end
+    _G.time = function() return 100000 end
+    _G.GetTime = function() return 100 end
+    _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+        PauseReasons = function() return {} end } end },
+      db = { settings = { sniper = {} } },
+    }
+    helper.loadModule("Core/Util.lua", GC)
+    helper.loadModule("Core/ImportString.lua", GC)
+    helper.loadModule("Core/Ledger.lua", GC)
+    helper.loadModule("Core/Acquisitions.lua", GC)
+    helper.loadModule("Core/Data.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    GC.Ledger.Init(GC.db)
+    GC.Acquisitions.Init(GC.db)
+    GC.Data.Init(GC.db)
+    -- After Init, so the real store is in place but the sniper reads no market facts: a realm
+    -- item carries none, which is the case under test.
+    GC.Data.GetItemValue = function() return nil end
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local createRow = getUpvalue(refreshRows, "createRow")
+    local buildRowCell = getUpvalue(createRow, "buildRowCell")
+    local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+    local openDialog = getUpvalue(onBuyClick, "openDialog")
+    local createDialog = getUpvalue(openDialog, "createDialog")
+    local primary = getUpvalue(createDialog, "onDialogPrimaryClick")
+
+    local deal = { itemID = 42, isCommodity = false, qty = 1, unitPrice = 1, mv = 1000000, discount = 0.25 }
+    local decision = {
+      version = 1, status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+      quantity = 1, entryTotal = 750000, entryUnitDisplay = 750000,
+      reference = 1000000, estProfit = 200000,
+      candidate = { auctionID = 8801, buyout = 750000, itemLevel = 623, quantity = 1 },
+    }
+    local row = { deal = deal, purchaseStage = "ready", purchaseToken = 1, decisionSnapshot = decision }
+    setUpvalue(primary, "dialog", {
+      row = row, deal = deal,
+      Hide = function() end,
+      primaryBtn = { Disable = function() end, Enable = function() end, IsEnabled = function() return true end },
+      status = { SetText = function() end, SetTextColor = function() end },
+    })
+
+    primary()
+    GC.Sniper.OnPurchaseCompleted(8801)
+
+    local entries = GC.Ledger.GetEntries()
+    assert.equal(1, #entries)
+    assert.equal("buy", entries[1].kind)
+    assert.equal("goldcap_sniper", entries[1].source)
+    assert.equal(750000, entries[1].total)
+    assert.equal("WATCH", entries[1].decisionStatus)
+    assert.is_true(entries[1].unverified)
+    assert.equal(1000000, entries[1].stressUnit) -- the region reference it was judged against
+
+    local flips = GC.Data.GetFlips(100000)
+    assert.equal(1, #flips)
+    assert.equal(750000, flips[1].paidTotal)
+    assert.equal(1000000, flips[1].targetUnit)
+
+    assert.equal(1, #GC.db.acquisitions)
+    assert.equal(750000, GC.db.acquisitions[1].originalTotal)
+    assert.equal("goldcap", GC.db.acquisitions[1].source)
+
+    -- The session line the player reads has to agree with the books.
+    assert.equal(1, GC.Sniper.session.buys)
+    assert.equal(750000, GC.Sniper.session.spent)
+
+    _G.C_AuctionHouse, _G.C_Timer, _G.GetMoney, _G.time, _G.GetTime = nil, nil, nil, nil, nil
+    _G.GetCoinTextureString = nil
+  end)
 end)

@@ -248,6 +248,47 @@ describe("Ledger store", function()
       assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930, qty = 1, unitPrice = 100 }, nil, context, 1))
     end)
 
+    -- Sniper phase 2: a realm lot is bought on a candidate, never on a SAFE decision -- nothing
+    -- measures how fast a realm item sells. The gold still left the player's bags, so the buy
+    -- is recorded, and `unverified` is the field that says what was not known about it.
+    it("records an unverified realm buy and marks the row", function()
+      local entry = GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 750000, mv = 1000000, discount = 0.25 },
+        purchase({
+          quantity = 1, total = 750000, unitDisplay = 750000,
+          decisionStatus = "WATCH", unverified = true,
+          decisionReasons = { "realm_item_unverified" },
+          stressUnit = 1000000, expectedProfit = 200000, sourceAt = 0,
+        }), context, 5000)
+
+      assert.equal("buy", entry.kind)
+      assert.equal("goldcap_sniper", entry.source)
+      assert.equal(750000, entry.total)
+      assert.equal("WATCH", entry.decisionStatus)
+      assert.is_true(entry.unverified)
+      assert.same({ "realm_item_unverified" }, entry.decisionReasons)
+      assert.equal(1000000, entry.stressUnit)
+    end)
+
+    it("still refuses a WATCH fact that does not claim to be an unverified realm buy", function()
+      assert.is_nil(GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 100 },
+        purchase({ decisionStatus = "WATCH" }), context, 1))
+      assert.is_nil(GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 100 },
+        purchase({ decisionStatus = "WATCH", unverified = "yes" }), context, 1))
+      assert.is_nil(GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 100 },
+        purchase({ decisionStatus = "AVOID", unverified = true }), context, 1))
+      assert.equal(0, #GC.Ledger.GetEntries())
+    end)
+
+    it("leaves a SAFE row's shape exactly as it was, with no unverified field", function()
+      local entry = GC.Ledger.RecordSniperBuy(
+        { itemID = 210930, qty = 1, unitPrice = 100 }, purchase(), context, 1)
+      assert.is_nil(entry.unverified)
+    end)
+
     it("rejects non-finite and unsafe direct purchase facts without recording a ledger row", function()
       local MAX_EXACT = 9007199254740991
       local cases = {

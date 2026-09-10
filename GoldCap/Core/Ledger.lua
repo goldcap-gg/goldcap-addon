@@ -579,7 +579,13 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
       or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
       or not isNonNegativeInteger(purchase.unitDisplay) or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
       or not isPositiveInteger(purchase.decisionVersion)
-      or purchase.decisionStatus ~= "SAFE"
+      -- SAFE, or the one other thing a sniper purchase can be: a realm lot bought on a
+      -- candidate (Core/SniperDecision.lua's EvaluateRealm), which is never SAFE because
+      -- nothing measures how fast a realm item sells. `unverified` is what has to be present
+      -- for that -- a bare WATCH fact is still refused, so no other path can slip a purchase
+      -- past this gate by simply not being SAFE.
+      or not (purchase.decisionStatus == "SAFE"
+        or (purchase.decisionStatus == "WATCH" and purchase.unverified == true))
       or not isReasonsArray(purchase.decisionReasons)
       or not isPositiveInteger(purchase.stressUnit)
       or not isNonNegativeInteger(purchase.expectedProfit)
@@ -615,6 +621,10 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
     discount = deal.discount,
     decisionVersion = purchase.decisionVersion,
     decisionStatus = purchase.decisionStatus,
+    -- Persisted only when true, so every row written before realm buys existed keeps its exact
+    -- shape. The companion and the site read it to tell a checked buy from one the player made
+    -- on a price comparison alone.
+    unverified = purchase.unverified == true or nil,
     decisionReasons = copyReasons(purchase.decisionReasons),
     stressUnit = purchase.stressUnit,
     expectedProfit = purchase.expectedProfit,

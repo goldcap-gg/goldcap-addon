@@ -374,7 +374,13 @@ function GC.Data.RecordFlip(deal, purchase, now)
       or not isPositiveInteger(deal.itemID) or purchase.itemID ~= deal.itemID
       or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
       or not isNonNegativeInteger(purchase.unitDisplay) or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
-      or not isPositiveInteger(purchase.decisionVersion) or purchase.decisionStatus ~= "SAFE"
+      or not isPositiveInteger(purchase.decisionVersion)
+      -- Same gate as GC.Ledger.RecordSniperBuy, and for the same reason: a realm lot is bought
+      -- on a candidate and is never SAFE, so it is admitted on `unverified` -- and only on
+      -- that, never on a bare WATCH. targetUnit below is the region reference, which is the
+      -- one price anything measured for the item.
+      or not (purchase.decisionStatus == "SAFE"
+        or (purchase.decisionStatus == "WATCH" and purchase.unverified == true))
       or not isReasonsArray(purchase.decisionReasons)
       or not isPositiveInteger(purchase.stressUnit)
       or not isNonNegativeInteger(purchase.expectedProfit)

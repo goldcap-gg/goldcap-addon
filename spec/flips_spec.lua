@@ -62,6 +62,30 @@ describe("Data.Flips (Sniper v2 §D)", function()
       assert.same({ flip }, GC.Data.GetFlips(0))
     end)
 
+    -- Sniper phase 2: a realm lot is bought on a candidate and is never SAFE, but it is still a
+    -- flip with a real cost basis. Its targetUnit is the region reference -- the one price
+    -- anything measured for the item, and what the Sell tab will post against.
+    it("records an unverified realm buy against the region reference", function()
+      local flip = GC.Data.RecordFlip({ itemID = 7 }, purchase({
+        itemID = 7, quantity = 1, total = 750000, unitDisplay = 750000,
+        decisionStatus = "WATCH", unverified = true,
+        decisionReasons = { "realm_item_unverified" }, stressUnit = 1000000,
+        expectedProfit = 200000, sourceAt = 0,
+      }), 5000)
+      assert.equal(750000, flip.paidTotal)
+      assert.equal(1000000, flip.targetUnit)
+      assert.same({ flip }, GC.Data.GetFlips(5000))
+    end)
+
+    it("still refuses a WATCH fact that does not claim to be an unverified realm buy", function()
+      assert.is_nil(GC.Data.RecordFlip({ itemID = 1 }, purchase({ decisionStatus = "WATCH" }), 100))
+      assert.is_nil(GC.Data.RecordFlip({ itemID = 1 },
+        purchase({ decisionStatus = "WATCH", unverified = 1 }), 100))
+      assert.is_nil(GC.Data.RecordFlip({ itemID = 1 },
+        purchase({ decisionStatus = "AVOID", unverified = true }), 100))
+      assert.same({}, GC.Data.GetFlips(100))
+    end)
+
     it("returns nil for a direct call without immutable purchase facts", function()
       assert.is_nil(GC.Data.RecordFlip({ itemID = 999, qty = 1, unitPrice = 5000 }, nil, 100))
     end)

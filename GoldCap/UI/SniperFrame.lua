@@ -3054,12 +3054,48 @@ end
 
 local function purchaseFacts(deal, quote)
   local decision = quote and quote.decision
-  if not decision or decision.status ~= "SAFE" or not decision.buyable
-      or quote.itemID ~= deal.itemID or quote.quantity ~= decision.quantity
+  if not decision or quote.itemID ~= deal.itemID
       or type(quote.total) ~= "number" or quote.total <= 0 then
     return nil
   end
   local market = quote.market or {}
+  -- Sniper phase 2: a realm lot has no SAFE decision to anchor a cost basis to -- it is bought
+  -- on a candidate, one named auction at one named price -- but a purchase is a purchase and
+  -- gold that left the player's bags has to be recorded. `unverified` is the fact that carries
+  -- what was NOT known: the price was checked against the region reference, the sale speed was
+  -- never measured. It rides onto the ledger row so the site can tell the two apart later.
+  local candidate = (decision.status == "WATCH" and type(decision.candidate) == "table")
+    and decision.candidate or nil
+  if candidate then
+    local reference = decision.reference
+    if type(reference) ~= "number" or reference ~= reference or reference <= 0 then return nil end
+    local quantity = (type(candidate.quantity) == "number" and candidate.quantity >= 1)
+      and math.floor(candidate.quantity) or 1
+    return {
+      itemID = deal.itemID,
+      quantity = quantity,
+      total = quote.total,
+      unitDisplay = math.floor(quote.total / quantity),
+      decisionVersion = decision.version,
+      decisionStatus = decision.status,
+      decisionReasons = copyReasons(decision.reasons),
+      unverified = true,
+      -- The region reference is the only price anything measured for this item, so it is also
+      -- the honest posting target: GC.Data.RecordFlip stores it as the flip's targetUnit and
+      -- the Sell tab prices against it.
+      stressUnit = math.floor(reference),
+      expectedProfit = math.max(0, math.floor(decision.estProfit or 0)),
+      recommendedQuantity = quantity,
+      -- A realm item carries no verification block, so there is no source timestamp behind it.
+      -- 0 rather than nil: the ledger's own validator takes a non-negative integer, and "no
+      -- fact" is the truth here rather than a missing field.
+      sourceAt = market.sourceAt or 0,
+    }
+  end
+  if decision.status ~= "SAFE" or not decision.buyable
+      or quote.quantity ~= decision.quantity then
+    return nil
+  end
   return {
     itemID = deal.itemID,
     quantity = quote.quantity,
@@ -4257,7 +4293,22 @@ function GC.Sniper.OnPurchaseCompleted(auctionID)
   local row = pendingAuction[auctionID]
   if not row then return end
   local deal = row.purchaseDeal
-  resolvePurchase(row, true, deal and (GC.L["sniped for "] .. GetCoinTextureString(deal.unitPrice * deal.qty)) or GC.L["purchase complete"])
+  -- Sniper phase 2: an item auction has no server quote step -- PlaceBid pays exactly the
+  -- buyout the dialog showed -- so the immutable fact this purchase is recorded from can be
+  -- built right here, from the candidate the click bought on, in the same shape the commodity
+  -- path hands purchaseFacts. nil facts still resolve the row; they just record nothing.
+  local decision = row.decisionSnapshot
+  local candidate = decision and decision.candidate
+  local facts = (deal and candidate and candidate.buyout) and purchaseFacts(deal, {
+    itemID = deal.itemID,
+    quantity = candidate.quantity,
+    total = candidate.buyout,
+    market = marketForDecision(deal.itemID),
+    decision = decision,
+  }) or nil
+  resolvePurchase(row, true,
+    deal and (GC.L["sniped for "] .. GetCoinTextureString(deal.unitPrice * deal.qty)) or GC.L["purchase complete"],
+    facts)
 end
 
 -- Read-only ownership checks used by Core/PurchaseCapture.lua's post-call observers. The
