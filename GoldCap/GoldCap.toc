@@ -44,6 +44,7 @@ Core/Book.lua
 Core/SniperDecision.lua
 Core/CheckVerdict.lua
 Core/DealMath.lua
+Core/Trigger.lua
 Core/Scanner.lua
 Core/FullScan.lua
 Core/WatchSet.lua
