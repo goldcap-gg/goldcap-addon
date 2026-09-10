@@ -1065,6 +1065,10 @@ describe("Sniper purchase wiring", function()
   it("does not Start while a cancelled requote tombstone still owns commodity events", function()
     local starts = 0
     _G.C_AuctionHouse = { StartCommoditiesPurchase = function() starts = starts + 1 end }
+    -- The tombstone's own age decides whether it still refuses (LIM.DRAIN_TIMEOUT_SECONDS);
+    -- a fresh one, stamped at this same instant, does.
+    _G.GetTime = function() return 0 end
+    _G.C_Timer = { After = function() end } -- the Start path arms its own buy timeout
     local GC = {
       Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
         -- Check panel v3 tints the verdict band, the headline figure and every fact from
@@ -1127,7 +1131,17 @@ describe("Sniper purchase wiring", function()
 
     assert.equal(0, starts)
     assert.equal("ready", row.purchaseStage)
-    _G.C_AuctionHouse = nil
+
+    -- ...and stops refusing once it has outlived the answer it was waiting for. Nothing else
+    -- ever consumes an unconfirmed tombstone: CancelCommoditiesPurchase fires none of the
+    -- three terminal events, and neither does an auction house error.
+    setUpvalue(primary, "commodityDraining", { itemID = 42, token = 4, drainingAt = 0 })
+    _G.GetTime = function() return 30 end
+    primary()
+    assert.equal(1, starts)
+    assert.equal("buying", row.purchaseStage)
+
+    _G.C_AuctionHouse, _G.GetTime, _G.C_Timer = nil, nil, nil
   end)
 
   it("flushes a throttled watchlist Check exactly once before its timeout can show Gone", function()

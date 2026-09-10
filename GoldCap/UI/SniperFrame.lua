@@ -132,6 +132,14 @@ LIM.REQUERY_TIMEOUT_SECONDS = 8
 -- board stopped. Longer than every purchase timeout above, so a real answer always lands
 -- first, and only ever applied with no dialog on screen.
 LIM.QUIET_ZONE_MAX_SECONDS = 30
+-- How long the "waiting for previous commodity purchase to settle" tombstone may refuse the
+-- next Buy. Commodity events carry no attempt identifier, so a cancelled or errored attempt
+-- owns a tombstone until a terminal event consumes it -- and CancelCommoditiesPurchase fires
+-- none of the three, an auction house error fires none of the three, so "until" can be never.
+-- Longer than LIM.BUY_TIMEOUT_SECONDS so a real terminal event always lands first. Only ever
+-- applied to an UNCONFIRMED attempt: no gold moved there, and the worst a misattributed late
+-- event can then do is cancel a fresh attempt, which is the fail-safe direction.
+LIM.DRAIN_TIMEOUT_SECONDS = 20
 -- Task 8 hover pre-warm: how long a cached deal.prewarm result stays consumable by openDialog
 -- before it's treated as expired (falls back to today's requery-then-arm flow instead).
 LIM.PREWARM_TTL_SECONDS = 10
@@ -285,10 +293,13 @@ local function drainCommodityPurchase(row)
     -- gold moved and no late event can credit a purchase to a later row. The worst a
     -- misattributed late event can now do is cancel a fresh attempt, which is the fail-safe
     -- direction. A CONFIRMED tombstone is never retired here -- its late success must land.
-    -- 10s, written inline rather than as a named constant: this chunk is at Lua's 200-local
-    -- ceiling. Longer than LIM.BUY_TIMEOUT_SECONDS so a real terminal event still lands first.
+    --
+    -- The timer is not the only retirement: onDialogPrimaryClick reads `drainingAt` below and
+    -- retires an expired tombstone at the click itself, because a timer that was never armed
+    -- (or never ran) is exactly how a Buy stayed refused with the button enabled.
+    pending.drainingAt = GetTime()
     if not pending.confirmed then
-      C_Timer.After(10, function()
+      C_Timer.After(LIM.DRAIN_TIMEOUT_SECONDS, function()
         if commodityDraining == pending and not pending.confirmed then
           commodityDraining = nil
         end
@@ -4939,9 +4950,18 @@ local function onDialogPrimaryClick()
     return
   end
   if commodityDraining then
-    setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
-    if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
-    return
+    -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
+    -- event never arrives (a cancel, an auction house error) would otherwise refuse every
+    -- later commodity Buy until the player reloaded -- with the Buy button sitting enabled,
+    -- saying the purchase was possible. A CONFIRMED tombstone is never retired here; its late
+    -- success still has to land on the attempt that paid for it.
+    if commodityDraining.confirmed
+        or (GetTime() - (commodityDraining.drainingAt or 0)) <= LIM.DRAIN_TIMEOUT_SECONDS then
+      setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
+      if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
+      return
+    end
+    commodityDraining = nil
   end
   if commodityPurchase and commodityPurchase.row ~= row then
     -- Only ONE commodity purchase may be in flight at a time. Unreachable in practice --
