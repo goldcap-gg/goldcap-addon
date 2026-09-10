@@ -5,6 +5,8 @@
 - **The sniper finds a fresh dump in seconds, not half a minute, and the board tells you
   the moment it has actually checked one — "SAFE +Ng" in place of a guess, and the reason
   in full on the row you hover when the answer is no.**
+- **Gear, pets and recipes listed far under their region price now reach the board within
+  seconds and can be bought from the dialog, marked as unverified for sale speed.**
 - **Settings is simpler and explains itself.** The old HOT/GOOD discount and sold-per-day
   fields are gone — what's left is the three numbers that decide whether a buy happens at
   all and the three that decide when to stop trusting the data. Hover any field or toggle
