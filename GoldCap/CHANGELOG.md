@@ -12,6 +12,8 @@
   card resets it in one click.
 - **Item tooltips no longer cover the board.** Hovering a deal or a Sell position now opens
   its tooltip beside the window instead of on top of it.
+- **The Sell tab now caps its posting price at what the item's floor actually reaches
+  within a day, and joins the cheapest rung instead of undercutting it by a silver.**
 
 ## 0.8.0 (2026-09-08)
 
