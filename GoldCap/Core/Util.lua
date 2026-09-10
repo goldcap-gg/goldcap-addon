@@ -19,6 +19,26 @@ function GC.Util.FormatAge(seconds)
   return math.floor(seconds / 86400) .. "d"
 end
 
+-- Compact gold display: whole gold past 100g, gold+silver below it, a coin-icon string
+-- under a gold. Moved here (Sniper fast loop, phase 1) from UI/SniperFrame.lua's own
+-- formatColumnAmount so Core/BoardRows.lua can format a verdict label without a WoW frame --
+-- GetCoinTextureString is still a WoW global, so a caller without the client (this addon's
+-- own spec suite) stubs it, exactly as every UI/SniperFrame.lua spec already does.
+local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
+function GC.Util.FormatMoney(copper)
+  if copper < 0 then return "-" .. GC.Util.FormatMoney(-copper) end
+  if copper >= GOLD_COMPACT_THRESHOLD then
+    return ("%dg"):format(math.floor(copper / 10000))
+  end
+  if copper >= 10000 then
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    if silver == 0 then return ("%dg"):format(gold) end
+    return ("%dg%02ds"):format(gold, silver)
+  end
+  return GetCoinTextureString(copper)
+end
+
 local function finitePositive(value)
   return type(value) == "number" and value == value
     and value ~= math.huge and value ~= -math.huge and value > 0

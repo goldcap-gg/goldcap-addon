@@ -344,6 +344,7 @@ GC.Locales.ukUA = {
     "Правий клік, щоб перестати стежити за предметом",
   ["Right-click to watch this item closely"] =
     "Правий клік, щоб пильно стежити за предметом",
+  ["SAFE +%s"] = "БЕЗПЕЧНО +%s",
   ["SAFETY"] = "БЕЗПЕКА",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "ЗБЕРІГАЄТЬСЯ ОДРАЗУ · ESC АБО DONE, ЩОБ ЗАКРИТИ",
@@ -425,9 +426,11 @@ GC.Locales.ukUA = {
   ["Unknown item"] = "Невідомий предмет",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
+  ["WATCH %s"] = "СТЕЖИТИ %s",
   ["WATCH (computed SAFE)"] = "WATCH (розраховано БЕЗПЕЧНО)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = зі знижкою, але ліквідність не підтверджена або прибуток малий",
+  ["WATCH — checking…"] = "СТЕЖИТИ — перевірка…",
   ["WHAT TO DO"] = "ЩО РОБИТИ",
   ["WHAT YOU PAID"] = "СКІЛЬКИ ВИ ЗАПЛАТИЛИ",
   ["WHEN"] = "КОЛИ",

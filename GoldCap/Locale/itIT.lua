@@ -331,6 +331,7 @@ GC.Locales.itIT = {
     "Clic destro per smettere di sorvegliare questo oggetto",
   ["Right-click to watch this item closely"] =
     "Clic destro per sorvegliare da vicino questo oggetto",
+  ["SAFE +%s"] = "SICURO +%s",
   ["SAFETY"] = "SICUREZZA",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVATO SUBITO · ESC O DONE PER CHIUDERE",
   ["SCAN"] = "SCANSIONA",
@@ -410,9 +411,11 @@ GC.Locales.itIT = {
   ["Unknown item"] = "Oggetto sconosciuto",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Ignoto significa che il lato costi è incompleto: completalo con Imposta costo.",
+  ["WATCH %s"] = "OSSERVA %s",
   ["WATCH (computed SAFE)"] = "WATCH (calcolato SICURO)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = scontato ma con liquidità non dimostrata o profitto piccolo",
+  ["WATCH — checking…"] = "OSSERVA — verifica…",
   ["WHAT TO DO"] = "COSA FARE",
   ["WHAT YOU PAID"] = "QUANTO HAI PAGATO",
   ["WHEN"] = "QUANDO",

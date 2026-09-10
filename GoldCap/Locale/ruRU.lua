@@ -328,6 +328,7 @@ GC.Locales.ruRU = {
     "Правый клик, чтобы перестать следить за предметом",
   ["Right-click to watch this item closely"] =
     "Правый клик, чтобы пристально следить за предметом",
+  ["SAFE +%s"] = "БЕЗОПАСНО +%s",
   ["SAFETY"] = "БЕЗОПАСНОСТЬ",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "СОХРАНЯЕТСЯ СРАЗУ · ESC ИЛИ DONE, ЧТОБЫ ЗАКРЫТЬ",
@@ -409,9 +410,11 @@ GC.Locales.ruRU = {
   ["Unknown item"] = "Неизвестный предмет",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "«Неизвестно» значит, что себестоимость заполнена не вся — допишите её через «Указать цену».",
+  ["WATCH %s"] = "СЛЕДИТЬ %s",
   ["WATCH (computed SAFE)"] = "WATCH (расчёт БЕЗОПАСНО)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = со скидкой, но ликвидность не подтверждена или прибыль мала",
+  ["WATCH — checking…"] = "СЛЕДИТЬ — проверка…",
   ["WHAT TO DO"] = "ЧТО ДЕЛАТЬ",
   ["WHAT YOU PAID"] = "СКОЛЬКО ВЫ ЗАПЛАТИЛИ",
   ["WHEN"] = "КОГДА",

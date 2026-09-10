@@ -308,6 +308,7 @@ GC.Locales.zhCN = {
   ["Repost confirmation expired"] = "重新上架确认已过期",
   ["Right-click to stop watching this item"] = "右键点击以停止关注该物品",
   ["Right-click to watch this item closely"] = "右键点击以密切关注该物品",
+  ["SAFE +%s"] = "安全 +%s",
   ["SAFETY"] = "安全",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "即时保存 · 按 ESC 或 DONE 关闭",
   ["SCAN"] = "扫描",
@@ -374,9 +375,11 @@ GC.Locales.zhCN = {
   ["Unknown item"] = "未知物品",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "显示为未知说明成本侧不完整 — 用“填写成本”补上。",
+  ["WATCH %s"] = "观察 %s",
   ["WATCH (computed SAFE)"] = "WATCH（计算结果为安全）",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = 有折扣但流动性未验证，或利润偏小",
+  ["WATCH — checking…"] = "观察 — 检查中…",
   ["WHAT TO DO"] = "该怎么做",
   ["WHAT YOU PAID"] = "你的成本",
   ["WHEN"] = "时间",

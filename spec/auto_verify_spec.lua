@@ -130,6 +130,8 @@ describe("Deals background verification", function()
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/Util.lua", GC)
+    helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     local show = GC.Sniper.OnAuctionHouseShow
@@ -244,7 +246,11 @@ describe("Deals background verification", function()
   it("never looks past the widened top-24 rows", function()
     local api = loadSniper(safe)
     local deals = {}
-    for i = 1, 26 do deals[i] = deal(i, i * 100) end
+    -- Distinct, descending profit per item: with no verdict yet every row ties on bucket
+    -- (UNVERIFIED), so GC.BoardRows.Compare's estProfit tiebreak is what has to give this a
+    -- deterministic order -- a flat tie here would leave table.sort free to reshuffle rows
+    -- 25/26 items wide, which is not what this test is about.
+    for i = 1, 26 do deals[i] = deal(i, i * 100, (27 - i) * 10) end
     board(api, deals)
 
     for i = 1, 26 do

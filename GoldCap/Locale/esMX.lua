@@ -333,6 +333,7 @@ GC.Locales.esMX = {
   ["Repost confirmation expired"] = "La confirmación de republicación ha caducado",
   ["Right-click to stop watching this item"] = "Clic derecho para dejar de vigilar este objeto",
   ["Right-click to watch this item closely"] = "Clic derecho para vigilar de cerca este objeto",
+  ["SAFE +%s"] = "SEGURO +%s",
   ["SAFETY"] = "SEGURIDAD",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SE GUARDA AL INSTANTE · ESC O DONE PARA CERRAR",
   ["SCAN"] = "ESCANEAR",
@@ -411,9 +412,11 @@ GC.Locales.esMX = {
   ["Unknown item"] = "Objeto desconocido",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Desconocido significa que falta parte del costo: complétalo con Fijar costo.",
+  ["WATCH %s"] = "VIGILAR %s",
   ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = con descuento pero con liquidez no demostrada o beneficio pequeño",
+  ["WATCH — checking…"] = "VIGILAR — comprobando…",
   ["WHAT TO DO"] = "QUÉ HACER",
   ["WHAT YOU PAID"] = "LO QUE PAGASTE",
   ["WHEN"] = "CUÁNDO",

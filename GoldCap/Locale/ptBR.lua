@@ -332,6 +332,7 @@ GC.Locales.ptBR = {
     "Clique com o botão direito para parar de acompanhar este item",
   ["Right-click to watch this item closely"] =
     "Clique com o botão direito para acompanhar este item de perto",
+  ["SAFE +%s"] = "SEGURO +%s",
   ["SAFETY"] = "SEGURANÇA",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SALVO NA HORA · ESC OU DONE PARA FECHAR",
   ["SCAN"] = "VARRER",
@@ -411,9 +412,11 @@ GC.Locales.ptBR = {
   ["Unknown item"] = "Item desconhecido",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Desconhecido significa que falta parte do custo — complete com Definir custo.",
+  ["WATCH %s"] = "OBSERVAR %s",
   ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = com desconto, mas liquidez não comprovada ou lucro pequeno",
+  ["WATCH — checking…"] = "OBSERVAR — verificando…",
   ["WHAT TO DO"] = "O QUE FAZER",
   ["WHAT YOU PAID"] = "O QUE VOCÊ PAGOU",
   ["WHEN"] = "QUANDO",

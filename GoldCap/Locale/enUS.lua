@@ -315,6 +315,7 @@ GC.Locales.enUS = {
   ["Repost confirmation expired"] = "Repost confirmation expired",
   ["Right-click to stop watching this item"] = "Right-click to stop watching this item",
   ["Right-click to watch this item closely"] = "Right-click to watch this item closely",
+  ["SAFE +%s"] = "SAFE +%s",
   ["SAFETY"] = "SAFETY",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "SAVED INSTANTLY · ESC OR DONE TO CLOSE",
   ["SCAN"] = "SCAN",
@@ -391,8 +392,10 @@ GC.Locales.enUS = {
   ["Unknown item"] = "Unknown item",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unknown means the cost side is incomplete -- fill it in with Set cost.",
+  ["WATCH %s"] = "WATCH %s",
   ["WATCH (computed SAFE)"] = "WATCH (computed SAFE)",
   ["WATCH = discounted but unproven liquidity or small profit"] = "WATCH = discounted but unproven liquidity or small profit",
+  ["WATCH — checking…"] = "WATCH — checking…",
   ["WHAT TO DO"] = "WHAT TO DO",
   ["WHAT YOU PAID"] = "WHAT YOU PAID",
   ["WHEN"] = "WHEN",

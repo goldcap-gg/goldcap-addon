@@ -391,6 +391,9 @@ local stampVerdict
 -- far above this function's real definition, so the closure needs the local to already exist
 -- at closure-creation time or it would silently bind the global of this name (nil) instead.
 local evaluateLiveCommodityDeal
+-- Forward-declared for the same reason again: applySortOverride (below) now reads the live
+-- verdict through GC.BoardRows.Compare, and it is defined above verdictFor's own body.
+local verdictFor
 
 -- Background verification. itemID -> { unitPrice, at, buyable, status, reason }: what a live
 -- Check said about this item the last time one was run for it in the background.
@@ -456,11 +459,9 @@ local function sortedDeals()
       list[#list + 1] = deal
     end
   end
-  table.sort(list, function(a, b)
-    local ra, rb = TIER_RANK[a.tier] or 9, TIER_RANK[b.tier] or 9
-    if ra ~= rb then return ra < rb end
-    return a.profit > b.profit
-  end)
+  -- Unsorted on purpose: applySortOverride (below) is the one place the board's real order
+  -- gets decided now, default view included -- it runs GC.BoardRows.Compare over this list
+  -- either way, so sorting it here first would only be thrown away.
   return list
 end
 
@@ -481,22 +482,24 @@ local SORT_VALUE = {
 -- Applies the header-click sort override (if any) on a COPY of `list` -- `list` here is
 -- already sortedDeals()'s own freshly-built array (never the live `deals`/`scanDeals`
 -- tables themselves), and this function copies it again before table.sort besides, so a
--- sort click can never be observed as having mutated either backing store.
+-- sort click can never be observed as having mutated either backing store. With no override
+-- this is also where the board's DEFAULT order now comes from (Sniper fast loop, phase 1):
+-- SAFE before WATCH before UNVERIFIED off the live verdict, GC.BoardRows.Compare -- the same
+-- comparator backs the header-click tiebreak below, so ties under any override key never look
+-- shuffled relative to the default view either.
 local function applySortOverride(list)
-  if not sortOverride then return list end
+  local copy = {}
+  for i, deal in ipairs(list) do copy[i] = deal end
+  if not sortOverride then
+    table.sort(copy, function(a, b) return GC.BoardRows.Compare(a, verdictFor(a), b, verdictFor(b)) end)
+    return copy
+  end
   local valueOf = SORT_VALUE[sortOverride.key]
   if not valueOf then return list end -- defensive: onHeaderSortClick never sets an unknown key
   local desc = sortOverride.desc
-  local copy = {}
-  for i, deal in ipairs(list) do copy[i] = deal end
   table.sort(copy, function(a, b)
     local va, vb = valueOf(a), valueOf(b)
-    if va == vb then
-      -- Same tiebreak as the default view, so ties under any override key never look shuffled.
-      local ra, rb = TIER_RANK[a.tier] or 9, TIER_RANK[b.tier] or 9
-      if ra ~= rb then return ra < rb end
-      return a.profit > b.profit
-    end
+    if va == vb then return GC.BoardRows.Compare(a, verdictFor(a), b, verdictFor(b)) end
     if desc then return va > vb end
     return va < vb
   end)
@@ -551,7 +554,7 @@ end
 -- on a claim nothing has re-tested. A REFUSAL does not expire that way: refusals come from
 -- demand and velocity limits that do not move in two minutes, and expiring them would flicker
 -- hidden rows back into the list every couple of minutes for no new information.
-local function verdictFor(deal)
+verdictFor = function(deal)
   local v = deal and deal.itemID and verdicts[deal.itemID]
   if not v then return nil end
   if v.unitPrice ~= deal.unitPrice then return nil end
@@ -641,28 +644,6 @@ local function renderList()
   return pinnedRows
 end
 
-local GOLD_COMPACT_THRESHOLD = 100 * 10000 -- 100g in copper
-
--- GetCoinTextureString's inline coin icons are too wide for a narrow column once gold enters
--- the amount at all: two-digit gold plus a silver coin icon already clipped mid-glyph in game
--- ("15g 4|..."), which reads as a broken number, not a shortened one. Whole-gold amounts
--- collapse to "<N>g"; anything from 1g up shows plain "<N>g<M>s" text; only sub-gold amounts
--- keep the coin icons, where they fit. Negative amounts (a losing profit cell) format their
--- magnitude and keep the sign.
-local function formatColumnAmount(copper)
-  if copper < 0 then return "-" .. formatColumnAmount(-copper) end
-  if copper >= GOLD_COMPACT_THRESHOLD then
-    return ("%dg"):format(math.floor(copper / 10000))
-  end
-  if copper >= 10000 then
-    local gold = math.floor(copper / 10000)
-    local silver = math.floor((copper % 10000) / 100)
-    if silver == 0 then return ("%dg"):format(gold) end
-    return ("%dg%02ds"):format(gold, silver)
-  end
-  return GetCoinTextureString(copper)
-end
-
 -- Dim suffix appended after the (possibly quality-colored) item name; a separate color code
 -- of its own so it never inherits the name's quality color.
 --
@@ -679,17 +660,6 @@ local function qtySuffix(deal)
     return ("|cff8c8a85 x%d|r"):format(deal.qty)
   end
   return ""
-end
-
--- E.5 falling marker: deal.falling is set by the (parallel) trend/anti-dump gate once it
--- ships -- absent today, so this renders defensively and is a silent no-op until then. "v"
--- is the ASCII-safe fallback; swap for a real glyph ("↓") once verified in-game that the
--- default UI font renders it.
-local function tierLabel(deal)
-  if deal.falling then
-    return deal.tier .. GC.L[" |cffff4040v|r"]
-  end
-  return deal.tier
 end
 
 -- ---------------------------------------------------------------------------
@@ -863,6 +833,7 @@ local function setRowDeal(row, deal)
     deal.falling and 1 or 0, deal.profit, tostring(deal.discount),
     deal.pinPlaceholder and 1 or 0, deal.priceUnknown and 1 or 0, tostring(deal.action),
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
+    (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
     tostring(trend),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
@@ -925,8 +896,15 @@ local function setRowDeal(row, deal)
     if hoveredRow ~= row then row.rail:Hide() end
     row.pinBg:Hide()
   end
-  local color = Theme.tier[deal.tier] or Theme.tier.WATCH
-  row.tierChip:SetLabel(tierLabel(deal), color)
+  local verdictColor
+  if verdict and verdict.buyable then
+    verdictColor = Theme.color.green
+  elseif verdict then
+    verdictColor = Theme.tier.WATCH
+  else
+    verdictColor = Theme.color.fgDim
+  end
+  row.tierChip:SetLabel(GC.BoardRows.Label(deal, verdict), verdictColor)
 
   -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
   -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
@@ -936,12 +914,12 @@ local function setRowDeal(row, deal)
     row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
     row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
-    row.discountText:SetTextColor(color[1], color[2], color[3])
+    row.discountText:SetTextColor(verdictColor[1], verdictColor[2], verdictColor[3])
   end
 
   -- A placeholder pin with nothing observed yet has no price to show -- deal.unitPrice is only
   -- the sentinel 0 kept in the table for callers that need a number. Rendering it through
-  -- formatColumnAmount would print a literal 0-copper price nothing polled, so it gets the same
+  -- GC.Util.FormatMoney would print a literal 0-copper price nothing polled, so it gets the same
   -- dimmed em-dash the trend column below already uses for its own unknown state.
   if deal.priceUnknown then
     row.unitText:SetText("—")
@@ -953,14 +931,14 @@ local function setRowDeal(row, deal)
     -- always the sentinel 1 -- unitPrice*qty is never an actual total, just the same unit
     -- price rendered a second time ("20g/20g"). Show the one real number (what it costs per
     -- unit right now) and nothing where a total was never actually quoted.
-    row.unitText:SetText(formatColumnAmount(deal.unitPrice))
+    row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
     row.priceText:SetText("—")
     row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
-    row.unitText:SetText(formatColumnAmount(deal.unitPrice))
+    row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    row.priceText:SetText(formatColumnAmount(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+    row.priceText:SetText(GC.Util.FormatMoney(deal.unitPrice * deal.qty)) -- total cost, not per-unit
     row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   end
 
@@ -970,7 +948,7 @@ local function setRowDeal(row, deal)
     row.profitText:SetText("—")
     row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
-    row.profitText:SetText((deal.profit > 0 and "+" or "") .. formatColumnAmount(deal.profit))
+    row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
     if deal.profit >= 0 then
       row.profitText:SetTextColor(Theme.color.green[1], Theme.color.green[2], Theme.color.green[3])
     else
@@ -2154,7 +2132,7 @@ refreshSessionText = function()
   if not s or s.buys == 0 then fs:Hide() return end
   local c = s.estProfit >= 0 and Theme.color.green or Theme.color.red
   fs:SetText((GC.L["SESSION %s%s · %d BUYS"]):format(s.estProfit >= 0 and "+" or "",
-    formatColumnAmount(s.estProfit), s.buys))
+    GC.Util.FormatMoney(s.estProfit), s.buys))
   fs:SetTextColor(c[1], c[2], c[3])
   fs:Show()
 end
@@ -2302,7 +2280,7 @@ local function setDialogHeader(deal, decision)
 end
 
 local function displayDecisionAmount(value)
-  return value and formatColumnAmount(value) or "—"
+  return value and GC.Util.FormatMoney(value) or "—"
 end
 
 -- DG (dialog geometry): relocated here from down by createDialog (F4, whole-branch review) --
@@ -3355,6 +3333,7 @@ stampVerdict = function(deal, data, manual)
   verdicts[deal.itemID] = {
     unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
     buyable = buyable, status = status, reason = reason,
+    stressProfit = data and data.decision and data.decision.stressProfit,
   }
   refreshRows()
 
@@ -3904,8 +3883,8 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
 
   row.purchaseStage = "requote"
   local detail = (GC.L["%s -> %s per unit    total %s -> %s"]):format(
-    formatColumnAmount(math.floor(decision.entryTotal / decision.quantity)), formatColumnAmount(unitPrice),
-    formatColumnAmount(decision.entryTotal), formatColumnAmount(totalPrice))
+    GC.Util.FormatMoney(math.floor(decision.entryTotal / decision.quantity)), GC.Util.FormatMoney(unitPrice),
+    GC.Util.FormatMoney(decision.entryTotal), GC.Util.FormatMoney(totalPrice))
   if dialog and dialog.row == row then
     if severity == "loud" then
       showRequoteBanner((GC.L["PRICE ROSE %.1fx"]):format(ratio), detail)
@@ -4327,7 +4306,7 @@ updateBuyAffordance = function()
   if total > GetMoney() then
     dialog.primaryBtn:Disable()
     setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
-      :format(formatColumnAmount(total), formatColumnAmount(GetMoney())), 1, 0.3, 0.3)
+      :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
   else
     dialog.primaryBtn:Enable()
     setDialogStatus(GC.L["price confirmed -- click Buy to purchase"], 0.25, 0.85, 0.25)

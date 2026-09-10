@@ -330,6 +330,7 @@ GC.Locales.frFR = {
   ["Right-click to stop watching this item"] =
     "Clic droit pour arrêter de surveiller cet objet",
   ["Right-click to watch this item closely"] = "Clic droit pour surveiller cet objet de près",
+  ["SAFE +%s"] = "SÛR +%s",
   ["SAFETY"] = "SÉCURITÉ",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "ENREGISTRÉ AUSSITÔT · ÉCHAP OU DONE POUR FERMER",
@@ -410,9 +411,11 @@ GC.Locales.frFR = {
   ["Unknown item"] = "Objet inconnu",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Inconnu signifie que le coût est incomplet — complétez-le avec Définir le coût.",
+  ["WATCH %s"] = "SURVEILLER %s",
   ["WATCH (computed SAFE)"] = "WATCH (calculé SÛR)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = remisé mais liquidité non prouvée ou bénéfice faible",
+  ["WATCH — checking…"] = "SURVEILLER — vérification…",
   ["WHAT TO DO"] = "QUE FAIRE",
   ["WHAT YOU PAID"] = "CE QUE TU AS PAYÉ",
   ["WHEN"] = "QUAND",

@@ -312,6 +312,7 @@ GC.Locales.koKR = {
   ["Repost confirmation expired"] = "재등록 확인이 만료되었습니다",
   ["Right-click to stop watching this item"] = "이 아이템 주시를 멈추려면 우클릭",
   ["Right-click to watch this item closely"] = "이 아이템을 자세히 주시하려면 우클릭",
+  ["SAFE +%s"] = "안전 +%s",
   ["SAFETY"] = "안전",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] = "즉시 저장됨 · ESC 또는 DONE으로 닫기",
   ["SCAN"] = "검색",
@@ -383,9 +384,11 @@ GC.Locales.koKR = {
   ["Unknown item"] = "알 수 없는 아이템",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
+  ["WATCH %s"] = "관찰 %s",
   ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = 할인은 있으나 유동성이 검증되지 않았거나 수익이 적음",
+  ["WATCH — checking…"] = "관찰 — 확인 중…",
   ["WHAT TO DO"] = "할 일",
   ["WHAT YOU PAID"] = "내가 지불한 값",
   ["WHEN"] = "시점",

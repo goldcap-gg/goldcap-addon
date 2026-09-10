@@ -329,6 +329,7 @@ GC.Locales.deDE = {
     "Rechtsklick, um diesen Gegenstand nicht mehr zu beobachten",
   ["Right-click to watch this item closely"] =
     "Rechtsklick, um diesen Gegenstand genau zu beobachten",
+  ["SAFE +%s"] = "SICHER +%s",
   ["SAFETY"] = "SICHERHEIT",
   ["SAVED INSTANTLY · ESC OR DONE TO CLOSE"] =
     "SOFORT GESPEICHERT · ESC ODER DONE ZUM SCHLIESSEN",
@@ -410,9 +411,11 @@ GC.Locales.deDE = {
   ["Unknown item"] = "Unbekannter Gegenstand",
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unbekannt heißt, die Kostenseite ist unvollständig — trage sie mit „Kosten eintragen“ nach.",
+  ["WATCH %s"] = "BEOBACHTEN %s",
   ["WATCH (computed SAFE)"] = "WATCH (berechnet SICHER)",
   ["WATCH = discounted but unproven liquidity or small profit"] =
     "WATCH = rabattiert, aber Liquidität unbelegt oder Gewinn klein",
+  ["WATCH — checking…"] = "BEOBACHTEN — wird geprüft…",
   ["WHAT TO DO"] = "WAS ZU TUN IST",
   ["WHAT YOU PAID"] = "WAS DU BEZAHLT HAST",
   ["WHEN"] = "WANN",
