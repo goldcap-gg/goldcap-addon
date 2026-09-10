@@ -88,13 +88,16 @@ describe("Search slot arbiter", function()
     _G.C_AuctionHouse = nil
   end)
 
-  it("splits contested slots evenly, watch first", function()
-    local GC = load()
-    for _ = 1, 6 do
+  -- Sniper fast loop (Task 5): browse paging is no longer a round-robin peer of watch -- a book
+  -- pass with a page pending wins the slot OUTRIGHT (see GC.Sniper.OnThrottleReady), even with
+  -- the watch loop hungry every single cycle.
+  it("lets browse paging win the slot outright while a page is pending, even with watch hungry", function()
+    local GC = load() -- watch.hungry is true by default
+    for _ = 1, 3 do
       armPage(GC)
       GC.Sniper.OnThrottleReady()
     end
-    assert.same({ "watch", "page", "watch", "page", "watch", "page" }, sent)
+    assert.same({ "page", "page", "page" }, sent)
   end)
 
   it("leaves no slot idle when only one consumer is hungry", function()
@@ -117,18 +120,18 @@ describe("Search slot arbiter", function()
   it("stands the watch loop down when the Deals view is not on screen, so Sell isn't starved", function()
     local GC = load()
     set(GC.Sniper.OnThrottleReady, "view", "sell")
+    -- No armPage(): the book pass has nothing pending, so this isolates the watch-vs-idle
+    -- question from the (now unconditional) browse-paging priority covered above.
     for _ = 1, 3 do
-      armPage(GC)
       GC.Sniper.OnThrottleReady()
     end
-    -- With the watch loop stood down, browse paging alone takes every slot -- none go to
-    -- "watch", and none are left idle for GC.Sell.OnThrottleReady to starve on next.
-    assert.same({ "page", "page", "page" }, sent)
+    -- With the watch loop stood down, no slot goes to "watch", and none are left idle for
+    -- GC.Sell.OnThrottleReady to starve on next.
+    assert.same({}, sent)
 
     set(GC.Sniper.OnThrottleReady, "view", "deals")
-    armPage(GC)
     GC.Sniper.OnThrottleReady()
-    assert.same({ "page", "page", "page", "watch" }, sent) -- watch resumes once Deals is back up
+    assert.same({ "watch" }, sent) -- watch resumes once Deals is back up
   end)
 
   it("gives a parked Check the slot ahead of both", function()

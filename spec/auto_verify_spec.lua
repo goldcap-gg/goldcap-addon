@@ -304,29 +304,37 @@ describe("Deals background verification", function()
   -- where the scan pages continuously -- the ticker essentially never found an idle moment.
   -- The board therefore filled with UNVERIFIED rows that were checked, and refused, only once
   -- the player pressed Stop. From the player's chair that read as "stopping the scan deleted
-  -- my deals". The walk is a slot consumer now, so it gets its turn while the scan pages.
-  it("gets its turn from the arbiter while a browse scan is paging", function()
+  -- my deals". The walk is a slot consumer now, so it is never left idle: it takes a slot on
+  -- any cycle the book pass itself has nothing pending, rather than only once the scan stops.
+  --
+  -- Sniper fast loop (Task 5): a book pass with a page pending now wins the slot OUTRIGHT
+  -- ahead of the watch/verify round robin (see GC.Sniper.OnThrottleReady) -- discovery is the
+  -- send that keeps the loop finding anything at all, so it is no longer a peer the walk
+  -- alternates with. This test now covers the other half of that contract: the walk still gets
+  -- covered whenever the pass is not itself asking for the slot that cycle.
+  it("gets its turn from the arbiter once the book pass has nothing pending", function()
     local api = loadSniper(safe)
-    board(api, { deal(1, 100), deal(2, 200) })
+    board(api, { deal(1, 100) })
     local ready = api.GC.Sniper.OnThrottleReady
     local paged = 0
     _G.C_AuctionHouse.RequestMoreBrowseResults = function() paged = paged + 1 end
-    -- The scan is hungry every single time, exactly as it is under Auto. No watch loop, so the
-    -- contest is browse-vs-verify and nothing else.
+    -- No watch loop, so the only other consumer for the round robin to reach is the walk.
     api.GC.Sniper.scanner = nil
     api.GC.Sniper._bookPass:Start("classes")
 
-    for _ = 1, 4 do
-      api.GC.Sniper._bookPass:OnResultsUpdated() -- arms a pending page (HasFullBrowseResults stubs false)
-      ready()
-    end
+    -- A page pending: the pass wins the slot outright, and the walk does not even get asked.
+    api.GC.Sniper._bookPass:OnResultsUpdated() -- arms a pending page (HasFullBrowseResults stubs false)
+    ready()
+    assert.equal(1, paged)
+    assert.same({}, sent)
 
-    -- The old arbiter would have spent all four on paging. One of them belongs to the walk.
+    -- Nothing pending for the pass this cycle: the walk takes the slot instead of it idling.
+    ready()
+    assert.equal(1, paged)
     assert.same({ 1 }, sent)
-    assert.equal(3, paged)
   end)
 
-  it("never lets the walk take two turns in a row while the scan wants slots", function()
+  it("lets the book pass take every slot while a page is pending, never yielding to the walk", function()
     local api = loadSniper(safe)
     board(api, { deal(1, 100), deal(2, 200), deal(3, 300) })
     local ready = api.GC.Sniper.OnThrottleReady
@@ -344,9 +352,10 @@ describe("Deals background verification", function()
       ready()
     end
 
-    -- Strict alternation: the walk is a peer of the scan, never a replacement for it. A walk
-    -- that could take the slot whenever it had work would stall discovery outright.
-    assert.same({ "page", "verify:1", "page", "verify:1", "page", "verify:1" }, order)
+    -- Discovery outranks the walk outright now: as long as the pass has a page pending it wins
+    -- every slot -- the walk only ever runs on a cycle the pass has nothing to send (see the
+    -- test above).
+    assert.same({ "page", "page", "page", "page", "page", "page" }, order)
   end)
 
   -- The other half of the same contract: a walk with nothing to check must not cost the scan a

@@ -93,4 +93,46 @@ describe("Book pass wiring", function()
     assert.equal(1, browseSent)
     assert.equal(4, #browseQueries[1].itemClassFilters)
   end)
+
+  it("grants a drill-down before a page even while a book pass is mid-paging", function()
+    local GC = loadSniper()
+    local searched = {}
+    -- Reach the same `driver` the search/purchase path uses (installed at file scope, a
+    -- direct upvalue of GC.Sniper.OnItemKeyInfo -- see watch_loop_spec.lua's own use of this
+    -- exact upvalue) and swap its sendSearch so a drill-down is observable without a real
+    -- item key.
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    driverTbl.getKeyInfo = function() return { isCommodity = true } end
+    driverTbl.sendSearch = function(itemID) searched[#searched + 1] = itemID end
+
+    set(GC.Sniper.OnAuctionHouseShow, "ahOpen", true)
+    GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 5000 })
+    GC.Sniper.OnThrottleReady()
+    assert.same({ 777 }, searched)
+    assert.equal(0, browseSent) -- the book pass never even got asked this turn
+  end)
+
+  it("sends the book pass's deferred start after a queued drill-down is served", function()
+    local GC = loadSniper()
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    driverTbl.getKeyInfo = function() return { isCommodity = true } end
+    driverTbl.sendSearch = function() end
+
+    set(GC.Sniper.OnAuctionHouseShow, "ahOpen", true)
+
+    -- Throttle busy at Start() time: the book pass's own send is deferred rather than sent.
+    _G.C_AuctionHouse.IsThrottledMessageSystemReady = function() return false end
+    GC.Sniper._bookPass:Start("classes")
+    assert.equal(0, browseSent)
+
+    -- A slot cycle: throttle is ready again, and a drill-down is queued ahead of the pass.
+    _G.C_AuctionHouse.IsThrottledMessageSystemReady = function() return true end
+    GC.Sniper._drillQueue:Push({ itemID = 777, floor = 100, estProfit = 5000 })
+    GC.Sniper.OnThrottleReady()
+    assert.equal(0, browseSent) -- drill-down outranked the page this cycle
+
+    -- Next cycle: the deferred start goes out.
+    GC.Sniper.OnThrottleReady()
+    assert.equal(1, browseSent)
+  end)
 end)

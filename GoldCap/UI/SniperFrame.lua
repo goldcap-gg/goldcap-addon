@@ -357,7 +357,7 @@ local autoScanTicker
 -- it is the latency-sensitive one, and the browse scan is a marathon either way. The order is
 -- the rotation, so it is a table rather than three booleans: adding a fourth consumer must not
 -- mean rewriting the arbiter's branching.
-local SLOT_ORDER = { "watch", "browse", "verify" }
+local SLOT_ORDER = { "watch", "verify" }
 local slotTurn = 1
 -- True only for the instant a grant is open. Core/Scanner.lua's advance() reads this through
 -- driver.mayScan and will not send outside it, which is what stops it chaining result -> send
@@ -3604,15 +3604,16 @@ function GC.Sniper._GrantWatchSlot()
 end
 
 -- AUCTION_HOUSE_THROTTLED_SYSTEM_READY handler: a parked authoritative Check always consumes
--- the next slot before any optional browse traffic, exactly as before -- the Check has already
--- stopped Live in startRequery, so this works in watchlist mode without a scanner collision.
--- What's left is the split this task adds: the watch loop, the book pass's own browse traffic
--- (starting a fresh pass or continuing one already parked mid-page -- see GC.Sniper._bookPass,
--- Core/BookPass.lua), and the verify walk are the three consumers that are genuinely optional,
--- so they alternate turns while more than one is hungry, and whichever is hungry alone takes
--- the slot outright so no slot goes idle.
+-- the next slot before anything else -- the Check has already stopped Live in startRequery, so
+-- this works in watchlist mode without a scanner collision. Below that, a queued drill-down
+-- outranks the book pass's own send: a drill-down is a specific item the pass already flagged
+-- as worth a live look, and design doc §3 wants that live look before the pass pages on to the
+-- next batch of rows. The book pass's own send comes next -- not a background page like the
+-- old round-robin "browse" slot, but the one send that keeps the loop discovering anything at
+-- all -- and only what is left (the watch loop and the verify walk) alternates turns, so
+-- whichever of the two is hungry alone takes every slot instead of one going idle.
 function GC.Sniper.OnThrottleReady()
-  -- A parked Check wins outright, exactly as before: a player is waiting on it, and it has
+  -- 1. A parked Check requery always wins outright: a player is waiting on it, and it has
   -- already stopped the loop as a courtesy besides.
   for itemID, attempt in pairs(pendingRequerySend) do
     pendingRequerySend[itemID] = nil
@@ -3623,24 +3624,46 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
-  -- The split, between the three consumers that are genuinely optional. The watch poll stands
-  -- down when the Deals view is not the one on screen, exactly as the verify walk already does:
+  -- 2. Queued drill-downs, bounded by DrillQueue's own per-minute budget. Runs the SAME search
+  -- path startRequery/evaluateLive use (maybeStartPrewarm -> resolvePrewarm -> stampVerdict),
+  -- never a dialog, never a purchase call. A decline (uncached item key, the drain fence, or
+  -- the shared "one pre-warm in flight" slot busy this tick) re-queues the hit rather than
+  -- dropping it -- the next ready tick tries again.
+  local hit = GC.Sniper._drillQueue:Pop()
+  if hit then
+    if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then return end
+    GC.Sniper._drillQueue:Push(hit)
+  end
+
+  -- 3. The current book pass's own send -- starting a fresh pass, or its next page. GC.Sniper
+  -- ._bookPass owns the pendingFullScanStart/pendingBrowsePage state this used to read as
+  -- module-level flags -- OnThrottleReady() sends whichever of "the pass hasn't started yet"
+  -- or "a page is due" is pending (at most one per call) and reports back whether it actually
+  -- sent something.
+  if GC.Sniper._bookPass:OnThrottleReady() then return end
+
+  -- 4. What's left: the watch loop and the verify walk, round-robin, exactly as before minus
+  -- "browse" (now item 3 above). Both stand down when the Deals view isn't the one on screen --
   -- polling for a screen nobody is looking at was never the point, and the Sell tab is the
   -- consumer that starves first when a background loop treats every ready tick as its own.
   --
-  -- The verify walk is the third one, and adding it here is a bug fix, not a tidy-up. It used
-  -- to live only on the 0.25s ticker, sending only if it happened to catch the throttled system
-  -- idle -- but this handler gives the slot away synchronously the instant it opens, so under
-  -- Auto, with the browse scan always hungry, the ticker essentially never saw an idle moment.
-  -- The walk therefore only ran once the scan STOPPED. That is the whole of "stopping the scan
-  -- deleted my deals": the rows had been sitting there unverified the entire time, and stopping
-  -- is simply when the checks finally got to run and refuse them.
+  -- The verify walk running here at all is a bug fix, not a tidy-up. It used to live only on
+  -- the 0.25s ticker, sending only if it happened to catch the throttled system idle -- but
+  -- this handler gives the slot away synchronously the instant it opens, so under Auto, with
+  -- the browse scan always hungry, the ticker essentially never saw an idle moment. The walk
+  -- therefore only ran once the scan STOPPED. That is the whole of "stopping the scan deleted
+  -- my deals": the rows had been sitting there unverified the entire time, and stopping is
+  -- simply when the checks finally got to run and refuse them.
   --
-  -- Round-robin rather than the old two-way boolean: begin at whoever follows the last one
-  -- served and take the first that is hungry, so a consumer with nothing to do never costs a
-  -- slot and no consumer can be starved by the other two. The walk is asked by TRYING it --
-  -- deciding whether it wants a slot is the same work as taking one, so stepVerifyWalk both
-  -- answers and acts.
+  -- Round-robin rather than a two-way boolean: begin at whoever follows the last one served and
+  -- take the first that is hungry, so a consumer with nothing to do never costs a slot and
+  -- neither can starve the other. The walk is asked by TRYING it -- deciding whether it wants a
+  -- slot is the same work as taking one, so stepVerifyWalk both answers and acts.
+  --
+  -- Note: the verify walk already skips a row with a fresh verdict (stepVerifyWalk's pass-1
+  -- check), and a drill-down verdict lands in the exact same verdicts table via stampVerdict --
+  -- so "the verify walk keeps running only for rows that have no drill-down verdict" (design
+  -- doc §3) is already true with no further guard needed here.
   for step = 0, #SLOT_ORDER - 1 do
     local index = (slotTurn - 1 + step) % #SLOT_ORDER + 1
     local who = SLOT_ORDER[index]
@@ -3650,12 +3673,6 @@ function GC.Sniper.OnThrottleReady()
       if scanner and scanner.Wants and view == "deals" and scanner:Wants() then
         served = GC.Sniper._GrantWatchSlot()
       end
-    elseif who == "browse" then
-      -- GC.Sniper._bookPass now owns the pendingFullScanStart/pendingBrowsePage state this
-      -- used to read as module-level flags -- OnThrottleReady() sends whichever of "the pass
-      -- hasn't started yet" or "a page is due" is pending (at most one per call) and reports
-      -- back whether it actually sent something, exactly the same contract this arm always had.
-      served = GC.Sniper._bookPass:OnThrottleReady()
     else
       served = stepVerifyWalk()
     end
