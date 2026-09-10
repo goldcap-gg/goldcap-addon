@@ -86,7 +86,6 @@ function GC.BookPass.New(driver, opts)
     rawWatermark = 0
     pagesThisPass = 0
     passStartedAt = driver.now()
-    if k == "wide" then lastWideAt = driver.now() end
     if driver.isReady() then
       pendingStart = false
       driver.sendBrowseQuery(queryFor(k))

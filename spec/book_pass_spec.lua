@@ -198,11 +198,32 @@ describe("BookPass", function()
     assert.is_false(bp:IsWidePassDue())
   end)
 
-  it("becomes due for a wide pass once widePassSeconds have elapsed, and resets the clock when one starts", function()
+  it("is not due for a wide pass immediately after construction", function()
+    local bp = newPass()
+    assert.is_false(bp:IsWidePassDue())
+  end)
+
+  it("does not advance the wide-pass clock if Start('wide') is deferred and then aborted before firing", function()
     local bp = newPass({ widePassSeconds = 300 })
+    sent.ready = false
+    now = 1000
+    bp:Start("wide") -- deferred, not sent
+    now = 1300 + 1 -- 300+ seconds after construction
+    bp:Abort() -- killed before OnThrottleReady grants a slot
+    assert.is_true(bp:IsWidePassDue()) -- still due: pass never fired, clock unchanged
+  end)
+
+  it("resets the wide-pass clock only when a wide pass actually completes", function()
+    local bp = newPass({ widePassSeconds = 300 })
+    now = 1000
+    assert.is_false(bp:IsWidePassDue())
     now = 1000 + 300
-    assert.is_true(bp:IsWidePassDue())
+    assert.is_true(bp:IsWidePassDue()) -- due after 300s
     bp:Start("wide")
-    assert.is_false(bp:IsWidePassDue()) -- the clock just reset
+    browseResults, hasFullResults = { row(1, 10, 1) }, true
+    bp:OnResultsUpdated() -- completes the wide pass -> clock resets
+    assert.is_false(bp:IsWidePassDue()) -- clock just reset via finishPass
+    now = 1000 + 600
+    assert.is_true(bp:IsWidePassDue()) -- due again after another 300s
   end)
 end)
