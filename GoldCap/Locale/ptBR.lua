@@ -50,6 +50,8 @@ GC.Locales.ptBR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se várias compras estiverem agrupadas em uma linha, todas são removidas.",
   ["AH answered empty %ds ago"] = "a casa de leilões respondeu vazia há %ds",
+  ["ASKING"] = "PEDIDO",
+  ["AT MARKET"] = "A MERCADO",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · PAUSADO: ",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
@@ -481,6 +483,8 @@ GC.Locales.ptBR = {
     "em relação ao preço da região para este item, após a taxa de 5% — se vender",
   ["any figure here would be invented out of the very number being refused"] =
     "qualquer valor aqui seria inventado a partir do mesmo número que está sendo recusado",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "pelo preço que a GoldCap espera que isso venda, após a taxa de 5% — não o seu preço pedido",
   ["auto off"] = "auto desligado",
   ["auto-synced %dh ago"] = "sincronizado automaticamente há %dh",
   ["auto-synced data for %s loaded (%s old)"] =

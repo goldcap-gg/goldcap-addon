@@ -2053,6 +2053,19 @@ local PRICE_CHIP_LABELS = {
 -- the label -- a translated label would look up nothing (addon/AGENTS.md's own rule).
 local PRICE_CHIP_IDS = { "match", "under", "market", "cost" }
 
+-- The footer ledger's three labels, same split as PRICE_CHIP_LABELS/PRICE_CHIP_IDS above and
+-- for the same reason. "AT MARKET" and "ASKING", not "PROFIT" and "LISTED" (2026-09-11): a
+-- player reads three figures left to right as ASKING minus COST equalling the rightmost one,
+-- and that arithmetic is false -- ASKING is the sum of the player's own typed prices, AT
+-- MARKET is what GoldCap projects these lots clear after the 5% cut, at a price nobody typed.
+-- Distinct labels don't fix the misreading by themselves; the AT MARKET tooltip carries the
+-- actual sentence.
+-- @localised-keys
+local SUMMARY_STAT_LABELS = {
+  "AT MARKET", "ASKING", "COST",
+}
+local SUMMARY_STAT_IDS = { "profit", "listed", "cost" }
+
 local BOOK_PRICE_W, BOOK_UNITS_W, BOOK_BAR_H = 84, 58, 6
 
 -- The drawer: one row that is a PANEL rather than a line, claiming DR.SLOTS of the list's own
@@ -3858,10 +3871,12 @@ function GC.Sell.Attach(f, geometry)
   -- sitting ABOVE the work into one right-aligned line in the footer. They are what the session
   -- adds up to -- a thing to glance at on the way out, not a thing to read before starting. The
   -- labels shortened with the move: at Theme.Scale() 1.3 three full phrases plus their figures
-  -- would have run into the bulk action sharing this row.
+  -- would have run into the bulk action sharing this row. See SUMMARY_STAT_LABELS/
+  -- SUMMARY_STAT_IDS above for what each one is and why.
   container.summary = {}
   local ledgerPrevious
-  for _, stat in ipairs({ { "profit", "PROFIT" }, { "listed", "LISTED" }, { "cost", "COST" } }) do
+  for i, id in ipairs(SUMMARY_STAT_IDS) do
+    local stat = { id, SUMMARY_STAT_LABELS[i] }
     local value = Theme.Num(container, 10, true)
     value:SetJustifyH("RIGHT"); value:SetWordWrap(false)
     if ledgerPrevious then value:SetPoint("RIGHT", ledgerPrevious, "LEFT", -10, 0)
@@ -3884,6 +3899,9 @@ function GC.Sell.Attach(f, geometry)
         if not GameTooltip or not container.summaryProfitDetail then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(GC.L["Est. profit"], 1, 0.82, 0)
+        GameTooltip:AddLine(
+          GC.L["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"],
+          0.85, 0.85, 0.85, true)
         GameTooltip:AddLine(container.summaryProfitDetail, 0.85, 0.85, 0.85, true)
         GameTooltip:AddLine(GC.L["Positions without a cost or a live price are excluded."],
           0.85, 0.85, 0.85, true)

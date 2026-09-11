@@ -53,6 +53,8 @@ GC.Locales.ukUA = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Якщо кілька покупок згорнуті в один рядок, видаляться вони всі.",
   ["AH answered empty %ds ago"] = "Аукціон відповів порожньо %dс тому",
+  ["ASKING"] = "ЗАПИТ",
+  ["AT MARKET"] = "ЗА РИНКОМ",
   ["AUTO"] = "АВТО",
   ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
@@ -496,6 +498,8 @@ GC.Locales.ukUA = {
     "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "за ціною, за якою GoldCap очікує продаж, за вирахуванням 5% — а не за вашою запитаною ціною",
   ["auto off"] = "авто вимкнено",
   ["auto-synced %dh ago"] = "автосинхронізація %dг тому",
   ["auto-synced data for %s loaded (%s old)"] =

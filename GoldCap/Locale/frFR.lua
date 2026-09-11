@@ -49,6 +49,8 @@ GC.Locales.frFR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si plusieurs achats sont regroupés sur une seule ligne, tous sont supprimés.",
   ["AH answered empty %ds ago"] = "l'hôtel des ventes a répondu vide il y a %ds",
+  ["ASKING"] = "DEMANDÉ",
+  ["AT MARKET"] = "AU MARCHÉ",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · EN PAUSE : ",
   ["AUTO · SCANNING"] = "AUTO · SCAN",
@@ -480,6 +482,8 @@ GC.Locales.frFR = {
     "face au prix régional de cet objet, après la commission de 5% — s'il se vend",
   ["any figure here would be invented out of the very number being refused"] =
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "au prix auquel GoldCap s'attend à ce que cela se vende, après la commission de 5% — pas votre prix demandé",
   ["auto off"] = "auto désactivé",
   ["auto-synced %dh ago"] = "synchronisé automatiquement il y a %dh",
   ["auto-synced data for %s loaded (%s old)"] =

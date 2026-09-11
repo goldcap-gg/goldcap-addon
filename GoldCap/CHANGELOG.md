@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.9.1 (unreleased)
+
+- **The Sell tab's footer now reads COST · ASKING · AT MARKET.** ASKING is the total of
+  your own listed prices; AT MARKET is what GoldCap expects these lots to actually sell
+  for, after the 5% cut. Hover AT MARKET for the explanation — the two numbers were easy
+  to read as one subtracting the other, and they don't.
+
 ## 0.9.0 (2026-09-11)
 
 - **The sniper finds a fresh dump in seconds, not half a minute, and the board tells you

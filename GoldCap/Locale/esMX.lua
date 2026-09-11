@@ -52,6 +52,8 @@ GC.Locales.esMX = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Si varias compras están agrupadas en una sola línea, se eliminan todas.",
   ["AH answered empty %ds ago"] = "la casa de subastas respondió vacío hace %ds",
+  ["ASKING"] = "PEDIDO",
+  ["AT MARKET"] = "A MERCADO",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · EN PAUSA: ",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
@@ -483,6 +485,8 @@ GC.Locales.esMX = {
     "frente al precio de la región para este objeto, tras la comisión del 5% — si se vende",
   ["any figure here would be invented out of the very number being refused"] =
     "cualquier cifra aquí saldría inventada del mismo número que se está rechazando",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "al precio al que GoldCap espera que esto se venda, tras la comisión del 5% — no tu precio pedido",
   ["auto off"] = "auto desactivado",
   ["auto-synced %dh ago"] = "sincronizado automáticamente hace %dh",
   ["auto-synced data for %s loaded (%s old)"] =

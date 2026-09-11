@@ -49,6 +49,8 @@ GC.Locales.itIT = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Se più acquisti sono raggruppati su una riga, vengono rimossi tutti.",
   ["AH answered empty %ds ago"] = "la casa d'aste ha risposto vuota %ds fa",
+  ["ASKING"] = "RICHIESTO",
+  ["AT MARKET"] = "A MERCATO",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · IN PAUSA: ",
   ["AUTO · SCANNING"] = "AUTO · SCANSIONE",
@@ -481,6 +483,8 @@ GC.Locales.itIT = {
     "rispetto al prezzo regionale di questo oggetto, al netto del 5% — se si vende",
   ["any figure here would be invented out of the very number being refused"] =
     "qualsiasi cifra qui sarebbe inventata proprio dal numero che viene rifiutato",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "al prezzo a cui GoldCap si aspetta che questi si vendano, al netto del 5% — non il tuo prezzo richiesto",
   ["auto off"] = "auto disattivato",
   ["auto-synced %dh ago"] = "sincronizzato automaticamente %dh fa",
   ["auto-synced data for %s loaded (%s old)"] =

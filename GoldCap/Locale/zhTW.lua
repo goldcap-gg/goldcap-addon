@@ -53,6 +53,8 @@ GC.Locales.zhTW = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多筆購買被合併成一行，會一併全部刪除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍賣場回應為空",
+  ["ASKING"] = "開價",
+  ["AT MARKET"] = "依市價",
   ["AUTO"] = "自動",
   ["AUTO · PAUSED: "] = "自動 · 已暫停：",
   ["AUTO · SCANNING"] = "自動 · 掃描中",
@@ -439,6 +441,8 @@ GC.Locales.zhTW = {
     "對比該物品的區域價格，扣除 5% 手續費後 — 前提是能賣掉",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "依 GoldCap 預估這些會賣出的價格計算，已扣除 5% 手續費 — 不是你的開價",
   ["auto off"] = "自動已關閉",
   ["auto-synced %dh ago"] = "%d 小時前自動同步",
   ["auto-synced data for %s loaded (%s old)"] = "已載入 %s 的自動同步資料（已過 %s）",

@@ -51,6 +51,8 @@ GC.Locales.koKR = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "여러 건의 구매가 한 줄로 합쳐져 있으면 그 전부가 삭제됩니다.",
   ["AH answered empty %ds ago"] = "%d초 전 경매장이 빈 응답을 보냈습니다",
+  ["ASKING"] = "호가",
+  ["AT MARKET"] = "시장가",
   ["AUTO"] = "자동",
   ["AUTO · PAUSED: "] = "자동 · 일시중지: ",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
@@ -450,6 +452,8 @@ GC.Locales.koKR = {
     "이 아이템의 지역 기준가 대비, 수수료 5% 제외 — 팔린다면",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "GoldCap이 팔릴 것으로 예상하는 가격 기준, 수수료 5% 제외 — 내 호가가 아님",
   ["auto off"] = "자동 꺼짐",
   ["auto-synced %dh ago"] = "%d시간 전 자동 동기화",
   ["auto-synced data for %s loaded (%s old)"] = "%s의 자동 동기화 자료를 불러왔습니다 (%s 경과)",

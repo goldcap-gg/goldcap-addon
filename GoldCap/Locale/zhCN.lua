@@ -52,6 +52,8 @@ GC.Locales.zhCN = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "若多笔购买被合并成一行，会一并全部删除。",
   ["AH answered empty %ds ago"] = "%d 秒前拍卖行返回为空",
+  ["ASKING"] = "要价",
+  ["AT MARKET"] = "按市价",
   ["AUTO"] = "自动",
   ["AUTO · PAUSED: "] = "自动 · 已暂停：",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
@@ -438,6 +440,8 @@ GC.Locales.zhCN = {
     "对比该物品的区域价格，扣除 5% 手续费后 — 前提是能卖掉",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "按 GoldCap 预计这些会卖出的价格计算，已扣除 5% 手续费 — 不是你的要价",
   ["auto off"] = "自动已关闭",
   ["auto-synced %dh ago"] = "%d 小时前自动同步",
   ["auto-synced data for %s loaded (%s old)"] = "已加载 %s 的自动同步数据（已过 %s）",

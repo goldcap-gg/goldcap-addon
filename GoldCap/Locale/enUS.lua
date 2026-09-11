@@ -48,6 +48,8 @@ GC.Locales.enUS = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "A run of several purchases collapsed onto one line removes every one of them.",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
+  ["ASKING"] = "ASKING",
+  ["AT MARKET"] = "AT MARKET",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · PAUSED: ",
   ["AUTO · SCANNING"] = "AUTO · SCANNING",
@@ -462,6 +464,8 @@ GC.Locales.enUS = {
     "against the region's own price for this item, after the 5% cut — if it sells",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "at the price GoldCap expects these to sell for, after the 5% cut — not your asking price",
   ["auction house error"] = "auction house error",
   ["auto off"] = "auto off",
   ["auto-synced %dh ago"] = "auto-synced %dh ago",

@@ -49,6 +49,8 @@ GC.Locales.ruRU = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Если несколько покупок свёрнуты в одну строку, удалятся они все.",
   ["AH answered empty %ds ago"] = "Аукцион ответил пусто %dс назад",
+  ["ASKING"] = "ЗАПРОС",
+  ["AT MARKET"] = "ПО РЫНКУ",
   ["AUTO"] = "АВТО",
   ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
@@ -480,6 +482,8 @@ GC.Locales.ruRU = {
     "против региональной цены этого предмета, за вычетом 5% — если он продастся",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "по цене, по которой GoldCap ожидает продажу, за вычетом 5% — а не по вашей запрошенной цене",
   ["auto off"] = "авто выключено",
   ["auto-synced %dh ago"] = "автосинхронизация %dч назад",
   ["auto-synced data for %s loaded (%s old)"] =

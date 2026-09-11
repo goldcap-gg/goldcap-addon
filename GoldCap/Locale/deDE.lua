@@ -48,6 +48,8 @@ GC.Locales.deDE = {
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "Sind mehrere Käufe zu einer Zeile zusammengefasst, werden alle davon entfernt.",
   ["AH answered empty %ds ago"] = "Auktionshaus antwortete vor %ds leer",
+  ["ASKING"] = "ANGEBOT",
+  ["AT MARKET"] = "AM MARKT",
   ["AUTO"] = "AUTO",
   ["AUTO · PAUSED: "] = "AUTO · PAUSIERT: ",
   ["AUTO · SCANNING"] = "AUTO · SCANNT",
@@ -481,6 +483,8 @@ GC.Locales.deDE = {
     "gegen den Regionspreis dieses Gegenstands, nach 5% Gebühr — falls er sich verkauft",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
+  ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
+    "zu dem Preis, den GoldCap für den Verkauf erwartet, nach 5% Gebühr — nicht dein Angebotspreis",
   ["auto off"] = "auto aus",
   ["auto-synced %dh ago"] = "vor %dh automatisch synchronisiert",
   ["auto-synced data for %s loaded (%s old)"] =
