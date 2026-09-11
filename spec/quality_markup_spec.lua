@@ -67,28 +67,32 @@ describe("Reagent quality markup", function()
     assert.equal("", GC.Theme.QualityMarkup(1))
   end)
 
-  it("falls back to the legacy atlas only when the client still has it", function()
+  it("says nothing rather than guessing when the tooltip API is unavailable", function()
+    -- There is no hardcoded fallback atlas: a client that will not say what to
+    -- draw gets no pip, never a remembered guess from an older expansion.
     _G.C_TooltipInfo = nil
-    _G.C_Texture = { GetAtlasInfo = function(name)
-      return name == "Professions-ChatIcon-Quality-Tier2" and {} or nil
-    end }
-    assert.equal("|A:Professions-ChatIcon-Quality-Tier2:14:14|a", GC.Theme.QualityMarkup(1))
-  end)
-
-  it("says nothing rather than guessing when the client offers neither", function()
-    _G.C_TooltipInfo = nil
-    _G.C_Texture = { GetAtlasInfo = function() return nil end }
     assert.equal("", GC.Theme.QualityMarkup(1))
   end)
 
   it("does not remember a tooltip that had not loaded yet", function()
     -- An uncached item answers nothing, which is temporary. Caching that would
-    -- leave the pip permanently missing for the rest of the session.
+    -- leave the pip permanently missing -- or permanently wrong -- for the
+    -- rest of the session.
     _G.C_TooltipInfo = { GetItemByID = function() return nil end }
-    _G.C_Texture = { GetAtlasInfo = function() return nil end }
     assert.equal("", GC.Theme.QualityMarkup(1))
     tooltip({ { leftText = "Quality: |A:quality-mark-2:20:20|a" } })
     assert.equal("|A:quality-mark-2:14:14|a", GC.Theme.QualityMarkup(1))
+  end)
+
+  it("never falls back to an old expansion's atlas once the tooltip goes quiet", function()
+    -- A tooltip that resolves once and then (for whatever reason) stops
+    -- answering must not make the cached-nothing path reach for a name this
+    -- file used to hardcode. The cache from the first resolution is what
+    -- carries the answer, not a guess keyed off the reagent's tier number.
+    tooltip({ { leftText = "Quality: |A:new-expansion-quality-mark:20:20|a" } })
+    assert.equal("|A:new-expansion-quality-mark:14:14|a", GC.Theme.QualityMarkup(1))
+    _G.C_TooltipInfo = { GetItemByID = function() return nil end }
+    assert.equal("|A:new-expansion-quality-mark:14:14|a", GC.Theme.QualityMarkup(1))
   end)
 
   it("survives an API that throws rather than taking the row down with it", function()

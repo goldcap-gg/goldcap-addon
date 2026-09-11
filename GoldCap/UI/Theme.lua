@@ -904,14 +904,18 @@ end
 -- not localised and the label is. "quality" or "tier" covers every naming the
 -- art has used so far; a client that matches neither shows no pip at all, which
 -- is honest -- an absent mark costs nothing, a wrong one contradicts the game.
+--
+-- There is deliberately no hardcoded fallback atlas here. There used to be
+-- one, kept for a client that supposedly still carried the old art -- but
+-- Blizzard does not delete atlas entries it stops using, so the fallback's own
+-- existence check (C_Texture.GetAtlasInfo) kept succeeding long after the game
+-- moved on to different art, and whenever it won a race against a tooltip that
+-- simply had not warmed up yet, the wrong icon got cached for the rest of the
+-- session -- the exact contradiction this file exists to avoid. A guess that
+-- is sometimes wrong is worse than the pip being briefly absent while the
+-- tooltip catches up, so an unresolved lookup is left unresolved instead of
+-- being answered from memory.
 local QUALITY_CACHE = {}
-local LEGACY_QUALITY_ATLAS = {
-  "Professions-ChatIcon-Quality-Tier1",
-  "Professions-ChatIcon-Quality-Tier2",
-  "Professions-ChatIcon-Quality-Tier3",
-  "Professions-ChatIcon-Quality-Tier4",
-  "Professions-ChatIcon-Quality-Tier5",
-}
 
 local function atlasFromTooltip(itemID)
   if not (C_TooltipInfo and C_TooltipInfo.GetItemByID) then return nil end
@@ -930,21 +934,15 @@ local function atlasFromTooltip(itemID)
   return nil
 end
 
-local function atlasForQuality(itemID, quality)
+local function atlasForQuality(itemID)
   local cached = QUALITY_CACHE[itemID]
-  if cached ~= nil then return cached ~= false and cached or nil end
+  if cached ~= nil then return cached end
   local atlas = atlasFromTooltip(itemID)
-  if not atlas then
-    -- The tooltip may simply not be cached client-side yet, which is temporary,
-    -- so nothing is remembered in that case -- only a resolved answer is.
-    local legacy = LEGACY_QUALITY_ATLAS[quality]
-    if legacy and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(legacy) then
-      QUALITY_CACHE[itemID] = legacy
-      return legacy
-    end
-    return nil
+  if atlas then
+    QUALITY_CACHE[itemID] = atlas
   end
-  QUALITY_CACHE[itemID] = atlas
+  -- Nothing is remembered when the tooltip has no answer yet -- that is
+  -- temporary, so the next call is free to try again once it warms up.
   return atlas
 end
 
@@ -956,7 +954,7 @@ function T.QualityMarkup(itemID, size)
   if not api then return "" end
   local ok, quality = pcall(api, itemID)
   if not ok or type(quality) ~= "number" then return "" end
-  local atlas = atlasForQuality(itemID, quality)
+  local atlas = atlasForQuality(itemID)
   if not atlas then return "" end
   size = size or 14
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)

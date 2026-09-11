@@ -26,6 +26,8 @@
 - **Buy takes what's left.** When fewer units remain than the plan asked for by the time you
   press Buy, the Sniper re-checks the book and offers what is still there at a safe price,
   instead of stopping on "price moved" or "gone" and refusing the next Buy for a while.
+- **Reagent quality icons in the Sniper list now match the icon your own
+  tooltip shows.** They used to disagree with the game on some items.
 
 ## 0.8.0 (2026-09-08)
 
