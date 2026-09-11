@@ -18,6 +18,8 @@
   within a day, and joins the cheapest rung instead of undercutting it by a silver.**
 - **A purchase that the auction house never answers no longer stalls the scanner, and a Buy
   no longer bounces to "price moved" when nothing moved.**
+- **While Auto scans, checks keep landing.** Rows are judged as the scan runs instead of
+  waiting for it to stop.
 
 ## 0.8.0 (2026-09-08)
 
