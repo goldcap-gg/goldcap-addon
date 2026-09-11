@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.8.1 (unreleased)
+## 0.9.0 (2026-09-11)
 
 - **The sniper finds a fresh dump in seconds, not half a minute, and the board tells you
   the moment it has actually checked one — "SAFE +Ng" in place of a guess, and the reason
