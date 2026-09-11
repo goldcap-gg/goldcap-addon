@@ -171,12 +171,12 @@ describe("Sniper dialog reason humanization", function()
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
 
+    -- A broken requote no longer drops the row to Check: it cancels and re-runs the live
+    -- requery itself. The sentence the player reads is the dialog status, so capture that,
+    -- and stub the requery -- this example is about the wording, not the search.
     local capturedNote
-    local realArmCheck = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "armCheck")
-    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "armCheck", function(r, d, decision, note, clear)
-      capturedNote = note
-      return realArmCheck(r, d, decision, note, clear)
-    end)
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "setDialogStatus", function(text) capturedNote = text end)
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery", function() end)
 
     -- Same fixture the purchase-wiring suite uses: a 4% higher server total that still fails
     -- the fixed stress-profit math, so the handler cancels through requote_broke_safety.

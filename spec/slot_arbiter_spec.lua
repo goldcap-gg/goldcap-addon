@@ -280,7 +280,7 @@ describe("Search slot arbiter", function()
       local row = { purchaseStage = "buying", deal = { itemID = 42, isCommodity = true },
         purchaseDeal = { itemID = 42, isCommodity = true } }
       set(GC.Sniper._QuietZoneOpen, "rows", { row })
-      set(upvalue(GC.Sniper.OnCommodityPriceUpdated, "armCheck"), "frame",
+      set(GC.Sniper.OnCommodityPriceUpdated, "frame",
         { status = { SetText = function(_, text) status[#status + 1] = text end } })
       -- This example is about the STATE the release leaves behind; the re-render it ends with
       -- needs the whole window built, which this headless harness deliberately does not have.

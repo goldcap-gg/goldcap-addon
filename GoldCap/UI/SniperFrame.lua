@@ -3619,6 +3619,17 @@ local function finishRequery(attempt, liveDeal)
   awaitingRequery[itemID] = nil
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
+  -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
+  -- (row + token) is retired here rather than by its 20s timer: the search this result answers
+  -- was sent after the Cancel, so any late quote for the cancelled attempt has already been
+  -- delivered ahead of it. Without this the re-armed Buy was refused with "waiting for previous
+  -- commodity purchase to settle" for the rest of the window. Confirmed tombstones are never
+  -- touched -- their late success still has to land on the attempt that paid.
+  local tombstone = commodityDraining
+  if tombstone and not tombstone.confirmed and tombstone.fenceRow == attempt.row
+      and tombstone.fenceToken == attempt.token then
+    commodityDraining = nil
+  end
   applyRequeryResult(attempt.row, itemID, liveDeal)
   GC.Sniper._ResumePausedLiveRequery(attempt)
 end
@@ -4576,9 +4587,36 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     -- repriced order that breaks the fixed safety decision cancels immediately.
     C_AuctionHouse.CancelCommoditiesPurchase()
     pending.cancelRequested = true
-    drainCommodityPurchase(row)
-    armCheck(row, deal, nil,
-      GC.SniperDecision.ReasonText("requote_broke_safety") .. GC.L[" — Check again"], true)
+    local tombstone = drainCommodityPurchase(row)
+    -- Owner-reported 2026-09-11: Buy on a 64-unit plan while 38 remained bounced here, and the
+    -- old answer -- "the price moved, Check again" -- then refused the very next Buy for the
+    -- tombstone's full 20s. The quote breaking the plan does not mean nothing is worth buying:
+    -- it means the book moved under the plan. So re-run the same live requery Check would, and
+    -- let the decision engine pick the largest quantity the book now fills safely (38 here).
+    -- The re-armed dialog still needs the player's Buy click; no purchase call is issued from
+    -- this event. finishRequery retires the tombstone once THIS requery's result lands: a
+    -- search reply sent after the Cancel is proof no stray quote for the cancelled attempt is
+    -- still on its way. Snapshots are cleared as before -- the next decision comes from the
+    -- fresh book, never from the one the quote just contradicted.
+    row.purchaseDeal = nil
+    row.decisionSnapshot = nil
+    row.quoteSnapshot = nil
+    row.armedLevels = nil
+    row.armedItemID = nil
+    if dialog and dialog.row == row then
+      dialog.bookLevels = nil
+      dialog.primaryBtn:Disable()
+      hideRequoteBanner()
+      setPrimaryLabel("Buy")
+    end
+    setDialogStatus(GC.SniperDecision.ReasonText("requote_broke_safety") .. " "
+      .. GC.L["re-checking what remains at a safe price..."], 1, 0.82, 0)
+    if frame then frame.status:SetText(GC.L["re-checking what remains at a safe price..."]) end
+    startRequery(row, (row.deal and row.deal.itemID == deal.itemID) and row.deal or deal)
+    if tombstone then
+      tombstone.fenceRow = row
+      tombstone.fenceToken = row.purchaseToken
+    end
     return
   end
 
@@ -4676,13 +4714,30 @@ function GC.Sniper.OnCommodityPriceUnavailable()
   local row = pending.row
   if not row or row.purchaseToken ~= pending.token or row.purchaseDeal == nil then return end
   C_AuctionHouse.CancelCommoditiesPurchase()
-  -- Fix 3: was resolvePurchase(row, false, ...), which closed the dialog outright. The
-  -- commodity is gone (someone bought it out between the quote and this event) -- showGoneState
-  -- clears the exact same activeItemID/commodityPurchase bookkeeping resolvePurchase's failure
-  -- path did (never crediting the session, same as before) but leaves the dialog up with an
-  -- explanation instead of flashing it shut.
-  showGoneState(row, GC.L["commodity no longer available -- someone bought it out"])
-  if frame then frame.status:SetText(GC.L["commodity no longer available -- someone bought it out"]) end
+  -- The server could not fill the quantity the plan asked for. That is not the same as the
+  -- item being gone: a 64-unit plan with 38 left on the book lands here too, and the old
+  -- "Gone" answer sent the player away from a buy that was still there for the taking
+  -- (owner-reported 2026-09-11). So this is a terminal event for the attempt -- the slot is
+  -- freed, nothing is credited, no tombstone (the server closed the session itself) -- and
+  -- then the same live requery Check would run re-arms the dialog at whatever the fresh book
+  -- fills safely. A book with nothing left still ends in "Gone", through applyRequeryResult.
+  -- The re-armed Buy is the player's click; no purchase call is issued from this event.
+  local deal = row.purchaseDeal
+  commodityPurchase = nil
+  row.purchaseDeal = nil
+  row.decisionSnapshot = nil
+  row.quoteSnapshot = nil
+  row.armedLevels = nil
+  row.armedItemID = nil
+  if dialog and dialog.row == row then
+    dialog.bookLevels = nil
+    dialog.primaryBtn:Disable()
+    hideRequoteBanner()
+    setPrimaryLabel("Buy")
+  end
+  setDialogStatus(GC.L["not enough units left for that quantity -- re-checking what remains..."], 1, 0.82, 0)
+  if frame then frame.status:SetText(GC.L["not enough units left for that quantity -- re-checking what remains..."]) end
+  startRequery(row, (row.deal and row.deal.itemID == deal.itemID) and row.deal or deal)
   refreshRows()
 end
 

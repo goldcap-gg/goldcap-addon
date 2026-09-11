@@ -476,7 +476,6 @@ GC.Locales.enUS = {
   ["cheapest not yours %s"] = "cheapest not yours %s",
   ["checking live price..."] = "checking live price...",
   ["checking live safety..."] = "checking live safety...",
-  ["commodity no longer available -- someone bought it out"] = "commodity no longer available -- someone bought it out",
   ["commodity purchase failed"] = "commodity purchase failed",
   ["confirmed commodity purchase failed after AH close"] = "confirmed commodity purchase failed after AH close",
   ["confirming purchase..."] = "confirming purchase...",
@@ -529,6 +528,8 @@ GC.Locales.enUS = {
   ["none"] = "none",
   ["not enough gold -- total %s, you have %s"] = "not enough gold -- total %s, you have %s",
   ["not enough gold for this quote -- Cancel"] = "not enough gold for this quote -- Cancel",
+  ["not enough units left for that quantity -- re-checking what remains..."] =
+    "not enough units left for that quantity -- re-checking what remains...",
   ["not ready to cancel"] = "not ready to cancel",
   ["not ready to post"] = "not ready to post",
   ["nothing in your bags to price"] = "nothing in your bags to price",
@@ -555,6 +556,7 @@ GC.Locales.enUS = {
   ["quote %s -- click Confirm to buy"] = "quote %s -- click Confirm to buy",
   ["quote %ss ago"] = "quote %ss ago",
   ["quote expired -- Refresh to re-check the price"] = "quote expired -- Refresh to re-check the price",
+  ["re-checking what remains at a safe price..."] = "re-checking what remains at a safe price...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "realm item — sale speed unverified · region reference %s (ilvl %d)",
   ["recent sales (newest first):"] = "recent sales (newest first):",

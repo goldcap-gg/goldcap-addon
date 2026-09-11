@@ -495,8 +495,6 @@ GC.Locales.ruRU = {
   ["cheapest not yours %s"] = "дешевле всех не ваш %s",
   ["checking live price..."] = "проверяем живую цену...",
   ["checking live safety..."] = "проверяем безопасность вживую...",
-  ["commodity no longer available -- someone bought it out"] =
-    "товара больше нет -- его уже выкупили",
   ["commodity purchase failed"] = "покупка товара не удалась",
   ["confirmed commodity purchase failed after AH close"] =
     "подтверждённая покупка товара не удалась после закрытия аукциона",
@@ -564,6 +562,8 @@ GC.Locales.ruRU = {
   ["none"] = "нет",
   ["not enough gold -- total %s, you have %s"] = "не хватает золота -- всего %s, у вас %s",
   ["not enough gold for this quote -- Cancel"] = "не хватает золота по этой цене -- Cancel",
+  ["not enough units left for that quantity -- re-checking what remains..."] =
+    "для такого количества единиц уже не хватает -- перепроверяем, что осталось...",
   ["not ready to cancel"] = "не готово к отмене",
   ["not ready to post"] = "не готово к выставлению",
   ["nothing listed"] = "ничего не выставлено",
@@ -592,6 +592,8 @@ GC.Locales.ruRU = {
   ["quote %ss ago"] = "котировка %sс назад",
   ["quote expired -- Refresh to re-check the price"] =
     "котировка просрочена -- Refresh, чтобы перепроверить цену",
+  ["re-checking what remains at a safe price..."] =
+    "перепроверяем, что осталось по безопасной цене...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "предмет реалма — скорость продажи не проверена · эталон региона %s (ур. предмета %d)",
   ["recent sales (newest first):"] = "последние продажи (свежие сверху):",

@@ -511,8 +511,6 @@ GC.Locales.ukUA = {
   ["cheapest not yours %s"] = "найдешевший не ваш %s",
   ["checking live price..."] = "перевіряємо живу ціну...",
   ["checking live safety..."] = "перевіряємо безпеку наживо...",
-  ["commodity no longer available -- someone bought it out"] =
-    "товару більше немає -- його вже викупили",
   ["commodity purchase failed"] = "купівля товару не вдалася",
   ["confirmed commodity purchase failed after AH close"] =
     "підтверджена купівля товару не вдалася після закриття аукціону",
@@ -580,6 +578,8 @@ GC.Locales.ukUA = {
   ["none"] = "немає",
   ["not enough gold -- total %s, you have %s"] = "недостатньо золота -- разом %s, у вас %s",
   ["not enough gold for this quote -- Cancel"] = "недостатньо золота за цією ціною -- Cancel",
+  ["not enough units left for that quantity -- re-checking what remains..."] =
+    "для такої кількості одиниць уже не вистачає -- перевіряємо ще раз, що лишилося...",
   ["not ready to cancel"] = "не готово до скасування",
   ["not ready to post"] = "не готово до виставлення",
   ["nothing in your bags to price"] = "у сумках немає чого оцінювати",
@@ -610,6 +610,8 @@ GC.Locales.ukUA = {
   ["quote %ss ago"] = "котирування %sс тому",
   ["quote expired -- Refresh to re-check the price"] =
     "котирування протерміновано -- Refresh, щоб перевірити ціну ще раз",
+  ["re-checking what remains at a safe price..."] =
+    "перевіряємо ще раз, що лишилося за безпечною ціною...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "предмет реалму — швидкість продажу не перевірено · еталон регіону %s (рів. предмета %d)",
   ["recent sales (newest first):"] = "останні продажі (найновіші зверху):",

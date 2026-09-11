@@ -452,7 +452,6 @@ GC.Locales.zhTW = {
   ["cheapest not yours %s"] = "非你的最低價 %s",
   ["checking live price..."] = "正在檢查即時價格...",
   ["checking live safety..."] = "正在即時檢查安全性...",
-  ["commodity no longer available -- someone bought it out"] = "商品已不存在 -- 有人先買走了",
   ["commodity purchase failed"] = "商品購買失敗",
   ["confirmed commodity purchase failed after AH close"] = "拍賣場關閉後已確認的商品購買失敗",
   ["confirming purchase..."] = "正在確認購買...",
@@ -512,6 +511,8 @@ GC.Locales.zhTW = {
   ["none"] = "無",
   ["not enough gold -- total %s, you have %s"] = "金幣不足 -- 共需 %s，你有 %s",
   ["not enough gold for this quote -- Cancel"] = "這個報價的金幣不足 -- Cancel",
+  ["not enough units left for that quantity -- re-checking what remains..."] =
+    "剩餘數量不足以買這麼多 -- 正在重新檢查還剩多少...",
   ["not ready to cancel"] = "尚未可取消",
   ["not ready to post"] = "尚未可上架",
   ["nothing listed"] = "沒有上架",
@@ -536,6 +537,7 @@ GC.Locales.zhTW = {
   ["quote %s -- click Confirm to buy"] = "報價 %s -- 按 Confirm 購買",
   ["quote %ss ago"] = "報價 %s 秒前",
   ["quote expired -- Refresh to re-check the price"] = "報價已過期 -- 按 Refresh 重新檢查價格",
+  ["re-checking what remains at a safe price..."] = "正在重新檢查安全價位還剩多少...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "伺服器物品 — 售出速度未驗證 · 區域參考價 %s（物品等級 %d）",
   ["recent sales (newest first):"] = "最近的販售（新到舊）：",

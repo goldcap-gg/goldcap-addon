@@ -20,6 +20,9 @@
   no longer bounces to "price moved" when nothing moved.**
 - **While Auto scans, checks keep landing.** Rows are judged as the scan runs instead of
   waiting for it to stop.
+- **Buy takes what's left.** When fewer units remain than the plan asked for by the time you
+  press Buy, the Sniper re-checks the book and offers what is still there at a safe price,
+  instead of stopping on "price moved" or "gone" and refusing the next Buy for a while.
 
 ## 0.8.0 (2026-09-08)
 

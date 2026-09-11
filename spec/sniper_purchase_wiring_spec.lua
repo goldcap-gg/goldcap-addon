@@ -272,13 +272,25 @@ describe("Sniper purchase wiring", function()
       error("missing upvalue " .. wanted)
     end
 
+    local deal = { itemID = 42, isCommodity = true }
     local row = {
-      purchaseStage = "buying", purchaseToken = 7,
-      purchaseDeal = { itemID = 42, isCommodity = true },
+      purchaseStage = "buying", purchaseToken = 7, deal = deal, purchaseDeal = deal,
       decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1 },
     }
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    -- The cancel re-runs the live requery on its own (owner-reported 2026-09-11: a 64-unit
+    -- plan with 38 left bounced to "Check again", then the tombstone refused the next Buy).
+    -- The search itself is stubbed at the driver seam; the book it answers with is below.
+    local sends = 0
+    local startRequery = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")
+    setUpvalue(startRequery, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() sends = sends + 1 end,
+      commodityBook = function() return { { unitPrice = 1000000, quantity = 1 } } end,
+      commodityResult = function() return { avail = 1 } end,
+    })
 
     -- The fresh book still begins at 100g; a 104g server quote makes the 100g stress-profit
     -- boundary fail. The real handler must cancel before any button can be a Confirm path.
@@ -291,17 +303,132 @@ describe("Sniper purchase wiring", function()
 
     assert.equal(1, cancelCalls)
     assert.equal(0, confirmCalls)
-    assert.equal("check", row.purchaseStage)
+    -- Not "check": the requery is already on its way, with the stale snapshots gone.
+    assert.equal("requerying", row.purchaseStage)
+    assert.equal(1, sends)
     assert.is_nil(row.decisionSnapshot)
     assert.is_nil(row.quoteSnapshot)
+    assert.is_nil(row.purchaseDeal)
 
     -- The cancellation remains owned until a terminal event. A second late price must be
     -- drained too; otherwise its terminal event could be misattributed to a later Start.
     local draining = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
     assert.is_table(draining)
+    assert.is_true(draining.fenceRow == row)
+    assert.equal(row.purchaseToken, draining.fenceToken)
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000)
     assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == draining)
+
+    -- A search reply for a DIFFERENT requery is not the fence: the tombstone stays.
+    draining.fenceToken = draining.fenceToken + 100
+    -- The result is judged WATCH so the row lands on Check without a dialog to arm.
+    GC.SniperDecision.Evaluate = function()
+      return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
+    end
+    GC.Sniper.OnCommoditySearchResults(42)
+    assert.equal("check", row.purchaseStage)
+    assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == draining)
     GC.Sniper.OnCommodityPurchaseFailed()
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+  end)
+
+  it("retires the cancel's tombstone when the requery it started answers", function()
+    local cancelCalls = 0
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() end,
+      GetNumCommoditySearchResults = function() return 2 end,
+      GetCommoditySearchResultInfo = function(_, index)
+        if index == 1 then return { unitPrice = 1000000, quantity = 1 } end
+        return { unitPrice = 2105265, quantity = 1 }
+      end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function()
+        return {
+          mv = 3000000, kind = "region_commodity", source = "import", sourceAt = 92800,
+          stressUnit = 2105264, sold = 100000, sellThroughBps = 7000,
+          liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12,
+          madBps = 0, trend = -9,
+        }
+      end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local deal = { itemID = 42, isCommodity = true }
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7, deal = deal, purchaseDeal = deal,
+      decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1 },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    local startRequery = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")
+    setUpvalue(startRequery, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() end,
+      commodityBook = function() return { { unitPrice = 1000000, quantity = 1 } } end,
+      commodityResult = function() return { avail = 1 } end,
+    })
+
+    GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- breaks safety -> cancel + requery
+    assert.equal(1, cancelCalls)
+    assert.equal("requerying", row.purchaseStage)
+    assert.is_table(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+
+    -- The reply to the search sent after the Cancel is the fence: nothing from the cancelled
+    -- attempt can still be on its way, so the next Buy must not be refused for it.
+    GC.SniperDecision.Evaluate = function()
+      return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
+    end
+    GC.Sniper.OnCommoditySearchResults(42)
+    assert.equal("check", row.purchaseStage)
     assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
 
     _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
@@ -401,10 +528,12 @@ describe("Sniper purchase wiring", function()
     row.purchaseStage = "buying"
     row.quoteSnapshot = nil
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    local requeried
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery", function(r) requeried = r end)
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000)
     assert.equal(1, cancelCalls)
     assert.equal(0, confirmCalls)
-    assert.equal("check", row.purchaseStage)
+    assert.is_true(requeried == row) -- cancelled, and straight into a fresh live requery
 
     _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
     _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
@@ -495,6 +624,7 @@ describe("Sniper purchase wiring", function()
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
 
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery", function() end)
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- breaks safety -> cancel + drain
     assert.equal(1, cancelCalls)
     local draining = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
@@ -934,6 +1064,86 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPurchaseFailed, "commodityDraining"))
     assert.equal("confirmed commodity purchase failed after AH close", GC.Sniper.detachedCommodityStatus[42].note)
     _G.C_AuctionHouse = nil
+  end)
+
+  -- Owner-reported 2026-09-11: a 64-unit plan while 38 remained. The server answers
+  -- COMMODITY_PRICE_UNAVAILABLE for a quantity it cannot fill, and the old answer was "Gone"
+  -- -- for an item with 38 units still sitting there. Unavailable is terminal for the attempt,
+  -- so the slot is freed with no tombstone, and the same live requery Check runs re-arms the
+  -- dialog at what the book fills now. No purchase call is issued from the event.
+  it("re-checks what remains when the server cannot fill the quantity, instead of Gone", function()
+    local cancelCalls = 0
+    _G.C_AuctionHouse = { CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end }
+    _G.C_Timer = { After = function() end }
+    _G.GetTime = function() return 0 end
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end } end },
+      Data = { GetItemValue = function() return nil end },
+      db = { settings = { sniper = {} } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    if not _G.time then _G.time = os.time end
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local statuses = {}
+    setUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "frame",
+      { status = { SetText = function(_, text) statuses[#statuses + 1] = text end } })
+    setUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "refreshRows", function() end)
+    local requeried, requeriedDeal
+    setUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "startRequery", function(r, d)
+      requeried, requeriedDeal = r, d
+    end)
+
+    local deal = { itemID = 42, isCommodity = true }
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7, deal = deal, purchaseDeal = deal,
+      decisionSnapshot = { status = "SAFE", buyable = true, quantity = 64 },
+      armedLevels = {}, armedItemID = 42,
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "dialog", nil)
+
+    GC.Sniper.OnCommodityPriceUnavailable()
+
+    assert.equal(1, cancelCalls)
+    assert.is_true(requeried == row)
+    assert.is_true(requeriedDeal == deal)
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "commodityPurchase"))
+    assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUnavailable, "commodityDraining"))
+    -- The 64-unit plan is gone with the book it was made on; the requery decides afresh.
+    assert.is_nil(row.purchaseDeal)
+    assert.is_nil(row.decisionSnapshot)
+    assert.is_nil(row.armedLevels)
+    assert.are_not.equal(nil, row.deal) -- the row itself is not "Gone"
+    assert.equal("not enough units left for that quantity -- re-checking what remains...", statuses[#statuses])
+
+    _G.C_AuctionHouse, _G.C_Timer, _G.GetTime = nil, nil, nil
   end)
 
   it("token-fences an old Check timeout from a newer Check attempt", function()
@@ -1710,6 +1920,7 @@ describe("Sniper purchase wiring", function()
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
 
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery", function() end)
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- server re-quote, 4% above the confirmed quote
 
     -- No gold moved: the server is waiting for a fresh Confirm, so the attempt is unconfirmed

@@ -463,8 +463,6 @@ GC.Locales.koKR = {
   ["cheapest not yours %s"] = "내 것이 아닌 최저가 %s",
   ["checking live price..."] = "실시간 가격 확인 중...",
   ["checking live safety..."] = "실시간 안전성 확인 중...",
-  ["commodity no longer available -- someone bought it out"] =
-    "상품이 더 이상 없습니다 -- 누군가 이미 사갔습니다",
   ["commodity purchase failed"] = "상품 구매에 실패했습니다",
   ["confirmed commodity purchase failed after AH close"] =
     "경매장 종료 후 확정된 상품 구매가 실패했습니다",
@@ -529,6 +527,8 @@ GC.Locales.koKR = {
   ["none"] = "없음",
   ["not enough gold -- total %s, you have %s"] = "골드가 부족합니다 -- 총 %s, 보유 %s",
   ["not enough gold for this quote -- Cancel"] = "이 가격에 필요한 골드가 부족합니다 -- Cancel",
+  ["not enough units left for that quantity -- re-checking what remains..."] =
+    "해당 수량만큼 남아 있지 않습니다 -- 남은 물량을 다시 확인하는 중...",
   ["not ready to cancel"] = "취소할 준비가 되지 않았습니다",
   ["not ready to post"] = "등록할 준비가 되지 않았습니다",
   ["nothing listed"] = "등록된 것이 없습니다",
@@ -555,6 +555,7 @@ GC.Locales.koKR = {
   ["quote %ss ago"] = "시세 %s초 전",
   ["quote expired -- Refresh to re-check the price"] =
     "시세가 만료됨 -- Refresh로 가격을 다시 확인하세요",
+  ["re-checking what remains at a safe price..."] = "안전한 가격에 남은 물량을 다시 확인하는 중...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "서버 아이템 — 판매 속도 미검증 · 지역 기준가 %s (아이템 레벨 %d)",
   ["recent sales (newest first):"] = "최근 판매 (최신순):",

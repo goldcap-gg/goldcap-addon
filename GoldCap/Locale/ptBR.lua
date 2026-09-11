@@ -497,8 +497,6 @@ GC.Locales.ptBR = {
   ["cheapest not yours %s"] = "o mais barato que não é seu %s",
   ["checking live price..."] = "verificando o preço ao vivo...",
   ["checking live safety..."] = "verificando a segurança ao vivo...",
-  ["commodity no longer available -- someone bought it out"] =
-    "a mercadoria não está mais disponível -- alguém comprou tudo",
   ["commodity purchase failed"] = "a compra da mercadoria falhou",
   ["confirmed commodity purchase failed after AH close"] =
     "a compra confirmada de mercadoria falhou depois que a casa de leilões fechou",
@@ -566,6 +564,8 @@ GC.Locales.ptBR = {
   ["none"] = "nenhum",
   ["not enough gold -- total %s, you have %s"] = "ouro insuficiente -- total %s, você tem %s",
   ["not enough gold for this quote -- Cancel"] = "ouro insuficiente para esta cotação -- Cancel",
+  ["not enough units left for that quantity -- re-checking what remains..."] =
+    "não restam unidades suficientes para essa quantidade -- verificando de novo o que resta...",
   ["not ready to cancel"] = "ainda não dá para cancelar",
   ["not ready to post"] = "ainda não dá para anunciar",
   ["nothing listed"] = "nada anunciado",
@@ -593,6 +593,8 @@ GC.Locales.ptBR = {
   ["quote %ss ago"] = "cotação de %ss atrás",
   ["quote expired -- Refresh to re-check the price"] =
     "cotação expirada -- clique em Refresh para conferir o preço de novo",
+  ["re-checking what remains at a safe price..."] =
+    "verificando de novo o que resta a um preço seguro...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "item de reino — velocidade de venda não verificada · referência da região %s (nível %d)",
   ["recent sales (newest first):"] = "vendas recentes (mais novas primeiro):",
