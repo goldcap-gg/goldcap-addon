@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.9.1 (unreleased)
+## 0.9.1 (2026-09-11)
 
 - **The Sell tab's footer now reads COST · ASKING · AT MARKET.** ASKING is the total of
   your own listed prices; AT MARKET is what GoldCap expects these lots to actually sell
