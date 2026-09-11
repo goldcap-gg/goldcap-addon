@@ -2086,9 +2086,11 @@ end
 
 GC.Sniper._drillQueue = GC.DrillQueue.New({ now = time }, { perMinute = LIM.DRILL_PER_MINUTE })
 
+-- No isReady in this driver: the pass never decides for itself whether the throttled system
+-- is ready, because it never sends on its own initiative. Both of its sends happen inside
+-- GC.Sniper.OnThrottleReady, where readiness is the event's own premise.
 GC.Sniper._bookPass = GC.BookPass.New({
   now = time,
-  isReady = function() return C_AuctionHouse.IsThrottledMessageSystemReady() end,
   sendBrowseQuery = function(query)
     C_AuctionHouse.SendBrowseQuery(query)
     if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
@@ -2367,6 +2369,13 @@ local function startFullScan()
   GC.Sniper._keyPoll:BeginCycle()
   local kind = GC.Sniper._bookPass:IsWidePassDue() and "wide" or "classes"
   GC.Sniper._bookPass:Start(kind)
+  -- Start only ARMS the pass now (Core/BookPass.lua): the arbiter is the single sender for
+  -- the one throttled search slot. AUCTION_HOUSE_THROTTLED_SYSTEM_READY fires when the system
+  -- BECOMES ready, so an idle client that is ready already may not produce one -- poke the
+  -- arbiter here rather than wait for an event that may never come. It still arbitrates: a
+  -- parked Check, the quiet zone or a queued drill-down can take this slot instead, and the
+  -- pass's own start stays pending for the next one.
+  if driver.isReady() then GC.Sniper.OnThrottleReady() end
 end
 
 -- Sniper v3 §3: assigns the forward-declared `autoScan` local now that both actions it needs
@@ -4179,12 +4188,25 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
-  -- 4. The current book pass's own send -- starting a fresh pass, or its next page. GC.Sniper
-  -- ._bookPass owns the pendingFullScanStart/pendingBrowsePage state this used to read as
-  -- module-level flags -- OnThrottleReady() sends whichever of "the pass hasn't started yet"
-  -- or "a page is due" is pending (at most one per call) and reports back whether it actually
-  -- sent something.
-  if GC.Sniper._bookPass:OnThrottleReady() then return end
+  -- 4 and 5 ALTERNATE. The book pass and the tail below (the watch loop and the verify walk)
+  -- take every other grant when both want one, and every grant when only one of them does.
+  --
+  -- The pass used to win outright, and that was measured wrong in the client: with Auto on,
+  -- rows sat on "..." for five minutes and never got a verdict, then every one of them got
+  -- one within seconds of Auto being switched off. Discovery is worth first refusal, but it
+  -- is not worth the whole slot: a browse page finds new floors, and only the verify walk
+  -- turns a row on screen into an answer. A pass that never yields is a board that never
+  -- speaks. With Auto's two-second breather the pass is pending again almost immediately, so
+  -- "outright" meant "always".
+  --
+  -- Wants() is asked rather than tried, because OnThrottleReady both answers and acts.
+  local passWants = GC.Sniper._bookPass:Wants()
+  if passWants and GC.Sniper._slotTurn ~= "tail" then
+    if GC.Sniper._bookPass:OnThrottleReady() then
+      GC.Sniper._slotTurn = "tail"
+      return
+    end
+  end
 
   -- 5. What's left: the watch loop and the verify walk, round-robin, exactly as before minus
   -- "browse" (now item 4 above). Both stand down when the Deals view isn't the one on screen --
@@ -4222,8 +4244,17 @@ function GC.Sniper.OnThrottleReady()
     end
     if served then
       slotTurn = index % #SLOT_ORDER + 1
+      GC.Sniper._slotTurn = "pass"
       return
     end
+  end
+
+  -- Neither of the two wanted the turn the pass just yielded, so it is the pass's after all.
+  -- This is what keeps "alternate" from manufacturing idle slots: a tail with nothing to do
+  -- never costs the scan a page.
+  if passWants and GC.Sniper._bookPass:OnThrottleReady() then
+    GC.Sniper._slotTurn = "tail"
+    return
   end
 end
 

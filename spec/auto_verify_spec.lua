@@ -314,12 +314,11 @@ describe("Deals background verification", function()
   -- my deals". The walk is a slot consumer now, so it is never left idle: it takes a slot on
   -- any cycle the book pass itself has nothing pending, rather than only once the scan stops.
   --
-  -- Sniper fast loop (Task 5): a book pass with a page pending now wins the slot OUTRIGHT
-  -- ahead of the watch/verify round robin (see GC.Sniper.OnThrottleReady) -- discovery is the
-  -- send that keeps the loop finding anything at all, so it is no longer a peer the walk
-  -- alternates with. This test now covers the other half of that contract: the walk still gets
-  -- covered whenever the pass is not itself asking for the slot that cycle.
-  it("gets its turn from the arbiter once the book pass has nothing pending", function()
+  -- Owner-reported on the fast-loop build: with Auto on, rows sat on "..." for five minutes
+  -- and no verdict ever landed; switching Auto OFF gave all 22 rows a verdict within seconds.
+  -- The pass won the slot outright whenever it had a page pending, and with Auto's
+  -- two-second breather it always did. Discovery keeps first refusal, but it alternates now.
+  it("gets every other slot while the book pass is paging, and every one when it is not", function()
     local api = loadSniper(safe)
     board(api, { deal(1, 100) })
     local ready = api.GC.Sniper.OnThrottleReady
@@ -328,41 +327,46 @@ describe("Deals background verification", function()
     -- No watch loop, so the only other consumer for the round robin to reach is the walk.
     api.GC.Sniper.scanner = nil
     api.GC.Sniper._bookPass:Start("classes")
+    api.GC.Sniper._bookPass:OnThrottleReady() -- the opening query, spent as startFullScan does
 
-    -- A page pending: the pass wins the slot outright, and the walk does not even get asked.
+    -- A page pending AND a row to check: the pass goes first, the walk goes next.
     api.GC.Sniper._bookPass:OnResultsUpdated() -- arms a pending page (HasFullBrowseResults stubs false)
     ready()
     assert.equal(1, paged)
     assert.same({}, sent)
 
-    -- Nothing pending for the pass this cycle: the walk takes the slot instead of it idling.
+    api.GC.Sniper._bookPass:OnResultsUpdated()
     ready()
-    assert.equal(1, paged)
+    assert.equal(1, paged) -- the pass yielded this one
     assert.same({ 1 }, sent)
   end)
 
-  it("lets the book pass take every slot while a page is pending, never yielding to the walk", function()
+  it("alternates with the book pass instead of waiting for the scan to stop", function()
     local api = loadSniper(safe)
     board(api, { deal(1, 100), deal(2, 200), deal(3, 300) })
     local ready = api.GC.Sniper.OnThrottleReady
     local order = {}
     _G.C_AuctionHouse.RequestMoreBrowseResults = function() order[#order + 1] = "page" end
+    -- Stands in for a landed pre-warm: the real one parks on prewarmAttempt and stamps a
+    -- verdict when the result arrives, which is what moves the walk on to the next row.
     set(api.step, "maybeStartPrewarm", function(target)
       order[#order + 1] = "verify:" .. target.itemID
+      api.verdicts[target.itemID] = { unitPrice = target.unitPrice, at = clock, buyable = false,
+        status = "WATCH", reason = "live_verification_required" }
       return true
     end)
     api.GC.Sniper.scanner = nil
     api.GC.Sniper._bookPass:Start("classes")
+    api.GC.Sniper._bookPass:OnThrottleReady()
 
     for _ = 1, 6 do
       api.GC.Sniper._bookPass:OnResultsUpdated()
       ready()
     end
 
-    -- Discovery outranks the walk outright now: as long as the pass has a page pending it wins
-    -- every slot -- the walk only ever runs on a cycle the pass has nothing to send (see the
-    -- test above).
-    assert.same({ "page", "page", "page", "page", "page", "page" }, order)
+    -- Every other grant to each, and the walk works down the board: a row with no verdict at
+    -- all comes before any re-check of a row that already has one.
+    assert.same({ "page", "verify:1", "page", "verify:2", "page", "verify:3" }, order)
   end)
 
   -- The other half of the same contract: a walk with nothing to check must not cost the scan a
@@ -375,6 +379,7 @@ describe("Deals background verification", function()
     _G.C_AuctionHouse.RequestMoreBrowseResults = function() paged = paged + 1 end
     api.GC.Sniper.scanner = nil
     api.GC.Sniper._bookPass:Start("classes")
+    api.GC.Sniper._bookPass:OnThrottleReady()
 
     for _ = 1, 4 do
       api.GC.Sniper._bookPass:OnResultsUpdated()

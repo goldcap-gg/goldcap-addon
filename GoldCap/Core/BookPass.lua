@@ -8,6 +8,10 @@ local _, GC = ...
 -- Enum lookup, a WoW global this module never touches), the trigger formula
 -- (Core/Trigger.lua) and what happens with a hit or a row -- this module only knows "paging"
 -- vs "not", and "the book says X changed" vs "the book says X is the same as last time".
+--
+-- It also never decides WHEN to send. Both of its sends -- the opening query and each next
+-- page -- happen only inside OnThrottleReady, so the caller's arbiter is the single allocator
+-- of the client's one throttled search slot; see obj:Start and obj:Wants below.
 GC.BookPass = {}
 
 function GC.BookPass.New(driver, opts)
@@ -82,19 +86,22 @@ function GC.BookPass.New(driver, opts)
     end
   end
 
+  -- Start ARMS a pass; it never sends one. There is a single throttled search slot and the
+  -- arbiter (UI/SniperFrame.lua's OnThrottleReady) is its only allocator -- a pass that sent
+  -- its own first query the moment the throttle happened to be ready took that slot before
+  -- the arbiter could weigh it against a drill-down, the watch loop or the verify walk. With
+  -- Auto's two-second breather the pass is armed again almost immediately, so "whoever asks
+  -- the client first" resolved to "the pass, always", and the checks that judge the rows on
+  -- screen only ran once the scan stopped. The caller pokes the arbiter after arming (see
+  -- startFullScan) so an idle-but-ready client still starts at once.
   function obj:Start(k)
     kind = k
     paging = true
+    pendingStart = true
     pendingPage = false
     rawWatermark = 0
     pagesThisPass = 0
     passStartedAt = driver.now()
-    if driver.isReady() then
-      pendingStart = false
-      driver.sendBrowseQuery(queryFor(k))
-    else
-      pendingStart = true
-    end
   end
 
   function obj:OnResultsUpdated() handleResults() end
@@ -114,6 +121,10 @@ function GC.BookPass.New(driver, opts)
     driver.requestMoreBrowseResults()
     return true
   end
+
+  -- Does the pass want the slot? Asked by the arbiter BEFORE it decides whose turn it is --
+  -- OnThrottleReady above both answers and acts, so it cannot be the question as well.
+  function obj:Wants() return pendingStart or pendingPage end
 
   function obj:Abort()
     paging = false

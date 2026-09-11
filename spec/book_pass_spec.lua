@@ -36,9 +36,14 @@ describe("BookPass", function()
     return GC.BookPass.New(fakeDriver(), opts)
   end
 
-  it("sends the caller's filtered query on Start when the throttle is ready", function()
+  -- Start() never sends. The arbiter (UI/SniperFrame.lua's OnThrottleReady) is the single
+  -- sender for every consumer of the one throttled search slot, and a pass that sent its own
+  -- first query took that slot before the arbiter could weigh it against anything else.
+  it("sends the caller's filtered query on the grant after Start, never from Start itself", function()
     local bp = newPass({ itemClassFilters = { { classID = 7 } } })
     bp:Start("classes")
+    assert.equal(0, #sent.queries)
+    assert.is_true(bp:OnThrottleReady())
     assert.equal(1, #sent.queries)
     assert.same({ { classID = 7 } }, sent.queries[1].itemClassFilters)
   end)
@@ -46,17 +51,34 @@ describe("BookPass", function()
   it("sends an empty itemClassFilters query for a wide pass", function()
     local bp = newPass({ itemClassFilters = { { classID = 7 } } })
     bp:Start("wide")
+    bp:OnThrottleReady()
     assert.same({}, sent.queries[1].itemClassFilters)
   end)
 
-  it("defers the send until OnThrottleReady when the throttle is not ready", function()
-    sent.ready = false
+  it("waits for a grant even when the throttle is ready at Start time", function()
+    sent.ready = true
     local bp = newPass()
     bp:Start("classes")
     assert.equal(0, #sent.queries)
     assert.is_true(bp:OnThrottleReady())
     assert.equal(1, #sent.queries)
     assert.is_false(bp:OnThrottleReady()) -- nothing else pending
+  end)
+
+  -- Wants() answers without spending: the arbiter has to know whether the pass is hungry
+  -- before it decides whose turn it is, and asking by trying would be the turn itself.
+  it("wants a slot while a start or a page is pending, and not otherwise", function()
+    local bp = newPass()
+    assert.is_false(bp:Wants())
+    bp:Start("classes")
+    assert.is_true(bp:Wants())          -- the start
+    bp:OnThrottleReady()
+    assert.is_false(bp:Wants())
+    browseResults, hasFullResults = { row(1, 10, 1) }, false
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Wants())          -- a page
+    bp:OnThrottleReady()
+    assert.is_false(bp:Wants())
   end)
 
   it("seeds the book and hits on the very first sighting below trigger", function()
@@ -147,8 +169,12 @@ describe("BookPass", function()
   it("requests the next page only once OnThrottleReady is called, and only when one is due", function()
     local bp = newPass()
     bp:Start("classes")
+    bp:OnThrottleReady()
     browseResults, hasFullResults = { row(1, 10, 1) }, false
     bp:OnResultsUpdated() -- not the final page -> a page becomes due
+    -- The results event itself sends nothing, whatever the throttle says: the browse event is
+    -- where the slot used to be taken out from under everyone else.
+    sent.ready = true
     assert.equal(0, sent.pages)
     assert.is_true(bp:OnThrottleReady())
     assert.equal(1, sent.pages)
@@ -200,9 +226,8 @@ describe("BookPass", function()
 
   it("does not advance the wide-pass clock if Start('wide') is deferred and then aborted before firing", function()
     local bp = newPass({ widePassSeconds = 300 })
-    sent.ready = false
     now = 1000
-    bp:Start("wide") -- deferred, not sent
+    bp:Start("wide") -- pending, never sent
     now = 1300 + 1 -- 300+ seconds after construction
     bp:Abort() -- killed before OnThrottleReady grants a slot
     assert.is_true(bp:IsWidePassDue()) -- still due: pass never fired, clock unchanged

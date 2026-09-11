@@ -78,10 +78,12 @@ describe("Search slot arbiter", function()
     function watch:OnSystemReady() sent[#sent + 1] = "watch" end
     GC.Sniper.scanner = watch
     -- Starts a real book pass so GC.Sniper._bookPass:IsPaging() is true and its own
-    -- OnThrottleReady() has something to arbitrate -- the first query send (via the
-    -- IsThrottledMessageSystemReady()==true stub above) doesn't touch `sent`, only
+    -- OnThrottleReady() has something to arbitrate. Start only ARMS the pass now, so the
+    -- opening query is spent here the way startFullScan's own poke spends it -- the send
+    -- itself doesn't touch `sent` (SendBrowseQuery is a bare stub), only
     -- RequestMoreBrowseResults does.
     GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnThrottleReady()
     return GC, watch
   end
 
@@ -96,16 +98,17 @@ describe("Search slot arbiter", function()
     _G.C_AuctionHouse = nil
   end)
 
-  -- Sniper fast loop (Task 5): browse paging is no longer a round-robin peer of watch -- a book
-  -- pass with a page pending wins the slot OUTRIGHT (see GC.Sniper.OnThrottleReady), even with
-  -- the watch loop hungry every single cycle.
-  it("lets browse paging win the slot outright while a page is pending, even with watch hungry", function()
+  -- Browse paging and the tail (watch loop + verify walk) alternate. Paging used to win
+  -- outright, which in the client meant it won always: with Auto on, the pass is pending again
+  -- within its two-second breather, so the rows on screen were never judged at all until Auto
+  -- was switched off.
+  it("alternates the slot between browse paging and the watch loop when both want it", function()
     local GC = load() -- watch.hungry is true by default
-    for _ = 1, 3 do
+    for _ = 1, 4 do
       armPage(GC)
       GC.Sniper.OnThrottleReady()
     end
-    assert.same({ "page", "page", "page" }, sent)
+    assert.same({ "page", "watch", "page", "watch" }, sent)
   end)
 
   it("leaves no slot idle when only one consumer is hungry", function()
