@@ -65,6 +65,22 @@ describe("BookPass", function()
     assert.is_false(bp:OnThrottleReady()) -- nothing else pending
   end)
 
+  -- A pending page rides the browse event that answers it; a pending START may have nothing
+  -- coming at all, so the caller nudges the arbiter for that one case (UI/SniperFrame.lua's
+  -- 0.25s ticker) and needs to be able to tell the two apart.
+  it("reports a pending start separately from a pending page", function()
+    local bp = newPass()
+    assert.is_false(bp:PendingStart())
+    bp:Start("classes")
+    assert.is_true(bp:PendingStart())
+    bp:OnThrottleReady()
+    assert.is_false(bp:PendingStart())
+    browseResults, hasFullResults = { row(1, 10, 1) }, false
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Wants())
+    assert.is_false(bp:PendingStart()) -- a page, not a start
+  end)
+
   -- Wants() answers without spending: the arbiter has to know whether the pass is hungry
   -- before it decides whose turn it is, and asking by trying would be the turn itself.
   it("wants a slot while a start or a page is pending, and not otherwise", function()

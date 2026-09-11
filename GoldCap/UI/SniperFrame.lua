@@ -7541,6 +7541,13 @@ function GC.Sniper.OnAuctionHouseShow()
     -- Background verification rides the same clock, for the same reason the two buttons above
     -- do: one place drives it, so it cannot be forgotten by a path that changes state.
     tickAutoVerify()
+    -- And so does the one send that has nothing to ride on. A pass start parks until a grant
+    -- (Core/BookPass.lua), but AUCTION_HOUSE_THROTTLED_SYSTEM_READY fires when the system
+    -- BECOMES ready -- an idle, already-ready client may never fire one, and a pass that never
+    -- sends never arms its own watchdog either, so Auto would sit on SCANNING forever. Only
+    -- the START is nudged: a pending page always has a browse event behind it, and polling for
+    -- pages at 4Hz would be the throttle hammering this addon has been burned by before.
+    if GC.Sniper._bookPass:PendingStart() and driver.isReady() then GC.Sniper.OnThrottleReady() end
     refreshVerifyButton()
     -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
     -- GC.Sniper.session either.

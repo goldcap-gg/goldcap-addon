@@ -126,6 +126,11 @@ function GC.BookPass.New(driver, opts)
   -- OnThrottleReady above both answers and acts, so it cannot be the question as well.
   function obj:Wants() return pendingStart or pendingPage end
 
+  -- Narrower: armed and never sent. A pending PAGE always has a browse event behind it and
+  -- therefore a throttle-ready event to ride; a pending START may have nothing at all coming,
+  -- which is why the caller's ticker nudges the arbiter for this case and only this one.
+  function obj:PendingStart() return pendingStart end
+
   function obj:Abort()
     paging = false
     pendingStart = false
