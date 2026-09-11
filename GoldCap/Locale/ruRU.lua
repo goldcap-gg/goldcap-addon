@@ -471,6 +471,7 @@ GC.Locales.ruRU = {
   ["You would get"] = "Вы получите",
   ["You would pay"] = "Вы заплатите",
   ["Your call"] = "Решать вам",
+  ["Your minimum"] = "Твой минимум",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "выше самого дешёвого, в дешёвой четверти · в очереди ниже %d шт.",
   ["above the cheapest, within the day's reach · %d units queued below"] =

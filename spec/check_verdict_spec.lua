@@ -184,6 +184,33 @@ describe("CheckVerdict", function()
       assert.equal("bad", get.tone)
     end)
 
+    -- The refusal IS a comparison, so the floor the trade fell short of sits right under
+    -- what came back -- "+38g" against "Your minimum 150g" -- instead of the player having to
+    -- open Settings to remember which number the engine was holding them to.
+    it("names the profit floor on a profit refusal", function()
+      local v = GC.CheckVerdict.Build(decision({
+        reasons = { "stress_profit_below_buffer" }, entryTotal = 150000000,
+        stressProfit = 380000, requiredProfit = 15000000,
+      }), market())
+      assert.same({ kind = "gold", copper = 380000 }, v.hero)
+      local floor = factById(v, "yourMinimum")
+      assert.equal(15000000, floor.copper)
+      assert.equal("youPay", v.facts[1].id)
+      assert.equal("youGet", v.facts[2].id)
+      assert.equal("yourMinimum", v.facts[3].id)
+    end)
+
+    it("skips an absent fact without dropping the ones offered after it", function()
+      -- No requiredProfit on the decision: the "Your minimum" slot is empty, and the market
+      -- facts behind it must still fill the block.
+      local v = GC.CheckVerdict.Build(decision({
+        reasons = { "stress_profit_below_buffer" }, entryTotal = 6220000, stressProfit = -960000,
+      }), market())
+      assert.equal(4, #v.facts)
+      assert.is_nil(factById(v, "yourMinimum"))
+      assert.equal("sellThrough", v.facts[3].id)
+    end)
+
     it("gives a figure with no natural ceiling no meter at all", function()
       local v = GC.CheckVerdict.Build(decision({
         reasons = { "velocity_too_low" }, stressProfit = 184000,

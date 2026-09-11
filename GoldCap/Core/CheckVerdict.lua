@@ -112,6 +112,7 @@ GC.CheckVerdict.FACT_LABEL = {
   ifItClears = "If it clears",
   youPayFlat = "You pay",
   worstCaseBack = "Worst case back",
+  yourMinimum = "Your minimum",
 }
 
 -- A confidence score is 0-100 with no unit, so a bare "90" says nothing a player can act on.
@@ -226,8 +227,12 @@ local function moneyPair(decision)
   }
 end
 
+-- Indexed by count, not ipairs: a fact helper returns nil when its figure is absent, and
+-- ipairs stops at the first nil -- so a missing third candidate silently dropped every
+-- candidate after it, and the panel showed two facts where four were on offer.
 local function take(facts, ...)
-  for _, fact in ipairs({ ... }) do
+  for i = 1, select("#", ...) do
+    local fact = select(i, ...)
     if fact and #facts < 4 then facts[#facts + 1] = fact end
   end
   return facts
@@ -307,6 +312,11 @@ function GC.CheckVerdict.Build(decision, market, context)
     -- import carries none of them for a realm item, and a dash in a row is not a fact.
     take(facts, flat("youPayFlat", "copper", decision.entryTotal),
       flat("snapshotValue", "copper", decision.reference, "muted"))
+  elseif tone == "refuse" and reason == "stress_profit_below_buffer" then
+    -- The refusal is a comparison -- what came back against what the player asked for -- so
+    -- the floor it fell short of is the third fact, ahead of anything about the market.
+    take(facts, pay, get, flat("yourMinimum", "copper", decision.requiredProfit),
+      sellThroughFact(market), sellersFact(market))
   else
     take(facts, pay, get, sellThroughFact(market), sellersFact(market),
       flat("snapshotValue", "copper", market.marketValue, "muted"))

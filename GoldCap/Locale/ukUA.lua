@@ -487,6 +487,7 @@ GC.Locales.ukUA = {
   ["You would get"] = "Ви отримаєте",
   ["You would pay"] = "Ви заплатите",
   ["Your call"] = "Вирішувати вам",
+  ["Your minimum"] = "Твій мінімум",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
   ["above the cheapest, within the day's reach · %d units queued below"] =

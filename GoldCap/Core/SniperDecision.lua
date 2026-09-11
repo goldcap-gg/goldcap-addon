@@ -447,6 +447,12 @@ function GC.SniperDecision.Evaluate(input)
     wallBelowCeiling = GC.Book.UnitsAtOrBelow(live.levels, releaseCeiling)
   end
   local selected
+  -- The best attempt that cleared every gate EXCEPT the profit floor. Published on a profit
+  -- refusal so the panel can show the trade that was almost good enough -- "+38g, you require
+  -- 150g" -- instead of "Can't price this" over a row of dashes (owner's client, 2026-09-11:
+  -- Venomous Combatant's Heraldry, refused on ROI with every figure blank). Never selected,
+  -- never buyable: it exists to explain the refusal, not to soften it.
+  local bestShort
   local sawCapital, sawAffordable, sawProfit, sawExhausted, sawCompeting = false, false, false, false, false
   local start, finish = fixed and fixed or 1, coarseCap
   for quantity = start, finish do
@@ -551,6 +557,13 @@ function GC.SniperDecision.Evaluate(input)
             if not stressProfit then return invalid() end
             if stressProfit < requiredProfit then
               sawProfit = true
+              if not bestShort or stressProfit > bestShort.stressProfit then
+                bestShort = {
+                  quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
+                  competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
+                  deposit = deposit, stressProfit = stressProfit, requiredProfit = requiredProfit,
+                }
+              end
             else
               if not selected or stressProfit > selected.stressProfit then
                 selected = {
@@ -571,7 +584,12 @@ function GC.SniperDecision.Evaluate(input)
     if sawExhausted and not knownReasons.book_missing then add("book_exhausted", 2) end
     if sawCompeting then add("competing_ask_missing", 2) end
     if sawCapital and not sawAffordable then add("capital_limit", 2) end
-    if sawProfit then add("stress_profit_below_buffer", 2) end
+    if sawProfit then
+      add("stress_profit_below_buffer", 2)
+      if bestShort then
+        for k, v in pairs(bestShort) do out[k] = v end
+      end
+    end
   end
 
   if selected then

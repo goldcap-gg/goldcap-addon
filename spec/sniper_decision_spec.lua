@@ -318,6 +318,32 @@ describe("SniperDecision", function()
     assertNoReason(result, "capital_limit")
   end)
 
+  it("carries the best profit-short attempt on a profit refusal, so the panel can show the gap", function()
+    local input = validInput()
+    input.live.levels = {
+      { unitPrice = 1000000, quantity = 1 },
+      { unitPrice = 1000001, quantity = 1 },
+      { unitPrice = 3000001, quantity = 1 },
+    }
+    input.config.maxQuantity = 2
+    input.config.minimumProfitCopper = 50000000 -- 5,000g: nothing here comes close
+    input.walletCopper = 30000000
+
+    local result = evaluate(input)
+
+    assert.equal("AVOID", result.computedStatus)
+    assert.is_false(result.buyable)
+    assertReason(result, "stress_profit_below_buffer")
+    -- The figures of the attempt that got furthest, not dashes: a positive quantity, what it
+    -- would cost, what it would leave, and the floor it fell short of.
+    assert.is_true(result.quantity >= 1)
+    assert.is_true(result.entryTotal > 0)
+    assert.equal(math.floor(result.entryTotal / result.quantity), result.entryUnitDisplay)
+    assert.is_number(result.stressProfit)
+    assert.equal(50000000, result.requiredProfit)
+    assert.is_true(result.stressProfit < result.requiredProfit)
+  end)
+
   it("fails a sub-five-percent requote that crosses safety, with the fixed quantity retained", function()
     local input = validInput()
     input.live.fixedQuantity = 1

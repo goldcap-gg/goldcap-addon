@@ -441,6 +441,7 @@ GC.Locales.koKR = {
   ["You would get"] = "받게 될 금액",
   ["You would pay"] = "지불할 금액",
   ["Your call"] = "당신의 판단",
+  ["Your minimum"] = "내 최소 기준",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "최저가보다 높게, 저가 구간 안 · 아래에 %d개 대기 중",
   ["above the cheapest, within the day's reach · %d units queued below"] =

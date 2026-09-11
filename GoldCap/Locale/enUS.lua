@@ -453,6 +453,7 @@ GC.Locales.enUS = {
   ["You would get"] = "You would get",
   ["You would pay"] = "You would pay",
   ["Your call"] = "Your call",
+  ["Your minimum"] = "Your minimum",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "above the cheapest, inside the cheap quarter · %d units queued below",
   ["above the cheapest, within the day's reach · %d units queued below"] =

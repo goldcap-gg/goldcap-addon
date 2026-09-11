@@ -429,6 +429,7 @@ GC.Locales.zhCN = {
   ["You would get"] = "你会拿回",
   ["You would pay"] = "你会支付",
   ["Your call"] = "由你决定",
+  ["Your minimum"] = "你的最低要求",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "高于最低价，处于低价四分位内 · 下方排队 %d 件",
   ["above the cheapest, within the day's reach · %d units queued below"] =

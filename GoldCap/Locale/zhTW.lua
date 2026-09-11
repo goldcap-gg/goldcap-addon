@@ -430,6 +430,7 @@ GC.Locales.zhTW = {
   ["You would get"] = "你會拿回",
   ["You would pay"] = "你會支付",
   ["Your call"] = "由你決定",
+  ["Your minimum"] = "你的最低要求",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "高於最低價，處於低價四分位內 · 下方排隊 %d 件",
   ["above the cheapest, within the day's reach · %d units queued below"] =

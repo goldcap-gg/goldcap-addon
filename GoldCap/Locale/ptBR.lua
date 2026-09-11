@@ -472,6 +472,7 @@ GC.Locales.ptBR = {
   ["You would get"] = "Você receberia",
   ["You would pay"] = "Você pagaria",
   ["Your call"] = "Você decide",
+  ["Your minimum"] = "Seu mínimo",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "acima do mais barato, dentro do quarto barato · %d unidades na fila abaixo",
   ["above the cheapest, within the day's reach · %d units queued below"] =

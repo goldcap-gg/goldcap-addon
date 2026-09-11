@@ -471,6 +471,7 @@ GC.Locales.frFR = {
   ["You would get"] = "Tu recevrais",
   ["You would pay"] = "Tu paierais",
   ["Your call"] = "À toi de voir",
+  ["Your minimum"] = "Ton minimum",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "au-dessus du moins cher, dans le quart bon marché · %d unités en file en dessous",
   ["above the cheapest, within the day's reach · %d units queued below"] =

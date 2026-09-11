@@ -472,6 +472,7 @@ GC.Locales.deDE = {
   ["You would get"] = "Du bekämst",
   ["You would pay"] = "Du zahltest",
   ["Your call"] = "Deine Entscheidung",
+  ["Your minimum"] = "Dein Minimum",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "über dem Günstigsten, im günstigen Viertel · %d Einheiten davor in der Schlange",
   ["above the cheapest, within the day's reach · %d units queued below"] =

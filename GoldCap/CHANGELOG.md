@@ -20,6 +20,9 @@
   no longer bounces to "price moved" when nothing moved.**
 - **While Auto scans, checks keep landing.** Rows are judged as the scan runs instead of
   waiting for it to stop.
+- **A "too little profit" refusal now shows the numbers.** The check panel prints the trade
+  it came closest to approving — what you would pay, what would come back, and the minimum
+  it fell short of — instead of "Can't price this" over a row of dashes.
 - **Buy takes what's left.** When fewer units remain than the plan asked for by the time you
   press Buy, the Sniper re-checks the book and offers what is still there at a safe price,
   instead of stopping on "price moved" or "gone" and refusing the next Buy for a while.

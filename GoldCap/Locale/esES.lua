@@ -472,6 +472,7 @@ GC.Locales.esES = {
   ["You would get"] = "Recibirías",
   ["You would pay"] = "Pagarías",
   ["Your call"] = "Tú decides",
+  ["Your minimum"] = "Tu mínimo",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "por encima del más barato, dentro del cuarto barato · %d unidades en cola por debajo",
   ["above the cheapest, within the day's reach · %d units queued below"] =

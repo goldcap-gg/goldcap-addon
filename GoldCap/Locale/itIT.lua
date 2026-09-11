@@ -472,6 +472,7 @@ GC.Locales.itIT = {
   ["You would get"] = "Riceveresti",
   ["You would pay"] = "Pagheresti",
   ["Your call"] = "Decidi tu",
+  ["Your minimum"] = "Il tuo minimo",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "sopra il più economico, nel quarto economico · %d unità in coda sotto",
   ["above the cheapest, within the day's reach · %d units queued below"] =
