@@ -18,10 +18,23 @@ function GC.ImportString.Parse(str)
   -- (UTF-8 BOM, zero-width space) that gsub("%s+") does not strip; drop any
   -- leading junk before the GCS1 marker so a clean paste isn't rejected.
   str = str:match("GCS1;.*") or str
+  -- Two strings pasted one after the other. The match above starts at the FIRST marker and
+  -- runs to the end of the paste, so the second string's sections are read as if they were
+  -- the first string's -- one realm's prices silently overwriting another's under the first
+  -- realm's name. Refuse the pair instead of merging them.
+  if str:find("GCS1;", 2, true) then return nil, "two_strings" end
 
+  -- The realm is a LABEL: it is stored, printed back in /goldcap status and never parsed.
+  -- Matching it as "lowercase letters, digits and hyphens" therefore bought nothing and cost
+  -- every Korean and Taiwanese player their import -- Blizzard's own realm slugs there are
+  -- not ASCII, so a perfectly good string came back as "that does not look like a GoldCap
+  -- import string", the one message that sends a player hunting for a broken copy-paste.
+  -- Anything that is not the field separator is a realm now; only an empty one is an error,
+  -- and it says so in its own words.
   local region, realm, ts, rest =
-    str:match("^GCS1;(%l%l);([%l%d%-]+);(%d+);(.+)$")
+    str:match("^GCS1;(%l%l);([^;]*);(%d+);(.+)$")
   if not region then return nil, "bad_header" end
+  if realm == "" then return nil, "no_realm" end
   -- Distinct from bad_header on purpose: "the string is shaped right but names a region
   -- this build does not know" is the one failure a player can act on (update the addon),
   -- and Core/Data.lua's companion path says exactly that.

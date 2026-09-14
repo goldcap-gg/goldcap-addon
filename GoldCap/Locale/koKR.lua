@@ -10,15 +10,14 @@ GC.Locales.koKR = {
     " %s  %s  x%d개, 개당 %s  (총 %s, 수수료 %s)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion이 자동으로 갱신합니다: /goldcap companion.",
-  [" rows against the live auction house about every "] = " 줄을 실시간 경매장과 대조합니다. 주기는 약 ",
   [" · %d hidden"] = " · %d개 숨김",
   [" · %d keys"] = " · 키 %d개",
   [" · below cost"] = " · 원가 미만",
   [" · identity unresolved"] = " · 대상 미확정",
   [" · stale %ds"] = " · %d초 지남",
   [" — Check again"] = " — 다시 확인하세요",
-  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
-    " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (짧게 /gc)",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
+    " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
   ["%d (whole lot)"] = "%d (전체 물량)",
   ["%d days"] = "%d일",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -41,8 +40,6 @@ GC.Locales.koKR = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 개당    총 %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
-  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
-    "붐비는 서버에서 15~60초. 대기시간 없음 -- 언제든 다시 검색하세요.",
   ["24h trend"] = "24시간 추세",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "대시(—)는 아직 모든 수량의 매입가를 모른다는 뜻입니다. 시세로 추측하는 일은 없습니다.",
@@ -64,8 +61,8 @@ GC.Locales.koKR = {
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
   ["Auto-scan on next AH visit"] = "다음 경매장 방문 시 자동 검색",
-  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
-    "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. ",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
+    "자동: Full Scan을 계속 돌리고, 구매할 때는 즉시 양보합니다. 경매장을 직접 검색하거나 우편함을 확인하세요. 클릭하면 전환됩니다.",
   ["Avoid"] = "회피",
   ["BRAKES"] = "브레이크",
   ["BUY — unverified"] = "구매 — 미검증",
@@ -162,7 +159,8 @@ GC.Locales.koKR = {
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap이 가방의 어느 묶음인지 특정하지 못했습니다",
   ["GoldCap data age"] = "GoldCap 데이터 경과",
-  ["GoldCap re-checks the top "] = "GoldCap이 다시 확인하는 상위 ",
+  ["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."] =
+    "GoldCap이 다시 확인하는 상위 %d 줄을 실시간 경매장과 대조합니다. 주기는 약 %d초입니다. 거부된 줄은 숨겨집니다. 구매는 언제나 직접 누르는 클릭입니다.",
   ["GoldCap value"] = "GoldCap 시세",
   ["GoldCap — Import realm prices"] = "GoldCap — 서버 시세 가져오기",
   ["GoldCap's"] = "GoldCap 가격",
@@ -252,8 +250,8 @@ GC.Locales.koKR = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 기준 — 최근 %d일, 최신 %d/%d",
   ["ON THE AUCTION HOUSE"] = "경매장에 올린 것",
-  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
-    "페이지 단위 조회로 경매장 전체를 한 번 검색합니다. 소요 시간은 약 ",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "페이지 단위 조회로 경매장 전체를 한 번 검색합니다. 소요 시간은 약 붐비는 서버에서 15~60초. 대기시간 없음 -- 언제든 다시 검색하세요.",
   ["Open the Auction House first."] = "먼저 경매장을 여세요.",
   ["Open the Auction House to begin scanning."] = "검색을 시작하려면 경매장을 여세요.",
   ["Open the deals board. /gc for commands."] = "거래 목록을 엽니다. 명령어는 /gc.",
@@ -570,12 +568,10 @@ GC.Locales.koKR = {
     "장부 %d줄의 지역을 바로잡고, 판매 %d건을 재고와 다시 연결했습니다",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "지금 재등록하면 손실이나 정체가 확정됩니다 -- 보류하세요",
-  ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
-    "우편 검사 오류로 남은 중복 구매 기록 %d건%s을 삭제했습니다",
-  ["removed %d duplicate sale record%s left by a mail-scan bug"] =
-    "우편 검사 오류로 남은 중복 판매 기록 %d건%s을 삭제했습니다",
-  ["s. Rows it refuses are hidden. Buying always stays a click you make."] =
-    "초입니다. 거부된 줄은 숨겨집니다. 구매는 언제나 직접 누르는 클릭입니다.",
+  ["removed %d duplicate purchase records left by a mail-scan bug"] =
+    "우편 검사 오류로 남은 중복 구매 기록 %d건을 삭제했습니다",
+  ["removed %d duplicate sale records left by a mail-scan bug"] =
+    "우편 검사 오류로 남은 중복 판매 기록 %d건을 삭제했습니다",
   ["sale name ambiguous"] = "판매 항목 이름이 모호함",
   ["sale proceeds pending"] = "판매 대금 대기 중",
   ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
@@ -583,8 +579,6 @@ GC.Locales.koKR = {
   ["scanned %d listings over %d passes"] = "등록 %d건을 %d번 순회로 검색했습니다",
   ["scanning auction house..."] = "경매장 검색 중...",
   ["scanning… %d results · %d deals%s"] = "검색 중… 결과 %d건 · 거래 %d건%s",
-  ["search the Auction House yourself, or check your mail. Click to toggle."] =
-    "경매장을 직접 검색하거나 우편함을 확인하세요. 클릭하면 전환됩니다.",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "하루 %s개 판매",
@@ -631,4 +625,5 @@ GC.Locales.koKR = {
   ["… = a live check is queued for this row"] = "… = 이 줄의 실시간 확인이 대기 중입니다",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
+  ["no answer %ds ago -- resting"] = "%d초 전 응답 없음 -- 대기 중",
 }

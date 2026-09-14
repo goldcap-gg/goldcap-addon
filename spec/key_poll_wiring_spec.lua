@@ -33,7 +33,11 @@ describe("Key poll wiring", function()
     }
 
     values, watchlist, targetIds = {}, {}, {}
+    -- board = "items": this whole file is about the board the key poll fills, and since 0.9.2
+    -- that is a board of its own -- the poll only spends a throttle slot while it is the one
+    -- on screen. The refusal on the other board is its own test at the end of this file.
     local GC = { db = { commodityByItem = {}, settings = { sniper = { sound = true, showRefused = false,
+      board = "items",
       minimumProfitCopper = 50000, minimumRoi = 0.10, watchDiscount = 0.10,
       suspectDiscount = 0.90, hotDiscount = 0.40, hotProfit = 500000,
       goodDiscount = 0.25, goodProfit = 100000, hotMinSold = 3, goodMinSold = 1,
@@ -197,10 +201,12 @@ describe("Key poll wiring", function()
       assert.is_nil(GC.Sniper._CurrentLiveDeal(42)) -- 5% under the reference is not a deal
     end)
 
-    -- A completed pass replaces the board wholesale, and a classes pass never browses a realm
-    -- item at all -- so before the poll kept its own copy, every realm row vanished a few
-    -- seconds after it appeared, on the next pass that finished.
-    it("keeps the realm row on the board across a completed pass", function()
+    -- A completed pass replaces the COMMODITY board wholesale, and since 0.9.2 the realm row
+    -- is not on that board at all -- it is the Items store's, which no pass writes to. (Before
+    -- the split the same guarantee was bought by merging the poll's copy back over the pass's
+    -- result on every completion; before THAT, every realm row vanished seconds after the poll
+    -- found it.)
+    it("stays in the Items store across a completed pass", function()
       local GC = loadSniper()
       values[42] = realmValue()
       targetIds = { 42 }
@@ -214,6 +220,7 @@ describe("Key poll wiring", function()
       GC.Sniper._bookPass:OnResultsUpdated()
       assert.is_false(GC.Sniper._bookPass:IsPaging())
       assert.is_table(GC.Sniper._CurrentLiveDeal(42))
+      assert.is_table(GC.Sniper._realmDeals[42])
     end)
 
     -- The batch asked about the item by name, so silence about it is an answer.
@@ -271,5 +278,88 @@ describe("Key poll wiring", function()
     GC.Sniper.OnBrowseResults()
     assert.equal(120000, GC.Sniper._keyPoll:Book()[42].floor)
     assert.is_nil(GC.Sniper._keysAwaiting) -- and the slot is free for the next batch
+  end)
+
+  -- Live client, 2026-09-14: "PRICING…" at 0/20 with 121 ready events behind it. The keys
+  -- batch is pending again the moment it lands, so with the Sell tab on screen it took every
+  -- ready tick ahead of the pricing walk, which runs after this handler.
+  -- Measured in game: 362 targets pending and not one batch sent in thirteen Auto passes --
+  -- the only ready tick after a pass's last page arrives before that page lands, and the
+  -- breather between passes brings no tick at all. The switch to the Items board, and the end
+  -- of a pass, are where a batch can actually go.
+  it("switching to the Items board between passes sends a keys batch on its own", function()
+    local GC = loadSniper()
+    values[42] = realmValue()
+    targetIds = { 42 }
+    GC.Sniper._RebuildKeyTargets()
+    local sent = 0
+    _G.C_AuctionHouse.SearchForItemKeys = function() sent = sent + 1 end
+    GC.Sniper._SetBoard("items")
+    assert.equal(1, sent)
+    -- A batch is out: nothing more until it answers, and the pass may not start over it.
+    assert.is_false(GC.Sniper._TrySendKeysBatch(false))
+    assert.is_true(GC.Sniper._KeysOutstanding())
+  end)
+
+  it("does not spend a ready tick on a keys batch while the Sell tab is on screen", function()
+    local GC = loadSniper()
+    values[42] = realmValue()
+    targetIds = { 42 }
+    GC.Sniper._RebuildKeyTargets()
+    assert.is_true(GC.Sniper._keyPoll:HasPending())
+    local sent = 0
+    _G.C_AuctionHouse.SearchForItemKeys = function() sent = sent + 1 end
+    local function setView(v)
+      local fn = GC.Sniper.OnThrottleReady
+      for i = 1, 200 do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == "view" then debug.setupvalue(fn, i, v); return end
+      end
+      error("no `view` upvalue on OnThrottleReady")
+    end
+
+    setView("sell")
+    GC.Sniper.OnThrottleReady()
+    assert.equal(0, sent)
+
+    setView("deals")
+    GC.Sniper.OnThrottleReady()
+    assert.equal(1, sent)
+  end)
+
+  -- 0.9.2, the two boards: this poll fills the ITEMS board and nothing else, so on the
+  -- Commodities board it was refreshing rows the player cannot see -- at the cost of the one
+  -- throttled slot the commodity scan and the Sell tab's pricing walk are also asking for.
+  -- The Deals view is not enough on its own any more; the board has to be the poll's own.
+  it("does not spend a ready tick on a keys batch while the Commodities board is up", function()
+    local GC = loadSniper()
+    values[42] = realmValue()
+    targetIds = { 42 }
+    GC.Sniper._RebuildKeyTargets()
+    local sent = 0
+    _G.C_AuctionHouse.SearchForItemKeys = function() sent = sent + 1 end
+
+    GC.db.settings.sniper.board = "commodities"
+    GC.Sniper.OnThrottleReady()
+    assert.equal(0, sent)
+    -- Still pending, not consumed: switching boards is all it takes to resume.
+    assert.is_true(GC.Sniper._keyPoll:HasPending())
+
+    GC.db.settings.sniper.board = "items"
+    GC.Sniper.OnThrottleReady()
+    assert.equal(1, sent)
+  end)
+
+  -- A save from an older build (or a hand-edited one) carries no `board` at all, and a garbage
+  -- value must not strand the player on a board that does not exist.
+  it("treats an absent or unknown board setting as Commodities", function()
+    local GC = loadSniper()
+    GC.db.settings.sniper.board = nil
+    assert.equal("commodities", GC.Sniper._Board())
+    GC.db.settings.sniper.board = "gear"
+    assert.equal("commodities", GC.Sniper._Board())
+    GC.db.settings.sniper.board = "items"
+    assert.equal("items", GC.Sniper._Board())
   end)
 end)

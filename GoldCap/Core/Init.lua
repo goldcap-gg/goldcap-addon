@@ -75,6 +75,14 @@ GC.DEFAULTS = {
       -- UI/SniperFrame.lua's verifyBtn), which is also where the count of hidden rows lives,
       -- so a shorter list always arrives with the number that explains it.
       showRefused = false,
+      -- Which of the Deals view's two boards is up: "commodities" (the scan's own finds, the
+      -- only rows a live check can approve for buying) or "items" (the key poll's gear, pets
+      -- and recipes -- leads, never buyable). Commodities by default because that is where the
+      -- money is made and because the Items board costs a throttled search slot while it is
+      -- open. Owned by the two chips at the top of the deals board (UI/SniperFrame.lua's
+      -- GC.Sniper._SetBoard), which validates whatever it reads back -- anything but "items"
+      -- is Commodities, so no migration is owed to a save written before this existed.
+      board = "commodities",
       -- Items the owner has asked the watch loop to poll closely, in their own order. A
       -- standing instruction, so unlike the loop's own churn observations it survives the
       -- session. Same empty-table ApplyDefaults contract as `flips`.
@@ -175,6 +183,8 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
 frame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
 frame:RegisterEvent("AUCTION_HOUSE_THROTTLED_SYSTEM_READY")
+frame:RegisterEvent("AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED")
+frame:RegisterEvent("AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED")
 frame:RegisterEvent("ITEM_KEY_ITEM_INFO_RECEIVED")
 frame:RegisterEvent("ITEM_SEARCH_RESULTS_UPDATED")
 frame:RegisterEvent("COMMODITY_SEARCH_RESULTS_UPDATED")
@@ -291,10 +301,20 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local name = ...
     if name ~= ADDON_NAME then return end
     GoldCapDB = GoldCapDB or {}
+    -- Damaged purchase records used to stop the load dead here: this returned with GC.db
+    -- never published and the event unregistered, so nothing else in the addon existed --
+    -- no window, no slash commands, no tooltips -- and not one word said why. It now says
+    -- so and carries on without that one feature. Init(nil) leaves the acquisitions module
+    -- with no database at all, so each of its entry points refuses (every one of them opens
+    -- with `if not db`) rather than writing into the damaged table.
     local acquisitionsInitialized = not GC.Acquisitions or GC.Acquisitions.Init(GoldCapDB)
+    local damagedAcquisitions
     if not acquisitionsInitialized then
-      frame:UnregisterEvent("ADDON_LOADED")
-      return
+      GC.Acquisitions.Init(nil)
+      -- Held across the defaults pass below, which would otherwise replace a store that is not
+      -- a table at all with an empty one -- quietly destroying whatever a human might still
+      -- have recovered from it. Damaged is not the same as worthless.
+      damagedAcquisitions = GoldCapDB.acquisitions
     end
     migrateSniperProfitFloor(GoldCapDB)
     migrateSniperTierProfit(GoldCapDB)
@@ -302,11 +322,17 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if type(sniper) == "table" then migrateSniperWindowWidth(sniper) end
     migrateSniperDialogDetails(GoldCapDB)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
+    if damagedAcquisitions ~= nil then GoldCapDB.acquisitions = damagedAcquisitions end
     GC.db = GoldCapDB
     -- Before any frame is built: every widget reads its label through GC.L at construction,
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
     if GC.ApplyLocale then GC.ApplyLocale() end
+    -- Said AFTER the language is settled, so the one line explaining a lost feature is not
+    -- the only English sentence in an otherwise translated addon.
+    if not acquisitionsInitialized and GC.Print then
+      GC.Print(GC.L["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"])
+    end
     -- Anything resolved through GC.L at FILE scope would have captured the English
     -- fallback, since every file loads before the line above picks a language. The
     -- keybinding label is the one such value that cannot wait to be read lazily.
@@ -328,22 +354,27 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.AppLedger.Adopt()
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
-    if GC.Acquisitions then
+    if GC.Acquisitions and acquisitionsInitialized then
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
       -- One-shot cleanup of phantom mail-buy duplicates (2026-08-17 incident); says what it
       -- deleted, because silently editing the cost base is exactly what phantoms did.
       local repaired = GC.Acquisitions.RepairDuplicateMailBuys
         and GC.Acquisitions.RepairDuplicateMailBuys() or 0
+      -- Two whole sentences, not one with an "s" posted into it: that trick is English
+      -- grammar wearing a format specifier, and every translation of it came back with the
+      -- English suffix glued into the middle of a German or Russian word.
       if repaired > 0 and GC.Print then
-        GC.Print((GC.L["removed %d duplicate purchase record%s left by a mail-scan bug"]):format(
-          repaired, repaired == 1 and "" or "s"))
+        GC.Print((repaired == 1
+          and GC.L["removed %d duplicate purchase record left by a mail-scan bug"]
+          or GC.L["removed %d duplicate purchase records left by a mail-scan bug"]):format(repaired))
       end
       -- Same announcement rule for the 2026-08-19 double-scan sale duplicates.
       local rescanned = GC.Acquisitions.RepairRescannedMailSales
         and GC.Acquisitions.RepairRescannedMailSales() or 0
       if rescanned > 0 and GC.Print then
-        GC.Print((GC.L["removed %d duplicate sale record%s left by a mail-scan bug"]):format(
-          rescanned, rescanned == 1 and "" or "s"))
+        GC.Print((rescanned == 1
+          and GC.L["removed %d duplicate sale record left by a mail-scan bug"]
+          or GC.L["removed %d duplicate sale records left by a mail-scan bug"]):format(rescanned))
       end
     end
     -- One-shot repair of the 2026-08-28 region defect: rows stamped with the region of the
@@ -403,15 +434,27 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
+      GC.Util.Trace("ah: show")
       GC.Sniper.OnAuctionHouseShow()
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
+      GC.Util.Trace("ah: closed")
       GC.Sniper.OnAuctionHouseClosed()
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     end
+  elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
+    GC.Util.NoteThrottleEvent(event)
+    -- A DROPPED message is the client saying it threw our request away, so the reply it was
+    -- going to answer with is never coming. Counting it and doing nothing else meant whatever
+    -- was waiting on that reply sat there until its own timeout -- eight seconds of a dead
+    -- search slot, and a fence behind it -- when the answer was already known.
+    if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.Sniper.OnThrottledMessageDropped then
+      GC.Sniper.OnThrottledMessageDropped()
+    end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
+    GC.Util.NoteThrottleEvent(event)
     -- The scanner is NOT woken here any more. It is one of two background consumers of a
     -- single search slot, and calling it first meant it took every slot ahead of the browse
     -- scan -- see UI/SniperFrame.lua's OnThrottleReady, which now owns that decision. Result
@@ -432,6 +475,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     local itemKey = ...
+    -- The payload is documented as an itemKey, and every line below reads a field off it.
+    -- A client that fires this event with nothing attached would take the whole event frame
+    -- down with an index-a-nil error -- taking mail scanning, the ledger and the auction
+    -- house tab with it, because they all share this one handler.
+    if type(itemKey) ~= "table" or not itemKey.itemID then return end
     if GC.Sniper.scanner then
       GC.Sniper.scanner:OnItemResults(itemKey.itemID)
     end
@@ -567,11 +615,23 @@ function GC.OnSlash(msg)
   if handler then
     handler()
   else
-    GC.Print("v" .. GC.version .. GC.L[" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"])
+    GC.Print("v" .. GC.version .. GC.L[" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"])
   end
 end
 
 GC.slashHandlers.sniper = function() GC.Sniper.Toggle() end
+
+-- The way back to a window you cannot reach. Settings' own RESET WINDOW button does the same
+-- thing, but it lives INSIDE the window -- no use at all when the window itself has ended up
+-- off-screen (a resolution change, another addon moving it, a UI scale that no longer matches
+-- the one it was saved on). Same path either way, so there is one behaviour to remember.
+GC.slashHandlers.reset = function()
+  if GC.SettingsUI and GC.SettingsUI.ResetWindow then GC.SettingsUI.ResetWindow() end
+  GC.Print(GC.L["window moved back to the middle of the screen at its default size"])
+end
+-- Diagnostics for the Sell tab's pricing walk; see GC.Sell.DebugPrint.
+GC.slashHandlers.sell = function() if GC.Sell and GC.Sell.DebugPrint then GC.Sell.DebugPrint() end end
+GC.slashHandlers.board = function() if GC.Sniper and GC.Sniper.DebugBoard then GC.Sniper.DebugBoard() end end
 
 -- A printed recap rather than a frame: the numbers are the deliverable here,
 -- and an untested UI window isn't worth carrying until the web dashboard makes

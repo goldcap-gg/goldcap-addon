@@ -47,6 +47,36 @@ describe("Scanner", function()
     assert.same({ 1, 2, 1 }, log.searches) -- wrapped around
   end)
 
+  -- The slot arbiter hands this loop one turn and then reports the turn as spent. Every way of
+  -- sending nothing used to be reported as a send all the same, so the verify walk queued
+  -- behind it went hungry for a query nobody had made.
+  it("reports whether a granted turn actually produced a search", function()
+    keyInfos[1] = { isCommodity = true }
+    ready = false
+    local s = GC.Scanner.New(drv, cfg)
+    s:Start({ 1 })
+    assert.same({}, log.searches)
+
+    ready = true
+    assert.is_true(s:OnSystemReady()) -- a search went out on this turn
+    assert.same({ 1 }, log.searches)
+
+    -- A query is still in flight: nothing goes out, and the turn was not spent.
+    assert.is_false(s:OnSystemReady())
+
+    -- The item key the client has not cached: the loop walks the whole set, sends nothing,
+    -- and says so rather than quietly eating the slot.
+    keyInfos[1] = nil
+    s:OnCommodityResults(1)
+    assert.same({ 1 }, log.searches)
+    assert.is_false(s:OnSystemReady())
+
+    -- And once the client answers with the key, the loop is sending again.
+    keyInfos[1] = { isCommodity = true }
+    s:OnKeyInfo(1)
+    assert.same({ 1, 1 }, log.searches)
+  end)
+
   it("evaluates item results and dedupes by auctionID", function()
     keyInfos[1] = { isCommodity = false }
     values[1] = { mv = 1000000 }

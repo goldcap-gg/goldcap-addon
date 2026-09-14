@@ -594,3 +594,60 @@ describe("FullScan.ApplyLiveObservation", function()
     assert.same({ hot }, GC.FullScan.ApplyLiveObservation(updated, 30, deal(30, "GOOD", 800, 90), 1))
   end)
 end)
+
+-- The Items board (UI/SniperFrame.lua's GC.Sniper._realmDeals) is a MAP of itemID -> deal that
+-- the key poll keeps adding to, under a board that renders at most a hundred rows. Nothing
+-- else in this file caps a store that is not an array.
+describe("FullScan.CapDeals", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/FullScan.lua")
+  end)
+
+  local function deal(itemID, profit)
+    return { itemID = itemID, tier = "WATCH", profit = profit, estProfit = profit,
+      unitPrice = 100, qty = 1 }
+  end
+
+  it("returns a map's deals in the board's own order, best first", function()
+    local store = { [1] = deal(1, 100), [2] = deal(2, 900), [3] = deal(3, 500) }
+    local kept = GC.FullScan.CapDeals(store, 10)
+    assert.same({ 2, 3, 1 }, { kept[1].itemID, kept[2].itemID, kept[3].itemID })
+  end)
+
+  it("drops the worst keys from the map itself once it is over the cap", function()
+    local store = {}
+    for id = 1, 120 do store[id] = deal(id, id * 1000) end -- item 120 is the best lead
+
+    local kept = GC.FullScan.CapDeals(store, 100)
+
+    assert.equal(100, #kept)
+    assert.equal(120, kept[1].itemID)
+    -- The store is trimmed too, not merely reported on: it is what the next fold adds to.
+    local left = 0
+    for _ in pairs(store) do left = left + 1 end
+    assert.equal(100, left)
+    assert.is_nil(store[1])   -- the twenty cheapest leads are gone
+    assert.is_nil(store[20])
+    assert.is_table(store[21])
+    assert.is_table(store[120])
+  end)
+
+  it("leaves a map alone when it is under the cap", function()
+    local store = { [7] = deal(7, 10) }
+    assert.equal(1, #GC.FullScan.CapDeals(store, 100))
+    assert.is_table(store[7])
+  end)
+
+  -- The store is keyed by itemID, and an item id is an integer, so a store holding item 1 is
+  -- indistinguishable from an array -- which is why this caps by KEY and never by position.
+  it("caps by key, so a store that happens to hold item 1 is not read as an array", function()
+    local store = { [1] = deal(1, 100), [2] = deal(2, 900), [3] = deal(3, 500) }
+    local kept = GC.FullScan.CapDeals(store, 2)
+    assert.same({ 2, 3 }, { kept[1].itemID, kept[2].itemID })
+    assert.is_nil(store[1])
+    assert.is_table(store[2])
+    assert.is_table(store[3])
+  end)
+end)

@@ -103,11 +103,18 @@ local function evaluate(position)
   if recommendation.belowCost == true then
     return "below_breakeven"
   end
-  local value = mulExact(unit, position.bagQty)
+  -- Ranked on what one click actually LISTS, not on what is in the bags. A normal item posts a
+  -- single stack (PostItem pins one ItemLocation -- see GC.BagStock.PostableQuantity and
+  -- `postableQty` in SellPositions), so five stacks of twenty used to sort this queue as if a
+  -- hundred units were about to change hands when twenty were. Commodities are unaffected: the
+  -- whole bag pool is one postable quantity. Falls back to bagQty when nothing set the field,
+  -- which is exactly the old behaviour.
+  local postable = positive(position.postableQty) and position.postableQty or position.bagQty
+  local value = mulExact(unit, postable)
   if not value then
     return "unresolved_identity"
   end
-  return nil, unit, value
+  return nil, unit, value, postable
 end
 
 -- Money first, descending; ties broken by positionKey ascending so a rebuild with the same
@@ -140,14 +147,16 @@ function GC.PostQueue.Build(positions)
   local entries, skipped = {}, {}
   for _, position in ipairs(positions or {}) do
     if type(position) == "table" and positive(position.bagQty) then
-      local reason, unit, value = evaluate(position)
+      local reason, unit, value, postable = evaluate(position)
       if reason then
         skipped[#skipped + 1] = { positionKey = position.positionKey, itemID = position.itemID,
           itemName = position.itemName, reason = reason }
       else
+        -- Both figures travel: `bagQty` is what the player is holding, `postableQty` is what the
+        -- next click lists. Conflating them is the defect this carries a second field for.
         entries[#entries + 1] = { positionKey = position.positionKey, scopeKey = position.scopeKey,
           itemID = position.itemID, itemName = position.itemName, bagQty = position.bagQty,
-          unitPrice = unit, value = value }
+          postableQty = postable, unitPrice = unit, value = value }
       end
     end
   end

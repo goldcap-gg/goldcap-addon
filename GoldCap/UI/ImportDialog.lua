@@ -78,13 +78,18 @@ GC.slashHandlers.status = function()
   local now = time()
   -- importedOrigin is nil for SavedVariables written before the origin marker existed --
   -- treat that the same as "manual" since every import used to be a manual paste.
-  local originLabel = st.importedOrigin == "app" and "auto-synced" or "manual import"
+  -- Three literals here never went through the string layer, so this line came back half
+  -- English in every other language: the two origin words, the whole imported clause and the
+  -- bundled "none". The clause keeps its own key so a translator can move the realm, the age
+  -- and the origin around each other -- Lua 5.1 has no positional specifiers, so the ORDER of
+  -- %d %s %s %s is fixed even where the words around them are not.
+  local originLabel = st.importedOrigin == "app" and GC.L["auto-synced"] or GC.L["manual import"]
   GC.Print(GC.L["region %s — bundled: %d items (%s), imported: %s"]:format(
     st.region,
     st.bundledCount,
-    st.bundledTs and st.bundledTs > 0 and GC.Util.FormatAge(now - st.bundledTs) or "none",
+    st.bundledTs and st.bundledTs > 0 and GC.Util.FormatAge(now - st.bundledTs) or GC.L["none"],
     st.importedTs
-      and ("%d items for %s (%s, %s)"):format(
+      and (GC.L["%d items for %s (%s, %s)"]):format(
         st.importedCount, st.importedRealm, GC.Util.FormatAge(now - st.importedTs), originLabel)
       or GC.L["none"]
   ))
@@ -93,4 +98,9 @@ GC.slashHandlers.status = function()
   if appErr then
     GC.Print(GC.L["Companion sync rejected:"] .. " " .. GC.Data.DescribeImportError(appErr.reason))
   end
+  -- A snapshot from another region is the one status fact that explains everything else
+  -- looking wrong, and it was said once when the import landed and never again. The realm
+  -- and region above are what a player checks it against.
+  local mismatch = GC.Data.RegionMismatchText and GC.Data.RegionMismatchText()
+  if mismatch then GC.Print(mismatch) end
 end

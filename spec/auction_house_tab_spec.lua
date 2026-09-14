@@ -266,6 +266,28 @@ describe("Auction House tab", function()
     assert.equal(0, #created)
   end)
 
+  -- Everything here hangs off the dock, and the pcall that builds it can come back empty.
+  -- "We are installed" used to be latched BEFORE that attempt, so one failed build cost the
+  -- player the GoldCap tab for the rest of the session: every later visit took the
+  -- already-installed early return and tried nothing.
+  it("tries again on the next visit when the dock could not be built", function()
+    local realCreate = _G.CreateFrame
+    _G.CreateFrame = function(_, name)
+      if name == "GoldCapAuctionHouseDock" then error("taint") end
+      error("nothing else should be built once the dock has failed")
+    end
+
+    assert.has_no.errors(function() GC.AuctionHouseTab.Install() end)
+    assert.is_nil(dockPanel())
+    assert.equal(3, #ah.Tabs) -- no tab of ours on the bar yet
+
+    _G.CreateFrame = realCreate
+    GC.AuctionHouseTab.Install()
+
+    assert.is_table(dockPanel())
+    assert.equal(4, #ah.Tabs)
+  end)
+
   -- Blizzard's request throttle is one shared budget: while the player is on the default
   -- Create Auction form, GoldCap's background traffic must go quiet. Verified against the same
   -- Blizzard_AuctionHouseFrame.lua the header cites: AuctionHouseFrameDisplayMode has distinct
@@ -281,6 +303,23 @@ describe("Auction House tab", function()
     it("fails open right after Install, before any SetDisplayMode call landed", function()
       GC.AuctionHouseTab.Install()
       assert.is_false(GC.AuctionHouseTab.PlayerIsPosting())
+    end)
+
+    -- Seen in game: the realm key poll's search made Blizzard's pane open a gear piece's buy
+    -- page, and PlayerIsBuying read it as the player mid-purchase -- Auto sat in WAITING with
+    -- an empty board until the player pressed Back.
+    it("a buy page opened right after the addon's own search does not count as buying", function()
+      GC.AuctionHouseTab.Install()
+      GC.AuctionHouseTab.NoteAddonSearch(clock)
+      clock = clock + 1
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy())
+      -- The player's own click, long after any search of ours, still counts.
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      clock = clock + 10
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesBuy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
     end)
 
     it("is true once Blizzard's own display mode is ItemSell", function()

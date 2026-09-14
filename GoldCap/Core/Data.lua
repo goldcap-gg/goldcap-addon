@@ -43,6 +43,34 @@ end
 function GC.Data.Init(database)
   db = database
   adoptRegion()
+  GC.Data.WarnRegionUnknown()
+end
+
+-- Said once per session, at load: the portal CVar could not be read, so nothing knows which
+-- region this client is in and detectRegion's "us" fallback is what picked the price table.
+-- That fallback is fine -- a price table has to come from somewhere -- but it was completely
+-- silent, so a player outside the US could spend a session reading US prices for their own
+-- realm with nothing on screen saying so. The tooltip's own "Bundled US data" line already
+-- appears for every item answered this way (opts.region comes from GC.Data.Region); this is
+-- the one line that explains why it says US.
+--
+-- Nothing is said once an import is loaded: an import names its own region explicitly, so
+-- there is no guess left to warn about.
+local warnedRegionUnknown = false
+function GC.Data.WarnRegionUnknown()
+  if warnedRegionUnknown then return nil end
+  -- No GetCVar at all is no CLIENT at all (the spec bed, or a load outside the game); there
+  -- is nothing to tell anybody. The warning is for a client that has the CVar and still
+  -- cannot answer -- a PTR portal, say.
+  if not GetCVar then return nil end
+  if portalRegion() then return nil end
+  local imported = db and db.imported
+  if imported and type(imported.region) == "string" and imported.region ~= "" then return nil end
+  warnedRegionUnknown = true
+  if GC.Print then
+    GC.Print(GC.L["GoldCap could not tell which region you are playing in, so it is showing bundled US prices -- /goldcap import or /goldcap companion loads your own realm's"])
+  end
+  return true
 end
 
 -- The region the CLIENT is connected to -- a different question from GetStatus().region,
@@ -74,6 +102,12 @@ function GC.Data.RegionMismatch()
   local client = portalRegion()
   if type(importedRegion) ~= "string" or importedRegion == "" then return nil end
   if not client or client == importedRegion then return nil end
+  -- Taiwanese realms connect through the KOREAN portal (see portalRegion's own note), so a
+  -- TW player's client reports `kr` and there is no client-side fact that can tell the two
+  -- apart. Calling that a mismatch told every TW player, every session, that their own TW
+  -- prices came from a market they were not standing in -- a warning that was always wrong
+  -- and that trains players to ignore the one case it exists for.
+  if client == "kr" and importedRegion == "tw" then return nil end
   return { imported = importedRegion, client = client, realm = imported.realm }
 end
 
@@ -81,9 +115,18 @@ end
 -- the bare code ("Import failed: bad_header"), and the companion path printed nothing at
 -- all -- a player whose sync silently did nothing had no way to tell a broken file from an
 -- addon that simply does not support their region.
+--
+-- @localised-keys: the literals below ARE GC.L keys, looked up in DescribeImportError where
+-- the table is READ rather than here -- this is file scope, and GC.L only resolves once
+-- ApplyLocale has run at ADDON_LOADED, so a lookup here would freeze the English fallback
+-- into every language. Without the marker the contract spec cannot see them at all, and
+-- these five sentences sat English in eleven languages. The table has to close with a `}`
+-- on its own line: that is where the spec's scanner stops.
 local IMPORT_ERRORS = {
   bad_region = "this build of GoldCap does not know that region -- update the addon",
   bad_header = "that does not look like a GoldCap import string",
+  no_realm = "that string does not name a realm",
+  two_strings = "that looks like two import strings pasted together -- paste just one",
   too_long = "that string is too long to import",
   no_items = "that string carried no prices",
   empty = "there was nothing to import",
@@ -94,6 +137,13 @@ function GC.Data.DescribeImportError(reason)
   if sentence then return GC.L[sentence] end
   return GC.L["the import failed (%s)"]:format(tostring(reason))
 end
+
+-- Which companion failure this SESSION has already printed, as reason+writtenAt. The gate
+-- used to be the PERSISTED db.appDataError, which meant a broken companion write was
+-- announced once and then never again -- not next login, not next week, while every session
+-- silently went on using stale prices. A session flag says it once a session instead, which
+-- is the cadence WarnRegionMismatch already uses for the same kind of fact.
+local warnedAppDataError = nil
 
 -- nil, or { reason = <parser code>, writtenAt = <companion's stamp> }. Read by /goldcap
 -- status and the Sniper's empty board so both say the same thing.
@@ -140,7 +190,14 @@ function GC.Data.SetImported(parsed)
   if parsed.targets and next(parsed.targets) then
     imported.targets = parsed.targets
   end
+  if not db then return end -- defensive: mirrors GetItemValue/GetStatus/GetWatchlist, which all tolerate Init not having run
   db.imported = imported
+  -- A working import is the answer to "the Companion wrote prices this addon could not read":
+  -- the recorded error described a payload that is no longer what is loaded, and it used to
+  -- survive a manual paste for good -- /goldcap status and the Sniper's empty board kept
+  -- reporting a sync failure at a player whose prices were fine.
+  db.appDataError = nil
+  warnedAppDataError = nil
   adoptRegion()
   GC.Data.WarnRegionMismatch()
   -- A fresh import can carry a fresh wanted list; resolve it now if the client is already
@@ -152,6 +209,16 @@ end
 -- this, and repeating it on every companion sync would train the player to ignore it.
 local warnedFor = nil
 
+--- The mismatch as one sentence, or nil when there is none. One sentence in one place: the
+-- warning below and /goldcap status both say it, and a player who scrolled past the chat
+-- line an hour ago needs the status command to still be able to tell them.
+function GC.Data.RegionMismatchText()
+  local mismatch = GC.Data.RegionMismatch()
+  if not mismatch then return nil end
+  return (GC.L["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"])
+    :format(mismatch.imported:upper(), tostring(mismatch.realm or "?"), mismatch.client:upper())
+end
+
 --- Tells the player, in the one place they will see it, that the prices on screen are from
 -- a market they are not standing in. Nothing said this before: an EU account running a KR
 -- snapshot saw KR discounts, KR tiers and KR profit on every EU auction for a full day, and
@@ -162,11 +229,21 @@ function GC.Data.WarnRegionMismatch()
   local token = mismatch.imported .. "\1" .. mismatch.client
   if warnedFor == token then return mismatch end
   warnedFor = token
-  if GC.Print then
-    GC.Print((GC.L["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"])
-      :format(mismatch.imported:upper(), tostring(mismatch.realm or "?"), mismatch.client:upper()))
-  end
+  if GC.Print then GC.Print(GC.Data.RegionMismatchText()) end
   return mismatch
+end
+
+local function recordAppDataError(reason, writtenAt)
+  if db then db.appDataError = { reason = reason, writtenAt = writtenAt } end
+  -- Once per session per distinct failure. This runs on every ADDON_LOADED, so a per-call
+  -- print would be spam; the old per-WRITE gate went the other way and said it once, ever.
+  local token = tostring(reason) .. "\1" .. tostring(writtenAt)
+  if warnedAppDataError == token then return end
+  warnedAppDataError = token
+  if GC.Print then
+    GC.Print(GC.L["the Companion wrote prices this addon could not read --"] .. " "
+      .. GC.Data.DescribeImportError(reason))
+  end
 end
 
 -- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --
@@ -174,35 +251,39 @@ end
 -- `GoldCap_AppData = { importString = "GCS1;...", writtenAt = <unix ts> }`. This runs that
 -- string through the SAME ImportString.Parse manual import uses (one parser, one validation
 -- path) and only adopts it over whatever's already in db.imported when strictly newer --
--- ts equality is a no-op, not churn, same "freshest wins" rule manual import follows. A
--- malformed importString or an absent/malshaped global are both silent no-ops: the companion
--- is optional and never required for the addon to work standalone. GC.Print is guarded
+-- ts equality is a no-op, not churn, same "freshest wins" rule manual import follows. An
+-- absent global is a silent no-op -- the companion is optional and never required for the
+-- addon to work standalone -- while a global that is THERE and unusable is recorded and
+-- said once a session (recordAppDataError above). GC.Print is guarded
 -- because it's only defined once Core/Init.lua has loaded (true by the time this runs for
 -- real, at ADDON_LOADED -- see Init.lua -- but not in specs that load Data.lua on its own).
 function GC.Data.AdoptAppData()
   local appData = _G.GoldCap_AppData
-  if type(appData) ~= "table" or type(appData.importString) ~= "string" then return end
+  -- No GoldCap_AppData at all is the normal standalone case -- the companion is optional and
+  -- its absence is not a fault. A GoldCap_AppData that IS there and carries no string is a
+  -- different thing: the companion ran and wrote something unusable, which is exactly the
+  -- state the player needs told, and which used to leave through this bare return in silence.
+  if type(appData) ~= "table" then return end
+  if type(appData.importString) ~= "string" then
+    recordAppDataError("empty", type(appData.writtenAt) == "number" and appData.writtenAt or nil)
+    return
+  end
 
   local parsed, reason = GC.ImportString.Parse(appData.importString)
   if not parsed then
-    local writtenAt = type(appData.writtenAt) == "number" and appData.writtenAt or nil
-    local previous = db and db.appDataError
-    -- Once per companion write, never once per login: this runs on every ADDON_LOADED and
-    -- a per-call print would be indistinguishable from spam.
-    local isNew = not previous or previous.writtenAt ~= writtenAt or previous.reason ~= reason
-    if db then db.appDataError = { reason = reason, writtenAt = writtenAt } end
-    if isNew and GC.Print then
-      GC.Print(GC.L["the Companion wrote prices this addon could not read --"] .. " "
-        .. GC.Data.DescribeImportError(reason))
-    end
+    recordAppDataError(reason, type(appData.writtenAt) == "number" and appData.writtenAt or nil)
     return
   end
   if db then db.appDataError = nil end
+  warnedAppDataError = nil
 
   local existing = db and db.imported
   if existing and parsed.ts <= existing.ts then return end
 
   GC.Data.SetImported(parsed)
+  -- Guarded like every other entry point here: SetImported stores nothing without a db, so
+  -- stamping the origin on it would be an error rather than a no-op.
+  if not (db and db.imported) then return end
   db.imported.origin = "app"
 
   local age = time() - parsed.ts
@@ -321,6 +402,11 @@ function GC.Data.GetWatchlist(fallbackN)
     return copy
   end
 
+  -- Asked for nothing, answer nothing -- before sorting every item in the import to throw
+  -- the whole sorted list away one entry at a time.
+  local cap = math.max(fallbackN or 100, 0)
+  if cap == 0 then return {} end
+
   local ids = {}
   for id in pairs(imp.items or {}) do ids[#ids + 1] = id end
   -- Tiebreak by id so the top-N boundary is stable across sessions.
@@ -329,7 +415,6 @@ function GC.Data.GetWatchlist(fallbackN)
     if ma == mb then return a < b end
     return ma > mb
   end)
-  local cap = math.max(fallbackN or 100, 0)
   while #ids > cap do table.remove(ids) end
   return ids
 end
@@ -569,13 +654,23 @@ GC.Data.LIVE_OBSERVATIONS_CAP = 200
 GC.Data.LIVE_OBSERVATION_MAX_AGE = 24 * 60 * 60
 GC.Data.LIVE_OBSERVATION_MAX_LEVELS = 5
 
+-- The regions this addon understands, from the one list that defines them
+-- (Core/ImportString.lua's REGIONS: us/eu/kr/tw). Both upload paths below scope their rows
+-- by region and both have to accept every region a client can actually be in -- the live
+-- observation path took "us" or "eu" only, written before kr and tw existed here, so a
+-- Korean or Taiwanese player scanned the auction house and every fact they saw was dropped
+-- on the floor without a word.
+local function knownRegion(value)
+  return GC.ImportString ~= nil and GC.ImportString.REGIONS ~= nil and GC.ImportString.REGIONS[value] == true
+end
+
 function GC.Data.RecordLiveObservation(database, observation, now)
   if type(database) ~= "table" or type(observation) ~= "table" then return nil end
   if database.liveObservations == nil then database.liveObservations = {} end
   if type(database.liveObservations) ~= "table" then return nil end
   if not isPositiveInteger(now) or not isPositiveInteger(observation.itemID)
       or not isPositiveInteger(observation.minUnit)
-      or (observation.region ~= "us" and observation.region ~= "eu") then return nil end
+      or not knownRegion(observation.region) then return nil end
   if observation.listings ~= nil and not isPositiveInteger(observation.listings) then return nil end
   if observation.totalQty ~= nil and not isPositiveInteger(observation.totalQty) then return nil end
 
@@ -625,20 +720,17 @@ end
 GC.Data.OWNED_LOTS_CAP = 500
 GC.Data.OWNED_LOT_MAX_AGE = 3 * 24 * 60 * 60
 
--- Deliberately GC.ImportString.REGIONS (us/eu/kr/tw), not RecordLiveObservation's narrower
--- "us" or "eu" check above: that check predates the kr/tw region rollout, and
--- GC.Ledger.Context().region -- this function's scope.region -- can genuinely be kr or tw
--- (GC.Data.ClientRegion -> portalRegion reads the client's own portal CVar against this same
--- list). Fixing RecordLiveObservation's narrower check is a separate change, not this one.
-local function knownRegion(value)
-  return GC.ImportString ~= nil and GC.ImportString.REGIONS ~= nil and GC.ImportString.REGIONS[value] == true
-end
-
--- "Name-Realm", each half non-empty and no embedded hyphen (a realm name's own
--- hyphens are stripped by the client's own unique-name format) -- guards the
--- per-character scoping the upsert below and MarkOwnedLotCancelled rely on.
+-- "Name-Realm", both halves non-empty -- guards the per-character scoping the upsert below
+-- and MarkOwnedLotCancelled rely on.
+--
+-- The realm half may contain hyphens of its own, and it usually does where it matters:
+-- GC.Ledger.Context builds this string as UnitName .. "-" .. GetRealmName(), and
+-- GetRealmName keeps the realm's own punctuation ("Azjol-Nerub", "Khaz'goroth"). Requiring
+-- a SINGLE hyphen therefore rejected every character on a hyphenated realm, so their lots
+-- were never recorded and never reached the My auctions page -- silently, since an invalid
+-- scope simply returns nil.
 local function validCharScope(value)
-  return type(value) == "string" and value:match("^[^-]+%-[^-]+$") ~= nil
+  return type(value) == "string" and value:match("^[^-]+%-.+$") ~= nil
 end
 
 function GC.Data.RecordOwnedLots(database, lots, scope, now)

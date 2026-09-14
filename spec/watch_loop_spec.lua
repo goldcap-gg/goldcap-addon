@@ -241,6 +241,7 @@ describe("Watch loop", function()
     GC.db.settings.sniper.watchPins = { 42 }
     GC.Sniper._RefreshWatchSet()
     set(GC.Sniper.OnAuctionHouseShow, "scanDeals", { deal(42, 100), deal(43, 200) })
+    renderList(GC) -- the render is what publishes the walk's slice of the board
     tickAt(GC, 101)
     assert.same({ 43 }, searched)      -- 42 is watched; the walk skips straight past it
   end)

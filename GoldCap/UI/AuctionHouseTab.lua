@@ -39,6 +39,11 @@ local LIB_TAB_ID = "GoldCap"
 -- The Blizzard mode last recorded by the SetDisplayMode hook below -- nil until the hook has
 -- fired at least once. Read by PlayerIsPosting().
 local currentMode = nil
+-- When this addon last sent a per-item search of its own (see NoteAddonSearch), and whether
+-- the buy page Blizzard is showing was opened by that search rather than by the player.
+local addonSearchAt = nil
+local provokedBuyMode = false
+local PROVOKED_PAGE_SECONDS = 3
 -- The GoldCap display mode: identity is the contract (Blizzard compares modes with `==`),
 -- and empty is the content (their show loop iterates it and finds nothing to show).
 local DISPLAY_MODE = {}
@@ -194,6 +199,18 @@ local function installSetDisplayModeHook(ah)
     -- field back off `ah` here, hooksecurefunc runs after the original, rather than trust the
     -- raw `mode` argument this hook was called with.
     currentMode = ah.displayMode
+    -- An item page the ADDON opened is not the player buying. A search this addon sends for
+    -- one item (the verify walk, a Check, the Sell tab's quote, the realm key poll) makes
+    -- Blizzard's own pane jump to that item's purchase page -- seen in game as a page for a
+    -- gear piece nobody clicked, spinner and all. PlayerIsBuying then read that page as the
+    -- player mid-purchase and held every background sender, Auto's scan included, until the
+    -- player happened to press Back: "AUTO" lit, nothing scanning, an empty board. A buy mode
+    -- that lands within moments of our own search is ours; the player's own click on a browse
+    -- row is the one that arrives with no search of ours in front of it.
+    local modes = _G.AuctionHouseFrameDisplayMode
+    local buyMode = modes and (currentMode == modes.ItemBuy or currentMode == modes.CommoditiesBuy)
+    provokedBuyMode = buyMode and addonSearchAt ~= nil
+      and (time() - addonSearchAt) <= PROVOKED_PAGE_SECONDS or false
     if libRegistered then return end
     if mode == DISPLAY_MODE then
       showDock()
@@ -239,7 +256,6 @@ function GC.AuctionHouseTab.Install()
     if not libRegistered then scheduleAnchor(ah) end
     return
   end
-  installed = true
 
   -- The content host, built FIRST: the window docks INTO it (SetDocked), so one Show/Hide
   -- moves everything -- and LibAHTab's CreateTab takes the frame its tab shows as an argument,
@@ -252,14 +268,22 @@ function GC.AuctionHouseTab.Install()
     dock:SetPoint("BOTTOMRIGHT", -7, 32)
     dock:Hide()
   end)
-  if dock and dock.HookScript then
+  -- The "we are built" latch is set here, not above: everything below hangs off this dock, and
+  -- the pcall that builds it can come back empty (another addon's taint on the auction house
+  -- frame, a name collision). Latching first meant one failed build cost the player the GoldCap
+  -- tab for the whole session -- every later visit took the early return above and tried
+  -- nothing. Now a visit that could not build it simply tries again on the next one.
+  if not dock then return end
+  installed = true
+
+  if dock.HookScript then
     -- Whoever changes the dock's visibility -- our own tab, the library on somebody else's tab,
     -- Blizzard hiding it with the rest of a display mode -- the window follows.
     pcall(dock.HookScript, dock, "OnShow", attachWindow)
     pcall(dock.HookScript, dock, "OnHide", detachWindow)
   end
 
-  local lib = dock and libAHTab()
+  local lib = libAHTab()
   if lib then
     local ok = pcall(lib.CreateTab, lib, LIB_TAB_ID, dock, "GoldCap")
     if ok then
@@ -353,7 +377,15 @@ function GC.AuctionHouseTab.PlayerIsBuying()
   if not currentMode then return false end
   local modes = _G.AuctionHouseFrameDisplayMode
   if not modes then return false end
+  if provokedBuyMode then return false end -- our own search opened this page, see the hook
   return currentMode == modes.ItemBuy or currentMode == modes.CommoditiesBuy
+end
+
+-- Every per-item search this addon sends passes through here first (SniperFrame's driver,
+-- the realm key poll, SellFrame's quote driver), so the SetDisplayMode hook can tell a page
+-- our search opened from one the player clicked open. `now` is for specs.
+function GC.AuctionHouseTab.NoteAddonSearch(now)
+  addonSearchAt = now or time()
 end
 
 -- The player's own search-box activity. Called from UI/SniperFrame.lua's installSearchHooks on

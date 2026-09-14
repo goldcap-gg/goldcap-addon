@@ -96,7 +96,19 @@ describe("Settings controls", function()
     function r:RegisterForClicks() end
     function r:SetAutoFocus() end
     function r:SetMaxLetters(n) self.maxLetters = n end
-    function r:ClearFocus() end
+    -- The real WidgetAPI fires OnEditFocusLost synchronously from ClearFocus, and this whole
+    -- screen is built on that ordering: Enter and Escape both clear focus, and the commit lives
+    -- in the focus-lost script (SettingsFrame.lua's bindNumberField). A fake that just dropped
+    -- a flag would let Escape look like it abandoned an edit that production would have saved.
+    function r:ClearFocus()
+      self.focused = false
+      if self.scripts.OnEditFocusLost then self.scripts.OnEditFocusLost(self) end
+    end
+    function r:SetFocus()
+      self.focused = true
+      if self.scripts.OnEditFocusGained then self.scripts.OnEditFocusGained(self) end
+    end
+    function r:HasFocus() return self.focused == true end
     function r:SetChecked(v) self.checked = v and true or false end
     function r:GetChecked() return self.checked end
     function r:SetCheckedTexture() end
@@ -395,6 +407,39 @@ describe("Settings controls", function()
     assert.equal(2.00, GC.db.settings.sniper.minimumRoi)
   end)
 
+  -- Escape is how a player backs out of a field -- and it committed instead. Its handler clears
+  -- focus, clearing focus is what fires the commit, so a number typed and then abandoned was
+  -- saved anyway (clamped to the field's range, which is how "999" became a real 200% setting).
+  it("Escape abandons a half-typed number instead of saving it", function()
+    GC.db.settings.sniper.minimumRoi = 0.15
+    GC.SettingsUI.Toggle()
+    local box = fieldOf(_G.GoldCapSniperFrame, "Min return per buy %")
+    box.editBox:SetFocus()
+    box.editBox:SetText("999")
+
+    box.editBox.scripts.OnEscapePressed(box.editBox)
+
+    assert.equal(0.15, GC.db.settings.sniper.minimumRoi)
+    assert.equal("15", box.editBox:GetText()) -- and the box shows what is actually stored
+    assert.is_false(box.editBox:HasFocus())
+  end)
+
+  -- The gold wash that marks the focused field was left painted on every box the player had
+  -- ever typed in: makeEditBox wires the tint off on focus loss, and bindNumberField's own
+  -- focus-lost script replaces that handler wholesale.
+  it("drops the focus tint when the field loses focus", function()
+    GC.SettingsUI.Toggle()
+    local box = fieldOf(_G.GoldCapSniperFrame, "Min return per buy %")
+    -- The rounded fill editBoxBg recolors -- the box's first child, built before its editbox.
+    local fill = box.children[1]
+    box.editBox:SetFocus()
+    assert.same({ 0.83, 0.64, 0.22, 0.25 }, fill.vertexColor) -- gold wash, fakeTheme's palette
+
+    box.editBox:ClearFocus()
+
+    assert.same({ 0.05, 0.05, 0.07, 1 }, fill.vertexColor)
+  end)
+
   it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()
     GC.db.settings.sniper.minimumProfitCopper = 999999
     GC.db.settings.sniper.minimumRoi = 1.5
@@ -414,6 +459,19 @@ describe("Settings controls", function()
 
     local box = fieldOf(_G.GoldCapSniperFrame, "Max wallet per buy %")
     assert.equal("5", box.editBox:GetText()) -- GC.DEFAULTS.maxCapitalShare 0.05 -> 5%
+  end)
+
+  -- The same reset RESET WINDOW performs, published so `/goldcap reset` can reach it (see
+  -- Core/Init.lua): the button is inside the window, which is no use when the window is what
+  -- has gone missing. It must work whether or not this screen was ever opened.
+  it("publishes the window reset without needing the settings screen to be built", function()
+    GC.db.settings.sniper.window = { point = "TOPLEFT", x = 9000, y = -9000, width = 1400, height = 1200 }
+
+    GC.SettingsUI.ResetWindow()
+
+    assert.is_nil(GC.db.settings.sniper.window)
+    assert.same({ 720, 600 }, { _G.GoldCapSniperFrame.width, _G.GoldCapSniperFrame.height })
+    assert.same({ { "CENTER" } }, _G.GoldCapSniperFrame.points)
   end)
 
   it("offers a language picker that writes the setting and re-applies it", function()

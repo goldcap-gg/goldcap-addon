@@ -1155,4 +1155,119 @@ describe("Sell protected action state", function()
     assert.equal(2, state.exactQty)
     assert.equal("item:42:100:7:0", state.positionKey)
   end)
+  -- The post watchdog was armed once, on the FIRST click, and never re-armed for the confirming
+  -- one -- so the seconds a player spent reading "lose its deposit" came out of the seconds the
+  -- auction house had to answer the confirm, and a slow server produced "Posting timed out" over
+  -- a post that had gone through.
+  it("[S4] gives the confirming click its own timeout window", function()
+    local timers = {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local confirms = 0
+    _G.C_AuctionHouse = {
+      PostCommodity = function() return true end,
+      ConfirmPostCommodity = function() confirms = confirms + 1 end,
+    }
+    local quote = { unit = 200, at = 100 }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
+      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
+    } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
+    local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
+    post(row)
+    assert.equal("confirm", row.postStage)
+    post(row)
+    assert.equal(1, confirms)
+    assert.equal("confirming", row.postStage)
+    local armed = {}
+    for _, timer in ipairs(timers) do if timer.seconds == 8 then armed[#armed + 1] = timer.callback end end
+    assert.equal(2, #armed)
+    armed[1]() -- the first click's clock, already spent: inert
+    assert.equal("confirming", row.postStage)
+    armed[2]()
+    assert.is_nil(row.postStage)
+  end)
+
+  -- And when the auction house really is slower than the watchdog, the post it announces is
+  -- still a real post: it used to be lost entirely -- never recorded against the batch, and the
+  -- price the seller had typed never cleared, so the next stack of that item quietly inherited
+  -- a number chosen against a book that had moved.
+  it("[S4] records a post the auction house confirmed after the watchdog gave up", function()
+    local timers, records, refreshes = {}, {}, 0
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    _G.C_AuctionHouse = { PostCommodity = function() return true end, ConfirmPostCommodity = function() end }
+    local quote = { unit = 200, at = 100 }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
+      BuildPostPlan = function(_, _, fresh) return { positionKey = "commodity:42",
+        scopeKey = "eu\1A-R\1commodity:42", itemID = 42, quantity = 1, unitPrice = fresh.unit } end,
+    }, Acquisitions = { RecordPost = function(...) records[#records + 1] = { ... } end },
+      Ledger = { Context = function() return { char = "A-R", region = "eu" } end } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    local post = handlers(GC)
+    set(post, "liveBagState", function()
+      return { bag = 0, slot = 1, stackQty = 1, exactQty = 1, itemID = 42, positionKey = "commodity:42" }
+    end)
+    set(post, "driver", { keyInfo = function() return { isCommodity = true } end })
+    local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
+    local row = { position = p, action = button(), renderEntryID = "entry:post:42" }
+    post(row); post(row)
+    local armed = {}
+    for _, timer in ipairs(timers) do if timer.seconds == 8 then armed[#armed + 1] = timer.callback end end
+    armed[#armed]()
+    assert.is_nil(row.postStage)
+    GC.Sell.OnAuctionCreated()
+    assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100, 200 }, records[1])
+    assert.equal(1, refreshes)
+    -- Consumed once. A second, unrelated creation must not be credited to the same pin.
+    GC.Sell.OnAuctionCreated()
+    assert.equal(1, #records)
+  end)
+
+  -- A cancel is a server round trip. While it was in flight the row's own button was disabled,
+  -- but the footer's CANCEL control still read "CANCEL LOT?" and was still enabled -- and that
+  -- click fell straight past the armed branch into the arm branch, re-arming the very lot whose
+  -- cancel the server was still working on.
+  it("[S12] refuses a second click on a lot whose cancel is already on the wire", function()
+    local cancels = 0
+    _G.C_AuctionHouse = {
+      CancelAuction = function() cancels = cancels + 1 end,
+      GetOwnedAuctions = function() return { { auctionID = 7 } } end,
+    }
+    local quote = { unit = 200, at = 100 }
+    local GC = { Sell = {}, QuoteCache = { Fresh = function() return quote end }, SellPositions = {
+      BuildRepostPlan = function(target, auctionID) return { positionKey = "commodity:42",
+        scopeKey = target.scopeKey, itemID = 42, auctionID = auctionID, quantity = 1, unitPrice = 200 } end,
+      NormalizeOwnedLots = function() return {
+        { positionKey = "commodity:42", itemID = 42, auctionID = 7, quantity = 1, unitPrice = 200 },
+      } end,
+    } }
+    helper.loadModule("UI/SellFrame.lua", GC)
+    local _, repost = handlers(GC)
+    set(repost, "composePositions", function() end)
+    local live = position(); live.scopeKey = "eu\1A-R\1commodity:42"
+    set(repost, "currentPosition", function() return live end)
+    local p = position(); p.scopeKey = "eu\1A-R\1commodity:42"
+    local row = { position = p, action = button(), renderEntryID = "entry:lot:7" }
+    repost(row, 7)
+    assert.equal("armed", row.repostStage)
+    row.repostReady = true
+    repost(row, 7)
+    assert.equal(1, cancels)
+    assert.equal("cancelling", row.repostStage)
+    repost(row, 7)
+    assert.equal(1, cancels)
+    assert.equal("cancelling", row.repostStage)
+    assert.is_false(row.action.enabled)
+  end)
 end)

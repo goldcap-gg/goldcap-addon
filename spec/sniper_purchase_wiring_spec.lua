@@ -2102,9 +2102,20 @@ describe("Sniper purchase wiring", function()
 
     assert.same({ { auctionID = 8801, amount = 750000 } }, bids)
     assert.equal("buying", row.purchaseStage)
-    -- The deal takes the candidate's identity, or resolvePurchase could never clear the
-    -- pendingAuction entry this buy just created.
-    assert.equal(8801, deal.auctionID)
+    -- The PURCHASE takes the candidate's identity, or resolvePurchase could never clear the
+    -- pendingAuction entry this buy just created -- on its own copy of the deal, leaving what
+    -- the board is showing exactly as the scan found it. A bid can fail, and a failed bid must
+    -- not repaint the row with a price nothing confirmed.
+    assert.equal(8801, row.purchaseDeal.auctionID)
+    assert.equal(1, row.purchaseDeal.qty)
+    assert.equal(750000, row.purchaseDeal.unitPrice)
+    assert.is_nil(deal.auctionID)
+    assert.equal(1, deal.qty)
+    assert.equal(1, deal.unitPrice)
+    -- And it carries the item identity the acquisition store keys a position by: without it
+    -- the batch is stored with no position, and no sale can ever be matched back to it.
+    assert.same({ itemID = 42, itemLevel = 623, itemSuffix = 0, battlePetSpeciesID = 0 },
+      row.purchaseDeal.itemKey)
 
     -- A realm decision with NO candidate is still Check-only: the same click must route to the
     -- Check path instead of a purchase. armCheck is stubbed rather than run because the real
@@ -2234,6 +2245,10 @@ describe("Sniper purchase wiring", function()
     assert.equal(1, #GC.db.acquisitions)
     assert.equal(750000, GC.db.acquisitions[1].originalTotal)
     assert.equal("goldcap", GC.db.acquisitions[1].source)
+    -- The position this batch belongs to. A batch without one is invisible to ReconcileSale,
+    -- so the sale of this very lot would never consume it and "You paid" would keep averaging
+    -- over stock the player no longer owns.
+    assert.equal("item:42:623:0:0", GC.db.acquisitions[1].positionKey)
 
     -- The session line the player reads has to agree with the books.
     assert.equal(1, GC.Sniper.session.buys)
@@ -2361,6 +2376,418 @@ describe("Sniper purchase wiring", function()
       -- authoritative Check can exist.
       assert.is_true(getUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining")[42] == attempt)
       assert.is_false(GC.Sniper.IsPurchaseQuiet())
+    end)
+  end)
+
+  -- What happens to a Confirm the server never answered, and to the three places a dialog could
+  -- speak for a row it was not showing. Every one of these is about gold: a row handed back as
+  -- "Check again" is one click from buying the same lot twice, and a purchase nothing recorded
+  -- is gold that left the bags with no cost basis behind it.
+  describe("stranded confirmations and dialog ownership", function()
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local function getUpvalue(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local printed, recorded, money
+
+    local function loadSniper()
+      printed, recorded, money = {}, { flips = 0, ledger = 0, acquisitions = 0 }, 10000000000
+      _G.time = function() return 100000 end
+      _G.GetTime = function() return 100 end
+      _G.GetMoney = function() return money end
+      _G.GetCoinTextureString = function(value) return tostring(value) end
+      _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+      _G.C_AuctionHouse = {
+        CalculateCommodityDeposit = function() return 0 end,
+        CancelCommoditiesPurchase = function() end,
+        MakeItemKey = function(itemID) return { itemID = itemID } end,
+        HasFullBrowseResults = function() return false end,
+        -- No search buffer unless a test fills one: the client's single commodity buffer
+        -- belongs to whatever was searched last, which is nothing here.
+        GetNumCommoditySearchResults = function() return 0 end,
+        GetCommoditySearchResultInfo = function() return nil end,
+      }
+      local GC = {
+        Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+          color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+            fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+            green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+        AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+          PauseReasons = function() return {} end, Tick = function() end } end },
+        Data = {
+          GetItemValue = function() return {} end,
+          GetWatchlist = function() return {} end,
+          RecordFlip = function() recorded.flips = recorded.flips + 1 end,
+        },
+        Ledger = {
+          Context = function() return { char = "A-R", region = "eu" } end,
+          RecordSniperBuy = function() recorded.ledger = recorded.ledger + 1; return { key = "buy:1" } end,
+        },
+        Acquisitions = { RecordGoldCap = function() recorded.acquisitions = recorded.acquisitions + 1 end },
+        Print = function(text) printed[#printed + 1] = text end,
+        db = { settings = { sniper = {} } },
+      }
+      helper.loadModule("Core/Util.lua", GC)
+      helper.loadModule("Core/Book.lua", GC)
+      helper.loadModule("Core/SniperDecision.lua", GC)
+      helper.loadModule("Core/CheckVerdict.lua", GC)
+      helper.loadModule("Core/DealMath.lua", GC)
+      helper.loadModule("Core/AutoScan.lua", GC)
+      helper.loadModule("Core/BookPass.lua", GC)
+      helper.loadModule("Core/DrillQueue.lua", GC)
+      helper.loadModule("Core/KeyPoll.lua", GC)
+      helper.loadModule("UI/SniperFrame.lua", GC)
+      -- The board repaint is another spec's subject and needs the whole frame to exist.
+      setUpvalue(GC.Sniper._ReleaseStrandedConfirmed, "refreshRows", function() end)
+      return GC
+    end
+
+    -- A dialog double that answers everything the purchase paths ask a dialog, and records
+    -- what was written so a test can assert the screen was (or was not) touched.
+    local function fakeDialog(row)
+      local d = { row = row, written = {}, enabled = false, height = 0, baseHeight = 400 }
+      d.primaryBtn = {
+        Disable = function() d.enabled = false end,
+        Enable = function() d.enabled = true end,
+        IsEnabled = function() return d.enabled end,
+        SetLabel = function(_, text) d.label = text end,
+        text = { SetTextColor = function() end },
+      }
+      d.cancelBtn = { Enable = function() end, Disable = function() end, SetLabel = function() end }
+      d.status = {
+        SetText = function(_, text) d.written[#d.written + 1] = text end,
+        SetTextColor = function() end,
+      }
+      d.banner = { shown = false,
+        Hide = function(self) self.shown = false end, Show = function(self) self.shown = true end,
+        IsShown = function(self) return self.shown end,
+        head = { SetText = function() end }, detail = { SetText = function() end } }
+      d.SetHeight = function(_, height) d.height = height end
+      d.Hide = function() end
+      d.IsShown = function() return true end
+      -- The decision stamper writes every figure on the panel; none of them is this block's
+      -- subject, so they are sinks. Geometry fields match createDialog's own.
+      d.fixedHeight, d.diagnosticGaps, d.diagnosticMinimumHeight = 400, 4, 108
+      d.detailsOpen, d.evidenceTopOpen, d.evidenceTopClosed = false, -200, -100
+      local function sink()
+        return { SetText = function() end, SetTextColor = function() end,
+          Show = function() end, Hide = function() end,
+          ClearAllPoints = function() end, SetPoint = function() end,
+          SetHeight = function() end, GetStringHeight = function() return 24 end }
+      end
+      for _, field in ipairs({ "decisionStatusText", "quantityText", "unitPriceText",
+        "totalCostText", "exitUnitText", "profitText", "mvText", "soldText", "sellThroughText",
+        "sourceAgeText", "reasonText", "verdictHead", "verdictSub", "diagnosticText",
+        "mvNote" }) do
+        d[field] = sink()
+      end
+      d.status.ClearAllPoints = function() end
+      d.status.SetPoint = function() end
+      return d
+    end
+
+    local function confirmedAttempt(row, deal)
+      local decision = { version = 1, status = "SAFE", buyable = true, quantity = 2,
+        exitUnit = 900, stressProfit = 400, reasons = {} }
+      local quote = { token = 5, itemID = deal.itemID, quantity = 2, total = 1000,
+        decision = decision, market = { sourceAt = 99000 } }
+      row.deal, row.purchaseDeal, row.quoteSnapshot = deal, deal, quote
+      row.purchaseStage, row.purchaseToken = "confirming", 5
+      return { row = row, itemID = deal.itemID, token = 5, confirmed = true, deal = deal, quote = quote }
+    end
+
+    after_each(function()
+      _G.time, _G.GetTime, _G.GetMoney, _G.C_Timer = os.time, nil, nil, nil
+      _G.C_AuctionHouse, _G.GetCoinTextureString = nil, nil
+    end)
+
+    -- The release gives up the ownership so Esc can close the window. It must not also give up
+    -- the ROW: for a minute afterwards the quiet-zone release saw an unowned mid-flight row and
+    -- handed it back as "Check again" -- the same lot, already possibly paid for.
+    it("freezes the row a released confirmation owned instead of returning it to Check", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true, itemName = "Thing" }
+      local row = {}
+      local pending = confirmedAttempt(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      setUpvalue(GC.Sniper._ReleaseQuietZone, "rows", { row })
+
+      GC.Sniper._ReleaseStrandedConfirmed(pending)
+
+      assert.equal("frozen", row.purchaseStage)
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+      assert.is_truthy(printed[1]:find("inspect mailbox", 1, true))
+      -- "frozen" is not a quiet stage, so nothing is holding the board hostage either.
+      assert.is_false(GC.Sniper._QuietZoneOpen())
+
+      GC.Sniper._ReleaseQuietZone()
+      assert.equal("frozen", row.purchaseStage)
+      assert.is_true(getUpvalue(GC.Sniper._ReleaseStrandedConfirmed, "activeItemID")[42])
+    end)
+
+    -- Confirm reached Blizzard, the release let go, and the success turned up late. Before this
+    -- it was recorded nowhere at all: the sniper had let go, and Core/PurchaseCapture.lua had
+    -- stood down at the Start precisely because the sniper owned the attempt.
+    it("records a success that lands after the release", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true, itemName = "Thing" }
+      local pending = confirmedAttempt({}, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      GC.Sniper._ReleaseStrandedConfirmed(pending)
+      assert.equal(0, recorded.ledger)
+
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.equal(1, recorded.ledger)
+      assert.equal(1, recorded.flips)
+      assert.equal(1, recorded.acquisitions)
+      assert.equal(1, GC.Sniper.session.buys)
+      assert.equal(1000, GC.Sniper.session.spent)
+      -- Consumed: a second terminal event cannot book the same purchase twice.
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+      assert.equal(1, recorded.ledger)
+    end)
+
+    -- Two records and the attribution would be a guess: commodity events carry no attempt id.
+    it("records nothing when two released confirmations are waiting at once", function()
+      local GC = loadSniper()
+      local first = confirmedAttempt({}, { itemID = 42, isCommodity = true })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", first)
+      GC.Sniper._ReleaseStrandedConfirmed(first)
+      local second = confirmedAttempt({}, { itemID = 43, isCommodity = true })
+      second.itemID, second.quote.itemID = 43, 43
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", second)
+      GC.Sniper._ReleaseStrandedConfirmed(second)
+
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.equal(0, recorded.ledger)
+    end)
+
+    -- A failure is proof no gold moved, so the record is dropped rather than left for some
+    -- later, unrelated success to pick up.
+    it("retires the record on a terminal failure", function()
+      local GC = loadSniper()
+      local pending = confirmedAttempt({}, { itemID = 42, isCommodity = true })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      GC.Sniper._ReleaseStrandedConfirmed(pending)
+
+      GC.Sniper.OnCommodityPurchaseFailed()
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.equal(0, recorded.ledger)
+    end)
+
+    -- A server re-quote after Confirm unconfirms the attempt (no gold moves on a re-quote). If
+    -- the new price then breaks safety the attempt is cancelled and drained -- and a success
+    -- arriving after THAT used to return in silence. It is not recorded (the price it was
+    -- confirmed at is not the price the server would have charged), but it is never silent.
+    it("speaks up for a success on an attempt that was confirmed once and re-quoted", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true }
+      local tombstone = { itemID = 42, token = 5, wasConfirmed = true, lastDeal = deal }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", tombstone)
+
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.equal(0, recorded.ledger)
+      assert.is_truthy(printed[1] and printed[1]:find("inspect mailbox", 1, true))
+      assert.equal("purchase total unavailable — inspect mailbox",
+        GC.Sniper.detachedCommodityStatus[42].note)
+    end)
+
+    -- A plain cancelled tombstone is not a confirmation and stays silent, exactly as before.
+    it("stays silent for a success on an attempt that was never confirmed", function()
+      local GC = loadSniper()
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 42, token = 5 })
+
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.equal(0, #printed)
+      assert.is_nil(GC.Sniper.detachedCommodityStatus[42])
+    end)
+
+    -- A requery lands for a row the dialog has since moved off. The row arms; the screen the
+    -- player is looking at belongs to a different deal and must not be repainted as armed.
+    it("arms the row without painting a dialog that is showing another row", function()
+      local GC = loadSniper()
+      local other = { deal = { itemID = 7, isCommodity = true } }
+      local dialog = fakeDialog(other)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local applyRequeryResult = getUpvalue(finishRequery, "applyRequeryResult")
+      local armReady = getUpvalue(applyRequeryResult, "armReady")
+      setUpvalue(armReady, "dialog", dialog)
+
+      local deal = { itemID = 42, isCommodity = true }
+      local row = { deal = deal }
+      armReady(row, deal, { status = "SAFE", buyable = true, quantity = 1 }, { { unitPrice = 5, quantity = 9 } })
+
+      assert.equal("ready", row.purchaseStage) -- the row itself still arms
+      assert.is_false(dialog.enabled)
+      assert.equal(0, #dialog.written)
+      assert.is_nil(dialog.bookLevels)
+    end)
+
+    -- Same rule for the other direction: the quiet-zone release walks every mid-flight row and
+    -- used to write each one's "Check again" over whatever the dialog was showing.
+    it("returns a row to Check without writing the status line of another row's dialog", function()
+      local GC = loadSniper()
+      local other = { deal = { itemID = 7 } }
+      local dialog = fakeDialog(other)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local applyRequeryResult = getUpvalue(finishRequery, "applyRequeryResult")
+      local armCheck = getUpvalue(applyRequeryResult, "armCheck")
+      setUpvalue(armCheck, "dialog", dialog)
+
+      local deal = { itemID = 42, isCommodity = true }
+      local row = { deal = deal }
+      armCheck(row, deal, nil, "no answer from the auction house", true)
+
+      assert.equal("check", row.purchaseStage)
+      assert.equal(0, #dialog.written)
+    end)
+
+    -- The price rose, and the quote is now past what is in the player's bags. The quiet path
+    -- has refused that since Fix 2; the two requote paths used to hand it a live Confirm.
+    it("never enables Confirm on a requote the player cannot pay for", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1000 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      -- The engine's own verdict is another spec's subject: this one is about the wallet.
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+
+      money = 1100 -- a 10% rise (warn) lands above the purse
+      GC.Sniper.OnCommodityPriceUpdated(1200, 1200)
+      assert.equal("requote", row.purchaseStage)
+      assert.is_false(dialog.enabled)
+      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+
+      -- And the loud tier, whose countdown must not arm at all.
+      row.purchaseStage, row.quoteSnapshot = "buying", nil
+      GC.Sniper.OnCommodityPriceUpdated(2000, 2000)
+      assert.is_false(dialog.enabled)
+
+      -- With the gold in hand the same rise still offers Confirm, unchanged.
+      money = 10000000000
+      row.purchaseStage, row.quoteSnapshot = "buying", nil
+      GC.Sniper.OnCommodityPriceUpdated(1200, 1200)
+      assert.is_true(dialog.enabled)
+    end)
+
+    -- The tombstone is retired by the requery the cancel starts. When no requery could start --
+    -- an older sent search for the item is still draining -- there is no attempt to fence on,
+    -- and a fence stamped anyway was never consumed: every later Buy refused for 20 seconds.
+    it("fences the cancel's tombstone on the wait that will actually settle it", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1000 } }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "AVOID", buyable = false, reasons = { "requote_broke_safety" } }
+      end)
+      getUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining")[42] =
+        { row = {}, itemID = 42, token = 1, sent = true }
+
+      GC.Sniper.OnCommodityPriceUpdated(1200, 1200)
+
+      assert.equal("check", row.purchaseStage) -- no query went out; the player clicks Check again
+      -- No requery could start (an older sent search for this item is still draining), so the
+      -- fence goes on the DRAIN WAIT instead -- the thing that will be settled when that old
+      -- result finally lands. It used to go on nothing at all, and an unconfirmed tombstone
+      -- with no owner refuses every later Buy with "waiting for previous commodity purchase to
+      -- settle" for its full 20 seconds, over a purchase that was cancelled and cost nothing.
+      local wait = GC.Sniper._drainWaitRequery[42]
+      assert.is_table(wait)
+      local tombstone = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
+      assert.is_table(tombstone)
+      assert.equal(row, tombstone.fenceRow)
+      assert.equal(wait.token, tombstone.fenceToken)
+
+      -- And the old result arriving is what lifts it, well inside those 20 seconds.
+      GC.Sniper.OnCommoditySearchResults(42)
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+    end)
+
+    -- A commodity price level is an aggregate across every seller, the player's own stock
+    -- included. Buying your own units is impossible, and anchoring the resale one copper under
+    -- your own auction is undercutting yourself.
+    it("leaves the player's own units out of the order book", function()
+      local GC = loadSniper()
+      local startRequery = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")
+      local driver = getUpvalue(startRequery, "driver")
+      local levels = {
+        { unitPrice = 100, quantity = 10, numOwnerItems = 10 }, -- entirely the player's own
+        { unitPrice = 110, quantity = 8, numOwnerItems = 3 },
+        { unitPrice = 120, quantity = 5, containsOwnerItem = true }, -- no count: unsplittable
+        { unitPrice = 130, quantity = 4 },
+      }
+      _G.C_AuctionHouse.GetNumCommoditySearchResults = function() return #levels end
+      _G.C_AuctionHouse.GetCommoditySearchResultInfo = function(_, index) return levels[index] end
+
+      assert.same({ { unitPrice = 110, quantity = 5 }, { unitPrice = 130, quantity = 4 } },
+        driver.commodityBook(42))
+      local live = driver.commodityResult(42)
+      assert.equal(9, live.avail)
+      -- And the PRICE comes from the cheapest level with something left on it, not from level 1
+      -- blind: level 1 is the player's own auction the moment they are the cheapest seller, so
+      -- an item they own the whole book of kept coming back to the board as its own deal.
+      assert.equal(110, live.unitPrice)
+      assert.equal(5, live.qty)
+    end)
+
+    it("has no price to report when the whole book is the player's own", function()
+      local GC = loadSniper()
+      local startRequery = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")
+      local driver = getUpvalue(startRequery, "driver")
+      local levels = { { unitPrice = 100, quantity = 10, numOwnerItems = 10 } }
+      _G.C_AuctionHouse.GetNumCommoditySearchResults = function() return #levels end
+      _G.C_AuctionHouse.GetCommoditySearchResultInfo = function(_, index) return levels[index] end
+
+      assert.is_nil(driver.commodityResult(42))
+      assert.is_nil(driver.commodityBook(42))
+    end)
+
+    -- The deposit is part of what the resale costs, and it scales with the listing duration the
+    -- player actually posts at. It was priced at 24h for everybody.
+    it("quotes the deposit for the duration the player posts at", function()
+      local GC = loadSniper()
+      local asked
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function(_, duration) asked = duration; return 0 end
+      local evaluateLive = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive")
+      local depositFor = getUpvalue(evaluateLive, "depositFor")
+
+      GC.db.settings.sniper.postDuration = 3
+      depositFor(42, 5)
+      assert.equal(3, asked)
+
+      GC.db.settings.sniper.postDuration = 9 -- not one of the three the API accepts
+      depositFor(42, 5)
+      assert.equal(2, asked)
     end)
   end)
 end)

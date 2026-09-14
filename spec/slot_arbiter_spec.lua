@@ -62,10 +62,15 @@ describe("Search slot arbiter", function()
         EvaluateDelta = function() return {}, 0, 0 end,
         CollectNewHot = function() return {} end,
         MergeDeals = function(existing) return existing end,
+        -- The key poll's fold caps its own store with this (0.9.2's two boards).
+        CapDeals = function(deals) return deals end,
       },
       WatchSet = { Observe = function() end, Select = function() return {} end },
       Print = function() end,
-      db = { settings = { sniper = { sound = false } } },
+      -- board = "items": the key poll only spends a slot while the board it fills is the one
+      -- on screen (0.9.2), and every keys test below is about what it does when it may run.
+      -- The refusal on the other board has its own test, in spec/key_poll_wiring_spec.lua.
+      db = { settings = { sniper = { sound = false, board = "items" } } },
     }
     if not _G.time then _G.time = os.time end
     helper.loadModule("Core/BookPass.lua", GC)
@@ -219,22 +224,23 @@ describe("Search slot arbiter", function()
     assert.same({ "page" }, sent) -- the parked page still wants sending, and is free to now
   end)
 
-  -- The quiet zone, stage by stage. "check", "expired" and "frozen" are rows the player is
-  -- READING -- nothing is in flight for them -- and the board has to keep working underneath.
-  -- "frozen" is the one that stopped the board for good before this: resolvePurchase pins a
-  -- server success with no final quote (activeItemID, deliberately, for the rest of the AH
-  -- session) so the row cannot be repooled, and the old `next(activeItemID) ~= nil` veto read
-  -- that display pin as a purchase and refused every search until the auction house closed.
+  -- The quiet zone, stage by stage. "check", "expired", "frozen" and "ready" are rows the
+  -- player is READING -- nothing of ours is outstanding at the server for them -- and the board
+  -- has to keep working underneath. "frozen" is the one that stopped the board for good before
+  -- this: resolvePurchase pins a server success with no final quote (activeItemID,
+  -- deliberately, for the rest of the AH session) so the row cannot be repooled, and the old
+  -- `next(activeItemID) ~= nil` veto read that display pin as a purchase and refused every
+  -- search until the auction house closed.
   it("is quiet for the stages a purchase is actually in flight for, and no others", function()
     local GC = load()
     local row = {}
     set(GC.Sniper._QuietZoneOpen, "rows", { row })
 
-    for _, stage in ipairs({ "requerying", "ready", "buying", "confirm", "requote", "confirming" }) do
+    for _, stage in ipairs({ "requerying", "buying", "confirm", "requote", "confirming" }) do
       row.purchaseStage = stage
       assert.is_true(GC.Sniper.IsPurchaseQuiet(), stage .. " must be quiet")
     end
-    for _, stage in ipairs({ "check", "expired", "frozen" }) do
+    for _, stage in ipairs({ "check", "expired", "frozen", "ready" }) do
       row.purchaseStage = stage
       assert.is_false(GC.Sniper.IsPurchaseQuiet(), stage .. " must not be quiet")
     end
@@ -253,17 +259,20 @@ describe("Search slot arbiter", function()
   end)
 
   -- The Sell tab's quote walk (UI/SellFrame.lua's advanceQuote) stands down on exactly this
-  -- predicate. A dialog sitting on an armed "ready" quote is the window in which a stray
-  -- commodity search costs the player the buy: the client keeps ONE commodity search buffer,
-  -- and the Buy click's final check reads it.
-  it("tells the Sell walk to yield for an armed dialog, not just for a live purchase", function()
+  -- predicate, and an armed dialog used to be enough to stop it -- so a quote left on screen
+  -- froze the board and parked the Sell tab on "Waiting for the purchase to finish…" for the
+  -- whole 30-second arm window, over a purchase nobody had made. An armed quote has nothing
+  -- outstanding at the auction house, and the Buy click spends from the decision snapshot the
+  -- Check already took, never from the client's search buffer -- so nothing a background
+  -- search does can reach it.
+  it("does not stop the Sell walk for a quote that is only waiting on the player", function()
     local GC = load()
     local row = { purchaseStage = "ready" }
     set(GC.Sniper._QuietZoneOpen, "dialog", { row = row })
-    assert.is_true(GC.Sniper.IsSearchCritical())
-
-    row.purchaseStage = "check" -- the player is reading a refusal; nothing is in flight
     assert.is_false(GC.Sniper.IsSearchCritical())
+
+    row.purchaseStage = "buying" -- the purchase call has gone out: now it is in flight
+    assert.is_true(GC.Sniper.IsSearchCritical())
   end)
 
   -- The veto has to be bounded, or it is the same board freeze one layer down: an "Internal
@@ -309,7 +318,7 @@ describe("Search slot arbiter", function()
 
     it("keeps the zone while the dialog is on screen, however long it has been open", function()
       local GC = load()
-      local row = { purchaseStage = "ready", deal = { itemID = 42 } }
+      local row = { purchaseStage = "confirm", deal = { itemID = 42 } }
       set(GC.Sniper._QuietZoneOpen, "rows", { row })
       set(GC.Sniper._QuietZoneOpen, "dialog", { row = row, IsShown = function() return true end })
 
@@ -317,7 +326,7 @@ describe("Search slot arbiter", function()
       assert.is_true(GC.Sniper.IsPurchaseQuiet())
       clockAt(400)
       assert.is_true(GC.Sniper.IsPurchaseQuiet())
-      assert.equal("ready", row.purchaseStage)
+      assert.equal("confirm", row.purchaseStage)
     end)
 
     -- Gold may have moved. A confirmed attempt keeps its row and its tombstone until a
@@ -397,14 +406,17 @@ describe("Search slot arbiter", function()
       assert.same({ "page" }, sent)
     end)
 
-    it("sends no keys call while the browse buffer is still being fetched", function()
+    it("sends no keys call while a pass is about to fetch the browse buffer", function()
       local GC, watch = load()
       watch.hungry = false
       targets(GC, 1, 3)
       GC.Sniper._bookPass:Abort() -- not paging any more...
-      -- ...but HasFullBrowseResults() is false, so the buffer is not ours to replace yet.
+      GC.Sniper._bookPass:Start("wide") -- ...but a pass is parked on the next grant: its page
+      -- is what the buffer is about to hold, so it is not ours to replace. (A buffer that is
+      -- merely EMPTY -- the auction house opened straight onto the Items board -- is fair game;
+      -- HasFullBrowseResults() used to gate this and kept that board empty for good.)
       GC.Sniper.OnThrottleReady()
-      assert.same({}, sent)
+      for _, what in ipairs(sent) do assert.is_nil(what:match("^keys")) end
     end)
 
     it("spends the gap between passes on one batch per grant, 100 keys at a time", function()
@@ -464,6 +476,81 @@ describe("Search slot arbiter", function()
       assert.same({ "drill", "keys:3" }, sent)
     end)
 
+    -- Both replace the client's ONE browse buffer, and both answer on the same browse events.
+    -- A page sent under an outstanding batch is folded into the poll, not into the pass: the
+    -- pass loses the page it was waiting for, and the fold -- reading the page as the batch's
+    -- own answer -- deletes every realm row that batch had asked about.
+    it("holds the book pass back while a keys batch is still outstanding", function()
+      local GC, watch = load()
+      watch.hungry = false
+      local clock = 1000
+      _G.time = function() return clock end
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      _G.C_AuctionHouse.SendBrowseQuery = function() sent[#sent + 1] = "browse" end
+      targets(GC, 1, 3)
+
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3" }, sent)
+
+      GC.Sniper._bookPass:Start("classes") -- a fresh pass wants to open
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3" }, sent) -- not while the batch is unanswered
+
+      -- The batch answering releases it...
+      foldKeys(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3", "browse" }, sent)
+    end)
+
+    it("gives up on an unanswered batch, and forgets what it asked", function()
+      local GC, watch = load()
+      watch.hungry = false
+      local clock = 1000
+      _G.time = function() return clock end
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      _G.C_AuctionHouse.SendBrowseQuery = function() sent[#sent + 1] = "browse" end
+      targets(GC, 1, 3)
+
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3" }, sent)
+      assert.is_table(GC.Sniper._keysBatch)
+
+      GC.Sniper._bookPass:Start("classes")
+      clock = clock + 31 -- past LIM.KEYS_TIMEOUT_SECONDS (30 -- a hundred-key search is slow): no browse event is coming
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:3", "browse" }, sent)
+      -- The list of items that batch asked about goes with the wait. Left behind, the next
+      -- fold reads it as "these were asked about and did not come back" and deletes rows
+      -- nobody asked about this time.
+      assert.is_nil(GC.Sniper._keysBatch)
+    end)
+
+    -- Observed in game as the player's own Browse pane jumping to an item page with a spinner
+    -- on it: both of these replace the buffer that pane is showing.
+    it("sends neither a keys batch nor a browse page while the player is using the auction house", function()
+      local GC, watch = load()
+      watch.hungry = false
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      _G.C_AuctionHouse.SendBrowseQuery = function() sent[#sent + 1] = "browse" end
+      targets(GC, 1, 3)
+      GC.AuctionHouseTab = { PlayerIsBusy = function() return true end }
+      GC.Sniper._bookPass:Start("classes")
+
+      GC.Sniper.OnThrottleReady()
+      assert.same({}, sent)
+
+      GC.AuctionHouseTab.PlayerIsBusy = function() return false end
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "browse" }, sent) -- the pass, which was armed first
+
+      GC.Sniper._bookPass:Abort()
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "browse", "keys:3" }, sent)
+    end)
+
     it("sends nothing for the key poll while a purchase is in flight", function()
       local GC, watch = load()
       watch.hungry = false
@@ -479,6 +566,85 @@ describe("Search slot arbiter", function()
       GC.Sniper.OnThrottleReady()
       assert.same({ "keys:3" }, sent)
     end)
+  end)
+
+  -- The drill queue charges a send at Pop, and REFUSES once its per-minute budget is spent.
+  -- That answer was thrown away: the drill went out anyway, past the budget, and the entry Pop
+  -- had not removed stayed at the head of the queue to do it again on the next ready tick.
+  it("stops drilling once the queue's own per-minute budget is spent", function()
+    local GC, watch = load()
+    watch.hungry = false
+    GC.Sniper._bookPass:Abort()
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time }, { perMinute = 1 })
+    GC.Sniper._keyPoll:Fold({
+      { itemKey = { itemID = 42 }, minPrice = 900, totalQuantity = 1 },
+      { itemKey = { itemID = 43 }, minPrice = 800, totalQuantity = 1 },
+    })
+    GC.Sniper._drillQueue:Push({ itemID = 42, floor = 900, estProfit = 20 })
+    GC.Sniper._drillQueue:Push({ itemID = 43, floor = 800, estProfit = 10 })
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "drill" }, sent)
+
+    -- The budget is gone. The second hit is not drilled, and it is not lost either: it is
+    -- still queued for a minute from now.
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "drill" }, sent)
+    assert.equal(1, GC.Sniper._drillQueue:Depth())
+  end)
+
+  -- Same two gates the verify walk stands down for: with the Sell tab up nobody is reading
+  -- what a drill answers, and while the player is working Blizzard's own panes their click
+  -- outranks it. Both were taking slots from the Sell tab's pricing walk.
+  it("does not drill for a board nobody is looking at, or over the player's own search", function()
+    local GC, watch = load()
+    watch.hungry = false
+    GC.Sniper._bookPass:Abort()
+    set(GC.Sniper.OnAuctionHouseShow, "ahOpen", true)
+    GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 42 }, minPrice = 900, totalQuantity = 1 } })
+    GC.Sniper._drillQueue:Push({ itemID = 42, floor = 900, estProfit = 20 })
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+
+    set(GC.Sniper.OnThrottleReady, "view", "sell")
+    GC.Sniper.OnThrottleReady()
+    assert.same({}, sent)
+
+    set(GC.Sniper.OnThrottleReady, "view", "deals")
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return true end }
+    GC.Sniper.OnThrottleReady()
+    assert.same({}, sent)
+
+    GC.AuctionHouseTab.PlayerIsBusy = function() return false end
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "drill" }, sent)
+  end)
+
+  -- The loop answers whether its turn produced a search (Core/Scanner.lua). A turn it did not
+  -- spend belongs to whoever is next in line -- it used to be reported as spent regardless,
+  -- and the page or the verify check behind it simply did not happen.
+  it("passes the slot on when the watch loop had nothing to send", function()
+    local GC = load()
+    GC.Sniper.scanner.OnSystemReady = function() return false end
+
+    -- The pass takes the first turn and yields the next one to the tail.
+    armPage(GC)
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "page" }, sent)
+
+    -- The tail's turn. The watch loop is hungry but sends nothing -- every item in its set is
+    -- waiting on an item key the client has not cached -- so the turn goes to the pass rather
+    -- than being reported as spent and lost.
+    armPage(GC)
+    GC.Sniper.OnThrottleReady()
+    assert.same({ "page", "page" }, sent)
   end)
 
   it("keeps mayScan closed while a purchase is in flight, even inside the watch loop's own grant", function()

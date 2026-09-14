@@ -158,11 +158,58 @@ describe("Data.AdoptAppData", function()
     assert.is_truthy(GC.Data.DescribeImportError("bad_region"):find("update", 1, true))
     assert.is_string(GC.Data.DescribeImportError("no_items"))
     assert.is_string(GC.Data.DescribeImportError("something-new"))
+    -- The parser's two newer refusals need sentences too, or they print as bare codes.
+    assert.is_truthy(GC.Data.DescribeImportError("no_realm"):find("realm", 1, true))
+    assert.is_truthy(GC.Data.DescribeImportError("two_strings"):find("two", 1, true))
   end)
 
-  it("is a no-op when importString is missing or not a string", function()
+  -- No GoldCap_AppData at all is the standalone case and not a fault. One that IS there and
+  -- carries no string is the companion having run and written something unusable -- which
+  -- used to leave in silence, with /goldcap status reporting nothing wrong.
+  it("records a companion payload that carries no string at all", function()
     _G.GoldCap_AppData = { writtenAt = 2000 }
     assert.has_no.errors(function() GC.Data.AdoptAppData() end)
     assert.is_nil(db.imported)
+    assert.equal("empty", GC.Data.AppDataError().reason)
+    assert.equal(2000, GC.Data.AppDataError().writtenAt)
+  end)
+
+  it("says nothing at all when the companion was never installed", function()
+    GC.Print = function() error("should not print") end
+    assert.has_no.errors(function() GC.Data.AdoptAppData() end)
+    assert.is_nil(GC.Data.AppDataError())
+  end)
+
+  -- The old gate was the PERSISTED error record, so a broken companion write was announced
+  -- once and never again -- not next login, not next week, while every session went on using
+  -- whatever stale prices were left.
+  it("says a failure again in a new session, not once ever", function()
+    local printed = {}
+    GC.Print = function(msg) printed[#printed + 1] = msg end
+    _G.GoldCap_AppData = { importString = "GCS1;zz;silvermoon;1;I:1=10", writtenAt = 9999 }
+    GC.Data.AdoptAppData()
+    assert.equal(1, #printed)
+
+    -- A new session: the same SavedVariables, the same unchanged companion file, a fresh load.
+    local next_ = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ImportString.lua", next_)
+    helper.loadModule("Core/Data.lua", next_)
+    next_.Print = function(msg) printed[#printed + 1] = msg end
+    next_.db = db
+    next_.Data.Init(db)
+    next_.Data.AdoptAppData()
+    assert.equal(2, #printed)
+  end)
+
+  -- A manual paste that works is the answer to "the Companion wrote prices I could not
+  -- read": the recorded error describes a payload that is no longer what is loaded, and it
+  -- used to survive for good -- /goldcap status kept reporting a sync failure at a player
+  -- whose prices were fine.
+  it("clears a recorded companion error when a manual import lands", function()
+    _G.GoldCap_AppData = { importString = "GCS1;zz;silvermoon;1;I:1=10", writtenAt = 9999 }
+    GC.Data.AdoptAppData()
+    assert.is_not_nil(GC.Data.AppDataError())
+    GC.Data.SetImported(GC.ImportString.Parse(FIXTURE_TS2000))
+    assert.is_nil(GC.Data.AppDataError())
   end)
 end)

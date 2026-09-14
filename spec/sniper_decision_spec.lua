@@ -513,6 +513,20 @@ describe("SniperDecision", function()
       assert.same({ "invalid_input" }, GC.SniperDecision.PreScreen(nil, config))
       assert.same({ "invalid_input" }, GC.SniperDecision.PreScreen(screenable(), nil))
     end)
+
+    -- The settings panel has always shown a "Dump-trend cap %" and described it as refusing a
+    -- buy when the price fell more than that in 24h. Discovery and the live decision both read
+    -- it now; before, both were a hardcoded 10 and the setting moved nothing but the tier.
+    it("takes the falling-market threshold from the player's own setting", function()
+      local strict = { maxDailyDemandShare = 0.02, maxQuantity = 200, dumpTrendPct = 5 }
+      assert.same({ "market_falling" }, GC.SniperDecision.PreScreen(screenable({ trend24hPct = -6 }), strict))
+      local loose = { maxDailyDemandShare = 0.02, maxQuantity = 200, dumpTrendPct = 40 }
+      assert.same({}, GC.SniperDecision.PreScreen(screenable({ trend24hPct = -30 }), loose))
+      -- A garbage value is not an excuse to stop braking: discovery clamps rather than fails,
+      -- the same way it clamps the demand fields it is handed raw.
+      local broken = { maxDailyDemandShare = 0.02, maxQuantity = 200, dumpTrendPct = "lots" }
+      assert.same({ "market_falling" }, GC.SniperDecision.PreScreen(screenable({ trend24hPct = -10 }), broken))
+    end)
   end)
 
   -- FullScan.RowsFromBrowse calls this at discovery time so the deals list can never advertise
@@ -752,6 +766,37 @@ describe("SniperDecision", function()
       local deflated = evaluate(strict)
       assert.equal("SAFE", deflated.computedStatus)
       assert.equal(2307692, deflated.exitUnit) -- floor(3000000 / 1.3)
+    end)
+
+    it("refuses a falling market at the player's own threshold, not a baked-in 10", function()
+      -- A tighter cap refuses a fall the default 10 would have allowed...
+      local strict = validInput()
+      strict.market.trend24hPct = -6
+      strict.config.dumpTrendPct = 5
+      local result = evaluate(strict)
+      assert.equal("AVOID", result.status)
+      assertReason(result, "market_falling")
+
+      -- ...and a looser one lets a steeper fall through, which is what the setting promises.
+      local loose = validInput()
+      loose.market.trend24hPct = -30
+      loose.config.dumpTrendPct = 40
+      local allowed = evaluate(loose)
+      assert.equal("SAFE", allowed.computedStatus)
+      assertNoReason(allowed, "market_falling")
+
+      -- Unset keeps the long-standing 10.
+      local default = validInput()
+      default.market.trend24hPct = -10
+      assertReason(evaluate(default), "market_falling")
+    end)
+
+    it("fails closed on a malformed dumpTrendPct", function()
+      local input = validInput()
+      input.config.dumpTrendPct = "lots"
+      local result = evaluate(input)
+      assert.equal("AVOID", result.status)
+      assertReason(result, "invalid_input")
     end)
 
     it("fails closed on a malformed spikeTrendPct", function()

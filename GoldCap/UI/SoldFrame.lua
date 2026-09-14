@@ -613,6 +613,10 @@ local function createHeaderRow(parent)
       hit:SetHeight(SD.HEADER_H)
       local label = Theme.Num(hit, 9)
       label:SetWordWrap(false)
+      -- One line, hard capped -- the pair the Deals headings carry (UI/SniperFrame.lua's
+      -- buildHeaderCell): the label is SetAllPoints() onto a cell SD.HEADER_H tall, and a
+      -- line that does not fit the height it is given is not drawn at all.
+      label:SetMaxLines(1)
       setColor(label, Theme.color.fgDim)
       label:SetAllPoints()
       label:SetJustifyH(col.num and "RIGHT" or "LEFT")
@@ -628,6 +632,7 @@ local function createHeaderRow(parent)
   local itemHit = CreateFrame("Frame", nil, header)
   local itemLabel = Theme.Num(itemHit, 9)
   itemLabel:SetWordWrap(false)
+  itemLabel:SetMaxLines(1) -- same one-line cap as the cells above
   setColor(itemLabel, Theme.color.fgDim)
   itemLabel:SetAllPoints()
   itemLabel:SetJustifyH("LEFT")
@@ -658,6 +663,18 @@ local function createHeaderRow(parent)
   header.rule = rule
 
   return header
+end
+
+-- The headings are stamped once, at build -- and this whole tab spends most of its life
+-- hidden behind Deals or Sell. A one-line FontString that was on screen when its parent was
+-- hidden can come back with its text simply not drawn (the Deals headings went blank exactly
+-- that way -- see UI/SniperFrame.lua's updateHeaderSortIndicators for the full story), and
+-- SetText is what the client needs to draw it again. So Show() goes through here.
+local function restampHeadings()
+  local header = band and band.header
+  if not header or not header.cells then return end
+  for key, hit in pairs(header.cells) do hit.label:SetText(headerText(key)) end
+  if header.itemCell then header.itemCell.label:SetText(headerText("item")) end
 end
 
 -- The header band: two persistent lines above the table (totals, then sync
@@ -840,6 +857,7 @@ end
 function GC.Sold.Show()
   if container then
     container:Show()
+    restampHeadings() -- see its comment: a heading can come back from a hide undrawn
     updateContentWidth()
     renderRows()
   end

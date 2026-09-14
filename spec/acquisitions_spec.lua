@@ -17,6 +17,9 @@ describe("Acquisition store", function()
     GC = helper.loadModule("Core/Acquisitions.lua")
     db = {}
     context = { char = "A-R", region = "eu" }
+    -- Every reader of this store scopes to the character and region the player is on, and
+    -- UnitCostFor now does too -- so who that is has to exist for the store to answer at all.
+    GC.Ledger = { Context = function() return context end }
     GC.Acquisitions.Init(db)
   end)
 
@@ -36,6 +39,32 @@ describe("Acquisition store", function()
 
   it("returns nil for an item with no recorded purchase", function()
     assert.is_nil(GC.Acquisitions.UnitCostFor(999))
+  end)
+
+  -- "You paid" is a statement about the stock this character is standing next to. Averaging in
+  -- another character's batches -- or another region's, at prices this realm never charged --
+  -- describes money the player cannot spend here.
+  it("averages only the batches this character and region hold", function()
+    record({ evidenceKey = "tx:mine", quantity = 2, total = 200 })
+    record({ evidenceKey = "tx:alt", quantity = 2, total = 2000, character = "B-R" })
+    record({ evidenceKey = "tx:us", quantity = 2, total = 4000, region = "us" })
+    assert.equal(100, GC.Acquisitions.UnitCostFor(42))
+  end)
+
+  -- Two variants of one item are two positions. A caller that knows which one it is asking
+  -- about gets that one; the tooltip, which does not, still gets the whole-item answer.
+  it("narrows to one position when the caller names it", function()
+    record({ evidenceKey = "tx:lo", quantity = 1, total = 100, positionKey = "item:42:600:0:0" })
+    record({ evidenceKey = "tx:hi", quantity = 1, total = 900, positionKey = "item:42:623:0:0" })
+    assert.equal(900, GC.Acquisitions.UnitCostFor(42, "item:42:623:0:0"))
+    assert.equal(500, GC.Acquisitions.UnitCostFor(42))
+  end)
+
+  -- No character to scope to is not a reason to answer with everybody's stock.
+  it("answers nothing when there is no context to scope to", function()
+    record({ evidenceKey = "tx:mine", quantity = 2, total = 200 })
+    GC.Ledger.Context = function() return {} end
+    assert.is_nil(GC.Acquisitions.UnitCostFor(42))
   end)
 
   it("deduplicates one evidence key but keeps distinct identical buys", function()

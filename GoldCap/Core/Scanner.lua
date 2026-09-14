@@ -16,17 +16,22 @@ function GC.Scanner.New(driver, dealCfg)
   local alertedAuctions = {}   -- auctionID -> true
   local alertedCommodity = {}  -- itemID -> lowest alerted unitPrice
 
+  -- Returns whether a search actually went out. The arbiter hands this loop a slot and then
+  -- reports the slot as spent -- and every path below that sends nothing (nothing running, a
+  -- query still pending, an empty set, or a whole list whose item keys the client has not
+  -- cached yet) used to be reported as a send all the same, so the turn was lost and the verify
+  -- walk behind it went hungry for a query that was never made.
   local function advance()
-    if not running or pending then return end
-    if not driver.isReady() then return end
+    if not running or pending then return false end
+    if not driver.isReady() then return false end
     -- The slot arbiter's veto. Checked HERE rather than at each call site because advance() is
     -- reached three ways -- a readiness event, the tail of a result handler, and Resume() --
     -- and the result tail is the one that would otherwise chain send after send straight past
     -- the arbiter. An absent mayScan means "no arbiter", which is what every other caller and
     -- every older spec expects.
-    if driver.mayScan and not driver.mayScan() then return end
+    if driver.mayScan and not driver.mayScan() then return false end
     local n = #list
-    if n == 0 then return end
+    if n == 0 then return false end
     for _ = 1, n do
       index = index % n + 1
       if index == 1 then obj.cycles = obj.cycles + 1 end
@@ -37,12 +42,13 @@ function GC.Scanner.New(driver, dealCfg)
           pending, pendingSince = id, driver.now()
           driver.sendSearch(id)
           driver.onStatus(("scanning %d/%d"):format(index, n))
-          return
+          return true
         end
         waitingKey[id] = true
       end
     end
     driver.onStatus("waiting for item info")
+    return false
   end
 
   function obj:Start(watchlist)
@@ -89,11 +95,13 @@ function GC.Scanner.New(driver, dealCfg)
     return true
   end
 
+  -- Hands the caller advance()'s own answer: the slot arbiter grants this loop a turn through
+  -- here, and a turn that produced no send belongs to whoever is next in line.
   function obj:OnSystemReady()
     if pending and driver.now() - pendingSince > STALE_SECONDS then
       pending = nil
     end
-    advance()
+    return advance()
   end
 
   function obj:OnKeyInfo(itemID)

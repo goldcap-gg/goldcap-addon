@@ -34,6 +34,38 @@ describe("AutoScan", function()
     assert.equal("SCANNING", m:State())
   end)
 
+  -- The caller withholds the send while the player is working Blizzard's own auction house
+  -- panes. The machine used to move to SCANNING regardless, and SCANNING is a state only a
+  -- finished scan leaves -- so Auto sat there reading "SCANNING" with nothing in flight and
+  -- nothing that could ever move it on.
+  it("stays waiting when the scan did not actually start", function()
+    local started = false
+    actions.startScan = function() log.start = log.start + 1; return started end
+    local m = newMachine()
+    m:Input("toggleOn", 1000)
+
+    m:Tick(1000)
+    assert.equal(1, log.start)
+    assert.equal("WAITING", m:State())
+
+    -- And it retries by itself, on the settle deadline the withheld start re-armed.
+    m:Tick(1000.5)
+    assert.equal(1, log.start) -- not yet: the deadline is a second out
+    started = true
+    m:Tick(1001)
+    assert.equal(2, log.start)
+    assert.equal("SCANNING", m:State())
+  end)
+
+  -- Only an explicit refusal counts. Every older caller -- and every fake in this suite --
+  -- answers with nothing at all, and nothing must not read as "no scan started".
+  it("takes an action that answers nothing at its word", function()
+    local m = newMachine()
+    m:Input("toggleOn", 1000)
+    m:Tick(1000)
+    assert.equal("SCANNING", m:State())
+  end)
+
   it("aborts exactly once and moves to PAUSED when a dialog opens mid-scan", function()
     local m = newMachine()
     m:Input("toggleOn", 1000)

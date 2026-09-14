@@ -131,6 +131,19 @@ describe("Sniper row repaint skip", function()
       verdicts = verdicts,
       itemLoads = function() return itemLoads end,
       setTrend = function(v) trendValue = v end,
+      -- refreshRows drives the OTHER half of a pooled row's life: the hide path, for a slot
+      -- the list no longer has a deal for. No window is built in this suite, so the two
+      -- widgets it does touch -- the window itself and the scroll child it sizes -- are handed
+      -- in through the same shared-upvalue seam every other reach here uses.
+      refreshRows = refreshRows,
+      rows = getUpvalue(refreshRows, "rows"),
+      set = function(wanted, value)
+        for i = 1, math.huge do
+          local name = debug.getupvalue(refreshRows, i)
+          if not name then error("missing upvalue " .. wanted) end
+          if name == wanted then debug.setupvalue(refreshRows, i, value) break end
+        end
+      end,
     }
   end
 
@@ -463,6 +476,33 @@ describe("Sniper row repaint skip", function()
 
     assert.same({ "Stop", "Hide", "SetAlpha" }, flashResets)
     assert.equal(0, highlightHideCalls)
+  end)
+
+  -- The other way a pooled slot changes hands: the list gets shorter, so refreshRows empties
+  -- this row instead of re-stamping it. It cleared row.deal and hid the widget -- leaving the
+  -- animation running behind it, and setRowDeal's reuse guard above needs a remembered deal to
+  -- compare itemIDs against, so it could not see the flash. The next deal to land in this slot
+  -- came up flashing as a brand-new HOT find it never was.
+  it("stops the ping when a row empties, so the next deal into that slot cannot inherit it", function()
+    local ctx = load()
+    local calls = { n = 0 }
+    local row = fakeRow(calls)
+    local flashResets = {}
+    row.flash = {
+      SetAlpha = function() table.insert(flashResets, "SetAlpha") end,
+      Hide = function() table.insert(flashResets, "Hide") end,
+      Show = function() end,
+    }
+    row.flashAnim = { Stop = function() table.insert(flashResets, "Stop") end, Play = function() end }
+    ctx.rows[1] = row
+    ctx.set("frame", { })
+    ctx.set("content", { SetHeight = function() end })
+
+    ctx.refreshRows() -- no deals at all: row 1 takes the hide path
+
+    assert.same({ "Stop", "Hide", "SetAlpha" }, flashResets)
+    assert.is_false(row.shown)
+    assert.is_nil(row.deal)
   end)
 end)
 
@@ -934,6 +974,37 @@ describe("Sniper window OnHide clears the hover pin", function()
     local frame = buildFrame()
 
     assert.has_no.errors(function() frame.scripts.OnHide(frame) end)
+  end)
+
+  -- The row's OnEnter opens the item's tooltip and only its OnLeave closes it -- and OnLeave is
+  -- exactly the script that does not arrive when the frame under a stationary cursor is hidden
+  -- programmatically. The tooltip was left floating over the screen with nothing under it,
+  -- until the cursor happened to cross something else that owns one.
+  it("closes the tooltip the hovered row opened", function()
+    local frame, GC = buildFrame()
+    local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+    local refreshRows = getUpvalue(clearDeals, "refreshRows")
+    local renderList = getUpvalue(refreshRows, "renderList")
+    local sortedDeals = getUpvalue(renderList, "sortedDeals")
+    local deals = getUpvalue(sortedDeals, "deals")
+    local rows = getUpvalue(refreshRows, "rows")
+
+    deals[1234] = { itemID = 1234, unitPrice = 1000, qty = 1, profit = 100, discount = 0.1, tier = "GOOD" }
+    refreshRows()
+    local row = rows[1]
+    assert.is_not_nil(row)
+
+    -- Same any-method-is-a-no-op double buildFrame installs, with Hide counted.
+    local hides = 0
+    _G.GameTooltip = setmetatable({ Hide = function() hides = hides + 1 end },
+      { __index = function() return function() end end })
+
+    row.scripts.OnEnter(row) -- opens the tooltip, and pins hoveredRow to this row
+    assert.equal(0, hides)
+
+    frame.scripts.OnHide(frame) -- window closes under the cursor: no OnLeave is ever delivered
+
+    assert.is_true(hides > 0)
   end)
 
   -- Fix round 1, IMPORTANT-2: resetAllPurchases() (run from the real AH-close path,

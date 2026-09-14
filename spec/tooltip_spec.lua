@@ -5,6 +5,9 @@ describe("Tooltip.BuildLines", function()
 
   before_each(function()
     GC = helper.loadModule("Core/Util.lua")
+    -- Trigger before Tooltip, as the .toc loads them: a realm item's line is the region
+    -- reference GC.Trigger.RealmReference picks, not a second copy of that rule here.
+    helper.loadModule("Core/Trigger.lua", GC)
     helper.loadModule("UI/Tooltip.lua", GC)
   end)
 
@@ -81,9 +84,14 @@ describe("Tooltip.BuildLines", function()
     assert.equal(1, #lines)
   end)
 
-  it("omits the age line at exactly 48h", function()
-    local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0 }, 48 * 3600)
-    assert.equal(1, #lines)
+  -- The tooltip kept a 48h threshold of its own while the Sniper's banner and the Sold tab
+  -- called the same data stale at 6h (yellow) and 24h (red). A player who only ever mouses
+  -- over items was the last to hear about it.
+  it("shows the age from the same 6h boundary the rest of the addon turns yellow at", function()
+    assert.equal(1, #GC.Tooltip.BuildLines({ mv = 100, ts = 0 }, 6 * 3600 - 1))
+    local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0 }, 6 * 3600)
+    assert.equal("GoldCap data age", lines[#lines].left)
+    assert.equal("6h", lines[#lines].right)
   end)
 
   it("shows a signed trend when the import carries one", function()
@@ -175,6 +183,98 @@ describe("Tooltip.BuildLines", function()
   it("reads the origin from the one source of truth", function()
     local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
     assert.is_truthy(text:find("GC.Data.OriginState", 1, true))
+  end)
+
+  it("nudges from the same 24h boundary the Sniper calls an import stale at", function()
+    local quiet = GC.Tooltip.BuildLines({ mv = 100, ts = 0 }, 24 * 3600 - 1, { origin = "manual" })
+    for _, ln in ipairs(quiet) do assert.not_equal("hint", ln.kind) end
+    local lines = GC.Tooltip.BuildLines({ mv = 100, ts = 0 }, 24 * 3600, { origin = "manual" })
+    assert.equal("hint", lines[#lines].kind)
+  end)
+
+  -- An imported realm item's `mv` is this ONE realm's median, which Core/DealMath.lua and
+  -- Core/Trigger.lua both refuse to price anything from (two listings make a median of
+  -- whichever is the odd one out). The tooltip printed it as "GoldCap value" anyway, on the
+  -- most-seen surface in the addon.
+  describe("realm items", function()
+    it("shows the region reference, with the item level it was measured on", function()
+      local lines = GC.Tooltip.BuildLines(
+        { mv = 2700000, ref = 190000, refIlvl = 623, ts = 1000, source = "import",
+          kind = "realm_item" }, 2000)
+      assert.equal("money", lines[1].kind)
+      assert.equal("GoldCap region price (ilvl 623)", lines[1].label)
+      assert.equal(190000, lines[1].copper)
+    end)
+
+    it("takes the realm's own median when it is the lower of the two", function()
+      local lines = GC.Tooltip.BuildLines(
+        { mv = 90000, ref = 190000, refIlvl = 0, ts = 1000, source = "import",
+          kind = "realm_item" }, 2000)
+      assert.equal("GoldCap region price", lines[1].label) -- no ilvl to name
+      assert.equal(90000, lines[1].copper)
+    end)
+
+    -- The T section can name a reference for an item this realm has no median for at all.
+    it("prices an item the realm has no median for", function()
+      local lines = GC.Tooltip.BuildLines(
+        { ref = 190000, refIlvl = 610, ts = 1000, source = "import", kind = "realm_item" }, 2000)
+      assert.equal(190000, lines[1].copper)
+    end)
+
+    -- With no region reference the median is all there is. It is still shown -- a player
+    -- looking at an item wants a figure -- but under its own name, and alone: a median of
+    -- two listings has no sale speed or depth behind it, and a second number beside it
+    -- would lend the first one authority it has not got.
+    it("labels a median with no region reference for what it is", function()
+      local lines = GC.Tooltip.BuildLines(
+        { mv = 2700000, sold = 4, trend = -12, listings = 2, ts = 1000, source = "import",
+          kind = "realm_item" }, 2000)
+      assert.equal(1, #lines)
+      assert.equal("money", lines[1].kind)
+      assert.equal("GoldCap realm median (unverified)", lines[1].label)
+      assert.equal(2700000, lines[1].copper)
+    end)
+
+    it("says nothing when the import knows neither a reference nor a median", function()
+      assert.is_nil(GC.Tooltip.BuildLines(
+        { ts = 1000, source = "import", kind = "realm_item" }, 2000))
+    end)
+
+    -- Nothing on the realm path may imply a sale rate that was never measured, reference or
+    -- not: neither figure rides a realm item's token in the first place.
+    it("shows no trend, sale speed or depth beside a region price either", function()
+      local lines = GC.Tooltip.BuildLines(
+        { mv = 190000, ref = 190000, refIlvl = 623, sold = 4, trend = -12, currentQty = 40,
+          listings = 2, ts = 1000, source = "import", kind = "realm_item" }, 2000)
+      assert.equal(1, #lines)
+    end)
+
+    it("still shows what you paid for stock you are holding", function()
+      local lines = GC.Tooltip.BuildLines(
+        { mv = 2700000, ts = 1000, source = "import", kind = "realm_item" }, 2000,
+        { unitCost = 640 })
+      assert.equal("You paid", lines[#lines].label)
+      assert.equal(640, lines[#lines].copper)
+    end)
+
+    -- Bundled realm items are unaffected: their figure comes from item_region_snapshots,
+    -- a region-wide median already (apps/api/src/lib/addonMarketData.ts).
+    it("still reports a bundled realm item as a GoldCap value", function()
+      local lines = GC.Tooltip.BuildLines(
+        { mv = 990000, listings = 14, ts = 0, source = "bundled", kind = "realm_item" }, 3600,
+        { region = "eu" })
+      assert.equal("GoldCap value", lines[1].label)
+      assert.equal(990000, lines[1].copper)
+    end)
+  end)
+
+  -- An auction house item-GROUP row (one "Star Belt" standing for every listing of it) is an
+  -- item key: its tooltip payload carries neither a hyperlink nor a guid, so the old two-way
+  -- lookup gave up on the one screen this addon exists for.
+  it("resolves the item from the payload id and the shown link, not only a hyperlink", function()
+    local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
+    assert.is_truthy(text:find("data.id", 1, true))
+    assert.is_truthy(text:find("tooltip:GetItem()", 1, true))
   end)
 
 end)

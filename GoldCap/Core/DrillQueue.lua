@@ -90,9 +90,16 @@ function GC.DrillQueue.New(driver, opts)
     end
     queued[k] = true
     queuedItems[hit.itemID] = (queuedItems[hit.itemID] or 0) + 1
+    -- A hit handed back by Peek/Pop carries the moment it FIRST joined the queue, and keeps it
+    -- when it is re-queued. The caller re-queues a hit whose send was declined, and stamping
+    -- that with a fresh `now` made the entry immortal: it describes a price nobody has seen for
+    -- minutes, it sits at the head on its own estProfit, and it can never age out -- so every
+    -- re-queue bought the same undrillable item another ninety seconds at the front.
+    local pushedAt = (type(hit.pushedAt) == "number" and hit.pushedAt < now) and hit.pushedAt or now
     items[#items + 1] = { itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      key = k, pushedAt = now }
-    if now + ENTRY_TTL_SECONDS < nextExpiryAt then nextExpiryAt = now + ENTRY_TTL_SECONDS end
+      key = k, pushedAt = pushedAt }
+    local expiresAt = pushedAt + ENTRY_TTL_SECONDS
+    if expiresAt < nextExpiryAt then nextExpiryAt = expiresAt end
     return true
   end
 
@@ -111,7 +118,10 @@ function GC.DrillQueue.New(driver, opts)
     local best = bestIndex()
     if not best then return nil end
     local entry = items[best]
-    return { itemID = entry.itemID, floor = entry.floor, estProfit = entry.estProfit }
+    -- pushedAt travels with the hit so a caller that hands it back (a declined send is
+    -- re-queued) cannot reset its age -- see Push.
+    return { itemID = entry.itemID, floor = entry.floor, estProfit = entry.estProfit,
+      pushedAt = entry.pushedAt }
   end
 
   -- Discards one entry without charging the budget: the hit describes a floor the book has
@@ -140,7 +150,8 @@ function GC.DrillQueue.New(driver, opts)
 
     local chosen = forget(bestIndex())
     sentAt[#sentAt + 1] = now
-    return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit }
+    return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit,
+      pushedAt = chosen.pushedAt }
   end
 
   -- Whether a live look at this item is already queued -- what a board row asks before it is

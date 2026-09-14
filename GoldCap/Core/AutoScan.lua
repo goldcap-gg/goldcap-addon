@@ -101,6 +101,11 @@ function GC.AutoScan.New(timers, actions)
     ["resume:mail"] = function(now) removePause("mail", now) end,
     ["pause:sell"] = function() addPause("sell") end,
     ["resume:sell"] = function(now) removePause("sell", now) end,
+    -- The Items board is on screen: its keys batches and the pass share one browse buffer,
+    -- and a pass paging under the poll left both boards half-answered (see UI/SniperFrame.lua's
+    -- _SetBoard). The pass waits, exactly as it does for the Sell tab.
+    ["pause:items"] = function() addPause("items") end,
+    ["resume:items"] = function(now) removePause("items", now) end,
   }
 
   function obj:Input(event, now)
@@ -111,17 +116,34 @@ function GC.AutoScan.New(timers, actions)
   -- Drives the breather/settle timers; call from OnUpdate (~4Hz). IDLE
   -- starts a scan on the very next Tick with no reasons pending; WAITING
   -- starts one once its deadline has passed and reasons are still empty.
+  --
+  -- The state only advances on a scan that actually started. It used to advance
+  -- regardless, and the caller's startScan withholds the send whenever the player
+  -- is busy on Blizzard's own auction house panes -- so the machine sat in
+  -- SCANNING with nothing in flight and no event that could ever move it on. The
+  -- button said "AUTO · SCANNING" for as long as the player cared to watch it,
+  -- and no scan ran. A `false` answer keeps the machine in WAITING with a fresh
+  -- settle deadline, so the very next opening starts one for real. Anything else
+  -- (including an action that returns nothing, which is every older caller and
+  -- every spec fake) is taken at its word that a scan is running.
+  local function beginScan(now)
+    if actions.startScan() == false then
+      state = "WAITING"
+      deadline = now + settle
+      return
+    end
+    state = "SCANNING"
+    deadline = nil
+  end
+
   function obj:Tick(now)
     if state == "IDLE" then
       if not hasReasons() then
-        actions.startScan()
-        state = "SCANNING"
+        beginScan(now)
       end
     elseif state == "WAITING" then
       if deadline and now >= deadline and not hasReasons() then
-        actions.startScan()
-        state = "SCANNING"
-        deadline = nil
+        beginScan(now)
       end
     end
   end

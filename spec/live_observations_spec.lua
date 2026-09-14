@@ -11,7 +11,10 @@ describe("Live observations store", function()
   end
 
   before_each(function()
-    GC = helper.loadModule("Core/Data.lua")
+    -- ImportString first, same as owned_lots_spec: the region check here reads its REGIONS
+    -- list rather than keeping a second one, and the .toc loads it before Core/Data.lua.
+    GC = helper.loadModule("Core/ImportString.lua")
+    helper.loadModule("Core/Data.lua", GC)
     db = { liveObservations = {} }
   end)
 
@@ -78,6 +81,17 @@ describe("Live observations store", function()
     -- listings/totalQty/levels are optional: a floor alone is a valid observation
     assert.is_true(GC.Data.RecordLiveObservation(db,
       { itemID = 7, region = "us", minUnit = 500 }, 5000))
+  end)
+
+  -- The check used to read "us" or "eu", written before kr and tw existed here: a Korean or
+  -- Taiwanese player could scan the whole auction house and every fact they saw was dropped
+  -- without a word. It reads the one region list now, same as the owned-lot path.
+  it("stores an observation from every region a client can be in", function()
+    for _, region in ipairs({ "us", "eu", "kr", "tw" }) do
+      db = { liveObservations = {} }
+      assert.is_true(GC.Data.RecordLiveObservation(db, obs({ region = region }), 5000))
+      assert.equal(region, db.liveObservations[1].region)
+    end
   end)
 
   it("tolerates a missing or corrupt liveObservations table", function()

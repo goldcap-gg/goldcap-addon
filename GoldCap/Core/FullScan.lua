@@ -150,6 +150,36 @@ function GC.FullScan.MergeDeals(existing, incoming, cap)
   return merged
 end
 
+-- Bounds a deal store that is not an array. The Items board (UI/SniperFrame.lua's
+-- GC.Sniper._realmDeals) is a MAP of itemID -> deal, and nothing about a map bounds itself:
+-- every poll batch that finds something adds a key, while the board underneath it renders at
+-- most WIN.ROW_CAP rows. Evaluate and MergeDeals already cap the commodity side with
+-- compareDeals + truncate; this is the same rule, for a store the two of them never touch.
+--
+-- Returns the kept deals as a sorted array (best first, exactly the board's own order) and
+-- trims the store IN PLACE besides: the keys of the deals that missed the cut are removed.
+-- Reporting a capped view without trimming would leave the store itself growing behind it.
+--
+-- A KEYED store, not an array: the keys are removed by name, so an array passed here would be
+-- left with holes rather than truncated. The array case already has its owners -- Evaluate and
+-- MergeDeals both cap what they return -- and a store keyed by itemID cannot be told apart
+-- from an array at runtime anyway (item ids are integers; `deals[1] ~= nil` is not an answer).
+function GC.FullScan.CapDeals(deals, cap)
+  local list, keyOf = {}, {}
+  -- pairs, not ipairs: the store is keyed by itemID, and the sort below decides the order, so
+  -- the iteration order here means nothing.
+  for key, deal in pairs(deals) do
+    list[#list + 1] = deal
+    keyOf[deal] = key
+  end
+  table.sort(list, compareDeals)
+  if cap and #list > cap then
+    for i = cap + 1, #list do deals[keyOf[list[i]]] = nil end
+    truncate(list, cap)
+  end
+  return list
+end
+
 function GC.FullScan.ApplyLiveObservation(existingDeals, itemID, liveDeal, cap)
   local updated = {}
   for _, deal in ipairs(existingDeals) do

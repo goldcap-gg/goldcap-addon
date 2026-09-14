@@ -33,6 +33,33 @@ describe("DrillQueue", function()
     assert.equal(1, q:Depth())
   end)
 
+  -- The arbiter re-queues a hit whose send was declined (an uncached item key, the drain
+  -- fence). Stamping that with a fresh clock made the entry immortal: highest estProfit keeps
+  -- it at the head, nothing can ever age it out, and it goes on describing a price nobody has
+  -- seen for minutes while every ready tick tries it again.
+  it("keeps a re-queued hit's original age, so an undrillable one still ages out", function()
+    local q = GC.DrillQueue.New(fakeDriver())
+    q:Push({ itemID = 1, floor = 100, estProfit = 500 })
+
+    for _ = 1, 5 do
+      now = now + 15
+      local hit = q:Pop()          -- charged, handed out
+      assert.equal(1, hit.itemID)
+      assert.is_true(q:Push(hit))  -- declined, straight back in
+    end
+
+    now = now + 20 -- 95s after the FIRST push, past the 90s time to live
+    assert.is_nil(q:Peek())
+    assert.equal(0, q:Depth())
+  end)
+
+  it("refuses a pushedAt from the future, which would outlive the queue itself", function()
+    local q = GC.DrillQueue.New(fakeDriver())
+    q:Push({ itemID = 1, floor = 100, estProfit = 500, pushedAt = now + 10000 })
+    now = now + 91
+    assert.is_nil(q:Peek())
+  end)
+
   it("allows re-pushing the same itemID+floor once it has been popped", function()
     local q = GC.DrillQueue.New(fakeDriver())
     q:Push({ itemID = 1, floor = 100, estProfit = 500 })

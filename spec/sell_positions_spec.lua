@@ -1339,6 +1339,47 @@ describe("Sell positions", function()
       }))
     end)
   end)
+
+  -- PostItem pins ONE ItemLocation, so a normal item posts its largest stack and no more, while
+  -- bagQty is the sum of every stack. The tab ranked and totalled on the sum, so five stacks of
+  -- twenty promised a hundred units and the click listed twenty.
+  it("[S11] carries the postable quantity: one stack for an item, the whole pool for a commodity", function()
+    GC = helper.loadModule("Core/BagStock.lua", GC)
+    local item = build({ bagStock = {
+      { positionKey = "item:42:100:0:0", itemID = 42, quantity = 100, isCommodity = false,
+        stacks = { { bag = 0, slot = 1, quantity = 20 }, { bag = 0, slot = 2, quantity = 80 } } },
+    } })[1]
+    assert.equal(100, item.bagQty)
+    assert.equal(80, item.postableQty)
+    local commodity = build({ bagStock = {
+      { positionKey = "commodity:42", itemID = 42, quantity = 100, isCommodity = true,
+        stacks = { { bag = 0, slot = 1, quantity = 20 }, { bag = 0, slot = 2, quantity = 80 } } },
+    } })[1]
+    assert.equal(100, commodity.postableQty)
+  end)
+
+  -- The row publishes postRecommendation.unit, and PRICE / UNIT, YOU GET, PROFIT and the posting
+  -- queue's label are all computed from it. The plan re-rounded the RAW ask with SilverUp
+  -- instead -- and RecommendPost normalises its match candidate with SilverDown -- so an
+  -- off-grid ask (an item auction's unit price is buyoutAmount/quantity, which need not sit on
+  -- the grid) gave one click two prices a silver apart.
+  it("[S15] posts at the same grid price the recommendation published", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    p.postRecommendation = { mode = "match", unit = 19700 } -- SilverDown(19719): what the row shows
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 19719)
+    assert.equal(19700, plan.unitPrice)
+  end)
+
+  -- ...but only ever the same candidate, rounded the other way. A recommendation computed
+  -- against an older, cheaper book must not drag a post under today's ask: that would be a
+  -- stale number causing an underpriced sale, which is the one failure the raises above are all
+  -- shaped to avoid.
+  it("[S15] never lets a recommendation below today's ask drag the post down", function()
+    local p = build({ acquisitions = { batch("acq:1", "goldcap", 5, 500, 1) } })[1]
+    p.postRecommendation = { mode = "match", unit = 9000 }
+    local plan = GC.SellPositions.BuildPostPlan(p, { itemID = 42, exactQty = 5 }, 19719)
+    assert.equal(19800, plan.unitPrice)
+  end)
 end)
 
 -- A seller could see the price GoldCap picked and had no way to see it, question it or change

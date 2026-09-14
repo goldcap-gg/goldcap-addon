@@ -11,15 +11,14 @@ GC.Locales.zhCN = {
     " %s  %s  x%d 件，每件 %s（共 %s，手续费 %s）%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion 会自动更新：/goldcap companion。",
-  [" rows against the live auction house about every "] = " 行与实时拍卖行核对，周期约 ",
   [" · %d hidden"] = " · 已隐藏 %d",
   [" · %d keys"] = " · %d 个物品键",
   [" · below cost"] = " · 低于成本",
   [" · identity unresolved"] = " · 归属未确定",
   [" · stale %ds"] = " · 已过 %d 秒",
   [" — Check again"] = " — 请重新检查",
-  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
-    " — 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger（可简写 /gc）",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
+    " — 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可简写 /gc）",
   ["%d (whole lot)"] = "%d（整批）",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -42,8 +41,6 @@ GC.Locales.zhCN = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 每件    合计 %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",
   [", %d hidden as unsellable"] = "，%d 件因无法出售已隐藏",
-  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
-    "繁忙服务器约 15-60 秒。没有冷却 -- 随时可重新扫描。",
   ["24h trend"] = "24小时走势",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "破折号表示还不知道每一件的成本 — 它绝不会拿市场价去猜。",
@@ -65,8 +62,8 @@ GC.Locales.zhCN = {
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
-  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
-    "自动：持续运行 Full Scan，你购买时立即让出，",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
+    "自动：持续运行 Full Scan，你购买时立即让出，自己在拍卖行搜索，或查看邮件。点击可切换。",
   ["Avoid"] = "避开",
   ["BRAKES"] = "刹车",
   ["BUY — unverified"] = "买入 — 未验证",
@@ -160,7 +157,8 @@ GC.Locales.zhCN = {
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] = "GoldCap 无法确定这是背包中的哪一堆",
   ["GoldCap data age"] = "GoldCap 数据时效",
-  ["GoldCap re-checks the top "] = "GoldCap 会重新检查前 ",
+  ["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."] =
+    "GoldCap 会重新检查前 %d 行与实时拍卖行核对，周期约 %d 秒。被拒绝的行会隐藏。购买始终是你自己点下的动作。",
   ["GoldCap value"] = "GoldCap 估价",
   ["GoldCap — Import realm prices"] = "GoldCap — 导入服务器价格",
   ["GoldCap's"] = "GoldCap 的",
@@ -250,8 +248,8 @@ GC.Locales.zhCN = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "GOLDCAP.GG 上 — 最近 %d 天，最新 %d / %d",
   ["ON THE AUCTION HOUSE"] = "拍卖行上的",
-  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
-    "通过分页浏览查询对整个拍卖行做一次扫描。大约需要 ",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "通过分页浏览查询对整个拍卖行做一次扫描。大约需要 繁忙服务器约 15-60 秒。没有冷却 -- 随时可重新扫描。",
   ["Open the Auction House first."] = "请先打开拍卖行。",
   ["Open the Auction House to begin scanning."] = "打开拍卖行以开始扫描。",
   ["Open the deals board. /gc for commands."] = "打开交易面板。命令请用 /gc。",
@@ -550,12 +548,10 @@ GC.Locales.zhCN = {
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "已修正 %d 条账目的区域；%d 笔销售重新对上了库存",
   ["relisting now would lock in a loss or a stall -- hold"] = "现在重新上架会锁定亏损或滞销 -- 先保留",
-  ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
-    "已删除邮件扫描错误留下的 %d 条重复购买记录%s",
-  ["removed %d duplicate sale record%s left by a mail-scan bug"] =
-    "已删除邮件扫描错误留下的 %d 条重复销售记录%s",
-  ["s. Rows it refuses are hidden. Buying always stays a click you make."] =
-    " 秒。被拒绝的行会隐藏。购买始终是你自己点下的动作。",
+  ["removed %d duplicate purchase records left by a mail-scan bug"] =
+    "已删除邮件扫描错误留下的 %d 条重复购买记录",
+  ["removed %d duplicate sale records left by a mail-scan bug"] =
+    "已删除邮件扫描错误留下的 %d 条重复销售记录",
   ["sale name ambiguous"] = "销售名称有歧义",
   ["sale proceeds pending"] = "销售款项待入账",
   ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
@@ -563,8 +559,6 @@ GC.Locales.zhCN = {
   ["scanned %d listings over %d passes"] = "扫描了 %d 条挂单，共 %d 轮",
   ["scanning auction house..."] = "正在扫描拍卖行...",
   ["scanning… %d results · %d deals%s"] = "扫描中… %d 条结果 · %d 笔交易%s",
-  ["search the Auction House yourself, or check your mail. Click to toggle."] =
-    "自己在拍卖行搜索，或查看邮件。点击可切换。",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "每日售出 %s",
@@ -609,4 +603,5 @@ GC.Locales.zhCN = {
   ["— = nothing is checking this row right now"] = "— = 目前没有在检查该行",
   ["… = a live check is queued for this row"] = "… = 该行的实时检查已排队",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市场价 — 尚无实时报价",
+  ["no answer %ds ago -- resting"] = "%d 秒前无应答 -- 暂歇",
 }

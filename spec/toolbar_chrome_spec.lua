@@ -413,6 +413,61 @@ describe("Auto toggle click: sell pause survives an off->on cycle while Sell is 
     assert.is_true(autoScan:PauseReasons().sell)
   end)
 
+  -- 0.9.2's board switch: two chips at the top of the deals board, built exactly like the Sell
+  -- tab's own deck switch and carried in f.dealsChrome, so they leave with the rest of the
+  -- Deals-only chrome rather than sitting over the Sell tab meaning nothing.
+  it("hides the board chips with the rest of the Deals chrome, and brings them back", function()
+    local frame = buildFrame()
+    assert.is_table(frame.boardChips)
+
+    local calls = {}
+    for id, chip in pairs(frame.boardChips) do
+      chip.Show = function() calls[id] = "show" end
+      chip.Hide = function() calls[id] = "hide" end
+    end
+
+    frame.sellTab.scripts.OnClick()
+    assert.same({ commodities = "hide", items = "hide" }, calls)
+
+    frame.dealsTab.scripts.OnClick()
+    assert.same({ commodities = "show", items = "show" }, calls)
+  end)
+
+  -- The count is what the switch is FOR while the player is on Commodities: it says how much
+  -- is waiting on the other board without moving any of it onto this one. An empty board says
+  -- so in words rather than promising a number that is not there ("ITEMS 0").
+  it("carries the Items store's count on its chip, and no number when it is empty", function()
+    local frame, GC = buildFrame()
+    assert.equal("ITEMS", frame.boardChips.items.label)
+    assert.equal("COMMODITIES", frame.boardChips.commodities.label)
+
+    GC.Sniper._realmDeals[900] = { itemID = 900 }
+    GC.Sniper._realmDeals[901] = { itemID = 901 }
+    GC.Sniper._PaintBoardChips()
+    assert.equal("ITEMS 2", frame.boardChips.items.label)
+
+    GC.Sniper._realmDeals[900] = nil
+    GC.Sniper._realmDeals[901] = nil
+    GC.Sniper._PaintBoardChips()
+    assert.equal("ITEMS", frame.boardChips.items.label)
+  end)
+
+  it("switches the board on a chip click and paints the one that is up", function()
+    local frame, GC = buildFrame()
+    GC.db = GC.db or { settings = { sniper = {} } }
+    GC.db.settings = GC.db.settings or { sniper = {} }
+    GC.db.settings.sniper = GC.db.settings.sniper or {}
+
+    assert.equal("commodities", GC.Sniper._Board())
+
+    frame.boardChips.items.scripts.OnClick()
+    assert.equal("items", GC.Sniper._Board())
+    assert.equal("items", GC.db.settings.sniper.board)
+
+    frame.boardChips.commodities.scripts.OnClick()
+    assert.equal("commodities", GC.Sniper._Board())
+  end)
+
   it("does not re-arm a sell pause on the same off->on cycle while Deals is the active view", function()
     local frame = buildFrame()
     local autoScan = upvalue(frame.autoBtn.scripts.OnClick, "autoScan")

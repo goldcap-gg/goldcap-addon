@@ -21,6 +21,7 @@ describe("SoldFrame", function()
     function r:GetWidth() return self.width end
     function r:SetJustifyH(j) self.justify = j end
     function r:SetWordWrap() end
+    function r:SetMaxLines(n) self.maxLines = n end
     function r:SetTextColor(...) self.colorValue = { ... } end
     function r:SetColorTexture(...) self.colorTexture = { ... } end
     -- Sliced rounded fills (batch-5 pattern, see UI/SellFrame.lua's own

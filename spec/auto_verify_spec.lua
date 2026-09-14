@@ -177,8 +177,13 @@ describe("Deals background verification", function()
     api.tick()
   end
 
+  -- Renders, because a board that changed without rendering is not a state the game can be in:
+  -- every path that touches scanDeals calls refreshRows right after (a scan page, a live
+  -- observation, a stamped verdict), and the render is what publishes the walk's own slice of
+  -- the list -- see renderList and stepVerifyWalk.
   local function board(api, deals)
     set(api.GC.Sniper.OnAuctionHouseShow, "scanDeals", deals)
+    api.refreshRows()
   end
 
   local safe = function() return { status = "SAFE", buyable = true, quantity = 5, reasons = {} } end
@@ -188,6 +193,120 @@ describe("Deals background verification", function()
     _G.GetTime, _G.time, _G.GetMoney, _G.GetCoinTextureString = nil, os.time, nil, nil
     _G.ITEM_QUALITY_COLORS, _G.Item, _G.PlaySound, _G.SOUNDKIT, _G.C_Timer = nil, nil, nil, nil, nil
     _G.C_AuctionHouse = nil
+  end)
+
+  -- 0.9.2: the two boards. The walk verifies what the player is looking at, so the slice is
+  -- the VISIBLE board's -- on Items it spends its query on the realm rows and leaves the
+  -- commodity board's own rows alone, and on Commodities the reverse. (This is also the
+  -- separation's safety net: nothing in the walk needs to know which store a row came from,
+  -- because only one store is ever on screen.)
+  it("walks the board that is on screen, not the one that is not", function()
+    local api = loadSniper(safe)
+    board(api, { deal(10, 100) })
+    api.GC.Sniper._realmDeals[900] = deal(900, 100)
+
+    tickAt(api, 101)
+    assert.same({ 10 }, sent)
+    api.GC.Sniper.OnCommoditySearchResults(10) -- the answer lands, freeing the one query slot
+
+    api.GC.Sniper._SetBoard("items")
+    tickAt(api, 103)
+    assert.same({ 10, 900 }, sent)
+    api.GC.Sniper.OnCommoditySearchResults(900)
+
+    -- And back: the walk's reach is the commodity row again, with no trace of 900 in it.
+    api.GC.Sniper._SetBoard("commodities")
+    local slice = api.GC.Sniper._verifySlice
+    assert.equal(1, #slice)
+    assert.equal(10, slice[1].itemID)
+  end)
+
+  -- Reported from the game after 0.9.0 put gear, pets and recipes on the board: "it finds
+  -- no commodities any more, only items". Their five-figure leads filled the walk's top 24
+  -- outright, so no commodity ever got its first look and nothing could ever say BUY.
+  it("verifies commodities before realm rows, whatever the board order says", function()
+    local api = loadSniper(safe)
+    -- The client is the authority on which is which, and it has to be asked: every row a scan
+    -- puts on the board carries isCommodity = false whatever it really is (Core/FullScan.lua
+    -- fills the field in as a constant), so a slice that believed the field put the whole board
+    -- in the realm half and split nothing at all. Both halves look like real scan rows here.
+    upvalue(api.GC.Sniper.OnItemKeyInfo, "driver").getKeyInfo = function(itemID)
+      return { isCommodity = itemID == 99 }
+    end
+    local list = {}
+    for i = 1, 30 do
+      local d = deal(i, 100, 100000 - i) -- thirty gear rows on top, biggest lead first
+      d.isCommodity = false
+      list[#list + 1] = d
+    end
+    local commodity = deal(99, 100, 10) -- one commodity, at the very bottom
+    commodity.isCommodity = false       -- exactly as the scan builds it
+    list[#list + 1] = commodity
+    board(api, list)
+
+    tickAt(api, 101)
+    assert.same({ 99 }, sent)
+    -- The commodity is the one the board marks as being looked at; realm rows past the
+    -- walk's own 24 are not promised a check either.
+    local pending = api.GC.Sniper._pendingRows
+    assert.is_true(pending[99])
+    assert.is_true(pending[1])
+    assert.is_nil(pending[30])
+  end)
+
+  -- A dropped message is the client saying it threw our request away, so the reply it was
+  -- going to answer with is never coming. It was counted and nothing else, and the one
+  -- pre-warm slot then stayed shut for its full eight-second timeout -- the board stopped
+  -- checking anything at all, waiting for an answer that had already been thrown away.
+  it("stops waiting for a reply the client has thrown away", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200) })
+
+    tickAt(api, 101)
+    assert.same({ 1 }, sent)
+
+    -- Same second, no result: the slot is held and the walk sends nothing.
+    tickAt(api, 102)
+    assert.same({ 1 }, sent)
+
+    -- The slot is released, so the very next walk asks again rather than sitting out the
+    -- eight-second timeout. (It asks about the same row: nothing answered, so nothing is known
+    -- about it yet.)
+    api.GC.Sniper.OnThrottledMessageDropped()
+    tickAt(api, 103)
+    assert.equal(2, #sent)
+  end)
+
+  -- The walk runs off the slice the last render published rather than rebuilding it: filtering,
+  -- sorting and partitioning the whole board, plus an item-key lookup per row, every time the
+  -- throttle offers a slot -- for a list the render had just finished computing.
+  it("works from the slice the render published, instead of rebuilding the board", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100), deal(2, 200) })
+    assert.is_table(api.GC.Sniper._verifySlice)
+
+    local rebuilds = 0
+    set(api.step, "renderList", function() rebuilds = rebuilds + 1; return {} end)
+    tickAt(api, 101)
+    assert.same({ 1 }, sent)
+    assert.equal(0, rebuilds)
+  end)
+
+  -- A search result carries no identity, so a cancelled or timed-out query leaves a fence: no
+  -- new check for that item until the old reply is consumed. A reply the auction house never
+  -- sends can never consume it, and the fence used to stand for the rest of the session --
+  -- one unanswered search and the board quietly stopped checking that item for good.
+  it("lifts a search fence the auction house never answered", function()
+    local api = loadSniper(safe)
+    board(api, { deal(1, 100) })
+    local draining = upvalue(api.GC.Sniper.OnCommoditySearchResults, "requeryDraining")
+    draining[1] = { itemID = 1, token = 1, sent = true, drainAt = 100 }
+
+    tickAt(api, 101)
+    assert.same({}, sent) -- fenced: the old reply may still be on its way
+
+    tickAt(api, 120) -- past LIM.DRAIN_FENCE_SECONDS: it is not coming
+    assert.same({ 1 }, sent)
   end)
 
   it("checks the top unverified row, one query per walk", function()

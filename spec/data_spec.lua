@@ -232,6 +232,56 @@ describe("Data", function()
     assert.equal("us", GC2.Data.GetStatus().region)
   end)
 
+  -- Serving US prices to a player the addon cannot place was silent: the fallback is fine
+  -- (a price table has to come from somewhere) but nothing on screen said the region was a
+  -- guess. A PTR portal is the real-world case -- the CVar reads, and names nothing known.
+  describe("undetectable region", function()
+    local function loadWith(portal, store)
+      _G.GetCVar = function(k) if k == "portal" then return portal end end
+      local GC2 = helper.loadModule("Core/Util.lua")
+      helper.loadModule("Core/ImportString.lua", GC2)
+      helper.loadModule("Core/Data.lua", GC2)
+      local printed = {}
+      GC2.Print = function(msg) printed[#printed + 1] = msg end
+      GC2.Data.Init(store or { settings = {} })
+      return GC2, printed
+    end
+
+    it("says once that the region is a guess and the prices are bundled US", function()
+      local GC2, printed = loadWith("public-test")
+      assert.equal("us", GC2.Data.GetStatus().region)
+      assert.equal(1, #printed)
+      assert.is_truthy(printed[1]:find("US", 1, true))
+      GC2.Data.WarnRegionUnknown() -- a second ask in the same session stays quiet
+      assert.equal(1, #printed)
+    end)
+
+    it("stays quiet once an import has named a region outright", function()
+      local _, printed = loadWith("public-test",
+        { settings = {}, imported = { region = "eu", realm = "silvermoon", ts = 5, items = {} } })
+      assert.equal(0, #printed)
+    end)
+
+    it("stays quiet when the portal reads fine", function()
+      local _, printed = loadWith("EU")
+      assert.equal(0, #printed)
+    end)
+  end)
+
+  -- Every other entry point here tolerates Init never having run; these two did not, and
+  -- AdoptAppData reached straight through SetImported into db.imported.origin.
+  it("stores nothing, and errors on nothing, before Init has run", function()
+    local GC2 = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/ImportString.lua", GC2)
+    helper.loadModule("Core/Data.lua", GC2)
+    assert.has_no.errors(function()
+      GC2.Data.SetImported({ region = "eu", realm = "x", ts = 1, items = {}, watchlist = {} })
+    end)
+    _G.GoldCap_AppData = { importString = "GCS1;eu;silvermoon;2000;I:190396=123400", writtenAt = 2000 }
+    assert.has_no.errors(function() GC2.Data.AdoptAppData() end)
+    _G.GoldCap_AppData = nil
+  end)
+
   it("detects kr and tw from the portal cvar", function()
     for portal, expected in pairs({ KR = "kr", TW = "tw", US = "us" }) do
       _G.GetCVar = function(k) if k == "portal" then return portal end end
@@ -306,6 +356,19 @@ describe("Data", function()
                             items = { [9] = { m = 100 }, [2] = { m = 100 }, [5] = { m = 300 } },
                             watchlist = {} })
       assert.same({ 5, 2, 9 }, GC.Data.GetWatchlist())
+    end)
+
+    -- A cap of zero used to sort every item in the import and then remove them one at a
+    -- time, which on a full import is thousands of comparisons to produce {}.
+    it("answers a zero cap without sorting the import", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+                            items = { [1] = { m = 10 }, [2] = { m = 300 } },
+                            watchlist = {} })
+      assert.same({}, GC.Data.GetWatchlist(0))
+      -- The player's own list still wins at any cap: that branch returns before this one.
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2001,
+                            items = { [1] = { m = 10 } }, watchlist = { 5, 1 } })
+      assert.same({ 5, 1 }, GC.Data.GetWatchlist(0))
     end)
 
     it("clamps a negative cap to an empty list", function()

@@ -71,6 +71,30 @@ describe("Sell refresh state fence", function()
     assert.equal("waiting_result", refreshState(GC).phase)
   end)
 
+  -- A throttle flag that has stopped changing puts the whole addon on one forced send per
+  -- window per consumer (Core/Util.lua). The permit used to be a single global one handed out
+  -- by the mere act of ASKING whether the system was ready -- and the Sniper's arbiter asks
+  -- immediately before this tab does, on every ready event, so this walk never once got one:
+  -- "PRICING… 0/20" through a hundred and twenty ready events on a live client.
+  it("holds its place when the throttle pacing gives the turn to somebody else", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local retries = 0
+    _G.C_Timer = { After = function() retries = retries + 1 end }
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local mayClaim = false
+    upvalue(advance, "driver").claimSend = function() return mayClaim end
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({}, sent.keys)   -- nothing sent...
+    assert.is_true(retries > 0)  -- ...and it is coming back for its own turn
+    assert.equal(0, refreshState(GC).index) -- the queue position is untouched
+
+    mayClaim = true
+    GC.Sell.OnThrottleReady()
+    assert.same({ 42 }, sent.keys)
+  end)
+
   it("drains a timed-out untagged result before allowing the same key again", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = false } end)
@@ -153,6 +177,44 @@ describe("Sell refresh state fence", function()
     critical = false
     GC.Sell.OnThrottleReady()
     assert.same({ 42, 42 }, sent.keys)
+  end)
+
+  -- Reported from the game: "PRICING…" with two rows priced and the other 38 blank for as
+  -- long as the tab stayed open. A yield to a purchase had no way back except the phase
+  -- watchdog, which restarted the pass from item 1 -- straight into the same yield.
+  it("a yield to a purchase asks again by itself, from the same place in the queue", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local timers = {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    local critical = true
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sniper.IsSearchCritical = function() return critical end
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({}, sent.keys) -- yielded to the purchase
+    local armed = #timers
+    assert.is_true(armed >= 1)
+
+    -- The purchase ends with no event of its own; the retry is what notices.
+    critical = false
+    for i = 1, armed do timers[i]() end
+    assert.same({ 42 }, sent.keys)
+  end)
+
+  it("a retry armed by a walk that was since restarted does nothing", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local timers = {}
+    _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+    local critical = true
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sniper.IsSearchCritical = function() return critical end
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    local stale = timers[#timers]
+    GC.Sell.Refresh() -- a new generation: the old retry must not drive it
+    critical = false
+    stale()
+    assert.same({}, sent.keys)
   end)
 
   it("waits for throttle and fails closed when the auction house is unavailable", function()
@@ -515,5 +577,248 @@ describe("Sell refresh state fence", function()
       { "commodity:42", 42, "Item 42", "A-R", "eu", 100 },
       { "item:7:100:3:0", 7, "Item 7", "A-R", "eu", 100 },
     }, observed)
+  end)
+  -- The fence branch used to be a dead end: it parked the machine in "draining" with no
+  -- progress stamp and no way back -- advanceQuote refused the phase outright, so its own retry
+  -- and OnThrottleReady's tail both bounced off it -- and the only exit was the 15s watchdog
+  -- declaring the whole pass dead over one item.
+  it("[S1] re-checks a drain fence on its own timer instead of wedging the pass", function()
+    local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local GC = load(now, sent, cache, function() return { isCommodity = false } end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+    now.value = 111
+    GC.Sell.OnThrottleReady() -- the request times out and leaves its drain tombstone
+    now.value = 112
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    local state = refreshState(GC)
+    assert.equal("draining", state.phase)
+    -- Waiting behind a fence is the walk working, so the watchdog must not read it as an
+    -- unanswered request.
+    assert.equal(112, state.progressAt)
+    local retry
+    for _, timer in ipairs(timers) do if timer.seconds == 2 then retry = timer.callback end end
+    assert.is_function(retry)
+    now.value = 140 -- past the window in which the lost answer could still arrive
+    retry()
+    assert.same({ 42, 42 }, sent.keys)
+    assert.equal("waiting_result", refreshState(GC).phase)
+  end)
+
+  -- A click on Post whose quote had aged out spliced its item INTO refresh.queue. The owned
+  -- phase ends in a full rebuild of that array, so the item the player was standing on was the
+  -- one thing the pass threw away.
+  it("[S3] keeps a click's price request through the queue rebuild the owned phase ends in", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } }
+    end
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    GC.Sell.Refresh() -- the owned phase: there is no queue to splice into yet
+    startFor({ itemID = 77 })
+    GC.Sell.OnOwnedAuctions()
+    assert.same({ 77 }, sent.keys) -- the clicked item goes first, and is not lost
+    GC.Sell.OnCommoditySearchResults(77)
+    assert.same({ 77, 42 }, sent.keys)
+  end)
+
+  -- The same click, taken while the walk was waiting on an item key: the insert landed on the
+  -- awaited item's own slot, so when that key arrived the walk stepped straight over the
+  -- spliced item and re-asked the awaited one.
+  it("[S3] answers a click's item next while the walk is waiting on an item key", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local keyed = {}
+    local GC = load(now, sent, cache, function(itemID) return keyed[itemID] and { isCommodity = true } or nil end)
+    GC.SellPositions.Build = function()
+      return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 } }
+    end
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("waiting_key", refreshState(GC).phase)
+    startFor({ itemID = 77 })
+    keyed[42], keyed[77] = true, true
+    GC.Sell.OnItemKeyInfo(42)
+    assert.same({ 42 }, sent.keys) -- the awaited key is still the one that was waiting
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.same({ 42, 77 }, sent.keys) -- and the click's item is next, not skipped
+  end)
+
+  -- startQuoteRefreshFor armed no watchdog at all, so an item whose key never arrived left the
+  -- machine in waiting_key for the rest of the session: "PRICING…" with no automatic
+  -- re-pricing, because Refresh(automatic) will not leave a set phase.
+  it("[S2] a click's one-item price check arms the phase watchdog", function()
+    local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local GC = load(now, sent, cache, function() return nil end)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+    startFor({ itemID = 42 })
+    assert.equal("waiting_key", refreshState(GC).phase)
+    local watchdog
+    for _, timer in ipairs(timers) do if timer.seconds == 15 then watchdog = timer.callback end end
+    assert.is_function(watchdog)
+    now.value = 200
+    watchdog()
+    assert.equal("error", refreshState(GC).phase)
+  end)
+
+  it("[S2] skips an item whose key never arrives instead of holding the whole pass", function()
+    local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local GC = load(now, sent, cache, function(itemID) return itemID == 43 and { isCommodity = true } or nil end)
+    GC.SellPositions.Build = function()
+      return { { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
+        { itemID = 43, positionKey = "commodity:43", bagQty = 5 } }
+    end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("waiting_key", refreshState(GC).phase)
+    assert.same({}, sent.keys)
+    local keyTimeout
+    for _, timer in ipairs(timers) do if timer.seconds == 10 then keyTimeout = timer.callback end end
+    assert.is_function(keyTimeout)
+    now.value = 111
+    keyTimeout()
+    assert.same({ 43 }, sent.keys)
+  end)
+
+  -- Opening the auction house priced the whole Sell tab whether or not the player was looking
+  -- at it -- up to forty throttled round trips on the same slot the Sniper's scans and the
+  -- player's own searches use.
+  it("[S8] does not price while the Sell tab is not the tab on screen", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local parked = upvalue(advance, "walkParked")
+    set(GC.Sell.Attach, "renderRows", function() end)
+    set(parked, "container", { IsShown = function() return false end })
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    -- The owned-auctions read and the composition still happen: the tab badge depends on them
+    -- and they cost no price query.
+    assert.equal(1, sent.owned)
+    assert.same({}, sent.keys)
+    assert.equal("idle", refreshState(GC).phase)
+    set(parked, "container", { IsShown = function() return true end })
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+  end)
+
+  -- OWNED_AUCTIONS_UPDATED and AUCTION_CANCELED fire on their own schedule -- a lot expiring, a
+  -- cancel from the Blizzard panel -- and every one of them used to stamp the walk's progress,
+  -- which kept the watchdog quiet over a pricing request that was never coming back.
+  it("[S13] an owned-auctions update does not feed a wedged pricing phase's watchdog", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("waiting_result", refreshState(GC).phase)
+    local stamped = refreshState(GC).progressAt
+    now.value = 108
+    GC.Sell.OnOwnedAuctions()
+    assert.equal(stamped, refreshState(GC).progressAt)
+  end)
+
+  -- A zero read is not the same fact as a zero ANSWER: GetNum*SearchResults reports whatever
+  -- result set the client holds for the key right now, and these events are raised by the
+  -- Sniper's searches too. Gagging the item on that basis told the player the auction house had
+  -- answered when it had not.
+  it("[S6] will not call a zero read an answer the client cannot prove is complete", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local driver = upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver")
+    driver.commodity = function() return nil end
+    driver.hasFullResults = function() return false end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnCommoditySearchResults(42)
+    local rest = upvalue(render, "emptyAnswers")[42]
+    assert.is_false(rest.answered)
+    -- Fenced rather than gagged: our own reply may still be on the way.
+    assert.is_table(refreshState(GC).drain["commodity:42"])
+  end)
+
+  it("[S6] does treat a zero read the client proves complete as a real 'nothing listed'", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local driver = upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver")
+    driver.commodity = function() return nil end
+    driver.hasFullResults = function() return true end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.is_true(upvalue(render, "emptyAnswers")[42].answered)
+    assert.is_nil(refreshState(GC).drain["commodity:42"])
+  end)
+
+  -- A request that never came back was recorded exactly like a reply carrying no listings, so
+  -- the tab told the player "Nothing listed on the AH right now" about an item the auction
+  -- house had said nothing about at all.
+  it("[S7] records a timeout as silence, not as an empty answer", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    now.value = 111
+    GC.Sell.OnThrottleReady()
+    assert.is_false(upvalue(render, "emptyAnswers")[42].answered)
+  end)
+
+  it("[S10] dates a quote from the request, not from when its answer was handled", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local stamped
+    GC.QuoteCache.Set = function(_, itemID, unit, at) cache[itemID] = unit; stamped = at end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    now.value = 106
+    GC.Sell.OnCommoditySearchResults(42)
+    assert.equal(222, cache[42])
+    assert.equal(100, stamped)
+  end)
+
+  -- GetOwnedAuctions never reports whether an auction is a commodity, and GetItemKeyInfo
+  -- answers nil until the client has cached that key -- so a lot filed itself under an
+  -- `item:...` key while the same item's BAG stock, classified from the remembered answer, filed
+  -- under `commodity:...`: two rows for one item, the listing holding no stock and the stock
+  -- reading "not on hand".
+  it("[S5] keys an owned lot from the remembered answer, and remembers a fresh one", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.db = { commodityByItem = { [42] = true } }
+    _G.C_AuctionHouse.GetItemKeyInfo = function(key)
+      return key.itemID == 43 and { isCommodity = true } or nil
+    end
+    local classify = upvalue(GC.Sell.OnOwnedAuctions, "classifyOwnedAuctions")
+    local auctions = { { itemKey = { itemID = 42 } }, { itemKey = { itemID = 43 } },
+      { itemKey = { itemID = 44 } } }
+    classify(auctions)
+    assert.is_true(auctions[1].isCommodity) -- remembered, where GetItemKeyInfo had no answer
+    assert.is_true(auctions[2].isCommodity)
+    assert.is_true(GC.db.commodityByItem[43]) -- and the fresh answer is written back
+    assert.is_nil(auctions[3].isCommodity) -- nobody can key it yet: left alone, never guessed
+  end)
+
+  it("[S18] Reset forgets the rested items, the skip count and a click's pending request", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver").commodity = function() return nil end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnCommoditySearchResults(42)
+    local state = refreshState(GC)
+    state.priority[#state.priority + 1] = 99
+    assert.is_table(upvalue(render, "emptyAnswers")[42])
+    assert.equal(1, state.skipped)
+    GC.Sell.Reset()
+    assert.is_nil(upvalue(render, "emptyAnswers")[42])
+    assert.same({}, state.priority)
+    assert.equal(0, state.skipped)
   end)
 end)

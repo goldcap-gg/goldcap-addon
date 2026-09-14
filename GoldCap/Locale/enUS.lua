@@ -10,15 +10,15 @@ local _, GC = ...
 GC.Locales.enUS = {
   [" %s  %s  x%d at %s each  (%s total, %s cut)%s"] = " %s  %s  x%d at %s each  (%s total, %s cut)%s",
   [" Companion keeps this fresh: /goldcap companion."] = " Companion keeps this fresh: /goldcap companion.",
-  [" rows against the live auction house about every "] = " rows against the live auction house about every ",
   [" · %d hidden"] = " · %d hidden",
   [" · %d keys"] = " · %d keys",
   [" · below cost"] = " · below cost",
   [" · identity unresolved"] = " · identity unresolved",
   [" · stale %ds"] = " · stale %ds",
+  [" · watching"] = " · watching",
   [" — Check again"] = " — Check again",
-  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
-    " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
+    " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
@@ -26,6 +26,7 @@ GC.Locales.enUS = {
   ["%d held back"] = "%d held back",
   ["%d held back from posting"] = "%d held back from posting",
   ["%d hidden -- the live check refused them"] = "%d hidden -- the live check refused them",
+  ["%d items for %s (%s, %s)"] = "%d items for %s (%s, %s)",
   ["%d missing"] = "%d missing",
   ["%d partial"] = "%d partial",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
@@ -39,7 +40,6 @@ GC.Locales.enUS = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unit    total %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
-  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] = "15-60 seconds on busy realms. No cooldown -- rescan anytime.",
   ["24h trend"] = "24h trend",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price.",
@@ -55,14 +55,14 @@ GC.Locales.enUS = {
   ["AUTO · SCANNING"] = "AUTO · SCANNING",
   ["AUTOMATION & ALERTS"] = "AUTOMATION & ALERTS",
   ["AVOID"] = "AVOID",
-  ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
-    "Above this 24-hour rise the market value is treated as a spike and deflated.",
+  ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
+    "Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down.",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
   ["Auction House did not answer — press Refresh"] = "Auction House did not answer — press Refresh",
   ["Auction House is not open"] = "Auction House is not open",
   ["Auto-scan on next AH visit"] = "Auto-scan on next AH visit",
-  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
-    "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, ",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
+    "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle.",
   ["Avoid"] = "Avoid",
   ["BRAKES"] = "BRAKES",
   ["BUY — unverified"] = "BUY — unverified",
@@ -76,6 +76,7 @@ GC.Locales.enUS = {
   ["CANCEL %d"] = "CANCEL %d",
   ["CANCEL LOT?"] = "CANCEL LOT?",
   ["CANCELLING…"] = "CANCELLING…",
+  ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
   ["COST"] = "COST",
   ["COST / UNIT"] = "COST / UNIT",
@@ -110,6 +111,8 @@ GC.Locales.enUS = {
   ["Clicking again deletes this hand-entered cost for good."] =
     "Clicking again deletes this hand-entered cost for good.",
   ["Close"] = "Close",
+  ["Commodities: reagents, consumables, gems and enchants the scan found under their region price. These are the rows a live check can approve for buying."] =
+    "Commodities: reagents, consumables, gems and enchants the scan found under their region price. These are the rows a live check can approve for buying.",
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion keeps prices fresh — /goldcap companion",
   ["Companion sync rejected:"] = "Companion sync rejected:",
@@ -155,12 +158,21 @@ GC.Locales.enUS = {
     "Free, sits in the tray, nothing to set up in game.",
   ["Full pass over them: %.1fs"] = "Full pass over them: %.1fs",
   ["Full pass over them: measuring..."] = "Full pass over them: measuring...",
+  ["Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg."] =
+    "Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg.",
   ["Gold tied up"] = "Gold tied up",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
   ["GoldCap can't pin down which bag stack this is"] = "GoldCap can't pin down which bag stack this is",
+  ["GoldCap could not tell which region you are playing in, so it is showing bundled US prices -- /goldcap import or /goldcap companion loads your own realm's"] =
+    "GoldCap could not tell which region you are playing in, so it is showing bundled US prices -- /goldcap import or /goldcap companion loads your own realm's",
   ["GoldCap data age"] = "GoldCap data age",
-  ["GoldCap re-checks the top "] = "GoldCap re-checks the top ",
+  ["GoldCap keeps checking them while this board is open."] = "GoldCap keeps checking them while this board is open.",
+  ["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."] =
+    "GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make.",
+  ["GoldCap realm median (unverified)"] = "GoldCap realm median (unverified)",
+  ["GoldCap region price"] = "GoldCap region price",
+  ["GoldCap region price (ilvl %d)"] = "GoldCap region price (ilvl %d)",
   ["GoldCap value"] = "GoldCap value",
   ["GoldCap — Import realm prices"] = "GoldCap — Import realm prices",
   ["GoldCap's"] = "GoldCap's",
@@ -172,6 +184,7 @@ GC.Locales.enUS = {
   ["Gone"] = "Gone",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Greyed out means the quote has aged; Post and Repost refresh it before they act.",
+  ["HIDDEN %d"] = "HIDDEN %d",
   ["HIDDEN 0"] = "HIDDEN 0",
   ["HIDE DETAILS ▾"] = "HIDE DETAILS ▾",
   ["Held back from cancelling"] = "Held back from cancelling",
@@ -180,6 +193,8 @@ GC.Locales.enUS = {
     "How many hours of normal sales a wall under your exit may hold before the deal is refused.",
   ["IN THE LOT"] = "IN THE LOT",
   ["ITEM"] = "ITEM",
+  ["ITEMS"] = "ITEMS",
+  ["ITEMS %d"] = "ITEMS %d",
   ["If it clears"] = "If it clears",
   ["Import"] = "Import",
   ["Import failed:"] = "Import failed:",
@@ -192,6 +207,8 @@ GC.Locales.enUS = {
     "It will not invent a cost from the market price, so profit stays unknown until you enter one.",
   ["Item"] = "Item",
   ["Item %d"] = "Item %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Leads only -- they are never approved for buying, and GoldCap only checks them while this board is open."] =
+    "Items: gear, pets and recipes priced against the region reference from your import. Leads only -- they are never approved for buying, and GoldCap only checks them while this board is open.",
   ["LISTED"] = "LISTED",
   ["LISTED AS"] = "LISTED AS",
   ["LOT VALUE"] = "LOT VALUE",
@@ -232,6 +249,7 @@ GC.Locales.enUS = {
   ["No exact auction key"] = "No exact auction key",
   ["No exact bag stack"] = "No exact bag stack",
   ["No exact bag variant"] = "No exact bag variant",
+  ["No gear, pets or recipes under their region price right now."] = "No gear, pets or recipes under their region price right now.",
   ["No live auctions on this character"] = "No live auctions on this character",
   ["No live listings came back for this item."] = "No live listings came back for this item.",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
@@ -255,11 +273,12 @@ GC.Locales.enUS = {
   ["Nothing queued to cancel"] = "Nothing queued to cancel",
   ["Nothing queued to post"] = "Nothing queued to post",
   ["Nothing to remove"] = "Nothing to remove",
+  ["Nothing to watch on this board yet."] = "Nothing to watch on this board yet.",
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "ON GOLDCAP.GG — LAST %d DAYS",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] = "ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d",
   ["ON THE AUCTION HOUSE"] = "ON THE AUCTION HOUSE",
-  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
-    "One-shot scan of the entire Auction House via paged browse queries. Takes roughly ",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime.",
   ["Open the Auction House first."] = "Open the Auction House first.",
   ["Open the Auction House to begin scanning."] = "Open the Auction House to begin scanning.",
   ["Open the deals board. /gc for commands."] = "Open the deals board. /gc for commands.",
@@ -310,6 +329,7 @@ GC.Locales.enUS = {
   ["READY"] = "READY",
   ["REALIZED PROFIT"] = "REALIZED PROFIT",
   ["REFRESH"] = "REFRESH",
+  ["REFUSED %d"] = "REFUSED %d",
   ["RESET WINDOW"] = "RESET WINDOW",
   ["Reason"] = "Reason",
   ["Refresh"] = "Refresh",
@@ -468,6 +488,7 @@ GC.Locales.enUS = {
     "at the price GoldCap expects these to sell for, after the 5% cut — not your asking price",
   ["auction house error"] = "auction house error",
   ["auto off"] = "auto off",
+  ["auto-synced"] = "auto-synced",
   ["auto-synced %dh ago"] = "auto-synced %dh ago",
   ["auto-synced data for %s loaded (%s old)"] = "auto-synced data for %s loaded (%s old)",
   ["auto-synced data stale -- /goldcap import"] = "auto-synced data stale -- /goldcap import",
@@ -519,6 +540,7 @@ GC.Locales.enUS = {
   ["live safety confirmed -- click Buy to purchase"] = "live safety confirmed -- click Buy to purchase",
   ["live verification required"] = "live verification required",
   ["low"] = "low",
+  ["manual import"] = "manual import",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",
   ["no answer from the auction house"] = "no answer from the auction house",
@@ -569,9 +591,10 @@ GC.Locales.enUS = {
   ["region corrected on %d ledger rows; %d sales matched back to their stock"] =
     "region corrected on %d ledger rows; %d sales matched back to their stock",
   ["relisting now would lock in a loss or a stall -- hold"] = "relisting now would lock in a loss or a stall -- hold",
-  ["removed %d duplicate purchase record%s left by a mail-scan bug"] = "removed %d duplicate purchase record%s left by a mail-scan bug",
-  ["removed %d duplicate sale record%s left by a mail-scan bug"] = "removed %d duplicate sale record%s left by a mail-scan bug",
-  ["s. Rows it refuses are hidden. Buying always stays a click you make."] = "s. Rows it refuses are hidden. Buying always stays a click you make.",
+  ["removed %d duplicate purchase record left by a mail-scan bug"] = "removed %d duplicate purchase record left by a mail-scan bug",
+  ["removed %d duplicate purchase records left by a mail-scan bug"] = "removed %d duplicate purchase records left by a mail-scan bug",
+  ["removed %d duplicate sale record left by a mail-scan bug"] = "removed %d duplicate sale record left by a mail-scan bug",
+  ["removed %d duplicate sale records left by a mail-scan bug"] = "removed %d duplicate sale records left by a mail-scan bug",
   ["sale name ambiguous"] = "sale name ambiguous",
   ["sale proceeds pending"] = "sale proceeds pending",
   ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
@@ -579,8 +602,6 @@ GC.Locales.enUS = {
   ["scanned %d listings over %d passes"] = "scanned %d listings over %d passes",
   ["scanning auction house..."] = "scanning auction house...",
   ["scanning… %d results · %d deals%s"] = "scanning… %d results · %d deals%s",
-  ["search the Auction House yourself, or check your mail. Click to toggle."] =
-    "search the Auction House yourself, or check your mail. Click to toggle.",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] = "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "sells %s/day",
   ["session: %d snipes, spent %s, ~%s est. profit"] = "session: %d snipes, spent %s, ~%s est. profit",
@@ -588,10 +609,19 @@ GC.Locales.enUS = {
   ["sniped for "] = "sniped for ",
   ["starting full scan..."] = "starting full scan...",
   ["stopped watching %s"] = "stopped watching %s",
+  ["that does not look like a GoldCap import string"] = "that does not look like a GoldCap import string",
+  ["that looks like two import strings pasted together -- paste just one"] =
+    "that looks like two import strings pasted together -- paste just one",
+  ["that string carried no prices"] = "that string carried no prices",
+  ["that string does not name a realm"] = "that string does not name a realm",
+  ["that string is too long to import"] = "that string is too long to import",
   ["the Auction House has not answered for this item yet"] = "the Auction House has not answered for this item yet",
   ["the auction house reported an error"] = "the auction house reported an error",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the import failed (%s)"] = "the import failed (%s)",
+  ["there was nothing to import"] = "there was nothing to import",
+  ["this build of GoldCap does not know that region -- update the addon"] =
+    "this build of GoldCap does not know that region -- update the addon",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] = "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "to clear %d units at %s sold a day, with %s tied up the whole time",
@@ -600,6 +630,8 @@ GC.Locales.enUS = {
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
+  ["window moved back to the middle of the screen at its default size"] =
+    "window moved back to the middle of the screen at its default size",
   ["worst case, selling all %d back into the price standing there now"] =
     "worst case, selling all %d back into the price standing there now",
   ["would sell at a loss"] = "would sell at a loss",
@@ -609,6 +641,8 @@ GC.Locales.enUS = {
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
+  ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
+    "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
   ["your price is above every level shown"] = "your price is above every level shown",
   ["your price stands %d of %d"] = "your price stands %d of %d",
   ["yours"] = "yours",
@@ -623,4 +657,5 @@ GC.Locales.enUS = {
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
+  ["no answer %ds ago -- resting"] = "no answer %ds ago -- resting",
 }

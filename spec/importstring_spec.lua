@@ -71,9 +71,34 @@ describe("ImportString.Parse", function()
     assert.equal("krol-blade", r.realm)
   end)
 
-  it("rejects uppercase realm slugs", function()
-    local r, err = GC.ImportString.Parse("GCS1;eu;Silvermoon;1;I:1=10")
-    assert.is_nil(r); assert.equal("bad_header", err)
+  -- The realm is a label the addon stores and prints back, never parses. Matching it as
+  -- ASCII lowercase rejected every Korean and Taiwanese realm -- Blizzard's own slugs there
+  -- are not ASCII -- with the message that says the string itself is broken.
+  it("accepts a realm slug in the client's own alphabet", function()
+    -- No spaces in the list: whitespace is stripped from the whole paste above, and a slug
+    -- has none to begin with.
+    for _, realm in ipairs({ "아즈샤라", "Silvermoon", "area_52", "burning-légion" }) do
+      local r, err = GC.ImportString.Parse(("GCS1;kr;%s;1;I:1=10"):format(realm))
+      assert.is_nil(err)
+      assert.equal(realm, r.realm)
+    end
+  end)
+
+  it("rejects a string that names no realm, in its own words", function()
+    local r, err = GC.ImportString.Parse("GCS1;eu;;1;I:1=10")
+    assert.is_nil(r); assert.equal("no_realm", err)
+  end)
+
+  -- Two strings pasted one after the other: the header match runs from the first marker to
+  -- the end of the paste, so the second realm's sections used to be read as the first
+  -- realm's and overwrite its prices under its name.
+  it("rejects two import strings pasted together", function()
+    local r, err = GC.ImportString.Parse(
+      "GCS1;eu;silvermoon;1;I:1=10GCS1;us;area-52;2;I:1=99")
+    assert.is_nil(r); assert.equal("two_strings", err)
+    local separated, err2 = GC.ImportString.Parse(
+      "GCS1;eu;silvermoon;1;I:1=10\nGCS1;us;area-52;2;I:1=99")
+    assert.is_nil(separated); assert.equal("two_strings", err2)
   end)
 
   it("rejects strings with no items", function()

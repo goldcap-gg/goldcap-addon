@@ -369,4 +369,36 @@ describe("PostQueue", function()
     assert.is_table(skip)
     assert.equal("unresolved_identity", skip.reason)
   end)
+  -- A normal item posts ONE stack (PostItem pins a single ItemLocation), so a position holding
+  -- five stacks of twenty is worth twenty units to the next click, not a hundred. The queue used
+  -- to rank on the bag sum and put that position at the top of a list it could not deliver.
+  it("[S11] ranks on what one click lists, not on the whole bag total", function()
+    GC = helper.loadModule("Core/BagStock.lua", GC)
+    local quotes = {}
+    setQuote(quotes, 1, 10000, 10)
+    setQuote(quotes, 2, 10000, 10)
+    local positions = build({
+      bagStock = {
+        -- 100 units in the bags, but the largest stack is 20: 200000, not 1000000.
+        { positionKey = "item:1:100:0:0", itemID = 1, itemName = "Blade", quantity = 100,
+          isCommodity = false, stacks = { { bag = 0, slot = 1, quantity = 20 },
+            { bag = 0, slot = 2, quantity = 20 }, { bag = 0, slot = 3, quantity = 20 },
+            { bag = 0, slot = 4, quantity = 20 }, { bag = 0, slot = 5, quantity = 20 } } },
+        -- A commodity aggregates: the whole pool is one postable quantity.
+        { positionKey = "commodity:2", itemID = 2, itemName = "Ore", quantity = 30,
+          isCommodity = true, stacks = { { bag = 0, slot = 6, quantity = 30 } } },
+      },
+      quotes = quotes,
+    })
+    local entries = GC.PostQueue.Build(positions)
+    local blade = findEntry(entries, "item:1:100:0:0")
+    local ore = findEntry(entries, "commodity:2")
+    assert.equal(20, blade.postableQty)
+    assert.equal(200000, blade.value)
+    assert.equal(100, blade.bagQty) -- still honest about what is held
+    assert.equal(30, ore.postableQty)
+    assert.equal(300000, ore.value)
+    -- ...and the commodity outranks the item, which the bag-sum ordering had backwards.
+    assert.equal("commodity:2", entries[1].positionKey)
+  end)
 end)

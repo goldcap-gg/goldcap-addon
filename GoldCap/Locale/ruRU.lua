@@ -7,16 +7,14 @@ GC.Locales.ruRU = {
     " %s  %s  x%d по %s за штуку  (%s всего, %s комиссия)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion обновляет это сам: /goldcap companion.",
-  [" rows against the live auction house about every "] =
-    " строк по живому аукциону примерно каждые ",
   [" · %d hidden"] = " · скрыто %d",
   [" · %d keys"] = " · ключей: %d",
   [" · below cost"] = " · ниже себестоимости",
   [" · identity unresolved"] = " · позиция не опознана",
   [" · stale %ds"] = " · устарело %dс",
   [" — Check again"] = " — проверьте ещё раз",
-  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
-    " — команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (или коротко /gc)",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
+    " — команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (или коротко /gc)",
   ["%d (whole lot)"] = "%d (весь лот)",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -39,8 +37,6 @@ GC.Locales.ruRU = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    всего %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
-  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
-    "15-60 секунд на загруженных реалмах. Без отката -- сканируйте когда угодно.",
   ["24h trend"] = "Тренд за 24ч",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Прочерк значит, что себестоимость известна не по всем единицам — из рыночной цены она никогда не выдумывается.",
@@ -62,8 +58,8 @@ GC.Locales.ruRU = {
   ["Auction House did not answer — press Refresh"] = "Аукцион не ответил — нажмите Refresh",
   ["Auction House is not open"] = "Аукцион не открыт",
   ["Auto-scan on next AH visit"] = "Автоскан при следующем визите на АД",
-  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
-    "Авто: держит Full Scan включённым постоянно и мгновенно уступает, когда вы покупаете, ",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
+    "Авто: держит Full Scan включённым постоянно и мгновенно уступает, когда вы покупаете, поищите на аукционе сами или проверьте почту. Клик переключает.",
   ["Avoid"] = "Избегать",
   ["BRAKES"] = "ТОРМОЗА",
   ["BUY — unverified"] = "КУПИТЬ — без проверки",
@@ -167,7 +163,8 @@ GC.Locales.ruRU = {
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap не может точно определить, какой это стек в сумке",
   ["GoldCap data age"] = "Возраст данных GoldCap",
-  ["GoldCap re-checks the top "] = "GoldCap перепроверяет верхние ",
+  ["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."] =
+    "GoldCap перепроверяет верхние %d строк по живому аукциону примерно каждые %dс. Отклонённые строки скрыты. Покупка всегда остаётся вашим кликом.",
   ["GoldCap value"] = "Оценка GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Импорт цен реалма",
   ["GoldCap's"] = "от GoldCap",
@@ -266,8 +263,8 @@ GC.Locales.ruRU = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "НА GOLDCAP.GG — ПОСЛЕДНИЕ %d ДНЕЙ, СВЕЖИЕ %d ИЗ %d",
   ["ON THE AUCTION HOUSE"] = "НА АУКЦИОНЕ",
-  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
-    "Разовое сканирование всего аукциона постраничными запросами. Занимает примерно ",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "Разовое сканирование всего аукциона постраничными запросами. Занимает примерно 15-60 секунд на загруженных реалмах. Без отката -- сканируйте когда угодно.",
   ["Open the Auction House first."] = "Сначала откройте аукцион.",
   ["Open the Auction House to begin scanning."] = "Откройте аукцион, чтобы начать сканирование.",
   ["Open the deals board. /gc for commands."] = "Открыть доску сделок. /gc — команды.",
@@ -608,12 +605,10 @@ GC.Locales.ruRU = {
     "регион исправлен в %d записях; %d продаж сопоставлено со своим запасом",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "перевыставление сейчас зафиксирует убыток или застой -- придержите",
-  ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
-    "удалено %d дублирующих%s записей покупки, оставленных ошибкой сканирования почты",
-  ["removed %d duplicate sale record%s left by a mail-scan bug"] =
-    "удалено %d дублирующих%s записей продажи, оставленных ошибкой сканирования почты",
-  ["s. Rows it refuses are hidden. Buying always stays a click you make."] =
-    "с. Отклонённые строки скрыты. Покупка всегда остаётся вашим кликом.",
+  ["removed %d duplicate purchase records left by a mail-scan bug"] =
+    "удалено %d дублирующих записей покупки, оставленных ошибкой сканирования почты",
+  ["removed %d duplicate sale records left by a mail-scan bug"] =
+    "удалено %d дублирующих записей продажи, оставленных ошибкой сканирования почты",
   ["sale name ambiguous"] = "имя в продаже неоднозначно",
   ["sale proceeds pending"] = "выручка ожидается",
   ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
@@ -621,8 +616,6 @@ GC.Locales.ruRU = {
   ["scanned %d listings over %d passes"] = "просканировано %d лотов за %d проходов",
   ["scanning auction house..."] = "сканируем аукцион...",
   ["scanning… %d results · %d deals%s"] = "сканируем… %d результатов · %d сделок%s",
-  ["search the Auction House yourself, or check your mail. Click to toggle."] =
-    "поищите на аукционе сами или проверьте почту. Клик переключает.",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "продаётся %s/день",
@@ -671,4 +664,5 @@ GC.Locales.ruRU = {
     "… = для этой строки живая проверка уже в очереди",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ рыночная стоимость goldcap.gg — живой котировки пока нет",
+  ["no answer %ds ago -- resting"] = "нет ответа %dс назад -- пауза",
 }

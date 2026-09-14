@@ -289,6 +289,11 @@ describe("TOC load order", function()
     assert.is_function(GC.slashHandlers.sniper)
     assert.is_function(GC.Sniper.Toggle)
     assert.is_function(GC.SettingsUI.Toggle)
+    -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --
+    -- the button that does the same job lives inside the window it would rescue. Both go
+    -- through this one export, so the pair is pinned here like every other cross-file contract.
+    assert.is_function(GC.slashHandlers.reset)
+    assert.is_function(GC.SettingsUI.ResetWindow)
 
     -- Batch 5: RESET WINDOW (UI/SettingsFrame.lua) reads the live default straight off
     -- SniperFrame.lua's own WIN table via this export, instead of a mirrored constant that can

@@ -117,9 +117,31 @@ describe("Owned lots store", function()
 
   it("rejects a scope whose char is not Name-Realm", function()
     assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "NoRealm", region = "eu" }, 1000))
-    assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "Too-Many-Hyphens", region = "eu" }, 1000))
+    assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "-Dentarg", region = "eu" }, 1000))
+    assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "Aiyana-", region = "eu" }, 1000))
     assert.is_nil(GC.Data.RecordOwnedLots(db, { lot() }, { char = "", region = "eu" }, 1000))
     assert.equal(0, #db.ownedLots)
+  end)
+
+  -- GC.Ledger.Context builds this string as UnitName .. "-" .. GetRealmName(), and a realm
+  -- name keeps its own hyphens. Requiring exactly one meant nobody on Azjol-Nerub, Kel'Thuzad
+  -- or any other hyphenated realm ever had a lot recorded -- silently, since an invalid scope
+  -- just returns nil.
+  it("accepts a character on a hyphenated realm", function()
+    local hyphenated = { char = "Bob-Azjol-Nerub", region = "eu" }
+    assert.is_true(GC.Data.RecordOwnedLots(db, { lot() }, hyphenated, 1000))
+    assert.equal("Bob-Azjol-Nerub", db.ownedLots[1].char)
+    assert.is_true(GC.Data.MarkOwnedLotCancelled(db, 1932076389, hyphenated, 1100))
+    assert.equal(1100, db.ownedLots[1].cancelledAt)
+  end)
+
+  -- Every region a client can be in, not the two the first cut knew about.
+  it("records lots for a kr or tw character", function()
+    for _, region in ipairs({ "kr", "tw" }) do
+      db = { ownedLots = {} }
+      assert.is_true(GC.Data.RecordOwnedLots(db, { lot() }, { char = "Aiyana-Dentarg", region = region }, 1000))
+      assert.equal(region, db.ownedLots[1].region)
+    end
   end)
 
   it("drops a lot whose isCommodity is not a boolean instead of coercing it to false", function()

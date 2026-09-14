@@ -10,16 +10,14 @@ GC.Locales.esMX = {
     " %s  %s  x%d a %s cada uno  (%s en total, %s de comisión)%s",
   [" Companion keeps this fresh: /goldcap companion."] =
     " Companion lo mantiene al día: /goldcap companion.",
-  [" rows against the live auction house about every "] =
-    " filas contra la casa de subastas en vivo, cada ",
   [" · %d hidden"] = " · %d ocultos",
   [" · %d keys"] = " · %d claves",
   [" · below cost"] = " · por debajo del costo",
   [" · identity unresolved"] = " · identidad sin resolver",
   [" · stale %ds"] = " · %ds de antigüedad",
   [" — Check again"] = " — verifica de nuevo",
-  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (or /gc for short)"] =
-    " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger (o /gc para abreviar)",
+  [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
+    " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (o /gc para abreviar)",
   ["%d (whole lot)"] = "%d (lote completo)",
   ["%d days"] = "%d días",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -42,8 +40,6 @@ GC.Locales.esMX = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidad    total %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin costo",
   [", %d hidden as unsellable"] = ", %d ocultos por no ser vendibles",
-  ["15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
-    "De 15 a 60 segundos en reinos concurridos. Sin espera -- vuelve a escanear cuando quieras.",
   ["24h trend"] = "Tendencia 24 h",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Un guion significa que GoldCap aún no conoce el costo de cada unidad: nunca lo adivinará a partir del precio de mercado.",
@@ -66,8 +62,8 @@ GC.Locales.esMX = {
     "La casa de subastas no respondió — pulsa Refresh",
   ["Auction House is not open"] = "La casa de subastas no está abierta",
   ["Auto-scan on next AH visit"] = "Escaneo automático en la próxima visita a la CS",
-  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, "] =
-    "Auto: mantiene Full Scan en marcha y cede al instante cuando compras, ",
+  ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
+    "Auto: mantiene Full Scan en marcha y cede al instante cuando compras, busca tú mismo en la casa de subastas, o revisa el correo. Haz clic para alternar.",
   ["Avoid"] = "Evitar",
   ["BRAKES"] = "FRENOS",
   ["BUY — unverified"] = "COMPRAR — sin verificar",
@@ -172,7 +168,8 @@ GC.Locales.esMX = {
   ["GoldCap can't pin down which bag stack this is"] =
     "GoldCap no puede determinar qué montón de la bolsa es este",
   ["GoldCap data age"] = "Antigüedad de los datos de GoldCap",
-  ["GoldCap re-checks the top "] = "GoldCap vuelve a comprobar las ",
+  ["GoldCap re-checks the top %d rows against the live auction house about every %ds. Rows it refuses are hidden. Buying always stays a click you make."] =
+    "GoldCap vuelve a comprobar las %d filas contra la casa de subastas en vivo, cada %d s. Las filas rechazadas se ocultan. Comprar sigue siendo siempre un clic tuyo.",
   ["GoldCap value"] = "Valor GoldCap",
   ["GoldCap — Import realm prices"] = "GoldCap — Importar precios del reino",
   ["GoldCap's"] = "de GoldCap",
@@ -272,8 +269,8 @@ GC.Locales.esMX = {
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] =
     "EN GOLDCAP.GG — ÚLTIMOS %d DÍAS, ÚLTIMAS %d DE %d",
   ["ON THE AUCTION HOUSE"] = "EN LA CASA DE SUBASTAS",
-  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly "] =
-    "Un único escaneo de toda la casa de subastas mediante consultas paginadas. Tarda unos ",
+  ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
+    "Un único escaneo de toda la casa de subastas mediante consultas paginadas. Tarda unos De 15 a 60 segundos en reinos concurridos. Sin espera -- vuelve a escanear cuando quieras.",
   ["Open the Auction House first."] = "Abre primero la casa de subastas.",
   ["Open the Auction House to begin scanning."] =
     "Abre la casa de subastas para empezar a escanear.",
@@ -613,12 +610,10 @@ GC.Locales.esMX = {
     "región corregida en %d registros; %d ventas emparejadas de nuevo con su inventario",
   ["relisting now would lock in a loss or a stall -- hold"] =
     "republicar ahora fijaría una pérdida o un estancamiento -- espera",
-  ["removed %d duplicate purchase record%s left by a mail-scan bug"] =
-    "borrados %d registro%s de compra duplicados que dejó un fallo al leer el correo",
-  ["removed %d duplicate sale record%s left by a mail-scan bug"] =
-    "borrados %d registro%s de venta duplicados que dejó un fallo al leer el correo",
-  ["s. Rows it refuses are hidden. Buying always stays a click you make."] =
-    " s. Las filas rechazadas se ocultan. Comprar sigue siendo siempre un clic tuyo.",
+  ["removed %d duplicate purchase records left by a mail-scan bug"] =
+    "borrados %d registros de compra duplicados que dejó un fallo al leer el correo",
+  ["removed %d duplicate sale records left by a mail-scan bug"] =
+    "borrados %d registros de venta duplicados que dejó un fallo al leer el correo",
   ["sale name ambiguous"] = "nombre de la venta ambiguo",
   ["sale proceeds pending"] = "ingresos de la venta pendientes",
   ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
@@ -626,8 +621,6 @@ GC.Locales.esMX = {
   ["scanned %d listings over %d passes"] = "escaneadas %d publicaciones en %d pasadas",
   ["scanning auction house..."] = "escaneando la casa de subastas...",
   ["scanning… %d results · %d deals%s"] = "escaneando… %d resultados · %d oportunidades%s",
-  ["search the Auction House yourself, or check your mail. Click to toggle."] =
-    "busca tú mismo en la casa de subastas, o revisa el correo. Haz clic para alternar.",
   ["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"] =
     "sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s",
   ["sells %s/day"] = "vende %s/día",
@@ -678,4 +671,5 @@ GC.Locales.esMX = {
     "… = hay una verificación en vivo en cola para esta fila",
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ valor de mercado de goldcap.gg — aún sin cotización en vivo",
+  ["no answer %ds ago -- resting"] = "sin respuesta hace %ds -- en pausa",
 }

@@ -20,6 +20,15 @@ GC.SniperDecision = { VERSION = 1, SAFE_PURCHASES_ENABLED = true }
 -- through opts.spikePct (SellPositions passes it). Both fall back here when unset.
 GC.SniperDecision.SPIKE_TREND_PCT = 30
 
+-- A 24h market-value FALL of this many whole percent or more refuses the buy outright
+-- (`market_falling`): the market value the whole trade is measured against is itself sliding,
+-- and the exit is priced from a tape taken before the slide. This constant is the DEFAULT; the
+-- live threshold is settings.sniper.dumpTrendPct, the "Dump-trend cap %" the settings panel has
+-- always shown and described as "refuse a buy when the price fell more than this in the last 24
+-- hours" -- a promise nothing kept, because both this gate and its discovery-time twin were
+-- written as a hardcoded 10. Core/DealMath.lua reads the same setting for the discovery tier.
+GC.SniperDecision.DUMP_TREND_PCT = 10
+
 local MAX_EXACT = 9007199254740991
 -- Three hours, calibrated to the upstream rather than picked round. Blizzard republishes
 -- commodity data roughly once an hour, so a two-hour limit left no room for a single missed
@@ -103,6 +112,11 @@ local function normalizeConfig(config)
   -- 500 is effectively "never deflate" without letting a typo store nonsense.
   local spike = config.spikeTrendPct
   if spike ~= nil and not isFinite(spike) then return nil end
+  -- Optional, same contract as the two above: absent means the default, present-but-garbage
+  -- fails closed. Bounds match the settings panel's own field exactly (1-99), so a stored value
+  -- can never be one the engine would silently re-clamp.
+  local dump = config.dumpTrendPct
+  if dump ~= nil and not isFinite(dump) then return nil end
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
@@ -111,6 +125,7 @@ local function normalizeConfig(config)
     minimumRoi = math.max(roi, 0.10),
     wallAbsorbHours = clamp(absorb or 2, 0, 6),
     spikeTrendPct = clamp(spike or GC.SniperDecision.SPIKE_TREND_PCT, 1, 500),
+    dumpTrendPct = clamp(dump or GC.SniperDecision.DUMP_TREND_PCT, 1, 99),
   }
 end
 
@@ -393,7 +408,7 @@ function GC.SniperDecision.Evaluate(input)
   if market.liquidityConfidence == nil or market.liquidityConfidence < 70 then
     add("liquidity_confidence_low", 2)
   end
-  if market.trend24hPct ~= nil and market.trend24hPct <= -10 then
+  if market.trend24hPct ~= nil and market.trend24hPct <= -config.dumpTrendPct then
     add("market_falling", 2)
   end
 
@@ -744,7 +759,13 @@ function GC.SniperDecision.PreScreen(market, config)
   end
   if market.sellThroughBps == nil or market.sellThroughBps < 7000 then add("sell_through_too_low") end
   if market.liquidityConfidence == nil or market.liquidityConfidence < 70 then add("liquidity_confidence_low") end
-  if market.trend24hPct ~= nil and market.trend24hPct <= -10 then add("market_falling") end
+  -- Clamped here rather than trusted, for the same reason DemandCap above clamps its own two
+  -- fields: this one is handed GC.db.settings.sniper raw, while Evaluate's copy has already
+  -- been through normalizeConfig. Both ends must read the same number, or discovery screens out
+  -- rows a live Check would have allowed (or, worse, the other way round).
+  local dumpPct = isFinite(config.dumpTrendPct)
+    and clamp(config.dumpTrendPct, 1, 99) or GC.SniperDecision.DUMP_TREND_PCT
+  if market.trend24hPct ~= nil and market.trend24hPct <= -dumpPct then add("market_falling") end
   if market.stressUnit == nil or market.stressUnit <= 0 then add("stress_exit_missing") end
 
   -- No demand-cap screen here, deliberately. Evaluate's cap is floored at 1

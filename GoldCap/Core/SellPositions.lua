@@ -600,6 +600,15 @@ function GC.SellPositions.Build(args)
         position.bagQty = bagQty
         position.bagStacks = stock.stacks or position.bagStacks
         position.bagIsCommodity = stock.isCommodity == true
+        -- What ONE Post click can actually list, which is not the same number as what is in the
+        -- bags: PostItem pins a single ItemLocation, so a normal item posts its largest stack
+        -- and no more, while a commodity aggregates the whole pool (GC.BagStock.PostableQuantity
+        -- owns that rule). The tab ranked and totalled on the bag SUM, so five stacks of twenty
+        -- showed a YOU GET for a hundred units and sorted the queue on it, and the click listed
+        -- twenty. Left nil when BagStock is absent (older fixtures); every reader falls back to
+        -- bagQty, which is what they all used to do.
+        position.postableQty = GC.BagStock and GC.BagStock.PostableQuantity
+          and GC.BagStock.PostableQuantity(stock) or nil
       end
       position.itemName = position.itemName or stock.itemName
     end
@@ -896,8 +905,32 @@ function GC.SellPositions.BuildPostPlan(position, bagState, freshQuote, opts)
   -- (derived from mv * UNDERPRICE_FLOOR, an arithmetic ratio, not a grid position) is guaranteed
   -- to land on the 100-copper grid. Normalize AFTER the floor raise, with SilverUp, so this can
   -- only ever move the price up -- never back under the floor the raise above just enforced.
-  unit = GC.Flips.SilverUp(unit)
-  if not unit then return nil, "invalid_price" end
+  local graded = GC.Flips.SilverUp(unit)
+  if not graded then return nil, "invalid_price" end
+  -- ...but SilverUp is not the rounding the ROW published. RecommendPost normalises its match
+  -- candidate with SilverDown, and an item auction's unit price is buyoutAmount/quantity, which
+  -- need not sit on the grid at all -- so the price on screen (postRecommendation.unit, which
+  -- every figure on the row and in the posting queue is computed from) could be a whole silver
+  -- under the price this plan sent. Two different numbers for one click is the exact defect the
+  -- floor-raise comment above describes; list at the number that was shown.
+  --
+  -- Narrowly: only when the published number is the SAME candidate this plan already holds,
+  -- rounded the other way -- between SilverDown(unit) and SilverUp(unit), the two grid prices a
+  -- single raw figure can land on. That is the rounding disagreement and nothing else. A
+  -- recommendation that sits somewhere else entirely is a different decision, made against
+  -- different inputs, and must not move the price: raising the plan is the queue/overcut
+  -- branch's job above, on the modes that own it.
+  if not chosen then
+    local rec = position.postRecommendation
+    -- Through SilverUp, exactly as UI/SellFrame's effectivePostUnit renders it, so the two are
+    -- the same number by construction rather than by coincidence.
+    local published = type(rec) == "table" and positive(rec.unit) and GC.Flips.SilverUp(rec.unit) or nil
+    local floorGrid = GC.Flips.SilverDown(unit)
+    if published and floorGrid and published >= floorGrid and published <= graded then
+      graded = published
+    end
+  end
+  unit = graded
   local allocation = GC.Acquisitions.AllocateRange(position.batches, position.listedQty or 0, quantity)
   local complete = allocation ~= nil and allocation.coverage == "COMPLETE"
   -- Measured AFTER SilverUp, against the final number this plan will actually list at -- the

@@ -27,6 +27,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:Disable() self.enabled = false end
     function value:SetJustifyH() end
     function value:SetWordWrap(enabled) self.wordWrap = enabled end
+    function value:SetMaxLines(lines) self.maxLines = lines end
     function value:SetTextColor(...) self.color = { ... } end
     function value:SetAutoFocus() end
     -- The price box commits on Enter and on focus loss, and both clear focus afterwards.
@@ -321,7 +322,7 @@ describe("Sell widget geometry and manual cost", function()
   it("shows 'none' in the market cell for an item the AH answered empty about", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = 70 })
+    set(render, "emptyAnswers", { [42] = { at = 70, answered = true } })
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -365,7 +366,7 @@ describe("Sell widget geometry and manual cost", function()
   it("keeps 'none' rather than the market-value fallback when the AH already answered empty", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = 70 })
+    set(render, "emptyAnswers", { [42] = { at = 70, answered = true } })
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -385,7 +386,7 @@ describe("Sell widget geometry and manual cost", function()
   it("shows the market-value fallback again once an empty answer goes stale, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = 0 }) -- load()'s _G.time() returns 77 -- 77s old, past EMPTY_ANSWER_AGE (60)
+    set(render, "emptyAnswers", { [42] = { at = 0, answered = true } }) -- load()'s _G.time() returns 77 -- 77s old, past EMPTY_ANSWER_AGE (60)
     local rows = topRows(GC, {
       { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
@@ -404,7 +405,7 @@ describe("Sell widget geometry and manual cost", function()
   it("keeps 'none' while the walk is actively re-querying a now-stale empty answer, and STATUS agrees", function()
     local GC = load(620, { calls = {} })
     local render = upvalue(GC.Sell.Attach, "renderRows")
-    set(render, "emptyAnswers", { [42] = 0 })
+    set(render, "emptyAnswers", { [42] = { at = 0, answered = true } })
     -- MINOR-4 (fix round 1): sets .pending on the REAL shared `refresh` table (real shape:
     -- generation/phase/queue/index/pending/awaiting/drain) instead of replacing the whole
     -- upvalue with a one-field double -- renderRows only happens to read `.pending` today, but
@@ -831,6 +832,29 @@ describe("Sell widget geometry and manual cost", function()
           bagQty = 0, listedQty = 0, sources = {} },
       })
       for _, row in ipairs(rows) do assert.not_equal("price", row.kind) end
+    end)
+
+    -- UNDERCUT is a rung BELOW the cheapest competing ask, and a silver under an ask of a silver
+    -- or less is zero or negative. Zero is truthy in Lua, so the chip enabled itself, stored a
+    -- price of 0 as the seller's choice, and the box they had just filled came back empty.
+    it("[S16] offers no UNDERCUT rung when there is nothing under the cheapest ask", function()
+      local GC = load(700, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations",
+          book = { rows = {}, levels = 1, totalUnits = 3, widest = 3, cheapestCompeting = 100 } }
+      end
+      local rows = topRows(GC, {
+        { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "UNKNOWN",
+          exposureQty = 5, knownQty = 0, knownCost = 0, listedValue = 0, bagQty = 5,
+          listedQty = 0, sources = {}, postRecommendation = { unit = 100 } },
+      })
+      local drawer
+      for _, row in ipairs(rows) do if row.kind == "drawer" then drawer = row end end
+      assert.is_true(drawer.priceChips[1].enabled) -- MATCH: one silver is a price
+      assert.is_false(drawer.priceChips[2].enabled) -- UNDERCUT: zero is not
+      assert.is_nil(drawer.priceChips[2].priceSource)
     end)
   end)
 
@@ -2105,4 +2129,37 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(container.emptyText:IsShown())
     end)
   end)
+
+  -- YOU GET answers "what does this row fetch if I click Post". A normal item posts ONE stack
+  -- (PostItem pins a single ItemLocation), so counting the bag SUM quoted a figure four fifths
+  -- of which would still be sitting in the bags after the click.
+  it("[S11] counts YOU GET over what one click lists, not over the whole bag total", function()
+    local GC = load(620, { calls = {} })
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Blade", positionKey = "item:42:100:0:0", coverage = "UNKNOWN",
+        exposureQty = 0, knownQty = 0, knownCost = 0, listedValue = 0, bagQty = 100,
+        postableQty = 20, listedQty = 0, sources = {}, status = "UNLISTED",
+        postRecommendation = { unit = 10000 } },
+    })
+    assert.equal("1g", rows[1].cells.price.text)
+    assert.equal("20g", rows[1].cells.gross.text)
+  end)
+
+  -- "queue" and "cancelqueue" are transient FOCUS states, not decks, and nothing ever cleared
+  -- them: one press of the POST control left the tab rendering the queue's own order for the
+  -- rest of the session, with these chips lighting up over a list they could not narrow.
+  it("[S14] a filter chip takes the tab back to the deck it belongs to", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "filterMode", "queue")
+    local container = upvalue(render, "container")
+    local chip = container.filterButtons.ready
+    chip.scripts.OnClick(chip)
+    assert.equal("post", upvalue(render, "filterMode"))
+    set(render, "filterMode", "cancelqueue")
+    -- The chips are disabled on the listed deck, so this is the cancel queue's own restore.
+    chip.scripts.OnClick(chip)
+    assert.equal("listed", upvalue(render, "filterMode"))
+  end)
+
 end)

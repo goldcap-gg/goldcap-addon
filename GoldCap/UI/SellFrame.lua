@@ -33,6 +33,9 @@ local function postDuration()
   return 2
 end
 local QUOTE_STALE_SECONDS = (GC.QuoteCache and GC.QuoteCache.MAX_AGE_SECONDS) or 10
+-- How long a yielded pricing walk (purchase in flight, throttle window closed) waits before
+-- asking again from the same queue position -- see advanceQuote's retryLater.
+local QUOTE_RETRY_SECONDS = 2
 -- REPOST_ARM_SECONDS is the deposit guard: how long after the first click a confirming second
 -- click does not count. It was 3, and three seconds of a greyed-out button that still reads
 -- "Cancel lot?" is indistinguishable from a broken control -- reported from a live client as
@@ -124,6 +127,11 @@ local queueEntries, queueSkipped = {}, {}
 local cancelEntries, cancelSkipped = {}, {}
 local bagStock = {}
 local sessionCommodityKind = {}
+-- itemIDs whose OWNED lots could not be told commodity-from-item yet (classifyOwnedAuctions).
+-- Read by GC.Sell.OnItemKeyInfo, which re-keys those lots the moment the client learns the
+-- answer -- without it a lot stayed filed under a guessed key until the next owned-auctions
+-- query happened to come round.
+local ownedAwaitingKind = {}
 -- Still "all": hiding the player's live listings behind a filter to answer "what
 -- can I list" would trade one blind spot for another. What changed is the order
 -- -- everything postable now sorts to the top (see SellViewModel.Order) -- and a
@@ -165,8 +173,14 @@ local CHIP_IDS = { "ready", "nocost" }
 -- "READY" is 5 chars and "NO COST" 7, but both carry the rounded badge's own inset: 92/76 match
 -- what the five chips they replaced used for labels of the same length.
 local CHIP_WIDTHS = { 92, 76 }
-local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil, drain = {} }
-local quoteTimeoutToken = 0
+-- `priority` holds items a CLICK asked about while a pass was already running (Post/Repost on a
+-- row whose quote had aged out). Deliberately outside `queue`: splicing into that array put the
+-- item in a slot the walk then stepped over -- and a queue rebuilt by beginQuoteWalk, which is
+-- what the owned-auctions phase ends in, dropped it outright. advanceQuote drains this before
+-- the queue's own next step, so the row the player is standing on is answered first.
+local refresh = { generation = 0, phase = "idle", queue = {}, index = 0, pending = nil, awaiting = nil,
+  drain = {}, priority = {} }
+local quoteTimeoutToken, keyTimeoutToken = 0, 0
 local walkRepeatToken, watchdogToken = 0, 0
 local postingRow, postingPin, postTimeoutToken
 local repostingRow, repostPin, repostArmToken = nil, nil, 0
@@ -177,6 +191,9 @@ local manualRepairNonce = 0
 -- Defined below, once normalizedPositionKey exists to derive an auction identity
 -- from a bag link; composePositions only ever calls it at runtime.
 local scanBagStock
+-- Forward-declared for the same reason: scanBagStock (above) calls it, and it is defined beside
+-- the classifier whose store it keeps within bounds.
+local pruneCommodityKinds
 -- Forward-declared for the same reason: composePositions hands the store to
 -- SellPositions.Build (which uses it to settle a commodity-versus-item contradiction over one
 -- itemID), and it is defined much further down, beside the classifier that fills it.
@@ -280,6 +297,12 @@ local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
   paintRefreshButton()
   paintQueueButton()
+  -- The cancel control is driven from here for the same reason the queue control is: renderRows
+  -- DEFERS for the whole time a repost is armed, so a render cannot be relied on to keep it in
+  -- step with the arm/confirm dance. It was missing, and the one transition that mattered most
+  -- went unpainted -- the footer still read "CANCEL LOT?", still enabled, while the cancel it
+  -- named was already on the wire.
+  paintCancelButton()
 end
 
 local function setColor(fontString, color)
@@ -621,14 +644,29 @@ local function quoteDriver()
     return own
   end
   return {
-    isReady = function() return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady() end,
+    -- GC.Util.ThrottleReady, not the raw flag: see its comment for the stuck-flag client.
+    isReady = function()
+      if GC.Util and GC.Util.ThrottleReady then return GC.Util.ThrottleReady() end
+      return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady()
+    end,
+    -- isReady answers whether a send is permitted; this takes the permit, once, immediately
+    -- before a query goes out. Under a throttle flag that has stopped changing it is what keeps
+    -- this walk moving at all: the permit used to be one global one, and the Sniper's arbiter
+    -- runs immediately ahead of this tab on every ready event, so the tab never saw one.
+    claimSend = function()
+      if GC.Util and GC.Util.ClaimThrottleSend then return GC.Util.ClaimThrottleSend("sell") end
+      return true
+    end,
     keyInfo = function(itemID)
       return C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
     end,
     send = function(itemID)
       local key = C_AuctionHouse.MakeItemKey(itemID)
       local info = C_AuctionHouse.GetItemKeyInfo(key)
+      -- Blizzard's pane may open this item's buy page in answer; that page is ours, not a buy.
+      if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
       if info and info.isCommodity then
+        if GC.Util and GC.Util.Trace then GC.Util.Trace("sell: search") end
         C_AuctionHouse.SendSearchQuery(key, {}, false)
       else
         C_AuctionHouse.SendSearchQuery(key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
@@ -649,6 +687,23 @@ local function quoteDriver()
     end,
     itemLevels = function(itemID) return boundedLevels(itemID, false) end,
     commodityLevels = function(itemID) return boundedLevels(itemID, true) end,
+    -- Is the client holding a COMPLETE reply for this key, or merely whatever result set the
+    -- last search left in the slot? GetNum*SearchResults answers the second question only, and
+    -- the results events this file listens to are raised by the Sniper's searches as well as
+    -- our own -- so a zero read is not proof the auction house said "nothing listed". This is
+    -- the proof; see quoteResolved, which will not gag an item without it.
+    --
+    -- Returns TRUE when the client offers no way to ask. A missing API is not evidence of
+    -- anything, and failing that case closed would gag nothing ever again.
+    hasFullResults = function(itemID, commodity)
+      if not C_AuctionHouse then return true end
+      if commodity then
+        if not C_AuctionHouse.HasFullCommoditySearchResults then return true end
+        return C_AuctionHouse.HasFullCommoditySearchResults(itemID) == true
+      end
+      if not (C_AuctionHouse.HasFullItemSearchResults and C_AuctionHouse.MakeItemKey) then return true end
+      return C_AuctionHouse.HasFullItemSearchResults(C_AuctionHouse.MakeItemKey(itemID)) == true
+    end,
   }
 end
 local driver = quoteDriver()
@@ -808,7 +863,26 @@ local QUOTE_REWALK_AGE = 30
 -- it (or burned the full request timeout on one that never answers), which is what ground a
 -- tab full of niche items to a crawl. A manual Refresh wipes these: the player asked for real.
 local EMPTY_ANSWER_AGE = 60
+-- One entry per rested item, `{ at = when, answered = did the auction house actually reply }`.
+-- The second field is the whole point. A request that timed out and a reply that genuinely
+-- carried no listings both earn the item a rest -- re-asking either on the very next pass is
+-- what burned the walk's slots -- but only one of them is an ANSWER, and only an answer may be
+-- shown to the player as "none"/"Nothing listed". This was a bare timestamp, so an item that
+-- never came back was reported on screen, and by /gc sellstate, as the auction house saying it
+-- was unlisted.
 local emptyAnswers = {}
+-- When this item was last rested, or nil. Written as a table (above) and read here so every
+-- caller agrees on the shape.
+local function restedAt(itemID)
+  local rest = emptyAnswers[itemID]
+  return type(rest) == "table" and type(rest.at) == "number" and rest.at or nil
+end
+-- Did the auction house ANSWER, and recently enough that the answer still stands?
+local function restedEmptyFresh(itemID, now)
+  local rest = emptyAnswers[itemID]
+  local at = restedAt(itemID)
+  return at ~= nil and (now - at) <= EMPTY_ANSWER_AGE and rest.answered == true
+end
 -- How long a drain tombstone may fence off an item. The fence exists so a LATE answer to an
 -- abandoned request cannot be credited to a new request for the same item -- but it used to
 -- be permanent, cleared only by the very event that never comes for a silently-lost request,
@@ -826,9 +900,10 @@ local function uniqueQuoteItemIDs()
     -- Freshness used to decide only the ORDER, so every pass re-asked the server about the
     -- whole tab -- see QUOTE_REWALK_AGE above for what that cost. A remembered "nothing
     -- listed" answer counts as fresh too (EMPTY_ANSWER_AGE above).
-    local answeredEmptyAt = emptyAnswers[position.itemID]
-    local answeredEmpty = type(answeredEmptyAt) == "number"
-      and (time() - answeredEmptyAt) <= EMPTY_ANSWER_AGE
+    -- Resting, whether the rest was earned by an answer or by silence: both cost the same
+    -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
+    local restingSince = restedAt(position.itemID)
+    local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
     local due = (position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty
     -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
@@ -977,7 +1052,9 @@ local function skipPendingQuote(pending, timedOut)
   -- Either way -- an empty answer or no answer at all -- this item earned a rest: re-asking
   -- it on the very next pass is what burned the walk's slots (and, for the silent ones, a
   -- whole request timeout each) on items with nothing to say. See EMPTY_ANSWER_AGE.
-  emptyAnswers[pending.itemID] = time()
+  -- `answered` is the honest half: a timeout taught us nothing, so nothing on screen may claim
+  -- the auction house said this item is unlisted (see renderRows and /gc sellstate).
+  emptyAnswers[pending.itemID] = { at = time(), answered = not timedOut }
   if timedOut then
     -- A late terminal event for this request must still be consumed rather than
     -- credited to whatever the walk is asking about by then.
@@ -1032,20 +1109,84 @@ local function armPhaseWatchdog()
   C_Timer.After(PHASE_WATCHDOG_SECONDS, tick)
 end
 
+-- The Sell CONTENT is attached but not on screen: the player is looking at Deals, Sold or the
+-- Sniper. Everything that costs nothing carries on (bag composition, owned lots, the tab's own
+-- count), but forty throttled server round trips for prices nobody is looking at are forty the
+-- Sniper's scans and the player's own searches do not get. Parked, not cancelled -- GC.Sell.Show
+-- calls Refresh unconditionally, which starts the pass for real the moment the tab is up.
+--
+-- `container == nil` is NOT parked: nothing has been attached yet, so there is no tab to be
+-- hidden, and refusing to price there would refuse it forever.
+local function walkParked()
+  return container ~= nil and not containerShown()
+end
+
+-- An item key that never resolves used to hold the pass in "waiting_key" until the phase
+-- watchdog declared the whole thing dead -- and startQuoteRefreshFor's one-item walk armed no
+-- watchdog at all, so there it sat in "PRICING…" for the rest of the session. One item failing
+-- is not the pass failing: rest it and carry on, exactly as skipPendingQuote does.
+local function scheduleKeyTimeout(itemID, fromPriority)
+  if not (C_Timer and C_Timer.After) then return end
+  keyTimeoutToken = keyTimeoutToken + 1
+  local token, generation = keyTimeoutToken, refresh.generation
+  C_Timer.After(QUOTE_STALE_SECONDS, function()
+    if token ~= keyTimeoutToken or generation ~= refresh.generation then return end
+    if refresh.phase ~= "waiting_key" or refresh.awaiting ~= itemID then return end
+    -- Never answered, so nothing here may later read as the auction house saying "nothing
+    -- listed" -- see the emptyAnswers comment.
+    emptyAnswers[itemID] = { at = time(), answered = false }
+    refresh.awaiting, refresh.awaitingPriority = nil, nil
+    if fromPriority then table.remove(refresh.priority, 1) else refresh.index = refresh.index + 1 end
+    refresh.skipped = (refresh.skipped or 0) + 1
+    refresh.phase = "pricing"
+    markProgress()
+    advanceQuote()
+  end)
+end
+
 advanceQuote = function()
-  if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" then return end
+  -- "draining" belongs here as much as the other two: the fence branch below parks in it, and
+  -- with it excluded nothing could ever come back -- not this function's own retry, not
+  -- OnThrottleReady's tail -- so one fenced item held the pass until the watchdog shot it.
+  if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" and refresh.phase ~= "draining" then return end
   if refresh.pending then return end
-  if refresh.index >= #refresh.queue then return finishQuoteWalk() end
+  if walkParked() then
+    -- Give the queue up rather than hold a phase nobody is watching: a held phase is one
+    -- Refresh(automatic) refuses to leave.
+    refresh.queue, refresh.index, refresh.awaiting, refresh.awaitingPriority = {}, 0, nil, nil
+    refresh.phase = "idle"
+    return
+  end
+  if refresh.index >= #refresh.queue and #refresh.priority == 0 then return finishQuoteWalk() end
   -- Yields to a Check or a purchase -- short, and the player is waiting on it --
   -- but NOT to the background full scan. Under Auto that scan never stops, and
   -- standing aside for it meant the Sell tab priced nothing at all while Auto
   -- was on: Refresh looked hung until a reload happened to catch a gap.
   local blocking = GC.Sniper and (GC.Sniper.IsSearchCritical or GC.Sniper.IsBusy)
+  -- A yield needs its own way back. Nothing fires when a purchase's quiet zone
+  -- ends, and the throttle-ready event can land while the walk has nothing
+  -- pending to catch it -- so a yield used to sit until the 15s phase watchdog
+  -- declared the pass dead and restarted it from item 1, which then yielded
+  -- again: a live client showed "PRICING…" with two rows priced and the other
+  -- 38 blank for as long as the tab stayed open. Re-ask in place instead, on a
+  -- short timer, keeping the queue position; the token makes repeated yields
+  -- collapse into one pending retry, and the generation check drops a retry
+  -- that outlives the walk it was armed for.
+  local function retryLater()
+    if not (C_Timer and C_Timer.After) then return end
+    refresh.retryToken = (refresh.retryToken or 0) + 1
+    local token, generation = refresh.retryToken, refresh.generation
+    C_Timer.After(QUOTE_RETRY_SECONDS, function()
+      if token ~= refresh.retryToken or generation ~= refresh.generation then return end
+      advanceQuote()
+    end)
+  end
   if blocking and blocking() then
     -- Yielding is the walk working correctly, not stalling, so the watchdog must
     -- not read it as an unanswered request.
     markProgress()
     setStatus(GC.L["Waiting for the purchase to finish…"])
+    retryLater()
     return
   end
   if not driver.isReady() then
@@ -1059,9 +1200,19 @@ advanceQuote = function()
       refresh.waitingNoted = true
       setStatus(GC.L["Waiting for the Auction House…"])
     end
+    retryLater()
     return
   end
-  local itemID = refresh.awaiting or refresh.queue[refresh.index + 1]
+  -- Three sources, in the order a seller would expect: the key we are already waiting on, then
+  -- whatever a click asked for (refresh.priority), then the pass's own queue.
+  local itemID, fromPriority
+  if refresh.awaiting then
+    itemID, fromPriority = refresh.awaiting, refresh.awaitingPriority == true
+  elseif refresh.priority[1] then
+    itemID, fromPriority = refresh.priority[1], true
+  else
+    itemID, fromPriority = refresh.queue[refresh.index + 1], false
+  end
   if driver.keyInfo(itemID) then
     local info = driver.keyInfo(itemID)
     local kind = info.isCommodity and "commodity" or "item"
@@ -1075,33 +1226,67 @@ advanceQuote = function()
     if tombstone then
       tombstone.resumeGeneration = refresh.generation
       refresh.phase = "draining"
+      -- Waiting behind a fence is the walk working, not stalling: feed the watchdog and come
+      -- back by itself, exactly like the two yield branches above. Without these the only exit
+      -- was the watchdog killing the pass over one item, 15s later.
+      markProgress()
       setStatus(GC.L["Refresh waiting for prior result"])
+      retryLater()
       return
     end
-    refresh.awaiting = nil
-    refresh.index = refresh.index + 1
+    -- The last gate before the query goes out. driver.isReady() above is a pure read of the
+    -- throttle flag; THIS is the one call that spends the pacing budget a stuck flag puts the
+    -- addon on, and it is asked here rather than up there so a decline further down (the drain
+    -- fence, an uncached key) never spends it. The Sniper claims under its own name, so the
+    -- board and this walk each get a turn instead of whichever of the two happens to ask first
+    -- taking every one of them -- which is exactly what left this tab reading "PRICING… 0/20"
+    -- through a hundred and twenty ready events.
+    if driver.claimSend and not driver.claimSend() then
+      markProgress()
+      retryLater()
+      return
+    end
+    refresh.awaiting, refresh.awaitingPriority = nil, nil
+    if fromPriority then table.remove(refresh.priority, 1) else refresh.index = refresh.index + 1 end
     refresh.pending = { itemID = itemID, kind = kind, generation = refresh.generation, at = time() }
     refresh.phase = "waiting_result"
     markProgress()
-    setStatus((GC.L["Pricing %d/%d…"]):format(refresh.index, #refresh.queue))
+    setStatus(fromPriority and GC.L["Checking this item's price…"]
+      or (GC.L["Pricing %d/%d…"]):format(refresh.index, #refresh.queue))
     driver.send(itemID)
     scheduleQuoteTimeout(refresh.pending)
   else
-    refresh.awaiting, refresh.phase = itemID, "waiting_key"
+    -- Armed once per item, not once per poke: OnThrottleReady drives this function again while
+    -- the same key is still outstanding, and re-arming there would push the deadline out
+    -- forever.
+    local alreadyWaiting = refresh.awaiting == itemID
+    refresh.awaiting, refresh.awaitingPriority, refresh.phase = itemID, fromPriority, "waiting_key"
+    if not alreadyWaiting then scheduleKeyTimeout(itemID, fromPriority) end
   end
 end
 
 local function beginQuoteWalk()
+  if walkParked() then
+    -- The tab is not on screen. Composition and the owned lots have already been done by the
+    -- caller; the forty throttled round trips have not, and will not until GC.Sell.Show asks.
+    refresh.queue, refresh.index, refresh.phase = {}, 0, "idle"
+    refresh.pending, refresh.awaiting, refresh.awaitingPriority = nil, nil, nil
+    return
+  end
   refresh.queue, refresh.index, refresh.phase, refresh.pending, refresh.awaiting = uniqueQuoteItemIDs(), 0, "pricing", nil, nil
+  refresh.awaitingPriority = nil
   refresh.skipped = 0
   refresh.waitingNoted = false
-  if #refresh.queue == 0 then return finishQuoteWalk() end
+  -- refresh.priority deliberately survives: it holds the items a CLICK asked about, and this
+  -- rebuild is exactly what used to throw them away.
+  if #refresh.queue == 0 and #refresh.priority == 0 then return finishQuoteWalk() end
   advanceQuote()
 end
 
 local function requestOwnedAuctions()
   if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen() then
     if not driver.isReady() then return false, true end
+    if GC.Util and GC.Util.Trace then GC.Util.Trace("sell: QueryOwnedAuctions") end
     C_AuctionHouse.QueryOwnedAuctions({})
     return true, false
   end
@@ -1109,10 +1294,15 @@ local function requestOwnedAuctions()
 end
 
 local function onOwnedAuctionsReady()
-  markProgress()
   composePositions()
   renderRows()
   if refresh.phase == "owned" then
+    -- Progress is stamped ONLY by the phase that was actually waiting for this. OWNED_AUCTIONS_
+    -- UPDATED and AUCTION_CANCELED fire on their own schedule -- a lot expiring, a cancel from
+    -- the Blizzard panel -- and stamping on every one of them fed the watchdog while a pricing
+    -- phase sat wedged on a request that never came back, which is the one thing the watchdog
+    -- exists to catch.
+    markProgress()
     beginQuoteWalk()
   end
 end
@@ -1126,13 +1316,37 @@ end
 --
 -- GetItemKeyInfo is the authority on that flag -- the quote driver above already relies on it --
 -- so classify here, where the API is reachable, and leave NormalizeOwnedLots pure.
+--
+-- Asking GetItemKeyInfo alone was not enough: it answers nil until the client has cached that
+-- key, and a lot left unclassified files itself under an `item:...` key while the SAME item's
+-- bag stock -- classified from the remembered answer in GC.db.commodityByItem (classifyBagItem
+-- below) -- files under `commodity:...`. Two rows for one item, the listing holding no stock
+-- and the stock reading "not on hand"; and when the lot was later re-classified, the repost
+-- pin stopped matching and the tab announced "Lot cancelled; wait for it to return to bags"
+-- about a lot that was still live. So: read the remembered answer first, and write every fresh
+-- answer back into it, exactly as the bag classifier does.
 local function classifyOwnedAuctions(auctions)
-  if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return auctions end
+  local cache = commodityKindCache and commodityKindCache() or nil
   for _, auction in ipairs(auctions or {}) do
-    if auction.isCommodity == nil and auction.itemKey then
-      local ok, info = pcall(C_AuctionHouse.GetItemKeyInfo, auction.itemKey)
-      if ok and type(info) == "table" and info.isCommodity ~= nil then
-        auction.isCommodity = info.isCommodity
+    local itemID = auction.itemID or (auction.itemKey and auction.itemKey.itemID)
+    if auction.isCommodity == nil and type(itemID) == "number" then
+      local remembered = cache and cache[itemID]
+      if remembered ~= nil then
+        auction.isCommodity = remembered
+      elseif auction.itemKey and C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo then
+        local ok, info = pcall(C_AuctionHouse.GetItemKeyInfo, auction.itemKey)
+        if ok and type(info) == "table" and info.isCommodity ~= nil then
+          auction.isCommodity = info.isCommodity == true
+          if cache then cache[itemID] = auction.isCommodity end
+        end
+      end
+    end
+    -- What the next ITEM_KEY_ITEM_INFO_RECEIVED has to re-run for: a lot nobody can key yet.
+    if type(itemID) == "number" then
+      if auction.isCommodity == nil then
+        ownedAwaitingKind[itemID] = true
+      else
+        ownedAwaitingKind[itemID] = nil
       end
     end
   end
@@ -1217,6 +1431,19 @@ function GC.Sell.OnThrottleReady()
 end
 
 function GC.Sell.OnItemKeyInfo(itemID)
+  -- A lot this character owns was filed under a guessed key because the client could not say
+  -- whether the item sells as a commodity. It can now: re-key the roster from the auctions the
+  -- client is already holding (a local read, not a second query) so the listing and the bag
+  -- stock land on the same row again.
+  if ownedAwaitingKind[itemID] then
+    ownedAwaitingKind[itemID] = nil
+    if C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and GC.SellPositions.NormalizeOwnedLots then
+      ownedLots = GC.SellPositions.NormalizeOwnedLots(
+        classifyOwnedAuctions(C_AuctionHouse.GetOwnedAuctions() or {}), time())
+      composePositions()
+      renderRows()
+    end
+  end
   if refresh.phase == "waiting_key" and refresh.awaiting == itemID then advanceQuote() end
 end
 
@@ -1239,14 +1466,28 @@ local function quoteResolved(kind, itemID, unit, levels)
   local pending = refresh.pending
   if not pending or pending.kind ~= kind or pending.itemID ~= itemID or pending.generation ~= refresh.generation then return end
   if not exact(unit) or unit <= 0 then
-    skipPendingQuote(pending, false)
+    -- An empty READ is not an empty ANSWER. GetNum*SearchResults reports whatever result set
+    -- the client holds for this key right now, and these events are raised by the Sniper's
+    -- searches too -- so a zero can mean "the auction house says nothing is listed" or "our own
+    -- reply is not in that slot". Only the first may wipe a quote and gag the item for a
+    -- minute; without the client's own proof this is treated as a timeout, which keeps the
+    -- quote and leaves the fence to catch the real answer when it lands.
+    local proven = driver.hasFullResults == nil
+      or driver.hasFullResults(itemID, kind == "commodity") ~= false
+    skipPendingQuote(pending, not proven)
     return
   end
   refresh.pending = nil
   refresh.phase = "pricing"
   markProgress()
   emptyAnswers[itemID] = nil -- a real price supersedes any remembered GC.L["nothing listed"]
-  GC.QuoteCache.Set(quotes, itemID, unit, time())
+  -- Stamped from when the QUERY went out, not from now. The auction house's results events
+  -- carry no request identifier, so a reply cannot be proven to belong to the request waiting
+  -- for it (addon/AGENTS.md says the same of commodity purchases) -- the drain fence below is
+  -- the best this file can do, and past DRAIN_MAX_SECONDS a lost reply can still be credited to
+  -- a re-ask. Dating the quote from the ask errs the only safe way: it can make a price look
+  -- older than it is, never fresher, so it ages out and is re-asked rather than backing a post.
+  GC.QuoteCache.Set(quotes, itemID, unit, pending.at or time())
   -- Mirror the result into the persisted store: whatever Set just did to `quotes[itemID]` --
   -- write it in (it never clears here, since `unit` is already known-valid above, but the
   -- contract matches Set's either way) so a later reload can seed from it.
@@ -1351,6 +1592,26 @@ scanBagStock = function()
     end,
     classify = classifyBagItem,
   }, SELL_BAGS)
+  pruneCommodityKinds()
+end
+
+-- GC.db.commodityByItem is SavedVariables-resident and was append-only: one boolean for every
+-- item this character has ever carried, kept for the life of the account. Capped the way
+-- db.postStats is (Core/Data.lua's POST_STATS_CAP) -- past the cap, keep only what is on hand
+-- or on sale right now. Nothing is lost that cannot be learned again: every entry came from a
+-- GetItemKeyInfo call the next visit to an auctioneer makes anyway.
+local COMMODITY_KIND_CAP = 2000
+pruneCommodityKinds = function()
+  local cache = commodityKindCache()
+  local count = 0
+  for _ in pairs(cache) do count = count + 1 end
+  if count <= COMMODITY_KIND_CAP then return end
+  local keep = {}
+  for _, stock in ipairs(bagStock) do keep[stock.itemID] = true end
+  for _, lot in ipairs(ownedLots) do keep[lot.itemID] = true end
+  for itemID in pairs(cache) do
+    if not keep[itemID] then cache[itemID] = nil end
+  end
 end
 
 local function liveBagState(position, requiredQty)
@@ -1401,12 +1662,25 @@ local function startQuoteRefreshFor(position)
   if refresh.phase == "idle" or refresh.phase == "done" or refresh.phase == "error" then
     refresh.generation = refresh.generation + 1
     refresh.queue, refresh.index = { itemID }, 0
-    refresh.pending, refresh.awaiting = nil, nil
+    refresh.pending, refresh.awaiting, refresh.awaitingPriority = nil, nil, nil
     refresh.phase = "pricing"
+    markProgress()
     setStatus(GC.L["Checking this item's price…"])
     advanceQuote()
+    -- This one-item walk armed no watchdog at all, so an item that landed in "waiting_key" or
+    -- behind a drain fence left the machine sitting there: "PRICING…" for the rest of the
+    -- session, with the automatic repeat refusing to run (it will not leave a set phase) and
+    -- nothing but a manual REFRESH to get out.
+    armPhaseWatchdog()
   else
-    table.insert(refresh.queue, math.min(refresh.index + 1, #refresh.queue + 1), itemID)
+    -- Held OUTSIDE refresh.queue -- see the refresh table's own comment. Inserting into that
+    -- array dropped the item into a slot the walk stepped over whenever it was waiting on an
+    -- item key, and the queue rebuild that ends the owned phase threw it away outright.
+    local queued = false
+    for _, waitingID in ipairs(refresh.priority) do
+      if waitingID == itemID then queued = true break end
+    end
+    if not queued then refresh.priority[#refresh.priority + 1] = itemID end
     setStatus(GC.L["Checking this item's price…"])
   end
 end
@@ -1418,6 +1692,17 @@ local function currentPosition(positionKey)
   return nil
 end
 
+-- The pin of a post whose CONFIRM was sent and then timed out, kept for one more timeout window
+-- so a slow server's AUCTION_HOUSE_AUCTION_CREATED still lands on its own bookkeeping.
+--
+-- The timeout used to be armed once, on the first click, and never re-armed for the confirming
+-- one -- so a player who read the deposit line for nine seconds got "Posting timed out" over a
+-- post that had gone through, and because the pin was gone with it, GC.Sell.OnAuctionCreated
+-- found nothing: the post was never recorded against the batch and the price the seller had
+-- typed was never cleared, so the NEXT stack of that item quietly inherited it. Re-arming (see
+-- the confirm branch below) closes the ordinary case; this closes the one where the auction
+-- house really is slower than the watchdog.
+local postedGrace
 local function schedulePostTimeout(row)
   if not (C_Timer and C_Timer.After) then return end
   postTimeoutToken = (postTimeoutToken or 0) + 1
@@ -1425,6 +1710,11 @@ local function schedulePostTimeout(row)
   C_Timer.After(POST_TIMEOUT_SECONDS, function()
     if token == postTimeoutToken and postingRow == row
         and (row.postStage == "posting" or row.postStage == "confirm" or row.postStage == "confirming") then
+      -- Only when the confirm actually went to the server. A post still waiting for its own
+      -- first answer has nothing on the wire to arrive late.
+      if row.postStage == "confirming" and postingPin then
+        postedGrace = { pin = postingPin, at = time() }
+      end
       disarmPost()
       setStatus(GC.L["Posting timed out"])
     end
@@ -1476,6 +1766,10 @@ local function onPostClick(row)
       return
     end
     row.postStage = "confirming"; row.action:Disable(); setStatus(GC.L["Posting…"])
+    -- The confirming click gets its own full window. Sharing the first click's clock meant the
+    -- time a player spent reading the confirmation came out of the time the server had to
+    -- answer it -- see schedulePostTimeout.
+    schedulePostTimeout(row)
     if pin.isCommodity then
       C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
     else
@@ -1560,6 +1854,14 @@ local function onRepostClick(row, auctionID)
   if repostingRow and repostingRow ~= row then
     disarmRepost()
     setStatus(GC.L["Previous repost selection cleared"])
+    return
+  end
+  -- A cancel already on the wire is not a click target. Only nil (nothing armed) and "armed"
+  -- are: a second click while the stage was "cancelling" fell straight past the armed branch
+  -- below into the arm branch at the bottom and re-armed the very lot whose cancel the server
+  -- was still working on.
+  if row.repostStage ~= nil and row.repostStage ~= "armed" then
+    setStatus(GC.L["Cancelling lot…"])
     return
   end
   local quote = freshQuote(position)
@@ -1736,15 +2038,10 @@ local function onRemoveClick(row)
   end
 end
 
-function GC.Sell.OnAuctionCreated()
-  local pin, row = postingPin, postingRow
-  if not pin or not row then return end
-  local valid = exactRenderEntry(row, pin) and (row.postStage == "posting" or row.postStage == "confirming")
-    and pin.positionKey == row.position.positionKey and pin.scopeKey == row.position.scopeKey
-    and pin.itemID == row.position.itemID and exact(pin.quantity) and pin.quantity > 0
-    and exact(pin.total) and pin.total > 0 and type(pin.character) == "string" and pin.character ~= ""
-    and type(pin.region) == "string" and pin.region ~= ""
-  if valid and GC.Acquisitions and GC.Acquisitions.RecordPost then
+-- Everything a completed post owes the rest of the addon, from the pin alone: shared by the
+-- ordinary path below and by the late one, where the row and its render entry are long gone.
+local function recordPostedPin(pin)
+  if GC.Acquisitions and GC.Acquisitions.RecordPost then
     -- Derived as total/quantity rather than read off the pin, deliberately: a sale invoice
     -- carries a total and a quantity and nothing else, so the price this remembers has to be
     -- computed the same way the price it will be matched against is (Acquisitions.ReconcileSale).
@@ -1752,10 +2049,40 @@ function GC.Sell.OnAuctionCreated()
     GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), pin.character,
       pin.region, pin.quantity, time(), postedUnit)
   end
+end
+
+-- The pin's own fields, with nothing said about the row it came from. Everything RecordPost
+-- needs and nothing a render can invalidate.
+local function postPinSound(pin)
+  return type(pin) == "table" and exact(pin.quantity) and pin.quantity > 0
+    and exact(pin.total) and pin.total > 0 and type(pin.character) == "string" and pin.character ~= ""
+    and type(pin.region) == "string" and pin.region ~= ""
+end
+
+function GC.Sell.OnAuctionCreated()
+  local pin, row = postingPin, postingRow
+  if not pin or not row then
+    -- Nothing armed -- but a confirm the watchdog gave up on can still be answered a moment
+    -- later, and the auction it announces is a real one. Record it from the pin that was kept
+    -- for exactly this window and then forget it, so a second, unrelated creation cannot be
+    -- credited to it. No render-entry check is possible here: the row is gone.
+    local grace = postedGrace
+    postedGrace = nil
+    if not grace or time() - (grace.at or 0) > POST_TIMEOUT_SECONDS or not postPinSound(grace.pin) then return end
+    recordPostedPin(grace.pin)
+    if type(grace.pin.positionKey) == "string" then priceOverrides[grace.pin.positionKey] = nil end
+    GC.Sell.Refresh()
+    return
+  end
+  local valid = exactRenderEntry(row, pin) and (row.postStage == "posting" or row.postStage == "confirming")
+    and pin.positionKey == row.position.positionKey and pin.scopeKey == row.position.scopeKey
+    and pin.itemID == row.position.itemID and postPinSound(pin)
+  if valid then recordPostedPin(pin) end
   -- The choice was for THIS listing. Keeping it would quietly price the next batch of the same
   -- item at a number chosen against a book that has since moved -- which is the one real risk
   -- of letting the price be typed at all.
   if type(pin.positionKey) == "string" then priceOverrides[pin.positionKey] = nil end
+  postedGrace = nil
   disarmPost()
   GC.Sell.Refresh()
 end
@@ -2900,11 +3227,19 @@ renderRows = function()
         -- walk is actively re-querying THIS exact item (refresh.pending, the walk's one
         -- in-flight slot), keep "none" rather than flicker the fallback in for the few seconds
         -- until the real (still probably empty) answer lands.
-        local answeredEmptyAt = emptyAnswers[p.itemID]
-        local answeredEmptyFresh = type(answeredEmptyAt) == "number"
-          and (time() - answeredEmptyAt) <= EMPTY_ANSWER_AGE
+        --
+        -- Fix wave: a request that never came back was recorded in emptyAnswers exactly like a
+        -- reply that carried no listings, so an item the auction house had said nothing about
+        -- at all rendered as "none" here and "Nothing listed on the AH right now" in STATUS.
+        -- Only an ANSWER may drive that text now (emptyAnswers' own comment); silence falls
+        -- back to the dash and "Waiting for a live price", which is what it is. The re-query
+        -- guard keeps its job -- holding the last KNOWN-EMPTY answer on screen while the walk
+        -- re-asks -- but it cannot invent one for an item that has never answered.
+        local answeredEmpty = restedEmptyFresh(p.itemID, time())
         local requeryingThis = refresh.pending and refresh.pending.itemID == p.itemID
-        local emptyKnown = answeredEmptyFresh or requeryingThis
+        local rest = emptyAnswers[p.itemID]
+        local emptyKnown = answeredEmpty
+          or (requeryingThis and type(rest) == "table" and rest.answered == true) or false
         local marketFallback = p.displayMarketUnit == nil and type(p.marketValue) == "number"
           and p.marketValue > 0 and not emptyKnown
         row.marketFallback = marketFallback
@@ -3019,7 +3354,12 @@ renderRows = function()
         else
           rowUnit = effectivePostUnit(p)
         end
-        local grossQty = onListedDeck and listedQty or bagQty
+        -- YOU GET answers "what does this row fetch if I click Post", so on the post deck it is
+        -- counted over what one click LISTS -- the largest stack for a normal item, the whole
+        -- pool for a commodity (position.postableQty, see Core/SellPositions). Counting the bag
+        -- sum quoted a figure four fifths of which stayed in the bags.
+        local postableQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or bagQty
+        local grossQty = onListedDeck and listedQty or postableQty
         local gross = rowUnit and safeMultiply(rowUnit, grossQty) or nil
         row.cells.gross:SetText(gross and formatCell(gross) or "—")
         setColor(row.cells.gross, gross and Theme.color.fg or Theme.color.fgDim)
@@ -3084,9 +3424,12 @@ renderRows = function()
             row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
             setColor(row.priceNote, Theme.color.red)
           elseif unit then
-            local total = safeMultiply(unit, p.bagQty or 0)
+            -- The quantity this note prices is the one a click lists, not the one in the bags --
+            -- the same rule YOU GET follows above, and for the same reason.
+            local postQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
+            local total = safeMultiply(unit, postQty)
             row.priceNote:SetText(("%s · ×%d · %s"):format(
-              chosen and GC.L["yours"] or GC.L["GoldCap's"], p.bagQty or 0,
+              chosen and GC.L["yours"] or GC.L["GoldCap's"], postQty,
               total and formatCell(total) or "—"))
             setColor(row.priceNote, Theme.color.fgDim)
           else
@@ -3094,11 +3437,18 @@ renderRows = function()
             setColor(row.priceNote, Theme.color.fgDim)
           end
           row.priceNote:Show()
+          -- UNDERCUT is a rung BELOW the cheapest competing ask, and a silver under an ask of a
+          -- silver or less is zero or negative. Zero is truthy in Lua, so the chip enabled
+          -- itself, stored a price of 0 as the seller's choice, and effectivePostUnit then
+          -- refused it -- which emptied the box the player had just filled. Nothing here may
+          -- offer a price that is not a price.
+          local competing = book and exact(book.cheapestCompeting) and book.cheapestCompeting > 0
+            and book.cheapestCompeting or nil
           local sources = {
-            match = book and book.cheapestCompeting or nil,
-            under = book and book.cheapestCompeting and (book.cheapestCompeting - 100) or nil,
+            match = competing,
+            under = competing and competing > 100 and (competing - 100) or nil,
             market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
-            cost = risk.paidUnit,
+            cost = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil,
           }
           for slot, chip in ipairs(row.priceChips) do
             local source = sources[PRICE_CHIP_IDS[slot]]
@@ -3538,6 +3888,14 @@ end
 
 function GC.Sell.Show()
   if container then container:Show() end
+  -- The headings are otherwise only ever stamped when the DECK changes (renderRows), and this
+  -- tab spends most of its life hidden behind Deals or Sold: a one-line FontString that was on
+  -- screen when its parent hid can come back with its text simply not drawn, and SetText is
+  -- what the client needs to draw it again (UI/SniperFrame.lua's updateHeaderSortIndicators
+  -- carries the full story). Unconditional, from the deck the header is currently showing.
+  if container and container.header then
+    paintHeaderText(container.header, container.headerDeck)
+  end
   -- This is what flushes a render renderRows() deferred while the container was hidden: Show()
   -- has always called Refresh() unconditionally, and Refresh()'s own composePositions()+
   -- renderRows() pass now runs for real the instant containerShown() is true. An explicit
@@ -3600,6 +3958,23 @@ function GC.Sell.Reset()
   abandonInFlightQuote()
   refresh.generation = refresh.generation + 1
   refresh.phase, refresh.queue, refresh.index = "idle", {}, 0
+  -- The rest of what the walk accumulates goes with the quote cache. It used to outlive it: the
+  -- rested-item list carried a stale "nothing listed" into a session that had not asked anything
+  -- yet, the skipped count made the next pass finish with "N did not answer" about items from
+  -- the previous one, and a click's pending price request survived a close it could no longer be
+  -- answered by.
+  --
+  -- refresh.drain is the deliberate exception and must NOT be cleared here: its whole job is to
+  -- consume the late terminal of a request that was in flight when this ran, which is precisely
+  -- a request from before the reset (spec/sell_action_safety_spec.lua's close test, and
+  -- sell_refresh_state_spec's [I1], both pin that).
+  refresh.priority = {}
+  refresh.awaitingPriority = nil
+  refresh.skipped = 0
+  refresh.waitingNoted = false
+  for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
+  for key in pairs(ownedAwaitingKind) do ownedAwaitingKind[key] = nil end
+  postedGrace = nil
   GC.QuoteCache.Clear(quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --
@@ -3677,8 +4052,16 @@ function GC.Sell.Attach(f, geometry)
     button:SetLabel(GC.L[CHIP_LABELS[slot]])
     button:SetScript("OnClick", function()
       chips[id] = not chips[id]
+      -- "queue" and "cancelqueue" are transient FOCUS states, not decks, and nothing ever
+      -- cleared them: press the POST control once and the tab rendered the queue's own order
+      -- for the rest of the session, with these chips lighting up over a list they could not
+      -- narrow. Pressing a chip is a request to filter a deck, so give the chip its deck back.
+      if filterMode == "queue" then filterMode = "post"
+      elseif filterMode == "cancelqueue" then filterMode = "listed" end
       -- A chip changes which rows are on screen, so the order is the player's to have again.
       rowPlaces = {}
+      -- Through the container, not the local: paintDeckSwitch is declared below this loop.
+      if container.paintDeckSwitch then container.paintDeckSwitch() end
       paintFilterChips()
       renderRows()
     end)
@@ -3930,6 +4313,10 @@ function GC.Sell.Attach(f, geometry)
   header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(""); header.cells[column.key] = cell
+    -- One line, hard capped -- the pair every other single-line cell in the kit carries
+    -- (UI/SniperFrame.lua's buildHeaderCell): this row is 16px tall, and a line that does
+    -- not fit the height it is given is not drawn at all.
+    cell:SetMaxLines(1)
     setColor(cell, Theme.color.fgDim)
     -- Headings must sit over their own numbers. createRow right-aligns every numeric cell, but
     -- these were left at the default left alignment, so each heading floated to the left edge
@@ -4124,6 +4511,16 @@ end
 -- prints the machine's actual state instead of leaving "PRICING…" to be guessed about.
 -- Registered here (not Core/Init.lua) because every field it reads is this file's own.
 GC.slashHandlers = GC.slashHandlers or {}
+-- The throttle flag as the CLIENT reports it, with no side effect.
+--
+-- driver.isReady() is GC.Util.ThrottleReady(), which past its stuck window answers true on a
+-- flag the client is still reporting false. That is the right answer for a sender and the
+-- wrong one for a readout of what the CLIENT says, which is what these two printers want.
+local function throttleReadyForDisplay()
+  return C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady
+    and C_AuctionHouse.IsThrottledMessageSystemReady() == true or false
+end
+
 GC.slashHandlers.sellstate = function()
   local pending = refresh.pending
   GC.Print((GC.L["sell walk: phase=%s queue=%d index=%d skipped=%d progress %ds ago%s"]):format(
@@ -4132,11 +4529,12 @@ GC.slashHandlers.sellstate = function()
     pending and (" · pending item %s for %ds"):format(tostring(pending.itemID), time() - pending.at) or ""))
   local blocking = GC.Sniper and (GC.Sniper.IsSearchCritical or GC.Sniper.IsBusy)
   local rested = 0
-  for _, at in pairs(emptyAnswers) do
-    if time() - at <= EMPTY_ANSWER_AGE then rested = rested + 1 end
+  for _, rest in pairs(emptyAnswers) do
+    if type(rest) == "table" and type(rest.at) == "number"
+        and time() - rest.at <= EMPTY_ANSWER_AGE then rested = rested + 1 end
   end
   GC.Print((GC.L["throttle ready=%s · sniper busy=%s · empty answers resting=%d"]):format(
-    tostring(driver and driver.isReady and driver.isReady() or false),
+    tostring(throttleReadyForDisplay()),
     tostring(blocking and blocking() or false), rested))
   -- Every row without a market price, and the EXACT reason the walk is not asking about it --
   -- mirrors uniqueQuoteItemIDs' own membership rules, so a "—" can always be explained.
@@ -4147,14 +4545,19 @@ GC.slashHandlers.sellstate = function()
       local listed = type(position.listedQty) == "number" and position.listedQty > 0
       local commodity = type(position.positionKey) == "string"
         and position.positionKey:find("commodity:", 1, true) == 1
-      local restingAt = emptyAnswers[position.itemID]
+      local restingAt = restedAt(position.itemID)
+      local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
       local why
       if position.unresolved and not commodity then
         why = GC.L["identity unresolved (variant item -- not priced by design)"]
       elseif not (inBags or listed) then
         why = GC.L["no stock in bags or listed -- nothing to price for"]
-      elseif type(restingAt) == "number" and (time() - restingAt) <= EMPTY_ANSWER_AGE then
+      elseif resting and restedEmptyFresh(position.itemID, time()) then
         why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
+      elseif resting then
+        -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk
+        -- read as a quiet auction house.
+        why = (GC.L["no answer %ds ago -- resting"]):format(time() - restingAt)
       else
         why = GC.L["due -- will be asked next pass"]
       end
@@ -4162,4 +4565,27 @@ GC.slashHandlers.sellstate = function()
       GC.Print(("  %s (%d): %s"):format(tostring(position.itemName or "?"), position.itemID, why))
     end
   end
+end
+
+-- `/gc sell`: the pricing walk's state and who holds the shared search slot, printed to
+-- chat. For a live client that sits at "PRICING…" -- the walk yields to whatever owns the
+-- slot and there is otherwise nothing on screen that says which gate it is waiting on.
+function GC.Sell.DebugPrint()
+  local sniper = GC.Sniper or {}
+  local function call(fn, ...) if type(fn) == "function" then return tostring(fn(...)) end return "n/a" end
+  GC.Print(("sell walk: phase=%s index=%d/%d pending=%s awaiting=%s gen=%d progress=%ds ago waitingNoted=%s"):format(
+    tostring(refresh.phase), refresh.index or 0, #(refresh.queue or {}),
+    tostring(refresh.pending and refresh.pending.itemID), tostring(refresh.awaiting),
+    refresh.generation or 0, time() - (refresh.progressAt or time()), tostring(refresh.waitingNoted)))
+  -- `apiReady` is the CLIENT's own flag, read with no side effect -- see throttleReadyForDisplay.
+  GC.Print(("slot: ahOpen=%s apiReady=%s searchCritical=%s busy=%s paging=%s quietZone=%s quietSince=%s"):format(
+    call(sniper.IsAHOpen),
+    tostring(throttleReadyForDisplay()),
+    call(sniper.IsSearchCritical), call(sniper.IsBusy),
+    sniper._bookPass and call(function() return sniper._bookPass:IsPaging() end) or "n/a",
+    call(sniper._QuietZoneOpen), tostring(sniper._quietSince)))
+  local status = statusOwner and statusOwner.status and statusOwner.status.GetText and statusOwner.status:GetText()
+  GC.Print("status: " .. tostring(status))
+  local t = GC.Util.throttleStats
+  GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))
 end

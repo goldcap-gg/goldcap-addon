@@ -83,6 +83,14 @@ describe("Ledger event wiring", function()
     assert.is_true(registered.PLAYER_LOGOUT)
   end)
 
+  -- Every consumer of this event reads a field off the payload, and this one handler is shared
+  -- by the ledger, the mail scan, the Sniper and the auction house tab -- so a client firing it
+  -- with nothing attached would take all of them down together with an index-a-nil error.
+  it("survives a search-results event with no item key attached", function()
+    assert.is_true(pcall(onEvent, nil, "ITEM_SEARCH_RESULTS_UPDATED", nil))
+    assert.is_true(pcall(onEvent, nil, "ITEM_SEARCH_RESULTS_UPDATED", {}))
+  end)
+
   it("initialises the ledger tables on ADDON_LOADED", function()
     assert.is_table(_G.GoldCapDB.ledger)
     assert.is_table(_G.GoldCapDB.gold)
@@ -356,22 +364,33 @@ describe("Ledger event wiring", function()
     assert.truthy(printed:find("last 24h"))
   end)
 
+  -- Damaged purchase records disable cost tracking and nothing else. The addon used to return
+  -- from ADDON_LOADED before GC.db was ever published and unregister the event on the way out:
+  -- no window, no slash commands, no tooltips, and not one word about why -- a player whose
+  -- saved variables had one bad row simply had no addon.
   local function assertMalformedLoadedStartupFailsClosed(acquisitions, mailKey)
     local database = { acquisitions = acquisitions }
     local originalAcquisitions = database.acquisitions
     _G.GoldCapDB = database
-
+    local said
+    local realPrint = _G.print
+    _G.print = function(msg) said = msg end
     local loadedOK = pcall(onEvent, nil, "ADDON_LOADED", "GoldCap")
+    _G.print = realPrint
+
     assert.is_true(loadedOK)
     assert.equal(database, _G.GoldCapDB)
+    -- The rest of the addon came up, and the player was told which part did not.
+    assert.equal(database, GC.db)
+    assert.is_string(said)
+    assert.truthy(said:find("cost tracking is off"))
+    -- The damaged store itself is left exactly as found -- never migrated, never repaired,
+    -- never half-rewritten by the very code that could not read it.
     assert.equal(originalAcquisitions, database.acquisitions)
-    local databaseFieldCount = 0
-    for _ in pairs(database) do databaseFieldCount = databaseFieldCount + 1 end
-    assert.equal(1, databaseFieldCount)
-    assert.is_nil(database.acquisitionPending)
+    -- None of the acquisitions bookkeeping was built over it either: these two are created by
+    -- GC.Acquisitions.Init alone (the empty ones GC.DEFAULTS carries are just defaults).
     assert.is_nil(database.acquisitionRepairGroups)
     assert.is_nil(database.acquisitionConsumptionEvidence)
-    assert.is_nil(database.acquisitionVersion)
     for _, row in pairs(acquisitions) do
       if type(row) == "table" then
         assert.is_nil(row.evidenceKeys)
@@ -389,17 +408,17 @@ describe("Ledger event wiring", function()
     assert.is_false(isNew)
   end
 
-  it("[WAVE3 I1 fix5] aborts loaded startup for a dense non-table acquisition row", function()
+  it("[WAVE3 I1 fix5] keeps cost tracking off, and the addon on, for a dense non-table acquisition row", function()
     assertMalformedLoadedStartupFailsClosed({ true }, "mail:fix5-loaded-non-table")
   end)
 
-  it("[WAVE3 I1 fix5] aborts loaded startup for a sparse acquisition store", function()
+  it("[WAVE3 I1 fix5] keeps cost tracking off, and the addon on, for a sparse acquisition store", function()
     assertMalformedLoadedStartupFailsClosed({ [2] = {
       id = "acq:2", repairedPendingID = "pending:fix5-loaded-sparse",
     } }, "mail:fix5-loaded-sparse")
   end)
 
-  it("[WAVE3 I1 fix5] aborts loaded startup for a dictionary acquisition store", function()
+  it("[WAVE3 I1 fix5] keeps cost tracking off, and the addon on, for a dictionary acquisition store", function()
     assertMalformedLoadedStartupFailsClosed({ ["dictionary-orphan"] = {
       id = "acq:2", repairEvidenceKey = "repair:fix5-loaded-dictionary",
     } }, "mail:fix5-loaded-dictionary")

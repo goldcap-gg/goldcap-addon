@@ -1678,12 +1678,19 @@ end
 -- batches that have stock left (remainingQty > 0) rather than every batch ever recorded:
 -- cost already recovered by a sale is not what "you paid" means on a tooltip. Returns nil
 -- when nothing is held, which the tooltip renders as no line at all.
-function GC.Acquisitions.UnitCostFor(itemID)
-  if not db or type(db.acquisitions) ~= "table" then return nil end
+--
+-- Scoped to the character and region the player is on, through GetActive, like every other
+-- reader of this store. It used to match on itemID alone, so the number on the tooltip was
+-- averaged across every character on the account and both regions -- stock this character
+-- cannot see, at prices this realm never charged. `positionKey` narrows it further to one
+-- variant when the caller knows which one it means; omitted, it keeps the old whole-item
+-- answer (UI/Tooltip.lua asks that way).
+function GC.Acquisitions.UnitCostFor(itemID, positionKey)
+  if not db then return nil end
+  local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
   local qty, total = 0, 0
-  for _, batch in ipairs(db.acquisitions) do
-    if batch.itemID == itemID and isPositiveInteger(batch.remainingQty)
-        and isExactInteger(batch.remainingTotal) then
+  for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+    if batch.itemID == itemID and (positionKey == nil or batch.positionKey == positionKey) then
       qty = qty + batch.remainingQty
       total = total + batch.remainingTotal
     end

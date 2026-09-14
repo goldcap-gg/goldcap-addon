@@ -22,6 +22,7 @@ describe("Sell tab, the posting queue control", function()
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
     function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
+    function v:SetMaxLines(n) self.maxLines = n end
     function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
     function v:CreateTexture() return region("Texture", self) end

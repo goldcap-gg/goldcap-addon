@@ -57,6 +57,25 @@ describe("Ledger region", function()
       assert.equal("eu", mismatch.client)
       assert.equal("azshara", mismatch.realm)
     end)
+
+    -- Taiwanese realms connect through the KOREAN portal, so a TW client reports `kr` and no
+    -- client-side fact can separate the two. Calling that a mismatch told every TW player,
+    -- every session, that their own TW prices came from the wrong market.
+    it("does not call a TW snapshot on a KR portal a mismatch", function()
+      local tw = loadCore("KR")
+      tw.Data.SetImported({ region = "tw", realm = "skywall", ts = 2000, items = {} })
+      assert.is_nil(tw.Data.RegionMismatch())
+      assert.is_nil(tw.Data.RegionMismatchText())
+    end)
+
+    it("still reports a genuinely foreign snapshot on a KR portal", function()
+      local kr = loadCore("KR")
+      kr.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000, items = {} })
+      assert.equal("eu", kr.Data.RegionMismatch().imported)
+      local text = kr.Data.RegionMismatchText()
+      assert.is_truthy(text:find("silvermoon", 1, true)) -- the realm, so it can be checked
+      assert.is_truthy(text:find("KR", 1, true))
+    end)
   end)
 
   describe("Context", function()

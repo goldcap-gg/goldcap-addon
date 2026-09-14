@@ -108,8 +108,10 @@ describe("Sniper window layering", function()
           IsPlaying = function() return false end,
         }
       end,
-      EnableKeyboard = function() end,
-      SetPropagateKeyboardInput = function() end,
+      EnableKeyboard = function(self, on) self.keyboard = on end,
+      -- Recorded, not discarded: the check drawer swallows Escape and must hand every OTHER
+      -- key straight back to the game (see the Escape test below).
+      SetPropagateKeyboardInput = function(self, on) self.propagate = on end,
       SetAutoFocus = function() end,
       SetNumeric = function() end,
       SetMaxLetters = function() end,
@@ -269,6 +271,33 @@ describe("Sniper window layering", function()
       GC.Sniper.SetDocked(host)
       GC.Sniper.SetDocked(nil)
       assert.equal("DIALOG", drawer.strata)
+    end)
+
+    -- One Escape, one thing closed. The drawer was registered in UISpecialFrames alongside the
+    -- window itself, and CloseSpecialWindows hides EVERY shown entry it holds -- so backing out
+    -- of a check also shut the whole GoldCap window behind it and, docked, handed the auction
+    -- house back to Blizzard's own tab. It captures the key itself now, the same way the
+    -- settings overlay does.
+    it("takes Escape for itself instead of closing the window behind it", function()
+      local frame, GC = buildFrame()
+      local drawer = drawerOf(GC)
+      for _, name in ipairs(_G.UISpecialFrames) do
+        assert.not_equal("GoldCapSniperConfirm", name)
+      end
+      assert.is_function(drawer.scripts.OnKeyDown)
+
+      drawer:Show()
+      frame:Show()
+      drawer.scripts.OnKeyDown(drawer, "ESCAPE")
+
+      assert.is_false(drawer:IsShown())
+      assert.is_true(frame:IsShown()) -- the window it covers stays exactly where it was
+      assert.is_false(drawer.propagate) -- and the game never sees that keypress
+
+      -- Every other key still reaches whatever would normally receive it -- movement, action
+      -- bars, Enter-to-chat. EnableKeyboard(true) delivers them all here, not just Escape.
+      drawer.scripts.OnKeyDown(drawer, "W")
+      assert.is_true(drawer.propagate)
     end)
   end)
 

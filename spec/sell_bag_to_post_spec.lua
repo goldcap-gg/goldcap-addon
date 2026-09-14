@@ -22,6 +22,7 @@ describe("Sell tab, bags to Post", function()
     function v:IsShown() return self.shown end
     function v:Enable() self.enabled = true end function v:Disable() self.enabled = false end
     function v:SetJustifyH() end function v:SetWordWrap() end function v:SetTextColor(...) self.color = { ... } end
+    function v:SetMaxLines(n) self.maxLines = n end
     function v:SetSpacing() end
     function v:SetAutoFocus() end function v:SetScrollChild() end
     function v:CreateTexture() return region("Texture", self) end
@@ -267,8 +268,16 @@ describe("Sell tab, bags to Post", function()
     assert.equal(246, plan.quantity)
     assert.is_false(plan.costKnown)
     -- Part 0 (silver-grid fix): 184719 carries 19 copper of remainder -- PostCommodity would
-    -- have silently rejected it. BuildPostPlan now rounds up to the nearest whole silver.
-    assert.equal(184800, plan.unitPrice)
+    -- have silently rejected it -- so the plan lands on the 100-copper grid.
+    --
+    -- WHICH grid price is the fix this test used to have backwards. It asserted 184800, the
+    -- SilverUp of the raw ask, while the row beside it showed 184700: RecommendPost normalises
+    -- its match candidate with SilverDown, and postRecommendation.unit is what PRICE / UNIT,
+    -- YOU GET, PROFIT and the posting queue are all computed from. One click, two numbers, a
+    -- silver apart -- the exact defect the floor-raise comment in BuildPostPlan describes. The
+    -- plan now rounds the same candidate the row published.
+    assert.equal(184700, row.position.postRecommendation.unit)
+    assert.equal(184700, plan.unitPrice)
   end)
 
   it("prices only what there is something to do with", function()

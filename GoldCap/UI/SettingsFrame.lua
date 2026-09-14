@@ -209,7 +209,23 @@ local function bindNumberField(box, key, opts)
     eb:SetText(string.format("%.0f", ui))
   end
 
+  -- Escape means "forget what I typed", and it did the opposite: makeEditBox's OnEscapePressed
+  -- clears focus, clearing focus fires the commit below, and the half-typed number was saved --
+  -- the one key a player presses to get OUT of a field was the one that could not be taken
+  -- back. It restores the box from storage and takes the commit out of the loop for that
+  -- keypress instead; the clamp/round below would otherwise write a rounded version of the
+  -- stored value straight back over it.
+  local abandoning = false
+  eb:SetScript("OnEscapePressed", function(self)
+    abandoning = true
+    display()
+    self:ClearFocus()
+    abandoning = false
+  end)
+
   eb:SetScript("OnEditFocusLost", function(self)
+    box:SetFocusTint(false) -- makeEditBox's own focus-lost handler; this script replaces it
+    if abandoning then return end
     local num = tonumber(self:GetText())
     local c = cfg()
     if not num or not c then
@@ -355,6 +371,12 @@ local function resetWindow()
     sniperFrame:SetSize(w, h)
   end
 end
+
+-- Published for `/goldcap reset` (Core/Init.lua). The button above is inside the window, which
+-- is no help at all when the window is the thing that cannot be reached -- and this screen does
+-- not have to exist for it to work: the function only clears the saved geometry and re-centres
+-- whatever window is live.
+GC.SettingsUI.ResetWindow = resetWindow
 
 -- ---------------------------------------------------------------------------
 -- Panel construction (lazy -- built on first gear click, same pattern as
@@ -605,8 +627,12 @@ local function build(sniperFrame)
   -- Spike threshold above 99 is legitimate (observed trends run past +200%), so its cap is
   -- 500 rather than dumpTrendPct's 99 -- matching SniperDecision.normalizeConfig's clamp so
   -- the box can never store a value the engine would then silently re-clamp.
+  -- Names what actually moves. Nothing deflates the market value: what the threshold deflates
+  -- is the price the resale is projected to EXIT at -- SniperDecision's release ceiling on the
+  -- buy side, and the stored target a Sell queue posts against on the other -- both of which
+  -- come from a 24-hour tape that a spike drags up with it.
   fieldRow(brakes, 2, GC.L["Spike-trend threshold %"], "spikeTrendPct", { min = 1, max = 500, unit = "%" },
-    GC.L["Above this 24-hour rise the market value is treated as a spike and deflated."])
+    GC.L["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."])
   -- 0 disables the velocity release outright; 6 is normalizeConfig's own ceiling.
   fieldRow(brakes, 3, GC.L["Wall absorb window (hours)"], "wallAbsorbHours", { min = 0, max = 6, unit = "h" },
     GC.L["How many hours of normal sales a wall under your exit may hold before the deal is refused."])

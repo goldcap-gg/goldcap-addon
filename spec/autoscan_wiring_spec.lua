@@ -83,7 +83,11 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     _G.AuctionHouseFrame, _G.AuctionHouseFrameDisplayMode, _G.hooksecurefunc = nil, nil, nil
   end)
 
-  it("advances the FSM but sends no browse query while the player is busy", function()
+  -- Reported from the game: the Auto button read "AUTO · SCANNING" and no scan ever ran. The
+  -- machine advanced to SCANNING whatever this action did, and this action withholds the send
+  -- while the player is working Blizzard's own panes -- so the machine sat in a state only a
+  -- finished scan could leave, waiting for a scan that was never started.
+  it("does not claim to be scanning when the send was withheld", function()
     local GC = loadSniper()
     local feedAuto = upvalue(GC.Sniper.OnAuctionHouseShow, "feedAuto")
     local autoScan = upvalue(feedAuto, "autoScan")
@@ -91,15 +95,14 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
 
     autoScan:Input("toggleOn", 1000)
     autoScan:Tick(1000)
-    assert.equal("SCANNING", autoScan:State()) -- the FSM's own state still advances mid-pause
-    assert.equal(0, browseSent)                 -- but nothing was actually sent
+    assert.equal("WAITING", autoScan:State()) -- still waiting, because nothing was sent
+    assert.equal(0, browseSent)
 
+    -- And it retries by itself once the player is done, with no toggle and no other input:
+    -- the settle deadline the withheld start re-armed comes round and the scan goes out.
     GC.AuctionHouseTab.PlayerIsBusy = function() return false end
-    -- Re-arm the same way toggling Auto off and back on would, and confirm the very next tick
-    -- sends -- the gate reads live every tick, it does not latch.
-    autoScan:Input("toggleOff", 1000)
-    autoScan:Input("toggleOn", 1000)
-    autoScan:Tick(1000)
+    autoScan:Tick(1002)
+    assert.equal("SCANNING", autoScan:State())
     assert.equal(1, browseSent)
   end)
 
@@ -181,6 +184,44 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     f.status = widget()
     return f
   end
+
+  -- A scan started by the Scan button has no pause reason anywhere that can stop it: the
+  -- pause/resume feeds below reach Auto, and addPause does nothing at all while the machine is
+  -- OFF. So a manual pass kept paging browse queries behind the Sell and Sold tabs -- taking
+  -- throttle slots from the pricing walk and replacing the browse buffer under the player's
+  -- own Browse pane.
+  it("stops a manual pass when the player leaves the Deals tab", function()
+    local GC = loadSniper()
+    local show = GC.Sniper.OnAuctionHouseShow
+    local createFrame = upvalue(show, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+    set(setView, "frame", fakeToolbarFrame())
+
+    GC.Sniper._bookPass:Start("classes")
+    assert.is_true(GC.Sniper._bookPass:IsPaging())
+
+    setView("sell")
+    assert.is_false(GC.Sniper._bookPass:IsPaging())
+  end)
+
+  -- Auto's own pass is a different matter: it has a pause reason, it stands down for the Sell
+  -- tab through the machine, and it resumes by itself afterwards. Aborting it here as well
+  -- would throw away a pass that is going to be resumed anyway.
+  it("leaves an Auto pass to the machine's own pause", function()
+    local GC = loadSniper()
+    local show = GC.Sniper.OnAuctionHouseShow
+    local feedAuto = upvalue(show, "feedAuto")
+    local autoScan = upvalue(feedAuto, "autoScan")
+    local createFrame = upvalue(show, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+    set(setView, "frame", fakeToolbarFrame())
+
+    feedAuto("toggleOn")
+    GC.Sniper._bookPass:Start("classes")
+    setView("sold") -- Sold never queries the auction house, so Auto is not even paused for it
+    assert.is_true(GC.Sniper._bookPass:IsPaging())
+    assert.not_equal("OFF", autoScan:State())
+  end)
 
   it("re-seeds the sell pause on an AUTO off->on cycle reached via OnAuctionHouseShow while Sell is showing", function()
     local GC = loadSniper()

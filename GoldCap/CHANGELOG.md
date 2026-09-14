@@ -1,5 +1,162 @@
 # GoldCap
 
+## 0.9.2 (2026-09-15)
+
+- **Two boards on the Deals tab: COMMODITIES and ITEMS.** Gear, pets and recipes were sharing
+  one hundred-row list with reagents and consumables, and because a piece of gear is worth far
+  more per lot, their leads pushed the commodities off the board — there were fewer of them
+  than before they ever appeared. Each kind now gets its own hundred rows, and you switch
+  between them with the chips at the top of the board; the ITEMS chip counts what is waiting
+  there while you work the other one. Gear, pets and recipes are also only checked against the
+  auction house while their board is the one you are looking at, which gives the scan and the
+  Sell tab the time back.
+- **Commodities get checked again.** The background check that turns a row into BUY looks at
+  the top 24 rows of the board, and since gear, pets and recipes joined it their large leads
+  took every one of those places: no commodity was ever checked, so nothing said BUY. The
+  check now covers the top 24 commodities first, then the top 24 realm lots.
+- **Sell pricing no longer sits at "PRICING…" with most rows blank, and the Deals scan
+  starts even when the game says the auction house is busy.** The client can report its
+  auction-house request system as "not ready" for minutes on end while Blizzard's own search
+  keeps working; every GoldCap request waited for that flag, so nothing was priced and no
+  scan began. The flag is now trusted for five seconds at a time, then one request goes
+  through anyway -- and the Deals board and the Sell tab each get their own turn at it,
+  rather than whichever asked first taking every one. The pricing walk also retries from where it stopped instead of
+  restarting from the first item, and the background poll of realm items no longer takes
+  every request slot while the Sell tab is the one on screen. `/gc sell` prints the walk's state if it ever sticks
+  again. Three more ways it could stick are gone: an item waiting on a price it had already
+  asked for, an item the game never named, and a price check started by pressing Post now all
+  time out and move on instead of leaving the tab on "PRICING…" until you reload. Pricing also
+  stops while you are on another tab, so the Deals scan and your own searches get the request
+  slot back.
+- **The Sell tab says "none" only when the auction house actually answered.** A request that
+  never came back was reported as "Nothing listed on the AH right now", which read as a quiet
+  market when it was really no answer at all. Silence now leaves the row waiting, and the
+  goldcap.gg price still stands in until a real one lands.
+- **Post lists at the price the row shows.** For some items the price sent was a silver above
+  the one in PRICE / UNIT.
+- **YOU GET and the posting queue count the stack a click will actually list.** Gear and other
+  non-stacking items post one bag stack at a time, but the figures counted everything in your
+  bags — so five stacks of twenty promised a hundred units and the click listed twenty. The
+  queue is ordered on the real figure too.
+- **A live listing and the same item in your bags stay on one row.** Until the game had said
+  whether an item sells as a commodity, its listing filed itself separately from its stock:
+  two rows for one item, one reading "not on hand", and reposting the lot could answer "Lot
+  cancelled; wait for it to return to bags" about a lot that was still up.
+- **A slow Confirm is no longer reported as a failure.** Taking your time over the posting
+  confirmation could produce "Posting timed out" over a post that had gone through — and the
+  post then went unrecorded, leaving a price you had typed to carry over to the next stack.
+- **CANCEL stops offering a lot it is already cancelling**, instead of re-arming the same lot
+  while the auction house is still working on it.
+- **The UNDERCUT price button no longer empties the box** on items selling for a silver or
+  less, where there is no rung below to undercut to.
+- **The READY and NO COST filters work again after using POST or CANCEL.** Pressing either
+  queue button left the filters lit but doing nothing for the rest of the session.
+- **Column headings on the Deals board no longer go blank after a tab switch.** PROFIT and
+  TREND could disappear after visiting Sell or Sold and only come back once a heading was
+  clicked; they are redrawn every time the board is shown.
+- **Nor does anything else on it.** Deal rows, the AUTO/SCAN/HIDDEN buttons and the Sell and
+  Sold headings could come back blank the same way. Everything is redrawn when you return to
+  a tab or reopen the window, and a long message on the toolbar's status line is no longer
+  dropped for being too long to fit.
+- **Escape closes just the check panel.** One press used to close the panel, the GoldCap
+  window behind it, and — on the auction house tab — hand the auction house back to
+  Blizzard's own Browse tab.
+- **Escape in a Settings number field forgets what you typed instead of saving it.** Backing
+  out of a half-typed number saved it anyway. Those fields also stop glowing once you click
+  away from them.
+- **The window comes back where you can reach it.** A position remembered from a different
+  resolution or UI scale could put the window off-screen, with the title bar you would drag
+  it back by off-screen too. `/goldcap reset` (or RESET WINDOW in Settings) puts it back in
+  the middle at its default size from anywhere.
+- **The GoldCap tab on the auction house tries again.** If building it failed on the first
+  visit of a session — usually a clash with another addon — the tab stayed missing until you
+  logged out. It is now rebuilt on the next visit.
+- **An item tooltip no longer hangs around** after the window or the check panel closes
+  under your cursor, and a row that empties no longer hands its "new deal" gold flash to the
+  next item to take its place.
+- **HIDDEN, REFUSED, the "watching" tag and the AUTO/SCAN/HIDDEN hover texts are translated**
+  — they were English on every client whatever your language.
+- **Korean and Taiwanese realms can import their prices.** The import string your realm
+  produces was refused as "not a GoldCap import string" whenever the realm's name is written
+  in its own alphabet, which is every realm in those two regions. Scans made on them now
+  count towards live prices as well.
+- **Taiwanese players are no longer told every session that their prices come from the wrong
+  market.** Taiwan connects through the Korean gateway, so the addon read a Taiwanese client
+  as Korean and warned about a mismatch that was never there.
+- **Prices in the auction house browse list.** Hovering a row there — the single "Star Belt"
+  standing for every listing of it — showed no GoldCap lines at all.
+- **Gear, pets and recipes show the region's price, not your realm's median.** A realm item
+  can sit at two listings for days, and the middle of two listings is not a price: it read as
+  high as 2.7 million gold on an item worth 90,000. The tooltip now shows the figure the rest
+  of the addon judges these items by, with the item level it was measured at. Where there is
+  no region price for an item, the realm's own median is still shown — labelled as an
+  unverified realm median, and on its own, with no sale rate or stock count beside it.
+- **Item tooltips say how old the prices are from six hours on**, the same point the Deals
+  window starts warning you, instead of staying silent until two days.
+- **"My auctions" tracks lots on hyphenated realms.** Characters on realms like Azjol-Nerub
+  never had a single lot recorded, so the site's My auctions page stayed empty for them.
+- **`/goldcap status` speaks your language**, tells you when the loaded snapshot is from
+  another region, and stops reporting a Companion sync problem you have already fixed by
+  pasting a string. A sync problem that is still there is now repeated once each time you
+  log in rather than mentioned once and never again.
+- **Clearer refusals when an import will not take**: a string with two strings pasted into
+  it, one that names no realm, and — where GoldCap cannot work out which region you are
+  playing in — a line saying so, instead of US prices shown without comment.
+- **A confirmed buy the auction house never answered stays finished.** GoldCap tells you the
+  purchase may or may not have gone through and to check your mail — and then used to offer
+  that same lot again about a minute later, one click from paying for it twice. The row now
+  stays put until you close the window yourself, and a confirmation that turns up late is
+  written to your ledger and your flips instead of being lost.
+- **Your own auctions are not stock you can buy.** The price levels you are selling at
+  counted as depth to buy into and as the price to sell against, so a purchase could be
+  planned around units nobody was going to sell you, and the resale it was judged on could be
+  priced one copper under your own listing.
+- **"Dump-trend cap %" does what it says.** It now refuses a buy when the price has fallen
+  more than that in the last 24 hours; whatever you set, the refusal used a fixed 10%.
+- **Deposits are quoted for the listing length you post at.** Every buy costed its resale at
+  a 24-hour listing even when your duration is 12 or 48 hours.
+- **"You paid" counts only what this character holds in this region.** It averaged in every
+  character on the account, at prices from markets you were not standing in. Gear, pets and
+  recipes bought from the Deals board are also matched to their sale now, so the figure stays
+  right after you sell one.
+- **Confirm stays greyed out when a re-quoted price is past your gold**, instead of offering
+  a purchase that could only fail.
+- **The check panel speaks for the item it is showing.** A check finishing for another row
+  could repaint the panel you were reading — its status line, its verdict and its Buy button.
+- **A bid that never lands no longer rewrites the price on the board**, and a buy is refused
+  with "waiting for previous commodity purchase to settle" in fewer cases where there was
+  nothing left to wait for.
+- **Settings says what the spike threshold actually does**: above that 24-hour rise it prices
+  the resale exit down, not the market value.
+- **AUTO no longer says it is scanning when it is not.** While you were posting, buying or
+  reading your own search, AUTO held the scan back -- but the button read "AUTO · SCANNING"
+  and stayed that way, because nothing was running that could finish and move it on. It waits
+  now, and starts the scan the moment you are done.
+- **The board and the Sell tab keep working while a buy sits on screen.** A check that armed
+  a Buy button stopped every other price check in the addon until you clicked it or the quote
+  expired: rows stopped updating and the Sell tab read "Waiting for the purchase to finish…"
+  over a purchase nobody had made yet. A buy the auction house never answers at all also
+  frees everything else in about half the time it used to.
+- **GoldCap stays out of your own Browse pane.** Background requests could replace what
+  Blizzard's browse list was showing, so it jumped to an item page with a spinner on it while
+  you were reading your own search. A scan you started with the Scan button also stops when
+  you switch to Sell or Sold, instead of paging away behind them.
+- **An item the auction house never answers about is checked again.** One unanswered request
+  used to put that item out of reach for the rest of the session: the board skipped it in
+  silence, and its Check button answered "waiting for previous search result to settle" for as
+  long as you stayed logged in. The wait is now given up after fifteen seconds.
+- **Gear, pets and recipes stop disappearing from the board moments after they appear.** A
+  price check for them could land in the middle of a scan and be read as the scan's own
+  results -- which deleted the rows it did not mention, and cost the scan the page it was
+  waiting for.
+- **An item you are the only seller of is not a deal.** The board took the cheapest listing as
+  the price to buy at whether or not that listing was your own, so a market you hold outright
+  kept coming back as its own bargain.
+- **A damaged save file no longer leaves GoldCap dead and silent.** If the stored purchase
+  records could not be read, the addon stopped loading right there: no window, no commands, no
+  tooltips, and nothing on screen to say why. It now says what is wrong and runs everything
+  except cost tracking.
+
 ## 0.9.1 (2026-09-11)
 
 - **The Sell tab's footer now reads COST · ASKING · AT MARKET.** ASKING is the total of
