@@ -71,6 +71,7 @@ GC.Locales.enUS = {
   ["BRAKES"] = "BRAKES",
   ["BUY"] = "BUY",
   ["BUY %d"] = "BUY %d",
+  ["BUY %d · %s"] = "BUY %d · %s",
   ["BUY — unverified"] = "BUY — unverified",
   ["Background check"] = "Background check",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
@@ -79,6 +80,7 @@ GC.Locales.enUS = {
   ["Bundled data"] = "Bundled data",
   ["Buy"] = "Buy",
   ["Buy less"] = "Buy less",
+  ["Buy run"] = "Buy run",
   ["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"] = "Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s",
   ["Buy: no run selected."] = "Buy: no run selected.",
   ["CANCEL %d"] = "CANCEL %d",
@@ -86,6 +88,7 @@ GC.Locales.enUS = {
   ["CANCELLING…"] = "CANCELLING…",
   ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
+  ["CONFIRM %s"] = "CONFIRM %s",
   ["COST"] = "COST",
   ["COST / UNIT"] = "COST / UNIT",
   ["Can't price this"] = "Can't price this",
@@ -497,6 +500,7 @@ GC.Locales.enUS = {
     "above the cheapest, within the day's reach · %d units queued below",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "against the region's own price for this item, after the 5% cut — if it sells",
+  ["another purchase is in flight"] = "another purchase is in flight",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
@@ -511,15 +515,18 @@ GC.Locales.enUS = {
   ["below the %s you paid"] = "below the %s you paid",
   ["big buy"] = "big buy",
   ["blue is already yours"] = "blue is already yours",
+  ["bought %d for %s"] = "bought %d for %s",
   ["bought %d x item %d"] = "bought %d x item %d",
   ["bought %d x item %d after AH close"] = "bought %d x item %d after AH close",
   ["buying commodity..."] = "buying commodity...",
+  ["buying..."] = "buying...",
   ["cheapest not yours %s"] = "cheapest not yours %s",
   ["checking live price..."] = "checking live price...",
   ["checking live safety..."] = "checking live safety...",
   ["commodity purchase failed"] = "commodity purchase failed",
   ["confirmed commodity purchase failed after AH close"] = "confirmed commodity purchase failed after AH close",
   ["confirming purchase..."] = "confirming purchase...",
+  ["confirming..."] = "confirming...",
   ["cost basis incomplete -- set costs to get repost advice"] = "cost basis incomplete -- set costs to get repost advice",
   ["cost unknown"] = "cost unknown",
   ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
@@ -579,6 +586,7 @@ GC.Locales.enUS = {
   ["not ready to post"] = "not ready to post",
   ["nothing in your bags to price"] = "nothing in your bags to price",
   ["nothing listed"] = "nothing listed",
+  ["nothing on offer"] = "nothing on offer",
   ["of %d"] = "of %d",
   ["off"] = "off",
   ["on"] = "on",
@@ -590,17 +598,20 @@ GC.Locales.enUS = {
   ["price checked, sale speed unknown -- this one is your call"] =
     "price checked, sale speed unknown -- this one is your call",
   ["price confirmed -- click Buy to purchase"] = "price confirmed -- click Buy to purchase",
+  ["price moved to %s"] = "price moved to %s",
   ["price rose %.1fx — still safe, confirm"] = "price rose %.1fx — still safe, confirm",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market",
   ["purchase canceled"] = "purchase canceled",
   ["purchase complete"] = "purchase complete",
+  ["purchase failed — try again"] = "purchase failed — try again",
   ["purchase identity unresolved"] = "purchase identity unresolved",
   ["purchase pending exact cost"] = "purchase pending exact cost",
   ["purchase total unavailable — inspect mailbox"] = "purchase total unavailable — inspect mailbox",
   ["quote %s -- click Confirm to buy"] = "quote %s -- click Confirm to buy",
   ["quote %ss ago"] = "quote %ss ago",
   ["quote expired -- Refresh to re-check the price"] = "quote expired -- Refresh to re-check the price",
+  ["quoting..."] = "quoting...",
   ["re-checking what remains at a safe price..."] = "re-checking what remains at a safe price...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "realm item — sale speed unverified · region reference %s (ilvl %d)",
@@ -646,6 +657,7 @@ GC.Locales.enUS = {
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] = "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "to clear %d units at %s sold a day, with %s tied up the whole time",
+  ["took too long — try again"] = "took too long — try again",
   ["under GoldCap's own floor of %s"] = "under GoldCap's own floor of %s",
   ["unknown evidence"] = "unknown evidence",
   ["vendor"] = "vendor",
@@ -679,4 +691,5 @@ GC.Locales.enUS = {
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
+  ["▲%d%% over usual"] = "▲%d%% over usual",
 }

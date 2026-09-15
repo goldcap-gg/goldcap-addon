@@ -75,9 +75,14 @@ local function hasCompleteItemIdentity(itemKey)
     and isExactInteger(itemKey.battlePetSpeciesID)
 end
 
+-- Both windows that can start a commodity purchase of their own are asked. Each records its own
+-- purchase exactly (the Sniper through the ledger, the BUY tab as a `goldcap_buy` acquisition),
+-- so a capture here would be the same gold counted twice in the Sell tab's cost basis.
 local function ownsCommodity(itemID, quantity)
-  return GC.Sniper and GC.Sniper.OwnsCommodityPurchase
-    and GC.Sniper.OwnsCommodityPurchase(itemID, quantity)
+  if GC.Sniper and GC.Sniper.OwnsCommodityPurchase
+      and GC.Sniper.OwnsCommodityPurchase(itemID, quantity) then return true end
+  return (GC.Buy and GC.Buy.OwnsCommodityPurchase
+    and GC.Buy.OwnsCommodityPurchase(itemID, quantity)) or false
 end
 
 local function ownsAuction(auctionID)

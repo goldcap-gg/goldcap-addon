@@ -4,7 +4,15 @@ GC.Acquisitions = {}
 
 local db
 local MAX_EXACT = 9007199254740991
-local SOURCES = { goldcap = true, auction_house = true, manual = true }
+-- Where a cost batch came from. `goldcap_buy` is the BUY tab's own purchases (UI/BuyFrame.lua):
+-- a separate source from `auction_house` so a shopping run can be told apart from an ordinary
+-- counter buy, and deliberately NOT a ledger source -- the site's upload only accepts `mail` and
+-- `goldcap_sniper`, and one unknown source would have a player's whole ledger upload rejected.
+-- For everything this file does afterwards -- FIFO order, sale reconciliation, the Sell tab's
+-- cost basis -- it behaves exactly like an `auction_house` batch: the branches below that name a
+-- source at all are the `manual` repair path and the one-shot legacy migrations, and a BUY batch
+-- is correctly none of those.
+local SOURCES = { goldcap = true, auction_house = true, manual = true, goldcap_buy = true }
 local migrateLegacyRepairGroups
 local validRepairGroup
 local repairGroupEvidenceState
@@ -300,7 +308,7 @@ function GC.Acquisitions.Record(args)
       or not isPositiveInteger(args.total) or not isExactInteger(args.acquiredAt)
       or not isStringOrNil(args.positionKey) or not isStringOrNil(args.itemName)
       or not isStringOrNil(args.evidenceKey) or not isStringOrNil(args.character)
-      or not isStringOrNil(args.region)
+      or not isStringOrNil(args.region) or not isStringOrNil(args.runCode)
       or (args.targetUnit ~= nil and not isExactInteger(args.targetUnit)) then
     return nil, false
   end
@@ -330,6 +338,10 @@ function GC.Acquisitions.Record(args)
     remainingTotal = args.total,
     acquiredAt = args.acquiredAt,
     targetUnit = args.targetUnit,
+    -- The shopping run a `goldcap_buy` batch was bought for, nil for every other source. Carried
+    -- so a later phase can report a run's real spend; nothing reads it yet, and nothing here
+    -- branches on it.
+    runCode = args.runCode,
     decisionEvidence = args.decisionEvidence,
     character = args.character,
     region = args.region,

@@ -226,11 +226,13 @@ describe("BuyFrame", function()
     assert.is_false(bravo.action:IsShown())
   end)
 
-  it("offers a BUY button for the quantity still missing, disabled until buying exists", function()
+  -- At rest -- nothing quoted yet -- the button names the quantity and nothing else. What a
+  -- click does from there, and what the label becomes, is spec/buy_purchase_spec.lua's.
+  it("offers a BUY button for the quantity still missing", function()
     local alpha = rowWithText("Alpha Herb")
     assert.truthy(alpha.action:IsShown())
     assert.equal("BUY 10", alpha.action.label)
-    assert.is_false(alpha.action:IsEnabled())
+    assert.is_true(alpha.action:IsEnabled())
   end)
 
   it("puts the vendor line last, marks it, and greys it", function()

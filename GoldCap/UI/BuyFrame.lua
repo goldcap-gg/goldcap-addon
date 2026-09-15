@@ -5,11 +5,11 @@ local _, GC = ...
 -- this file owns only the picking of the run, the four things the client alone can answer
 -- (bag counts, market value, the price cap setting, the free-line limit), and the drawing.
 --
--- Nothing here buys anything yet. Every row's BUY button is built and immediately disabled:
--- a purchase must be reached from the player's own hardware click (addon/AGENTS.md's
--- "Protected actions"), and the click handler that does it lands with the purchase slot in a
--- later task. The button exists now so the column's width and the row's shape are settled
--- against real labels rather than guessed at later.
+-- Buying is hover, click, click: the cursor landing on a line quotes it against the live
+-- commodity book, the first click starts the purchase for exactly that quantity, and a second
+-- click confirms the price the server came back with. Both protected C_AuctionHouse calls are
+-- reached ONLY from the player's own hardware click (addon/AGENTS.md's "Protected actions"),
+-- which spec/buy_purchase_wiring_spec.lua pins against this file's source text.
 --
 -- Presentation is the Sold tab's (UI/SoldFrame.lua): one COLUMNS table driving both the
 -- header row and every pooled row, responsive column drop in a declared priority order,
@@ -48,6 +48,18 @@ local BD = {
   -- Blizzard's hard ceiling for one SearchForItemKeys call (Core/KeyPoll.lua's MAX_BATCH); a
   -- run longer than this loses its tail rather than disconnecting the client.
   MAX_KEYS = 100,
+  -- How long a quote may stand before a click has to ask again. Much shorter than the board's
+  -- twenty seconds on purpose: NOW is a number to read, a quote is a number to SPEND, and the
+  -- ladder a purchase is planned against goes stale the moment somebody else buys off it.
+  QUOTE_SECONDS = 10,
+  -- How long to wait for the client to answer a started purchase before giving the shared slot
+  -- back. A commodity purchase that produces no terminal event would otherwise hold the slot
+  -- for GC.PurchaseSlot.MAX_SECONDS with the board saying nothing.
+  WATCHDOG_SECONDS = 10,
+  -- Deep commodity books run to thousands of price levels and a purchase only ever walks as far
+  -- as the cap lets it; the same bound UI/SniperFrame.lua's commodityBook uses.
+  MAX_LEVELS = 60,
+  LOG_LINES = 20,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -55,6 +67,34 @@ local BD = {
 -- leaves this where it was, so the next tick retries instead of waiting out a refresh window
 -- for prices that never arrived.
 local lastRefreshAt = 0
+
+-- One purchase attempt at a time, addon-wide, and it lives on GC.Buy rather than on a row:
+-- rows are pooled and repainted, so a row holding the attempt would hand it to whatever line
+-- the next render happened to put at that index. `stage` is the whole machine --
+--
+--   quoting -> quoted -> started -> confirm -> confirming -> (cleared, on success)
+--                           |          |
+--                           |          +-> requote   the server's price left the line's cap
+--                           +-> failed | expired
+--
+-- -- and every terminal handler checks it before acting, because a commodity event carries no
+-- attempt id (Core/PurchaseSlot.lua) and Core/Init.lua routes one here on ownership alone.
+-- `_focus` is the line Enter would buy; `_log` is the last BD.LOG_LINES attempts, for `/gc buy`.
+GC.Buy._attempt = nil
+GC.Buy._focus = nil
+GC.Buy._log = {}
+
+-- Bumped per attempt so a watchdog armed for one purchase cannot retire the next, and per
+-- recorded purchase so two identical buys in the same second are still two acquisitions.
+local attemptSeq, acquisitionSeq = 0, 0
+
+-- The stages in which the client is holding a purchase of ours: no second attempt may start,
+-- no hover may replace the quote, and the passive capture in Core/PurchaseCapture.lua must
+-- stand down (GC.Buy.OwnsCommodityPurchase below).
+local function inFlight(attempt)
+  local stage = attempt and attempt.stage
+  return stage == "started" or stage == "confirm" or stage == "confirming"
+end
 
 local function setColor(fontString, color)
   if fontString and color then
@@ -276,6 +316,10 @@ function GC.Buy.SelectRun(code)
   -- tab, so it is given up with them. Reset before the early return too: clearing the board is
   -- just as much a replacement, and the next run picked must not inherit a stale window.
   lastRefreshAt = 0
+  -- A quote is a plan against one run's lines. A purchase already in the client's hands keeps
+  -- its attempt -- its terminal event still has to land somewhere, and OnCommodityPurchaseSucceeded
+  -- checks the run code before it credits anything to a line.
+  if not inFlight(GC.Buy._attempt) then GC.Buy._attempt, GC.Buy._focus = nil, nil end
   if not run then
     current, currentUpdatedAt = nil, nil
     if sniper then sniper.buyRun = nil end
@@ -345,6 +389,398 @@ local function cycleRun()
   GC.Buy.SelectRun(list[index].code)
 end
 
+-- The client's own name for the line's item. A run from the companion carries one; a pasted
+-- GCR1 string carries none (Core/AppRuns.lua's ImportString), and an item the client has never
+-- cached answers nothing at all -- so the id itself is the last honest fallback.
+local function lineName(line)
+  if line.name then return line.name end
+  if C_Item and C_Item.GetItemInfo then
+    local ok, name = pcall(C_Item.GetItemInfo, line.itemID)
+    if ok and type(name) == "string" and name ~= "" then return name end
+  end
+  return "#" .. tostring(line.itemID)
+end
+
+-- A line this tab can actually spend gold on. Everything else -- a vendor stop, a line the bags
+-- already cover, a line past the free limit -- has no BUY button and never gets quoted.
+local function buyable(line)
+  return line ~= nil and not line.vendor and not line.locked and not line.done and line.buy > 0
+end
+
+local function lineFor(itemID)
+  if not (current and itemID) then return nil end
+  for _, line in ipairs(current:Lines()) do
+    if line.itemID == itemID then return line end
+  end
+  return nil
+end
+
+-- ---------------------------------------------------------------------------
+-- Buying: the quote, and the attempt it becomes
+-- ---------------------------------------------------------------------------
+
+-- What the line's own button says right now, and whether it is clickable -- one function so the
+-- render, the Enter key and the attempt log can never disagree about what state a line is in.
+-- Returns label, enabled.
+local function actionLabel(line)
+  local attempt = GC.Buy._attempt
+  local resting = (GC.L["BUY %d"]):format(line.buy)
+  if not attempt or attempt.itemID ~= line.itemID then return resting, true end
+  local stage = attempt.stage
+  if stage == "quoting" then return GC.L["quoting..."], false end
+  if stage == "quoted" then
+    if (attempt.qty or 0) > 0 then
+      return (GC.L["BUY %d · %s"]):format(attempt.qty, formatAmount(attempt.total)), true
+    end
+    -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
+    -- it usually does" is a decision the player can make; a greyed-out button is not.
+    if attempt.overPct then return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false end
+    return GC.L["nothing on offer"], false
+  end
+  if stage == "started" then return GC.L["buying..."], false end
+  if stage == "confirm" then
+    return (GC.L["CONFIRM %s"]):format(formatAmount(attempt.serverTotal or attempt.total)), true
+  end
+  if stage == "confirming" then return GC.L["confirming..."], false end
+  if stage == "requote" then
+    return (GC.L["price moved to %s"]):format(formatAmount(attempt.movedTotal)), true
+  end
+  if stage == "expired" then return GC.L["took too long — try again"], true end
+  if stage == "failed" then return GC.L["purchase failed — try again"], true end
+  return resting, true
+end
+
+-- The last BD.LOG_LINES things an attempt did, so `/gc buy` can answer "what happened when I
+-- clicked" without a screenshot. `text` defaults to whatever the button is saying, which is
+-- already through GC.L and already the shortest true description of the stage.
+local function logAttempt(line, text)
+  local attempt = GC.Buy._attempt
+  local log = GC.Buy._log
+  log[#log + 1] = {
+    at = time(),
+    itemID = (line and line.itemID) or (attempt and attempt.itemID),
+    stage = attempt and attempt.stage or nil,
+    qty = attempt and attempt.qty or nil,
+    total = attempt and (attempt.serverTotal or attempt.total) or nil,
+    text = ("%s · %s"):format(line and lineName(line) or "?",
+      text or (line and actionLabel(line)) or ""),
+  }
+  while #log > BD.LOG_LINES do table.remove(log, 1) end
+end
+
+-- The client's single commodity buffer read as a price ladder: cheapest level first, in the
+-- { unit, qty } shape Core/BuyRun.lua's PurchaseQuantity walks. Level 1 is the probe -- a nil
+-- there means the buffer is holding some other item's book entirely, which is the only way this
+-- tab can tell its own answer from whatever the last search left behind.
+--
+-- The player's own units come out of every level: nobody can buy their own auction, so a plan
+-- built on them fills from stock that will never be sold. Same subtraction, same reason, as
+-- UI/SniperFrame.lua's commodityBook and GC.SellPositions.CheapestCompetingUnit.
+local function ladderFor(itemID)
+  if not (C_AuctionHouse and C_AuctionHouse.GetNumCommoditySearchResults
+      and C_AuctionHouse.GetCommoditySearchResultInfo) then return nil end
+  local ok, first = pcall(C_AuctionHouse.GetCommoditySearchResultInfo, itemID, 1)
+  if not ok or type(first) ~= "table" then return nil end
+  local count = C_AuctionHouse.GetNumCommoditySearchResults(itemID) or 0
+  if count > BD.MAX_LEVELS then count = BD.MAX_LEVELS end
+  local ladder = {}
+  for i = 1, count do
+    local info = C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
+    if type(info) == "table" and info.unitPrice then
+      local mine = 0
+      if type(info.numOwnerItems) == "number" then
+        mine = info.numOwnerItems
+      elseif info.containsOwnerItem == true then
+        -- A level the client will not split counts as the player's own in full. On the buy side
+        -- that errs towards seeing LESS stock than there is, which refuses a fill rather than
+        -- planning one that cannot happen.
+        mine = info.quantity or 0
+      end
+      local quantity = (info.quantity or 0) - mine
+      if quantity > 0 then ladder[#ladder + 1] = { unit = info.unitPrice, qty = quantity } end
+    end
+  end
+  if #ladder == 0 then return nil end
+  return ladder
+end
+
+-- How far over the usual price the cheapest level the cap refused sits. Only ever shown when
+-- the cap stopped the ladder before a single unit.
+local function overUsualPct(line, ladder)
+  if not (line and line.usual and line.usual > 0 and line.cap) then return nil end
+  for _, level in ipairs(ladder or {}) do
+    if level.unit > line.cap then return math.floor(level.unit * 100 / line.usual) - 100 end
+  end
+  return nil
+end
+
+local function quoteFresh(attempt)
+  return attempt ~= nil and attempt.stage == "quoted" and attempt.quotedAt ~= nil
+    and (time() - attempt.quotedAt) < BD.QUOTE_SECONDS
+end
+
+local function throttleReady()
+  if GC.Util and GC.Util.ThrottleReady then return GC.Util.ThrottleReady() end
+  return (C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady
+    and C_AuctionHouse.IsThrottledMessageSystemReady()) or false
+end
+
+-- CancelCommoditiesPurchase fires NONE of the three terminal events (addon/AGENTS.md), so it is
+-- only ever used to hand a started-but-unconfirmed purchase back to the client -- never to end
+-- an attempt this tab is still waiting on an event for.
+local function cancelStartedPurchase()
+  if C_AuctionHouse and C_AuctionHouse.CancelCommoditiesPurchase then
+    C_AuctionHouse.CancelCommoditiesPurchase()
+  end
+end
+
+-- What the player just bought, filed as cost. Deliberately NOT a ledger row: the site only
+-- accepts `mail` and `goldcap_sniper` buys, and one unknown source would have the whole upload
+-- rejected -- so a BUY purchase takes the same acquisitions-only path a hand-entered auction
+-- house cost does (Core/Acquisitions.lua). `runCode` rides along so a later phase can say which
+-- shopping run the gold went to; nothing reads it yet and nothing breaks for not reading it.
+local function recordAcquisition(itemID, name, qty, total, at, runCode)
+  if not (GC.Acquisitions and GC.Acquisitions.Record and GC.Acquisitions.PositionKey) then return end
+  local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+  acquisitionSeq = acquisitionSeq + 1
+  GC.Acquisitions.Record({
+    source = "goldcap_buy",
+    itemID = itemID,
+    positionKey = GC.Acquisitions.PositionKey(itemID, nil, true),
+    itemName = name,
+    quantity = qty,
+    total = total,
+    acquiredAt = at,
+    runCode = runCode,
+    character = context and context.char or nil,
+    region = context and context.region or nil,
+    evidenceKey = ("goldcap-buy:%d:%d:%d"):format(itemID, at, acquisitionSeq),
+  })
+end
+
+-- The next line still worth buying, starting after `itemID` and wrapping -- so finishing the
+-- last line of a run lands on the first one that is still open rather than on nothing.
+local function nextOpenAfter(itemID)
+  if not current then return nil end
+  local lines = current:Lines()
+  if #lines == 0 then return nil end
+  local from = 0
+  for i, line in ipairs(lines) do
+    if line.itemID == itemID then from = i break end
+  end
+  for offset = 1, #lines do
+    local line = lines[(from + offset - 1) % #lines + 1]
+    if buyable(line) then return line.itemID end
+  end
+  return nil
+end
+
+local function failAttempt(attempt)
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  attempt.stage = "failed"
+  logAttempt(lineFor(attempt.itemID))
+  GC.Buy.RefreshIfShown()
+end
+
+-- Asks the auction house for this line's book. One SendSearchQuery, under the addon's own
+-- throttle claim, and only when there is nothing better already in hand: a quote younger than
+-- BD.QUOTE_SECONDS for this same line is what the next click will spend, and a purchase in
+-- flight owns the buffer until it is done.
+local function quote(line)
+  if not buyable(line) then return end
+  local attempt = GC.Buy._attempt
+  if inFlight(attempt) then return end
+  if attempt and attempt.itemID == line.itemID
+      and (attempt.stage == "quoting" or quoteFresh(attempt)) then return end
+  if not (C_AuctionHouse and C_AuctionHouse.SendSearchQuery and C_AuctionHouse.MakeItemKey) then return end
+  -- No auction house session, no question to ask -- and a SendSearchQuery nobody will answer
+  -- leaves the board promising a quote that never lands. Same gate as TrySendRefresh's.
+  if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
+  if not throttleReady() then return end
+  if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy") then return end
+
+  C_AuctionHouse.SendSearchQuery(C_AuctionHouse.MakeItemKey(line.itemID), {}, false)
+  -- Blizzard's own pane may open this item's buy page in answer; that page is ours, not a buy.
+  if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
+  attemptSeq = attemptSeq + 1
+  GC.Buy._attempt = {
+    itemID = line.itemID, stage = "quoting", token = attemptSeq,
+    runCode = current and current:Code() or nil,
+  }
+  logAttempt(line)
+  GC.Buy.RefreshIfShown()
+end
+
+-- COMMODITY_SEARCH_RESULTS_UPDATED, routed here by Core/Init.lua. The buffer is addon-wide and
+-- every consumer sees every answer, so an event for anything but the item this tab is currently
+-- quoting belongs to somebody else and is left alone.
+function GC.Buy.OnCommodityResults(itemID)
+  local attempt = GC.Buy._attempt
+  if not attempt or attempt.stage ~= "quoting" or attempt.itemID ~= itemID then return end
+  local line = lineFor(itemID)
+  if not (current and buyable(line)) then
+    GC.Buy._attempt = nil
+    return
+  end
+  local ladder = ladderFor(itemID)
+  local qty, total, capped = current:PurchaseQuantity(itemID, ladder or {})
+  attempt.qty, attempt.total, attempt.capped = qty, total, capped
+  attempt.overPct = (qty == 0 and capped) and overUsualPct(line, ladder) or nil
+  attempt.quotedAt = time()
+  attempt.stage = "quoted"
+  logAttempt(line)
+  GC.Buy.RefreshIfShown()
+end
+
+-- COMMODITY_PRICE_UPDATED: the server's answer to StartCommoditiesPurchase, and the first price
+-- anybody has actually seen. It does not confirm anything -- see onBuyClick.
+function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
+  local attempt = GC.Buy._attempt
+  if not attempt or attempt.stage ~= "started" then return end
+  local qty = attempt.qty or 0
+  local total = type(totalPrice) == "number" and totalPrice
+    or (type(unitPrice) == "number" and qty > 0 and unitPrice * qty) or nil
+  if not total or qty <= 0 then return end
+  local line = lineFor(attempt.itemID)
+  local cap = line and line.cap
+  -- Two ways this is still a price the line agreed to: no worse than the quote the player read,
+  -- or -- the quote having been optimistic -- still inside the line's own cap per unit.
+  if total <= (attempt.total or 0) or not cap or math.floor(total / qty) <= cap then
+    attempt.serverTotal = total
+    attempt.stage = "confirm"
+  else
+    attempt.movedTotal = total
+    attempt.stage = "requote"
+    cancelStartedPurchase()
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  end
+  logAttempt(line)
+  GC.Buy.RefreshIfShown()
+end
+
+-- COMMODITY_PURCHASE_SUCCEEDED. Only a purchase this tab actually confirmed is recorded: the
+-- sniper's drain gives its own slot up while a late event can still be on its way, and
+-- Core/Init.lua routes terminal events here on slot ownership alone, so a handler that trusted
+-- the event would book a purchase nobody made.
+function GC.Buy.OnCommodityPurchaseSucceeded()
+  local attempt = GC.Buy._attempt
+  if not attempt or attempt.stage ~= "confirming" then return end
+  GC.Buy._attempt = nil
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  local itemID, qty = attempt.itemID, attempt.qty or 0
+  local total = attempt.serverTotal or attempt.total or 0
+  local line = lineFor(itemID)
+  -- The run can be swapped or resynced while a purchase is in the air; crediting these units to
+  -- lines that were not what was bought against would be worse than not crediting them at all.
+  -- The cost itself is recorded either way -- the gold moved and the items are real.
+  if current and qty > 0 and total > 0 then
+    local at = time()
+    if attempt.runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
+    recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, attempt.runCode)
+  end
+  logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)))
+  -- The units are in the bags now, so HAVE is re-counted before the board is redrawn -- and the
+  -- next line that still needs something takes the focus, so Enter carries on down the run
+  -- without the player reaching for the mouse.
+  scanBags()
+  GC.Buy._focus = nextOpenAfter(itemID)
+  GC.Buy.RefreshIfShown()
+end
+
+-- COMMODITY_PURCHASE_FAILED / COMMODITY_PRICE_UNAVAILABLE. Both say the same thing to this tab:
+-- no gold moved, the slot goes back, and the button says so rather than sitting on "buying...".
+-- The stage check is the same guard the success path carries, for the same reason.
+function GC.Buy.OnCommodityPurchaseFailed()
+  local attempt = GC.Buy._attempt
+  if not attempt or not (inFlight(attempt) or attempt.stage == "requote") then return end
+  failAttempt(attempt)
+end
+
+function GC.Buy.OnCommodityPriceUnavailable()
+  local attempt = GC.Buy._attempt
+  if not attempt or not (inFlight(attempt) or attempt.stage == "requote") then return end
+  failAttempt(attempt)
+end
+
+-- Read-only ownership, asked by Core/PurchaseCapture.lua's passive hooks. Without it every BUY
+-- purchase is filed twice: once here as `goldcap_buy`, and once by the capture as an ordinary
+-- `auction_house` buy -- the same gold counted twice in the Sell tab's cost basis. Mirrors
+-- GC.Sniper.OwnsCommodityPurchase, including its "a nil quantity means any".
+function GC.Buy.OwnsCommodityPurchase(itemID, quantity)
+  local attempt = GC.Buy._attempt
+  if not attempt or attempt.itemID ~= itemID or not inFlight(attempt) then return false end
+  if quantity == nil then return true end
+  return attempt.qty == quantity
+end
+
+-- The watchdog armed by the click below. A commodity purchase that answers with none of the
+-- three terminal events would otherwise hold the addon-wide slot for GC.PurchaseSlot.MAX_SECONDS
+-- with the button stuck on "buying...". The token is what keeps a timer armed for one attempt
+-- from retiring the next one.
+local function retireStalled(token)
+  local attempt = GC.Buy._attempt
+  if not attempt or attempt.token ~= token or attempt.stage ~= "started" then return end
+  cancelStartedPurchase()
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  attempt.stage = "expired"
+  logAttempt(lineFor(attempt.itemID))
+  GC.Buy.RefreshIfShown()
+end
+
+local function afterClick(line)
+  logAttempt(line)
+  GC.Buy.RefreshIfShown()
+end
+
+-- ---------------------------------------------------------------------------
+-- The one hardware click. Nothing else in this file may reach a protected purchase API --
+-- spec/buy_purchase_wiring_spec.lua reads this file's source text and proves it.
+-- ---------------------------------------------------------------------------
+
+local function onBuyClick(line)
+  if not (line and current) then return end
+  local attempt = GC.Buy._attempt
+
+  -- The confirming click. The client only demands a hardware event for the START of a commodity
+  -- purchase, so an addon MAY confirm straight from COMMODITY_PRICE_UPDATED -- and this one
+  -- never will. The server's price is the first price anybody has actually seen, and agreeing to
+  -- it is the player's to do (addon/AGENTS.md: "Do not 'helpfully' auto-confirm anything").
+  if attempt and attempt.stage == "confirm" and attempt.itemID == line.itemID
+      and (attempt.qty or 0) > 0 then
+    attempt.stage = "confirming"
+    C_AuctionHouse.ConfirmCommoditiesPurchase(attempt.itemID, attempt.qty)
+    afterClick(line)
+    return
+  end
+
+  -- The client is holding a purchase of ours: a second click can only make trouble.
+  if attempt and (attempt.stage == "started" or attempt.stage == "confirming") then return end
+  if not buyable(line) then return end
+
+  -- Anything but a live quote for THIS line asks the auction house instead of spending: a stale
+  -- ladder is a plan against prices somebody else has already bought off. The next click buys.
+  if not (attempt and attempt.itemID == line.itemID and quoteFresh(attempt)
+      and (attempt.qty or 0) > 0) then
+    GC.Buy._focus = line.itemID
+    quote(line)
+    return
+  end
+
+  if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("buy") then
+    if GC.Print then GC.Print(GC.L["another purchase is in flight"]) end
+    return
+  end
+  -- Stage first, call second: Core/PurchaseCapture.lua's StartCommoditiesPurchase hook runs
+  -- inside this very call and asks GC.Buy.OwnsCommodityPurchase whether the purchase is ours.
+  attempt.stage = "started"
+  C_AuctionHouse.StartCommoditiesPurchase(attempt.itemID, attempt.qty)
+  local token = attempt.token
+  if C_Timer and C_Timer.After then
+    C_Timer.After(BD.WATCHDOG_SECONDS, function() retireStalled(token) end)
+  end
+  afterClick(line)
+end
+
 -- ---------------------------------------------------------------------------
 -- Rows
 -- ---------------------------------------------------------------------------
@@ -374,18 +810,6 @@ local function heightFor(kind)
   return geometry.rowHeight
 end
 
--- The client's own name for the line's item. A run from the companion carries one; a pasted
--- GCR1 string carries none (Core/AppRuns.lua's ImportString), and an item the client has never
--- cached answers nothing at all -- so the id itself is the last honest fallback.
-local function lineName(line)
-  if line.name then return line.name end
-  if C_Item and C_Item.GetItemInfo then
-    local ok, name = pcall(C_Item.GetItemInfo, line.itemID)
-    if ok and type(name) == "string" and name ~= "" then return name end
-  end
-  return "#" .. tostring(line.itemID)
-end
-
 local function buildRowCell(row, col)
   local fs
   if col.num then
@@ -408,6 +832,7 @@ local function clearRow(row)
   row.reagentInset = 0
   row.icon:Hide()
   row.tooltipItemID = nil
+  row.lineItemID = nil
   for _, col in ipairs(COLUMNS) do
     if not col.flex then
       row.cells[col.key]:SetText("")
@@ -422,6 +847,7 @@ end
 
 local function paintLine(row, line)
   row.tooltipItemID = line.itemID
+  row.lineItemID = line.itemID
   local name = lineName(line)
   local decorated = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
   row.reagent:SetText(decorated)
@@ -467,10 +893,13 @@ local function paintLine(row, line)
     row.pro:SetLabel(GC.L["Pro"], Theme.color.gold)
     row.pro:Show()
   else
-    row.action:SetLabel((GC.L["BUY %d"]):format(line.buy))
-    -- Disabled on purpose: see this file's header. The control is built, sized and labelled,
-    -- and the click that spends gold arrives with the purchase slot.
-    row.action:Disable()
+    -- One control, two looks, never two overlaid buttons (addon/AGENTS.md): the label says what
+    -- the next click does, and the focused line -- the one Enter would buy -- wears the active
+    -- variant so the key is never aimed at a row nobody can see it pointing at.
+    local label, clickable = actionLabel(line)
+    row.action:SetLabel(label)
+    row.action:SetVariant(GC.Buy._focus == line.itemID and "active" or "ghost")
+    if clickable then row.action:Enable() else row.action:Disable() end
     row.action:Show()
   end
 end
@@ -536,6 +965,15 @@ createRow = function(parent)
   -- The item's own tooltip on hover, the same affordance Deals, Sell and Sold give their rows.
   -- Wired ONCE on the pooled row, reading whatever paintRow last stamped.
   row:SetScript("OnEnter", function(self)
+    -- The quote comes FIRST: the tooltip is a nicety and its own early return would otherwise
+    -- take the hover-quotes-the-line affordance with it on any client without GameTooltip.
+    -- Focus does not move while a purchase is in flight -- Enter must keep pointing at the line
+    -- the player is part-way through buying.
+    local line = self.lineItemID and lineFor(self.lineItemID) or nil
+    if buyable(line) and not inFlight(GC.Buy._attempt) then
+      GC.Buy._focus = line.itemID
+      quote(line)
+    end
     if not GameTooltip or not self.tooltipItemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
@@ -571,6 +1009,11 @@ createRow = function(parent)
   row.action = Theme.Button(row, "ghost", "badge")
   row.action:SetSize(72, 18)
   row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
+  -- Wired ONCE on the pooled row and reading whatever paintRow last stamped on it, the same way
+  -- the row's own tooltip is wired: a per-render SetScript would leak a closure per repaint.
+  row.action:SetScript("OnClick", function()
+    onBuyClick(lineFor(row.lineItemID))
+  end)
   row.action:Hide()
 
   -- The locked-line marker sits in the same cell the BUY button would have: a line past the
@@ -785,6 +1228,25 @@ function GC.Buy.Attach(f, geo)
     geometry.rowWidth = width
     content:SetWidth(width)
     applyColumnVisibility(width)
+  end)
+
+  -- Enter buys the focused line. A key press is a hardware event, so it may reach the protected
+  -- purchase call exactly as the click does -- it goes through the same onBuyClick either way.
+  --
+  -- Propagation is decided PER KEYSTROKE, never set once (UI/SettingsFrame.lua's OnKeyDown says
+  -- why): EnableKeyboard(true) delivers EVERY key here, and a frame that swallowed them all
+  -- would eat movement, action bars and Enter-to-chat for as long as this tab is up. Only Enter,
+  -- and only while the cursor is actually over this window, is taken; everything else is put
+  -- straight back. Each widget call is guarded so the headless specs can run without them.
+  if container.EnableKeyboard then container:EnableKeyboard(true) end
+  container:SetScript("OnKeyDown", function(self, key)
+    local over = self.IsMouseOver and self:IsMouseOver()
+    if over and (key == "ENTER" or key == "NUMPADENTER") then
+      if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(false) end
+      onBuyClick(lineFor(GC.Buy._focus))
+      return
+    end
+    if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
   end)
 end
 

@@ -3577,7 +3577,9 @@ renderRows = function()
         else
           when = acquiredWhen(entry.batch.acquiredAt)
         end
-        local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House", manual = "entered by hand" })[entry.batch.source] or (entry.batch.source or "manual")
+        local sourceLabel = ({ goldcap = "GoldCap", auction_house = "Auction House",
+          goldcap_buy = GC.L["Buy run"], manual = "entered by hand" })[entry.batch.source]
+          or (entry.batch.source or "manual")
         -- The evidence word stays: it is how the player knows whether that cost is a confirmed
         -- invoice or a guess, which is exactly the thing this whole tab refuses to fake. The
         -- unit price no longer repeats here -- the COST/LISTED cells two columns over already
