@@ -40,7 +40,21 @@ local EM_DASH = "—"
 local BD = {
   BAND_HEIGHT = 44, -- header band: the run picker + two text lines above the table
   HEADER_H = 16,    -- column header row height, matches Deals' CH.HEADER
+  -- How long a NOW price is allowed to stand before this tab asks again. Twenty seconds is
+  -- the shopping rhythm, not a network budget: the batch costs one throttled message, and a
+  -- player working down a run is buying a line every ten to thirty seconds, so anything much
+  -- longer has them clicking BUY against a price the board learned two purchases ago.
+  REFRESH_SECONDS = 20,
+  -- Blizzard's hard ceiling for one SearchForItemKeys call (Core/KeyPoll.lua's MAX_BATCH); a
+  -- run longer than this loses its tail rather than disconnecting the client.
+  MAX_KEYS = 100,
 }
+
+-- When the last batch's answer landed. Zero means "never", which is what makes the first ask
+-- on Show() free. Advanced by FoldRefresh alone, not by the send: a batch the client swallowed
+-- leaves this where it was, so the next tick retries instead of waiting out a refresh window
+-- for prices that never arrived.
+local lastRefreshAt = 0
 
 local function setColor(fontString, color)
   if fontString and color then
@@ -779,6 +793,10 @@ function GC.Buy.Show()
   if current and not rebuilt then current:Refresh() end
   updateContentWidth()
   renderRows()
+  -- Ask for prices the moment the tab is up, rather than waiting for the ticker's next second:
+  -- the board draws em dashes until an answer lands, and a second of them is a second of a
+  -- shopping list that looks like it does not know anything.
+  GC.Buy.TrySendRefresh()
 end
 
 function GC.Buy.Hide()
@@ -790,6 +808,89 @@ function GC.Buy.RefreshIfShown()
     if current then current:Refresh() end
     renderRows()
   end
+end
+
+-- ---------------------------------------------------------------------------
+-- NOW: the floors, refreshed through the addon's one search slot
+-- ---------------------------------------------------------------------------
+
+-- Whether an item is something a keys batch can usefully price. C_AuctionHouse.SearchForItemKeys
+-- answers with one aggregate row per item key, which is the whole truth for a commodity and
+-- only the cheapest variant for anything carrying bonus ids -- so a gear line's "floor" would
+-- be a price for some other item's stats. A run is reagents in practice, but a pasted GCR1
+-- string can hold anything. Unknown counts as askable: the client answers nil for an item key
+-- it has not cached yet, and refusing those would leave a fresh session's whole run unpriced.
+local function askableItem(itemID)
+  if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey) then
+    return true
+  end
+  local ok, info = pcall(function()
+    return C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+  end)
+  if not ok or type(info) ~= "table" or info.isCommodity == nil then return true end
+  return info.isCommodity == true
+end
+
+-- The ids this run still has a reason to price: open (something left to buy), unlocked (a Pro
+-- line has no BUY button to spend the price on), not a vendor line (the auction house has no
+-- answer about it and the row is greyed out anyway). Deduplicated -- a run may name the same
+-- reagent twice -- because a duplicate key spends a slot in a batch that is capped.
+local function refreshTargets()
+  if not current then return nil end
+  local ids, seen = {}, {}
+  for _, line in ipairs(current:Lines()) do
+    if not line.vendor and not line.locked and not line.done and not seen[line.itemID]
+        and askableItem(line.itemID) then
+      seen[line.itemID] = true
+      ids[#ids + 1] = line.itemID
+      if #ids >= BD.MAX_KEYS then break end
+    end
+  end
+  return ids
+end
+
+-- Asks UI/SniperFrame.lua's arbiter for the one outstanding keys batch this addon allows, on
+-- this tab's behalf. Every addon-wide rule (no second batch, not across a book pass's browse
+-- buffer, not while the player is on Blizzard's own panes, and the throttle claim) lives
+-- there; what belongs here is only what BUY alone knows -- the tab is on screen, a run is
+-- shown, and the last answer is old enough to be worth replacing. Returns whether a batch went.
+function GC.Buy.TrySendRefresh(playerBusy)
+  if not (container and container:IsShown() and current) then return false end
+  if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView) then return false end
+  if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
+  local ids = refreshTargets()
+  if not ids or #ids == 0 then return false end
+  return GC.Sniper._TrySendKeysBatchFor({
+    HasPending = function() return true end,
+    NextBatch = function() return ids end,
+  }, "buy", function() return GC.Sniper.CurrentView() == "buy" end, playerBusy) and true or false
+end
+
+-- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker. A ready tick is not
+-- enough on its own: Auto is paused for as long as this tab is up, so on a quiet client
+-- nothing else sends anything and no readiness event ever fires.
+function GC.Buy.Tick()
+  GC.Buy.TrySendRefresh()
+end
+
+-- The batch's answer, routed here by GC.Sniper._FoldKeysBatch because this tab is what asked.
+-- Browse rows are one aggregate per item key: `minPrice` is the cheapest unit on the realm,
+-- which is exactly what NOW claims to be. An item the answer does not mention keeps the floor
+-- it had -- unlike the Items board, silence here is not news (a run line the auction house has
+-- nothing for is simply unbuyable right now), and blanking it would throw away the only price
+-- the player had for a line they are still shopping.
+function GC.Buy.FoldRefresh(browsed)
+  local now = time()
+  lastRefreshAt = now
+  if not current then return end
+  for i = 1, #(browsed or {}) do
+    local row = browsed[i]
+    local itemKey = type(row) == "table" and row.itemKey or nil
+    local itemID = type(itemKey) == "table" and itemKey.itemID or nil
+    local floor = type(row) == "table" and row.minPrice or nil
+    if itemID and floor and floor > 0 then current:SetFloor(itemID, floor, now) end
+  end
+  GC.Buy.RefreshIfShown()
 end
 
 -- BAG_UPDATE_DELAYED (Core/Init.lua). Fires on every loot, craft, mail and vendor trip for the

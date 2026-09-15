@@ -647,6 +647,53 @@ describe("Search slot arbiter", function()
     assert.same({ "page", "page" }, sent)
   end)
 
+  -- The BUY tab's floor refresh (UI/BuyFrame.lua) is a second consumer of the ONE keys batch
+  -- this addon allows itself, and it reaches the client through the same arbiter entry point.
+  -- Stood in for here rather than loaded: this file is about who gets the slot, and BuyFrame's
+  -- own gates (a run on screen, the twenty-second window) have their own spec.
+  describe("BUY floor refresh", function()
+    local function armBuy(GC, ids)
+      local handed = false
+      GC.Buy = {
+        TrySendRefresh = function(playerBusy)
+          return GC.Sniper._TrySendKeysBatchFor({
+            HasPending = function() return not handed end,
+            NextBatch = function() handed = true; return ids end,
+          }, "buy", function() return true end, playerBusy)
+        end,
+      }
+    end
+
+    -- The rule that makes a keys call safe at all: it REPLACES the client's one browse buffer,
+    -- so a pass mid-page owns that buffer and nobody else may touch it. BUY is no exception --
+    -- its batch would steal the page the pass is waiting for, and the pass would fold BUY's
+    -- rows as its own.
+    it("refuses BUY's batch while the book pass is paging", function()
+      local GC, watch = load()
+      watch.hungry = false
+      armBuy(GC, { 11, 12 })
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "page" }, sent)
+    end)
+
+    it("hands BUY the grant once no pass owns the browse buffer", function()
+      local GC, watch = load()
+      watch.hungry = false
+      GC.Sniper._bookPass:Abort()
+      fullResults = true
+      armBuy(GC, { 11, 12 })
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:2" }, sent)
+
+      -- And one batch is one batch, whoever sent it: the Items poll waits for BUY's answer
+      -- exactly as it waits for its own.
+      GC.Sniper._keyPoll:SetTargets({ 1, 2, 3 })
+      GC.Sniper.OnThrottleReady()
+      assert.same({ "keys:2" }, sent)
+    end)
+  end)
+
   it("keeps mayScan closed while a purchase is in flight, even inside the watch loop's own grant", function()
     local GC = load()
     local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan

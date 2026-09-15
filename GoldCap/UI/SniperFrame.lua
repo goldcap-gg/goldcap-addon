@@ -515,6 +515,13 @@ function GC.Sniper._Board()
   return (cfg and cfg.board == "items") and "items" or "commodities"
 end
 
+-- Which tab the rail is on ("deals" | "sell" | "sold" | "buy"). The other UI files own their
+-- own tab and have no business reading this file's `view` upvalue -- but a tab that competes
+-- for the one throttled search slot has to know whether the player is looking at it, and
+-- UI/BuyFrame.lua's floor refresh is exactly that. A function on GC.Sniper for the same
+-- reason _Board() above is one: this file is at its 200-local ceiling.
+function GC.Sniper.CurrentView() return view end
+
 -- How many realm rows the Items board is holding right now -- the number its own chip carries.
 function GC.Sniper._RealmCount()
   local count = 0
@@ -4499,9 +4506,17 @@ function GC.Sniper._KeysOutstanding()
   if (time() - sentAt) < LIM.KEYS_TIMEOUT_SECONDS then return true end
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
+  GC.Sniper._keysOwner = nil
   return false
 end
 
+-- Two consumers share the one outstanding batch: the Items board's realm poll ("sniper") and
+-- the BUY tab's floor refresh ("buy"). They can never both want it -- each is gated on its own
+-- tab being the one on screen -- but the ANSWER arrives as an untagged browse event either
+-- way, so the batch has to say whose it was. _keysOwner is that record, written beside
+-- _keysAwaiting by whichever sender spent the slot and cleared on every path that gives the
+-- wait up. Without it a BUY refresh's rows would be folded into the realm poll, which reads a
+-- silence about an item as "sold out" and would wipe the Items board on every BUY refresh.
 function GC.Sniper._FoldKeysBatch()
   -- An expired wait is not a wait. _KeysOutstanding gives it up (and drops the list of items
   -- it asked about with it), so a browse page arriving long after the batch was written off is
@@ -4509,8 +4524,19 @@ function GC.Sniper._FoldKeysBatch()
   -- deleting every realm row that answer does not mention.
   if not GC.Sniper._KeysOutstanding() then return false end
   trace("keys: answer landed after " .. (time() - GC.Sniper._keysAwaiting) .. "s")
+  local owner = GC.Sniper._keysOwner
   GC.Sniper._keysAwaiting = nil
-  GC.Sniper._keyPoll:Fold(C_AuctionHouse.GetBrowseResults())
+  GC.Sniper._keysOwner = nil
+  local browsed = C_AuctionHouse.GetBrowseResults()
+  if owner == "buy" then
+    -- The realm poll's own fold is what normally consumes _keysBatch (see its onRows driver);
+    -- BUY's does not need the list, so it is dropped here rather than left to be read as the
+    -- NEXT batch's "what we asked about".
+    GC.Sniper._keysBatch = nil
+    if GC.Buy and GC.Buy.FoldRefresh then GC.Buy.FoldRefresh(browsed) end
+    return true
+  end
+  GC.Sniper._keyPoll:Fold(browsed)
   return true
 end
 
@@ -4528,6 +4554,7 @@ end
 function GC.Sniper.OnThrottledMessageDropped()
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
+  GC.Sniper._keysOwner = nil
   prewarmAttempt = nil
   -- Re-arm whoever is next rather than waiting for a readiness event that may not come: the
   -- arbiter sends at most one message and refuses on its own if the system is genuinely busy.
@@ -4645,7 +4672,14 @@ end
 -- batch sent in thirteen passes, measured in game. The end of a pass is exactly the settled
 -- buffer this batch needs, so it is asked for there; the next pass then waits on the answer
 -- (passWants is gated on _KeysOutstanding, and so is Auto's start below).
-function GC.Sniper._TrySendKeysBatch(playerBusy)
+--
+-- Generalised over WHO is asking, because the BUY tab needs the same one batch on the same
+-- one interlock (see _FoldKeysBatch's _keysOwner note): `poll` answers HasPending()/NextBatch()
+-- like Core/KeyPoll.lua does, `wants()` is the caller's own "is my board the one on screen"
+-- predicate, and `who` is the name the answer comes back under. Everything below `wants()` is
+-- addon-wide law and is deliberately NOT the caller's to override: one batch outstanding, never
+-- across a pass's browse buffer, never while the player is using Blizzard's own panes.
+function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   if playerBusy == nil then
     playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
       and GC.AuctionHouseTab.PlayerIsBusy()) or false
@@ -4654,27 +4688,46 @@ function GC.Sniper._TrySendKeysBatch(playerBusy)
   -- HasFullBrowseResults(): opening the auction house straight onto the Items board has sent
   -- no browse at all, so that answer is false until a pass runs, and with the pass paused for
   -- this board it never does. The board sat empty from the first second, measured in game.
-  if not (view == "deals" and GC.Sniper._Board() == "items" and not playerBusy
-      and GC.Sniper._keyPoll:HasPending() and not GC.Sniper._bookPass:IsPaging()
+  if not (wants() and not playerBusy
+      and poll:HasPending() and not GC.Sniper._bookPass:IsPaging()
       and not GC.Sniper._bookPass:PendingStart()
       and not GC.Sniper._KeysOutstanding()) then
     return false
   end
   if not driver.isReady() then return false end
-  if driver.claimSend and not driver.claimSend() then return false end
-  local batch = GC.Sniper._keyPoll:NextBatch()
+  -- Claimed under the asker's own name: GC.Util.ClaimThrottleSend paces one forced send per
+  -- consumer per stuck window, so BUY's refresh and the Items poll do not spend each other's.
+  -- driver.claimSend is the Sniper's own spelling of that call and stays the path for "sniper",
+  -- since specs that load this file without Core/Util.lua rely on its "no pacing" fallback.
+  if who == "sniper" then
+    if driver.claimSend and not driver.claimSend() then return false end
+  elseif GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend(who) then
+    return false
+  end
+  local batch = poll:NextBatch()
   if not batch or #batch == 0 then return false end
   local keys = {}
   for i = 1, #batch do keys[i] = C_AuctionHouse.MakeItemKey(batch[i]) end
   GC.Sniper._keysAwaiting = time()
+  GC.Sniper._keysOwner = who
   -- What this batch asked about, by name. The fold needs it to tell "no row came back for
   -- this item" (sold out, or repriced) from "this item was not in the batch at all".
   GC.Sniper._keysBatch = batch
-  GC.Sniper._keysThisCycle = (GC.Sniper._keysThisCycle or 0) + #keys
+  -- The cycle counters are the Items poll's own accounting (`/gc board` reports them against
+  -- its target set); a BUY refresh is not part of that cycle and must not inflate it.
+  if who == "sniper" then
+    GC.Sniper._keysThisCycle = (GC.Sniper._keysThisCycle or 0) + #keys
+  end
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
-  trace("keys: SearchForItemKeys x" .. #keys)
+  trace("keys: SearchForItemKeys x" .. #keys .. " (" .. who .. ")")
   C_AuctionHouse.SearchForItemKeys(keys, {})
   return true
+end
+
+function GC.Sniper._TrySendKeysBatch(playerBusy)
+  return GC.Sniper._TrySendKeysBatchFor(GC.Sniper._keyPoll, "sniper", function()
+    return view == "deals" and GC.Sniper._Board() == "items"
+  end, playerBusy)
 end
 
 function GC.Sniper.OnThrottleReady()
@@ -4770,6 +4823,14 @@ function GC.Sniper.OnThrottleReady()
   -- Items resumes it on the next ready tick with no state to restore: HasPending() is true
   -- again the moment the cycle has anything left to ask about.
   if GC.Sniper._TrySendKeysBatch(playerBusy) then return end
+
+  -- The BUY tab's floor refresh: the same one batch, the same interlock, one board lower. It
+  -- can never contend with the line above -- that one runs only on Deals, this one only on
+  -- BUY -- so the order between them is arbitrary and the pair together is still at most one
+  -- throttled message per grant. It sits above the pass and the tail for the reason the Items
+  -- batch does: the player is looking at the board it fills, and its prices are what the next
+  -- click spends gold on.
+  if GC.Buy and GC.Buy.TrySendRefresh and GC.Buy.TrySendRefresh(playerBusy) then return end
 
   -- 4 and 5 ALTERNATE. The book pass and the tail below (the watch loop and the verify walk)
   -- take every other grant when both want one, and every grant when only one of them does.
@@ -8516,6 +8577,11 @@ function GC.Sniper.OnAuctionHouseShow()
       if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
         GC.Sniper._TrySendKeysBatch()
       end
+      -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
+      -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
+      -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
+      -- helper owns the interval, the view gate and the claim.
+      if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
     end
     refreshVerifyButton()
     -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
@@ -8652,6 +8718,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._keyPoll:Reset()
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
+  GC.Sniper._keysOwner = nil
   GC.Sniper._keysThisCycle = 0
   GC.Sniper._keysLastCycle = 0
   for itemID in pairs(GC.Sniper._realmDeals) do GC.Sniper._realmDeals[itemID] = nil end
@@ -8689,9 +8756,12 @@ function GC.Sniper.DebugBoard()
   local pins = #GC.Sniper._WatchPins()
   GC.Print(("board: %s view=%s mode=%s ahOpen=%s realmRows=%d scanDeals=%d"):format(
     GC.Sniper._Board(), s(view), s(mode), s(ahOpen), GC.Sniper._RealmCount(), #scanDeals))
-  GC.Print(("poll: targets=%d pending=%s (site targets=%d watchlist=%d pins=%d) keysAwaiting=%s batch=%s thisCycle=%s lastCycle=%s"):format(
+  -- `owner` matters as much as `keysAwaiting` does: the BUY tab spends the same one batch, so
+  -- "a batch is out" on a board that looks stuck is only half an answer without whose it is.
+  GC.Print(("poll: targets=%d pending=%s (site targets=%d watchlist=%d pins=%d) keysAwaiting=%s owner=%s batch=%s thisCycle=%s lastCycle=%s"):format(
     poll:Count(), s(poll:HasPending()), targets, watch, pins,
     GC.Sniper._keysAwaiting and (time() - GC.Sniper._keysAwaiting) .. "s ago" or "nil",
+    s(GC.Sniper._keysOwner),
     GC.Sniper._keysBatch and #GC.Sniper._keysBatch or "nil",
     s(GC.Sniper._keysThisCycle), s(GC.Sniper._keysLastCycle)))
   GC.Print(("gates: paging=%s passWants=%s fullBrowse=%s playerBusy=%s prewarm=%s quiet=%s apiReady=%s"):format(
