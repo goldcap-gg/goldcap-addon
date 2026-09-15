@@ -23,9 +23,10 @@ local rows = {}
 local geometry
 local band
 
--- The BuyRun object for the run currently on screen (nil until one is picked), and the bag
--- scan its `haveOf` driver reads. Both module-local so the whole file agrees on one answer.
-local current
+-- The BuyRun object for the run currently on screen (nil until one is picked), the
+-- `updatedAt` of the AppRuns run it was built from (see ensureRun), and the itemID -> count
+-- map its `haveOf` driver reads. Module-local so the whole file agrees on one answer.
+local current, currentUpdatedAt
 local bagStock = {}
 
 -- The header says "in bags", so the walk covers exactly the bags: the backpack and the five
@@ -182,8 +183,9 @@ end
 -- alone; borrowing Sell's rule would silently under-count every stack the auction house API has
 -- not classified yet and send the player shopping for what is already in the bag.
 local function scanBags()
-  if not GC.BagStock then bagStock = {} return end
-  bagStock = GC.BagStock.Scan({
+  bagStock = {}
+  if not GC.BagStock then return end
+  local entries = GC.BagStock.Scan({
     numSlots = function(bag)
       return C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
     end,
@@ -192,7 +194,14 @@ local function scanBags()
       local info = C_Container.GetContainerItemInfo(bag, slot)
       if type(info) ~= "table" then return nil end
       return {
-        itemID = info.itemID, stackCount = info.stackCount, isBound = info.isBound,
+        itemID = info.itemID, stackCount = info.stackCount,
+        -- isBound is deliberately dropped, not forwarded. GC.BagStock.Scan skips a bound stack
+        -- because the auction house refuses to POST it (Core/BagStock.lua) -- a Sell rule. This
+        -- tab asks a different question: a soulbound reagent sitting in the bags is still a
+        -- reagent the player does not have to buy, and crafting does not care how it got bound.
+        -- Forwarding the flag made HAVE under-count and sent the player shopping for what they
+        -- were already carrying.
+        isBound = nil,
         hasNoValue = info.hasNoValue, itemName = info.itemName,
         hyperlink = info.hyperlink
           or (C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)) or nil,
@@ -200,14 +209,15 @@ local function scanBags()
     end,
     classify = function(itemID) return ("buy:%d"):format(itemID), nil end,
   }, BUY_BAGS)
+  -- Folded into itemID -> count here, once per scan, rather than re-walked per line: `haveOf`
+  -- is called for every line of every Refresh(), and a run is dozens of lines long.
+  for _, entry in ipairs(entries) do
+    bagStock[entry.itemID] = (bagStock[entry.itemID] or 0) + (entry.quantity or 0)
+  end
 end
 
 local function haveOf(itemID)
-  local total = 0
-  for _, entry in ipairs(bagStock) do
-    if entry.itemID == itemID then total = total + (entry.quantity or 0) end
-  end
-  return total
+  return bagStock[itemID] or 0
 end
 
 local function usualUnit(itemID)
@@ -246,34 +256,53 @@ function GC.Buy.SelectRun(code)
   local run = code and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(code) or nil
   local sniper = settings()
   if not run then
-    current = nil
+    current, currentUpdatedAt = nil, nil
     if sniper then sniper.buyRun = nil end
     return
   end
   if sniper then sniper.buyRun = run.code end
   current = GC.BuyRun.New(run, DRIVER)
+  currentUpdatedAt = run.updatedAt
   current:Refresh()
 end
 
 -- Picks up the remembered run, falling back to the first the list offers (app runs first,
 -- newest first -- Core/AppRuns.lua's own order), so a first visit lands on something rather
 -- than on the empty state with runs sitting right there.
+-- Returns whether it (re)built `current`, so Show() can skip a second Refresh() of a run that
+-- was just built and refreshed.
 local function ensureRun()
   local list = runList()
-  if #list == 0 then current = nil return end
+  if #list == 0 then
+    current, currentUpdatedAt = nil, nil
+    return false
+  end
   local sniper = settings()
   local wanted = sniper and sniper.buyRun
   for _, run in ipairs(list) do
     if run.code == wanted then
       -- Already on it: keep the BuyRun object rather than rebuilding it, so what this session
       -- has already bought against the run survives leaving the tab and coming back.
-      if not (current and current:Code() == wanted) then GC.Buy.SelectRun(run.code) end
-      return
+      --
+      -- A run keeps its code across a companion sync while its LINES change (the site's list
+      -- was edited, quantities moved), so the code alone does not prove the object is current.
+      -- `updatedAt` does -- Core/AppRuns.lua stamps it on every adopted run -- and a newer one
+      -- means the object was built from lines that no longer exist. Rebuilding drops this
+      -- session's recorded purchases against the old lines, deliberately: they were counted
+      -- against quantities the run no longer asks for, and carrying them over would credit
+      -- the new lines with buys that were never made for them.
+      if not (current and current:Code() == wanted)
+          or (run.updatedAt or 0) > (currentUpdatedAt or 0) then
+        GC.Buy.SelectRun(run.code)
+        return true
+      end
+      return false
     end
   end
   -- The remembered run is gone (the companion dropped it on its last sync, or it was never
   -- there): fall to the top of the list rather than to the empty state with runs sitting in it.
   GC.Buy.SelectRun(list[1].code)
+  return true
 end
 
 -- The picker is a cycle, not a dropdown: a player has one or two runs open at a time, and a
@@ -745,8 +774,9 @@ function GC.Buy.Show()
   -- The bags move while this tab is hidden; a Show that trusted the last scan would open on
   -- counts from whenever the player last looked.
   scanBags()
-  ensureRun()
-  if current then current:Refresh() end
+  -- SelectRun already refreshes what it builds, so only a run ensureRun left alone needs one.
+  local rebuilt = ensureRun()
+  if current and not rebuilt then current:Refresh() end
   updateContentWidth()
   renderRows()
 end
@@ -762,10 +792,13 @@ function GC.Buy.RefreshIfShown()
   end
 end
 
--- BAG_UPDATE_DELAYED (Core/Init.lua). Recounts unconditionally -- the count is what `haveOf`
--- answers for every line, and a run refreshed against a stale scan would keep telling the
--- player to buy what they just bought.
+-- BAG_UPDATE_DELAYED (Core/Init.lua). Fires on every loot, craft, mail and vendor trip for the
+-- whole session, so it does nothing at all unless this tab is actually on screen -- a six-bag
+-- walk behind Deals costs the player frames and buys nothing. Nothing goes stale by skipping
+-- it: Show() rescans before it renders, which is the only moment a hidden tab's counts could
+-- have been read.
 function GC.Buy.OnBagsChanged()
+  if not (container and container:IsShown()) then return end
   scanBags()
   GC.Buy.RefreshIfShown()
 end

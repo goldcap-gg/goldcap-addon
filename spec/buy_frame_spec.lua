@@ -88,15 +88,21 @@ describe("BuyFrame", function()
     return c
   end
 
-  -- One bag (0) with five Bravo Ore in it; every other bag empty.
+  -- One bag (0) with five Bravo Ore in it; every other bag empty. `bagWalks` counts how many
+  -- times the whole six-bag walk actually ran, which is what proves a skipped scan is skipped
+  -- rather than merely un-rendered.
+  local bagWalks = 0
   local function stubBags(contents)
     _G.C_Container = {
-      GetContainerNumSlots = function(bag) return bag == 0 and 4 or 0 end,
+      GetContainerNumSlots = function(bag)
+        if bag == 0 then bagWalks = bagWalks + 1 end
+        return bag == 0 and 4 or 0
+      end,
       GetContainerItemInfo = function(bag, slot)
         if bag ~= 0 then return nil end
         local entry = contents[slot]
         if not entry then return nil end
-        return { itemID = entry.itemID, stackCount = entry.qty, isBound = false,
+        return { itemID = entry.itemID, stackCount = entry.qty, isBound = entry.bound == true,
                  hyperlink = "|Hitem:" .. entry.itemID .. "|h" }
       end,
       GetContainerItemLink = function() return nil end,
@@ -304,6 +310,41 @@ describe("BuyFrame", function()
     assert.equal("4", alpha.cells.have:GetText())
     assert.equal("6", alpha.cells.buy:GetText())
     assert.equal("BUY 6", alpha.action.label)
+  end)
+
+  -- GC.BagStock.Scan drops a soulbound stack because the auction house will not POST it --
+  -- a Sell rule this tab has to override. A bound reagent in the bags is still a reagent the
+  -- player does not have to buy, and forwarding the flag sent them shopping for it.
+  it("counts a soulbound stack toward HAVE", function()
+    stubBags({ [1] = { itemID = 102, qty = 5 }, [2] = { itemID = 101, qty = 7, bound = true } })
+    GC.Buy.OnBagsChanged()
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("7", alpha.cells.have:GetText())
+    assert.equal("3", alpha.cells.buy:GetText())
+  end)
+
+  -- BAG_UPDATE_DELAYED fires all session long; a six-bag walk behind the Deals tab buys
+  -- nothing. Show() rescans, so nothing goes stale by skipping it while hidden.
+  it("does not walk the bags while the tab is hidden, and catches up on the next Show", function()
+    GC.Buy.Hide()
+    stubBags({ [1] = { itemID = 102, qty = 5 }, [2] = { itemID = 101, qty = 4 } })
+    bagWalks = 0
+    GC.Buy.OnBagsChanged()
+    assert.equal(0, bagWalks)
+
+    GC.Buy.Show()
+    assert.equal(1, bagWalks)
+    assert.equal("4", rowWithText("Alpha Herb").cells.have:GetText())
+  end)
+
+  -- A run keeps its code across a companion sync while its lines change, so the code alone
+  -- does not prove the built object is current -- updatedAt does.
+  it("rebuilds the run when the companion resyncs the same code with newer lines", function()
+    GC.AppRuns._set({ run({ updatedAt = 900, lines = { { i = 101, q = 2 } } }) })
+    GC.Buy.Show()
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("2", alpha.cells.need:GetText())
+    assert.is_nil(rowWithText("Charlie Dust"))
   end)
 
   it("shows USUAL from market value and an em dash for a NOW nobody has seen yet", function()
