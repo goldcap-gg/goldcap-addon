@@ -2246,8 +2246,9 @@ local function renderRows()
     local counts
     if shown and shown.k == "alert" then
       -- An alert run is not a shopping list somebody wrote: it is what the group found, and
-      -- every line of it is one hit.
-      counts = (GC.L["alert group · %d hits"]):format(totals.lines)
+      -- every line of it is one hit -- the run's own lines, that is: a reagent the player split
+      -- a hit into is part of that hit, not another one the group found.
+      counts = (GC.L["alert group · %d hits"]):format(totals.topLines)
     elseif totals.lines > 0 and totals.toBuy == 0 and totals.toCraft == 0
         and totals.atVendor == 0 then
       -- Nothing to buy, nothing to craft and nothing to fetch: four zeroes are a worse way of

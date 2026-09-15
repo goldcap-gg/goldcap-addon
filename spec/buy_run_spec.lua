@@ -438,6 +438,16 @@ describe("BuyRun splits a line into its reagents", function()
     assert.equal(3, totals.lines)
   end)
 
+  -- A reagent a split put under a line is part of that line, not another one of them. The tab
+  -- says how many lines a run HAS in more than one wording (UI/BuyFrame.lua calls an alert
+  -- group's lines its hits), and a split must not be able to inflate the count.
+  it("counts the run's own lines apart from the reagents a split added", function()
+    local run = build({ { i = 40, q = 3 }, fillet() }, { splits = { [50] = true } })
+    local totals = run:Totals()
+    assert.equal(4, totals.lines)
+    assert.equal(2, totals.topLines)
+  end)
+
   -- Nothing may spend gold on a craft line: there is no auction house lot that IS the crafted
   -- item's recipe, and its own units are what the reagents become.
   it("refuses to quote a purchase for a craft line", function()

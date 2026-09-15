@@ -1367,6 +1367,20 @@ describe("BuyFrame", function()
       end
     end)
 
+  -- Every line of an alert run is one hit the group found. A reagent the player split a hit into
+  -- is not a hit of its own -- counting it said the group had found more than it had.
+  it("counts an alert group's hits, not the reagents a split put under one", function()
+    local alert = alertRun()
+    alert.lines[1].cr = { r = 900, n = 5, c = 2300,
+                          i = { { i = 103, q = 5, n = "Charlie Dust", u = 160 } } }
+    GC.AppRuns._set({ alert })
+    GC.db.runSplits = { ["a0000001"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    assert.truthy(rowWithText("Charlie Dust"))
+    assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+  end)
+
   it("puts alert runs under their own divider and leaves them to the site", function()
     GC.AppRuns._set({ run(), alertRun() })
     GC.db.settings.sniper.buyRun = "a0000001"

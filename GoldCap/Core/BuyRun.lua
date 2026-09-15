@@ -331,7 +331,12 @@ function GC.BuyRun.New(run, driver)
   -- vendor line counts at the vendor's price -- see below.
   function obj:Totals()
     local spent, left, toBuy, toCraft, atVendor, done = 0, 0, 0, 0, 0, 0
+    -- Lines of the RUN, as against `lines` which counts the reagents a split put under one too.
+    -- A reagent is part of the line above it, not another line of the run -- the same rule the
+    -- free-lines gate follows, and the one a caller counting an alert group's hits needs.
+    local topLines = 0
     for _, line in ipairs(lines) do
+      if not line.parent then topLines = topLines + 1 end
       spent = spent + line.spent
       if line.done then
         done = done + 1
@@ -356,7 +361,7 @@ function GC.BuyRun.New(run, driver)
       end
     end
     return { spent = spent, left = left, toBuy = toBuy, toCraft = toCraft,
-             atVendor = atVendor, done = done, lines = #lines }
+             atVendor = atVendor, done = done, lines = #lines, topLines = topLines }
   end
 
   return obj
