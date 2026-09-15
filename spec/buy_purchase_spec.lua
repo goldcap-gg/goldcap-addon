@@ -327,7 +327,7 @@ describe("BUY purchase", function()
     assert.equal("▲100% over usual", row.action.label)
     assert.is_false(row.action:IsEnabled())
     -- The over-cap look, which a line where only PART fits wears too (see the partial-fill test).
-    assert.equal("danger", row.action.variant)
+    assert.equal("warn", row.action.variant)
   end)
 
   it("does not quote a vendor line, and offers it no button to click", function()
@@ -1268,9 +1268,18 @@ describe("BUY purchase", function()
   it("says a line the client will not sell as a commodity has to be bought by hand", function()
     _G.C_AuctionHouse.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 103 } end
     setBook(103, {})
+    local before = #searches
     hover(rowWithText("Charlie Dust"))
-    GC.Buy.OnCommodityResults(103)
+    -- Settled at the ask: the client answers a gear key with ITEM_SEARCH_RESULTS_UPDATED, which
+    -- never reaches this tab, so no commodity event is needed (or waited for) to say so. The
+    -- search itself still goes, because it is what opens Blizzard's own page for the player.
     local row = rowWithText("Charlie Dust")
+    assert.equal(before + 1, #searches)
+    assert.equal("quoted", GC.Buy._attempt.stage)
+    assert.equal("not a commodity — buy by hand", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+    GC.Buy.OnCommodityResults(103)
+    row = rowWithText("Charlie Dust")
     assert.equal("not a commodity — buy by hand", row.action.label)
     assert.is_false(row.action:IsEnabled())
 
@@ -1296,7 +1305,7 @@ describe("BUY purchase", function()
     local row = rowWithText("Alpha Herb")
     assert.equal("BUY 6 · 5400c", row.action.label)
     assert.is_true(row.action:IsEnabled()) -- the part that fits is still buyable
-    assert.equal("danger", row.action.variant)
+    assert.equal("warn", row.action.variant)
     assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲100% over usual", 1, true))
   end)
 

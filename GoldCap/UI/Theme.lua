@@ -649,6 +649,9 @@ local BUTTON_VARIANTS = {
   active  = { bg = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.16 }, text = T.color.goldHi },
   ghost   = { bg = nil, text = T.color.fg },
   danger  = { bg = T.color.red, text = T.color.fg },
+  -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
+  -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
+  warn    = { bg = { T.tier.SUSPECT[1], T.tier.SUSPECT[2], T.tier.SUSPECT[3], 0.16 }, text = T.tier.SUSPECT },
 }
 
 -- rounded T.Button: file + margin per size class, keyed the same way T.Card's `small`

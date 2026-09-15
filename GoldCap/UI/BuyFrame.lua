@@ -535,12 +535,12 @@ local function actionLabel(line)
       -- button wears the over-cap look; how far over the rest sits is on the log line
       -- OnCommodityResults writes, which is what `/gc buy` prints.
       return (GC.L["BUY %d · %s"]):format(attempt.qty, formatAmount(attempt.total)), true,
-        attempt.capped and "danger" or nil
+        attempt.capped and "warn" or nil
     end
     -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
     -- it usually does" is a decision the player can make; a greyed-out button is not.
     if attempt.overPct then
-      return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false, "danger"
+      return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false, "warn"
     end
     return GC.L["nothing on offer"], false
   end
@@ -603,7 +603,8 @@ end
 -- terminal event nothing else owns (UI/SniperFrame.lua's three no-pending branches): a commodity
 -- event carries no attempt identifier, so with a record on both sides the event is nobody's to
 -- take -- the same fail-closed answer mayOwnTerminal gives when the Sniper is the one holding
--- one. Read-only, exactly like GC.Sniper.HasStrandedConfirmed, so asking never consumes a record.
+-- one. Asking never consumes a record; liveStranded does prune records that have expired or
+-- belong to an earlier session, which is the same ageing the Sniper's mirror applies.
 function GC.Buy.HasStranded() return (liveStranded()) > 0 end
 
 -- The one record a terminal event can honestly be attributed to, consumed. A commodity event
@@ -694,8 +695,8 @@ local function ladderFor(itemID)
   return ladder
 end
 
--- How far over the usual price the cheapest level the cap refused sits. Only ever shown when
--- the cap stopped the ladder before a single unit.
+-- How far over the usual price the cheapest level the cap refused sits. Computed whenever the
+-- cap stopped the ladder -- before the first unit or part-way through a partial fill.
 local function overUsualPct(line, ladder)
   if not (line and line.usual and line.usual > 0 and line.cap) then return nil end
   for _, level in ipairs(ladder or {}) do
@@ -868,6 +869,15 @@ local function quote(line)
     itemID = line.itemID, stage = "quoting", token = attemptSeq, askedAt = time(),
     runCode = current and current:Code() or nil,
   }
+  -- A gear, pet or recipe line is answered by ITEM_SEARCH_RESULTS_UPDATED, which this tab does
+  -- not listen to (the commodity buffer is the only book it can buy from in one click), so the
+  -- answer is settled here, at the ask: the search above opens Blizzard's own page for the
+  -- player, and the button says so instead of waiting on a commodity event that never comes.
+  if not askableItem(line.itemID) then
+    local asked = GC.Buy._attempt
+    asked.stage, asked.byHand, asked.quotedAt = "quoted", true, time()
+    asked.qty, asked.total = 0, 0
+  end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
 end
@@ -1697,6 +1707,13 @@ function GC.Buy.Attach(f, geo)
     end
     if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(false) end
     onBuyClick(line)
+  end)
+  -- The one keystroke that leaves propagation off is an Enter that bought a line. Re-armed on
+  -- its release, so combat beginning right after that press cannot leave this container eating
+  -- movement, action bars and chat for the rest of the fight (OnKeyDown stands down in combat).
+  container:SetScript("OnKeyUp", function(self)
+    if InCombatLockdown and InCombatLockdown() then return end
+    if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
   end)
 end
 
