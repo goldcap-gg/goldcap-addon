@@ -79,89 +79,178 @@ function GC.BuyRun.New(run, driver)
   function obj:Code() return run.code end
   function obj:Name() return run.name end
 
-  -- Rebuilds every line from the run plus current state: `have` comes fresh from the
-  -- driver every time (the bag count can change any moment the player isn't looking at
-  -- this frame), `buy` from need/have/bought, and `cap` from the usual price. Lines come
-  -- out in three groups -- open, then the vendor trip, then everything already done -- and
-  -- keep run order inside each. `index` counts only non-vendor lines, in run order and
-  -- regardless of whether they are done, so the free-lines gate is about which lines of the
-  -- run are unlocked rather than about what is left of it.
-  function obj:Refresh()
-    -- The run's code goes with the question: a cap is a property of the run, not of the tab
-    -- (UI/BuyFrame.lua's runCapPct). A driver that does not care simply ignores the argument.
-    local capPct = driver.capPct(run.code)
-    local freeLines = driver.freeLines()
-    local open, vendor, done = {}, {}, {}
-    local index = 0
+  -- One entry per run line, before any split has had its say: everything that comes straight off
+  -- the run, plus the two counts the split arithmetic needs (what the character has, and what
+  -- this run has already bought). The derived numbers -- buy, cap, done, the free-line gate --
+  -- are NOT computed here: a reagent that lands on a line the run already had changes that
+  -- line's NEED, so anything derived from NEED has to wait until the splits are in.
+  local function baseEntries()
+    local entries, byItem = {}, {}
     for _, src in ipairs(run.lines or {}) do
-      local itemID = src.i
-      local state = stateFor(itemID)
-      -- The run's own price first: the site knew what this item cost when the list was saved,
-      -- and the import's market value is a snapshot of a different moment (or, for an item the
-      -- import has never carried, of nothing at all). A zero or a non-number is not a price --
-      -- trusted, it caps the line at nothing and the line can never be bought.
-      local lineUsual = num(src.u)
-      local usual = (lineUsual and lineUsual > 0 and lineUsual) or driver.usualUnit(itemID)
-      local vendorUnit = num(src.vu)
-      if vendorUnit and vendorUnit <= 0 then vendorUnit = nil end
-      local need = src.q or 0
-      local have = driver.haveOf(itemID)
+      local state = stateFor(src.i)
+      local entry = {
+        itemID = src.i, name = src.n, need = src.q or 0,
+        have = driver.haveOf(src.i), bought = state.bought, spent = state.spent,
+        vendor = src.v == true,
+        lineUsual = num(src.u), vendorUnit = num(src.vu),
+        cheapHour = num(src.ch), cheapPct = num(src.cp), capCopper = num(src.cc),
+        realmName = src.rl and src.rl.n or nil, realmID = src.rl and src.rl.id or nil,
+        craft = craftOf(src.cr),
+        floor = state.floor, floorAt = state.floorAt,
+      }
+      entries[#entries + 1] = entry
+      -- Core/AppRuns.lua already merges duplicate item ids; the `or` is for a run handed
+      -- straight to New() that did not go through it. The FIRST entry keeps the item.
+      byItem[entry.itemID] = byItem[entry.itemID] or entry
+    end
+    return entries, byItem
+  end
+
+  -- Every line the player has chosen to craft instead of buy, turned into a craft line with its
+  -- reagents beside it. `crafts` is how many batches of the recipe the line still needs -- what
+  -- is left to get, rounded up to a whole craft, because half a craft buys nothing.
+  --
+  -- A reagent the run already asks for GROWS that line rather than getting one of its own: two
+  -- lines of the same item share one `bought` (progress is keyed by item id), so the second
+  -- could never be bought at all. The line records what the craft added, so the row can say
+  -- where its NEED came from. Everything else becomes a child line directly under its parent,
+  -- and is bought, capped, counted and recorded exactly like any other line.
+  --
+  -- One pass, in run order: a reagent that lands on a craft line EARLIER in the run does not
+  -- re-open that craft's arithmetic. Recipes whose outputs are each other's reagents do not
+  -- occur in a shopping list, and an order-dependent answer is worse than a plain one.
+  local function applySplits(entries, byItem, splits)
+    local index = 1
+    while index <= #entries do
+      local parent = entries[index]
+      local at = index
+      if parent.craft and not parent.parent and splits[parent.itemID] then
+        parent.kind = "craft"
+        parent.crafts = math.ceil(
+          math.max(0, parent.need - math.max(parent.have, parent.bought)) / parent.craft.craftedQty)
+        for _, reagent in ipairs(parent.craft.reagents) do
+          local add = parent.crafts * reagent.qty
+          -- A recipe that takes its own output as a reagent would otherwise grow the very line
+          -- whose crafts were just counted off it.
+          if add > 0 and reagent.itemID ~= parent.itemID then
+            local seen = byItem[reagent.itemID]
+            if seen then
+              seen.need = seen.need + add
+              seen.forCraft = seen.forCraft or {}
+              seen.forCraft[parent.itemID] = (seen.forCraft[parent.itemID] or 0) + add
+            else
+              at = at + 1
+              local state = stateFor(reagent.itemID)
+              local child = {
+                itemID = reagent.itemID, name = reagent.name, need = add,
+                parent = parent.itemID, vendor = reagent.vendor,
+                lineUsual = reagent.usual, vendorUnit = reagent.vendorUnit,
+                have = driver.haveOf(reagent.itemID), bought = state.bought, spent = state.spent,
+                floor = state.floor, floorAt = state.floorAt,
+              }
+              table.insert(entries, at, child)
+              byItem[child.itemID] = child
+            end
+          end
+        end
+      end
+      index = at + 1
+    end
+  end
+
+  -- Everything that depends on NEED, once NEED has stopped moving: the reference price, the
+  -- ceiling, what is left to buy, and which lines the free tier unlocks.
+  local function finish(entries, byItem, capPct, freeLines)
+    local index = 0
+    for _, entry in ipairs(entries) do
+      -- The run's own price first, then the import's -- see the module header; a zero or a
+      -- non-number is not a price.
+      local lineUsual = entry.lineUsual
+      entry.usual = (lineUsual and lineUsual > 0 and lineUsual) or driver.usualUnit(entry.itemID)
+      if entry.vendorUnit and entry.vendorUnit <= 0 then entry.vendorUnit = nil end
+      entry.cap = capFor({ cc = entry.capCopper }, entry.usual, capPct)
       -- The LARGER of the two, never their sum. `have` and `bought` are two views of the same
       -- units the moment a purchase is delivered -- the buyer's bags hold what they just bought --
       -- so subtracting both counted every purchase twice: a line needing 10 that filled 6 read
       -- have 6, bought 6, buy 0, done, and the four it still needed could never be bought again.
       -- They are kept apart rather than merged because each answers on its own: `bought` survives
       -- the units being used or mailed away, `have` covers stock that was never bought here.
-      local buy = need - math.max(have, state.bought)
-      if buy < 0 then buy = 0 end
-      local isVendor = src.v == true
-      local lineIndex = nil
-      if not isVendor then
+      local buy = entry.need - math.max(entry.have, entry.bought)
+      entry.buy = buy > 0 and buy or 0
+      entry.done = entry.buy == 0
+      entry.locked = false
+      -- A reagent line is not a line of the run: it may not consume a free slot. A vendor line
+      -- never could.
+      if not entry.vendor and not entry.parent then
         index = index + 1
-        lineIndex = index
-      end
-      local line = {
-        itemID = itemID, name = src.n, need = need, have = have, buy = buy,
-        vendor = isVendor, usual = usual, vendorUnit = vendorUnit,
-        -- Hour-of-day (UTC) this item is usually cheapest, and by what percent. Passed through
-        -- untouched: whether the client can convert an hour into realm time, and whether the
-        -- number is worth saying at all, is the caller's question (UI/BuyFrame.lua).
-        cheapHour = num(src.ch), cheapPct = num(src.cp),
-        -- An absolute ceiling for one unit, when the line brought one: an alert group's own
-        -- target price is the number the player chose, and a percentage of the site's reference
-        -- price has nothing to say about it -- it would either buy above the alert or refuse the
-        -- very lots the alert found. Everything else is capped as it always was.
-        cap = capFor(src, usual, capPct),
-        -- The realm a hit is bound to, and the recipe that crafts this item: carried, not acted
-        -- on here. Whether either is worth saying is UI/BuyFrame.lua's question.
-        realmName = src.rl and src.rl.n or nil,
-        realmID = src.rl and src.rl.id or nil,
-        craft = craftOf(src.cr),
-        floor = state.floor, floorAt = state.floorAt,
-        spent = state.spent, bought = state.bought,
-        done = buy == 0, locked = false, index = lineIndex,
-      }
-      -- The free-lines gate is about the run, not about what is left of it, so `locked` is still
-      -- decided by the line's position among the non-vendor lines and nothing else.
-      if not isVendor then
-        line.locked = freeLines ~= nil and lineIndex > freeLines
-      end
-      -- Three buckets, in the order the list reads: what is left to buy, then the vendor trip,
-      -- then everything already dealt with. A line that is done is done whether or not it is a
-      -- vendor stop -- the player has it, so it is not a stop to make. Run order survives inside
-      -- each bucket rather than sorting by when a line finished: the run is still the run.
-      if line.done then
-        done[#done + 1] = line
-      elseif isVendor then
-        vendor[#vendor + 1] = line
-      else
-        open[#open + 1] = line
+        entry.index = index
+        entry.locked = freeLines ~= nil and index > freeLines
       end
     end
-    lines = {}
-    for _, bucket in ipairs({ open, vendor, done }) do
-      for i = 1, #bucket do lines[#lines + 1] = bucket[i] end
+    -- ...and it is exactly as locked as the line it was split out of, which has to be decided
+    -- after every parent has its own answer.
+    for _, entry in ipairs(entries) do
+      if entry.parent then
+        local parent = byItem[entry.parent]
+        entry.locked = (parent ~= nil and parent.locked) or false
+      end
     end
+  end
+
+  -- Three buckets, in the order the list reads: what is left to buy, what is left to craft, the
+  -- vendor trip, then everything already dealt with. Run order survives inside each. A craft
+  -- line's reagents travel WITH it wherever it lands -- the block is one instruction, and a
+  -- reagent that wandered off into another bucket is a row nobody can connect to anything.
+  local function bucketed(entries)
+    local open, crafting, vendor, done = {}, {}, {}, {}
+    local index = 1
+    while index <= #entries do
+      local entry = entries[index]
+      local bucket = open
+      if entry.done then
+        bucket = done
+      elseif entry.kind == "craft" then
+        bucket = crafting
+      elseif entry.vendor then
+        bucket = vendor
+      end
+      bucket[#bucket + 1] = entry
+      index = index + 1
+      while index <= #entries and entries[index].parent == entry.itemID do
+        bucket[#bucket + 1] = entries[index]
+        index = index + 1
+      end
+    end
+    local out = {}
+    for _, bucket in ipairs({ open, crafting, vendor, done }) do
+      for i = 1, #bucket do out[#out + 1] = bucket[i] end
+    end
+    return out
+  end
+
+  -- Rebuilds every line from the run plus current state, in four passes: the run's own lines,
+  -- then the splits the player chose (a craft line, with the reagents under it), then everything
+  -- that depends on NEED once the reagents have stopped moving it, then the order the list reads
+  -- in. `have` comes fresh from the driver every time (the bag count can change any moment the
+  -- player isn't looking at this frame), `buy` from need/have/bought, and `cap` from the usual
+  -- price. Lines come out in four groups -- open, then what is left to craft, then the vendor
+  -- trip, then everything already done -- and keep run order inside each, a craft line's reagents
+  -- travelling with it. `index` counts only the run's own non-vendor lines, in run order and
+  -- regardless of whether they are done, so the free-lines gate is about which lines of the
+  -- run are unlocked rather than about what is left of it.
+  function obj:Refresh()
+    -- The run's code goes with every question: a cap and a set of splits are properties of the
+    -- run, not of the tab (UI/BuyFrame.lua). A driver that does not care ignores the argument;
+    -- one with no splits at all is a driver whose runs simply have none.
+    local capPct = driver.capPct(run.code)
+    local freeLines = driver.freeLines()
+    -- Asked on every Refresh rather than once at construction, unlike progress: the player
+    -- splits and un-splits a line from the row menu, and the answer has to be the current one.
+    local splits = (driver.splits and driver.splits(run.code)) or {}
+    local entries, byItem = baseEntries()
+    applySplits(entries, byItem, splits)
+    finish(entries, byItem, capPct, freeLines)
+    lines = bucketed(entries)
   end
 
   function obj:Lines() return lines end
@@ -185,7 +274,10 @@ function GC.BuyRun.New(run, driver)
   -- nothing, so the caller commits with RecordPurchase once the real purchase succeeds.
   function obj:PurchaseQuantity(itemID, ladder)
     local line = findLine(itemID)
-    if not line or line.buy <= 0 then return 0, 0, false end
+    -- A craft line is not bought: its units come out of the reagents under it, which are lines
+    -- of their own. Refused here as well as in the caller's own `buyable` check -- this is the
+    -- function that says how much gold a click may spend.
+    if not line or line.kind == "craft" or line.buy <= 0 then return 0, 0, false end
     local need = line.buy
     local qty, total, capped = 0, 0, false
     for _, level in ipairs(ladder or {}) do
@@ -225,17 +317,21 @@ function GC.BuyRun.New(run, driver)
   -- line is not yet buyable, so its cost is not part of "what this run needs right now". A
   -- vendor line counts at the vendor's price -- see below.
   function obj:Totals()
-    local spent, left, toBuy, atVendor, done = 0, 0, 0, 0, 0
+    local spent, left, toBuy, toCraft, atVendor, done = 0, 0, 0, 0, 0, 0
     for _, line in ipairs(lines) do
       spent = spent + line.spent
       if line.done then
         done = done + 1
+      elseif line.kind == "craft" then
+        toCraft = toCraft + 1
       elseif line.vendor then
         atVendor = atVendor + 1
       else
         toBuy = toBuy + 1
       end
-      if not line.done and not line.locked then
+      -- A craft line costs nothing of its own: the gold goes on its reagents, which are lines
+      -- here too. Counting both would charge the player twice for the same crafts.
+      if not line.done and not line.locked and line.kind ~= "craft" then
         -- A vendor line is priced at the vendor's own price -- it never touches the auction
         -- house, so a floor or a market value would be a number from the wrong market. With no
         -- vendor price it counts nothing, the same way a line with no price at all does.
@@ -246,7 +342,8 @@ function GC.BuyRun.New(run, driver)
         end
       end
     end
-    return { spent = spent, left = left, toBuy = toBuy, atVendor = atVendor, done = done, lines = #lines }
+    return { spent = spent, left = left, toBuy = toBuy, toCraft = toCraft,
+             atVendor = atVendor, done = done, lines = #lines }
   end
 
   return obj

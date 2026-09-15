@@ -288,3 +288,151 @@ describe("BuyRun carries the v3 fields", function()
     assert.is_nil(build({ { i = 50, q = 20 } }).craft)
   end)
 end)
+
+describe("BuyRun splits a line into its reagents", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  -- Thalassian Fillet (50): five to a craft, 2300c of reagents per craft -- five Eversong
+  -- Trout (51) and five Tavern Fixings (52, a vendor reagent).
+  local function fillet(over)
+    local line = { i = 50, q = 20, u = 5800, n = "Thalassian Fillet",
+      cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 51, q = 5, n = "Eversong Trout", u = 300 },
+        { i = 52, q = 5, n = "Tavern Fixings", v = true, vu = 150 },
+      } } }
+    for k, v in pairs(over or {}) do line[k] = v end
+    return line
+  end
+
+  local function build(lines, opts)
+    opts = opts or {}
+    local run = GC.BuyRun.New({ code = "abcd2345", lines = lines },
+      { now = function() return 1000 end,
+        haveOf = function(id) return (opts.have or {})[id] or 0 end,
+        usualUnit = function() return nil end,
+        capPct = function() return 130 end,
+        freeLines = function() return opts.freeLines end,
+        splits = function(code)
+          assert.equal("abcd2345", code)
+          return opts.splits
+        end })
+    run:Refresh()
+    return run
+  end
+
+  local function idsOf(run)
+    local out = {}
+    for _, line in ipairs(run:Lines()) do out[#out + 1] = tostring(line.itemID) end
+    return out
+  end
+
+  local function lineOf(run, itemID)
+    for _, line in ipairs(run:Lines()) do if line.itemID == itemID then return line end end
+  end
+
+  it("leaves a line nobody has split exactly as it was", function()
+    local run = build({ fillet() })
+    assert.same({ "50" }, idsOf(run))
+    assert.is_nil(run:Lines()[1].kind)
+    assert.equal(20, run:Lines()[1].buy)
+  end)
+
+  -- 20 needed, five to a craft: four crafts, and four crafts of five of each reagent.
+  it("turns a split line into a craft line with its reagents under it", function()
+    local run = build({ fillet() }, { splits = { [50] = true } })
+    assert.same({ "50", "51", "52" }, idsOf(run))
+    local parent = lineOf(run, 50)
+    assert.equal("craft", parent.kind)
+    assert.equal(4, parent.crafts)
+    assert.equal(20, lineOf(run, 51).need)
+    assert.equal(50, lineOf(run, 51).parent)
+    assert.equal("Eversong Trout", lineOf(run, 51).name)
+    assert.equal(20, lineOf(run, 52).need)
+    assert.is_true(lineOf(run, 52).vendor)
+    assert.equal(150, lineOf(run, 52).vendorUnit)
+  end)
+
+  -- A reagent the run already asks for must not become a second line of the same item: the two
+  -- would share one `bought` (progress is keyed by item id), so buying the first would mark the
+  -- second done and the second's quantity could never be bought at all.
+  it("grows a reagent the run already asks for instead of repeating it", function()
+    local run = build({ fillet(), { i = 51, q = 7, n = "Eversong Trout" } },
+      { splits = { [50] = true } })
+    -- The merged line is an ordinary open line and keeps its own place; the craft block is the
+    -- parent and the one reagent the split really added.
+    assert.same({ "51", "50", "52" }, idsOf(run))
+    local trout = lineOf(run, 51)
+    assert.equal(27, trout.need)
+    assert.is_nil(trout.parent)
+    assert.same({ [50] = 20 }, trout.forCraft)
+  end)
+
+  it("orders the list open, then the craft block, then vendor, then done", function()
+    local run = build({ { i = 40, q = 3 }, fillet(), { i = 41, q = 2, v = true },
+                        { i = 42, q = 1 } },
+      { splits = { [50] = true }, have = { [42] = 1 } })
+    assert.same({ "40", "50", "51", "52", "41", "42" }, idsOf(run))
+  end)
+
+  -- The player crafted them: HAVE covers the need, so there is nothing left to craft and
+  -- nothing left to buy for it.
+  it("finishes a craft line once the crafted units are in hand", function()
+    local run = build({ fillet() }, { splits = { [50] = true }, have = { [50] = 20 } })
+    local parent = lineOf(run, 50)
+    assert.equal("craft", parent.kind)
+    assert.equal(0, parent.crafts)
+    assert.is_true(parent.done)
+    assert.same({ "50" }, idsOf(run))     -- no reagents: nothing left to craft
+  end)
+
+  -- The gold goes on the reagents, which are lines of their own. Counting the craft line too
+  -- would charge the player twice for the same crafts.
+  it("counts the reagents into what is left, never the craft line itself", function()
+    local run = build({ fillet() }, { splits = { [50] = true } })
+    local totals = run:Totals()
+    assert.equal(20 * 300 + 20 * 150, totals.left)
+    assert.equal(1, totals.toCraft)
+    assert.equal(1, totals.toBuy)         -- the trout
+    assert.equal(1, totals.atVendor)      -- the fixings
+    assert.equal(3, totals.lines)
+  end)
+
+  -- Nothing may spend gold on a craft line: there is no auction house lot that IS the crafted
+  -- item's recipe, and its own units are what the reagents become.
+  it("refuses to quote a purchase for a craft line", function()
+    local run = build({ fillet() }, { splits = { [50] = true } })
+    local qty, total, capped = run:PurchaseQuantity(50, { { unit = 10, qty = 100 } })
+    assert.equal(0, qty)
+    assert.equal(0, total)
+    assert.is_false(capped)
+    -- ...while its reagents quote exactly like any other line.
+    assert.equal(20, (run:PurchaseQuantity(51, { { unit = 10, qty = 100 } })))
+  end)
+
+  -- The free-line gate is about which lines of the RUN are unlocked. A reagent is not a line of
+  -- the run: it may not consume a slot, and it may not be free while the line it came out of is
+  -- not.
+  it("gives a reagent the lock of the line it was split out of", function()
+    local run = build({ { i = 40, q = 3 }, fillet() },
+      { splits = { [50] = true }, freeLines = 1 })
+    assert.is_false(lineOf(run, 40).locked)
+    assert.is_true(lineOf(run, 50).locked)
+    assert.is_true(lineOf(run, 51).locked)
+    assert.is_nil(lineOf(run, 51).index)
+    assert.equal(2, lineOf(run, 50).index)
+  end)
+
+  it("still builds a run whose driver knows nothing about splits", function()
+    local run = GC.BuyRun.New({ code = "x", lines = { fillet() } },
+      { now = function() return 0 end, haveOf = function() return 0 end,
+        usualUnit = function() return nil end, capPct = function() return 130 end,
+        freeLines = function() return nil end })
+    run:Refresh()
+    assert.equal(1, #run:Lines())
+    assert.is_nil(run:Lines()[1].kind)
+  end)
+end)
