@@ -1,5 +1,29 @@
 # GoldCap
 
+## 0.11.0 (unreleased)
+
+- **Every line of a run knows what it should cost.** A list saved on goldcap.gg now brings the
+  site's own price for each reagent, so USUAL and the price cap work even for items GoldCap's
+  market data has never carried — old-world cloth, low-level ore, anything the auction house
+  rarely sees.
+- **Vendor lines are priced.** A reagent you buy from a vendor shows what the vendor charges and
+  what the whole stack will cost, and the run counts it into what is left to spend. **Copy vendor
+  list** in the run header opens the list as plain text — what to buy, what each costs, what the
+  trip comes to — ready for Ctrl+C.
+- **When an item is usually cheap.** Where the price cap refuses a line, GoldCap says what hour of
+  the day that item has usually been cheapest over the last fortnight, in your realm's time. It
+  shows on the line's tooltip and in `/gc buy`.
+- **Finished lines get out of the way.** Lines you have already bought drop to the bottom of the
+  run, under the vendor stops, and a run with nothing left simply says so. Its menu then offers
+  **Archive**, which takes it out of the picker; archived runs sit at the bottom of the same menu
+  with **Restore**.
+- **A cap per run.** The run menu carries its own `Cap:` setting — 100% to 300% of the reference
+  price — so a run you are in a hurry to finish can pay more than one you are not. A run without
+  its own cap uses the one in Settings.
+- **Purchases reach your ledger on goldcap.gg.** What you buy through the BUY tab is reported
+  against the list you bought it for, so the site can tell you what a run really cost. Needs
+  companion 1.10.
+
 ## 0.10.0 (unreleased)
 
 - **BUY tab.** Lists with quantities you save on goldcap.gg (a profession's shopping list, for
