@@ -61,6 +61,7 @@ UI/Theme.lua
 UI/Tooltip.lua
 UI/ImportDialog.lua
 UI/CompanionDialog.lua
+UI/VendorListDialog.lua
 UI/SniperFrame.lua
 UI/AuctionHouseTab.lua
 UI/SellViewModel.lua

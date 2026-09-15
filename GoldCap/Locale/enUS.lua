@@ -40,6 +40,8 @@ GC.Locales.enUS = {
   ["%d without cost"] = "%d without cost",
   ["%d · %d/%d covered"] = "%d · %d/%d covered",
   ["%d/%d covered"] = "%d/%d covered",
+  ["%d× %s"] = "%d× %s",
+  ["%d× %s · %s each · %s"] = "%d× %s · %s each · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unit    total %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
@@ -139,6 +141,7 @@ GC.Locales.enUS = {
   ["Confirm the removal"] = "Confirm the removal",
   ["Copy the link (Ctrl+C) and open it in a browser:"] =
     "Copy the link (Ctrl+C) and open it in a browser:",
+  ["Copy vendor list"] = "Copy vendor list",
   ["Cost per unit"] = "Cost per unit",
   ["Cost unknown for %d of %d"] = "Cost unknown for %d of %d",
   ["Costs more than your per-buy wallet limit allows."] =
@@ -444,6 +447,8 @@ GC.Locales.enUS = {
     "The price moved and the trade is no longer safe.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "The profit does not clear your minimum once the 5% cut and deposit are paid.",
+  ["The run's vendor reagents. Press Ctrl+C to copy the list."] =
+    "The run's vendor reagents. Press Ctrl+C to copy the list.",
   ["There is no undo. Clicking asks for a second click to confirm."] =
     "There is no undo. Clicking asks for a second click to confirm.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
@@ -452,6 +457,7 @@ GC.Locales.enUS = {
   ["Too little of what is listed actually sells."] = "Too little of what is listed actually sells.",
   ["Too little price history to trust the value."] = "Too little price history to trust the value.",
   ["Total cost to buy this auction"] = "Total cost to buy this auction",
+  ["Total: %s"] = "Total: %s",
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "Type a price in gold, or clear the box to use GoldCap's",
   ["UNDER YOU"] = "UNDER YOU",
@@ -464,6 +470,7 @@ GC.Locales.enUS = {
   ["Unknown means the cost side is incomplete -- fill it in with Set cost."] =
     "Unknown means the cost side is incomplete -- fill it in with Set cost.",
   ["VERDICT"] = "VERDICT",
+  ["Vendor list"] = "Vendor list",
   ["Verdict"] = "Verdict",
   ["WATCH"] = "WATCH",
   ["WATCH (computed SAFE)"] = "WATCH (computed SAFE)",

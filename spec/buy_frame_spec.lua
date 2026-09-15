@@ -484,6 +484,47 @@ describe("BuyFrame", function()
     assert.equal("~1g", alpha.cells.cost:GetText())
   end)
 
+  -- Spec rule 2: the run header offers the vendor stops as a block of plain text, because the
+  -- player has to read them off the screen while standing at a vendor.
+  it("copies the run's vendor stops out as a list with a total", function()
+    GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900, lines = {
+      { i = 101, q = 10 }, { i = 104, q = 5, v = true, vu = 25 },
+      { i = 103, q = 2, v = true, vu = 10000 } } }) })
+    GC.db.settings.sniper.buyRun = "run-v"
+    GC.Buy.Show()
+
+    local copied
+    GC.UI = { ShowVendorList = function(text) copied = text end }
+    local band = bandOf()
+    assert.is_true(band.vendor:IsShown())
+    assert.equal("Copy vendor list", band.vendor.label)
+    band.vendor.scripts.OnClick(band.vendor)
+
+    -- Plain money, never GetCoinTextureString: the icon escapes copy out of the box as
+    -- |TInterface\...|t, which is not something a player can read at a vendor.
+    assert.equal("5× Delta Vial · 25c each · 1s25c\n"
+      .. "2× Charlie Dust · 1g each · 2g\n"
+      .. "Total: 2g1s25c", copied)
+  end)
+
+  it("names a vendor line with no price without inventing one", function()
+    GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900, lines = {
+      { i = 101, q = 10 }, { i = 104, q = 5, v = true } } }) })
+    GC.db.settings.sniper.buyRun = "run-v"
+    GC.Buy.Show()
+    local copied
+    GC.UI = { ShowVendorList = function(text) copied = text end }
+    bandOf().vendor.scripts.OnClick(bandOf().vendor)
+    assert.equal("5× Delta Vial\nTotal: 0c", copied)
+  end)
+
+  it("hides the button for a run with no vendor stop", function()
+    GC.AppRuns._set({ run({ code = "run-n", updatedAt = 900, lines = { { i = 101, q = 10 } } }) })
+    GC.db.settings.sniper.buyRun = "run-n"
+    GC.Buy.Show()
+    assert.is_false(bandOf().vendor:IsShown())
+  end)
+
   it("labels the column header row REAGENT/NEED/HAVE/BUY/NOW/USUAL/COST/ACTION", function()
     local header = bandOf().header
     assert.truthy(header and header.cells)

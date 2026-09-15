@@ -145,6 +145,21 @@ local function formatAmount(amount)
   return GetCoinTextureString(amount)
 end
 
+-- Money as plain text, for a list the player copies out of the game. formatAmount's sub-gold
+-- branch returns GetCoinTextureString, which is icon ESCAPES: they draw beautifully in a
+-- FontString and come out of an EditBox as |TInterface\MoneyFrame\UI-CopperIcon:0|t.
+local function plainAmount(amount)
+  if type(amount) ~= "number" then return "" end
+  local gold = math.floor(amount / 10000)
+  local silver = math.floor((amount % 10000) / 100)
+  local copper = amount % 100
+  local parts = {}
+  if gold > 0 then parts[#parts + 1] = gold .. "g" end
+  if silver > 0 then parts[#parts + 1] = silver .. "s" end
+  if copper > 0 or #parts == 0 then parts[#parts + 1] = copper .. "c" end
+  return table.concat(parts)
+end
+
 local COLUMNS = {
   { key = "reagent", flex = true, min = 140 },
   { key = "need",   w = 36, num = true, size = 11 },
@@ -1642,6 +1657,30 @@ local function restampHeadings()
   if header.reagentCell then stamp(header.reagentCell.label, headerText("reagent")) end
 end
 
+-- The run's vendor stops as one block of text: what to buy, what each costs and what the trip
+-- comes to. Only lines with something still to buy -- this is a shopping list, not an inventory
+-- -- and a line the site could not price is named without a price rather than with a blank one.
+-- nil when there is nothing to copy, which is also when the button is hidden.
+local function vendorListText()
+  if not current then return nil end
+  local out, total = {}, 0
+  for _, line in ipairs(current:Lines()) do
+    if line.vendor and line.buy > 0 then
+      local unit = line.vendorUnit
+      if unit then
+        total = total + line.buy * unit
+        out[#out + 1] = (GC.L["%d× %s · %s each · %s"]):format(
+          line.buy, lineName(line), plainAmount(unit), plainAmount(line.buy * unit))
+      else
+        out[#out + 1] = (GC.L["%d× %s"]):format(line.buy, lineName(line))
+      end
+    end
+  end
+  if #out == 0 then return nil end
+  out[#out + 1] = (GC.L["Total: %s"]):format(plainAmount(total))
+  return table.concat(out, "\n")
+end
+
 -- The header band: the run picker and the run's line counts on one line, the money and the
 -- "in bags" legend under them. SellFrame/SoldFrame's header-band convention.
 local function createBand(parent)
@@ -1666,11 +1705,23 @@ local function createBand(parent)
   end)
   picker:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+  -- Shown only for a run that still has a vendor stop (renderRows). A vendor trip is the one
+  -- part of a run the game cannot help with, so the list leaves the game as text.
+  local vendorBtn = Theme.Button(parent, "ghost", "badge")
+  vendorBtn:SetSize(120, 20)
+  vendorBtn:SetPoint("TOPLEFT", picker, "TOPRIGHT", Theme.pad.s, 0)
+  vendorBtn:SetLabel(GC.L["Copy vendor list"])
+  vendorBtn:SetScript("OnClick", function()
+    local text = vendorListText()
+    if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
+  end)
+  vendorBtn:Hide()
+
   local counts = Theme.Num(parent, 9)
   counts:SetJustifyH("RIGHT")
   counts:SetWordWrap(false)
   counts:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -6)
-  counts:SetPoint("LEFT", picker, "RIGHT", Theme.pad.s, 0)
+  counts:SetPoint("LEFT", vendorBtn, "RIGHT", Theme.pad.s, 0)
   setColor(counts, Theme.color.fgDim)
 
   -- What the HAVE column counts, said once rather than in every row: the bags, not the bank.
@@ -1703,7 +1754,8 @@ local function createBand(parent)
   rule:SetPoint("BOTTOMRIGHT")
   rule:SetHeight(1)
 
-  return { picker = picker, counts = counts, spent = spent, bags = bags, rule = rule }
+  return { picker = picker, vendor = vendorBtn, counts = counts, spent = spent,
+           bags = bags, rule = rule }
 end
 
 local function updateContentWidth()
@@ -1726,12 +1778,14 @@ local function renderRows()
     band.picker:Show()
     band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
       totals.lines, totals.toBuy, totals.atVendor))
+    if totals.atVendor > 0 then band.vendor:Show() else band.vendor:Hide() end
     band.spent:SetText((GC.L["spent %s · left ~%s"]):format(
       formatAmount(totals.spent), formatAmount(totals.left)))
   else
     -- Nothing to name and nothing to count: a picker offering a run that does not exist is
     -- worse than no picker at all.
     band.picker:Hide()
+    band.vendor:Hide()
     band.counts:SetText("")
     band.spent:SetText("")
   end
