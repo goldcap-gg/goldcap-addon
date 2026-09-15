@@ -171,9 +171,15 @@ function GC.AppRuns.ImportString(str)
 
   local parsed = {}
   for token in rest:gmatch("[^,]+") do
-    local id, qty, flag = token:match("^(%d+)=(%d+)=?(v?)$")
+    -- `<id>=<qty>` and then whatever suffixes the site has learnt to write since this build:
+    -- `=v` marks a vendor line and is the only one read here. Anything else after the quantity
+    -- (a newer site's `@usual`, `~vendorUnit`) is skipped rather than failing the line, so an
+    -- older addon still imports a run from a newer goldcap.gg.
+    local id, qty, suffix = token:match("^(%d+)=(%d+)([^%d].*)$")
+    if not id then id, qty, suffix = token:match("^(%d+)=(%d+)()$") end
     if id then
-      parsed[#parsed + 1] = { i = tonumber(id), q = tonumber(qty), v = flag == "v" }
+      suffix = type(suffix) == "string" and suffix or ""
+      parsed[#parsed + 1] = { i = tonumber(id), q = tonumber(qty), v = suffix:find("=v", 1, true) ~= nil }
     end
   end
   -- Same merge Adopt does, for the same reason (see mergeLines): a pasted string can name one
