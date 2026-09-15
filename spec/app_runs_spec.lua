@@ -232,6 +232,88 @@ describe("AppRuns", function()
       assert.equal(150, GC.db.runCaps["abcd2345"])
       assert.is_nil(GC.db.runCaps["gone-run"])
     end)
+
+    -- The site can recompute a saved plan at today's prices, which rewrites the run's lines
+    -- under a code the addon already has. The band says so for a day, so a run that changed
+    -- shape while the player was not looking is not something they discover by miscounting.
+    it("notices a run that comes back with different lines", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200
+      table.remove(fresher.runs[1].lines, 2)              -- the vendor line is gone
+      table.insert(fresher.runs[1].lines, { i = 7, q = 3 })
+      table.insert(fresher.runs[1].lines, { i = 8, q = 9 })
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+
+      local notice = GC.db.runNotices["abcd2345"]
+      assert.is_table(notice)
+      assert.equal(2, notice.added)
+      assert.equal(1, notice.removed)
+      assert.is_number(notice.at)
+    end)
+
+    -- A quantity that moved is a changed plan too, and there is nothing to count: the band has
+    -- a wording of its own for it (UI/BuyFrame.lua).
+    it("notices a quantity that moved, with nothing added or removed", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200
+      fresher.runs[1].lines[1].q = 400
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.same({ added = 0, removed = 0 }, { added = GC.db.runNotices["abcd2345"].added,
+                                                removed = GC.db.runNotices["abcd2345"].removed })
+    end)
+
+    -- A sync that brought the same run again is not news. Both halves have to differ: a file
+    -- regenerated on a timer carries a new generatedAt and the very same run.
+    it("says nothing when the run came back the same", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200          -- newer stamp, identical lines
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+    end)
+
+    it("says nothing about a run it is seeing for the first time", function()
+      local f = fixture()
+      f.runs[1].code = "wxyz6789"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["wxyz6789"])
+    end)
+
+    -- An alert run's lines ARE the alert group's live hits, so they change on essentially every
+    -- sync by design -- that is not a plan that changed, it is the run doing what it is for. The
+    -- band has its own wording for an alert run (hit count), so Adopt must not also write a notice.
+    it("says nothing about an alert run whose hits changed shape", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].k = "alert"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.v = 3
+      fresher.runs[1].k = "alert"
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200
+      table.remove(fresher.runs[1].lines, 2)
+      table.insert(fresher.runs[1].lines, { i = 7, q = 3 })
+      table.insert(fresher.runs[1].lines, { i = 8, q = 9 })
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+    end)
   end)
 
   describe("archiving", function()

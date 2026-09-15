@@ -119,6 +119,37 @@ local function copyRun(raw, origin)
   }
 end
 
+-- What the site changed about a run the addon already had, or nil when it changed nothing worth
+-- saying. Both halves have to differ: `updatedAt` alone moves whenever the site touches the row,
+-- and a line set alone cannot move without it. Lines are compared by item id AND quantity, so a
+-- recompute that only moved a number is still a changed plan -- with nothing added or removed,
+-- which is a shape the band has its own wording for.
+--
+-- An alert run's lines ARE the alert group's live hits, not a plan: they change on essentially
+-- every sync by design, so a notice here would sit permanently on a run that has no plan behind
+-- it. The band already has its own wording for an alert run (a hit count) -- see
+-- UI/BuyFrame.lua -- so an alert group's hits arriving and expiring is not news for this notice.
+local function noticeFor(old, new)
+  if new.k == "alert" then return nil end
+  if type(old) ~= "table" or (old.updatedAt or 0) == (new.updatedAt or 0) then return nil end
+  local before, after = {}, {}
+  for _, line in ipairs(old.lines or {}) do before[line.i] = line.q end
+  for _, line in ipairs(new.lines or {}) do after[line.i] = line.q end
+  local added, removed, changed = 0, 0, false
+  for id, qty in pairs(after) do
+    if before[id] == nil then
+      added, changed = added + 1, true
+    elseif before[id] ~= qty then
+      changed = true
+    end
+  end
+  for id in pairs(before) do
+    if after[id] == nil then removed, changed = removed + 1, true end
+  end
+  if not changed then return nil end
+  return { at = time(), added = added, removed = removed }
+end
+
 -- Reads `_G.GoldCap_AppRuns` (see this file's header for the shape and where it comes from)
 -- and, when it is both well-formed and strictly newer than what is already stored, replaces
 -- every "app" run in `GC.db.runs` with the ones it carries and stamps `GC.db.runsMeta`.
@@ -145,9 +176,20 @@ function GC.AppRuns.Adopt()
   for code, run in pairs(db.runs or {}) do
     if run.origin == "paste" then kept[code] = run end
   end
+  if type(db.runNotices) ~= "table" then db.runNotices = {} end
   for _, rawRun in ipairs(raw.runs) do
     local run = copyRun(rawRun, "app")
-    if run then kept[run.code] = run end
+    if run then
+      -- Compared against what this code held BEFORE the replacement: `db.runs` is still the
+      -- previous generation here, and a paste is never compared -- the site did not write it,
+      -- so it has nothing to say about it having changed.
+      local old = db.runs and db.runs[run.code] or nil
+      if old and old.origin == "app" then
+        local notice = noticeFor(old, run)
+        if notice then db.runNotices[run.code] = notice end
+      end
+      kept[run.code] = run
+    end
   end
 
   db.runs = kept
