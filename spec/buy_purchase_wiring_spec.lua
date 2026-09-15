@@ -66,6 +66,22 @@ describe("BUY purchase wiring", function()
     assert.is_true(timers >= 1)
   end)
 
+  -- The row menu is the one place other than the BUY button where a click reaches this file's
+  -- own code. It writes a flag and re-renders; it must never be a second way to spend gold --
+  -- and it is not a hardware-click handler the client would let it from anyway.
+  it("never reaches a purchase call from a context menu", function()
+    local text = source()
+    local menus = 0
+    for body in text:gmatch("CreateContextMenu%b()") do
+      menus = menus + 1
+      assert.is_nil(body:find("CommoditiesPurchase", 1, true))
+      assert.is_nil(body:find("onBuyClick", 1, true))
+    end
+    -- A gmatch that matched nothing would pass this in silence: the run picker's menu and the
+    -- row's own are both opened through one of these.
+    assert.is_true(menus >= 2)
+  end)
+
   it("claims the shared purchase slot before it starts anything", function()
     local click = clickHandler(source())
     local claim = assert(click:find('GC.PurchaseSlot.Claim("buy"', 1, true))

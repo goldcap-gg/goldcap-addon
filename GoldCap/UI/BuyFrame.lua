@@ -329,6 +329,15 @@ local function splitsFor(code, create)
   return set
 end
 
+-- Marks one line of a run as crafted rather than bought, or clears it. Clearing REMOVES the
+-- entry rather than storing false, so a line the player put back leaves nothing behind in
+-- SavedVariables to explain later -- the same rule SetArchived follows.
+local function setSplit(code, itemID, split)
+  local set = splitsFor(code, split and true or false)
+  if not set then return end
+  set[itemID] = split and true or nil
+end
+
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
 -- hook is deliberately NOT Sell's: Sell has to tell a commodity from a bonus-id bearing item
 -- because it posts them differently, and returns nil -- dropping the stack -- when it cannot.
@@ -1752,6 +1761,42 @@ layoutRow = function(row)
   row.reagent:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
 end
 
+-- Right-click on a row: the one decision a line carries that is not a purchase -- buy this item,
+-- or buy what it is made of. Only a line the site sent a recipe for has anything to decide, and
+-- nothing here spends gold: it writes a flag and re-renders (spec/buy_purchase_wiring_spec.lua
+-- proves no protected call can be reached from a context menu at all).
+--
+-- Refused while a purchase is in flight, for the reason the run menu refuses a re-cap there:
+-- the attempt has already committed to `current`'s lines, and a split rewrites them, so
+-- settlePurchase would book the gold against a line that no longer exists.
+local function openRowMenu(owner, line)
+  if not (current and line and line.craft) then return false end
+  if line.parent or line.locked then return false end
+  if inFlight(GC.Buy._attempt) then return false end
+  local menu = _G.MenuUtil
+  if not (menu and menu.CreateContextMenu) then return false end
+  local code, itemID = current:Code(), line.itemID
+  local split = line.kind == "craft"
+  -- How many batches an unsplit line would need is the same arithmetic Core/BuyRun.lua does once
+  -- it IS split: what is left to get, rounded up to a whole craft.
+  local crafts = split and (line.crafts or 0)
+    or math.ceil(line.buy / math.max(1, line.craft.craftedQty))
+  menu.CreateContextMenu(owner, function(_, root)
+    if split then
+      root:CreateButton(GC.L["Buy it whole instead"], function()
+        setSplit(code, itemID, false)
+        GC.Buy.RefreshIfShown()
+      end)
+    else
+      root:CreateButton((GC.L["Split into reagents (craft %d×)"]):format(crafts), function()
+        setSplit(code, itemID, true)
+        GC.Buy.RefreshIfShown()
+      end)
+    end
+  end)
+  return true
+end
+
 createRow = function(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(geometry.rowHeight)
@@ -1778,6 +1823,14 @@ createRow = function(parent)
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight = highlight
   row:EnableMouse(true)
+
+  -- A Frame with the mouse enabled gets OnMouseUp for every button, which is how a row that is
+  -- not a Button carries a context menu. Left clicks are the BUY button's alone and are handed
+  -- straight back.
+  row:SetScript("OnMouseUp", function(self, button)
+    if button ~= "RightButton" then return end
+    openRowMenu(self, self.lineItemID and lineFor(self.lineItemID) or nil)
+  end)
 
   -- The item's own tooltip on hover, the same affordance Deals, Sell and Sold give their rows.
   -- Wired ONCE on the pooled row, reading whatever paintRow last stamped.
@@ -1810,6 +1863,43 @@ createRow = function(parent)
     if cheap and GameTooltip.AddLine then
       local c = Theme.color.fgDim
       GameTooltip:AddLine(cheap, c[1], c[2], c[3])
+    end
+    -- Where a merged line's NEED came from. A reagent the run already asked for does not get a
+    -- second row -- it grows the row it has -- and a NEED that grew with no explanation is a
+    -- number the player cannot check.
+    if line and line.forCraft and GameTooltip.AddLine then
+      local mc = Theme.color.fgDim
+      for parentID, qty in pairs(line.forCraft) do
+        local parentLine = lineFor(parentID)
+        GameTooltip:AddLine((GC.L["includes %d for crafting %s"]):format(
+          qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))), mc[1], mc[2], mc[3])
+      end
+    end
+    -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
+    -- what the player will save. Green when crafting is the cheaper of the two, grey otherwise --
+    -- including when the auction house has no price to compare against at all.
+    local compare = line and not line.done and GC.BuyRun and GC.BuyRun.CraftText
+      and GC.BuyRun.CraftText(line) or nil
+    if compare and GameTooltip.AddLine then
+      local cc = compare.cheaper and Theme.color.green or Theme.color.fgDim
+      local parts = {}
+      for _, reagent in ipairs(compare.reagents) do
+        parts[#parts + 1] = (GC.L["%d× %s"]):format(
+          reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
+      end
+      GameTooltip:AddLine((GC.L["craft it: %s = %s each"]):format(
+        table.concat(parts, " + "), formatAmount(compare.unit)), cc[1], cc[2], cc[3])
+      -- The hint names what the right-click would DO, which is the opposite thing on a line
+      -- that is already split.
+      if line.kind == "craft" then
+        GameTooltip:AddLine(
+          (GC.L["vs %s at the auction house · right-click to buy it whole"])
+            :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3])
+      else
+        GameTooltip:AddLine(
+          (GC.L["vs %s at the auction house · right-click to split"])
+            :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3])
+      end
     end
     GameTooltip:Show()
   end)

@@ -83,6 +83,7 @@ GC.Locales.enUS = {
   ["Bundled %s data"] = "Bundled %s data",
   ["Bundled data"] = "Bundled data",
   ["Buy"] = "Buy",
+  ["Buy it whole instead"] = "Buy it whole instead",
   ["Buy less"] = "Buy less",
   ["Buy run"] = "Buy run",
   ["Buy cap (% of usual price)"] = "Buy cap (% of usual price)",
@@ -412,6 +413,7 @@ GC.Locales.enUS = {
   ["Sound on SAFE deal"] = "Sound on SAFE deal",
   ["Source age"] = "Source age",
   ["Spike-trend threshold %"] = "Spike-trend threshold %",
+  ["Split into reagents (craft %d×)"] = "Split into reagents (craft %d×)",
   ["Start scanning as soon as the auction house opens."] =
     "Start scanning as soon as the auction house opens.",
   ["Status"] = "Status",
@@ -554,6 +556,7 @@ GC.Locales.enUS = {
   ["cost basis incomplete -- set costs to get repost advice"] = "cost basis incomplete -- set costs to get repost advice",
   ["cost unknown"] = "cost unknown",
   ["craft"] = "craft",
+  ["craft it: %s = %s each"] = "craft it: %s = %s each",
   ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
   ["done"] = "done",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
@@ -579,6 +582,7 @@ GC.Locales.enUS = {
   ["in bags %d · in bank %d"] = "in bags %d · in bank %d",
   ["in bags and bank · purchases arrive by mail"] = "in bags and bank · purchases arrive by mail",
   ["in the mail"] = "in the mail",
+  ["includes %d for crafting %s"] = "includes %d for crafting %s",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "is what this market absorbs — past that you are buying stock you will sit on",
   ["item %d"] = "item %d",
@@ -692,6 +696,10 @@ GC.Locales.enUS = {
   ["unknown evidence"] = "unknown evidence",
   ["usually cheapest around %s · %d%%"] = "usually cheapest around %s · %d%%",
   ["vendor"] = "vendor",
+  ["vs %s at the auction house · right-click to buy it whole"] =
+    "vs %s at the auction house · right-click to buy it whole",
+  ["vs %s at the auction house · right-click to split"] =
+    "vs %s at the auction house · right-click to split",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",

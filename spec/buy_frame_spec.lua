@@ -1125,4 +1125,122 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
   end)
+
+  local function tooltipOn(row)
+    local lines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text, r, g, b) lines[#lines + 1] = { text = text, color = { r, g, b } } end,
+      Show = function() end, Hide = function() end,
+    }
+    row.scripts.OnEnter(row)
+    _G.GameTooltip = nil
+    return lines
+  end
+
+  local function texts(lines)
+    local out = {}
+    for _, entry in ipairs(lines) do out[#out + 1] = entry.text end
+    return out
+  end
+
+  -- Spec rule 1: 2300c of reagents for five units is 460c each, against the 5800c the site says
+  -- one costs at the auction house. Green, because crafting is cheaper.
+  it("compares crafting with buying on the row tooltip, in green when it is cheaper", function()
+    showCraftRun(false)
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.same({ "craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each",
+                  "vs 5800c at the auction house · right-click to split" }, texts(lines))
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      lines[1].color)
+  end)
+
+  it("greys the comparison when the auction house is cheaper", function()
+    GC.AppRuns._set({ { code = "run-x", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = { { i = 101, q = 20, u = 300, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } } } } })
+    GC.db.runSplits = {}
+    GC.db.settings.sniper.buyRun = "run-x"
+    GC.Buy.Show()
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.equal("vs 300c at the auction house · right-click to split", lines[2].text)
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
+      lines[2].color)
+  end)
+
+  it("offers the way back on a line that is already split", function()
+    showCraftRun(true)
+    local lines = tooltipOn(rowWithText("craft 4×"))
+    assert.equal("vs 5800c at the auction house · right-click to buy it whole", lines[2].text)
+  end)
+
+  -- A reagent the run already asked for does not get a second row; its NEED grows instead, and
+  -- a NEED that grew without explanation is a number the player cannot check.
+  it("says on a merged line how much of its NEED belongs to a craft", function()
+    GC.AppRuns._set({ { code = "run-m", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = {
+        { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+          { i = 103, q = 5, n = "Charlie Dust", u = 160 } } } },
+        { i = 103, q = 7 },
+      } } })
+    GC.db.runSplits = { ["run-m"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "run-m"
+    GC.Buy.Show()
+    local lines = tooltipOn(rowWithText("Charlie Dust"))
+    assert.same({ "includes 20 for crafting Alpha Herb" }, texts(lines))
+  end)
+
+  it("splits a line from its row menu and puts it back again", function()
+    showCraftRun(false)
+    local entries
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      entries = {}
+      generator(nil, {
+        CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+        CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+        CreateDivider = function() end,
+      })
+    end }
+
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnMouseUp(alpha, "RightButton")
+    assert.same({ "Split into reagents (craft 4×)" }, { entries[1].text })
+    entries[1].fn()
+    assert.is_true(GC.db.runSplits["run-c"][101])
+    assert.truthy(rowWithText("craft 4×"))
+
+    local parent = rowWithText("craft 4×")
+    parent.scripts.OnMouseUp(parent, "RightButton")
+    assert.same({ "Buy it whole instead" }, { entries[1].text })
+    entries[1].fn()
+    assert.is_nil(GC.db.runSplits["run-c"][101])
+    assert.is_nil(rowWithText("craft 4×"))
+    _G.MenuUtil = nil
+  end)
+
+  it("opens no menu on a left click, on a line with no recipe, or on a reagent", function()
+    showCraftRun(true)
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    local parent = rowWithText("craft 4×")
+    parent.scripts.OnMouseUp(parent, "LeftButton")
+    local ore = rowWithText("Bravo Ore")
+    ore.scripts.OnMouseUp(ore, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
+  -- Finding 1's rule again: a purchase already committed to these lines. Re-splitting the run
+  -- under it would leave settlePurchase crediting a line that no longer exists.
+  it("opens no menu while a purchase is in flight", function()
+    showCraftRun(false)
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    GC.Buy._attempt = { stage = "started", itemID = 101, qty = 5, total = 5000 }
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnMouseUp(alpha, "RightButton")
+    assert.equal(0, opened)
+    GC.Buy._attempt = nil
+    _G.MenuUtil = nil
+  end)
 end)
