@@ -1099,8 +1099,14 @@ describe("BuyFrame", function()
                        AddLine = function() end, Show = function() end, Hide = function() end }
     parent.scripts.OnEnter(parent)
     assert.is_nil(GC.Buy._attempt)
+    -- ...and Enter is still pointing at nothing. Focus is taken INSIDE the hover's `buyable`
+    -- guard and before any client gate, so this is the assertion that goes red the moment a
+    -- craft line is allowed back into `buyable` -- the one clause standing between a craft row
+    -- and the BUY button, the Enter key, the focus advance and the quote.
+    assert.is_nil(GC.Buy._focus)
     _G.GameTooltip = nil
   end)
+
   -- A reagent is not a line of the run, so it is not one of the lines the free tier is holding
   -- back: a locked craft with two reagents under it is ONE more line with Pro, not three. The
   -- reagents carry their parent's lock (Core/BuyRun.lua) purely so they are not offered for
