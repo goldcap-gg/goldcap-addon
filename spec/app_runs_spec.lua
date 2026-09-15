@@ -251,6 +251,14 @@ describe("AppRuns", function()
       assert.is_truthy(run.code:match("^paste%-%x%x%x%x%x%x%x%x$"))
     end)
 
+    it("skips suffixes a newer site writes after the quantity, still reading =v", function()
+      local run = GC.AppRuns.ImportString("GCR1;abcd2345;Cooking;2589=20@450,159=5=v~25,7=3~9=v")
+      assert.same({ { i = 2589, q = 20, v = false }, { i = 159, q = 5, v = true }, { i = 7, q = 3, v = true } },
+        { { i = run.lines[1].i, q = run.lines[1].q, v = run.lines[1].v },
+          { i = run.lines[2].i, q = run.lines[2].q, v = run.lines[2].v },
+          { i = run.lines[3].i, q = run.lines[3].q, v = run.lines[3].v } })
+    end)
+
     it("rejects GCR1;;; -- no lines", function()
       local run, err = GC.AppRuns.ImportString("GCR1;;;")
       assert.is_nil(run)
