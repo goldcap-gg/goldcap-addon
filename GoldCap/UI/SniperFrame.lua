@@ -8806,6 +8806,46 @@ end
 -- ask about, whether a batch is out, what would stop the next one, and how many realm rows
 -- the store holds. For a live client showing an empty Items board with nothing on screen
 -- that says which gate is closed.
+-- `/gc sniper`: the commodity purchase state, for the one question the board dump cannot answer
+-- -- why a Buy is being refused. Every refusal in onDialogPrimaryClick reads from what is printed
+-- here: the shared slot and its age, the attempt in flight and its stage, the tombstone and
+-- whether it is confirmed (a confirmed one is never retired on a timer), the record-only
+-- stranded confirms, and the requeries still waiting for a result.
+function GC.Sniper.DebugPurchase()
+  local function s(v) return tostring(v) end
+  local now = GetTime()
+  local owner = GC.PurchaseSlot and GC.PurchaseSlot.Owner()
+  GC.Print(("slot: owner=%s busy=%s"):format(s(owner),
+    s(GC.PurchaseSlot and GC.PurchaseSlot.IsBusy() or false)))
+  local pending = commodityPurchase
+  if pending then
+    GC.Print(("attempt: item=%s token=%s stage=%s confirmed=%s wasConfirmed=%s cancelRequested=%s"):format(
+      s(pending.itemID), s(pending.token), s(pending.row and pending.row.purchaseStage),
+      s(pending.confirmed), s(pending.wasConfirmed), s(pending.cancelRequested)))
+  else
+    GC.Print("attempt: none")
+  end
+  local tomb = commodityDraining
+  if tomb then
+    GC.Print(("tombstone: item=%s token=%s confirmed=%s wasConfirmed=%s age=%ds fenceToken=%s"):format(
+      s(tomb.itemID), s(tomb.token), s(tomb.confirmed), s(tomb.wasConfirmed),
+      math.floor(now - (tomb.drainingAt or now)), s(tomb.fenceToken)))
+  else
+    GC.Print("tombstone: none")
+  end
+  local stranded = 0
+  for _ in pairs(GC.Sniper._strandedConfirmed) do stranded = stranded + 1 end
+  local waiting = {}
+  for itemID in pairs(awaitingRequery) do waiting[#waiting + 1] = s(itemID) end
+  local draining = {}
+  for itemID in pairs(requeryDraining) do draining[#draining + 1] = s(itemID) end
+  GC.Print(("strandedConfirmed=%d awaitingRequery=[%s] requeryDraining=[%s] quiet=%s"):format(
+    stranded, table.concat(waiting, ","), table.concat(draining, ","), s(GC.Sniper.IsPurchaseQuiet())))
+  for itemID, status in pairs(detachedCommodityStatus) do
+    GC.Print(("detached: item=%s token=%s note=%s"):format(s(itemID), s(status.token), s(status.note)))
+  end
+end
+
 function GC.Sniper.DebugBoard()
   local function s(v) return tostring(v) end
   local poll, pass = GC.Sniper._keyPoll, GC.Sniper._bookPass

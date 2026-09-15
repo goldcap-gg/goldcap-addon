@@ -703,6 +703,8 @@ end
 -- Diagnostics for the Sell tab's pricing walk; see GC.Sell.DebugPrint.
 GC.slashHandlers.sell = function() if GC.Sell and GC.Sell.DebugPrint then GC.Sell.DebugPrint() end end
 GC.slashHandlers.board = function() if GC.Sniper and GC.Sniper.DebugBoard then GC.Sniper.DebugBoard() end end
+-- Diagnostics for the commodity purchase path (why a Buy is refused); see GC.Sniper.DebugPurchase.
+GC.slashHandlers.sniper = function() if GC.Sniper and GC.Sniper.DebugPurchase then GC.Sniper.DebugPurchase() end end
 -- Diagnostics for the BUY tab's run/attempt state; see GC.Buy.DebugPrint.
 GC.slashHandlers.buy = function() if GC.Buy and GC.Buy.DebugPrint then GC.Buy.DebugPrint() end end
 
