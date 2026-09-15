@@ -1022,4 +1022,413 @@ describe("BuyFrame", function()
 
     _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
   end)
+
+  -- Spec rule 1: a line the site sent a recipe for, split, becomes a craft line with its
+  -- reagents under it. The flag is written straight into the store here -- the menu that writes
+  -- it for the player is spec/buy_frame_spec's own "right-click" block.
+  local function craftRun()
+    return { code = "run-c", name = "Craft run", updatedAt = 900, origin = "app", lines = {
+      { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 5, n = "Bravo Ore", u = 300 },
+        { i = 103, q = 5, n = "Charlie Dust", u = 160 },
+      } } },
+    } }
+  end
+
+  local function showCraftRun(split)
+    GC.AppRuns._set({ craftRun() })
+    GC.db.runSplits = split and { ["run-c"] = { [101] = true } } or {}
+    GC.db.settings.sniper.buyRun = "run-c"
+    GC.Buy.Show()
+  end
+
+  it("leaves a line the player has not split as an ordinary line", function()
+    showCraftRun(false)
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("BUY 20", alpha.action.label)
+    assert.is_nil(rowWithText("Bravo Ore"))
+  end)
+
+  it("draws a split line as a craft line with its reagents indented under it", function()
+    showCraftRun(true)
+    local parent = rowWithText("craft 4×")
+    assert.truthy(parent)
+    assert.equal("Alpha Herb → craft 4× (5 per craft)", parent.reagent:GetText())
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
+      parent.reagent.colorValue)
+    assert.equal("craft", parent.cells.action:GetText())
+    assert.is_false(parent.action:IsShown())
+    -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say.
+    assert.equal("—", parent.cells.now:GetText())
+    assert.equal("—", parent.cells.usual:GetText())
+    -- COST is what the reagents still cost: 15 Bravo Ore at 300 (five are in the bags) and
+    -- 20 Charlie Dust at 160.
+    assert.equal("~" .. tostring(15 * 300 + 20 * 160) .. "c", parent.cells.cost:GetText())
+
+    local ore = rowWithText("Bravo Ore")
+    assert.equal("↳ Bravo Ore", ore.reagent:GetText())
+    assert.equal("20", ore.cells.need:GetText())
+    assert.equal("15", ore.cells.buy:GetText())
+    assert.equal("BUY 15", ore.action.label)
+    assert.equal("↳ Charlie Dust", rowWithText("Charlie Dust").reagent:GetText())
+  end)
+
+  -- Core/BuyRun.lua's Totals counts a vendor line with no vendor price as nothing, because a
+  -- floor or a market value is a number from the wrong market. The craft row's COST has to
+  -- agree: pricing that reagent at the auction house invented gold the trip will never cost.
+  it("leaves a vendor reagent with no vendor price out of the craft row's cost", function()
+    GC.AppRuns._set({ { code = "run-vc", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 5, n = "Bravo Ore", u = 300 },
+        { i = 103, q = 5, n = "Charlie Dust", v = true },
+      } } } } } })
+    GC.db.runSplits = { ["run-vc"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "run-vc"
+    GC.Buy.Show()
+    -- Fifteen Bravo Ore at 300 (five are in the bags) and nothing at all for the fixings, whose
+    -- price nobody knows -- not the 3000 the auction house happens to ask for them.
+    assert.equal("~" .. tostring(15 * 300) .. "c", rowWithText("craft 4×").cells.cost:GetText())
+    assert.equal("—", rowWithText("Charlie Dust").cells.cost:GetText())
+  end)
+
+  it("counts what is left to craft in the header band", function()
+    showCraftRun(true)
+    assert.equal("3 lines · 2 to buy · 1 to craft · 0 at the vendor", bandOf().counts:GetText())
+  end)
+
+  -- A run whose only open line is a craft is not a run with nothing left to do.
+  it("does not call a run with a craft still to make 'everything bought'", function()
+    GC.AppRuns._set({ { code = "run-cd", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 1, n = "Bravo Ore", u = 300 } } } } } } })
+    GC.db.runSplits = { ["run-cd"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "run-cd"
+    GC.Buy.Show()
+    assert.is_nil(bandOf().counts:GetText():find("everything bought", 1, true))
+  end)
+
+  it("never offers a craft line to a click or to the Enter key", function()
+    showCraftRun(true)
+    local parent = rowWithText("craft 4×")
+    assert.is_false(parent.action:IsShown())
+    -- The row's own hover quotes a buyable line; a craft line is not one, so nothing is asked
+    -- and no attempt is opened.
+    _G.GameTooltip = { SetOwner = function() end, SetItemByID = function() end,
+                       AddLine = function() end, Show = function() end, Hide = function() end }
+    parent.scripts.OnEnter(parent)
+    assert.is_nil(GC.Buy._attempt)
+    -- ...and Enter is still pointing at nothing. Focus is taken INSIDE the hover's `buyable`
+    -- guard and before any client gate, so this is the assertion that goes red the moment a
+    -- craft line is allowed back into `buyable` -- the one clause standing between a craft row
+    -- and the BUY button, the Enter key, the focus advance and the quote.
+    assert.is_nil(GC.Buy._focus)
+    _G.GameTooltip = nil
+  end)
+
+  -- A reagent is not a line of the run, so it is not one of the lines the free tier is holding
+  -- back: a locked craft with two reagents under it is ONE more line with Pro, not three. The
+  -- reagents carry their parent's lock (Core/BuyRun.lua) purely so they are not offered for
+  -- sale under a line nobody can buy.
+  it("counts a locked craft line once in the Pro notice, not once per reagent", function()
+    GC.AppRuns._set({ { code = "run-lk", name = "Locked craft", updatedAt = 900, origin = "app",
+      lines = {
+        { i = 101, q = 10 },
+        { i = 103, q = 3 },
+        { i = 104, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+          { i = 105, q = 5, n = "Echo Leaf", u = 300 },
+          { i = 106, q = 5, n = "Foxtail", u = 160 } } } },
+      } } })
+    GC.db.runSplits = { ["run-lk"] = { [104] = true } }
+    GC.db.settings.sniper.buyRun = "run-lk"
+    GC.Buy.Show()
+    assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
+  end)
+
+  local function tooltipOn(row)
+    local lines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text, r, g, b) lines[#lines + 1] = { text = text, color = { r, g, b } } end,
+      Show = function() end, Hide = function() end,
+    }
+    row.scripts.OnEnter(row)
+    _G.GameTooltip = nil
+    return lines
+  end
+
+  local function texts(lines)
+    local out = {}
+    for _, entry in ipairs(lines) do out[#out + 1] = entry.text end
+    return out
+  end
+
+  -- Spec rule 1: 2300c of reagents for five units is 460c each, against the 5800c the site says
+  -- one costs at the auction house. Green, because crafting is cheaper.
+  it("compares crafting with buying on the row tooltip, in green when it is cheaper", function()
+    showCraftRun(false)
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.same({ "craft it: 5× Bravo Ore + 5× Charlie Dust = 460c each",
+                  "vs 5800c at the auction house · right-click to split" }, texts(lines))
+    assert.same({ GC.Theme.color.green[1], GC.Theme.color.green[2], GC.Theme.color.green[3] },
+      lines[1].color)
+  end)
+
+  it("greys the comparison when the auction house is cheaper", function()
+    GC.AppRuns._set({ { code = "run-x", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = { { i = 101, q = 20, u = 300, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } } } } })
+    GC.db.runSplits = {}
+    GC.db.settings.sniper.buyRun = "run-x"
+    GC.Buy.Show()
+    local lines = tooltipOn(rowWithText("Alpha Herb"))
+    assert.equal("vs 300c at the auction house · right-click to split", lines[2].text)
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
+      lines[2].color)
+  end)
+
+  it("offers the way back on a line that is already split", function()
+    showCraftRun(true)
+    local lines = tooltipOn(rowWithText("craft 4×"))
+    assert.equal("vs 5800c at the auction house · right-click to buy it whole", lines[2].text)
+  end)
+
+  -- A reagent the run already asked for does not get a second row; its NEED grows instead, and
+  -- a NEED that grew without explanation is a number the player cannot check.
+  it("says on a merged line how much of its NEED belongs to a craft", function()
+    GC.AppRuns._set({ { code = "run-m", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = {
+        { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+          { i = 103, q = 5, n = "Charlie Dust", u = 160 } } } },
+        { i = 103, q = 7 },
+      } } })
+    GC.db.runSplits = { ["run-m"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "run-m"
+    GC.Buy.Show()
+    local lines = tooltipOn(rowWithText("Charlie Dust"))
+    assert.same({ "includes 20 for crafting Alpha Herb" }, texts(lines))
+  end)
+
+  it("splits a line from its row menu and puts it back again", function()
+    showCraftRun(false)
+    local entries
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      entries = {}
+      generator(nil, {
+        CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+        CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+        CreateDivider = function() end,
+      })
+    end }
+
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnMouseUp(alpha, "RightButton")
+    assert.same({ "Split into reagents (craft 4×)" }, { entries[1].text })
+    entries[1].fn()
+    assert.is_true(GC.db.runSplits["run-c"][101])
+    assert.truthy(rowWithText("craft 4×"))
+
+    local parent = rowWithText("craft 4×")
+    parent.scripts.OnMouseUp(parent, "RightButton")
+    assert.same({ "Buy it whole instead" }, { entries[1].text })
+    entries[1].fn()
+    assert.is_nil(GC.db.runSplits["run-c"][101])
+    assert.is_nil(rowWithText("craft 4×"))
+    _G.MenuUtil = nil
+  end)
+
+  it("offers a vendor line neither the comparison nor the split menu", function()
+    GC.AppRuns._set({ { code = "run-vs", name = "Vendor run", updatedAt = 900, origin = "app",
+      lines = { { i = 104, q = 20, v = true, vu = 5, u = 5800,
+        cr = { r = 900, n = 5, c = 2300, i = { { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } } },
+    } })
+    GC.db.runSplits = {}
+    GC.db.settings.sniper.buyRun = "run-vs"
+    GC.Buy.Show()
+    local vendorRow = rowWithText("Delta Vial")
+    for _, text in ipairs(texts(tooltipOn(vendorRow))) do
+      assert.is_nil(text:find("craft it:", 1, true))
+      assert.is_nil(text:find("right-click", 1, true))
+    end
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    vendorRow.scripts.OnMouseUp(vendorRow, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
+  it("opens no menu on a left click, on a line with no recipe, or on a reagent", function()
+    showCraftRun(true)
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    local parent = rowWithText("craft 4×")
+    parent.scripts.OnMouseUp(parent, "LeftButton")
+    local ore = rowWithText("Bravo Ore")
+    ore.scripts.OnMouseUp(ore, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
+  -- A line the bags and the bank already cover has nothing left to decide, and the tooltip on
+  -- that same row already refuses to compare crafting with buying on it. "Split into reagents
+  -- (craft 0x)" is not an offer: it is an entry that looks actionable on a line nobody can act on.
+  it("opens no menu on a line that is already bought", function()
+    stubItemCount({ [101] = { all = 20, carried = 0 } })
+    showCraftRun(false)
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("0", alpha.cells.buy:GetText())
+    alpha.scripts.OnMouseUp(alpha, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
+  -- A line the free tier is holding back has no BUY button of its own, and a split is an action:
+  -- taking it would rewrite the run around a line nobody may act on -- and hand a free player
+  -- the reagents of a locked line to buy, which is the one thing the lock is there to stop.
+  it("opens no menu on a line the free limit has locked", function()
+    GC.AppRuns._set({ { code = "run-lm", name = "Locked craft", updatedAt = 900, origin = "app",
+      lines = {
+        { i = 101, q = 10 },
+        { i = 103, q = 3 },
+        { i = 104, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+          { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } },
+      } } })
+    GC.db.runSplits = {}
+    GC.db.settings.sniper.buyRun = "run-lm"
+    GC.Buy.Show()
+    -- Two free lines, three lines of run: the recipe line is the one being held back.
+    assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    local locked = rowWithText("Delta Vial")
+    locked.scripts.OnMouseUp(locked, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
+  -- Finding 1's rule again: a purchase already committed to these lines. Re-splitting the run
+  -- under it would leave settlePurchase crediting a line that no longer exists.
+  it("opens no menu while a purchase is in flight", function()
+    showCraftRun(false)
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    GC.Buy._attempt = { stage = "started", itemID = 101, qty = 5, total = 5000 }
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnMouseUp(alpha, "RightButton")
+    assert.equal(0, opened)
+    GC.Buy._attempt = nil
+    _G.MenuUtil = nil
+  end)
+
+  -- Spec rule 4: an alert group with live hits is a run of its own. Its cap is the alert's own
+  -- target price, so the run has no cap to set; it is the site's to manage, so it has neither
+  -- Archive nor Remove; and a hit bound to a realm says which, because the auction house search
+  -- simply finds nothing for it anywhere else.
+  local function alertRun()
+    return { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app", k = "alert",
+      lines = { { i = 101, q = 4, u = 5800, cc = 4000, rl = { id = 1305, n = "Kazzak" } },
+                { i = 102, q = 2, u = 2000, cc = 1500 } } }
+  end
+
+  local function menuEntries()
+    local entries = {}
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, {
+        CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+        CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+        CreateDivider = function() entries[#entries + 1] = { text = "divider" } end,
+      })
+    end }
+    local band = bandOf()
+    band.picker.scripts.OnClick(band.picker)
+    _G.MenuUtil = nil
+    local out = {}
+    for _, entry in ipairs(entries) do out[#out + 1] = entry.text end
+    return out, entries
+  end
+
+  it("names the realm a hit is bound to, after the item", function()
+    GC.AppRuns._set({ alertRun() })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    assert.equal("Alpha Herb on Kazzak", rowWithText("Alpha Herb").reagent:GetText())
+    assert.equal("Bravo Ore", rowWithText("Bravo Ore").reagent:GetText())
+  end)
+
+  it("bands an alert run as a group with hits, and caps its lines at the alert's target",
+    function()
+      GC.AppRuns._set({ alertRun() })
+      GC.db.settings.sniper.buyRun = "a0000001"
+      GC.Buy.Show()
+      assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+      for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if line.itemID == 101 then assert.equal(4000, line.cap) end
+      end
+    end)
+
+  -- Every line of an alert run is one hit the group found. A reagent the player split a hit into
+  -- is not a hit of its own -- counting it said the group had found more than it had.
+  it("counts an alert group's hits, not the reagents a split put under one", function()
+    local alert = alertRun()
+    alert.lines[1].cr = { r = 900, n = 5, c = 2300,
+                          i = { { i = 103, q = 5, n = "Charlie Dust", u = 160 } } }
+    GC.AppRuns._set({ alert })
+    GC.db.runSplits = { ["a0000001"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    assert.truthy(rowWithText("Charlie Dust"))
+    assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+  end)
+
+  it("puts alert runs under their own divider and leaves them to the site", function()
+    GC.AppRuns._set({ run(), alertRun() })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    -- `menuTexts`, not `texts`: this describe already has a texts() helper for tooltip lines.
+    local menuTexts = menuEntries()
+    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg",
+                  "divider", "Alerts", "• Cheap ore  ·  2 lines  ·  goldcap.gg",
+                  "divider", "cap: alert target", "From goldcap.gg — manage it there",
+                  "Paste a run..." }, menuTexts)
+  end)
+
+  -- Spec rule 3: a followed run rides in after the player's own, marked with its owner, and
+  -- Unfollow lives on goldcap.gg -- so neither Remove nor Archive is offered here either.
+  it("marks a followed run with its owner and leaves it to the site", function()
+    GC.AppRuns._set({ run({ code = "shr30000", name = "Guild flasks", by = "Acromion" }) })
+    GC.db.settings.sniper.buyRun = "shr30000"
+    GC.Buy.Show()
+    assert.equal("Guild flasks · from Acromion ▼", bandOf().picker.label)
+    assert.equal("4 lines · 2 to buy · 1 at the vendor · from Acromion",
+      bandOf().counts:GetText())
+    local menuTexts = menuEntries()
+    assert.same({ "Runs", "• Guild flasks  ·  4 lines  ·  from Acromion",
+                  "divider", "From goldcap.gg — manage it there",
+                  "Paste a run..." }, menuTexts)
+  end)
+
+  -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so
+  -- for a day -- in the legend's slot, which is the only permanently-true line on the band and
+  -- so the cheapest thing to lend for a notice that expires.
+  it("says in the band that the plan was updated, and for how long", function()
+    GC.AppRuns._set({ run() })
+    GC.db.runNotices = { ["run-1"] = { at = 2000, added = 2, removed = 1 } }
+    GC.db.settings.sniper.buyRun = "run-1"
+    GC.Buy.Show()
+    assert.equal("plan updated on goldcap.gg · +2 −1 lines", bandOf().bags:GetText())
+
+    -- A day old exactly: the legend comes back.
+    GC.db.runNotices = { ["run-1"] = { at = 2000 - 86400, added = 2, removed = 1 } }
+    GC.Buy.RefreshIfShown()
+    assert.equal("in bags and bank · purchases arrive by mail", bandOf().bags:GetText())
+  end)
+
+  it("says the plan was updated with no counts when only a quantity moved", function()
+    GC.AppRuns._set({ run() })
+    GC.db.runNotices = { ["run-1"] = { at = 2000, added = 0, removed = 0 } }
+    GC.db.settings.sniper.buyRun = "run-1"
+    GC.Buy.Show()
+    assert.equal("plan updated on goldcap.gg", bandOf().bags:GetText())
+  end)
 end)

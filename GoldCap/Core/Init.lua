@@ -72,6 +72,15 @@ GC.DEFAULTS = {
   -- Runs the player has finished with, by code: they leave the BUY picker but stay in `runs`,
   -- because the companion re-adopts them on every sync anyway (Core/AppRuns.lua's Adopt).
   runsArchived = {},
+  -- Lines the player has chosen to buy as a craft instead, by run code then item id:
+  -- runSplits[code][itemID] = true. Core/BuyRun.lua turns each one into a craft line with its
+  -- reagents under it. Beside the runs rather than on them, for the same reason runCaps is:
+  -- Adopt replaces every app run wholesale on each sync.
+  runSplits = {},
+  -- What changed the last time the site recomputed a run's lines, by code:
+  -- { at = <when it was noticed>, added = <lines>, removed = <lines> }. The BUY band says so
+  -- for a day (UI/BuyFrame.lua), which is the only reader.
+  runNotices = {},
   settings = {
     tooltip = true,
     -- "auto" follows GetLocale(); anything else is the player's own pick from Settings.

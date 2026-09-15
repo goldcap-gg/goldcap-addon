@@ -71,6 +71,9 @@ local BD = {
   -- that a record cannot still be sitting there when an unrelated purchase of the same item
   -- turns up and gets credited with it.
   STRANDED_SECONDS = 600,
+  -- How long the band says a run's plan was recomputed on the site. A day: long enough that a
+  -- player who logs in once between sessions still reads it, short enough that it is news.
+  NOTICE_SECONDS = 86400,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -308,6 +311,60 @@ local function setRunCapPct(code, pct)
   db.runCaps[code] = pct
 end
 
+-- The lines of a run the player has chosen to craft instead of buy: GC.db.runSplits[code][itemID].
+-- Beside the run rather than on it, for the same reason the cap is (see the DRIVER below): a run
+-- from the companion is replaced wholesale on every sync. Only ever CREATES the tables when a
+-- write needs them -- the read runs on every render, and an empty table written per run code
+-- would be SavedVariables growing a row for every run the player ever opened.
+local function splitsFor(code, create)
+  local db = GC.db
+  if type(db) ~= "table" or type(code) ~= "string" or code == "" then return nil end
+  if type(db.runSplits) ~= "table" then
+    if not create then return nil end
+    db.runSplits = {}
+  end
+  local set = db.runSplits[code]
+  if type(set) ~= "table" then
+    if not create then return nil end
+    set = {}
+    db.runSplits[code] = set
+  end
+  return set
+end
+
+-- Marks one line of a run as crafted rather than bought, or clears it. Clearing REMOVES the
+-- entry rather than storing false, so a line the player put back leaves nothing behind in
+-- SavedVariables to explain later -- the same rule SetArchived follows.
+local function setSplit(code, itemID, split)
+  local set = splitsFor(code, split and true or false)
+  if not set then return end
+  set[itemID] = split and true or nil
+end
+
+-- The run on screen as the STORE holds it. `current` is the arithmetic object built from it, and
+-- the three things the site says ABOUT a run -- it is an alert group's hits, somebody else owns
+-- it, it came from a plan -- live on the stored run rather than on the object.
+local function shownRunData()
+  if not (current and GC.AppRuns and GC.AppRuns.Get) then return nil end
+  return GC.AppRuns.Get(current:Code())
+end
+
+-- What the site last changed about this run, for as long as it is still news. Written by
+-- Core/AppRuns.lua's Adopt when a run it already had came back with different lines; a recompute
+-- that only moved a quantity has nothing to count, and says so without the figures rather than
+-- with two zeroes.
+local function noticeText(code)
+  local db = GC.db
+  local notices = type(db) == "table" and db.runNotices or nil
+  local notice = (type(notices) == "table" and code) and notices[code] or nil
+  if type(notice) ~= "table" then return nil end
+  local at = tonumber(notice.at)
+  if not at or (time() - at) >= BD.NOTICE_SECONDS then return nil end
+  local added, removed = tonumber(notice.added) or 0, tonumber(notice.removed) or 0
+  if added == 0 and removed == 0 then return GC.L["plan updated on goldcap.gg"] end
+  return (GC.L["plan updated on goldcap.gg · +%d −%d lines"]):format(added, removed)
+end
+
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
 -- hook is deliberately NOT Sell's: Sell has to tell a commodity from a bonus-id bearing item
 -- because it posts them differently, and returns nil -- dropping the stack -- when it cannot.
@@ -397,6 +454,9 @@ local DRIVER = {
   -- A run's own cap when it has been given one in the run menu, the global setting otherwise,
   -- clamped at the read either way (see runCapPct/globalCapPct above).
   capPct = runCapPct,
+  -- Which of this run's lines are being crafted rather than bought. Asked on every Refresh,
+  -- unlike progress: the row menu writes it and re-renders, and the answer has to be current.
+  splits = function(code) return splitsFor(code) end,
   -- The run's score, per character and per run code, in SavedVariables: GC.db.buyProgress
   -- ["Name-Realm"][code][itemID] = { bought, spent, boughtAt }. The spec's rule is "the addon
   -- keeps HAVE/spent per character"; without this a /reload read as a run nobody had bought
@@ -546,7 +606,14 @@ end
 local function runMenuLabel(run)
   local name = run.name or run.code or "?"
   local count = type(run.lines) == "table" and #run.lines or 0
-  local origin = run.origin == "paste" and GC.L["pasted"] or "goldcap.gg"
+  -- Where a run came from, in one word: the site, the player's own clipboard, or -- for a run
+  -- the player follows -- whose it is.
+  local origin = "goldcap.gg"
+  if run.origin == "paste" then
+    origin = GC.L["pasted"]
+  elseif type(run.by) == "string" and run.by ~= "" then
+    origin = (GC.L["from %s"]):format(run.by)
+  end
   local mark = (current and current:Code() == run.code) and "• " or "   "
   return ("%s%s  ·  %s  ·  %s"):format(mark, name, (GC.L["%d lines"]):format(count), origin)
 end
@@ -560,19 +627,36 @@ openRunMenu = function(owner)
   local list = runList()
   menu.CreateContextMenu(owner, function(_, root)
     root:CreateTitle(GC.L["Runs"])
+    -- Core/AppRuns.lua already orders the list own -> followed -> pasted -> alert, so the
+    -- divider goes in at the first alert run and never again: the alert groups are the tail.
+    local alertsTitled = false
     for _, run in ipairs(list) do
       local code = run.code
+      if run.k == "alert" and not alertsTitled then
+        alertsTitled = true
+        root:CreateDivider()
+        root:CreateTitle(GC.L["Alerts"])
+      end
       root:CreateButton(runMenuLabel(run), function()
         GC.Buy.SelectRun(code)
         GC.Buy.RefreshIfShown()
       end)
     end
     root:CreateDivider()
-    local shown = current and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(current:Code()) or nil
+    local shown = shownRunData()
+    -- A run the site owns -- an alert group's live hits, or somebody else's list the player
+    -- follows -- carries none of the three decisions below. Its cap is the alert's own target
+    -- price, it comes and goes with the group or the follow, and Unfollow lives on goldcap.gg:
+    -- an Archive or a Remove here would last exactly until the next sync.
+    local siteManaged = shown ~= nil
+      and (shown.k == "alert" or (type(shown.by) == "string" and shown.by ~= ""))
     -- A purchase in flight has already committed to this run's `current`: re-capping the lines
     -- or archiving out from under it is exactly the hole Finding 1 describes (`settlePurchase`
     -- would book the gold nowhere a bought-count can see it). Runs/remove/paste are unaffected.
-    if shown and not inFlight(GC.Buy._attempt) then
+    if siteManaged then
+      if shown.k == "alert" then root:CreateTitle(GC.L["cap: alert target"]) end
+      root:CreateTitle(GC.L["From goldcap.gg — manage it there"])
+    elseif shown and not inFlight(GC.Buy._attempt) then
       local code = shown.code
       -- MenuUtil's own submenu shape: an element description with children added to it displays
       -- as one (Blizzard's Menu implementation guide), and CreateRadio(text, isSelected,
@@ -594,7 +678,7 @@ openRunMenu = function(owner)
     end
     if shown and shown.origin == "paste" then
       root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
-    elseif shown then
+    elseif shown and not siteManaged then
       root:CreateTitle(GC.L["From goldcap.gg — remove it there"])
     end
     root:CreateButton(GC.L["Paste a run..."], function()
@@ -632,9 +716,11 @@ local function lineName(line)
 end
 
 -- A line this tab can actually spend gold on. Everything else -- a vendor stop, a line the bags
--- already cover, a line past the free limit -- has no BUY button and never gets quoted.
+-- already cover, a line past the free limit, a line being crafted rather than bought -- has no
+-- BUY button and never gets quoted.
 local function buyable(line)
-  return line ~= nil and not line.vendor and not line.locked and not line.done and line.buy > 0
+  return line ~= nil and not line.vendor and line.kind ~= "craft"
+    and not line.locked and not line.done and line.buy > 0
 end
 
 local function lineFor(itemID)
@@ -736,6 +822,9 @@ local function actionLabel(line)
     -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
     -- it usually does" is a decision the player can make; a greyed-out button is not.
     if attempt.overPct then
+      if attempt.overTarget then
+        return (GC.L["▲%d%% over the alert target"]):format(attempt.overPct), false, "warn"
+      end
       return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false, "warn"
     end
     return GC.L["nothing on offer"], false
@@ -891,12 +980,26 @@ local function ladderFor(itemID)
   return ladder
 end
 
--- How far over the usual price the cheapest level the cap refused sits. Computed whenever the
--- cap stopped the ladder -- before the first unit or part-way through a partial fill.
+-- How far over its ceiling the cheapest level the cap refused sits, and whether that ceiling is
+-- the line's own target rather than the usual price. Computed whenever the cap stopped the
+-- ladder -- before the first unit or part-way through a partial fill.
+--
+-- A line that brought an absolute ceiling (an alert group's target price) is measured against
+-- THAT number: the site's usual price is not what refused the lot, and an alert set below usual
+-- -- which is what an alert is for -- reported a NEGATIVE amount over usual. A percentage that
+-- is not over anything is not a reason, so it is left unsaid and the caller says what it says
+-- when there is nothing to buy.
 local function overUsualPct(line, ladder)
-  if not (line and line.usual and line.usual > 0 and line.cap) then return nil end
+  if not (line and line.cap) then return nil end
+  local target = (line.capCopper or 0) > 0
+  local against = target and line.cap or line.usual
+  if not (against and against > 0) then return nil end
   for _, level in ipairs(ladder or {}) do
-    if level.unit > line.cap then return math.floor(level.unit * 100 / line.usual) - 100 end
+    if level.unit > line.cap then
+      local pct = math.floor(level.unit * 100 / against) - 100
+      if pct <= 0 then return nil end
+      return pct, target
+    end
   end
   return nil
 end
@@ -1164,7 +1267,8 @@ function GC.Buy.OnCommodityResults(itemID)
   -- Computed whenever the cap stopped the ladder, not only when it stopped it before a single
   -- unit: a partial fill needs the same number -- what the REST would have cost -- or the line
   -- silently buys six of ten and says nothing about why the other four stayed behind.
-  attempt.overPct = capped and overUsualPct(line, ladder) or nil
+  attempt.overPct, attempt.overTarget = nil, nil
+  if capped then attempt.overPct, attempt.overTarget = overUsualPct(line, ladder) end
   attempt.quotedAt = time()
   attempt.stage = "quoted"
   -- The button holds 72px, so the percentage and the cheap hour ride on the log line instead
@@ -1174,7 +1278,10 @@ function GC.Buy.OnCommodityResults(itemID)
   if capped then
     text = actionLabel(line)
     if qty > 0 and attempt.overPct then
-      text = ("%s %s"):format(text, (GC.L["▲%d%% over usual"]):format(attempt.overPct))
+      local over = attempt.overTarget
+        and (GC.L["▲%d%% over the alert target"]):format(attempt.overPct)
+        or (GC.L["▲%d%% over usual"]):format(attempt.overPct)
+      text = ("%s %s"):format(text, over)
     end
     local cheap = cheapHourText(line)
     if cheap then text = ("%s · %s"):format(text, cheap) end
@@ -1487,7 +1594,9 @@ local function buildEntries()
   end
   local locked = 0
   for _, line in ipairs(current:Lines()) do
-    if line.locked then locked = locked + 1 end
+    -- A reagent a split brought in is not a line of the run, so it is not one of the lines the
+    -- free tier is counting (Core/BuyRun.lua gives it its parent's lock and no index).
+    if line.locked and not line.parent then locked = locked + 1 end
     entries[#entries + 1] = { kind = "line", line = line }
   end
   if locked > 0 then
@@ -1536,15 +1645,63 @@ local function clearRow(row)
   end
 end
 
+-- What one craft line's reagents still cost, at the best price known for each: the child lines
+-- the split created in full, and -- for a reagent the run already asked for, which grew an
+-- existing line rather than getting one of its own -- the share of that line this craft is
+-- responsible for, counted first. nil when no reagent has a price at all, which is the same
+-- em dash every other unpriceable cell shows.
+local function craftCostNow(parent)
+  if not (current and parent) then return nil end
+  local total, known = 0, false
+  for _, line in ipairs(current:Lines()) do
+    local qty = nil
+    if line.parent == parent.itemID then
+      qty = line.buy
+    elseif line.forCraft and line.forCraft[parent.itemID] then
+      qty = math.min(line.buy, line.forCraft[parent.itemID])
+    end
+    if qty and qty > 0 then
+      -- A vendor reagent is priced at the vendor's own price or at nothing: the auction house
+      -- is the wrong market for it, and with no vendor price known it counts zero -- exactly
+      -- what Core/BuyRun.lua's Totals does with the same line.
+      local unit
+      if line.vendor then
+        unit = line.vendorUnit
+      else
+        unit = line.floor or line.usual
+      end
+      if unit then
+        total = total + qty * unit
+        known = true
+      end
+    end
+  end
+  if not known then return nil end
+  return total
+end
+
 local function paintLine(row, line)
   row.tooltipItemID = line.itemID
   row.lineItemID = line.itemID
   local name = lineName(line)
   local decorated = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
+  -- A craft line names what it makes and how many batches of it; a reagent the split brought in
+  -- is indented under the line it belongs to, so the block reads as one instruction.
+  if line.kind == "craft" then
+    decorated = (GC.L["%s → craft %d× (%d per craft)"]):format(
+      decorated, line.crafts or 0, (line.craft and line.craft.craftedQty) or 0)
+  elseif line.parent then
+    decorated = (GC.L["↳ %s"]):format(decorated)
+  end
+  -- An alert hit can be bound to one realm; the auction house search finds nothing for it on
+  -- any other, so the row says which rather than leaving the player to wonder why it is empty.
+  if line.realmName then
+    decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
+  end
   row.reagent:SetText(decorated)
-  -- A vendor line is not something this tab can act on -- the whole row reads back, so it does
-  -- not compete with the lines the player is actually here to buy.
-  setColor(row.reagent, line.vendor and Theme.color.fgDim or Theme.color.fg)
+  -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
+  -- reads back, so it does not compete with the lines the player is actually here to buy.
+  setColor(row.reagent, (line.vendor or line.kind == "craft") and Theme.color.fgDim or Theme.color.fg)
 
   local icon = nil
   if C_Item and C_Item.GetItemIconByID then
@@ -1570,6 +1727,18 @@ local function paintLine(row, line)
     row.cells.now:SetText(formatAmount(unit))
     row.cells.usual:SetText(formatAmount(unit))
     row.cells.cost:SetText(unit and line.buy > 0 and formatAmount(line.buy * unit) or EM_DASH)
+    for _, key in ipairs({ "now", "usual", "cost" }) do
+      setColor(row.cells[key], Theme.color.fgDim)
+    end
+  elseif line.kind == "craft" then
+    -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say about
+    -- this row -- the same argument the vendor branch above makes. COST is what the reagents
+    -- still cost, which is the number this row exists to give; marked as an estimate, like
+    -- every other cost built out of prices rather than out of a quote.
+    local craftCost = craftCostNow(line)
+    row.cells.now:SetText(EM_DASH)
+    row.cells.usual:SetText(EM_DASH)
+    row.cells.cost:SetText(craftCost and ("~" .. formatAmount(craftCost)) or EM_DASH)
     for _, key in ipairs({ "now", "usual", "cost" }) do
       setColor(row.cells[key], Theme.color.fgDim)
     end
@@ -1615,6 +1784,9 @@ local function paintLine(row, line)
     setColor(row.cells.action, Theme.color.fgDim)
   elseif line.done then
     row.cells.action:SetText(GC.L["done"])
+    setColor(row.cells.action, Theme.color.fgDim)
+  elseif line.kind == "craft" then
+    row.cells.action:SetText(GC.L["craft"])
     setColor(row.cells.action, Theme.color.fgDim)
   elseif line.locked then
     row.pro:SetLabel(GC.L["Pro"], Theme.color.gold)
@@ -1674,6 +1846,45 @@ layoutRow = function(row)
   row.reagent:SetPoint("RIGHT", flexAnchor.frame, flexAnchor.point, -Theme.pad.s, 0)
 end
 
+-- Right-click on a row: the one decision a line carries that is not a purchase -- buy this item,
+-- or buy what it is made of. Only a line the site sent a recipe for has anything to decide, and
+-- nothing here spends gold: it writes a flag and re-renders (spec/buy_purchase_wiring_spec.lua
+-- proves no protected call can be reached from a context menu at all).
+--
+-- Refused while a purchase is in flight, for the reason the run menu refuses a re-cap there:
+-- the attempt has already committed to `current`'s lines, and a split rewrites them, so
+-- settlePurchase would book the gold against a line that no longer exists.
+local function openRowMenu(owner, line)
+  if not (current and line and line.craft) then return false end
+  if line.parent or line.locked then return false end
+  -- A line already bought has nothing left to decide, and its own tooltip says as much by
+  -- leaving the craft-or-buy comparison off it.
+  if line.done then return false end
+  if inFlight(GC.Buy._attempt) then return false end
+  local menu = _G.MenuUtil
+  if not (menu and menu.CreateContextMenu) then return false end
+  local code, itemID = current:Code(), line.itemID
+  local split = line.kind == "craft"
+  -- How many batches an unsplit line would need is the same arithmetic Core/BuyRun.lua does once
+  -- it IS split: what is left to get, rounded up to a whole craft.
+  local crafts = split and (line.crafts or 0)
+    or math.ceil(line.buy / math.max(1, line.craft.craftedQty))
+  menu.CreateContextMenu(owner, function(_, root)
+    if split then
+      root:CreateButton(GC.L["Buy it whole instead"], function()
+        setSplit(code, itemID, false)
+        GC.Buy.RefreshIfShown()
+      end)
+    else
+      root:CreateButton((GC.L["Split into reagents (craft %d×)"]):format(crafts), function()
+        setSplit(code, itemID, true)
+        GC.Buy.RefreshIfShown()
+      end)
+    end
+  end)
+  return true
+end
+
 createRow = function(parent)
   local row = CreateFrame("Frame", nil, parent)
   row:SetHeight(geometry.rowHeight)
@@ -1700,6 +1911,14 @@ createRow = function(parent)
   highlight:SetVertexColor(hc[1], hc[2], hc[3], hc[4] or 0.08)
   row.highlight = highlight
   row:EnableMouse(true)
+
+  -- A Frame with the mouse enabled gets OnMouseUp for every button, which is how a row that is
+  -- not a Button carries a context menu. Left clicks are the BUY button's alone and are handed
+  -- straight back.
+  row:SetScript("OnMouseUp", function(self, button)
+    if button ~= "RightButton" then return end
+    openRowMenu(self, self.lineItemID and lineFor(self.lineItemID) or nil)
+  end)
 
   -- The item's own tooltip on hover, the same affordance Deals, Sell and Sold give their rows.
   -- Wired ONCE on the pooled row, reading whatever paintRow last stamped.
@@ -1732,6 +1951,43 @@ createRow = function(parent)
     if cheap and GameTooltip.AddLine then
       local c = Theme.color.fgDim
       GameTooltip:AddLine(cheap, c[1], c[2], c[3])
+    end
+    -- Where a merged line's NEED came from. A reagent the run already asked for does not get a
+    -- second row -- it grows the row it has -- and a NEED that grew with no explanation is a
+    -- number the player cannot check.
+    if line and line.forCraft and GameTooltip.AddLine then
+      local mc = Theme.color.fgDim
+      for parentID, qty in pairs(line.forCraft) do
+        local parentLine = lineFor(parentID)
+        GameTooltip:AddLine((GC.L["includes %d for crafting %s"]):format(
+          qty, parentLine and lineName(parentLine) or ("#" .. tostring(parentID))), mc[1], mc[2], mc[3])
+      end
+    end
+    -- Craft it or buy it: two numbers about this region's prices now, and never a promise about
+    -- what the player will save. Green when crafting is the cheaper of the two, grey otherwise --
+    -- including when the auction house has no price to compare against at all.
+    local compare = line and not line.done and GC.BuyRun and GC.BuyRun.CraftText
+      and GC.BuyRun.CraftText(line) or nil
+    if compare and GameTooltip.AddLine then
+      local cc = compare.cheaper and Theme.color.green or Theme.color.fgDim
+      local parts = {}
+      for _, reagent in ipairs(compare.reagents) do
+        parts[#parts + 1] = (GC.L["%d× %s"]):format(
+          reagent.qty, lineName({ itemID = reagent.itemID, name = reagent.name }))
+      end
+      GameTooltip:AddLine((GC.L["craft it: %s = %s each"]):format(
+        table.concat(parts, " + "), formatAmount(compare.unit)), cc[1], cc[2], cc[3])
+      -- The hint names what the right-click would DO, which is the opposite thing on a line
+      -- that is already split.
+      if line.kind == "craft" then
+        GameTooltip:AddLine(
+          (GC.L["vs %s at the auction house · right-click to buy it whole"])
+            :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3])
+      else
+        GameTooltip:AddLine(
+          (GC.L["vs %s at the auction house · right-click to split"])
+            :format(formatAmount(compare.ahUnit)), cc[1], cc[2], cc[3])
+      end
     end
     GameTooltip:Show()
   end)
@@ -1979,15 +2235,42 @@ local function renderRows()
 
   if current then
     local totals = current:Totals()
-    band.picker:SetLabel(runLabel(current) .. " ▼")
-    band.picker:Show()
-    -- Nothing to buy and nothing to fetch: three zeroes are a worse way of saying it.
-    if totals.lines > 0 and totals.toBuy == 0 and totals.atVendor == 0 then
-      band.counts:SetText(GC.L["everything bought"])
-    else
-      band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
-        totals.lines, totals.toBuy, totals.atVendor))
+    local shown = shownRunData()
+    local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
+    local label = runLabel(current)
+    if sharedBy then
+      label = ("%s · %s"):format(label, (GC.L["from %s"]):format(sharedBy))
     end
+    band.picker:SetLabel(label .. " ▼")
+    band.picker:Show()
+    local counts
+    if shown and shown.k == "alert" then
+      -- An alert run is not a shopping list somebody wrote: it is what the group found, and
+      -- every line of it is one hit -- the run's own lines, that is: a reagent the player split
+      -- a hit into is part of that hit, not another one the group found.
+      counts = (GC.L["alert group · %d hits"]):format(totals.topLines)
+    elseif totals.lines > 0 and totals.toBuy == 0 and totals.toCraft == 0
+        and totals.atVendor == 0 then
+      -- Nothing to buy, nothing to craft and nothing to fetch: four zeroes are a worse way of
+      -- saying it.
+      counts = GC.L["everything bought"]
+    elseif totals.toCraft > 0 then
+      counts = (GC.L["%d lines · %d to buy · %d to craft · %d at the vendor"]):format(
+        totals.lines, totals.toBuy, totals.toCraft, totals.atVendor)
+    else
+      counts = (GC.L["%d lines · %d to buy · %d at the vendor"]):format(
+        totals.lines, totals.toBuy, totals.atVendor)
+    end
+    if sharedBy then
+      counts = ("%s · %s"):format(counts, (GC.L["from %s"]):format(sharedBy))
+    end
+    band.counts:SetText(counts)
+    -- The legend's slot carries the recompute notice while there is one. The legend is
+    -- permanently true and can be read any day; the notice is true for one, and this is the
+    -- only line on the band that is not about the run's own numbers. Text only -- the money
+    -- line and the vendor button hang off this string's anchors, which do not move.
+    band.bags:SetText(noticeText(current:Code())
+      or GC.L["in bags and bank · purchases arrive by mail"])
     if totals.atVendor > 0 then band.vendor:Show() else band.vendor:Hide() end
     -- The money line stops where the button starts while the button is up, and runs to the
     -- legend when it is not: a RIGHT anchor shared with the button would put the text UNDER
@@ -2007,6 +2290,7 @@ local function renderRows()
     band.picker:Hide()
     band.vendor:Hide()
     band.counts:SetText("")
+    band.bags:SetText(GC.L["in bags and bank · purchases arrive by mail"])
     band.spent:SetText("")
   end
 
@@ -2167,8 +2451,8 @@ local function refreshTargets()
   if not current then return nil end
   local ids, seen = {}, {}
   for _, line in ipairs(current:Lines()) do
-    if not line.vendor and not line.locked and not line.done and not seen[line.itemID]
-        and askableItem(line.itemID) then
+    if not line.vendor and line.kind ~= "craft" and not line.locked and not line.done
+        and not seen[line.itemID] and askableItem(line.itemID) then
       seen[line.itemID] = true
       ids[#ids + 1] = line.itemID
       if #ids >= BD.MAX_KEYS then break end
@@ -2187,7 +2471,9 @@ end
 local function hasPendingLine()
   if not current then return false end
   for _, line in ipairs(current:Lines()) do
-    if not line.vendor and not line.locked and not line.done then return true end
+    if not line.vendor and line.kind ~= "craft" and not line.locked and not line.done then
+      return true
+    end
   end
   return false
 end
@@ -2270,7 +2556,11 @@ function GC.Buy.DebugPrint()
     GC.Print((GC.L["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"]):format(
       runLabel(current), totals.lines, totals.toBuy, totals.atVendor,
       formatAmount(totals.spent), formatAmount(totals.left)))
-    GC.Print(("run: code=%s name=%s"):format(tostring(current:Code()), tostring(current:Name())))
+    local data = shownRunData()
+    GC.Print(("run: code=%s name=%s kind=%s from=%s source=%s"):format(
+      tostring(current:Code()), tostring(current:Name()),
+      tostring(data and data.k or "list"), tostring(data and data.by or "-"),
+      tostring(data and data.src or "-")))
   else
     GC.Print(GC.L["Buy: no run selected."])
   end
@@ -2289,6 +2579,7 @@ function GC.Buy.DebugPrint()
     local state = ""
     if line.vendor then state = GC.L["vendor"]
     elseif line.done then state = GC.L["done"]
+    elseif line.kind == "craft" then state = GC.L["craft"]
     elseif line.locked then state = GC.L["Pro"] end
     GC.Print((GC.L["  %s · need %d · have %d · buy %d · %s"]):format(
       lineName(line), line.need, line.have, line.buy, state))

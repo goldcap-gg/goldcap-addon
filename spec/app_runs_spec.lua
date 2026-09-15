@@ -19,7 +19,7 @@ describe("AppRuns", function()
   before_each(function()
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("Core/AppRuns.lua", GC)
-    GC.db = { runs = {}, runsArchived = {},
+    GC.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
               runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
   end)
 
@@ -43,8 +43,8 @@ describe("AppRuns", function()
       assert.is_nil(GC.AppRuns.FreeLines())
     end)
 
-    it("refuses any version but 1 or 2, silently", function()
-      local f = fixture(); f.v = 3
+    it("refuses any version but 1, 2 or 3, silently", function()
+      local f = fixture(); f.v = 4
       _G.GoldCap_AppRuns = f
       assert.has_no.errors(function() assert.is_false(GC.AppRuns.Adopt()) end)
       assert.is_nil(GC.AppRuns.Get("abcd2345"))
@@ -66,6 +66,86 @@ describe("AppRuns", function()
       assert.equal(3, run.lines[1].ch)
       assert.equal(-18, run.lines[1].cp)
       assert.equal(25, run.lines[2].vu)
+    end)
+
+    -- v3 is the same file again: a line may bring an absolute cap (an alert's own target
+    -- price), the realm a hit was seen on, and the recipe that crafts it.
+    it("adopts a v3 file and keeps the cap, the realm and the recipe a line carries", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines[1].cc = 9990000
+      f.runs[1].lines[1].rl = { id = 1305, n = "Kazzak" }
+      f.runs[1].lines[1].cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 51, q = 5, n = "Eversong Trout", u = 300 },
+        { i = 52, q = 5, n = "Tavern Fixings", v = true, vu = 150 },
+      } }
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local line = GC.AppRuns.Get("abcd2345").lines[1]
+      assert.equal(9990000, line.cc)
+      assert.same({ id = 1305, n = "Kazzak" }, line.rl)
+      assert.equal(900, line.cr.r)
+      assert.equal(5, line.cr.n)
+      assert.equal(2300, line.cr.c)
+      assert.equal(2, #line.cr.i)
+      assert.equal(51, line.cr.i[1].i)
+      assert.equal("Eversong Trout", line.cr.i[1].n)
+      assert.equal(300, line.cr.i[1].u)
+      assert.is_false(line.cr.i[1].v)
+      assert.is_true(line.cr.i[2].v)
+      assert.equal(150, line.cr.i[2].vu)
+    end)
+
+    -- The companion's global is rewritten wholesale on every sync, and a run kept in
+    -- SavedVariables outlives it. A reference into that table would have the stored run change
+    -- under the player -- or, worse, be written back out through it.
+    it("deep-copies the recipe rather than pointing at the companion's own table", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines[1].cr = { r = 900, n = 5, c = 2300, i = { { i = 51, q = 5 } } }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local stored = GC.AppRuns.Get("abcd2345").lines[1].cr
+      assert.are_not.equal(f.runs[1].lines[1].cr, stored)
+      assert.are_not.equal(f.runs[1].lines[1].cr.i[1], stored.i[1])
+      f.runs[1].lines[1].cr.i[1].q = 999
+      assert.equal(5, stored.i[1].q)
+    end)
+
+    -- A recipe that yields nothing, or lists no reagent, is not something the tab can act on.
+    it("drops a recipe with no reagents and keeps the line", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines[1].cr = { r = 900, n = 5, c = 2300, i = {} }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local line = GC.AppRuns.Get("abcd2345").lines[1]
+      assert.is_nil(line.cr)
+      assert.equal(210, line.q)
+    end)
+
+    it("keeps the run's kind, its owner's name and its source label", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].k = "alert"
+      f.runs[1].by = "Acromion"
+      f.runs[1].src = "Cooking 1-100"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.equal("alert", run.k)
+      assert.equal("Acromion", run.by)
+      assert.equal("Cooking 1-100", run.src)
+    end)
+
+    it("leaves a v2 run's kind, owner and source unset rather than inventing them", function()
+      local f = fixture(); f.v = 2
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.is_nil(run.k)
+      assert.is_nil(run.by)
+      assert.is_nil(run.src)
     end)
 
     -- A companion that has not been updated writes v1, which is a v2 file with no prices on it.
@@ -151,6 +231,168 @@ describe("AppRuns", function()
       GC.AppRuns.Adopt()
       assert.equal(150, GC.db.runCaps["abcd2345"])
       assert.is_nil(GC.db.runCaps["gone-run"])
+    end)
+
+    -- The site can recompute a saved plan at today's prices, which rewrites the run's lines
+    -- under a code the addon already has. The band says so for a day, so a run that changed
+    -- shape while the player was not looking is not something they discover by miscounting.
+    it("notices a run that comes back with different lines", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200
+      table.remove(fresher.runs[1].lines, 2)              -- the vendor line is gone
+      table.insert(fresher.runs[1].lines, { i = 7, q = 3 })
+      table.insert(fresher.runs[1].lines, { i = 8, q = 9 })
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+
+      local notice = GC.db.runNotices["abcd2345"]
+      assert.is_table(notice)
+      assert.equal(2, notice.added)
+      assert.equal(1, notice.removed)
+      assert.is_number(notice.at)
+    end)
+
+    -- A quantity that moved is a changed plan too, and there is nothing to count: the band has
+    -- a wording of its own for it (UI/BuyFrame.lua).
+    it("notices a quantity that moved, with nothing added or removed", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200
+      fresher.runs[1].lines[1].q = 400
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.same({ added = 0, removed = 0 }, { added = GC.db.runNotices["abcd2345"].added,
+                                                removed = GC.db.runNotices["abcd2345"].removed })
+    end)
+
+    -- A sync that brought the same run again is not news. Both halves have to differ: a file
+    -- regenerated on a timer carries a new generatedAt and the very same run.
+    it("says nothing when the run came back the same", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200          -- newer stamp, identical lines
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+    end)
+
+    -- The other half of the same rule: `updatedAt` is the site's own stamp on the plan, and a
+    -- line set cannot move without it moving too. Lines that differ under an unchanged stamp are
+    -- a file the addon cannot explain -- not a recompute the band should announce as one.
+    it("says nothing when the lines differ under an unchanged updatedAt", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60    -- a newer file...
+      table.insert(fresher.runs[1].lines, { i = 7, q = 3 })   -- ...carrying a changed run
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.equal(3, #GC.AppRuns.Get("abcd2345").lines)
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+    end)
+
+    it("says nothing about a run it is seeing for the first time", function()
+      local f = fixture()
+      f.runs[1].code = "wxyz6789"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["wxyz6789"])
+    end)
+
+    -- An alert run's lines ARE the alert group's live hits, so they change on essentially every
+    -- sync by design -- that is not a plan that changed, it is the run doing what it is for. The
+    -- band has its own wording for an alert run (hit count), so Adopt must not also write a notice.
+    it("says nothing about an alert run whose hits changed shape", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].k = "alert"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.v = 3
+      fresher.runs[1].k = "alert"
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].updatedAt = 200
+      table.remove(fresher.runs[1].lines, 2)
+      table.insert(fresher.runs[1].lines, { i = 7, q = 3 })
+      table.insert(fresher.runs[1].lines, { i = 8, q = 9 })
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+    end)
+    -- A notice is a claim about today, and UI/BuyFrame.lua stops showing one a day old. It has
+    -- to be cleared on a later sync too, not only when the run itself goes: a run the site keeps
+    -- sending would otherwise keep a notice that is already invisible, for as long as the run
+    -- exists, and SavedVariables would carry one per run forever.
+    it("forgets a notice nobody will be shown again", function()
+      local f = fixture()
+      f.runs[2] = { code = "wxyz6789", name = "Second run", updatedAt = 100,
+                    lines = { { i = 9, q = 1 } } }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      GC.db.runNotices = { ["abcd2345"] = { at = time() - 90000, added = 2, removed = 1 },
+                           ["wxyz6789"] = { at = time() - 60, added = 1, removed = 0 } }
+
+      f.generatedAt = f.generatedAt + 60
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+      assert.equal(1, GC.db.runNotices["wxyz6789"].added)   -- still news, still shown
+    end)
+
+    -- An alert run's lines ARE the group's live hits. A hit that expired is gone, and a later
+    -- hit for the same item is a different lot at a different price -- so what was bought
+    -- against the old one is not a score the new one inherits. Nothing else ever prunes
+    -- buyProgress: it is keyed by the run code, and an alert group's code does not change.
+    it("forgets what was bought for an alert hit that has expired", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].k = "alert"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      GC.db.buyProgress = {
+        ["Tester-Realm"] = { ["abcd2345"] = { [5] = { bought = 60, spent = 900 },
+                                              [6] = { bought = 4, spent = 40 } } },
+        ["Alt-Realm"] = { ["abcd2345"] = { [6] = { bought = 1, spent = 10 } } },
+      }
+
+      local fresher = fixture()
+      fresher.v = 3
+      fresher.runs[1].k = "alert"
+      fresher.generatedAt = fresher.generatedAt + 60
+      table.remove(fresher.runs[1].lines, 2)          -- item 6's hit is no longer on the run
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+
+      local mine = GC.db.buyProgress["Tester-Realm"]["abcd2345"]
+      assert.is_nil(mine[6])
+      assert.equal(60, mine[5].bought)                -- the hit still on the run keeps its score
+      -- The score is per character, but the hit expired for every one of them at once.
+      assert.is_nil(GC.db.buyProgress["Alt-Realm"]["abcd2345"][6])
+    end)
+
+    -- A saved list is a plan, not a set of live hits: a line the site recomputed away is one the
+    -- player may put back tomorrow, and the gold this run already spent on it is still spent.
+    it("leaves a list run's progress alone when a line goes", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      GC.db.buyProgress = { ["Tester-Realm"] = { ["abcd2345"] = {
+        [5] = { bought = 60, spent = 900 }, [6] = { bought = 4, spent = 40 } } } }
+
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      table.remove(fresher.runs[1].lines, 2)
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.equal(4, GC.db.buyProgress["Tester-Realm"]["abcd2345"][6].bought)
     end)
   end)
 
@@ -305,5 +547,105 @@ describe("AppRuns", function()
       assert.equal(5, run.lines[1].i)
       assert.equal(8, run.lines[2].i)
     end)
+  end)
+end)
+
+describe("AppRuns runs the site owns", function()
+  local GC
+
+  -- Three app runs of the three kinds, plus a pasted one, all live at once -- which is exactly
+  -- what the picker has to order.
+  local function fixture()
+    return {
+      v = 3, generatedAt = 1787130262, plan = "pro", freeLines = 5,
+      runs = {
+        { code = "own10000", name = "Mine, older", updatedAt = 100,
+          lines = { { i = 5, q = 1 } } },
+        { code = "own20000", name = "Mine, newer", updatedAt = 200,
+          lines = { { i = 6, q = 1 } } },
+        { code = "shr30000", name = "Guild flasks", updatedAt = 300, by = "Acromion",
+          lines = { { i = 7, q = 1 } } },
+        { code = "a0000001", name = "Cheap ore", updatedAt = 400, k = "alert",
+          lines = { { i = 8, q = 1, cc = 9990000 } } },
+      },
+    }
+  end
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/AppRuns.lua", GC)
+    GC.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
+              runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
+    _G.GoldCap_AppRuns = fixture()
+    GC.AppRuns.Adopt()
+    GC.db.runs["paste-1"] = { code = "paste-1", updatedAt = 500,
+                              lines = { { i = 9, q = 1 } }, origin = "paste" }
+  end)
+
+  after_each(function() _G.GoldCap_AppRuns = nil end)
+
+  it("tells an alert run and a followed run from an ordinary one", function()
+    assert.is_true(GC.AppRuns.IsAlert("a0000001"))
+    assert.is_false(GC.AppRuns.IsAlert("shr30000"))
+    assert.is_false(GC.AppRuns.IsAlert("nosuchrun"))
+    assert.is_true(GC.AppRuns.IsShared("shr30000"))
+    assert.is_false(GC.AppRuns.IsShared("own10000"))
+    assert.is_false(GC.AppRuns.IsShared("a0000001"))
+  end)
+
+  -- The picker reads top to bottom as "your lists, then the ones you follow, then what you
+  -- pasted, then what your alerts have found" -- and a run of somebody else's must never be
+  -- what a first visit lands on (UI/BuyFrame.lua's ensureRun takes the first).
+  it("orders the list own, then followed, then pasted, then alert", function()
+    local codes = {}
+    for _, run in ipairs(GC.AppRuns.List()) do codes[#codes + 1] = run.code end
+    assert.same({ "own20000", "own10000", "shr30000", "paste-1", "a0000001" }, codes)
+  end)
+
+  it("refuses to archive an alert or a followed run, and archives an own one", function()
+    assert.is_false(GC.AppRuns.SetArchived("a0000001", true))
+    assert.is_false(GC.AppRuns.SetArchived("shr30000", true))
+    assert.is_nil(GC.db.runsArchived["a0000001"])
+    assert.is_nil(GC.db.runsArchived["shr30000"])
+    assert.is_true(GC.AppRuns.SetArchived("own10000", true))
+    assert.is_true(GC.AppRuns.IsArchived("own10000"))
+    -- Clearing a flag is always allowed: one left in SavedVariables by an older build has to
+    -- have a way out.
+    GC.db.runsArchived["a0000001"] = true
+    assert.is_true(GC.AppRuns.SetArchived("a0000001", false))
+    assert.is_nil(GC.db.runsArchived["a0000001"])
+  end)
+
+  it("refuses to remove an alert or a followed run", function()
+    assert.is_false(GC.AppRuns.Remove("a0000001"))
+    assert.is_false(GC.AppRuns.Remove("shr30000"))
+    assert.is_not_nil(GC.AppRuns.Get("a0000001"))
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+  end)
+
+  -- Every per-run store is pruned by the same rule, or a code the site later reuses comes back
+  -- carrying a split, a notice or a cap nobody chose for it.
+  it("forgets the splits and the notice of a run the site no longer sends", function()
+    GC.db.runSplits = { ["own10000"] = { [5] = true }, ["gone-run"] = { [1] = true } }
+    -- Stamped now, so what this test proves is the CODE rule: a notice old enough to have
+    -- stopped being shown is pruned by its own rule, whichever run it belongs to.
+    GC.db.runNotices = { ["own10000"] = { at = time(), added = 1, removed = 0 },
+                         ["gone-run"] = { at = time(), added = 1, removed = 0 } }
+    local fresher = fixture()
+    fresher.generatedAt = fresher.generatedAt + 60
+    _G.GoldCap_AppRuns = fresher
+    assert.is_true(GC.AppRuns.Adopt())
+    assert.is_not_nil(GC.db.runSplits["own10000"])
+    assert.is_nil(GC.db.runSplits["gone-run"])
+    assert.is_not_nil(GC.db.runNotices["own10000"])
+    assert.is_nil(GC.db.runNotices["gone-run"])
+  end)
+
+  it("takes the splits and the notice with a run that is removed outright", function()
+    GC.db.runSplits["paste-1"] = { [9] = true }
+    GC.db.runNotices["paste-1"] = { at = 1, added = 0, removed = 1 }
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+    assert.is_nil(GC.db.runSplits["paste-1"])
+    assert.is_nil(GC.db.runNotices["paste-1"])
   end)
 end)

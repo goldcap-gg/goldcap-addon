@@ -20,6 +20,41 @@ GC.AppRuns = {}
 
 local function num(v) return type(v) == "number" and v or nil end
 
+-- The realm a hit was seen on (v3). A line bound to another realm is still a line -- the auction
+-- house search simply finds nothing for it there -- so the pair is carried and the caller decides
+-- what to say about it. Either half may be missing; neither half present is no realm at all.
+local function copyRealm(raw)
+  if type(raw) ~= "table" then return nil end
+  local id = num(raw.id)
+  local name = type(raw.n) == "string" and raw.n ~= "" and raw.n or nil
+  if not (id or name) then return nil end
+  return { id = id, n = name }
+end
+
+-- The recipe that crafts this line's item (v3): `r` the recipe id, `n` how many units one craft
+-- yields, `c` what one craft's reagents cost at the region's prices when the run was fetched, and
+-- `i` the reagents themselves. Copied FIELD BY FIELD, not referenced: the companion rewrites its
+-- global wholesale on every sync, while a run in SavedVariables outlives it, and a stored run
+-- that pointed into that table would change under the player. A recipe yielding nothing, or
+-- naming no reagent, is dropped -- there is nothing the tab could do with it.
+local function copyCraft(raw)
+  if type(raw) ~= "table" then return nil end
+  local craftedQty = num(raw.n)
+  if not craftedQty or craftedQty <= 0 then return nil end
+  local reagents = {}
+  for _, entry in ipairs(type(raw.i) == "table" and raw.i or {}) do
+    local id, qty = num(entry.i), num(entry.q)
+    if id and qty and qty > 0 then
+      reagents[#reagents + 1] = {
+        i = id, q = qty, n = type(entry.n) == "string" and entry.n or nil,
+        v = entry.v == true, u = num(entry.u), vu = num(entry.vu),
+      }
+    end
+  end
+  if #reagents == 0 then return nil end
+  return { r = num(raw.r), n = craftedQty, c = num(raw.c) or 0, i = reagents }
+end
+
 local function copyLine(raw)
   if type(raw) ~= "table" then return nil end
   local i, q = num(raw.i), num(raw.q)
@@ -31,6 +66,10 @@ local function copyLine(raw)
     -- item is usually cheapest and by how much. Every one is optional -- a v1 file, or a v2 line
     -- the site could not price, simply carries nil and the tab behaves exactly as it did.
     u = num(raw.u), vu = num(raw.vu), ch = num(raw.ch), cp = num(raw.cp),
+    -- The v3 fields: `cc` an absolute copper ceiling for one unit (an alert group's own target
+    -- price, which is not a percentage of anything), `rl` the realm a hit is bound to, `cr` the
+    -- recipe that crafts this item. Optional, like every price field above them.
+    cc = num(raw.cc), rl = copyRealm(raw.rl), cr = copyCraft(raw.cr),
   }
 end
 
@@ -70,7 +109,69 @@ local function copyRun(raw, origin)
     updatedAt = num(raw.updatedAt) or time(),
     lines = lines,
     origin = origin,
+    -- v3 run fields. `k` marks a run that is an alert group's live hits rather than a saved
+    -- list; `by` names the owner of a run the player follows; `src` is the plan it came from
+    -- ("Cooking 1-100"). All three are the site's to set and the addon's to carry: the tab reads
+    -- them, nothing here invents them.
+    k = raw.k == "alert" and "alert" or nil,
+    by = (type(raw.by) == "string" and raw.by ~= "") and raw.by or nil,
+    src = (type(raw.src) == "string" and raw.src ~= "") and raw.src or nil,
   }
+end
+
+-- What the site changed about a run the addon already had, or nil when it changed nothing worth
+-- saying. Both halves have to differ: `updatedAt` alone moves whenever the site touches the row,
+-- and a line set alone cannot move without it. Lines are compared by item id AND quantity, so a
+-- recompute that only moved a number is still a changed plan -- with nothing added or removed,
+-- which is a shape the band has its own wording for.
+--
+-- An alert run's lines ARE the alert group's live hits, not a plan: they change on essentially
+-- every sync by design, so a notice here would sit permanently on a run that has no plan behind
+-- it. The band already has its own wording for an alert run (a hit count) -- see
+-- UI/BuyFrame.lua -- so an alert group's hits arriving and expiring is not news for this notice.
+local function noticeFor(old, new)
+  if new.k == "alert" then return nil end
+  if type(old) ~= "table" or (old.updatedAt or 0) == (new.updatedAt or 0) then return nil end
+  local before, after = {}, {}
+  for _, line in ipairs(old.lines or {}) do before[line.i] = line.q end
+  for _, line in ipairs(new.lines or {}) do after[line.i] = line.q end
+  local added, removed, changed = 0, 0, false
+  for id, qty in pairs(after) do
+    if before[id] == nil then
+      added, changed = added + 1, true
+    elseif before[id] ~= qty then
+      changed = true
+    end
+  end
+  for id in pairs(before) do
+    if after[id] == nil then removed, changed = removed + 1, true end
+  end
+  if not changed then return nil end
+  return { at = time(), added = added, removed = removed }
+end
+
+-- What this character bought against an alert group's hits, minus the hits that are gone. An
+-- alert run's lines ARE the group's live hits: one that expired is gone for good, and a later
+-- hit for the same item is a different lot at a different price, which starts from nothing
+-- bought. Nothing else ever prunes `buyProgress` -- it is keyed by the run code, and an alert
+-- group's code does not change -- so without this a hit that came back would arrive already
+-- part bought, against gold spent days ago on a lot nobody can see any more. Every character's
+-- copy goes together: the score is per character, the expiry is not.
+--
+-- A saved list is left alone. Its lines are a plan the site recomputes, not hits: a line that
+-- went today is one the player may put back tomorrow, and the run's score is still the run's.
+local function pruneAlertProgress(db, run)
+  if run.k ~= "alert" or type(db.buyProgress) ~= "table" then return end
+  local live = {}
+  for _, line in ipairs(run.lines) do live[line.i] = true end
+  for _, byChar in pairs(db.buyProgress) do
+    local forRun = type(byChar) == "table" and byChar[run.code] or nil
+    if type(forRun) == "table" then
+      for itemID in pairs(forRun) do
+        if not live[itemID] then forRun[itemID] = nil end
+      end
+    end
+  end
 end
 
 -- Reads `_G.GoldCap_AppRuns` (see this file's header for the shape and where it comes from)
@@ -83,10 +184,10 @@ end
 -- the interface and for a future "companion synced" toast) can tell a no-op from a real sync.
 function GC.AppRuns.Adopt()
   local raw = _G.GoldCap_AppRuns
-  -- v1 and v2 are the same file; v2 lines carry prices (see copyLine). An unknown version is
-  -- refused rather than half-read: a field this build does not know the meaning of is not a
-  -- field it may guess at.
-  if type(raw) ~= "table" or (raw.v ~= 1 and raw.v ~= 2) then return false end
+  -- v1, v2 and v3 are the same file; v2 lines carry prices and v3 lines carry a cap, a realm and
+  -- a recipe (see copyLine). An unknown version is refused rather than half-read: a field this
+  -- build does not know the meaning of is not a field it may guess at.
+  if type(raw) ~= "table" or (raw.v ~= 1 and raw.v ~= 2 and raw.v ~= 3) then return false end
   if type(raw.generatedAt) ~= "number" then return false end
   if type(raw.runs) ~= "table" then return false end
 
@@ -99,25 +200,43 @@ function GC.AppRuns.Adopt()
   for code, run in pairs(db.runs or {}) do
     if run.origin == "paste" then kept[code] = run end
   end
+  if type(db.runNotices) ~= "table" then db.runNotices = {} end
   for _, rawRun in ipairs(raw.runs) do
     local run = copyRun(rawRun, "app")
-    if run then kept[run.code] = run end
+    if run then
+      -- Compared against what this code held BEFORE the replacement: `db.runs` is still the
+      -- previous generation here, and a paste is never compared -- the site did not write it,
+      -- so it has nothing to say about it having changed.
+      local old = db.runs and db.runs[run.code] or nil
+      if old and old.origin == "app" then
+        local notice = noticeFor(old, run)
+        if notice then db.runNotices[run.code] = notice end
+      end
+      pruneAlertProgress(db, run)
+      kept[run.code] = run
+    end
   end
 
   db.runs = kept
-  -- A run the site deleted takes its per-run settings with it. Nothing else would ever clear
-  -- them, and a code the site later reuses would come back carrying a cap nobody chose for it.
-  local caps = db.runCaps
-  if type(caps) == "table" then
-    for code in pairs(caps) do
-      if not kept[code] then caps[code] = nil end
+  -- A run the site deleted takes every per-run setting with it. Nothing else would ever clear
+  -- them, and a code the site later reuses would come back carrying a cap, a split or a notice
+  -- nobody chose for it. Named fields, not `{ db.runCaps, db.runsArchived, ... }`: whichever of
+  -- these is nil (usually runCaps -- most runs never get one) would leave a hole in that array
+  -- constructor, and ipairs stops dead at the first nil, silently skipping every store after it.
+  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+    local store = db[field]
+    if type(store) == "table" then
+      for code in pairs(store) do
+        if not kept[code] then store[code] = nil end
+      end
     end
   end
-  local archived = db.runsArchived
-  if type(archived) == "table" then
-    for code in pairs(archived) do
-      if not kept[code] then archived[code] = nil end
-    end
+  -- ...and a notice the band has already stopped showing goes with it. A notice is a claim about
+  -- today (UI/BuyFrame.lua drops one a day old), so a run the site keeps sending would otherwise
+  -- hold one that nobody will ever be shown again, in SavedVariables, for as long as it exists.
+  for code, notice in pairs(db.runNotices) do
+    local at = type(notice) == "table" and tonumber(notice.at) or nil
+    if not at or (time() - at) >= 86400 then db.runNotices[code] = nil end
   end
   db.runsMeta = {
     plan = raw.plan == "pro" and "pro" or "free",
@@ -142,39 +261,69 @@ function GC.AppRuns.IsArchived(code)
   return (set ~= nil and code ~= nil and set[code] == true) or false
 end
 
+--- Whether this run is an alert group's live hits rather than a saved list. The site owns it
+--- entirely: it appears when the group has hits and goes when it does not, so there is nothing
+--- here for the player to archive or remove.
+function GC.AppRuns.IsAlert(code)
+  local run = GC.AppRuns.Get(code)
+  return (run ~= nil and run.k == "alert") or false
+end
+
+--- Whether this run belongs to somebody else and the player merely follows it. Same answer for
+--- the same reason: Unfollow lives on goldcap.gg, and a local Remove would only last until the
+--- next sync brought it back.
+function GC.AppRuns.IsShared(code)
+  local run = GC.AppRuns.Get(code)
+  return (run ~= nil and type(run.by) == "string" and run.by ~= "") or false
+end
+
 --- Puts a run away, or takes it back out. Restoring CLEARS the entry rather than storing false,
 --- so an unarchived run leaves nothing behind in SavedVariables to explain later.
 function GC.AppRuns.SetArchived(code, archived)
   local set = archivedSet()
   if not set or type(code) ~= "string" or code == "" then return false end
+  -- Neither an alert run nor a followed one may be put away: the site decides whether they are
+  -- there at all, and a run that came back on the next sync with a stale flag on it would go
+  -- straight into the Archived section unseen. Clearing a flag is always allowed, so one left
+  -- behind by an older build has a way out.
+  if archived and (GC.AppRuns.IsAlert(code) or GC.AppRuns.IsShared(code)) then return false end
   set[code] = archived and true or nil
   return true
 end
 
--- App runs first, then paste runs, each group newest `updatedAt` first -- the board reads
--- top to bottom as "what the companion just gave you, then what you pasted yourself".
--- `opts.archived` asks for the other group instead -- the runs that have been put away --
--- because the picker and the menu's archived section each want exactly one of the two.
+-- Own app runs, then followed ones, then pastes, then alert groups; each group newest
+-- `updatedAt` first. `opts.archived` asks for the other half instead -- the runs that have been
+-- put away -- because the picker and the menu's archived section each want exactly one of the two.
 function GC.AppRuns.List(opts)
   local wantArchived = type(opts) == "table" and opts.archived == true
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" then return {} end
-  local appRuns, pasteRuns = {}, {}
+  local own, shared, pasteRuns, alerts = {}, {}, {}, {}
   for _, run in pairs(db.runs) do
     if GC.AppRuns.IsArchived(run.code) == wantArchived then
-      if run.origin == "paste" then
+      if run.k == "alert" then
+        alerts[#alerts + 1] = run
+      elseif run.origin == "paste" then
         pasteRuns[#pasteRuns + 1] = run
+      elseif type(run.by) == "string" and run.by ~= "" then
+        shared[#shared + 1] = run
       else
-        appRuns[#appRuns + 1] = run
+        own[#own + 1] = run
       end
     end
   end
   local function newestFirst(a, b) return (a.updatedAt or 0) > (b.updatedAt or 0) end
-  table.sort(appRuns, newestFirst)
+  table.sort(own, newestFirst)
+  table.sort(shared, newestFirst)
   table.sort(pasteRuns, newestFirst)
+  table.sort(alerts, newestFirst)
   local result = {}
-  for _, run in ipairs(appRuns) do result[#result + 1] = run end
-  for _, run in ipairs(pasteRuns) do result[#result + 1] = run end
+  -- Own lists first, then the ones the player follows, then their own pastes, then the alert
+  -- groups: the picker reads as "yours, then other people's, then what your alerts found", and
+  -- a first visit (UI/BuyFrame.lua's ensureRun takes the first) never lands on somebody else's.
+  for _, bucket in ipairs({ own, shared, pasteRuns, alerts }) do
+    for _, run in ipairs(bucket) do result[#result + 1] = run end
+  end
   return result
 end
 
@@ -271,10 +420,15 @@ function GC.AppRuns.Remove(code)
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" or type(code) ~= "string" then return false end
   if not db.runs[code] then return false end
+  -- An alert run and a followed run are the site's: Unfollow and the alert group itself live on
+  -- goldcap.gg, and removing one here would last exactly until the next sync.
+  if GC.AppRuns.IsAlert(code) or GC.AppRuns.IsShared(code) then return false end
   db.runs[code] = nil
-  -- Its cap and its archived flag go with it, for the same reason Adopt prunes them: nothing
-  -- else would.
-  if type(db.runCaps) == "table" then db.runCaps[code] = nil end
-  if type(db.runsArchived) == "table" then db.runsArchived[code] = nil end
+  -- Everything stored beside the run goes with it, for the same reason Adopt prunes: nothing
+  -- else would. Named fields, not an array of the values -- see Adopt's pruning loop for why.
+  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+    local store = db[field]
+    if type(store) == "table" then store[code] = nil end
+  end
   return true
 end

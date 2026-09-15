@@ -279,6 +279,7 @@ describe("BUY purchase", function()
         for _, r in ipairs(runs) do if r.code == code then return r end end
       end,
       FreeLines = function() return nil end,
+      _set = function(list) runs = list end,
     }
 
     GC.Buy.Attach(region("Frame"), { panelLeft = 88, panelRightInset = 32, top = -100,
@@ -1478,5 +1479,57 @@ describe("BUY purchase", function()
     assert.is_truthy(text:find("attempt: stage=", 1, true))
     assert.is_truthy(text:find("stranded: 1", 1, true))
     assert.is_truthy(text:find("log: ", 1, true))
+  end)
+  -- An alert group's line carries the target price the player set, and a percentage of the
+  -- site's usual price has nothing to say about it: a target BELOW usual -- which is what an
+  -- alert group is for -- made the refusal read as a NEGATIVE amount over usual, a claim about
+  -- the market that is both false and impossible to act on.
+  local function showAlertRun(levels)
+    GC.AppRuns._set({ { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app",
+                        k = "alert", lines = { { i = 101, q = 4, u = 5800, cc = 4000 } } } })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    setBook(101, levels)
+    GC.Buy.Show()
+  end
+
+  it("measures a refused lot against the alert's own target, not against usual", function()
+    showAlertRun({ { unitPrice = 4500, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    local attempt = GC.Buy._attempt
+    assert.equal(0, attempt.qty)
+    assert.is_true(attempt.capped)
+    assert.equal(12, attempt.overPct)          -- 4500 against the 4000 target, not the 5800 usual
+    assert.equal("▲12% over the alert target", rowWithText("Alpha Herb").action.label)
+  end)
+
+  it("says the same on the log line when part of the line fit under the target", function()
+    showAlertRun({ { unitPrice = 3900, quantity = 2 }, { unitPrice = 4500, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.equal(2, GC.Buy._attempt.qty)
+    assert.equal("BUY 2", rowWithText("Alpha Herb").action.label)
+    assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲12% over the alert target", 1, true))
+  end)
+
+  -- A lot one copper over the target is not "0% over" anything, and a target the book never
+  -- reached is not over it at all: neither is a reason, so the button says what it says when
+  -- there is nothing to buy.
+  it("says nothing rather than a percentage that is not over anything", function()
+    showAlertRun({ { unitPrice = 4001, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.is_true(GC.Buy._attempt.capped)
+    assert.is_nil(GC.Buy._attempt.overPct)
+    assert.equal("nothing on offer", rowWithText("Alpha Herb").action.label)
+  end)
+
+  it("says nothing at all about a book that stayed under the target", function()
+    showAlertRun({ { unitPrice = 3900, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.is_false(GC.Buy._attempt.capped)
+    assert.is_nil(GC.Buy._attempt.overPct)
+    assert.equal("BUY 4", rowWithText("Alpha Herb").action.label)
   end)
 end)
