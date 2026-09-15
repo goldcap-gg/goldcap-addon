@@ -78,6 +78,9 @@ local BD = {
 -- leaves this where it was, so the next tick retries instead of waiting out a refresh window
 -- for prices that never arrived.
 local lastRefreshAt = 0
+-- The last quote per item: what the cheapest lots actually add up to, kept BD.QUOTE_SECONDS so
+-- the COST cell does not snap back to the floor estimate the moment the cursor leaves the row.
+local quotes = {}
 
 -- One purchase attempt at a time, addon-wide, and it lives on GC.Buy rather than on a row:
 -- rows are pooled and repainted, so a row holding the attempt would hand it to whatever line
@@ -966,6 +969,7 @@ function GC.Buy.OnCommodityResults(itemID)
   attempt.byHand = (ladder == nil and not askableItem(itemID)) or nil
   local qty, total, capped = current:PurchaseQuantity(itemID, ladder or {})
   attempt.qty, attempt.total, attempt.capped = qty, total, capped
+  quotes[itemID] = { qty = qty, total = total, at = time() }
   -- Computed whenever the cap stopped the ladder, not only when it stopped it before a single
   -- unit: a partial fill needs the same number -- what the REST would have cost -- or the line
   -- silently buys six of ten and says nothing about why the other four stayed behind.
@@ -1387,12 +1391,22 @@ local function paintLine(row, line)
     -- sum has a column of its own right beside it.
     local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.byHand
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
+    -- A quote outlives the hover that asked for it: the cell keeps the real sum for as long as
+    -- the quote is one the next click would spend, and only then falls back to the estimate.
+    local recent = quotes[line.itemID]
+    if not quotedTotal and recent and recent.qty == line.buy and recent.qty > 0
+        and (time() - (recent.at or 0)) <= BD.QUOTE_SECONDS then
+      quotedTotal = recent.total
+    end
     if quotedTotal and quotedTotal > 0 then
       row.cells.cost:SetText(formatAmount(quotedTotal))
-      setColor(row.cells.cost, attempt.stage == "confirm" and Theme.color.goldHi or Theme.color.fg)
+      setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
+        and Theme.color.goldHi or Theme.color.fg)
     else
-      row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
-      setColor(row.cells.cost, Theme.color.fg)
+      -- An estimate, and marked as one: remaining units at the cheapest price seen, which the
+      -- lots above that price will exceed once the line is actually quoted.
+      row.cells.cost:SetText(unit and ("~" .. formatAmount(line.buy * unit)) or EM_DASH)
+      setColor(row.cells.cost, Theme.color.fgDim)
     end
   end
 

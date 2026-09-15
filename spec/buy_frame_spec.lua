@@ -467,7 +467,7 @@ describe("BuyFrame", function()
     -- ...while the line the player is actually here to buy still prices.
     local alpha = rowWithText("Alpha Herb")
     assert.equal("1000c", alpha.cells.usual:GetText())
-    assert.equal("1g", alpha.cells.cost:GetText())
+    assert.equal("~1g", alpha.cells.cost:GetText())
   end)
 
   it("labels the column header row REAGENT/NEED/HAVE/BUY/NOW/USUAL/COST/ACTION", function()

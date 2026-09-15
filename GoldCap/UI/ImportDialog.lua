@@ -94,7 +94,12 @@ end
 function GC.UI.ShowImportDialog()
   dialog = dialog or createDialog()
   dialog.status:SetText("")
+  -- Above the docked window (HIGH, toplevel) and the auction house it docks into: opened from
+  -- the BUY tab's run menu, a MEDIUM-strata dialog came up behind them and read as a dead entry.
+  if dialog.SetFrameStrata then dialog:SetFrameStrata("DIALOG") end
+  if dialog.SetToplevel then dialog:SetToplevel(true) end
   dialog:Show()
+  if dialog.Raise then dialog:Raise() end
   dialog.edit:SetFocus()
 end
 
