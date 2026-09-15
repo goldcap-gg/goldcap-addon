@@ -43,8 +43,8 @@ describe("AppRuns", function()
       assert.is_nil(GC.AppRuns.FreeLines())
     end)
 
-    it("refuses any version but 1 or 2, silently", function()
-      local f = fixture(); f.v = 3
+    it("refuses any version but 1, 2 or 3, silently", function()
+      local f = fixture(); f.v = 4
       _G.GoldCap_AppRuns = f
       assert.has_no.errors(function() assert.is_false(GC.AppRuns.Adopt()) end)
       assert.is_nil(GC.AppRuns.Get("abcd2345"))
@@ -66,6 +66,86 @@ describe("AppRuns", function()
       assert.equal(3, run.lines[1].ch)
       assert.equal(-18, run.lines[1].cp)
       assert.equal(25, run.lines[2].vu)
+    end)
+
+    -- v3 is the same file again: a line may bring an absolute cap (an alert's own target
+    -- price), the realm a hit was seen on, and the recipe that crafts it.
+    it("adopts a v3 file and keeps the cap, the realm and the recipe a line carries", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines[1].cc = 9990000
+      f.runs[1].lines[1].rl = { id = 1305, n = "Kazzak" }
+      f.runs[1].lines[1].cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 51, q = 5, n = "Eversong Trout", u = 300 },
+        { i = 52, q = 5, n = "Tavern Fixings", v = true, vu = 150 },
+      } }
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local line = GC.AppRuns.Get("abcd2345").lines[1]
+      assert.equal(9990000, line.cc)
+      assert.same({ id = 1305, n = "Kazzak" }, line.rl)
+      assert.equal(900, line.cr.r)
+      assert.equal(5, line.cr.n)
+      assert.equal(2300, line.cr.c)
+      assert.equal(2, #line.cr.i)
+      assert.equal(51, line.cr.i[1].i)
+      assert.equal("Eversong Trout", line.cr.i[1].n)
+      assert.equal(300, line.cr.i[1].u)
+      assert.is_false(line.cr.i[1].v)
+      assert.is_true(line.cr.i[2].v)
+      assert.equal(150, line.cr.i[2].vu)
+    end)
+
+    -- The companion's global is rewritten wholesale on every sync, and a run kept in
+    -- SavedVariables outlives it. A reference into that table would have the stored run change
+    -- under the player -- or, worse, be written back out through it.
+    it("deep-copies the recipe rather than pointing at the companion's own table", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines[1].cr = { r = 900, n = 5, c = 2300, i = { { i = 51, q = 5 } } }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local stored = GC.AppRuns.Get("abcd2345").lines[1].cr
+      assert.are_not.equal(f.runs[1].lines[1].cr, stored)
+      assert.are_not.equal(f.runs[1].lines[1].cr.i[1], stored.i[1])
+      f.runs[1].lines[1].cr.i[1].q = 999
+      assert.equal(5, stored.i[1].q)
+    end)
+
+    -- A recipe that yields nothing, or lists no reagent, is not something the tab can act on.
+    it("drops a recipe with no reagents and keeps the line", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines[1].cr = { r = 900, n = 5, c = 2300, i = {} }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local line = GC.AppRuns.Get("abcd2345").lines[1]
+      assert.is_nil(line.cr)
+      assert.equal(210, line.q)
+    end)
+
+    it("keeps the run's kind, its owner's name and its source label", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].k = "alert"
+      f.runs[1].by = "Acromion"
+      f.runs[1].src = "Cooking 1-100"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.equal("alert", run.k)
+      assert.equal("Acromion", run.by)
+      assert.equal("Cooking 1-100", run.src)
+    end)
+
+    it("leaves a v2 run's kind, owner and source unset rather than inventing them", function()
+      local f = fixture(); f.v = 2
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.is_nil(run.k)
+      assert.is_nil(run.by)
+      assert.is_nil(run.src)
     end)
 
     -- A companion that has not been updated writes v1, which is a v2 file with no prices on it.

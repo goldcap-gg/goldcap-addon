@@ -20,6 +20,41 @@ GC.AppRuns = {}
 
 local function num(v) return type(v) == "number" and v or nil end
 
+-- The realm a hit was seen on (v3). A line bound to another realm is still a line -- the auction
+-- house search simply finds nothing for it there -- so the pair is carried and the caller decides
+-- what to say about it. Either half may be missing; neither half present is no realm at all.
+local function copyRealm(raw)
+  if type(raw) ~= "table" then return nil end
+  local id = num(raw.id)
+  local name = type(raw.n) == "string" and raw.n ~= "" and raw.n or nil
+  if not (id or name) then return nil end
+  return { id = id, n = name }
+end
+
+-- The recipe that crafts this line's item (v3): `r` the recipe id, `n` how many units one craft
+-- yields, `c` what one craft's reagents cost at the region's prices when the run was fetched, and
+-- `i` the reagents themselves. Copied FIELD BY FIELD, not referenced: the companion rewrites its
+-- global wholesale on every sync, while a run in SavedVariables outlives it, and a stored run
+-- that pointed into that table would change under the player. A recipe yielding nothing, or
+-- naming no reagent, is dropped -- there is nothing the tab could do with it.
+local function copyCraft(raw)
+  if type(raw) ~= "table" then return nil end
+  local craftedQty = num(raw.n)
+  if not craftedQty or craftedQty <= 0 then return nil end
+  local reagents = {}
+  for _, entry in ipairs(type(raw.i) == "table" and raw.i or {}) do
+    local id, qty = num(entry.i), num(entry.q)
+    if id and qty and qty > 0 then
+      reagents[#reagents + 1] = {
+        i = id, q = qty, n = type(entry.n) == "string" and entry.n or nil,
+        v = entry.v == true, u = num(entry.u), vu = num(entry.vu),
+      }
+    end
+  end
+  if #reagents == 0 then return nil end
+  return { r = num(raw.r), n = craftedQty, c = num(raw.c) or 0, i = reagents }
+end
+
 local function copyLine(raw)
   if type(raw) ~= "table" then return nil end
   local i, q = num(raw.i), num(raw.q)
@@ -31,6 +66,10 @@ local function copyLine(raw)
     -- item is usually cheapest and by how much. Every one is optional -- a v1 file, or a v2 line
     -- the site could not price, simply carries nil and the tab behaves exactly as it did.
     u = num(raw.u), vu = num(raw.vu), ch = num(raw.ch), cp = num(raw.cp),
+    -- The v3 fields: `cc` an absolute copper ceiling for one unit (an alert group's own target
+    -- price, which is not a percentage of anything), `rl` the realm a hit is bound to, `cr` the
+    -- recipe that crafts this item. Optional, like every price field above them.
+    cc = num(raw.cc), rl = copyRealm(raw.rl), cr = copyCraft(raw.cr),
   }
 end
 
@@ -70,6 +109,13 @@ local function copyRun(raw, origin)
     updatedAt = num(raw.updatedAt) or time(),
     lines = lines,
     origin = origin,
+    -- v3 run fields. `k` marks a run that is an alert group's live hits rather than a saved
+    -- list; `by` names the owner of a run the player follows; `src` is the plan it came from
+    -- ("Cooking 1-100"). All three are the site's to set and the addon's to carry: the tab reads
+    -- them, nothing here invents them.
+    k = raw.k == "alert" and "alert" or nil,
+    by = (type(raw.by) == "string" and raw.by ~= "") and raw.by or nil,
+    src = (type(raw.src) == "string" and raw.src ~= "") and raw.src or nil,
   }
 end
 
@@ -83,10 +129,10 @@ end
 -- the interface and for a future "companion synced" toast) can tell a no-op from a real sync.
 function GC.AppRuns.Adopt()
   local raw = _G.GoldCap_AppRuns
-  -- v1 and v2 are the same file; v2 lines carry prices (see copyLine). An unknown version is
-  -- refused rather than half-read: a field this build does not know the meaning of is not a
-  -- field it may guess at.
-  if type(raw) ~= "table" or (raw.v ~= 1 and raw.v ~= 2) then return false end
+  -- v1, v2 and v3 are the same file; v2 lines carry prices and v3 lines carry a cap, a realm and
+  -- a recipe (see copyLine). An unknown version is refused rather than half-read: a field this
+  -- build does not know the meaning of is not a field it may guess at.
+  if type(raw) ~= "table" or (raw.v ~= 1 and raw.v ~= 2 and raw.v ~= 3) then return false end
   if type(raw.generatedAt) ~= "number" then return false end
   if type(raw.runs) ~= "table" then return false end
 
