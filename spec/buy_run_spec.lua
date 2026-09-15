@@ -319,7 +319,8 @@ describe("BuyRun splits a line into its reagents", function()
         splits = function(code)
           assert.equal("abcd2345", code)
           return opts.splits
-        end })
+        end,
+        progress = function() return opts.progress end })
     run:Refresh()
     return run
   end
@@ -354,6 +355,28 @@ describe("BuyRun splits a line into its reagents", function()
     assert.equal(20, lineOf(run, 52).need)
     assert.is_true(lineOf(run, 52).vendor)
     assert.equal(150, lineOf(run, 52).vendorUnit)
+  end)
+
+  -- The crafts arithmetic itself, pinned in both directions: what is left to get, rounded UP to
+  -- a whole craft -- half a craft buys nothing -- and "left" counted against the LARGER of have
+  -- and bought, the same rule `buy` follows (see Core/BuyRun.lua).
+  it("rounds a part craft up to a whole one", function()
+    local run = build({ fillet({ q = 22 }) }, { splits = { [50] = true } })
+    assert.equal(5, lineOf(run, 50).crafts)      -- 22 at five a craft is five crafts, not four
+    assert.equal(25, lineOf(run, 51).need)       -- and five crafts of five trout each
+    assert.equal(25, lineOf(run, 52).need)
+  end)
+
+  -- The units this run already bought cover the need whether they are still in the bags or not:
+  -- counting only `have` would re-craft everything the player bought and then used or mailed on.
+  it("counts what the run already bought as covered, exactly as have is", function()
+    local run = build({ fillet() },
+      { have = { [50] = 3 }, progress = { [50] = { bought = 8, spent = 4000 } },
+        splits = { [50] = true } })
+    -- 20 needed, 8 of them accounted for (the larger of have 3 and bought 8), 12 left, five to
+    -- a craft: three crafts, and three crafts of five trout.
+    assert.equal(3, lineOf(run, 50).crafts)
+    assert.equal(15, lineOf(run, 51).need)
   end)
 
   -- A reagent the run already asks for must not become a second line of the same item: the two
