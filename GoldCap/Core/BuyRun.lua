@@ -93,7 +93,11 @@ function GC.BuyRun.New(run, driver)
         have = driver.haveOf(src.i), bought = state.bought, spent = state.spent,
         vendor = src.v == true,
         lineUsual = num(src.u), vendorUnit = num(src.vu),
-        cheapHour = num(src.ch), cheapPct = num(src.cp), capCopper = num(src.cc),
+        -- Hour-of-day (UTC) this item is usually cheapest, and by what percent. Passed through
+        -- untouched: whether the client can convert an hour into realm time, and whether the
+        -- number is worth saying at all, is the caller's question (UI/BuyFrame.lua).
+        cheapHour = num(src.ch), cheapPct = num(src.cp),
+        capCopper = num(src.cc),
         realmName = src.rl and src.rl.n or nil, realmID = src.rl and src.rl.id or nil,
         craft = craftOf(src.cr),
         floor = state.floor, floorAt = state.floorAt,
@@ -163,11 +167,17 @@ function GC.BuyRun.New(run, driver)
   local function finish(entries, byItem, capPct, freeLines)
     local index = 0
     for _, entry in ipairs(entries) do
-      -- The run's own price first, then the import's -- see the module header; a zero or a
-      -- non-number is not a price.
+      -- The run's own price first: the site knew what this item cost when the list was saved,
+      -- and the import's market value is a snapshot of a different moment (or, for an item the
+      -- import has never carried, of nothing at all). A zero or a non-number is not a price --
+      -- trusted, it caps the line at nothing and the line can never be bought.
       local lineUsual = entry.lineUsual
       entry.usual = (lineUsual and lineUsual > 0 and lineUsual) or driver.usualUnit(entry.itemID)
       if entry.vendorUnit and entry.vendorUnit <= 0 then entry.vendorUnit = nil end
+      -- An absolute ceiling for one unit, when the line brought one: an alert group's own
+      -- target price is the number the player chose, and a percentage of the site's reference
+      -- price has nothing to say about it -- it would either buy above the alert or refuse the
+      -- very lots the alert found. Everything else is capped as it always was.
       entry.cap = capFor({ cc = entry.capCopper }, entry.usual, capPct)
       -- The LARGER of the two, never their sum. `have` and `bought` are two views of the same
       -- units the moment a purchase is delivered -- the buyer's bags hold what they just bought --
