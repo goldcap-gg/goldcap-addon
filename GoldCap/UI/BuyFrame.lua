@@ -1907,4 +1907,24 @@ function GC.Buy.DebugPrint()
   for i = math.max(1, #log - 4), #log do
     GC.Print(("log: %s"):format(log[i].text))
   end
+  -- The header row, cell by cell: what the client thinks each heading is, where it sits and
+  -- whether it is drawn. A heading can exist, be anchored and still show no text (see
+  -- restampHeadings); this is how that is told apart from a cell that is not there at all.
+  local header = band and band.header
+  if header and header.cells then
+    for _, col in ipairs(COLUMNS) do
+      local cell = col.flex and header.reagentCell or header.cells[col.key]
+      if cell then
+        local label = cell.label
+        GC.Print(("header %s: shown=%s vis=%s w=%s left=%s right=%s text=%q strw=%s lvl=%s"):format(
+          col.key, tostring(cell.IsShown and cell:IsShown()), tostring(cell.IsVisible and cell:IsVisible()),
+          tostring(cell.GetWidth and math.floor((cell:GetWidth() or 0) + 0.5)),
+          tostring(cell.GetLeft and cell:GetLeft() and math.floor(cell:GetLeft() + 0.5)),
+          tostring(cell.GetRight and cell:GetRight() and math.floor(cell:GetRight() + 0.5)),
+          tostring(label and label.GetText and label:GetText()),
+          tostring(label and label.GetStringWidth and math.floor((label:GetStringWidth() or 0) + 0.5)),
+          tostring(cell.GetFrameLevel and cell:GetFrameLevel())))
+      end
+    end
+  end
 end
