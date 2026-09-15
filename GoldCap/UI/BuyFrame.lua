@@ -1832,6 +1832,16 @@ local function renderRows()
         totals.lines, totals.toBuy, totals.atVendor))
     end
     if totals.atVendor > 0 then band.vendor:Show() else band.vendor:Hide() end
+    -- The money line stops where the button starts while the button is up, and runs to the
+    -- legend when it is not: a RIGHT anchor shared with the button would put the text UNDER
+    -- it, and a hidden frame still occupies its anchor width.
+    band.spent:ClearAllPoints()
+    band.spent:SetPoint("TOPLEFT", 0, -26)
+    if totals.atVendor > 0 then
+      band.spent:SetPoint("RIGHT", band.vendor, "LEFT", -Theme.pad.s, 0)
+    else
+      band.spent:SetPoint("RIGHT", band.bags, "LEFT", -Theme.pad.s, 0)
+    end
     band.spent:SetText((GC.L["spent %s · left ~%s"]):format(
       formatAmount(totals.spent), formatAmount(totals.left)))
   else

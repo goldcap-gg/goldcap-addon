@@ -543,6 +543,26 @@ describe("BuyFrame", function()
     assert.is_false(bandOf().vendor:IsShown())
   end)
 
+  -- The money line yields to the vendor button while the button is up, and takes the whole
+  -- width back when it is not -- a shared RIGHT anchor would draw the text under the button.
+  it("stops the money line at the vendor button while the button is shown", function()
+    local function rightOf(fs)
+      for _, p in ipairs(fs.points) do if p.point == "RIGHT" then return p end end
+    end
+    GC.AppRuns._set({ run() })   -- has a vendor line still to buy
+    GC.Buy.SelectRun("run-1")
+    GC.Buy.Show()
+    local band = bandOf()
+    assert.is_true(band.vendor:IsShown())
+    assert.equal(band.vendor, rightOf(band.spent).relative)
+    GC.AppRuns._set({ run({ code = "run-2", lines = { { i = 101, q = 10 } } }) })   -- no vendor stop
+    GC.Buy.SelectRun("run-2")
+    GC.Buy.Show()
+    band = bandOf()
+    assert.is_false(band.vendor:IsShown())
+    assert.equal(band.bags, rightOf(band.spent).relative)
+  end)
+
   -- The button hangs off the legend on the band's SECOND line, not between the picker and the
   -- counts on the first: the counts string has two opposing anchors and no width of its own, so
   -- anything parked in front of it is what the text overflows onto at a narrow docked width.
