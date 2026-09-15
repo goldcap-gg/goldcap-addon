@@ -1236,6 +1236,26 @@ describe("BuyFrame", function()
     _G.MenuUtil = nil
   end)
 
+  it("offers a vendor line neither the comparison nor the split menu", function()
+    GC.AppRuns._set({ { code = "run-vs", name = "Vendor run", updatedAt = 900, origin = "app",
+      lines = { { i = 104, q = 20, v = true, vu = 5, u = 5800,
+        cr = { r = 900, n = 5, c = 2300, i = { { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } } },
+    } })
+    GC.db.runSplits = {}
+    GC.db.settings.sniper.buyRun = "run-vs"
+    GC.Buy.Show()
+    local vendorRow = rowWithText("Delta Vial")
+    for _, text in ipairs(texts(tooltipOn(vendorRow))) do
+      assert.is_nil(text:find("craft it:", 1, true))
+      assert.is_nil(text:find("right-click", 1, true))
+    end
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    vendorRow.scripts.OnMouseUp(vendorRow, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
   it("opens no menu on a left click, on a line with no recipe, or on a reagent", function()
     showCraftRun(true)
     local opened = 0

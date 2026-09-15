@@ -99,7 +99,10 @@ function GC.BuyRun.New(run, driver)
         cheapHour = num(src.ch), cheapPct = num(src.cp),
         capCopper = num(src.cc),
         realmName = src.rl and src.rl.n or nil, realmID = src.rl and src.rl.id or nil,
-        craft = craftOf(src.cr),
+        -- A vendor line is a trip to an NPC at a fixed price. The recipe the site attached
+        -- describes what the item is; it is not an offer to make one, and splitting it would
+        -- replace a copper purchase from a vendor with reagents bought at the auction house.
+        craft = (src.v ~= true) and craftOf(src.cr) or nil,
         floor = state.floor, floorAt = state.floorAt,
       }
       entries[#entries + 1] = entry

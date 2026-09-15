@@ -394,6 +394,20 @@ describe("BuyRun splits a line into its reagents", function()
     assert.same({ [50] = 20 }, trout.forCraft)
   end)
 
+  -- A vendor line is a trip to an NPC at a fixed price: the recipe the site attached to the item
+  -- describes what the item IS, it is not an offer to make one. Split, it would replace a copper
+  -- purchase from a vendor with a shopping list of reagents bought at the auction house.
+  it("never turns a vendor line into a craft, whatever recipe it carries", function()
+    local run = build({ fillet({ v = true }) }, { splits = { [50] = true } })
+    assert.same({ "50" }, idsOf(run))
+    local line = lineOf(run, 50)
+    assert.is_nil(line.craft)
+    assert.is_nil(line.kind)
+    assert.is_true(line.vendor)
+    -- ...so there is nothing to compare and nothing for a row menu to offer either.
+    assert.is_nil(GC.BuyRun.CraftText(line))
+  end)
+
   it("orders the list open, then the craft block, then vendor, then done", function()
     local run = build({ { i = 40, q = 3 }, fillet(), { i = 41, q = 2, v = true },
                         { i = 42, q = 1 } },
