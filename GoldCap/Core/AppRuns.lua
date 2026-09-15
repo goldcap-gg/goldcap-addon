@@ -113,6 +113,12 @@ function GC.AppRuns.Adopt()
       if not kept[code] then caps[code] = nil end
     end
   end
+  local archived = db.runsArchived
+  if type(archived) == "table" then
+    for code in pairs(archived) do
+      if not kept[code] then archived[code] = nil end
+    end
+  end
   db.runsMeta = {
     plan = raw.plan == "pro" and "pro" or "free",
     freeLines = num(raw.freeLines) or 5,
@@ -121,17 +127,46 @@ function GC.AppRuns.Adopt()
   return true
 end
 
+local function archivedSet()
+  local db = GC.db
+  if type(db) ~= "table" then return nil end
+  if type(db.runsArchived) ~= "table" then db.runsArchived = {} end
+  return db.runsArchived
+end
+
+--- Whether this run has been put away. The flag lives beside the runs rather than on them,
+--- because Adopt() replaces every "app" run wholesale on each sync and a flag stored on the run
+--- itself would be handed back to the picker by the next one.
+function GC.AppRuns.IsArchived(code)
+  local set = archivedSet()
+  return (set ~= nil and code ~= nil and set[code] == true) or false
+end
+
+--- Puts a run away, or takes it back out. Restoring CLEARS the entry rather than storing false,
+--- so an unarchived run leaves nothing behind in SavedVariables to explain later.
+function GC.AppRuns.SetArchived(code, archived)
+  local set = archivedSet()
+  if not set or type(code) ~= "string" or code == "" then return false end
+  set[code] = archived and true or nil
+  return true
+end
+
 -- App runs first, then paste runs, each group newest `updatedAt` first -- the board reads
 -- top to bottom as "what the companion just gave you, then what you pasted yourself".
-function GC.AppRuns.List()
+-- `opts.archived` asks for the other group instead -- the runs that have been put away --
+-- because the picker and the menu's archived section each want exactly one of the two.
+function GC.AppRuns.List(opts)
+  local wantArchived = type(opts) == "table" and opts.archived == true
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" then return {} end
   local appRuns, pasteRuns = {}, {}
   for _, run in pairs(db.runs) do
-    if run.origin == "paste" then
-      pasteRuns[#pasteRuns + 1] = run
-    else
-      appRuns[#appRuns + 1] = run
+    if GC.AppRuns.IsArchived(run.code) == wantArchived then
+      if run.origin == "paste" then
+        pasteRuns[#pasteRuns + 1] = run
+      else
+        appRuns[#appRuns + 1] = run
+      end
     end
   end
   local function newestFirst(a, b) return (a.updatedAt or 0) > (b.updatedAt or 0) end
@@ -234,7 +269,9 @@ function GC.AppRuns.Remove(code)
   if type(db) ~= "table" or type(db.runs) ~= "table" or type(code) ~= "string" then return false end
   if not db.runs[code] then return false end
   db.runs[code] = nil
-  -- Its cap goes with it, for the same reason Adopt prunes them: nothing else would.
+  -- Its cap and its archived flag go with it, for the same reason Adopt prunes them: nothing
+  -- else would.
   if type(db.runCaps) == "table" then db.runCaps[code] = nil end
+  if type(db.runsArchived) == "table" then db.runsArchived[code] = nil end
   return true
 end

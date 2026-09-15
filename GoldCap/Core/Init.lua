@@ -69,6 +69,9 @@ GC.DEFAULTS = {
   -- run menu; absent means the global settings.sniper.buyCapPct. Same empty-table ApplyDefaults
   -- contract as `runs` above.
   runCaps = {},
+  -- Runs the player has finished with, by code: they leave the BUY picker but stay in `runs`,
+  -- because the companion re-adopts them on every sync anyway (Core/AppRuns.lua's Adopt).
+  runsArchived = {},
   settings = {
     tooltip = true,
     -- "auto" follows GetLocale(); anything else is the player's own pick from Settings.

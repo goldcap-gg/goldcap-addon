@@ -141,7 +141,13 @@ describe("BuyFrame", function()
 
     local runs = { run() }
     GC.AppRuns = {
-      List = function() return runs end,
+      -- The real List answers with exactly ONE group (Core/AppRuns.lua): the live runs, or the
+      -- archived ones when asked for them. Nothing is archived in this double, so the archived
+      -- group is empty and the run menu grows no archived section.
+      List = function(opts)
+        if type(opts) == "table" and opts.archived == true then return {} end
+        return runs
+      end,
       Get = function(code)
         for _, r in ipairs(runs) do if r.code == code then return r end end
       end,
@@ -329,10 +335,10 @@ describe("BuyFrame", function()
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
     assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
-      "divider", "Cap: 130%", "Remove this run", "Paste a run..." }, texts)
+      "divider", "Cap: 130%", "Archive this run", "Remove this run", "Paste a run..." }, texts)
 
     -- Remove drops the pasted run and lands on the one left.
-    entries[6].fn()
+    entries[7].fn()
     assert.is_nil(GC.AppRuns.Get("run-2"))
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
     assert.equal("Flask run ▼", bandOf().picker.label)
@@ -353,7 +359,7 @@ describe("BuyFrame", function()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
     assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "Cap: 130%",
-      "From goldcap.gg — remove it there", "Paste a run..." }, entries)
+      "Archive this run", "From goldcap.gg — remove it there", "Paste a run..." }, entries)
   end)
 
   -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
@@ -401,6 +407,62 @@ describe("BuyFrame", function()
     end
     assert.equal(1500, capOf(101))                          -- 1000 mv at 150%
     assert.equal(130, GC.db.settings.sniper.buyCapPct)      -- the global is untouched
+  end)
+
+  -- Spec rule 5: a finished run is archived from the run menu, leaves the picker, and comes back
+  -- from the archived section at the bottom of that same menu.
+  it("archives the run on screen and restores it from the menu", function()
+    GC.db.runsArchived = {}
+    local archived = {}
+    GC.AppRuns.IsArchived = function(code) return archived[code] == true end
+    GC.AppRuns.SetArchived = function(code, value) archived[code] = value and true or nil; return true end
+    local allRuns = { run(), run({ code = "run-2", name = "Potion run" }) }
+    GC.AppRuns._set(allRuns)
+    GC.AppRuns.List = function(opts)
+      local want = type(opts) == "table" and opts.archived == true
+      local out = {}
+      for _, r in ipairs(allRuns) do
+        if (archived[r.code] == true) == want then out[#out + 1] = r end
+      end
+      return out
+    end
+    GC.Buy.SelectRun("run-1")
+
+    local entries
+    local function openMenu()
+      entries = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn }; return nil end,
+          CreateDivider = function() entries[#entries + 1] = { text = "divider" } end,
+        })
+      end }
+      local band = bandOf()
+      band.picker.scripts.OnClick(band.picker)
+      _G.MenuUtil = nil
+    end
+    local function entryNamed(text)
+      for _, e in ipairs(entries) do if e.text == text then return e end end
+    end
+
+    openMenu()
+    assert.truthy(entryNamed("Archive this run"))
+    assert.is_nil(entryNamed("Archived"))
+    entryNamed("Archive this run").fn()
+
+    assert.is_true(archived["run-1"])
+    -- The picker moves to the run that is left rather than sitting on one it no longer offers.
+    assert.equal("run-2", GC.Buy.CurrentRun():Code())
+    assert.equal("Potion run ▼", bandOf().picker.label)
+
+    openMenu()
+    assert.truthy(entryNamed("Archived"))
+    local restore = entryNamed("Restore Flask run")
+    assert.truthy(restore)
+    restore.fn()
+    assert.is_nil(archived["run-1"])
+    assert.equal("run-1", GC.Buy.CurrentRun():Code())
   end)
 
   it("judges a run with no cap of its own by the global setting, and clamps a silly one", function()

@@ -19,7 +19,8 @@ describe("AppRuns", function()
   before_each(function()
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("Core/AppRuns.lua", GC)
-    GC.db = { runs = {}, runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
+    GC.db = { runs = {}, runsArchived = {},
+              runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
   end)
 
   after_each(function()
@@ -150,6 +151,68 @@ describe("AppRuns", function()
       GC.AppRuns.Adopt()
       assert.equal(150, GC.db.runCaps["abcd2345"])
       assert.is_nil(GC.db.runCaps["gone-run"])
+    end)
+  end)
+
+  describe("archiving", function()
+    before_each(function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      GC.db.runs["paste-1"] = { code = "paste-1", updatedAt = 5,
+                                lines = { { i = 1, q = 1 } }, origin = "paste" }
+    end)
+
+    it("takes an archived run out of the list and offers it under archived instead", function()
+      assert.equal(2, #GC.AppRuns.List())
+      assert.is_true(GC.AppRuns.SetArchived("abcd2345", true))
+      assert.is_true(GC.AppRuns.IsArchived("abcd2345"))
+
+      local live = GC.AppRuns.List()
+      assert.equal(1, #live)
+      assert.equal("paste-1", live[1].code)
+
+      local archived = GC.AppRuns.List({ archived = true })
+      assert.equal(1, #archived)
+      assert.equal("abcd2345", archived[1].code)
+
+      -- Restoring is the same call the other way, and the run is back where it was.
+      GC.AppRuns.SetArchived("abcd2345", false)
+      assert.is_false(GC.AppRuns.IsArchived("abcd2345"))
+      assert.equal(2, #GC.AppRuns.List())
+      assert.equal(0, #GC.AppRuns.List({ archived = true }))
+    end)
+
+    -- Adopt replaces every app run wholesale; the flag lives beside them, not on them, so a
+    -- companion sync must not hand a finished run back to the picker.
+    it("keeps the flag across a companion sync", function()
+      GC.AppRuns.SetArchived("abcd2345", true)
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.is_true(GC.AppRuns.IsArchived("abcd2345"))
+      assert.equal(1, #GC.AppRuns.List())
+    end)
+
+    it("forgets the flag of a run the site no longer sends", function()
+      GC.AppRuns.SetArchived("abcd2345", true)
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      fresher.runs[1].code = "wxyz6789"
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.is_false(GC.AppRuns.IsArchived("abcd2345"))
+      assert.is_nil(GC.db.runsArchived["abcd2345"])
+    end)
+
+    -- Removal takes everything stored beside the run with it -- the archived flag and the cap
+    -- alike, since nothing else would ever clear either.
+    it("forgets the flag of a run that is removed outright", function()
+      GC.AppRuns.SetArchived("paste-1", true)
+      GC.db.runCaps = { ["paste-1"] = 150 }
+      assert.is_true(GC.AppRuns.Remove("paste-1"))
+      assert.is_nil(GC.db.runsArchived["paste-1"])
+      assert.is_nil(GC.db.runCaps["paste-1"])
     end)
   end)
 

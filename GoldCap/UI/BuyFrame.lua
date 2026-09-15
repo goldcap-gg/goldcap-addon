@@ -494,6 +494,18 @@ local function removeCurrentRun()
   GC.Buy.RefreshIfShown()
 end
 
+-- Puts the shown run away and moves to the next one still on offer (or clears the board).
+-- Offered for any run, unlike removal: an "app" run is the companion's mirror of a list on
+-- goldcap.gg and comes back on the next sync, and this flag is exactly how a finished one is
+-- told to stay out of the picker anyway.
+local function archiveCurrentRun()
+  if not (current and GC.AppRuns and GC.AppRuns.SetArchived) then return end
+  if not GC.AppRuns.SetArchived(current:Code(), true) then return end
+  local list = runList()
+  GC.Buy.SelectRun(list[1] and list[1].code or nil)
+  GC.Buy.RefreshIfShown()
+end
+
 local function runMenuLabel(run)
   local name = run.name or run.code or "?"
   local count = type(run.lines) == "table" and #run.lines or 0
@@ -502,8 +514,9 @@ local function runMenuLabel(run)
   return ("%s%s  ·  %s  ·  %s"):format(mark, name, (GC.L["%d lines"]):format(count), origin)
 end
 
--- The run picker's menu: every run, the current one marked, then this run's cap, then remove /
--- paste. Returns false when the client has no MenuUtil, so the caller can fall back to cycling.
+-- The run picker's menu: every live run, the current one marked, then this run's cap, archive
+-- and remove / paste, and last what has been archived. Returns false when the client has no
+-- MenuUtil, so the caller can fall back to cycling.
 openRunMenu = function(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return false end
@@ -537,8 +550,8 @@ openRunMenu = function(owner)
             end, pct)
         end
       end
+      root:CreateButton(GC.L["Archive this run"], archiveCurrentRun)
     end
-    -- Task 7's `Archive this run` belongs here, between the cap and the remove/paste entries.
     if shown and shown.origin == "paste" then
       root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
     elseif shown then
@@ -547,6 +560,21 @@ openRunMenu = function(owner)
     root:CreateButton(GC.L["Paste a run..."], function()
       if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog() end
     end)
+    -- What has been put away, under its own divider: a run leaves the picker but not the addon,
+    -- and this is the only way back to it.
+    local archivedRuns = (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List({ archived = true })) or {}
+    if #archivedRuns > 0 then
+      root:CreateDivider()
+      root:CreateTitle(GC.L["Archived"])
+      for _, archivedRun in ipairs(archivedRuns) do
+        local code = archivedRun.code
+        root:CreateButton((GC.L["Restore %s"]):format(archivedRun.name or code), function()
+          if GC.AppRuns.SetArchived then GC.AppRuns.SetArchived(code, false) end
+          GC.Buy.SelectRun(code)
+          GC.Buy.RefreshIfShown()
+        end)
+      end
+    end
   end)
   return true
 end
