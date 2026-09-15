@@ -207,6 +207,45 @@ describe("Deals boards: commodities and items", function()
     assert.equal("commodities", api.GC.db.settings.sniper.board)
   end)
 
+  -- Seen in game 2026-09-15: sat on Commodities, switched to Items, the board polled its set
+  -- once and then stood still. The cycle only ever restarted when a book pass began, and the
+  -- pass is paused for as long as Items is on screen.
+  it("starts the next poll cycle itself on the Items board, after a breather", function()
+    local api = loadSniper()
+    local sent = {}
+    _G.C_AuctionHouse.MakeItemKey = function(id) return { itemID = id } end
+    _G.C_AuctionHouse.SearchForItemKeys = function(keys) sent[#sent + 1] = #keys end
+    -- The spec's driver stub knows only getKeyInfo; the batch sender asks the throttle too.
+    set(api.GC.Sniper.OnItemKeyInfo, "driver", { getKeyInfo = function() return nil end,
+      isReady = function() return true end, claimSend = function() return true end })
+    local clock = 1000
+    _G.time = function() return clock end
+    api.GC.Sniper._keyPoll:SetTargets({ 11, 12, 13 })
+    set(api.GC.Sniper.OnAuctionHouseShow, "view", "deals")
+    api.GC.Sniper._SetBoard("items")
+    -- The switch itself sends the first batch; its answer exhausts the cycle.
+    assert.same({ 3 }, sent)
+    api.GC.Sniper._keysAwaiting = nil
+    api.GC.Sniper._keyPoll:Fold({})
+    api.GC.Sniper._keysCycleDoneAt = clock
+    -- Inside the breather nothing goes out, however often the board asks.
+    clock = clock + 2
+    assert.is_false(api.GC.Sniper._TrySendKeysBatch())
+    assert.same({ 3 }, sent)
+    -- Past it, a new cycle begins and the set is visited again.
+    clock = clock + 4
+    assert.is_true(api.GC.Sniper._TrySendKeysBatch())
+    assert.same({ 3, 3 }, sent)
+    -- And not on the Commodities board, where the pass owns the buffer.
+    api.GC.Sniper._keysAwaiting = nil
+    api.GC.Sniper._keyPoll:Fold({})
+    api.GC.Sniper._keysCycleDoneAt = clock
+    api.GC.Sniper._SetBoard("commodities")
+    clock = clock + 10
+    assert.is_false(api.GC.Sniper._TrySendKeysBatch())
+    assert.same({ 3, 3 }, sent)
+  end)
+
   -- A different board is a different list: the offset the player had scrolled to describes
   -- rows that are not there any more.
   it("puts the scroll back to the top when the board changes", function()
