@@ -243,7 +243,11 @@ describe("BUY purchase", function()
       return ({ [101] = { mv = 1000 }, [102] = { mv = 2000 }, [103] = { mv = 3000 } })[itemID]
     end }
     GC.Print = function() end
-    GC.Ledger = { Context = function() return { char = "Tester-Realm", region = "eu" } end }
+    -- The real ledger, so the row this tab writes has to be one Core/Ledger.lua will actually
+    -- accept; only the character/region lookup is faked, since a headless run has no player.
+    helper.loadModule("Core/Ledger.lua", GC)
+    GC.Ledger.Init({})
+    GC.Ledger.Context = function() return { char = "Tester-Realm", region = "eu" } end
     -- The arbiter and the AH session flag are UI/SniperFrame.lua's, and its own batch path is
     -- covered by spec/buy_refresh_spec.lua against the real file. What this spec needs from it
     -- is only "there is a session, and BUY is the tab on screen".
@@ -493,6 +497,79 @@ describe("BUY purchase", function()
     assert.is_nil(GC.Buy._attempt)
     -- Focus moves to the next line that still has something to buy, so Enter carries on.
     assert.equal(103, GC.Buy._focus)
+  end)
+
+  -- Spec rule 4: the site's ledger is where a run's real spend is reported, so a BUY purchase
+  -- goes there as well as into the addon's own cost basis.
+  it("writes a goldcap_buy ledger row for a purchase it confirmed", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    local rows = GC.Ledger.GetEntries()
+    assert.equal(1, #rows)
+    local row = rows[1]
+    assert.equal("buy", row.kind)
+    assert.equal("goldcap_buy", row.source)
+    assert.equal(101, row.itemID)
+    assert.equal("Alpha Herb", row.itemName)
+    assert.equal(10, row.qty)
+    assert.equal(10200, row.total)
+    assert.equal(0, row.cut)
+    assert.equal(0, row.deposit)
+    assert.is_false(row.pending)
+    assert.equal("run-1", row.runCode)
+    assert.equal(now, row.at)
+    assert.equal("Tester-Realm", row.char)
+    assert.equal("eu", row.region)
+    -- No natural dedupe key exists -- two identical buys a second apart are two real buys -- so
+    -- the key carries a counter, exactly as a sniper buy's does.
+    assert.is_truthy(row.key:find("buyrun", 1, true))
+  end)
+
+  -- The gold left the bags whichever way the success arrived.
+  it("writes the same row for a success it had already given up on", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    now = now + 21
+    timers[#timers].fn()
+    deliver(101, 10)
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    local rows = GC.Ledger.GetEntries()
+    assert.equal(1, #rows)
+    assert.equal("goldcap_buy", rows[1].source)
+    assert.equal(10200, rows[1].total)
+    assert.equal("run-1", rows[1].runCode)
+  end)
+
+  -- A buy has no natural dedupe key, so the counter in the key is what keeps two purchases in
+  -- the same second from collapsing into one row (GC.Ledger.Append merges on the key).
+  it("gives two purchases two rows", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityPriceUpdated(2500, 10000)
+    click(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    local rows = GC.Ledger.GetEntries()
+    assert.equal(2, #rows)
+    assert.not_equal(rows[1].key, rows[2].key)
+    assert.equal(103, rows[2].itemID)
   end)
 
   it("gives the slot back on a failure and on an unavailable price", function()

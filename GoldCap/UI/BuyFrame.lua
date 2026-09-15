@@ -113,9 +113,10 @@ GC.Buy._log = {}
 GC.Buy._stranded = {}
 local sessionToken = 0
 
--- Bumped per attempt so a watchdog armed for one purchase cannot retire the next, and per
--- recorded purchase so two identical buys in the same second are still two acquisitions.
-local attemptSeq, acquisitionSeq = 0, 0
+-- Bumped per attempt so a watchdog armed for one purchase cannot retire the next, per recorded
+-- purchase so two identical buys in the same second are still two acquisitions, and per ledger
+-- row for the same reason -- a buy has no natural dedupe key.
+local attemptSeq, acquisitionSeq, ledgerSeq = 0, 0, 0
 
 -- The stages in which the client is holding a purchase of ours: no second attempt may start,
 -- no hover may replace the quote, and the passive capture in Core/PurchaseCapture.lua must
@@ -926,11 +927,11 @@ armStall = function(attempt, seconds)
   C_Timer.After(seconds, function() retireStalled(token, stall) end)
 end
 
--- What the player just bought, filed as cost. Deliberately NOT a ledger row: the site only
--- accepts `mail` and `goldcap_sniper` buys, and one unknown source would have the whole upload
--- rejected -- so a BUY purchase takes the same acquisitions-only path a hand-entered auction
--- house cost does (Core/Acquisitions.lua). `runCode` rides along so a later phase can say which
--- shopping run the gold went to; nothing reads it yet and nothing breaks for not reading it.
+-- What the player just bought, filed as cost: the addon's OWN basis, which never leaves the
+-- client -- the same acquisitions path a hand-entered auction house cost takes
+-- (Core/Acquisitions.lua). The site learns about the same purchase through the ledger row
+-- recordLedgerBuy writes below; `runCode` rides on both, so either can say which shopping run
+-- the gold went to.
 local function recordAcquisition(itemID, name, qty, total, at, runCode)
   if not (GC.Acquisitions and GC.Acquisitions.Record and GC.Acquisitions.PositionKey) then return end
   local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
@@ -947,6 +948,36 @@ local function recordAcquisition(itemID, name, qty, total, at, runCode)
     character = context and context.char or nil,
     region = context and context.region or nil,
     evidenceKey = ("goldcap-buy:%d:%d:%d"):format(itemID, at, acquisitionSeq),
+  })
+end
+
+-- The same purchase, filed a second time where the site can see it. The acquisition above is the
+-- addon's own cost basis and never leaves the client; a ledger row is what the companion
+-- uploads, which is how goldcap.gg can say what a shopping run actually cost. `goldcap_buy` is a
+-- source the site's API learned in 1.32 -- it ships before this addon version, deliberately, so
+-- no player's upload can be rejected for carrying a source the server has not heard of.
+--
+-- No natural dedupe key exists (two identical buys a second apart are two real buys), so the key
+-- carries a counter, exactly as GC.Ledger.RecordSniperBuy's does.
+local function recordLedgerBuy(itemID, name, qty, total, at, runCode)
+  if not (GC.Ledger and GC.Ledger.Append) then return end
+  local context = GC.Ledger.Context and GC.Ledger.Context() or nil
+  ledgerSeq = ledgerSeq + 1
+  GC.Ledger.Append({
+    key = "buyrun" .. "\1" .. itemID .. "\1" .. at .. "\1" .. ledgerSeq,
+    kind = "buy",
+    source = "goldcap_buy",
+    itemID = itemID,
+    itemName = name,
+    qty = qty,
+    total = total,
+    cut = 0,
+    deposit = 0,
+    pending = false,
+    runCode = runCode,
+    at = at,
+    char = context and context.char or nil,
+    region = context and context.region or nil,
   })
 end
 
@@ -967,13 +998,16 @@ local function nextOpenAfter(itemID)
   return nil
 end
 
--- Books one commodity purchase that really happened: against the run it was bought for, and as
--- cost in the acquisition store. Shared by the ordinary confirmed path and by the late answer to
--- an attempt the confirming timeout had already given up on -- the gold left the bags either way.
+-- Books one commodity purchase that really happened: against the run it was bought for, as cost
+-- in the acquisition store, and as a ledger row for the site. Shared by the ordinary confirmed
+-- path and by the late answer to an attempt the confirming timeout had already given up on --
+-- the gold left the bags either way.
 --
 -- The run can be swapped or resynced while a purchase is in the air; crediting these units to
 -- lines that were not what was bought against would be worse than not crediting them at all. The
--- cost itself is recorded regardless -- the gold moved and the items are real.
+-- cost itself is recorded regardless -- the gold moved and the items are real. The acquisition
+-- and the ledger row are the same fact filed twice and are written in the one guard below, so
+-- they can never disagree about whether a purchase happened.
 local function settlePurchase(itemID, qty, total, runCode)
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   qty, total = qty or 0, total or 0
@@ -982,6 +1016,7 @@ local function settlePurchase(itemID, qty, total, runCode)
     local at = time()
     if runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
     recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode)
+    recordLedgerBuy(itemID, line and lineName(line) or nil, qty, total, at, runCode)
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
   -- The purchase is booked against the run whether or not the units have arrived: the auction
