@@ -33,6 +33,10 @@ read_globals = {
   "PanelTemplates_TabResize", "PanelTemplates_SelectTab", "PanelTemplates_DeselectTab",
   "PanelTemplates_SetNumTabs",
   "C_Container", "ItemLocation",
+  -- The banks have no container to walk until they are opened, so the BUY tab asks the
+  -- client how many of an item the character owns in total (UI/BuyFrame.lua's itemCount).
+  -- Modern clients carry it as C_Item.GetItemCount, older ones as this bare global.
+  "GetItemCount",
   -- Reagent quality (Dragonflight+). The client is the authority on an item's
   -- tier; the goldcap.gg import is not -- see UI/Theme.lua's QualityMarkup.
   "C_TradeSkillUI", "C_TooltipInfo", "C_Texture",

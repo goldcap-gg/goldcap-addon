@@ -20,6 +20,9 @@
 - **A cap per run.** The run menu carries its own `Cap:` setting — 100% to 300% of the reference
   price — so a run you are in a hurry to finish can pay more than one you are not. A run without
   its own cap uses the one in Settings.
+- **HAVE counts your bank.** A line's HAVE is everything the character owns — bags, bank, reagent
+  bank and warband bank — so a run no longer sends you shopping for stock you already have. The
+  line's tooltip says how much of it is in the bags and how much is in a bank.
 - **Purchases reach your ledger on goldcap.gg.** What you buy through the BUY tab is reported
   against the list you bought it for, so the site can tell you what a run really cost.
 
@@ -27,7 +30,7 @@
 
 - **BUY tab.** Lists with quantities you save on goldcap.gg (a profession's shopping list, for
   one) get a BUY tab of their own at the auction house. Each line shows what you need,
-  what is already in your bags and what is left to buy; one click buys the missing amount
+  what is already in your bags and bank and what is left to buy; one click buys the missing amount
   of a commodity from the cheapest lots, and a second click confirms the total. Lines are
   never bought above your cap (130% of the usual price by default, in Settings); when only
   part fits under it, that part is bought and the rest waits. Vendor reagents are marked and

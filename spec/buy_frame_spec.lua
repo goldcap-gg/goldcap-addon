@@ -109,6 +109,20 @@ describe("BuyFrame", function()
     }
   end
 
+  -- The client's own count API, which is the only thing that knows what the banks hold: there is
+  -- no container to walk for a bank the player has not opened. `all` is what it answers when
+  -- asked to include the character bank, the reagent bank and the warband bank; `carried` what it
+  -- answers for the bags alone. Two raw numbers rather than a bags/bank pair, so a spec can hand
+  -- back a pair a live client really gives -- including one where the carried number is larger.
+  local function stubItemCount(byItem)
+    _G.C_Item.GetItemCount = function(itemID, includeBank, _, includeReagentBank, includeAccountBank)
+      local entry = byItem[itemID]
+      if not entry then return 0 end
+      if includeBank and includeReagentBank and includeAccountBank then return entry.all end
+      return entry.carried
+    end
+  end
+
   before_each(function()
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
@@ -198,6 +212,7 @@ describe("BuyFrame", function()
   after_each(function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+    _G.GetItemCount = nil
   end)
 
   local function shownRows()
@@ -235,6 +250,85 @@ describe("BuyFrame", function()
     assert.equal("0", bravo.cells.buy:GetText())
     assert.equal("done", bravo.cells.action:GetText())
     assert.is_false(bravo.action:IsShown())
+  end)
+
+  -- HAVE is what the player owns, not what they happen to be carrying: three hundred units in
+  -- the bank are three hundred units nobody has to go shopping for.
+  it("counts bank stock into HAVE alongside the bags", function()
+    stubItemCount({ [102] = { all = 305, carried = 5 } })
+    GC.Buy.Show()
+    assert.equal("305", rowWithText("Bravo Ore").cells.have:GetText())
+  end)
+
+  it("needs no shopping trip for a line the bank alone covers", function()
+    stubItemCount({ [101] = { all = 12, carried = 0 } })
+    GC.Buy.Show()
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("12", alpha.cells.have:GetText())
+    assert.equal("0", alpha.cells.buy:GetText())
+    assert.equal("done", alpha.cells.action:GetText())
+    assert.is_false(alpha.action:IsShown())
+  end)
+
+  it("counts only the bags when the client has no item-count API", function()
+    _G.C_Item.GetItemCount, _G.GetItemCount = nil, nil
+    GC.Buy.Show()
+    assert.equal("0", rowWithText("Alpha Herb").cells.have:GetText())
+    assert.equal("5", rowWithText("Bravo Ore").cells.have:GetText())
+  end)
+
+  -- Older clients expose the count as a plain global instead of on C_Item; it is the same call
+  -- and HAVE has to read the same either way.
+  it("reads the count through the global API when C_Item has none", function()
+    _G.GetItemCount = function(itemID, includeBank, _, includeReagentBank, includeAccountBank)
+      if itemID ~= 102 then return 0 end
+      if includeBank and includeReagentBank and includeAccountBank then return 105 end
+      return 5
+    end
+    GC.Buy.Show()
+    assert.equal("105", rowWithText("Bravo Ore").cells.have:GetText())
+  end)
+
+  -- An API that throws must cost the player the bank number, never the bag number.
+  it("keeps the bag count when the item-count API errors", function()
+    _G.C_Item.GetItemCount = function() error("no item") end
+    GC.Buy.Show()
+    assert.equal("5", rowWithText("Bravo Ore").cells.have:GetText())
+  end)
+
+  -- The bank is a subtraction, and a subtraction can come out below zero the moment the two
+  -- answers disagree -- which would take stock the player is carrying back off HAVE.
+  it("never lets the bank number pull HAVE below the bags", function()
+    stubItemCount({ [102] = { all = 2, carried = 5 } })
+    GC.Buy.Show()
+    assert.equal("5", rowWithText("Bravo Ore").cells.have:GetText())
+  end)
+
+  it("splits HAVE into bags and bank on the row tooltip when the bank holds any", function()
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+      Show = function() end, Hide = function() end,
+    }
+    stubItemCount({ [102] = { all = 305, carried = 5 } })
+    GC.Buy.Show()
+    local bravo = rowWithText("Bravo Ore")
+    bravo.scripts.OnEnter(bravo)
+    assert.same({ "in bags 5 · in bank 300" }, tooltipLines)
+  end)
+
+  it("says nothing about the bank on the tooltip when there is none in it", function()
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+      Show = function() end, Hide = function() end,
+    }
+    GC.Buy.Show()
+    local bravo = rowWithText("Bravo Ore")
+    bravo.scripts.OnEnter(bravo)
+    assert.same({}, tooltipLines)
   end)
 
   -- At rest -- nothing quoted yet -- the button names the quantity and nothing else. What a
@@ -280,7 +374,7 @@ describe("BuyFrame", function()
     assert.equal("4 lines · 2 to buy · 1 at the vendor", band.counts:GetText())
     assert.truthy(band.spent:GetText():find("spent ", 1, true))
     assert.truthy(band.spent:GetText():find("left ~", 1, true))
-    assert.equal("in bags · purchases arrive by mail", band.bags:GetText())
+    assert.equal("in bags and bank · purchases arrive by mail", band.bags:GetText())
   end)
 
   -- Spec rule 5: a run with nothing left to buy and nothing left to fetch says so, rather than
