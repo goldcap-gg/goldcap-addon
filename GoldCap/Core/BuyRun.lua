@@ -166,9 +166,9 @@ function GC.BuyRun.New(run, driver)
     end
   end
 
-  -- `left` only counts open, unlocked, non-vendor lines -- a vendor line costs nothing to
-  -- price here, a done line has nothing left to spend, and a locked line is not yet buyable
-  -- so its cost isn't part of "what this run needs right now".
+  -- `left` counts open, unlocked lines: a done line has nothing left to spend and a locked
+  -- line is not yet buyable, so its cost is not part of "what this run needs right now". A
+  -- vendor line counts at the vendor's price -- see below.
   function obj:Totals()
     local spent, left, toBuy, atVendor, done = 0, 0, 0, 0, 0
     for _, line in ipairs(lines) do
@@ -180,8 +180,15 @@ function GC.BuyRun.New(run, driver)
       else
         toBuy = toBuy + 1
       end
-      if not line.vendor and not line.done and not line.locked then
-        left = left + line.buy * (line.floor or line.usual or 0)
+      if not line.done and not line.locked then
+        -- A vendor line is priced at the vendor's own price -- it never touches the auction
+        -- house, so a floor or a market value would be a number from the wrong market. With no
+        -- vendor price it counts nothing, the same way a line with no price at all does.
+        if line.vendor then
+          left = left + line.buy * (line.vendorUnit or 0)
+        else
+          left = left + line.buy * (line.floor or line.usual or 0)
+        end
       end
     end
     return { spent = spent, left = left, toBuy = toBuy, atVendor = atVendor, done = done, lines = #lines }

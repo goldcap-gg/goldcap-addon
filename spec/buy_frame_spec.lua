@@ -448,18 +448,32 @@ describe("BuyFrame", function()
     assert.equal(1300, capFor(101)) -- back to the default rather than down with the tab
   end)
 
-  -- Spec rule 2: a vendor line never touches the auction house. Showing it the AH's market value
-  -- and a cost computed from that priced a purchase this line is not, and invited the player to
-  -- compare the two.
-  it("prices a vendor line at nothing at all", function()
+  -- Spec rule 2: a vendor line is priced at what the VENDOR charges, in grey -- never at the
+  -- auction house's market value, which is a price for a purchase this line is not.
+  it("prices a vendor line at the vendor's own price", function()
     GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900,
-      lines = { { i = 101, q = 10 }, { i = 102, q = 9, v = true } } }) })
+      lines = { { i = 101, q = 10 }, { i = 102, q = 9, v = true, vu = 25 } } }) })
     GC.db.settings.sniper.buyRun = "run-v"
     GC.Buy.Show()
 
     local vendor = rowWithText("Bravo Ore")
     assert.truthy(vendor)
     assert.equal("vendor", vendor.cells.action:GetText())
+    assert.equal("25c", vendor.cells.now:GetText())
+    assert.equal("25c", vendor.cells.usual:GetText())
+    assert.equal("100c", vendor.cells.cost:GetText())   -- 5 already in bags, 4 left to buy at 25c
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
+      vendor.cells.cost.colorValue)
+  end)
+
+  -- Without a vendor price there is no honest number: the market value beside it is not one.
+  it("leaves a vendor line with no vendor price on em dashes", function()
+    GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900,
+      lines = { { i = 101, q = 10 }, { i = 102, q = 9, v = true } } }) })
+    GC.db.settings.sniper.buyRun = "run-v"
+    GC.Buy.Show()
+
+    local vendor = rowWithText("Bravo Ore")
     assert.equal("—", vendor.cells.now:GetText())
     assert.equal("—", vendor.cells.usual:GetText())   -- 102 has a market value; it is not the point
     assert.equal("—", vendor.cells.cost:GetText())

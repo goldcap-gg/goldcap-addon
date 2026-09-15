@@ -191,4 +191,16 @@ describe("BuyRun prices from the run itself", function()
     assert.equal(3, line.cheapHour)
     assert.equal(-18, line.cheapPct)
   end)
+
+  -- A vendor stop still costs gold, and a run's "left to spend" that leaves it out understates
+  -- the trip. It is priced off the vendor's own price, never off the auction house's.
+  it("counts an open vendor line into what the run has left to spend", function()
+    local run = build({ { i = 5, q = 10, u = 1000 }, { i = 8, q = 4, v = true, vu = 25 } })
+    assert.equal(10 * 1000 + 4 * 25, run:Totals().left)
+  end)
+
+  it("counts a vendor line with no vendor price as nothing, not as an auction house price", function()
+    local run = build({ { i = 9, q = 4, v = true } })  -- 9 has an import price of 100
+    assert.equal(0, run:Totals().left)
+  end)
 end)

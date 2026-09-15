@@ -1365,12 +1365,15 @@ local function paintLine(row, line)
   setColor(row.cells.buy, line.buy > 0 and Theme.color.gold or Theme.color.fgDim)
 
   if line.vendor then
-    -- A vendor line never touches the auction house: the player walks to a vendor and pays the
-    -- vendor's own price, which nothing here knows. The market value and a cost computed from it
-    -- are prices for a purchase this line is not, and printing them invites the player to
-    -- compare the two. Three em dashes, the same way an unknown price is said everywhere else.
+    -- A vendor sells at a fixed price, so NOW and USUAL are the same number and COST is
+    -- arithmetic rather than a quote. All three stay grey: this line is not something to buy
+    -- here, and the auction house has no opinion about it worth printing. With no vendor price
+    -- known it is three em dashes, the way an unknown price is said everywhere else.
+    local unit = line.vendorUnit
+    row.cells.now:SetText(formatAmount(unit))
+    row.cells.usual:SetText(formatAmount(unit))
+    row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
     for _, key in ipairs({ "now", "usual", "cost" }) do
-      row.cells[key]:SetText(EM_DASH)
       setColor(row.cells[key], Theme.color.fgDim)
     end
   else
