@@ -1258,4 +1258,101 @@ describe("BuyFrame", function()
     GC.Buy._attempt = nil
     _G.MenuUtil = nil
   end)
+
+  -- Spec rule 4: an alert group with live hits is a run of its own. Its cap is the alert's own
+  -- target price, so the run has no cap to set; it is the site's to manage, so it has neither
+  -- Archive nor Remove; and a hit bound to a realm says which, because the auction house search
+  -- simply finds nothing for it anywhere else.
+  local function alertRun()
+    return { code = "a0000001", name = "Cheap ore", updatedAt = 900, origin = "app", k = "alert",
+      lines = { { i = 101, q = 4, u = 5800, cc = 4000, rl = { id = 1305, n = "Kazzak" } },
+                { i = 102, q = 2, u = 2000, cc = 1500 } } }
+  end
+
+  local function menuEntries()
+    local entries = {}
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, {
+        CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+        CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn } end,
+        CreateDivider = function() entries[#entries + 1] = { text = "divider" } end,
+      })
+    end }
+    local band = bandOf()
+    band.picker.scripts.OnClick(band.picker)
+    _G.MenuUtil = nil
+    local out = {}
+    for _, entry in ipairs(entries) do out[#out + 1] = entry.text end
+    return out, entries
+  end
+
+  it("names the realm a hit is bound to, after the item", function()
+    GC.AppRuns._set({ alertRun() })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    assert.equal("Alpha Herb on Kazzak", rowWithText("Alpha Herb").reagent:GetText())
+    assert.equal("Bravo Ore", rowWithText("Bravo Ore").reagent:GetText())
+  end)
+
+  it("bands an alert run as a group with hits, and caps its lines at the alert's target",
+    function()
+      GC.AppRuns._set({ alertRun() })
+      GC.db.settings.sniper.buyRun = "a0000001"
+      GC.Buy.Show()
+      assert.equal("alert group · 2 hits", bandOf().counts:GetText())
+      for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if line.itemID == 101 then assert.equal(4000, line.cap) end
+      end
+    end)
+
+  it("puts alert runs under their own divider and leaves them to the site", function()
+    GC.AppRuns._set({ run(), alertRun() })
+    GC.db.settings.sniper.buyRun = "a0000001"
+    GC.Buy.Show()
+    -- `menuTexts`, not `texts`: this describe already has a texts() helper for tooltip lines.
+    local menuTexts = menuEntries()
+    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg",
+                  "divider", "Alerts", "• Cheap ore  ·  2 lines  ·  goldcap.gg",
+                  "divider", "cap: alert target", "From goldcap.gg — manage it there",
+                  "Paste a run..." }, menuTexts)
+  end)
+
+  -- Spec rule 3: a followed run rides in after the player's own, marked with its owner, and
+  -- Unfollow lives on goldcap.gg -- so neither Remove nor Archive is offered here either.
+  it("marks a followed run with its owner and leaves it to the site", function()
+    GC.AppRuns._set({ run({ code = "shr30000", name = "Guild flasks", by = "Acromion" }) })
+    GC.db.settings.sniper.buyRun = "shr30000"
+    GC.Buy.Show()
+    assert.equal("Guild flasks · from Acromion ▼", bandOf().picker.label)
+    assert.equal("4 lines · 2 to buy · 1 at the vendor · from Acromion",
+      bandOf().counts:GetText())
+    local menuTexts = menuEntries()
+    assert.same({ "Runs", "• Guild flasks  ·  4 lines  ·  from Acromion",
+                  "divider", "From goldcap.gg — manage it there",
+                  "Paste a run..." }, menuTexts)
+  end)
+
+  -- Spec rule 2: the site recomputed the plan, Core/AppRuns.lua noticed, and the band says so
+  -- for a day -- in the legend's slot, which is the only permanently-true line on the band and
+  -- so the cheapest thing to lend for a notice that expires.
+  it("says in the band that the plan was updated, and for how long", function()
+    GC.AppRuns._set({ run() })
+    GC.db.runNotices = { ["run-1"] = { at = 2000, added = 2, removed = 1 } }
+    GC.db.settings.sniper.buyRun = "run-1"
+    GC.Buy.Show()
+    assert.equal("plan updated on goldcap.gg · +2 −1 lines", bandOf().bags:GetText())
+
+    -- A day old exactly: the legend comes back.
+    GC.db.runNotices = { ["run-1"] = { at = 2000 - 86400, added = 2, removed = 1 } }
+    GC.Buy.RefreshIfShown()
+    assert.equal("in bags and bank · purchases arrive by mail", bandOf().bags:GetText())
+  end)
+
+  it("says the plan was updated with no counts when only a quantity moved", function()
+    GC.AppRuns._set({ run() })
+    GC.db.runNotices = { ["run-1"] = { at = 2000, added = 0, removed = 0 } }
+    GC.db.settings.sniper.buyRun = "run-1"
+    GC.Buy.Show()
+    assert.equal("plan updated on goldcap.gg", bandOf().bags:GetText())
+  end)
 end)

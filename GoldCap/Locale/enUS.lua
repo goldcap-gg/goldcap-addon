@@ -66,6 +66,7 @@ GC.Locales.enUS = {
   ["AVOID"] = "AVOID",
   ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
     "Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down.",
+  ["Alerts"] = "Alerts",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
   ["Auction House did not answer — press Refresh"] = "Auction House did not answer — press Refresh",
   ["Auction House is not open"] = "Auction House is not open",
@@ -184,6 +185,7 @@ GC.Locales.enUS = {
   ["Font scale"] = "Font scale",
   ["Free, sits in the tray, nothing to set up in game."] =
     "Free, sits in the tray, nothing to set up in game.",
+  ["From goldcap.gg — manage it there"] = "From goldcap.gg — manage it there",
   ["Full pass over them: %.1fs"] = "Full pass over them: %.1fs",
   ["Full pass over them: measuring..."] = "Full pass over them: measuring...",
   ["Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg."] =
@@ -526,6 +528,7 @@ GC.Locales.enUS = {
     "above the cheapest, within the day's reach · %d units queued below",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "against the region's own price for this item, after the 5% cut — if it sells",
+  ["alert group · %d hits"] = "alert group · %d hits",
   ["another purchase is in flight"] = "another purchase is in flight",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
@@ -546,6 +549,7 @@ GC.Locales.enUS = {
   ["bought %d x item %d after AH close"] = "bought %d x item %d after AH close",
   ["buying commodity..."] = "buying commodity...",
   ["buying..."] = "buying...",
+  ["cap: alert target"] = "cap: alert target",
   ["cheapest not yours %s"] = "cheapest not yours %s",
   ["checking live price..."] = "checking live price...",
   ["checking live safety..."] = "checking live safety...",
@@ -563,6 +567,7 @@ GC.Locales.enUS = {
   ["everything bought"] = "everything bought",
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
+  ["from %s"] = "from %s",
   ["full scan already in progress"] = "full scan already in progress",
   ["full scan complete: %d deal%s from %d item group%s%s"] = "full scan complete: %d deal%s from %d item group%s%s",
   ["full scan interrupted -- confirm your purchase"] = "full scan interrupted -- confirm your purchase",
@@ -623,11 +628,14 @@ GC.Locales.enUS = {
   ["of %d"] = "of %d",
   ["off"] = "off",
   ["on"] = "on",
+  ["on %s"] = "on %s",
   ["or paste a string from goldcap.gg with /goldcap import."] = "or paste a string from goldcap.gg with /goldcap import.",
   ["over %d position%s"] = "over %d position%s",
   ["paid %s each"] = "paid %s each",
   ["paid sale unresolved"] = "paid sale unresolved",
   ["placing bid..."] = "placing bid...",
+  ["plan updated on goldcap.gg"] = "plan updated on goldcap.gg",
+  ["plan updated on goldcap.gg · +%d −%d lines"] = "plan updated on goldcap.gg · +%d −%d lines",
   ["price checked, sale speed unknown -- this one is your call"] =
     "price checked, sale speed unknown -- this one is your call",
   ["price confirmed -- click Buy to purchase"] = "price confirmed -- click Buy to purchase",

@@ -71,6 +71,9 @@ local BD = {
   -- that a record cannot still be sitting there when an unrelated purchase of the same item
   -- turns up and gets credited with it.
   STRANDED_SECONDS = 600,
+  -- How long the band says a run's plan was recomputed on the site. A day: long enough that a
+  -- player who logs in once between sessions still reads it, short enough that it is news.
+  NOTICE_SECONDS = 86400,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -338,6 +341,30 @@ local function setSplit(code, itemID, split)
   set[itemID] = split and true or nil
 end
 
+-- The run on screen as the STORE holds it. `current` is the arithmetic object built from it, and
+-- the three things the site says ABOUT a run -- it is an alert group's hits, somebody else owns
+-- it, it came from a plan -- live on the stored run rather than on the object.
+local function shownRunData()
+  if not (current and GC.AppRuns and GC.AppRuns.Get) then return nil end
+  return GC.AppRuns.Get(current:Code())
+end
+
+-- What the site last changed about this run, for as long as it is still news. Written by
+-- Core/AppRuns.lua's Adopt when a run it already had came back with different lines; a recompute
+-- that only moved a quantity has nothing to count, and says so without the figures rather than
+-- with two zeroes.
+local function noticeText(code)
+  local db = GC.db
+  local notices = type(db) == "table" and db.runNotices or nil
+  local notice = (type(notices) == "table" and code) and notices[code] or nil
+  if type(notice) ~= "table" then return nil end
+  local at = tonumber(notice.at)
+  if not at or (time() - at) >= BD.NOTICE_SECONDS then return nil end
+  local added, removed = tonumber(notice.added) or 0, tonumber(notice.removed) or 0
+  if added == 0 and removed == 0 then return GC.L["plan updated on goldcap.gg"] end
+  return (GC.L["plan updated on goldcap.gg · +%d −%d lines"]):format(added, removed)
+end
+
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
 -- hook is deliberately NOT Sell's: Sell has to tell a commodity from a bonus-id bearing item
 -- because it posts them differently, and returns nil -- dropping the stack -- when it cannot.
@@ -579,7 +606,14 @@ end
 local function runMenuLabel(run)
   local name = run.name or run.code or "?"
   local count = type(run.lines) == "table" and #run.lines or 0
-  local origin = run.origin == "paste" and GC.L["pasted"] or "goldcap.gg"
+  -- Where a run came from, in one word: the site, the player's own clipboard, or -- for a run
+  -- the player follows -- whose it is.
+  local origin = "goldcap.gg"
+  if run.origin == "paste" then
+    origin = GC.L["pasted"]
+  elseif type(run.by) == "string" and run.by ~= "" then
+    origin = (GC.L["from %s"]):format(run.by)
+  end
   local mark = (current and current:Code() == run.code) and "• " or "   "
   return ("%s%s  ·  %s  ·  %s"):format(mark, name, (GC.L["%d lines"]):format(count), origin)
 end
@@ -593,19 +627,36 @@ openRunMenu = function(owner)
   local list = runList()
   menu.CreateContextMenu(owner, function(_, root)
     root:CreateTitle(GC.L["Runs"])
+    -- Core/AppRuns.lua already orders the list own -> followed -> pasted -> alert, so the
+    -- divider goes in at the first alert run and never again: the alert groups are the tail.
+    local alertsTitled = false
     for _, run in ipairs(list) do
       local code = run.code
+      if run.k == "alert" and not alertsTitled then
+        alertsTitled = true
+        root:CreateDivider()
+        root:CreateTitle(GC.L["Alerts"])
+      end
       root:CreateButton(runMenuLabel(run), function()
         GC.Buy.SelectRun(code)
         GC.Buy.RefreshIfShown()
       end)
     end
     root:CreateDivider()
-    local shown = current and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(current:Code()) or nil
+    local shown = shownRunData()
+    -- A run the site owns -- an alert group's live hits, or somebody else's list the player
+    -- follows -- carries none of the three decisions below. Its cap is the alert's own target
+    -- price, it comes and goes with the group or the follow, and Unfollow lives on goldcap.gg:
+    -- an Archive or a Remove here would last exactly until the next sync.
+    local siteManaged = shown ~= nil
+      and (shown.k == "alert" or (type(shown.by) == "string" and shown.by ~= ""))
     -- A purchase in flight has already committed to this run's `current`: re-capping the lines
     -- or archiving out from under it is exactly the hole Finding 1 describes (`settlePurchase`
     -- would book the gold nowhere a bought-count can see it). Runs/remove/paste are unaffected.
-    if shown and not inFlight(GC.Buy._attempt) then
+    if siteManaged then
+      if shown.k == "alert" then root:CreateTitle(GC.L["cap: alert target"]) end
+      root:CreateTitle(GC.L["From goldcap.gg — manage it there"])
+    elseif shown and not inFlight(GC.Buy._attempt) then
       local code = shown.code
       -- MenuUtil's own submenu shape: an element description with children added to it displays
       -- as one (Blizzard's Menu implementation guide), and CreateRadio(text, isSelected,
@@ -627,7 +678,7 @@ openRunMenu = function(owner)
     end
     if shown and shown.origin == "paste" then
       root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
-    elseif shown then
+    elseif shown and not siteManaged then
       root:CreateTitle(GC.L["From goldcap.gg — remove it there"])
     end
     root:CreateButton(GC.L["Paste a run..."], function()
@@ -1613,6 +1664,11 @@ local function paintLine(row, line)
   elseif line.parent then
     decorated = (GC.L["↳ %s"]):format(decorated)
   end
+  -- An alert hit can be bound to one realm; the auction house search finds nothing for it on
+  -- any other, so the row says which rather than leaving the player to wonder why it is empty.
+  if line.realmName then
+    decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
+  end
   row.reagent:SetText(decorated)
   -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
   -- reads back, so it does not compete with the lines the player is actually here to buy.
@@ -2150,19 +2206,41 @@ local function renderRows()
 
   if current then
     local totals = current:Totals()
-    band.picker:SetLabel(runLabel(current) .. " ▼")
-    band.picker:Show()
-    -- Nothing to buy, nothing to craft and nothing to fetch: four zeroes are a worse way of
-    -- saying it.
-    if totals.lines > 0 and totals.toBuy == 0 and totals.toCraft == 0 and totals.atVendor == 0 then
-      band.counts:SetText(GC.L["everything bought"])
-    elseif totals.toCraft > 0 then
-      band.counts:SetText((GC.L["%d lines · %d to buy · %d to craft · %d at the vendor"]):format(
-        totals.lines, totals.toBuy, totals.toCraft, totals.atVendor))
-    else
-      band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
-        totals.lines, totals.toBuy, totals.atVendor))
+    local shown = shownRunData()
+    local sharedBy = (shown and type(shown.by) == "string" and shown.by ~= "") and shown.by or nil
+    local label = runLabel(current)
+    if sharedBy then
+      label = ("%s · %s"):format(label, (GC.L["from %s"]):format(sharedBy))
     end
+    band.picker:SetLabel(label .. " ▼")
+    band.picker:Show()
+    local counts
+    if shown and shown.k == "alert" then
+      -- An alert run is not a shopping list somebody wrote: it is what the group found, and
+      -- every line of it is one hit.
+      counts = (GC.L["alert group · %d hits"]):format(totals.lines)
+    elseif totals.lines > 0 and totals.toBuy == 0 and totals.toCraft == 0
+        and totals.atVendor == 0 then
+      -- Nothing to buy, nothing to craft and nothing to fetch: four zeroes are a worse way of
+      -- saying it.
+      counts = GC.L["everything bought"]
+    elseif totals.toCraft > 0 then
+      counts = (GC.L["%d lines · %d to buy · %d to craft · %d at the vendor"]):format(
+        totals.lines, totals.toBuy, totals.toCraft, totals.atVendor)
+    else
+      counts = (GC.L["%d lines · %d to buy · %d at the vendor"]):format(
+        totals.lines, totals.toBuy, totals.atVendor)
+    end
+    if sharedBy then
+      counts = ("%s · %s"):format(counts, (GC.L["from %s"]):format(sharedBy))
+    end
+    band.counts:SetText(counts)
+    -- The legend's slot carries the recompute notice while there is one. The legend is
+    -- permanently true and can be read any day; the notice is true for one, and this is the
+    -- only line on the band that is not about the run's own numbers. Text only -- the money
+    -- line and the vendor button hang off this string's anchors, which do not move.
+    band.bags:SetText(noticeText(current:Code())
+      or GC.L["in bags and bank · purchases arrive by mail"])
     if totals.atVendor > 0 then band.vendor:Show() else band.vendor:Hide() end
     -- The money line stops where the button starts while the button is up, and runs to the
     -- legend when it is not: a RIGHT anchor shared with the button would put the text UNDER
@@ -2182,6 +2260,7 @@ local function renderRows()
     band.picker:Hide()
     band.vendor:Hide()
     band.counts:SetText("")
+    band.bags:SetText(GC.L["in bags and bank · purchases arrive by mail"])
     band.spent:SetText("")
   end
 
@@ -2447,7 +2526,11 @@ function GC.Buy.DebugPrint()
     GC.Print((GC.L["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"]):format(
       runLabel(current), totals.lines, totals.toBuy, totals.atVendor,
       formatAmount(totals.spent), formatAmount(totals.left)))
-    GC.Print(("run: code=%s name=%s"):format(tostring(current:Code()), tostring(current:Name())))
+    local data = shownRunData()
+    GC.Print(("run: code=%s name=%s kind=%s from=%s source=%s"):format(
+      tostring(current:Code()), tostring(current:Name()),
+      tostring(data and data.k or "list"), tostring(data and data.by or "-"),
+      tostring(data and data.src or "-")))
   else
     GC.Print(GC.L["Buy: no run selected."])
   end
