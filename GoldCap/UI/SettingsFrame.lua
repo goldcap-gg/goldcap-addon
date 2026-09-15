@@ -570,7 +570,7 @@ local function build(sniperFrame)
 
   -- Right column: POSTING, AUTOMATION & ALERTS, DISPLAY stacked, spanning panel-CENTER+7 to
   -- panel-right.
-  local posting = card(panel, GC.L["POSTING"], 1)
+  local posting = card(panel, GC.L["POSTING"], 2)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -676,6 +676,12 @@ local function build(sniperFrame)
       GC.L["Default listing length for the Sell tab."],
       GC.L["Default: %s"]:format(defaultHours .. " h"))
   end
+
+  -- Buy runs (Core/AppRuns.lua / Core/BuyRun.lua): how far over a line's usual price the BUY
+  -- tab will still buy. Same settings.sniper table every other numeric field here reads, per
+  -- Core/Init.lua's own comment on buyCapPct.
+  fieldRow(posting, 2, GC.L["Buy cap (% of usual price)"], "buyCapPct", { min = 100, max = 300, unit = "%" },
+    GC.L["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."])
 
   local function toggleRow(cardFrame, i, labelText, key, sentence)
     local box = makeToggle(cardFrame)

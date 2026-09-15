@@ -81,6 +81,7 @@ GC.Locales.enUS = {
   ["Buy"] = "Buy",
   ["Buy less"] = "Buy less",
   ["Buy run"] = "Buy run",
+  ["Buy cap (% of usual price)"] = "Buy cap (% of usual price)",
   ["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"] = "Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s",
   ["Buy: no run selected."] = "Buy: no run selected.",
   ["CANCEL %d"] = "CANCEL %d",
@@ -409,6 +410,8 @@ GC.Locales.enUS = {
     "Tell GoldCap what you actually paid for these units.",
   ["The Auction House would not quote a deposit, so the cost is unknown."] =
     "The Auction House would not quote a deposit, so the cost is unknown.",
+  ["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."] =
+    "The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] = "The Companion is syncing, but this addon could not read what it wrote:",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "The board tiered this off the imported snapshot. The live book does not back it.",

@@ -358,6 +358,22 @@ describe("BuyFrame", function()
     assert.equal("—", delta.cells.usual:GetText())
   end)
 
+  -- The setting is GC.db.settings.sniper.buyCapPct (UI/SettingsFrame.lua's fieldRow writes
+  -- there); the run's own cap has to move with it on the very next Refresh, not just at
+  -- construction, since RefreshIfShown re-Refreshes the SAME run object rather than rebuilding
+  -- it.
+  it("changing the buy cap setting changes a line's cap on the next Refresh", function()
+    local function capFor(itemID)
+      for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if line.itemID == itemID then return line.cap end
+      end
+    end
+    assert.equal(1300, capFor(101)) -- 1000 mv * 130% default
+    GC.db.settings.sniper.buyCapPct = 200
+    GC.Buy.RefreshIfShown()
+    assert.equal(2000, capFor(101))
+  end)
+
   it("labels the column header row REAGENT/NEED/HAVE/BUY/NOW/USUAL/COST/ACTION", function()
     local header = bandOf().header
     assert.truthy(header and header.cells)

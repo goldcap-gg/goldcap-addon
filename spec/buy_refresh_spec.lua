@@ -15,13 +15,17 @@ describe("BUY floor refresh", function()
 
   -- Four lines, one of each state: 101 open, 102 already covered by the bags (done), 103 open
   -- (or locked, depending on the free-line limit the test asks for), 104 at the vendor.
-  local function runData()
+  -- `allDone` zeroes 101/103's own quantities so every non-vendor line reads done (102 is
+  -- already covered by the bags either way) -- the "nothing left to ask about" run HasPending
+  -- exists to answer false for.
+  local function runData(opts)
+    opts = opts or {}
     return {
       code = "run-1", name = "Flask run", updatedAt = 100, origin = "app",
       lines = {
-        { i = 101, q = 10 },
+        { i = 101, q = opts.allDone and 0 or 10 },
         { i = 102, q = 5 },
-        { i = 103, q = 3 },
+        { i = 103, q = opts.allDone and 0 or 3 },
         { i = 104, q = 20, v = true },
       },
     }
@@ -189,7 +193,7 @@ describe("BUY floor refresh", function()
     helper.loadModule("UI/SniperFrame.lua", GC)
     helper.loadModule("UI/BuyFrame.lua", GC)
 
-    local runs = { runData() }
+    local runs = { runData(opts) }
     if opts.secondRun then runs[#runs + 1] = opts.secondRun end
     GC.AppRuns = {
       List = function() return runs end,
@@ -232,6 +236,28 @@ describe("BUY floor refresh", function()
     load({ freeLines = 1 })
     GC.Buy.Show()
     assert.same({ { 101 } }, sent)
+  end)
+
+  -- HasPending() used to be a stub that always answered true, so an all-done run still took
+  -- the shared throttle claim for a batch NextBatch would then send empty. Wired honestly, a
+  -- run with nothing open (not vendor, not locked, not done) must never even reach
+  -- GC.Util.ClaimThrottleSend, let alone SearchForItemKeys.
+  it("an all-done run: Tick sends nothing and never claims the throttle", function()
+    load({ freeLines = 3, allDone = true })
+    local claims = 0
+    local realClaim = GC.Util.ClaimThrottleSend
+    GC.Util.ClaimThrottleSend = function(...)
+      claims = claims + 1
+      return realClaim(...)
+    end
+    GC.Buy.Show()
+    assert.same({}, sent)
+    assert.equal(0, claims)
+
+    now = now + 60
+    GC.Buy.Tick()
+    assert.same({}, sent)
+    assert.equal(0, claims)
   end)
 
   it("leaves out an item the auction house says is not a commodity", function()

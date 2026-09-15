@@ -1691,6 +1691,21 @@ local function refreshTargets()
   return ids
 end
 
+-- Cheap "is there anything to even ask about" check for the arbiter's HasPending() below --
+-- true only when a line still wants buying, deliberately WITHOUT askableItem's
+-- GetItemKeyInfo/MakeItemKey calls: those stay inside refreshTargets/NextBatch, which the
+-- arbiter only runs once every other gate has already cleared and it has taken the throttle
+-- claim. The stub this replaced always answered true, so an all-done run (nothing open, not
+-- locked, not vendor) still took the shared throttle claim for a batch that would come back
+-- empty -- spending a consumer's slot in GC.Util's per-name pacing for nothing.
+local function hasPendingLine()
+  if not current then return false end
+  for _, line in ipairs(current:Lines()) do
+    if not line.vendor and not line.locked and not line.done then return true end
+  end
+  return false
+end
+
 -- Asks UI/SniperFrame.lua's arbiter for the one outstanding keys batch this addon allows, on
 -- this tab's behalf. Every addon-wide rule (no second batch, not across a book pass's browse
 -- buffer, not while the player is on Blizzard's own panes, and the throttle claim) lives
@@ -1713,7 +1728,7 @@ function GC.Buy.TrySendRefresh(playerBusy)
   -- cleared every gate and taken the throttle claim -- at most once per batch actually sent.
   -- An empty answer is the arbiter's to handle, and it does (it sends nothing).
   return GC.Sniper._TrySendKeysBatchFor({
-    HasPending = function() return true end,
+    HasPending = hasPendingLine,
     NextBatch = refreshTargets,
   }, "buy", function() return GC.Sniper.CurrentView() == "buy" end, playerBusy) and true or false
 end
@@ -1757,7 +1772,9 @@ function GC.Buy.OnBagsChanged()
 end
 
 -- `/gc buy` (the slash command itself lands with the purchase flow): what the tab believes,
--- printed, so a player can report a wrong count without a screenshot.
+-- printed, so a player can report a wrong count without a screenshot. Same diagnostic register
+-- as GC.Sell.DebugPrint -- plain untranslated field=value text, not player-facing copy, so it
+-- carries none of the surface's own GC.L keys.
 function GC.Buy.DebugPrint()
   if not current then
     GC.Print(GC.L["Buy: no run selected."])
@@ -1767,6 +1784,18 @@ function GC.Buy.DebugPrint()
   GC.Print((GC.L["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"]):format(
     runLabel(current), totals.lines, totals.toBuy, totals.atVendor,
     formatAmount(totals.spent), formatAmount(totals.left)))
+  GC.Print(("run: code=%s name=%s"):format(tostring(current:Code()), tostring(current:Name())))
+  local attempt = GC.Buy._attempt
+  GC.Print(("attempt: stage=%s item=%s"):format(
+    attempt and tostring(attempt.stage) or "none", attempt and tostring(attempt.itemID) or "n/a"))
+  local strandedCount, strandedParts = 0, {}
+  for itemID, record in pairs(GC.Buy._stranded) do
+    strandedCount = strandedCount + 1
+    strandedParts[#strandedParts + 1] = ("#%s qty=%s age=%ds"):format(
+      tostring(itemID), tostring(record.qty), time() - (record.at or time()))
+  end
+  GC.Print(("stranded: %d%s"):format(strandedCount,
+    strandedCount > 0 and (" (" .. table.concat(strandedParts, ", ") .. ")") or ""))
   for _, line in ipairs(current:Lines()) do
     local state = ""
     if line.vendor then state = GC.L["vendor"]
@@ -1774,5 +1803,9 @@ function GC.Buy.DebugPrint()
     elseif line.locked then state = GC.L["Pro"] end
     GC.Print((GC.L["  %s · need %d · have %d · buy %d · %s"]):format(
       lineName(line), line.need, line.have, line.buy, state))
+  end
+  local log = GC.Buy._log
+  for i = math.max(1, #log - 4), #log do
+    GC.Print(("log: %s"):format(log[i].text))
   end
 end

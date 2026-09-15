@@ -1,5 +1,16 @@
 # GoldCap
 
+## 0.10.0 (unreleased)
+
+- **BUY tab.** Lists with quantities you save on goldcap.gg (a profession's shopping list, for
+  one) appear in a new BUY tab when the auction house opens. Each line shows what you need,
+  what is already in your bags and what is left to buy; one click buys the missing amount
+  of a commodity from the cheapest lots, and a second click confirms the total. Lines are
+  never bought above your cap (130% of the usual price by default, in Settings); when only
+  part fits under it, that part is bought and the rest waits. Vendor reagents are marked and
+  left to the vendor. Free accounts can buy the first five lines of a run; Pro buys them all.
+  Needs companion 1.9 for automatic delivery, or paste a run string from the site into Import.
+
 ## 0.9.2 (2026-09-15)
 
 - **Two boards on the Deals tab: COMMODITIES and ITEMS.** Gear, pets and recipes were sharing

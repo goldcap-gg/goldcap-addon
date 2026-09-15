@@ -294,6 +294,10 @@ describe("TOC load order", function()
     -- through this one export, so the pair is pinned here like every other cross-file contract.
     assert.is_function(GC.slashHandlers.reset)
     assert.is_function(GC.SettingsUI.ResetWindow)
+    -- `/gc buy`: diagnostics for the BUY tab's run/attempt state, the same
+    -- guard-then-dispatch shape Core/Init.lua uses for `/gc sell` and `/gc board`.
+    assert.is_function(GC.slashHandlers.buy)
+    assert.is_function(GC.Buy.DebugPrint)
 
     -- Batch 5: RESET WINDOW (UI/SettingsFrame.lua) reads the live default straight off
     -- SniperFrame.lua's own WIN table via this export, instead of a mirrored constant that can
