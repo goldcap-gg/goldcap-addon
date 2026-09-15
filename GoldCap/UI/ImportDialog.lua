@@ -42,7 +42,22 @@ local function createDialog()
   btn:SetPoint("BOTTOMRIGHT", -12, 10)
   btn:SetText(GC.L["Import"])
   btn:SetScript("OnClick", function()
-    local parsed, err = GC.ImportString.Parse(f.edit:GetText() or "")
+    local text = f.edit:GetText() or ""
+    -- Buy runs (Core/AppRuns.lua): a GCR1 string is a different grammar entirely, so it is
+    -- routed to its own parser rather than GC.ImportString.Parse, which only knows GCS1.
+    if text:match("^GCR1;") then
+      local run = GC.AppRuns.ImportString(text)
+      if not run then
+        f.status:SetText("|cffff4040" .. GC.L["Import failed:"] .. " "
+          .. GC.L["the run string is not valid"] .. "|r")
+        return
+      end
+      GC.Print(GC.L["run imported: %s (%d lines)"]:format(run.name or run.code, #run.lines))
+      f.edit:SetText("")
+      f:Hide()
+      return
+    end
+    local parsed, err = GC.ImportString.Parse(text)
     if not parsed then
       f.status:SetText("|cffff4040" .. GC.L["Import failed:"] .. " "
         .. GC.Data.DescribeImportError(err) .. "|r")

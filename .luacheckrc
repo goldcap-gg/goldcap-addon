@@ -9,7 +9,7 @@ files["addon/spec/"] = { std = "lua51+busted" }
 
 -- The three GoldCap_OnAddonCompartment* globals are named by GoldCap.toc's
 -- AddonCompartment* directives, which is the only way the client can reach them.
-globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLedger", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2", "SlashCmdList", "GoldCapSniperFrame",
+globals = { "GoldCapDB", "GoldCap_MarketData", "GoldCap_AppData", "GoldCap_AppLedger", "GoldCap_AppRuns", "SLASH_GOLDCAP1", "SLASH_GOLDCAP2", "SlashCmdList", "GoldCapSniperFrame",
   "GoldCap_OnAddonCompartmentClick", "GoldCap_OnAddonCompartmentEnter", "GoldCap_OnAddonCompartmentLeave" }
 
 read_globals = {

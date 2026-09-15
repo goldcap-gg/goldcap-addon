@@ -53,6 +53,15 @@ GC.DEFAULTS = {
   -- table, so a populated SavedVariables array is never truncated on login.
   ledger = {},
   gold = {},
+  -- Buy runs (companion "Runs" plan or a pasted GCR1 string) -- Core/AppRuns.lua. code ->
+  -- { code, name, updatedAt, lines, origin = "app"|"paste" }. Same empty-table ApplyDefaults
+  -- contract as `flips` above: a populated SavedVariables table is never touched or truncated.
+  runs = {},
+  -- Metadata for the companion-sourced half of `runs` above: which plan generated the file,
+  -- how many lines the free tier gets, and when it was generated (so Adopt can tell a fresher
+  -- file from a stale one already applied). generatedAt = 0 means "nothing adopted yet", which
+  -- is always older than any real Unix timestamp the companion writes.
+  runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 },
   settings = {
     tooltip = true,
     -- "auto" follows GetLocale(); anything else is the player's own pick from Settings.
@@ -163,6 +172,15 @@ GC.DEFAULTS = {
       -- toggle-off would look identical to an unversioned pre-open-by-default save and get
       -- silently reopened by the migration on its next login.
       dialogDetailsOpenVersion = 1,
+      -- Buy runs (Core/AppRuns.lua): how far over the run's own recorded price a lot may cost
+      -- and still count as "still cheap enough to buy", as a whole percent of that price (130
+      -- = up to 30% over). Filed under `sniper` for the same reason postDuration is above --
+      -- one settings table UI/SettingsFrame.lua already reads, not a second branch for one field.
+      buyCapPct = 130,
+      -- buyRun: undeclared here on purpose (a nil-valued table field is never actually stored,
+      -- so ApplyDefaults' pairs() walk would just skip it either way). The run code last shown
+      -- in the Buy Runs panel, so reopening it returns to where the player left off; written by
+      -- whatever UI shows that panel, read back the same way `window` below is.
       -- window: undeclared here on purpose (a nil-valued table field is never actually
       -- stored, so ApplyDefaults' pairs() walk would just skip it either way). Populated by
       -- UI/SniperFrame.lua's persistWindowGeometry as { point, x, y, width, height } (Sniper
@@ -353,6 +371,17 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- AdoptAppData above adopts prices -- once, at load, memory only.
       GC.AppLedger.Adopt()
     end
+    if GC.AppRuns then
+      -- Buy runs: adopt `GoldCap_AppRuns` the same way AppLedger.Adopt above adopts the ledger
+      -- summary. The companion writes its file at Interface/AddOns/GoldCap_AppData/Runs.lua,
+      -- and the client only reads that file (into the `_G.GoldCap_AppRuns` this call reads)
+      -- when the addon's files load -- at login or on a full /reload -- so a run the companion
+      -- wrote mid-session is invisible until one of those happens. This call catches the
+      -- login/reload case; the AUCTION_HOUSE_SHOW handler below calls Adopt again so a
+      -- /reload the player did mid-session (for any unrelated reason) is picked up the next
+      -- time the Auction House opens, rather than waiting for the next full login.
+      GC.AppRuns.Adopt()
+    end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     if GC.Acquisitions and acquisitionsInitialized then
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
@@ -435,6 +464,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local interactionType = ...
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
       GC.Util.Trace("ah: show")
+      -- Buy runs: re-adopt `GoldCap_AppRuns` here (see the ADDON_LOADED handler above for the
+      -- full contract) so a /reload the player did mid-session picks up a run the companion
+      -- wrote in between, by the next time the board that shows it actually matters.
+      if GC.AppRuns then GC.AppRuns.Adopt() end
       GC.Sniper.OnAuctionHouseShow()
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then

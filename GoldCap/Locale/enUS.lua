@@ -595,6 +595,7 @@ GC.Locales.enUS = {
   ["removed %d duplicate purchase records left by a mail-scan bug"] = "removed %d duplicate purchase records left by a mail-scan bug",
   ["removed %d duplicate sale record left by a mail-scan bug"] = "removed %d duplicate sale record left by a mail-scan bug",
   ["removed %d duplicate sale records left by a mail-scan bug"] = "removed %d duplicate sale records left by a mail-scan bug",
+  ["run imported: %s (%d lines)"] = "run imported: %s (%d lines)",
   ["sale name ambiguous"] = "sale name ambiguous",
   ["sale proceeds pending"] = "sale proceeds pending",
   ["scan complete: %d deal%s from %d item%s in reagents, consumables, gems, enchants%s"] =
@@ -619,6 +620,7 @@ GC.Locales.enUS = {
   ["the auction house reported an error"] = "the auction house reported an error",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the import failed (%s)"] = "the import failed (%s)",
+  ["the run string is not valid"] = "the run string is not valid",
   ["there was nothing to import"] = "there was nothing to import",
   ["this build of GoldCap does not know that region -- update the addon"] =
     "this build of GoldCap does not know that region -- update the addon",
