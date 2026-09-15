@@ -494,6 +494,7 @@ GC.Locales.enUS = {
   ["You would pay"] = "You would pay",
   ["Your call"] = "Your call",
   ["Your minimum"] = "Your minimum",
+  ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "above the cheapest, inside the cheap quarter · %d units queued below",
   ["above the cheapest, within the day's reach · %d units queued below"] =
@@ -651,6 +652,7 @@ GC.Locales.enUS = {
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the auction house reported an error"] = "the auction house reported an error",
   ["the import failed (%s)"] = "the import failed (%s)",
+  ["the run changed — start again"] = "the run changed — start again",
   ["the run string is not valid"] = "the run string is not valid",
   ["there was nothing to import"] = "there was nothing to import",
   ["this build of GoldCap does not know that region -- update the addon"] =

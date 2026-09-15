@@ -471,6 +471,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- full contract) so a /reload the player did mid-session picks up a run the companion
       -- wrote in between, by the next time the board that shows it actually matters.
       if GC.AppRuns then GC.AppRuns.Adopt() end
+      -- The BUY tab too: a new session cannot answer for the last one, so what the last one left
+      -- half-finished is cleared here rather than carried into a book that has since moved.
+      if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end
       GC.Sniper.OnAuctionHouseShow()
     end
   elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then

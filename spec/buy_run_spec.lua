@@ -56,8 +56,12 @@ describe("BuyRun", function()
     run:RecordPurchase(5, 150, 4410000, 1001)
     have[5] = 60 + 150
     run:Refresh()
-    assert.equal(0, run:Lines()[1].buy)
-    assert.is_true(run:Lines()[1].done)
+    local line = run:Lines()[1]
+    assert.equal(150, line.bought)
+    assert.equal(4410000, line.spent)
+    assert.equal(210, line.have)
+    assert.equal(0, line.buy)
+    assert.is_true(line.done)
     assert.equal(4410000, run:Totals().spent)
   end)
 

@@ -9,9 +9,10 @@ local helper = require("spec.spec_helper")
 -- one purchase in flight addon-wide, one acquisition batch per purchase, and no second batch
 -- from the passive capture hooks. Only the client itself is faked.
 describe("BUY purchase", function()
-  local GC, searches, started, confirmed, timers, book, now, bags
+  local GC, searches, started, confirmed, cancels, timers, book, now, bags
 
-  local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust" }
+  local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust",
+                  [105] = "Echo Salt" }
 
   local function runData()
     return {
@@ -19,9 +20,17 @@ describe("BUY purchase", function()
       lines = {
         { i = 101, q = 10 },
         { i = 103, q = 4 },
+        -- 105 has no market value at all, so it has no cap: the quote is the only number
+        -- anybody ever checks for it.
+        { i = 105, q = 5 },
         { i = 102, q = 5, v = true },
       },
     }
+  end
+
+  local function otherRun()
+    return { code = "run-2", name = "Potion run", updatedAt = 100, origin = "app",
+             lines = { { i = 103, q = 2 } } }
   end
 
   local function region(kind, parent)
@@ -139,7 +148,7 @@ describe("BUY purchase", function()
 
   before_each(function()
     searches, started, confirmed, timers, book, now = {}, {}, {}, {}, {}, 2000
-    bags = {}
+    bags, cancels = {}, 0
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
     _G.GetTime = function() return now end
@@ -172,6 +181,7 @@ describe("BUY purchase", function()
       ConfirmCommoditiesPurchase = function(itemID, quantity)
         confirmed[#confirmed + 1] = { itemID = itemID, quantity = quantity }
       end,
+      CancelCommoditiesPurchase = function() cancels = cancels + 1 end,
     }
 
     GC = helper.loadModule("Core/Util.lua")
@@ -207,7 +217,7 @@ describe("BUY purchase", function()
     GC.Acquisitions.Init({})
     helper.loadModule("UI/BuyFrame.lua", GC)
 
-    local runs = { runData() }
+    local runs = { runData(), otherRun() }
     GC.AppRuns = {
       List = function() return runs end,
       Get = function(code)
@@ -220,6 +230,7 @@ describe("BUY purchase", function()
                                      bottom = 34, rowWidth = 600, rowHeight = 28 })
     setBook(101, { { unitPrice = 900, quantity = 6 }, { unitPrice = 1200, quantity = 10 } })
     setBook(103, { { unitPrice = 2500, quantity = 20 } })
+    setBook(105, { { unitPrice = 400, quantity = 20 } })
     GC.Buy.Show()
   end)
 
@@ -585,7 +596,9 @@ describe("BUY purchase", function()
     timers[#timers].fn()
     assert.equal("unknown", GC.Buy._attempt.stage)
     assert.is_nil(GC.PurchaseSlot.Owner())
-    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 10))
+    -- Still ours as far as the passive capture is concerned: the success is owed, and the capture
+    -- threw its own record away at the Start hook while this tab owned the purchase.
+    assert.is_true(GC.Buy.OwnsCommodityPurchase(101, 10))
     local row = rowWithText("Alpha Herb")
     assert.equal("no answer — check your bags", row.action.label)
     assert.is_false(row.action:IsEnabled())
@@ -622,10 +635,12 @@ describe("BUY purchase", function()
     assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
   end)
 
-  -- I2: the success guard itself. Reaching "confirm" is not reaching "confirming": nothing was
-  -- agreed to, so nothing may be recorded -- and the slot stays ours, because the purchase this
-  -- tab is holding has not ended.
-  it("records nothing for a success that arrives before the confirm click", function()
+  -- I2/3: reaching "confirm" is not reaching "confirming". A purchase landed that this tab never
+  -- saw a price for -- the player confirmed on Blizzard's own buy page, or the event is somebody
+  -- else's. Nothing is recorded (a cost basis from a total nobody was charged is worse than no
+  -- row), and the attempt ENDS: left live, its CONFIRM button invites a second purchase and the
+  -- watchdog later aims a Cancel at a purchase that already succeeded.
+  it("ends the attempt and records nothing for a success it never priced", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
     click(rowWithText("Alpha Herb"))
@@ -635,8 +650,13 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityPurchaseSucceeded()
     assert.same({}, GC.Acquisitions.GetAll())
     assert.equal(0, GC.Buy.CurrentRun():Lines()[1].bought)
-    assert.equal("confirm", GC.Buy._attempt.stage)
-    assert.equal("buy", GC.PurchaseSlot.Owner())
+    assert.is_nil(GC.Buy._attempt)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.same({}, confirmed)
+
+    -- ...and the watchdog that was armed for the confirm click finds nothing left to cancel.
+    timers[#timers].fn()
+    assert.equal(0, cancels)
   end)
 
   -- I3: the client drops a throttled search without naming it, so a question with no answer has
@@ -727,6 +747,213 @@ describe("BUY purchase", function()
     row = rowWithText("Alpha Herb")
     assert.is_false(row.action:IsEnabled())
     assert.equal("dim", row.action.painted)
+  end)
+
+  -- 1: a real close fires BOTH session exits (Core/Init.lua routes both on purpose). The second
+  -- call used to clear `unknown` -- the one state whose whole job is to warn that a confirm may
+  -- have taken gold -- before the player could read it.
+  it("keeps the no-answer warning when the close fires twice", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+
+    GC.Buy.OnAuctionHouseClosed()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+    GC.Buy.OnAuctionHouseClosed()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+    assert.equal("no answer — check your bags", rowWithText("Alpha Herb").action.label)
+  end)
+
+  it("keeps a timed-out line's warning when the close fires twice", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    assert.equal("expired", GC.Buy._attempt.stage)
+    GC.Buy.OnAuctionHouseClosed()
+    GC.Buy.OnAuctionHouseClosed()
+    assert.equal("expired", GC.Buy._attempt.stage)
+  end)
+
+  -- 2: the confirming timeout gives up, and the success turns up anyway. The gold left the bags,
+  -- so the books have to say so -- at the total the server last quoted.
+  it("books the late success of a purchase it had given up on", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    now = now + 21
+    timers[#timers].fn()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+
+    deliver(101, 10)
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    local batches = GC.Acquisitions.GetAll()
+    assert.equal(1, #batches)
+    assert.equal("goldcap_buy", batches[1].source)
+    assert.equal(10200, batches[1].originalTotal)
+    assert.equal(10, batches[1].originalQty)
+    assert.equal("run-1", batches[1].runCode)
+    assert.equal(10, GC.Buy.CurrentRun():Lines()[1].bought)
+    assert.is_nil(GC.Buy._attempt)
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 10))
+  end)
+
+  it("books a stranded success only once", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.equal(1, #GC.Acquisitions.GetAll())
+  end)
+
+  it("forgets a stranded confirm the session can no longer answer for", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    GC.Buy.OnAuctionHouseClosed()
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.same({}, GC.Acquisitions.GetAll())
+  end)
+
+  -- 4: GC.PurchaseSlot expires a claim MAX_SECONDS after it was STAMPED, while these watchdogs
+  -- are armed from now. A confirm click late in the window would otherwise be watched past the
+  -- moment the claim goes stale, and the Sniper could take the slot out from under a purchase
+  -- this tab is still holding.
+  it("keeps the claim alive for as long as it watches the purchase", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    assert.equal("buy", GC.PurchaseSlot.Owner())
+
+    now = now + 19
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+
+    -- 35s after the slot was first claimed, 16s after the arming re-stamped it.
+    now = now + 16
+    assert.is_false(GC.PurchaseSlot.Claim("sniper"))
+    assert.equal("buy", GC.PurchaseSlot.Owner())
+  end)
+
+  -- 5: a line whose confirm may have taken gold is not handed back for another click until
+  -- something says what happened.
+  it("does not re-quote a line whose purchase never answered", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    now = now + 60
+    local before = #searches
+
+    hover(rowWithText("Alpha Herb"))
+    click(rowWithText("Alpha Herb"))
+    assert.equal(before, #searches)
+    assert.equal("unknown", GC.Buy._attempt.stage)
+  end)
+
+  it("offers the line again once the bags say what happened", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    now = now + 60
+
+    -- The units turn up after all: BAG_UPDATE_DELAYED recounts, and the line is a line again.
+    deliver(101, 4)
+    GC.Buy.OnBagsChanged()
+    local before = #searches
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(before + 1, #searches)
+  end)
+
+  it("offers the line again in the next auction house session", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    now = now + 60
+
+    GC.Buy.OnAuctionHouseShow()
+    assert.is_nil(GC.Buy._attempt)
+    local before = #searches
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(before + 1, #searches)
+  end)
+
+  -- 6: a question the client swallowed has to offer the click that asks it again.
+  it("offers a quote again once the query it sent has gone unanswered", function()
+    hover(rowWithText("Alpha Herb"))
+    assert.equal("quoting...", rowWithText("Alpha Herb").action.label)
+    assert.is_false(rowWithText("Alpha Herb").action:IsEnabled())
+
+    now = now + 11
+    GC.Buy.RefreshIfShown()
+    local row = rowWithText("Alpha Herb")
+    assert.equal("BUY 10", row.action.label)
+    assert.is_true(row.action:IsEnabled())
+    click(row)
+    assert.same({ 101, 101 }, searches)
+  end)
+
+  -- 7: a line with no market value has no cap, and an absent cap is not permission. The quote is
+  -- then the only number anybody checked.
+  it("holds a capless line to the total the player was quoted", function()
+    local row = rowWithText("Echo Salt")
+    hover(row)
+    GC.Buy.OnCommodityResults(105)
+    assert.is_nil(GC.Buy.CurrentRun():Lines()[3].cap)
+    assert.equal(5 * 400, GC.Buy._attempt.total)
+    click(rowWithText("Echo Salt"))
+
+    GC.Buy.OnCommodityPriceUpdated(500, 2500) -- above the 2000 quoted, and nothing caps it
+    assert.equal("requote", GC.Buy._attempt.stage)
+    assert.equal(1, cancels)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+
+    click(rowWithText("Echo Salt"))
+    assert.same({}, confirmed)
+  end)
+
+  it("confirms a capless line at no more than the quote", function()
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    click(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityPriceUpdated(400, 2000)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+  end)
+
+  -- 7: the run was swapped under the purchase. There is nothing left to judge the price against
+  -- and nothing to credit the units to.
+  it("hands the purchase back when the line it was for is gone", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.SelectRun("run-2")
+    assert.equal("run-2", GC.Buy.CurrentRun():Code())
+
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    assert.is_nil(GC.Buy._attempt)
+    assert.equal(1, cancels)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.same({}, GC.Acquisitions.GetAll())
   end)
 
   it("keeps the last twenty attempt lines", function()

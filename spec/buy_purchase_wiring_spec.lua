@@ -83,7 +83,8 @@ describe("BUY purchase wiring", function()
     f:close()
     for _, method in ipairs({ "OnCommodityResults", "OnCommodityPriceUpdated",
                               "OnCommodityPriceUnavailable", "OnCommodityPurchaseSucceeded",
-                              "OnCommodityPurchaseFailed", "OnAuctionHouseClosed" }) do
+                              "OnCommodityPurchaseFailed", "OnAuctionHouseClosed",
+                              "OnAuctionHouseShow" }) do
       assert.is_truthy(init:find("GC.Buy." .. method, 1, true), method)
     end
     -- The Auctioneer frame hiding and AUCTION_HOUSE_CLOSED are separate events, and either can be
