@@ -20,7 +20,7 @@ describe("BUY floor refresh", function()
   -- exists to answer false for.
   local function runData(opts)
     opts = opts or {}
-    return {
+    local run = {
       code = "run-1", name = "Flask run", updatedAt = 100, origin = "app",
       lines = {
         { i = 101, q = opts.allDone and 0 or 10 },
@@ -29,6 +29,13 @@ describe("BUY floor refresh", function()
         { i = 104, q = 20, v = true },
       },
     }
+    if opts.craft then
+      run.lines[1].cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 201, q = 5, n = "Reagent One", u = 300 },
+        { i = 202, q = 5, n = "Reagent Two", u = 160 },
+      } }
+    end
+    return run
   end
 
   local function region(kind, parent)
@@ -202,6 +209,7 @@ describe("BUY floor refresh", function()
       end,
       FreeLines = function() return opts.freeLines end,
     }
+    if opts.craft then GC.db.runSplits = { ["run-1"] = { [101] = true } } end
 
     GC.Buy.Attach(region("Frame"), { panelLeft = 88, panelRightInset = 32, top = -100,
                                      bottom = 34, rowWidth = 600, rowHeight = 28 })
@@ -389,5 +397,19 @@ describe("BUY floor refresh", function()
     browseRows = { { itemKey = { itemID = 501 }, minPrice = 7 } }
     gc.Sniper.OnBrowseResults()
     assert.equal(7, gc.Sniper._keyPoll:Book()[501].floor)
+  end)
+
+  -- A craft line is not bought at the auction house, so a slot in the one batch the run gets
+  -- would be spent on a price nothing can act on. Its reagents ARE bought, and are asked about.
+  it("asks about a craft line's reagents and never about the craft line itself", function()
+    load({ freeLines = 9, craft = true })
+    GC.Buy.Show()
+    local function has(list, id)
+      for _, value in ipairs(list or {}) do if value == id then return true end end
+      return false
+    end
+    assert.is_false(has(sent[1], 101))
+    assert.is_true(has(sent[1], 201))
+    assert.is_true(has(sent[1], 202))
   end)
 end)

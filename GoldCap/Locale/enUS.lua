@@ -29,6 +29,8 @@ GC.Locales.enUS = {
   ["%d hidden -- the live check refused them"] = "%d hidden -- the live check refused them",
   ["%d items for %s (%s, %s)"] = "%d items for %s (%s, %s)",
   ["%d lines · %d to buy · %d at the vendor"] = "%d lines · %d to buy · %d at the vendor",
+  ["%d lines · %d to buy · %d to craft · %d at the vendor"] =
+    "%d lines · %d to buy · %d to craft · %d at the vendor",
   ["%d missing"] = "%d missing",
   ["%d more lines with Pro"] = "%d more lines with Pro",
   ["%d partial"] = "%d partial",
@@ -44,6 +46,7 @@ GC.Locales.enUS = {
   ["%d× %s · %s each · %s"] = "%d× %s · %s each · %s",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unit    total %s -> %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
+  ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
   ["24h trend"] = "24h trend",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
@@ -550,6 +553,7 @@ GC.Locales.enUS = {
   ["confirming..."] = "confirming...",
   ["cost basis incomplete -- set costs to get repost advice"] = "cost basis incomplete -- set costs to get repost advice",
   ["cost unknown"] = "cost unknown",
+  ["craft"] = "craft",
   ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
   ["done"] = "done",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
@@ -717,6 +721,7 @@ GC.Locales.enUS = {
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · bought %s · %s · %s",
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
+  ["↳ %s"] = "↳ %s",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
   ["▲%d%% over usual"] = "▲%d%% over usual",
 }

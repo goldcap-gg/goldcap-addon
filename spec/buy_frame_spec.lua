@@ -1022,4 +1022,101 @@ describe("BuyFrame", function()
 
     _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
   end)
+
+  -- Spec rule 1: a line the site sent a recipe for, split, becomes a craft line with its
+  -- reagents under it. The flag is written straight into the store here -- the menu that writes
+  -- it for the player is spec/buy_frame_spec's own "right-click" block.
+  local function craftRun()
+    return { code = "run-c", name = "Craft run", updatedAt = 900, origin = "app", lines = {
+      { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 5, n = "Bravo Ore", u = 300 },
+        { i = 103, q = 5, n = "Charlie Dust", u = 160 },
+      } } },
+    } }
+  end
+
+  local function showCraftRun(split)
+    GC.AppRuns._set({ craftRun() })
+    GC.db.runSplits = split and { ["run-c"] = { [101] = true } } or {}
+    GC.db.settings.sniper.buyRun = "run-c"
+    GC.Buy.Show()
+  end
+
+  it("leaves a line the player has not split as an ordinary line", function()
+    showCraftRun(false)
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("BUY 20", alpha.action.label)
+    assert.is_nil(rowWithText("Bravo Ore"))
+  end)
+
+  it("draws a split line as a craft line with its reagents indented under it", function()
+    showCraftRun(true)
+    local parent = rowWithText("craft 4×")
+    assert.truthy(parent)
+    assert.equal("Alpha Herb → craft 4× (5 per craft)", parent.reagent:GetText())
+    assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
+      parent.reagent.colorValue)
+    assert.equal("craft", parent.cells.action:GetText())
+    assert.is_false(parent.action:IsShown())
+    -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say.
+    assert.equal("—", parent.cells.now:GetText())
+    assert.equal("—", parent.cells.usual:GetText())
+    -- COST is what the reagents still cost: 15 Bravo Ore at 300 (five are in the bags) and
+    -- 20 Charlie Dust at 160.
+    assert.equal("~" .. tostring(15 * 300 + 20 * 160) .. "c", parent.cells.cost:GetText())
+
+    local ore = rowWithText("Bravo Ore")
+    assert.equal("↳ Bravo Ore", ore.reagent:GetText())
+    assert.equal("20", ore.cells.need:GetText())
+    assert.equal("15", ore.cells.buy:GetText())
+    assert.equal("BUY 15", ore.action.label)
+    assert.equal("↳ Charlie Dust", rowWithText("Charlie Dust").reagent:GetText())
+  end)
+
+  it("counts what is left to craft in the header band", function()
+    showCraftRun(true)
+    assert.equal("3 lines · 2 to buy · 1 to craft · 0 at the vendor", bandOf().counts:GetText())
+  end)
+
+  -- A run whose only open line is a craft is not a run with nothing left to do.
+  it("does not call a run with a craft still to make 'everything bought'", function()
+    GC.AppRuns._set({ { code = "run-cd", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 1, n = "Bravo Ore", u = 300 } } } } } } })
+    GC.db.runSplits = { ["run-cd"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "run-cd"
+    GC.Buy.Show()
+    assert.is_nil(bandOf().counts:GetText():find("everything bought", 1, true))
+  end)
+
+  it("never offers a craft line to a click or to the Enter key", function()
+    showCraftRun(true)
+    local parent = rowWithText("craft 4×")
+    assert.is_false(parent.action:IsShown())
+    -- The row's own hover quotes a buyable line; a craft line is not one, so nothing is asked
+    -- and no attempt is opened.
+    _G.GameTooltip = { SetOwner = function() end, SetItemByID = function() end,
+                       AddLine = function() end, Show = function() end, Hide = function() end }
+    parent.scripts.OnEnter(parent)
+    assert.is_nil(GC.Buy._attempt)
+    _G.GameTooltip = nil
+  end)
+  -- A reagent is not a line of the run, so it is not one of the lines the free tier is holding
+  -- back: a locked craft with two reagents under it is ONE more line with Pro, not three. The
+  -- reagents carry their parent's lock (Core/BuyRun.lua) purely so they are not offered for
+  -- sale under a line nobody can buy.
+  it("counts a locked craft line once in the Pro notice, not once per reagent", function()
+    GC.AppRuns._set({ { code = "run-lk", name = "Locked craft", updatedAt = 900, origin = "app",
+      lines = {
+        { i = 101, q = 10 },
+        { i = 103, q = 3 },
+        { i = 104, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+          { i = 105, q = 5, n = "Echo Leaf", u = 300 },
+          { i = 106, q = 5, n = "Foxtail", u = 160 } } } },
+      } } })
+    GC.db.runSplits = { ["run-lk"] = { [104] = true } }
+    GC.db.settings.sniper.buyRun = "run-lk"
+    GC.Buy.Show()
+    assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
+  end)
 end)

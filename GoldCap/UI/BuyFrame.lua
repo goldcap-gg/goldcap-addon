@@ -308,6 +308,27 @@ local function setRunCapPct(code, pct)
   db.runCaps[code] = pct
 end
 
+-- The lines of a run the player has chosen to craft instead of buy: GC.db.runSplits[code][itemID].
+-- Beside the run rather than on it, for the same reason the cap is (see the DRIVER below): a run
+-- from the companion is replaced wholesale on every sync. Only ever CREATES the tables when a
+-- write needs them -- the read runs on every render, and an empty table written per run code
+-- would be SavedVariables growing a row for every run the player ever opened.
+local function splitsFor(code, create)
+  local db = GC.db
+  if type(db) ~= "table" or type(code) ~= "string" or code == "" then return nil end
+  if type(db.runSplits) ~= "table" then
+    if not create then return nil end
+    db.runSplits = {}
+  end
+  local set = db.runSplits[code]
+  if type(set) ~= "table" then
+    if not create then return nil end
+    set = {}
+    db.runSplits[code] = set
+  end
+  return set
+end
+
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
 -- hook is deliberately NOT Sell's: Sell has to tell a commodity from a bonus-id bearing item
 -- because it posts them differently, and returns nil -- dropping the stack -- when it cannot.
@@ -397,6 +418,9 @@ local DRIVER = {
   -- A run's own cap when it has been given one in the run menu, the global setting otherwise,
   -- clamped at the read either way (see runCapPct/globalCapPct above).
   capPct = runCapPct,
+  -- Which of this run's lines are being crafted rather than bought. Asked on every Refresh,
+  -- unlike progress: the row menu writes it and re-renders, and the answer has to be current.
+  splits = function(code) return splitsFor(code) end,
   -- The run's score, per character and per run code, in SavedVariables: GC.db.buyProgress
   -- ["Name-Realm"][code][itemID] = { bought, spent, boughtAt }. The spec's rule is "the addon
   -- keeps HAVE/spent per character"; without this a /reload read as a run nobody had bought
@@ -632,9 +656,11 @@ local function lineName(line)
 end
 
 -- A line this tab can actually spend gold on. Everything else -- a vendor stop, a line the bags
--- already cover, a line past the free limit -- has no BUY button and never gets quoted.
+-- already cover, a line past the free limit, a line being crafted rather than bought -- has no
+-- BUY button and never gets quoted.
 local function buyable(line)
-  return line ~= nil and not line.vendor and not line.locked and not line.done and line.buy > 0
+  return line ~= nil and not line.vendor and line.kind ~= "craft"
+    and not line.locked and not line.done and line.buy > 0
 end
 
 local function lineFor(itemID)
@@ -1487,7 +1513,9 @@ local function buildEntries()
   end
   local locked = 0
   for _, line in ipairs(current:Lines()) do
-    if line.locked then locked = locked + 1 end
+    -- A reagent a split brought in is not a line of the run, so it is not one of the lines the
+    -- free tier is counting (Core/BuyRun.lua gives it its parent's lock and no index).
+    if line.locked and not line.parent then locked = locked + 1 end
     entries[#entries + 1] = { kind = "line", line = line }
   end
   if locked > 0 then
@@ -1536,15 +1564,50 @@ local function clearRow(row)
   end
 end
 
+-- What one craft line's reagents still cost, at the best price known for each: the child lines
+-- the split created in full, and -- for a reagent the run already asked for, which grew an
+-- existing line rather than getting one of its own -- the share of that line this craft is
+-- responsible for, counted first. nil when no reagent has a price at all, which is the same
+-- em dash every other unpriceable cell shows.
+local function craftCostNow(parent)
+  if not (current and parent) then return nil end
+  local total, known = 0, false
+  for _, line in ipairs(current:Lines()) do
+    local qty = nil
+    if line.parent == parent.itemID then
+      qty = line.buy
+    elseif line.forCraft and line.forCraft[parent.itemID] then
+      qty = math.min(line.buy, line.forCraft[parent.itemID])
+    end
+    if qty and qty > 0 then
+      local unit = line.vendor and line.vendorUnit or (line.floor or line.usual)
+      if unit then
+        total = total + qty * unit
+        known = true
+      end
+    end
+  end
+  if not known then return nil end
+  return total
+end
+
 local function paintLine(row, line)
   row.tooltipItemID = line.itemID
   row.lineItemID = line.itemID
   local name = lineName(line)
   local decorated = (Theme.WithQuality and Theme.WithQuality(name, line.itemID, 11)) or name
+  -- A craft line names what it makes and how many batches of it; a reagent the split brought in
+  -- is indented under the line it belongs to, so the block reads as one instruction.
+  if line.kind == "craft" then
+    decorated = (GC.L["%s → craft %d× (%d per craft)"]):format(
+      decorated, line.crafts or 0, (line.craft and line.craft.craftedQty) or 0)
+  elseif line.parent then
+    decorated = (GC.L["↳ %s"]):format(decorated)
+  end
   row.reagent:SetText(decorated)
-  -- A vendor line is not something this tab can act on -- the whole row reads back, so it does
-  -- not compete with the lines the player is actually here to buy.
-  setColor(row.reagent, line.vendor and Theme.color.fgDim or Theme.color.fg)
+  -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
+  -- reads back, so it does not compete with the lines the player is actually here to buy.
+  setColor(row.reagent, (line.vendor or line.kind == "craft") and Theme.color.fgDim or Theme.color.fg)
 
   local icon = nil
   if C_Item and C_Item.GetItemIconByID then
@@ -1570,6 +1633,18 @@ local function paintLine(row, line)
     row.cells.now:SetText(formatAmount(unit))
     row.cells.usual:SetText(formatAmount(unit))
     row.cells.cost:SetText(unit and line.buy > 0 and formatAmount(line.buy * unit) or EM_DASH)
+    for _, key in ipairs({ "now", "usual", "cost" }) do
+      setColor(row.cells[key], Theme.color.fgDim)
+    end
+  elseif line.kind == "craft" then
+    -- Nothing here is bought at the auction house, so NOW and USUAL have nothing to say about
+    -- this row -- the same argument the vendor branch above makes. COST is what the reagents
+    -- still cost, which is the number this row exists to give; marked as an estimate, like
+    -- every other cost built out of prices rather than out of a quote.
+    local craftCost = craftCostNow(line)
+    row.cells.now:SetText(EM_DASH)
+    row.cells.usual:SetText(EM_DASH)
+    row.cells.cost:SetText(craftCost and ("~" .. formatAmount(craftCost)) or EM_DASH)
     for _, key in ipairs({ "now", "usual", "cost" }) do
       setColor(row.cells[key], Theme.color.fgDim)
     end
@@ -1615,6 +1690,9 @@ local function paintLine(row, line)
     setColor(row.cells.action, Theme.color.fgDim)
   elseif line.done then
     row.cells.action:SetText(GC.L["done"])
+    setColor(row.cells.action, Theme.color.fgDim)
+  elseif line.kind == "craft" then
+    row.cells.action:SetText(GC.L["craft"])
     setColor(row.cells.action, Theme.color.fgDim)
   elseif line.locked then
     row.pro:SetLabel(GC.L["Pro"], Theme.color.gold)
@@ -1981,9 +2059,13 @@ local function renderRows()
     local totals = current:Totals()
     band.picker:SetLabel(runLabel(current) .. " ▼")
     band.picker:Show()
-    -- Nothing to buy and nothing to fetch: three zeroes are a worse way of saying it.
-    if totals.lines > 0 and totals.toBuy == 0 and totals.atVendor == 0 then
+    -- Nothing to buy, nothing to craft and nothing to fetch: four zeroes are a worse way of
+    -- saying it.
+    if totals.lines > 0 and totals.toBuy == 0 and totals.toCraft == 0 and totals.atVendor == 0 then
       band.counts:SetText(GC.L["everything bought"])
+    elseif totals.toCraft > 0 then
+      band.counts:SetText((GC.L["%d lines · %d to buy · %d to craft · %d at the vendor"]):format(
+        totals.lines, totals.toBuy, totals.toCraft, totals.atVendor))
     else
       band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
         totals.lines, totals.toBuy, totals.atVendor))
@@ -2167,8 +2249,8 @@ local function refreshTargets()
   if not current then return nil end
   local ids, seen = {}, {}
   for _, line in ipairs(current:Lines()) do
-    if not line.vendor and not line.locked and not line.done and not seen[line.itemID]
-        and askableItem(line.itemID) then
+    if not line.vendor and line.kind ~= "craft" and not line.locked and not line.done
+        and not seen[line.itemID] and askableItem(line.itemID) then
       seen[line.itemID] = true
       ids[#ids + 1] = line.itemID
       if #ids >= BD.MAX_KEYS then break end
@@ -2187,7 +2269,9 @@ end
 local function hasPendingLine()
   if not current then return false end
   for _, line in ipairs(current:Lines()) do
-    if not line.vendor and not line.locked and not line.done then return true end
+    if not line.vendor and line.kind ~= "craft" and not line.locked and not line.done then
+      return true
+    end
   end
   return false
 end
@@ -2289,6 +2373,7 @@ function GC.Buy.DebugPrint()
     local state = ""
     if line.vendor then state = GC.L["vendor"]
     elseif line.done then state = GC.L["done"]
+    elseif line.kind == "craft" then state = GC.L["craft"]
     elseif line.locked then state = GC.L["Pro"] end
     GC.Print((GC.L["  %s · need %d · have %d · buy %d · %s"]):format(
       lineName(line), line.need, line.have, line.buy, state))
