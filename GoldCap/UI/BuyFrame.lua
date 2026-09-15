@@ -274,6 +274,39 @@ local function settings()
   return type(sniper) == "table" and sniper or nil
 end
 
+-- The caps a run menu offers. Whole percents of the run's own reference price, coarse on
+-- purpose: this is a decision about how much of a hurry the player is in, not a dial.
+local CAP_CHOICES = { 100, 110, 120, 130, 150, 200, 300 }
+
+-- The global cap from Settings, clamped at the READ. UI/SettingsFrame.lua bounds the box on
+-- commit, which says nothing about what is already in SavedVariables: a hand-edited file, or one
+-- written before the bound existed, hands this a 900 that would quietly triple the cap every
+-- purchase is judged against -- and a non-number would error inside Refresh() on every render,
+-- taking the whole tab down.
+local function globalCapPct()
+  local sniper = settings()
+  local value = tonumber(sniper and sniper.buyCapPct)
+  if not value then return 130 end
+  return math.max(100, math.min(300, math.floor(value)))
+end
+
+-- The cap this run is actually judged against: its own if it has been given one, the global
+-- otherwise. Same clamp, for the same reason.
+local function runCapPct(code)
+  local db = GC.db
+  local caps = type(db) == "table" and db.runCaps or nil
+  local value = type(caps) == "table" and code and tonumber(caps[code]) or nil
+  if not value then return globalCapPct() end
+  return math.max(100, math.min(300, math.floor(value)))
+end
+
+local function setRunCapPct(code, pct)
+  local db = GC.db
+  if type(db) ~= "table" or type(code) ~= "string" or code == "" then return end
+  if type(db.runCaps) ~= "table" then db.runCaps = {} end
+  db.runCaps[code] = pct
+end
+
 -- Bag stock, from the same C_Container walk UI/SellFrame.lua's scanBagStock uses. The classify
 -- hook is deliberately NOT Sell's: Sell has to tell a commodity from a bonus-id bearing item
 -- because it posts them differently, and returns nil -- dropping the stack -- when it cannot.
@@ -327,17 +360,9 @@ local DRIVER = {
   now = function() return time() end,
   haveOf = haveOf,
   usualUnit = usualUnit,
-  -- Clamped HERE, not only where the setting is typed. UI/SettingsFrame.lua bounds the box on
-  -- commit, which says nothing about what is already in SavedVariables: a hand-edited file, or
-  -- one written before the bound existed, hands this a 900 that would quietly triple the cap
-  -- every purchase is judged against -- and a non-number would error inside Refresh() on every
-  -- render, taking the whole tab down. The same 100-300 bound the settings box uses.
-  capPct = function()
-    local sniper = settings()
-    local value = tonumber(sniper and sniper.buyCapPct)
-    if not value then return 130 end
-    return math.max(100, math.min(300, math.floor(value)))
-  end,
+  -- A run's own cap when it has been given one in the run menu, the global setting otherwise,
+  -- clamped at the read either way (see runCapPct/globalCapPct above).
+  capPct = runCapPct,
   -- The run's score, per character and per run code, in SavedVariables: GC.db.buyProgress
   -- ["Name-Realm"][code][itemID] = { bought, spent, boughtAt }. The spec's rule is "the addon
   -- keeps HAVE/spent per character"; without this a /reload read as a run nobody had bought
@@ -477,8 +502,8 @@ local function runMenuLabel(run)
   return ("%s%s  ·  %s  ·  %s"):format(mark, name, (GC.L["%d lines"]):format(count), origin)
 end
 
--- The run picker's menu: every run, the current one marked, then remove / paste. Returns false
--- when the client has no MenuUtil, so the caller can fall back to cycling.
+-- The run picker's menu: every run, the current one marked, then this run's cap, then remove /
+-- paste. Returns false when the client has no MenuUtil, so the caller can fall back to cycling.
 openRunMenu = function(owner)
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return false end
@@ -494,6 +519,26 @@ openRunMenu = function(owner)
     end
     root:CreateDivider()
     local shown = current and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(current:Code()) or nil
+    if shown then
+      local code = shown.code
+      -- MenuUtil's own submenu shape: an element description with children added to it displays
+      -- as one (Blizzard's Menu implementation guide), and CreateRadio(text, isSelected,
+      -- setSelected, data) is the same triple UI/SettingsFrame.lua's language picker hands to
+      -- CreateRadioContextMenu. The title carries the cap the run is judged against right now,
+      -- so a run using the global one still reads as capped rather than as unset.
+      local capMenu = root:CreateButton((GC.L["Cap: %d%%"]):format(runCapPct(code)))
+      if capMenu and capMenu.CreateRadio then
+        for _, pct in ipairs(CAP_CHOICES) do
+          capMenu:CreateRadio(("%d%%"):format(pct),
+            function(value) return runCapPct(code) == value end,
+            function(value)
+              setRunCapPct(code, value)
+              GC.Buy.RefreshIfShown()
+            end, pct)
+        end
+      end
+    end
+    -- Task 7's `Archive this run` belongs here, between the cap and the remove/paste entries.
     if shown and shown.origin == "paste" then
       root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
     elseif shown then

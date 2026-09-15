@@ -65,6 +65,10 @@ GC.DEFAULTS = {
   -- What each character has bought for each run, by run code: the BUY tab's "spent" and the
   -- bought count a partial fill continues from. Survives /reload; see UI/BuyFrame.lua's driver.
   buyProgress = {},
+  -- A per-run price cap, whole percent of the run's own reference price, set from the BUY tab's
+  -- run menu; absent means the global settings.sniper.buyCapPct. Same empty-table ApplyDefaults
+  -- contract as `runs` above.
+  runCaps = {},
   settings = {
     tooltip = true,
     -- "auto" follows GetLocale(); anything else is the player's own pick from Settings.

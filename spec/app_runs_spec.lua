@@ -141,6 +141,16 @@ describe("AppRuns", function()
       assert.is_nil(GC.AppRuns.Get("stale-app"))
       assert.is_not_nil(GC.AppRuns.Get("abcd2345"))
     end)
+
+    -- A run the site deleted takes its per-run settings with it: nothing else would ever clear
+    -- them, and a code the site later reuses would come back carrying somebody else's cap.
+    it("forgets the cap of a run the site no longer sends", function()
+      GC.db.runCaps = { ["abcd2345"] = 150, ["gone-run"] = 200 }
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      assert.equal(150, GC.db.runCaps["abcd2345"])
+      assert.is_nil(GC.db.runCaps["gone-run"])
+    end)
   end)
 
   describe("ImportString", function()

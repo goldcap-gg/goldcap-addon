@@ -55,7 +55,9 @@ function GC.BuyRun.New(run, driver)
   -- regardless of whether they are done, so the free-lines gate is about which lines of the
   -- run are unlocked rather than about what is left of it.
   function obj:Refresh()
-    local capPct = driver.capPct()
+    -- The run's code goes with the question: a cap is a property of the run, not of the tab
+    -- (UI/BuyFrame.lua's runCapPct). A driver that does not care simply ignores the argument.
+    local capPct = driver.capPct(run.code)
     local freeLines = driver.freeLines()
     local open, vendor, done = {}, {}, {}
     local index = 0

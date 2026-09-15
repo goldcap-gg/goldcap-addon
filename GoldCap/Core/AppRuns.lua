@@ -105,6 +105,14 @@ function GC.AppRuns.Adopt()
   end
 
   db.runs = kept
+  -- A run the site deleted takes its per-run settings with it. Nothing else would ever clear
+  -- them, and a code the site later reuses would come back carrying a cap nobody chose for it.
+  local caps = db.runCaps
+  if type(caps) == "table" then
+    for code in pairs(caps) do
+      if not kept[code] then caps[code] = nil end
+    end
+  end
   db.runsMeta = {
     plan = raw.plan == "pro" and "pro" or "free",
     freeLines = num(raw.freeLines) or 5,
@@ -226,5 +234,7 @@ function GC.AppRuns.Remove(code)
   if type(db) ~= "table" or type(db.runs) ~= "table" or type(code) ~= "string" then return false end
   if not db.runs[code] then return false end
   db.runs[code] = nil
+  -- Its cap goes with it, for the same reason Adopt prunes them: nothing else would.
+  if type(db.runCaps) == "table" then db.runCaps[code] = nil end
   return true
 end

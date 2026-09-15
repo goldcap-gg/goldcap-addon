@@ -91,6 +91,7 @@ GC.Locales.enUS = {
   ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
   ["Runs"] = "Runs",
+  ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
   ["pasted"] = "pasted",
   ["Remove this run"] = "Remove this run",

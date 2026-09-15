@@ -329,10 +329,10 @@ describe("BuyFrame", function()
     local texts = {}
     for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
     assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
-      "divider", "Remove this run", "Paste a run..." }, texts)
+      "divider", "Cap: 130%", "Remove this run", "Paste a run..." }, texts)
 
     -- Remove drops the pasted run and lands on the one left.
-    entries[5].fn()
+    entries[6].fn()
     assert.is_nil(GC.AppRuns.Get("run-2"))
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
     assert.equal("Flask run ▼", bandOf().picker.label)
@@ -352,7 +352,69 @@ describe("BuyFrame", function()
     local band = bandOf()
     band.picker.scripts.OnClick(band.picker)
     _G.MenuUtil = nil
-    assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "From goldcap.gg — remove it there", "Paste a run..." }, entries)
+    assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "Cap: 130%",
+      "From goldcap.gg — remove it there", "Paste a run..." }, entries)
+  end)
+
+  -- Spec rule 6: a run can carry its own cap. The radio that reads as selected for a run with no
+  -- cap of its own is the global one, because that is the cap the run is actually judged against.
+  it("offers a cap submenu whose selection is the run's own cap, or the global one", function()
+    GC.AppRuns._set({ run() })
+    GC.Buy.SelectRun("run-1")
+    local capEntries, capLabel
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      capEntries = {}
+      local submenu = {
+        CreateRadio = function(_, text, isSelected, setSelected, data)
+          capEntries[#capEntries + 1] = { text = text, selected = isSelected(data),
+                                          set = function() setSelected(data) end }
+        end,
+      }
+      generator(nil, {
+        CreateTitle = function() end,
+        CreateButton = function(_, text)
+          if text:find("Cap:", 1, true) then capLabel = text; return submenu end
+        end,
+        CreateDivider = function() end,
+      })
+    end }
+    local band = bandOf()
+    band.picker.scripts.OnClick(band.picker)
+    _G.MenuUtil = nil
+
+    assert.equal("Cap: 130%", capLabel)
+    local texts, selected = {}, {}
+    for _, entry in ipairs(capEntries) do
+      texts[#texts + 1] = entry.text
+      if entry.selected then selected[#selected + 1] = entry.text end
+    end
+    assert.same({ "100%", "110%", "120%", "130%", "150%", "200%", "300%" }, texts)
+    assert.same({ "130%" }, selected)   -- the global setting, until this run is given its own
+
+    -- Picking one writes it against this run alone and the lines re-cap at once.
+    capEntries[5].set()
+    assert.equal(150, GC.db.runCaps["run-1"])
+    local capOf = function(itemID)
+      for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if l.itemID == itemID then return l.cap end
+      end
+    end
+    assert.equal(1500, capOf(101))                          -- 1000 mv at 150%
+    assert.equal(130, GC.db.settings.sniper.buyCapPct)      -- the global is untouched
+  end)
+
+  it("judges a run with no cap of its own by the global setting, and clamps a silly one", function()
+    GC.AppRuns._set({ run() })
+    GC.Buy.SelectRun("run-1")
+    local capOf = function(itemID)
+      for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if l.itemID == itemID then return l.cap end
+      end
+    end
+    assert.equal(1300, capOf(101))
+    GC.db.runCaps = { ["run-1"] = 900 }      -- hand-edited SavedVariables
+    GC.Buy.RefreshIfShown()
+    assert.equal(3000, capOf(101))           -- clamped to 300%, not 900%
   end)
 
   it("reopens on the remembered run rather than the newest one", function()
