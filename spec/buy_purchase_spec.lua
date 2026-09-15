@@ -305,7 +305,8 @@ describe("BUY purchase", function()
     assert.equal(10, attempt.qty)                       -- 6 @ 900 + 4 @ 1200
     assert.equal(6 * 900 + 4 * 1200, attempt.total)
     assert.is_false(attempt.capped)
-    assert.equal("BUY 10 · 1g02s", rowWithText("Alpha Herb").action.label)
+    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+    assert.equal("1g02s", rowWithText("Alpha Herb").cells.cost:GetText())
   end)
 
   it("never prices against the player's own units", function()
@@ -401,7 +402,8 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityPriceUpdated(1020, 10200)
     assert.equal("confirm", GC.Buy._attempt.stage)
     assert.same({}, confirmed) -- nothing is confirmed by the event itself
-    assert.equal("CONFIRM 1g02s", rowWithText("Alpha Herb").action.label)
+    assert.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+    assert.equal("1g02s", rowWithText("Alpha Herb").cells.cost:GetText())
 
     click(rowWithText("Alpha Herb"))
     assert.same({ { itemID = 101, quantity = 10 } }, confirmed)
@@ -583,7 +585,8 @@ describe("BUY purchase", function()
     GC.Buy.OnCommodityPriceUpdated(1200, 12000) -- still inside the 1300 cap
     assert.equal("confirm", GC.Buy._attempt.stage)
     assert.equal(12000, GC.Buy._attempt.serverTotal)
-    assert.equal("CONFIRM 1g20s", rowWithText("Alpha Herb").action.label)
+    assert.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+    assert.equal("1g20s", rowWithText("Alpha Herb").cells.cost:GetText())
     assert.equal(1, #confirmed) -- the event confirmed nothing by itself
 
     -- ...and the click that follows agrees to the NEW price.
@@ -1303,7 +1306,8 @@ describe("BUY purchase", function()
     assert.equal(100, attempt.overPct) -- 2000 against a 1000 usual
 
     local row = rowWithText("Alpha Herb")
-    assert.equal("BUY 6 · 5400c", row.action.label)
+    assert.equal("BUY 6", row.action.label)
+    assert.equal("5400c", row.cells.cost:GetText())
     assert.is_true(row.action:IsEnabled()) -- the part that fits is still buyable
     assert.equal("warn", row.action.variant)
     assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲100% over usual", 1, true))

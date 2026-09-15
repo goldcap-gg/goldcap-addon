@@ -97,3 +97,45 @@ describe("BuyRun", function()
     assert.same({ "false", "false", "true", "false" }, locked)   -- 1, 2 buyable; 3 locked; vendor line last, never locked
   end)
 end)
+
+describe("BuyRun progress across sessions", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+  local function newRun(progress)
+    return GC.BuyRun.New({ code = "abcd2345", name = "Cooking", updatedAt = 1, lines = {
+      { i = 5, q = 210, v = false, n = "Plant Protein" },
+    } }, { now = function() return 1000 end, haveOf = function() return 0 end,
+           usualUnit = function() return 30000 end, capPct = function() return 130 end,
+           freeLines = function() return nil end,
+           progress = function(code) assert.equal("abcd2345", code); return progress end })
+  end
+
+  it("writes bought and spent into the driver's progress table and reads them back", function()
+    local saved = {}
+    local run = newRun(saved)
+    run:Refresh()
+    run:RecordPurchase(5, 60, 60 * 30000, 1000)
+    assert.same({ bought = 60, spent = 1800000, boughtAt = 1000 }, saved[5])
+
+    -- A fresh object over the same table -- a /reload -- starts from the saved score, so the
+    -- header says what was spent and the line continues from what was bought, not from zero.
+    local again = newRun(saved)
+    again:Refresh()
+    assert.equal(1800000, again:Totals().spent)
+    assert.equal(60, again:Lines()[1].bought)
+    assert.equal(150, again:Lines()[1].buy)
+  end)
+
+  it("keeps a run that has no progress table in memory only", function()
+    local run = GC.BuyRun.New({ code = "abcd2345", lines = { { i = 5, q = 10 } } },
+      { now = function() return 1 end, haveOf = function() return 0 end,
+        usualUnit = function() return nil end, capPct = function() return 130 end,
+        freeLines = function() return nil end })
+    run:Refresh()
+    run:RecordPurchase(5, 4, 400, 1)
+    assert.equal(400, run:Totals().spent)
+  end)
+end)

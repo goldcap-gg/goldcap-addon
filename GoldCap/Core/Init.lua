@@ -62,6 +62,9 @@ GC.DEFAULTS = {
   -- file from a stale one already applied). generatedAt = 0 means "nothing adopted yet", which
   -- is always older than any real Unix timestamp the companion writes.
   runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 },
+  -- What each character has bought for each run, by run code: the BUY tab's "spent" and the
+  -- bought count a partial fill continues from. Survives /reload; see UI/BuyFrame.lua's driver.
+  buyProgress = {},
   settings = {
     tooltip = true,
     -- "auto" follows GetLocale(); anything else is the player's own pick from Settings.

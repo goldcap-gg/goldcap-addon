@@ -320,6 +320,22 @@ local DRIVER = {
     if not value then return 130 end
     return math.max(100, math.min(300, math.floor(value)))
   end,
+  -- The run's score, per character and per run code, in SavedVariables: GC.db.buyProgress
+  -- ["Name-Realm"][code][itemID] = { bought, spent, boughtAt }. The spec's rule is "the addon
+  -- keeps HAVE/spent per character"; without this a /reload read as a run nobody had bought
+  -- anything for, while the gold was already gone.
+  progress = function(code)
+    local db = GC.db
+    if type(db) ~= "table" or type(code) ~= "string" or code == "" then return nil end
+    local context = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+    local char = context and context.char or "?"
+    db.buyProgress = type(db.buyProgress) == "table" and db.buyProgress or {}
+    local mine = db.buyProgress[char]
+    if type(mine) ~= "table" then mine = {}; db.buyProgress[char] = mine end
+    local forRun = mine[code]
+    if type(forRun) ~= "table" then forRun = {}; mine[code] = forRun end
+    return forRun
+  end,
   freeLines = function()
     return GC.AppRuns and GC.AppRuns.FreeLines and GC.AppRuns.FreeLines() or nil
   end,
@@ -534,8 +550,7 @@ local function actionLabel(line)
       -- but it is not the whole line. The label stays short enough for the 72px badge and the
       -- button wears the over-cap look; how far over the rest sits is on the log line
       -- OnCommodityResults writes, which is what `/gc buy` prints.
-      return (GC.L["BUY %d · %s"]):format(attempt.qty, formatAmount(attempt.total)), true,
-        attempt.capped and "warn" or nil
+      return (GC.L["BUY %d"]):format(attempt.qty), true, attempt.capped and "warn" or nil
     end
     -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
     -- it usually does" is a decision the player can make; a greyed-out button is not.
@@ -546,7 +561,7 @@ local function actionLabel(line)
   end
   if stage == "started" then return GC.L["buying..."], false end
   if stage == "confirm" then
-    return (GC.L["CONFIRM %s"]):format(formatAmount(attempt.serverTotal or attempt.total)), true
+    return GC.L["CONFIRM"], true
   end
   if stage == "confirming" then return GC.L["confirming..."], false end
   if stage == "requote" then
@@ -1315,8 +1330,20 @@ local function paintLine(row, line)
     -- What the rest of this line should cost at the best price known for it. With neither a seen
     -- floor nor a market value there is no honest number, so the cell stays an em dash.
     local unit = line.floor or line.usual
-    row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
-    setColor(row.cells.cost, Theme.color.fg)
+    local attempt = GC.Buy._attempt
+    -- Once this line has a quote (or a purchase under way) the cell shows THAT total -- what the
+    -- next click spends, and after the server's price update, what the confirm click spends.
+    -- The button stays "BUY n" / "CONFIRM": a badge 80px wide has no room for a sum, and the
+    -- sum has a column of its own right beside it.
+    local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.byHand
+      and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
+    if quotedTotal and quotedTotal > 0 then
+      row.cells.cost:SetText(formatAmount(quotedTotal))
+      setColor(row.cells.cost, attempt.stage == "confirm" and Theme.color.goldHi or Theme.color.fg)
+    else
+      row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
+      setColor(row.cells.cost, Theme.color.fg)
+    end
   end
 
   if line.vendor then

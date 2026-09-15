@@ -15,11 +15,21 @@ function GC.BuyRun.New(run, driver)
   local obj = {}
   local lines = {}    -- rebuilt by Refresh(), in display order
   local perItem = {}  -- itemID -> { bought, spent, floor, floorAt, boughtAt }; survives Refresh()
+  -- What this character has already bought for this run, kept by the driver across sessions
+  -- (driver.progress(code) hands back a table the driver persists; nil when it keeps none).
+  -- Floors stay in memory -- a price from a previous session is not a quote -- but bought and
+  -- spent are the run's score, and a /reload must not read as "nothing bought yet".
+  local progress = driver.progress and driver.progress(run.code) or nil
 
   local function stateFor(itemID)
     local state = perItem[itemID]
     if not state then
-      state = { bought = 0, spent = 0 }
+      local saved = progress and progress[itemID] or nil
+      state = {
+        bought = saved and tonumber(saved.bought) or 0,
+        spent = saved and tonumber(saved.spent) or 0,
+        boughtAt = saved and saved.boughtAt or nil,
+      }
       perItem[itemID] = state
     end
     return state
@@ -131,6 +141,9 @@ function GC.BuyRun.New(run, driver)
     state.bought = state.bought + qty
     state.spent = state.spent + totalCopper
     state.boughtAt = at
+    if progress then
+      progress[itemID] = { bought = state.bought, spent = state.spent, boughtAt = at }
+    end
     local line = findLine(itemID)
     if line then
       line.bought = state.bought
