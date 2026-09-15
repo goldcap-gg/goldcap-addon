@@ -85,16 +85,19 @@ describe("BUY floor refresh", function()
     return c
   end
 
-  -- Whichever upvalue slot `view` happens to occupy -- the same reach spec/slot_arbiter_spec
-  -- uses, and the only way to drive the rail's current tab without building the whole window.
-  local function setView(v)
+  -- Whichever upvalue slot the wanted name happens to occupy -- the same reach
+  -- spec/slot_arbiter_spec uses, and the only way to drive the rail's current tab or the AH
+  -- session flag without building the whole window and firing real client events.
+  local function set(fn, wanted, value)
     for i = 1, math.huge do
-      local name = debug.getupvalue(GC.Sniper.OnThrottleReady, i)
+      local name = debug.getupvalue(fn, i)
       if not name then break end
-      if name == "view" then debug.setupvalue(GC.Sniper.OnThrottleReady, i, v); return end
+      if name == wanted then debug.setupvalue(fn, i, value); return end
     end
-    error("missing upvalue view")
+    error("missing upvalue " .. wanted)
   end
+
+  local function setView(v) set(GC.Sniper.OnThrottleReady, "view", v) end
 
   local function upvalueOf(fn, wanted)
     for i = 1, math.huge do
@@ -187,6 +190,7 @@ describe("BUY floor refresh", function()
     helper.loadModule("UI/BuyFrame.lua", GC)
 
     local runs = { runData() }
+    if opts.secondRun then runs[#runs + 1] = opts.secondRun end
     GC.AppRuns = {
       List = function() return runs end,
       Get = function(code)
@@ -198,6 +202,9 @@ describe("BUY floor refresh", function()
     GC.Buy.Attach(region("Frame"), { panelLeft = 88, panelRightInset = 32, top = -100,
                                      bottom = 34, rowWidth = 600, rowHeight = 28 })
     setView("buy")
+    -- OnAuctionHouseShow's own flag, which BUY refuses to send without: this whole tab only
+    -- has a question while there is a session to answer it. Opt out with ahClosed.
+    set(GC.Sniper.OnAuctionHouseShow, "ahOpen", not opts.ahClosed)
     return GC
   end
 
@@ -291,12 +298,55 @@ describe("BUY floor refresh", function()
     assert.equal("—", rowWithText("Alpha Herb").cells.now:GetText())
   end)
 
+  -- Every cheaper gate is deliberately left OPEN here -- the container is shown, a run is
+  -- picked, the refresh window has expired -- so the only thing that can refuse this tick is
+  -- the view. (Written the other way round, with the tab never opened, the test passes with
+  -- the view gate deleted: it never reaches it.)
   it("sends nothing while another tab is on screen", function()
     load({ freeLines = 3 })
-    setView("deals")
+    GC.Buy.Show()
+    assert.equal(1, #sent)
+    browseRows = { { itemKey = { itemID = 101 }, minPrice = 900 } }
+    GC.Sniper.OnBrowseResults()
+
+    now = now + 60
+    setView("deals") -- a rail click leaves this tab's container shown behind Deals
     GC.Buy.Tick()
     GC.Buy.TrySendRefresh()
+    assert.equal(1, #sent)
+
+    -- ...and the moment the player is back on it, the same tick goes through.
+    setView("buy")
+    GC.Buy.Tick()
+    assert.equal(2, #sent)
+  end)
+
+  it("sends nothing with no auction house session to answer it", function()
+    load({ freeLines = 3, ahClosed = true })
+    GC.Buy.Show()
     assert.same({}, sent)
+    GC.Buy.Tick()
+    assert.same({}, sent)
+  end)
+
+  -- The twenty-second window belongs to a run's prices, not to the tab. A new run has no
+  -- floors at all, so a window left standing across the switch holds every NOW cell on an em
+  -- dash for up to twenty seconds -- with the batch that would fill them refused.
+  it("gives the refresh window up when the shown run is replaced", function()
+    load({ freeLines = 3, secondRun = {
+      code = "run-2", name = "Potion run", updatedAt = 100, origin = "app",
+      lines = { { i = 103, q = 7 } },
+    } })
+    GC.Buy.Show()
+    browseRows = { { itemKey = { itemID = 101 }, minPrice = 900 } }
+    GC.Sniper.OnBrowseResults()
+    assert.equal(1, #sent)
+
+    now = now + 1 -- well inside the window the first run had earned
+    GC.Buy.SelectRun("run-2")
+    GC.Buy.RefreshIfShown()
+    GC.Buy.Tick()
+    assert.same({ 103 }, sent[2])
   end)
 
   it("gives the Items poll its answer back once BUY's own batch has landed", function()

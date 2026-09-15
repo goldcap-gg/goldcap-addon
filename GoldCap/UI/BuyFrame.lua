@@ -269,6 +269,13 @@ function GC.Buy.CurrentRun() return current end
 function GC.Buy.SelectRun(code)
   local run = code and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(code) or nil
   local sniper = settings()
+  -- A new BuyRun object carries no floors at all, so the twenty-second window that was
+  -- protecting the OLD run's prices is now protecting nothing -- it would just hold every NOW
+  -- cell on an em dash for up to twenty seconds after a cycle-run click or a companion sync
+  -- that rebuilt the run under ensureRun(). The window belongs to a run's prices, not to the
+  -- tab, so it is given up with them. Reset before the early return too: clearing the board is
+  -- just as much a replacement, and the next run picked must not inherit a stale window.
+  lastRefreshAt = 0
   if not run then
     current, currentUpdatedAt = nil, nil
     if sniper then sniper.buyRun = nil end
@@ -856,13 +863,23 @@ end
 -- shown, and the last answer is old enough to be worth replacing. Returns whether a batch went.
 function GC.Buy.TrySendRefresh(playerBusy)
   if not (container and container:IsShown() and current) then return false end
-  if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView) then return false end
+  if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView
+      and GC.Sniper.IsAHOpen) then return false end
+  -- No auction house session, no question to ask. This window outlives the auction house --
+  -- it can be re-shown with /goldcap with yesterday's board still in it -- so a rail click to
+  -- BUY lands here with nothing to query against, and a SearchForItemKeys nobody will ever
+  -- answer would hold the addon-wide keys interlock shut for the full thirty-second timeout.
+  -- Same gate, same reason, as canDrillNow's first line in UI/SniperFrame.lua.
+  if not GC.Sniper.IsAHOpen() then return false end
   if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
-  local ids = refreshTargets()
-  if not ids or #ids == 0 then return false end
+  -- refreshTargets is handed to the arbiter rather than called here: it walks the whole run
+  -- asking the client about every line's item key, and this function runs once a second off
+  -- the auction house ticker. Inside NextBatch it runs only on the tick that has already
+  -- cleared every gate and taken the throttle claim -- at most once per batch actually sent.
+  -- An empty answer is the arbiter's to handle, and it does (it sends nothing).
   return GC.Sniper._TrySendKeysBatchFor({
     HasPending = function() return true end,
-    NextBatch = function() return ids end,
+    NextBatch = refreshTargets,
   }, "buy", function() return GC.Sniper.CurrentView() == "buy" end, playerBusy) and true or false
 end
 
