@@ -139,3 +139,48 @@ describe("BuyRun progress across sessions", function()
     assert.equal(400, run:Totals().spent)
   end)
 end)
+
+describe("BuyRun prices from the run itself", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function build(lines)
+    local run = GC.BuyRun.New({ code = "abcd2345", lines = lines },
+      { now = function() return 1000 end, haveOf = function() return 0 end,
+        -- The import knows 100 about item 9 and nothing about anything else.
+        usualUnit = function(id) return id == 9 and 100 or nil end,
+        capPct = function() return 130 end, freeLines = function() return nil end })
+    run:Refresh()
+    return run
+  end
+
+  -- The run was priced by the site when it was saved; the addon's bundled/imported market data
+  -- is a fallback for a pasted run that carries none. Linen Cloth on a modern realm has no
+  -- import price at all, which is the whole reason the line brings its own.
+  it("prefers the run line's own price, falls back to the import, and caps off whichever won", function()
+    local run = build({ { i = 5, q = 10, u = 44000 }, { i = 9, q = 10 }, { i = 7, q = 10 } })
+    assert.equal(44000, run:Lines()[1].usual)
+    assert.equal(math.floor(44000 * 130 / 100), run:Lines()[1].cap)
+    assert.equal(100, run:Lines()[2].usual)
+    assert.equal(130, run:Lines()[2].cap)
+    assert.is_nil(run:Lines()[3].usual)
+    assert.is_nil(run:Lines()[3].cap)
+  end)
+
+  -- A zero is not a price. Trusted, it caps the line at zero and nothing can ever be bought.
+  it("treats a zero or a non-number on the line as no price at all", function()
+    assert.equal(100, build({ { i = 9, q = 10, u = 0 } }):Lines()[1].usual)
+    assert.equal(100, build({ { i = 9, q = 10, u = "cheap" } }):Lines()[1].usual)
+  end)
+
+  it("carries the vendor price and the cheap hour through to the line", function()
+    local run = build({ { i = 5, q = 10, vu = 25, ch = 3, cp = -18 } })
+    local line = run:Lines()[1]
+    assert.equal(25, line.vendorUnit)
+    assert.equal(3, line.cheapHour)
+    assert.equal(-18, line.cheapPct)
+  end)
+end)

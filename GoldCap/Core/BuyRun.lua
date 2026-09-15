@@ -11,6 +11,8 @@ local _, GC = ...
 -- lives here, and no text -- callers own every string the player reads.
 GC.BuyRun = {}
 
+local function num(v) return type(v) == "number" and v or nil end
+
 function GC.BuyRun.New(run, driver)
   local obj = {}
   local lines = {}    -- rebuilt by Refresh(), in display order
@@ -60,7 +62,14 @@ function GC.BuyRun.New(run, driver)
     for _, src in ipairs(run.lines or {}) do
       local itemID = src.i
       local state = stateFor(itemID)
-      local usual = driver.usualUnit(itemID)
+      -- The run's own price first: the site knew what this item cost when the list was saved,
+      -- and the import's market value is a snapshot of a different moment (or, for an item the
+      -- import has never carried, of nothing at all). A zero or a non-number is not a price --
+      -- trusted, it caps the line at nothing and the line can never be bought.
+      local lineUsual = num(src.u)
+      local usual = (lineUsual and lineUsual > 0 and lineUsual) or driver.usualUnit(itemID)
+      local vendorUnit = num(src.vu)
+      if vendorUnit and vendorUnit <= 0 then vendorUnit = nil end
       local need = src.q or 0
       local have = driver.haveOf(itemID)
       -- The LARGER of the two, never their sum. `have` and `bought` are two views of the same
@@ -79,7 +88,11 @@ function GC.BuyRun.New(run, driver)
       end
       local line = {
         itemID = itemID, name = src.n, need = need, have = have, buy = buy,
-        vendor = isVendor, usual = usual,
+        vendor = isVendor, usual = usual, vendorUnit = vendorUnit,
+        -- Hour-of-day (UTC) this item is usually cheapest, and by what percent. Passed through
+        -- untouched: whether the client can convert an hour into realm time, and whether the
+        -- number is worth saying at all, is the caller's question (UI/BuyFrame.lua).
+        cheapHour = num(src.ch), cheapPct = num(src.cp),
         cap = usual and math.floor(usual * capPct / 100) or nil,
         floor = state.floor, floorAt = state.floorAt,
         spent = state.spent, bought = state.bought,

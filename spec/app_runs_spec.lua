@@ -42,11 +42,39 @@ describe("AppRuns", function()
       assert.is_nil(GC.AppRuns.FreeLines())
     end)
 
-    it("refuses any version but 1, silently", function()
-      local f = fixture(); f.v = 2
+    it("refuses any version but 1 or 2, silently", function()
+      local f = fixture(); f.v = 3
       _G.GoldCap_AppRuns = f
       assert.has_no.errors(function() assert.is_false(GC.AppRuns.Adopt()) end)
       assert.is_nil(GC.AppRuns.Get("abcd2345"))
+    end)
+
+    -- v2 is the same file with prices on the lines: the site's own reference price at fetch
+    -- time, the vendor's price, and the hour the item is usually cheapest.
+    it("adopts a v2 file and keeps every price the lines carry", function()
+      local f = fixture()
+      f.v = 2
+      f.runs[1].lines[1].u = 45000
+      f.runs[1].lines[1].ch = 3
+      f.runs[1].lines[1].cp = -18
+      f.runs[1].lines[2].vu = 25
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.equal(45000, run.lines[1].u)
+      assert.equal(3, run.lines[1].ch)
+      assert.equal(-18, run.lines[1].cp)
+      assert.equal(25, run.lines[2].vu)
+    end)
+
+    -- A companion that has not been updated writes v1, which is a v2 file with no prices on it.
+    it("still adopts a v1 file, whose lines simply carry none", function()
+      _G.GoldCap_AppRuns = fixture()
+      assert.is_true(GC.AppRuns.Adopt())
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.is_nil(run.lines[1].u)
+      assert.is_nil(run.lines[1].vu)
+      assert.is_nil(run.lines[1].ch)
     end)
 
     it("refuses a malshaped global, silently", function()
@@ -163,6 +191,27 @@ describe("AppRuns", function()
       assert.equal(5, run.lines[1].i)
       assert.equal(225, run.lines[1].q)
       assert.equal(6, run.lines[2].i)
+    end)
+
+    -- `<id>=<qty>` then suffixes in any order: `=v` a vendor stop, `@n` the site's usual unit
+    -- price, `~n` the vendor's. A paste carries prices so it is not a second-class run.
+    it("reads the usual price and the vendor price off a line, in any order", function()
+      local run = GC.AppRuns.ImportString("GCR1;abcd2345;Cooking%201-100;2589=20@450,159=5=v~25,77=2~30@900")
+      assert.equal(3, #run.lines)
+      assert.equal(450, run.lines[1].u)
+      assert.is_nil(run.lines[1].vu)
+      assert.is_false(run.lines[1].v)
+      assert.is_true(run.lines[2].v)
+      assert.equal(25, run.lines[2].vu)
+      assert.equal(30, run.lines[3].vu)
+      assert.equal(900, run.lines[3].u)
+    end)
+
+    it("drops a token whose suffix is neither a price nor the vendor flag", function()
+      local run = GC.AppRuns.ImportString("GCR1;code;;5=210,6=4=x,7=1@,8=2@30")
+      assert.equal(2, #run.lines)
+      assert.equal(5, run.lines[1].i)
+      assert.equal(8, run.lines[2].i)
     end)
   end)
 end)

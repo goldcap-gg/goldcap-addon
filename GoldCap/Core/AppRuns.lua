@@ -24,7 +24,14 @@ local function copyLine(raw)
   if type(raw) ~= "table" then return nil end
   local i, q = num(raw.i), num(raw.q)
   if not (i and q) then return nil end
-  return { i = i, q = q, v = raw.v == true, n = type(raw.n) == "string" and raw.n or nil }
+  return {
+    i = i, q = q, v = raw.v == true, n = type(raw.n) == "string" and raw.n or nil,
+    -- The v2 price fields: `u` the site's own reference price for a unit at the moment the run
+    -- was fetched, `vu` what a vendor charges for one, `ch`/`cp` the hour of the day (UTC) the
+    -- item is usually cheapest and by how much. Every one is optional -- a v1 file, or a v2 line
+    -- the site could not price, simply carries nil and the tab behaves exactly as it did.
+    u = num(raw.u), vu = num(raw.vu), ch = num(raw.ch), cp = num(raw.cp),
+  }
 end
 
 -- One line per item id, quantities summed. A run is allowed to name the same reagent twice --
@@ -76,7 +83,10 @@ end
 -- the interface and for a future "companion synced" toast) can tell a no-op from a real sync.
 function GC.AppRuns.Adopt()
   local raw = _G.GoldCap_AppRuns
-  if type(raw) ~= "table" or raw.v ~= 1 then return false end
+  -- v1 and v2 are the same file; v2 lines carry prices (see copyLine). An unknown version is
+  -- refused rather than half-read: a field this build does not know the meaning of is not a
+  -- field it may guess at.
+  if type(raw) ~= "table" or (raw.v ~= 1 and raw.v ~= 2) then return false end
   if type(raw.generatedAt) ~= "number" then return false end
   if type(raw.runs) ~= "table" then return false end
 
@@ -155,8 +165,9 @@ local function decodeURIComponent(s)
   return (s:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end))
 end
 
--- Parses `GCR1;<code>;<uri-encoded name>;<itemId>=<qty>[=v],...` -- the manual-paste twin of
--- the companion's `GoldCap_AppRuns` global, for a player without the companion running. A
+-- Parses `GCR1;<code>;<uri-encoded name>;<itemId>=<qty>[=v][@usual][~vendorUnit],...` -- the
+-- manual-paste twin of the companion's `GoldCap_AppRuns` global, for a player without the
+-- companion running. The suffixes may come in any order and any of them may be absent. A
 -- pasted run never carries per-line names (the string has none to carry): UI/ImportDialog.lua
 -- and whatever draws the run fall back to the client's own item name for each line.
 --
@@ -171,9 +182,21 @@ function GC.AppRuns.ImportString(str)
 
   local parsed = {}
   for token in rest:gmatch("[^,]+") do
-    local id, qty, flag = token:match("^(%d+)=(%d+)=?(v?)$")
+    local id, qty, suffix = token:match("^(%d+)=(%d+)(.*)$")
     if id then
-      parsed[#parsed + 1] = { i = tonumber(id), q = tonumber(qty), v = flag == "v" }
+      -- Suffixes in any order: `=v` marks a vendor stop, `@n` the site's usual unit price, `~n`
+      -- the vendor's. Each recognised piece is struck out and whatever is left must be empty --
+      -- a token with anything else in it is a typo, not a line, and is dropped exactly as an
+      -- unparseable token always was.
+      local leftover = suffix:gsub("=v", ""):gsub("@%d+", ""):gsub("~%d+", "")
+      if leftover == "" then
+        parsed[#parsed + 1] = {
+          i = tonumber(id), q = tonumber(qty),
+          v = suffix:find("=v", 1, true) ~= nil,
+          u = tonumber(suffix:match("@(%d+)")),
+          vu = tonumber(suffix:match("~(%d+)")),
+        }
+      end
     end
   end
   -- Same merge Adopt does, for the same reason (see mergeLines): a pasted string can name one
