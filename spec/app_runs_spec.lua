@@ -19,7 +19,7 @@ describe("AppRuns", function()
   before_each(function()
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("Core/AppRuns.lua", GC)
-    GC.db = { runs = {}, runsArchived = {},
+    GC.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
               runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
   end)
 
@@ -385,5 +385,103 @@ describe("AppRuns", function()
       assert.equal(5, run.lines[1].i)
       assert.equal(8, run.lines[2].i)
     end)
+  end)
+end)
+
+describe("AppRuns runs the site owns", function()
+  local GC
+
+  -- Three app runs of the three kinds, plus a pasted one, all live at once -- which is exactly
+  -- what the picker has to order.
+  local function fixture()
+    return {
+      v = 3, generatedAt = 1787130262, plan = "pro", freeLines = 5,
+      runs = {
+        { code = "own10000", name = "Mine, older", updatedAt = 100,
+          lines = { { i = 5, q = 1 } } },
+        { code = "own20000", name = "Mine, newer", updatedAt = 200,
+          lines = { { i = 6, q = 1 } } },
+        { code = "shr30000", name = "Guild flasks", updatedAt = 300, by = "Acromion",
+          lines = { { i = 7, q = 1 } } },
+        { code = "a0000001", name = "Cheap ore", updatedAt = 400, k = "alert",
+          lines = { { i = 8, q = 1, cc = 9990000 } } },
+      },
+    }
+  end
+
+  before_each(function()
+    GC = helper.loadModule("Core/Util.lua")
+    helper.loadModule("Core/AppRuns.lua", GC)
+    GC.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
+              runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
+    _G.GoldCap_AppRuns = fixture()
+    GC.AppRuns.Adopt()
+    GC.db.runs["paste-1"] = { code = "paste-1", updatedAt = 500,
+                              lines = { { i = 9, q = 1 } }, origin = "paste" }
+  end)
+
+  after_each(function() _G.GoldCap_AppRuns = nil end)
+
+  it("tells an alert run and a followed run from an ordinary one", function()
+    assert.is_true(GC.AppRuns.IsAlert("a0000001"))
+    assert.is_false(GC.AppRuns.IsAlert("shr30000"))
+    assert.is_false(GC.AppRuns.IsAlert("nosuchrun"))
+    assert.is_true(GC.AppRuns.IsShared("shr30000"))
+    assert.is_false(GC.AppRuns.IsShared("own10000"))
+    assert.is_false(GC.AppRuns.IsShared("a0000001"))
+  end)
+
+  -- The picker reads top to bottom as "your lists, then the ones you follow, then what you
+  -- pasted, then what your alerts have found" -- and a run of somebody else's must never be
+  -- what a first visit lands on (UI/BuyFrame.lua's ensureRun takes the first).
+  it("orders the list own, then followed, then pasted, then alert", function()
+    local codes = {}
+    for _, run in ipairs(GC.AppRuns.List()) do codes[#codes + 1] = run.code end
+    assert.same({ "own20000", "own10000", "shr30000", "paste-1", "a0000001" }, codes)
+  end)
+
+  it("refuses to archive an alert or a followed run, and archives an own one", function()
+    assert.is_false(GC.AppRuns.SetArchived("a0000001", true))
+    assert.is_false(GC.AppRuns.SetArchived("shr30000", true))
+    assert.is_nil(GC.db.runsArchived["a0000001"])
+    assert.is_nil(GC.db.runsArchived["shr30000"])
+    assert.is_true(GC.AppRuns.SetArchived("own10000", true))
+    assert.is_true(GC.AppRuns.IsArchived("own10000"))
+    -- Clearing a flag is always allowed: one left in SavedVariables by an older build has to
+    -- have a way out.
+    GC.db.runsArchived["a0000001"] = true
+    assert.is_true(GC.AppRuns.SetArchived("a0000001", false))
+    assert.is_nil(GC.db.runsArchived["a0000001"])
+  end)
+
+  it("refuses to remove an alert or a followed run", function()
+    assert.is_false(GC.AppRuns.Remove("a0000001"))
+    assert.is_false(GC.AppRuns.Remove("shr30000"))
+    assert.is_not_nil(GC.AppRuns.Get("a0000001"))
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+  end)
+
+  -- Every per-run store is pruned by the same rule, or a code the site later reuses comes back
+  -- carrying a split, a notice or a cap nobody chose for it.
+  it("forgets the splits and the notice of a run the site no longer sends", function()
+    GC.db.runSplits = { ["own10000"] = { [5] = true }, ["gone-run"] = { [1] = true } }
+    GC.db.runNotices = { ["own10000"] = { at = 1, added = 1, removed = 0 },
+                         ["gone-run"] = { at = 1, added = 1, removed = 0 } }
+    local fresher = fixture()
+    fresher.generatedAt = fresher.generatedAt + 60
+    _G.GoldCap_AppRuns = fresher
+    assert.is_true(GC.AppRuns.Adopt())
+    assert.is_not_nil(GC.db.runSplits["own10000"])
+    assert.is_nil(GC.db.runSplits["gone-run"])
+    assert.is_not_nil(GC.db.runNotices["own10000"])
+    assert.is_nil(GC.db.runNotices["gone-run"])
+  end)
+
+  it("takes the splits and the notice with a run that is removed outright", function()
+    GC.db.runSplits["paste-1"] = { [9] = true }
+    GC.db.runNotices["paste-1"] = { at = 1, added = 0, removed = 1 }
+    assert.is_true(GC.AppRuns.Remove("paste-1"))
+    assert.is_nil(GC.db.runSplits["paste-1"])
+    assert.is_nil(GC.db.runNotices["paste-1"])
   end)
 end)

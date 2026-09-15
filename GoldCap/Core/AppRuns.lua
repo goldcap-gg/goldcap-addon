@@ -151,18 +151,17 @@ function GC.AppRuns.Adopt()
   end
 
   db.runs = kept
-  -- A run the site deleted takes its per-run settings with it. Nothing else would ever clear
-  -- them, and a code the site later reuses would come back carrying a cap nobody chose for it.
-  local caps = db.runCaps
-  if type(caps) == "table" then
-    for code in pairs(caps) do
-      if not kept[code] then caps[code] = nil end
-    end
-  end
-  local archived = db.runsArchived
-  if type(archived) == "table" then
-    for code in pairs(archived) do
-      if not kept[code] then archived[code] = nil end
+  -- A run the site deleted takes every per-run setting with it. Nothing else would ever clear
+  -- them, and a code the site later reuses would come back carrying a cap, a split or a notice
+  -- nobody chose for it. Named fields, not `{ db.runCaps, db.runsArchived, ... }`: whichever of
+  -- these is nil (usually runCaps -- most runs never get one) would leave a hole in that array
+  -- constructor, and ipairs stops dead at the first nil, silently skipping every store after it.
+  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+    local store = db[field]
+    if type(store) == "table" then
+      for code in pairs(store) do
+        if not kept[code] then store[code] = nil end
+      end
     end
   end
   db.runsMeta = {
@@ -188,39 +187,69 @@ function GC.AppRuns.IsArchived(code)
   return (set ~= nil and code ~= nil and set[code] == true) or false
 end
 
+--- Whether this run is an alert group's live hits rather than a saved list. The site owns it
+--- entirely: it appears when the group has hits and goes when it does not, so there is nothing
+--- here for the player to archive or remove.
+function GC.AppRuns.IsAlert(code)
+  local run = GC.AppRuns.Get(code)
+  return (run ~= nil and run.k == "alert") or false
+end
+
+--- Whether this run belongs to somebody else and the player merely follows it. Same answer for
+--- the same reason: Unfollow lives on goldcap.gg, and a local Remove would only last until the
+--- next sync brought it back.
+function GC.AppRuns.IsShared(code)
+  local run = GC.AppRuns.Get(code)
+  return (run ~= nil and type(run.by) == "string" and run.by ~= "") or false
+end
+
 --- Puts a run away, or takes it back out. Restoring CLEARS the entry rather than storing false,
 --- so an unarchived run leaves nothing behind in SavedVariables to explain later.
 function GC.AppRuns.SetArchived(code, archived)
   local set = archivedSet()
   if not set or type(code) ~= "string" or code == "" then return false end
+  -- Neither an alert run nor a followed one may be put away: the site decides whether they are
+  -- there at all, and a run that came back on the next sync with a stale flag on it would go
+  -- straight into the Archived section unseen. Clearing a flag is always allowed, so one left
+  -- behind by an older build has a way out.
+  if archived and (GC.AppRuns.IsAlert(code) or GC.AppRuns.IsShared(code)) then return false end
   set[code] = archived and true or nil
   return true
 end
 
--- App runs first, then paste runs, each group newest `updatedAt` first -- the board reads
--- top to bottom as "what the companion just gave you, then what you pasted yourself".
--- `opts.archived` asks for the other group instead -- the runs that have been put away --
--- because the picker and the menu's archived section each want exactly one of the two.
+-- Own app runs, then followed ones, then pastes, then alert groups; each group newest
+-- `updatedAt` first. `opts.archived` asks for the other half instead -- the runs that have been
+-- put away -- because the picker and the menu's archived section each want exactly one of the two.
 function GC.AppRuns.List(opts)
   local wantArchived = type(opts) == "table" and opts.archived == true
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" then return {} end
-  local appRuns, pasteRuns = {}, {}
+  local own, shared, pasteRuns, alerts = {}, {}, {}, {}
   for _, run in pairs(db.runs) do
     if GC.AppRuns.IsArchived(run.code) == wantArchived then
-      if run.origin == "paste" then
+      if run.k == "alert" then
+        alerts[#alerts + 1] = run
+      elseif run.origin == "paste" then
         pasteRuns[#pasteRuns + 1] = run
+      elseif type(run.by) == "string" and run.by ~= "" then
+        shared[#shared + 1] = run
       else
-        appRuns[#appRuns + 1] = run
+        own[#own + 1] = run
       end
     end
   end
   local function newestFirst(a, b) return (a.updatedAt or 0) > (b.updatedAt or 0) end
-  table.sort(appRuns, newestFirst)
+  table.sort(own, newestFirst)
+  table.sort(shared, newestFirst)
   table.sort(pasteRuns, newestFirst)
+  table.sort(alerts, newestFirst)
   local result = {}
-  for _, run in ipairs(appRuns) do result[#result + 1] = run end
-  for _, run in ipairs(pasteRuns) do result[#result + 1] = run end
+  -- Own lists first, then the ones the player follows, then their own pastes, then the alert
+  -- groups: the picker reads as "yours, then other people's, then what your alerts found", and
+  -- a first visit (UI/BuyFrame.lua's ensureRun takes the first) never lands on somebody else's.
+  for _, bucket in ipairs({ own, shared, pasteRuns, alerts }) do
+    for _, run in ipairs(bucket) do result[#result + 1] = run end
+  end
   return result
 end
 
@@ -317,10 +346,15 @@ function GC.AppRuns.Remove(code)
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" or type(code) ~= "string" then return false end
   if not db.runs[code] then return false end
+  -- An alert run and a followed run are the site's: Unfollow and the alert group itself live on
+  -- goldcap.gg, and removing one here would last exactly until the next sync.
+  if GC.AppRuns.IsAlert(code) or GC.AppRuns.IsShared(code) then return false end
   db.runs[code] = nil
-  -- Its cap and its archived flag go with it, for the same reason Adopt prunes them: nothing
-  -- else would.
-  if type(db.runCaps) == "table" then db.runCaps[code] = nil end
-  if type(db.runsArchived) == "table" then db.runsArchived[code] = nil end
+  -- Everything stored beside the run goes with it, for the same reason Adopt prunes: nothing
+  -- else would. Named fields, not an array of the values -- see Adopt's pruning loop for why.
+  for _, field in ipairs({ "runCaps", "runsArchived", "runSplits", "runNotices" }) do
+    local store = db[field]
+    if type(store) == "table" then store[code] = nil end
+  end
   return true
 end
