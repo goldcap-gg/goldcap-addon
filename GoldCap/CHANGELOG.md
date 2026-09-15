@@ -20,6 +20,9 @@
 - **A cap per run.** The run menu carries its own `Cap:` setting — 100% to 300% of the reference
   price — so a run you are in a hurry to finish can pay more than one you are not. A run without
   its own cap uses the one in Settings.
+- **HAVE counts your bank.** A line's HAVE is everything the character owns — bags, bank, reagent
+  bank and warband bank — so a run no longer sends you shopping for stock you already have. The
+  line's tooltip says how much of it is in the bags and how much is in a bank.
 - **Purchases reach your ledger on goldcap.gg.** What you buy through the BUY tab is reported
   against the list you bought it for, so the site can tell you what a run really cost.
 

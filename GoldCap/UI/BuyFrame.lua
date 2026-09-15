@@ -25,13 +25,13 @@ local band
 
 -- The BuyRun object for the run currently on screen (nil until one is picked), the
 -- `updatedAt` of the AppRuns run it was built from (see ensureRun), and the itemID -> count
--- map its `haveOf` driver reads. Module-local so the whole file agrees on one answer.
+-- map the bags half of `haveOf` reads. Module-local so the whole file agrees on one answer.
 local current, currentUpdatedAt
 local bagStock = {}
 
--- The header says "in bags", so the walk covers exactly the bags: the backpack and the five
--- carried bags. Bank and reagent-bank stock is not in the player's bags and must not be
--- counted as though a trip to the auction house could skip it.
+-- The walk covers exactly the bags: the backpack and the five carried bags. The banks are
+-- counted too (haveOf below) but never walked -- a bank has no container to walk until it is
+-- opened -- so they are asked of the client's own count API instead.
 local BUY_BAGS = { 0, 1, 2, 3, 4, 5 }
 
 -- Not a translatable string: a glyph standing in for a number nobody has measured yet.
@@ -108,7 +108,7 @@ GC.Buy._log = {}
 --
 --   itemID -> { qty, total, runCode, have, at, session }
 --
--- `have` is the line's bag count at the moment it was stranded: the warning on that line lifts
+-- `have` is the line's HAVE at the moment it was stranded: the warning on that line lifts
 -- when that number moves, which is exactly what a delivery that really happened does to it.
 GC.Buy._stranded = {}
 local sessionToken = 0
@@ -348,8 +348,41 @@ local function scanBags()
   end
 end
 
+-- The count the client keeps for an item across everything the flags ask about. Two shapes of
+-- the same call: modern clients carry it on C_Item, older ones as a bare global. Neither, or one
+-- that throws, answers nil -- the caller then keeps the bags rather than losing them.
+local function itemCount(itemID, includeBank, includeReagentBank, includeAccountBank)
+  local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
+  if type(fn) ~= "function" then return nil end
+  local ok, count = pcall(fn, itemID, includeBank, false, includeReagentBank, includeAccountBank)
+  if not ok or type(count) ~= "number" then return nil end
+  return count
+end
+
+-- Everything the player owns minus what they are carrying: the character bank, the reagent bank
+-- and the warband bank together. Subtracted rather than asked for directly because the client
+-- has no "bank only" question, and floored at zero because two counts taken a moment apart can
+-- disagree -- a negative here would take stock out of the bags the walk just found.
+--
+-- Known limit: the client only knows what a bank holds once that bank has been opened on this
+-- character, so a fresh login can report nothing for stock that is really there. It under-counts
+-- HAVE and never over-counts it, which is the safe direction for a shopping list.
+local function bankOf(itemID)
+  local owned = itemCount(itemID, true, true, true)
+  local carried = itemCount(itemID, false, false, false)
+  if not owned or not carried then return 0 end
+  local bank = owned - carried
+  return bank > 0 and bank or 0
+end
+
+-- bags, bank -- the row tooltip is the one place the two halves are said apart.
+local function haveSplit(itemID)
+  return bagStock[itemID] or 0, bankOf(itemID)
+end
+
 local function haveOf(itemID)
-  return bagStock[itemID] or 0
+  local bags, bank = haveSplit(itemID)
+  return bags + bank
 end
 
 local function usualUnit(itemID)
@@ -1683,6 +1716,14 @@ createRow = function(parent)
     if not GameTooltip or not self.tooltipItemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
+    -- HAVE counts the banks as well as the bags, so a line reading 305 with five in the bags
+    -- owes the player an explanation of where the other three hundred are. Only when the bank
+    -- actually holds some: on every other line it would be a zero nobody asked about.
+    local bags, bank = haveSplit(self.tooltipItemID)
+    if bank > 0 and GameTooltip.AddLine then
+      local bc = Theme.color.fgDim
+      GameTooltip:AddLine((GC.L["in bags %d · in bank %d"]):format(bags, bank), bc[1], bc[2], bc[3])
+    end
     -- The one thing the item's own tooltip cannot know: when this realm usually sells it
     -- cheapest. Added after the item so it reads as a footnote rather than as a claim the game
     -- is making about the item. Not on a vendor line -- the auction house's cheap hour is noise
@@ -1870,16 +1911,17 @@ local function createBand(parent)
   counts:SetPoint("LEFT", picker, "RIGHT", Theme.pad.s, 0)
   setColor(counts, Theme.color.fgDim)
 
-  -- What the HAVE column counts, and where a purchase actually turns up: the auction house
-  -- delivers commodities as mail, so a bought line's HAVE does not move until the mailbox is
-  -- emptied. Said once here rather than on every row that is waiting for it.
+  -- What the HAVE column counts -- the bags plus every bank the character can reach -- and where
+  -- a purchase actually turns up: the auction house delivers commodities as mail, so a bought
+  -- line's HAVE does not move until the mailbox is emptied. Said once here rather than on every
+  -- row that is waiting for it.
   -- Anchored first and by its RIGHT edge alone, so its width is its own text -- `spent` below
   -- binds to its LEFT, and binding them to each other in both directions would be circular.
   local bags = Theme.Num(parent, 9)
   bags:SetJustifyH("RIGHT")
   bags:SetWordWrap(false)
   bags:SetPoint("TOPRIGHT", 0, -26)
-  bags:SetText(GC.L["in bags · purchases arrive by mail"])
+  bags:SetText(GC.L["in bags and bank · purchases arrive by mail"])
   setColor(bags, Theme.color.fgDim)
 
   -- Shown only for a run that still has a vendor stop (renderRows). A vendor trip is the one
