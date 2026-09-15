@@ -68,6 +68,24 @@ describe("AppRuns", function()
       assert.equal(1, #GC.AppRuns.List())
     end)
 
+    -- Core/BuyRun.lua keys its purchase state by item id, so two lines of the same item share one
+    -- `bought`: buying the first marked the second done, and the second line's quantity could
+    -- never be bought at all. Two recipes on one shopping list produce this constantly.
+    it("merges duplicate item ids into one line, summing the quantity", function()
+      local f = fixture()
+      table.insert(f.runs[1].lines, { i = 5, q = 15, v = false })
+      table.insert(f.runs[1].lines, { i = 5, q = 5, v = true }) -- a later duplicate may not vendor it
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local run = GC.AppRuns.Get("abcd2345")
+      assert.equal(2, #run.lines)
+      assert.equal(5, run.lines[1].i)
+      assert.equal(230, run.lines[1].q) -- 210 + 15 + 5
+      assert.is_false(run.lines[1].v)
+      assert.equal("Plant Protein", run.lines[1].n) -- the first line keeps name and position
+      assert.equal(6, run.lines[2].i)
+    end)
+
     it("is idempotent: re-adopting the same generatedAt changes nothing and returns false", function()
       _G.GoldCap_AppRuns = fixture()
       assert.is_true(GC.AppRuns.Adopt())
@@ -136,6 +154,15 @@ describe("AppRuns", function()
     it("skips a token that does not match the line grammar", function()
       local run = GC.AppRuns.ImportString("GCR1;code;;5=210,garbage,6=4=v")
       assert.equal(2, #run.lines)
+    end)
+
+    -- Same merge Adopt does, for the same reason: a pasted string can name one item twice too.
+    it("merges duplicate item ids into one line, summing the quantity", function()
+      local run = GC.AppRuns.ImportString("GCR1;code;;5=210,6=4=v,5=15")
+      assert.equal(2, #run.lines)
+      assert.equal(5, run.lines[1].i)
+      assert.equal(225, run.lines[1].q)
+      assert.equal(6, run.lines[2].i)
     end)
   end)
 end)

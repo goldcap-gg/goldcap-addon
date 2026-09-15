@@ -5415,6 +5415,11 @@ function GC.Sniper.OnCommodityPriceUnavailable()
   -- answered, so nothing later may be credited to it. Unavailable is not a purchase, and the
   -- release already told the player to inspect the mailbox -- there is nothing to record.
   if not pending then
+    -- ...unless the BUY tab is holding a stranded confirm of its own. A commodity event carries
+    -- no attempt identifier, so with a record on both sides this one cannot be shown to answer
+    -- the Sniper's: dropping it here would leave the next success free to be taken by whichever
+    -- window asked first. Fail closed, the same answer GC.Buy.mayOwnTerminal gives the other way.
+    if GC.Buy and GC.Buy.HasStranded and GC.Buy.HasStranded() then return end
     takeStrandedConfirmed()
     return
   end
@@ -5485,6 +5490,12 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
     -- the server stayed silent (GC.Sniper._ReleaseStrandedConfirmed) keeps its immutable quote
     -- in a record-only slot for exactly this: the success is late, but the gold left the bags
     -- and the books have to say so.
+    --
+    -- Not while the BUY tab holds a stranded confirm too: the event says nothing about which
+    -- window's purchase it answers, and booking it here would put a goldcap_sniper row on the
+    -- site for a purchase that may well have been BUY's. Fail closed, exactly as
+    -- GC.Buy.mayOwnTerminal does when this side is the one holding a record.
+    if GC.Buy and GC.Buy.HasStranded and GC.Buy.HasStranded() then return end
     local stranded = takeStrandedConfirmed()
     if stranded then settleDetachedConfirmed(stranded, "success") end
     return
@@ -5519,6 +5530,10 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   -- Same retirement as the unavailable path above: the server answered the released attempt,
   -- and a failure is proof no gold moved, so the record-only slot is dropped without a word.
   if not pending then
+    -- And the same refusal: with a stranded confirm on the BUY side too, this failure cannot be
+    -- shown to be the answer to the Sniper's. Dropping the record on it would free the NEXT
+    -- success to be booked as the Sniper's when it was the other window's.
+    if GC.Buy and GC.Buy.HasStranded and GC.Buy.HasStranded() then return end
     takeStrandedConfirmed()
     return
   end

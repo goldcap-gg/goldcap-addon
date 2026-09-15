@@ -121,6 +121,29 @@ describe("Search slot arbiter", function()
       GC.Sniper._strandedConfirmed[7] = { pending = {}, at = 100 - 601 }
       assert.is_false(GC.Sniper.HasStrandedConfirmed())
     end)
+
+    -- The other direction of the same fail-closed rule (review item 2). With a stranded confirm
+    -- on BOTH sides and nothing owning the flow, a terminal event carries nothing that could say
+    -- whose purchase it answers: the Sniper booking its record on a success would put a
+    -- goldcap_sniper row on the site for a buy that may well have been BUY's, and dropping it on
+    -- a failure would leave the NEXT success free to be taken by whichever window asked first.
+    it("keeps its own record while the BUY tab holds a stranded confirm too", function()
+      local GC = load()
+      GC.Buy = { HasStranded = function() return true end }
+
+      GC.Sniper._strandedConfirmed[7] = { pending = { itemID = 7 }, at = 100 }
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+      assert.is_truthy(GC.Sniper._strandedConfirmed[7])
+      GC.Sniper.OnCommodityPurchaseFailed()
+      assert.is_truthy(GC.Sniper._strandedConfirmed[7])
+      GC.Sniper.OnCommodityPriceUnavailable()
+      assert.is_truthy(GC.Sniper._strandedConfirmed[7])
+
+      -- ...and retires it as usual the moment BUY has nothing of its own to attribute.
+      GC.Buy = { HasStranded = function() return false end }
+      GC.Sniper.OnCommodityPurchaseFailed()
+      assert.is_nil(GC.Sniper._strandedConfirmed[7])
+    end)
   end)
 
   -- Browse paging and the tail (watch loop + verify walk) alternate. Paging used to win

@@ -574,7 +574,7 @@ GC.Locales.enUS = {
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",
   ["no answer %ds ago -- resting"] = "no answer %ds ago -- resting",
   ["no answer from the auction house"] = "no answer from the auction house",
-  ["no answer — check your bags"] = "no answer — check your bags",
+  ["no answer — check your mail"] = "no answer — check your mail",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it.",
   ["no live price yet"] = "no live price yet",
@@ -584,6 +584,7 @@ GC.Locales.enUS = {
     "no sales recorded yet — open your mailbox with GoldCap loaded and they will be read from the invoices",
   ["no stock in bags or listed -- nothing to price for"] = "no stock in bags or listed -- nothing to price for",
   ["none"] = "none",
+  ["not a commodity — buy by hand"] = "not a commodity — buy by hand",
   ["not enough gold -- total %s, you have %s"] = "not enough gold -- total %s, you have %s",
   ["not enough gold for this quote -- Cancel"] = "not enough gold for this quote -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =

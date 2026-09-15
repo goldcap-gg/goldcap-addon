@@ -36,6 +36,9 @@ read_globals = {
   -- Reagent quality (Dragonflight+). The client is the authority on an item's
   -- tier; the goldcap.gg import is not -- see UI/Theme.lua's QualityMarkup.
   "C_TradeSkillUI", "C_TooltipInfo", "C_Texture",
+  -- Combat lockdown: SetPropagateKeyboardInput is protected in combat, so the BUY tab's own
+  -- keyboard handler has to ask before it touches it (UI/BuyFrame.lua).
+  "InCombatLockdown",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",

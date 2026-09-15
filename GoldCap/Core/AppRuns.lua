@@ -27,15 +27,35 @@ local function copyLine(raw)
   return { i = i, q = q, v = raw.v == true, n = type(raw.n) == "string" and raw.n or nil }
 end
 
+-- One line per item id, quantities summed. A run is allowed to name the same reagent twice --
+-- two recipes on one shopping list do it constantly -- but Core/BuyRun.lua keys its purchase
+-- state by item id, so two lines of the same item share one `bought`: buying the first marked
+-- the second done, and the second line's quantity could never be bought at all. Merging under-
+-- buys nothing; it is the same total, asked for once. The FIRST line keeps the position, the
+-- name and the vendor flag: a later duplicate must not be able to turn a line the player can
+-- buy into a vendor stop they cannot.
+local function mergeLines(rawLines)
+  local lines, byItem = {}, {}
+  for _, rawLine in ipairs(rawLines) do
+    local line = copyLine(rawLine)
+    if line then
+      local seen = byItem[line.i]
+      if seen then
+        seen.q = seen.q + line.q
+      else
+        byItem[line.i] = line
+        lines[#lines + 1] = line
+      end
+    end
+  end
+  return lines
+end
+
 local function copyRun(raw, origin)
   if type(raw) ~= "table" then return nil end
   if type(raw.code) ~= "string" or raw.code == "" then return nil end
   if type(raw.lines) ~= "table" then return nil end
-  local lines = {}
-  for _, rawLine in ipairs(raw.lines) do
-    local line = copyLine(rawLine)
-    if line then lines[#lines + 1] = line end
-  end
+  local lines = mergeLines(raw.lines)
   if #lines == 0 then return nil end
   return {
     code = raw.code,
@@ -149,13 +169,16 @@ function GC.AppRuns.ImportString(str)
   local code, rawName, rest = str:match("^GCR1;([^;]*);([^;]*);(.*)$")
   if not code then return nil, "bad_header" end
 
-  local lines = {}
+  local parsed = {}
   for token in rest:gmatch("[^,]+") do
     local id, qty, flag = token:match("^(%d+)=(%d+)=?(v?)$")
     if id then
-      lines[#lines + 1] = { i = tonumber(id), q = tonumber(qty), v = flag == "v" }
+      parsed[#parsed + 1] = { i = tonumber(id), q = tonumber(qty), v = flag == "v" }
     end
   end
+  -- Same merge Adopt does, for the same reason (see mergeLines): a pasted string can name one
+  -- item twice just as easily as the companion's file can.
+  local lines = mergeLines(parsed)
   if #lines == 0 then return nil, "no_lines" end
 
   if code == "" then code = "paste-" .. hash8(rest) end

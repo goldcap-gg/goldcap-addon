@@ -45,7 +45,11 @@ local function createDialog()
     local text = f.edit:GetText() or ""
     -- Buy runs (Core/AppRuns.lua): a GCR1 string is a different grammar entirely, so it is
     -- routed to its own parser rather than GC.ImportString.Parse, which only knows GCS1.
-    if text:match("^GCR1;") then
+    -- Leading whitespace is allowed for, because the parser itself strips it (ImportString's
+    -- own gsub) -- an anchored match without it sent a pasted string with one space in front
+    -- to the GCS1 parser, which answered "not a GoldCap import string" about a run it had
+    -- never been asked to read.
+    if text:match("^%s*GCR1;") then
       local run = GC.AppRuns.ImportString(text)
       if not run then
         f.status:SetText("|cffff4040" .. GC.L["Import failed:"] .. " "
@@ -53,6 +57,14 @@ local function createDialog()
         return
       end
       GC.Print(GC.L["run imported: %s (%d lines)"]:format(run.name or run.code, #run.lines))
+      -- ...and the tab shows it now. GC.Buy picks a run in Show(), so a run pasted while the BUY
+      -- tab was already on screen sat in the list unseen until the player left the tab and came
+      -- back -- which reads as an import that did nothing. Guarded because this file loads
+      -- before UI/BuyFrame.lua and specs load it on its own.
+      if GC.Buy and GC.Buy.SelectRun then
+        GC.Buy.SelectRun(run.code)
+        GC.Buy.RefreshIfShown()
+      end
       f.edit:SetText("")
       f:Hide()
       return

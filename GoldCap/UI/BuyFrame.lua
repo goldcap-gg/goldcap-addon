@@ -309,9 +309,16 @@ local DRIVER = {
   now = function() return time() end,
   haveOf = haveOf,
   usualUnit = usualUnit,
+  -- Clamped HERE, not only where the setting is typed. UI/SettingsFrame.lua bounds the box on
+  -- commit, which says nothing about what is already in SavedVariables: a hand-edited file, or
+  -- one written before the bound existed, hands this a 900 that would quietly triple the cap
+  -- every purchase is judged against -- and a non-number would error inside Refresh() on every
+  -- render, taking the whole tab down. The same 100-300 bound the settings box uses.
   capPct = function()
     local sniper = settings()
-    return (sniper and sniper.buyCapPct) or 130
+    local value = tonumber(sniper and sniper.buyCapPct)
+    if not value then return 130 end
+    return math.max(100, math.min(300, math.floor(value)))
   end,
   freeLines = function()
     return GC.AppRuns and GC.AppRuns.FreeLines and GC.AppRuns.FreeLines() or nil
@@ -491,16 +498,25 @@ local function quotePending(attempt)
     and (time() - (attempt.askedAt or 0)) < BD.QUOTE_SECONDS
 end
 
--- What the line's own button says right now, and whether it is clickable -- one function so the
--- render, the Enter key and the attempt log can never disagree about what state a line is in.
--- Returns label, enabled.
+-- What the line's own button says right now, whether it is clickable, and -- for the one state
+-- that needs a look of its own -- which Theme variant to wear. One function so the render, the
+-- Enter key and the attempt log can never disagree about what state a line is in.
+-- Returns label, enabled, variant (nil variant means "the focus-driven default").
 local function actionLabel(line)
   local attempt = GC.Buy._attempt
   local resting = (GC.L["BUY %d"]):format(line.buy)
   -- Ahead of everything, including a fresh quote for some other line: a confirm reached the
-  -- server for THIS item and nothing came back, so the units may already be paid for.
-  if strandedFor(line) then return GC.L["no answer — check your bags"], false end
-  if not attempt or attempt.itemID ~= line.itemID then return resting, true end
+  -- server for THIS item and nothing came back, so the units may already be paid for. Retail
+  -- auction house purchases are DELIVERED AS MAIL (Core/Ledger.lua reads them as "Auction won"
+  -- invoices), so the mailbox, not the bags, is where the player finds out whether it happened.
+  if strandedFor(line) then return GC.L["no answer — check your mail"], false end
+  if not attempt or attempt.itemID ~= line.itemID then
+    -- Some other line is mid-purchase. A click here cannot start a second one (onBuyClick and
+    -- quote both refuse while the client holds a purchase of ours), so the button says so
+    -- rather than reading "BUY n", enabled, and doing nothing at all when it is pressed.
+    if inFlight(attempt) then return resting, false end
+    return resting, true
+  end
   local stage = attempt.stage
   -- A question still worth waiting for says so. One the client swallowed has to offer the click
   -- that asks again, or the row reads "quoting..." -- greyed out -- for the rest of the session.
@@ -509,12 +525,23 @@ local function actionLabel(line)
     return resting, true
   end
   if stage == "quoted" then
+    -- The client will not sell this item as a commodity, so there is no book to quote and no
+    -- quantity this tab could buy in one click. Saying "nothing on offer" about a lot list that
+    -- is full is the one thing worse than saying nothing: it is a false claim about the market.
+    if attempt.byHand then return GC.L["not a commodity — buy by hand"], false end
     if (attempt.qty or 0) > 0 then
-      return (GC.L["BUY %d · %s"]):format(attempt.qty, formatAmount(attempt.total)), true
+      -- A partial fill: the cap stopped the ladder part-way, so what is on the button is real
+      -- but it is not the whole line. The label stays short enough for the 72px badge and the
+      -- button wears the over-cap look; how far over the rest sits is on the log line
+      -- OnCommodityResults writes, which is what `/gc buy` prints.
+      return (GC.L["BUY %d · %s"]):format(attempt.qty, formatAmount(attempt.total)), true,
+        attempt.capped and "danger" or nil
     end
     -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
     -- it usually does" is a decision the player can make; a greyed-out button is not.
-    if attempt.overPct then return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false end
+    if attempt.overPct then
+      return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false, "danger"
+    end
     return GC.L["nothing on offer"], false
   end
   if stage == "started" then return GC.L["buying..."], false end
@@ -527,8 +554,9 @@ local function actionLabel(line)
   end
   if stage == "expired" then return GC.L["took too long — try again"], true end
   -- Confirm reached the server and nothing came back. Not offered as a retry: the units may
-  -- already be paid for, and the bag re-count is what will say so.
-  if stage == "unknown" then return GC.L["no answer — check your bags"], false end
+  -- already be paid for, and the mailbox is where the answer is -- an auction house purchase is
+  -- delivered as "Auction won" mail, so the bag re-count only settles it once that mail is taken.
+  if stage == "unknown" then return GC.L["no answer — check your mail"], false end
   if stage == "failed" then return GC.L["purchase failed — try again"], true end
   return resting, true
 end
@@ -570,6 +598,13 @@ local function liveStranded()
   end
   return count, found
 end
+
+-- Whether this tab is holding a stranded confirm of its own. The Sniper asks before IT books a
+-- terminal event nothing else owns (UI/SniperFrame.lua's three no-pending branches): a commodity
+-- event carries no attempt identifier, so with a record on both sides the event is nobody's to
+-- take -- the same fail-closed answer mayOwnTerminal gives when the Sniper is the one holding
+-- one. Read-only, exactly like GC.Sniper.HasStrandedConfirmed, so asking never consumes a record.
+function GC.Buy.HasStranded() return (liveStranded()) > 0 end
 
 -- The one record a terminal event can honestly be attributed to, consumed. A commodity event
 -- carries no attempt id, so with two of them live attribution is a guess: they are ALL dropped and
@@ -616,6 +651,12 @@ local function mayOwnTerminal()
   end
   return (liveStranded()) > 0
 end
+
+-- Defined with the NOW refresh at the foot of this file (it is the same question a keys batch
+-- asks), declared here because the quote path needs it too: an item the client will not sell as
+-- a commodity has no commodity book, and telling the two apart is what keeps this tab from
+-- reporting an empty market for a lot list that is full.
+local askableItem
 
 -- The client's single commodity buffer read as a price ladder: cheapest level first, in the
 -- { unit, qty } shape Core/BuyRun.lua's PurchaseQuantity walks. Level 1 is the probe -- a nil
@@ -757,9 +798,11 @@ local function settlePurchase(itemID, qty, total, runCode)
     recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode)
   end
   logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
-  -- The units are in the bags now, so HAVE is re-counted before the board is redrawn -- and the
-  -- next line that still needs something takes the focus, so Enter carries on down the run
-  -- without the player reaching for the mouse.
+  -- The purchase is booked against the run whether or not the units have arrived: the auction
+  -- house delivers them as mail, so HAVE moves only once the player empties the mailbox, and
+  -- `buy` is need - max(have, bought) precisely so the line is right in the meantime. HAVE is
+  -- re-counted anyway (the mail may already be in), and the next line that still needs
+  -- something takes the focus, so Enter carries on down the run without reaching for the mouse.
   scanBags()
   GC.Buy._focus = nextOpenAfter(itemID)
   GC.Buy.RefreshIfShown()
@@ -841,12 +884,26 @@ function GC.Buy.OnCommodityResults(itemID)
     return
   end
   local ladder = ladderFor(itemID)
+  -- No ladder AND the client says this is not a commodity: the search filled the ITEM buffer,
+  -- not the commodity one, so there is nothing here to buy in one click however full the lot
+  -- list on Blizzard's own pane is. Marked, so the button says which -- quoting qty 0 and
+  -- printing "nothing on offer" was this tab telling the player a falsehood about the market.
+  attempt.byHand = (ladder == nil and not askableItem(itemID)) or nil
   local qty, total, capped = current:PurchaseQuantity(itemID, ladder or {})
   attempt.qty, attempt.total, attempt.capped = qty, total, capped
-  attempt.overPct = (qty == 0 and capped) and overUsualPct(line, ladder) or nil
+  -- Computed whenever the cap stopped the ladder, not only when it stopped it before a single
+  -- unit: a partial fill needs the same number -- what the REST would have cost -- or the line
+  -- silently buys six of ten and says nothing about why the other four stayed behind.
+  attempt.overPct = capped and overUsualPct(line, ladder) or nil
   attempt.quotedAt = time()
   attempt.stage = "quoted"
-  logAttempt(line)
+  -- The button holds 72px, so the percentage rides on the log line instead (the button wears
+  -- the over-cap variant -- actionLabel). `/gc buy` is where a player reads it back.
+  local text = nil
+  if capped and qty > 0 and attempt.overPct then
+    text = ("%s %s"):format(actionLabel(line), (GC.L["▲%d%% over usual"]):format(attempt.overPct))
+  end
+  logAttempt(line, text)
   GC.Buy.RefreshIfShown()
 end
 
@@ -1228,18 +1285,29 @@ local function paintLine(row, line)
   row.cells.buy:SetText(tostring(line.buy))
   setColor(row.cells.buy, line.buy > 0 and Theme.color.gold or Theme.color.fgDim)
 
-  -- NOW is the best unit price actually seen for this item; nothing has looked yet on a fresh
-  -- run, and an em dash says so rather than borrowing the USUAL beside it.
-  row.cells.now:SetText(formatAmount(line.floor))
-  setColor(row.cells.now, line.floor and Theme.color.fg or Theme.color.fgDim)
-  row.cells.usual:SetText(formatAmount(line.usual))
-  setColor(row.cells.usual, Theme.color.fgDim)
+  if line.vendor then
+    -- A vendor line never touches the auction house: the player walks to a vendor and pays the
+    -- vendor's own price, which nothing here knows. The market value and a cost computed from it
+    -- are prices for a purchase this line is not, and printing them invites the player to
+    -- compare the two. Three em dashes, the same way an unknown price is said everywhere else.
+    for _, key in ipairs({ "now", "usual", "cost" }) do
+      row.cells[key]:SetText(EM_DASH)
+      setColor(row.cells[key], Theme.color.fgDim)
+    end
+  else
+    -- NOW is the best unit price actually seen for this item; nothing has looked yet on a fresh
+    -- run, and an em dash says so rather than borrowing the USUAL beside it.
+    row.cells.now:SetText(formatAmount(line.floor))
+    setColor(row.cells.now, line.floor and Theme.color.fg or Theme.color.fgDim)
+    row.cells.usual:SetText(formatAmount(line.usual))
+    setColor(row.cells.usual, Theme.color.fgDim)
 
-  -- What the rest of this line should cost at the best price known for it. With neither a seen
-  -- floor nor a market value there is no honest number, so the cell stays an em dash.
-  local unit = line.floor or line.usual
-  row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
-  setColor(row.cells.cost, Theme.color.fg)
+    -- What the rest of this line should cost at the best price known for it. With neither a seen
+    -- floor nor a market value there is no honest number, so the cell stays an em dash.
+    local unit = line.floor or line.usual
+    row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
+    setColor(row.cells.cost, Theme.color.fg)
+  end
 
   if line.vendor then
     row.cells.action:SetText(GC.L["vendor"])
@@ -1253,9 +1321,12 @@ local function paintLine(row, line)
   else
     -- One control, two looks, never two overlaid buttons (addon/AGENTS.md): the label says what
     -- the next click does, and the focused line -- the one Enter would buy -- wears the active
-    -- variant so the key is never aimed at a row nobody can see it pointing at.
-    local label, clickable = actionLabel(line)
-    row.action:SetVariant(GC.Buy._focus == line.itemID and "active" or "ghost")
+    -- variant so the key is never aimed at a row nobody can see it pointing at. A state with a
+    -- look of its own (over the cap, whether nothing fits under it or only part of the line
+    -- does) says so instead; SetVariant runs BEFORE Enable/Disable, since it repaints the text
+    -- in the variant's own colours and would undo the dimmed look (UI/SellFrame.lua's rule).
+    local label, clickable, variant = actionLabel(line)
+    row.action:SetVariant(variant or (GC.Buy._focus == line.itemID and "active" or "ghost"))
     row.action:SetLabel(label)
     if clickable then
       row.action:Enable()
@@ -1607,6 +1678,12 @@ function GC.Buy.Attach(f, geo)
   -- straight back. Each widget call is guarded so the headless specs can run without them.
   if container.EnableKeyboard then container:EnableKeyboard(true) end
   container:SetScript("OnKeyDown", function(self, key)
+    -- SetPropagateKeyboardInput is combat-protected, and this container has the keyboard for as
+    -- long as the BUY tab is up -- including the standalone window, which outlives the auction
+    -- house and can be open in a fight. Calling it there raises a protected-function error on
+    -- every keystroke. There is no purchase to make in combat anyway (the auction house is not
+    -- reachable), so the handler stands down entirely and the key goes where it always would.
+    if InCombatLockdown and InCombatLockdown() then return end
     local line
     if (key == "ENTER" or key == "NUMPADENTER") and self.IsMouseOver and self:IsMouseOver() then
       line = lineFor(GC.Buy._focus)
@@ -1662,7 +1739,9 @@ end
 -- be a price for some other item's stats. A run is reagents in practice, but a pasted GCR1
 -- string can hold anything. Unknown counts as askable: the client answers nil for an item key
 -- it has not cached yet, and refusing those would leave a fresh session's whole run unpriced.
-local function askableItem(itemID)
+-- Declared at the top of the quote path (see there), which asks the same question of a line
+-- whose own search came back with no commodity book at all.
+askableItem = function(itemID)
   if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey) then
     return true
   end
@@ -1776,15 +1855,18 @@ end
 -- as GC.Sell.DebugPrint -- plain untranslated field=value text, not player-facing copy, so it
 -- carries none of the surface's own GC.L keys.
 function GC.Buy.DebugPrint()
-  if not current then
+  -- No run is not a reason to say nothing else. "What happened when I clicked" is the question
+  -- this command exists for, and an attempt, a stranded confirm and the log all outlive the run
+  -- being swapped away or dropped by the companion -- which is exactly when a player asks.
+  if current then
+    local totals = current:Totals()
+    GC.Print((GC.L["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"]):format(
+      runLabel(current), totals.lines, totals.toBuy, totals.atVendor,
+      formatAmount(totals.spent), formatAmount(totals.left)))
+    GC.Print(("run: code=%s name=%s"):format(tostring(current:Code()), tostring(current:Name())))
+  else
     GC.Print(GC.L["Buy: no run selected."])
-    return
   end
-  local totals = current:Totals()
-  GC.Print((GC.L["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"]):format(
-    runLabel(current), totals.lines, totals.toBuy, totals.atVendor,
-    formatAmount(totals.spent), formatAmount(totals.left)))
-  GC.Print(("run: code=%s name=%s"):format(tostring(current:Code()), tostring(current:Name())))
   local attempt = GC.Buy._attempt
   GC.Print(("attempt: stage=%s item=%s"):format(
     attempt and tostring(attempt.stage) or "none", attempt and tostring(attempt.itemID) or "n/a"))
@@ -1796,7 +1878,7 @@ function GC.Buy.DebugPrint()
   end
   GC.Print(("stranded: %d%s"):format(strandedCount,
     strandedCount > 0 and (" (" .. table.concat(strandedParts, ", ") .. ")") or ""))
-  for _, line in ipairs(current:Lines()) do
+  for _, line in ipairs(current and current:Lines() or {}) do
     local state = ""
     if line.vendor then state = GC.L["vendor"]
     elseif line.done then state = GC.L["done"]

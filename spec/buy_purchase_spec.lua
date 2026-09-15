@@ -277,6 +277,8 @@ describe("BUY purchase", function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.C_AuctionHouse, _G.C_Timer, _G.GetTime = nil, nil, nil
     _G.hooksecurefunc, _G.SlashCmdList, _G.Enum = nil, nil, nil
+    -- .busted runs without isolation, so the combat flag one test sets must not outlive it.
+    _G.InCombatLockdown = nil
     -- Core/Init.lua sets both; .busted runs without isolation and spec/loadorder_spec.lua asserts
     -- on them, so a router-loading spec has to take them back out.
     _G.SLASH_GOLDCAP1, _G.SLASH_GOLDCAP2 = nil, nil
@@ -324,6 +326,8 @@ describe("BUY purchase", function()
     local row = rowWithText("Alpha Herb")
     assert.equal("▲100% over usual", row.action.label)
     assert.is_false(row.action:IsEnabled())
+    -- The over-cap look, which a line where only PART fits wears too (see the partial-fill test).
+    assert.equal("danger", row.action.variant)
   end)
 
   it("does not quote a vendor line, and offers it no button to click", function()
@@ -643,7 +647,7 @@ describe("BUY purchase", function()
     -- threw its own record away at the Start hook while this tab owned the purchase.
     assert.is_true(GC.Buy.OwnsCommodityPurchase(101, 10))
     local row = rowWithText("Alpha Herb")
-    assert.equal("no answer — check your bags", row.action.label)
+    assert.equal("no answer — check your mail", row.action.label)
     assert.is_false(row.action:IsEnabled())
   end)
 
@@ -821,7 +825,7 @@ describe("BUY purchase", function()
     assert.equal("unknown", GC.Buy._attempt.stage)
     GC.Buy.OnAuctionHouseClosed()
     assert.equal("unknown", GC.Buy._attempt.stage)
-    assert.equal("no answer — check your bags", rowWithText("Alpha Herb").action.label)
+    assert.equal("no answer — check your mail", rowWithText("Alpha Herb").action.label)
   end)
 
   it("keeps a timed-out line's warning when the close fires twice", function()
@@ -1143,7 +1147,7 @@ describe("BUY purchase", function()
     assert.is_truthy(GC.Buy._stranded[101])
     assert.is_truthy(GC.Buy._stranded[103])
     assert.equal("unknown", GC.Buy._attempt.stage)
-    assert.equal("no answer — check your bags", rowWithText("Alpha Herb").action.label)
+    assert.equal("no answer — check your mail", rowWithText("Alpha Herb").action.label)
   end)
 
   it("keeps a stranded record a failure cannot be pinned to the attempt for", function()
@@ -1151,7 +1155,7 @@ describe("BUY purchase", function()
     GC.Buy._attempt = nil
     assert.is_false(GC.Buy.OnCommodityPurchaseFailed())
     assert.is_truthy(GC.Buy._stranded[101])
-    assert.equal("no answer — check your bags", rowWithText("Alpha Herb").action.label)
+    assert.equal("no answer — check your mail", rowWithText("Alpha Herb").action.label)
 
     -- The player has moved on to another line: the attempt is that line's, and says nothing
     -- about the one that went unanswered.
@@ -1239,7 +1243,7 @@ describe("BUY purchase", function()
     hover(rowWithText("Alpha Herb"))
     assert.equal(before, #searches)
     local row = rowWithText("Alpha Herb")
-    assert.equal("no answer — check your bags", row.action.label)
+    assert.equal("no answer — check your mail", row.action.label)
     assert.is_false(row.action:IsEnabled())
     click(row)
     assert.equal(before, #searches)
@@ -1255,5 +1259,104 @@ describe("BUY purchase", function()
     end
     assert.is_true(#GC.Buy._log <= 20)
     assert.is_true(#GC.Buy._log > 0)
+  end)
+
+  -- Review item 3: a gear, pet or recipe line answers the ITEM buffer, not the commodity one, so
+  -- the ladder probe comes back empty and the quote was qty 0 -- which the button reported as
+  -- "nothing on offer" while Blizzard's own pane showed a full list of lots. Never bought
+  -- anything, but said something false about the market.
+  it("says a line the client will not sell as a commodity has to be bought by hand", function()
+    _G.C_AuctionHouse.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 103 } end
+    setBook(103, {})
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    local row = rowWithText("Charlie Dust")
+    assert.equal("not a commodity — buy by hand", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+
+    -- ...and a commodity line with an empty book still says the honest thing about the book.
+    setBook(105, {})
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    assert.equal("nothing on offer", rowWithText("Echo Salt").action.label)
+  end)
+
+  -- Review item 5: the cap stopping the ladder PART-WAY was silent -- a plain "BUY 6 · ..." and
+  -- nothing about the four units it refused. The label stays inside the 72px badge, so the
+  -- percentage rides on the log line `/gc buy` prints and the button wears the over-cap look.
+  it("says how far over usual the rest is when only part of the line fits under the cap", function()
+    setBook(101, { { unitPrice = 900, quantity = 6 }, { unitPrice = 2000, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    local attempt = GC.Buy._attempt
+    assert.equal(6, attempt.qty)
+    assert.is_true(attempt.capped)
+    assert.equal(100, attempt.overPct) -- 2000 against a 1000 usual
+
+    local row = rowWithText("Alpha Herb")
+    assert.equal("BUY 6 · 5400c", row.action.label)
+    assert.is_true(row.action:IsEnabled()) -- the part that fits is still buyable
+    assert.equal("danger", row.action.variant)
+    assert.is_truthy(GC.Buy._log[#GC.Buy._log].text:find("▲100% over usual", 1, true))
+  end)
+
+  -- Review item 10: while the client holds a purchase of ours, neither onBuyClick nor quote will
+  -- act for any other line -- so every other button read "BUY n", enabled, and did nothing at all.
+  it("disables the other lines while a purchase is waiting to be confirmed", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+
+    local other = rowWithText("Charlie Dust")
+    assert.equal("BUY 4", other.action.label)
+    assert.is_false(other.action:IsEnabled())
+    local before = #searches
+    click(rowWithText("Charlie Dust"))
+    assert.equal(before, #searches) -- and the disabled look is telling the truth
+    assert.same({}, confirmed)
+
+    -- Offered again the moment the purchase is over.
+    click(rowWithText("Alpha Herb"))
+    deliver(101, 10)
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.is_true(rowWithText("Charlie Dust").action:IsEnabled())
+  end)
+
+  -- Review item 7: SetPropagateKeyboardInput is combat-protected, and this container holds the
+  -- keyboard for as long as the tab is up -- including the standalone window, which outlives the
+  -- auction house and can be open in a fight.
+  it("touches nothing on a keystroke in combat", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    local container = containerOf()
+    container.mouseOver = true
+
+    _G.InCombatLockdown = function() return true end
+    keyDown("ENTER")
+    assert.is_nil(container.propagate)
+    assert.same({}, started)
+
+    _G.InCombatLockdown = function() return false end
+    keyDown("ENTER")
+    assert.is_false(container.propagate)
+    assert.same({ { itemID = 101, quantity = 10 } }, started)
+  end)
+
+  -- Review item 11: `/gc buy` is asked "what happened when I clicked", and an attempt, a stranded
+  -- confirm and the log all outlive the run being swapped away -- which is exactly when it is asked.
+  it("still prints the attempt, the stranded confirms and the log with no run selected", function()
+    strandOne()
+    local printed = {}
+    GC.Print = function(text) printed[#printed + 1] = text end
+    GC.Buy.SelectRun(nil)
+    assert.is_nil(GC.Buy.CurrentRun())
+
+    GC.Buy.DebugPrint()
+    local text = table.concat(printed, "\n")
+    assert.is_truthy(text:find("Buy: no run selected.", 1, true))
+    assert.is_truthy(text:find("attempt: stage=", 1, true))
+    assert.is_truthy(text:find("stranded: 1", 1, true))
+    assert.is_truthy(text:find("log: ", 1, true))
   end)
 end)

@@ -374,6 +374,51 @@ describe("BuyFrame", function()
     assert.equal(2000, capFor(101))
   end)
 
+  -- UI/SettingsFrame.lua bounds the box on commit, which says nothing about what is ALREADY in
+  -- SavedVariables: a hand-edited file, or one written before the bound existed, would have every
+  -- purchase judged against a 9x cap -- and a non-number errored inside Refresh() on every render,
+  -- which is the whole tab gone. The read site clamps to the same 100-300 the box uses.
+  it("clamps a cap outside 100-300 in SavedVariables to the bound", function()
+    local function capFor(itemID)
+      for _, line in ipairs(GC.Buy.CurrentRun():Lines()) do
+        if line.itemID == itemID then return line.cap end
+      end
+    end
+    GC.db.settings.sniper.buyCapPct = 900
+    GC.Buy.RefreshIfShown()
+    assert.equal(3000, capFor(101)) -- 300% of the 1000 usual, not 900%
+
+    GC.db.settings.sniper.buyCapPct = 10
+    GC.Buy.RefreshIfShown()
+    assert.equal(1000, capFor(101))
+
+    GC.db.settings.sniper.buyCapPct = "nonsense"
+    assert.has_no.errors(function() GC.Buy.RefreshIfShown() end)
+    assert.equal(1300, capFor(101)) -- back to the default rather than down with the tab
+  end)
+
+  -- Spec rule 2: a vendor line never touches the auction house. Showing it the AH's market value
+  -- and a cost computed from that priced a purchase this line is not, and invited the player to
+  -- compare the two.
+  it("prices a vendor line at nothing at all", function()
+    GC.AppRuns._set({ run({ code = "run-v", updatedAt = 900,
+      lines = { { i = 101, q = 10 }, { i = 102, q = 9, v = true } } }) })
+    GC.db.settings.sniper.buyRun = "run-v"
+    GC.Buy.Show()
+
+    local vendor = rowWithText("Bravo Ore")
+    assert.truthy(vendor)
+    assert.equal("vendor", vendor.cells.action:GetText())
+    assert.equal("—", vendor.cells.now:GetText())
+    assert.equal("—", vendor.cells.usual:GetText())   -- 102 has a market value; it is not the point
+    assert.equal("—", vendor.cells.cost:GetText())
+
+    -- ...while the line the player is actually here to buy still prices.
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("1000c", alpha.cells.usual:GetText())
+    assert.equal("1g", alpha.cells.cost:GetText())
+  end)
+
   it("labels the column header row REAGENT/NEED/HAVE/BUY/NOW/USUAL/COST/ACTION", function()
     local header = bandOf().header
     assert.truthy(header and header.cells)
