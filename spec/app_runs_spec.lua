@@ -207,6 +207,17 @@ describe("AppRuns", function()
 
     -- Removal takes everything stored beside the run with it -- the archived flag and the cap
     -- alike, since nothing else would ever clear either.
+    -- Pasting a run whose code was archived is the player asking for it back: it comes back
+    -- live, not straight into the Archived section.
+    it("un-archives a run that is pasted again", function()
+      GC.AppRuns.ImportString("GCR1;abcd2345;Cooking;5=210")
+      GC.AppRuns.SetArchived("abcd2345", true)
+      assert.is_true(GC.AppRuns.IsArchived("abcd2345"))
+      GC.AppRuns.ImportString("GCR1;abcd2345;Cooking;5=300")
+      assert.is_false(GC.AppRuns.IsArchived("abcd2345"))
+      assert.equal(300, GC.AppRuns.Get("abcd2345").lines[1].q)
+    end)
+
     it("forgets the flag of a run that is removed outright", function()
       GC.AppRuns.SetArchived("paste-1", true)
       GC.db.runCaps = { ["paste-1"] = 150 }

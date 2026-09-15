@@ -257,6 +257,9 @@ function GC.AppRuns.ImportString(str)
   if type(db) == "table" then
     db.runs = db.runs or {}
     db.runs[run.code] = run
+    -- A paste is the player asking for this run now; a flag left over from archiving an
+    -- earlier copy would drop the fresh one straight into the Archived section unseen.
+    if type(db.runsArchived) == "table" then db.runsArchived[run.code] = nil end
   end
   return run
 end
