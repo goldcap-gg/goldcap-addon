@@ -1073,6 +1073,24 @@ describe("BuyFrame", function()
     assert.equal("↳ Charlie Dust", rowWithText("Charlie Dust").reagent:GetText())
   end)
 
+  -- Core/BuyRun.lua's Totals counts a vendor line with no vendor price as nothing, because a
+  -- floor or a market value is a number from the wrong market. The craft row's COST has to
+  -- agree: pricing that reagent at the auction house invented gold the trip will never cost.
+  it("leaves a vendor reagent with no vendor price out of the craft row's cost", function()
+    GC.AppRuns._set({ { code = "run-vc", name = "Craft run", updatedAt = 900, origin = "app",
+      lines = { { i = 101, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+        { i = 102, q = 5, n = "Bravo Ore", u = 300 },
+        { i = 103, q = 5, n = "Charlie Dust", v = true },
+      } } } } } })
+    GC.db.runSplits = { ["run-vc"] = { [101] = true } }
+    GC.db.settings.sniper.buyRun = "run-vc"
+    GC.Buy.Show()
+    -- Fifteen Bravo Ore at 300 (five are in the bags) and nothing at all for the fixings, whose
+    -- price nobody knows -- not the 3000 the auction house happens to ask for them.
+    assert.equal("~" .. tostring(15 * 300) .. "c", rowWithText("craft 4×").cells.cost:GetText())
+    assert.equal("—", rowWithText("Charlie Dust").cells.cost:GetText())
+  end)
+
   it("counts what is left to craft in the header band", function()
     showCraftRun(true)
     assert.equal("3 lines · 2 to buy · 1 to craft · 0 at the vendor", bandOf().counts:GetText())

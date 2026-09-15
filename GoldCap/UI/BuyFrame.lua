@@ -1661,7 +1661,15 @@ local function craftCostNow(parent)
       qty = math.min(line.buy, line.forCraft[parent.itemID])
     end
     if qty and qty > 0 then
-      local unit = line.vendor and line.vendorUnit or (line.floor or line.usual)
+      -- A vendor reagent is priced at the vendor's own price or at nothing: the auction house
+      -- is the wrong market for it, and with no vendor price known it counts zero -- exactly
+      -- what Core/BuyRun.lua's Totals does with the same line.
+      local unit
+      if line.vendor then
+        unit = line.vendorUnit
+      else
+        unit = line.floor or line.usual
+      end
       if unit then
         total = total + qty * unit
         known = true
