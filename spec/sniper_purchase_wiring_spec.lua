@@ -2524,6 +2524,44 @@ describe("Sniper purchase wiring", function()
       _G.C_AuctionHouse, _G.GetCoinTextureString = nil, nil
     end)
 
+    -- Observed live 2026-09-15 (`/gc sniper`): a tombstone fenced on requery token 2, no requery
+    -- waiting, Buy refused for 20 seconds. The requery had stopped being the row's before its
+    -- result landed (the board repainted the deal under the dialog), and the drop branch threw
+    -- the requery away without retiring the tombstone it was fenced on. The result still proves
+    -- the cancelled attempt's late quote was delivered, so the tombstone must go with it.
+    it("a requery result retires the tombstone fenced on it even when the requery is no longer current", function()
+      local GC = loadSniper()
+      local row = { purchaseStage = "ready", purchaseToken = 2, deal = { itemID = 42 } }
+      -- `deal` is a different table from row.deal: the repaint that orphaned this requery.
+      local attempt = { row = row, itemID = 42, token = 2, deal = { itemID = 42 }, sent = true }
+      getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42] = attempt
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+        { itemID = 42, token = 1, drainingAt = 100, fenceRow = row, fenceToken = 2 })
+
+      GC.Sniper.OnCommoditySearchResults(42)
+
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining"))
+      assert.is_nil(getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42])
+      assert.equal("ready", row.purchaseStage) -- the orphaned requery still arms nothing
+    end)
+
+    it("a dropped requery never retires a confirmed tombstone or one fenced elsewhere", function()
+      local GC = loadSniper()
+      local row = { purchaseStage = "ready", purchaseToken = 2, deal = { itemID = 42 } }
+      local attempt = { row = row, itemID = 42, token = 2, deal = { itemID = 42 }, sent = true }
+      local confirmed = { itemID = 42, token = 1, confirmed = true, fenceRow = row, fenceToken = 2 }
+      getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42] = attempt
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", confirmed)
+      GC.Sniper.OnCommoditySearchResults(42)
+      assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == confirmed)
+
+      local other = { itemID = 42, token = 1, drainingAt = 100, fenceRow = row, fenceToken = 3 }
+      getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42] = attempt
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", other)
+      GC.Sniper.OnCommoditySearchResults(42)
+      assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == other)
+    end)
+
     -- A confirmed attempt that let go of the shared purchase slot -- the tombstone Esc leaves
     -- behind, or one still in flight -- is a purchase whose success is still owed to the Sniper.
     -- The BUY tab asks this before a stranded record of its own takes a terminal event; a "no"
