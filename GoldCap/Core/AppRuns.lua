@@ -150,6 +150,30 @@ local function noticeFor(old, new)
   return { at = time(), added = added, removed = removed }
 end
 
+-- What this character bought against an alert group's hits, minus the hits that are gone. An
+-- alert run's lines ARE the group's live hits: one that expired is gone for good, and a later
+-- hit for the same item is a different lot at a different price, which starts from nothing
+-- bought. Nothing else ever prunes `buyProgress` -- it is keyed by the run code, and an alert
+-- group's code does not change -- so without this a hit that came back would arrive already
+-- part bought, against gold spent days ago on a lot nobody can see any more. Every character's
+-- copy goes together: the score is per character, the expiry is not.
+--
+-- A saved list is left alone. Its lines are a plan the site recomputes, not hits: a line that
+-- went today is one the player may put back tomorrow, and the run's score is still the run's.
+local function pruneAlertProgress(db, run)
+  if run.k ~= "alert" or type(db.buyProgress) ~= "table" then return end
+  local live = {}
+  for _, line in ipairs(run.lines) do live[line.i] = true end
+  for _, byChar in pairs(db.buyProgress) do
+    local forRun = type(byChar) == "table" and byChar[run.code] or nil
+    if type(forRun) == "table" then
+      for itemID in pairs(forRun) do
+        if not live[itemID] then forRun[itemID] = nil end
+      end
+    end
+  end
+end
+
 -- Reads `_G.GoldCap_AppRuns` (see this file's header for the shape and where it comes from)
 -- and, when it is both well-formed and strictly newer than what is already stored, replaces
 -- every "app" run in `GC.db.runs` with the ones it carries and stamps `GC.db.runsMeta`.
@@ -188,6 +212,7 @@ function GC.AppRuns.Adopt()
         local notice = noticeFor(old, run)
         if notice then db.runNotices[run.code] = notice end
       end
+      pruneAlertProgress(db, run)
       kept[run.code] = run
     end
   end

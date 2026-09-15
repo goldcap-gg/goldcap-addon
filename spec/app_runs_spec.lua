@@ -314,6 +314,52 @@ describe("AppRuns", function()
       GC.AppRuns.Adopt()
       assert.is_nil(GC.db.runNotices["abcd2345"])
     end)
+    -- An alert run's lines ARE the group's live hits. A hit that expired is gone, and a later
+    -- hit for the same item is a different lot at a different price -- so what was bought
+    -- against the old one is not a score the new one inherits. Nothing else ever prunes
+    -- buyProgress: it is keyed by the run code, and an alert group's code does not change.
+    it("forgets what was bought for an alert hit that has expired", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].k = "alert"
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      GC.db.buyProgress = {
+        ["Tester-Realm"] = { ["abcd2345"] = { [5] = { bought = 60, spent = 900 },
+                                              [6] = { bought = 4, spent = 40 } } },
+        ["Alt-Realm"] = { ["abcd2345"] = { [6] = { bought = 1, spent = 10 } } },
+      }
+
+      local fresher = fixture()
+      fresher.v = 3
+      fresher.runs[1].k = "alert"
+      fresher.generatedAt = fresher.generatedAt + 60
+      table.remove(fresher.runs[1].lines, 2)          -- item 6's hit is no longer on the run
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+
+      local mine = GC.db.buyProgress["Tester-Realm"]["abcd2345"]
+      assert.is_nil(mine[6])
+      assert.equal(60, mine[5].bought)                -- the hit still on the run keeps its score
+      -- The score is per character, but the hit expired for every one of them at once.
+      assert.is_nil(GC.db.buyProgress["Alt-Realm"]["abcd2345"][6])
+    end)
+
+    -- A saved list is a plan, not a set of live hits: a line the site recomputed away is one the
+    -- player may put back tomorrow, and the gold this run already spent on it is still spent.
+    it("leaves a list run's progress alone when a line goes", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      GC.db.buyProgress = { ["Tester-Realm"] = { ["abcd2345"] = {
+        [5] = { bought = 60, spent = 900 }, [6] = { bought = 4, spent = 40 } } } }
+
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60
+      table.remove(fresher.runs[1].lines, 2)
+      _G.GoldCap_AppRuns = fresher
+      GC.AppRuns.Adopt()
+      assert.equal(4, GC.db.buyProgress["Tester-Realm"]["abcd2345"][6].bought)
+    end)
   end)
 
   describe("archiving", function()
