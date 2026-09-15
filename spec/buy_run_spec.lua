@@ -170,6 +170,14 @@ describe("BuyRun prices from the run itself", function()
     assert.is_nil(run:Lines()[3].cap)
   end)
 
+  -- Both known and different: the run's own price wins outright, not "whichever is set". Without
+  -- this case a reversed precedence (import first) passes the case above unchanged.
+  it("lets the run line's own price beat an import price the addon also knows", function()
+    local run = build({ { i = 9, q = 10, u = 44000 } })
+    assert.equal(44000, run:Lines()[1].usual)
+    assert.equal(math.floor(44000 * 130 / 100), run:Lines()[1].cap)
+  end)
+
   -- A zero is not a price. Trusted, it caps the line at zero and nothing can ever be bought.
   it("treats a zero or a non-number on the line as no price at all", function()
     assert.equal(100, build({ { i = 9, q = 10, u = 0 } }):Lines()[1].usual)
