@@ -498,8 +498,11 @@ end
 -- Puts the shown run away and moves to the next one still on offer (or clears the board).
 -- Offered for any run, unlike removal: an "app" run is the companion's mirror of a list on
 -- goldcap.gg and comes back on the next sync, and this flag is exactly how a finished one is
--- told to stay out of the picker anyway.
+-- told to stay out of the picker anyway. A no-op while a purchase is in flight -- belt and
+-- braces alongside the menu guard below, since `current` moves on and the in-flight purchase's
+-- gold would then book against a run it can no longer see (Finding 1).
 local function archiveCurrentRun()
+  if inFlight(GC.Buy._attempt) then return end
   if not (current and GC.AppRuns and GC.AppRuns.SetArchived) then return end
   if not GC.AppRuns.SetArchived(current:Code(), true) then return end
   local list = runList()
@@ -533,7 +536,10 @@ openRunMenu = function(owner)
     end
     root:CreateDivider()
     local shown = current and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(current:Code()) or nil
-    if shown then
+    -- A purchase in flight has already committed to this run's `current`: re-capping the lines
+    -- or archiving out from under it is exactly the hole Finding 1 describes (`settlePurchase`
+    -- would book the gold nowhere a bought-count can see it). Runs/remove/paste are unaffected.
+    if shown and not inFlight(GC.Buy._attempt) then
       local code = shown.code
       -- MenuUtil's own submenu shape: an element description with children added to it displays
       -- as one (Blizzard's Menu implementation guide), and CreateRadio(text, isSelected,
@@ -1530,7 +1536,7 @@ local function paintLine(row, line)
     local unit = line.vendorUnit
     row.cells.now:SetText(formatAmount(unit))
     row.cells.usual:SetText(formatAmount(unit))
-    row.cells.cost:SetText(unit and formatAmount(line.buy * unit) or EM_DASH)
+    row.cells.cost:SetText(unit and line.buy > 0 and formatAmount(line.buy * unit) or EM_DASH)
     for _, key in ipairs({ "now", "usual", "cost" }) do
       setColor(row.cells[key], Theme.color.fgDim)
     end
@@ -1679,8 +1685,9 @@ createRow = function(parent)
     if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
     -- The one thing the item's own tooltip cannot know: when this realm usually sells it
     -- cheapest. Added after the item so it reads as a footnote rather than as a claim the game
-    -- is making about the item.
-    local cheap = cheapHourText(line)
+    -- is making about the item. Not on a vendor line -- the auction house's cheap hour is noise
+    -- next to a fixed price -- and not on a done line, which nobody is about to act on.
+    local cheap = line and not line.vendor and not line.done and cheapHourText(line)
     if cheap and GameTooltip.AddLine then
       local c = Theme.color.fgDim
       GameTooltip:AddLine(cheap, c[1], c[2], c[3])

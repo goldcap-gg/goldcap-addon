@@ -465,6 +465,70 @@ describe("BuyFrame", function()
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
   end)
 
+  -- Finding 1: a purchase already committed to `current`. Re-pointing the cap or archiving the
+  -- run before it settles would strand the gold -- `settlePurchase` books it against `current`,
+  -- and this run would no longer be it (SelectRun keeps the attempt, but the archived run's own
+  -- buyProgress never sees the purchase). Cap and archive drop from the menu; runs/remove/paste
+  -- stay exactly as they were.
+  it("keeps the run's cap and archive out of reach while a purchase is in flight", function()
+    local archived = {}
+    GC.AppRuns.SetArchived = function(code, value) archived[code] = value and true or nil; return true end
+    local allRuns = { run(), run({ code = "run-2", name = "Potion run" }) }
+    GC.AppRuns._set(allRuns)
+    GC.AppRuns.List = function(opts)
+      local want = type(opts) == "table" and opts.archived == true
+      local out = {}
+      for _, r in ipairs(allRuns) do
+        if (archived[r.code] == true) == want then out[#out + 1] = r end
+      end
+      return out
+    end
+    GC.Buy.SelectRun("run-1")
+
+    local entries
+    local function openMenu()
+      entries = {}
+      _G.MenuUtil = { CreateContextMenu = function(_, generator)
+        generator(nil, {
+          CreateTitle = function(_, text) entries[#entries + 1] = { text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { text = text, fn = fn }; return nil end,
+          CreateDivider = function() entries[#entries + 1] = { text = "divider" } end,
+        })
+      end }
+      local band = bandOf()
+      band.picker.scripts.OnClick(band.picker)
+      _G.MenuUtil = nil
+    end
+    local function entryNamed(text)
+      for _, e in ipairs(entries) do if e.text == text then return e end end
+    end
+
+    -- At rest, both are on offer -- and this is where Archive's own handler comes from.
+    openMenu()
+    local archiveFn = entryNamed("Archive this run").fn
+    assert.truthy(entryNamed("Cap: 130%"))
+
+    -- Drive an attempt to "started" the way buy_purchase_spec does: this is the stage a click
+    -- on BUY leaves it in the instant the server has been asked, well before success or failure.
+    GC.Buy._attempt = { stage = "started", itemID = 101, qty = 5, total = 5000 }
+    openMenu()
+    assert.is_nil(entryNamed("Cap: 130%"))
+    assert.is_nil(entryNamed("Archive this run"))
+    assert.truthy(entryNamed("Paste a run..."))
+
+    -- Belt and braces: the handler captured before the purchase started still refuses to act
+    -- while one is in flight, even reached directly.
+    archiveFn()
+    assert.is_nil(archived["run-1"])
+    assert.equal("run-1", GC.Buy.CurrentRun():Code())
+
+    -- Once it settles, the same handler archives normally.
+    GC.Buy._attempt = nil
+    archiveFn()
+    assert.is_true(archived["run-1"])
+    assert.equal("run-2", GC.Buy.CurrentRun():Code())
+  end)
+
   it("judges a run with no cap of its own by the global setting, and clamps a silly one", function()
     GC.AppRuns._set({ run() })
     GC.Buy.SelectRun("run-1")
@@ -624,6 +688,21 @@ describe("BuyFrame", function()
     local alpha = rowWithText("Alpha Herb")
     assert.equal("1000c", alpha.cells.usual:GetText())
     assert.equal("~1g", alpha.cells.cost:GetText())
+  end)
+
+  -- Finding 4: a vendor stop the bags already cover is `buy == 0` at a known price -- `buy * unit`
+  -- is honestly zero, but "0c" reads as a real quote rather than as the nothing-left-to-do an
+  -- em dash says everywhere else on this tab.
+  it("shows the em dash, not 0c, for a done vendor line's cost", function()
+    GC.AppRuns._set({ run({ code = "run-vd", updatedAt = 900,
+      lines = { { i = 101, q = 10 }, { i = 102, q = 5, v = true, vu = 25 } } }) })
+    GC.db.settings.sniper.buyRun = "run-vd"
+    GC.Buy.Show()
+
+    local vendor = rowWithText("Bravo Ore")
+    assert.equal("25c", vendor.cells.now:GetText())
+    assert.equal("25c", vendor.cells.usual:GetText())
+    assert.equal("—", vendor.cells.cost:GetText())
   end)
 
   -- Spec rule 2: the run header offers the vendor stops as a block of plain text, because the
@@ -823,5 +902,30 @@ describe("BuyFrame", function()
     alpha.scripts.OnEnter(alpha)
     assert.same({}, tooltipLines)
     _G.GameTooltip = nil
+  end)
+
+  -- Finding 3: a vendor sells at one fixed price, so "usually cheapest around HH:00" is noise --
+  -- there is no auction house history for this line to be a footnote on.
+  it("says nothing about the cheap hour on a vendor line", function()
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+      Show = function() end, Hide = function() end,
+    }
+    _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
+    _G.GetServerTime = function() return 1757937600 end
+    _G.date = function() return { hour = 12 } end
+
+    GC.AppRuns._set({ run({ code = "run-vc", updatedAt = 900,
+      lines = { { i = 101, q = 10 }, { i = 102, q = 9, v = true, vu = 25, ch = 3, cp = -18 } } }) })
+    GC.db.settings.sniper.buyRun = "run-vc"
+    GC.Buy.Show()
+
+    local vendor = rowWithText("Bravo Ore")
+    vendor.scripts.OnEnter(vendor)
+    assert.same({}, tooltipLines)
+
+    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
   end)
 end)

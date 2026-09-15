@@ -5,7 +5,7 @@
 - **Every line of a run knows what it should cost.** A list saved on goldcap.gg now brings the
   site's own price for each reagent, so USUAL and the price cap work even for items GoldCap's
   market data has never carried — old-world cloth, low-level ore, anything the auction house
-  rarely sees.
+  rarely sees. Needs companion 1.10 (or paste the list again from goldcap.gg).
 - **Vendor lines are priced.** A reagent you buy from a vendor shows what the vendor charges and
   what the whole stack will cost, and the run counts it into what is left to spend. **Copy vendor
   list** in the run header opens the list as plain text — what to buy, what each costs, what the
@@ -21,8 +21,7 @@
   price — so a run you are in a hurry to finish can pay more than one you are not. A run without
   its own cap uses the one in Settings.
 - **Purchases reach your ledger on goldcap.gg.** What you buy through the BUY tab is reported
-  against the list you bought it for, so the site can tell you what a run really cost. Needs
-  companion 1.10.
+  against the list you bought it for, so the site can tell you what a run really cost.
 
 ## 0.10.0 (unreleased)
 
