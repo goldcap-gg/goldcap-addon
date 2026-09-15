@@ -48,6 +48,7 @@ describe("Sniper purchase wiring", function()
     local claim = assert(click:find("GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
     local start = assert(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
     assert.is_true(claim < start)
+    assert.is_truthy(click:find("not GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
   end)
 
   it("keeps a shadowed SAFE decision on the Check path", function()

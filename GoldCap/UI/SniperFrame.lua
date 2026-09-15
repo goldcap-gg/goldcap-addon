@@ -4946,9 +4946,10 @@ end
 
 function GC.Sniper.IsPurchaseQuiet()
   -- The BUY tab owns the shared commodity purchase slot right now -- the same veto a sniper
-  -- attempt would hold, unbounded for as long as BUY holds the claim (BUY's own timeout is
-  -- GC.PurchaseSlot.MAX_SECONDS, not this zone's bounded release).
-  if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then return true end
+  -- attempt would hold. GC.PurchaseSlot.MAX_SECONDS expires nothing by itself; IsBusy() is what
+  -- applies that bound, so a leaked BUY claim cannot veto the scanner/pre-warm/drill queue/
+  -- arbiter for the rest of the session the way a bare Owner() check would.
+  if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" and GC.PurchaseSlot.IsBusy() then return true end
   if not GC.Sniper._QuietZoneOpen() then
     GC.Sniper._quietSince = nil
     return false
@@ -5365,6 +5366,7 @@ function GC.Sniper.OnCommodityPriceUnavailable()
   -- The re-armed Buy is the player's click; no purchase call is issued from this event.
   local deal = row.purchaseDeal
   commodityPurchase = nil
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
   row.purchaseDeal = nil
   row.decisionSnapshot = nil
   row.quoteSnapshot = nil
@@ -7008,6 +7010,7 @@ local function resetAllPurchases()
   prewarmAttempt = nil
   if not (commodityDraining and commodityDraining.confirmed) then
     commodityPurchase = nil
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
     commodityDraining = nil
   end
   -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own
