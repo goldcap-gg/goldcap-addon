@@ -41,6 +41,15 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(after:find("C_AuctionHouse.PlaceBid", 1, true))
   end)
 
+  it("the dialog claims the slot before it starts a purchase", function()
+    local text = source()
+    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+
+    local claim = assert(click:find("GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
+    local start = assert(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
+    assert.is_true(claim < start)
+  end)
+
   it("keeps a shadowed SAFE decision on the Check path", function()
     local text = source()
     local arm = section(text, "local function armReady", "local function armCheck")

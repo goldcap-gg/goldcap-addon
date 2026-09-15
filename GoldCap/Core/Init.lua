@@ -504,6 +504,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sell.OnCommoditySearchResults then
       GC.Sell.OnCommoditySearchResults(itemID)
     end
+    if GC.Buy and GC.Buy.OnCommodityResults then
+      GC.Buy.OnCommodityResults(itemID)
+    end
   elseif event == "AUCTION_HOUSE_PURCHASE_COMPLETED" then
     if GC.Sniper.OnPurchaseCompleted then
       local auctionID = ...
@@ -511,23 +514,34 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnPurchaseCompleted(...) end
   elseif event == "COMMODITY_PRICE_UPDATED" then
-    if GC.Sniper.OnCommodityPriceUpdated then
-      local unitPrice, totalPrice = ...
+    -- Terminal commodity events carry no attempt id, so they route by who currently owns the
+    -- shared slot (GC.PurchaseSlot) rather than by anything in the event payload -- see
+    -- Core/PurchaseSlot.lua.
+    local unitPrice, totalPrice = ...
+    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
+      if GC.Buy and GC.Buy.OnCommodityPriceUpdated then GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice) end
+    elseif GC.Sniper.OnCommodityPriceUpdated then
       GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUpdated(...) end
   elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
-    if GC.Sniper.OnCommodityPriceUnavailable then
+    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
+      if GC.Buy and GC.Buy.OnCommodityPriceUnavailable then GC.Buy.OnCommodityPriceUnavailable() end
+    elseif GC.Sniper.OnCommodityPriceUnavailable then
       GC.Sniper.OnCommodityPriceUnavailable()
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUnavailable() end
   elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
-    if GC.Sniper.OnCommodityPurchaseSucceeded then
+    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
+      if GC.Buy and GC.Buy.OnCommodityPurchaseSucceeded then GC.Buy.OnCommodityPurchaseSucceeded() end
+    elseif GC.Sniper.OnCommodityPurchaseSucceeded then
       GC.Sniper.OnCommodityPurchaseSucceeded()
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseSucceeded() end
   elseif event == "COMMODITY_PURCHASE_FAILED" then
-    if GC.Sniper.OnCommodityPurchaseFailed then
+    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
+      if GC.Buy and GC.Buy.OnCommodityPurchaseFailed then GC.Buy.OnCommodityPurchaseFailed() end
+    elseif GC.Sniper.OnCommodityPurchaseFailed then
       GC.Sniper.OnCommodityPurchaseFailed()
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseFailed() end

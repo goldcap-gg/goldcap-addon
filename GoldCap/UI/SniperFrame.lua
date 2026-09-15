@@ -301,6 +301,7 @@ local function drainCommodityPurchase(row)
   local pending = commodityPurchase
   if pending and pending.row == row then
     commodityPurchase = nil
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
     commodityDraining = pending
     -- No event token can prove a terminal belongs to this attempt. Stay fail-closed until a
     -- terminal event arrives or the Auction House session resets, even after a price update.
@@ -3612,6 +3613,12 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
     activeItemID[deal.itemID] = nil
     if deal.isCommodity then
       if commodityPurchase and commodityPurchase.row == row then commodityPurchase = nil end
+      -- Unconditional (not gated on the check above): some callers (the confirmed-failure and
+      -- unavailable branches in GC.Sniper.OnCommodityPurchase*) already nil commodityPurchase
+      -- themselves before calling in here, so this attempt's own claim would otherwise survive
+      -- past its terminal event. Release() is a no-op unless "sniper" is still the owner, so
+      -- calling it here for every commodity resolution is always safe.
+      if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
     elseif deal.auctionID then
       pendingAuction[deal.auctionID] = nil
     end
@@ -4938,6 +4945,10 @@ function GC.Sniper._ReleaseQuietZone()
 end
 
 function GC.Sniper.IsPurchaseQuiet()
+  -- The BUY tab owns the shared commodity purchase slot right now -- the same veto a sniper
+  -- attempt would hold, unbounded for as long as BUY holds the claim (BUY's own timeout is
+  -- GC.PurchaseSlot.MAX_SECONDS, not this zone's bounded release).
+  if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then return true end
   if not GC.Sniper._QuietZoneOpen() then
     GC.Sniper._quietSince = nil
     return false
@@ -5753,6 +5764,17 @@ local function onDialogPrimaryClick()
   dialog.primaryBtn:Disable()
   if refreshQtyRow then refreshQtyRow() end -- Fix 2: purchase call about to fire -- box/quick-fill must not be editable while it's in flight
   if deal.isCommodity then
+    if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("sniper") then
+      -- The BUY tab owns the shared commodity purchase slot right now -- refuse exactly as the
+      -- "another commodity purchase already in flight" guard above does, and put the row back
+      -- the way it was before this click started mutating it for a purchase that never fired.
+      row.purchaseStage = "ready"
+      dialog.primaryBtn:Enable()
+      if refreshQtyRow then refreshQtyRow() end
+      setDialogStatus(GC.L["finish the pending buy first"], 1, 0.3, 0.3)
+      driver.onStatus(GC.L["finish the pending buy first"])
+      return
+    end
     row.purchaseDeal = purchaseDeal
     commodityPurchase = { row = row, itemID = deal.itemID, token = token }
     C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)
