@@ -330,6 +330,29 @@ local function drainCommodityPurchase(row)
   end
 end
 
+-- Retires an unconfirmed tombstone that OnCommodityPriceUpdated fenced on the requery (row +
+-- token) whose result has now landed. The search that result answers was sent after the Cancel,
+-- so any late quote for the cancelled attempt was delivered ahead of it; the tombstone has
+-- nothing left to guard against. Confirmed tombstones are never touched -- their late success
+-- still has to land on the attempt that paid.
+--
+-- One helper for the three places a fenced requery can end: finishRequery (the ordinary case),
+-- GC.Sniper._FinishDrainWait (the requery that had to wait for an older search to drain) and
+-- the drop in GC.Sniper.OnCommoditySearchResults for a requery that stopped being current before
+-- its result arrived -- a board repaint under the dialog does that. That third one used to skip
+-- the retirement, and the Buy was refused with "waiting for previous commodity purchase to
+-- settle" for the tombstone's whole 20 seconds over a purchase that was cancelled and cost
+-- nothing (observed live 2026-09-15, `/gc sniper`: tombstone fenced on token 2, no requery
+-- waiting). A field on GC.Sniper rather than a file local: this chunk sits near Lua's 200-local
+-- ceiling (see addon/AGENTS.md).
+function GC.Sniper._RetireFencedTombstone(row, token)
+  local tombstone = commodityDraining
+  if tombstone and not tombstone.confirmed and tombstone.fenceRow == row
+      and tombstone.fenceToken == token then
+    commodityDraining = nil
+  end
+end
+
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
 -- (a browse result is a per-itemKey aggregate across every seller, not a resolved auction,
 -- and it's a point-in-time snapshot besides), so the FIRST Buy click on one issues a fresh
@@ -2064,15 +2087,8 @@ function GC.Sniper._FinishDrainWait(itemID, draining)
   if not wait or wait.draining ~= draining then return end
   GC.Sniper._drainWaitRequery[itemID] = nil
   -- The same retirement finishRequery performs for a requery that DID start: a cancelled,
-  -- unconfirmed purchase left a tombstone fenced on this wait, and the wait is now over. No
-  -- gold moved (the attempt was never confirmed -- a confirmed tombstone is never fenced this
-  -- way and is never touched here), so the only thing the tombstone still buys is a Buy button
-  -- that refuses for the rest of its 20-second timer.
-  local tombstone = commodityDraining
-  if tombstone and not tombstone.confirmed and tombstone.fenceRow == wait.row
-      and tombstone.fenceToken == wait.token then
-    commodityDraining = nil
-  end
+  -- unconfirmed purchase left a tombstone fenced on this wait, and the wait is now over.
+  GC.Sniper._RetireFencedTombstone(wait.row, wait.token)
   GC.Sniper._ResumePausedLiveRequery(wait)
 end
 
@@ -4045,16 +4061,8 @@ local function finishRequery(attempt, liveDeal)
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
   -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
-  -- (row + token) is retired here rather than by its 20s timer: the search this result answers
-  -- was sent after the Cancel, so any late quote for the cancelled attempt has already been
-  -- delivered ahead of it. Without this the re-armed Buy was refused with "waiting for previous
-  -- commodity purchase to settle" for the rest of the window. Confirmed tombstones are never
-  -- touched -- their late success still has to land on the attempt that paid.
-  local tombstone = commodityDraining
-  if tombstone and not tombstone.confirmed and tombstone.fenceRow == attempt.row
-      and tombstone.fenceToken == attempt.token then
-    commodityDraining = nil
-  end
+  -- (row + token) is retired here rather than by its 20s timer; see _RetireFencedTombstone.
+  GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
   applyRequeryResult(attempt.row, itemID, liveDeal)
   GC.Sniper._ResumePausedLiveRequery(attempt)
 end
@@ -5165,6 +5173,12 @@ function GC.Sniper.OnCommoditySearchResults(itemID)
     awaitingRequery[itemID] = nil
     awaitingKeyInfo[itemID] = nil
     pendingRequerySend[itemID] = nil
+    -- The requery is no longer the row's (a repaint replaced the deal under the dialog, or the
+    -- token moved on), so its result arms nothing -- but the result still proves the cancelled
+    -- attempt's late quote has been delivered, which is all the tombstone fenced on this
+    -- requery was waiting for. Dropping the requery without this left the Buy refused for the
+    -- tombstone's full 20 seconds.
+    GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
     if not isPrewarm then return end
     attempt = nil
   end
