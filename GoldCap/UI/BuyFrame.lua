@@ -1772,6 +1772,9 @@ end
 local function openRowMenu(owner, line)
   if not (current and line and line.craft) then return false end
   if line.parent or line.locked then return false end
+  -- A line already bought has nothing left to decide, and its own tooltip says as much by
+  -- leaving the craft-or-buy comparison off it.
+  if line.done then return false end
   if inFlight(GC.Buy._attempt) then return false end
   local menu = _G.MenuUtil
   if not (menu and menu.CreateContextMenu) then return false end

@@ -1230,6 +1230,21 @@ describe("BuyFrame", function()
     _G.MenuUtil = nil
   end)
 
+  -- A line the bags and the bank already cover has nothing left to decide, and the tooltip on
+  -- that same row already refuses to compare crafting with buying on it. "Split into reagents
+  -- (craft 0x)" is not an offer: it is an entry that looks actionable on a line nobody can act on.
+  it("opens no menu on a line that is already bought", function()
+    stubItemCount({ [101] = { all = 20, carried = 0 } })
+    showCraftRun(false)
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    local alpha = rowWithText("Alpha Herb")
+    assert.equal("0", alpha.cells.buy:GetText())
+    alpha.scripts.OnMouseUp(alpha, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
   -- Finding 1's rule again: a purchase already committed to these lines. Re-splitting the run
   -- under it would leave settlePurchase crediting a line that no longer exists.
   it("opens no menu while a purchase is in flight", function()
