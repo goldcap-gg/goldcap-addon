@@ -822,6 +822,9 @@ local function actionLabel(line)
     -- Nothing under the cap. The percentage is the honest reason -- "this costs half again what
     -- it usually does" is a decision the player can make; a greyed-out button is not.
     if attempt.overPct then
+      if attempt.overTarget then
+        return (GC.L["▲%d%% over the alert target"]):format(attempt.overPct), false, "warn"
+      end
       return (GC.L["▲%d%% over usual"]):format(attempt.overPct), false, "warn"
     end
     return GC.L["nothing on offer"], false
@@ -977,12 +980,26 @@ local function ladderFor(itemID)
   return ladder
 end
 
--- How far over the usual price the cheapest level the cap refused sits. Computed whenever the
--- cap stopped the ladder -- before the first unit or part-way through a partial fill.
+-- How far over its ceiling the cheapest level the cap refused sits, and whether that ceiling is
+-- the line's own target rather than the usual price. Computed whenever the cap stopped the
+-- ladder -- before the first unit or part-way through a partial fill.
+--
+-- A line that brought an absolute ceiling (an alert group's target price) is measured against
+-- THAT number: the site's usual price is not what refused the lot, and an alert set below usual
+-- -- which is what an alert is for -- reported a NEGATIVE amount over usual. A percentage that
+-- is not over anything is not a reason, so it is left unsaid and the caller says what it says
+-- when there is nothing to buy.
 local function overUsualPct(line, ladder)
-  if not (line and line.usual and line.usual > 0 and line.cap) then return nil end
+  if not (line and line.cap) then return nil end
+  local target = (line.capCopper or 0) > 0
+  local against = target and line.cap or line.usual
+  if not (against and against > 0) then return nil end
   for _, level in ipairs(ladder or {}) do
-    if level.unit > line.cap then return math.floor(level.unit * 100 / line.usual) - 100 end
+    if level.unit > line.cap then
+      local pct = math.floor(level.unit * 100 / against) - 100
+      if pct <= 0 then return nil end
+      return pct, target
+    end
   end
   return nil
 end
@@ -1250,7 +1267,8 @@ function GC.Buy.OnCommodityResults(itemID)
   -- Computed whenever the cap stopped the ladder, not only when it stopped it before a single
   -- unit: a partial fill needs the same number -- what the REST would have cost -- or the line
   -- silently buys six of ten and says nothing about why the other four stayed behind.
-  attempt.overPct = capped and overUsualPct(line, ladder) or nil
+  attempt.overPct, attempt.overTarget = nil, nil
+  if capped then attempt.overPct, attempt.overTarget = overUsualPct(line, ladder) end
   attempt.quotedAt = time()
   attempt.stage = "quoted"
   -- The button holds 72px, so the percentage and the cheap hour ride on the log line instead
@@ -1260,7 +1278,10 @@ function GC.Buy.OnCommodityResults(itemID)
   if capped then
     text = actionLabel(line)
     if qty > 0 and attempt.overPct then
-      text = ("%s %s"):format(text, (GC.L["▲%d%% over usual"]):format(attempt.overPct))
+      local over = attempt.overTarget
+        and (GC.L["▲%d%% over the alert target"]):format(attempt.overPct)
+        or (GC.L["▲%d%% over usual"]):format(attempt.overPct)
+      text = ("%s %s"):format(text, over)
     end
     local cheap = cheapHourText(line)
     if cheap then text = ("%s · %s"):format(text, cheap) end

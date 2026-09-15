@@ -739,5 +739,6 @@ GC.Locales.enUS = {
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
   ["↳ %s"] = "↳ %s",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
+  ["▲%d%% over the alert target"] = "▲%d%% over the alert target",
   ["▲%d%% over usual"] = "▲%d%% over usual",
 }
