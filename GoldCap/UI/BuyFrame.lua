@@ -1535,8 +1535,17 @@ end
 local function restampHeadings()
   local header = band and band.header
   if not header or not header.cells then return end
-  for key, hit in pairs(header.cells) do hit.label:SetText(headerText(key)) end
-  if header.reagentCell then header.reagentCell.label:SetText(headerText("reagent")) end
+  -- Cleared before it is set again: SetText with the text the string already holds is a no-op
+  -- to the client, and a no-op does not make it draw. Measured in game -- every heading but
+  -- NEED came back shown, anchored, its text and string width intact, and blank on screen.
+  local function stamp(label, text)
+    if not label then return end
+    label:SetText("")
+    label:SetText(text)
+    if label.Hide and label.Show then label:Hide(); label:Show() end
+  end
+  for key, hit in pairs(header.cells) do stamp(hit.label, headerText(key)) end
+  if header.reagentCell then stamp(header.reagentCell.label, headerText("reagent")) end
 end
 
 -- The header band: the run picker and the run's line counts on one line, the money and the
