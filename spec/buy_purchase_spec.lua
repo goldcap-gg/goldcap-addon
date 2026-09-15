@@ -9,7 +9,7 @@ local helper = require("spec.spec_helper")
 -- one purchase in flight addon-wide, one acquisition batch per purchase, and no second batch
 -- from the passive capture hooks. Only the client itself is faked.
 describe("BUY purchase", function()
-  local GC, searches, started, confirmed, timers, book, now
+  local GC, searches, started, confirmed, timers, book, now, bags
 
   local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust" }
 
@@ -67,11 +67,24 @@ describe("BUY purchase", function()
     return r
   end
 
+  -- Theme.Button's real contract, as far as this spec needs it: `.label` is the caller's exact
+  -- string, SetVariant repaints background and text in the variant's own live colours, and
+  -- OnEnable/OnDisable fire only on a state CHANGE (UI/Theme.lua) -- which is the whole reason
+  -- paintLine has to Enable before it Disables. `painted` stands in for that colour.
   local function button(parent)
     local b = region("Button", parent)
     b.text = region("FontString", b)
+    b.painted = "variant"
     function b:SetLabel(text) self.label = text; self.text:SetText(text) end
-    function b:SetVariant(name) self.variant = name end
+    function b:SetVariant(name) self.variant = name; self.painted = "variant" end
+    function b:Enable()
+      if not self.enabled then self.painted = "variant" end
+      self.enabled = true
+    end
+    function b:Disable()
+      if self.enabled then self.painted = "dim" end
+      self.enabled = false
+    end
     function b:SetUppercase() end
     return b
   end
@@ -112,17 +125,37 @@ describe("BUY purchase", function()
     row.action.scripts.OnClick(row.action)
   end
 
+  local function keyDown(key)
+    local container = containerOf()
+    container.scripts.OnKeyDown(container, key)
+    return container
+  end
+
+  -- The units the client hands over on a successful purchase. Called before the terminal event,
+  -- because that is the order the client uses: the stack is in the bag by the time it fires.
+  local function deliver(itemID, qty)
+    bags[1] = { itemID = itemID, qty = (bags[1] and bags[1].qty or 0) + qty }
+  end
+
   before_each(function()
     searches, started, confirmed, timers, book, now = {}, {}, {}, {}, {}, 2000
+    bags = {}
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
     _G.GetTime = function() return now end
     _G.time = function() return now end
     _G.C_Item = { GetItemInfo = function(id) return NAMES[id] end }
     _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
+    -- One real bag, so a purchase can be delivered into it the way the client delivers one.
     _G.C_Container = {
       GetContainerNumSlots = function(bag) return bag == 0 and 4 or 0 end,
-      GetContainerItemInfo = function() return nil end,
+      GetContainerItemInfo = function(bag, slot)
+        if bag ~= 0 then return nil end
+        local entry = bags[slot]
+        if not entry then return nil end
+        return { itemID = entry.itemID, stackCount = entry.qty,
+                 hyperlink = "|Hitem:" .. entry.itemID .. "|h" }
+      end,
       GetContainerItemLink = function() return nil end,
     }
     _G.C_AuctionHouse = {
@@ -476,6 +509,224 @@ describe("BUY purchase", function()
     container.scripts.OnKeyDown(container, "ENTER")
     assert.is_false(container.propagate)
     assert.same({ { itemID = 101, quantity = 10 } }, started)
+  end)
+
+  -- C1/I1: a price update after the confirm click is the server RE-QUOTING. No terminal event
+  -- ever follows one, so a handler that only listened in "started" left the attempt owned, the
+  -- button on "confirming...", and the shared slot held until /reload.
+  it("takes a second price update after the confirm click and asks again", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    assert.equal("confirming", GC.Buy._attempt.stage)
+
+    GC.Buy.OnCommodityPriceUpdated(1200, 12000) -- still inside the 1300 cap
+    assert.equal("confirm", GC.Buy._attempt.stage)
+    assert.equal(12000, GC.Buy._attempt.serverTotal)
+    assert.equal("CONFIRM 1g20s", rowWithText("Alpha Herb").action.label)
+    assert.equal(1, #confirmed) -- the event confirmed nothing by itself
+
+    -- ...and the click that follows agrees to the NEW price.
+    click(rowWithText("Alpha Herb"))
+    assert.equal(2, #confirmed)
+    assert.equal("confirming", GC.Buy._attempt.stage)
+  end)
+
+  it("requotes and frees the slot when the re-quote after a confirm click leaves the cap", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1400, 14000)
+    assert.equal("requote", GC.Buy._attempt.stage)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 10))
+  end)
+
+  -- I1: the confirm click may never agree to a total nothing has judged.
+  it("refuses to confirm a price that moved over the cap while waiting for the click", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+    GC.Buy.OnCommodityPriceUpdated(1400, 14000)
+    assert.equal("requote", GC.Buy._attempt.stage)
+
+    click(rowWithText("Alpha Herb"))
+    assert.same({}, confirmed)
+  end)
+
+  -- C1: a stage waiting on a person needs a way out too, or the slot and the capture stand-down
+  -- outlive the attempt.
+  it("gives the slot back when nobody ever clicks confirm", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    local watchdog = timers[#timers]
+    assert.equal(20, watchdog.seconds)
+    watchdog.fn()
+    assert.equal("expired", GC.Buy._attempt.stage)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+  end)
+
+  -- Confirm reached the server, so the units may already be paid for: the slot goes back, but the
+  -- line is never offered again for a click that could buy them twice.
+  it("says nothing came back rather than offering a confirmed purchase for retry", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 10))
+    local row = rowWithText("Alpha Herb")
+    assert.equal("no answer — check your bags", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+  end)
+
+  -- An earlier arming must not retire a stage that has since moved on.
+  it("lets a superseded watchdog expire quietly", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    local firstWatchdog = timers[#timers]
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    firstWatchdog.fn()
+    assert.equal("confirm", GC.Buy._attempt.stage)
+    assert.equal("buy", GC.PurchaseSlot.Owner())
+  end)
+
+  -- C1: no terminal event can arrive once the session is gone.
+  it("gives the slot back when the auction house closes mid-purchase", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnAuctionHouseClosed()
+    assert.equal("expired", GC.Buy._attempt.stage)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 10))
+  end)
+
+  it("drops a quote the closing auction house has made meaningless", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    GC.Buy.OnAuctionHouseClosed()
+    assert.is_nil(GC.Buy._attempt)
+    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+  end)
+
+  -- I2: the success guard itself. Reaching "confirm" is not reaching "confirming": nothing was
+  -- agreed to, so nothing may be recorded -- and the slot stays ours, because the purchase this
+  -- tab is holding has not ended.
+  it("records nothing for a success that arrives before the confirm click", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.same({}, GC.Acquisitions.GetAll())
+    assert.equal(0, GC.Buy.CurrentRun():Lines()[1].bought)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+    assert.equal("buy", GC.PurchaseSlot.Owner())
+  end)
+
+  -- I3: the client drops a throttled search without naming it, so a question with no answer has
+  -- to age out -- otherwise the line sits on "quoting..." for the rest of the session.
+  it("asks again when a quote query is never answered", function()
+    hover(rowWithText("Alpha Herb"))
+    assert.same({ 101 }, searches)
+    assert.equal("quoting", GC.Buy._attempt.stage)
+
+    now = now + 5
+    hover(rowWithText("Alpha Herb"))
+    assert.same({ 101 }, searches) -- still worth waiting for
+
+    now = now + 6
+    hover(rowWithText("Alpha Herb"))
+    assert.same({ 101, 101 }, searches)
+  end)
+
+  -- C2, through the whole tab: what is delivered lands in the bags, and `have` and `bought` are
+  -- then the same units. Subtracting both retired the line with four still to buy.
+  it("keeps buying the remainder after a thin ladder fills only part of the line", function()
+    setBook(101, { { unitPrice = 900, quantity = 6 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.equal(6, GC.Buy._attempt.qty)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(900, 5400)
+    click(rowWithText("Alpha Herb"))
+    deliver(101, 6)
+    GC.Buy.OnCommodityPurchaseSucceeded()
+
+    local line = GC.Buy.CurrentRun():Lines()[1]
+    assert.equal(6, line.have)
+    assert.equal(6, line.bought)
+    assert.equal(4, line.buy)
+    assert.is_false(line.done)
+    assert.equal("BUY 4", rowWithText("Alpha Herb").action.label)
+    -- ...and the run still counts those four as gold it expects to spend.
+    assert.is_true(GC.Buy.CurrentRun():Totals().left > 0)
+  end)
+
+  -- M1: Enter is swallowed only once there is something for it to do. Deciding on the key and the
+  -- cursor alone ate Enter -- and with it opening chat -- whenever the cursor sat over the board.
+  it("hands Enter back when there is no line to act on", function()
+    local container = containerOf()
+    container.mouseOver = true
+    GC.Buy._focus = nil
+    keyDown("ENTER")
+    assert.is_true(container.propagate)
+    assert.same({}, started)
+
+    -- A vendor line is focused but cannot be acted on: the key still belongs to the game.
+    GC.Buy._focus = 102
+    keyDown("ENTER")
+    assert.is_true(container.propagate)
+    assert.same({}, started)
+  end)
+
+  -- M2: a click on another line must not steal the focus from the one waiting for its confirm.
+  it("keeps the focus on the line waiting to be confirmed", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+
+    click(rowWithText("Charlie Dust"))
+    assert.equal(101, GC.Buy._focus)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+
+    local container = containerOf()
+    container.mouseOver = true
+    keyDown("ENTER")
+    assert.same({ { itemID = 101, quantity = 10 } }, confirmed)
+  end)
+
+  -- M4: rows are pooled and repainted on every render. SetVariant puts the variant's own live
+  -- colours back, and Disable() on an already-disabled button fires nothing -- so a button that
+  -- cannot be clicked came back looking exactly as clickable as its neighbours.
+  it("keeps a disabled button looking disabled across a repaint", function()
+    setBook(101, { { unitPrice = 2000, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    local row = rowWithText("Alpha Herb")
+    assert.is_false(row.action:IsEnabled())
+    assert.equal("dim", row.action.painted)
+
+    GC.Buy.RefreshIfShown()
+    row = rowWithText("Alpha Herb")
+    assert.is_false(row.action:IsEnabled())
+    assert.equal("dim", row.action.painted)
   end)
 
   it("keeps the last twenty attempt lines", function()

@@ -51,10 +51,30 @@ describe("BuyRun", function()
   end)
 
   it("records purchases into bought, spent and the totals", function()
+    -- What was bought lands in the bags, which is where `have` reads it from on the next
+    -- Refresh -- so the fixture moves it there, exactly as the client would.
     run:RecordPurchase(5, 150, 4410000, 1001)
+    have[5] = 60 + 150
+    run:Refresh()
     assert.equal(0, run:Lines()[1].buy)
     assert.is_true(run:Lines()[1].done)
     assert.equal(4410000, run:Totals().spent)
+  end)
+
+  -- `have` and `bought` are two views of the SAME units once a purchase is delivered. Subtracting
+  -- both counted every buy twice: a line that filled only part of what it needed went straight to
+  -- done, and the rest of it could never be bought -- which is the whole job of this tab.
+  it("keeps the remainder buyable after a partial fill lands in the bags", function()
+    run:RecordPurchase(5, 90, 90 * 30000, 1001)
+    have[5] = 60 + 90
+    run:Refresh()
+    local line = run:Lines()[1]
+    assert.equal(150, line.have)
+    assert.equal(90, line.bought)
+    assert.equal(60, line.buy)
+    assert.is_false(line.done)
+    -- ...and the run still says those 60 cost something.
+    assert.equal(60 * 30000, run:Totals().left)
   end)
 
   it("left to spend uses the floor when one is known, else the usual price", function()

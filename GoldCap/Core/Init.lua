@@ -478,6 +478,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if interactionType == Enum.PlayerInteractionType.Auctioneer then
       GC.Util.Trace("ah: closed")
       GC.Sniper.OnAuctionHouseClosed()
+      -- The BUY tab too: no terminal commodity event can arrive once the session is gone, so an
+      -- attempt left standing holds the shared purchase slot and keeps the passive capture stood
+      -- down for that item until /reload.
+      if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
       if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
@@ -598,6 +602,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Sniper.OnAuctionHouseClosed then
       GC.Sniper.OnAuctionHouseClosed()
     end
+    if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     if GC.Sell.OnAuctionCreated then

@@ -53,7 +53,13 @@ function GC.BuyRun.New(run, driver)
       local usual = driver.usualUnit(itemID)
       local need = src.q or 0
       local have = driver.haveOf(itemID)
-      local buy = need - have - state.bought
+      -- The LARGER of the two, never their sum. `have` and `bought` are two views of the same
+      -- units the moment a purchase is delivered -- the buyer's bags hold what they just bought --
+      -- so subtracting both counted every purchase twice: a line needing 10 that filled 6 read
+      -- have 6, bought 6, buy 0, done, and the four it still needed could never be bought again.
+      -- They are kept apart rather than merged because each answers on its own: `bought` survives
+      -- the units being used or mailed away, `have` covers stock that was never bought here.
+      local buy = need - math.max(have, state.bought)
       if buy < 0 then buy = 0 end
       local isVendor = src.v == true
       local lineIndex = nil
@@ -118,8 +124,8 @@ function GC.BuyRun.New(run, driver)
   end
 
   -- Commits a purchase. `bought` accumulates across the whole run (a partial buy today,
-  -- more tomorrow), so `buy` is recomputed from it with the same formula Refresh() uses,
-  -- rather than decremented -- the two must never drift apart.
+  -- more tomorrow), so `buy` is recomputed from it with the same formula Refresh() uses --
+  -- max(have, bought), see there -- rather than decremented: the two must never drift apart.
   function obj:RecordPurchase(itemID, qty, totalCopper, at)
     local state = stateFor(itemID)
     state.bought = state.bought + qty
@@ -129,7 +135,7 @@ function GC.BuyRun.New(run, driver)
     if line then
       line.bought = state.bought
       line.spent = state.spent
-      line.buy = math.max(line.need - line.have - state.bought, 0)
+      line.buy = math.max(line.need - math.max(line.have, state.bought), 0)
       line.done = line.buy == 0
     end
   end

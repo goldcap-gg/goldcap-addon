@@ -25,6 +25,15 @@ describe("BUY purchase wiring", function()
     return text:sub(from, to - 1), from, to
   end
 
+  -- The guard above is only as strong as that slice is narrow. A function declared after
+  -- onBuyClick but before the Rows banner would be swallowed by it, and could then carry a
+  -- protected call while every test here still passed.
+  it("slices the click handler alone", function()
+    local click = clickHandler(source())
+    assert.is_nil(click:find("\nlocal function ", 1, true))
+    assert.is_nil(click:find("\nfunction ", 1, true))
+  end)
+
   it("keeps both protected purchase calls inside the hardware-click handler", function()
     local text = source()
     local click, from, to = clickHandler(text)
@@ -45,14 +54,15 @@ describe("BUY purchase wiring", function()
   -- keeps every purchase call out of the event handlers; what is left is a callback declared
   -- INSIDE the click handler, which is where the watchdog lives.
   it("never confirms from a timer", function()
-    local click = clickHandler(source())
+    local text = source()
     local timers = 0
-    for body in click:gmatch("C_Timer%.After%b()") do
+    for body in text:gmatch("C_Timer%.After%b()") do
       timers = timers + 1
       assert.is_nil(body:find("ConfirmCommoditiesPurchase", 1, true))
       assert.is_nil(body:find("StartCommoditiesPurchase", 1, true))
     end
-    -- A gmatch that matched nothing would pass this in silence; the watchdog is armed here.
+    -- A gmatch that matched nothing would pass this in silence; the stall watchdog is armed
+    -- through one of these.
     assert.is_true(timers >= 1)
   end)
 
@@ -63,6 +73,34 @@ describe("BUY purchase wiring", function()
     assert.is_true(claim < start)
   end)
 
+  -- Every handler here is dead code unless Core/Init.lua actually calls it, and the close path is
+  -- the one that was missing: an attempt that outlives the session owing it an answer holds the
+  -- shared slot and keeps OwnsCommodityPurchase true until /reload. Static, the way
+  -- spec/purchase_capture_wiring_spec.lua pins the same contract for the passive capture.
+  it("is routed from the event frame, including both ways out of a session", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    for _, method in ipairs({ "OnCommodityResults", "OnCommodityPriceUpdated",
+                              "OnCommodityPriceUnavailable", "OnCommodityPurchaseSucceeded",
+                              "OnCommodityPurchaseFailed", "OnAuctionHouseClosed" }) do
+      assert.is_truthy(init:find("GC.Buy." .. method, 1, true), method)
+    end
+    -- The Auctioneer frame hiding and AUCTION_HOUSE_CLOSED are separate events, and either can be
+    -- the last one a session gets.
+    local first = assert(init:find("GC.Buy.OnAuctionHouseClosed()", 1, true))
+    assert.is_truthy(init:find("GC.Buy.OnAuctionHouseClosed()", first + 1, true))
+  end)
+
+  -- The hover quote and the NOW refresh batch are two consumers of one throttled message system.
+  -- Under a stuck ready flag GC.Util paces one forced send per consumer NAME, so sharing "buy"
+  -- would have the board's own refresh and the player's hover taking turns in a single window.
+  it("claims its own throttle window for the hover quote", function()
+    local text = source()
+    assert.is_truthy(text:find('ClaimThrottleSend("buy-quote")', 1, true))
+    assert.is_nil(text:find('ClaimThrottleSend("buy")', 1, true))
+  end)
+
   -- Terminal commodity events route by whoever owns the shared slot (Core/Init.lua), and the
   -- sniper's own drain releases its slot while a late event can still be on its way -- so every
   -- handler here has to check its own attempt's stage before acting. The behaviour is covered in
@@ -71,7 +109,7 @@ describe("BUY purchase wiring", function()
     local text = source()
     for _, name in ipairs({ "OnCommodityResults", "OnCommodityPriceUpdated",
                             "OnCommodityPurchaseSucceeded", "OnCommodityPurchaseFailed",
-                            "OnCommodityPriceUnavailable" }) do
+                            "OnCommodityPriceUnavailable", "OnAuctionHouseClosed" }) do
       local from = assert(text:find("function GC.Buy." .. name, 1, true), name)
       local next_ = text:find("\nfunction ", from + 1, true) or #text
       local body = text:sub(from, next_)

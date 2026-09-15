@@ -56,6 +56,10 @@ local BD = {
   -- back. A commodity purchase that produces no terminal event would otherwise hold the slot
   -- for GC.PurchaseSlot.MAX_SECONDS with the board saying nothing.
   WATCHDOG_SECONDS = 10,
+  -- The same fail-safe for the two stages that are waiting on a person rather than on the
+  -- server: longer, because reading a price and clicking is a human act, and still under
+  -- GC.PurchaseSlot.MAX_SECONDS so the slot is handed back before it goes stale under us.
+  CONFIRM_SECONDS = 20,
   -- Deep commodity books run to thousands of price levels and a purchase only ever walks as far
   -- as the cap lets it; the same bound UI/SniperFrame.lua's commodityBook uses.
   MAX_LEVELS = 60,
@@ -415,6 +419,16 @@ local function lineFor(itemID)
   return nil
 end
 
+-- Whether a click on this line would do anything at all -- what the Enter key has to know before
+-- it decides to swallow the keystroke rather than hand it back to the game. A line waiting for
+-- its confirming click counts even though its own BUY quantity may already be spoken for.
+local function actionable(line)
+  if not line then return false end
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == line.itemID and attempt.stage == "confirm" then return true end
+  return buyable(line)
+end
+
 -- ---------------------------------------------------------------------------
 -- Buying: the quote, and the attempt it becomes
 -- ---------------------------------------------------------------------------
@@ -446,6 +460,9 @@ local function actionLabel(line)
     return (GC.L["price moved to %s"]):format(formatAmount(attempt.movedTotal)), true
   end
   if stage == "expired" then return GC.L["took too long — try again"], true end
+  -- Confirm reached the server and nothing came back. Not offered as a retry: the units may
+  -- already be paid for, and the bag re-count is what will say so.
+  if stage == "unknown" then return GC.L["no answer — check your bags"], false end
   if stage == "failed" then return GC.L["purchase failed — try again"], true end
   return resting, true
 end
@@ -519,6 +536,15 @@ local function quoteFresh(attempt)
     and (time() - attempt.quotedAt) < BD.QUOTE_SECONDS
 end
 
+-- A question already on the wire, and still worth waiting for. The client drops a throttled
+-- search without a word (AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED is the only hint, and it names
+-- nothing), so a `quoting` stage with no answer has to age out the same way a quote does -- or
+-- the line sits on "quoting..." for the rest of the session, refusing to ask again.
+local function quotePending(attempt)
+  return attempt ~= nil and attempt.stage == "quoting"
+    and (time() - (attempt.askedAt or 0)) < BD.QUOTE_SECONDS
+end
+
 local function throttleReady()
   if GC.Util and GC.Util.ThrottleReady then return GC.Util.ThrottleReady() end
   return (C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady
@@ -532,6 +558,21 @@ local function cancelStartedPurchase()
   if C_AuctionHouse and C_AuctionHouse.CancelCommoditiesPurchase then
     C_AuctionHouse.CancelCommoditiesPurchase()
   end
+end
+
+local armStall, retireStalled
+
+-- Re-armed for whatever the attempt has just become, not once at the start. EVERY post-start
+-- stage needs a way out: `started` and `confirming` are waits on the server, `confirm` is a wait
+-- on the player, and any of the three left un-timed holds the shared slot and keeps
+-- GC.Buy.OwnsCommodityPurchase true -- which stands Core/PurchaseCapture.lua down for that item,
+-- so the player's own ordinary auction-house buys of it stop being recorded, until /reload.
+-- `stall` is bumped on every arming so only the newest timer of an attempt can fire.
+armStall = function(attempt, seconds)
+  if not (C_Timer and C_Timer.After) then return end
+  attempt.stall = (attempt.stall or 0) + 1
+  local token, stall = attempt.token, attempt.stall
+  C_Timer.After(seconds, function() retireStalled(token, stall) end)
 end
 
 -- What the player just bought, filed as cost. Deliberately NOT a ledger row: the site only
@@ -591,20 +632,23 @@ local function quote(line)
   local attempt = GC.Buy._attempt
   if inFlight(attempt) then return end
   if attempt and attempt.itemID == line.itemID
-      and (attempt.stage == "quoting" or quoteFresh(attempt)) then return end
+      and (quotePending(attempt) or quoteFresh(attempt)) then return end
   if not (C_AuctionHouse and C_AuctionHouse.SendSearchQuery and C_AuctionHouse.MakeItemKey) then return end
   -- No auction house session, no question to ask -- and a SendSearchQuery nobody will answer
   -- leaves the board promising a quote that never lands. Same gate as TrySendRefresh's.
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
   if not throttleReady() then return end
-  if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy") then return end
+  -- Claimed as "buy-quote", not "buy": the NOW batch (TrySendRefresh) already claims "buy", and
+  -- under a stuck throttle flag GC.Util paces one forced send per consumer -- sharing a name
+  -- would have the board's refresh and the player's own hover taking turns in one window.
+  if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-quote") then return end
 
   C_AuctionHouse.SendSearchQuery(C_AuctionHouse.MakeItemKey(line.itemID), {}, false)
   -- Blizzard's own pane may open this item's buy page in answer; that page is ours, not a buy.
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   attemptSeq = attemptSeq + 1
   GC.Buy._attempt = {
-    itemID = line.itemID, stage = "quoting", token = attemptSeq,
+    itemID = line.itemID, stage = "quoting", token = attemptSeq, askedAt = time(),
     runCode = current and current:Code() or nil,
   }
   logAttempt(line)
@@ -634,9 +678,20 @@ end
 
 -- COMMODITY_PRICE_UPDATED: the server's answer to StartCommoditiesPurchase, and the first price
 -- anybody has actually seen. It does not confirm anything -- see onBuyClick.
+--
+-- Taken in EVERY post-start stage, not only `started`. A price update arriving in `confirming` is
+-- the server RE-QUOTING: the price moved between the quote and the Confirm click, so the purchase
+-- did not happen, and no terminal event ever follows -- Blizzard's own buy dialog keeps this
+-- event live through its Purchasing state for exactly that reason. The Sniper learned it the hard
+-- way (UI/SniperFrame.lua's OnCommodityPriceUpdated): a stage that went deaf here left the
+-- attempt owned forever, the button on "confirming...", and every later commodity purchase
+-- refused until /reload. One arriving in `confirm` is the same news before the click.
+--
+-- Every one of them is re-judged against the quote and the cap, so the confirm click can never
+-- reach a total nothing has checked: an update that leaves the cap requotes the line instead.
 function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   local attempt = GC.Buy._attempt
-  if not attempt or attempt.stage ~= "started" then return end
+  if not attempt or not inFlight(attempt) then return end
   local qty = attempt.qty or 0
   local total = type(totalPrice) == "number" and totalPrice
     or (type(unitPrice) == "number" and qty > 0 and unitPrice * qty) or nil
@@ -647,10 +702,15 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- or -- the quote having been optimistic -- still inside the line's own cap per unit.
   if total <= (attempt.total or 0) or not cap or math.floor(total / qty) <= cap then
     attempt.serverTotal = total
+    -- Back to `confirm` even from `confirming`: no gold moved, and the price on the button is a
+    -- new one, so it needs the player's agreement again exactly as the first one did.
     attempt.stage = "confirm"
+    armStall(attempt, BD.CONFIRM_SECONDS)
   else
     attempt.movedTotal = total
     attempt.stage = "requote"
+    -- Safe after a Confirm that was already sent: a re-quote IS the server saying that confirm
+    -- bought nothing. Same reasoning, same call, as the Sniper's own requote path.
     cancelStartedPurchase()
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   end
@@ -713,16 +773,43 @@ function GC.Buy.OwnsCommodityPurchase(itemID, quantity)
   return attempt.qty == quantity
 end
 
--- The watchdog armed by the click below. A commodity purchase that answers with none of the
--- three terminal events would otherwise hold the addon-wide slot for GC.PurchaseSlot.MAX_SECONDS
--- with the button stuck on "buying...". The token is what keeps a timer armed for one attempt
--- from retiring the next one.
-local function retireStalled(token)
+-- What armStall's timer does when it comes due, and the one place an attempt is given up
+-- without a terminal event. `token` keeps a timer armed for one attempt from retiring the next;
+-- `stall` keeps an earlier arming of the SAME attempt from retiring a stage that has since moved
+-- on (a price update re-arms, and the older timer must simply expire quietly).
+--
+-- A `confirming` attempt is never re-armed for a retry: ConfirmCommoditiesPurchase already
+-- reached the server, so gold may well have moved, and offering the line back for another click
+-- could buy the same units twice -- the rule the Sniper's own confirming timeout follows. It
+-- says so instead, and leaves the correction to the bag re-count that any real delivery brings.
+retireStalled = function(token, stall)
   local attempt = GC.Buy._attempt
-  if not attempt or attempt.token ~= token or attempt.stage ~= "started" then return end
-  cancelStartedPurchase()
+  if not attempt or attempt.token ~= token or attempt.stall ~= stall then return end
+  if not inFlight(attempt) then return end
+  local confirmed = attempt.stage == "confirming"
+  if not confirmed then cancelStartedPurchase() end
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
-  attempt.stage = "expired"
+  attempt.stage = confirmed and "unknown" or "expired"
+  logAttempt(lineFor(attempt.itemID))
+  GC.Buy.RefreshIfShown()
+end
+
+-- AUCTION_HOUSE_CLOSED / the Auctioneer frame going away (Core/Init.lua routes both). The session
+-- that owed this attempt an answer is gone, so no terminal event is ever coming: an attempt left
+-- standing would hold the shared slot and keep OwnsCommodityPurchase true until /reload. A quote
+-- is simply dropped -- the next session has a different book behind it.
+function GC.Buy.OnAuctionHouseClosed()
+  local attempt = GC.Buy._attempt
+  if not attempt then return end
+  if not inFlight(attempt) then
+    GC.Buy._attempt = nil
+    GC.Buy.RefreshIfShown()
+    return
+  end
+  local confirmed = attempt.stage == "confirming"
+  if not confirmed then cancelStartedPurchase() end
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  attempt.stage = confirmed and "unknown" or "expired"
   logAttempt(lineFor(attempt.itemID))
   GC.Buy.RefreshIfShown()
 end
@@ -749,6 +836,7 @@ local function onBuyClick(line)
       and (attempt.qty or 0) > 0 then
     attempt.stage = "confirming"
     C_AuctionHouse.ConfirmCommoditiesPurchase(attempt.itemID, attempt.qty)
+    armStall(attempt, BD.CONFIRM_SECONDS)
     afterClick(line)
     return
   end
@@ -761,7 +849,9 @@ local function onBuyClick(line)
   -- ladder is a plan against prices somebody else has already bought off. The next click buys.
   if not (attempt and attempt.itemID == line.itemID and quoteFresh(attempt)
       and (attempt.qty or 0) > 0) then
-    GC.Buy._focus = line.itemID
+    -- Focus does not move onto a line a click cannot act on while another line's purchase is in
+    -- the client's hands: Enter has to keep pointing at the line waiting for its confirm.
+    if not inFlight(attempt) then GC.Buy._focus = line.itemID end
     quote(line)
     return
   end
@@ -774,10 +864,7 @@ local function onBuyClick(line)
   -- inside this very call and asks GC.Buy.OwnsCommodityPurchase whether the purchase is ours.
   attempt.stage = "started"
   C_AuctionHouse.StartCommoditiesPurchase(attempt.itemID, attempt.qty)
-  local token = attempt.token
-  if C_Timer and C_Timer.After then
-    C_Timer.After(BD.WATCHDOG_SECONDS, function() retireStalled(token) end)
-  end
+  armStall(attempt, BD.WATCHDOG_SECONDS)
   afterClick(line)
 end
 
@@ -897,9 +984,18 @@ local function paintLine(row, line)
     -- the next click does, and the focused line -- the one Enter would buy -- wears the active
     -- variant so the key is never aimed at a row nobody can see it pointing at.
     local label, clickable = actionLabel(line)
-    row.action:SetLabel(label)
     row.action:SetVariant(GC.Buy._focus == line.itemID and "active" or "ghost")
-    if clickable then row.action:Enable() else row.action:Disable() end
+    row.action:SetLabel(label)
+    if clickable then
+      row.action:Enable()
+    else
+      -- Enable first, then Disable. OnDisable fires on a state CHANGE, and SetVariant above has
+      -- just repainted the background and the text in the variant's own live colours -- so a row
+      -- that was already disabled would come back looking perfectly clickable. Theme.Button has
+      -- no template-driven disabled look to fall back on; UI/Theme.lua's OnDisable is all of it.
+      row.action:Enable()
+      row.action:Disable()
+    end
     row.action:Show()
   end
 end
@@ -1240,13 +1336,19 @@ function GC.Buy.Attach(f, geo)
   -- straight back. Each widget call is guarded so the headless specs can run without them.
   if container.EnableKeyboard then container:EnableKeyboard(true) end
   container:SetScript("OnKeyDown", function(self, key)
-    local over = self.IsMouseOver and self:IsMouseOver()
-    if over and (key == "ENTER" or key == "NUMPADENTER") then
-      if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(false) end
-      onBuyClick(lineFor(GC.Buy._focus))
+    local line
+    if (key == "ENTER" or key == "NUMPADENTER") and self.IsMouseOver and self:IsMouseOver() then
+      line = lineFor(GC.Buy._focus)
+    end
+    -- Swallowed ONLY once there is something for it to do. Deciding on the key and the cursor
+    -- alone ate Enter -- and with it opening chat -- whenever the cursor happened to be over this
+    -- panel with no line focused, which is most of the time a player is reading the board.
+    if not actionable(line) then
+      if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
       return
     end
-    if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(true) end
+    if self.SetPropagateKeyboardInput then self:SetPropagateKeyboardInput(false) end
+    onBuyClick(line)
   end)
 end
 
