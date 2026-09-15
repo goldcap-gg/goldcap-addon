@@ -1,5 +1,23 @@
 # GoldCap
 
+## 0.12.0 (unreleased)
+
+- **Craft it or buy it.** A run line the auction house prices badly now shows, on its tooltip,
+  what the same item costs to craft from its reagents — green when crafting is the cheaper of the
+  two. Right-click the line and **Split into reagents** turns it into a craft line with its
+  reagents underneath, bought, capped and counted like any other line; a reagent the run already
+  asked for simply grows instead of appearing twice. **Buy it whole instead** puts it back.
+- **A plan you recomputed says so.** Recompute a saved list at today's prices on goldcap.gg and
+  the run's header says what changed for the next day, while your bought counts and what you have
+  spent carry over line by line.
+- **Runs you follow.** Open somebody's list on goldcap.gg, follow it, and it rides into the BUY
+  tab after your own, marked with whose it is. Unfollow on the site.
+- **Your alerts, ready to buy.** Every alert group that has hits right now becomes a run of its
+  own under **Alerts** in the run picker — one line per hit, capped at the price you set the
+  alert for rather than at the usual-price cap, and marked with the realm when the hit is bound
+  to one. The run goes when the hits do.
+- Needs companion 1.11.
+
 ## 0.11.0 (unreleased)
 
 - **Every line of a run knows what it should cost.** A list saved on goldcap.gg now brings the
