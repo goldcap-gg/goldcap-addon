@@ -358,3 +358,28 @@ function GC.BuyRun.New(run, driver)
 
   return obj
 end
+
+--- The two numbers a "craft it or buy it" decision is made of, for a line the site attached a
+--- recipe to: what one unit costs in reagents at the prices the site quoted, and what one costs
+--- at the auction house right now -- the best price actually seen for it, or the site's own
+--- reference price when nothing has been seen yet.
+---
+--- No text, like everything else here: the caller owns every string the player reads, and the
+--- claim it may make is "craft it: X vs Y", never "you will save". `reagents` are per CRAFT,
+--- exactly as the recipe states them. nil for a line with no usable recipe.
+function GC.BuyRun.CraftText(line)
+  if type(line) ~= "table" or type(line.craft) ~= "table" then return nil end
+  local craft = line.craft
+  if not (craft.craftedQty and craft.craftedQty > 0) then return nil end
+  local unit = math.floor((craft.cost or 0) / craft.craftedQty)
+  local ahUnit = line.floor or line.usual
+  local reagents = {}
+  for _, reagent in ipairs(craft.reagents or {}) do
+    reagents[#reagents + 1] = { itemID = reagent.itemID, qty = reagent.qty, name = reagent.name }
+  end
+  return {
+    unit = unit, ahUnit = ahUnit,
+    cheaper = (type(ahUnit) == "number" and ahUnit > 0 and unit < ahUnit) or false,
+    craftedQty = craft.craftedQty, crafts = line.crafts, reagents = reagents,
+  }
+end

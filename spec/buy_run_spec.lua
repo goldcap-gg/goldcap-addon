@@ -436,3 +436,57 @@ describe("BuyRun splits a line into its reagents", function()
     assert.is_nil(run:Lines()[1].kind)
   end)
 end)
+
+describe("BuyRun's craft-or-buy comparison", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function line(over)
+    local l = { itemID = 50, usual = 5800, craft = { recipeID = 900, craftedQty = 5, cost = 2300,
+      reagents = {
+        { itemID = 51, qty = 5, name = "Eversong Trout" },
+        { itemID = 52, qty = 5, name = "Tavern Fixings" },
+      } } }
+    for k, v in pairs(over or {}) do l[k] = v end
+    return l
+  end
+
+  -- 2300c of reagents for five units is 460c each, against 5800c at the auction house.
+  it("prices one crafted unit against one bought unit", function()
+    local compare = GC.BuyRun.CraftText(line())
+    assert.equal(460, compare.unit)
+    assert.equal(5800, compare.ahUnit)
+    assert.is_true(compare.cheaper)
+    assert.equal(5, compare.craftedQty)
+    assert.same({ { itemID = 51, qty = 5, name = "Eversong Trout" },
+                  { itemID = 52, qty = 5, name = "Tavern Fixings" } }, compare.reagents)
+  end)
+
+  -- A price actually seen on this realm beats the site's reference price: the comparison is a
+  -- statement about what the auction house is asking now.
+  it("prefers the price the auction house is actually asking", function()
+    assert.equal(400, GC.BuyRun.CraftText(line({ floor = 400 })).ahUnit)
+    assert.is_false(GC.BuyRun.CraftText(line({ floor = 400 })).cheaper)
+  end)
+
+  it("says nothing about being cheaper when there is no price to compare against", function()
+    local l = line()
+    l.usual = nil
+    local compare = GC.BuyRun.CraftText(l)
+    assert.equal(460, compare.unit)
+    assert.is_nil(compare.ahUnit)
+    assert.is_false(compare.cheaper)
+  end)
+
+  it("carries the craft count of a line that is already split", function()
+    assert.equal(4, GC.BuyRun.CraftText(line({ crafts = 4 })).crafts)
+  end)
+
+  it("answers nothing for a line with no recipe", function()
+    assert.is_nil(GC.BuyRun.CraftText({ itemID = 50, usual = 5800 }))
+    assert.is_nil(GC.BuyRun.CraftText(nil))
+  end)
+end)
