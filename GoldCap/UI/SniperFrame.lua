@@ -3543,7 +3543,18 @@ end
 -- success of its own (UI/BuyFrame.lua's mayOwnTerminal): a stranded confirm on both sides makes
 -- the event nobody's to take. Read-only, so asking never consumes; and a field on GC.Sniper, not a
 -- file local, for the same ceiling reason as the table itself.
+--
+-- A confirmed attempt that has let go of the shared purchase slot counts too. Esc on a dialog at
+-- "confirming" drains the attempt into a confirmed tombstone and releases the slot; a confirmed
+-- attempt still in flight holds the slot, but is listed all the same so the answer does not
+-- depend on which of the two the release happens to reach first. Either way its success is still
+-- owed to THIS window. Left out, a stranded BUY record took that success (the slot was free, a
+-- record was live), booked it as a BUY purchase, and the confirmed tombstone -- which is never
+-- retired on a timer -- refused every later commodity Buy with "waiting for previous commodity
+-- purchase to settle" until /reload.
 function GC.Sniper.HasStrandedConfirmed()
+  if commodityDraining and commodityDraining.confirmed then return true end
+  if commodityPurchase and commodityPurchase.confirmed then return true end
   local now = GetTime()
   for _, record in pairs(GC.Sniper._strandedConfirmed) do
     if now - (record.at or 0) <= 600 then return true end

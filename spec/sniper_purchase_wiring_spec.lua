@@ -2524,6 +2524,28 @@ describe("Sniper purchase wiring", function()
       _G.C_AuctionHouse, _G.GetCoinTextureString = nil, nil
     end)
 
+    -- A confirmed attempt that let go of the shared purchase slot -- the tombstone Esc leaves
+    -- behind, or one still in flight -- is a purchase whose success is still owed to the Sniper.
+    -- The BUY tab asks this before a stranded record of its own takes a terminal event; a "no"
+    -- here let BUY book the Sniper's success as its own, and the tombstone then refused every
+    -- later commodity Buy with "waiting for previous commodity purchase to settle" until /reload.
+    it("counts a confirmed tombstone and a confirmed attempt as stranded confirms", function()
+      local GC = loadSniper()
+      assert.is_false(GC.Sniper.HasStrandedConfirmed())
+
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 42, token = 1, confirmed = true })
+      assert.is_true(GC.Sniper.HasStrandedConfirmed())
+
+      -- An unconfirmed tombstone paid for nothing: no success is owed, nothing to protect.
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 42, token = 1 })
+      assert.is_false(GC.Sniper.HasStrandedConfirmed())
+
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", nil)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = {}, itemID = 42, token = 2, confirmed = true })
+      assert.is_true(GC.Sniper.HasStrandedConfirmed())
+    end)
+
     -- The release gives up the ownership so Esc can close the window. It must not also give up
     -- the ROW: for a minute afterwards the quiet-zone release saw an unowned mid-flight row and
     -- handed it back as "Check again" -- the same lot, already possibly paid for.
