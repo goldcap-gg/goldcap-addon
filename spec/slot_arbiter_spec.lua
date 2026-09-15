@@ -103,6 +103,26 @@ describe("Search slot arbiter", function()
     _G.C_AuctionHouse = nil
   end)
 
+  -- The BUY tab asks this before it books a late success of its own (UI/BuyFrame.lua's
+  -- mayOwnTerminal): with a stranded confirm on both sides the event is nobody's to take. Same
+  -- ten-minute window as takeStrandedConfirmed, and read-only -- asking must not consume.
+  describe("HasStrandedConfirmed", function()
+    it("is false with nothing stranded, and true inside the window", function()
+      local GC = load()
+      assert.is_false(GC.Sniper.HasStrandedConfirmed())
+      GC.Sniper._strandedConfirmed[7] = { pending = {}, at = 100 - 599 }
+      assert.is_true(GC.Sniper.HasStrandedConfirmed())
+      assert.is_true(GC.Sniper.HasStrandedConfirmed())
+      assert.is_truthy(GC.Sniper._strandedConfirmed[7])
+    end)
+
+    it("is false once the record has aged out", function()
+      local GC = load()
+      GC.Sniper._strandedConfirmed[7] = { pending = {}, at = 100 - 601 }
+      assert.is_false(GC.Sniper.HasStrandedConfirmed())
+    end)
+  end)
+
   -- Browse paging and the tail (watch loop + verify walk) alternate. Paging used to win
   -- outright, which in the client meant it won always: with Auto on, the pass is pending again
   -- within its two-second breather, so the rows on screen were never judged at all until Auto

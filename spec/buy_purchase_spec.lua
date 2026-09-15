@@ -10,6 +10,8 @@ local helper = require("spec.spec_helper")
 -- from the passive capture hooks. Only the client itself is faked.
 describe("BUY purchase", function()
   local GC, searches, started, confirmed, cancels, timers, book, now, bags, sniperCalls
+  -- Whether the fake Sniper is holding a stranded confirm of its own (GC.Sniper.HasStrandedConfirmed).
+  local sniperStranded
 
   local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust",
                   [105] = "Echo Salt" }
@@ -233,9 +235,10 @@ describe("BUY purchase", function()
     -- The arbiter and the AH session flag are UI/SniperFrame.lua's, and its own batch path is
     -- covered by spec/buy_refresh_spec.lua against the real file. What this spec needs from it
     -- is only "there is a session, and BUY is the tab on screen".
-    sniperCalls = {}
+    sniperCalls, sniperStranded = {}, false
     GC.Sniper = {
       IsAHOpen = function() return true end, CurrentView = function() return "buy" end,
+      HasStrandedConfirmed = function() return sniperStranded end,
       OnCommodityPurchaseSucceeded = function() sniperCalls[#sniperCalls + 1] = "succeeded" end,
       OnCommodityPurchaseFailed = function() sniperCalls[#sniperCalls + 1] = "failed" end,
       OnCommodityPriceUnavailable = function() sniperCalls[#sniperCalls + 1] = "unavailable" end,
@@ -274,6 +277,9 @@ describe("BUY purchase", function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.C_AuctionHouse, _G.C_Timer, _G.GetTime = nil, nil, nil
     _G.hooksecurefunc, _G.SlashCmdList, _G.Enum = nil, nil, nil
+    -- Core/Init.lua sets both; .busted runs without isolation and spec/loadorder_spec.lua asserts
+    -- on them, so a router-loading spec has to take them back out.
+    _G.SLASH_GOLDCAP1, _G.SLASH_GOLDCAP2 = nil, nil
     _G.time = os.time
   end)
 
@@ -1073,8 +1079,10 @@ describe("BUY purchase", function()
     assert.equal("confirm", GC.Buy._attempt.stage)
   end)
 
-  -- A stranded record may never take an event from somebody actively holding the slot: that
-  -- purchase owns its own terminals.
+  -- A stranded record may never take an event from somebody holding the slot: that purchase owns
+  -- its own terminals. ANY live claim, stale or not -- the Sniper claims once at its buy click and
+  -- never re-stamps, so its own success can land past GC.PurchaseSlot.MAX_SECONDS with its claim
+  -- no longer reported busy but still in place.
   it("leaves the sniper's own events alone while it holds the slot", function()
     local onEvent = loadRouter()
     strandOne()
@@ -1082,6 +1090,96 @@ describe("BUY purchase", function()
     onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")
     assert.same({ "succeeded" }, sniperCalls)
     assert.same({}, GC.Acquisitions.GetAll())
+
+    GC.PurchaseSlot.Release("sniper")
+    GC.PurchaseSlot.Claim("sniper", now - 31)
+    assert.is_false(GC.PurchaseSlot.IsBusy())
+    onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")
+    assert.same({ "succeeded", "succeeded" }, sniperCalls)
+    assert.same({}, GC.Acquisitions.GetAll())
+    assert.is_truthy(GC.Buy._stranded[101])
+  end)
+
+  -- Item 3: with a stranded confirm on BOTH sides, a success carries nothing that could say whose it
+  -- is. BUY says no and the Sniper gets it, exactly as two records of BUY's own would be refused.
+  it("hands a success to the sniper when both windows have a stranded confirm", function()
+    local onEvent = loadRouter()
+    strandOne()
+    sniperStranded = true
+    onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")
+    assert.same({ "succeeded" }, sniperCalls)
+    assert.same({}, GC.Acquisitions.GetAll())
+    assert.equal(0, GC.Buy.CurrentRun():Lines()[1].bought)
+    assert.is_truthy(GC.Buy._stranded[101])
+  end)
+
+  -- Item 1: the button on a stranded line is disabled, and Enter has to agree with it -- swallowed,
+  -- the keystroke did nothing; worse, it reached onBuyClick for a line the player may not touch.
+  it("hands Enter back on a line whose confirm never answered", function()
+    strandOne()
+    assert.equal(101, GC.Buy._focus)
+    local container = containerOf()
+    container.mouseOver = true
+    keyDown("ENTER")
+    assert.is_true(container.propagate)
+    assert.equal(1, #started)
+    assert.equal(1, #confirmed)
+  end)
+
+  -- Item 2: a late FAILED answers exactly one stranded confirm, and only when that confirm is still
+  -- the attempt on screen. Wiping every record on any failure lifted a warning on evidence about
+  -- some other purchase -- including one whose success was still on its way.
+  it("keeps both stranded records when a late failure cannot say which one it answers", function()
+    strandOne()
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityPriceUpdated(2500, 10000)
+    click(rowWithText("Charlie Dust"))
+    timers[#timers].fn()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+
+    assert.is_false(GC.Buy.OnCommodityPurchaseFailed())
+    assert.is_truthy(GC.Buy._stranded[101])
+    assert.is_truthy(GC.Buy._stranded[103])
+    assert.equal("unknown", GC.Buy._attempt.stage)
+    assert.equal("no answer — check your bags", rowWithText("Alpha Herb").action.label)
+  end)
+
+  it("keeps a stranded record a failure cannot be pinned to the attempt for", function()
+    strandOne()
+    GC.Buy._attempt = nil
+    assert.is_false(GC.Buy.OnCommodityPurchaseFailed())
+    assert.is_truthy(GC.Buy._stranded[101])
+    assert.equal("no answer — check your bags", rowWithText("Alpha Herb").action.label)
+
+    -- The player has moved on to another line: the attempt is that line's, and says nothing
+    -- about the one that went unanswered.
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    assert.equal("quoted", GC.Buy._attempt.stage)
+    assert.is_false(GC.Buy.OnCommodityPriceUnavailable())
+    assert.is_truthy(GC.Buy._stranded[101])
+    assert.equal("quoted", GC.Buy._attempt.stage)
+  end)
+
+  -- `/gc buy` names the item even when its line is gone: the record knows the id.
+  it("names the item when it drops what it cannot attribute", function()
+    strandOne()
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityPriceUpdated(2500, 10000)
+    click(rowWithText("Charlie Dust"))
+    timers[#timers].fn()
+    GC.Buy.SelectRun("run-2")
+    assert.is_nil(GC.Buy._attempt)
+
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    local last = GC.Buy._log[#GC.Buy._log]
+    assert.is_true(last.itemID == 101 or last.itemID == 103)
+    assert.is_nil(last.text:find("?", 1, true))
+    assert.is_truthy(last.text:find("could not attribute", 1, true))
   end)
 
   -- S1: one slot let a second strand overwrite the first, and the first one's late success was

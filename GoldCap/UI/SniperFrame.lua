@@ -3533,6 +3533,18 @@ local function takeStrandedConfirmed()
   return found
 end
 
+-- Whether any record above is still inside its window. The BUY tab asks before it books a late
+-- success of its own (UI/BuyFrame.lua's mayOwnTerminal): a stranded confirm on both sides makes
+-- the event nobody's to take. Read-only, so asking never consumes; and a field on GC.Sniper, not a
+-- file local, for the same ceiling reason as the table itself.
+function GC.Sniper.HasStrandedConfirmed()
+  local now = GetTime()
+  for _, record in pairs(GC.Sniper._strandedConfirmed) do
+    if now - (record.at or 0) <= 600 then return true end
+  end
+  return false
+end
+
 local function consumePurchasedDeal(deal)
   -- `deal` may be the purchase's own copy of the board entry (the realm path copies it at the
   -- click, so a bid that never lands cannot rewrite the price the board is showing), which is

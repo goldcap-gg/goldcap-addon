@@ -441,16 +441,6 @@ local function lineFor(itemID)
   return nil
 end
 
--- Whether a click on this line would do anything at all -- what the Enter key has to know before
--- it decides to swallow the keystroke rather than hand it back to the game. A line waiting for
--- its confirming click counts even though its own BUY quantity may already be spoken for.
-local function actionable(line)
-  if not line then return false end
-  local attempt = GC.Buy._attempt
-  if attempt and attempt.itemID == line.itemID and attempt.stage == "confirm" then return true end
-  return buyable(line)
-end
-
 -- ---------------------------------------------------------------------------
 -- Buying: the quote, and the attempt it becomes
 -- ---------------------------------------------------------------------------
@@ -471,6 +461,20 @@ local function strandedFor(line)
   -- to be bookable -- but the line stops being one the player may not touch.
   if record.have ~= nil and line.have ~= record.have then return nil end
   return record
+end
+
+-- Whether a click on this line would do anything at all -- what the Enter key has to know before
+-- it decides to swallow the keystroke rather than hand it back to the game. A line waiting for
+-- its confirming click counts even though its own BUY quantity may already be spoken for. A line
+-- under a stranded confirm never does: its button is disabled (actionLabel), and Enter has to
+-- agree with the button -- swallowed, the keystroke did nothing, and it reached onBuyClick for a
+-- line the player may not touch.
+local function actionable(line)
+  if not line then return false end
+  if strandedFor(line) then return false end
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.itemID == line.itemID and attempt.stage == "confirm" then return true end
+  return buyable(line)
 end
 
 local function quoteFresh(attempt)
@@ -576,7 +580,7 @@ local function takeStranded()
   if count == 0 then return nil, false end
   if count > 1 then
     GC.Buy._stranded = {}
-    logAttempt(nil, GC.L["a purchase landed that GoldCap could not attribute"])
+    logAttempt(lineFor(itemID), GC.L["a purchase landed that GoldCap could not attribute"], itemID)
     GC.Buy.RefreshIfShown()
     return nil, true
   end
@@ -593,12 +597,23 @@ end
 -- Holding the slot is the ordinary answer. A stranded record is the other one: the purchase that
 -- left it RELEASED the slot on its way out, so an event gated on ownership alone could never
 -- reach the branch that books it. What a stranded record may never do is take an event from
--- somebody who is actively holding the slot -- that purchase owns its own terminals.
+-- somebody who is holding the slot -- that purchase owns its own terminals. ANY claim of theirs,
+-- not only one IsBusy still reports: the Sniper claims once at its buy click and never re-stamps,
+-- so its own success can land past GC.PurchaseSlot.MAX_SECONDS with the claim still in place, and
+-- a stranded record here would have taken it.
+--
+-- Nor may it take one when the Sniper holds a stranded confirm of its own. A commodity event
+-- carries nothing that could say which window's it is, so with a record on both sides the answer
+-- is the same fail-closed no that two records of this tab's own get from takeStranded.
 local function mayOwnTerminal()
-  if not GC.PurchaseSlot then return (liveStranded()) > 0 end
-  local owner = GC.PurchaseSlot.Owner()
-  if owner == "buy" then return true end
-  if owner ~= nil and GC.PurchaseSlot.IsBusy() then return false end
+  if GC.PurchaseSlot then
+    local owner = GC.PurchaseSlot.Owner()
+    if owner == "buy" then return true end
+    if owner ~= nil then return false end
+  end
+  if GC.Sniper and GC.Sniper.HasStrandedConfirmed and GC.Sniper.HasStrandedConfirmed() then
+    return false
+  end
   return (liveStranded()) > 0
 end
 
@@ -751,14 +766,21 @@ local function settlePurchase(itemID, qty, total, runCode)
 end
 
 -- A late FAILED or PRICE_UNAVAILABLE for a confirm this tab had given up on is the answer it was
--- waiting for: the purchase did NOT happen. The records go, and the warning with them -- with two
--- live it is still the right answer, since neither of them happened either way round.
+-- waiting for: the purchase did NOT happen. Attributed exactly as takeStranded attributes a
+-- success, and no looser: with two records live neither can be named, and the failure is not
+-- this tab's to take; with one, it is taken only while the attempt on screen is still that very
+-- confirm at `unknown`. Anything else -- the player has moved on to another line, or the failure
+-- is from their own purchase on Blizzard's pane, which claims no slot -- is evidence about some
+-- other purchase, and a warning lifted on it would leave a live BUY button over units that may
+-- still arrive. Returns true only when a record was consumed.
 local function dropStrandedOnFailure()
-  if (liveStranded()) == 0 then return false end
-  GC.Buy._stranded = {}
+  local count, itemID = liveStranded()
+  if count ~= 1 then return false end
   local attempt = GC.Buy._attempt
-  if attempt and attempt.stage == "unknown" then attempt.stage = "failed" end
-  logAttempt(attempt and lineFor(attempt.itemID) or nil, GC.L["purchase failed — try again"])
+  if not (attempt and attempt.stage == "unknown" and attempt.itemID == itemID) then return false end
+  GC.Buy._stranded[itemID] = nil
+  attempt.stage = "failed"
+  logAttempt(lineFor(itemID), GC.L["purchase failed — try again"], itemID)
   GC.Buy.RefreshIfShown()
   return true
 end
