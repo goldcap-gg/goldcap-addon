@@ -124,6 +124,14 @@ describe("BUY purchase", function()
     end
   end
 
+  -- A bought-out line sinks to the bottom of the run, so a line is found by its item and never
+  -- by the position it held before the purchase.
+  local function runLine(itemID)
+    for _, l in ipairs(GC.Buy.CurrentRun():Lines()) do
+      if l.itemID == itemID then return l end
+    end
+  end
+
   local function containerOf() return upvalueOf(GC.Buy.Show, "container") end
 
   -- Core/Init.lua's own OnEvent, so the routing between GC.Buy and GC.Sniper is exercised rather
@@ -464,7 +472,7 @@ describe("BUY purchase", function()
     click(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityPurchaseSucceeded()
 
-    local line = GC.Buy.CurrentRun():Lines()[1]
+    local line = runLine(101)
     assert.equal(101, line.itemID)
     assert.equal(10, line.bought)
     assert.equal(10200, line.spent)
@@ -885,7 +893,7 @@ describe("BUY purchase", function()
     assert.equal(10200, batches[1].originalTotal)
     assert.equal(10, batches[1].originalQty)
     assert.equal("run-1", batches[1].runCode)
-    assert.equal(10, GC.Buy.CurrentRun():Lines()[1].bought)
+    assert.equal(10, runLine(101).bought)
     assert.is_nil(GC.Buy._attempt)
     assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 10))
   end)

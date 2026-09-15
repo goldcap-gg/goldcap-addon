@@ -240,20 +240,22 @@ describe("BuyFrame", function()
     assert.is_true(alpha.action:IsEnabled())
   end)
 
-  it("puts the vendor line last, marks it, and greys it", function()
-    local shown = shownRows()
-    -- The last list row is the locked-lines notice; the vendor line is the last LINE row.
+  it("puts the vendor line after the open ones and the finished line last", function()
     local lineRows = {}
-    for _, row in ipairs(shown) do
+    for _, row in ipairs(shownRows()) do
       if (row.reagent:GetText() or "") ~= "" then lineRows[#lineRows + 1] = row end
     end
     assert.equal(4, #lineRows)
-    local last = lineRows[#lineRows]
-    assert.equal("Delta Vial", last.reagent:GetText())
-    assert.equal("vendor", last.cells.action:GetText())
-    assert.is_false(last.action:IsShown())
+    -- 101 open, 103 open (locked), 104 vendor, 102 done -- the bags already cover 102.
+    assert.equal("Alpha Herb", lineRows[1].reagent:GetText())
+    assert.equal("Charlie Dust", lineRows[2].reagent:GetText())
+    assert.equal("Delta Vial", lineRows[3].reagent:GetText())
+    assert.equal("vendor", lineRows[3].cells.action:GetText())
+    assert.is_false(lineRows[3].action:IsShown())
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3], 1 },
-      last.reagent.colorValue)
+      lineRows[3].reagent.colorValue)
+    assert.equal("Bravo Ore", lineRows[4].reagent:GetText())
+    assert.equal("done", lineRows[4].cells.action:GetText())
   end)
 
   it("locks the lines past the free limit behind a Pro pill and says how many", function()
@@ -272,7 +274,22 @@ describe("BuyFrame", function()
     assert.equal("4 lines · 2 to buy · 1 at the vendor", band.counts:GetText())
     assert.truthy(band.spent:GetText():find("spent ", 1, true))
     assert.truthy(band.spent:GetText():find("left ~", 1, true))
-    assert.equal("in bags", band.bags:GetText())
+    assert.equal("in bags · purchases arrive by mail", band.bags:GetText())
+  end)
+
+  -- Spec rule 5: a run with nothing left to buy and nothing left to fetch says so, rather than
+  -- counting three zeroes at the player.
+  it("says everything is bought when the run has nothing left", function()
+    GC.AppRuns._set({ run({ code = "run-d", updatedAt = 900,
+      lines = { { i = 102, q = 5 }, { i = 104, q = 0, v = true } } }) })
+    GC.db.settings.sniper.buyRun = "run-d"
+    GC.Buy.Show()
+    assert.equal("everything bought", bandOf().counts:GetText())
+    assert.is_truthy(bandOf().spent:GetText():find("spent ", 1, true))
+  end)
+
+  it("still counts the lines while anything is left", function()
+    assert.equal("4 lines · 2 to buy · 1 at the vendor", bandOf().counts:GetText())
   end)
 
   it("names the run on the picker and cycles to the next one, remembering the choice", function()
@@ -525,6 +542,26 @@ describe("BuyFrame", function()
     GC.Buy.Show()
     assert.is_false(bandOf().vendor:IsShown())
   end)
+
+  -- The button hangs off the legend on the band's SECOND line, not between the picker and the
+  -- counts on the first: the counts string has two opposing anchors and no width of its own, so
+  -- anything parked in front of it is what the text overflows onto at a narrow docked width.
+  it("hangs the vendor button off the legend, leaving line one to the picker and the counts",
+    function()
+      local band = bandOf()
+      local anchor
+      for _, p in ipairs(band.vendor.points) do if p.point == "RIGHT" then anchor = p end end
+      assert.truthy(anchor)
+      assert.equal(band.bags, anchor.relative)
+      assert.equal("LEFT", anchor.relativePoint)
+      assert.equal(-GC.Theme.pad.s, anchor.x)
+
+      local countsLeft
+      for _, p in ipairs(band.counts.points) do if p.point == "LEFT" then countsLeft = p end end
+      assert.truthy(countsLeft)
+      assert.equal(band.picker, countsLeft.relative)
+      assert.equal("RIGHT", countsLeft.relativePoint)
+    end)
 
   it("labels the column header row REAGENT/NEED/HAVE/BUY/NOW/USUAL/COST/ACTION", function()
     local header = bandOf().header

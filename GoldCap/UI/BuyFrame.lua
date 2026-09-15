@@ -1724,8 +1724,8 @@ local function vendorListText()
   return table.concat(out, "\n")
 end
 
--- The header band: the run picker and the run's line counts on one line, the money and the
--- "in bags" legend under them. SellFrame/SoldFrame's header-band convention.
+-- The header band: the run picker and the run's line counts on one line, the money, the vendor
+-- button and the bags legend under them. SellFrame/SoldFrame's header-band convention.
 local function createBand(parent)
   local picker = Theme.Button(parent, "ghost", "badge")
   picker:SetSize(150, 20)
@@ -1748,34 +1748,39 @@ local function createBand(parent)
   end)
   picker:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
-  -- Shown only for a run that still has a vendor stop (renderRows). A vendor trip is the one
-  -- part of a run the game cannot help with, so the list leaves the game as text.
-  local vendorBtn = Theme.Button(parent, "ghost", "badge")
-  vendorBtn:SetSize(120, 20)
-  vendorBtn:SetPoint("TOPLEFT", picker, "TOPRIGHT", Theme.pad.s, 0)
-  vendorBtn:SetLabel(GC.L["Copy vendor list"])
-  vendorBtn:SetScript("OnClick", function()
-    local text = vendorListText()
-    if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
-  end)
-  vendorBtn:Hide()
-
   local counts = Theme.Num(parent, 9)
   counts:SetJustifyH("RIGHT")
   counts:SetWordWrap(false)
   counts:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -6)
-  counts:SetPoint("LEFT", vendorBtn, "RIGHT", Theme.pad.s, 0)
+  counts:SetPoint("LEFT", picker, "RIGHT", Theme.pad.s, 0)
   setColor(counts, Theme.color.fgDim)
 
-  -- What the HAVE column counts, said once rather than in every row: the bags, not the bank.
+  -- What the HAVE column counts, and where a purchase actually turns up: the auction house
+  -- delivers commodities as mail, so a bought line's HAVE does not move until the mailbox is
+  -- emptied. Said once here rather than on every row that is waiting for it.
   -- Anchored first and by its RIGHT edge alone, so its width is its own text -- `spent` below
   -- binds to its LEFT, and binding them to each other in both directions would be circular.
   local bags = Theme.Num(parent, 9)
   bags:SetJustifyH("RIGHT")
   bags:SetWordWrap(false)
   bags:SetPoint("TOPRIGHT", 0, -26)
-  bags:SetText(GC.L["in bags"])
+  bags:SetText(GC.L["in bags · purchases arrive by mail"])
   setColor(bags, Theme.color.fgDim)
+
+  -- Shown only for a run that still has a vendor stop (renderRows). A vendor trip is the one
+  -- part of a run the game cannot help with, so the list leaves the game as text.
+  -- On the SECOND line, hung off the legend: `counts` above has two opposing anchors and no
+  -- width of its own, so a button parked in front of it is what its text overflows onto the
+  -- moment the tab is docked narrow.
+  local vendorBtn = Theme.Button(parent, "ghost", "badge")
+  vendorBtn:SetSize(120, 20)
+  vendorBtn:SetPoint("RIGHT", bags, "LEFT", -Theme.pad.s, 0)
+  vendorBtn:SetLabel(GC.L["Copy vendor list"])
+  vendorBtn:SetScript("OnClick", function()
+    local text = vendorListText()
+    if text and GC.UI and GC.UI.ShowVendorList then GC.UI.ShowVendorList(text) end
+  end)
+  vendorBtn:Hide()
 
   local spent = Theme.Num(parent, 10)
   spent:SetJustifyH("LEFT")
@@ -1819,8 +1824,13 @@ local function renderRows()
     local totals = current:Totals()
     band.picker:SetLabel(runLabel(current) .. " ▼")
     band.picker:Show()
-    band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
-      totals.lines, totals.toBuy, totals.atVendor))
+    -- Nothing to buy and nothing to fetch: three zeroes are a worse way of saying it.
+    if totals.lines > 0 and totals.toBuy == 0 and totals.atVendor == 0 then
+      band.counts:SetText(GC.L["everything bought"])
+    else
+      band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
+        totals.lines, totals.toBuy, totals.atVendor))
+    end
     if totals.atVendor > 0 then band.vendor:Show() else band.vendor:Hide() end
     band.spent:SetText((GC.L["spent %s · left ~%s"]):format(
       formatAmount(totals.spent), formatAmount(totals.left)))

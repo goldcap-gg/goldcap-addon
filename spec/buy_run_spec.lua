@@ -18,12 +18,18 @@ describe("BuyRun", function()
     run:Refresh()
   end)
 
-  it("computes buy = need - have and folds done lines and vendor lines to the end", function()
+  -- The list is reordered by Refresh, so a line is found by the item it is for and never by
+  -- where it happens to sit -- which is the point of the ordering these tests pin.
+  local function lineOf(itemID)
+    for _, l in ipairs(run:Lines()) do if l.itemID == itemID then return l end end
+  end
+
+  it("computes buy = need - have and orders the list open, then vendor, then done", function()
     local ids = {}
     for _, l in ipairs(run:Lines()) do ids[#ids + 1] = l.itemID .. ":" .. l.buy end
-    assert.same({ "5:150", "7:5", "9:0", "8:215" }, ids)
-    assert.is_true(run:Lines()[3].done)
-    assert.is_true(run:Lines()[4].vendor)
+    assert.same({ "5:150", "7:5", "8:215", "9:0" }, ids)
+    assert.is_true(run:Lines()[3].vendor)
+    assert.is_true(run:Lines()[4].done)
   end)
 
   it("caps at 1.3x the usual price and buys only what fits", function()
@@ -56,7 +62,7 @@ describe("BuyRun", function()
     run:RecordPurchase(5, 150, 4410000, 1001)
     have[5] = 60 + 150
     run:Refresh()
-    local line = run:Lines()[1]
+    local line = lineOf(5)
     assert.equal(150, line.bought)
     assert.equal(4410000, line.spent)
     assert.equal(210, line.have)
@@ -72,7 +78,7 @@ describe("BuyRun", function()
     run:RecordPurchase(5, 90, 90 * 30000, 1001)
     have[5] = 60 + 90
     run:Refresh()
-    local line = run:Lines()[1]
+    local line = lineOf(5)
     assert.equal(150, line.have)
     assert.equal(90, line.bought)
     assert.equal(60, line.buy)
@@ -95,6 +101,23 @@ describe("BuyRun", function()
     local locked = {}
     for _, l in ipairs(gated:Lines()) do locked[#locked + 1] = tostring(l.locked) end
     assert.same({ "false", "false", "true", "false" }, locked)   -- 1, 2 buyable; 3 locked; vendor line last, never locked
+  end)
+
+  -- A line that is both done and a vendor stop is done: the player already has it, so it is not
+  -- a stop to make and it must not sit above one that is.
+  it("puts a finished vendor line with the finished lines, not with the vendor stops", function()
+    local r = GC.BuyRun.New({ code = "z", lines = {
+      { i = 11, q = 10 },               -- open
+      { i = 12, q = 1, v = true },      -- a vendor stop the bags already cover
+      { i = 13, q = 5, v = true },      -- a vendor stop still to make
+    } }, { now = function() return 0 end,
+           haveOf = function(id) return id == 12 and 1 or 0 end,
+           usualUnit = function() return nil end, capPct = function() return 130 end,
+           freeLines = function() return nil end })
+    r:Refresh()
+    local ids = {}
+    for _, l in ipairs(r:Lines()) do ids[#ids + 1] = tostring(l.itemID) end
+    assert.same({ "11", "13", "12" }, ids)
   end)
 end)
 

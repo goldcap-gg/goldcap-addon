@@ -549,6 +549,7 @@ GC.Locales.enUS = {
   ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
   ["done"] = "done",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
+  ["everything bought"] = "everything bought",
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
   ["full scan already in progress"] = "full scan already in progress",
@@ -567,7 +568,7 @@ GC.Locales.enUS = {
   ["import %dh old"] = "import %dh old",
   ["import stale -- /goldcap import or /goldcap companion"] = "import stale -- /goldcap import or /goldcap companion",
   ["imported %d items for %s (%s) — prices are live now."] = "imported %d items for %s (%s) — prices are live now.",
-  ["in bags"] = "in bags",
+  ["in bags · purchases arrive by mail"] = "in bags · purchases arrive by mail",
   ["in the mail"] = "in the mail",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "is what this market absorbs — past that you are buying stock you will sit on",

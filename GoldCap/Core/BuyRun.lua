@@ -49,15 +49,15 @@ function GC.BuyRun.New(run, driver)
 
   -- Rebuilds every line from the run plus current state: `have` comes fresh from the
   -- driver every time (the bag count can change any moment the player isn't looking at
-  -- this frame), `buy` from need/have/bought, and `cap` from the usual price. Vendor
-  -- lines move to the end so the list reads "buy this, then the vendor stuff"; everything
-  -- else keeps run order, including a line that is already done -- it stays where the run
-  -- put it rather than sorting to the bottom. `index` counts only non-vendor lines, in
-  -- that same run order, so the free-lines gate never sees (and never locks) a vendor line.
+  -- this frame), `buy` from need/have/bought, and `cap` from the usual price. Lines come
+  -- out in three groups -- open, then the vendor trip, then everything already done -- and
+  -- keep run order inside each. `index` counts only non-vendor lines, in run order and
+  -- regardless of whether they are done, so the free-lines gate is about which lines of the
+  -- run are unlocked rather than about what is left of it.
   function obj:Refresh()
     local capPct = driver.capPct()
     local freeLines = driver.freeLines()
-    local nonVendor, vendor = {}, {}
+    local open, vendor, done = {}, {}, {}
     local index = 0
     for _, src in ipairs(run.lines or {}) do
       local itemID = src.i
@@ -98,15 +98,27 @@ function GC.BuyRun.New(run, driver)
         spent = state.spent, bought = state.bought,
         done = buy == 0, locked = false, index = lineIndex,
       }
-      if isVendor then
+      -- The free-lines gate is about the run, not about what is left of it, so `locked` is still
+      -- decided by the line's position among the non-vendor lines and nothing else.
+      if not isVendor then
+        line.locked = freeLines ~= nil and lineIndex > freeLines
+      end
+      -- Three buckets, in the order the list reads: what is left to buy, then the vendor trip,
+      -- then everything already dealt with. A line that is done is done whether or not it is a
+      -- vendor stop -- the player has it, so it is not a stop to make. Run order survives inside
+      -- each bucket rather than sorting by when a line finished: the run is still the run.
+      if line.done then
+        done[#done + 1] = line
+      elseif isVendor then
         vendor[#vendor + 1] = line
       else
-        line.locked = freeLines ~= nil and lineIndex > freeLines
-        nonVendor[#nonVendor + 1] = line
+        open[#open + 1] = line
       end
     end
-    lines = nonVendor
-    for i = 1, #vendor do lines[#lines + 1] = vendor[i] end
+    lines = {}
+    for _, bucket in ipairs({ open, vendor, done }) do
+      for i = 1, #bucket do lines[#lines + 1] = bucket[i] end
+    end
   end
 
   function obj:Lines() return lines end
