@@ -1283,6 +1283,30 @@ describe("BuyFrame", function()
     _G.MenuUtil = nil
   end)
 
+  -- A line the free tier is holding back has no BUY button of its own, and a split is an action:
+  -- taking it would rewrite the run around a line nobody may act on -- and hand a free player
+  -- the reagents of a locked line to buy, which is the one thing the lock is there to stop.
+  it("opens no menu on a line the free limit has locked", function()
+    GC.AppRuns._set({ { code = "run-lm", name = "Locked craft", updatedAt = 900, origin = "app",
+      lines = {
+        { i = 101, q = 10 },
+        { i = 103, q = 3 },
+        { i = 104, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
+          { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } },
+      } } })
+    GC.db.runSplits = {}
+    GC.db.settings.sniper.buyRun = "run-lm"
+    GC.Buy.Show()
+    -- Two free lines, three lines of run: the recipe line is the one being held back.
+    assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
+    local opened = 0
+    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
+    local locked = rowWithText("Delta Vial")
+    locked.scripts.OnMouseUp(locked, "RightButton")
+    assert.equal(0, opened)
+    _G.MenuUtil = nil
+  end)
+
   -- Finding 1's rule again: a purchase already committed to these lines. Re-splitting the run
   -- under it would leave settlePurchase crediting a line that no longer exists.
   it("opens no menu while a purchase is in flight", function()

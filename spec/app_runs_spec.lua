@@ -285,6 +285,21 @@ describe("AppRuns", function()
       assert.is_nil(GC.db.runNotices["abcd2345"])
     end)
 
+    -- The other half of the same rule: `updatedAt` is the site's own stamp on the plan, and a
+    -- line set cannot move without it moving too. Lines that differ under an unchanged stamp are
+    -- a file the addon cannot explain -- not a recompute the band should announce as one.
+    it("says nothing when the lines differ under an unchanged updatedAt", function()
+      _G.GoldCap_AppRuns = fixture()
+      GC.AppRuns.Adopt()
+      local fresher = fixture()
+      fresher.generatedAt = fresher.generatedAt + 60    -- a newer file...
+      table.insert(fresher.runs[1].lines, { i = 7, q = 3 })   -- ...carrying a changed run
+      _G.GoldCap_AppRuns = fresher
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.equal(3, #GC.AppRuns.Get("abcd2345").lines)
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+    end)
+
     it("says nothing about a run it is seeing for the first time", function()
       local f = fixture()
       f.runs[1].code = "wxyz6789"
