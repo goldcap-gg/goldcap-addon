@@ -39,6 +39,9 @@ read_globals = {
   -- Combat lockdown: SetPropagateKeyboardInput is protected in combat, so the BUY tab's own
   -- keyboard handler has to ask before it touches it (UI/BuyFrame.lua).
   "InCombatLockdown",
+  -- The cheap hour is measured in UTC and shown in realm time (UI/BuyFrame.lua): the client's
+  -- calendar clock is realm time, `date("!*t", GetServerTime())` the same instant in UTC.
+  "C_DateAndTime", "GetServerTime", "date",
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",

@@ -788,6 +788,35 @@ local function overUsualPct(line, ladder)
   return nil
 end
 
+-- The site measures the cheap hour in UTC; a player reads realm time. The client knows both:
+-- C_DateAndTime.GetCurrentCalendarTime() is realm time and date("!*t", GetServerTime()) is the
+-- same instant in UTC, so their difference is this realm's offset. Without both there is no
+-- offset to apply, and an hour in the wrong timezone is worse than no hour -- nil says nothing.
+local function serverHour(utcHour)
+  if type(utcHour) ~= "number" or utcHour ~= math.floor(utcHour)
+      or utcHour < 0 or utcHour > 23 then return nil end
+  if not (C_DateAndTime and C_DateAndTime.GetCurrentCalendarTime and GetServerTime and date) then
+    return nil
+  end
+  local localOk, calendar = pcall(C_DateAndTime.GetCurrentCalendarTime)
+  if not localOk or type(calendar) ~= "table" or type(calendar.hour) ~= "number" then return nil end
+  local utcOk, utc = pcall(date, "!*t", GetServerTime())
+  if not utcOk or type(utc) ~= "table" or type(utc.hour) ~= "number" then return nil end
+  local offset = (calendar.hour - utc.hour) % 24
+  return (utcHour + offset) % 24
+end
+
+-- "usually cheapest around 05:00 · -18%". A statement about the last fortnight of this region's
+-- hourly history and nothing more: the word is "usually", never "will be". nil whenever the site
+-- was not sure enough to send a figure, or the client cannot place the hour.
+local function cheapHourText(line)
+  if not line or type(line.cheapPct) ~= "number" or line.cheapPct >= 0 then return nil end
+  local hour = serverHour(line.cheapHour)
+  if not hour then return nil end
+  return (GC.L["usually cheapest around %s · %d%%"])
+    :format(("%02d:00"):format(hour), math.floor(line.cheapPct))
+end
+
 local function throttleReady()
   if GC.Util and GC.Util.ThrottleReady then return GC.Util.ThrottleReady() end
   return (C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady
@@ -991,11 +1020,17 @@ function GC.Buy.OnCommodityResults(itemID)
   attempt.overPct = capped and overUsualPct(line, ladder) or nil
   attempt.quotedAt = time()
   attempt.stage = "quoted"
-  -- The button holds 72px, so the percentage rides on the log line instead (the button wears
-  -- the over-cap variant -- actionLabel). `/gc buy` is where a player reads it back.
+  -- The button holds 72px, so the percentage and the cheap hour ride on the log line instead
+  -- (the button wears the over-cap variant -- actionLabel). `/gc buy` is where a player reads
+  -- them back. Both belong to a refusal: a line the cap was happy with explains nothing.
   local text = nil
-  if capped and qty > 0 and attempt.overPct then
-    text = ("%s %s"):format(actionLabel(line), (GC.L["▲%d%% over usual"]):format(attempt.overPct))
+  if capped then
+    text = actionLabel(line)
+    if qty > 0 and attempt.overPct then
+      text = ("%s %s"):format(text, (GC.L["▲%d%% over usual"]):format(attempt.overPct))
+    end
+    local cheap = cheapHourText(line)
+    if cheap then text = ("%s · %s"):format(text, cheap) end
   end
   logAttempt(line, text)
   GC.Buy.RefreshIfShown()
@@ -1534,6 +1569,14 @@ createRow = function(parent)
     if not GameTooltip or not self.tooltipItemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.tooltipItemID) end
+    -- The one thing the item's own tooltip cannot know: when this realm usually sells it
+    -- cheapest. Added after the item so it reads as a footnote rather than as a claim the game
+    -- is making about the item.
+    local cheap = cheapHourText(line)
+    if cheap and GameTooltip.AddLine then
+      local c = Theme.color.fgDim
+      GameTooltip:AddLine(cheap, c[1], c[2], c[3])
+    end
     GameTooltip:Show()
   end)
   row:SetScript("OnLeave", function()

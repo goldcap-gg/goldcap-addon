@@ -680,6 +680,7 @@ GC.Locales.enUS = {
   ["took too long — try again"] = "took too long — try again",
   ["under GoldCap's own floor of %s"] = "under GoldCap's own floor of %s",
   ["unknown evidence"] = "unknown evidence",
+  ["usually cheapest around %s · %d%%"] = "usually cheapest around %s · %d%%",
   ["vendor"] = "vendor",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",

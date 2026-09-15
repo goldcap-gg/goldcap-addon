@@ -191,6 +191,7 @@ describe("BuyFrame", function()
 
   after_each(function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
+    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
   end)
 
   local function shownRows()
@@ -563,5 +564,58 @@ describe("BuyFrame", function()
     local restored = rowWithText("Alpha Herb")
     assert.truthy(restored.cells.usual:IsShown())
     assert.truthy(restored.cells.now:IsShown())
+  end)
+
+  -- Spec rule 3: the hour the site measured is UTC; the player reads realm time. The offset is
+  -- the difference between the client's own two clocks -- realm time and the same instant in UTC.
+  it("says in the row's tooltip when the item is usually cheapest, in realm time", function()
+    local tooltipLines
+    _G.GameTooltip = {
+      SetOwner = function() end,
+      SetItemByID = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+      Show = function() end, Hide = function() end,
+    }
+    -- Realm clock says 14:00 while UTC says 12:00: a realm two hours ahead of UTC.
+    _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
+    _G.GetServerTime = function() return 1757937600 end
+    _G.date = function() return { hour = 12 } end
+
+    GC.AppRuns._set({ run({ code = "run-c", updatedAt = 900,
+      lines = { { i = 101, q = 10, ch = 3, cp = -18 }, { i = 102, q = 5 } } }) })
+    GC.db.settings.sniper.buyRun = "run-c"
+    GC.Buy.Show()
+
+    tooltipLines = {}
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnEnter(alpha)
+    assert.same({ "usually cheapest around 05:00 · -18%" }, tooltipLines)   -- 3 UTC + 2
+
+    -- A line the site could not measure says nothing at all.
+    tooltipLines = {}
+    local bravo = rowWithText("Bravo Ore")
+    bravo.scripts.OnEnter(bravo)
+    assert.same({}, tooltipLines)
+
+    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+  end)
+
+  -- An hour in the wrong timezone is worse than no hour, so a client that cannot answer gets
+  -- nothing rather than the UTC hour dressed up as a local one.
+  it("says nothing about the cheap hour when the client cannot give the offset", function()
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+      Show = function() end, Hide = function() end,
+    }
+    GC.AppRuns._set({ run({ code = "run-c", updatedAt = 900,
+      lines = { { i = 101, q = 10, ch = 3, cp = -18 } } }) })
+    GC.db.settings.sniper.buyRun = "run-c"
+    GC.Buy.Show()
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnEnter(alpha)
+    assert.same({}, tooltipLines)
+    _G.GameTooltip = nil
   end)
 end)

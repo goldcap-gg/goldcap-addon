@@ -20,7 +20,7 @@ describe("BUY purchase", function()
     return {
       code = "run-1", name = "Flask run", updatedAt = 100, origin = "app",
       lines = {
-        { i = 101, q = 10 },
+        { i = 101, q = 10, ch = 3, cp = -18 },
         { i = 103, q = 4 },
         -- 105 has no market value at all, so it has no cap: the quote is the only number
         -- anybody ever checks for it.
@@ -183,6 +183,10 @@ describe("BUY purchase", function()
     _G.time = function() return now end
     _G.C_Item = { GetItemInfo = function(id) return NAMES[id] end }
     _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
+    -- Realm clock says 14:00 while UTC says 12:00: a realm two hours ahead of UTC.
+    _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 14 } end }
+    _G.GetServerTime = function() return 1757937600 end
+    _G.date = function() return { hour = 12 } end
     -- One real bag, so a purchase can be delivered into it the way the client delivers one.
     _G.C_Container = {
       GetContainerNumSlots = function(bag) return bag == 0 and 4 or 0 end,
@@ -276,6 +280,7 @@ describe("BUY purchase", function()
   after_each(function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.C_AuctionHouse, _G.C_Timer, _G.GetTime = nil, nil, nil
+    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
     _G.hooksecurefunc, _G.SlashCmdList, _G.Enum = nil, nil, nil
     -- .busted runs without isolation, so the combat flag one test sets must not outlive it.
     _G.InCombatLockdown = nil
@@ -329,6 +334,23 @@ describe("BUY purchase", function()
     assert.is_false(row.action:IsEnabled())
     -- The over-cap look, which a line where only PART fits wears too (see the partial-fill test).
     assert.equal("warn", row.action.variant)
+  end)
+
+  -- Spec rule 3: the cheap hour is the answer to "why did the cap refuse this", so it rides the
+  -- same log line the over-usual percentage does -- which is what `/gc buy` prints back.
+  it("puts the cheap hour on the log line of a quote the cap refused", function()
+    setBook(101, { { unitPrice = 2000, quantity = 50 } })
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    local text = GC.Buy._log[#GC.Buy._log].text
+    assert.is_truthy(text:find("▲100% over usual", 1, true))
+    assert.is_truthy(text:find("usually cheapest around 05:00 · -18%", 1, true))
+  end)
+
+  it("leaves the cheap hour off a quote the cap was happy with", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    assert.is_nil(GC.Buy._log[#GC.Buy._log].text:find("usually cheapest", 1, true))
   end)
 
   it("does not quote a vendor line, and offers it no button to click", function()
