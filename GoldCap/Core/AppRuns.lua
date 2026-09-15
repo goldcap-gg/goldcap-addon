@@ -194,3 +194,14 @@ function GC.AppRuns.ImportString(str)
   end
   return run
 end
+
+-- Forgets a run. Any origin is accepted, but an "app" run is the companion's mirror of a list
+-- on goldcap.gg and Adopt() brings it back on the next sync -- the caller decides whether to
+-- offer that (UI/BuyFrame.lua offers removal for pasted runs only).
+function GC.AppRuns.Remove(code)
+  local db = GC.db
+  if type(db) ~= "table" or type(db.runs) ~= "table" or type(code) ~= "string" then return false end
+  if not db.runs[code] then return false end
+  db.runs[code] = nil
+  return true
+end

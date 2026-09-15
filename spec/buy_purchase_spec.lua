@@ -966,7 +966,7 @@ describe("BUY purchase", function()
   -- 6: a question the client swallowed has to offer the click that asks it again.
   it("offers a quote again once the query it sent has gone unanswered", function()
     hover(rowWithText("Alpha Herb"))
-    assert.equal("quoting...", rowWithText("Alpha Herb").action.label)
+    assert.equal("...", rowWithText("Alpha Herb").action.label)
     assert.is_false(rowWithText("Alpha Herb").action:IsEnabled())
 
     now = now + 11

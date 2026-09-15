@@ -344,6 +344,7 @@ local DRIVER = {
 local function runList()
   return (GC.AppRuns and GC.AppRuns.List and GC.AppRuns.List()) or {}
 end
+local openRunMenu -- defined after cycleRun; the band's picker is the only caller
 
 -- The run's own name if the site gave it one, otherwise its code -- never an invented label.
 local function runLabel(run)
@@ -436,6 +437,55 @@ local function cycleRun()
   -- nothing the player can see.
   if current and list[index].code == current:Code() then return end
   GC.Buy.SelectRun(list[index].code)
+end
+
+-- Drops the shown run and moves to the next one the addon still holds (or clears the board).
+-- Only a pasted run is removable here: an "app" run is the companion's mirror of a list on
+-- goldcap.gg and would be back on the next sync, so it is removed where it lives.
+local function removeCurrentRun()
+  if not (current and GC.AppRuns and GC.AppRuns.Remove) then return end
+  local code = current:Code()
+  if not GC.AppRuns.Remove(code) then return end
+  local list = runList()
+  GC.Buy.SelectRun(list[1] and list[1].code or nil)
+  GC.Buy.RefreshIfShown()
+end
+
+local function runMenuLabel(run)
+  local name = run.name or run.code or "?"
+  local count = type(run.lines) == "table" and #run.lines or 0
+  local origin = run.origin == "paste" and GC.L["pasted"] or "goldcap.gg"
+  local mark = (current and current:Code() == run.code) and "• " or "   "
+  return ("%s%s  ·  %s  ·  %s"):format(mark, name, (GC.L["%d lines"]):format(count), origin)
+end
+
+-- The run picker's menu: every run, the current one marked, then remove / paste. Returns false
+-- when the client has no MenuUtil, so the caller can fall back to cycling.
+openRunMenu = function(owner)
+  local menu = _G.MenuUtil
+  if not (menu and menu.CreateContextMenu) then return false end
+  local list = runList()
+  menu.CreateContextMenu(owner, function(_, root)
+    root:CreateTitle(GC.L["Runs"])
+    for _, run in ipairs(list) do
+      local code = run.code
+      root:CreateButton(runMenuLabel(run), function()
+        GC.Buy.SelectRun(code)
+        GC.Buy.RefreshIfShown()
+      end)
+    end
+    root:CreateDivider()
+    local shown = current and GC.AppRuns and GC.AppRuns.Get and GC.AppRuns.Get(current:Code()) or nil
+    if shown and shown.origin == "paste" then
+      root:CreateButton(GC.L["Remove this run"], removeCurrentRun)
+    elseif shown then
+      root:CreateTitle(GC.L["From goldcap.gg — remove it there"])
+    end
+    root:CreateButton(GC.L["Paste a run..."], function()
+      if GC.UI and GC.UI.ShowImportDialog then GC.UI.ShowImportDialog() end
+    end)
+  end)
+  return true
 end
 
 -- The client's own name for the line's item. A run from the companion carries one; a pasted
@@ -537,7 +587,7 @@ local function actionLabel(line)
   -- A question still worth waiting for says so. One the client swallowed has to offer the click
   -- that asks again, or the row reads "quoting..." -- greyed out -- for the rest of the session.
   if stage == "quoting" then
-    if quotePending(attempt) then return GC.L["quoting..."], false end
+    if quotePending(attempt) then return GC.L["..."], false end
     return resting, true
   end
   if stage == "quoted" then
@@ -1231,7 +1281,7 @@ local function buildEntries()
   local entries = {}
   if not current then
     entries[#entries + 1] = { kind = "hint", text =
-      GC.L["No runs yet. Save a list with quantities on goldcap.gg, or paste a run string in Import."] }
+      GC.L["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] }
     return entries
   end
   local locked = 0
@@ -1581,10 +1631,23 @@ local function createBand(parent)
   local picker = Theme.Button(parent, "ghost", "badge")
   picker:SetSize(150, 20)
   picker:SetPoint("TOPLEFT", 0, -2)
-  picker:SetScript("OnClick", function()
-    cycleRun()
-    GC.Buy.RefreshIfShown()
+  -- A menu of every run the addon holds, with remove and paste beside it. MenuUtil is the
+  -- engine's own framework (UI/SettingsFrame.lua's language picker opens one the same way);
+  -- a client without it falls back to cycling, which is what the button used to do and what
+  -- the headless specs drive.
+  picker:SetScript("OnClick", function(self)
+    if not openRunMenu(self) then
+      cycleRun()
+      GC.Buy.RefreshIfShown()
+    end
   end)
+  picker:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+    GameTooltip:SetText(GC.L["Runs: click to switch, remove or paste one"], 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  picker:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
   local counts = Theme.Num(parent, 9)
   counts:SetJustifyH("RIGHT")
@@ -1642,7 +1705,7 @@ local function renderRows()
 
   if current then
     local totals = current:Totals()
-    band.picker:SetLabel(runLabel(current))
+    band.picker:SetLabel(runLabel(current) .. " ▼")
     band.picker:Show()
     band.counts:SetText((GC.L["%d lines · %d to buy · %d at the vendor"]):format(
       totals.lines, totals.toBuy, totals.atVendor))

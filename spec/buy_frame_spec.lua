@@ -146,6 +146,10 @@ describe("BuyFrame", function()
         for _, r in ipairs(runs) do if r.code == code then return r end end
       end,
       FreeLines = function() return 2 end,
+      Remove = function(code)
+        for i, r in ipairs(runs) do if r.code == code then table.remove(runs, i); return true end end
+        return false
+      end,
       _set = function(list) runs = list end,
     }
 
@@ -274,10 +278,10 @@ describe("BuyFrame", function()
     GC.AppRuns._set({ run(), run({ code = "run-2", name = "Potion run" }) })
     GC.Buy.SelectRun("run-1")
     local band = bandOf()
-    assert.equal("Flask run", band.picker.label)
+    assert.equal("Flask run ▼", band.picker.label)
 
     band.picker.scripts.OnClick(band.picker)
-    assert.equal("Potion run", band.picker.label)
+    assert.equal("Potion run ▼", band.picker.label)
     assert.equal("run-2", GC.db.settings.sniper.buyRun)
     assert.equal("run-2", GC.Buy.CurrentRun():Code())
 
@@ -286,12 +290,59 @@ describe("BuyFrame", function()
     assert.equal("run-1", GC.db.settings.sniper.buyRun)
   end)
 
+  it("opens a menu of runs with remove for a pasted run and paste for everyone", function()
+    GC.AppRuns._set({ run(), run({ code = "run-2", name = "Potion run", origin = "paste" }) })
+    GC.Buy.SelectRun("run-2")
+    local entries
+    _G.MenuUtil = {
+      CreateContextMenu = function(_, generator)
+        entries = {}
+        local root = {
+          CreateTitle = function(_, text) entries[#entries + 1] = { kind = "title", text = text } end,
+          CreateButton = function(_, text, fn) entries[#entries + 1] = { kind = "button", text = text, fn = fn } end,
+          CreateDivider = function() entries[#entries + 1] = { kind = "divider" } end,
+        }
+        generator(nil, root)
+      end,
+    }
+    local band = bandOf()
+    band.picker.scripts.OnClick(band.picker)
+    _G.MenuUtil = nil
+    local texts = {}
+    for _, e in ipairs(entries) do texts[#texts + 1] = e.text or e.kind end
+    assert.same({ "Runs", "   Flask run  ·  4 lines  ·  goldcap.gg", "• Potion run  ·  4 lines  ·  pasted",
+      "divider", "Remove this run", "Paste a run..." }, texts)
+
+    -- Remove drops the pasted run and lands on the one left.
+    entries[5].fn()
+    assert.is_nil(GC.AppRuns.Get("run-2"))
+    assert.equal("run-1", GC.Buy.CurrentRun():Code())
+    assert.equal("Flask run ▼", bandOf().picker.label)
+  end)
+
+  it("says an app run is removed on the site, not here", function()
+    GC.AppRuns._set({ run() })
+    GC.Buy.SelectRun("run-1")
+    local entries = {}
+    _G.MenuUtil = { CreateContextMenu = function(_, generator)
+      generator(nil, {
+        CreateTitle = function(_, text) entries[#entries + 1] = text end,
+        CreateButton = function(_, text) entries[#entries + 1] = text end,
+        CreateDivider = function() end,
+      })
+    end }
+    local band = bandOf()
+    band.picker.scripts.OnClick(band.picker)
+    _G.MenuUtil = nil
+    assert.same({ "Runs", "• Flask run  ·  4 lines  ·  goldcap.gg", "From goldcap.gg — remove it there", "Paste a run..." }, entries)
+  end)
+
   it("reopens on the remembered run rather than the newest one", function()
     GC.AppRuns._set({ run({ code = "run-2", name = "Potion run" }), run() })
     GC.db.settings.sniper.buyRun = "run-1"
     GC.Buy.Show()
     assert.equal("run-1", GC.Buy.CurrentRun():Code())
-    assert.equal("Flask run", bandOf().picker.label)
+    assert.equal("Flask run ▼", bandOf().picker.label)
   end)
 
   it("shows the empty state and hides the picker when there are no runs", function()
