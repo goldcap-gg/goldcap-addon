@@ -329,6 +329,25 @@ describe("AppRuns", function()
       GC.AppRuns.Adopt()
       assert.is_nil(GC.db.runNotices["abcd2345"])
     end)
+    -- A notice is a claim about today, and UI/BuyFrame.lua stops showing one a day old. It has
+    -- to be cleared on a later sync too, not only when the run itself goes: a run the site keeps
+    -- sending would otherwise keep a notice that is already invisible, for as long as the run
+    -- exists, and SavedVariables would carry one per run forever.
+    it("forgets a notice nobody will be shown again", function()
+      local f = fixture()
+      f.runs[2] = { code = "wxyz6789", name = "Second run", updatedAt = 100,
+                    lines = { { i = 9, q = 1 } } }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      GC.db.runNotices = { ["abcd2345"] = { at = time() - 90000, added = 2, removed = 1 },
+                           ["wxyz6789"] = { at = time() - 60, added = 1, removed = 0 } }
+
+      f.generatedAt = f.generatedAt + 60
+      assert.is_true(GC.AppRuns.Adopt())
+      assert.is_nil(GC.db.runNotices["abcd2345"])
+      assert.equal(1, GC.db.runNotices["wxyz6789"].added)   -- still news, still shown
+    end)
+
     -- An alert run's lines ARE the group's live hits. A hit that expired is gone, and a later
     -- hit for the same item is a different lot at a different price -- so what was bought
     -- against the old one is not a score the new one inherits. Nothing else ever prunes
@@ -608,8 +627,10 @@ describe("AppRuns runs the site owns", function()
   -- carrying a split, a notice or a cap nobody chose for it.
   it("forgets the splits and the notice of a run the site no longer sends", function()
     GC.db.runSplits = { ["own10000"] = { [5] = true }, ["gone-run"] = { [1] = true } }
-    GC.db.runNotices = { ["own10000"] = { at = 1, added = 1, removed = 0 },
-                         ["gone-run"] = { at = 1, added = 1, removed = 0 } }
+    -- Stamped now, so what this test proves is the CODE rule: a notice old enough to have
+    -- stopped being shown is pruned by its own rule, whichever run it belongs to.
+    GC.db.runNotices = { ["own10000"] = { at = time(), added = 1, removed = 0 },
+                         ["gone-run"] = { at = time(), added = 1, removed = 0 } }
     local fresher = fixture()
     fresher.generatedAt = fresher.generatedAt + 60
     _G.GoldCap_AppRuns = fresher

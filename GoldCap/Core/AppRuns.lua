@@ -231,6 +231,13 @@ function GC.AppRuns.Adopt()
       end
     end
   end
+  -- ...and a notice the band has already stopped showing goes with it. A notice is a claim about
+  -- today (UI/BuyFrame.lua drops one a day old), so a run the site keeps sending would otherwise
+  -- hold one that nobody will ever be shown again, in SavedVariables, for as long as it exists.
+  for code, notice in pairs(db.runNotices) do
+    local at = type(notice) == "table" and tonumber(notice.at) or nil
+    if not at or (time() - at) >= 86400 then db.runNotices[code] = nil end
+  end
   db.runsMeta = {
     plan = raw.plan == "pro" and "pro" or "free",
     freeLines = num(raw.freeLines) or 5,
