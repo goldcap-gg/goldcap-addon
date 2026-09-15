@@ -600,6 +600,31 @@ describe("BuyFrame", function()
     _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
   end)
 
+  -- Realm behind UTC and an hour that wraps past midnight: the two `% 24`s are what keep
+  -- 23:00 UTC on a realm at UTC-2 from reading as "-1:00" or "25:00".
+  it("wraps the cheap hour through midnight for a realm behind UTC", function()
+    local tooltipLines = {}
+    _G.GameTooltip = {
+      SetOwner = function() end, SetItemByID = function() end,
+      AddLine = function(_, text) tooltipLines[#tooltipLines + 1] = text end,
+      Show = function() end, Hide = function() end,
+    }
+    -- Realm clock 21:00 while UTC says 23:00: offset (21 - 23) % 24 = 22, i.e. two hours behind.
+    _G.C_DateAndTime = { GetCurrentCalendarTime = function() return { hour = 21 } end }
+    _G.GetServerTime = function() return 1757937600 end
+    _G.date = function() return { hour = 23 } end
+
+    GC.AppRuns._set({ run({ code = "run-w", updatedAt = 900,
+      lines = { { i = 101, q = 10, ch = 1, cp = -9 }, { i = 102, q = 5 } } }) })
+    GC.db.settings.sniper.buyRun = "run-w"
+    GC.Buy.Show()
+    local alpha = rowWithText("Alpha Herb")
+    alpha.scripts.OnEnter(alpha)
+    assert.same({ "usually cheapest around 23:00 · -9%" }, tooltipLines)   -- (1 + 22) % 24
+
+    _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
+  end)
+
   -- An hour in the wrong timezone is worse than no hour, so a client that cannot answer gets
   -- nothing rather than the UTC hour dressed up as a local one.
   it("says nothing about the cheap hour when the client cannot give the offset", function()
