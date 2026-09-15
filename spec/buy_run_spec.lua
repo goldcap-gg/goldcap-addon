@@ -31,11 +31,17 @@ describe("BuyRun", function()
     assert.equal(150, qty)                -- 100 @ 3g + 50 @ 3g90 (cap = 3g90)
     assert.equal(100 * 30000 + 50 * 39000, total)
     assert.is_false(capped)
-    -- second call's total isn't asserted, only that the cap stopped it short
-    -- luacheck: ignore total
     qty, total, capped = run:PurchaseQuantity(5, { { unit = 30000, qty = 20 }, { unit = 50000, qty = 500 } })
     assert.equal(20, qty)
+    assert.equal(20 * 30000, total)       -- 20 @ 3g fit under the cap before the 5g level
     assert.is_true(capped)
+  end)
+
+  it("stops at whatever the ladder has when it runs out before need is met", function()
+    local qty, total, capped = run:PurchaseQuantity(5, { { unit = 30000, qty = 40 } })
+    assert.equal(40, qty)
+    assert.equal(40 * 30000, total)
+    assert.is_false(capped)               -- ran out of ladder, not stopped by the cap
   end)
 
   it("a line without a usual price has no cap and buys the whole need", function()
