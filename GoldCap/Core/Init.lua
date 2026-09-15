@@ -251,6 +251,9 @@ frame:RegisterEvent("MAIL_INBOX_UPDATE")
 -- with mail. MAIL_SHOW is forwarded to the Sniper too, below, alongside its existing ledger use.
 frame:RegisterEvent("MAIL_CLOSED")
 frame:RegisterEvent("PLAYER_MONEY")
+-- BAG_UPDATE_DELAYED, not BAG_UPDATE: the delayed form fires once after a burst of container
+-- changes, which is exactly the granularity a re-count of "what have I already got" wants.
+frame:RegisterEvent("BAG_UPDATE_DELAYED")
 frame:RegisterEvent("PLAYER_LOGOUT")
 -- Task 2 (item names from the client): the wanted-list walk needs the world loaded (item
 -- data is not reliably queryable at ADDON_LOADED) and needs to hear back when the client
@@ -640,6 +643,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
   elseif event == "PLAYER_MONEY" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context()) end
+  elseif event == "BAG_UPDATE_DELAYED" then
+    -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
+    -- stopped short of it must not take the event handler down with it.
+    if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.

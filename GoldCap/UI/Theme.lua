@@ -487,6 +487,7 @@ function T.Rail(parent)
     { key = "deals", icon = "icon_deals.png", label = "DEALS" },
     { key = "sell", icon = "icon_sell.png", label = "SELL" },
     { key = "sold", icon = "icon_sold.png", label = "SOLD" },
+    { key = "buy", icon = "icon_buy.png", label = "BUY" },
   }
   local prev = logo
   for i, item in ipairs(order) do

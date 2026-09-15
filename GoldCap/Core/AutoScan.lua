@@ -106,6 +106,11 @@ function GC.AutoScan.New(timers, actions)
     -- _SetBoard). The pass waits, exactly as it does for the Sell tab.
     ["pause:items"] = function() addPause("items") end,
     ["resume:items"] = function(now) removePause("items", now) end,
+    -- The BUY tab is on screen: its own searches (the price look-ups a run needs before it
+    -- can buy anything) come out of the same single throttled slot Auto's pass pages through,
+    -- so the pass stands down exactly as it does for the Sell tab and the Items board.
+    ["pause:buy"] = function() addPause("buy") end,
+    ["resume:buy"] = function(now) removePause("buy", now) end,
   }
 
   function obj:Input(event, now)

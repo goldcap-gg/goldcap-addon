@@ -97,7 +97,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
       -- Deals-only widgets ONLY -- status is deliberately absent, matching the real
       -- f.dealsChrome built in createFrame after the C1 fix.
       dealsChrome = { widget(), widget(), widget(), widget(), widget() },
-      dealsTab = widget(), sellTab = widget(), soldTab = widget(),
+      dealsTab = widget(), sellTab = widget(), soldTab = widget(), buyTab = widget(),
       status = status,
     }
     set(setView, "frame", fakeFrame)
@@ -155,7 +155,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     return {
       scroll = widget(), headerRow = widget(),
       dealsChrome = { widget(), widget(), widget(), widget(), widget() },
-      dealsTab = widget(), sellTab = widget(), soldTab = widget(),
+      dealsTab = widget(), sellTab = widget(), soldTab = widget(), buyTab = widget(),
       status = widget(),
     }
   end
@@ -199,6 +199,28 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
 
     setView("sold") -- Sell -> Sold: releases the search slot
     assert.same({ "pause:sell", "resume:sell" }, calls)
+  end)
+
+  -- The BUY tab reaches the same single throttled search slot the pricing walk and Auto's own
+  -- pass share, so it stands down exactly as Sell does -- and, like Sell, it must not resume a
+  -- pause it never set when the player arrives from some other view.
+  it("setView pauses Auto entering Buy and resumes it leaving Buy", function()
+    local GC = loadSniper()
+    local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
+    local setView = upvalue(createFrame, "setView")
+
+    local calls = {}
+    set(setView, "feedAuto", function(event) calls[#calls + 1] = event end)
+    set(setView, "frame", fakeToolbarFrame())
+
+    setView("sold") -- Deals -> Sold: neither reason is involved
+    assert.same({}, calls)
+
+    setView("buy")
+    assert.same({ "pause:buy" }, calls)
+
+    setView("deals")
+    assert.same({ "pause:buy", "resume:buy" }, calls)
   end)
 
   it("renders 'AUTO · PAUSED: selling' when the sell pause reason is the one set", function()

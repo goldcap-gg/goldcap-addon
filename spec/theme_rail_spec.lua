@@ -100,12 +100,13 @@ describe("Theme.Rail navigation widgets", function()
     assert.equal("ADD", b.highlightTexture.blend)
   end)
 
-  it("Rail: returns the three nav buttons and the gear", function()
+  it("Rail: returns the four nav buttons and the gear", function()
     local rail = GC.Theme.Rail(stubFrame())
     assert.equal(GC.Theme.RAIL_W, rail.frame.width)
     assert.is_truthy(rail.buttons.deals)
     assert.is_truthy(rail.buttons.sell)
     assert.is_truthy(rail.buttons.sold)
+    assert.is_truthy(rail.buttons.buy)
     assert.is_truthy(rail.gear)
     -- T6: rounded "badge" (margin 6, same size class as RailButton's own badge -- see
     -- ROUNDED_BUTTON's comment in Theme.lua) so SetVariant("active")/"ghost" (SettingsFrame.lua's
@@ -115,6 +116,7 @@ describe("Theme.Rail navigation widgets", function()
     assert.equal("DEALS", rail.buttons.deals.text.rawText)
     assert.equal("SELL", rail.buttons.sell.text.rawText)
     assert.equal("SOLD", rail.buttons.sold.text.rawText)
+    assert.equal("BUY", rail.buttons.buy.text.rawText)
   end)
 
   it("Rail: SetTopInset re-points the logo below the docked host's portrait", function()

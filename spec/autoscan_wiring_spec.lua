@@ -180,7 +180,7 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     local f = widget() -- OnAuctionHouseShow's own `not frame:IsShown()` reads the frame itself
     f.scroll, f.headerRow = widget(), widget()
     f.dealsChrome = { widget(), widget(), widget(), widget(), widget() }
-    f.dealsTab, f.sellTab, f.soldTab = widget(), widget(), widget()
+    f.dealsTab, f.sellTab, f.soldTab, f.buyTab = widget(), widget(), widget(), widget()
     f.status = widget()
     return f
   end

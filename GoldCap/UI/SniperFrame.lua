@@ -2752,13 +2752,14 @@ feedAuto = function(event)
   if refreshAutoButton then refreshAutoButton() end
 end
 
-local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail", sell = "selling", items = "items" }
+local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail", sell = "selling",
+  items = "items", buy = "buying" }
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
 -- decisive of the four: the player is one click from spending gold. `ah`/`tab` are
 -- deliberately absent -- per spec they render as plain "AUTO", not a paused chip, since
 -- neither reflects something the player is actively DOING right now.
-local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items" }
+local AUTO_PAUSE_ORDER = { "dialog", "search", "mail", "sell", "items", "buy" }
 
 local function autoButtonText(state, reasons)
   if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
@@ -7432,6 +7433,12 @@ local function setView(v)
   elseif previousView == "sell" then
     feedAuto("resume:sell")
   end
+  -- Same reason, same shape, for the BUY tab (see Core/AutoScan.lua's pause:buy).
+  if v == "buy" then
+    feedAuto("pause:buy")
+  elseif previousView == "buy" then
+    feedAuto("resume:buy")
+  end
   -- A scan started by the Scan button is not Auto's, and Auto is the only thing those two feeds
   -- reach: addPause does nothing at all while the machine is OFF. So a manual pass carried on
   -- paging behind the Sell and Sold tabs -- replacing the browse buffer under the player's own
@@ -7481,6 +7488,7 @@ local function setView(v)
   setTabActive(frame.dealsTab, isDeals)
   setTabActive(frame.sellTab, v == "sell")
   setTabActive(frame.soldTab, v == "sold")
+  setTabActive(frame.buyTab, v == "buy")
   if v == "sell" then
     if GC.Sell.Show then GC.Sell.Show() end
   elseif GC.Sell.Hide then
@@ -7491,18 +7499,24 @@ local function setView(v)
   elseif GC.Sold and GC.Sold.Hide then
     GC.Sold.Hide()
   end
+  if v == "buy" then
+    if GC.Buy and GC.Buy.Show then GC.Buy.Show() end
+  elseif GC.Buy and GC.Buy.Hide then
+    GC.Buy.Hide()
+  end
 end
 
 -- Settings' OnHide (SettingsFrame.lua) calls this on every close path -- Escape, DONE, the
 -- gear, a rail click, or the window closing -- to re-apply the active tab's Disable() that
 -- setTabActive normally owns.
--- Settings enables all three rail buttons for as long as it's open (see its own OnShow), so
+-- Settings enables every rail button for as long as it's open (see its own OnShow), so
 -- closing it has to hand that Disable() back to whichever tab is actually current.
 function GC.Sniper.RefreshRailActive()
   if not frame then return end
   setTabActive(frame.dealsTab, view == "deals")
   setTabActive(frame.sellTab, view == "sell")
   setTabActive(frame.soldTab, view == "sold")
+  setTabActive(frame.buyTab, view == "buy")
 end
 
 -- ---------------------------------------------------------------------------
@@ -7722,9 +7736,9 @@ local function createFrame()
   -- comment for why the method-hook is what unifies both hardware-driven geometry changes.
   hooksecurefunc(f, "StopMovingOrSizing", persistWindowGeometry)
 
-  -- Rail (Sniper v4): the Deals/Sell/Sold switcher is a 76px left rail of big
+  -- Rail (Sniper v4): the Deals/Sell/Sold/Buy switcher is a 76px left rail of big
   -- targets (Theme.Rail), not a row of 50x18 ghost tabs. The f.dealsTab/
-  -- f.sellTab/f.soldTab FIELDS survive on purpose: setView and
+  -- f.sellTab/f.soldTab/f.buyTab FIELDS survive on purpose: setView and
   -- updateSellTabLabel address the buttons only through them.
   local rail = Theme.Rail(f)
   rail.frame:SetPoint("TOPLEFT")
@@ -7744,11 +7758,17 @@ local function createFrame()
     if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
     setView("sold")
   end)
+  rail.buttons.buy:SetScript("OnClick", function()
+    if GC.SettingsUI and GC.SettingsUI.Hide then GC.SettingsUI.Hide() end
+    setView("buy")
+  end)
   f.rail = rail
   f.dealsTab, f.sellTab, f.soldTab = rail.buttons.deals, rail.buttons.sell, rail.buttons.sold
+  f.buyTab = rail.buttons.buy
   setTabActive(f.dealsTab, true) -- Deals is the default view
   setTabActive(f.sellTab, false)
   setTabActive(f.soldTab, false)
+  setTabActive(f.buyTab, false)
 
   -- Settings entry lives on the rail now; TitleBar still builds its gear for
   -- other callers, this window just doesn't show two of them.
@@ -7811,6 +7831,7 @@ local function createFrame()
       -- the AH right underneath the pricing walk's own throttled search. The Sell view is a
       -- standing reason exactly like the hidden tab above, so it gets the same re-seed.
       if view == "sell" then feedAuto("pause:sell") end
+      if view == "buy" then feedAuto("pause:buy") end -- same standing reason as sell above
       if GC.Sniper._Board() == "items" then feedAuto("pause:items") end -- same standing reason, see _SetBoard
     else
       if cfg then cfg.auto = false end
@@ -8167,6 +8188,15 @@ local function createFrame()
     rowHeight = WIN.ROW_HEIGHT,
   })
 
+  GC.Buy.Attach(f, {
+    panelLeft = WIN.CONTENT_LEFT,
+    panelRightInset = WIN.CONTENT_RIGHT_GUTTER,
+    top = row2Y,
+    bottom = scrollBottom,
+    rowWidth = restoreWidth - WIN.CONTENT_LEFT - WIN.CONTENT_RIGHT_GUTTER,
+    rowHeight = WIN.ROW_HEIGHT,
+  })
+
   -- Sniper v3 §3 sniperTabShown/sniperTabHidden: the Sniper is a standalone floating window,
   -- not an AH-internal tab, so "the player returned to it" is just this window's own
   -- Show/Hide -- no separate tab-selection API to hook.
@@ -8506,6 +8536,7 @@ function GC.Sniper.OnAuctionHouseShow()
     -- (fix wave, I1) Same wipe, same fix as onAutoToggleClick above: a Sell-view pause made
     -- while AUTO was off is otherwise lost on every AH close/reopen, not just a manual toggle.
     if view == "sell" then feedAuto("pause:sell") end
+    if view == "buy" then feedAuto("pause:buy") end
   end
 
   -- autoOpen gates only whether the WINDOW auto-appears. It does NOT auto-start any

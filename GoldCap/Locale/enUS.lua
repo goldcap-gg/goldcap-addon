@@ -8,6 +8,7 @@ local _, GC = ...
 -- Keys are the English sentence, byte for byte. Reword one and you orphan every translation of
 -- it, silently, back to English: change the key here and in every locale file together.
 GC.Locales.enUS = {
+  ["  %s · need %d · have %d · buy %d · %s"] = "  %s · need %d · have %d · buy %d · %s",
   [" %s  %s  x%d at %s each  (%s total, %s cut)%s"] = " %s  %s  x%d at %s each  (%s total, %s cut)%s",
   [" Companion keeps this fresh: /goldcap companion."] = " Companion keeps this fresh: /goldcap companion.",
   [" · %d hidden"] = " · %d hidden",
@@ -27,7 +28,9 @@ GC.Locales.enUS = {
   ["%d held back from posting"] = "%d held back from posting",
   ["%d hidden -- the live check refused them"] = "%d hidden -- the live check refused them",
   ["%d items for %s (%s, %s)"] = "%d items for %s (%s, %s)",
+  ["%d lines · %d to buy · %d at the vendor"] = "%d lines · %d to buy · %d at the vendor",
   ["%d missing"] = "%d missing",
+  ["%d more lines with Pro"] = "%d more lines with Pro",
   ["%d partial"] = "%d partial",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
   ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
@@ -47,6 +50,7 @@ GC.Locales.enUS = {
     "A lead, not a promise: resale at 95% of the imported market value, for the quantity Check itself would approve.",
   ["A run of several purchases collapsed onto one line removes every one of them."] =
     "A run of several purchases collapsed onto one line removes every one of them.",
+  ["ACTION"] = "ACTION",
   ["AH answered empty %ds ago"] = "AH answered empty %ds ago",
   ["ASKING"] = "ASKING",
   ["AT MARKET"] = "AT MARKET",
@@ -65,6 +69,8 @@ GC.Locales.enUS = {
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle.",
   ["Avoid"] = "Avoid",
   ["BRAKES"] = "BRAKES",
+  ["BUY"] = "BUY",
+  ["BUY %d"] = "BUY %d",
   ["BUY — unverified"] = "BUY — unverified",
   ["Background check"] = "Background check",
   ["Breakeven is the lowest price that still returns your cost after the Auction House cut. Selling under it loses money."] =
@@ -73,6 +79,8 @@ GC.Locales.enUS = {
   ["Bundled data"] = "Bundled data",
   ["Buy"] = "Buy",
   ["Buy less"] = "Buy less",
+  ["Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s"] = "Buy: %s · %d lines · %d to buy · %d at the vendor · spent %s · left ~%s",
+  ["Buy: no run selected."] = "Buy: no run selected.",
   ["CANCEL %d"] = "CANCEL %d",
   ["CANCEL LOT?"] = "CANCEL LOT?",
   ["CANCELLING…"] = "CANCELLING…",
@@ -184,6 +192,7 @@ GC.Locales.enUS = {
   ["Gone"] = "Gone",
   ["Greyed out means the quote has aged; Post and Repost refresh it before they act."] =
     "Greyed out means the quote has aged; Post and Repost refresh it before they act.",
+  ["HAVE"] = "HAVE",
   ["HIDDEN %d"] = "HIDDEN %d",
   ["HIDDEN 0"] = "HIDDEN 0",
   ["HIDE DETAILS ▾"] = "HIDE DETAILS ▾",
@@ -235,10 +244,12 @@ GC.Locales.enUS = {
   ["Min profit per buy (gold)"] = "Min profit per buy (gold)",
   ["Min return per buy %"] = "Min return per buy %",
   ["Missing cost"] = "Missing cost",
+  ["NEED"] = "NEED",
   ["NO COST"] = "NO COST",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] = "NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT",
   ["NOTHING TO CANCEL"] = "NOTHING TO CANCEL",
   ["NOTHING TO POST"] = "NOTHING TO POST",
+  ["NOW"] = "NOW",
   ["Needs a live price check before it can be bought."] =
     "Needs a live price check before it can be bought.",
   ["Never spend more than this share of your gold on one purchase."] =
@@ -254,6 +265,7 @@ GC.Locales.enUS = {
   ["No live listings came back for this item."] = "No live listings came back for this item.",
   ["No region reference for this item yet — import again once goldcap.gg publishes one."] =
     "No region reference for this item yet — import again once goldcap.gg publishes one.",
+  ["No runs yet. Save a list with quantities on goldcap.gg, or paste a run string in Import."] = "No runs yet. Save a list with quantities on goldcap.gg, or paste a run string in Import.",
   ["No safe resale price could be worked out."] = "No safe resale price could be worked out.",
   ["No sales data for this item."] = "No sales data for this item.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] = "No sales recorded yet -- open your mailbox with GoldCap loaded",
@@ -264,9 +276,9 @@ GC.Locales.enUS = {
     "Not on hand — the stock is in the mail, the bank, or on another character",
   ["Nothing in your bags to list"] = "Nothing in your bags to list",
   ["Nothing is being held back."] = "Nothing is being held back.",
+  ["Nothing is priced yet - the Auction House is still answering"] = "Nothing is priced yet - the Auction House is still answering",
   ["Nothing left to sell against after this buy, so there is no exit price."] =
     "Nothing left to sell against after this buy, so there is no exit price.",
-  ["Nothing is priced yet - the Auction House is still answering"] = "Nothing is priced yet - the Auction House is still answering",
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Nothing listed matches the item level the reference price was measured on.",
   ["Nothing listed on the AH right now"] = "Nothing listed on the AH right now",
@@ -318,6 +330,7 @@ GC.Locales.enUS = {
   ["Prices up to date · %d did not answer"] = "Prices up to date · %d did not answer",
   ["Pricing %d/%d…"] = "Pricing %d/%d…",
   ["Pricing…"] = "Pricing…",
+  ["Pro"] = "Pro",
   ["Profit"] = "Profit",
   ["Profit per unit"] = "Profit per unit",
   ["Profit tracking is a goldcap.gg Pro feature"] = "Profit tracking is a goldcap.gg Pro feature",
@@ -327,6 +340,7 @@ GC.Locales.enUS = {
   ["Quantity is capped by how fast this item actually sells."] =
     "Quantity is capped by how fast this item actually sells.",
   ["READY"] = "READY",
+  ["REAGENT"] = "REAGENT",
   ["REALIZED PROFIT"] = "REALIZED PROFIT",
   ["REFRESH"] = "REFRESH",
   ["REFUSED %d"] = "REFUSED %d",
@@ -432,6 +446,7 @@ GC.Locales.enUS = {
   ["UNDER YOU"] = "UNDER YOU",
   ["UNDERCUT"] = "UNDERCUT",
   ["UNIT"] = "UNIT",
+  ["USUAL"] = "USUAL",
   ["Unit price"] = "Unit price",
   ["Unknown"] = "Unknown",
   ["Unknown item"] = "Unknown item",
@@ -508,6 +523,7 @@ GC.Locales.enUS = {
   ["cost basis incomplete -- set costs to get repost advice"] = "cost basis incomplete -- set costs to get repost advice",
   ["cost unknown"] = "cost unknown",
   ["data from goldcap.gg · synced %s ago"] = "data from goldcap.gg · synced %s ago",
+  ["done"] = "done",
   ["due -- will be asked next pass"] = "due -- will be asked next pass",
   ["fair"] = "fair",
   ["finish the pending buy first"] = "finish the pending buy first",
@@ -527,6 +543,7 @@ GC.Locales.enUS = {
   ["import %dh old"] = "import %dh old",
   ["import stale -- /goldcap import or /goldcap companion"] = "import stale -- /goldcap import or /goldcap companion",
   ["imported %d items for %s (%s) — prices are live now."] = "imported %d items for %s (%s) — prices are live now.",
+  ["in bags"] = "in bags",
   ["in the mail"] = "in the mail",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "is what this market absorbs — past that you are buying stock you will sit on",
@@ -543,6 +560,7 @@ GC.Locales.enUS = {
   ["manual import"] = "manual import",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",
+  ["no answer %ds ago -- resting"] = "no answer %ds ago -- resting",
   ["no answer from the auction house"] = "no answer from the auction house",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it.",
@@ -608,6 +626,7 @@ GC.Locales.enUS = {
   ["session: %d snipes, spent %s, ~%s est. profit"] = "session: %d snipes, spent %s, ~%s est. profit",
   ["sniped (listing changed on rescan)"] = "sniped (listing changed on rescan)",
   ["sniped for "] = "sniped for ",
+  ["spent %s · left ~%s"] = "spent %s · left ~%s",
   ["starting full scan..."] = "starting full scan...",
   ["stopped watching %s"] = "stopped watching %s",
   ["that does not look like a GoldCap import string"] = "that does not look like a GoldCap import string",
@@ -617,8 +636,8 @@ GC.Locales.enUS = {
   ["that string does not name a realm"] = "that string does not name a realm",
   ["that string is too long to import"] = "that string is too long to import",
   ["the Auction House has not answered for this item yet"] = "the Auction House has not answered for this item yet",
-  ["the auction house reported an error"] = "the auction house reported an error",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
+  ["the auction house reported an error"] = "the auction house reported an error",
   ["the import failed (%s)"] = "the import failed (%s)",
   ["the run string is not valid"] = "the run string is not valid",
   ["there was nothing to import"] = "there was nothing to import",
@@ -629,6 +648,7 @@ GC.Locales.enUS = {
     "to clear %d units at %s sold a day, with %s tied up the whole time",
   ["under GoldCap's own floor of %s"] = "under GoldCap's own floor of %s",
   ["unknown evidence"] = "unknown evidence",
+  ["vendor"] = "vendor",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
@@ -643,10 +663,10 @@ GC.Locales.enUS = {
     "your game client has no font for this language — the text will show as empty boxes",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
-  ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
-    "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
   ["your price is above every level shown"] = "your price is above every level shown",
   ["your price stands %d of %d"] = "your price stands %d of %d",
+  ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
+    "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
   ["yours"] = "yours",
   ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
@@ -659,5 +679,4 @@ GC.Locales.enUS = {
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg market value — no live quote yet",
-  ["no answer %ds ago -- resting"] = "no answer %ds ago -- resting",
 }
