@@ -322,6 +322,25 @@ describe("Auction House tab", function()
       assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
     end)
 
+    -- The window above is the fallback. On a client whose browse list can be hooked, the
+    -- player's own click is the signal: a page that lands without one was opened by a search,
+    -- however long that search took to answer -- a queued search answering 20s later used to
+    -- read as the player mid-purchase and stop every background sender until Back was pressed.
+    it("tells the player's browse click from a page a slow search opened", function()
+      ah.SelectBrowseResult = function() end
+      GC.AuctionHouseTab.Install()
+      GC.AuctionHouseTab.NoteAddonSearch(clock)
+      clock = clock + 20
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      -- The click Blizzard's list makes on the player's behalf, then the page it opens.
+      ah:SelectBrowseResult({})
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesBuy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
     it("is true once Blizzard's own display mode is ItemSell", function()
       GC.AuctionHouseTab.Install()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)

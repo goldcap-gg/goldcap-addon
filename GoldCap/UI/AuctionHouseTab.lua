@@ -44,6 +44,14 @@ local currentMode = nil
 local addonSearchAt = nil
 local provokedBuyMode = false
 local PROVOKED_PAGE_SECONDS = 3
+-- When the player last clicked a browse row (AuctionHouseFrameMixin:SelectBrowseResult, the
+-- one path Blizzard's own list uses to open a purchase page -- Blizzard_AuctionHouseFrame.lua
+-- and Blizzard_AuctionHouseBrowseResultsFrame.lua, read verbatim). A buy page that lands
+-- without that click in front of it was opened by a search -- ours or another addon's --
+-- however long ago the search went out. The 3-second window above stays as the fallback for a
+-- client where the method could not be hooked.
+local playerSelectedAt = nil
+local selectHooked = false
 -- The GoldCap display mode: identity is the contract (Blizzard compares modes with `==`),
 -- and empty is the content (their show loop iterates it and finds nothing to show).
 local DISPLAY_MODE = {}
@@ -192,6 +200,9 @@ end
 local function installSetDisplayModeHook(ah)
   if hookedTabs or not ah.SetDisplayMode then return end
   hookedTabs = true
+  if type(ah.SelectBrowseResult) == "function" then
+    selectHooked = pcall(hooksecurefunc, ah, "SelectBrowseResult", function() playerSelectedAt = time() end) and true or false
+  end
   pcall(hooksecurefunc, ah, "SetDisplayMode", function(_, mode)
     -- SetDisplayMode itself resolves a Sell-family request (ItemSell/CommoditiesSell/
     -- WoWTokenSell) against whichever SellFrame actually has an item loaded before it stores
@@ -209,8 +220,13 @@ local function installSetDisplayModeHook(ah)
     -- row is the one that arrives with no search of ours in front of it.
     local modes = _G.AuctionHouseFrameDisplayMode
     local buyMode = modes and (currentMode == modes.ItemBuy or currentMode == modes.CommoditiesBuy)
-    provokedBuyMode = buyMode and addonSearchAt ~= nil
-      and (time() - addonSearchAt) <= PROVOKED_PAGE_SECONDS or false
+    if not buyMode then
+      provokedBuyMode = false
+    elseif selectHooked then
+      provokedBuyMode = not (playerSelectedAt ~= nil and (time() - playerSelectedAt) <= 1)
+    else
+      provokedBuyMode = addonSearchAt ~= nil and (time() - addonSearchAt) <= PROVOKED_PAGE_SECONDS
+    end
     if libRegistered then return end
     if mode == DISPLAY_MODE then
       showDock()
@@ -386,6 +402,12 @@ end
 -- our search opened from one the player clicked open. `now` is for specs.
 function GC.AuctionHouseTab.NoteAddonSearch(now)
   addonSearchAt = now or time()
+end
+
+-- Test seam and a hand-hold for a client whose SelectBrowseResult could not be hooked: the
+-- player just clicked a browse row.
+function GC.AuctionHouseTab.NotePlayerSelected(now)
+  playerSelectedAt = now or time()
 end
 
 -- The player's own search-box activity. Called from UI/SniperFrame.lua's installSearchHooks on

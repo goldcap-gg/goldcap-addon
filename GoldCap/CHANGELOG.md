@@ -34,6 +34,14 @@
   left to the vendor. Free accounts can buy the first five lines of a run; Pro buys them all.
   A list synced by companion 1.9 reaches the game the way market data does — after a /reload or
   relog — or paste a run string from the site into Import.
+||||||| 7395efeb
+- **The ITEMS board keeps looking.** After a switch to ITEMS the board checked its items
+  once and then stood still for the rest of the visit; it now goes round its list again every
+  few seconds for as long as the board is on screen.
+- **A purchase page opened by a search no longer stops the scan.** GoldCap tells your own
+  click on a browse row from a page a search opened, however long the search took to answer,
+  so the Deals scan and the Items poll no longer wait for you to press Back.
+
 
 ## 0.9.2 (2026-09-15)
 

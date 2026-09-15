@@ -204,6 +204,12 @@ LIM.DRILL_PER_MINUTE = 60
 -- (20 listings over 10 passes, measured in game), while the Items board kept only the
 -- answers that happened to arrive fast.
 LIM.KEYS_TIMEOUT_SECONDS = 30
+-- The Items board's own loop: once a poll cycle has visited every target, the next one starts
+-- this many seconds later. The cycle used to restart only when a book pass began, and the
+-- pass is paused for as long as the Items board is on screen -- so the board polled its set
+-- exactly once after a switch and then stood still for the rest of the visit (seen in game
+-- 2026-09-15: "sat on Commodities, switched to Items, nothing updated").
+LIM.KEYS_CYCLE_BREATHER_SECONDS = 5
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
@@ -4549,6 +4555,9 @@ function GC.Sniper._FoldKeysBatch()
     return true
   end
   GC.Sniper._keyPoll:Fold(browsed)
+  -- The cycle is over once nothing is left to hand out; the Items board's own loop starts
+  -- the next one after a breather (see _TrySendKeysBatch).
+  if not GC.Sniper._keyPoll:HasPending() then GC.Sniper._keysCycleDoneAt = time() end
   return true
 end
 
@@ -4737,7 +4746,19 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
 end
 
 function GC.Sniper._TrySendKeysBatch(playerBusy)
-  return GC.Sniper._TrySendKeysBatchFor(GC.Sniper._keyPoll, "sniper", function()
+  local poll = GC.Sniper._keyPoll
+  -- The Items board keeps its own cycle going: with the pass paused for this board nothing
+  -- else ever calls BeginCycle, so an exhausted cycle would be the last one of the visit.
+  -- A breather between cycles keeps a small poll set from hammering the one search slot.
+  if view == "deals" and GC.Sniper._Board() == "items" and poll:Count() > 0
+      and not poll:HasPending() and not GC.Sniper._KeysOutstanding()
+      and (time() - (GC.Sniper._keysCycleDoneAt or 0)) >= LIM.KEYS_CYCLE_BREATHER_SECONDS then
+    GC.Sniper._keysLastCycle = GC.Sniper._keysThisCycle or 0
+    GC.Sniper._keysThisCycle = 0
+    poll:BeginCycle()
+    trace("keys: new cycle (Items board)")
+  end
+  return GC.Sniper._TrySendKeysBatchFor(poll, "sniper", function()
     return view == "deals" and GC.Sniper._Board() == "items"
   end, playerBusy)
 end
