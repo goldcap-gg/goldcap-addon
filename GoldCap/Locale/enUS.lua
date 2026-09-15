@@ -494,6 +494,7 @@ GC.Locales.enUS = {
   ["You would pay"] = "You would pay",
   ["Your call"] = "Your call",
   ["Your minimum"] = "Your minimum",
+  ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "above the cheapest, inside the cheap quarter · %d units queued below",

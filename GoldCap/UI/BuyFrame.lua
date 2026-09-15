@@ -66,6 +66,11 @@ local BD = {
   -- as the cap lets it; the same bound UI/SniperFrame.lua's commodityBook uses.
   MAX_LEVELS = 60,
   LOG_LINES = 20,
+  -- How long a stranded confirm is worth keeping. GC.Sniper's _strandedConfirmed uses the same
+  -- ten minutes for the same reason: long enough for a server that is merely slow, short enough
+  -- that a record cannot still be sitting there when an unrelated purchase of the same item
+  -- turns up and gets credited with it.
+  STRANDED_SECONDS = 600,
 }
 
 -- When the last batch's answer landed. Zero means "never", which is what makes the first ask
@@ -90,12 +95,19 @@ GC.Buy._attempt = nil
 GC.Buy._focus = nil
 GC.Buy._log = {}
 
--- The one thing that outlives an attempt: a confirm that reached the server and was then given up
--- on (see retireStalled). The success may still be coming, and when it does this is the only
--- record of what was bought and for how much -- GC.Sniper keeps exactly such a record, for
--- exactly this, in _strandedConfirmed. Good for the auction house session that made it and no
--- longer: a late event cannot cross a session boundary.
-GC.Buy._stranded = nil
+-- What outlives an attempt: confirms that reached the server and were then given up on (see
+-- retireStalled). The success may still be coming, and when it does this is the only record of
+-- what was bought and for how much -- GC.Sniper keeps exactly such a table, for exactly this, in
+-- _strandedConfirmed. Keyed by itemID, because a player can strand one line and carry on down the
+-- run: a single slot let the second strand overwrite the first, and the first one's late success
+-- was then booked as the wrong item at the wrong price. Good for the auction house session that
+-- made it and no longer -- a late event cannot cross a session boundary.
+--
+--   itemID -> { qty, total, runCode, have, at, session }
+--
+-- `have` is the line's bag count at the moment it was stranded: the warning on that line lifts
+-- when that number moves, which is exactly what a delivery that really happened does to it.
+GC.Buy._stranded = {}
 local sessionToken = 0
 
 -- Bumped per attempt so a watchdog armed for one purchase cannot retire the next, and per
@@ -443,6 +455,24 @@ end
 -- Buying: the quote, and the attempt it becomes
 -- ---------------------------------------------------------------------------
 
+-- The live stranded record covering this line, if the warning on it still stands. Read at hover
+-- and at render time rather than stamped onto an attempt: an attempt is replaced by the very next
+-- hover, and a warning a hover can erase is a warning that WILL be erased -- with a live BUY
+-- button under it, one click from buying the same units a second time.
+local function strandedFor(line)
+  if not line then return nil end
+  local record = GC.Buy._stranded[line.itemID]
+  if not record then return nil end
+  if record.session ~= sessionToken or (time() - (record.at or 0)) > BD.STRANDED_SECONDS then
+    GC.Buy._stranded[line.itemID] = nil
+    return nil
+  end
+  -- Released on evidence, not on a timer. The record itself is kept -- a late success still has
+  -- to be bookable -- but the line stops being one the player may not touch.
+  if record.have ~= nil and line.have ~= record.have then return nil end
+  return record
+end
+
 local function quoteFresh(attempt)
   return attempt ~= nil and attempt.stage == "quoted" and attempt.quotedAt ~= nil
     and (time() - attempt.quotedAt) < BD.QUOTE_SECONDS
@@ -463,6 +493,9 @@ end
 local function actionLabel(line)
   local attempt = GC.Buy._attempt
   local resting = (GC.L["BUY %d"]):format(line.buy)
+  -- Ahead of everything, including a fresh quote for some other line: a confirm reached the
+  -- server for THIS item and nothing came back, so the units may already be paid for.
+  if strandedFor(line) then return GC.L["no answer — check your bags"], false end
   if not attempt or attempt.itemID ~= line.itemID then return resting, true end
   local stage = attempt.stage
   -- A question still worth waiting for says so. One the client swallowed has to offer the click
@@ -499,19 +532,74 @@ end
 -- The last BD.LOG_LINES things an attempt did, so `/gc buy` can answer "what happened when I
 -- clicked" without a screenshot. `text` defaults to whatever the button is saying, which is
 -- already through GC.L and already the shortest true description of the stage.
-local function logAttempt(line, text)
+local function logAttempt(line, text, itemID)
   local attempt = GC.Buy._attempt
   local log = GC.Buy._log
+  itemID = (line and line.itemID) or itemID or (attempt and attempt.itemID) or nil
   log[#log + 1] = {
     at = time(),
-    itemID = (line and line.itemID) or (attempt and attempt.itemID),
+    itemID = itemID,
     stage = attempt and attempt.stage or nil,
     qty = attempt and attempt.qty or nil,
     total = attempt and (attempt.serverTotal or attempt.total) or nil,
-    text = ("%s · %s"):format(line and lineName(line) or "?",
+    -- The id is the last honest name. A line that has gone -- the run was swapped under the
+    -- purchase -- used to print as "?", which is the one thing `/gc buy` exists not to say.
+    text = ("%s · %s"):format(
+      (line and lineName(line)) or (itemID and ("#" .. tostring(itemID))) or "?",
       text or (line and actionLabel(line)) or ""),
   }
   while #log > BD.LOG_LINES do table.remove(log, 1) end
+end
+
+-- Prunes the table of everything the current session can no longer answer for, and says how much
+-- is left. Same shape and the same ten-minute bound as GC.Sniper's takeStrandedConfirmed.
+local function liveStranded()
+  local records = GC.Buy._stranded
+  local found, count = nil, 0
+  local now = time()
+  for itemID, record in pairs(records) do
+    if record.session ~= sessionToken or (now - (record.at or 0)) > BD.STRANDED_SECONDS then
+      records[itemID] = nil
+    else
+      found, count = itemID, count + 1
+    end
+  end
+  return count, found
+end
+
+-- The one record a terminal event can honestly be attributed to, consumed. A commodity event
+-- carries no attempt id, so with two of them live attribution is a guess: they are ALL dropped and
+-- nothing is recorded -- the same fail-closed answer the Sniper gives, and a better one than an
+-- acquisition for a purchase that may never have happened. Returns record, consumed.
+local function takeStranded()
+  local count, itemID = liveStranded()
+  if count == 0 then return nil, false end
+  if count > 1 then
+    GC.Buy._stranded = {}
+    logAttempt(nil, GC.L["a purchase landed that GoldCap could not attribute"])
+    GC.Buy.RefreshIfShown()
+    return nil, true
+  end
+  local record = GC.Buy._stranded[itemID]
+  GC.Buy._stranded[itemID] = nil
+  record.itemID = itemID
+  return record, true
+end
+
+-- Whether a terminal commodity event is BUY's to answer at all. Core/Init.lua offers all four to
+-- this tab first and only passes them on when it says no, so this is the whole boundary between
+-- the two windows that can own a purchase.
+--
+-- Holding the slot is the ordinary answer. A stranded record is the other one: the purchase that
+-- left it RELEASED the slot on its way out, so an event gated on ownership alone could never
+-- reach the branch that books it. What a stranded record may never do is take an event from
+-- somebody who is actively holding the slot -- that purchase owns its own terminals.
+local function mayOwnTerminal()
+  if not GC.PurchaseSlot then return (liveStranded()) > 0 end
+  local owner = GC.PurchaseSlot.Owner()
+  if owner == "buy" then return true end
+  if owner ~= nil and GC.PurchaseSlot.IsBusy() then return false end
+  return (liveStranded()) > 0
 end
 
 -- The client's single commodity buffer read as a price ladder: cheapest level first, in the
@@ -653,7 +741,7 @@ local function settlePurchase(itemID, qty, total, runCode)
     if runCode == current:Code() then current:RecordPurchase(itemID, qty, total, at) end
     recordAcquisition(itemID, line and lineName(line) or nil, qty, total, at, runCode)
   end
-  logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)))
+  logAttempt(line, (GC.L["bought %d for %s"]):format(qty, formatAmount(total)), itemID)
   -- The units are in the bags now, so HAVE is re-counted before the board is redrawn -- and the
   -- next line that still needs something takes the focus, so Enter carries on down the run
   -- without the player reaching for the mouse.
@@ -662,13 +750,17 @@ local function settlePurchase(itemID, qty, total, runCode)
   GC.Buy.RefreshIfShown()
 end
 
--- The stranded record, if it is still this session's. Consumed, not read: a success settles it
--- once, and a second event must find nothing.
-local function takeStranded()
-  local stranded = GC.Buy._stranded
-  GC.Buy._stranded = nil
-  if not stranded or stranded.session ~= sessionToken then return nil end
-  return stranded
+-- A late FAILED or PRICE_UNAVAILABLE for a confirm this tab had given up on is the answer it was
+-- waiting for: the purchase did NOT happen. The records go, and the warning with them -- with two
+-- live it is still the right answer, since neither of them happened either way round.
+local function dropStrandedOnFailure()
+  if (liveStranded()) == 0 then return false end
+  GC.Buy._stranded = {}
+  local attempt = GC.Buy._attempt
+  if attempt and attempt.stage == "unknown" then attempt.stage = "failed" end
+  logAttempt(attempt and lineFor(attempt.itemID) or nil, GC.L["purchase failed — try again"])
+  GC.Buy.RefreshIfShown()
+  return true
 end
 
 local function failAttempt(attempt)
@@ -688,12 +780,11 @@ local function quote(line)
   if inFlight(attempt) then return end
   if attempt and attempt.itemID == line.itemID
       and (quotePending(attempt) or quoteFresh(attempt)) then return end
-  -- An `unknown` line is never re-offered on a hover. Its confirm reached the server and nothing
-  -- came back, so the units may already be paid for and a fresh quote is an invitation to buy
-  -- them twice. It lets go on evidence -- this line's bag count changing, which is exactly what
-  -- a real delivery does -- or when a new auction house session starts (OnAuctionHouseShow).
-  if attempt and attempt.itemID == line.itemID and attempt.stage == "unknown"
-      and line.have == attempt.strandedHave then return end
+  -- A line under a stranded confirm is never re-offered. Its confirm reached the server and
+  -- nothing came back, so the units may already be paid for and a fresh quote is an invitation to
+  -- buy them twice. Asked of the record, not of the attempt: the attempt is gone the moment the
+  -- player's cursor crosses another row.
+  if strandedFor(line) then return end
   if not (C_AuctionHouse and C_AuctionHouse.SendSearchQuery and C_AuctionHouse.MakeItemKey) then return end
   -- No auction house session, no question to ask -- and a SendSearchQuery nobody will answer
   -- leaves the board promising a quote that never lands. Same gate as TrySendRefresh's.
@@ -751,12 +842,13 @@ end
 -- Every one of them is re-judged against the quote and the cap, so the confirm click can never
 -- reach a total nothing has checked: an update that leaves the cap requotes the line instead.
 function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
+  if not mayOwnTerminal() then return false end
   local attempt = GC.Buy._attempt
-  if not attempt or not inFlight(attempt) then return end
+  if not attempt or not inFlight(attempt) then return false end
   local qty = attempt.qty or 0
   local total = type(totalPrice) == "number" and totalPrice
     or (type(unitPrice) == "number" and qty > 0 and unitPrice * qty) or nil
-  if not total or qty <= 0 then return end
+  if not total or qty <= 0 then return true end
   local line = lineFor(attempt.itemID)
   -- The line is gone: the run was swapped or resynced under the purchase. There is nothing left
   -- to judge the price against and nothing to credit the units to, so the purchase goes back to
@@ -764,10 +856,11 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if not line then
     cancelStartedPurchase()
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+    -- Logged BEFORE the attempt is cleared, so `/gc buy` can still name the item it was about.
+    logAttempt(nil, GC.L["the run changed — start again"], attempt.itemID)
     GC.Buy._attempt = nil
-    logAttempt(nil, GC.L["the run changed — start again"])
     GC.Buy.RefreshIfShown()
-    return
+    return true
   end
   -- Two ways this is still a price the line agreed to: no worse than the quote the player read,
   -- or -- the quote having been optimistic -- inside the line's own cap per unit. An ABSENT cap
@@ -791,19 +884,22 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
+  return true
 end
 
 -- COMMODITY_PURCHASE_SUCCEEDED. Three ways one can arrive here, and they are not the same event.
 function GC.Buy.OnCommodityPurchaseSucceeded()
+  if not mayOwnTerminal() then return false end
   local attempt = GC.Buy._attempt
   local stage = attempt and attempt.stage
 
   -- One: the purchase this tab confirmed, answered. The only one that books a cost.
   if stage == "confirming" then
-    GC.Buy._attempt, GC.Buy._stranded = nil, nil
+    GC.Buy._attempt = nil
+    GC.Buy._stranded[attempt.itemID] = nil
     settlePurchase(attempt.itemID, attempt.qty, attempt.serverTotal or attempt.total,
       attempt.runCode)
-    return
+    return true
   end
 
   -- Two: a purchase landed while this tab was still holding an unconfirmed one -- the player
@@ -814,37 +910,52 @@ function GC.Buy.OnCommodityPurchaseSucceeded()
   -- a cost basis taken from a total nobody was charged is worse than no row at all, which is what
   -- UI/SniperFrame.lua concludes about its own unpriceable successes.
   if attempt and inFlight(attempt) then
-    GC.Buy._attempt, GC.Buy._stranded = nil, nil
+    -- Our own Start may still be dangling in the client -- it was never confirmed, so it is ours
+    -- to take back. A purchase at `confirm` or `confirming` is NOT cancelled: this success may
+    -- well be its own answer, and cancelling a purchase that has already gone through is noise
+    -- at best.
+    if stage == "started" then cancelStartedPurchase() end
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
     logAttempt(lineFor(attempt.itemID), GC.L["a purchase landed that GoldCap could not price"])
+    GC.Buy._stranded[attempt.itemID] = nil
+    GC.Buy._attempt = nil
     scanBags()
     GC.Buy.RefreshIfShown()
-    return
+    return true
   end
 
   -- Three: the late answer to an attempt the confirming timeout gave up on. The gold left the
   -- bags, so the books have to say so, at the total the server last quoted for it.
-  local stranded = takeStranded()
-  if not stranded then return end
+  local stranded, consumed = takeStranded()
+  if not stranded then return consumed end
   if attempt and attempt.stage == "unknown" and attempt.itemID == stranded.itemID then
     GC.Buy._attempt = nil
   end
   settlePurchase(stranded.itemID, stranded.qty, stranded.total, stranded.runCode)
+  return true
 end
 
 -- COMMODITY_PURCHASE_FAILED / COMMODITY_PRICE_UNAVAILABLE. Both say the same thing to this tab:
 -- no gold moved, the slot goes back, and the button says so rather than sitting on "buying...".
 -- The stage check is the same guard the success path carries, for the same reason.
 function GC.Buy.OnCommodityPurchaseFailed()
+  if not mayOwnTerminal() then return false end
   local attempt = GC.Buy._attempt
-  if not attempt or not (inFlight(attempt) or attempt.stage == "requote") then return end
-  failAttempt(attempt)
+  if attempt and (inFlight(attempt) or attempt.stage == "requote") then
+    failAttempt(attempt)
+    return true
+  end
+  return dropStrandedOnFailure()
 end
 
 function GC.Buy.OnCommodityPriceUnavailable()
+  if not mayOwnTerminal() then return false end
   local attempt = GC.Buy._attempt
-  if not attempt or not (inFlight(attempt) or attempt.stage == "requote") then return end
-  failAttempt(attempt)
+  if attempt and (inFlight(attempt) or attempt.stage == "requote") then
+    failAttempt(attempt)
+    return true
+  end
+  return dropStrandedOnFailure()
 end
 
 -- Read-only ownership, asked by Core/PurchaseCapture.lua's passive hooks. Without it every BUY
@@ -855,8 +966,14 @@ function GC.Buy.OwnsCommodityPurchase(itemID, quantity)
   -- A stranded confirm counts. Its success is still owed, and the capture discarded its own
   -- record of the Start hook while this tab owned the purchase -- so if ownership lapsed here the
   -- capture would file a batch for it too, on top of the one settlePurchase writes.
-  local stranded = GC.Buy._stranded
-  if stranded and stranded.itemID == itemID and (quantity == nil or stranded.qty == quantity) then
+  --
+  -- BOTH the item and the quantity have to match, unlike the live attempt below where a nil
+  -- quantity means any: a stranded record is not a purchase in flight, and claiming every buy of
+  -- that item would stop the capture recording the player's own unrelated ones.
+  local record = GC.Buy._stranded[itemID]
+  if record and quantity ~= nil and record.qty == quantity
+      and record.session == sessionToken
+      and (time() - (record.at or 0)) <= BD.STRANDED_SECONDS then
     return true
   end
   local attempt = GC.Buy._attempt
@@ -889,14 +1006,14 @@ retireStalled = function(token, stall)
   end
   if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
   attempt.stage = "unknown"
-  -- What the line's bag count was at the moment this gave up. The line stays stuck on the warning
-  -- until that number moves -- which is precisely what a delivery that did happen does to it.
-  attempt.strandedHave = line and line.have or nil
-  -- Everything a late success would need to book the purchase, kept where the attempt cannot
-  -- take it with it. GC.Sniper keeps the same record for the same reason (_strandedConfirmed).
-  GC.Buy._stranded = { itemID = attempt.itemID, qty = attempt.qty,
-    total = attempt.serverTotal or attempt.total, runCode = attempt.runCode,
-    session = sessionToken }
+  -- Everything a late success would need to book the purchase, kept where the attempt cannot take
+  -- it with it -- and keyed by item, so stranding a second line never overwrites the first.
+  -- GC.Sniper keeps the same table for the same reason (_strandedConfirmed).
+  GC.Buy._stranded[attempt.itemID] = {
+    qty = attempt.qty, total = attempt.serverTotal or attempt.total,
+    runCode = attempt.runCode, have = line and line.have or nil,
+    at = time(), session = sessionToken,
+  }
   logAttempt(line)
   GC.Buy.RefreshIfShown()
 end
@@ -911,7 +1028,7 @@ end
 -- left exactly as it was: the second call used to clear `unknown` -- the one state whose whole
 -- job is to warn that a confirm may have taken gold -- before the player could read it.
 function GC.Buy.OnAuctionHouseClosed()
-  GC.Buy._stranded = nil
+  GC.Buy._stranded = {}
   local attempt = GC.Buy._attempt
   if not attempt then return end
   local stage = attempt.stage
@@ -931,7 +1048,6 @@ function GC.Buy.OnAuctionHouseClosed()
   else
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
     attempt.stage = "unknown"
-    attempt.strandedHave = line and line.have or nil
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -942,7 +1058,7 @@ end
 -- old session gave up on is offered again -- by now the bags say whether the units ever arrived.
 function GC.Buy.OnAuctionHouseShow()
   sessionToken = sessionToken + 1
-  GC.Buy._stranded = nil
+  GC.Buy._stranded = {}
   local attempt = GC.Buy._attempt
   if attempt and not inFlight(attempt) then GC.Buy._attempt = nil end
 end

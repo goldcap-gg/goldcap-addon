@@ -9,7 +9,7 @@ local helper = require("spec.spec_helper")
 -- one purchase in flight addon-wide, one acquisition batch per purchase, and no second batch
 -- from the passive capture hooks. Only the client itself is faked.
 describe("BUY purchase", function()
-  local GC, searches, started, confirmed, cancels, timers, book, now, bags
+  local GC, searches, started, confirmed, cancels, timers, book, now, bags, sniperCalls
 
   local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust",
                   [105] = "Echo Salt" }
@@ -63,6 +63,8 @@ describe("BUY purchase", function()
     function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:GetScript(name) return self.scripts[name] end
     function r:EnableMouse() end
+    function r:RegisterEvent() end
+    function r:UnregisterEvent() end
     function r:EnableKeyboard() self.keyboard = true end
     function r:SetPropagateKeyboardInput(value) self.propagate = value end
     function r:IsMouseOver() return self.mouseOver end
@@ -121,6 +123,30 @@ describe("BUY purchase", function()
   end
 
   local function containerOf() return upvalueOf(GC.Buy.Show, "container") end
+
+  -- Core/Init.lua's own OnEvent, so the routing between GC.Buy and GC.Sniper is exercised rather
+  -- than assumed. Every other test here calls a handler directly, which is exactly how a router
+  -- bug hides: the whole late-success path lives on the far side of one.
+  local function loadRouter()
+    _G.hooksecurefunc = function() end
+    _G.SlashCmdList = {}
+    _G.Enum = { PlayerInteractionType = { Auctioneer = 21 } }
+    local captured
+    local realCreate = _G.CreateFrame
+    _G.CreateFrame = function(kind, name, parent)
+      local f = realCreate(kind, name, parent)
+      local set = f.SetScript
+      f.SetScript = function(self, script, fn)
+        set(self, script, fn)
+        if script == "OnEvent" then captured = fn end
+      end
+      return f
+    end
+    helper.loadModule("Core/Init.lua", GC)
+    _G.CreateFrame = realCreate
+    assert.is_truthy(captured)
+    return captured
+  end
 
   -- The commodity book the client would answer a SendSearchQuery with: cheapest level first,
   -- each level a whole price point aggregated across sellers.
@@ -207,7 +233,17 @@ describe("BUY purchase", function()
     -- The arbiter and the AH session flag are UI/SniperFrame.lua's, and its own batch path is
     -- covered by spec/buy_refresh_spec.lua against the real file. What this spec needs from it
     -- is only "there is a session, and BUY is the tab on screen".
-    GC.Sniper = { IsAHOpen = function() return true end, CurrentView = function() return "buy" end }
+    sniperCalls = {}
+    GC.Sniper = {
+      IsAHOpen = function() return true end, CurrentView = function() return "buy" end,
+      OnCommodityPurchaseSucceeded = function() sniperCalls[#sniperCalls + 1] = "succeeded" end,
+      OnCommodityPurchaseFailed = function() sniperCalls[#sniperCalls + 1] = "failed" end,
+      OnCommodityPriceUnavailable = function() sniperCalls[#sniperCalls + 1] = "unavailable" end,
+      OnCommodityPriceUpdated = function() sniperCalls[#sniperCalls + 1] = "priceUpdated" end,
+      OnCommoditySearchResults = function() end,
+      scanner = nil,
+    }
+    GC.Sell = {}
 
     helper.loadModule("Core/BagStock.lua", GC)
     helper.loadModule("Core/BuyRun.lua", GC)
@@ -237,6 +273,7 @@ describe("BUY purchase", function()
   after_each(function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.C_AuctionHouse, _G.C_Timer, _G.GetTime = nil, nil, nil
+    _G.hooksecurefunc, _G.SlashCmdList, _G.Enum = nil, nil, nil
     _G.time = os.time
   end)
 
@@ -659,6 +696,21 @@ describe("BUY purchase", function()
     assert.equal(0, cancels)
   end)
 
+  -- N3: at `started` our own Start is still unconfirmed and dangling in the client, so it is ours
+  -- to take back. At `confirm`/`confirming` it is not: the success may be its own answer, and the
+  -- test above pins that nothing is cancelled there.
+  it("takes back its own unconfirmed start when a purchase it never priced lands", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    assert.equal("started", GC.Buy._attempt.stage)
+
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.equal(1, cancels)
+    assert.is_nil(GC.Buy._attempt)
+    assert.same({}, GC.Acquisitions.GetAll())
+  end)
+
   -- I3: the client drops a throttled search without naming it, so a question with no answer has
   -- to age out -- otherwise the line sits on "quoting..." for the rest of the session.
   it("asks again when a quote query is never answered", function()
@@ -954,6 +1006,145 @@ describe("BUY purchase", function()
     assert.equal(1, cancels)
     assert.is_nil(GC.PurchaseSlot.Owner())
     assert.same({}, GC.Acquisitions.GetAll())
+
+    -- N4: and `/gc buy` can still say WHICH line it was about. The id is the last honest name --
+    -- logging after the attempt was cleared left the only record of it reading "?".
+    local last = GC.Buy._log[#GC.Buy._log]
+    assert.equal(101, last.itemID)
+    assert.equal("#101 · the run changed — start again", last.text)
+  end)
+
+  -- R1: the whole late-success path lives on the far side of Core/Init.lua's router, and the
+  -- router used to hand it to the Sniper -- BUY releases the slot on its way out of a stranded
+  -- confirm, so a route gated on slot ownership could never reach it.
+  local function strandOne()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn()
+  end
+
+  it("routes a late success to the tab that is owed it, not to the sniper", function()
+    local onEvent = loadRouter()
+    strandOne()
+    assert.is_nil(GC.PurchaseSlot.Owner())
+
+    onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")
+    assert.same({}, sniperCalls)
+    local batches = GC.Acquisitions.GetAll()
+    assert.equal(1, #batches)
+    assert.equal(10200, batches[1].originalTotal)
+  end)
+
+  it("hands a commodity event the tab has no claim on straight to the sniper", function()
+    local onEvent = loadRouter()
+    onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")
+    onEvent(nil, "COMMODITY_PURCHASE_FAILED")
+    onEvent(nil, "COMMODITY_PRICE_UNAVAILABLE")
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 1, 2)
+    assert.same({ "succeeded", "failed", "unavailable", "priceUpdated" }, sniperCalls)
+    assert.same({}, GC.Acquisitions.GetAll())
+  end)
+
+  it("routes a late failure to the tab too, and clears the warning it left", function()
+    local onEvent = loadRouter()
+    strandOne()
+    onEvent(nil, "COMMODITY_PURCHASE_FAILED")
+    assert.same({}, sniperCalls)
+    assert.same({}, GC.Acquisitions.GetAll())
+
+    -- The purchase did not happen, so the line is a line again.
+    local row = rowWithText("Alpha Herb")
+    assert.equal("purchase failed — try again", row.action.label)
+    local before = #searches
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(before + 1, #searches)
+  end)
+
+  it("routes a live purchase's own events to the tab that holds the slot", function()
+    local onEvent = loadRouter()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 1020, 10200)
+    assert.same({}, sniperCalls)
+    assert.equal("confirm", GC.Buy._attempt.stage)
+  end)
+
+  -- A stranded record may never take an event from somebody actively holding the slot: that
+  -- purchase owns its own terminals.
+  it("leaves the sniper's own events alone while it holds the slot", function()
+    local onEvent = loadRouter()
+    strandOne()
+    GC.PurchaseSlot.Claim("sniper", now)
+    onEvent(nil, "COMMODITY_PURCHASE_SUCCEEDED")
+    assert.same({ "succeeded" }, sniperCalls)
+    assert.same({}, GC.Acquisitions.GetAll())
+  end)
+
+  -- S1: one slot let a second strand overwrite the first, and the first one's late success was
+  -- then booked as the wrong item at the wrong price.
+  it("keeps one stranded record per item", function()
+    strandOne()
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityPriceUpdated(2500, 10000)
+    click(rowWithText("Charlie Dust"))
+    timers[#timers].fn()
+    assert.is_truthy(GC.Buy._stranded[101])
+    assert.is_truthy(GC.Buy._stranded[103])
+  end)
+
+  -- ...and with two live, a commodity event carries nothing that could say which one it answers.
+  it("records nothing when two stranded confirms could each be the one that landed", function()
+    strandOne()
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityPriceUpdated(2500, 10000)
+    click(rowWithText("Charlie Dust"))
+    timers[#timers].fn()
+
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.same({}, GC.Acquisitions.GetAll())
+    assert.is_nil(next(GC.Buy._stranded))
+    assert.equal(0, GC.Buy.CurrentRun():Lines()[1].bought)
+  end)
+
+  it("forgets a stranded confirm that has aged out", function()
+    strandOne()
+    now = now + 601
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.same({}, GC.Acquisitions.GetAll())
+    assert.is_nil(next(GC.Buy._stranded))
+  end)
+
+  it("does not claim a purchase of another item, or another quantity of its own", function()
+    strandOne()
+    assert.is_true(GC.Buy.OwnsCommodityPurchase(101, 10))
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(103, 10))
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, 4))
+    -- A nil quantity means "any" only for a purchase actually in flight, never for a record.
+    assert.is_false(GC.Buy.OwnsCommodityPurchase(101, nil))
+  end)
+
+  -- U1: the warning used to live on the attempt, which the very next hover replaces.
+  it("keeps the warning on the line when the cursor moves to another one", function()
+    strandOne()
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+
+    local before = #searches
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(before, #searches)
+    local row = rowWithText("Alpha Herb")
+    assert.equal("no answer — check your bags", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+    click(row)
+    assert.equal(before, #searches)
   end)
 
   it("keeps the last twenty attempt lines", function()

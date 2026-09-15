@@ -557,35 +557,34 @@ frame:SetScript("OnEvent", function(_, event, ...)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnPurchaseCompleted(...) end
   elseif event == "COMMODITY_PRICE_UPDATED" then
-    -- Terminal commodity events carry no attempt id, so they route by who currently owns the
-    -- shared slot (GC.PurchaseSlot) rather than by anything in the event payload -- see
-    -- Core/PurchaseSlot.lua.
+    -- Terminal commodity events carry no attempt id, so nothing in the payload can say whose they
+    -- are. They are OFFERED to the BUY tab first and only passed on when it says it did not take
+    -- them -- GC.Buy's handlers answer true when they consumed the event.
+    --
+    -- Not gated on GC.PurchaseSlot.Owner() == "buy" here any more, deliberately: the branch that
+    -- books the late success of a confirm BUY had given up on runs precisely when BUY no longer
+    -- holds the slot (it released it on the way out), so an ownership gate made that whole path
+    -- unreachable and handed those successes to the Sniper. GC.Buy.mayOwnTerminal is where the
+    -- "can this be ours" question now lives, slot included.
     local unitPrice, totalPrice = ...
-    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
-      if GC.Buy and GC.Buy.OnCommodityPriceUpdated then GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice) end
-    elseif GC.Sniper.OnCommodityPriceUpdated then
-      GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
+    if not (GC.Buy and GC.Buy.OnCommodityPriceUpdated
+        and GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)) then
+      if GC.Sniper.OnCommodityPriceUpdated then GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice) end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUpdated(...) end
   elseif event == "COMMODITY_PRICE_UNAVAILABLE" then
-    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
-      if GC.Buy and GC.Buy.OnCommodityPriceUnavailable then GC.Buy.OnCommodityPriceUnavailable() end
-    elseif GC.Sniper.OnCommodityPriceUnavailable then
-      GC.Sniper.OnCommodityPriceUnavailable()
+    if not (GC.Buy and GC.Buy.OnCommodityPriceUnavailable and GC.Buy.OnCommodityPriceUnavailable()) then
+      if GC.Sniper.OnCommodityPriceUnavailable then GC.Sniper.OnCommodityPriceUnavailable() end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPriceUnavailable() end
   elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
-    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
-      if GC.Buy and GC.Buy.OnCommodityPurchaseSucceeded then GC.Buy.OnCommodityPurchaseSucceeded() end
-    elseif GC.Sniper.OnCommodityPurchaseSucceeded then
-      GC.Sniper.OnCommodityPurchaseSucceeded()
+    if not (GC.Buy and GC.Buy.OnCommodityPurchaseSucceeded and GC.Buy.OnCommodityPurchaseSucceeded()) then
+      if GC.Sniper.OnCommodityPurchaseSucceeded then GC.Sniper.OnCommodityPurchaseSucceeded() end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseSucceeded() end
   elseif event == "COMMODITY_PURCHASE_FAILED" then
-    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() == "buy" then
-      if GC.Buy and GC.Buy.OnCommodityPurchaseFailed then GC.Buy.OnCommodityPurchaseFailed() end
-    elseif GC.Sniper.OnCommodityPurchaseFailed then
-      GC.Sniper.OnCommodityPurchaseFailed()
+    if not (GC.Buy and GC.Buy.OnCommodityPurchaseFailed and GC.Buy.OnCommodityPurchaseFailed()) then
+      if GC.Sniper.OnCommodityPurchaseFailed then GC.Sniper.OnCommodityPurchaseFailed() end
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnCommodityPurchaseFailed() end
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" then
