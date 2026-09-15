@@ -227,3 +227,64 @@ describe("BuyRun prices from the run itself", function()
     assert.equal(0, run:Totals().left)
   end)
 end)
+
+describe("BuyRun carries the v3 fields", function()
+  local GC
+  before_each(function()
+    GC = {}
+    helper.loadModule("Core/BuyRun.lua", GC)
+  end)
+
+  local function build(lines)
+    local run = GC.BuyRun.New({ code = "abcd2345", lines = lines },
+      { now = function() return 1000 end, haveOf = function() return 0 end,
+        usualUnit = function() return nil end,
+        capPct = function() return 130 end, freeLines = function() return nil end })
+    run:Refresh()
+    return run:Lines()[1]
+  end
+
+  -- An alert fired at a price the player chose. That price IS the ceiling: judging it again by
+  -- 130% of the site's reference price would buy above the number the alert was set for, or
+  -- refuse the very lots it found.
+  it("takes an absolute cap in copper off the line, ahead of the run's cap percent", function()
+    local line = build({ { i = 5, q = 10, u = 44000, cc = 9990000 } })
+    assert.equal(9990000, line.cap)
+    assert.equal(44000, line.usual)
+  end)
+
+  it("caps a line with no cap of its own by the percentage, as before", function()
+    assert.equal(math.floor(44000 * 130 / 100), build({ { i = 5, q = 10, u = 44000 } }).cap)
+  end)
+
+  it("treats a zero cap as no cap at all", function()
+    assert.equal(math.floor(44000 * 130 / 100), build({ { i = 5, q = 10, u = 44000, cc = 0 } }).cap)
+  end)
+
+  it("carries the realm a hit is bound to", function()
+    local line = build({ { i = 5, q = 10, rl = { id = 1305, n = "Kazzak" } } })
+    assert.equal("Kazzak", line.realmName)
+    assert.equal(1305, line.realmID)
+  end)
+
+  it("normalises the recipe onto the line", function()
+    local line = build({ { i = 50, q = 20, cr = { r = 900, n = 5, c = 2300, i = {
+      { i = 51, q = 5, n = "Eversong Trout", u = 300 },
+      { i = 52, q = 5, n = "Tavern Fixings", v = true, vu = 150 },
+    } } } })
+    assert.equal(900, line.craft.recipeID)
+    assert.equal(5, line.craft.craftedQty)
+    assert.equal(2300, line.craft.cost)
+    assert.equal(2, #line.craft.reagents)
+    assert.same({ itemID = 51, qty = 5, name = "Eversong Trout", vendor = false,
+                  usual = 300, vendorUnit = nil }, line.craft.reagents[1])
+    assert.is_true(line.craft.reagents[2].vendor)
+    assert.equal(150, line.craft.reagents[2].vendorUnit)
+  end)
+
+  it("drops a recipe that yields nothing or names no reagent", function()
+    assert.is_nil(build({ { i = 50, q = 20, cr = { n = 0, c = 10, i = { { i = 51, q = 5 } } } } }).craft)
+    assert.is_nil(build({ { i = 50, q = 20, cr = { n = 5, c = 10, i = {} } } }).craft)
+    assert.is_nil(build({ { i = 50, q = 20 } }).craft)
+  end)
+end)

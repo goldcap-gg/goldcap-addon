@@ -13,6 +13,38 @@ GC.BuyRun = {}
 
 local function num(v) return type(v) == "number" and v or nil end
 
+-- The recipe the site attached to a line (Core/AppRuns.lua's `cr`), normalised once into names
+-- the rest of this module and UI/BuyFrame.lua read. nil unless it is complete enough to act on:
+-- a recipe yielding nothing, or naming no reagent, is not a craft anybody can plan.
+local function craftOf(raw)
+  if type(raw) ~= "table" then return nil end
+  local craftedQty = num(raw.n)
+  if not craftedQty or craftedQty <= 0 then return nil end
+  local reagents = {}
+  for _, entry in ipairs(type(raw.i) == "table" and raw.i or {}) do
+    local itemID, qty = num(entry.i), num(entry.q)
+    if itemID and qty and qty > 0 then
+      reagents[#reagents + 1] = {
+        itemID = itemID, qty = qty, name = type(entry.n) == "string" and entry.n or nil,
+        vendor = entry.v == true, usual = num(entry.u), vendorUnit = num(entry.vu),
+      }
+    end
+  end
+  if #reagents == 0 then return nil end
+  return { recipeID = num(raw.r), craftedQty = craftedQty, cost = num(raw.c) or 0,
+           reagents = reagents }
+end
+
+-- The ceiling one unit of this line may cost: its own, in copper, when the site sent one;
+-- otherwise the run's cap percent applied to the reference price, which is what every line
+-- without one has always used. A zero or a negative is not a ceiling -- trusted, it caps the
+-- line at nothing and nothing can ever be bought.
+local function capFor(src, usual, capPct)
+  local absolute = num(src.cc)
+  if absolute and absolute > 0 then return math.floor(absolute) end
+  return usual and math.floor(usual * capPct / 100) or nil
+end
+
 function GC.BuyRun.New(run, driver)
   local obj = {}
   local lines = {}    -- rebuilt by Refresh(), in display order
@@ -95,7 +127,16 @@ function GC.BuyRun.New(run, driver)
         -- untouched: whether the client can convert an hour into realm time, and whether the
         -- number is worth saying at all, is the caller's question (UI/BuyFrame.lua).
         cheapHour = num(src.ch), cheapPct = num(src.cp),
-        cap = usual and math.floor(usual * capPct / 100) or nil,
+        -- An absolute ceiling for one unit, when the line brought one: an alert group's own
+        -- target price is the number the player chose, and a percentage of the site's reference
+        -- price has nothing to say about it -- it would either buy above the alert or refuse the
+        -- very lots the alert found. Everything else is capped as it always was.
+        cap = capFor(src, usual, capPct),
+        -- The realm a hit is bound to, and the recipe that crafts this item: carried, not acted
+        -- on here. Whether either is worth saying is UI/BuyFrame.lua's question.
+        realmName = src.rl and src.rl.n or nil,
+        realmID = src.rl and src.rl.id or nil,
+        craft = craftOf(src.cr),
         floor = state.floor, floorAt = state.floorAt,
         spent = state.spent, bought = state.bought,
         done = buy == 0, locked = false, index = lineIndex,
