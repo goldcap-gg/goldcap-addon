@@ -30,7 +30,7 @@
 
 - **BUY tab.** Lists with quantities you save on goldcap.gg (a profession's shopping list, for
   one) get a BUY tab of their own at the auction house. Each line shows what you need,
-  what is already in your bags and what is left to buy; one click buys the missing amount
+  what is already in your bags and bank and what is left to buy; one click buys the missing amount
   of a commodity from the cheapest lots, and a second click confirms the total. Lines are
   never bought above your cap (130% of the usual price by default, in Settings); when only
   part fits under it, that part is bought and the rest waits. Vendor reagents are marked and
