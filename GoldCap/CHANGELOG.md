@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.12.1 (unreleased)
+
+- **Every line of a run is yours to buy.** The BUY tab no longer limits how many lines of a run
+  you can buy — every line of every run has its BUY button, for everybody.
+
 ## 0.12.0 (2026-09-16)
 
 - **Craft it or buy it.** Hover a run line GoldCap knows a recipe for and its tooltip prices the
