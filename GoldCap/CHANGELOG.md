@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.12.1 (unreleased)
+## 0.12.1 (2026-09-16)
 
 - **Every line of a run is yours to buy.** The BUY tab no longer limits how many lines of a run
   you can buy — every line of every run has its BUY button, for everybody.
