@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.12.0 (unreleased)
+## 0.12.0 (2026-09-16)
 
 - **Craft it or buy it.** Hover a run line GoldCap knows a recipe for and its tooltip prices the
   item both ways — what its reagents cost against what the auction house is asking for the
@@ -18,8 +18,6 @@
   alert for rather than at the usual-price cap, and marked with the realm when the hit is bound
   to one. The run goes when the hits do.
 - Needs companion 1.11.
-
-## 0.11.0 (unreleased)
 
 - **Every line of a run knows what it should cost.** A list saved on goldcap.gg now brings the
   site's own price for each reagent, so USUAL and the price cap work even for items GoldCap's
@@ -44,8 +42,6 @@
   line's tooltip says how much of it is in the bags and how much is in a bank.
 - **Purchases reach your ledger on goldcap.gg.** What you buy through the BUY tab is reported
   against the list you bought it for, so the site can tell you what a run really cost.
-
-## 0.10.0 (unreleased)
 
 - **BUY tab.** Lists with quantities you save on goldcap.gg (a profession's shopping list, for
   one) get a BUY tab of their own at the auction house. Each line shows what you need,
