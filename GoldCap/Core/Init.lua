@@ -57,11 +57,10 @@ GC.DEFAULTS = {
   -- { code, name, updatedAt, lines, origin = "app"|"paste" }. Same empty-table ApplyDefaults
   -- contract as `flips` above: a populated SavedVariables table is never touched or truncated.
   runs = {},
-  -- Metadata for the companion-sourced half of `runs` above: which plan generated the file,
-  -- how many lines the free tier gets, and when it was generated (so Adopt can tell a fresher
-  -- file from a stale one already applied). generatedAt = 0 means "nothing adopted yet", which
-  -- is always older than any real Unix timestamp the companion writes.
-  runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 },
+  -- Metadata for the companion-sourced half of `runs` above: when it was generated, so Adopt
+  -- can tell a fresher file from a stale one already applied. generatedAt = 0 means "nothing
+  -- adopted yet", which is always older than any real Unix timestamp the companion writes.
+  runsMeta = { generatedAt = 0 },
   -- What each character has bought for each run, by run code: the BUY tab's "spent" and the
   -- bought count a partial fill continues from. Survives /reload; see UI/BuyFrame.lua's driver.
   buyProgress = {},

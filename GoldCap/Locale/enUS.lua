@@ -32,7 +32,6 @@ GC.Locales.enUS = {
   ["%d lines · %d to buy · %d to craft · %d at the vendor"] =
     "%d lines · %d to buy · %d to craft · %d at the vendor",
   ["%d missing"] = "%d missing",
-  ["%d more lines with Pro"] = "%d more lines with Pro",
   ["%d partial"] = "%d partial",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
   ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
@@ -352,7 +351,6 @@ GC.Locales.enUS = {
   ["Prices up to date · %d did not answer"] = "Prices up to date · %d did not answer",
   ["Pricing %d/%d…"] = "Pricing %d/%d…",
   ["Pricing…"] = "Pricing…",
-  ["Pro"] = "Pro",
   ["Profit"] = "Profit",
   ["Profit per unit"] = "Profit per unit",
   ["Profit tracking is a goldcap.gg Pro feature"] = "Profit tracking is a goldcap.gg Pro feature",

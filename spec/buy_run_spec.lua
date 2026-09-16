@@ -13,8 +13,7 @@ describe("BuyRun", function()
       { i = 7, q = 5, v = false, n = "Petrified Root" },
       { i = 9, q = 100, v = false, n = "Done Thing" },
     } }, { now = function() return 1000 end, haveOf = function(id) return have[id] or 0 end,
-           usualUnit = function(id) return usual[id] end, capPct = function() return 130 end,
-           freeLines = function() return nil end })
+           usualUnit = function(id) return usual[id] end, capPct = function() return 130 end })
     run:Refresh()
   end)
 
@@ -92,17 +91,6 @@ describe("BuyRun", function()
     assert.equal(150 * 29400 + 0, run:Totals().left)   -- line 7 has no usual and no floor: counts 0
   end)
 
-  it("locks lines past the free limit, vendor lines never count", function()
-    local gated = GC.BuyRun.New({ code = "x", lines = {
-      { i = 1, q = 1 }, { i = 2, q = 1 }, { i = 8, q = 1, v = true }, { i = 3, q = 1 } } },
-      { now = function() return 0 end, haveOf = function() return 0 end, usualUnit = function() return nil end,
-        capPct = function() return 130 end, freeLines = function() return 2 end })
-    gated:Refresh()
-    local locked = {}
-    for _, l in ipairs(gated:Lines()) do locked[#locked + 1] = tostring(l.locked) end
-    assert.same({ "false", "false", "true", "false" }, locked)   -- 1, 2 buyable; 3 locked; vendor line last, never locked
-  end)
-
   -- A line that is both done and a vendor stop is done: the player already has it, so it is not
   -- a stop to make and it must not sit above one that is.
   it("puts a finished vendor line with the finished lines, not with the vendor stops", function()
@@ -112,8 +100,7 @@ describe("BuyRun", function()
       { i = 13, q = 5, v = true },      -- a vendor stop still to make
     } }, { now = function() return 0 end,
            haveOf = function(id) return id == 12 and 1 or 0 end,
-           usualUnit = function() return nil end, capPct = function() return 130 end,
-           freeLines = function() return nil end })
+           usualUnit = function() return nil end, capPct = function() return 130 end })
     r:Refresh()
     local ids = {}
     for _, l in ipairs(r:Lines()) do ids[#ids + 1] = tostring(l.itemID) end
@@ -132,7 +119,6 @@ describe("BuyRun progress across sessions", function()
       { i = 5, q = 210, v = false, n = "Plant Protein" },
     } }, { now = function() return 1000 end, haveOf = function() return 0 end,
            usualUnit = function() return 30000 end, capPct = function() return 130 end,
-           freeLines = function() return nil end,
            progress = function(code) assert.equal("abcd2345", code); return progress end })
   end
 
@@ -155,8 +141,7 @@ describe("BuyRun progress across sessions", function()
   it("keeps a run that has no progress table in memory only", function()
     local run = GC.BuyRun.New({ code = "abcd2345", lines = { { i = 5, q = 10 } } },
       { now = function() return 1 end, haveOf = function() return 0 end,
-        usualUnit = function() return nil end, capPct = function() return 130 end,
-        freeLines = function() return nil end })
+        usualUnit = function() return nil end, capPct = function() return 130 end })
     run:Refresh()
     run:RecordPurchase(5, 4, 400, 1)
     assert.equal(400, run:Totals().spent)
@@ -175,7 +160,7 @@ describe("BuyRun prices from the run itself", function()
       { now = function() return 1000 end, haveOf = function() return 0 end,
         -- The import knows 100 about item 9 and nothing about anything else.
         usualUnit = function(id) return id == 9 and 100 or nil end,
-        capPct = function() return 130 end, freeLines = function() return nil end })
+        capPct = function() return 130 end })
     run:Refresh()
     return run
   end
@@ -239,7 +224,7 @@ describe("BuyRun carries the v3 fields", function()
     local run = GC.BuyRun.New({ code = "abcd2345", lines = lines },
       { now = function() return 1000 end, haveOf = function() return 0 end,
         usualUnit = function() return nil end,
-        capPct = function() return 130 end, freeLines = function() return nil end })
+        capPct = function() return 130 end })
     run:Refresh()
     return run:Lines()[1]
   end
@@ -315,7 +300,6 @@ describe("BuyRun splits a line into its reagents", function()
         haveOf = function(id) return (opts.have or {})[id] or 0 end,
         usualUnit = function() return nil end,
         capPct = function() return 130 end,
-        freeLines = function() return opts.freeLines end,
         splits = function(code)
           assert.equal("abcd2345", code)
           return opts.splits
@@ -460,24 +444,21 @@ describe("BuyRun splits a line into its reagents", function()
     assert.equal(20, (run:PurchaseQuantity(51, { { unit = 10, qty = 100 } })))
   end)
 
-  -- The free-line gate is about which lines of the RUN are unlocked. A reagent is not a line of
-  -- the run: it may not consume a slot, and it may not be free while the line it came out of is
-  -- not.
-  it("gives a reagent the lock of the line it was split out of", function()
-    local run = build({ { i = 40, q = 3 }, fillet() },
-      { splits = { [50] = true }, freeLines = 1 })
-    assert.is_false(lineOf(run, 40).locked)
-    assert.is_true(lineOf(run, 50).locked)
-    assert.is_true(lineOf(run, 51).locked)
-    assert.is_nil(lineOf(run, 51).index)
-    assert.equal(2, lineOf(run, 50).index)
+  -- Nothing holds a line back, however many lines a run has: a split's reagents are as buyable
+  -- as the line they came out of, and no line of a run is ever marked otherwise.
+  it("leaves every line of a split run open, reagents included", function()
+    local run = build({ { i = 40, q = 3 }, fillet() }, { splits = { [50] = true } })
+    for _, itemID in ipairs({ 40, 50, 51 }) do
+      local line = lineOf(run, itemID)
+      assert.truthy(line)
+      assert.is_nil(line.locked)
+    end
   end)
 
   it("still builds a run whose driver knows nothing about splits", function()
     local run = GC.BuyRun.New({ code = "x", lines = { fillet() } },
       { now = function() return 0 end, haveOf = function() return 0 end,
-        usualUnit = function() return nil end, capPct = function() return 130 end,
-        freeLines = function() return nil end })
+        usualUnit = function() return nil end, capPct = function() return 130 end })
     run:Refresh()
     assert.equal(1, #run:Lines())
     assert.is_nil(run:Lines()[1].kind)

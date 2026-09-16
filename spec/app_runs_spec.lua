@@ -5,7 +5,7 @@ describe("AppRuns", function()
 
   local function fixture()
     return {
-      v = 1, generatedAt = 1787130262, plan = "pro", freeLines = 5,
+      v = 1, generatedAt = 1787130262, plan = "free", freeLines = 5,
       runs = {
         { code = "abcd2345", name = "Plant Protein run", updatedAt = 100,
           lines = {
@@ -20,7 +20,7 @@ describe("AppRuns", function()
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("Core/AppRuns.lua", GC)
     GC.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
-              runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
+              runsMeta = { generatedAt = 0 } }
   end)
 
   after_each(function()
@@ -28,7 +28,7 @@ describe("AppRuns", function()
   end)
 
   describe("Adopt", function()
-    it("adopts a valid global and exposes it, plan pro means FreeLines() is nil", function()
+    it("adopts a valid global and exposes it, ignoring what it says about a plan", function()
       _G.GoldCap_AppRuns = fixture()
       assert.is_true(GC.AppRuns.Adopt())
       local run = GC.AppRuns.Get("abcd2345")
@@ -40,7 +40,9 @@ describe("AppRuns", function()
       assert.is_false(run.lines[1].v)
       assert.equal("Plant Protein", run.lines[1].n)
       assert.is_true(run.lines[2].v)
-      assert.is_nil(GC.AppRuns.FreeLines())
+      -- The file still carries `plan` and `freeLines` -- the site keeps writing them -- and
+      -- nothing reads them: what gets stored is the generation stamp and nothing else.
+      assert.same({ generatedAt = 1787130262 }, GC.db.runsMeta)
     end)
 
     it("refuses any version but 1, 2 or 3, silently", function()
@@ -575,7 +577,7 @@ describe("AppRuns runs the site owns", function()
     GC = helper.loadModule("Core/Util.lua")
     helper.loadModule("Core/AppRuns.lua", GC)
     GC.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
-              runsMeta = { plan = "free", freeLines = 5, generatedAt = 0 } }
+              runsMeta = { generatedAt = 0 } }
     _G.GoldCap_AppRuns = fixture()
     GC.AppRuns.Adopt()
     GC.db.runs["paste-1"] = { code = "paste-1", updatedAt = 500,

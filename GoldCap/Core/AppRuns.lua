@@ -238,11 +238,7 @@ function GC.AppRuns.Adopt()
     local at = type(notice) == "table" and tonumber(notice.at) or nil
     if not at or (time() - at) >= 86400 then db.runNotices[code] = nil end
   end
-  db.runsMeta = {
-    plan = raw.plan == "pro" and "pro" or "free",
-    freeLines = num(raw.freeLines) or 5,
-    generatedAt = raw.generatedAt,
-  }
+  db.runsMeta = { generatedAt = raw.generatedAt }
   return true
 end
 
@@ -331,15 +327,6 @@ function GC.AppRuns.Get(code)
   local db = GC.db
   if type(db) ~= "table" or type(db.runs) ~= "table" then return nil end
   return db.runs[code]
-end
-
--- nil means unlimited (Pro); otherwise how many non-vendor lines of a run are unlocked --
--- see Core/BuyRun.lua's Refresh, which locks every line past this count.
-function GC.AppRuns.FreeLines()
-  local meta = GC.db and GC.db.runsMeta
-  if type(meta) ~= "table" then return 5 end
-  if meta.plan == "pro" then return nil end
-  return meta.freeLines or 5
 end
 
 -- djb2, folded into 32 bits with plain arithmetic (Lua 5.1 has no bitwise operators) --

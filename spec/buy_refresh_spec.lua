@@ -13,8 +13,8 @@ describe("BUY floor refresh", function()
   local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust",
                   [104] = "Delta Vial" }
 
-  -- Four lines, one of each state: 101 open, 102 already covered by the bags (done), 103 open
-  -- (or locked, depending on the free-line limit the test asks for), 104 at the vendor.
+  -- Four lines, one of each state: 101 open, 102 already covered by the bags (done), 103 open,
+  -- 104 at the vendor.
   -- `allDone` zeroes 101/103's own quantities so every non-vendor line reads done (102 is
   -- already covered by the bags either way) -- the "nothing left to ask about" run HasPending
   -- exists to answer false for.
@@ -207,7 +207,6 @@ describe("BUY floor refresh", function()
       Get = function(code)
         for _, r in ipairs(runs) do if r.code == code then return r end end
       end,
-      FreeLines = function() return opts.freeLines end,
     }
     if opts.craft then GC.db.runSplits = { ["run-1"] = { [101] = true } } end
 
@@ -233,25 +232,19 @@ describe("BUY floor refresh", function()
   end
 
   it("asks about every line the run still has to buy, the moment the tab opens", function()
-    load({ freeLines = 3 })
+    load()
     GC.Buy.Show()
     -- 102 is covered by the bags and 104 is a vendor line: neither is something this tab will
     -- ever spend gold on, so neither is worth a slot in the one batch the run gets.
     assert.same({ { 101, 103 } }, sent)
   end)
 
-  it("leaves a locked line out of the batch", function()
-    load({ freeLines = 1 })
-    GC.Buy.Show()
-    assert.same({ { 101 } }, sent)
-  end)
-
   -- HasPending() used to be a stub that always answered true, so an all-done run still took
   -- the shared throttle claim for a batch NextBatch would then send empty. Wired honestly, a
-  -- run with nothing open (not vendor, not locked, not done) must never even reach
-  -- GC.Util.ClaimThrottleSend, let alone SearchForItemKeys.
+  -- run with nothing open (not vendor, not done) must never even reach GC.Util.ClaimThrottleSend,
+  -- let alone SearchForItemKeys.
   it("an all-done run: Tick sends nothing and never claims the throttle", function()
-    load({ freeLines = 3, allDone = true })
+    load({ allDone = true })
     local claims = 0
     local realClaim = GC.Util.ClaimThrottleSend
     GC.Util.ClaimThrottleSend = function(...)
@@ -269,13 +262,13 @@ describe("BUY floor refresh", function()
   end)
 
   it("leaves out an item the auction house says is not a commodity", function()
-    load({ freeLines = 3, gear = 103 })
+    load({ gear = 103 })
     GC.Buy.Show()
     assert.same({ { 101 } }, sent)
   end)
 
   it("folds the answer into the lines' floors, and the board shows them", function()
-    load({ freeLines = 3 })
+    load()
     GC.Buy.Show()
     browseRows = { { itemKey = { itemID = 101 }, minPrice = 900, totalQuantity = 40 } }
     GC.Sniper.OnBrowseResults()
@@ -286,7 +279,7 @@ describe("BUY floor refresh", function()
   end)
 
   it("keeps a floor an answer does not mention", function()
-    load({ freeLines = 3 })
+    load()
     GC.Buy.Show()
     browseRows = { { itemKey = { itemID = 101 }, minPrice = 900, totalQuantity = 40 } }
     GC.Sniper.OnBrowseResults()
@@ -299,7 +292,7 @@ describe("BUY floor refresh", function()
   end)
 
   it("waits twenty seconds before asking again", function()
-    load({ freeLines = 3 })
+    load()
     GC.Buy.Show()
     browseRows = { { itemKey = { itemID = 101 }, minPrice = 900 } }
     GC.Sniper.OnBrowseResults()
@@ -315,7 +308,7 @@ describe("BUY floor refresh", function()
   end)
 
   it("sends nothing while the Items board's own batch is outstanding", function()
-    local gc = load({ freeLines = 3 })
+    local gc = load()
     setView("deals")
     gc.Sniper._keyPoll:SetTargets({ 501, 502 })
     gc.Sniper.OnThrottleReady()
@@ -337,7 +330,7 @@ describe("BUY floor refresh", function()
   -- the view. (Written the other way round, with the tab never opened, the test passes with
   -- the view gate deleted: it never reaches it.)
   it("sends nothing while another tab is on screen", function()
-    load({ freeLines = 3 })
+    load()
     GC.Buy.Show()
     assert.equal(1, #sent)
     browseRows = { { itemKey = { itemID = 101 }, minPrice = 900 } }
@@ -356,7 +349,7 @@ describe("BUY floor refresh", function()
   end)
 
   it("sends nothing with no auction house session to answer it", function()
-    load({ freeLines = 3, ahClosed = true })
+    load({ ahClosed = true })
     GC.Buy.Show()
     assert.same({}, sent)
     GC.Buy.Tick()
@@ -367,7 +360,7 @@ describe("BUY floor refresh", function()
   -- floors at all, so a window left standing across the switch holds every NOW cell on an em
   -- dash for up to twenty seconds -- with the batch that would fill them refused.
   it("gives the refresh window up when the shown run is replaced", function()
-    load({ freeLines = 3, secondRun = {
+    load({ secondRun = {
       code = "run-2", name = "Potion run", updatedAt = 100, origin = "app",
       lines = { { i = 103, q = 7 } },
     } })
@@ -384,7 +377,7 @@ describe("BUY floor refresh", function()
   end)
 
   it("gives the Items poll its answer back once BUY's own batch has landed", function()
-    local gc = load({ freeLines = 3 })
+    local gc = load()
     gc.Buy.Show()
     assert.equal(1, #sent)
     browseRows = { { itemKey = { itemID = 101 }, minPrice = 900 } }
@@ -402,7 +395,7 @@ describe("BUY floor refresh", function()
   -- A craft line is not bought at the auction house, so a slot in the one batch the run gets
   -- would be spent on a price nothing can act on. Its reagents ARE bought, and are asked about.
   it("asks about a craft line's reagents and never about the craft line itself", function()
-    load({ freeLines = 9, craft = true })
+    load({ craft = true })
     GC.Buy.Show()
     local function has(list, id)
       for _, value in ipairs(list or {}) do if value == id then return true end end

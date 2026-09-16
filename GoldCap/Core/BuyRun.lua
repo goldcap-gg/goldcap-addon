@@ -2,10 +2,10 @@ local _, GC = ...
 
 -- The Buy tab's shopping run as pure data: given a run (the AppRuns shape -- an ordered
 -- list of items with a wanted quantity, sourced from the site's crafting/shopping-list
--- export) and a driver for the three things only the client knows (how many the player
--- already carries, what an item usually costs, and today's free-tier line limit), this
--- module is the arithmetic the BUY tab draws: what is left to buy, what it should cost,
--- and how far a purchase's ladder of price levels reaches before the price cap says stop.
+-- export) and a driver for the two things only the client knows (how many the player
+-- already carries and what an item usually costs), this module is the arithmetic the BUY
+-- tab draws: what is left to buy, what it should cost, and how far a purchase's ladder of
+-- price levels reaches before the price cap says stop.
 --
 -- Pure and driver-injected like Core/KeyPoll.lua and Core/BookPass.lua: no WoW API call
 -- lives here, and no text -- callers own every string the player reads.
@@ -166,9 +166,8 @@ function GC.BuyRun.New(run, driver)
   end
 
   -- Everything that depends on NEED, once NEED has stopped moving: the reference price, the
-  -- ceiling, what is left to buy, and which lines the free tier unlocks.
-  local function finish(entries, byItem, capPct, freeLines)
-    local index = 0
+  -- ceiling, and what is left to buy.
+  local function finish(entries, capPct)
     for _, entry in ipairs(entries) do
       -- The run's own price first: the site knew what this item cost when the list was saved,
       -- and the import's market value is a snapshot of a different moment (or, for an item the
@@ -191,22 +190,6 @@ function GC.BuyRun.New(run, driver)
       local buy = entry.need - math.max(entry.have, entry.bought)
       entry.buy = buy > 0 and buy or 0
       entry.done = entry.buy == 0
-      entry.locked = false
-      -- A reagent line is not a line of the run: it may not consume a free slot. A vendor line
-      -- never could.
-      if not entry.vendor and not entry.parent then
-        index = index + 1
-        entry.index = index
-        entry.locked = freeLines ~= nil and index > freeLines
-      end
-    end
-    -- ...and it is exactly as locked as the line it was split out of, which has to be decided
-    -- after every parent has its own answer.
-    for _, entry in ipairs(entries) do
-      if entry.parent then
-        local parent = byItem[entry.parent]
-        entry.locked = (parent ~= nil and parent.locked) or false
-      end
     end
   end
 
@@ -248,21 +231,18 @@ function GC.BuyRun.New(run, driver)
   -- player isn't looking at this frame), `buy` from need/have/bought, and `cap` from the usual
   -- price. Lines come out in four groups -- open, then what is left to craft, then the vendor
   -- trip, then everything already done -- and keep run order inside each, a craft line's reagents
-  -- travelling with it. `index` counts only the run's own non-vendor lines, in run order and
-  -- regardless of whether they are done, so the free-lines gate is about which lines of the
-  -- run are unlocked rather than about what is left of it.
+  -- travelling with it.
   function obj:Refresh()
     -- The run's code goes with every question: a cap and a set of splits are properties of the
     -- run, not of the tab (UI/BuyFrame.lua). A driver that does not care ignores the argument;
     -- one with no splits at all is a driver whose runs simply have none.
     local capPct = driver.capPct(run.code)
-    local freeLines = driver.freeLines()
     -- Asked on every Refresh rather than once at construction, unlike progress: the player
     -- splits and un-splits a line from the row menu, and the answer has to be the current one.
     local splits = (driver.splits and driver.splits(run.code)) or {}
     local entries, byItem = baseEntries()
     applySplits(entries, byItem, splits)
-    finish(entries, byItem, capPct, freeLines)
+    finish(entries, capPct)
     lines = bucketed(entries)
   end
 
@@ -326,14 +306,14 @@ function GC.BuyRun.New(run, driver)
     end
   end
 
-  -- `left` counts open, unlocked lines: a done line has nothing left to spend and a locked
-  -- line is not yet buyable, so its cost is not part of "what this run needs right now". A
-  -- vendor line counts at the vendor's price -- see below.
+  -- `left` counts open lines: a done line has nothing left to spend, so its cost is not part
+  -- of "what this run needs right now". A vendor line counts at the vendor's price -- see
+  -- below.
   function obj:Totals()
     local spent, left, toBuy, toCraft, atVendor, done = 0, 0, 0, 0, 0, 0
     -- Lines of the RUN, as against `lines` which counts the reagents a split put under one too.
-    -- A reagent is part of the line above it, not another line of the run -- the same rule the
-    -- free-lines gate follows, and the one a caller counting an alert group's hits needs.
+    -- A reagent is part of the line above it, not another line of the run -- the rule a caller
+    -- counting an alert group's hits needs.
     local topLines = 0
     for _, line in ipairs(lines) do
       if not line.parent then topLines = topLines + 1 end
@@ -349,7 +329,7 @@ function GC.BuyRun.New(run, driver)
       end
       -- A craft line costs nothing of its own: the gold goes on its reagents, which are lines
       -- here too. Counting both would charge the player twice for the same crafts.
-      if not line.done and not line.locked and line.kind ~= "craft" then
+      if not line.done and line.kind ~= "craft" then
         -- A vendor line is priced at the vendor's own price -- it never touches the auction
         -- house, so a floor or a market value would be a number from the wrong market. With no
         -- vendor price it counts nothing, the same way a line with no price at all does.

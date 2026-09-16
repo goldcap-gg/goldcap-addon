@@ -473,9 +473,6 @@ local DRIVER = {
     if type(forRun) ~= "table" then forRun = {}; mine[code] = forRun end
     return forRun
   end,
-  freeLines = function()
-    return GC.AppRuns and GC.AppRuns.FreeLines and GC.AppRuns.FreeLines() or nil
-  end,
 }
 
 local function runList()
@@ -716,11 +713,11 @@ local function lineName(line)
 end
 
 -- A line this tab can actually spend gold on. Everything else -- a vendor stop, a line the bags
--- already cover, a line past the free limit, a line being crafted rather than bought -- has no
--- BUY button and never gets quoted.
+-- already cover, a line being crafted rather than bought -- has no BUY button and never gets
+-- quoted.
 local function buyable(line)
   return line ~= nil and not line.vendor and line.kind ~= "craft"
-    and not line.locked and not line.done and line.buy > 0
+    and not line.done and line.buy > 0
 end
 
 local function lineFor(itemID)
@@ -1592,15 +1589,8 @@ local function buildEntries()
       GC.L["No runs yet. Save a list with quantities on goldcap.gg, or type /gc import and paste a run string."] }
     return entries
   end
-  local locked = 0
   for _, line in ipairs(current:Lines()) do
-    -- A reagent a split brought in is not a line of the run, so it is not one of the lines the
-    -- free tier is counting (Core/BuyRun.lua gives it its parent's lock and no index).
-    if line.locked and not line.parent then locked = locked + 1 end
     entries[#entries + 1] = { kind = "line", line = line }
-  end
-  if locked > 0 then
-    entries[#entries + 1] = { kind = "hint", text = (GC.L["%d more lines with Pro"]):format(locked) }
   end
   return entries
 end
@@ -1628,7 +1618,6 @@ local function clearRow(row)
   row.wide:SetText("")
   row.wide:Hide()
   row.action:Hide()
-  row.pro:Hide()
   row.reagentInset = 0
   row.icon:Hide()
   row.tooltipItemID = nil
@@ -1788,9 +1777,6 @@ local function paintLine(row, line)
   elseif line.kind == "craft" then
     row.cells.action:SetText(GC.L["craft"])
     setColor(row.cells.action, Theme.color.fgDim)
-  elseif line.locked then
-    row.pro:SetLabel(GC.L["Pro"], Theme.color.gold)
-    row.pro:Show()
   else
     -- One control, two looks, never two overlaid buttons (addon/AGENTS.md): the label says what
     -- the next click does, and the focused line -- the one Enter would buy -- wears the active
@@ -1856,7 +1842,7 @@ end
 -- settlePurchase would book the gold against a line that no longer exists.
 local function openRowMenu(owner, line)
   if not (current and line and line.craft) then return false end
-  if line.parent or line.locked then return false end
+  if line.parent then return false end
   -- A line already bought has nothing left to decide, and its own tooltip says as much by
   -- leaving the craft-or-buy comparison off it.
   if line.done then return false end
@@ -2001,7 +1987,7 @@ createRow = function(parent)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   row.icon:Hide()
 
-  -- The full-row text used by the "hint" kind -- the empty state and the locked-lines notice.
+  -- The full-row text used by the "hint" kind -- the empty state.
   row.wide = Theme.Label(row, 11)
   row.wide:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
   row.wide:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
@@ -2027,13 +2013,6 @@ createRow = function(parent)
     onBuyClick(lineFor(row.lineItemID))
   end)
   row.action:Hide()
-
-  -- The locked-line marker sits in the same cell the BUY button would have: a line past the
-  -- free limit is not a line with no action, it is a line whose action is behind Pro.
-  row.pro = Theme.Chip(row)
-  row.pro:SetSize(40, 16)
-  row.pro:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
-  row.pro:Hide()
 
   layoutRow(row)
   return row
@@ -2443,15 +2422,15 @@ askableItem = function(itemID)
   return info.isCommodity == true
 end
 
--- The ids this run still has a reason to price: open (something left to buy), unlocked (a Pro
--- line has no BUY button to spend the price on), not a vendor line (the auction house has no
--- answer about it and the row is greyed out anyway). Deduplicated -- a run may name the same
--- reagent twice -- because a duplicate key spends a slot in a batch that is capped.
+-- The ids this run still has a reason to price: open (something left to buy), not a vendor line
+-- (the auction house has no answer about it and the row is greyed out anyway). Deduplicated --
+-- a run may name the same reagent twice -- because a duplicate key spends a slot in a batch
+-- that is capped.
 local function refreshTargets()
   if not current then return nil end
   local ids, seen = {}, {}
   for _, line in ipairs(current:Lines()) do
-    if not line.vendor and line.kind ~= "craft" and not line.locked and not line.done
+    if not line.vendor and line.kind ~= "craft" and not line.done
         and not seen[line.itemID] and askableItem(line.itemID) then
       seen[line.itemID] = true
       ids[#ids + 1] = line.itemID
@@ -2466,12 +2445,12 @@ end
 -- GetItemKeyInfo/MakeItemKey calls: those stay inside refreshTargets/NextBatch, which the
 -- arbiter only runs once every other gate has already cleared and it has taken the throttle
 -- claim. The stub this replaced always answered true, so an all-done run (nothing open, not
--- locked, not vendor) still took the shared throttle claim for a batch that would come back
--- empty -- spending a consumer's slot in GC.Util's per-name pacing for nothing.
+-- vendor) still took the shared throttle claim for a batch that would come back empty --
+-- spending a consumer's slot in GC.Util's per-name pacing for nothing.
 local function hasPendingLine()
   if not current then return false end
   for _, line in ipairs(current:Lines()) do
-    if not line.vendor and line.kind ~= "craft" and not line.locked and not line.done then
+    if not line.vendor and line.kind ~= "craft" and not line.done then
       return true
     end
   end
@@ -2579,8 +2558,7 @@ function GC.Buy.DebugPrint()
     local state = ""
     if line.vendor then state = GC.L["vendor"]
     elseif line.done then state = GC.L["done"]
-    elseif line.kind == "craft" then state = GC.L["craft"]
-    elseif line.locked then state = GC.L["Pro"] end
+    elseif line.kind == "craft" then state = GC.L["craft"] end
     GC.Print((GC.L["  %s · need %d · have %d · buy %d · %s"]):format(
       lineName(line), line.need, line.have, line.buy, state))
   end

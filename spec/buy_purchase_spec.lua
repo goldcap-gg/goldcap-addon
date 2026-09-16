@@ -278,7 +278,6 @@ describe("BUY purchase", function()
       Get = function(code)
         for _, r in ipairs(runs) do if r.code == code then return r end end
       end,
-      FreeLines = function() return nil end,
       _set = function(list) runs = list end,
     }
 

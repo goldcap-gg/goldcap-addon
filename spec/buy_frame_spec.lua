@@ -10,8 +10,8 @@ describe("BuyFrame", function()
   local NAMES = { [101] = "Alpha Herb", [102] = "Bravo Ore", [103] = "Charlie Dust",
                   [104] = "Delta Vial" }
 
-  -- Four lines: one open, one already covered by the bags, one past the free limit, one at the
-  -- vendor. That is every state a row can be in, in one run.
+  -- Four lines: two open, one already covered by the bags, one at the vendor. That is every
+  -- state a row can be in, in one run.
   local function run(over)
     local r = {
       code = "run-1", name = "Flask run", updatedAt = 100, origin = "app",
@@ -81,13 +81,6 @@ describe("BuyFrame", function()
     return b
   end
 
-  local function chip(parent)
-    local c = region("Frame", parent)
-    c.text = region("FontString", c)
-    function c:SetLabel(text, color) self.label = text; self.text:SetText(text); self.chipColor = color end
-    return c
-  end
-
   -- One bag (0) with five Bravo Ore in it; every other bag empty. `bagWalks` counts how many
   -- times the whole six-bag walk actually ran, which is what proves a skipped scan is skipped
   -- rather than merely un-rendered.
@@ -143,7 +136,6 @@ describe("BuyFrame", function()
       Label = function(parent, _) return region("FontString", parent) end,
       Num = function(parent, _, _) return region("FontString", parent) end,
       Button = function(parent) return button(parent) end,
-      Chip = function(parent) return chip(parent) end,
       WithQuality = function(name) return name end,
     }
     GC.db = { settings = { sniper = { buyCapPct = 130 } } }
@@ -165,7 +157,6 @@ describe("BuyFrame", function()
       Get = function(code)
         for _, r in ipairs(runs) do if r.code == code then return r end end
       end,
-      FreeLines = function() return 2 end,
       Remove = function(code)
         for i, r in ipairs(runs) do if r.code == code then table.remove(runs, i); return true end end
         return false
@@ -212,7 +203,7 @@ describe("BuyFrame", function()
   after_each(function()
     _G.CreateFrame, _G.GetCoinTextureString, _G.C_Item, _G.C_Container = nil, nil, nil, nil
     _G.GameTooltip, _G.C_DateAndTime, _G.GetServerTime, _G.date = nil, nil, nil, nil
-    _G.GetItemCount = nil
+    _G.GetItemCount, _G.GoldCap_AppRuns = nil, nil
   end)
 
   local function shownRows()
@@ -346,7 +337,7 @@ describe("BuyFrame", function()
       if (row.reagent:GetText() or "") ~= "" then lineRows[#lineRows + 1] = row end
     end
     assert.equal(4, #lineRows)
-    -- 101 open, 103 open (locked), 104 vendor, 102 done -- the bags already cover 102.
+    -- 101 open, 103 open, 104 vendor, 102 done -- the bags already cover 102.
     assert.equal("Alpha Herb", lineRows[1].reagent:GetText())
     assert.equal("Charlie Dust", lineRows[2].reagent:GetText())
     assert.equal("Delta Vial", lineRows[3].reagent:GetText())
@@ -358,15 +349,34 @@ describe("BuyFrame", function()
     assert.equal("done", lineRows[4].cells.action:GetText())
   end)
 
-  it("locks the lines past the free limit behind a Pro pill and says how many", function()
-    local charlie = rowWithText("Charlie Dust")
-    assert.truthy(charlie)
-    assert.is_true(charlie.pro:IsShown())
-    assert.equal("Pro", charlie.pro.label)
-    assert.is_false(charlie.action:IsShown())
-    -- The first two non-vendor lines are free; only the third is locked.
-    assert.is_false(rowWithText("Alpha Herb").pro:IsShown())
-    assert.truthy(shownTexts():find("1 more lines with Pro", 1, true))
+  -- The tab limits nothing: every line of a run is the player's to buy. The companion still
+  -- writes `plan` and `freeLines` into the runs file (the site's own contract keeps the fields),
+  -- so this adopts a file that says "free, five" for real -- through Core/AppRuns.lua, not the
+  -- double above -- and then counts BUY buttons. Eight lines in, eight buttons out: a run
+  -- rendered with no action on a row would fail here, and so would one with a notice row.
+  it("offers a BUY button on every line of a run, whatever the runs file says about a plan", function()
+    local names, runLines = {}, {}
+    for i = 1, 8 do
+      names[200 + i] = "Line " .. i
+      runLines[i] = { i = 200 + i, q = 2 }
+    end
+    _G.C_Item.GetItemInfo = function(id) return names[id] end
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1500, plan = "free", freeLines = 5,
+      runs = { { code = "run-8", name = "Eight lines", updatedAt = 1400, lines = runLines } } }
+    GC.db.runs, GC.db.runNotices = {}, {}
+    helper.loadModule("Core/AppRuns.lua", GC)   -- the real one, over the double
+    assert.is_true(GC.AppRuns.Adopt())
+    GC.db.settings.sniper.buyRun = "run-8"
+    GC.Buy.Show()
+
+    for i = 1, 8 do
+      local row = rowWithText("Line " .. i)
+      assert.truthy(row, "no row for line " .. i)
+      assert.is_true(row.action:IsShown())
+      assert.equal("BUY 2", row.action.label)
+    end
+    -- ...and nothing was added under them to explain a limit that no longer exists.
+    assert.equal(8, #shownRows())
   end)
 
   it("counts lines, buys and vendor stops in the header band", function()
@@ -1125,25 +1135,6 @@ describe("BuyFrame", function()
     _G.GameTooltip = nil
   end)
 
-  -- A reagent is not a line of the run, so it is not one of the lines the free tier is holding
-  -- back: a locked craft with two reagents under it is ONE more line with Pro, not three. The
-  -- reagents carry their parent's lock (Core/BuyRun.lua) purely so they are not offered for
-  -- sale under a line nobody can buy.
-  it("counts a locked craft line once in the Pro notice, not once per reagent", function()
-    GC.AppRuns._set({ { code = "run-lk", name = "Locked craft", updatedAt = 900, origin = "app",
-      lines = {
-        { i = 101, q = 10 },
-        { i = 103, q = 3 },
-        { i = 104, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
-          { i = 105, q = 5, n = "Echo Leaf", u = 300 },
-          { i = 106, q = 5, n = "Foxtail", u = 160 } } } },
-      } } })
-    GC.db.runSplits = { ["run-lk"] = { [104] = true } }
-    GC.db.settings.sniper.buyRun = "run-lk"
-    GC.Buy.Show()
-    assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
-  end)
-
   local function tooltipOn(row)
     local lines = {}
     _G.GameTooltip = {
@@ -1279,30 +1270,6 @@ describe("BuyFrame", function()
     local alpha = rowWithText("Alpha Herb")
     assert.equal("0", alpha.cells.buy:GetText())
     alpha.scripts.OnMouseUp(alpha, "RightButton")
-    assert.equal(0, opened)
-    _G.MenuUtil = nil
-  end)
-
-  -- A line the free tier is holding back has no BUY button of its own, and a split is an action:
-  -- taking it would rewrite the run around a line nobody may act on -- and hand a free player
-  -- the reagents of a locked line to buy, which is the one thing the lock is there to stop.
-  it("opens no menu on a line the free limit has locked", function()
-    GC.AppRuns._set({ { code = "run-lm", name = "Locked craft", updatedAt = 900, origin = "app",
-      lines = {
-        { i = 101, q = 10 },
-        { i = 103, q = 3 },
-        { i = 104, q = 20, u = 5800, cr = { r = 900, n = 5, c = 2300, i = {
-          { i = 102, q = 5, n = "Bravo Ore", u = 300 } } } },
-      } } })
-    GC.db.runSplits = {}
-    GC.db.settings.sniper.buyRun = "run-lm"
-    GC.Buy.Show()
-    -- Two free lines, three lines of run: the recipe line is the one being held back.
-    assert.equal("1 more lines with Pro", rowWithText("more lines with Pro").wide:GetText())
-    local opened = 0
-    _G.MenuUtil = { CreateContextMenu = function() opened = opened + 1 end }
-    local locked = rowWithText("Delta Vial")
-    locked.scripts.OnMouseUp(locked, "RightButton")
     assert.equal(0, opened)
     _G.MenuUtil = nil
   end)
