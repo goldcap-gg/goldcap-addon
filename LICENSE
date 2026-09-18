@@ -1,0 +1,34 @@
+GoldCap (World of Warcraft addon) — source-available licence
+Copyright (c) 2026 GoldCap (goldcap.gg). All rights reserved.
+
+This source code is published so that anyone can read it and audit it before
+installing the addon, and so that a player can see exactly what runs in their
+game client. That is the whole purpose of it being here.
+
+You may:
+
+  - read, copy and study this source code;
+  - install and run your own copy or your own modified copy, for your own use;
+  - open issues and submit pull requests against this repository.
+
+You may not, without prior written permission:
+
+  - redistribute this addon or builds of it, modified or unmodified, including
+    under another name or on CurseForge, Wago or any other addon site;
+  - use the GoldCap name, logo or branding for anything you distribute;
+  - use this source code, in whole or in part, in another addon or product.
+
+The official builds are published on CurseForge and Wago from tagged commits
+of this repository.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+World of Warcraft and Blizzard Entertainment are trademarks or registered
+trademarks of Blizzard Entertainment, Inc. This addon is not affiliated with
+or endorsed by Blizzard Entertainment.

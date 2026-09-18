@@ -1,0 +1,114 @@
+name: Addon Release
+on:
+  push:
+    tags: ["addon-v*"]
+  workflow_dispatch: {}
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # The bundled snapshot is what a player sees before they install the companion.
+      # Regenerating it by hand was the plan and it did not survive contact with reality:
+      # 0.4.0 shipped a table built on 2026-07-04 whose eu region was empty. Fetch it at
+      # release time and fail the release rather than ship a bad one -- a silently empty
+      # table is worse than no release at all.
+      - name: Refresh the bundled market snapshot
+        run: |
+          set -euo pipefail
+          out=GoldCap/Data/MarketData.lua
+          curl --fail --show-error --silent --max-time 300 \
+            https://api.goldcap.gg/v1/addon/market-data -o "$out.new"
+          for region in us eu kr tw; do
+            grep -q "^  $region = { ts = [1-9]" "$out.new" \
+              || { echo "::error::bundled snapshot: $region is missing or has ts = 0"; exit 1; }
+          done
+          bytes=$(wc -c < "$out.new")
+          [ "$bytes" -gt 100000 ] \
+            || { echo "::error::bundled snapshot is only $bytes bytes"; exit 1; }
+          # And an upper bound, because the table stays in the player's Lua heap for the
+          # whole session -- importing does not free it. Measured: the shipped 0.4.0 file
+          # was 39.6 bytes per row, and ITEM_CAP_PER_REGION (apps/api/src/lib/
+          # addonMarketData.ts) caps only the item half of each region, so four regions at
+          # the cap plus their uncapped commodity rows is several megabytes. Warn early so
+          # the number lands in the release log with a real payload behind it; fail only
+          # where the size is indefensible for a snapshot that is a fossil on arrival.
+          [ "$bytes" -lt 6291456 ] \
+            || { echo "::error::bundled snapshot is $bytes bytes; lower ITEM_CAP_PER_REGION"; exit 1; }
+          [ "$bytes" -lt 2097152 ] \
+            || echo "::warning::bundled snapshot is $bytes bytes; consider lowering ITEM_CAP_PER_REGION"
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends lua5.1
+          luac5.1 -p "$out.new"
+          echo "bundled snapshot: $bytes bytes, four regions, parses"
+          mv "$out.new" "$out"
+
+      - uses: BigWigsMods/packager@v2
+        with:
+          # -t must point at the git checkout root (packager requires
+          # "<topdir>/.git" to exist) and GoldCap.toc lives one level down in
+          # GoldCap/, so topdir is "." and move-folders (in .pkgmeta) pulls
+          # the addon content up to the package root. -d is a dry build: no
+          # upload to CurseForge or Wago, which is what makes a
+          # workflow_dispatch run safe to use as a rehearsal.
+          args: ${{ github.event_name == 'workflow_dispatch' && '-d -t . -m .pkgmeta -r ./.release' || '-t . -m .pkgmeta -r ./.release' }}
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: goldcap-addon
+          path: .release/*.zip
+
+      # The announcement said a new build exists and nothing about what is IN it,
+      # which is the only part a player reads -- so #changelog carried a release
+      # nobody could tell apart from the last one. The notes already exist: the
+      # addon's own CHANGELOG.md, whose top section is this release.
+      - name: Read this release's notes
+        if: startsWith(github.ref, 'refs/tags/addon-v')
+        id: notes
+        run: |
+          set -euo pipefail
+          # Everything from the first "## " heading to the line before the next
+          # one, the heading itself dropped -- the version is already the embed's
+          # title, and repeating it wastes the first line of the card.
+          body=$(awk '/^## /{n++; if (n == 2) exit} n == 1' GoldCap/CHANGELOG.md | tail -n +2)
+          # Discord rejects the whole payload over 4096 characters in a description,
+          # so a long release would post NOTHING rather than post too much. Trim on a
+          # line boundary well under it and say the notes continue.
+          if [ "${#body}" -gt 3400 ]; then
+            body=$(printf '%s' "$body" | head -c 3400 | sed '$d')
+            body="$body"$'\n'"…"
+          fi
+          body="$body"$'\n\n'"Live on CurseForge and Wago. The companion app updates it for you; otherwise grab it from your addon manager."
+          {
+            echo 'body<<GOLDCAP_NOTES_EOF'
+            printf '%s\n' "$body"
+            echo 'GOLDCAP_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Tag pushes only: a workflow_dispatch run is a dry build (-d), and
+      # announcing one as a release would be a lie.
+      - name: Announce in Discord
+        if: startsWith(github.ref, 'refs/tags/addon-v')
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+          status: success
+          title: "Addon ${{ github.ref_name }}"
+          # goldcap-gg, not goldcap: the bare slug belongs to an unrelated
+          # addon abandoned in 2014, so this link sent every release
+          # announcement to a stranger's dead project. The site repo holds the
+          # same URL as a constant, with a test that fails when they drift.
+          url: https://www.curseforge.com/wow/addons/goldcap-gg
+          # The whole value is one expression on purpose: a multi-line output pasted
+          # INTO a block scalar would carry its own newlines past the block's
+          # indentation and break the YAML.
+          description: ${{ steps.notes.outputs.body }}
