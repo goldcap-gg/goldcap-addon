@@ -54,5 +54,9 @@ permission. See [LICENSE](LICENSE).
 World of Warcraft and Blizzard Entertainment are trademarks of Blizzard
 Entertainment, Inc. This addon is not affiliated with or endorsed by Blizzard.
 
-Something looks wrong, or you have a question: open an issue, or mail
-support@goldcap.gg.
+## Questions, bugs and ideas
+
+Open an issue here, or post on the [GoldCap Discord](https://goldcap.gg/discord):
+**#help** for questions, **#bug-reports** when something is broken,
+**#feature-requests** for what you would like it to do. Both places are read.
+For anything you would rather not post in public: support@goldcap.gg.
