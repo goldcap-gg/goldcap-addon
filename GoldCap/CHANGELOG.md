@@ -1,5 +1,11 @@
 # GoldCap
 
+## 0.12.2 (2026-09-16)
+
+- **The SOLD tab's column headings draw again.** QTY, UNIT, TOTAL and PROFIT
+  could come back blank after switching tabs, with only ITEM and WHEN
+  showing. They are stamped again every time the tab is shown.
+
 ## 0.12.1 (2026-09-16)
 
 - **Every line of a run is yours to buy.** The BUY tab no longer limits how many lines of a run

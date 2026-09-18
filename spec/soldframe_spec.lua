@@ -518,6 +518,32 @@ describe("SoldFrame", function()
     assert.truthy(colorEquals(band.rule.colorTexture, GC.Theme.color.border))
   end)
 
+  -- Observed in game 2026-09-16: ITEM and WHEN drawn, QTY/UNIT/TOTAL/PROFIT blank after the
+  -- tab came back from a hide. SetText with the text a string already holds is a no-op to the
+  -- client and does not make it draw, and that is all the old restamp did. The cure is the
+  -- BUY tab's: clear, set, hide, show -- and the spec pins the clear, because a restamp that
+  -- only sets the same text again would pass any "the text is there" assertion.
+  it("clears each column heading before stamping it again when the tab is shown", function()
+    local band = bandOf()
+    local header = band.header
+    local seen = {}
+    local function record(key, label)
+      seen[key] = {}
+      local orig = label.SetText
+      label.SetText = function(self, text) seen[key][#seen[key] + 1] = text; return orig(self, text) end
+    end
+    for key, hit in pairs(header.cells) do record(key, hit.label) end
+    record("item", header.itemCell.label)
+
+    GC.Sold.Hide()
+    GC.Sold.Show()
+
+    for key, calls in pairs(seen) do
+      assert.equal("", calls[1], key .. ": the heading was not cleared before the restamp")
+      assert.is_true(#calls >= 2 and calls[2] ~= "", key .. ": the heading was not stamped after the clear")
+    end
+  end)
+
   it("leaves the header band blank when there is no companion summary", function()
     GC.Sold.RefreshIfShown()
     local band = bandOf()

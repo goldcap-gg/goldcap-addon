@@ -673,8 +673,19 @@ end
 local function restampHeadings()
   local header = band and band.header
   if not header or not header.cells then return end
-  for key, hit in pairs(header.cells) do hit.label:SetText(headerText(key)) end
-  if header.itemCell then header.itemCell.label:SetText(headerText("item")) end
+  -- Cleared before it is set again: SetText with the text the string already holds is a no-op
+  -- to the client, and a no-op does not make it draw. The BUY tab measured this in game (every
+  -- heading but NEED came back shown, anchored, text intact, blank on screen) and this tab
+  -- showed the same on 2026-09-16: ITEM and WHEN drawn, QTY/UNIT/TOTAL/PROFIT blank, because
+  -- this function used to stamp the same text over itself. Same cure as UI/BuyFrame.lua.
+  local function stamp(label, text)
+    if not label then return end
+    label:SetText("")
+    label:SetText(text)
+    if label.Hide and label.Show then label:Hide(); label:Show() end
+  end
+  for key, hit in pairs(header.cells) do stamp(hit.label, headerText(key)) end
+  if header.itemCell then stamp(header.itemCell.label, headerText("item")) end
 end
 
 -- The header band: two persistent lines above the table (totals, then sync
