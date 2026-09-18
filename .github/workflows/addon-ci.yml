@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: lunarmodules/luacheck@v1
+      - uses: lunarmodules/luacheck@cc089e3f65acdd1ef8716cc73a3eca24a6b845e4 # v1
         with:
           args: GoldCap spec --config .luacheckrc
 
@@ -19,10 +19,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: leafo/gh-actions-lua@v10
+      - uses: leafo/gh-actions-lua@35bcb06abec04ec87df82e08caa84d545348536e # v10
         with:
           luaVersion: "5.1"
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@e65774a6386cb4f24e293dca7fc4ff89165b64c5 # v4
       - run: luarocks install busted
       - run: busted
 

@@ -52,7 +52,7 @@ jobs:
           echo "bundled snapshot: $bytes bytes, four regions, parses"
           mv "$out.new" "$out"
 
-      - uses: BigWigsMods/packager@v2
+      - uses: BigWigsMods/packager@e50a250f8705041e40f2fa1ddcb280a686d65aa0 # v2
         with:
           # -t must point at the git checkout root (packager requires
           # "<topdir>/.git" to exist) and GoldCap.toc lives one level down in
