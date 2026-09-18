@@ -1,4 +1,4 @@
--- Source-text wiring assertions (the deliberate style for wiring, see addon/AGENTS.md):
+-- Source-text wiring assertions (the deliberate style for wiring, see the addon's engineering notes):
 -- the settings panel's fieldRow binder and Core/Init.lua's ApplyDefaults are both already
 -- covered behaviourally; what can silently go missing is the one line that enrolls a key in
 -- each of them.

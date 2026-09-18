@@ -8,7 +8,7 @@ local _, GC = ...
 -- Buying is hover, click, click: the cursor landing on a line quotes it against the live
 -- commodity book, the first click starts the purchase for exactly that quantity, and a second
 -- click confirms the price the server came back with. Both protected C_AuctionHouse calls are
--- reached ONLY from the player's own hardware click (addon/AGENTS.md's "Protected actions"),
+-- reached ONLY from the player's own hardware click (the addon's engineering notes' "Protected actions"),
 -- which spec/buy_purchase_wiring_spec.lua pins against this file's source text.
 --
 -- Presentation is the Sold tab's (UI/SoldFrame.lua): one COLUMNS table driving both the
@@ -1036,7 +1036,7 @@ local function throttleReady()
     and C_AuctionHouse.IsThrottledMessageSystemReady()) or false
 end
 
--- CancelCommoditiesPurchase fires NONE of the three terminal events (addon/AGENTS.md), so it is
+-- CancelCommoditiesPurchase fires NONE of the three terminal events (the addon's engineering notes), so it is
 -- only ever used to hand a started-but-unconfirmed purchase back to the client -- never to end
 -- an attempt this tab is still waiting on an event for.
 local function cancelStartedPurchase()
@@ -1539,7 +1539,7 @@ local function onBuyClick(line)
   -- The confirming click. The client only demands a hardware event for the START of a commodity
   -- purchase, so an addon MAY confirm straight from COMMODITY_PRICE_UPDATED -- and this one
   -- never will. The server's price is the first price anybody has actually seen, and agreeing to
-  -- it is the player's to do (addon/AGENTS.md: "Do not 'helpfully' auto-confirm anything").
+  -- it is the player's to do (the addon's engineering notes: "Do not 'helpfully' auto-confirm anything").
   if attempt and attempt.stage == "confirm" and attempt.itemID == line.itemID
       and (attempt.qty or 0) > 0 then
     attempt.stage = "confirming"
@@ -1778,7 +1778,7 @@ local function paintLine(row, line)
     row.cells.action:SetText(GC.L["craft"])
     setColor(row.cells.action, Theme.color.fgDim)
   else
-    -- One control, two looks, never two overlaid buttons (addon/AGENTS.md): the label says what
+    -- One control, two looks, never two overlaid buttons (the addon's engineering notes): the label says what
     -- the next click does, and the focused line -- the one Enter would buy -- wears the active
     -- variant so the key is never aimed at a row nobody can see it pointing at. A state with a
     -- look of its own (over the cap, whether nothing fits under it or only part of the line
@@ -1887,7 +1887,7 @@ createRow = function(parent)
   row.zebra = zebra
 
   -- Hover is the engine's HIGHLIGHT draw layer on a mouse-enabled frame, never an
-  -- OnEnter/OnLeave repaint (addon/AGENTS.md's "Buttons and hover").
+  -- OnEnter/OnLeave repaint (the addon's engineering notes' "Buttons and hover").
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetTexture(Theme.MEDIA .. "plaque.png")

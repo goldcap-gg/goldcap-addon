@@ -16,7 +16,7 @@ local function createDialog()
   f:SetPoint("CENTER")
   -- Opened from the BUY band inside the docked auction house window, which sits at the AH's own
   -- strata with a much higher frame level than a bare MEDIUM frame -- without this the dialog
-  -- renders behind it (addon/AGENTS.md's "a popup needs three things").
+  -- renders behind it (the addon's engineering notes' "a popup needs three things").
   f:SetFrameStrata("DIALOG")
   f:SetMovable(true)
   f:EnableMouse(true)

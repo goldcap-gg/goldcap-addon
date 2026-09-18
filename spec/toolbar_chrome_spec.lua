@@ -245,7 +245,7 @@ end)
 -- widgets back and read their real OnClick handlers off `.scripts.OnClick`.
 describe("Auto toggle click: sell pause survives an off->on cycle while Sell is showing", function()
   -- Copied from spec/sniper_panel_inset_spec.lua's own stubFrame() (itself copied from
-  -- spec/loadorder_spec.lua) -- kept as a per-spec double per addon/AGENTS.md's own note on
+  -- spec/loadorder_spec.lua) -- kept as a per-spec double per the addon's engineering notes' own note on
   -- this pattern, rather than shared, so a change to either spec's construction needs does not
   -- silently perturb this one.
   local function stubFrame()

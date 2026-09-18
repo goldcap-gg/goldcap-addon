@@ -38,7 +38,7 @@ describe("Sniper check panel inset (applyPanelInset)", function()
 
   -- Copied from spec/loadorder_spec.lua's own stubFrame(): every widget method createFrame's
   -- real construction path touches, from Theme.Card/TitleBar/Rail/Button down to GC.Sell.Attach
-  -- and GC.Sold.Attach. Kept as a per-spec double (addon/AGENTS.md: "when a widget starts
+  -- and GC.Sold.Attach. Kept as a per-spec double (the addon's engineering notes: "when a widget starts
   -- calling a new method... the fake regions need it too") rather than shared, since a change to
   -- either spec's construction needs should not silently perturb the other's.
   local function stubFrame()

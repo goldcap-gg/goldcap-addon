@@ -350,7 +350,7 @@ end
 -- settle" for the tombstone's whole 20 seconds over a purchase that was cancelled and cost
 -- nothing (observed live 2026-09-15, `/gc sniper`: tombstone fenced on token 2, no requery
 -- waiting). A field on GC.Sniper rather than a file local: this chunk sits near Lua's 200-local
--- ceiling (see addon/AGENTS.md).
+-- ceiling (see the addon's engineering notes).
 function GC.Sniper._RetireFencedTombstone(row, token)
   local tombstone = commodityDraining
   if tombstone and not tombstone.confirmed and tombstone.fenceRow == row
@@ -538,7 +538,7 @@ local seenHotDeals = {}
 -- Read through here rather than off the setting directly so a save carrying anything else
 -- (an older build, a hand-edited SavedVariables) lands on Commodities rather than on a board
 -- that does not exist. A function on GC.Sniper, not a new top-level local: this file is at
--- its 200-local ceiling (see addon/AGENTS.md).
+-- its 200-local ceiling (see the addon's engineering notes).
 function GC.Sniper._Board()
   local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
   return (cfg and cfg.board == "items") and "items" or "commodities"
@@ -695,7 +695,7 @@ end
 
 -- Fix batch (stuck-hover freeze): shared by OnEnter/OnLeave's hover pin (createRow, below) and
 -- the window's own OnHide -- releases the hover pin and hides the accent painted for it. OnLeave
--- is not reliably delivered when a frame hides under a stationary cursor (see addon/AGENTS.md),
+-- is not reliably delivered when a frame hides under a stationary cursor (see the addon's engineering notes),
 -- so OnHide calls this directly rather than counting on OnLeave firing first. Without it, hiding
 -- the window (Escape, the title-bar X) while a row was hovered left `hoveredRow` pointing at a
 -- pooled row forever: refreshRows() skips a row that still equals hoveredRow, and sortedDeals()
@@ -839,7 +839,7 @@ local function renderList()
   -- and the board used to promise all of them a check that was never coming. A pin placeholder
   -- is excluded because the walk skips it outright -- there is no price on it to verify.
   -- Published as a table field rather than a new top-level local: this file is at its
-  -- 200-local ceiling (see addon/AGENTS.md).
+  -- 200-local ceiling (see the addon's engineering notes).
   -- The walk's reach is GC.Sniper._VerifySlice (defined beside stepVerifyWalk, which slices
   -- the very same way): its top rows per kind, not the top rows of the list as a whole.
   local pendingRows = {}
@@ -1536,7 +1536,7 @@ end
 -- large import's board stays empty. Memoized instead, keyed on the verification table's own
 -- identity (the import is replaced wholesale on a fresh import, never mutated in place) and
 -- the two settings GC.Trigger.For reads. Cached on GC.Sniper._armedCache -- a table field, not
--- a new top-level local, so this costs no headroom (see addon/AGENTS.md's local-ceiling note).
+-- a new top-level local, so this costs no headroom (see the addon's engineering notes' local-ceiling note).
 local function anyItemArmed()
   local imp = GC.db and GC.db.imported
   local verification = imp and imp.verification
@@ -2173,7 +2173,7 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- pass's own deals are kept aside, and after a classes pass the ones that pass did not even
   -- LOOK at (no browse row for that item) are merged back in. Anything the classes pass did
   -- look at and no longer reports really is gone, and stays gone. A table field, not a new
-  -- top-level local: this file is at its 200-local ceiling (see addon/AGENTS.md).
+  -- top-level local: this file is at its 200-local ceiling (see the addon's engineering notes).
   if kind == "wide" then
     -- Only the genuinely out-of-class finds are worth holding past this pass. An item a
     -- classes pass has ever folded (GC.Sniper._bookPass:SeenByClasses) is in-class by
@@ -3039,7 +3039,7 @@ end
 -- requirement CH was moved for; see CH's own comment, and the "Sniper v3 dialog layout
 -- constants" marker left in DG's old spot -- that exact text is a protected-spec section
 -- boundary and could not move with the table). One table, not seventeen top-level locals: a
--- Lua chunk may hold 200 of those and this file sits at exactly 200 -- see addon/AGENTS.md.
+-- Lua chunk may hold 200 of those and this file sits at exactly 200 -- see the addon's engineering notes.
 local DG = {}
 DG.WIDTH = 320
 DG.ICON = 32 -- Task 2 restyle (was 24): the header icon reads as the item itself now, not a bullet
@@ -3532,7 +3532,7 @@ GC.Sniper.detachedCommodityStatus = detachedCommodityStatus
 -- so the gold may well have left the player's bags; before this, a success that arrived after
 -- the release was written down NOWHERE -- the sniper had let go, and Core/PurchaseCapture.lua
 -- had stood down at the Start precisely because the sniper owned the attempt. A table field
--- rather than a file local: this chunk sits near Lua's 200-local ceiling (see addon/AGENTS.md).
+-- rather than a file local: this chunk sits near Lua's 200-local ceiling (see the addon's engineering notes).
 GC.Sniper._strandedConfirmed = {}
 
 -- The one released attempt still inside its window, or nil. Commodity terminal events carry no
@@ -7981,7 +7981,7 @@ local function createFrame()
   -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
   -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
   -- nothing explaining it is its own lie -- this is the number and the switch. One button with
-  -- two variants (never two swapped by Show/Hide), per addon/AGENTS.md. Anchored top-RIGHT now
+  -- two variants (never two swapped by Show/Hide), per the addon's engineering notes. Anchored top-RIGHT now
   -- (was Scan's slot): it and Scan swap sides of the row so Auto/Refused-Hidden bookend it.
   local verifyBtn = Theme.Button(f, "ghost", "plaque")
   verifyBtn:SetSize(76, CH.BTN_H)

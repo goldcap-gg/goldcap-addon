@@ -1,7 +1,7 @@
 local helper = require("spec.spec_helper")
 
 -- Posting's analogue of spec/sniper_purchase_wiring_spec.lua's static guard on the purchase
--- calls (addon/AGENTS.md's "Protected actions": Post/Confirm calls only from a hardware click
+-- calls (the addon's engineering notes' "Protected actions": Post/Confirm calls only from a hardware click
 -- handler, never a timer, an event handler, or a render path). Posting never had this guard
 -- before the posting queue -- and the queue is exactly the kind of always-running machinery
 -- (recomposed on every position rebuild, painted from setStatus/composePositions rather than a

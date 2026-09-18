@@ -153,7 +153,7 @@ describe("The silver grid (Part 0)", function()
   -- RecommendPost or BuildPostPlan is a positive integer multiple of 100.
   describe("property: every reachable price lands on the grid", function()
     -- A small deterministic PRNG (Lehmer/Park-Miller, fixed seed) instead of math.random: this
-    -- repo runs under both PUC Lua and LuaJIT (see AGENTS.md), and a hand-rolled generator is
+    -- repo runs under both PUC Lua and LuaJIT (see the addon's engineering notes), and a hand-rolled generator is
     -- reproducible across both and from run to run, so a failure can be reasoned about by seed
     -- and iteration number instead of chased.
     local function makeRng(seed)

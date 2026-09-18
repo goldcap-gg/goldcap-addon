@@ -67,7 +67,7 @@ describe("Deals background verification", function()
   end
 
   -- Loads the real UI/SniperFrame.lua and hands back the internals these tests drive. The
-  -- getupvalue chains are the seam this file has (see addon/AGENTS.md): the module's state is
+  -- getupvalue chains are the seam this file has (see the addon's engineering notes): the module's state is
   -- all chunk-level locals, and every closure in the chunk shares the same upvalue cell, so
   -- setting one through any function sets it for all of them.
   local function loadSniper(decision)

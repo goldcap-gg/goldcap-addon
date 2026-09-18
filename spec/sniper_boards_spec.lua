@@ -36,7 +36,7 @@ describe("Deals boards: commodities and items", function()
   end
 
   -- Enough of a pooled row for the real setRowDeal to run against, copied from
-  -- spec/auto_verify_spec.lua rather than shared -- per addon/AGENTS.md's note on this pattern,
+  -- spec/auto_verify_spec.lua rather than shared -- per the addon's engineering notes' note on this pattern,
   -- a per-spec double keeps one spec's construction needs from perturbing another's.
   local function widget()
     local w = {}
@@ -68,7 +68,7 @@ describe("Deals boards: commodities and items", function()
   end
 
   -- Loads the real UI/SniperFrame.lua and hands back the board's own read path. Same seam every
-  -- other SniperFrame spec uses (see addon/AGENTS.md): the module's state is chunk-level
+  -- other SniperFrame spec uses (see the addon's engineering notes): the module's state is chunk-level
   -- locals, and every closure in the chunk shares one upvalue cell per local, so setting it
   -- through any function that reaches it sets it for all of them.
   local function loadSniper()

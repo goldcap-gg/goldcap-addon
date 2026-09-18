@@ -303,7 +303,7 @@ T.RAIL_W = 76
 -- SetTextureSliceMargins (nine-slice on a single texture, 10.2.0+ -- wiki:
 -- API_TextureBase_SetTextureSliceMargins) and recolored via SetVertexColor.
 -- White art + vertex color means one file serves every tint; regenerate the
--- PNGs with addon/tools/gen_art.py, never edit them by hand. Margins are 24
+-- PNGs with the project's gen_art.py, never edit them by hand. Margins are 24
 -- of the 64px file so the 16px corners survive any widget size.
 local CARD_SLICE = 24
 -- Small-radius sibling for plaque.png/plaque_ring.png (32px, radius 8), used

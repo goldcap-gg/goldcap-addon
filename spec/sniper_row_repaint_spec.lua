@@ -737,7 +737,7 @@ end)
 -- that pin. Escaping or clicking the title-bar X while a row was hovered left that pooled row
 -- excluded from every future refreshRows() forever after (OnLeave, which normally clears the
 -- pin, is not reliably delivered when a frame hides under a stationary cursor -- see
--- addon/AGENTS.md). Driven against a REAL createFrame()-built window via the same full-toc-load
+-- the addon's engineering notes). Driven against a REAL createFrame()-built window via the same full-toc-load
 -- recipe spec/sniper_panel_inset_spec.lua uses (`buildFrame()`), so this proves the actual
 -- registered OnHide script, not a synthetic stand-in for it.
 describe("Sniper window OnHide clears the hover pin", function()

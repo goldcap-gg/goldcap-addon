@@ -121,7 +121,7 @@ local function makeToggle(parent)
   -- at the 36x20 track it's sized to), additive blend, the same gold @ ~0.18 wash T.Button's own
   -- hover texture uses (Theme.lua's file-local HOVER_WASH isn't exported, so this is built from
   -- Theme.color.gold directly rather than duplicated as a second unlinked constant). Nothing is
-  -- painted in OnEnter/OnLeave -- addon/AGENTS.md's "never paint hover by hand" rule.
+  -- painted in OnEnter/OnLeave -- the addon's engineering notes' "never paint hover by hand" rule.
   cb:EnableMouse(true)
   local hover = cb:CreateTexture(nil, "HIGHLIGHT")
   hover:SetTexture(Theme.MEDIA .. "badge.png")

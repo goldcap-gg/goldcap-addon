@@ -2,7 +2,7 @@ local _, GC = ...
 
 -- Sniper fast loop, phase 1 (design doc §5 Board): the pure verdict-label and sort-order
 -- rules the board renders by, split out of UI/SniperFrame.lua so they are testable without a
--- frame -- that file is at its 200-local ceiling (see addon/AGENTS.md). Tier pills
+-- frame -- that file is at its 200-local ceiling (see the addon's engineering notes). Tier pills
 -- (HOT/GOOD/WATCH/SUSPECT) are gone from what the player reads; Core/DealMath.lua's tiers
 -- keep existing internally (the discovery-time pre-screen still uses them), never rendered
 -- on a row again once a verdict exists.

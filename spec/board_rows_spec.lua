@@ -3,7 +3,7 @@ local helper = require("spec.spec_helper")
 describe("BoardRows", function()
   local GC
 
-  -- No locale is ever active under busted (addon/AGENTS.md) -- GC.L's metatable falls back
+  -- No locale is ever active under busted (the addon's engineering notes) -- GC.L's metatable falls back
   -- to the key itself, which IS the enUS text, so nothing here needs to load or activate a
   -- locale file; helper.loadModule's own auto-load of Locale/Core.lua (triggered by the
   -- first loadModule call below) is all GC.L needs to exist.

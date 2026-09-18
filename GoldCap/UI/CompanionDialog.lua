@@ -17,7 +17,7 @@ local function createDialog()
   -- Reachable from a click inside the docked AH window (SniperFrame.lua's staleText banner),
   -- which sits at the AH's own strata with a much higher frame level than a bare MEDIUM frame --
   -- without this the dialog renders behind it. Same rule SniperFrame.lua/SellFrame.lua's own
-  -- dialogs follow (see AGENTS.md's "a popup needs three things" note).
+  -- dialogs follow (see the addon's engineering notes' "a popup needs three things" note).
   f:SetFrameStrata("DIALOG")
   f:SetMovable(true)
   f:EnableMouse(true)

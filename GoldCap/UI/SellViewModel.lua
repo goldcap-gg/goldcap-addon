@@ -412,7 +412,7 @@ function GC.SellViewModel.Expansion(position)
   -- "the day's reach" is what the item's own floor actually climbs to (import R section), and
   -- the cheap quarter is the fallback wording for an import that carries no reach figure yet.
   -- Both spelled out rather than picking a key into a variable: a key has to be a literal at
-  -- the lookup or the locale contract scanner cannot see it (addon/AGENTS.md).
+  -- the lookup or the locale contract scanner cannot see it (the addon's engineering notes).
   if isOvercut and rec.capBy == "reach" then
     facts[#facts + 1] =
       (GC.L["above the cheapest, within the day's reach · %d units queued below"]):format(rec.ahead)

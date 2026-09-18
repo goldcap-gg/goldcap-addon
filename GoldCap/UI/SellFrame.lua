@@ -1483,7 +1483,7 @@ local function quoteResolved(kind, itemID, unit, levels)
   emptyAnswers[itemID] = nil -- a real price supersedes any remembered GC.L["nothing listed"]
   -- Stamped from when the QUERY went out, not from now. The auction house's results events
   -- carry no request identifier, so a reply cannot be proven to belong to the request waiting
-  -- for it (addon/AGENTS.md says the same of commodity purchases) -- the drain fence below is
+  -- for it (the addon's engineering notes says the same of commodity purchases) -- the drain fence below is
   -- the best this file can do, and past DRAIN_MAX_SECONDS a lost reply can still be credited to
   -- a re-ask. Dating the quote from the ask errs the only safe way: it can make a price look
   -- older than it is, never fresher, so it ages out and is re-asked rather than backing a post.
@@ -2377,7 +2377,7 @@ local PRICE_CHIP_LABELS = {
   "MATCH", "UNDERCUT", "MARKET", "COST",
 }
 -- What each slot fills from. The SLOT is the stable key the click handler switches on, never
--- the label -- a translated label would look up nothing (addon/AGENTS.md's own rule).
+-- the label -- a translated label would look up nothing (the addon's engineering notes' own rule).
 local PRICE_CHIP_IDS = { "match", "under", "market", "cost" }
 
 -- The footer ledger's three labels, same split as PRICE_CHIP_LABELS/PRICE_CHIP_IDS above and
@@ -3279,7 +3279,7 @@ renderRows = function()
         -- to a new position on every render (renderRows reuses `rows[i]` rather than creating a
         -- fresh cell each time -- see createRow's own call site), so a row painted gold or red
         -- here on one render and left uncolored on the next would carry that tint into whatever
-        -- unrelated number lands in the same slot afterward. Same failure class AGENTS.md
+        -- unrelated number lands in the same slot afterward. Same failure class the addon's engineering notes
         -- already documents for hover fills painted in OnEnter and never cleared in OnLeave.
         if type(profit) == "number" and exact(p.profitAtHold) then
           -- Whole gold only: "@ 18g15s" was precisely the tail the column cut
@@ -4033,7 +4033,7 @@ function GC.Sell.Attach(f, geometry)
   container.filterButtons = {}
   local previous = refreshButton
   -- State on the chip itself: SetVariant, never a second overlaid button (one control, two
-  -- variants -- see addon/AGENTS.md on buttons).
+  -- variants -- see the addon's engineering notes on buttons).
   local function paintFilterChips()
     for _, id in ipairs(CHIP_IDS) do
       local chip = container.filterButtons[id]

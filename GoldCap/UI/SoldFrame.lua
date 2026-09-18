@@ -199,7 +199,7 @@ local function headerText(key) return GC.L[HEADER_TEXT[key] or ""] end
 -- flex ("item") column's anchor pair for the caller to anchor the item
 -- text's RIGHT edge to. Identical in shape to SniperFrame's anchorColumns --
 -- duplicated rather than shared, the same way SellFrame's own column layout
--- is its own copy: these locals do not cross files (see addon/AGENTS.md on
+-- is its own copy: these locals do not cross files (see the addon's engineering notes on
 -- why the file has stayed unsplit).
 local function anchorColumns(host, hidden, cellFor)
   local prev, prevPoint = host, "RIGHT"
@@ -524,7 +524,7 @@ createRow = function(parent)
 
   -- Hover: the real engine HIGHLIGHT draw layer, shown/hidden by the client
   -- itself for as long as the cursor is over a mouse-enabled frame -- never
-  -- an OnEnter/OnLeave repaint (addon/AGENTS.md's "Buttons and hover").
+  -- an OnEnter/OnLeave repaint (the addon's engineering notes' "Buttons and hover").
   local hc = Theme.color.hover
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetTexture(Theme.MEDIA .. "plaque.png")

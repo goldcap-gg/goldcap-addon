@@ -19,14 +19,10 @@ manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown
 ignore:
-  - AGENTS.md
   - CHANGELOG.md
   - LICENSE
   - README.md
   - spec
-  - store
-  - STORE.md
-  - tools
   - .busted
   - .github
   - .luacheckrc
