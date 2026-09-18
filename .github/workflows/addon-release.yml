@@ -61,11 +61,18 @@ jobs:
           # upload to CurseForge or Wago, which is what makes a
           # workflow_dispatch run safe to use as a rehearsal.
           args: ${{ github.event_name == 'workflow_dispatch' && '-d -t . -m .pkgmeta -r ./.release' || '-t . -m .pkgmeta -r ./.release' }}
+      # include-hidden-files, or this uploads nothing: packager writes into
+      # `.release/`, and upload-artifact v4+ skips hidden paths by default —
+      # it warned and moved on, so a dry run produced no zip to look at, which
+      # is the only thing a dry run is for. if-no-files-found: error so the
+      # next way this breaks is red instead of quiet.
       - uses: actions/upload-artifact@v7
         if: github.event_name == 'workflow_dispatch'
         with:
           name: goldcap-addon
           path: .release/*.zip
+          include-hidden-files: true
+          if-no-files-found: error
 
       # The announcement said a new build exists and nothing about what is IN it,
       # which is the only part a player reads -- so #changelog carried a release
