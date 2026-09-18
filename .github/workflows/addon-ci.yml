@@ -25,3 +25,28 @@ jobs:
       - uses: leafo/gh-actions-luarocks@v4
       - run: luarocks install busted
       - run: busted
+
+  # The release announcement carries its own copy of the CurseForge URL — a
+  # workflow cannot import a constant — and it once carried the wrong one:
+  # `/goldcap` rather than `/goldcap-gg`. That slug belongs to an unrelated
+  # addon abandoned in 2014, so every release told the Discord server to go
+  # look at a stranger's dead project. Nothing failed; the link simply worked
+  # and pointed somewhere else. This compares it against the listing link in
+  # the README, which is the one a human actually checks.
+  announce-url:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: The release announcement links to our own listing
+        run: |
+          set -euo pipefail
+          announced=$(grep -oE 'https://www\.curseforge\.com/wow/addons/[a-z0-9-]+' \
+            .github/workflows/addon-release.yml | sort -u)
+          documented=$(grep -oE 'https://www\.curseforge\.com/wow/addons/[a-z0-9-]+' \
+            README.md | sort -u)
+          echo "announced: $announced"
+          echo "README:    $documented"
+          [ -n "$announced" ] || { echo "::error::addon-release.yml announces no CurseForge URL"; exit 1; }
+          [ "$announced" = "$documented" ] \
+            || { echo "::error::the announced listing and the README's disagree"; exit 1; }
