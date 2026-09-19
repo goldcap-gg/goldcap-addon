@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.12.3 (unreleased)
+## 0.12.3 (2026-09-19)
 
 - **The Sell tab leaves the auction house to you and your other addons.** It kept re-pricing
   your items every few seconds, so Auctionator's selling and shopping tabs sat on "Fetching item
