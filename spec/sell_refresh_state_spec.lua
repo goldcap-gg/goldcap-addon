@@ -764,6 +764,35 @@ describe("Sell refresh state fence", function()
     assert.same({ 77, 78 }, sent.keys)
   end)
 
+  -- The pause left the pass waiting on a key it had stopped asking about, with that key's
+  -- 10-second timeout still armed. Posting takes longer than that, so the timeout fired under the
+  -- pause -- even with the key already in -- and wrote the item off as not having answered: no
+  -- price after the pause, "1 did not answer", and a minute's rest before anybody asked again.
+  it("does not write off the key it was waiting on while the player is busy", function()
+    local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local keyed = false
+    local GC = load(now, sent, cache, function() return keyed and { isCommodity = true } or nil end)
+    local busy = false
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("waiting_key", refreshState(GC).phase)
+    busy = true
+    keyed = true
+    GC.Sell.OnItemKeyInfo(42) -- the key lands under the pause: nothing is sent
+    assert.same({}, sent.keys)
+    now.value = 111
+    for _, timer in ipairs(timers) do if timer.seconds == 10 then timer.callback() end end
+    assert.equal(0, refreshState(GC).skipped)
+
+    busy = false
+    GC.Sell.OnThrottleReady()
+    assert.same({ 42 }, sent.keys) -- asked for real once the player is done
+  end)
+
   it("does not hold a click behind a paused queue item that is waiting on its key", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local keyed = { [77] = true }

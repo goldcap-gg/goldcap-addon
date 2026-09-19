@@ -1231,6 +1231,14 @@ advanceQuote = function()
     itemID, fromPriority = refresh.queue[refresh.index + 1], false
   end
   if playerBusy and not fromPriority then
+    -- Let go of a key the pass was waiting on, timeout and all: left armed, it fired under the
+    -- pause -- posting outlasts it -- and wrote the item off as never having answered, even
+    -- with the key already in. It is still queue[index + 1], and is asked for again from there.
+    if refresh.awaiting and not refresh.awaitingPriority then
+      refresh.awaiting, refresh.awaitingPriority = nil, nil
+      refresh.phase = "pricing"
+      keyTimeoutToken = keyTimeoutToken + 1
+    end
     markProgress()
     setStatus(GC.L["Pricing paused while you use the Auction House"])
     retryLater()
