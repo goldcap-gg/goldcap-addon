@@ -306,6 +306,7 @@ GC.Locales.ruRU = {
   ["Prices up to date"] = "Цены актуальны",
   ["Prices up to date · %d did not answer"] = "Цены актуальны · %d не ответили",
   ["Pricing %d/%d…"] = "Оцениваем %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Оценка на паузе, пока вы пользуетесь аукционом",
   ["Pricing…"] = "Оцениваем…",
   ["Profit"] = "Прибыль",
   ["Profit per unit"] = "Прибыль за штуку",

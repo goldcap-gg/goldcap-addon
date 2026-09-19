@@ -350,6 +350,7 @@ GC.Locales.enUS = {
   ["Prices up to date"] = "Prices up to date",
   ["Prices up to date · %d did not answer"] = "Prices up to date · %d did not answer",
   ["Pricing %d/%d…"] = "Pricing %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Pricing paused while you use the Auction House",
   ["Pricing…"] = "Pricing…",
   ["Profit"] = "Profit",
   ["Profit per unit"] = "Profit per unit",
