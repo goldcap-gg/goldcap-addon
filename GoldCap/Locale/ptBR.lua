@@ -308,6 +308,7 @@ GC.Locales.ptBR = {
   ["Prices up to date"] = "Preços atualizados",
   ["Prices up to date · %d did not answer"] = "Preços atualizados · %d não responderam",
   ["Pricing %d/%d…"] = "Consultando preços %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Consulta de preços pausada enquanto você usa a casa de leilões",
   ["Pricing…"] = "Consultando preços…",
   ["Profit"] = "Lucro",
   ["Profit per unit"] = "Lucro por unidade",

@@ -292,6 +292,7 @@ GC.Locales.koKR = {
   ["Prices up to date"] = "시세가 최신입니다",
   ["Prices up to date · %d did not answer"] = "시세가 최신입니다 · %d건은 응답 없음",
   ["Pricing %d/%d…"] = "가격 조회 %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "경매장을 사용하는 동안 가격 조회 일시 중지",
   ["Pricing…"] = "가격 조회 중…",
   ["Profit"] = "수익",
   ["Profit per unit"] = "개당 수익",

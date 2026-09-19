@@ -1,5 +1,17 @@
 # GoldCap
 
+## 0.12.3 (2026-09-19)
+
+- **The Sell tab leaves the auction house to you and your other addons.** It kept re-pricing
+  your items every few seconds, so Auctionator's selling and shopping tabs sat on "Fetching item
+  info…" waiting for their turn. It now pauses while you post, buy or search on the auction house
+  — in Blizzard's own tabs or another addon's — and while the GoldCap window is closed, then
+  carries on by itself. Pressing Post on a row still checks that item's price straight away.
+- **An item you open on the auction house keeps its prices.** With a commodity or item page open
+  from Blizzard's Browse list, turning on Auto — or anything else GoldCap searches in the
+  background — could send that page back to "Searching…" for good. GoldCap now waits until you
+  go back.
+
 ## 0.12.2 (2026-09-16)
 
 - **The SOLD tab's column headings draw again.** QTY, UNIT, TOTAL and PROFIT

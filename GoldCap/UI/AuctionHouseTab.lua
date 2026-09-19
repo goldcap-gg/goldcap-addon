@@ -201,7 +201,17 @@ local function installSetDisplayModeHook(ah)
   if hookedTabs or not ah.SetDisplayMode then return end
   hookedTabs = true
   if type(ah.SelectBrowseResult) == "function" then
-    selectHooked = pcall(hooksecurefunc, ah, "SelectBrowseResult", function() playerSelectedAt = time() end) and true or false
+    -- SelectBrowseResult opens the page by calling SetDisplayMode as its last line
+    -- (Blizzard_AuctionHouseFrame.lua, read verbatim), and a post-hook runs only once the whole
+    -- function has returned -- so the SetDisplayMode hook below has already judged the page
+    -- this click opened, before the click was stamped, and judged it ours. Every page the player
+    -- clicked open read as provoked: PlayerIsBuying stayed false under their own buy page, and
+    -- the background senders it gates wiped that page's results mid-read ("Searching..." for
+    -- good, seen in game). The click is the proof, so it settles the page it opened.
+    selectHooked = pcall(hooksecurefunc, ah, "SelectBrowseResult", function()
+      playerSelectedAt = time()
+      provokedBuyMode = false
+    end) and true or false
   end
   pcall(hooksecurefunc, ah, "SetDisplayMode", function(_, mode)
     -- SetDisplayMode itself resolves a Sell-family request (ItemSell/CommoditiesSell/
