@@ -788,6 +788,29 @@ describe("Sell refresh state fence", function()
     assert.same({ 77, 42 }, sent.keys) -- and is picked up again from where the pass left it
   end)
 
+  -- The Sell content's own shown flag says which tab of the window is up, not whether the
+  -- window is: hiding a parent leaves a child's flag alone. So with the window closed on the Sell
+  -- tab -- or docked and hidden because the player picked another auction-house tab -- the walk
+  -- went on pricing a screen nobody could see.
+  it("does not price while the GoldCap window itself is closed", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local parked = upvalue(advance, "walkParked")
+    set(GC.Sell.Attach, "renderRows", function() end)
+    set(parked, "container", { IsShown = function() return true end })
+    local windowShown = false
+    GC.Sniper.IsWindowShown = function() return windowShown end
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({}, sent.keys)
+    assert.equal("idle", refreshState(GC).phase)
+
+    windowShown = true
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+  end)
+
   -- OWNED_AUCTIONS_UPDATED and AUCTION_CANCELED fire on their own schedule -- a lot expiring, a
   -- cancel from the Blizzard panel -- and every one of them used to stamp the walk's progress,
   -- which kept the watchdog quiet over a pricing request that was never coming back.

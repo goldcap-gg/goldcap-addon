@@ -977,8 +977,15 @@ end
 -- attached. `composePositions()`/`GC.Sell.Refresh()` run regardless of which tab the player
 -- is looking at (bag counts and the tab badge stay current either way) -- this is the
 -- narrower check that guards the expensive part, rebuilding the visible ROWS.
+--
+-- The container's own flag answers only which tab of the window is up: hiding a parent leaves a
+-- child's shown flag alone. So the window is asked too -- closed with its X or Escape while on
+-- Sell, or docked and hidden because the player picked another auction-house tab, the walk used
+-- to carry on pricing a screen nobody could see. Reopening it runs GC.Sell.Refresh
+-- (GC.Sniper.Toggle), which is what picks the walk and any deferred render back up.
 local function containerShown()
-  return container ~= nil and container.IsShown and container:IsShown()
+  if not (container ~= nil and container.IsShown and container:IsShown()) then return false end
+  return not (GC.Sniper and GC.Sniper.IsWindowShown) or GC.Sniper.IsWindowShown()
 end
 
 local function tabIsLive()
