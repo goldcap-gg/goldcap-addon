@@ -2656,7 +2656,7 @@ layoutDetailRow = function(row)
   -- A purchase is two lines by construction (see the batch branch in renderRows), so neither
   -- wraps; every other line is one sentence allowed a second line when the panel is narrower
   -- than it, with air between the two.
-  local twoLine = row.kind == "batch"
+  local twoLine = row.kind == "batch" and (row.itemStock:GetText() or "") ~= ""
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
   row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, twoLine and 7 or 0)
@@ -2899,7 +2899,8 @@ local function createRow(parent)
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
-    elseif GameTooltip and self.kind == "group" and self.groupHint and self.groupHint ~= "" then
+    elseif GameTooltip and (self.kind == "group" or self.kind == "batch")
+        and self.groupHint and self.groupHint ~= "" then
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
       GameTooltip:AddLine(self.groupHint, 0.85, 0.85, 0.85, true)
       GameTooltip:Show()
@@ -4127,7 +4128,14 @@ renderRows = function()
         end
         rest[#rest + 1] = row.cells.status:GetText()
         row.subItem:SetText(table.concat(head, " · "))
-        row.itemStock:SetText(table.concat(rest, " · "))
+        -- The second line is drawn only when it changes how far the cost above it can be
+        -- trusted: a cost matched to the mail's own invoice is the ordinary case and needs no
+        -- saying on every purchase, whereas "captured", "unknown evidence" or a figure typed
+        -- by hand is exactly what a seller should see before leaning on it. The whole line is
+        -- on the row's hover either way.
+        local settled = entry.batch.evidence == "mail-confirmed" and entry.batch.source ~= "manual"
+        row.itemStock:SetText(settled and "" or table.concat(rest, " · "))
+        row.groupHint = table.concat(rest, " · ")
         -- Only a hand-entered cost gets a removal affordance -- goldcap and auction_house
         -- batches are evidence-backed, and Core/Acquisitions' own RemoveManual already refuses
         -- them, but the button should never even offer the click. entry.batch.source is the one

@@ -1785,7 +1785,10 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("400", rows[4].cells.listed.text)
     -- The evidence word is on a purchase's second line in the panel.
     assert.match("captured", rows[6].itemStock.text)
-    assert.match("mail%-confirmed", rows[7].itemStock.text)
+    -- An invoice-backed cost is the ordinary case: its line is not drawn, only kept for the
+    -- hover. The ones that ARE drawn are the ones a seller should look at before trusting.
+    assert.equal("", rows[7].itemStock.text)
+    assert.match("mail%-confirmed", rows[7].groupHint)
     assert.match("manual", rows[8].itemStock.text)
     assert.match("unknown evidence", rows[9].itemStock.text)
   end)
