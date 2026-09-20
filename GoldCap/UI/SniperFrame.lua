@@ -204,6 +204,12 @@ LIM.DRILL_PER_MINUTE = 60
 -- (20 listings over 10 passes, measured in game), while the Items board kept only the
 -- answers that happened to arrive fast.
 LIM.KEYS_TIMEOUT_SECONDS = 30
+-- The Sell tab's bulk fill is the one owner that stops wanting its answer sooner: its walk
+-- stands still for eight seconds (GC.Sell.BulkOutstanding in UI/SellFrame.lua -- keep the two
+-- equal) and then searches on, and a search sent over an unanswered keys call cancels its
+-- answer. Held for the full thirty, a REFRESH on Sell followed by a switch to Deals kept the
+-- board waiting half a minute for rows nobody was going to read.
+LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- The Items board's own loop: once a poll cycle has visited every target, the next one starts
 -- this many seconds later. The cycle used to restart only when a book pass began, and the
 -- pass is paused for as long as the Items board is on screen -- so the board polled its set
@@ -4540,7 +4546,9 @@ end
 function GC.Sniper._KeysOutstanding()
   local sentAt = GC.Sniper._keysAwaiting
   if not sentAt then return false end
-  if (time() - sentAt) < LIM.KEYS_TIMEOUT_SECONDS then return true end
+  local limit = GC.Sniper._keysOwner == "sell" and LIM.KEYS_SELL_TIMEOUT_SECONDS
+    or LIM.KEYS_TIMEOUT_SECONDS
+  if (time() - sentAt) < limit then return true end
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
