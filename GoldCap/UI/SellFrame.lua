@@ -2541,7 +2541,10 @@ local SUMMARY_STAT_IDS = { "profit", "listed", "cost" }
 local BOOK_BAR_H = 6
 -- Queue marks under a row's price: one per price level, counted from the cheapest. Five is
 -- where a seller stops caring which level exactly -- past that the words beside them carry it.
-local ROW = { MARKS = 5 }
+-- H is a POSITION row's height in the list -- taller than the list's 32px pitch, which every
+-- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
+-- room. LIFT is how far each of the two lines sits from the row's centre.
+local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26 }
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
 -- seller is here for -- at the default 720px window all three would leave the line beside the
@@ -2822,13 +2825,13 @@ local function layoutCells(row)
       -- header row and every sub-row keep the whole box, centred, because they carry one line.
       -- 8, not 7: at Theme.Scale 1.3 a 12px name is ~15.6 tall and a 10px stock line ~13, so
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
-      local nameY = row.itemStock and 8 or 0
+      local nameY = row.itemStock and ROW.LIFT or 0
       cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
       cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
       if row.itemStock then
         row.itemStock:ClearAllPoints()
-        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -8)
-        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -8 - rightLift)
+        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -ROW.LIFT)
+        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -ROW.LIFT - rightLift)
       end
       -- The column header row (below) shares this function but carries neither widget -- it is
       -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
@@ -2854,11 +2857,11 @@ local function layoutCells(row)
       -- A position's figures share the row with a second line, exactly as its name does with the
       -- stock line (same +-8 split, same reason). Every other kind keeps the cell centred.
       local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
-      local lift = second and 8 or 0
+      local lift = second and ROW.LIFT or 0
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, lift - rightLift)
       if second then
         second:ClearAllPoints()
-        second:SetPoint("RIGHT", cell, "RIGHT", 0, -16)
+        second:SetPoint("RIGHT", cell, "RIGHT", 0, -2 * ROW.LIFT)
       end
       right, rightLift = cell, lift
       cell:Show()
@@ -2955,7 +2958,7 @@ local function createRow(parent)
   row.spine:SetColorTexture(gc[1], gc[2], gc[3], 0.45)
   row.spine:Hide()
   row.icon = row:CreateTexture(nil, "ARTWORK")
-  row.icon:SetSize(18, 18)
+  row.icon:SetSize(ROW.ICON, ROW.ICON)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
@@ -3850,9 +3853,11 @@ renderRows = function()
       local offset = entry.panel and detailHeight or placedHeight
       row:Show(); row:ClearAllPoints()
       row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
-      row:SetHeight(slots * ROW_HEIGHT)
-      if entry.panel then detailHeight = detailHeight + slots * ROW_HEIGHT
-      else placedHeight = placedHeight + slots * ROW_HEIGHT; listIndex = listIndex + 1 end
+      -- A position in the list is ROW.H tall; everything else keeps the slot pitch.
+      local height = (entry.kind == "position" and not entry.panel) and ROW.H or slots * ROW_HEIGHT
+      row:SetHeight(height)
+      if entry.panel then detailHeight = detailHeight + height
+      else placedHeight = placedHeight + height; listIndex = listIndex + 1 end
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       -- Read by this row's own OnEnter (below) to decide whether to add a tooltip line about the
       -- number this row is showing. Reset for every kind, not just "position": rows are pooled
@@ -4366,8 +4371,15 @@ renderRows = function()
         for _, chip in ipairs(row.priceChips) do chip:Hide() end
         -- The head dresses the pooled action button as the panel's own Post; every other kind
         -- gets the row button back.
-        row.action:SetSize(86, 18)
+        -- ...at the row's own height for a position, where it is the control the row exists for.
+        row.action:SetSize(86, entry.kind == "position" and ROW.BUTTON_H or 18)
         if row.action.SetVariant then row.action:SetVariant("ghost") end
+        -- Gold lettering on the row's Post, the way the design drew it: the fill stays the
+        -- quiet ghost, so a list of ten does not become ten gold bars.
+        if entry.kind == "position" and row.action.text and row.action.text.SetTextColor then
+          local gold = Theme.color.goldHi or Theme.color.gold
+          row.action.text:SetTextColor(gold[1], gold[2], gold[3], 1)
+        end
       end
       if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end
       -- Same rule, and the drawer has the most to put away: five book lines and four headings.
@@ -4408,7 +4420,7 @@ renderRows = function()
         -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old
         -- unconditional 26 left the name floating in a blank gap for a row with no
         -- resolvable icon.
-        row.itemInset = icon and 26 or 0
+        row.itemInset = icon and (ROW.ICON + 10) or 0
         if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
       elseif entry.kind == "fold" then
         -- A heading in the list's own column, not a child of the row above it: no spine, no
@@ -5196,7 +5208,7 @@ function GC.Sell.Attach(f, geometry)
   container.header = header
   container.headerDeck = "post"
   header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", 0, -34); header:SetHeight(16); header.cells = {}
-  header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
+  header.itemInset = ROW.ICON + 10 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(""); header.cells[column.key] = cell
     -- One line, hard capped -- the pair every other single-line cell in the kit carries

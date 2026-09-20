@@ -290,7 +290,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED" },
     })
-    assert.equal(26, rows[1].itemInset)
+    assert.equal(38, rows[1].itemInset) -- a 28px icon and its gap
     -- MINOR-5 (fix round 1): no inline `_G.C_Item = nil` here on purpose -- the file's own
     -- after_each (top of this describe block) already clears it unconditionally, even if an
     -- assertion above this point had failed. A cleanup line living only on this test's last
@@ -1216,11 +1216,14 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(row.cells.price, row.cells.item.points[2].relative)
       -- A position's two figures sit in the upper half, their second lines in the lower one.
       -- Offsets are relative to the neighbour a cell hangs off, so a lifted neighbour must not
-      -- lift it a second time: YOU GET rises 8 off the button, the price 0 off YOU GET.
-      assert.equal(8, row.cells.gross.points[1].y)
+      -- lift it a second time: YOU GET rises 10 off the button, the price 0 off YOU GET.
+      assert.equal(10, row.cells.gross.points[1].y)
       assert.equal(0, row.cells.price.points[1].y)
       assert.equal(0, row.cells.item.points[2].y)
-      assert.equal(-16, row.itemStock.points[2].y)
+      assert.equal(-20, row.itemStock.points[2].y)
+      -- A position is 44px tall whatever the list's slot pitch, with a button to match.
+      assert.equal(44, row.height)
+      assert.equal(26, row.action.height)
       assert.equal(row.cells.price, row.priceStand.points[1].relative)
       assert.equal(row.cells.gross, row.grossNote.points[1].relative)
       assert.equal(header, header.cells.action.points[1].relative)
@@ -1235,7 +1238,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal(width >= 880 and width - 340 - 28 or width, content.width)
       assert.is_true(container.inspector.shown)
       -- The list does not grow by a single row when a position opens -- that is the point.
-      assert.equal(1 * 24, content.height)
+      assert.equal(44, content.height)
       -- Eleven slots in the panel: a seven-slot head (this position has nothing in the bags, so
       -- no price control, and no book, so no room kept for its levels), the auction-house
       -- heading, its lot, the purchase heading and its batch. A scroll child sized by entry
