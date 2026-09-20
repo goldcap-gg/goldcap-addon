@@ -1,5 +1,19 @@
 # GoldCap
 
+## 0.13.0 (unreleased)
+
+- **The Sell tab knows what your crafts cost.** Craft with materials GoldCap saw
+  you buy and the finished item carries their price, with multicraft extras and
+  returned materials counted as they actually landed — so profit, breakeven and
+  the repost advice work on what you make, not just on what you flip. The
+  materials leave your stock at the same moment, instead of sitting there as
+  goods you no longer have.
+- **A craft GoldCap cannot price stays empty, not guessed.** Materials you
+  gathered yourself or bought from a vendor have no price it can see, so those
+  crafts keep no cost at all rather than being given a made-up one. `/gc craft`
+  says what the last few crafting sessions did, and why any of them recorded
+  nothing.
+
 ## 0.12.2 (2026-09-16)
 
 - **The SOLD tab's column headings draw again.** QTY, UNIT, TOTAL and PROFIT

@@ -4,10 +4,12 @@ GC.SellViewModel = {}
 
 -- Compact provenance tokens, not prose -- they sit inside a cell beside a quantity, and they
 -- double as the chip filter's own mode names (Filter below). `goldcap_buy` is a BUY-tab run
--- purchase (UI/BuyFrame.lua): a source with no entry here is invisible to SourceText, which then
--- reports a position whose cost is fully known as "Missing cost".
-local SOURCE_LABELS = { goldcap = "GC", auction_house = "AH", goldcap_buy = "BUY", manual = "MANUAL" }
-local SOURCE_ORDER = { "goldcap", "auction_house", "goldcap_buy", "manual" }
+-- purchase (UI/BuyFrame.lua) and `craft` is a crafting session (Core/CraftCapture.lua): a
+-- source with no entry here is invisible to SourceText, which then reports a position whose
+-- cost is fully known as "Missing cost".
+local SOURCE_LABELS = { goldcap = "GC", auction_house = "AH", goldcap_buy = "BUY",
+  craft = "CRAFT", manual = "MANUAL" }
+local SOURCE_ORDER = { "goldcap", "auction_house", "goldcap_buy", "craft", "manual" }
 
 local function copy(values)
   local result = {}

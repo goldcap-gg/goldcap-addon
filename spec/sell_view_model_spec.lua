@@ -16,6 +16,19 @@ describe("Sell view model", function()
     assert.same({ position }, GC.SellViewModel.Filter({ position }, "auction_house"))
   end)
 
+  it("names a crafted batch's provenance", function()
+    -- A source with no entry in SOURCE_LABELS is invisible to SourceText, which then calls a
+    -- position whose cost is fully known "Missing cost".
+    local position = { positionKey = "commodity:500", sources = { craft = 4 }, coverage = "COMPLETE" }
+    assert.equal("CRAFT ×4", GC.SellViewModel.SourceText(position))
+    assert.same({ position }, GC.SellViewModel.Filter({ position }, "craft"))
+  end)
+
+  it("orders a craft after what was bought and before what was typed in", function()
+    assert.equal("AH ×2 · CRAFT ×4 · MANUAL ×1", GC.SellViewModel.SourceText({
+      sources = { auction_house = 2, craft = 4, manual = 1 }, coverage = "COMPLETE" }))
+  end)
+
   it("renders unknown summary instead of zero profit", function()
     local text = GC.SellViewModel.SummaryText({ knownCost = 1000,
       listedValue = 2000, profit = nil, partialCount = 1, unknownCount = 2 })
