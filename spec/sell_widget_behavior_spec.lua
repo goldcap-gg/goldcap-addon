@@ -944,8 +944,8 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("cheapest not yours", drawer.drawerHint.text, 1, true)
       -- How deep the book is follows where the price stands in it, under the levels: beside
       -- the heading there is room for the price to beat and nothing else.
-      assert.matches("1062 units", drawer.drawerStand.text, 1, true)
-      assert.matches("4 prices", drawer.drawerStand.text, 1, true)
+      assert.matches("1062 units", drawer.drawerDepth.text, 1, true)
+      assert.matches("4 prices", drawer.drawerDepth.text, 1, true)
       -- The colour key is no longer a sentence in the hint: each level that needs one says it
       -- in a word of its own (see the colouring test below).
       assert.is_nil(drawer.drawerHint.text:find("gold is", 1, true))
@@ -1598,7 +1598,9 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("drawer", rows[2].kind)
     -- Plain-language detail line: market state, competition, velocity and time to clear. It no
     -- longer opens by naming the allocation rule, which told a seller nothing.
-    assert.match("quote 7s ago · 3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
+    -- Split the way it is read: the queue and the velocity on the left, the quote's age right.
+    assert.equal("3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
+    assert.equal("quote 7s ago", rows[2].drawerQuote.text)
     assert.equal("Repost @ 149", rows[2].subItem.text)
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
@@ -1864,8 +1866,11 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     assert.equal("drawer", rows[2].kind)
-    assert.match("market 150 · fresh · age 3s", rows[2].drawerFacts.text)
-    assert.same({ 1, 1, 1, 1 }, rows[2].drawerFacts.color)
+    -- No book here, so the market price is said in words; the quote's state and age sit at
+    -- the right end of the same line, dim while it is fresh.
+    assert.equal("market 150", rows[2].drawerFacts.text)
+    assert.equal("fresh · age 3s", rows[2].drawerQuote.text)
+    assert.same({ .5, .5, .5, 1 }, rows[2].drawerQuote.color)
   end)
 
   it("[WAVE2 I4] keeps a visible stale quote after timer recomposition and never acts on it", function()
@@ -1920,8 +1925,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then freshDetail = row end
     end
-    assert.match("market 150 · fresh · age 0s", freshDetail.drawerFacts.text)
-    assert.same({ 1, 1, 1, 1 }, freshDetail.drawerFacts.color)
+    assert.equal("market 150", freshDetail.drawerFacts.text)
+    assert.equal("fresh · age 0s", freshDetail.drawerQuote.text)
+    assert.same({ .5, .5, .5, 1 }, freshDetail.drawerQuote.color)
 
     now.value = 151
     assert.equal(2, #timers) -- the expansion render fences the older expiry callback
@@ -1937,8 +1943,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then staleDetail = row end
     end
-    assert.match("market 150 · stale · age 51s", staleDetail.drawerFacts.text)
-    assert.same({ .5, .5, .5, 1 }, staleDetail.drawerFacts.color)
+    -- A stale quote is the one thing at the foot of the book worth a second look: red.
+    assert.equal("stale · age 51s", staleDetail.drawerQuote.text)
+    assert.same({ 1, 0, 0, 1 }, staleDetail.drawerQuote.color)
 
     -- Item 42 is unlisted and item 43 is a live lot, so they sit on opposite decks: everything
     -- above is the post deck's half of this test, everything below is the listed deck's. One

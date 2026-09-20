@@ -2624,12 +2624,16 @@ local function layoutDrawer(row)
 
   local foot = body - DR.LINES * DR.LINE_H - 4
   row.drawerStand:ClearAllPoints()
+  row.drawerDepth:ClearAllPoints()
+  row.drawerDepth:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 1)
   row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
-  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerStand:SetPoint("RIGHT", row.drawerDepth, "LEFT", -8, 0)
   row.drawerStand:SetWordWrap(false)
+  row.drawerQuote:ClearAllPoints()
+  row.drawerQuote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 18)
   row.drawerFacts:ClearAllPoints()
   row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 18)
-  row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerFacts:SetPoint("RIGHT", row.drawerQuote, "LEFT", -8, 0)
   row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(true)
   row.drawerFacts:SetMaxLines(2)
@@ -3015,6 +3019,12 @@ local function createRow(parent)
   row.drawerStand:SetJustifyH("LEFT")
   row.drawerFacts = Theme.Num(row, 9)
   row.drawerFacts:SetJustifyH("LEFT")
+  -- The right-hand ends of the two lines under the book: how deep it is, how old the quote is.
+  row.drawerDepth = Theme.Num(row, 9)
+  row.drawerQuote = Theme.Num(row, 9)
+  for _, line in ipairs({ row.drawerDepth, row.drawerQuote }) do
+    line:SetWordWrap(false); setColor(line, Theme.color.fgDim); line:Hide()
+  end
   row.drawerFacts:SetWordWrap(false)
   row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
   row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
@@ -3441,6 +3451,10 @@ function INSP.paintHead(row, p, d)
       local lit = (chip.handsBack and not chosen) or (source ~= nil and typed == source)
       if chip.SetVariant then chip:SetVariant(lit and "active" or "ghost") end
       if source or chip.handsBack then chip:Enable() else chip:Disable() end
+      -- A segment of the strip behind it, not a pill of its own: only the one in force keeps
+      -- a fill. After Enable/Disable on purpose -- the kit repaints the fill on both.
+      if chip.bg and not lit then chip.bg:SetVertexColor(1, 1, 1, 0) end
+      if chip.ring then chip.ring:Hide() end
       chip:Show()
     end
   else
@@ -3493,13 +3507,14 @@ function INSP.paintHead(row, p, d)
     end
     -- How deep the book is rides here, after where the price stands in it: the hint beside the
     -- heading has room for the price to beat and nothing else.
-    local depth = DIM_HEX .. " · " .. (GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0) .. "|r"
+    row.drawerDepth:SetText((GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0))
+    row.drawerDepth:Show()
     if book.yourRow then
       row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
-        book.yourRow, book.levels or 0) .. depth)
+        book.yourRow, book.levels or 0))
       setColor(row.drawerStand, Theme.color.goldHi)
     else
-      row.drawerStand:SetText(GC.L["your price is above every level shown"] .. depth)
+      row.drawerStand:SetText(GC.L["your price is above every level shown"])
       setColor(row.drawerStand, Theme.color.fgDim)
     end
   else
@@ -3508,20 +3523,25 @@ function INSP.paintHead(row, p, d)
     for _, line in ipairs(row.bookLines) do
       line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
     end
+    row.drawerDepth:Hide()
     row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
     setColor(row.drawerStand, Theme.color.fgDim)
   end
   row.drawerStand:Show()
 
-  -- ---- the bottom line: exactly what the separate "detail" row carried.
-  local facts = {}
+  -- ---- the foot of the book section, split the way it is read: how fast this sells and how
+  -- long the queue is on the left, how old the quote behind all of it is on the right. It was
+  -- one run-on line ("market 199g97s . fresh . age 12s . ...") led by a price the book's own
+  -- first level and the hint beside the heading both already show.
+  local facts, quote = {}, nil
   if d and d.displayMarketUnit ~= nil then
-    local lead = ("market %s · %s"):format(formatCell(d.displayMarketUnit),
-      d.marketState or "unavailable")
-    if type(d.quoteAge) == "number" then lead = lead .. (" · age %ss"):format(d.quoteAge) end
-    facts[#facts + 1] = lead
+    -- The market price is said in words only when there is no book to read it off: with one,
+    -- it is the first level and the hint beside the heading.
+    if not book then facts[#facts + 1] = ("market %s"):format(formatCell(d.displayMarketUnit)) end
+    quote = d.marketState or "unavailable"
+    if type(d.quoteAge) == "number" then quote = quote .. (" · age %ss"):format(d.quoteAge) end
   elseif d and type(d.quoteAge) == "number" then
-    facts[#facts + 1] = (GC.L["quote %ss ago"]):format(d.quoteAge)
+    quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
   if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
   if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
@@ -3533,10 +3553,13 @@ function INSP.paintHead(row, p, d)
   end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
-    or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…"))
-  setColor(row.drawerFacts, (#facts == 0 or (d and d.marketStale))
-    and Theme.color.fgDim or Theme.color.fg)
+    or (quote and "" or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…")))
+  setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
+  -- A stale quote is the one thing down here worth a second look, so it alone is not dim.
+  row.drawerQuote:SetText(quote or "")
+  setColor(row.drawerQuote, d and d.marketStale and Theme.color.red or Theme.color.fgDim)
+  row.drawerQuote:Show()
 
   -- What GoldCap would do and at what price -- the text the expansion's own detail row
   -- used to put in the status CELL, which the deck's shed order now takes off the row at
@@ -4287,6 +4310,7 @@ renderRows = function()
         row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
         row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
         row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
+        row.drawerDepth:Hide(); row.drawerQuote:Hide()
         for _, line in ipairs(row.bookLines) do
           line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
         end
