@@ -492,7 +492,6 @@ GC.Locales.esES = {
   ["auto: paused"] = "auto: en pausa",
   ["below the %s you paid"] = "por debajo de los %s que pagaste",
   ["big buy"] = "compra grande",
-  ["blue is already yours"] = "lo azul ya es tuyo",
   ["bought %d x item %d"] = "comprados %d x objeto %d",
   ["bought %d x item %d after AH close"] =
     "comprados %d x objeto %d tras cerrar la casa de subastas",
@@ -520,9 +519,6 @@ GC.Locales.esES = {
     "el escaneo completo se ha atascado -- pulsa Full Scan para reintentar",
   ["full scan stalled -- retrying shortly"] =
     "el escaneo completo se ha atascado -- se reintentará en breve",
-  ["gold is where your price lands"] = "el dorado es donde cae tu precio",
-  ["gold is where your price lands, blue is already yours"] =
-    "el dorado es donde cae tu precio, lo azul ya es tuyo",
   ["gone / price changed"] = "desaparecido / precio cambiado",
   ["high"] = "alta",
   ["identity unresolved (variant item -- not priced by design)"] =

@@ -55,7 +55,9 @@ describe("Sell quote persistence across a reload", function()
       local GC = load(now)
       GC.db = { sellQuotes = { [42] = { unit = 1500, at = now.value - 100 } } }
       compose(GC)
-      assert.same({ unit = 1500, at = now.value - 100 }, quotesTable(GC)[42])
+      -- Marked bookless: the store keeps a unit and its date, never the levels, so the walk
+      -- still owes this quote a real answer however young it is. The store itself is untouched.
+      assert.same({ unit = 1500, at = now.value - 100, bookless = true }, quotesTable(GC)[42])
       assert.same({ unit = 1500, at = now.value - 100 }, GC.db.sellQuotes[42])
     end)
 
@@ -114,7 +116,7 @@ describe("Sell quote persistence across a reload", function()
       assert.is_nil(quotesTable(GC)[42])
       GC.db = { sellQuotes = { [42] = { unit = 1500, at = now.value - 100 } } }
       compose(GC)
-      assert.same({ unit = 1500, at = now.value - 100 }, quotesTable(GC)[42])
+      assert.same({ unit = 1500, at = now.value - 100, bookless = true }, quotesTable(GC)[42])
     end)
   end)
 

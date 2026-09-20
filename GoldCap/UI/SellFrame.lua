@@ -92,9 +92,11 @@ local COLUMNS = {
   -- MARKET / PROFIT / WHAT TO DO on the row -- four columns whose headings, translated, ran
   -- into one another at every width ("РИНОК / ШТ ПРИБУТОК / ШТ ЩО РОБИТИ", seen in game).
   -- Those four facts did not disappear: they are what the drawer is made of.
-  { key = "gross", w = 104, min = 84, num = true, bold = true },
-  { key = "price", w = 96, min = 80, num = true },
-  { key = "margin", w = 60, min = 52, num = true },
+  -- PRICE leads and carries a second line -- where that price stands in the live book -- so it
+  -- is wide enough for five queue marks and "12 340 ahead" beside them. MARGIN is no longer a
+  -- column: it is the line under YOU GET, the figure it qualifies.
+  { key = "price", w = 132, min = 116, num = true, bold = true },
+  { key = "gross", w = 100, min = 84, num = true, bold = true },
   -- `min` is what a numeric column shrinks to before anything is DROPPED. Without it the
   -- shedding order jumped straight from "everything at full width" to "COST/UNIT is gone",
   -- and at the default 720-wide window it landed on the gone side: a seller looking at a
@@ -105,10 +107,9 @@ local COLUMNS = {
   { key = "profit", w = 96, min = 76, num = true, bold = true },
   { key = "status", w = 176 },
   { key = "action", w = 88 },
-  { key = "expand", w = 22 },
 }
 
-local container, content, statusOwner
+local container, content, detailContent, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
 -- Stamped by composePositions() as it walks every position, so SellableCount() can read it
 -- without recomposing. nil only until the first compose has ever run.
@@ -146,6 +147,9 @@ local priceOverrides = {}
 -- "cancelqueue" are transient FOCUS states the queue controls set for a single render, so their
 -- head entry lands on row 1 -- a deck is what the switch paints, a focus state is not.
 local expanded, filterMode = {}, "post"
+-- Whether the posting deck's "not on hand" fold is open. The player's to set and kept for the
+-- session: a fold that shut itself on every refresh would be a control that does not work.
+local showNotOnHand = false
 -- The two chips beside the deck switch, keyed by the same stable ids CHIP_IDS carries. Flags
 -- that NARROW whichever deck is up rather than replacing it -- which is exactly what the five
 -- mutually-exclusive chips this replaced could not express -- so both can be on at once.
@@ -280,8 +284,12 @@ local function paintRefreshButton()
     -- the tab only had 24 items in it. It is not a count of anything the player owns: it is
     -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
     -- because every entry is a round trip on the same throttled slot the Sniper's scans use.
+    -- Once the bulk fill has priced the tab, what the walk is still fetching is each row's
+    -- book -- and a button that went on saying PRICING for twelve seconds over a list whose
+    -- prices were all there read as the refresh itself being that slow.
+    local counting = refresh.bulkLanded and GC.L["BOOKS %d/%d"] or GC.L["PRICING %d/%d"]
     label = (#refresh.queue > 0 and refresh.index > 0)
-      and (GC.L["PRICING %d/%d"]):format(refresh.index, #refresh.queue) or GC.L["PRICING…"]
+      and counting:format(refresh.index, #refresh.queue) or GC.L["PRICING…"]
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -295,6 +303,10 @@ end
 
 local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
+  -- And in the dock, under the bulk action: the toolbar line above is a window's width from
+  -- every control on this tab, which is why REFRESH, POST and each row button had to grow a
+  -- copy of the state. Said here, it is said beside the button that was just pressed.
+  if container and container.dockStatus then container.dockStatus:SetText(text or "") end
   paintRefreshButton()
   paintQueueButton()
   -- The cancel control is driven from here for the same reason the queue control is: renderRows
@@ -344,6 +356,54 @@ local DIM_HEX = "|cff9d9d9d"
 -- the eye something to land on without adding a row, a column or a line.
 local MONEY_HEX = "|cffe8c15a"
 
+-- The one-word state a row wears at the end of its stock line, and only when something is off:
+-- a row that is ready says nothing. It replaces the WHAT TO DO column, which no deck had room
+-- for at any width, so the reason a row was left out of the queue was one hover away on a
+-- counter in the footer and nowhere on the row it was about. Keyed by GC.PostQueue's and
+-- GC.CancelQueue's own reason tokens; `alarm` paints red, `wait` the watch blue, the rest dim.
+-- @localised-keys
+local ROW_TAG_TEXT = {
+  no_fresh_price = "no price",
+  unresolved_identity = "stack not identified",
+  advised_hold = "hold",
+}
+local function inlineColor(color, text)
+  return ("|cff%02x%02x%02x%s|r"):format(
+    math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
+end
+
+local rowTag
+do
+-- No tag for below_breakeven: the red margin under YOU GET is that fact, on the same row, and
+-- the words were the first thing a narrow list cut to "be...".
+local ROW_TAG_TONE = { no_fresh_price = "wait" }
+
+-- The tag itself, already coloured, or "" for a row with nothing to say. `reason` is the skip
+-- token the deck's queue gave this position, if it skipped it. Money leaving silently outranks
+-- everything: a lot standing far below market is the one thing on the row that has to be read
+-- first, and it used to be written into a column no deck shows.
+--
+-- A function of its own rather than lines inside renderRows for a reason the client enforces
+-- and busted does not: WoW runs Lua 5.1, which caps a function at 60 upvalues, and renderRows
+-- sits close enough to that cap that three more tables put the whole file out of action.
+rowTag = function(position, reason, notOnHand)
+  local tag, tone
+  if position.facts and position.facts.underpriced then
+    tag, tone = GC.L["far below market"], "alarm"
+  elseif reason then
+    tag, tone = ROW_TAG_TEXT[reason] and GC.L[ROW_TAG_TEXT[reason]] or nil, ROW_TAG_TONE[reason]
+  end
+  local uncosted = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
+  if not tag and position.coverage ~= "COMPLETE" and not notOnHand and uncosted > 0 then
+    tag = (GC.L["no cost for %d"]):format(uncosted)
+  end
+  if not tag then return "" end
+  local color = tone == "alarm" and Theme.color.red or tone == "wait" and Theme.color.watch
+    or Theme.color.fgDim
+  return "  " .. inlineColor(color, tag)
+end
+end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 allows 200)
+
 -- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
 -- -- see that module's own `evaluate` comment for what each one means structurally. A silently
 -- short queue is the same lie as a silently short deals list; naming the reason in plain words
@@ -369,6 +429,7 @@ local QUEUE_SKIP_TEXT = {
 -- and chip state rather than passed in, so it can never disagree with what the switch is
 -- painting.
 local function emptyDeckText()
+  if chips.search then return GC.L["Nothing on this deck matches that search"] end
   if filterMode == "listed" or filterMode == "cancelqueue" then
     return GC.L["No live auctions on this character"]
   end
@@ -512,19 +573,7 @@ local function bookHint(book)
   if book.cheapestCompeting then
     parts[#parts + 1] = (GC.L["cheapest not yours %s"]):format(formatCell(book.cheapestCompeting))
   end
-  parts[#parts + 1] = (GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0)
-  -- Said once, here, rather than on every row: the rows carry the two facts in COLOUR (the
-  -- marker glyphs the design drew are not in the bundled face and rendered as empty boxes),
-  -- and a colour nobody explained is a colour nobody reads.
-  local mine = false
-  for i = 1, #(book.rows or {}) do if book.rows[i].mine then mine = true break end end
-  if book.yourRow and mine then
-    parts[#parts + 1] = GC.L["gold is where your price lands, blue is already yours"]
-  elseif book.yourRow then
-    parts[#parts + 1] = GC.L["gold is where your price lands"]
-  elseif mine then
-    parts[#parts + 1] = GC.L["blue is already yours"]
-  end
+  -- The colour key that used to follow is said on the levels themselves now, in a word each.
   return table.concat(parts, " · ")
 end
 
@@ -745,7 +794,12 @@ local function seedPersistedQuotes()
     local valid = exact(unit) and unit > 0 and exact(at) and at <= now and (now - at) <= QUOTE_PERSIST_MAX_AGE
     if valid then
       -- A live answer this session already produced beats a persisted one.
-      if quotes[itemID] == nil then quotes[itemID] = { unit = unit, at = at } end
+      -- `bookless`: a restored quote is a number with no book under it -- the store keeps the
+      -- unit and its date, never the levels. Seconds after a reload it is still "fresh", so the
+      -- walk left it alone and the row sat with a price and no queue standing, and its panel
+      -- with no book, until the quote aged out (seen in game). The walk owes it a real answer
+      -- exactly as it owes a bulk price one; see uniqueQuoteItemIDs.
+      if quotes[itemID] == nil then quotes[itemID] = { unit = unit, at = at, bookless = true } end
     else
       store[itemID] = nil
     end
@@ -930,8 +984,17 @@ local function uniqueQuoteItemIDs()
     -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
     local restingSince = restedAt(position.itemID)
     local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
-    local due = (position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
-      or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty
+    -- A PRESS of Refresh is served by the bulk fill (GC.Sell.TrySendBulk): one message
+    -- re-prices every commodity on the tab, which is what a press asks for. The walk does not
+    -- also re-ask about all of them -- at one search per throttled round trip that is twelve
+    -- seconds for a tab of twenty-seven, every press (measured in game). It asks about what is
+    -- still owed a real quote: rows never priced, rows gone stale, rows holding a bulk price.
+    -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
+    -- it and may not back a post (see freshQuote), however young it is.
+    local held = quotes[position.itemID]
+    local due = (type(held) == "table" and (held.bulk == true or held.bookless == true))
+      or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
+      or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
     -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
     -- identity question is about cost, and a commodity's market price is exact for its
     -- itemID no matter whose stock it is -- leaving every tiered reagent caught in identity
@@ -951,8 +1014,15 @@ local function uniqueQuoteItemIDs()
   -- never got asked about. Never-priced first, then oldest quote first, and only
   -- then by value -- which still decides between two equally stale rows, because
   -- a stale price on a 200-unit stack of ore costs more than one on a lone flask.
-  local need, weight = {}, {}
+  -- The deck on screen first, in the order it is drawn. The queue covers BOTH decks -- stock
+  -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
+  -- its first seconds on rows of the other deck while the ones being looked at waited.
+  local need, weight, onScreen, place = {}, {}, {}, {}
+  local listedDeck = filterMode == "listed" or filterMode == "cancelqueue"
   for index, position in ipairs(actionable) do
+    if listedDeck then onScreen[position] = (position.listedQty or 0) > 0
+    else onScreen[position] = (position.bagQty or 0) > 0 end
+    place[position] = rowPlaces[position.positionKey] or math.huge
     local age = position.quoteAge
     need[position] = (position.displayMarketUnit == nil or type(age) ~= "number")
       and math.huge or age
@@ -963,6 +1033,10 @@ local function uniqueQuoteItemIDs()
     position.__walkOrder = index
   end
   table.sort(actionable, function(left, right)
+    if onScreen[left] ~= onScreen[right] then return onScreen[left] end
+    -- Within the deck on screen, top to bottom as drawn; need and value order the rest, and
+    -- break ties between rows that have no place yet.
+    if onScreen[left] and place[left] ~= place[right] then return place[left] < place[right] end
     if need[left] ~= need[right] then return need[left] > need[right] end
     if weight[left] ~= weight[right] then return weight[left] > weight[right] end
     return left.__walkOrder < right.__walkOrder
@@ -1183,6 +1257,12 @@ advanceQuote = function()
   -- OnThrottleReady's tail -- so one fenced item held the pass until the watchdog shot it.
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" and refresh.phase ~= "draining" then return end
   if refresh.pending then return end
+  -- Stands still while this tab's own bulk batch is out. The arbiter holds its passes for an
+  -- outstanding batch for a reason: a search sent on top of an unanswered SearchForItemKeys
+  -- takes its answer with it -- the batch never landed, and the walk's first two searches
+  -- came back empty besides (seen in game: the top two rows at "--" with the walk at 21/27).
+  -- FoldBulk and the ticker are what start it again.
+  if GC.Sell.BulkOutstanding() then return end
   if walkParked() then
     -- Give the queue up rather than hold a phase nobody is watching: a held phase is one
     -- Refresh(automatic) refuses to leave.
@@ -1470,6 +1550,14 @@ function GC.Sell.OnOwnedAuctions()
 end
 
 function GC.Sell.OnThrottleReady()
+  -- A bulk fill that a press asked for goes before anything else this tab sends. It was tried
+  -- only at the press itself and from a once-a-second ticker, and lost both ways: at the press
+  -- the throttle was still shut by the walk's own search in flight, and after it the walk took
+  -- every ready tick the moment it came -- so the one message that prices the whole tab went
+  -- out last, or not at all, and a press looked exactly as slow as it always had (seen in game).
+  if refresh.bulkWanted and GC.Sell.TrySendBulk() then return end
+  -- ...and nothing else goes out over an unanswered batch, the listings query included.
+  if GC.Sell.BulkOutstanding() then return end
   if refresh.phase == "waiting_owned" then
     local sent, waiting = requestOwnedAuctions()
     if sent then
@@ -1578,6 +1666,10 @@ function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", ite
 local function freshQuote(position)
   local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)
   if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
+  -- A price from the bulk fill (GC.Sell.FoldBulk) is the realm's cheapest unit with nobody
+  -- subtracted from it -- good enough to show, never good enough to spend on. Post and Repost
+  -- get exactly what they get for a stale quote: a fetch of this one item, then the click.
+  if quote.bulk then return nil end
   return quote
 end
 
@@ -2356,31 +2448,57 @@ local columnWidth = {}
 -- COST / UNIT by arithmetic, not by bad luck -- the column this whole tab exists to answer was
 -- off screen for every player who never resized. Splitting by deck is what buys the room back.
 local DECK_COLUMNS = {
-  post = { item = true, gross = true, price = true, margin = true, action = true,
-    expand = true },
+  post = { item = true, price = true, gross = true, action = true },
   -- No cost/profit on a live lot: what a listed row is asked is "what did I list at, and who
   -- is under me". Its cost basis has not changed since it was posted and is one click away in
-  -- the expansion.
-  listed = { item = true, listed = true, price = true, market = true, action = true,
-    expand = true },
+  -- the expansion. "Who is under me" is the line under YOUR PRICE now, in units, which is the
+  -- half of that question the old UNDER YOU column (a bare price) never answered.
+  listed = { item = true, price = true, listed = true, action = true },
 }
 -- What a deck gives up once squeezing every minimum still does not fit, in order.
 --
--- STATUS goes FIRST on both, which is the reversal that matters: the advice it carries is
--- repeated verbatim on the action button's own tooltip (see HEADER_HELP and showRowAction), so
--- losing it costs a hover. A dropped number costs the arithmetic itself -- there is nowhere
--- else on the row to read what one of these cost you. The old order shed the numbers first and
--- kept the sentence, which is exactly backwards.
--- MARGIN goes first on the posting deck because it is the one number derivable from the two
--- either side of it and the stock line under the name; UNDER YOU goes first on the listed deck
--- because a lot nobody has undercut shows a dash there anyway.
+-- Nothing, on either deck, since each is down to two figures and the button: at the narrowest
+-- window the item name still clears ITEM_MIN with both at their minimum. The table stays so
+-- that the next column anybody adds has to say where it goes when the room runs out.
 local DECK_SHED = {
-  post = { "margin" },
-  listed = { "market" },
+  post = {},
+  listed = {},
 }
 
+-- The side panel a position opens into. W is its whole width; the scroll bar lives INSIDE it
+-- (SCROLL_GUTTER) so that docked beside the list or laid over it the panel is one rectangle.
+-- DOCK_MIN is the content width from which the list can give the panel its own column and
+-- still read; under it the panel is a sheet over the list's right side -- the item names stay
+-- visible at the left, which is what a seller picks the next row by.
+local INSP = { W = 340, GAP = 28, HEAD_H = 58, SCROLL_GUTTER = 26, PAD = 8, DOCK_MIN = 880 }
+
+-- Whether the panel is open, and whether it has a column of its own. Hung on INSP rather than
+-- left as four more file-level locals: WoW's Lua 5.1 allows a chunk 200 of them, and this file
+-- is close enough to that for the client to refuse to load it (busted's newer Lua never says).
+do
+  local isOpen = false
+  function INSP.docked()
+    return isOpen and (ROW_WIDTH or 0) >= INSP.DOCK_MIN
+  end
+  -- The LIST's width, which is the container's less a docked panel's column.
+  function INSP.listWidth()
+    local width = ROW_WIDTH or 0
+    if INSP.docked() then width = width - INSP.W - INSP.GAP end
+    return width
+  end
+  -- Opens or shuts the panel as far as geometry goes: the list's heading row and scroll area
+  -- are re-anchored only when that changes whether the panel has a column of its own.
+  function INSP.sync(open)
+    isOpen = open
+    if container.applyListGeometry and container.listDocked ~= INSP.docked() then
+      container.listDocked = INSP.docked()
+      container.applyListGeometry()
+    end
+  end
+end
+
 local function shownColumns()
-  local width = ROW_WIDTH or 0
+  local width = INSP.listWidth()
   local deck = (filterMode == "listed" or filterMode == "cancelqueue") and "listed" or "post"
   local inDeck = DECK_COLUMNS[deck]
   local dropped = {}
@@ -2430,17 +2548,19 @@ end
 -- shownColumns -- a book row shows the same four things at every window width.
 -- The price control's own widths. Laid out by layoutDrawer now, independently of the shedding
 -- column set: the panel shows the same things at every width.
-local PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 84, 18, 52
+local PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 84, 18, 56
 -- The chips, by slot. Two parallel tables rather than one of {id, label} pairs: the contract
 -- scanner reads every literal inside an @localised-keys table, and an id sitting in the same
 -- table would be collected as a translatable string nobody ever shows.
 -- @localised-keys
 local PRICE_CHIP_LABELS = {
-  "MATCH", "UNDERCUT", "MARKET", "COST",
+  "GOLDCAP", "MATCH", "UNDERCUT", "MARKET", "COST",
 }
 -- What each slot fills from. The SLOT is the stable key the click handler switches on, never
 -- the label -- a translated label would look up nothing (the addon's engineering notes' own rule).
-local PRICE_CHIP_IDS = { "match", "under", "market", "cost" }
+-- "goldcap" is the way BACK: it fills from nothing and clears the seller's own price, which
+-- until now could only be done by emptying the box -- a gesture nothing on screen suggested.
+local PRICE_CHIP_IDS = { "goldcap", "match", "under", "market", "cost" }
 
 -- The footer ledger's three labels, same split as PRICE_CHIP_LABELS/PRICE_CHIP_IDS above and
 -- for the same reason. "AT MARKET" and "ASKING", not "PROFIT" and "LISTED" (2026-09-11): a
@@ -2455,99 +2575,245 @@ local SUMMARY_STAT_LABELS = {
 }
 local SUMMARY_STAT_IDS = { "profit", "listed", "cost" }
 
-local BOOK_PRICE_W, BOOK_UNITS_W, BOOK_BAR_H = 84, 58, 6
+local BOOK_BAR_H = 6
+-- Queue marks under a row's price: one per price level, counted from the cheapest. Five is
+-- where a seller stops caring which level exactly -- past that the words beside them carry it.
+-- H is a POSITION row's height in the list -- taller than the list's 32px pitch, which every
+-- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
+-- room. LIFT is how far each of the two lines sits from the row's centre.
+local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
+-- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
+-- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
+-- seller is here for -- at the default 720px window all three would leave the line beside the
+-- bulk action no room to name the item it is about to post.
+local DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
 
--- The drawer: one row that is a PANEL rather than a line, claiming DR.SLOTS of the list's own
--- 32px pitch. It replaces the eleven separate rows an expansion used to spend on the facts
--- line, the price control, the book heading and eight book levels -- which, at 32px each,
--- buried the list under the one row a player opened.
+-- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
+-- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
+-- and purchase rows stacked under it -- ten rows of detail that buried the list it was opened
+-- from, and only five book levels because that was all a panel that short could carry.
 --
--- Two columns, because the two things it carries answer each other: the price you are about to
--- list at on the left, the book that price lands in on the right. Stacked, the seller had to
--- scroll between a number and its own evidence.
+-- It lives in the side panel now (see INSP), one column: the price you are about to list at,
+-- then the book that price lands in, all eight levels the view model hands over.
 local DR = {
-  SLOTS = 5,               -- 5 * ROW_H(32) = 160px
-  LEFT_W = 244,            -- price side; the book takes whatever is left
-  GUTTER = 16,
-  LINE_H = 18,             -- one book level
-  LINES = 5,               -- book levels shown; the rest are still counted in the hint
-  HEAD_Y = -8,             -- column headings
-  BODY_Y = -28,            -- first book line / the price box
-  BAR_MAX = 96,
-  REC_Y = -108,            -- the recommendation, under the price chips
-  FACTS_Y = -138,          -- the one line across the bottom
+  SLOTS = 14,              -- 14 * ROW_H(32) = 448px: a position with stock to price
+  SLOTS_BARE = 11,         -- no stock in the bags: no price control, the book moves up
+  LINE_H = 20,             -- one book level
+  LINES = 8,               -- SellViewModel's own BOOK_ROWS
+  BOX_W = 112, BOX_H = 34, -- the price box: the one figure on this tab that spends gold
+  HEAD_Y = -10,            -- "YOUR PRICE" / "YOU GET"
+  BOX_Y = -26,             -- the price box, and what it fetches beside it
+  NOTE_Y = -68,            -- whose price it is, or what is wrong with it
+  CHIPS_Y = -88,           -- the five one-click fills, one segmented strip
+  CHIP_H = 22,
+  REC_Y = -120,            -- what GoldCap would do and why, two lines of it
+  POST_Y = -156,           -- Post, the panel's own
+  POST_H = 24,
+  BOOK_Y = -192,           -- where the book section starts when there is a price control
+  BOOK_Y_BARE = -84,       -- ...and when there is not
+  BAR_MAX = 160,
+  PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
+  NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
+  NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
 
--- The drawer's own two-column layout. Independent of shownColumns for the same reason the book
--- row was: this panel shows the same things at every width, and the column set it sits under
--- belongs to the rows above it, not to it.
+-- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
+-- same things at every window width, and its width is INSP's, not the list's.
+local layoutDetailRow
+do
 local function layoutDrawer(row)
-  local left = row.itemInset or 2
-  local width = ROW_WIDTH or 0
-  -- The price side keeps its full width until the window can no longer afford it, then yields
-  -- to the book rather than squeezing both: a half-width book bar carries no information.
-  local leftW = math.max(150, math.min(DR.LEFT_W, math.floor(width * 0.45)))
-  local bookX = left + leftW + DR.GUTTER
+  local left, right = INSP.PAD, -INSP.PAD
+  local postable = type(row.position) == "table" and (row.position.bagQty or 0) > 0
 
+  -- ---- the price section: label and box on the left, what the price fetches on the right
   row.drawerPriceHead:ClearAllPoints()
   row.drawerPriceHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HEAD_Y)
-  row.drawerBookHead:ClearAllPoints()
-  row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", bookX, DR.HEAD_Y)
-  row.drawerHint:ClearAllPoints()
-  row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Theme.pad.m, DR.HEAD_Y)
-  row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", Theme.pad.s, 0)
-  row.drawerHint:SetWordWrap(false)
-
+  row.priceBoxBg:ClearAllPoints()
+  row.priceBoxBg:SetSize(DR.BOX_W, DR.BOX_H)
+  row.priceBoxBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BOX_Y)
   row.priceBox:ClearAllPoints()
-  row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
-  row.priceBox:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BODY_Y)
+  row.priceBox:SetPoint("TOPLEFT", row.priceBoxBg, "TOPLEFT", 10, -2)
+  row.priceBox:SetPoint("BOTTOMRIGHT", row.priceBoxBg, "BOTTOMRIGHT", -6, 2)
+  row.priceNetHead:ClearAllPoints()
+  row.priceNetHead:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.HEAD_Y)
+  row.priceNet:ClearAllPoints()
+  row.priceNet:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 2)
+  row.priceNetNote:ClearAllPoints()
+  row.priceNetNote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 22)
   row.priceNote:ClearAllPoints()
-  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BODY_Y - 26)
-  row.priceNote:SetPoint("RIGHT", row, "LEFT", left + leftW, 0)
+  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.NOTE_Y or DR.BOX_Y)
+  row.priceNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.priceNote:SetWordWrap(false)
 
+  -- One strip, five equal segments: a switch with a position, not five loose buttons.
+  row.chipsBg:ClearAllPoints()
+  row.chipsBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y)
+  row.chipsBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.CHIPS_Y)
+  row.chipsBg:SetHeight(DR.CHIP_H + 4)
   local prev
   for i = 1, #row.priceChips do
     local chip = row.priceChips[i]
     chip:ClearAllPoints()
-    if prev then chip:SetPoint("LEFT", prev, "RIGHT", Theme.pad.xs, 0)
-    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BODY_Y - 52) end
+    chip:SetSize(PRICE_CHIP_W, DR.CHIP_H)
+    if prev then chip:SetPoint("LEFT", prev, "RIGHT", 2, 0)
+    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left + 3, DR.CHIPS_Y - 2) end
     prev = chip
   end
 
+  -- What GoldCap would do and why, in a sentence that is allowed its second line. It lives
+  -- HERE because WHAT TO DO is not a column on either deck.
+  row.subItem:ClearAllPoints()
+  row.subItem:SetWidth(0)
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.BOX_Y - 18))
+  row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.subItem:SetWordWrap(true)
+  row.subItem:SetMaxLines(2)
+  if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
+  row.subItem:SetText(row.subItem:GetText() or "") -- measured again now that it wraps
+
+  -- With nothing to say about the price, Post and the book move up into the paragraph's room
+  -- (one slot of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
+  local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (ROW_HEIGHT or 32) or 0
+  -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
+  row.cells.action:ClearAllPoints()
+  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y + rise)
+  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y + rise)
+  row.cells.action:SetHeight(DR.POST_H)
+
+  -- ---- the book section, under a rule across the panel
+  local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise
+  row.headRules[1]:ClearAllPoints()
+  row.headRules[1]:SetPoint("TOPLEFT", row, "TOPLEFT", 0, top)
+  row.headRules[1]:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, top)
+  row.drawerBookHead:ClearAllPoints()
+  row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, top - 12)
+  row.drawerHint:ClearAllPoints()
+  row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 12)
+  row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", 8, 0)
+  row.drawerHint:SetJustifyH("RIGHT")
+  row.drawerHint:SetWordWrap(false)
+
+  local body = top - 32
   for i = 1, DR.LINES do
     local line = row.bookLines[i]
-    local y = DR.BODY_Y - (i - 1) * DR.LINE_H
+    local y = body - (i - 1) * DR.LINE_H
     line.price:ClearAllPoints()
-    line.price:SetWidth(BOOK_PRICE_W)
-    line.price:SetPoint("TOPLEFT", row, "TOPLEFT", bookX, y)
+    line.price:SetWidth(DR.PRICE_W)
+    line.price:SetPoint("TOPLEFT", row, "TOPLEFT", left, y)
+    -- The word sits at the LEFT of its level, in the room a right-aligned price leaves in its
+    -- own column. It had a column to itself at the right edge, empty on every level but one or
+    -- two, so the bars and the unit counts stopped 46px short of the panel they sit in.
+    line.tag:ClearAllPoints()
+    line.tag:SetWidth(DR.TAG_W)
+    line.tag:SetPoint("TOPLEFT", row, "TOPLEFT", left, y - 1)
     line.qty:ClearAllPoints()
-    line.qty:SetWidth(BOOK_UNITS_W)
-    line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Theme.pad.m, y)
+    line.qty:SetWidth(DR.UNITS_W)
+    line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y)
     line.bar:ClearAllPoints()
     line.bar:SetPoint("LEFT", line.price, "RIGHT", Theme.pad.s, 0)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
+    line.wash:ClearAllPoints()
+    line.wash:SetPoint("TOPLEFT", row, "TOPLEFT", left - 4, y + 4)
+    line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 4)
   end
 
+  -- No book: the foot follows the heading directly, and its first line -- the sentence saying
+  -- the auction house has not answered -- is allowed to wrap instead of being cut mid-word.
+  local hasBook = row.bookLines[1].price:IsShown()
+  local foot = hasBook and (body - DR.LINES * DR.LINE_H - 4) or body
   row.drawerStand:ClearAllPoints()
-  row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", bookX,
-    DR.BODY_Y - DR.LINES * DR.LINE_H - 2)
-  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.m, 0)
-  row.drawerStand:SetWordWrap(false)
-
-  -- The recommendation lives HERE, not on the position row above, because WHAT TO DO is the
-  -- first column the width sheds (DECK_SHED) -- at the default 720px window it is already gone
-  -- from the row. The drawer is the one place it survives every width.
-  row.subItem:ClearAllPoints()
-  row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.REC_Y)
-  row.subItem:SetPoint("RIGHT", row, "LEFT", left + leftW, 0)
-  row.subItem:SetWordWrap(false)
-
+  -- Three lines, each with the panel's width to itself or a fixed half of it, so nothing is
+  -- ever cut to "stands 1 o...": where the price stands; how deep the book is, with the quote's
+  -- state at the right; how fast it sells and how long the queue is.
+  row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
+  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerStand:SetWordWrap(not hasBook)
+  row.drawerStand:SetMaxLines(hasBook and 1 or 2)
+  if not hasBook then
+    row.drawerStand:SetText(row.drawerStand:GetText() or "")
+    foot = foot - 14
+  end
+  row.drawerDepth:ClearAllPoints()
+  row.drawerDepth:SetJustifyH("LEFT")
+  row.drawerDepth:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 18)
+  row.drawerQuote:ClearAllPoints()
+  row.drawerQuote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 18)
   row.drawerFacts:ClearAllPoints()
-  row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.FACTS_Y)
-  row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.m, 0)
+  row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 36)
+  row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerFacts:SetJustifyH("LEFT")
+  row.drawerFacts:SetWordWrap(true)
+  row.drawerFacts:SetMaxLines(2)
+  if row.drawerFacts.SetSpacing then row.drawerFacts:SetSpacing(3) end
+  -- A FontString sizes itself when its text is SET, and renderRows sets these before this
+  -- runs: on a pooled row that was a one-line kind a moment ago, two lines of facts got one
+  -- line's height and the rest was not drawn until the next render (seen in game).
+  row.drawerFacts:SetText(row.drawerFacts:GetText() or "")
 end
+
+-- A lot, a bag line, a purchase or a heading inside the panel. None of the deck's columns
+-- apply at this width: a line is its sentence, with its one button -- or, for a purchase, its
+-- unit cost -- at the right edge. Two lines allowed, because "x50 . 3 purchases . bought 29 Aug
+-- . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
+layoutDetailRow = function(row)
+  for _, column in ipairs(COLUMNS) do row.cells[column.key]:Hide() end
+  local edge, edgePoint, inset = row, "RIGHT", -INSP.PAD
+  if row.action:IsShown() then
+    row.cells.action:ClearAllPoints()
+    row.cells.action:SetWidth(88)
+    row.cells.action:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
+    edge, edgePoint, inset = row.cells.action, "LEFT", -4
+  end
+  if row.kind == "batch" then
+    -- Quantity, unit cost, source-and-date, evidence -- or, for a hand-entered cost, the button
+    -- that takes it back, where the evidence word would only say "manual" a second time.
+    row.subItem:ClearAllPoints()
+    row.subItem:SetWidth(44)
+    row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+    row.subItem:SetWordWrap(false)
+    row.subItem:SetMaxLines(1)
+    row.cells.cost:ClearAllPoints()
+    row.cells.cost:SetWidth(76)
+    row.cells.cost:SetPoint("LEFT", row.subItem, "RIGHT", 2, 0)
+    row.cells.cost:Show()
+    row.sectionHint:ClearAllPoints()
+    row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
+    if row.action:IsShown() then row.sectionHint:Hide() end
+    row.itemStock:ClearAllPoints()
+    row.itemStock:SetPoint("LEFT", row.cells.cost, "RIGHT", 10, 0)
+    if row.action:IsShown() then row.itemStock:SetPoint("RIGHT", row.cells.action, "LEFT", -6, 0)
+    else row.itemStock:SetPoint("RIGHT", row.sectionHint, "LEFT", -8, 0) end
+    row.itemStock:Show()
+  else
+    -- Every other line is one sentence, allowed a second line when the panel is narrower than
+    -- it, with air between the two.
+    row.subItem:ClearAllPoints()
+    row.subItem:SetWidth(0)
+    row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+    row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, 0)
+    row.subItem:SetWordWrap(true)
+    row.subItem:SetMaxLines(2)
+    if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
+    row.subItem:SetText(row.subItem:GetText() or "") -- re-measured now that it wraps; see layoutDrawer
+  end
+  row.sectionLabel:ClearAllPoints()
+  row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, -4)
+  if row.kind ~= "batch" then -- a purchase has just placed it as its evidence column
+    row.sectionHint:ClearAllPoints()
+    row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, -4)
+  end
+  -- A section starts under a rule across the whole panel, the way the book's does, rather than
+  -- with a gold line trailing off its own heading.
+  row.sectionRule:ClearAllPoints()
+  row.sectionRule:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -2)
+  row.sectionRule:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, -2)
+  row.sectionRule:SetColorTexture(1, 1, 1, 0.06)
+  setColor(row.sectionLabel, Theme.color.fgMuted)
+  -- The head lays itself out over this: called from here so renderRows has one panel layout
+  -- to know about, not two (see rowTag on why that function counts its upvalues).
+  if row.kind == "drawer" then layoutDrawer(row) end
+end
+end -- do: layoutDrawer is layoutDetailRow's own
 
 
 
@@ -2557,13 +2823,13 @@ end
 -- questions, two words for it.
 -- @localised-keys
 local HEADINGS_POST = {
-  item = "ITEM", gross = "YOU GET", price = "PRICE / UNIT", margin = "MARGIN",
+  item = "ITEM", gross = "YOU GET", price = "PRICE / UNIT",
   cost = "COST / UNIT", listed = "LISTED", market = "MARKET / UNIT",
   profit = "PROFIT / UNIT", status = "WHAT TO DO",
 }
 -- @localised-keys
 local HEADINGS_LISTED = {
-  item = "LISTED AS", gross = "IN THE LOT", price = "YOUR PRICE", margin = "MARGIN",
+  item = "LISTED AS", gross = "IN THE LOT", price = "YOUR PRICE",
   cost = "COST / UNIT", listed = "LOT VALUE", market = "UNDER YOU",
   profit = "PROFIT / UNIT", status = "WHAT TO DO",
 }
@@ -2576,8 +2842,16 @@ local function paintHeaderText(header, deck)
   end
 end
 
+-- Which figure carries a second line, and the row field that line lives in.
+ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote" }
+
 local function layoutCells(row)
   local right = row
+  -- How far `right` itself sits above the row's centre. Every cell anchors to its neighbour,
+  -- so a lifted neighbour lifts whatever hangs off it: offsets are written relative to this,
+  -- or the second lifted cell in a chain lands a full row-half too high (seen in game -- the
+  -- price rode up into the row above it).
+  local rightLift = 0
   local cols, dropped = shownColumns()
   for i = #cols, 1, -1 do
     local column, cell = cols[i], row.cells[cols[i].key]
@@ -2593,13 +2867,13 @@ local function layoutCells(row)
       -- header row and every sub-row keep the whole box, centred, because they carry one line.
       -- 8, not 7: at Theme.Scale 1.3 a 12px name is ~15.6 tall and a 10px stock line ~13, so
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
-      local nameY = row.itemStock and 8 or 0
+      local nameY = row.itemStock and ROW.LIFT or 0
       cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
-      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY)
+      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
       if row.itemStock then
         row.itemStock:ClearAllPoints()
-        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -8)
-        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -8)
+        row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -ROW.LIFT)
+        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -ROW.LIFT - rightLift)
       end
       -- The column header row (below) shares this function but carries neither widget -- it is
       -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
@@ -2610,7 +2884,7 @@ local function layoutCells(row)
         -- the LEFT/RIGHT pair below for the rest of its life.
         row.subItem:SetWidth(0)
         row.subItem:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
-        row.subItem:SetPoint("RIGHT", right, "LEFT", -4, 0)
+        row.subItem:SetPoint("RIGHT", right, "LEFT", -4, -rightLift)
       end
       if row.sectionLabel then
         row.sectionLabel:ClearAllPoints()
@@ -2622,9 +2896,31 @@ local function layoutCells(row)
       -- The header row (below) sets its own item cell's text once and never hides it.
     else
       cell:SetWidth(columnWidth[column.key] or column.w)
-      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, 0)
-      right = cell
+      -- A position's figures share the row with a second line, exactly as its name does with the
+      -- stock line (same +-8 split, same reason). Every other kind keeps the cell centred.
+      local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
+      local lift = second and ROW.LIFT or 0
+      -- The figure beside the button stands clear of it: at the usual 2px the row's total ran
+      -- into the button's own edge.
+      local gap = right == row and 0 or right == row.cells.action and -ROW.BUTTON_GAP or -2
+      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", gap, lift - rightLift)
+      if second then
+        second:ClearAllPoints()
+        second:SetPoint("RIGHT", cell, "RIGHT", 0, -2 * ROW.LIFT)
+      end
+      right, rightLift = cell, lift
       cell:Show()
+    end
+  end
+  if row.standMarks then
+    -- Chained leftwards from the words they belong to, so the pair stays together however long
+    -- the count beside them grows.
+    local anchor = row.priceStand
+    for i = #row.standMarks, 1, -1 do
+      local mark = row.standMarks[i]
+      mark:ClearAllPoints()
+      mark:SetPoint("RIGHT", anchor, "LEFT", anchor == row.priceStand and -5 or -2, 0)
+      anchor = mark
     end
   end
   for _, column in ipairs(COLUMNS) do
@@ -2707,12 +3003,14 @@ local function createRow(parent)
   row.spine:SetColorTexture(gc[1], gc[2], gc[3], 0.45)
   row.spine:Hide()
   row.icon = row:CreateTexture(nil, "ARTWORK")
-  row.icon:SetSize(18, 18)
+  row.icon:SetSize(ROW.ICON, ROW.ICON)
   row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
   row:SetScript("OnEnter", function(self)
-    self.highlight:Show()
+    -- The list's rows are what a hover picks between; a wash over the panel's twelve-slot
+    -- head, or over a heading inside it, points at nothing.
+    if not self.inPanel then self.highlight:Show() end
     -- Rows are pooled and rebound every render, so the item tooltip is wired once here and
     -- reads whatever position the row currently holds. Hooking it per render would stack.
     if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
@@ -2731,6 +3029,17 @@ local function createRow(parent)
           0.85, 0.85, 0.85, true)
       end
       GameTooltip:Show()
+    elseif GameTooltip and (self.kind == "group" or self.kind == "batch")
+        and self.groupHint and self.groupHint ~= "" then
+      GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
+      -- A fact a line. The sentence is a run of facts joined by one separator, and wrapped as
+      -- a paragraph it broke mid-fact ("bought 29 / Aug"), which is harder to read than the row.
+      local first = true
+      for fact in (self.groupHint .. " · "):gmatch("(.-) · ") do
+        if first then GameTooltip:AddLine(fact, 1, 1, 1) else GameTooltip:AddLine(fact, 0.85, 0.85, 0.85) end
+        first = false
+      end
+      GameTooltip:Show()
     end
   end)
   row:SetScript("OnLeave", function(self)
@@ -2740,7 +3049,10 @@ local function createRow(parent)
 
   row.cells = {}
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Label(row, column.key == "item" and 12 or 11)
+    -- Figures in the mono face, names and prose in the client's own -- the kit's rule (see
+    -- Theme.Label). Every cell here used to be a Label, so the two columns a seller compares
+    -- down the list were set in a face whose digits do not line up.
+    local cell = column.num and Theme.Num(row, 11, column.bold) or Theme.Label(row, column.key == "item" and 12 or 11)
     cell:SetJustifyH(column.num and "RIGHT" or "LEFT")
     cell:SetWordWrap(false)
     row.cells[column.key] = cell
@@ -2751,7 +3063,7 @@ local function createRow(parent)
   -- line and marks the rest with an ellipsis -- so the second line was never drawn at all and
   -- every item on the screen appeared truncated, whatever its name. Its own FontString, its
   -- own anchor (layoutCells splits the flex box in half vertically for the pair).
-  row.itemStock = Theme.Label(row, 10)
+  row.itemStock = Theme.Num(row, 10)
   -- Said out loud rather than inherited from the font template: this line is deliberately one
   -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
   -- the thing that steps forward. Leaving it on the template's own colour made the whole line
@@ -2760,6 +3072,29 @@ local function createRow(parent)
   row.itemStock:SetJustifyH("LEFT")
   row.itemStock:SetWordWrap(false)
   row.itemStock:Hide()
+
+  -- The second line of the two figures, the same split the name and its stock line already
+  -- make. Under the price: where that price stands in the live book -- five marks, one per
+  -- price level from the cheapest, the one this price lands on lit -- and the stock queued
+  -- under it in words. Under YOU GET: the margin, which used to be a column of its own a row's
+  -- width away from the figure it qualifies. Both answer before anything is opened.
+  row.priceStand = Theme.Num(row, 10)
+  row.priceStand:SetJustifyH("RIGHT")
+  row.priceStand:SetWordWrap(false)
+  row.priceStand:Hide()
+  row.standMarks = {}
+  for i = 1, ROW.MARKS do
+    local mark = row:CreateTexture(nil, "ARTWORK")
+    mark:SetSize(3, 8)
+    mark:Hide()
+    row.standMarks[i] = mark
+  end
+  -- 11, the size of the figure above it: at 9 the one number that says whether the row makes
+  -- or loses money was the smallest thing on it.
+  row.grossNote = Theme.Num(row, 11)
+  row.grossNote:SetJustifyH("RIGHT")
+  row.grossNote:SetWordWrap(false)
+  row.grossNote:Hide()
 
   -- The drawer's own five book lines. Built here rather than lazily on first open: a widget
   -- created mid-render is how this suite's fakes start failing on a method they were never
@@ -2782,18 +3117,32 @@ local function createRow(parent)
     line.bar.fill:SetPoint("TOPLEFT")
     line.bar.fill:SetPoint("BOTTOMLEFT")
     line.bar.fill:SetWidth(1)
-    line.price:Hide(); line.qty:Hide(); line.bar:Hide()
+    -- The level the seller's price lands on, or already holds, is said in a word beside it and
+    -- a wash behind it. Colour alone carried that, explained once in a hint long enough to be
+    -- cut off at the panel's width -- a colour nobody explained is a colour nobody reads.
+    line.tag = Theme.Num(row, 9)
+    line.tag:SetJustifyH("LEFT"); line.tag:SetWordWrap(false)
+    line.wash = row:CreateTexture(nil, "BACKGROUND", nil, 2)
+    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
     row.bookLines[i] = line
   end
   -- Column headings and the bottom line. Separate FontStrings rather than reusing subItem and
   -- sectionLabel: the drawer shows all four AT ONCE, where every other row kind shows exactly
   -- one of them.
   row.drawerPriceHead = Theme.Num(row, 9)
-  row.drawerBookHead = Theme.Num(row, 9)
+  row.drawerBookHead = Theme.Num(row, 10, true)
   row.drawerHint = Theme.Num(row, 9)
   row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerStand = Theme.Label(row, 10)
-  row.drawerFacts = Theme.Label(row, 10)
+  row.drawerStand = Theme.Num(row, 11)
+  row.drawerStand:SetJustifyH("LEFT")
+  row.drawerFacts = Theme.Num(row, 10)
+  row.drawerFacts:SetJustifyH("LEFT")
+  -- The right-hand ends of the two lines under the book: how deep it is, how old the quote is.
+  row.drawerDepth = Theme.Num(row, 10)
+  row.drawerQuote = Theme.Num(row, 10)
+  for _, line in ipairs({ row.drawerDepth, row.drawerQuote }) do
+    line:SetWordWrap(false); setColor(line, Theme.color.fgDim); line:Hide()
+  end
   row.drawerFacts:SetWordWrap(false)
   row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
   row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
@@ -2802,12 +3151,55 @@ local function createRow(parent)
   -- one number a seller could not see the workings of or change: GoldCap picked it and Post
   -- sent it. The box is prefilled with exactly what Post would list at, in gold, and emptying
   -- it hands the decision back to GoldCap rather than leaving nothing behind.
-  row.priceBox = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+  -- The kit's own surface rather than InputBoxTemplate's stone border, and a figure big enough
+  -- to be the first thing read in the panel: a dark rounded well, a ring that says whose price
+  -- it is (see INSP.paintHead), bold mono inside. The EditBox itself is bare and sits in it.
+  row.priceBoxBg = CreateFrame("Frame", nil, row)
+  -- The window's own ground colour, a step darker than the panel it is set into. Several of
+  -- this suite's theme doubles carry no `bg`, hence the fallback.
+  local wellc = Theme.color.bg or Theme.color.panel
+  local well = Theme.SlicedTexture(row.priceBoxBg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  well:SetAllPoints(row.priceBoxBg)
+  row.priceBoxRing = Theme.SlicedTexture(row.priceBoxBg, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { 1, 1, 1, 0.14 }, 12)
+  row.priceBoxRing:SetAllPoints(row.priceBoxBg)
+  row.priceBoxBg:Hide()
+  row.priceBox = CreateFrame("EditBox", nil, row.priceBoxBg)
   row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
   row.priceBox:SetAutoFocus(false)
+  -- Guarded for busted, whose frame doubles were never taught an EditBox's font API. In the
+  -- client a bare EditBox with no font does not draw its text at all, so this is not optional.
+  if row.priceBox.SetFont then
+    row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * Theme.Scale(), "")
+    row.priceBox:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+    Theme.OnRescale(function(scale) row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * scale, "") end)
+  end
   row.priceBox:Hide()
+  -- The strip the five price chips sit in, and the rule over the book section.
+  row.chipsBg = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  row.chipsBg:Hide()
+  row.headRules = {}
+  for i = 1, 1 do
+    local rule = row:CreateTexture(nil, "ARTWORK")
+    rule:SetColorTexture(1, 1, 1, 0.06)
+    rule:SetHeight(1)
+    rule:Hide()
+    row.headRules[i] = rule
+  end
 
-  row.priceNote = Theme.Label(row, 10)
+  -- What that price fetches, beside the box it is typed into: the same YOU GET and margin the
+  -- row carries, moving with every keystroke, plus what is left once the auction house has
+  -- taken its cut. They were on the row only -- which, as a sheet, the panel covers.
+  row.priceNetHead = Theme.Num(row, 9)
+  row.priceNet = Theme.Num(row, 14, true)
+  row.priceNetNote = Theme.Num(row, 9)
+  for _, line in ipairs({ row.priceNetHead, row.priceNet, row.priceNetNote }) do
+    line:SetJustifyH("RIGHT"); line:SetWordWrap(false); line:Hide()
+  end
+
+  row.priceNote = Theme.Num(row, 10)
   row.priceNote:SetJustifyH("LEFT")
   row.priceNote:SetWordWrap(false)
   row.priceNote:Hide()
@@ -2899,8 +3291,9 @@ local function createRow(parent)
     chip:SetSize(PRICE_CHIP_W, PRICE_BOX_H)
     chip:SetScript("OnClick", function(self)
       local key = overrideKey(row.position)
-      if not key or not self.priceSource then return end
-      priceOverrides[key] = self.priceSource
+      if not key or not (self.priceSource or self.handsBack) then return end
+      -- handsBack is the GOLDCAP chip: no price of its own, it gives the decision back.
+      priceOverrides[key] = not self.handsBack and self.priceSource or nil
       renderRows()
     end)
     chip:Hide()
@@ -2911,7 +3304,7 @@ local function createRow(parent)
   -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and layoutCells anchors
   -- all three to the same LEFT/RIGHT points every render since exactly one is shown per row
   -- (the kind branch in renderRows).
-  row.subItem = Theme.Label(row, 11)
+  row.subItem = Theme.Num(row, 10)
   row.subItem:SetJustifyH("LEFT")
   row.subItem:SetWordWrap(false)
   row.subItem:Hide()
@@ -2923,6 +3316,12 @@ local function createRow(parent)
   row.sectionLabel:SetJustifyH("LEFT")
   setColor(row.sectionLabel, Theme.color.gold)
   row.sectionLabel:Hide()
+  -- A heading's aside, at the right end of its row ("oldest units sell first").
+  row.sectionHint = Theme.Num(row, 9)
+  row.sectionHint:SetJustifyH("RIGHT")
+  row.sectionHint:SetWordWrap(false)
+  setColor(row.sectionHint, Theme.color.fgDim)
+  row.sectionHint:Hide()
   local gc2 = Theme.color.gold
   row.sectionRule = row:CreateTexture(nil, "ARTWORK")
   row.sectionRule:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.25)
@@ -2965,8 +3364,16 @@ local function createRow(parent)
     row.action:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   end
   row:SetScript("OnClick", function(self)
-    if self.kind == "position" and type(self.position.positionKey) == "string" then
-      expanded[self.position.positionKey] = not expanded[self.position.positionKey]
+    if self.kind == "fold" then
+      showNotOnHand = not showNotOnHand
+      renderRows()
+    elseif self.kind == "position" and type(self.position.positionKey) == "string" then
+      -- One open position at a time. Two open panels are two hundred pixels of detail each,
+      -- and the second one pushed the first -- the one being compared against -- off screen.
+      local key = self.position.positionKey
+      local wasOpen = expanded[key]
+      for other in pairs(expanded) do expanded[other] = nil end
+      expanded[key] = not wasOpen or nil
       renderRows()
     end
   end)
@@ -3064,6 +3471,258 @@ local function updateSummary(filtered)
     and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
 
+-- The detail panel's head: the price control, the book it lands in, and the line of facts.
+-- A function of its own rather than a branch of renderRows, which is where it was written:
+-- that function sits two short of Lua 5.1's 60-upvalue cap, and everything this reads -- the
+-- price chips, the book hint, the gold parser -- was counted against it.
+function INSP.paintHead(row, p, d)
+  local book = d and d.book or nil
+  local postable = (p.bagQty or 0) > 0
+  row.drawerBookHead:SetText(GC.L["THE BOOK"]); row.drawerBookHead:Show()
+  setColor(row.drawerBookHead, Theme.color.fgDim)
+
+  -- ---- the price side: the same widgets and the same commit path the price ROW used,
+  -- so nothing about what a typed price does has changed -- only where it is shown.
+  local unit, chosen = effectivePostUnit(p)
+  local risk = GC.SellPositions.PriceRisk(p, unit)
+  row.drawerPriceHead:SetText(GC.L["YOUR PRICE"]); row.drawerPriceHead:Show()
+  setColor(row.drawerPriceHead, chosen and Theme.color.gold or Theme.color.fgDim)
+  if postable then
+    local box = row.priceBox
+    local focused = box.HasFocus and box:HasFocus() or false
+    -- Someone typing into this box, on this same position, owns it -- see the price row's
+    -- own note: a render that stamped it unconditionally wiped half-typed prices.
+    if not (focused and row.priceEditingKey == overrideKey(p)) then
+      if focused then
+        row.priceEditingKey = nil
+        row.priceCommitting = true
+        box:ClearFocus()
+        row.priceCommitting = false
+      end
+      box:SetText(unit and copperToGoldText(unit) or "")
+    end
+    box:Show(); row.priceBoxBg:Show(); row.chipsBg:Show()
+    -- The ring says whose price this is before a word is read: red under cost or under the
+    -- floor, gold once it is the seller's own, the panel's quiet edge while it is GoldCap's.
+    local ring = (risk.belowCost or risk.belowFloor) and Theme.color.red or chosen and Theme.color.gold or nil
+    if ring then row.priceBoxRing:SetVertexColor(ring[1], ring[2], ring[3], 0.7)
+    else row.priceBoxRing:SetVertexColor(1, 1, 1, 0.14) end
+    if risk.belowCost then
+      row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
+      setColor(row.priceNote, Theme.color.red)
+    elseif risk.belowFloor then
+      row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
+      setColor(row.priceNote, Theme.color.red)
+    elseif unit then
+      -- The quantity this note prices is the one a click lists, not the one in the bags --
+      -- the same rule YOU GET follows above, and for the same reason.
+      -- Whose price, and over how many. What it comes to is YOU GET, beside the box.
+      local postQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
+      row.priceNote:SetText(("%s · ×%d"):format(chosen and GC.L["yours"] or GC.L["GoldCap's"], postQty))
+      setColor(row.priceNote, Theme.color.fgDim)
+    else
+      row.priceNote:SetText(GC.L["no live price yet"])
+      setColor(row.priceNote, Theme.color.fgDim)
+    end
+    row.priceNote:Show()
+    -- YOU GET and the margin, by the row's own arithmetic (what one click lists, at this price,
+    -- against what a unit cost), so the panel and the row under it can never disagree. The
+    -- third line is the one figure the row has no room for: what is left after the cut.
+    local listQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
+    local gross = unit and safeMultiply(unit, listQty) or nil
+    row.priceNetHead:SetText(GC.L["YOU GET"]); setColor(row.priceNetHead, Theme.color.fgDim)
+    row.priceNet:SetText(gross and formatCell(gross) or "—")
+    setColor(row.priceNet, gross and Theme.color.fg or Theme.color.fgDim)
+    local paid = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil
+    local netNote = gross and (GC.L["%s after the AH cut"]):format(formatCell(math.floor(gross * 0.95))) or ""
+    if unit and paid then
+      local pct = math.floor(((unit - paid) / paid) * 100 + 0.5)
+      netNote = inlineColor(pct >= 0 and Theme.color.green or Theme.color.red, (pct >= 0 and "+" or "") .. pct .. "%")
+        .. "  " .. netNote
+    end
+    row.priceNetNote:SetText(netNote); setColor(row.priceNetNote, Theme.color.fgDim)
+    row.priceNetHead:Show(); row.priceNet:Show(); row.priceNetNote:Show()
+    -- UNDERCUT is a rung BELOW the cheapest competing ask, and a silver under an ask of a
+    -- silver or less is zero or negative. Zero is truthy in Lua, so the chip enabled
+    -- itself, stored a price of 0 as the seller's choice, and effectivePostUnit then
+    -- refused it -- which emptied the box the player had just filled. Nothing here may
+    -- offer a price that is not a price.
+    local competing = book and exact(book.cheapestCompeting) and book.cheapestCompeting > 0
+      and book.cheapestCompeting or nil
+    local sources = {
+      match = competing,
+      under = competing and competing > 100 and (competing - 100) or nil,
+      market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
+      cost = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil,
+    }
+    local key = overrideKey(p)
+    local typed = key and priceOverrides[key] or nil
+    for slot, chip in ipairs(row.priceChips) do
+      local id = PRICE_CHIP_IDS[slot]
+      local source = sources[id]
+      chip:SetLabel(GC.L[PRICE_CHIP_LABELS[slot]])
+      chip.priceSource, chip.handsBack = source, id == "goldcap"
+      -- The chip the price on screen came from is lit, so the row of five reads as a switch
+      -- with a position rather than as five buttons: GOLDCAP while the price is GoldCap's,
+      -- another while the seller's own price is exactly that chip's. SetVariant BEFORE
+      -- Enable/Disable -- it restores full-brightness text, which would undo a Disable's dim.
+      local lit = (chip.handsBack and not chosen) or (source ~= nil and typed == source)
+      if chip.SetVariant then chip:SetVariant(lit and "active" or "ghost") end
+      if source or chip.handsBack then chip:Enable() else chip:Disable() end
+      -- A segment of the strip behind it, not a pill of its own: only the one in force keeps
+      -- a fill. After Enable/Disable on purpose -- the kit repaints the fill on both.
+      if chip.bg and not lit then chip.bg:SetVertexColor(1, 1, 1, 0) end
+      if chip.ring then chip.ring:Hide() end
+      chip:Show()
+    end
+  else
+    -- Nothing in the bags: there is no price to set, and an editable box that cannot post
+    -- is an invitation to a click that does nothing. Say why instead.
+    row.priceBox:Hide(); row.priceBoxBg:Hide(); row.chipsBg:Hide()
+    row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
+    for _, chip in ipairs(row.priceChips) do chip:Hide() end
+    row.priceNote:SetText(GC.L["nothing in your bags to price"])
+    setColor(row.priceNote, Theme.color.fgDim)
+    row.priceNote:Show()
+  end
+
+  -- ---- the book side: the evidence the price on the left stands on, beside it rather
+  -- than eight rows below it.
+  if book then
+    row.headRules[1]:Show()
+    row.drawerHint:SetText(bookHint(book)); row.drawerHint:Show()
+    setColor(row.drawerHint, Theme.color.fgDim)
+    local widest = book.widest or 0
+    for lineIndex = 1, DR.LINES do
+      local line, level = row.bookLines[lineIndex], book.rows[lineIndex]
+      if level then
+        -- Colour carries the two facts a single number cannot: gold is where GoldCap's
+        -- price would put you, blue is stock already yours. Same code as the level row.
+        local colour, tint = Theme.color.fg, nil
+        if book.yourRow == lineIndex then colour, tint = Theme.color.gold, Theme.color.gold
+        elseif level.mine then colour, tint = Theme.color.watch, Theme.color.watch end
+        line.price:SetText(formatCell(level.unit)); setColor(line.price, colour)
+        line.qty:SetText(GC.Util.FormatCount(level.units) or "—")
+        setColor(line.qty, Theme.color.fgDim)
+        local span = widest > 0 and (level.units / widest) or 0
+        line.bar.fill:SetWidth(math.max(1, math.floor(DR.BAR_MAX * span + 0.5)))
+        if tint then line.bar.fill:SetColorTexture(tint[1], tint[2], tint[3], 0.8)
+        else line.bar.fill:SetColorTexture(1, 1, 1, 0.22) end
+        line.price:Show(); line.qty:Show(); line.bar:Show()
+        -- The same two facts in a word and a wash: where the price lands, what is already
+        -- the seller's. Where they coincide the landing wins -- it is the one being decided.
+        -- A wash and the colour, no word: a word needs a column, and wherever that column was
+        -- put -- right of the counts, left of the prices -- it held the bars and the figures off
+        -- one edge of the panel for the sake of one level in eight (seen in game, twice). The
+        -- line under the book is the key: it is written in the same gold, and names the blue.
+        line.tag:Hide()
+        if tint then
+          line.wash:SetColorTexture(tint[1], tint[2], tint[3], 0.10)
+          line.wash:Show()
+        else
+          line.wash:Hide()
+        end
+      else
+        line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+      end
+    end
+    -- How deep the book is rides here, after where the price stands in it: the hint beside the
+    -- heading has room for the price to beat and nothing else.
+    row.drawerDepth:SetText((GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0))
+    row.drawerDepth:Show()
+    -- What is already the seller's, in the blue its levels are drawn in -- the colour's key.
+    local ownUnits = 0
+    for i = 1, #(book.rows or {}) do ownUnits = ownUnits + (book.rows[i].ownerUnits or 0) end
+    local own = ownUnits > 0 and ("  " .. inlineColor(Theme.color.watch, GC.L["yours"] .. " ×" .. ownUnits)) or ""
+    if book.yourRow then
+      row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
+        book.yourRow, book.levels or 0) .. own)
+      setColor(row.drawerStand, Theme.color.goldHi)
+    else
+      row.drawerStand:SetText(GC.L["your price is above every level shown"])
+      setColor(row.drawerStand, Theme.color.fgDim)
+    end
+  else
+    row.drawerHint:Hide()
+    row.headRules[1]:Show()
+    for _, line in ipairs(row.bookLines) do
+      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+    end
+    row.drawerDepth:Hide()
+    row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
+    setColor(row.drawerStand, Theme.color.fgDim)
+  end
+  row.drawerStand:Show()
+
+  -- ---- the foot of the book section, split the way it is read: how fast this sells and how
+  -- long the queue is on the left, how old the quote behind all of it is on the right. It was
+  -- one run-on line ("market 199g97s . fresh . age 12s . ...") led by a price the book's own
+  -- first level and the hint beside the heading both already show.
+  local facts, quote = {}, nil
+  if d and d.displayMarketUnit ~= nil then
+    -- The market price is said in words only when there is no book to read it off: with one,
+    -- it is the first level and the hint beside the heading.
+    if not book then facts[#facts + 1] = ("market %s"):format(formatCell(d.displayMarketUnit)) end
+    quote = d.marketState or "unavailable"
+    if type(d.quoteAge) == "number" then quote = quote .. (" · age %ss"):format(d.quoteAge) end
+  elseif d and type(d.quoteAge) == "number" then
+    quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
+  end
+  if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
+  if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
+  -- In hours under a day: rounded to whole days, anything that sells through by this
+  -- evening read "clears in ~0d".
+  if d and type(d.days) == "number" then
+    facts[#facts + 1] = d.days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(d.days * 24 + 0.5)))
+      or ("clears in ~%dd"):format(math.floor(d.days + 0.5))
+  end
+  local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
+  row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
+    or (quote and "" or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…")))
+  setColor(row.drawerFacts, Theme.color.fgDim)
+  row.drawerFacts:Show()
+  -- A stale quote is the one thing down here worth a second look, so it alone is not dim.
+  row.drawerQuote:SetText(quote or "")
+  setColor(row.drawerQuote, d and d.marketStale and Theme.color.red or Theme.color.fgDim)
+  row.drawerQuote:Show()
+
+  -- What GoldCap would do and at what price -- the text the expansion's own detail row
+  -- used to put in the status CELL, which the deck's shed order now takes off the row at
+  -- the default window width.
+  -- The sentence and its reason together ("Post @ 18g15s -- above the cheapest, within the
+  -- day's reach..."): the reason used to trail the line of market facts under the book, a
+  -- screen away from the price it explains.
+  -- Only what nothing else on the panel already says. With stock to price, "Post @ 2g85s" is
+  -- the box and the button, and "below cost" is the red line under the box -- repeated here
+  -- they pushed the one new thing, WHY the price is what it is, off the end of the second line
+  -- ("...27875 u..."). So a postable head carries the reason alone, and nothing at all when
+  -- there is none; a head with no price control (a live lot) keeps the advice sentence, which
+  -- is the only place "Hold (loss)" is ever said.
+  local advice
+  if postable then
+    advice = d and d.factsText or ""
+  else
+    advice = recommendationText(d and d.recommendation)
+    if d and d.factsText then advice = (advice ~= "" and (advice .. " · ") or "") .. d.factsText end
+  end
+  row.subItem:SetText(advice)
+  setColor(row.subItem, Theme.color.fgMuted)
+  row.subItem:Show()
+  for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
+  -- Post, beside the price it posts at. As a sheet the panel lies over the right side of
+  -- the list -- over the open row's own button -- so without this the one position a
+  -- seller had just priced was the one they could not post. It is the row's Post, through
+  -- the same onPostClick and the same pin; two buttons for one position cannot both arm
+  -- (onPostClick refuses a second row while one is pending).
+  if postable then
+    showRowAction(row, "Post", function() onPostClick(row) end)
+    row.action:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD, DR.POST_H)
+    if row.action.SetVariant then row.action:SetVariant("primary") end
+  else
+    row.action:Hide()
+  end
+end
+
 renderRows = function()
   if not container then return end
   -- The Sell CONTENT may be attached but not the tab currently on screen -- composePositions()
@@ -3141,32 +3800,87 @@ renderRows = function()
     filtered = GC.SellViewModel.Settle(filtered, rowPlaces)
   end
   updateSummary(filtered)
+  -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
+  -- the same two skip lists the footer's held-back counter reads, so the row and the counter
+  -- can never disagree about what was left out.
+  local heldBackReason = {}
+  local onListed = filterMode == "listed" or filterMode == "cancelqueue"
+  for _, skip in ipairs(onListed and cancelSkipped or queueSkipped) do
+    if type(skip.positionKey) == "string" then heldBackReason[skip.positionKey] = skip.reason end
+  end
   local entries = {}
-  for _, position in ipairs(filtered) do
+  -- Stock that is neither in the bags nor listed is cost history, not work: it sits at the
+  -- bottom of the posting deck folded under one heading, so the rows a seller acts on are not
+  -- followed by a tail of rows they cannot. NO COST opens it by itself -- those positions are
+  -- most of what that chip exists to find, and Set cost lives on their rows.
+  local folded = {}
+  -- The position whose detail panel is open, if it is on this deck at all: a deck change or a
+  -- chip can take the row away, and a panel describing a row that is not there shuts.
+  local openPosition
+  local function pushPosition(position)
     entries[#entries + 1] = { kind = "position", position = position }
-    if expanded[position.positionKey] then
+    if expanded[position.positionKey] and not openPosition then
+      openPosition = position
+      local first = #entries + 1
       local detail = GC.SellViewModel.Expansion(position)
       -- ONE panel where this used to spend eleven separate 32px rows: the facts line, the
       -- price control, the book heading and eight levels. Opening a position buried the list
       -- it was opened from -- 25 rows of expansion inside a 430px scroll area -- which is the
       -- single complaint this redesign started from.
       entries[#entries + 1] = { kind = "drawer", position = position, detail = detail,
-        slots = DR.SLOTS }
+        -- Without a book the eight levels are not drawn, and neither is the room for them: the
+        -- head used to keep 160px of nothing between its heading and "has not answered yet".
+        slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS)
+          - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0) }
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
-      if #detail.ownedLots > 0 or inBags > 0 then
+      -- The bag line earns its row when it says something the panel's heading ("x37 in bags")
+      -- does not: that one click lists only part of the stock, that no stack can be pinned
+      -- down, or that some of it has no cost and can be given one here.
+      local bagState = inBags > 0 and liveBagState(position) or nil
+      local postableNow = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
+      local bagLine = inBags > 0 and (postableNow ~= inBags or canSetCost(position))
+      if #detail.ownedLots > 0 or bagLine then
         entries[#entries + 1] = { kind = "group", position = position, title = GC.L["ON THE AUCTION HOUSE"] }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
-      if inBags > 0 then
+      if bagLine then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
       if #detail.batches > 0 then
         entries[#entries + 1] = { kind = "group", position = position, title = GC.L["WHAT YOU PAID"],
-          hint = GC.L["Sales are costed from your oldest units first"] }
+          hint = GC.L["Sales are costed from your oldest units first"],
+          aside = GC.L["oldest units sell first"] }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
+      -- Everything a position opens into is drawn in the side panel, not under the row. The
+      -- entries keep their place in this one list -- and so their pooled rows and every pin a
+      -- post or a cancel holds on one -- and only say where they are to be laid out.
+      for index = first, #entries do entries[index].panel = true end
+    end
+  end
+  for _, position in ipairs(filtered) do
+    local notOnHand = filterMode == "post" and not position.unresolved
+      and (position.bagQty or 0) == 0 and (position.listedQty or 0) == 0
+    -- The search narrows what is DRAWN, after the ledger has been summed: the dock's totals
+    -- are the deck's, and would otherwise jump about under every keystroke. Plain substring,
+    -- lower-cased -- which folds ASCII only, so a Cyrillic name matches in the case it is
+    -- written in; the client's Lua has no way to fold the rest.
+    local name = type(position.itemName) == "string" and position.itemName:lower() or ""
+    local matches = not chips.search or name:find(chips.search, 1, true) ~= nil
+    if matches and notOnHand then folded[#folded + 1] = position
+    elseif matches then pushPosition(position) end
+  end
+  -- Only a TAIL is folded. When nothing on the deck is on hand there is no work for the fold to
+  -- keep clear, and hiding the only rows there are would leave a heading over an empty list.
+  if #folded > 0 and #entries == 0 then
+    for _, position in ipairs(folded) do pushPosition(position) end
+  elseif #folded > 0 then
+    local open = showNotOnHand or chips.nocost
+    entries[#entries + 1] = { kind = "fold", position = folded[1], count = #folded, open = open }
+    if open then
+      for _, position in ipairs(folded) do pushPosition(position) end
     end
   end
   if #entries == 0 then
@@ -3181,27 +3895,44 @@ renderRows = function()
     container.emptyText:Hide()
   end
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
-  -- Running Y for the loop below. Rows are pooled and re-anchored on every render, so this is
-  -- rebuilt from scratch each time rather than remembered.
-  local placedHeight = 0
+  -- Known before any row is laid out: a docked panel takes its width out of the list's, and
+  -- shownColumns reads that. The heading row and the scroll area follow whenever it changes.
+  INSP.sync(openPosition ~= nil)
+  -- Running Y for the loop below, one per surface. Rows are pooled and re-anchored on every
+  -- render, so both are rebuilt from scratch each time rather than remembered.
+  local placedHeight, detailHeight, listIndex = 0, 0, 0
   for i, row in ipairs(rows) do
     local entry = entries[i]
     if not entry then row.renderEntryID = nil; row:Hide()
     else
+      -- One pool, two surfaces. A row is re-parented only when its entry moves between them,
+      -- which a position being opened or shut does and a re-price never does -- so the price
+      -- box a seller is typing into is not touched by the renders their typing causes.
+      local surface = entry.panel and detailContent or content
+      row.inPanel = entry.panel == true
+      if surface and row.surface ~= surface then
+        row.surface = surface
+        if row.SetParent then row:SetParent(surface) end
+      end
       -- Slot-based placement, not a fixed pitch off the index: an entry may claim several
       -- ROW_HEIGHT slots (entry.slots) so that one row can be a PANEL instead of a line. Every
       -- entry that does not ask for slots claims exactly one, which is the old arithmetic
       -- (offset == (i - 1) * ROW_HEIGHT) reproduced exactly -- so nothing but the drawer moves.
       local slots = entry.slots or 1
-      row:Show(); row:SetPoint("TOPLEFT", 0, -placedHeight); row:SetPoint("TOPRIGHT", 0, -placedHeight)
-      row:SetHeight(slots * ROW_HEIGHT)
-      placedHeight = placedHeight + slots * ROW_HEIGHT
+      local offset = entry.panel and detailHeight or placedHeight
+      row:Show(); row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
+      -- A position in the list is ROW.H tall; everything else keeps the slot pitch.
+      local height = (entry.kind == "position" and not entry.panel) and ROW.H or slots * ROW_HEIGHT
+      row:SetHeight(height)
+      if entry.panel then detailHeight = detailHeight + height
+      else placedHeight = placedHeight + height; listIndex = listIndex + 1 end
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       -- Read by this row's own OnEnter (below) to decide whether to add a tooltip line about the
       -- number this row is showing. Reset for every kind, not just "position": rows are pooled
       -- and rebound, so a flag left set from an earlier position would otherwise ride along onto
       -- an unrelated expansion sub-row.
-      row.marketFallback, row.notOnHand = false, false
+      row.marketFallback, row.notOnHand, row.groupHint = false, false, nil
       local p = entry.position
       local lotID = entry.lot and entry.lot.auctionID or 0
       row.renderEntryID = table.concat({ renderGeneration, i, entry.kind, p.scopeKey or "", p.positionKey or "", lotID }, ":")
@@ -3260,9 +3991,11 @@ renderRows = function()
         local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
         row.notOnHand = notOnHand
         row.cells.item:SetText(named)
+        -- What is off about this row, if anything -- see rowTag.
         row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
           or GC.SellViewModel.SourceText(p))
-          .. (notOnHand and "|cff8c8a85 · not on hand|r" or ""))
+          .. (notOnHand and "|cff8c8a85 · not on hand|r" or "")
+          .. rowTag(p, heldBackReason[p.positionKey], notOnHand))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.
         local unitCost = nil
@@ -3429,15 +4162,40 @@ renderRows = function()
         setColor(row.cells.price, rowUnit and Theme.color.fg or Theme.color.fgDim)
         if rowUnit and paidUnit and paidUnit > 0 then
           local pct = math.floor(((rowUnit - paidUnit) / paidUnit) * 100 + 0.5)
-          row.cells.margin:SetText((pct >= 0 and "+" or "") .. pct .. "%")
-          setColor(row.cells.margin, pct >= 0 and Theme.color.green or Theme.color.red)
+          row.grossNote:SetText((pct >= 0 and "+" or "") .. pct .. "%")
+          setColor(row.grossNote, pct >= 0 and Theme.color.green or Theme.color.red)
         else
-          -- A dash is "no price yet"; a question mark is "no receipt, so the margin is not a
-          -- number anybody can know". Conflating them is what made Unknown read as broken.
-          row.cells.margin:SetText(paidUnit and "—" or "?")
-          setColor(row.cells.margin, Theme.color.fgDim)
+          -- Nothing is "no price yet"; the words are "no receipt, so the margin is not a number
+          -- anybody can know". Conflating them is what made Unknown read as broken.
+          row.grossNote:SetText(rowUnit and not paidUnit and GC.L["no cost"] or "")
+          setColor(row.grossNote, Theme.color.fgDim)
         end
-        row.cells.expand:SetText(expanded[p.positionKey] and "−" or "+")
+        -- Where rowUnit stands in the live book. The marks count price levels from the
+        -- cheapest; the lit one is where this price lands -- gold for a price about to be
+        -- posted, the watch blue for a lot already standing there, the same two colours the
+        -- book itself uses for the same two facts.
+        local standing = rowUnit and GC.SellViewModel.Standing and GC.SellViewModel.Standing(p, rowUnit) or nil
+        local lit = onListedDeck and Theme.color.watch or Theme.color.gold
+        for slot, mark in ipairs(row.standMarks) do
+          if not standing then
+            -- No book, no marks: five grey ticks beside nothing read as a broken widget.
+            mark:SetColorTexture(1, 1, 1, 0)
+          elseif slot == standing.slot then
+            mark:SetColorTexture(lit[1], lit[2], lit[3], 1)
+          else
+            mark:SetColorTexture(1, 1, 1, slot < standing.slot and 0.32 or 0.10)
+          end
+        end
+        if not standing then
+          row.priceStand:SetText("")
+        elseif standing.ahead == 0 then
+          row.priceStand:SetText(GC.L["first in line"])
+          setColor(row.priceStand, Theme.color.green)
+        else
+          row.priceStand:SetText((onListedDeck and GC.L["%s under you"] or GC.L["%s ahead"]):format(
+            GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
+          setColor(row.priceStand, Theme.color.fgDim)
+        end
         -- Post is the point of this screen, so it lives on the row itself. It
         -- used to be reachable only by expanding the position and finding a
         -- sub-row, and only for stock GoldCap had a receipt for -- which is why
@@ -3452,163 +4210,25 @@ renderRows = function()
           row.action:Hide()
         end
       elseif entry.kind == "drawer" then
-        local d = entry.detail
-        local book = d and d.book or nil
-        local postable = (p.bagQty or 0) > 0
-        row.drawerBookHead:SetText(GC.L["THE BOOK"]); row.drawerBookHead:Show()
-        setColor(row.drawerBookHead, Theme.color.fgDim)
-
-        -- ---- the price side: the same widgets and the same commit path the price ROW used,
-        -- so nothing about what a typed price does has changed -- only where it is shown.
-        local unit, chosen = effectivePostUnit(p)
-        local risk = GC.SellPositions.PriceRisk(p, unit)
-        row.drawerPriceHead:SetText(GC.L["YOUR PRICE"]); row.drawerPriceHead:Show()
-        setColor(row.drawerPriceHead, chosen and Theme.color.gold or Theme.color.fgDim)
-        if postable then
-          local box = row.priceBox
-          local focused = box.HasFocus and box:HasFocus() or false
-          -- Someone typing into this box, on this same position, owns it -- see the price row's
-          -- own note: a render that stamped it unconditionally wiped half-typed prices.
-          if not (focused and row.priceEditingKey == overrideKey(p)) then
-            if focused then
-              row.priceEditingKey = nil
-              row.priceCommitting = true
-              box:ClearFocus()
-              row.priceCommitting = false
-            end
-            box:SetText(unit and copperToGoldText(unit) or "")
-          end
-          box:Show()
-          if risk.belowCost then
-            row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
-            setColor(row.priceNote, Theme.color.red)
-          elseif risk.belowFloor then
-            row.priceNote:SetText((GC.L["under GoldCap's own floor of %s"]):format(formatCell(risk.floor)))
-            setColor(row.priceNote, Theme.color.red)
-          elseif unit then
-            -- The quantity this note prices is the one a click lists, not the one in the bags --
-            -- the same rule YOU GET follows above, and for the same reason.
-            local postQty = exact(p.postableQty) and p.postableQty > 0 and p.postableQty or (p.bagQty or 0)
-            local total = safeMultiply(unit, postQty)
-            row.priceNote:SetText(("%s · ×%d · %s"):format(
-              chosen and GC.L["yours"] or GC.L["GoldCap's"], postQty,
-              total and formatCell(total) or "—"))
-            setColor(row.priceNote, Theme.color.fgDim)
-          else
-            row.priceNote:SetText(GC.L["no live price yet"])
-            setColor(row.priceNote, Theme.color.fgDim)
-          end
-          row.priceNote:Show()
-          -- UNDERCUT is a rung BELOW the cheapest competing ask, and a silver under an ask of a
-          -- silver or less is zero or negative. Zero is truthy in Lua, so the chip enabled
-          -- itself, stored a price of 0 as the seller's choice, and effectivePostUnit then
-          -- refused it -- which emptied the box the player had just filled. Nothing here may
-          -- offer a price that is not a price.
-          local competing = book and exact(book.cheapestCompeting) and book.cheapestCompeting > 0
-            and book.cheapestCompeting or nil
-          local sources = {
-            match = competing,
-            under = competing and competing > 100 and (competing - 100) or nil,
-            market = exact(p.marketValue) and p.marketValue > 0 and p.marketValue or nil,
-            cost = exact(risk.paidUnit) and risk.paidUnit > 0 and risk.paidUnit or nil,
-          }
-          for slot, chip in ipairs(row.priceChips) do
-            local source = sources[PRICE_CHIP_IDS[slot]]
-            chip:SetLabel(GC.L[PRICE_CHIP_LABELS[slot]])
-            chip.priceSource = source
-            if source then chip:Enable() else chip:Disable() end
-            chip:Show()
-          end
-        else
-          -- Nothing in the bags: there is no price to set, and an editable box that cannot post
-          -- is an invitation to a click that does nothing. Say why instead.
-          row.priceBox:Hide()
-          for _, chip in ipairs(row.priceChips) do chip:Hide() end
-          row.priceNote:SetText(GC.L["nothing in your bags to price"])
-          setColor(row.priceNote, Theme.color.fgDim)
-          row.priceNote:Show()
-        end
-
-        -- ---- the book side: the evidence the price on the left stands on, beside it rather
-        -- than eight rows below it.
-        if book then
-          row.drawerHint:SetText(bookHint(book)); row.drawerHint:Show()
-          setColor(row.drawerHint, Theme.color.fgDim)
-          local widest = book.widest or 0
-          for lineIndex = 1, DR.LINES do
-            local line, level = row.bookLines[lineIndex], book.rows[lineIndex]
-            if level then
-              -- Colour carries the two facts a single number cannot: gold is where GoldCap's
-              -- price would put you, blue is stock already yours. Same code as the level row.
-              local colour, tint = Theme.color.fg, nil
-              if book.yourRow == lineIndex then colour, tint = Theme.color.gold, Theme.color.gold
-              elseif level.mine then colour, tint = Theme.color.watch, Theme.color.watch end
-              line.price:SetText(formatCell(level.unit)); setColor(line.price, colour)
-              line.qty:SetText(GC.Util.FormatCount(level.units) or "—")
-              setColor(line.qty, Theme.color.fgDim)
-              local span = widest > 0 and (level.units / widest) or 0
-              line.bar.fill:SetWidth(math.max(1, math.floor(DR.BAR_MAX * span + 0.5)))
-              if tint then line.bar.fill:SetColorTexture(tint[1], tint[2], tint[3], 0.8)
-              else line.bar.fill:SetColorTexture(1, 1, 1, 0.22) end
-              line.price:Show(); line.qty:Show(); line.bar:Show()
-            else
-              line.price:Hide(); line.qty:Hide(); line.bar:Hide()
-            end
-          end
-          if book.yourRow then
-            row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
-              book.yourRow, book.levels or 0))
-            setColor(row.drawerStand, Theme.color.goldHi)
-          else
-            row.drawerStand:SetText(GC.L["your price is above every level shown"])
-            setColor(row.drawerStand, Theme.color.fgDim)
-          end
-        else
-          row.drawerHint:Hide()
-          for _, line in ipairs(row.bookLines) do
-            line.price:Hide(); line.qty:Hide(); line.bar:Hide()
-          end
-          row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
-          setColor(row.drawerStand, Theme.color.fgDim)
-        end
-        row.drawerStand:Show()
-
-        -- ---- the bottom line: exactly what the separate "detail" row carried.
-        local facts = {}
-        if d and d.displayMarketUnit ~= nil then
-          local lead = ("market %s · %s"):format(formatCell(d.displayMarketUnit),
-            d.marketState or "unavailable")
-          if type(d.quoteAge) == "number" then lead = lead .. (" · age %ss"):format(d.quoteAge) end
-          facts[#facts + 1] = lead
-        elseif d and type(d.quoteAge) == "number" then
-          facts[#facts + 1] = (GC.L["quote %ss ago"]):format(d.quoteAge)
-        end
-        if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
-        if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
-        if d and type(d.days) == "number" then facts[#facts + 1] = ("clears in ~%dd"):format(math.floor(d.days + 0.5)) end
-        if d and d.factsText then facts[#facts + 1] = d.factsText end
-        local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
-        row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
-          or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…"))
-        setColor(row.drawerFacts, (#facts == 0 or (d and d.marketStale))
-          and Theme.color.fgDim or Theme.color.fg)
-        row.drawerFacts:Show()
-
-        -- What GoldCap would do and at what price -- the text the expansion's own detail row
-        -- used to put in the status CELL, which the deck's shed order now takes off the row at
-        -- the default window width.
-        row.subItem:SetText(recommendationText(d and d.recommendation))
-        setColor(row.subItem, Theme.color.fg)
-        row.subItem:Show()
-        for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
+        INSP.paintHead(row, p, entry.detail)
+      elseif entry.kind == "fold" then
+        -- "+" and "-" rather than an arrow: only in-game-proven punctuation goes on screen (the
+        -- bundled face drew tofu for the arrows the design used).
+        row.sectionLabel:SetText((entry.open and "- " or "+ ")
+          .. (GC.L["NOT ON HAND %d"]):format(entry.count)
+          .. "  " .. DIM_HEX .. GC.L["in the mail, the bank or on another character"] .. "|r")
         row.action:Hide()
       elseif entry.kind == "group" then
         -- The hint rides IN the heading, not in the status cell. That cell is the first thing
         -- a narrow window sheds, and the book's own hint -- the cheapest ask that is not yours
         -- -- is the single most useful line in the section: losing it exactly when the window
         -- is too small to show much else is backwards.
-        row.sectionLabel:SetText(entry.title
-          .. (entry.hint and entry.hint ~= "" and ("  " .. DIM_HEX .. entry.hint .. "|r") or ""))
+        -- On hover, not in the heading: at the panel's width "Sales are costed from your oldest
+        -- units first" ran off the edge after its sixth word.
+        row.sectionLabel:SetText(entry.title)
+        row.groupHint = entry.hint
+        row.sectionHint:SetText(entry.aside or "")
+        row.sectionHint:Show()
         for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
         row.action:Hide()
       elseif entry.kind == "batch" then
@@ -3670,7 +4290,31 @@ renderRows = function()
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
           and ("%d still unsold"):format(entry.batch.remainingQty) or "all sold")
         setColor(row.cells.status, Theme.color.fgDim)
-        row.cells.expand:SetText("")
+        -- Four columns in the panel, the way a ledger reads: how many, what each cost, where
+        -- from and when, and how far that cost can be trusted. The sentence above is still
+        -- what gets translated -- and, whole, what the row's hover says, with how many of the
+        -- run are purchases and how many are still unsold; the columns are its facts set out
+        -- so that two purchases can be compared down the panel instead of read one by one.
+        row.groupHint = (row.subItem:GetText() or "") .. " · " .. (row.cells.status:GetText() or "")
+        row.subItem:SetText(("×%d"):format(entry.batch.originalQty or entry.batch.quantity or 0))
+        setColor(row.cells.cost, Theme.color.goldHi or Theme.color.gold)
+        -- The evidence word is drawn only when it is news. A purchase matched to the mail's
+        -- invoice and a craft captured as it happened are the ordinary cases, and saying so on
+        -- every line took the room the source and date needed -- "GoldCap,..." (seen in game).
+        -- When the evidence IS worth a look, it gets the room and the source steps back to the
+        -- hover, which carries the whole sentence either way.
+        local craft = entry.batch.source == "craft"
+        local evidence = entry.batch.evidence or GC.L["unknown evidence"]
+        local ordinary = evidence == (craft and "captured" or "mail-confirmed")
+        if craft then
+          -- "crafted", not "made": the batch is known to be a craft (its source says so), and
+          -- the word a player uses for it is the one that tells them GoldCap knows too.
+          row.itemStock:SetText((GC.L["crafted %s"]):format(when))
+        else
+          row.itemStock:SetText(ordinary and (sourceLabel .. ", " .. when) or when)
+        end
+        row.sectionHint:SetText(ordinary and "" or evidence)
+        row.sectionHint:Show()
         -- Only a hand-entered cost gets a removal affordance -- goldcap and auction_house
         -- batches are evidence-backed, and Core/Acquisitions' own RemoveManual already refuses
         -- them, but the button should never even offer the click. entry.batch.source is the one
@@ -3713,7 +4357,6 @@ renderRows = function()
         row.cells.profit:SetText("")
         row.cells.status:SetText(recommendationText(p.recommendation))
         setColor(row.cells.status, Theme.color.fg)
-        row.cells.expand:SetText("")
         showRowAction(row, "Repost", function() onRepostClick(row, entry.lot.auctionID) end)
       else
         -- "In your bags" used to be inferred as tracked minus listed, which is an accounting
@@ -3785,7 +4428,7 @@ renderRows = function()
         local gc3 = Theme.color.gold
         row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)
       else
-        row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
+        row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (listIndex % 2 == 1) and (zc2[4] or 0.04) or 0)
       end
       -- The drawer is a SURFACE, not a shaded row: at the well's usual half alpha the window
       -- behind it (and, docked, the auction house's own art at the edges) mixed straight
@@ -3802,18 +4445,41 @@ renderRows = function()
       -- Pooled rows are rebound to a different kind on every render, so a book row's own
       -- widgets have to be put away by whatever kind takes the row next.
       if entry.kind ~= "price" and entry.kind ~= "drawer" then
-        row.priceBox:Hide(); row.priceNote:Hide()
+        row.priceBox:Hide(); row.priceBoxBg:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
+        row.headRules[1]:Hide()
         for _, chip in ipairs(row.priceChips) do chip:Hide() end
+        -- The head dresses the pooled action button as the panel's own Post; every other kind
+        -- gets the row button back.
+        -- ...at the row's own height for a position, where it is the control the row exists for.
+        row.action:SetSize(86, entry.kind == "position" and ROW.BUTTON_H or 18)
+        if row.action.SetVariant then row.action:SetVariant("ghost") end
+        -- Gold lettering on the row's Post, the way the design drew it: the fill stays the
+        -- quiet ghost, so a list of ten does not become ten gold bars.
+        if entry.kind == "position" and row.action.text and row.action.text.SetTextColor then
+          local gold = Theme.color.goldHi or Theme.color.gold
+          row.action.text:SetTextColor(gold[1], gold[2], gold[3], 1)
+        end
       end
+      if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end
       -- Same rule, and the drawer has the most to put away: five book lines and four headings.
       -- A pooled row that painted a panel last render would otherwise keep every one of them
       -- on top of whatever line it becomes next.
       if entry.kind ~= "drawer" then
         row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
         row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
+        row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
+        row.drawerDepth:Hide(); row.drawerQuote:Hide()
         for _, line in ipairs(row.bookLines) do
-          line.price:Hide(); line.qty:Hide(); line.bar:Hide()
+          line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
         end
+      end
+      -- The second lines belong to a position alone; a pooled row that was one last render
+      -- must not keep its queue marks under a lot or a batch.
+      local twoLine = entry.kind == "position"
+      if twoLine then row.priceStand:Show(); row.grossNote:Show()
+      else row.priceStand:Hide(); row.grossNote:Hide() end
+      for _, mark in ipairs(row.standMarks) do
+        if twoLine then mark:Show() else mark:Hide() end
       end
       if entry.kind == "position" then
         row.spine:Hide()
@@ -3833,8 +4499,22 @@ renderRows = function()
         -- Item 4 (addon polish batch): no icon means nothing to indent past -- the old
         -- unconditional 26 left the name floating in a blank gap for a row with no
         -- resolvable icon.
-        row.itemInset = icon and 26 or 0
+        row.itemInset = icon and (ROW.ICON + 10) or 0
         if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
+      elseif entry.kind == "fold" then
+        -- A heading in the list's own column, not a child of the row above it: no spine, no
+        -- well, and the label starts where the item names do.
+        row.itemInset = 2
+        row.icon:Hide(); row.spine:Hide(); row.divider:Hide()
+        row.zebra:Hide(); row.well:Hide()
+        row.cells.item:Hide(); row.itemStock:Hide(); row.subItem:Hide()
+        row.sectionLabel:Show(); row.sectionRule:Show()
+        row.sectionRule:ClearAllPoints()
+        row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.s, 0)
+        row.sectionRule:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
+        local fgc = Theme.color.gold
+        row.sectionRule:SetColorTexture(fgc[1], fgc[2], fgc[3], 0.25)
+        setColor(row.sectionLabel, Theme.color.gold)
       else
         row.itemInset = 34
         row.icon:Hide()
@@ -3857,15 +4537,21 @@ renderRows = function()
           row.sectionRule:Hide()
         end
       end
-      layoutCells(row)
-      if entry.kind == "drawer" then layoutDrawer(row) end
+      if entry.panel then
+        -- The panel is the surface these sit on: no well, no spine bracketing them to a row
+        -- that is a column away.
+        row.spine:Hide(); row.well:Hide(); row.zebra:Hide()
+        layoutDetailRow(row)
+      else
+        layoutCells(row)
+      end
     end
   end
+  if container.paintInspector then container.paintInspector(openPosition) end
   -- Measured from what was actually placed, not from #entries: a multi-slot entry occupies
   -- more than one row's worth, and a scroll child sized by entry COUNT would clip the drawer.
-  local totalSlots = 0
-  for _, entry in ipairs(entries) do totalSlots = totalSlots + (entry.slots or 1) end
-  content:SetHeight(math.max(1, totalSlots) * ROW_HEIGHT)
+  content:SetHeight(math.max(ROW_HEIGHT, placedHeight))
+  if detailContent then detailContent:SetHeight(math.max(ROW_HEIGHT, detailHeight)) end
   scheduleQuoteExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
@@ -3984,6 +4670,109 @@ function GC.Sell.Hide() if container then container:Hide() end end
 -- Whatever was in flight is let go of behind a drain tombstone, exactly the way
 -- Reset already did it, so a late terminal event is consumed rather than
 -- credited to this run.
+-- The bulk fill: every commodity on the tab priced by ONE throttled message.
+--
+-- The walk prices a row per round trip -- a SendSearchQuery each, through the one throttled
+-- slot the whole addon shares -- so a tab of twenty rows filled in over half a minute, top to
+-- bottom, and a press of Refresh did it all again. C_AuctionHouse.SearchForItemKeys answers
+-- for up to a hundred item keys at once with the realm's cheapest unit for each; the Items
+-- board and the BUY tab already share one such batch through UI/SniperFrame.lua's arbiter,
+-- and this is the third name on it. Every addon-wide rule lives there (one batch outstanding,
+-- never across a book pass, never while the player is using the auction house themselves).
+--
+-- What comes back is a price to SHOW. It is the cheapest unit on the realm with nobody
+-- subtracted -- the player's own lots included -- and it carries no book. So a row whose
+-- answer says the player is among the sellers is left for the walk, the price is marked
+-- `bulk`, freshQuote refuses to post against it, and the walk treats it as still owed a real
+-- quote. Commodities only: a basic item key's price can be another variant's, and a wrong
+-- number is worse than none (the walk's own rule, see uniqueQuoteItemIDs).
+local BULK_MAX = 100 -- Blizzard's ceiling for one call; more disconnects the client
+
+function GC.Sell.BulkTargets()
+  local ids, seen = {}, {}
+  for _, position in ipairs(positions) do
+    local commodity = type(position.positionKey) == "string"
+      and position.positionKey:find("commodity:", 1, true) == 1
+    local actionable = (type(position.bagQty) == "number" and position.bagQty > 0)
+      or (type(position.listedQty) == "number" and position.listedQty > 0)
+    local id = position.itemID
+    if commodity and actionable and exact(id) and id > 0 and not seen[id] then
+      seen[id] = true
+      ids[#ids + 1] = id
+      if #ids >= BULK_MAX then break end
+    end
+  end
+  return ids
+end
+
+-- Whether this tab's own batch is still waiting for its answer. Eight seconds, not the
+-- arbiter's thirty: that timeout protects a poll that has nothing else to do, whereas this
+-- wait holds up the whole pricing walk, and a batch that has not answered in eight seconds is
+-- not going to make the tab feel fast.
+function GC.Sell.BulkOutstanding()
+  local sniper = GC.Sniper
+  if not (sniper and sniper._keysOwner == "sell" and sniper._keysAwaiting) then return false end
+  return (time() - sniper._keysAwaiting) < 8
+end
+
+function GC.Sell.TrySendBulk(playerBusy)
+  if not refresh.bulkWanted or not tabIsLive() then return false end
+  if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView
+      and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return false end
+  local sent = GC.Sniper._TrySendKeysBatchFor({
+    HasPending = function() return refresh.bulkWanted == true end,
+    NextBatch = GC.Sell.BulkTargets,
+  }, "sell", function() return GC.Sniper.CurrentView() == "sell" end, playerBusy) and true or false
+  -- Asked once per press. A batch that could not go this second (a pass paging, the throttle
+  -- shut) is asked for again by the ticker; one that went is not repeated until the next press.
+  if sent then refresh.bulkWanted, refresh.bulkSent = false, true end
+  return sent
+end
+
+-- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker, like GC.Buy.Tick.
+function GC.Sell.Tick()
+  GC.Sell.TrySendBulk()
+  -- A batch that never answered: once the wait is over, hand the tab's turn back. Nothing else
+  -- would -- the ready event that the walk stood still through has been and gone.
+  if refresh.bulkSent and not GC.Sell.BulkOutstanding() then
+    refresh.bulkSent = nil
+    GC.Sell.OnThrottleReady()
+  end
+end
+
+-- The batch's answer, routed here by GC.Sniper._FoldKeysBatch because this tab asked.
+function GC.Sell.FoldBulk(browsed)
+  local now, filled = time(), 0
+  refresh.bulkSent = nil
+  for i = 1, #(browsed or {}) do
+    local row = browsed[i]
+    local itemKey = type(row) == "table" and row.itemKey or nil
+    local itemID = type(itemKey) == "table" and itemKey.itemID or nil
+    local unit = type(row) == "table" and row.minPrice or nil
+    local held = itemID and quotes[itemID] or nil
+    -- A real quote the walk already holds is better than this in every way; keep it.
+    local keep = type(held) == "table" and not held.bulk and not held.bookless and exact(held.at)
+      and (now - held.at) <= QUOTE_REWALK_AGE
+    if exact(itemID) and exact(unit) and unit > 0 and not row.containsOwnerItem and not keep then
+      GC.QuoteCache.Set(quotes, itemID, unit, now)
+      if type(quotes[itemID]) == "table" then
+        quotes[itemID].bulk = true
+        filled = filled + 1
+      end
+    end
+  end
+  if filled > 0 then
+    refresh.bulkLanded = true
+    composePositions()
+    renderRows()
+    -- Said out loud: without it the only sign this happened is that the numbers were already
+    -- there, which is indistinguishable from the walk having been quick.
+    setStatus((GC.L["%d prices in one request · books still loading"]):format(filled))
+  end
+  -- The answer is in: whatever stood still for it -- the listings query, the walk -- goes now.
+  GC.Sell.OnThrottleReady()
+end
+
 function GC.Sell.Refresh(automatic)
   if automatic and refresh.phase ~= "idle" and refresh.phase ~= "done" and refresh.phase ~= "error" then
     return
@@ -4016,6 +4805,14 @@ function GC.Sell.Refresh(automatic)
     -- trip plus its wait on every 5-second tick before a single price was asked -- and was
     -- one more phase the walk could wedge in.
     beginQuoteWalk()
+    armPhaseWatchdog()
+    return
+  end
+  -- The whole tab in one message, before anything else is asked: if it goes, the listings
+  -- query takes the next ready tick (the waiting_owned path below is exactly that).
+  refresh.bulkWanted, refresh.bulkLanded = true, nil
+  if GC.Sell.TrySendBulk() then
+    refresh.phase = "waiting_owned"
     armPhaseWatchdog()
     return
   end
@@ -4085,6 +4882,16 @@ function GC.Sell.Attach(f, geometry)
   -- Each row still owns its whole width: the layout this replaced let two anchor chains grow
   -- toward each other on one shared row and collide at ordinary window widths (the queue's head
   -- label ran under the filter chips; the cancel cluster ran under EST. PROFIT).
+  -- The dock: one raised surface along the bottom carrying the deck's bulk action, what it
+  -- will do next, what is happening, and the session's three totals. It used to be a bare strip
+  -- of widgets on the window's own background, which read as leftovers under the list rather
+  -- than as the place the tab is driven from.
+  local phc = Theme.color.panelHi
+  local dockFill = Theme.SlicedTexture(container, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { phc[1], phc[2], phc[3], 1 }, 12)
+  dockFill:SetPoint("BOTTOMLEFT"); dockFill:SetPoint("BOTTOMRIGHT")
+  dockFill:SetHeight(DOCK.H)
+  container.dockFill = dockFill
   local refreshButton = Theme.Button(container, "ghost", "plaque")
   -- 104, not 72: the busy label is "PRICING 10/24" (see paintRefreshButton), which is 101.4px
   -- at mono-10 and Theme.Scale() 1.3 (JetBrains Mono ~0.6em/char -> 7.8px/char) -- a button
@@ -4197,6 +5004,67 @@ function GC.Sell.Attach(f, geometry)
   end
   paintDeckSwitch()
   paintFilterChips()
+
+  -- Search, between the deck switch and the chips. Forty positions is an ordinary posting deck
+  -- and finding one of them was a matter of reading down the list. It lives in whatever room
+  -- row 1 has left, so under SEARCH_MIN of it the box is not drawn at all -- and takes its
+  -- filter with it, because a list narrowed by a box nobody can see is a list that looks broken.
+  -- The kit's own well at the height of the deck buttons it sits beside (InputBoxTemplate is a
+  -- fixed 20px strip of Blizzard's stone border, a third shorter than everything on the row).
+  local searchWell = CreateFrame("Frame", nil, container)
+  searchWell:SetHeight(26)
+  searchWell:SetPoint("LEFT", deckPrevious, "RIGHT", 12, 0)
+  local swc = Theme.color.bg or Theme.color.panel
+  Theme.SlicedTexture(searchWell, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { swc[1], swc[2], swc[3], 1 }, 12):SetAllPoints(searchWell)
+  Theme.SlicedTexture(searchWell, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { 1, 1, 1, 0.12 }, 12):SetAllPoints(searchWell)
+  local search = CreateFrame("EditBox", nil, searchWell)
+  search:SetAutoFocus(false)
+  search:SetPoint("TOPLEFT", 10, -2)
+  search:SetPoint("BOTTOMRIGHT", -8, 2)
+  -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
+  if search.SetFont then
+    search:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
+    search:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+    Theme.OnRescale(function(scale) search:SetFont(Theme.FONT_UI, 11 * scale, "") end)
+  end
+  container.search = search
+  local searchHint = Theme.Num(searchWell, 10)
+  searchHint:SetJustifyH("LEFT")
+  searchHint:SetPoint("LEFT", searchWell, "LEFT", 10, 0)
+  searchHint:SetText(GC.L["Search"])
+  setColor(searchHint, Theme.color.fgDim)
+  container.searchHint = searchHint
+  local function applySearch()
+    local text = (search:GetText() or ""):lower():match("^%s*(.-)%s*$")
+    chips.search = search:IsShown() and text ~= "" and text or nil
+    if text ~= "" or (search.HasFocus and search:HasFocus()) then searchHint:Hide() else searchHint:Show() end
+  end
+  search:SetScript("OnTextChanged", function(_, byUser)
+    applySearch()
+    if byUser then renderRows() end
+  end)
+  search:SetScript("OnEditFocusGained", applySearch)
+  search:SetScript("OnEditFocusLost", applySearch)
+  search:SetScript("OnEnterPressed", function(box) box:ClearFocus() end)
+  search:SetScript("OnEscapePressed", function(box)
+    box:SetText(""); box:ClearFocus()
+    applySearch(); renderRows()
+  end)
+  -- Row 1's fixed occupants: two deck buttons and their gap, REFRESH, the two chips and theirs.
+  local SEARCH_MIN, SEARCH_MAX, ROW1_FIXED = 120, 220, 2 * 128 + 4 + 104 + 92 + 76 + 4
+  container.layoutSearch = function()
+    local room = (ROW_WIDTH or 0) - ROW1_FIXED - 36
+    if room >= SEARCH_MIN then
+      searchWell:SetWidth(math.min(SEARCH_MAX, room)); searchWell:Show(); search:Show()
+    else
+      searchWell:Hide(); search:Hide()
+    end
+    applySearch()
+    if not search:IsShown() then searchHint:Hide() end
+  end
+  container.layoutSearch()
   -- The posting queue control: the toolbar's own left end, opposite Refresh/the filter chips.
   -- "POST N" (its own count, so the number is on the button a click actually is), a label
   -- beside it naming the item and unit price that click will post -- a blind click is not one a
@@ -4208,15 +5076,23 @@ function GC.Sell.Attach(f, geometry)
   -- CANCEL", 132.6px at mono-10 and Theme.Scale() 1.3 -- JetBrains Mono ~0.6em/char ->
   -- 7.8px/char) -- a narrower button let "NOTHING TO POST" spill past its own borders.
   queueButton:SetSize(136, 26)
-  queueButton:SetPoint("BOTTOMLEFT")
+  queueButton:SetPoint("BOTTOMLEFT", DOCK.PAD, (DOCK.H - 26) / 2)
   queueButton:SetScript("OnClick", function() onQueueClick() end)
   container.queueButton = queueButton
 
+  -- Two lines beside the button: what the next press does, and under it what is happening.
   local queueLabel = Theme.Num(container, 10)
-  queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 8, 0)
+  queueLabel:SetPoint("LEFT", queueButton, "RIGHT", 10, 7)
   queueLabel:SetJustifyH("LEFT")
   queueLabel:SetWordWrap(false)
   container.queueLabel = queueLabel
+
+  local dockStatus = Theme.Num(container, 9)
+  dockStatus:SetPoint("LEFT", queueButton, "RIGHT", 10, -7)
+  dockStatus:SetJustifyH("LEFT")
+  dockStatus:SetWordWrap(false)
+  setColor(dockStatus, Theme.color.fgMuted)
+  container.dockStatus = dockStatus
 
   local queueHeldBack = Theme.Num(container, 9)
   queueHeldBack:SetJustifyH("LEFT")
@@ -4267,14 +5143,14 @@ function GC.Sell.Attach(f, geometry)
   -- The SAME footer slot as the post queue's control, not the far end of a row: only one deck
   -- is ever on screen, so only one of these is ever shown, and putting them in one place means
   -- the bulk action never moves under the cursor when the deck changes.
-  cancelButton:SetPoint("BOTTOMLEFT")
+  cancelButton:SetPoint("BOTTOMLEFT", DOCK.PAD, (DOCK.H - 26) / 2)
   cancelButton:SetScript("OnClick", function() onCancelQueueClick() end)
   container.cancelButton = cancelButton
 
   local cancelHeldBack = Theme.Num(container, 9)
   cancelHeldBack:SetJustifyH("LEFT")
   setColor(cancelHeldBack, Theme.color.fgDim)
-  cancelHeldBack:SetPoint("LEFT", cancelButton, "RIGHT", 8, 0)
+  cancelHeldBack:SetPoint("LEFT", cancelButton, "RIGHT", 10, 7)
   cancelHeldBack:Hide()
   container.cancelHeldBack = cancelHeldBack
 
@@ -4335,15 +5211,22 @@ function GC.Sell.Attach(f, geometry)
   local ledgerPrevious
   for i, id in ipairs(SUMMARY_STAT_IDS) do
     local stat = { id, SUMMARY_STAT_LABELS[i] }
+    -- Label over figure in a fixed-width column, where they used to run inline as "LABEL
+    -- figure LABEL figure": stacked, three totals take half the width, and that width is what
+    -- the line beside the bulk action needs at the default window.
     local value = Theme.Num(container, 10, true)
     value:SetJustifyH("RIGHT"); value:SetWordWrap(false)
-    if ledgerPrevious then value:SetPoint("RIGHT", ledgerPrevious, "LEFT", -10, 0)
-    else value:SetPoint("RIGHT", container, "BOTTOMRIGHT", 0, 16) end
+    value:SetWidth(DOCK.STAT_W)
+    if ledgerPrevious then value:SetPoint("RIGHT", ledgerPrevious, "LEFT", -8, 0)
+    else value:SetPoint("RIGHT", container, "BOTTOMRIGHT", -DOCK.PAD, DOCK.H / 2 - 7) end
     local label = Theme.Num(container, 9)
     label:SetJustifyH("RIGHT"); label:SetWordWrap(false)
-    label:SetPoint("RIGHT", value, "LEFT", -4, 0)
+    label:SetWidth(DOCK.STAT_W)
+    label:SetPoint("BOTTOMRIGHT", value, "TOPRIGHT", 0, 3)
     label:SetText(GC.L[stat[2]]); setColor(label, Theme.color.fgDim)
     container.summary[stat[1]] = value
+    container.summaryLabels = container.summaryLabels or {}
+    container.summaryLabels[stat[1]] = label
     if stat[1] == "profit" then
       -- Same invisible-hit-frame trick the stat card used, for the same reason: a FontString
       -- cannot take mouse scripts, and the partial/missing detail is read from
@@ -4368,24 +5251,43 @@ function GC.Sell.Attach(f, geometry)
       hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
       container.summaryProfitHit = hit
     end
-    ledgerPrevious = label
+    ledgerPrevious = value
   end
   -- The leftmost thing in the ledger line, whatever it turned out to be: the held-back counter
   -- and the queue's head label chain LEFT from here, so the footer's two halves can never
   -- overlap however long either grows.
-  container.ledgerLeft = ledgerPrevious
-  if ledgerPrevious then
-    queueHeldBack:SetPoint("RIGHT", ledgerPrevious, "LEFT", -12, 0)
-  else
-    queueHeldBack:SetPoint("RIGHT", container, "BOTTOMRIGHT", 0, 16)
+  -- Re-run on every resize: under DOCK.NARROW the ledger keeps AT MARKET alone, and whatever
+  -- is leftmost afterwards is what the two lines beside the bulk action stop short of. The
+  -- held-back counter rides the upper line (14 above a figure's own centre), the status the
+  -- lower one, level with the figures.
+  local function layoutLedger()
+    local narrow = (ROW_WIDTH or 0) < DOCK.NARROW
+    local left
+    for _, id in ipairs(SUMMARY_STAT_IDS) do
+      local value, label = container.summary[id], container.summaryLabels[id]
+      if id == "profit" or not narrow then
+        value:Show(); label:Show()
+        left = value
+      else
+        value:Hide(); label:Hide()
+      end
+    end
+    container.ledgerLeft = left
+    queueHeldBack:ClearAllPoints()
+    queueHeldBack:SetPoint("RIGHT", left, "LEFT", -12, 14)
+    dockStatus:ClearAllPoints()
+    dockStatus:SetPoint("LEFT", queueButton, "RIGHT", 10, -7)
+    dockStatus:SetPoint("RIGHT", left, "LEFT", -12, 0)
   end
+  container.layoutLedger = layoutLedger
+  layoutLedger()
   local header = CreateFrame("Frame", nil, container)
   -- Kept on the container so renderRows can re-lay it out when the deck changes; see its own
   -- comment for why that cannot live in the deck buttons' click handler.
   container.header = header
   container.headerDeck = "post"
   header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", 0, -34); header:SetHeight(16); header.cells = {}
-  header.itemInset = 26 -- line the ITEM heading up with the names, not with the icons
+  header.itemInset = ROW.ICON + 10 -- line the ITEM heading up with the names, not with the icons
   for _, column in ipairs(COLUMNS) do
     local cell = Theme.Num(header, 9); cell:SetWordWrap(false); cell:SetText(""); header.cells[column.key] = cell
     -- One line, hard capped -- the pair every other single-line cell in the kit carries
@@ -4424,7 +5326,7 @@ function GC.Sell.Attach(f, geometry)
   -- Stops above the footer instead of running to the container's own bottom edge: the bulk
   -- action and the ledger line live there now, and a list that scrolled under them would put
   -- rows behind a control that can spend gold.
-  scroll:SetPoint("BOTTOMRIGHT", 0, 32)
+  scroll:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
   -- Empty-state panel, mirroring the Deals board's own (SniperFrame.lua) exactly: parented to
   -- `scroll` (not `content`), living where the rows would be, never scrolling.
   local emptyText = Theme.Label(scroll, 12)
@@ -4438,6 +5340,107 @@ function GC.Sell.Attach(f, geometry)
   emptyText:Hide()
   container.emptyText = emptyText
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
+
+  -- The detail panel: what a position opens INTO, beside the list instead of inside it. Opening
+  -- a row used to push ten rows of panel, lots and purchases into the list under it, so the
+  -- list a seller was working down scrolled away from under the cursor on every click. The
+  -- list now stays exactly where it is, and the panel has the height for the whole book.
+  --
+  -- From INSP.DOCK_MIN up it takes a column of its own and the list narrows to make room;
+  -- under that it lies over the list's right side as a sheet (see applyListGeometry). Its rows
+  -- are the SAME pooled rows renderRows has always made -- re-parented, not rebuilt -- so every
+  -- Post, Repost and Remove in it runs the code, and holds the pin, it always has.
+  local inspector = CreateFrame("Frame", nil, container)
+  inspector:SetPoint("TOPRIGHT", 0, -34)
+  inspector:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
+  inspector:SetWidth(INSP.W)
+  -- Above the list it may be lying over, and swallowing its own mouse: a click on the panel's
+  -- background must not land on whichever row sits behind it.
+  inspector:SetFrameLevel((container:GetFrameLevel() or 0) + 20)
+  inspector:EnableMouse(true)
+  inspector:Hide()
+  container.inspector = inspector
+  local ipc = Theme.color.panel
+  local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
+    { ipc[1], ipc[2], ipc[3], 1 }, 24)
+  inspectorFill:SetAllPoints(inspector)
+  local ibc = Theme.color.border
+  local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
+    { 1, 1, 1, (ibc[4] or 0.06) * 2 }, 24)
+  inspectorEdge:SetAllPoints(inspector)
+
+  inspector.icon = inspector:CreateTexture(nil, "ARTWORK")
+  inspector.icon:SetSize(36, 36)
+  inspector.icon:SetPoint("TOPLEFT", INSP.PAD + 4, -11)
+  -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
+  -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
+  if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+  inspector.name = Theme.Label(inspector, 15)
+  inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(false)
+  inspector.stock = Theme.Num(inspector, 10)
+  inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(false)
+  setColor(inspector.stock, Theme.color.fgMuted)
+  local closeInspector = Theme.Button(inspector, "ghost", "badge")
+  closeInspector:SetSize(22, 20)
+  closeInspector:SetPoint("TOPRIGHT", -INSP.PAD - 2, -18)
+  closeInspector:SetLabel("X")
+  closeInspector:SetScript("OnClick", function()
+    for key in pairs(expanded) do expanded[key] = nil end
+    renderRows()
+  end)
+  inspector.close = closeInspector
+  local headRule = inspector:CreateTexture(nil, "ARTWORK")
+  headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
+  headRule:SetHeight(1)
+  headRule:SetPoint("TOPLEFT", INSP.PAD, -INSP.HEAD_H + 2)
+  headRule:SetPoint("TOPRIGHT", -INSP.PAD, -INSP.HEAD_H + 2)
+
+  local detailScroll = CreateFrame("ScrollFrame", nil, inspector, "UIPanelScrollFrameTemplate")
+  detailScroll:SetPoint("TOPLEFT", 4, -INSP.HEAD_H)
+  detailScroll:SetPoint("BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
+  detailContent = CreateFrame("Frame", nil, detailScroll)
+  detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, ROW_HEIGHT)
+  detailScroll:SetScrollChild(detailContent)
+
+  -- The list's own width follows the panel: docked, it ends where the panel's column begins
+  -- (the gap is where the list's scroll bar hangs); as a sheet, it keeps the whole width and
+  -- the panel covers its right side. Called by renderRows when that changes and by the resize
+  -- hook, never per render.
+  container.applyListGeometry = function()
+    local inset = INSP.docked() and (INSP.W + INSP.GAP) or 0
+    header:ClearAllPoints()
+    header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", 0, -52); scroll:SetPoint("BOTTOMRIGHT", -inset, DOCK.H + 6)
+    content:SetWidth(INSP.listWidth())
+    layoutCells(header)
+  end
+
+  -- The panel's head: which item this is, and where its stock is. Read off the position at
+  -- render time -- the panel is one frame reused for every position, like the cost dialog.
+  container.paintInspector = function(position)
+    if not position then inspector:Hide(); return end
+    local icon
+    if position.itemID and C_Item and C_Item.GetItemIconByID then
+      local ok, texture = pcall(C_Item.GetItemIconByID, position.itemID)
+      icon = ok and texture or nil
+    end
+    if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
+    local left = icon and (INSP.PAD + 50) or (INSP.PAD + 4)
+    inspector.name:ClearAllPoints()
+    inspector.name:SetPoint("TOPLEFT", left, -12)
+    inspector.name:SetPoint("RIGHT", closeInspector, "LEFT", -6, 0)
+    inspector.stock:ClearAllPoints()
+    inspector.stock:SetPoint("TOPLEFT", left, -33)
+    inspector.stock:SetPoint("RIGHT", closeInspector, "LEFT", -6, 0)
+    local name = position.itemName or GC.L["Item"]
+    inspector.name:SetText(Theme.WithQuality and Theme.WithQuality(name, position.itemID) or name)
+    local parts = {}
+    if (position.bagQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d in bags"]):format(position.bagQty) end
+    if (position.listedQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d listed"]):format(position.listedQty) end
+    inspector.stock:SetText(#parts > 0 and table.concat(parts, " · ") or GC.SellViewModel.SourceText(position))
+    inspector:Show()
+  end
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this
   -- opened as bare floating widgets: the rows underneath showed straight through it, its own
@@ -4568,8 +5571,12 @@ function GC.Sell.Attach(f, geometry)
   local resizeRenderToken = 0
   f:HookScript("OnSizeChanged", function(_, width)
     ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
-    content:SetWidth(ROW_WIDTH)
-    layoutCells(header)
+    -- Through the same function a panel opening uses: the width a resize leaves decides
+    -- whether the panel still has a column of its own.
+    container.listDocked = INSP.docked()
+    container.applyListGeometry()
+    layoutLedger()
+    container.layoutSearch()
     resizeRenderToken = resizeRenderToken + 1
     local token = resizeRenderToken
     if C_Timer and C_Timer.After then
@@ -4659,6 +5666,15 @@ function GC.Sell.DebugPrint()
     call(sniper.IsSearchCritical), call(sniper.IsBusy),
     sniper._bookPass and call(function() return sniper._bookPass:IsPaging() end) or "n/a",
     call(sniper._QuietZoneOpen), tostring(sniper._quietSince)))
+  -- The bulk fill's own state: whether a press is still owed one, whether it went, whether it
+  -- landed, and every gate the arbiter would hold it at -- so "the prices did not come at once"
+  -- can be answered from a paste instead of guessed at.
+  GC.Print(("bulk: wanted=%s sent=%s landed=%s outstanding=%s targets=%d view=%s keysOwner=%s keysOut=%s pendingStart=%s playerBusy=%s"):format(
+    tostring(refresh.bulkWanted), tostring(refresh.bulkSent), tostring(refresh.bulkLanded),
+    tostring(GC.Sell.BulkOutstanding()), #GC.Sell.BulkTargets(), call(sniper.CurrentView),
+    tostring(sniper._keysOwner), call(sniper._KeysOutstanding),
+    sniper._bookPass and call(function() return sniper._bookPass:PendingStart() end) or "n/a",
+    GC.AuctionHouseTab and call(GC.AuctionHouseTab.PlayerIsBusy) or "n/a"))
   local status = statusOwner and statusOwner.status and statusOwner.status.GetText and statusOwner.status:GetText()
   GC.Print("status: " .. tostring(status))
   local t = GC.Util.throttleStats

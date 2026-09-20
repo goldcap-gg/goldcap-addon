@@ -4573,6 +4573,13 @@ function GC.Sniper._FoldKeysBatch()
     if GC.Buy and GC.Buy.FoldRefresh then GC.Buy.FoldRefresh(browsed) end
     return true
   end
+  if owner == "sell" then
+    -- The Sell tab's bulk price fill: same one batch, same reason to drop the asked-about
+    -- list here -- the realm poll's fold would read it as its own.
+    GC.Sniper._keysBatch = nil
+    if GC.Sell and GC.Sell.FoldBulk then GC.Sell.FoldBulk(browsed) end
+    return true
+  end
   GC.Sniper._keyPoll:Fold(browsed)
   -- The cycle is over once nothing is left to hand out; the Items board's own loop starts
   -- the next one after a breather (see _TrySendKeysBatch).
@@ -8655,6 +8662,9 @@ function GC.Sniper.OnAuctionHouseShow()
       -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
       -- helper owns the interval, the view gate and the claim.
       if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
+      -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
+      -- slot taken: nothing else on that tab would carry the retry.
+      if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
     end
     refreshVerifyButton()
     -- Same clock, same reason: the session readout cannot be forgotten by a path that changes

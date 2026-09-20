@@ -491,7 +491,6 @@ GC.Locales.frFR = {
   ["auto: paused"] = "auto : en pause",
   ["below the %s you paid"] = "sous les %s que tu as payés",
   ["big buy"] = "gros achat",
-  ["blue is already yours"] = "le bleu est déjà à toi",
   ["bought %d x item %d"] = "acheté %d x objet %d",
   ["bought %d x item %d after AH close"] =
     "acheté %d x objet %d après la fermeture de l'hôtel des ventes",
@@ -518,9 +517,6 @@ GC.Locales.frFR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "scan complet bloqué -- appuyez sur Full Scan pour réessayer",
   ["full scan stalled -- retrying shortly"] = "scan complet bloqué -- nouvelle tentative bientôt",
-  ["gold is where your price lands"] = "l'or marque où ton prix se place",
-  ["gold is where your price lands, blue is already yours"] =
-    "l'or marque où ton prix se place, le bleu est déjà à toi",
   ["gone / price changed"] = "disparu / prix modifié",
   ["high"] = "élevée",
   ["identity unresolved (variant item -- not priced by design)"] =

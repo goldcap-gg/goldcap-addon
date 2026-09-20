@@ -460,7 +460,6 @@ GC.Locales.koKR = {
   ["auto: paused"] = "자동: 일시중지",
   ["below the %s you paid"] = "지불한 %s보다 낮음",
   ["big buy"] = "대량 구매",
-  ["blue is already yours"] = "파란색은 이미 내 물량",
   ["bought %d x item %d"] = "%d개 구매 · 아이템 %d",
   ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
   ["buying commodity..."] = "상품 구매 중...",
@@ -485,8 +484,6 @@ GC.Locales.koKR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "전체 검색이 멈췄습니다 -- Full Scan을 눌러 다시 시도하세요",
   ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
-  ["gold is where your price lands"] = "금색이 내 가격이 놓이는 자리",
-  ["gold is where your price lands, blue is already yours"] = "금색이 내 가격이 놓이는 자리, 파란색은 이미 내 물량",
   ["gone / price changed"] = "사라짐 / 가격 변경",
   ["high"] = "높음",
   ["identity unresolved (variant item -- not priced by design)"] =

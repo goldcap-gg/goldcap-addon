@@ -11,6 +11,8 @@ describe("Sell widget geometry and manual cost", function()
       self.points[#self.points + 1] = { point = point, relative = relative, relativePoint = relativePoint, x = x, y = y }
     end
     function value:ClearAllPoints() self.points = {} end
+    -- A position's detail rows move between the list and the side panel by re-parenting.
+    function value:SetParent(to) self.parent = to end
     function value:SetSize(w, h) self.width, self.height = w, h end
     function value:SetWidth(w) self.width = w end
     function value:SetHeight(h) self.height = h end
@@ -126,6 +128,9 @@ describe("Sell widget geometry and manual cost", function()
         -- renders, and a stand-in that handed the list straight back would let every test here
         -- pass against an order that still jumps.
         Settle = realViewModel.SellViewModel.Settle,
+        -- And for the same reason again: Standing is the arithmetic behind the line under a
+        -- row's price, and a stand-in would let that line say anything.
+        Standing = realViewModel.SellViewModel.Standing,
         SourceText = function() return "GC ×1" end,
         CostText = function() return "Set cost" end,
         ProfitText = function() return "Unknown" end,
@@ -285,7 +290,7 @@ describe("Sell widget geometry and manual cost", function()
         exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
         listedQty = 0, sources = {}, status = "UNLISTED" },
     })
-    assert.equal(26, rows[1].itemInset)
+    assert.equal(38, rows[1].itemInset) -- a 28px icon and its gap
     -- MINOR-5 (fix round 1): no inline `_G.C_Item = nil` here on purpose -- the file's own
     -- after_each (top of this describe block) already clears it unconditionally, even if an
     -- assertion above this point had failed. A cleanup line living only on this test's last
@@ -787,17 +792,46 @@ describe("Sell widget geometry and manual cost", function()
         row.priceChips[slot].scripts.OnClick(row.priceChips[slot])
         return priceRow(GC).priceBox.text
       end
-      assert.equal("42.05", fill(1)) -- MATCH: the cheapest ask that is not yours
-      assert.equal("42.04", fill(2)) -- UNDERCUT: one silver under it
-      assert.equal("50", fill(3))    -- MARKET: the imported market value
-      assert.equal("40", fill(4))    -- COST: the break-even, 2000000 over 5 units
+      assert.equal("42.05", fill(2)) -- MATCH: the cheapest ask that is not yours
+      assert.equal("42.04", fill(3)) -- UNDERCUT: one silver under it
+      assert.equal("50", fill(4))    -- MARKET: the imported market value
+      assert.equal("40", fill(5))    -- COST: the break-even, 2000000 over 5 units
 
       -- No cost basis, no COST chip: the alternative is a chip that fills a cost the addon
       -- does not have.
       local bare = load(700, { calls = {} })
       local row2 = priceRow(bare, { coverage = "UNKNOWN", knownQty = 0, knownCost = 0 })
-      assert.is_false(row2.priceChips[4].enabled)
-      assert.is_true(row2.priceChips[1].enabled)
+      assert.is_false(row2.priceChips[5].enabled)
+      assert.is_true(row2.priceChips[2].enabled)
+    end)
+
+    -- The first chip is the way back: it carries no price, it clears the seller's own, and it
+    -- is the lit one for as long as the price on screen is GoldCap's.
+    it("hands the price back to GoldCap from the GOLDCAP chip, and lights the chip in force", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      assert.equal("GOLDCAP", row.priceChips[1].label)
+      assert.equal("active", row.priceChips[1].variant)
+      assert.equal("ghost", row.priceChips[2].variant)
+      local theirs = row.priceBox.text
+      row.priceChips[4].scripts.OnClick(row.priceChips[4]) -- MARKET
+      row = priceRow(GC)
+      assert.equal("50", row.priceBox.text)
+      assert.equal("active", row.priceChips[4].variant)
+      assert.equal("ghost", row.priceChips[1].variant)
+      row.priceChips[1].scripts.OnClick(row.priceChips[1])
+      row = priceRow(GC)
+      assert.equal(theirs, row.priceBox.text)
+      assert.equal("active", row.priceChips[1].variant)
+    end)
+
+    it("shows what the price fetches beside the box, by the row's own arithmetic", function()
+      local GC = load(700, { calls = {} })
+      local row, rows = priceRow(GC)
+      assert.equal("YOU GET", row.priceNetHead.text)
+      assert.equal(rows[1].cells.gross.text, row.priceNet.text)
+      assert.matches(rows[1].grossNote.text, row.priceNetNote.text, 1, true)
+      assert.matches("after the AH cut", row.priceNetNote.text, 1, true)
     end)
 
     -- The price of letting the price be typed: the addon says what it would otherwise have
@@ -852,9 +886,9 @@ describe("Sell widget geometry and manual cost", function()
       })
       local drawer
       for _, row in ipairs(rows) do if row.kind == "drawer" then drawer = row end end
-      assert.is_true(drawer.priceChips[1].enabled) -- MATCH: one silver is a price
-      assert.is_false(drawer.priceChips[2].enabled) -- UNDERCUT: zero is not
-      assert.is_nil(drawer.priceChips[2].priceSource)
+      assert.is_true(drawer.priceChips[2].enabled) -- MATCH: one silver is a price
+      assert.is_false(drawer.priceChips[3].enabled) -- UNDERCUT: zero is not
+      assert.is_nil(drawer.priceChips[3].priceSource)
     end)
   end)
 
@@ -908,11 +942,13 @@ describe("Sell widget geometry and manual cost", function()
       local drawer = nth(bookRows(GC, BOOK), "drawer")
       assert.equal("THE BOOK", drawer.drawerBookHead.text)
       assert.matches("cheapest not yours", drawer.drawerHint.text, 1, true)
-      assert.matches("1062 units", drawer.drawerHint.text, 1, true)
-      assert.matches("4 prices", drawer.drawerHint.text, 1, true)
-      -- The colour legend is said once, in the hint, because the lines carry the two facts in
-      -- colour rather than in a marker glyph the bundled face does not have.
-      assert.matches("gold is where your price lands", drawer.drawerHint.text, 1, true)
+      -- How deep the book is follows where the price stands in it, under the levels: beside
+      -- the heading there is room for the price to beat and nothing else.
+      assert.matches("1062 units", drawer.drawerDepth.text, 1, true)
+      assert.matches("4 prices", drawer.drawerDepth.text, 1, true)
+      -- The colour key is no longer a sentence in the hint: each level that needs one says it
+      -- in a word of its own (see the colouring test below).
+      assert.is_nil(drawer.drawerHint.text:find("gold is", 1, true))
     end)
 
     it("prints each level with its own price and depth, and says where you would stand", function()
@@ -943,6 +979,14 @@ describe("Sell widget geometry and manual cost", function()
       -- A level that is neither is just a price, in the ordinary foreground.
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, drawer.bookLines[1].price.color)
+      -- And in a word, with a wash behind the level: colour alone was a key nobody was given.
+      -- No word beside a level -- a word needs a column, and the column cost the book its
+      -- width. The line under the book is the key: gold like the landing, and naming the blue.
+      assert.is_true(drawer.bookLines[2].wash.shown)
+      assert.is_true(drawer.bookLines[3].wash.shown)
+      assert.is_false(drawer.bookLines[1].wash.shown)
+      assert.is_false(drawer.bookLines[2].tag.shown)
+      assert.matches("yours ×", drawer.drawerStand.text, 1, true)
     end)
 
     -- Rows are pooled and rebound to a different kind on every render, so the drawer's own
@@ -1002,7 +1046,8 @@ describe("Sell widget geometry and manual cost", function()
       for _, child in ipairs(container.children) do if child.cells then header = child break end end
       assert.is_true(header.cells.gross.shown, ("gross hidden at %d"):format(width))
       assert.is_true(header.cells.price.shown, ("price hidden at %d"):format(width))
-      assert.is_true(header.cells.margin.shown, ("margin hidden at %d"):format(width))
+      -- MARGIN is the line under YOU GET now, not a column of its own.
+      assert.is_nil(header.cells.margin)
       -- The four the drawer took over are off the row on this deck, at every width.
       assert.is_false(header.cells.cost.shown)
       assert.is_false(header.cells.market.shown)
@@ -1015,11 +1060,12 @@ describe("Sell widget geometry and manual cost", function()
     local header
     for _, child in ipairs(container.children) do if child.cells then header = child break end end
     assert.is_nil(header.cells.queue)
-    assert.equal(header.cells.expand, header.cells.action.points[1].relative)
-    assert.equal(header.cells.action, header.cells.margin.points[1].relative)
-    assert.equal(header.cells.margin, header.cells.price.points[1].relative)
-    assert.equal(header.cells.price, header.cells.gross.points[1].relative)
-    assert.equal(header.cells.gross, header.cells.item.points[2].relative)
+    -- Right to left: the button, what the stack fetches, the price it fetches it at, the name.
+    assert.is_nil(header.cells.expand)
+    assert.equal(header, header.cells.action.points[1].relative)
+    assert.equal(header.cells.action, header.cells.gross.points[1].relative)
+    assert.equal(header.cells.gross, header.cells.price.points[1].relative)
+    assert.equal(header.cells.price, header.cells.item.points[2].relative)
 
     -- The other deck carries a different set AND different words for one of the same columns:
     -- MARKET / UNIT is "the cheapest ask that is not mine" while you are choosing a price, and
@@ -1028,12 +1074,14 @@ describe("Sell widget geometry and manual cost", function()
     local _, listedContainer = topRows(listedDeck, {}, "listed")
     local listedHeader
     for _, child in ipairs(listedContainer.children) do if child.cells then listedHeader = child break end end
+    -- "Who is under me" is the line under YOUR PRICE on this deck, in units; the column that
+    -- carried a bare price under that heading is gone from it.
     assert.is_true(listedHeader.cells.listed.shown)
-    assert.is_true(listedHeader.cells.market.shown)
+    assert.is_true(listedHeader.cells.price.shown)
+    assert.is_false(listedHeader.cells.market.shown)
     assert.is_false(listedHeader.cells.gross.shown)
-    assert.is_false(listedHeader.cells.margin.shown)
-    assert.equal("UNDER YOU", listedHeader.cells.market.text)
-    assert.equal("MARKET / UNIT", header.cells.market.text)
+    assert.equal("YOUR PRICE", listedHeader.cells.price.text)
+    assert.equal("PRICE / UNIT", header.cells.price.text)
   end)
 
   -- The complaint this answers, in the owner's words: "список постоянно прыгает, когда
@@ -1087,7 +1135,7 @@ describe("Sell widget geometry and manual cost", function()
     })
     local header
     for _, child in ipairs(container.children) do if child.cells then header = child break end end
-    for _, key in ipairs({ "cost", "listed", "market", "profit", "status", "expand" }) do
+    for _, key in ipairs({ "cost", "listed", "market", "profit", "status" }) do
       assert.is_false(header.cells[key].wordWrap, key)
       assert.is_false(rows[1].cells[key].wordWrap, key)
     end
@@ -1152,31 +1200,54 @@ describe("Sell widget geometry and manual cost", function()
       -- default size.
       assert.is_true(row.cells.gross.shown)
       assert.is_true(row.cells.price.shown)
-      assert.is_true(row.cells.margin.shown)
+      -- The margin rides under YOU GET and the queue standing under the price, each on the
+      -- row's second line, so neither costs a column.
+      assert.is_nil(row.cells.margin)
+      assert.is_true(row.grossNote.shown)
+      assert.is_true(row.priceStand.shown)
       assert.is_false(row.cells.cost.shown)
       assert.is_false(row.cells.status.shown)
       assert.is_nil(row.cells.queue)
-      assert.equal(row.cells.expand, row.cells.action.points[1].relative)
-      -- Each shown column anchors to the one on its right, right to left, whichever of the
-      -- optional two survived this width. Built from the shown set rather than branched per
-      -- case: the three widths below now produce three different chains, not two.
-      local chain = { "gross", "price", "margin", "action", "expand" }
+      assert.equal(row, row.cells.action.points[1].relative)
+      -- Each shown column anchors to the one on its right, right to left.
+      local chain = { "price", "gross", "action" }
       for i = 1, #chain - 1 do
         assert.equal(row.cells[chain[i + 1]], row.cells[chain[i]].points[1].relative,
           chain[i] .. " does not anchor to " .. chain[i + 1])
       end
-      assert.equal(row.cells.gross, row.cells.item.points[2].relative)
-      assert.equal(header.cells.expand, header.cells.action.points[1].relative)
+      assert.equal(row.cells.price, row.cells.item.points[2].relative)
+      -- A position's two figures sit in the upper half, their second lines in the lower one.
+      -- Offsets are relative to the neighbour a cell hangs off, so a lifted neighbour must not
+      -- lift it a second time: YOU GET rises 10 off the button, the price 0 off YOU GET.
+      assert.equal(10, row.cells.gross.points[1].y)
+      assert.equal(0, row.cells.price.points[1].y)
+      assert.equal(0, row.cells.item.points[2].y)
+      assert.equal(-20, row.itemStock.points[2].y)
+      -- A position is 44px tall whatever the list's slot pitch, with a button to match.
+      assert.equal(44, row.height)
+      assert.equal(26, row.action.height)
+      assert.equal(row.cells.price, row.priceStand.points[1].relative)
+      assert.equal(row.cells.gross, row.grossNote.points[1].relative)
+      assert.equal(header, header.cells.action.points[1].relative)
+      assert.equal(0, header.cells.price.points[1].y)
       rows[1].scripts.OnClick(rows[1])
       local render = upvalue(GC.Sell.Attach, "renderRows")
       local content = upvalue(render, "content")
-      assert.equal(width, content.width)
-      -- Six rows now: the expansion is split into two labelled groups, listings before
-      -- purchase history, because the listings are the part a player acts on.
-      -- Ten slots, not six rows: one position + a five-slot drawer + the auction-house
+      local detailContent = upvalue(render, "detailContent")
+      -- An open position's detail is drawn in the side panel. From 880 up the panel has a
+      -- column of its own and the list gives up the panel's width and the gap; under that it
+      -- lies over the list as a sheet and the list keeps every pixel.
+      assert.equal(width >= 880 and width - 340 - 28 or width, content.width)
+      assert.is_true(container.inspector.shown)
+      -- The list does not grow by a single row when a position opens -- that is the point.
+      assert.equal(44, content.height)
+      -- Eleven slots in the panel: a seven-slot head (this position has nothing in the bags, so
+      -- no price control, and no book, so no room kept for its levels), the auction-house
       -- heading, its lot, the purchase heading and its batch. A scroll child sized by entry
-      -- COUNT would clip the panel by four rows' worth.
-      assert.equal(10 * 24, content.height)
+      -- COUNT would clip the head by six rows' worth.
+      assert.equal(11 * 24, detailContent.height)
+      for index = 2, 6 do assert.equal(detailContent, rows[index].parent, "row " .. index) end
+      assert.equal(content, rows[1].parent)
       assert.equal("drawer", rows[2].kind)
       assert.equal("group", rows[3].kind)
       assert.matches("^ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
@@ -1459,8 +1530,13 @@ describe("Sell widget geometry and manual cost", function()
       ownedLots = { { auctionID = 8, quantity = 1, unitPrice = 230 } } }
     local rows, container = topRows(GC, { first, second })
 
-    rows[2].scripts.OnClick(rows[2])
-    rows[1].scripts.OnClick(rows[1])
+    -- Both positions open at once. A click opens one and shuts the rest, so the pair is set
+    -- straight on the state a click writes: what this test needs is the SAME pooled row
+    -- carrying a lot before the deck change and a different lot after it.
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local expanded = upvalue(render, "expanded")
+    expanded["commodity:42"], expanded["commodity:43"] = true, true
+    render()
     -- rows[3] is the "On the Auction House" group heading now; the lot follows it.
     local firstLotRow = rows[4]
     assert.equal(7, firstLotRow.lot.auctionID)
@@ -1528,7 +1604,9 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("drawer", rows[2].kind)
     -- Plain-language detail line: market state, competition, velocity and time to clear. It no
     -- longer opens by naming the allocation rule, which told a seller nothing.
-    assert.match("quote 7s ago · 3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
+    -- Split the way it is read: the queue and the velocity on the left, the quote's age right.
+    assert.equal("3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
+    assert.equal("quote 7s ago", rows[2].drawerQuote.text)
     assert.equal("Repost @ 149", rows[2].subItem.text)
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
@@ -1538,7 +1616,17 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("group", rows[5].kind)
     -- No epoch, no allocator counters: how many, when, at what price, from where. The unit
     -- price no longer repeats -- the COST cell two columns over already carries it.
-    assert.match("×5 · bought .+ · GoldCap", rows[6].subItem.text)
+    -- Four columns in the panel: how many, what each cost, where from and when, on what
+    -- evidence. The whole sentence -- with what is left of the run -- is the row's hover.
+    assert.equal("×5", rows[6].subItem.text)
+    -- This fixture's evidence is not the ordinary kind, so it gets the room and the source
+    -- steps back to the hover: the middle column is the date alone.
+    assert.is_nil(rows[6].itemStock.text:find("GoldCap", 1, true))
+    assert.is_true(rows[6].itemStock.shown)
+    assert.equal("Auction 9", rows[6].sectionHint.text)
+    assert.is_true(rows[6].sectionHint.shown)
+    assert.is_true(rows[6].cells.cost.shown)
+    assert.match("^×5 · bought .+ · GoldCap · Auction 9 · 2 still unsold$", rows[6].groupHint)
     assert.equal("50", rows[6].cells.cost.text)
     assert.equal("100", rows[6].cells.listed.text)
     assert.equal("2 still unsold", rows[6].cells.status.text)
@@ -1549,11 +1637,14 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_true(rows[1].cells.item.shown)
     assert.is_false(rows[1].subItem.shown)
     assert.is_false(rows[1].sectionLabel.shown)
-    assert.is_true(rows[6].well.shown)
+    -- A sub-row sits on the detail panel's own surface now, so it wears neither the list's
+    -- zebra nor the nested well that used to bracket it to the row above.
+    assert.is_false(rows[6].well.shown)
+    assert.is_false(rows[6].zebra.shown)
     assert.is_false(rows[6].cells.item.shown)
     assert.is_true(rows[6].subItem.shown)
     assert.is_false(rows[6].sectionLabel.shown)
-    assert.is_true(rows[3].well.shown)
+    assert.is_false(rows[3].well.shown)
     assert.is_false(rows[3].cells.item.shown)
     assert.is_false(rows[3].subItem.shown)
     assert.is_true(rows[3].sectionLabel.shown)
@@ -1582,10 +1673,11 @@ describe("Sell widget geometry and manual cost", function()
     })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
-    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row.
+    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row -- there
+    -- because one click lists three of the five, which the panel's heading does not say.
     assert.equal("» 1g15s", rows[4].cells.market.text)
   end)
 
@@ -1601,7 +1693,7 @@ describe("Sell widget geometry and manual cost", function()
     })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
     assert.equal("» 9900", rows[4].cells.market.text)
@@ -1705,10 +1797,14 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Post @ 199", rows[2].subItem.text)
     assert.match("×2 listed at 200 each", rows[4].subItem.text)
     assert.equal("400", rows[4].cells.listed.text)
-    assert.match("captured", rows[6].subItem.text)
-    assert.match("mail%-confirmed", rows[7].subItem.text)
-    assert.match("manual", rows[8].subItem.text)
-    assert.match("unknown evidence", rows[9].subItem.text)
+    -- The evidence word is a purchase's last column in the panel.
+    assert.equal("captured", rows[6].sectionHint.text)
+    -- The ordinary evidence for a purchase is not drawn: it is on the hover, with the rest.
+    assert.equal("", rows[7].sectionHint.text)
+    assert.match("mail%-confirmed", rows[7].groupHint)
+    assert.match("^Auction House, ", rows[7].itemStock.text) -- ...and the source has its room back
+    assert.equal("manual", rows[8].sectionHint.text)
+    assert.equal("unknown evidence", rows[9].sectionHint.text)
   end)
 
   it("renders a collapsed purchase run as one line with its count and date range", function()
@@ -1738,11 +1834,15 @@ describe("Sell widget geometry and manual cost", function()
     -- the formatted dates; the range separator is ASCII on purpose (the client font has no
     -- U+2192 -- it drew a tofu box in game -- so exotic punctuation is proven-glyphs only). The
     -- unit price no longer repeats here -- the COST/LISTED cells two columns over carry it.
-    assert.match("×400 · 2 purchases · bought 4 %- 9 · GoldCap · captured", rows[4].subItem.text)
+    assert.equal("×400", rows[4].subItem.text)
+    assert.equal("4 - 9", rows[4].itemStock.text) -- "captured" is news for a purchase: it gets the room
+    assert.equal("captured", rows[4].sectionHint.text)
+    assert.equal("×400 · 2 purchases · bought 4 - 9 · GoldCap · captured · 350 still unsold", rows[4].groupHint)
     assert.equal("198", rows[4].cells.cost.text)
     assert.equal("7g92s", rows[4].cells.listed.text)
     assert.equal("350 still unsold", rows[4].cells.status.text)
-    assert.match("×30 · 3 purchases · bought 12 · GoldCap · captured", rows[5].subItem.text)
+    assert.equal("×30", rows[5].subItem.text)
+    assert.match("^×30 · 3 purchases · bought 12 · GoldCap · captured · all sold$", rows[5].groupHint)
     assert.equal("all sold", rows[5].cells.status.text)
   end)
 
@@ -1778,8 +1878,11 @@ describe("Sell widget geometry and manual cost", function()
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
     assert.equal("drawer", rows[2].kind)
-    assert.match("market 150 · fresh · age 3s", rows[2].drawerFacts.text)
-    assert.same({ 1, 1, 1, 1 }, rows[2].drawerFacts.color)
+    -- No book here, so the market price is said in words; the quote's state and age sit at
+    -- the right end of the same line, dim while it is fresh.
+    assert.equal("market 150", rows[2].drawerFacts.text)
+    assert.equal("fresh · age 3s", rows[2].drawerQuote.text)
+    assert.same({ .5, .5, .5, 1 }, rows[2].drawerQuote.color)
   end)
 
   it("[WAVE2 I4] keeps a visible stale quote after timer recomposition and never acts on it", function()
@@ -1834,8 +1937,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then freshDetail = row end
     end
-    assert.match("market 150 · fresh · age 0s", freshDetail.drawerFacts.text)
-    assert.same({ 1, 1, 1, 1 }, freshDetail.drawerFacts.color)
+    assert.equal("market 150", freshDetail.drawerFacts.text)
+    assert.equal("fresh · age 0s", freshDetail.drawerQuote.text)
+    assert.same({ .5, .5, .5, 1 }, freshDetail.drawerQuote.color)
 
     now.value = 151
     assert.equal(2, #timers) -- the expansion render fences the older expiry callback
@@ -1851,8 +1955,9 @@ describe("Sell widget geometry and manual cost", function()
     for _, row in ipairs(rows) do
       if row.kind == "drawer" and row.position.itemID == 42 then staleDetail = row end
     end
-    assert.match("market 150 · stale · age 51s", staleDetail.drawerFacts.text)
-    assert.same({ .5, .5, .5, 1 }, staleDetail.drawerFacts.color)
+    -- A stale quote is the one thing at the foot of the book worth a second look: red.
+    assert.equal("stale · age 51s", staleDetail.drawerQuote.text)
+    assert.same({ 1, 0, 0, 1 }, staleDetail.drawerQuote.color)
 
     -- Item 42 is unlisted and item 43 is a live lot, so they sit on opposite decks: everything
     -- above is the post deck's half of this test, everything below is the listed deck's. One
@@ -2165,4 +2270,387 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("listed", upvalue(render, "filterMode"))
   end)
 
+  -- The row after the redesign: two figures, each with a second line that answers before the
+  -- position is opened, and a tag on the stock line only when something is off.
+  describe("the row's second lines and tag", function()
+    local BOOK = {
+      { unitPrice = 179000, quantity = 35 }, { unitPrice = 179500, quantity = 85 },
+      { unitPrice = 181500, quantity = 240 }, { unitPrice = 184000, quantity = 410 },
+    }
+    local function stock(over)
+      local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 40, knownQty = 40, knownCost = 4000000, bagQty = 40, listedQty = 0, sources = {},
+        freshMarketUnit = 179000, displayMarketUnit = 179000, levels = BOOK,
+        postRecommendation = { unit = 181500 } }
+      for key, value in pairs(over or {}) do p[key] = value end
+      return p
+    end
+
+    it("says how much stock is queued under the price and lights the level it lands on", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock() })
+      assert.equal("120 ahead", rows[1].priceStand.text)
+      assert.is_true(rows[1].priceStand.shown)
+      local GOLD = GC.Theme.color.gold
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[1].standMarks[3].colorTexture)
+      assert.same({ 1, 1, 1, 0.32 }, rows[1].standMarks[1].colorTexture)
+      assert.same({ 1, 1, 1, 0.10 }, rows[1].standMarks[4].colorTexture)
+    end)
+
+    it("says first in line, in green, when nothing cheaper is not the player's own", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ postRecommendation = { unit = 179000 } }) })
+      assert.equal("first in line", rows[1].priceStand.text)
+      assert.same({ 0, 1, 0, 1 }, rows[1].priceStand.color)
+    end)
+
+    it("leaves the standing empty rather than claiming an empty queue when there is no book", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ levels = false }) })
+      assert.equal("", rows[1].priceStand.text)
+      assert.same({ 1, 1, 1, 0 }, rows[1].standMarks[1].colorTexture)
+    end)
+
+    it("counts a live lot's standing in the watch blue, as stock under it", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 }) }, "listed")
+      assert.equal("360 under you", rows[1].priceStand.text)
+      local WATCH = GC.Theme.color.watch
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[1].standMarks[4].colorTexture)
+    end)
+
+    it("puts the margin under YOU GET, and names a missing receipt instead of a number", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock() })
+      assert.equal("+82%", rows[1].grossNote.text)
+      assert.same({ 0, 1, 0, 1 }, rows[1].grossNote.color)
+      rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
+      assert.equal("no cost", rows[1].grossNote.text)
+    end)
+
+    it("puts the second lines away on a pooled row that stops being a position", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock() })
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal("drawer", rows[2].kind)
+      assert.is_false(rows[2].priceStand.shown)
+      assert.is_false(rows[2].grossNote.shown)
+      assert.is_false(rows[2].standMarks[1].shown)
+    end)
+
+    it("tags a row the post queue left out with the reason, and a ready row with nothing", function()
+      local GC = load(620, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "queueSkipped", { { positionKey = "commodity:42", reason = "no_fresh_price" },
+        { positionKey = "commodity:43", reason = "below_breakeven" } })
+      local rows = topRows(GC, { stock(), stock({ positionKey = "commodity:43", itemID = 43 }),
+        stock({ positionKey = "commodity:44", itemID = 44 }) })
+      local WATCH = "|cff59b8e6no price|r"
+      assert.matches(WATCH, rows[1].itemStock.text, 1, true)
+      -- A loss is the red margin under YOU GET, not a second set of words beside the stock.
+      assert.is_nil(rows[2].itemStock.text:find("below", 1, true))
+      assert.is_nil(rows[2].itemStock.text:find("no price", 1, true))
+      assert.is_nil(rows[3].itemStock.text:find("no price", 1, true))
+    end)
+
+    it("tags uncosted stock with how many units have no receipt", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ coverage = "PARTIAL", knownQty = 10 }) })
+      assert.matches("no cost for 30", rows[1].itemStock.text, 1, true)
+    end)
+
+    it("leads with a lot standing far below market, over every other tag", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000,
+        coverage = "PARTIAL", knownQty = 10, facts = { underpriced = true } }) }, "listed")
+      assert.matches("|cffff0000far below market|r", rows[1].itemStock.text, 1, true)
+    end)
+  end)
+
+  describe("the not-on-hand fold", function()
+    local function onHand()
+      return { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 5, listedQty = 0, sources = {} }
+    end
+    local function ghost(id)
+      return { itemID = id, itemName = "Gone", positionKey = "commodity:" .. id, coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 0, listedQty = 0, sources = {} }
+    end
+    local function kinds(rows)
+      local out = {}
+      for _, row in ipairs(rows) do if row.shown then out[#out + 1] = row.kind end end
+      return out
+    end
+
+    it("folds a tail of not-on-hand positions under one counted heading", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { onHand(), ghost(43), ghost(44) })
+      assert.same({ "position", "fold" }, kinds(rows))
+      assert.matches("^%+ NOT ON HAND 2", rows[2].sectionLabel.text)
+    end)
+
+    it("opens and shuts on a click, and stays as the player left it across renders", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { onHand(), ghost(43), ghost(44) })
+      rows[2].scripts.OnClick(rows[2])
+      assert.same({ "position", "fold", "position", "position" }, kinds(rows))
+      assert.matches("^%- NOT ON HAND 2", rows[2].sectionLabel.text)
+      upvalue(GC.Sell.Attach, "renderRows")()
+      assert.same({ "position", "fold", "position", "position" }, kinds(rows))
+      rows[2].scripts.OnClick(rows[2])
+      assert.same({ "position", "fold" }, kinds(rows))
+    end)
+
+    it("does not fold when nothing on the deck is on hand", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { ghost(43), ghost(44) })
+      assert.same({ "position", "position" }, kinds(rows))
+    end)
+
+    it("opens by itself under NO COST, where Set cost for those positions lives", function()
+      local GC = load(620, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      local noCost = ghost(43); noCost.coverage = "UNKNOWN"
+      local partial = onHand(); partial.coverage = "PARTIAL"
+      upvalue(render, "chips").nocost = true
+      local rows = topRows(GC, { partial, noCost })
+      assert.same({ "position", "fold", "position" }, kinds(rows))
+    end)
+  end)
+
+  it("keeps one position open at a time", function()
+    local GC = load(620, { calls = {} })
+    local function p(id)
+      return { itemID = id, itemName = "Ore", positionKey = "commodity:" .. id, coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 5, listedQty = 0, sources = {} }
+    end
+    local rows = topRows(GC, { p(42), p(43) })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("drawer", rows[2].kind)
+    local second
+    for _, row in ipairs(rows) do
+      if row.shown and row.kind == "position" and row.position.itemID == 43 then second = row end
+    end
+    second.scripts.OnClick(second)
+    local drawers = 0
+    for _, row in ipairs(rows) do
+      if row.shown and row.kind == "drawer" then
+        drawers = drawers + 1
+        assert.equal(43, row.position.itemID)
+      end
+    end
+    assert.equal(1, drawers)
+    -- And a click on the open one shuts it.
+    for _, row in ipairs(rows) do
+      if row.shown and row.kind == "position" and row.position.itemID == 43 then row.scripts.OnClick(row) break end
+    end
+    for _, row in ipairs(rows) do assert.is_false(row.shown and row.kind == "drawer") end
+  end)
+
+  it("says the status in the dock, beside the bulk action, as well as in the toolbar", function()
+    local GC, root = load(620, { calls = {} })
+    local _, container = topRows(GC, {})
+    GC.Sell.OnPostError()
+    assert.is_truthy(root.status.text)
+    assert.equal(root.status.text, container.dockStatus.text)
+  end)
+
+  it("keeps only AT MARKET in the dock's ledger when the window is narrow", function()
+    local GC, root = load(600, { calls = {} })
+    local _, container = topRows(GC, {})
+    assert.is_true(container.summary.profit.shown)
+    assert.is_false(container.summary.cost.shown)
+    assert.is_false(container.summary.listed.shown)
+    assert.equal(container.summary.profit, container.dockStatus.points[2].relative)
+    root.scripts.OnSizeChanged(root, 900)
+    assert.is_true(container.summary.cost.shown)
+    assert.equal(container.summary.cost, container.dockStatus.points[2].relative)
+  end)
+  -- What a position opens into: a panel beside the list, not ten rows inside it.
+  describe("the detail panel", function()
+    local function p(id, over)
+      local value = { itemID = id, itemName = "Ore " .. id, positionKey = "commodity:" .. id,
+        coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 5,
+        listedQty = 0, sources = {} }
+      for key, field in pairs(over or {}) do value[key] = field end
+      return value
+    end
+
+    it("opens beside the list, names the item, and leaves the list where it was", function()
+      local GC = load(1100, { calls = {} })
+      local rows, container = topRows(GC, { p(42), p(43) })
+      assert.is_false(container.inspector.shown)
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(container.inspector.shown)
+      assert.equal("Ore 42", container.inspector.name.text)
+      assert.equal("×5 in bags", container.inspector.stock.text)
+      -- The second position is still the second thing in the list: nothing was pushed under it.
+      local listed = {}
+      for _, row in ipairs(rows) do
+        if row.shown and not row.inPanel then listed[#listed + 1] = row.position.itemID end
+      end
+      assert.same({ 42, 43 }, listed)
+    end)
+
+    it("has a column of its own on a wide window and lies over the list on a narrow one", function()
+      local wide = load(1100, { calls = {} })
+      local rows, container = topRows(wide, { p(42) })
+      local header
+      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      rows[1].scripts.OnClick(rows[1])
+      -- The short SetPoint form: (point, x, y), which the double files under `relative`.
+      assert.equal(-(340 + 28), header.points[2].relative)
+
+      local narrow = load(620, { calls = {} })
+      rows, container = topRows(narrow, { p(42) })
+      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(container.inspector.shown)
+      assert.equal(0, header.points[2].relative)
+      assert.is_true(container.inspector.mouseEnabled)
+    end)
+
+    it("gives the list its width back when it shuts, from its own close button", function()
+      local GC = load(1100, { calls = {} })
+      local rows, container = topRows(GC, { p(42) })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal(1100 - 340 - 28, upvalue(render, "content").width)
+      container.inspector.close.scripts.OnClick()
+      assert.is_false(container.inspector.shown)
+      assert.equal(1100, upvalue(render, "content").width)
+      for _, row in ipairs(rows) do assert.is_false(row.shown and row.inPanel) end
+    end)
+
+    it("shuts when the open position is no longer on the deck", function()
+      local GC = load(620, { calls = {} })
+      local rows, container = topRows(GC, { p(42) })
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(container.inspector.shown)
+      container.deckButtons.listed.scripts.OnClick()
+      assert.is_false(container.inspector.shown)
+    end)
+
+    it("carries Post in its head for stock in the bags, and no button for stock that is not", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { p(42) })
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal("drawer", rows[2].kind)
+      assert.is_true(rows[2].action.shown)
+      assert.equal("Post", rows[2].action.helpKey)
+
+      local listedOnly = load(620, { calls = {} })
+      rows = topRows(listedOnly, { p(42, { bagQty = 0, listedQty = 5, listedValue = 500 }) }, "listed")
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal("drawer", rows[2].kind)
+      assert.is_false(rows[2].action.shown)
+    end)
+
+    it("washes a hovered list row and nothing inside the panel", function()
+      _G.GameTooltip = nil
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { p(42) })
+      rows[1].scripts.OnClick(rows[1])
+      rows[1].scripts.OnEnter(rows[1])
+      assert.is_true(rows[1].highlight.shown)
+      rows[2].scripts.OnEnter(rows[2])
+      assert.is_false(rows[2].highlight.shown)
+    end)
+  end)
+  describe("the search box", function()
+    local function p(id, name)
+      return { itemID = id, itemName = name, positionKey = "commodity:" .. id, coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 5, listedQty = 0, sources = {} }
+    end
+    local function names(rows)
+      local out = {}
+      for _, row in ipairs(rows) do
+        if row.shown and row.kind == "position" then out[#out + 1] = row.position.itemName end
+      end
+      return out
+    end
+    local function type_(container, text)
+      container.search:SetText(text)
+      container.search.scripts.OnTextChanged(container.search, true)
+    end
+
+    it("narrows the list to the names that contain what was typed, whatever its case", function()
+      local GC = load(800, { calls = {} })
+      local rows, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Arcanoweave Lining"), p(3, "Pygmy Oil") })
+      type_(container, "  LINING ")
+      assert.same({ "Arcanoweave Lining" }, names(rows))
+      type_(container, "")
+      assert.same({ "Arcanoweave", "Arcanoweave Lining", "Pygmy Oil" }, names(rows))
+    end)
+
+    it("says so when nothing matches, and gives the list back on Escape", function()
+      local GC = load(800, { calls = {} })
+      local rows, container = topRows(GC, { p(1, "Arcanoweave") })
+      type_(container, "zzz")
+      assert.same({}, names(rows))
+      assert.is_true(container.emptyText.shown)
+      assert.equal("Nothing on this deck matches that search", container.emptyText.text)
+      container.search.scripts.OnEscapePressed(container.search)
+      assert.equal("", container.search.text)
+      assert.same({ "Arcanoweave" }, names(rows))
+    end)
+
+    it("leaves the dock's totals the deck's own while it narrows the rows", function()
+      local GC = load(800, { calls = {} })
+      local _, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
+      local before = container.summary.cost.text
+      type_(container, "pygmy")
+      assert.equal(before, container.summary.cost.text)
+    end)
+
+    it("is not drawn where row 1 has no room for it, and cannot filter from there", function()
+      local GC, root = load(800, { calls = {} })
+      local rows, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
+      assert.is_true(container.search.shown)
+      type_(container, "pygmy")
+      assert.same({ "Pygmy Oil" }, names(rows))
+      -- 640 is the window's resize floor; this harness insets the content by 16.
+      root.scripts.OnSizeChanged(root, 640)
+      assert.is_false(container.search.shown)
+      upvalue(GC.Sell.Attach, "renderRows")()
+      assert.same({ "Arcanoweave", "Pygmy Oil" }, names(rows))
+    end)
+  end)
+  it("drops the bag line from the panel when it would only repeat the panel's own heading", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "liveBagState",
+      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 5,
+        knownQty = 5, knownCost = 500, listedValue = 0, bagQty = 5, listedQty = 0, sources = { goldcap = 5 } },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    for _, row in ipairs(rows) do
+      assert.is_false(row.shown and (row.kind == "listing" or row.kind == "group"), row.kind)
+    end
+  end)
+  -- Under the price chips: only what the box, the red note and the button do not already say.
+  it("states the reason for the price alone on a postable head, and nothing when there is none", function()
+    local GC = load(620, { calls = {} })
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+      exposureQty = 5, knownQty = 5, knownCost = 500, bagQty = 5, listedQty = 0, sources = {},
+      recommendation = { action = "post", unit = 28500, belowCost = true } }
+    GC.SellViewModel.Expansion = function()
+      return { batches = {}, ownedLots = {}, recommendation = p.recommendation,
+        factsText = "above the cheapest, within the day's reach · 12 units queued below" }
+    end
+    local rows = topRows(GC, { p })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("above the cheapest, within the day's reach · 12 units queued below", rows[2].subItem.text)
+    local withReason = rows[2].height
+
+    GC.SellViewModel.Expansion = function()
+      return { batches = {}, ownedLots = {}, recommendation = p.recommendation }
+    end
+    upvalue(GC.Sell.Attach, "renderRows")()
+    assert.equal("", rows[2].subItem.text)
+    -- ...and the head gives the paragraph's slot back rather than keeping a gap for it.
+    assert.equal(withReason - 24, rows[2].height)
+  end)
 end)

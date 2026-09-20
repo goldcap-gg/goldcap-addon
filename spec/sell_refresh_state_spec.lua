@@ -456,7 +456,8 @@ describe("Sell refresh state fence", function()
         { itemID = 44, positionKey = "commodity:44", bagQty = 5, displayMarketUnit = 100, quoteAge = 31 },
       }
     end
-    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    -- The walk's OWN repeat, which is what the age gate is for.
+    GC.Sell.Refresh(true)
     -- Never-priced first, then the aged one; the 3-second-old quote is not asked about at all.
     assert.same({ 42, 44 }, refreshState(GC).queue)
   end)
@@ -480,13 +481,45 @@ describe("Sell refresh state fence", function()
     assert.same({ 51 }, refreshState(GC).queue)
   end)
 
+  -- A quote restored after a reload is a number with no book under it. While it was still
+  -- "fresh" the walk left it alone, so for half a minute after every reload the rows had prices
+  -- and no queue standing, and their panels no book.
+  it("still asks about a fresh quote that was restored without its book", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return { { itemID = 43, positionKey = "commodity:43", bagQty = 5, displayMarketUnit = 100, quoteAge = 3 } }
+    end
+    upvalue(GC.Sell.FoldBulk, "quotes")[43] = { unit = 100, at = 97, bookless = true }
+    GC.Sell.Refresh(true)
+    assert.same({ 43 }, refreshState(GC).queue)
+  end)
+
+  -- The queue covers both decks. Asked in order of need alone, a walk of twenty-seven spent its
+  -- first seconds on live lots while the ten rows of bag stock on screen waited for theirs.
+  it("asks about the deck on screen before the other one, in the order it is drawn", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return {
+        { itemID = 50, positionKey = "commodity:50", listedQty = 9 },                 -- never priced, other deck
+        { itemID = 42, positionKey = "commodity:42", bagQty = 5, displayMarketUnit = 100, quoteAge = 40 },
+        { itemID = 43, positionKey = "commodity:43", bagQty = 5 },
+      }
+    end
+    local places = upvalue(GC.Sell.Refresh, "rowPlaces")
+    places["commodity:42"], places["commodity:43"] = 1, 2
+    GC.Sell.Refresh(true)
+    assert.same({ 42, 43, 50 }, refreshState(GC).queue)
+  end)
+
   it("finishes an all-fresh pass immediately instead of re-pricing the whole tab", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
     GC.SellPositions.Build = function()
       return { { itemID = 43, positionKey = "commodity:43", bagQty = 5, displayMarketUnit = 100, quoteAge = 3 } }
     end
-    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.Refresh(true)
     assert.equal("done", refreshState(GC).phase)
     assert.same({}, sent.keys)
   end)

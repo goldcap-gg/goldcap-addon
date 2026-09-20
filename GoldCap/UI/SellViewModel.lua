@@ -280,6 +280,15 @@ end
 -- totals, so the header never claims the book is smaller than it is.
 local BOOK_ROWS = 8
 
+-- How much of one price level is the player's own stock. Shared by the book below and by
+-- Standing: both have to agree on what "not mine" means, or the row says one queue depth and
+-- the panel under it another.
+local function ownUnits(level, units)
+  if type(level.ownerQty) == "number" then return level.ownerQty end
+  if level.ownerItem == true then return units end -- unsplittable: the whole level is the player's
+  return 0
+end
+
 --- The live order book, as the expanded Sell row needs to read it.
 --
 -- Everything here comes off `position.levels`, which the addon has been fetching all along to
@@ -297,14 +306,7 @@ local function book(position)
     local level = levels[i]
     if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
       local units = type(level.quantity) == "number" and level.quantity or 0
-      local ownerUnits
-      if type(level.ownerQty) == "number" then
-        ownerUnits = level.ownerQty
-      elseif level.ownerItem == true then
-        ownerUnits = units -- unsplittable: the whole level reads as the player's own
-      else
-        ownerUnits = 0
-      end
+      local ownerUnits = ownUnits(level, units)
       totalUnits = totalUnits + units
       sellerLevels = sellerLevels + 1
       if #rows < BOOK_ROWS then
@@ -336,6 +338,34 @@ local function book(position)
     cheapestCompeting = GC.SellPositions and GC.SellPositions.CheapestCompetingUnit
       and GC.SellPositions.CheapestCompetingUnit(levels) or nil,
   }
+end
+
+--- Where a price would stand in the live book, for the line under a row's price.
+--
+-- `ahead` is the stock queued at a strictly cheaper price that is NOT the player's own -- their
+-- own cheaper lots are not competition, the same subtraction the book makes level by level.
+-- `slot` is which price level the unit lands on, counting from the cheapest (1), so a row can
+-- show a position in the queue without opening anything; one past the last level means the
+-- price sits above everything the auction house returned. nil when there is no book or no
+-- price: an absent answer must not read as "nobody is ahead of you".
+function GC.SellViewModel.Standing(position, unit)
+  local levels = type(position) == "table" and type(position.levels) == "table" and position.levels or nil
+  if not levels or #levels == 0 or type(unit) ~= "number" or unit <= 0 then return nil end
+  local ahead, slot, seen = 0, nil, 0
+  for i = 1, #levels do
+    local level = levels[i]
+    if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
+      seen = seen + 1
+      if level.unitPrice < unit then
+        local units = type(level.quantity) == "number" and level.quantity or 0
+        ahead = ahead + math.max(0, units - ownUnits(level, units))
+      elseif not slot then
+        slot = seen
+      end
+    end
+  end
+  if seen == 0 then return nil end
+  return { ahead = ahead, slot = slot or seen + 1 }
 end
 
 function GC.SellViewModel.Expansion(position)
