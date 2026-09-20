@@ -155,6 +155,29 @@ describe("CraftCapture session", function()
     assert.equal("uncosted", GC.CraftCapture.RecentOutcomes()[1].reason)
   end)
 
+  it("keeps the record where the driver asks it to", function()
+    -- A /reload empties anything held in memory, and a /reload is usually what someone has
+    -- just done before going looking for this.
+    local saved = {}
+    local d = driver()
+    d.outcomes = saved
+    GC.CraftCapture.SetDriver(d)
+    GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)
+    GC.CraftCapture.OnCraftResult({ itemID = 500, quantity = 4 }, 100)
+    counts[10] = 10
+    GC.CraftCapture.Tick(105)
+    assert.equal(1, #saved)
+    assert.equal(1000, saved[1].total)
+    assert.equal(1, #GC.CraftCapture.RecentOutcomes())
+  end)
+
+  it("reads a record the driver handed it from an earlier session", function()
+    local d = driver()
+    d.outcomes = { { recipeID = 1, reason = "uncosted", at = 1 } }
+    GC.CraftCapture.SetDriver(d)
+    assert.equal("uncosted", GC.CraftCapture.RecentOutcomes()[1].reason)
+  end)
+
   it("does nothing at all without a driver", function()
     GC.CraftCapture.SetDriver(nil)
     GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)

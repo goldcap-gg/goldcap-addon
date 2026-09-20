@@ -295,7 +295,10 @@ local RECENT_CAP = 10
 local driver
 local current
 local sessionSeq = 0
-local recent = {}
+-- Where the outcomes below are kept. The driver may hand over a SavedVariables table instead,
+-- so the record survives a /reload -- which is exactly when someone goes looking for it.
+local sessionOutcomes = {}
+local outcomes = sessionOutcomes
 
 --- driver = {
 --   recipeFor(spellID) -> { recipeID, outputItemID, isRecraft, candidates } | nil,
@@ -303,10 +306,12 @@ local recent = {}
 --   batchesFor(itemID) -> array of this character's active batches for that item,
 --   commodityKinds() -> { [itemID] = boolean },  -- GC.db.commodityByItem
 --   context() -> { char, region },
+--   outcomes -> optional array to keep the diagnostic record in (SavedVariables-resident),
 -- }
 function GC.CraftCapture.SetDriver(value)
   driver = type(value) == "table" and value or nil
   current = nil
+  outcomes = driver and type(driver.outcomes) == "table" and driver.outcomes or sessionOutcomes
 end
 
 function GC.CraftCapture.HasOpenSession()
@@ -317,13 +322,13 @@ end
 -- refused one has to be able to say why without the player reading a log.
 function GC.CraftCapture.RecentOutcomes()
   local out = {}
-  for index = #recent, 1, -1 do out[#out + 1] = recent[index] end
+  for index = #outcomes, 1, -1 do out[#out + 1] = outcomes[index] end
   return out
 end
 
 local function remember(outcome)
-  recent[#recent + 1] = outcome
-  while #recent > RECENT_CAP do table.remove(recent, 1) end
+  outcomes[#outcomes + 1] = outcome
+  while #outcomes > RECENT_CAP do table.remove(outcomes, 1) end
 end
 
 local function close(now)

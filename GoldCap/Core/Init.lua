@@ -22,6 +22,11 @@ GC.DEFAULTS = {
   mailOccurrenceGeneration = 0,
   -- One-shot marker for the 2026-08-28 region repair (see the ADDON_LOADED handler below).
   ledgerRegionRepairVersion = 0,
+  -- The last few crafting sessions and what each one did -- see Core/CraftCapture.lua and
+  -- `/gc craft`. SavedVariables-resident so the record survives the /reload that someone
+  -- looking for it has usually just done. Capped by the module. Same empty-table
+  -- ApplyDefaults contract as `flips` above.
+  craftOutcomes = {},
   -- itemID -> true/false, "does this item sell as a commodity". Learned from
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
@@ -518,6 +523,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
           return out
         end,
         commodityKinds = function() return GC.db and GC.db.commodityByItem or {} end,
+        outcomes = type(GC.db.craftOutcomes) == "table" and GC.db.craftOutcomes or nil,
         context = function()
           return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
         end,
