@@ -560,7 +560,7 @@ local function build(sniperFrame)
   -- could say what "HOT -- min sold/day = 3" meant. What is left is the three numbers that
   -- decide whether a buy happens at all, and the three that decide when the engine stops
   -- trusting the data it is looking at.
-  local whatCounts = card(panel, GC.L["WHAT COUNTS AS A DEAL"], 3, true)
+  local whatCounts = card(panel, GC.L["WHAT COUNTS AS A DEAL"], 4, true)
   whatCounts:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -48)
   whatCounts:SetPoint("RIGHT", panel, "CENTER", -7, 0)
 
@@ -621,6 +621,12 @@ local function build(sniperFrame)
     GC.L["Skip a buy unless the profit is at least this share of what you pay."])
   fieldRow(whatCounts, 3, GC.L["Max wallet per buy %"], "maxCapitalShare", WALLET_PCT,
     GC.L["Never spend more than this share of your gold on one purchase."])
+  -- The engine's own bounds (SniperDecision.MAX_QUANTITY_CEILING), for the same reason as the
+  -- ROI floor above. A ceiling and not a target: what a buy actually takes is still set by how
+  -- fast the item sells, the wallet share above and the profit floors.
+  fieldRow(whatCounts, 4, GC.L["Max units per buy"], "maxQuantity",
+    { min = 1, max = GC.SniperDecision and GC.SniperDecision.MAX_QUANTITY_CEILING or 200 },
+    GC.L["The most units one purchase may take. How fast the item sells can still make it fewer."])
 
   fieldRow(brakes, 1, GC.L["Dump-trend cap %"], "dumpTrendPct", { min = 1, max = 99, unit = "%" },
     GC.L["Refuse a buy when the price fell more than this in the last 24 hours — it may keep falling."])

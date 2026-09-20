@@ -213,6 +213,7 @@ GC.Locales.zhCN = {
   ["MATCH"] = "持平",
   ["Market per unit"] = "每件市场价",
   ["Market reference"] = "市场参考",
+  ["Max units per buy"] = "单次购买最大数量",
   ["Max wallet per buy %"] = "单次购买最大资金占比 %",
   ["Min profit per buy (gold)"] = "单次购买最低利润（金）",
   ["Min return per buy %"] = "单次购买最低回报率 %",
@@ -376,6 +377,8 @@ GC.Locales.zhCN = {
   ["The data for this item is malformed, so GoldCap refuses to guess."] = "该物品的数据有误，GoldCap 拒绝靠猜。",
   ["The liquidity data is not reliable enough to act on."] = "流动性数据的可靠度不足以据此下手。",
   ["The market value is an estimate, not a measurement."] = "该市场价是估算，不是实测。",
+  ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
+    "单次购买最多可买的数量。物品的销售速度仍可能让实际数量更少。",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "价格数据已超过三小时。同步 Companion 后执行 /reload — 插件只在界面加载时读取数据。",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =

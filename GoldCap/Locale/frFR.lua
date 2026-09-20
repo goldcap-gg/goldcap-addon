@@ -223,6 +223,7 @@ GC.Locales.frFR = {
   ["MATCH"] = "ÉGALER",
   ["Market per unit"] = "Marché à l'unité",
   ["Market reference"] = "Référence de marché",
+  ["Max units per buy"] = "Unités max. par achat",
   ["Max wallet per buy %"] = "Part max. de votre or par achat %",
   ["Min profit per buy (gold)"] = "Profit min. par achat (or)",
   ["Min return per buy %"] = "Rendement min. par achat %",
@@ -411,6 +412,8 @@ GC.Locales.frFR = {
     "Les données de liquidité ne sont pas assez fiables pour agir.",
   ["The market value is an estimate, not a measurement."] =
     "La valeur de marché est une estimation, pas une mesure.",
+  ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
+    "Le maximum qu'un achat peut prendre. La vitesse à laquelle l'objet se vend peut encore le réduire.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Les données de prix ont plus de trois heures. Synchronisez le Companion puis faites /reload — l'addon ne lit ses données qu'au chargement de l'interface.",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =

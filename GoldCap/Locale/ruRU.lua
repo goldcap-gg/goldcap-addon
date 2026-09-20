@@ -222,6 +222,7 @@ GC.Locales.ruRU = {
   ["MATCH"] = "СРАВНЯТЬ",
   ["Market per unit"] = "Рынок за штуку",
   ["Market reference"] = "Рыночный ориентир",
+  ["Max units per buy"] = "Макс. штук за одну покупку",
   ["Max wallet per buy %"] = "Макс. доля кошелька на покупку %",
   ["Min profit per buy (gold)"] = "Минимальная прибыль с покупки (золото)",
   ["Min return per buy %"] = "Мин. доходность покупки %",
@@ -410,6 +411,8 @@ GC.Locales.ruRU = {
     "Данные о ликвидности недостаточно надёжны, чтобы на них действовать.",
   ["The market value is an estimate, not a measurement."] =
     "Рыночная стоимость — это оценка, а не измерение.",
+  ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
+    "Больше этого количества одна покупка не возьмёт. Скорость продаж товара может сделать его меньше.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Данным о ценах больше трёх часов. Синхронизируйте Companion и сделайте /reload — аддон читает свои данные только при загрузке интерфейса.",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =

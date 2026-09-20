@@ -215,6 +215,7 @@ GC.Locales.koKR = {
   ["MATCH"] = "맞추기",
   ["Market per unit"] = "개당 시세",
   ["Market reference"] = "시세 기준",
+  ["Max units per buy"] = "1회 구매 최대 수량",
   ["Max wallet per buy %"] = "1회 구매 최대 지갑 비중 %",
   ["Min profit per buy (gold)"] = "1회 구매 최소 수익 (골드)",
   ["Min return per buy %"] = "1회 구매 최소 수익률 %",
@@ -385,6 +386,8 @@ GC.Locales.koKR = {
     "이 아이템의 데이터가 손상되어 GoldCap이 추측하지 않습니다.",
   ["The liquidity data is not reliable enough to act on."] = "유동성 데이터가 판단 근거로 삼기엔 신뢰도가 낮습니다.",
   ["The market value is an estimate, not a measurement."] = "시세는 측정값이 아니라 추정값입니다.",
+  ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
+    "한 번의 구매로 살 수 있는 최대 수량입니다. 아이템이 팔리는 속도에 따라 더 적어질 수 있습니다.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "시세 데이터가 세 시간이 넘었습니다. Companion을 동기화한 뒤 /reload 하세요 — 애드온은 UI를 불러올 때만 데이터를 읽습니다.",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =

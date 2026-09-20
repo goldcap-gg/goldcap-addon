@@ -230,6 +230,7 @@ GC.Locales.ukUA = {
   ["MY LOTS %d"] = "МОЇ ЛОТИ %d",
   ["Market per unit"] = "Ринок за штуку",
   ["Market reference"] = "Ринковий орієнтир",
+  ["Max units per buy"] = "Макс. штук за одну купівлю",
   ["Max wallet per buy %"] = "Макс. частка гаманця на купівлю %",
   ["Min profit per buy (gold)"] = "Мінімальний прибуток з купівлі (золото)",
   ["Min return per buy %"] = "Мін. дохідність купівлі %",
@@ -425,6 +426,8 @@ GC.Locales.ukUA = {
     "Дані про ліквідність недостатньо надійні, щоб на них діяти.",
   ["The market value is an estimate, not a measurement."] =
     "Ринкова вартість — це оцінка, а не вимірювання.",
+  ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
+    "Більше цієї кількості одна купівля не візьме. Швидкість продажу товару може зробити її меншою.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Даним про ціни більше трьох годин. Синхронізуйте Companion і зробіть /reload — аддон читає свої дані лише під час завантаження інтерфейсу.",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
