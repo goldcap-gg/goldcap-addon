@@ -2636,8 +2636,11 @@ local function layoutDrawer(row)
   row.drawerDepth:ClearAllPoints()
   row.drawerDepth:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 1)
   row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
-  if hasBook then
+  if hasBook and row.drawerDepth:IsShown() then
     row.drawerStand:SetPoint("RIGHT", row.drawerDepth, "LEFT", -8, 0)
+    row.drawerStand:SetWordWrap(false)
+  elseif hasBook then
+    row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
     row.drawerStand:SetWordWrap(false)
   else
     row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
@@ -3531,6 +3534,9 @@ function INSP.paintHead(row, p, d)
         book.yourRow, book.levels or 0))
       setColor(row.drawerStand, Theme.color.goldHi)
     else
+      -- This sentence is the longer one and the one that matters here; the depth figure gives
+      -- it the line rather than cutting it at "above e...".
+      row.drawerDepth:Hide()
       row.drawerStand:SetText(GC.L["your price is above every level shown"])
       setColor(row.drawerStand, Theme.color.fgDim)
     end
