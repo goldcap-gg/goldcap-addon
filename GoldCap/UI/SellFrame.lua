@@ -364,12 +364,40 @@ local ROW_TAG_TEXT = {
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
 }
+local rowTag
+do
 local ROW_TAG_TONE = { below_breakeven = "alarm", no_fresh_price = "wait" }
 
 local function inlineColor(color, text)
   return ("|cff%02x%02x%02x%s|r"):format(
     math.floor(color[1] * 255 + 0.5), math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
 end
+
+-- The tag itself, already coloured, or "" for a row with nothing to say. `reason` is the skip
+-- token the deck's queue gave this position, if it skipped it. Money leaving silently outranks
+-- everything: a lot standing far below market is the one thing on the row that has to be read
+-- first, and it used to be written into a column no deck shows.
+--
+-- A function of its own rather than lines inside renderRows for a reason the client enforces
+-- and busted does not: WoW runs Lua 5.1, which caps a function at 60 upvalues, and renderRows
+-- sits close enough to that cap that three more tables put the whole file out of action.
+rowTag = function(position, reason, notOnHand)
+  local tag, tone
+  if position.facts and position.facts.underpriced then
+    tag, tone = GC.L["far below market"], "alarm"
+  elseif reason then
+    tag, tone = ROW_TAG_TEXT[reason] and GC.L[ROW_TAG_TEXT[reason]] or nil, ROW_TAG_TONE[reason]
+  end
+  local uncosted = math.max(0, (position.exposureQty or 0) - (position.knownQty or 0))
+  if not tag and position.coverage ~= "COMPLETE" and not notOnHand and uncosted > 0 then
+    tag = (GC.L["no cost for %d"]):format(uncosted)
+  end
+  if not tag then return "" end
+  local color = tone == "alarm" and Theme.color.red or tone == "wait" and Theme.color.watch
+    or Theme.color.fgDim
+  return "  " .. inlineColor(color, tag)
+end
+end -- do: keeps the helpers above out of the file's own local count (Lua 5.1 allows 200)
 
 -- Skip reasons in words a seller would actually read, never GC.PostQueue's own internal token
 -- -- see that module's own `evaluate` comment for what each one means structurally. A silently
@@ -2371,20 +2399,33 @@ local DECK_SHED = {
 -- visible at the left, which is what a seller picks the next row by.
 local INSP = { W = 320, GAP = 28, HEAD_H = 48, SCROLL_GUTTER = 26, PAD = 8, DOCK_MIN = 860 }
 
--- Whether the panel is open, and whether it has a column of its own. Written by renderRows,
--- read by everything that needs the LIST's width rather than the container's.
-local inspectorOpen = false
-local function inspectorDocked()
-  return inspectorOpen and (ROW_WIDTH or 0) >= INSP.DOCK_MIN
-end
-local function listWidth()
-  local width = ROW_WIDTH or 0
-  if inspectorDocked() then width = width - INSP.W - INSP.GAP end
-  return width
+-- Whether the panel is open, and whether it has a column of its own. Hung on INSP rather than
+-- left as four more file-level locals: WoW's Lua 5.1 allows a chunk 200 of them, and this file
+-- is close enough to that for the client to refuse to load it (busted's newer Lua never says).
+do
+  local isOpen = false
+  function INSP.docked()
+    return isOpen and (ROW_WIDTH or 0) >= INSP.DOCK_MIN
+  end
+  -- The LIST's width, which is the container's less a docked panel's column.
+  function INSP.listWidth()
+    local width = ROW_WIDTH or 0
+    if INSP.docked() then width = width - INSP.W - INSP.GAP end
+    return width
+  end
+  -- Opens or shuts the panel as far as geometry goes: the list's heading row and scroll area
+  -- are re-anchored only when that changes whether the panel has a column of its own.
+  function INSP.sync(open)
+    isOpen = open
+    if container.applyListGeometry and container.listDocked ~= INSP.docked() then
+      container.listDocked = INSP.docked()
+      container.applyListGeometry()
+    end
+  end
 end
 
 local function shownColumns()
-  local width = listWidth()
+  local width = INSP.listWidth()
   local deck = (filterMode == "listed" or filterMode == "cancelqueue") and "listed" or "post"
   local inDeck = DECK_COLUMNS[deck]
   local dropped = {}
@@ -2462,7 +2503,7 @@ local SUMMARY_STAT_IDS = { "profit", "listed", "cost" }
 local BOOK_PRICE_W, BOOK_UNITS_W, BOOK_BAR_H = 84, 58, 6
 -- Queue marks under a row's price: one per price level, counted from the cheapest. Five is
 -- where a seller stops caring which level exactly -- past that the words beside them carry it.
-local STAND_MARKS = 5
+local ROW = { MARKS = 5 }
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
 -- seller is here for -- at the default 720px window all three would leave the line beside the
@@ -2496,6 +2537,8 @@ DR.FACTS_Y = DR.STAND_Y - 20
 
 -- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
 -- same things at every window width, and its width is INSP's, not the list's.
+local layoutDetailRow
+do
 local function layoutDrawer(row)
   local left, right = INSP.PAD, -INSP.PAD
 
@@ -2572,7 +2615,7 @@ end
 -- apply at this width: a line is its sentence, with its one button -- or, for a purchase, its
 -- unit cost -- at the right edge. Two lines allowed, because "x50 . 3 purchases . bought 29 Aug
 -- . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
-local function layoutDetailRow(row)
+layoutDetailRow = function(row)
   for _, column in ipairs(COLUMNS) do row.cells[column.key]:Hide() end
   local edge, edgePoint, inset = row, "RIGHT", -INSP.PAD
   if row.action:IsShown() then
@@ -2595,7 +2638,11 @@ local function layoutDetailRow(row)
   row.subItem:SetMaxLines(2)
   row.sectionLabel:ClearAllPoints()
   row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+  -- The head lays itself out over this: called from here so renderRows has one panel layout
+  -- to know about, not two (see rowTag on why that function counts its upvalues).
+  if row.kind == "drawer" then layoutDrawer(row) end
 end
+end -- do: layoutDrawer is layoutDetailRow's own
 
 
 
@@ -2625,7 +2672,7 @@ local function paintHeaderText(header, deck)
 end
 
 -- Which figure carries a second line, and the row field that line lives in.
-local SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote" }
+ROW.SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "grossNote" }
 
 local function layoutCells(row)
   local right = row
@@ -2680,7 +2727,7 @@ local function layoutCells(row)
       cell:SetWidth(columnWidth[column.key] or column.w)
       -- A position's figures share the row with a second line, exactly as its name does with the
       -- stock line (same +-8 split, same reason). Every other kind keeps the cell centred.
-      local second = row.kind == "position" and SECOND_LINE[column.key] and row[SECOND_LINE[column.key]] or nil
+      local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
       local lift = second and 8 or 0
       cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, lift - rightLift)
       if second then
@@ -2848,7 +2895,7 @@ local function createRow(parent)
   row.priceStand:SetWordWrap(false)
   row.priceStand:Hide()
   row.standMarks = {}
-  for i = 1, STAND_MARKS do
+  for i = 1, ROW.MARKS do
     local mark = row:CreateTexture(nil, "ARTWORK")
     mark:SetSize(3, 8)
     mark:Hide()
@@ -3327,11 +3374,7 @@ renderRows = function()
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
   -- Known before any row is laid out: a docked panel takes its width out of the list's, and
   -- shownColumns reads that. The heading row and the scroll area follow whenever it changes.
-  inspectorOpen = openPosition ~= nil
-  if container.applyListGeometry and container.listDocked ~= inspectorDocked() then
-    container.listDocked = inspectorDocked()
-    container.applyListGeometry()
-  end
+  INSP.sync(openPosition ~= nil)
   -- Running Y for the loop below, one per surface. Rows are pooled and re-anchored on every
   -- render, so both are rebuilt from scratch each time rather than remembered.
   local placedHeight, detailHeight, listIndex = 0, 0, 0
@@ -3423,26 +3466,11 @@ renderRows = function()
         local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
         row.notOnHand = notOnHand
         row.cells.item:SetText(named)
-        -- What is off about this row, if anything -- see ROW_TAG_TEXT. Money leaving silently
-        -- outranks everything: a lot standing far below market is the one thing on the row
-        -- that has to be read first, and it used to be written into a column no deck shows.
-        local tag, tone
-        if p.facts and p.facts.underpriced then
-          tag, tone = GC.L["far below market"], "alarm"
-        elseif heldBackReason[p.positionKey] then
-          local reason = heldBackReason[p.positionKey]
-          tag, tone = ROW_TAG_TEXT[reason] and GC.L[ROW_TAG_TEXT[reason]] or nil, ROW_TAG_TONE[reason]
-        end
-        local uncosted = math.max(0, (p.exposureQty or 0) - (p.knownQty or 0))
-        if not tag and p.coverage ~= "COMPLETE" and not notOnHand and uncosted > 0 then
-          tag = (GC.L["no cost for %d"]):format(uncosted)
-        end
-        local tagColor = tone == "alarm" and Theme.color.red or tone == "wait" and Theme.color.watch
-          or Theme.color.fgDim
+        -- What is off about this row, if anything -- see rowTag.
         row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
           or GC.SellViewModel.SourceText(p))
           .. (notOnHand and "|cff8c8a85 · not on hand|r" or "")
-          .. (tag and ("  " .. inlineColor(tagColor, tag)) or ""))
+          .. rowTag(p, heldBackReason[p.positionKey], notOnHand))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.
         local unitCost = nil
@@ -4097,7 +4125,6 @@ renderRows = function()
         -- that is a column away.
         row.spine:Hide(); row.well:Hide(); row.zebra:Hide()
         layoutDetailRow(row)
-        if entry.kind == "drawer" then layoutDrawer(row) end
       else
         layoutCells(row)
       end
@@ -4791,12 +4818,12 @@ function GC.Sell.Attach(f, geometry)
   -- the panel covers its right side. Called by renderRows when that changes and by the resize
   -- hook, never per render.
   container.applyListGeometry = function()
-    local inset = inspectorDocked() and (INSP.W + INSP.GAP) or 0
+    local inset = INSP.docked() and (INSP.W + INSP.GAP) or 0
     header:ClearAllPoints()
     header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
     scroll:ClearAllPoints()
     scroll:SetPoint("TOPLEFT", 0, -52); scroll:SetPoint("BOTTOMRIGHT", -inset, DOCK.H + 6)
-    content:SetWidth(listWidth())
+    content:SetWidth(INSP.listWidth())
     layoutCells(header)
   end
 
@@ -4957,7 +4984,7 @@ function GC.Sell.Attach(f, geometry)
     ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
     -- Through the same function a panel opening uses: the width a resize leaves decides
     -- whether the panel still has a column of its own.
-    container.listDocked = inspectorDocked()
+    container.listDocked = INSP.docked()
     container.applyListGeometry()
     layoutLedger()
     resizeRenderToken = resizeRenderToken + 1
