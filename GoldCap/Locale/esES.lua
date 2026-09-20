@@ -311,6 +311,7 @@ GC.Locales.esES = {
   ["Prices up to date"] = "Precios al día",
   ["Prices up to date · %d did not answer"] = "Precios al día · %d sin respuesta",
   ["Pricing %d/%d…"] = "Consultando precios %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Consulta de precios en pausa mientras usas la casa de subastas",
   ["Pricing…"] = "Consultando precios…",
   ["Profit"] = "Beneficio",
   ["Profit per unit"] = "Beneficio por unidad",

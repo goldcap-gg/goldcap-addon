@@ -308,6 +308,7 @@ GC.Locales.itIT = {
   ["Prices up to date"] = "Prezzi aggiornati",
   ["Prices up to date · %d did not answer"] = "Prezzi aggiornati · %d non hanno risposto",
   ["Pricing %d/%d…"] = "Quotazione %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Quotazione in pausa mentre usi la casa d'aste",
   ["Pricing…"] = "Quotazione…",
   ["Profit"] = "Profitto",
   ["Profit per unit"] = "Profitto per unità",

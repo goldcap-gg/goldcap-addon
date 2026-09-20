@@ -288,6 +288,7 @@ GC.Locales.zhCN = {
   ["Prices up to date"] = "价格已是最新",
   ["Prices up to date · %d did not answer"] = "价格已是最新 · %d 笔没有响应",
   ["Pricing %d/%d…"] = "查价 %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "你在使用拍卖行，查价已暂停",
   ["Pricing…"] = "查价中…",
   ["Profit"] = "利润",
   ["Profit per unit"] = "每件利润",

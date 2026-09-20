@@ -1003,8 +1003,15 @@ end
 -- attached. `composePositions()`/`GC.Sell.Refresh()` run regardless of which tab the player
 -- is looking at (bag counts and the tab badge stay current either way) -- this is the
 -- narrower check that guards the expensive part, rebuilding the visible ROWS.
+--
+-- The container's own flag answers only which tab of the window is up: hiding a parent leaves a
+-- child's shown flag alone. So the window is asked too -- closed with its X or Escape while on
+-- Sell, or docked and hidden because the player picked another auction-house tab, the walk used
+-- to carry on pricing a screen nobody could see. Reopening it runs GC.Sell.Refresh
+-- (GC.Sniper.Toggle), which is what picks the walk and any deferred render back up.
 local function containerShown()
-  return container ~= nil and container.IsShown and container:IsShown()
+  if not (container ~= nil and container.IsShown and container:IsShown()) then return false end
+  return not (GC.Sniper and GC.Sniper.IsWindowShown) or GC.Sniper.IsWindowShown()
 end
 
 local function tabIsLive()
@@ -1229,15 +1236,39 @@ advanceQuote = function()
     retryLater()
     return
   end
+  -- The tab-wide pass is background traffic, and the player outranks it the same way they
+  -- outrank Auto, the verify walk and the watch loop: posting or buying on Blizzard's panes,
+  -- reading their own search, or working another addon's tab. It was the one sender that did
+  -- not ask, so with the Sell tab open it re-priced forty items back to back, every pass,
+  -- while Auctionator's Selling tab sat on "Fetching item info..." waiting for a turn on the
+  -- same throttled slot (reported in game). A click's own item still goes: that IS the player.
+  local playerBusy = GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
+    and GC.AuctionHouseTab.PlayerIsBusy()
   -- Three sources, in the order a seller would expect: the key we are already waiting on, then
-  -- whatever a click asked for (refresh.priority), then the pass's own queue.
+  -- whatever a click asked for (refresh.priority), then the pass's own queue. A queue item
+  -- waiting on its key does not hold a click up while the pass is paused: it is still
+  -- queue[index + 1], and is picked up again from there.
   local itemID, fromPriority
-  if refresh.awaiting then
+  if refresh.awaiting and not (playerBusy and not refresh.awaitingPriority) then
     itemID, fromPriority = refresh.awaiting, refresh.awaitingPriority == true
   elseif refresh.priority[1] then
     itemID, fromPriority = refresh.priority[1], true
   else
     itemID, fromPriority = refresh.queue[refresh.index + 1], false
+  end
+  if playerBusy and not fromPriority then
+    -- Let go of a key the pass was waiting on, timeout and all: left armed, it fired under the
+    -- pause -- posting outlasts it -- and wrote the item off as never having answered, even
+    -- with the key already in. It is still queue[index + 1], and is asked for again from there.
+    if refresh.awaiting and not refresh.awaitingPriority then
+      refresh.awaiting, refresh.awaitingPriority = nil, nil
+      refresh.phase = "pricing"
+      keyTimeoutToken = keyTimeoutToken + 1
+    end
+    markProgress()
+    setStatus(GC.L["Pricing paused while you use the Auction House"])
+    retryLater()
+    return
   end
   if driver.keyInfo(itemID) then
     local info = driver.keyInfo(itemID)
@@ -1685,13 +1716,23 @@ local function startQuoteRefreshFor(position)
     setStatus(GC.L["Auction House is not open"])
     return
   end
+  -- Held OUTSIDE refresh.queue -- see the refresh table's own comment. Inserting into that
+  -- array dropped the item into a slot the walk stepped over whenever it was waiting on an
+  -- item key, and the queue rebuild that ends the owned phase threw it away outright. On an
+  -- idle tab too: refresh.priority is how advanceQuote knows a click asked for this, and a
+  -- click is the one request that does not stand aside for the player being busy elsewhere.
+  local queued = false
+  for _, waitingID in ipairs(refresh.priority) do
+    if waitingID == itemID then queued = true break end
+  end
+  if not queued then refresh.priority[#refresh.priority + 1] = itemID end
+  setStatus(GC.L["Checking this item's price…"])
   if refresh.phase == "idle" or refresh.phase == "done" or refresh.phase == "error" then
     refresh.generation = refresh.generation + 1
-    refresh.queue, refresh.index = { itemID }, 0
+    refresh.queue, refresh.index = {}, 0
     refresh.pending, refresh.awaiting, refresh.awaitingPriority = nil, nil, nil
     refresh.phase = "pricing"
     markProgress()
-    setStatus(GC.L["Checking this item's price…"])
     advanceQuote()
     -- This one-item walk armed no watchdog at all, so an item that landed in "waiting_key" or
     -- behind a drain fence left the machine sitting there: "PRICING…" for the rest of the
@@ -1699,15 +1740,10 @@ local function startQuoteRefreshFor(position)
     -- nothing but a manual REFRESH to get out.
     armPhaseWatchdog()
   else
-    -- Held OUTSIDE refresh.queue -- see the refresh table's own comment. Inserting into that
-    -- array dropped the item into a slot the walk stepped over whenever it was waiting on an
-    -- item key, and the queue rebuild that ends the owned phase threw it away outright.
-    local queued = false
-    for _, waitingID in ipairs(refresh.priority) do
-      if waitingID == itemID then queued = true break end
-    end
-    if not queued then refresh.priority[#refresh.priority + 1] = itemID end
-    setStatus(GC.L["Checking this item's price…"])
+    -- A pass paused for the player has nothing in flight and is only waiting on its retry
+    -- timer; ask now rather than make the click wait for it. With a request already out, or
+    -- outside the pricing phases, advanceQuote declines on its own.
+    advanceQuote()
   end
 end
 

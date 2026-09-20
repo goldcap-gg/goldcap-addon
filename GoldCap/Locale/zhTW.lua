@@ -289,6 +289,7 @@ GC.Locales.zhTW = {
   ["Prices up to date"] = "價格已是最新",
   ["Prices up to date · %d did not answer"] = "價格已是最新 · %d 筆沒有回應",
   ["Pricing %d/%d…"] = "查價 %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "你在使用拍賣場，查價已暫停",
   ["Pricing…"] = "查價中…",
   ["Profit"] = "利潤",
   ["Profit per unit"] = "每件利潤",
