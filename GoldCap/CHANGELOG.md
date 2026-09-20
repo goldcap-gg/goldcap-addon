@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.13.0 (unreleased)
+## 0.13.0 (2026-09-20)
 
 - **The Sell tab, redrawn.** Each row now answers before you open it: under the price, where
   it stands in the live book — five marks, one per price level, and how much stock is queued
