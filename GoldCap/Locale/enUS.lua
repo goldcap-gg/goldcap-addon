@@ -112,6 +112,7 @@ GC.Locales.enUS = {
   ["no cost"] = "no cost",
   ["no cost for %d"] = "no cost for %d",
   ["no price"] = "no price",
+  ["oldest units sell first"] = "oldest units sell first",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
   ["Remove this run"] = "Remove this run",

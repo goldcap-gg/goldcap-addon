@@ -598,6 +598,7 @@ GC.Locales.ukUA = {
   ["nothing listed"] = "нічого не виставлено",
   ["of %d"] = "з %d",
   ["off"] = "вимк",
+  ["oldest units sell first"] = "спершу продаються старші",
   ["on"] = "увімк",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "або вставте рядок з goldcap.gg через /goldcap import.",

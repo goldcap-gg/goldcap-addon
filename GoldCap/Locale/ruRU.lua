@@ -582,6 +582,7 @@ GC.Locales.ruRU = {
   ["nothing listed"] = "ничего не выставлено",
   ["of %d"] = "из %d",
   ["off"] = "выкл",
+  ["oldest units sell first"] = "сначала продаются старые",
   ["on"] = "вкл",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "или вставьте строку с goldcap.gg через /goldcap import.",

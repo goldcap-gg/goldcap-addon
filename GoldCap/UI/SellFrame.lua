@@ -568,7 +568,6 @@ local function bookHint(book)
   if book.cheapestCompeting then
     parts[#parts + 1] = (GC.L["cheapest not yours %s"]):format(formatCell(book.cheapestCompeting))
   end
-  parts[#parts + 1] = (GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0)
   -- The colour key that used to follow is said on the levels themselves now, in a word each.
   return table.concat(parts, " · ")
 end
@@ -2387,7 +2386,7 @@ local DECK_SHED = {
 -- DOCK_MIN is the content width from which the list can give the panel its own column and
 -- still read; under it the panel is a sheet over the list's right side -- the item names stay
 -- visible at the left, which is what a seller picks the next row by.
-local INSP = { W = 320, GAP = 28, HEAD_H = 48, SCROLL_GUTTER = 26, PAD = 8, DOCK_MIN = 860 }
+local INSP = { W = 340, GAP = 28, HEAD_H = 58, SCROLL_GUTTER = 26, PAD = 8, DOCK_MIN = 880 }
 
 -- Whether the panel is open, and whether it has a column of its own. Hung on INSP rather than
 -- left as four more file-level locals: WoW's Lua 5.1 allows a chunk 200 of them, and this file
@@ -2465,7 +2464,7 @@ end
 -- shownColumns -- a book row shows the same four things at every window width.
 -- The price control's own widths. Laid out by layoutDrawer now, independently of the shedding
 -- column set: the panel shows the same things at every width.
-local PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 84, 18, 51
+local PRICE_BOX_W, PRICE_BOX_H, PRICE_CHIP_W = 84, 18, 56
 -- The chips, by slot. Two parallel tables rather than one of {id, label} pairs: the contract
 -- scanner reads every literal inside an @localised-keys table, and an id sitting in the same
 -- table would be collected as a translatable string nobody ever shows.
@@ -2492,7 +2491,7 @@ local SUMMARY_STAT_LABELS = {
 }
 local SUMMARY_STAT_IDS = { "profit", "listed", "cost" }
 
-local BOOK_PRICE_W, BOOK_UNITS_W, BOOK_BAR_H = 84, 44, 6
+local BOOK_BAR_H = 6
 -- Queue marks under a row's price: one per price level, counted from the cheapest. Five is
 -- where a seller stops caring which level exactly -- past that the words beside them carry it.
 local ROW = { MARKS = 5 }
@@ -2510,23 +2509,24 @@ local DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
 -- It lives in the side panel now (see INSP), one column: the price you are about to list at,
 -- then the book that price lands in, all eight levels the view model hands over.
 local DR = {
-  SLOTS = 12,              -- 12 * ROW_H(32) = 384px
-  LINE_H = 18,             -- one book level
+  SLOTS = 14,              -- 14 * ROW_H(32) = 448px: a position with stock to price
+  SLOTS_BARE = 11,         -- no stock in the bags: no price control, the book moves up
+  LINE_H = 20,             -- one book level
   LINES = 8,               -- SellViewModel's own BOOK_ROWS
-  HEAD_Y = -8,             -- "YOUR PRICE"
-  BOX_Y = -24,             -- the price box
-  NOTE_Y = -48,            -- what that price does
-  CHIPS_Y = -68,           -- the four one-click fills
-  REC_Y = -94,             -- GoldCap's own recommendation
-  BOOK_HEAD_Y = -122,      -- "THE BOOK"
-  HINT_Y = -138,           -- cheapest not yours, depth, the colour key -- two lines of it
-  BODY_Y = -170,           -- first book level
-  BAR_MAX = 72,
-  TAG_W = 38,              -- "you" / "yours" beside a book level
+  BOX_W = 112, BOX_H = 34, -- the price box: the one figure on this tab that spends gold
+  HEAD_Y = -10,            -- "YOUR PRICE" / "YOU GET"
+  BOX_Y = -26,             -- the price box, and what it fetches beside it
+  NOTE_Y = -68,            -- whose price it is, or what is wrong with it
+  CHIPS_Y = -88,           -- the five one-click fills, one segmented strip
+  CHIP_H = 22,
+  REC_Y = -120,            -- what GoldCap would do and why, two lines of it
+  POST_Y = -156,           -- Post, the panel's own
+  POST_H = 24,
+  BOOK_Y = -192,           -- where the book section starts when there is a price control
+  BOOK_Y_BARE = -84,       -- ...and when there is not
+  BAR_MAX = 116,
+  PRICE_W = 72, UNITS_W = 40, TAG_W = 40,
 }
--- Derived, not typed twice: the two lines under the book hang off where its last level ends.
-DR.STAND_Y = DR.BODY_Y - DR.LINES * DR.LINE_H - 4
-DR.FACTS_Y = DR.STAND_Y - 20
 
 -- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
 -- same things at every window width, and its width is INSP's, not the list's.
@@ -2534,95 +2534,110 @@ local layoutDetailRow
 do
 local function layoutDrawer(row)
   local left, right = INSP.PAD, -INSP.PAD
+  local postable = type(row.position) == "table" and (row.position.bagQty or 0) > 0
 
+  -- ---- the price section: label and box on the left, what the price fetches on the right
   row.drawerPriceHead:ClearAllPoints()
   row.drawerPriceHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HEAD_Y)
+  row.priceBoxBg:ClearAllPoints()
+  row.priceBoxBg:SetSize(DR.BOX_W, DR.BOX_H)
+  row.priceBoxBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BOX_Y)
   row.priceBox:ClearAllPoints()
-  row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
-  row.priceBox:SetPoint("TOPLEFT", row, "TOPLEFT", left + 4, DR.BOX_Y)
-  -- What the price fetches, right-aligned beside the box: heading, figure, margin and net.
+  row.priceBox:SetPoint("TOPLEFT", row.priceBoxBg, "TOPLEFT", 10, -2)
+  row.priceBox:SetPoint("BOTTOMRIGHT", row.priceBoxBg, "BOTTOMRIGHT", -6, 2)
   row.priceNetHead:ClearAllPoints()
   row.priceNetHead:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.HEAD_Y)
   row.priceNet:ClearAllPoints()
-  row.priceNet:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 1)
+  row.priceNet:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 2)
   row.priceNetNote:ClearAllPoints()
-  row.priceNetNote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.NOTE_Y - 1)
-  -- The head's Post sits on the line of the sentence that says what it will post at.
-  row.cells.action:ClearAllPoints()
-  row.cells.action:SetSize(88, PRICE_BOX_H)
-  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.REC_Y + 2)
+  row.priceNetNote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y - 22)
   row.priceNote:ClearAllPoints()
-  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.NOTE_Y)
-  row.priceNote:SetPoint("RIGHT", row.priceNetNote, "LEFT", -6, 0)
+  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.NOTE_Y or DR.BOX_Y)
+  row.priceNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.priceNote:SetWordWrap(false)
 
+  -- One strip, five equal segments: a switch with a position, not five loose buttons.
+  row.chipsBg:ClearAllPoints()
+  row.chipsBg:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y)
+  row.chipsBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.CHIPS_Y)
+  row.chipsBg:SetHeight(DR.CHIP_H + 4)
   local prev
   for i = 1, #row.priceChips do
     local chip = row.priceChips[i]
     chip:ClearAllPoints()
-    if prev then chip:SetPoint("LEFT", prev, "RIGHT", Theme.pad.xs, 0)
-    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y) end
+    chip:SetSize(PRICE_CHIP_W, DR.CHIP_H)
+    if prev then chip:SetPoint("LEFT", prev, "RIGHT", 2, 0)
+    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left + 3, DR.CHIPS_Y - 2) end
     prev = chip
   end
 
-  -- The recommendation lives HERE, not on the position row: WHAT TO DO is not a column on
-  -- either deck, so this is the one place the sentence is ever shown.
+  -- What GoldCap would do and why, in a sentence that is allowed its second line. It lives
+  -- HERE because WHAT TO DO is not a column on either deck.
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.REC_Y)
-  row.subItem:SetPoint("RIGHT", row.cells.action, "LEFT", -6, 0)
-  row.subItem:SetWordWrap(false)
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, postable and DR.REC_Y or (DR.BOX_Y - 18))
+  row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.subItem:SetWordWrap(true)
+  row.subItem:SetMaxLines(2)
+  if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
+  row.subItem:SetText(row.subItem:GetText() or "") -- measured again now that it wraps
 
+  -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
+  row.cells.action:ClearAllPoints()
+  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y)
+  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y)
+  row.cells.action:SetHeight(DR.POST_H)
+
+  -- ---- the book section, under a rule across the panel
+  local top = postable and DR.BOOK_Y or DR.BOOK_Y_BARE
+  row.headRules[1]:ClearAllPoints()
+  row.headRules[1]:SetPoint("TOPLEFT", row, "TOPLEFT", 0, top)
+  row.headRules[1]:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, top)
   row.drawerBookHead:ClearAllPoints()
-  row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BOOK_HEAD_Y)
-  -- Under the heading rather than beside it, and allowed its second line: at the panel's width
-  -- the hint is longer than the row, and what it cuts off first is the colour key.
+  row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, top - 12)
   row.drawerHint:ClearAllPoints()
-  row.drawerHint:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HINT_Y)
-  row.drawerHint:SetPoint("RIGHT", row, "RIGHT", right, 0)
-  row.drawerHint:SetJustifyH("LEFT")
-  row.drawerHint:SetWordWrap(true)
-  row.drawerHint:SetMaxLines(2)
+  row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, top - 12)
+  row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", 8, 0)
+  row.drawerHint:SetJustifyH("RIGHT")
+  row.drawerHint:SetWordWrap(false)
 
+  local body = top - 32
   for i = 1, DR.LINES do
     local line = row.bookLines[i]
-    local y = DR.BODY_Y - (i - 1) * DR.LINE_H
+    local y = body - (i - 1) * DR.LINE_H
     line.price:ClearAllPoints()
-    line.price:SetWidth(BOOK_PRICE_W)
+    line.price:SetWidth(DR.PRICE_W)
     line.price:SetPoint("TOPLEFT", row, "TOPLEFT", left, y)
     line.tag:ClearAllPoints()
     line.tag:SetWidth(DR.TAG_W)
     line.tag:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y - 1)
     line.qty:ClearAllPoints()
-    line.qty:SetWidth(BOOK_UNITS_W)
+    line.qty:SetWidth(DR.UNITS_W)
     line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right - DR.TAG_W - 6, y)
-    line.wash:ClearAllPoints()
-    line.wash:SetPoint("TOPLEFT", row, "TOPLEFT", left - 4, y + 3)
-    line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 3)
     line.bar:ClearAllPoints()
     line.bar:SetPoint("LEFT", line.price, "RIGHT", Theme.pad.s, 0)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
+    line.wash:ClearAllPoints()
+    line.wash:SetPoint("TOPLEFT", row, "TOPLEFT", left - 4, y + 4)
+    line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 4)
   end
 
+  local foot = body - DR.LINES * DR.LINE_H - 4
   row.drawerStand:ClearAllPoints()
-  row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.STAND_Y)
+  row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
   row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.drawerStand:SetWordWrap(false)
-
   row.drawerFacts:ClearAllPoints()
-  row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.FACTS_Y)
+  row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 18)
   row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(true)
-  row.drawerFacts:SetMaxLines(3)
-  -- Wrapped lines of the client's own face sit almost on top of one another by default.
-  if row.drawerFacts.SetSpacing then row.drawerFacts:SetSpacing(3); row.drawerHint:SetSpacing(3) end
+  row.drawerFacts:SetMaxLines(2)
+  if row.drawerFacts.SetSpacing then row.drawerFacts:SetSpacing(3) end
   -- A FontString sizes itself when its text is SET, and renderRows sets these before this
-  -- runs. On a pooled row that was a one-line kind a moment ago that meant one line's height
-  -- for three lines of facts -- the rest was simply not drawn until the next render (seen in
-  -- game). Stamping the same text again, now that wrapping is on, makes it measure properly.
+  -- runs: on a pooled row that was a one-line kind a moment ago, two lines of facts got one
+  -- line's height and the rest was not drawn until the next render (seen in game).
   row.drawerFacts:SetText(row.drawerFacts:GetText() or "")
-  row.drawerHint:SetText(row.drawerHint:GetText() or "")
 end
 
 -- A lot, a bag line, a purchase or a heading inside the panel. None of the deck's columns
@@ -2657,7 +2672,16 @@ layoutDetailRow = function(row)
     row.itemStock:Show()
   end
   row.sectionLabel:ClearAllPoints()
-  row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+  row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, -4)
+  row.sectionHint:ClearAllPoints()
+  row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, -4)
+  -- A section starts under a rule across the whole panel, the way the book's does, rather than
+  -- with a gold line trailing off its own heading.
+  row.sectionRule:ClearAllPoints()
+  row.sectionRule:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -2)
+  row.sectionRule:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, -2)
+  row.sectionRule:SetColorTexture(1, 1, 1, 0.06)
+  setColor(row.sectionLabel, Theme.color.fgMuted)
   -- The head lays itself out over this: called from here so renderRows has one panel layout
   -- to know about, not two (see rowTag on why that function counts its upvalues).
   if row.kind == "drawer" then layoutDrawer(row) end
@@ -2888,7 +2912,10 @@ local function createRow(parent)
 
   row.cells = {}
   for _, column in ipairs(COLUMNS) do
-    local cell = Theme.Label(row, column.key == "item" and 12 or 11)
+    -- Figures in the mono face, names and prose in the client's own -- the kit's rule (see
+    -- Theme.Label). Every cell here used to be a Label, so the two columns a seller compares
+    -- down the list were set in a face whose digits do not line up.
+    local cell = column.num and Theme.Num(row, 11, column.bold) or Theme.Label(row, column.key == "item" and 12 or 11)
     cell:SetJustifyH(column.num and "RIGHT" or "LEFT")
     cell:SetWordWrap(false)
     row.cells[column.key] = cell
@@ -2899,7 +2926,7 @@ local function createRow(parent)
   -- line and marks the rest with an ellipsis -- so the second line was never drawn at all and
   -- every item on the screen appeared truncated, whatever its name. Its own FontString, its
   -- own anchor (layoutCells splits the flex box in half vertically for the pair).
-  row.itemStock = Theme.Label(row, 10)
+  row.itemStock = Theme.Num(row, 10)
   -- Said out loud rather than inherited from the font template: this line is deliberately one
   -- step back from the item name above it, so that the money coloured into it (MONEY_HEX) is
   -- the thing that steps forward. Leaving it on the template's own colour made the whole line
@@ -2964,11 +2991,13 @@ local function createRow(parent)
   -- sectionLabel: the drawer shows all four AT ONCE, where every other row kind shows exactly
   -- one of them.
   row.drawerPriceHead = Theme.Num(row, 9)
-  row.drawerBookHead = Theme.Num(row, 9)
+  row.drawerBookHead = Theme.Num(row, 10, true)
   row.drawerHint = Theme.Num(row, 9)
   row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerStand = Theme.Label(row, 10)
-  row.drawerFacts = Theme.Label(row, 10)
+  row.drawerStand = Theme.Num(row, 10)
+  row.drawerStand:SetJustifyH("LEFT")
+  row.drawerFacts = Theme.Num(row, 9)
+  row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(false)
   row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
   row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
@@ -2977,22 +3006,55 @@ local function createRow(parent)
   -- one number a seller could not see the workings of or change: GoldCap picked it and Post
   -- sent it. The box is prefilled with exactly what Post would list at, in gold, and emptying
   -- it hands the decision back to GoldCap rather than leaving nothing behind.
-  row.priceBox = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
+  -- The kit's own surface rather than InputBoxTemplate's stone border, and a figure big enough
+  -- to be the first thing read in the panel: a dark rounded well, a ring that says whose price
+  -- it is (see INSP.paintHead), bold mono inside. The EditBox itself is bare and sits in it.
+  row.priceBoxBg = CreateFrame("Frame", nil, row)
+  -- The window's own ground colour, a step darker than the panel it is set into. Several of
+  -- this suite's theme doubles carry no `bg`, hence the fallback.
+  local wellc = Theme.color.bg or Theme.color.panel
+  local well = Theme.SlicedTexture(row.priceBoxBg, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  well:SetAllPoints(row.priceBoxBg)
+  row.priceBoxRing = Theme.SlicedTexture(row.priceBoxBg, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { 1, 1, 1, 0.14 }, 12)
+  row.priceBoxRing:SetAllPoints(row.priceBoxBg)
+  row.priceBoxBg:Hide()
+  row.priceBox = CreateFrame("EditBox", nil, row.priceBoxBg)
   row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
   row.priceBox:SetAutoFocus(false)
+  -- Guarded for busted, whose frame doubles were never taught an EditBox's font API. In the
+  -- client a bare EditBox with no font does not draw its text at all, so this is not optional.
+  if row.priceBox.SetFont then
+    row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * Theme.Scale(), "")
+    row.priceBox:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+    Theme.OnRescale(function(scale) row.priceBox:SetFont(Theme.FONT_UI_BOLD, 16 * scale, "") end)
+  end
   row.priceBox:Hide()
+  -- The strip the five price chips sit in, and the rule over the book section.
+  row.chipsBg = Theme.SlicedTexture(row, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { wellc[1], wellc[2], wellc[3], 1 }, 12)
+  row.chipsBg:Hide()
+  row.headRules = {}
+  for i = 1, 1 do
+    local rule = row:CreateTexture(nil, "ARTWORK")
+    rule:SetColorTexture(1, 1, 1, 0.06)
+    rule:SetHeight(1)
+    rule:Hide()
+    row.headRules[i] = rule
+  end
 
   -- What that price fetches, beside the box it is typed into: the same YOU GET and margin the
   -- row carries, moving with every keystroke, plus what is left once the auction house has
   -- taken its cut. They were on the row only -- which, as a sheet, the panel covers.
   row.priceNetHead = Theme.Num(row, 9)
-  row.priceNet = Theme.Num(row, 12, true)
+  row.priceNet = Theme.Num(row, 14, true)
   row.priceNetNote = Theme.Num(row, 9)
   for _, line in ipairs({ row.priceNetHead, row.priceNet, row.priceNetNote }) do
     line:SetJustifyH("RIGHT"); line:SetWordWrap(false); line:Hide()
   end
 
-  row.priceNote = Theme.Label(row, 10)
+  row.priceNote = Theme.Num(row, 10)
   row.priceNote:SetJustifyH("LEFT")
   row.priceNote:SetWordWrap(false)
   row.priceNote:Hide()
@@ -3097,7 +3159,7 @@ local function createRow(parent)
   -- exclusive widgets (this, row.cells.item, row.sectionLabel below), and layoutCells anchors
   -- all three to the same LEFT/RIGHT points every render since exactly one is shown per row
   -- (the kind branch in renderRows).
-  row.subItem = Theme.Label(row, 11)
+  row.subItem = Theme.Num(row, 10)
   row.subItem:SetJustifyH("LEFT")
   row.subItem:SetWordWrap(false)
   row.subItem:Hide()
@@ -3109,6 +3171,12 @@ local function createRow(parent)
   row.sectionLabel:SetJustifyH("LEFT")
   setColor(row.sectionLabel, Theme.color.gold)
   row.sectionLabel:Hide()
+  -- A heading's aside, at the right end of its row ("oldest units sell first").
+  row.sectionHint = Theme.Num(row, 9)
+  row.sectionHint:SetJustifyH("RIGHT")
+  row.sectionHint:SetWordWrap(false)
+  setColor(row.sectionHint, Theme.color.fgDim)
+  row.sectionHint:Hide()
   local gc2 = Theme.color.gold
   row.sectionRule = row:CreateTexture(nil, "ARTWORK")
   row.sectionRule:SetColorTexture(gc2[1], gc2[2], gc2[3], 0.25)
@@ -3288,7 +3356,12 @@ function INSP.paintHead(row, p, d)
       end
       box:SetText(unit and copperToGoldText(unit) or "")
     end
-    box:Show()
+    box:Show(); row.priceBoxBg:Show(); row.chipsBg:Show()
+    -- The ring says whose price this is before a word is read: red under cost or under the
+    -- floor, gold once it is the seller's own, the panel's quiet edge while it is GoldCap's.
+    local ring = (risk.belowCost or risk.belowFloor) and Theme.color.red or chosen and Theme.color.gold or nil
+    if ring then row.priceBoxRing:SetVertexColor(ring[1], ring[2], ring[3], 0.7)
+    else row.priceBoxRing:SetVertexColor(1, 1, 1, 0.14) end
     if risk.belowCost then
       row.priceNote:SetText((GC.L["below the %s you paid"]):format(formatCell(risk.paidUnit)))
       setColor(row.priceNote, Theme.color.red)
@@ -3356,7 +3429,7 @@ function INSP.paintHead(row, p, d)
   else
     -- Nothing in the bags: there is no price to set, and an editable box that cannot post
     -- is an invitation to a click that does nothing. Say why instead.
-    row.priceBox:Hide()
+    row.priceBox:Hide(); row.priceBoxBg:Hide(); row.chipsBg:Hide()
     row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
     for _, chip in ipairs(row.priceChips) do chip:Hide() end
     row.priceNote:SetText(GC.L["nothing in your bags to price"])
@@ -3367,6 +3440,7 @@ function INSP.paintHead(row, p, d)
   -- ---- the book side: the evidence the price on the left stands on, beside it rather
   -- than eight rows below it.
   if book then
+    row.headRules[1]:Show()
     row.drawerHint:SetText(bookHint(book)); row.drawerHint:Show()
     setColor(row.drawerHint, Theme.color.fgDim)
     local widest = book.widest or 0
@@ -3400,16 +3474,20 @@ function INSP.paintHead(row, p, d)
         line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
       end
     end
+    -- How deep the book is rides here, after where the price stands in it: the hint beside the
+    -- heading has room for the price to beat and nothing else.
+    local depth = DIM_HEX .. " · " .. (GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0) .. "|r"
     if book.yourRow then
       row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
-        book.yourRow, book.levels or 0))
+        book.yourRow, book.levels or 0) .. depth)
       setColor(row.drawerStand, Theme.color.goldHi)
     else
-      row.drawerStand:SetText(GC.L["your price is above every level shown"])
+      row.drawerStand:SetText(GC.L["your price is above every level shown"] .. depth)
       setColor(row.drawerStand, Theme.color.fgDim)
     end
   else
     row.drawerHint:Hide()
+    row.headRules[1]:Show()
     for _, line in ipairs(row.bookLines) do
       line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
     end
@@ -3436,7 +3514,6 @@ function INSP.paintHead(row, p, d)
     facts[#facts + 1] = d.days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(d.days * 24 + 0.5)))
       or ("clears in ~%dd"):format(math.floor(d.days + 0.5))
   end
-  if d and d.factsText then facts[#facts + 1] = d.factsText end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
     or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…"))
@@ -3447,8 +3524,13 @@ function INSP.paintHead(row, p, d)
   -- What GoldCap would do and at what price -- the text the expansion's own detail row
   -- used to put in the status CELL, which the deck's shed order now takes off the row at
   -- the default window width.
-  row.subItem:SetText(recommendationText(d and d.recommendation))
-  setColor(row.subItem, Theme.color.fg)
+  -- The sentence and its reason together ("Post @ 18g15s -- above the cheapest, within the
+  -- day's reach..."): the reason used to trail the line of market facts under the book, a
+  -- screen away from the price it explains.
+  local advice = recommendationText(d and d.recommendation)
+  if d and d.factsText then advice = (advice ~= "" and (advice .. " · ") or "") .. d.factsText end
+  row.subItem:SetText(advice)
+  setColor(row.subItem, Theme.color.fgMuted)
   row.subItem:Show()
   for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
   -- Post, beside the price it posts at. As a sheet the panel lies over the right side of
@@ -3458,6 +3540,8 @@ function INSP.paintHead(row, p, d)
   -- (onPostClick refuses a second row while one is pending).
   if postable then
     showRowAction(row, "Post", function() onPostClick(row) end)
+    row.action:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD, DR.POST_H)
+    if row.action.SetVariant then row.action:SetVariant("primary") end
   else
     row.action:Hide()
   end
@@ -3568,20 +3652,27 @@ renderRows = function()
       -- it was opened from -- 25 rows of expansion inside a 430px scroll area -- which is the
       -- single complaint this redesign started from.
       entries[#entries + 1] = { kind = "drawer", position = position, detail = detail,
-        slots = DR.SLOTS }
+        slots = (position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE }
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
-      if #detail.ownedLots > 0 or inBags > 0 then
+      -- The bag line earns its row when it says something the panel's heading ("x37 in bags")
+      -- does not: that one click lists only part of the stock, that no stack can be pinned
+      -- down, or that some of it has no cost and can be given one here.
+      local bagState = inBags > 0 and liveBagState(position) or nil
+      local postableNow = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
+      local bagLine = inBags > 0 and (postableNow ~= inBags or canSetCost(position))
+      if #detail.ownedLots > 0 or bagLine then
         entries[#entries + 1] = { kind = "group", position = position, title = GC.L["ON THE AUCTION HOUSE"] }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
-      if inBags > 0 then
+      if bagLine then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
       if #detail.batches > 0 then
         entries[#entries + 1] = { kind = "group", position = position, title = GC.L["WHAT YOU PAID"],
-          hint = GC.L["Sales are costed from your oldest units first"] }
+          hint = GC.L["Sales are costed from your oldest units first"],
+          aside = GC.L["oldest units sell first"] }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
       -- Everything a position opens into is drawn in the side panel, not under the row. The
@@ -3955,6 +4046,8 @@ renderRows = function()
         -- units first" ran off the edge after its sixth word.
         row.sectionLabel:SetText(entry.title)
         row.groupHint = entry.hint
+        row.sectionHint:SetText(entry.aside or "")
+        row.sectionHint:Show()
         for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
         row.action:Hide()
       elseif entry.kind == "batch" then
@@ -4165,9 +4258,15 @@ renderRows = function()
       -- Pooled rows are rebound to a different kind on every render, so a book row's own
       -- widgets have to be put away by whatever kind takes the row next.
       if entry.kind ~= "price" and entry.kind ~= "drawer" then
-        row.priceBox:Hide(); row.priceNote:Hide()
+        row.priceBox:Hide(); row.priceBoxBg:Hide(); row.priceNote:Hide(); row.chipsBg:Hide()
+        row.headRules[1]:Hide()
         for _, chip in ipairs(row.priceChips) do chip:Hide() end
+        -- The head dresses the pooled action button as the panel's own Post; every other kind
+        -- gets the row button back.
+        row.action:SetSize(86, 18)
+        if row.action.SetVariant then row.action:SetVariant("ghost") end
       end
+      if entry.kind ~= "group" then row.sectionHint:Hide() end
       -- Same rule, and the drawer has the most to put away: five book lines and four headings.
       -- A pooled row that painted a panel last render would otherwise keep every one of them
       -- on top of whatever line it becomes next.
@@ -4215,6 +4314,12 @@ renderRows = function()
         row.zebra:Hide(); row.well:Hide()
         row.cells.item:Hide(); row.itemStock:Hide(); row.subItem:Hide()
         row.sectionLabel:Show(); row.sectionRule:Show()
+        row.sectionRule:ClearAllPoints()
+        row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.s, 0)
+        row.sectionRule:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
+        local fgc = Theme.color.gold
+        row.sectionRule:SetColorTexture(fgc[1], fgc[2], fgc[3], 0.25)
+        setColor(row.sectionLabel, Theme.color.gold)
       else
         row.itemInset = 34
         row.icon:Hide()
@@ -4942,19 +5047,19 @@ function GC.Sell.Attach(f, geometry)
   inspectorEdge:SetAllPoints(inspector)
 
   inspector.icon = inspector:CreateTexture(nil, "ARTWORK")
-  inspector.icon:SetSize(28, 28)
-  inspector.icon:SetPoint("TOPLEFT", INSP.PAD + 2, -10)
+  inspector.icon:SetSize(36, 36)
+  inspector.icon:SetPoint("TOPLEFT", INSP.PAD + 4, -11)
   -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
   -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
   if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
-  inspector.name = Theme.Label(inspector, 13)
+  inspector.name = Theme.Label(inspector, 15)
   inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(false)
-  inspector.stock = Theme.Label(inspector, 10)
+  inspector.stock = Theme.Num(inspector, 10)
   inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(false)
   setColor(inspector.stock, Theme.color.fgMuted)
   local closeInspector = Theme.Button(inspector, "ghost", "badge")
   closeInspector:SetSize(22, 20)
-  closeInspector:SetPoint("TOPRIGHT", -INSP.PAD, -12)
+  closeInspector:SetPoint("TOPRIGHT", -INSP.PAD - 2, -18)
   closeInspector:SetLabel("X")
   closeInspector:SetScript("OnClick", function()
     for key in pairs(expanded) do expanded[key] = nil end
@@ -4998,12 +5103,12 @@ function GC.Sell.Attach(f, geometry)
       icon = ok and texture or nil
     end
     if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
-    local left = icon and (INSP.PAD + 38) or (INSP.PAD + 2)
+    local left = icon and (INSP.PAD + 50) or (INSP.PAD + 4)
     inspector.name:ClearAllPoints()
-    inspector.name:SetPoint("TOPLEFT", left, -9)
+    inspector.name:SetPoint("TOPLEFT", left, -12)
     inspector.name:SetPoint("RIGHT", closeInspector, "LEFT", -6, 0)
     inspector.stock:ClearAllPoints()
-    inspector.stock:SetPoint("TOPLEFT", left, -27)
+    inspector.stock:SetPoint("TOPLEFT", left, -33)
     inspector.stock:SetPoint("RIGHT", closeInspector, "LEFT", -6, 0)
     local name = position.itemName or GC.L["Item"]
     inspector.name:SetText(Theme.WithQuality and Theme.WithQuality(name, position.itemID) or name)

@@ -942,8 +942,10 @@ describe("Sell widget geometry and manual cost", function()
       local drawer = nth(bookRows(GC, BOOK), "drawer")
       assert.equal("THE BOOK", drawer.drawerBookHead.text)
       assert.matches("cheapest not yours", drawer.drawerHint.text, 1, true)
-      assert.matches("1062 units", drawer.drawerHint.text, 1, true)
-      assert.matches("4 prices", drawer.drawerHint.text, 1, true)
+      -- How deep the book is follows where the price stands in it, under the levels: beside
+      -- the heading there is room for the price to beat and nothing else.
+      assert.matches("1062 units", drawer.drawerStand.text, 1, true)
+      assert.matches("4 prices", drawer.drawerStand.text, 1, true)
       -- The colour key is no longer a sentence in the hint: each level that needs one says it
       -- in a word of its own (see the colouring test below).
       assert.is_nil(drawer.drawerHint.text:find("gold is", 1, true))
@@ -1227,17 +1229,17 @@ describe("Sell widget geometry and manual cost", function()
       local render = upvalue(GC.Sell.Attach, "renderRows")
       local content = upvalue(render, "content")
       local detailContent = upvalue(render, "detailContent")
-      -- An open position's detail is drawn in the side panel. From 860 up the panel has a
+      -- An open position's detail is drawn in the side panel. From 880 up the panel has a
       -- column of its own and the list gives up the panel's width and the gap; under that it
       -- lies over the list as a sheet and the list keeps every pixel.
-      assert.equal(width >= 860 and width - 320 - 28 or width, content.width)
+      assert.equal(width >= 880 and width - 340 - 28 or width, content.width)
       assert.is_true(container.inspector.shown)
       -- The list does not grow by a single row when a position opens -- that is the point.
       assert.equal(1 * 24, content.height)
-      -- Sixteen slots in the panel: a twelve-slot head, the auction-house heading, its lot,
-      -- the purchase heading and its batch. A scroll child sized by entry COUNT would clip
-      -- the head by eleven rows' worth.
-      assert.equal(16 * 24, detailContent.height)
+      -- Fifteen slots in the panel: an eleven-slot head (this position has nothing in the bags,
+      -- so no price control), the auction-house heading, its lot, the purchase heading and its
+      -- batch. A scroll child sized by entry COUNT would clip the head by ten rows' worth.
+      assert.equal(15 * 24, detailContent.height)
       for index = 2, 6 do assert.equal(detailContent, rows[index].parent, "row " .. index) end
       assert.equal(content, rows[1].parent)
       assert.equal("drawer", rows[2].kind)
@@ -1657,10 +1659,11 @@ describe("Sell widget geometry and manual cost", function()
     })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
-    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row.
+    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the bag-stock sub-row -- there
+    -- because one click lists three of the five, which the panel's heading does not say.
     assert.equal("» 1g15s", rows[4].cells.market.text)
   end)
 
@@ -1676,7 +1679,7 @@ describe("Sell widget geometry and manual cost", function()
     })
     local render = upvalue(GC.Sell.Attach, "renderRows")
     set(render, "liveBagState",
-      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+      function() return { bag = 0, slot = 1, stackQty = 3, exactQty = 3, itemID = 42, positionKey = "commodity:42" } end)
     rows[1].scripts.OnClick(rows[1])
     rows = upvalue(render, "rows")
     assert.equal("» 9900", rows[4].cells.market.text)
@@ -2463,7 +2466,7 @@ describe("Sell widget geometry and manual cost", function()
       for _, child in ipairs(container.children) do if child.cells then header = child break end end
       rows[1].scripts.OnClick(rows[1])
       -- The short SetPoint form: (point, x, y), which the double files under `relative`.
-      assert.equal(-(320 + 28), header.points[2].relative)
+      assert.equal(-(340 + 28), header.points[2].relative)
 
       local narrow = load(620, { calls = {} })
       rows, container = topRows(narrow, { p(42) })
@@ -2479,7 +2482,7 @@ describe("Sell widget geometry and manual cost", function()
       local rows, container = topRows(GC, { p(42) })
       local render = upvalue(GC.Sell.Attach, "renderRows")
       rows[1].scripts.OnClick(rows[1])
-      assert.equal(1100 - 320 - 28, upvalue(render, "content").width)
+      assert.equal(1100 - 340 - 28, upvalue(render, "content").width)
       container.inspector.close.scripts.OnClick()
       assert.is_false(container.inspector.shown)
       assert.equal(1100, upvalue(render, "content").width)
@@ -2579,5 +2582,19 @@ describe("Sell widget geometry and manual cost", function()
       upvalue(GC.Sell.Attach, "renderRows")()
       assert.same({ "Arcanoweave", "Pygmy Oil" }, names(rows))
     end)
+  end)
+  it("drops the bag line from the panel when it would only repeat the panel's own heading", function()
+    local GC = load(620, { calls = {} })
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    set(render, "liveBagState",
+      function() return { bag = 0, slot = 1, stackQty = 5, exactQty = 5, itemID = 42, positionKey = "commodity:42" } end)
+    local rows = topRows(GC, {
+      { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE", exposureQty = 5,
+        knownQty = 5, knownCost = 500, listedValue = 0, bagQty = 5, listedQty = 0, sources = { goldcap = 5 } },
+    })
+    rows[1].scripts.OnClick(rows[1])
+    for _, row in ipairs(rows) do
+      assert.is_false(row.shown and (row.kind == "listing" or row.kind == "group"), row.kind)
+    end
   end)
 end)
