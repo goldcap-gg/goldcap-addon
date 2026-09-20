@@ -178,6 +178,55 @@ describe("CraftCapture session", function()
     assert.equal("uncosted", GC.CraftCapture.RecentOutcomes()[1].reason)
   end)
 
+  it("tells the site ledger both halves of a craft", function()
+    -- Reagents out, made item in. Without the consume rows the site keeps
+    -- showing stock the player no longer holds; without the buy the thing they
+    -- made has no basis.
+    local rows
+    local d = driver()
+    d.recordLedger = function(r) rows = r end
+    GC.CraftCapture.SetDriver(d)
+    GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)
+    GC.CraftCapture.OnCraftResult({ itemID = 500, quantity = 4 }, 100)
+    counts[10] = 10
+    GC.CraftCapture.Tick(105)
+
+    assert.equal(2, #rows)
+    assert.equal("consume", rows[1].kind)
+    assert.equal("craft", rows[1].source)
+    assert.equal(10, rows[1].itemID)
+    assert.equal(10, rows[1].qty)
+    assert.equal(0, rows[1].total, "a consume carries no money of its own")
+    assert.equal("buy", rows[2].kind)
+    assert.equal("craft", rows[2].source)
+    assert.equal(500, rows[2].itemID)
+    assert.equal(4, rows[2].qty)
+    assert.equal(1000, rows[2].total)
+    assert.are_not.equal(rows[1].key, rows[2].key)
+  end)
+
+  it("tells the ledger nothing when the craft recorded nothing", function()
+    local called = false
+    local d = driver()
+    d.recordLedger = function() called = true end
+    GC.CraftCapture.SetDriver(d)
+    GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)
+    counts[10] = 10                                        -- interrupted: no output
+    GC.CraftCapture.Tick(105)
+    assert.is_false(called)
+  end)
+
+  it("settles fine with no ledger seam at all", function()
+    local d = driver()
+    d.recordLedger = nil
+    GC.CraftCapture.SetDriver(d)
+    GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)
+    GC.CraftCapture.OnCraftResult({ itemID = 500, quantity = 4 }, 100)
+    counts[10] = 10
+    GC.CraftCapture.Tick(105)
+    assert.equal(4, crafted().originalQty)
+  end)
+
   it("does nothing at all without a driver", function()
     GC.CraftCapture.SetDriver(nil)
     GC.CraftCapture.OnCastSent(RECIPE_SPELL, 100)

@@ -524,6 +524,23 @@ frame:SetScript("OnEvent", function(_, event, ...)
         end,
         commodityKinds = function() return GC.db and GC.db.commodityByItem or {} end,
         outcomes = type(GC.db.craftOutcomes) == "table" and GC.db.craftOutcomes or nil,
+        -- The site ledger's copy of the craft. `craft` and `consume` are words the API
+        -- learned before this addon version ships them -- the same order goldcap_buy went in,
+        -- and for the same reason: an upload carrying a word the server has not heard of is
+        -- refused outright, and the player never finds out why.
+        recordLedger = function(rows)
+          if not (GC.Ledger and GC.Ledger.Append) or type(rows) ~= "table" then return end
+          local scope = GC.Ledger.Context and GC.Ledger.Context() or nil
+          for _, row in ipairs(rows) do
+            GC.Ledger.Append({
+              key = row.key, kind = row.kind, source = row.source,
+              itemID = row.itemID, itemName = row.itemName,
+              qty = row.qty, total = row.total,
+              cut = 0, deposit = 0, pending = false, at = row.at,
+              char = scope and scope.char or nil, region = scope and scope.region or nil,
+            })
+          end
+        end,
         context = function()
           return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
         end,

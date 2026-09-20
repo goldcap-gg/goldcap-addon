@@ -307,6 +307,7 @@ local outcomes = sessionOutcomes
 --   commodityKinds() -> { [itemID] = boolean },  -- GC.db.commodityByItem
 --   context() -> { char, region },
 --   outcomes -> optional array to keep the diagnostic record in (SavedVariables-resident),
+--   recordLedger(rows) -> optional; hands the settled craft to the site ledger (Core/Ledger.lua),
 -- }
 function GC.CraftCapture.SetDriver(value)
   driver = type(value) == "table" and value or nil
@@ -359,6 +360,26 @@ local function close(now)
   if not recorded then
     outcome.reason = reason
     return remember(outcome)
+  end
+
+  -- The site's ledger hears about a craft from BOTH ends, or its books do not
+  -- balance: a `consume` row per reagent so the stock the player no longer
+  -- holds leaves the portfolio, and a `craft` buy per output so what they made
+  -- has a basis. The buy carries the cost; the consumes carry none, because
+  -- that gold was already recorded when the reagents were bought and counting
+  -- it twice is the one thing this split exists to avoid.
+  if type(driver.recordLedger) == "function" then
+    local rows = {}
+    for _, reagent in ipairs(costing.reagents) do
+      rows[#rows + 1] = { key = session.key .. "\1" .. reagent.itemID, kind = "consume",
+        source = "craft", itemID = reagent.itemID, qty = reagent.quantity, total = 0, at = now }
+    end
+    for _, batch in ipairs(recorded.batches) do
+      rows[#rows + 1] = { key = session.key .. "\1out\1" .. batch.itemID, kind = "buy",
+        source = "craft", itemID = batch.itemID, itemName = batch.itemName,
+        qty = batch.originalQty, total = batch.originalTotal, at = now }
+    end
+    driver.recordLedger(rows)
   end
 
   outcome.total, outcome.unitCost = recorded.total, recorded.unitCost
