@@ -23,6 +23,9 @@ GC.Locales.deDE = {
   ["%d held back"] = "%d zurückgehalten",
   ["%d held back from posting"] = "%d nicht eingestellt",
   ["%d hidden -- the live check refused them"] = "%d ausgeblendet -- die Live-Prüfung hat sie abgelehnt",
+  ["%d in %d lots"] = "%d in %d Posten",
+  ["%d in 1 lot"] = "%d in 1 Posten",
+  ["%d lots, %s asked"] = "%d Posten, %s verlangt",
   ["%d missing"] = "%d fehlen",
   ["%d partial"] = "%d teilweise",
   ["%d prices in one request · books still loading"] =
@@ -42,6 +45,7 @@ GC.Locales.deDE = {
   ["%s under you"] = "%s unter dir",
   ["%s — %d unit%s without a cost"] = "%s — %d Stück%s ohne Einkaufspreis",
   [", %d hidden as unsellable"] = ", %d als unverkäuflich ausgeblendet",
+  ["1 lot, %s asked"] = "1 Posten, %s verlangt",
   ["24h trend"] = "24h-Trend",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Ein Strich heißt, GoldCap kennt noch nicht die Kosten jeder Einheit — es rät sie nie aus dem Marktpreis.",
@@ -84,6 +88,7 @@ GC.Locales.deDE = {
   ["COST / UNIT"] = "KOSTEN / STÜCK",
   ["Can't price this"] = "Kein belastbarer Preis",
   ["Cancel"] = "Abbrechen",
+  ["Cancel lot"] = "Abbrechen",
   ["Cancel lot?"] = "Abbrechen?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Diesen Posten abbrechen und die Gebühr verlieren — zum Bestätigen erneut klicken",
@@ -184,6 +189,7 @@ GC.Locales.deDE = {
     "Ausgegraut heißt, der Kurs ist veraltet; Post und Repost aktualisieren ihn vor dem Handeln.",
   ["HIDDEN 0"] = "VERSTECKT 0",
   ["HIDE DETAILS ▾"] = "DETAILS AUSBLENDEN ▾",
+  ["HOLDING %d"] = "HALTEN %d",
   ["Held back from cancelling"] = "Vom Abbrechen zurückgehalten",
   ["Held back from the queue"] = "Aus der Warteschlange zurückgehalten",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -283,6 +289,7 @@ GC.Locales.deDE = {
   ["POSTING…"] = "WIRD EINGESTELLT…",
   ["PRICE"] = "PREIS",
   ["PRICE ROSE %.1fx"] = "PREIS STIEG UM %.1fx",
+  ["PRICED TOO LOW %d"] = "ZU BILLIG %d",
   ["PRICING %d/%d"] = "PREISE %d/%d",
   ["PRICING…"] = "PREISE…",
   ["PROFIT"] = "GEWINN",
@@ -347,7 +354,6 @@ GC.Locales.deDE = {
     "Löscht jeden von Hand eingetragenen Kauf in dieser Gruppe -- zum Bestätigen erneut klicken",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Löscht diesen von Hand eingetragenen Kauf -- zum Bestätigen erneut klicken",
-  ["Repost"] = "Neu setzen",
   ["Repost confirmation expired"] = "Bestätigung zum Neueinstellen abgelaufen",
   ["Right-click to stop watching this item"] =
     "Rechtsklick, um diesen Gegenstand nicht mehr zu beobachten",
@@ -441,6 +447,7 @@ GC.Locales.deDE = {
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "Gib einen Preis in Gold ein, oder leere das Feld, um GoldCaps zu nehmen",
   ["UNDERCUT"] = "UNTERBIETEN",
+  ["UNDERCUT %d"] = "UNTERBOTEN %d",
   ["UNIT"] = "STÜCK",
   ["Unit price"] = "Stückpreis",
   ["Unknown"] = "Unbekannt",
@@ -479,6 +486,7 @@ GC.Locales.deDE = {
     "Ohne ihn läuft GoldCap auf einem Preisstand vom Release-Tag — Angebote werden mit alten Preisen gesucht.",
   ["Won't buy"] = "Kaufe nicht",
   ["Worst case back"] = "Rückfluss im schlimmsten Fall",
+  ["YOUR LOTS"] = "DEINE POSTEN",
   ["YOUR PRICE"] = "DEIN PREIS",
   ["You paid"] = "Bezahlt",
   ["You pay"] = "Du zahlst",
@@ -558,6 +566,7 @@ GC.Locales.deDE = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "letzte 24h — %d Verkäufe, %s brutto, %s Auktionsgebühr, %d Käufe, %s ausgegeben",
+  ["leave these alone"] = "diese in Ruhe lassen",
   ["listing gone -- already bought out or price changed"] =
     "Angebot weg -- bereits aufgekauft oder Preis geändert",
   ["listing gone -- bought out or repriced"] = "Angebot weg -- gekauft oder neu bepreist",
@@ -664,6 +673,7 @@ GC.Locales.deDE = {
     "%s wird genau beobachtet -- alle paar Sekunden neu geprüft",
   ["worst case, selling all %d back into the price standing there now"] =
     "im schlimmsten Fall, wenn du alle %d zum aktuell dort stehenden Preis zurückverkaufst",
+  ["worth cancelling"] = "Abbruch lohnt sich",
   ["would sell at a loss"] = "würde mit Verlust verkaufen",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "du hast noch keine Realmpreise importiert -- installiere GoldCap Companion (/goldcap companion) oder füge eine Zeichenkette von goldcap.gg ein (/goldcap import).",

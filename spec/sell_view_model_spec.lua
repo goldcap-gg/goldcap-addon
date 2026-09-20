@@ -250,6 +250,50 @@ describe("Sell view model", function()
     } })
     assert.equal(5, #expanded.batches)
   end)
+  -- MY LOTS reads as three answers to "what do I do with these": lots worth cancelling, lots
+  -- priced far under the market, and lots to leave alone. The sections are cut from the cancel
+  -- queue itself, so the headings and the dock's CANCEL n can never count differently.
+  describe("LotSections", function()
+    local a = { positionKey = "commodity:1" }
+    local b = { positionKey = "commodity:2" }
+    local c = { positionKey = "commodity:3" }
+    local d = { positionKey = "commodity:4" }
+
+    it("cuts the deck into undercut, priced too low and holding, in that order", function()
+      local sections = GC.SellViewModel.LotSections({ a, b, c, d }, {
+        { positionKey = "commodity:3", auctionID = 9 },
+        { positionKey = "commodity:2", auctionID = 7, urgent = true },
+      })
+      assert.equal(3, #sections)
+      assert.equal("undercut", sections[1].id); assert.same({ c }, sections[1].positions)
+      assert.equal("low", sections[2].id); assert.same({ b }, sections[2].positions)
+      assert.equal("hold", sections[3].id); assert.same({ a, d }, sections[3].positions)
+    end)
+
+    it("keeps the order it was given inside a section, and leaves out an empty one", function()
+      local sections = GC.SellViewModel.LotSections({ d, a, b }, {
+        { positionKey = "commodity:1", auctionID = 1 }, { positionKey = "commodity:4", auctionID = 2 },
+      })
+      assert.equal(2, #sections)
+      assert.same({ d, a }, sections[1].positions)
+      assert.equal("hold", sections[2].id)
+    end)
+
+    it("files a position under priced too low when any of its queued lots is", function()
+      local sections = GC.SellViewModel.LotSections({ a }, {
+        { positionKey = "commodity:1", auctionID = 1 },
+        { positionKey = "commodity:1", auctionID = 2, urgent = true },
+      })
+      assert.equal(1, #sections)
+      assert.equal("low", sections[1].id)
+    end)
+
+    it("is one holding section when nothing is queued, and nothing at all for an empty deck", function()
+      assert.same({ { id = "hold", positions = { a, b } } }, GC.SellViewModel.LotSections({ a, b }, {}))
+      assert.same({}, GC.SellViewModel.LotSections({}, nil))
+    end)
+  end)
+
   describe("Filter", function()
     local rows = {
       { positionKey = "a", bagQty = 5, listedQty = 0, coverage = "UNKNOWN" },

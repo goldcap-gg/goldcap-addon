@@ -27,6 +27,9 @@ GC.Locales.ukUA = {
   ["%d held back"] = "%d притримано",
   ["%d held back from posting"] = "%d притримано від виставлення",
   ["%d hidden -- the live check refused them"] = "%d приховано -- жива перевірка їх відхилила",
+  ["%d in %d lots"] = "%d у %d лотах",
+  ["%d in 1 lot"] = "%d в 1 лоті",
+  ["%d lots, %s asked"] = "%d лотів, просять %s",
   ["%d missing"] = "%d бракує",
   ["%d partial"] = "%d частково",
   ["%d prices in one request · books still loading"] = "%d цін одним запитом · стакани довантажуються",
@@ -45,6 +48,7 @@ GC.Locales.ukUA = {
   ["%s under you"] = "%s дешевше за вас",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
+  ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Прочерк означає, що собівартість відома не за всіма одиницями — з ринкової ціни вона ніколи не вигадується.",
@@ -87,6 +91,7 @@ GC.Locales.ukUA = {
   ["COST / UNIT"] = "СОБІВАРТІСТЬ / ШТ",
   ["Can't price this"] = "Ціну не оцінити",
   ["Cancel"] = "Скасувати",
+  ["Cancel lot"] = "Скасувати",
   ["Cancel lot?"] = "Скасувати?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Скасувати цей лот і втратити заставу — натисніть ще раз для підтвердження",
@@ -188,6 +193,7 @@ GC.Locales.ukUA = {
     "Сірий колір означає, що котирування застаріло; Post і Repost оновлять його перед дією.",
   ["HIDDEN 0"] = "ПРИХОВАНО 0",
   ["HIDE DETAILS ▾"] = "СХОВАТИ ДЕТАЛІ ▾",
+  ["HOLDING %d"] = "ТРИМАЄМО %d",
   ["Held back from cancelling"] = "Притримано від скасування",
   ["Held back from the queue"] = "Притримано з черги",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -295,6 +301,7 @@ GC.Locales.ukUA = {
   ["PRICE"] = "ЦІНА",
   ["PRICE / UNIT"] = "ЦІНА / ШТ",
   ["PRICE ROSE %.1fx"] = "ЦІНА ЗРОСЛА В %.1fx",
+  ["PRICED TOO LOW %d"] = "НАДТО ДЕШЕВО %d",
   ["PRICING %d/%d"] = "ЦІНИ %d/%d",
   ["PRICING…"] = "ЦІНИ…",
   ["PROFIT"] = "ПРИБУТОК",
@@ -359,7 +366,6 @@ GC.Locales.ukUA = {
     "Видаляє всі введені вручну купівлі в цій групі -- натисніть ще раз для підтвердження",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Видаляє цю введену вручну купівлю -- натисніть ще раз для підтвердження",
-  ["Repost"] = "Заново",
   ["Repost confirmation expired"] = "Підтвердження перевиставлення протерміновано",
   ["Right-click to stop watching this item"] =
     "Правий клік, щоб перестати стежити за предметом",
@@ -453,6 +459,7 @@ GC.Locales.ukUA = {
     "Введіть ціну в золоті або очистіть поле, щоб узяти ціну GoldCap",
   ["UNDER YOU"] = "ПІД ТОБОЮ",
   ["UNDERCUT"] = "НИЖЧЕ",
+  ["UNDERCUT %d"] = "ПЕРЕБИТІ %d",
   ["UNIT"] = "ЗА ШТ",
   ["Unit price"] = "Ціна за штуку",
   ["Unknown"] = "Невідомо",
@@ -492,6 +499,7 @@ GC.Locales.ukUA = {
   ["Won't buy"] = "Не куплю",
   ["Worst case back"] = "Повернеться в найгіршому разі",
   ["YOU GET"] = "ОТРИМАЄШ",
+  ["YOUR LOTS"] = "ВАШІ ЛОТИ",
   ["YOUR PRICE"] = "ВАША ЦІНА",
   ["You paid"] = "Ви заплатили",
   ["You pay"] = "Ви платите",
@@ -569,6 +577,7 @@ GC.Locales.ukUA = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "останні 24 год — %d продажів, %s валовий, %s комісія аукціону, %d купівель, %s витрачено",
+  ["leave these alone"] = "ці не чіпати",
   ["listing gone -- already bought out or price changed"] =
     "лот зник -- уже викуплений або ціна змінилася",
   ["listing gone -- bought out or repriced"] = "лот зник — викуплений або переставлений за ціною",
@@ -679,6 +688,7 @@ GC.Locales.ukUA = {
     "пильно стежимо за %s -- перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =
     "у найгіршому разі, якщо продати всі %d за ціною, що стоїть там зараз",
+  ["worth cancelling"] = "варто скасувати",
   ["would sell at a loss"] = "продалося б у збиток",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "ви ще не імпортували ціни реалму -- встановіть GoldCap Companion (/goldcap companion) або вставте рядок з goldcap.gg (/goldcap import).",

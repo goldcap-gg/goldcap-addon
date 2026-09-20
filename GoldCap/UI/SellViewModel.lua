@@ -210,6 +210,33 @@ function GC.SellViewModel.Settle(positions, places)
   return ordered
 end
 
+-- MY LOTS in three sections: lots worth cancelling, lots priced far under the market, and lots
+-- to leave alone -- the three answers a seller opens the deck for. Cut from the cancel queue's
+-- own entries (GC.CancelQueue.Build; `urgent` is its word for an underpriced lot) rather than
+-- judged again here, so a heading's count and the dock's CANCEL n cannot disagree. Positions
+-- keep the order they came in inside a section; an empty section is not returned at all.
+local LOT_SECTIONS = { "undercut", "low", "hold" }
+function GC.SellViewModel.LotSections(positions, cancelEntries)
+  local class = {}
+  for _, entry in ipairs(cancelEntries or {}) do
+    local key = entry.positionKey
+    if type(key) == "string" and (entry.urgent or not class[key]) then
+      class[key] = entry.urgent and "low" or "undercut"
+    end
+  end
+  local byId = {}
+  for _, position in ipairs(positions or {}) do
+    local id = class[position.positionKey] or "hold"
+    byId[id] = byId[id] or { id = id, positions = {} }
+    byId[id].positions[#byId[id].positions + 1] = position
+  end
+  local sections = {}
+  for _, id in ipairs(LOT_SECTIONS) do
+    if byId[id] then sections[#sections + 1] = byId[id] end
+  end
+  return sections
+end
+
 function GC.SellViewModel.SourceText(position)
   local parts, sources = {}, position and position.sources or {}
   for _, source in ipairs(SOURCE_ORDER) do

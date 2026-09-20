@@ -23,6 +23,9 @@ GC.Locales.ruRU = {
   ["%d held back"] = "%d придержано",
   ["%d held back from posting"] = "%d придержано от выставления",
   ["%d hidden -- the live check refused them"] = "%d скрыто -- живая проверка их отклонила",
+  ["%d in %d lots"] = "%d в %d лотах",
+  ["%d in 1 lot"] = "%d в 1 лоте",
+  ["%d lots, %s asked"] = "%d лотов, просят %s",
   ["%d missing"] = "%d не хватает",
   ["%d partial"] = "%d частично",
   ["%d prices in one request · books still loading"] = "%d цен одним запросом · стаканы догружаются",
@@ -41,6 +44,7 @@ GC.Locales.ruRU = {
   ["%s under you"] = "%s дешевле вас",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
+  ["1 lot, %s asked"] = "1 лот, просят %s",
   ["24h trend"] = "Тренд за 24ч",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Прочерк значит, что себестоимость известна не по всем единицам — из рыночной цены она никогда не выдумывается.",
@@ -83,6 +87,7 @@ GC.Locales.ruRU = {
   ["COST / UNIT"] = "СЕБЕСТ. / ШТ",
   ["Can't price this"] = "Цену не оценить",
   ["Cancel"] = "Отмена",
+  ["Cancel lot"] = "Отменить",
   ["Cancel lot?"] = "Отменить?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Отменить лот и потерять залог — нажмите ещё раз для подтверждения",
@@ -184,6 +189,7 @@ GC.Locales.ruRU = {
     "Серый цвет означает, что котировка устарела; Post и Repost обновят её перед действием.",
   ["HIDDEN 0"] = "СКРЫТО 0",
   ["HIDE DETAILS ▾"] = "СКРЫТЬ ДЕТАЛИ ▾",
+  ["HOLDING %d"] = "ДЕРЖИМ %d",
   ["Held back from cancelling"] = "Придержано от отмены",
   ["Held back from the queue"] = "Придержано из очереди",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -282,6 +288,7 @@ GC.Locales.ruRU = {
   ["POSTING…"] = "ВЫСТАВЛЯЕМ…",
   ["PRICE"] = "ЦЕНА",
   ["PRICE ROSE %.1fx"] = "ЦЕНА ВЫРОСЛА В %.1fx",
+  ["PRICED TOO LOW %d"] = "СЛИШКОМ ДЁШЕВО %d",
   ["PRICING %d/%d"] = "ЦЕНЫ %d/%d",
   ["PRICING…"] = "ЦЕНЫ…",
   ["PROFIT"] = "ПРИБЫЛЬ",
@@ -345,7 +352,6 @@ GC.Locales.ruRU = {
     "Удаляет все введённые вручную покупки в этой группе -- нажмите ещё раз для подтверждения",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Удаляет эту введённую вручную покупку -- нажмите ещё раз для подтверждения",
-  ["Repost"] = "Заново",
   ["Repost confirmation expired"] = "Подтверждение перевыставления просрочено",
   ["Right-click to stop watching this item"] =
     "Правый клик, чтобы перестать следить за предметом",
@@ -439,6 +445,7 @@ GC.Locales.ruRU = {
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "Введите цену в золоте или очистите поле, чтобы взять цену GoldCap",
   ["UNDERCUT"] = "НИЖЕ",
+  ["UNDERCUT %d"] = "ПЕРЕБИТЫ %d",
   ["UNIT"] = "ЗА ШТ",
   ["Unit price"] = "Цена за штуку",
   ["Unknown"] = "Неизвестно",
@@ -477,6 +484,7 @@ GC.Locales.ruRU = {
     "Без него GoldCap живёт на срезе цен с даты релиза — сделки ищутся по устаревшим ценам.",
   ["Won't buy"] = "Не куплю",
   ["Worst case back"] = "Вернётся в худшем случае",
+  ["YOUR LOTS"] = "ВАШИ ЛОТЫ",
   ["YOUR PRICE"] = "ВАША ЦЕНА",
   ["You paid"] = "Вы заплатили",
   ["You pay"] = "Вы платите",
@@ -554,6 +562,7 @@ GC.Locales.ruRU = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "за 24 ч — %d продаж, %s валовая, %s комиссия аукциона, %d покупок, %s потрачено",
+  ["leave these alone"] = "эти не трогать",
   ["listing gone -- already bought out or price changed"] =
     "лот исчез -- уже выкуплен или цена изменилась",
   ["listing gone -- bought out or repriced"] = "лот пропал — выкуплен или переставлен по цене",
@@ -660,6 +669,7 @@ GC.Locales.ruRU = {
     "пристально следим за %s -- перепроверка каждые несколько секунд",
   ["worst case, selling all %d back into the price standing there now"] =
     "в худшем случае, если продать все %d по цене, которая стоит там сейчас",
+  ["worth cancelling"] = "стоит отменить",
   ["would sell at a loss"] = "продалось бы в убыток",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "вы ещё не импортировали цены реалма -- установите GoldCap Companion (/goldcap companion) или вставьте строку с goldcap.gg (/goldcap import).",

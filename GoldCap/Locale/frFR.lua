@@ -23,6 +23,9 @@ GC.Locales.frFR = {
   ["%d held back"] = "%d retenues",
   ["%d held back from posting"] = "%d non mises en vente",
   ["%d hidden -- the live check refused them"] = "%d masqués -- la vérification en direct les a refusés",
+  ["%d in %d lots"] = "%d en %d lots",
+  ["%d in 1 lot"] = "%d en 1 lot",
+  ["%d lots, %s asked"] = "%d lots, %s demandés",
   ["%d missing"] = "%d manquantes",
   ["%d partial"] = "%d partielles",
   ["%d prices in one request · books still loading"] =
@@ -42,6 +45,7 @@ GC.Locales.frFR = {
   ["%s under you"] = "%s sous votre prix",
   ["%s — %d unit%s without a cost"] = "%s — %d unité%s sans prix d'achat",
   [", %d hidden as unsellable"] = ", %d masqués car invendables",
+  ["1 lot, %s asked"] = "1 lot, %s demandés",
   ["24h trend"] = "Tendance 24 h",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Un tiret signifie que GoldCap ne connaît pas encore le coût de chaque unité — il ne le devinera jamais depuis le prix du marché.",
@@ -85,6 +89,7 @@ GC.Locales.frFR = {
   ["COST / UNIT"] = "COÛT / UNITÉ",
   ["Can't price this"] = "Prix non fiable",
   ["Cancel"] = "Annuler",
+  ["Cancel lot"] = "Annuler",
   ["Cancel lot?"] = "Annuler ?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Annuler ce lot et perdre la caution — cliquez à nouveau pour confirmer",
@@ -185,6 +190,7 @@ GC.Locales.frFR = {
     "Grisé signifie que la cotation a vieilli ; Post et Repost la rafraîchissent avant d'agir.",
   ["HIDDEN 0"] = "MASQUÉES 0",
   ["HIDE DETAILS ▾"] = "MASQUER LES DÉTAILS ▾",
+  ["HOLDING %d"] = "À GARDER %d",
   ["Held back from cancelling"] = "Retenu de l'annulation",
   ["Held back from the queue"] = "Retenu de la file",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -284,6 +290,7 @@ GC.Locales.frFR = {
   ["POSTING…"] = "MISE EN VENTE…",
   ["PRICE"] = "PRIX",
   ["PRICE ROSE %.1fx"] = "LE PRIX A MONTÉ DE %.1fx",
+  ["PRICED TOO LOW %d"] = "TROP BAS %d",
   ["PRICING %d/%d"] = "PRIX %d/%d",
   ["PRICING…"] = "PRIX…",
   ["PROFIT"] = "PROFIT",
@@ -347,7 +354,6 @@ GC.Locales.frFR = {
     "Supprime tous les achats saisis à la main dans ce groupe -- cliquez à nouveau pour confirmer",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Supprime cet achat saisi à la main -- cliquez à nouveau pour confirmer",
-  ["Repost"] = "Remettre",
   ["Repost confirmation expired"] = "Confirmation de remise en vente expirée",
   ["Right-click to stop watching this item"] =
     "Clic droit pour arrêter de surveiller cet objet",
@@ -439,6 +445,7 @@ GC.Locales.frFR = {
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "Saisis un prix en or, ou vide le champ pour prendre celui de GoldCap",
   ["UNDERCUT"] = "SOUS-COTER",
+  ["UNDERCUT %d"] = "SOUS-COTÉS %d",
   ["UNIT"] = "UNITÉ",
   ["Unit price"] = "Prix unitaire",
   ["Unknown"] = "Inconnu",
@@ -477,6 +484,7 @@ GC.Locales.frFR = {
     "Sans lui, GoldCap tourne avec les prix figés à la date de sortie — les affaires se cherchent avec de vieux prix.",
   ["Won't buy"] = "N'achètera pas",
   ["Worst case back"] = "Retour au pire",
+  ["YOUR LOTS"] = "VOS LOTS",
   ["YOUR PRICE"] = "TON PRIX",
   ["You paid"] = "Payé",
   ["You pay"] = "Tu paies",
@@ -556,6 +564,7 @@ GC.Locales.frFR = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "dernières 24 h — %d ventes, %s brut, %s de commission, %d achats, %s dépensés",
+  ["leave these alone"] = "à laisser tels quels",
   ["listing gone -- already bought out or price changed"] =
     "vente disparue -- déjà rachetée ou prix modifié",
   ["listing gone -- bought out or repriced"] = "l'enchère a disparu : achetée ou repositionnée",
@@ -662,6 +671,7 @@ GC.Locales.frFR = {
     "%s surveillé de près -- revérifié toutes les quelques secondes",
   ["worst case, selling all %d back into the price standing there now"] =
     "au pire, en revendant les %d au prix affiché en ce moment",
+  ["worth cancelling"] = "à annuler",
   ["would sell at a loss"] = "se vendrait à perte",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "vous n'avez pas encore importé les prix du royaume -- installez GoldCap Companion (/goldcap companion) ou collez une chaîne depuis goldcap.gg (/goldcap import).",

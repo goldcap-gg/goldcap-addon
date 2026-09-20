@@ -28,6 +28,9 @@ GC.Locales.zhTW = {
   ["%d held back"] = "%d 筆保留",
   ["%d held back from posting"] = "%d 筆未上架",
   ["%d hidden -- the live check refused them"] = "已隱藏 %d 項 -- 即時核對已拒絕",
+  ["%d in %d lots"] = "%d 件 · %d 批",
+  ["%d in 1 lot"] = "%d 件 · 1 批",
+  ["%d lots, %s asked"] = "%d 批，要價 %s",
   ["%d missing"] = "缺少 %d 筆",
   ["%d partial"] = "%d 筆部分",
   ["%d prices in one request · books still loading"] = "一次請求取得 %d 個價格 · 掛單簿仍在載入",
@@ -46,6 +49,7 @@ GC.Locales.zhTW = {
   ["%s under you"] = "%s 低於你的價格",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",
   [", %d hidden as unsellable"] = "，%d 件因無法出售已隱藏",
+  ["1 lot, %s asked"] = "1 批，要價 %s",
   ["24h trend"] = "24小時走勢",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "破折號表示還不知道每一件的成本 — 它絕不會拿市場價去猜。",
@@ -88,6 +92,7 @@ GC.Locales.zhTW = {
   ["COST / UNIT"] = "成本 / 件",
   ["Can't price this"] = "無法給出價格",
   ["Cancel"] = "取消",
+  ["Cancel lot"] = "取消這批",
   ["Cancel lot?"] = "取消這批？",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "取消這批並損失押金 — 再按一次確認",
@@ -178,6 +183,7 @@ GC.Locales.zhTW = {
     "灰色表示報價已過期；Post 與 Repost 會在動作前先更新。",
   ["HIDDEN 0"] = "隱藏 0",
   ["HIDE DETAILS ▾"] = "隱藏細節 ▾",
+  ["HOLDING %d"] = "持有 %d",
   ["Held back from cancelling"] = "已從取消中保留",
   ["Held back from the queue"] = "已從佇列中保留",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -267,6 +273,7 @@ GC.Locales.zhTW = {
   ["POSTING…"] = "上架中…",
   ["PRICE"] = "價格",
   ["PRICE ROSE %.1fx"] = "價格上漲 %.1f 倍",
+  ["PRICED TOO LOW %d"] = "定價過低 %d",
   ["PRICING %d/%d"] = "定價 %d/%d",
   ["PRICING…"] = "定價中…",
   ["PROFIT"] = "利潤",
@@ -326,7 +333,6 @@ GC.Locales.zhTW = {
     "刪除這一組中所有手動輸入的購買 -- 再按一次確認",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "刪除這筆手動輸入的購買 -- 再按一次確認",
-  ["Repost"] = "重新上架",
   ["Repost confirmation expired"] = "重新上架確認已逾期",
   ["Right-click to stop watching this item"] = "右鍵點擊以停止關注這個道具",
   ["Right-click to watch this item closely"] = "右鍵點擊以密切關注這個道具",
@@ -399,6 +405,7 @@ GC.Locales.zhTW = {
   ["Total cost to buy this auction"] = "買下該拍賣的總花費",
   ["Type a price in gold, or clear the box to use GoldCap's"] = "按金幣輸入價格，或清空輸入框以使用 GoldCap 的價格",
   ["UNDERCUT"] = "壓一檔",
+  ["UNDERCUT %d"] = "被壓價 %d",
   ["UNIT"] = "單價",
   ["Unit price"] = "單價",
   ["Unknown"] = "未知",
@@ -436,6 +443,7 @@ GC.Locales.zhTW = {
     "沒有它，GoldCap 只能用發布日期時的價格快照 — 用過時的價格找交易。",
   ["Won't buy"] = "不買",
   ["Worst case back"] = "最壞情況回款",
+  ["YOUR LOTS"] = "你的上架",
   ["YOUR PRICE"] = "你的價格",
   ["You paid"] = "你的成本",
   ["You pay"] = "你支付",
@@ -508,6 +516,7 @@ GC.Locales.zhTW = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "最近 24 小時 — %d 筆販售、總額 %s、手續費 %s、%d 筆購買、支出 %s",
+  ["leave these alone"] = "這些不用動",
   ["listing gone -- already bought out or price changed"] = "上架已消失 -- 已被買走或價格已變",
   ["listing gone -- bought out or repriced"] = "該拍賣已消失 — 被買走或改價",
   ["live safety confirmed -- click Buy to purchase"] = "已即時確認安全 -- 按 Buy 購買",
@@ -602,6 +611,7 @@ GC.Locales.zhTW = {
   ["watching %s closely -- re-checked every few seconds"] = "密切關注 %s -- 每幾秒重新檢查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最壞情況下，把全部 %d 件按現在掛著的價格賣回去",
+  ["worth cancelling"] = "值得取消",
   ["would sell at a loss"] = "賣出會虧損",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "你還沒有匯入伺服器價格 -- 請安裝 GoldCap Companion（/goldcap companion）或貼上 goldcap.gg 的字串（/goldcap import）。",

@@ -31,7 +31,7 @@ describe("Sell action help text", function()
   end
 
   it("tells the truth about Repost's confirming click: cancel only, never an automatic relist", function()
-    local repost = helpBody("Repost")
+    local repost = helpBody("Cancel lot")
     assert.matches("does NOT relist", repost, 1, true)
     assert.matches("forfeit", repost, 1, true)
     assert.matches("mail", repost, 1, true)

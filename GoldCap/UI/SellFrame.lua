@@ -229,7 +229,7 @@ end
 local function restoreRepostRow(row)
   if not row then return end
   row.repostStage, row.repostReady = nil, nil
-  if row.action then row.action:Enable(); row.action.helpKey = "Repost"; row.action:SetLabel(GC.L["Repost"]) end
+  if row.action then row.action:Enable(); row.action.helpKey = "Cancel lot"; row.action:SetLabel(GC.L["Cancel lot"]) end
 end
 
 local function restoreRemoveRow(row)
@@ -348,16 +348,16 @@ end
 -- suffix on the PROFIT/UNIT cell shares one FontString with the number in front of it, so there
 -- is no separate region to SetTextColor -- the only way to dim part of the text is to color it
 -- inline and close with |r.
-local DIM_HEX = "|cff9d9d9d"
+local DIM_HEX = "|cff8f8d88"
 
--- Theme.color.goldHi as an inline escape, for the one number on the stock line that is money.
+-- Theme.color.cost as an inline escape, for the one number on the stock line that is money.
 -- The line under an item name is a run-on -- count, then listed, then what a unit cost -- drawn
 -- at size 10 in a single uniform weight, and the owner of a live client said of the cost he had
 -- asked to be shown: "I did not even see it, it just sits there." He was right. It is the figure
 -- the PRICE / UNIT column two feet to the right is meant to be compared against, and it carried
 -- no more emphasis than the word "in". Colouring the amount (never the words around it) gives
 -- the eye something to land on without adding a row, a column or a line.
-local MONEY_HEX = "|cffe8c15a"
+local MONEY_HEX = "|cffc9a957"
 
 -- The one-word state a row wears at the end of its stock line, and only when something is off:
 -- a row that is ready says nothing. It replaces the WHAT TO DO column, which no deck had room
@@ -2615,6 +2615,87 @@ local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP
 -- bulk action no room to name the item it is about to post.
 local DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
 
+-- MY LOTS, as the redesign drew it. Functions on ROW rather than file locals: this chunk sits
+-- at Lua 5.1's limit of 200, and renderRows at its limit of 60 upvalues.
+-- (The two key tables stand at file scope, closing brace in column 0: that is how the locale
+-- contract's scanner finds where an @localised-keys table ends.)
+-- @localised-keys
+ROW.SECTION_TITLES = {
+  undercut = "UNDERCUT %d", low = "PRICED TOO LOW %d", hold = "HOLDING %d",
+}
+-- @localised-keys
+ROW.SECTION_HINTS = {
+  undercut = "worth cancelling", hold = "leave these alone",
+}
+do
+  -- The deck in section order, and which section each position fell into.
+  function ROW.bySection(filtered)
+    local ordered, sectionOf = {}, {}
+    for _, section in ipairs(GC.SellViewModel.LotSections(filtered, cancelEntries)) do
+      for _, position in ipairs(section.positions) do
+        ordered[#ordered + 1] = position
+        sectionOf[position] = section
+      end
+    end
+    return ordered, sectionOf
+  end
+
+  function ROW.sectionText(section)
+    local hint = ROW.SECTION_HINTS[section.id]
+    return (GC.L[ROW.SECTION_TITLES[section.id]]):format(#section.positions)
+      .. (hint and ("  " .. DIM_HEX .. GC.L[hint] .. "|r") or "")
+  end
+
+  -- "400 in 2 lots" on MY LOTS, where how the stock is listed is what the row is about; the
+  -- posting deck keeps its plain count beside the bags'.
+  function ROW.listedText(position, listedQty, onListed)
+    local lots = #(position.ownedLots or {})
+    if not onListed or lots == 0 then return (GC.L["×%d listed"]):format(listedQty) end
+    if lots == 1 then return (GC.L["%d in 1 lot"]):format(listedQty) end
+    return (GC.L["%d in %d lots"]):format(listedQty, lots)
+  end
+
+  -- Beside the panel's YOUR LOTS heading: how many, and what they ask for in all.
+  function ROW.lotsAside(position)
+    local lots = #(position.ownedLots or {})
+    local asked = formatCell(position.listedValue)
+    if lots == 1 then return (GC.L["1 lot, %s asked"]):format(asked) end
+    return (GC.L["%d lots, %s asked"]):format(lots, asked)
+  end
+
+  -- The first of this position's lots the cancel queue holds, or nil: the queue is the one
+  -- judge of what is worth cancelling, for the row's button as for the dock's.
+  function ROW.queuedLot(position)
+    for _, entry in ipairs(cancelEntries) do
+      if entry.positionKey == position.positionKey then return entry end
+    end
+    return nil
+  end
+
+  -- The destructive-action rule, for the row's button and the dock's alike: nothing here
+  -- cancels. It opens the lot's position -- onRepostClick pins to a RENDERED lot row, and a
+  -- shut position renders none -- finds that row and hands it the click, so the two-click arm,
+  -- the delay before a confirm counts, the timeout and every pin check apply unchanged. While
+  -- an arm is in flight the render defers, deliberately, and the row found is the armed one.
+  function ROW.armLot(entry)
+    if not entry then return end
+    for other in pairs(expanded) do expanded[other] = nil end
+    expanded[entry.positionKey] = true
+    renderRows()
+    for _, row in ipairs(rows) do
+      -- `row:IsShown()`, never `row.shown` -- see onQueueClick's own comment on the
+      -- widget-double field that shipped a dead button.
+      if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot
+          and row.lot.auctionID == entry.auctionID then
+        onRepostClick(row, entry.auctionID)
+        paintCancelButton()
+        return
+      end
+    end
+    setStatus(GC.L["Could not find the queue's next lot to cancel — try again"])
+  end
+end
+
 -- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
 -- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
 -- and purchase rows stacked under it -- ten rows of detail that buried the list it was opened
@@ -2972,7 +3053,7 @@ local ACTION_HELP = {
   -- Two short paragraphs each, never more (sell_action_help_spec locks the length): the
   -- tooltip opens beside a button inside the list, so every extra line is a row it covers.
   ["Post"] = { "Post", { "Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item.", "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price." } },
-  ["Repost"] = { "Repost", { "Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
+  ["Cancel lot"] = { "Cancel lot", { "Cancels this live auction — it does NOT relist it. The deposit is forfeit and the items come back by mail; list them again from this row once they arrive.", "Asks for a second click to confirm." } },
   ["Cancel lot?"] = { "Confirm the cancel", { "Clicking again cancels the live auction. It does not relist it: the deposit is forfeit, and the items return by mail rather than straight into your bags.", "The button waits a moment before it can be pressed, so this is never an accidental double-click." } },
   ["Remove"] = { "Remove this cost", { "Deletes a hand-entered cost you typed into Set cost -- never a purchase GoldCap itself captured or matched to your mail.", "There is no undo. Clicking asks for a second click to confirm." } },
   ["Remove?"] = { "Confirm the removal", { "Clicking again deletes this hand-entered cost for good.", "A run of several purchases collapsed onto one line removes every one of them." } },
@@ -3834,6 +3915,10 @@ renderRows = function()
     -- answer re-ranked a row out from under the cursor.
     filtered = GC.SellViewModel.Settle(filtered, rowPlaces)
   end
+  -- MY LOTS reads in three sections (SellViewModel.LotSections); the queue's own focus state
+  -- keeps the queue's order, which is the point of it.
+  local sectionOf
+  if filterMode == "listed" then filtered, sectionOf = ROW.bySection(filtered) end
   updateSummary(filtered)
   -- Why a row is not in the bulk action, by position, for the tag on its stock line. Read off
   -- the same two skip lists the footer's held-back counter reads, so the row and the counter
@@ -3867,6 +3952,7 @@ renderRows = function()
         -- head used to keep 160px of nothing between its heading and "has not answered yet".
         slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS)
           - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0) }
+      local head = table.remove(entries)
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
@@ -3876,13 +3962,20 @@ renderRows = function()
       local bagState = inBags > 0 and liveBagState(position) or nil
       local postableNow = bagState and bagState.bag and exact(bagState.exactQty) and bagState.exactQty or 0
       local bagLine = inBags > 0 and (postableNow ~= inBags or canSetCost(position))
+      -- On MY LOTS the lots ARE the subject, so they open the panel -- each with its own
+      -- Cancel lot -- and the book follows as the evidence. On the posting deck the price
+      -- control is the subject and the lots come after it, as before.
+      if not onListed then entries[#entries + 1] = head end
       if #detail.ownedLots > 0 or bagLine then
-        entries[#entries + 1] = { kind = "group", position = position, title = GC.L["ON THE AUCTION HOUSE"] }
+        entries[#entries + 1] = { kind = "group", position = position,
+          title = onListed and GC.L["YOUR LOTS"] or GC.L["ON THE AUCTION HOUSE"],
+          aside = onListed and ROW.lotsAside(position) or nil }
       end
       for _, lot in ipairs(detail.ownedLots) do entries[#entries + 1] = { kind = "lot", position = position, lot = lot } end
       if bagLine then
         entries[#entries + 1] = { kind = "listing", position = position }
       end
+      if onListed then entries[#entries + 1] = head end
       if #detail.batches > 0 then
         entries[#entries + 1] = { kind = "group", position = position, title = GC.L["WHAT YOU PAID"],
           hint = GC.L["Sales are costed from your oldest units first"],
@@ -3905,7 +3998,16 @@ renderRows = function()
     local name = type(position.itemName) == "string" and position.itemName:lower() or ""
     local matches = not chips.search or name:find(chips.search, 1, true) ~= nil
     if matches and notOnHand then folded[#folded + 1] = position
-    elseif matches then pushPosition(position) end
+    elseif matches then
+      -- A heading goes in ahead of the first of its positions that is actually drawn, so a
+      -- search that empties a section takes its heading with it.
+      local section = sectionOf and sectionOf[position]
+      if section and not section.headed then
+        section.headed = true
+        entries[#entries + 1] = { kind = "section", position = position, section = section }
+      end
+      pushPosition(position)
+    end
   end
   -- Only a TAIL is folded. When nothing on the deck is on hand there is no work for the fold to
   -- keep clear, and hiding the only rows there are would leave a heading over an empty list.
@@ -3987,7 +4089,7 @@ renderRows = function()
         local listedQty, bagQty = p.listedQty or 0, p.bagQty or 0
         local stockParts = {}
         if bagQty > 0 then stockParts[#stockParts + 1] = (GC.L["×%d in bags"]):format(bagQty) end
-        if listedQty > 0 then stockParts[#stockParts + 1] = (GC.L["×%d listed"]):format(listedQty) end
+        if listedQty > 0 then stockParts[#stockParts + 1] = ROW.listedText(p, listedQty, onListed) end
         -- What one of these cost, on the line under the name. COST / UNIT was its own column
         -- until this deck's column set replaced it; the fact is too load-bearing to lose with
         -- the column, and it reads better beside the quantity it applies to anyway.
@@ -4029,7 +4131,7 @@ renderRows = function()
         -- What is off about this row, if anything -- see rowTag.
         row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
           or GC.SellViewModel.SourceText(p))
-          .. (notOnHand and "|cff8c8a85 · not on hand|r" or "")
+          .. (notOnHand and (DIM_HEX .. " · not on hand|r") or "")
           .. rowTag(p, heldBackReason[p.positionKey], notOnHand))
         -- Cost per unit, not the position total: it is the number that compares against the
         -- market price in the very next column. An incomplete basis says so in words below.
@@ -4237,7 +4339,11 @@ renderRows = function()
         -- the honest answer to "what can I list" was "go use the Blizzard tab".
         -- Set cost is bookkeeping and stays available whenever there is no
         -- stock to act on; the expansion carries it in either case.
-        if bagQty > 0 then
+        if onListed and ROW.queuedLot(p) then
+          -- MY LOTS' own control, on the rows worth cancelling and no others. It cancels nothing
+          -- itself: ROW.armLot opens the position and hands the click to the lot's own button.
+          showRowAction(row, "Cancel lot", function() ROW.armLot(ROW.queuedLot(row.position)) end)
+        elseif bagQty > 0 and not onListed then
           showRowAction(row, "Post", function() onPostClick(row) end)
         elseif canSetCost(p) then
           showRowAction(row, GC.L["Set cost"], function() openCostDialog(p) end)
@@ -4252,6 +4358,9 @@ renderRows = function()
         row.sectionLabel:SetText((entry.open and "- " or "+ ")
           .. (GC.L["NOT ON HAND %d"]):format(entry.count)
           .. "  " .. DIM_HEX .. GC.L["in the mail, the bank or on another character"] .. "|r")
+        row.action:Hide()
+      elseif entry.kind == "section" then
+        row.sectionLabel:SetText(ROW.sectionText(entry.section))
         row.action:Hide()
       elseif entry.kind == "group" then
         -- The hint rides IN the heading, not in the status cell. That cell is the first thing
@@ -4392,7 +4501,7 @@ renderRows = function()
         row.cells.profit:SetText("")
         row.cells.status:SetText(recommendationText(p.recommendation))
         setColor(row.cells.status, Theme.color.fg)
-        showRowAction(row, "Repost", function() onRepostClick(row, entry.lot.auctionID) end)
+        showRowAction(row, "Cancel lot", function() onRepostClick(row, entry.lot.auctionID) end)
       else
         -- "In your bags" used to be inferred as tracked minus listed, which is an accounting
         -- leftover, not a measurement: whenever GoldCap had not seen one of the player's own
@@ -4490,15 +4599,17 @@ renderRows = function()
         if row.action.SetVariant then row.action:SetVariant("ghost") end
         -- Gold lettering on the row's Post, the way the design drew it: the fill stays the
         -- quiet ghost, so a list of ten does not become ten gold bars.
-        if entry.kind == "position" and row.action.text and row.action.text.SetTextColor then
-          local gold = Theme.color.goldHi or Theme.color.gold
-          row.action.text:SetTextColor(gold[1], gold[2], gold[3], 1)
+        -- Red for the one that cancels, on the row and on the panel's lots alike.
+        local cancels = row.action.helpKey == "Cancel lot"
+        if (entry.kind == "position" or cancels) and row.action.text and row.action.text.SetTextColor then
+          local lettering = cancels and Theme.color.red or Theme.color.goldHi or Theme.color.gold
+          row.action.text:SetTextColor(lettering[1], lettering[2], lettering[3], 1)
         end
-        -- ...and a thin gold outline with it, on a position alone: the pooled button is every
-        -- other kind's too, and theirs stay bare.
+        -- ...and a thin outline with it, on a position or a cancel alone: the pooled button is
+        -- every other kind's too, and theirs stay bare.
         if row.action.SetRing then
-          local ring = Theme.color.gold
-          row.action:SetRing(entry.kind == "position" and { ring[1], ring[2], ring[3], 0.45 } or nil)
+          local ring = cancels and Theme.color.red or Theme.color.gold
+          row.action:SetRing((entry.kind == "position" or cancels) and { ring[1], ring[2], ring[3], cancels and 0.5 or 0.45 } or nil)
         end
       end
       if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end
@@ -4542,7 +4653,7 @@ renderRows = function()
         -- resolvable icon.
         row.itemInset = icon and (ROW.ICON + 10) or 0
         if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
-      elseif entry.kind == "fold" then
+      elseif entry.kind == "fold" or entry.kind == "section" then
         -- A heading in the list's own column, not a child of the row above it: no spine, no
         -- well, and the label starts where the item names do.
         row.itemInset = 2
@@ -4553,9 +4664,10 @@ renderRows = function()
         row.sectionRule:ClearAllPoints()
         row.sectionRule:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.s, 0)
         row.sectionRule:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
-        local fgc = Theme.color.gold
-        row.sectionRule:SetColorTexture(fgc[1], fgc[2], fgc[3], 0.25)
-        setColor(row.sectionLabel, Theme.color.gold)
+        -- The fold is a control and wears gold; a section is a caption and stays quiet.
+        local fgc = entry.kind == "fold" and Theme.color.gold or Theme.color.fgMuted
+        row.sectionRule:SetColorTexture(fgc[1], fgc[2], fgc[3], entry.kind == "fold" and 0.25 or 0.12)
+        setColor(row.sectionLabel, fgc)
       else
         row.itemInset = 34
         row.icon:Hide()
@@ -4642,28 +4754,10 @@ local function onCancelQueueClick()
     setStatus(GC.L["Nothing queued to cancel"])
     return
   end
-  local head = cancelEntries[1]
+  -- The queue's own order, head first (renderRows' "cancelqueue" branch); the rest is the same
+  -- hand-over the row's own Cancel lot makes -- see ROW.armLot.
   filterMode = "cancelqueue"
-  -- Force-expand the head's position: onRepostClick pins to a rendered lot row, and a
-  -- collapsed position renders no lot rows at all. (While an arm is already in flight this
-  -- render defers, deliberately -- the armed row's binding must not be rebuilt under it.)
-  expanded[head.positionKey] = true
-  renderRows()
-  local target
-  for _, row in ipairs(rows) do
-    -- `row:IsShown()`, never `row.shown` -- see onQueueClick's own comment on the widget-double
-    -- field that shipped a dead button.
-    if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot and row.lot.auctionID == head.auctionID then
-      target = row
-      break
-    end
-  end
-  if target then
-    onRepostClick(target, head.auctionID)
-    paintCancelButton()
-  else
-    setStatus(GC.L["Could not find the queue's next lot to cancel — try again"])
-  end
+  ROW.armLot(cancelEntries[1])
 end
 
 -- The number on the Sell tab. It counted positions whose tracked purchases

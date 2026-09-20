@@ -26,6 +26,9 @@ GC.Locales.koKR = {
   ["%d held back"] = "%d건 보류",
   ["%d held back from posting"] = "등록에서 %d건 보류",
   ["%d hidden -- the live check refused them"] = "%d개 숨김 -- 실시간 확인에서 거부됨",
+  ["%d in %d lots"] = "%d개 · 물량 %d건",
+  ["%d in 1 lot"] = "%d개 · 물량 1건",
+  ["%d lots, %s asked"] = "물량 %d건, 요청가 %s",
   ["%d missing"] = "%d건 없음",
   ["%d partial"] = "%d건 일부",
   ["%d prices in one request · books still loading"] = "요청 한 번으로 시세 %d개 · 호가창 불러오는 중",
@@ -44,6 +47,7 @@ GC.Locales.koKR = {
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
+  ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "대시(—)는 아직 모든 수량의 매입가를 모른다는 뜻입니다. 시세로 추측하는 일은 없습니다.",
@@ -86,6 +90,7 @@ GC.Locales.koKR = {
   ["COST / UNIT"] = "원가 / 개",
   ["Can't price this"] = "가격을 낼 수 없음",
   ["Cancel"] = "취소",
+  ["Cancel lot"] = "물량 취소",
   ["Cancel lot?"] = "물량 취소?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "이 물량을 취소하고 등록비를 잃습니다 — 다시 클릭하면 확정됩니다",
@@ -179,6 +184,7 @@ GC.Locales.koKR = {
     "회색이면 시세가 오래된 것입니다. Post와 Repost는 실행 전에 시세를 갱신합니다.",
   ["HIDDEN 0"] = "숨김 0",
   ["HIDE DETAILS ▾"] = "세부 정보 숨기기 ▾",
+  ["HOLDING %d"] = "보류 %d",
   ["Held back from cancelling"] = "취소에서 보류됨",
   ["Held back from the queue"] = "대기열에서 보류됨",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -268,6 +274,7 @@ GC.Locales.koKR = {
   ["POSTING…"] = "등록 중…",
   ["PRICE"] = "가격",
   ["PRICE ROSE %.1fx"] = "가격이 %.1f배 올랐습니다",
+  ["PRICED TOO LOW %d"] = "너무 낮은 가격 %d",
   ["PRICING %d/%d"] = "시세 %d/%d",
   ["PRICING…"] = "시세 확인 중…",
   ["PROFIT"] = "수익",
@@ -329,7 +336,6 @@ GC.Locales.koKR = {
     "이 묶음에서 직접 입력한 구매를 모두 삭제합니다 -- 다시 클릭하면 확정됩니다",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "직접 입력한 이 구매를 삭제합니다 -- 다시 클릭하면 확정됩니다",
-  ["Repost"] = "재등록",
   ["Repost confirmation expired"] = "재등록 확인이 만료되었습니다",
   ["Right-click to stop watching this item"] = "이 아이템 주시를 멈추려면 우클릭",
   ["Right-click to watch this item closely"] = "이 아이템을 자세히 주시하려면 우클릭",
@@ -410,6 +416,7 @@ GC.Locales.koKR = {
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "골드 단위로 가격을 입력하거나, 칸을 비우면 GoldCap 가격을 씁니다",
   ["UNDERCUT"] = "한 단계 밑",
+  ["UNDERCUT %d"] = "밀린 물량 %d",
   ["UNIT"] = "단가",
   ["Unit price"] = "단가",
   ["Unknown"] = "알 수 없음",
@@ -447,6 +454,7 @@ GC.Locales.koKR = {
     "없으면 GoldCap은 릴리스 시점의 시세 스냅샷으로 돌아갑니다 — 오래된 시세로 거래를 찾게 됩니다.",
   ["Won't buy"] = "사지 않음",
   ["Worst case back"] = "최악의 경우 회수",
+  ["YOUR LOTS"] = "내 물량",
   ["YOUR PRICE"] = "내 가격",
   ["You paid"] = "구매가",
   ["You pay"] = "지불 금액",
@@ -521,6 +529,7 @@ GC.Locales.koKR = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "최근 24시간 — 판매 %d건, 총액 %s, 수수료 %s, 구매 %d건, 지출 %s",
+  ["leave these alone"] = "그대로 두세요",
   ["listing gone -- already bought out or price changed"] =
     "등록이 사라짐 -- 이미 팔렸거나 가격이 바뀌었습니다",
   ["listing gone -- bought out or repriced"] = "매물이 사라졌습니다 — 팔렸거나 가격이 바뀜",
@@ -622,6 +631,7 @@ GC.Locales.koKR = {
     "%s을(를) 자세히 주시 중 -- 몇 초마다 다시 확인합니다",
   ["worst case, selling all %d back into the price standing there now"] =
     "최악의 경우, %d개를 지금 걸려 있는 가격에 모두 되판다면",
+  ["worth cancelling"] = "취소할 만함",
   ["would sell at a loss"] = "손해를 보고 팔게 됩니다",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "아직 서버 시세를 가져오지 않았습니다 -- GoldCap Companion을 설치하거나(/goldcap companion) goldcap.gg의 문자열을 붙여넣으세요(/goldcap import).",

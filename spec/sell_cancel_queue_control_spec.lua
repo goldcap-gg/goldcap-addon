@@ -227,4 +227,85 @@ describe("Sell tab, the cancel queue control", function()
     assert.matches("CANCELLING", button.label)
     assert.is_false(button.enabled)
   end)
+  -- MY LOTS as the redesign drew it: the deck answers "what do I do with these" in three
+  -- sections, a row says how its stock is listed, and the row that is worth cancelling carries
+  -- the control for it -- which, like the dock's, only ever hands the click to onRepostClick.
+  describe("the deck as designed", function()
+    local function shownRows()
+      local out = {}
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.IsShown and row:IsShown() then out[#out + 1] = row end
+      end
+      return out
+    end
+
+    it("files a lot worth cancelling under UNDERCUT, with its count", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local rows = shownRows()
+      assert.equal("section", rows[1].kind)
+      assert.matches("UNDERCUT 1", rows[1].sectionLabel.text, 1, true)
+      assert.matches("worth cancelling", rows[1].sectionLabel.text, 1, true)
+      assert.equal("position", rows[2].kind)
+      assert.equal(2, #rows)
+    end)
+
+    it("files a lot nobody has judged yet under HOLDING", function()
+      compose(); render() -- no quote: nothing is queued
+      local rows = shownRows()
+      assert.equal("section", rows[1].kind)
+      assert.matches("HOLDING 1", rows[1].sectionLabel.text, 1, true)
+      assert.equal("position", rows[2].kind)
+    end)
+
+    it("says how the stock is listed: how many, in how many lots", function()
+      compose(); render()
+      assert.matches("400 in 1 lot", shownRows()[2].itemStock.text, 1, true)
+    end)
+
+    it("puts Cancel lot on the row that is worth cancelling, and nothing on one that is not", function()
+      compose(); render()
+      assert.is_false(shownRows()[2].action.shown)
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local action = shownRows()[2].action
+      assert.is_true(action.shown)
+      assert.equal("Cancel lot", action.label)
+      assert.equal("Cancel lot", action.helpKey)
+    end)
+
+    it("arms the lot through onRepostClick from the row's button -- destroying nothing", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local action = shownRows()[2].action
+      action.scripts.OnClick(action)
+      local lotRow = armedLotRow()
+      assert.is_table(lotRow)
+      assert.equal("armed", lotRow.repostStage)
+      assert.equal("Cancel lot?", lotRow.action.label)
+      assert.equal(0, cancelCalls)
+      -- The deck stays the deck: the row's own button does not turn the list into the queue.
+      assert.equal("section", shownRows()[1].kind)
+    end)
+
+    it("opens the panel on the lots themselves: YOUR LOTS first, each with its own Cancel lot", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local position = shownRows()[2]
+      position.scripts.OnClick(position)
+      local kinds = {}
+      for _, row in ipairs(shownRows()) do if row.inPanel then kinds[#kinds + 1] = row.kind end end
+      assert.equal("group", kinds[1])
+      assert.equal("lot", kinds[2])
+      assert.equal("drawer", kinds[3])
+      local head, lot
+      for _, row in ipairs(shownRows()) do
+        if row.inPanel and row.kind == "group" and not head then head = row end
+        if row.inPanel and row.kind == "lot" then lot = row end
+      end
+      assert.equal("YOUR LOTS", head.sectionLabel.text)
+      assert.matches("1 lot", head.sectionHint.text, 1, true)
+      assert.equal("Cancel lot", lot.action.label)
+    end)
+  end)
 end)
