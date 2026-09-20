@@ -481,6 +481,20 @@ describe("Sell refresh state fence", function()
     assert.same({ 51 }, refreshState(GC).queue)
   end)
 
+  -- A quote restored after a reload is a number with no book under it. While it was still
+  -- "fresh" the walk left it alone, so for half a minute after every reload the rows had prices
+  -- and no queue standing, and their panels no book.
+  it("still asks about a fresh quote that was restored without its book", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return { { itemID = 43, positionKey = "commodity:43", bagQty = 5, displayMarketUnit = 100, quoteAge = 3 } }
+    end
+    upvalue(GC.Sell.FoldBulk, "quotes")[43] = { unit = 100, at = 97, bookless = true }
+    GC.Sell.Refresh(true)
+    assert.same({ 43 }, refreshState(GC).queue)
+  end)
+
   it("finishes an all-fresh pass immediately instead of re-pricing the whole tab", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)

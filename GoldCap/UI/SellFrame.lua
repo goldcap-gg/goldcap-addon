@@ -793,7 +793,12 @@ local function seedPersistedQuotes()
     local valid = exact(unit) and unit > 0 and exact(at) and at <= now and (now - at) <= QUOTE_PERSIST_MAX_AGE
     if valid then
       -- A live answer this session already produced beats a persisted one.
-      if quotes[itemID] == nil then quotes[itemID] = { unit = unit, at = at } end
+      -- `bookless`: a restored quote is a number with no book under it -- the store keeps the
+      -- unit and its date, never the levels. Seconds after a reload it is still "fresh", so the
+      -- walk left it alone and the row sat with a price and no queue standing, and its panel
+      -- with no book, until the quote aged out (seen in game). The walk owes it a real answer
+      -- exactly as it owes a bulk price one; see uniqueQuoteItemIDs.
+      if quotes[itemID] == nil then quotes[itemID] = { unit = unit, at = at, bookless = true } end
     else
       store[itemID] = nil
     end
@@ -986,7 +991,7 @@ local function uniqueQuoteItemIDs()
     -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
     -- it and may not back a post (see freshQuote), however young it is.
     local held = quotes[position.itemID]
-    local due = (type(held) == "table" and held.bulk == true)
+    local due = (type(held) == "table" and (held.bulk == true or held.bookless == true))
       or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
     -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
@@ -4644,7 +4649,7 @@ function GC.Sell.FoldBulk(browsed)
     local unit = type(row) == "table" and row.minPrice or nil
     local held = itemID and quotes[itemID] or nil
     -- A real quote the walk already holds is better than this in every way; keep it.
-    local keep = type(held) == "table" and not held.bulk and exact(held.at)
+    local keep = type(held) == "table" and not held.bulk and not held.bookless and exact(held.at)
       and (now - held.at) <= QUOTE_REWALK_AGE
     if exact(itemID) and exact(unit) and unit > 0 and not row.containsOwnerItem and not keep then
       GC.QuoteCache.Set(quotes, itemID, unit, now)
