@@ -303,3 +303,83 @@ describe("CraftCapture.Settle", function()
     assert.equal(10, remainingOf(10))               -- the mats were not touched
   end)
 end)
+
+describe("CraftCapture.OutputKey", function()
+  local GC
+
+  before_each(function() GC = helper.loadModule("Core/CraftCapture.lua", {}) end)
+
+  it("reuses the key the item's own batches already carry", function()
+    assert.equal("commodity:500", GC.CraftCapture.OutputKey(500, {},
+      { { itemID = 500, positionKey = "commodity:500" } }))
+  end)
+
+  it("prefers recorded evidence over the remembered answer", function()
+    assert.equal("item:500:600:0:0", GC.CraftCapture.OutputKey(500, { [500] = true },
+      { { itemID = 500, positionKey = "item:500:600:0:0" } }))
+  end)
+
+  it("falls back to the remembered commodity answer", function()
+    assert.equal("commodity:500", GC.CraftCapture.OutputKey(500, { [500] = true }, {}))
+  end)
+
+  it("stays keyless for gear, whose key needs the item link", function()
+    assert.is_nil(GC.CraftCapture.OutputKey(500, { [500] = false }, {}))
+  end)
+
+  it("stays keyless for an item nobody has classified", function()
+    -- GetItemKeyInfo only answers at the auction house. A batch recorded keyless is bound
+    -- later by the identity-repair path; a guessed key files one item under two positions.
+    assert.is_nil(GC.CraftCapture.OutputKey(500, {}, {}))
+  end)
+
+  it("stays keyless when the item's own batches disagree", function()
+    assert.is_nil(GC.CraftCapture.OutputKey(500, { [500] = true }, {
+      { itemID = 500, positionKey = "commodity:500" },
+      { itemID = 500, positionKey = "item:500:600:0:0" },
+    }))
+  end)
+
+  it("ignores batches belonging to another item", function()
+    assert.equal("commodity:500", GC.CraftCapture.OutputKey(500, { [500] = true },
+      { { itemID = 77, positionKey = "commodity:77" } }))
+  end)
+end)
+
+describe("CraftCapture.Settle identity", function()
+  local GC, db
+  local context = { char = "Tester", region = "eu" }
+
+  before_each(function()
+    GC = helper.loadModule("Core/Acquisitions.lua", {})
+    helper.loadModule("Core/CraftCapture.lua", GC)
+    db = { acquisitions = {} }
+    GC.Acquisitions.Init(db)
+    GC.Acquisitions.Record({ source = "auction_house", itemID = 10, positionKey = "commodity:10",
+      quantity = 20, total = 2000, acquiredAt = 1, character = context.char, region = context.region })
+  end)
+
+  local function settle(outputKeyFor)
+    local plan = { outputs = { { itemID = 500, quantity = 4 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    local costing = GC.CraftCapture.Cost(plan.consumed, function(itemID)
+      local out = {}
+      for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+        if batch.itemID == itemID then out[#out + 1] = batch end
+      end
+      return out
+    end)
+    return GC.CraftCapture.Settle(plan, costing, context, 100, "craft:1:100:7", outputKeyFor)
+  end
+
+  it("stamps the key the caller resolved", function()
+    local recorded = settle(function() return "commodity:500" end)
+    assert.equal("commodity:500", recorded.batches[1].positionKey)
+  end)
+
+  it("records the batch keyless when identity is not known yet", function()
+    local recorded = settle(nil)
+    assert.is_nil(recorded.batches[1].positionKey)
+    assert.equal(4, recorded.batches[1].remainingQty)
+  end)
+end)

@@ -170,7 +170,7 @@ end
 -- batch that key already wrote.
 --
 -- Returns { batches, unitCost, total } or nil + a reason.
-function GC.CraftCapture.Settle(plan, costing, context, at, sessionKey)
+function GC.CraftCapture.Settle(plan, costing, context, at, sessionKey, outputKeyFor)
   if type(plan) ~= "table" or type(costing) ~= "table" or type(plan.outputs) ~= "table"
       or type(costing.reagents) ~= "table" or not isPositiveInteger(costing.total)
       or type(context) ~= "table" or not isExactInteger(at)
@@ -208,7 +208,8 @@ function GC.CraftCapture.Settle(plan, costing, context, at, sessionKey)
     local total = unitCost * output.quantity + (index == 1 and remainder or 0)
     local batch = GC.Acquisitions.Record({
       source = "craft", itemID = output.itemID, quantity = output.quantity, total = total,
-      acquiredAt = at, positionKey = GC.CraftCapture.OutputKey(output.itemID, context),
+      acquiredAt = at,
+      positionKey = type(outputKeyFor) == "function" and outputKeyFor(output.itemID) or nil,
       character = context.char, region = context.region,
       evidenceKey = sessionKey .. ":out:" .. output.itemID,
     })
@@ -218,7 +219,38 @@ function GC.CraftCapture.Settle(plan, costing, context, at, sessionKey)
   return { batches = batches, unitCost = unitCost, total = costing.total }
 end
 
--- Filled in by the identity step; keyless until then, which Acquisitions.Record accepts.
-function GC.CraftCapture.OutputKey()
+--- The auction identity to stamp on a crafted batch, or nil to leave it keyless.
+--
+-- Crafting happens away from the auction house, and C_AuctionHouse.GetItemKeyInfo -- the only
+-- authority on commodity-versus-item identity -- answers nothing there. So identity comes from
+-- evidence in two steps and is never guessed at:
+--
+--  1. the item's OWN active batches, if they agree on a key (it has been bought or made before);
+--  2. `known`, the GC.db.commodityByItem answer that classifyBagItem remembered the first time
+--     the auction house told us -- true means a commodity, which keys itself from the id alone.
+--
+-- Anything else stays keyless. Acquisitions.Record accepts that, and Acquisitions.BindItemOnly
+-- binds it the next time the player opens the auction house. A cached `false` is keyless too:
+-- gear's key needs the item link's bonus ids, which a bag count does not carry. Guessing is
+-- what filed one item under two position keys before.
+function GC.CraftCapture.OutputKey(itemID, known, existing)
+  if not isPositiveInteger(itemID) then return nil end
+
+  local fromBatches
+  for _, batch in ipairs(type(existing) == "table" and existing or {}) do
+    if type(batch) == "table" and batch.itemID == itemID
+        and type(batch.positionKey) == "string" and batch.positionKey ~= "" then
+      if fromBatches == nil then
+        fromBatches = batch.positionKey
+      elseif fromBatches ~= batch.positionKey then
+        return nil
+      end
+    end
+  end
+  if fromBatches then return fromBatches end
+
+  if type(known) == "table" and known[itemID] == true then
+    return ("commodity:%d"):format(itemID)
+  end
   return nil
 end
