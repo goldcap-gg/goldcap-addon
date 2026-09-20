@@ -11,6 +11,8 @@ describe("Sell widget geometry and manual cost", function()
       self.points[#self.points + 1] = { point = point, relative = relative, relativePoint = relativePoint, x = x, y = y }
     end
     function value:ClearAllPoints() self.points = {} end
+    -- A position's detail rows move between the list and the side panel by re-parenting.
+    function value:SetParent(to) self.parent = to end
     function value:SetSize(w, h) self.width, self.height = w, h end
     function value:SetWidth(w) self.width = w end
     function value:SetHeight(h) self.height = h end
@@ -1189,13 +1191,20 @@ describe("Sell widget geometry and manual cost", function()
       rows[1].scripts.OnClick(rows[1])
       local render = upvalue(GC.Sell.Attach, "renderRows")
       local content = upvalue(render, "content")
-      assert.equal(width, content.width)
-      -- Six rows now: the expansion is split into two labelled groups, listings before
-      -- purchase history, because the listings are the part a player acts on.
-      -- Ten slots, not six rows: one position + a five-slot drawer + the auction-house
-      -- heading, its lot, the purchase heading and its batch. A scroll child sized by entry
-      -- COUNT would clip the panel by four rows' worth.
-      assert.equal(10 * 24, content.height)
+      local detailContent = upvalue(render, "detailContent")
+      -- An open position's detail is drawn in the side panel. From 860 up the panel has a
+      -- column of its own and the list gives up the panel's width and the gap; under that it
+      -- lies over the list as a sheet and the list keeps every pixel.
+      assert.equal(width >= 860 and width - 320 - 28 or width, content.width)
+      assert.is_true(container.inspector.shown)
+      -- The list does not grow by a single row when a position opens -- that is the point.
+      assert.equal(1 * 24, content.height)
+      -- Sixteen slots in the panel: a twelve-slot head, the auction-house heading, its lot,
+      -- the purchase heading and its batch. A scroll child sized by entry COUNT would clip
+      -- the head by eleven rows' worth.
+      assert.equal(16 * 24, detailContent.height)
+      for index = 2, 6 do assert.equal(detailContent, rows[index].parent, "row " .. index) end
+      assert.equal(content, rows[1].parent)
       assert.equal("drawer", rows[2].kind)
       assert.equal("group", rows[3].kind)
       assert.matches("^ON THE AUCTION HOUSE", rows[3].sectionLabel.text)
@@ -1573,11 +1582,14 @@ describe("Sell widget geometry and manual cost", function()
     assert.is_true(rows[1].cells.item.shown)
     assert.is_false(rows[1].subItem.shown)
     assert.is_false(rows[1].sectionLabel.shown)
-    assert.is_true(rows[6].well.shown)
+    -- A sub-row sits on the detail panel's own surface now, so it wears neither the list's
+    -- zebra nor the nested well that used to bracket it to the row above.
+    assert.is_false(rows[6].well.shown)
+    assert.is_false(rows[6].zebra.shown)
     assert.is_false(rows[6].cells.item.shown)
     assert.is_true(rows[6].subItem.shown)
     assert.is_false(rows[6].sectionLabel.shown)
-    assert.is_true(rows[3].well.shown)
+    assert.is_false(rows[3].well.shown)
     assert.is_false(rows[3].cells.item.shown)
     assert.is_false(rows[3].subItem.shown)
     assert.is_true(rows[3].sectionLabel.shown)
@@ -2375,5 +2387,96 @@ describe("Sell widget geometry and manual cost", function()
     root.scripts.OnSizeChanged(root, 900)
     assert.is_true(container.summary.cost.shown)
     assert.equal(container.summary.cost, container.dockStatus.points[2].relative)
+  end)
+  -- What a position opens into: a panel beside the list, not ten rows inside it.
+  describe("the detail panel", function()
+    local function p(id, over)
+      local value = { itemID = id, itemName = "Ore " .. id, positionKey = "commodity:" .. id,
+        coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 5,
+        listedQty = 0, sources = {} }
+      for key, field in pairs(over or {}) do value[key] = field end
+      return value
+    end
+
+    it("opens beside the list, names the item, and leaves the list where it was", function()
+      local GC = load(1100, { calls = {} })
+      local rows, container = topRows(GC, { p(42), p(43) })
+      assert.is_false(container.inspector.shown)
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(container.inspector.shown)
+      assert.equal("Ore 42", container.inspector.name.text)
+      assert.equal("×5 in bags", container.inspector.stock.text)
+      -- The second position is still the second thing in the list: nothing was pushed under it.
+      local listed = {}
+      for _, row in ipairs(rows) do
+        if row.shown and not row.inPanel then listed[#listed + 1] = row.position.itemID end
+      end
+      assert.same({ 42, 43 }, listed)
+    end)
+
+    it("has a column of its own on a wide window and lies over the list on a narrow one", function()
+      local wide = load(1100, { calls = {} })
+      local rows, container = topRows(wide, { p(42) })
+      local header
+      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      rows[1].scripts.OnClick(rows[1])
+      -- The short SetPoint form: (point, x, y), which the double files under `relative`.
+      assert.equal(-(320 + 28), header.points[2].relative)
+
+      local narrow = load(620, { calls = {} })
+      rows, container = topRows(narrow, { p(42) })
+      for _, child in ipairs(container.children) do if child.cells then header = child break end end
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(container.inspector.shown)
+      assert.equal(0, header.points[2].relative)
+      assert.is_true(container.inspector.mouseEnabled)
+    end)
+
+    it("gives the list its width back when it shuts, from its own close button", function()
+      local GC = load(1100, { calls = {} })
+      local rows, container = topRows(GC, { p(42) })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal(1100 - 320 - 28, upvalue(render, "content").width)
+      container.inspector.close.scripts.OnClick()
+      assert.is_false(container.inspector.shown)
+      assert.equal(1100, upvalue(render, "content").width)
+      for _, row in ipairs(rows) do assert.is_false(row.shown and row.inPanel) end
+    end)
+
+    it("shuts when the open position is no longer on the deck", function()
+      local GC = load(620, { calls = {} })
+      local rows, container = topRows(GC, { p(42) })
+      rows[1].scripts.OnClick(rows[1])
+      assert.is_true(container.inspector.shown)
+      container.deckButtons.listed.scripts.OnClick()
+      assert.is_false(container.inspector.shown)
+    end)
+
+    it("carries Post in its head for stock in the bags, and no button for stock that is not", function()
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { p(42) })
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal("drawer", rows[2].kind)
+      assert.is_true(rows[2].action.shown)
+      assert.equal("Post", rows[2].action.helpKey)
+
+      local listedOnly = load(620, { calls = {} })
+      rows = topRows(listedOnly, { p(42, { bagQty = 0, listedQty = 5, listedValue = 500 }) }, "listed")
+      rows[1].scripts.OnClick(rows[1])
+      assert.equal("drawer", rows[2].kind)
+      assert.is_false(rows[2].action.shown)
+    end)
+
+    it("washes a hovered list row and nothing inside the panel", function()
+      _G.GameTooltip = nil
+      local GC = load(620, { calls = {} })
+      local rows = topRows(GC, { p(42) })
+      rows[1].scripts.OnClick(rows[1])
+      rows[1].scripts.OnEnter(rows[1])
+      assert.is_true(rows[1].highlight.shown)
+      rows[2].scripts.OnEnter(rows[2])
+      assert.is_false(rows[2].highlight.shown)
+    end)
   end)
 end)

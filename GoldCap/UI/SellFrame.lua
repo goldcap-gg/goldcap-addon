@@ -109,7 +109,7 @@ local COLUMNS = {
   { key = "action", w = 88 },
 }
 
-local container, content, statusOwner
+local container, content, detailContent, statusOwner
 local rows, positions, ownedLots, quotes = {}, {}, {}, {}
 -- Stamped by composePositions() as it walks every position, so SellableCount() can read it
 -- without recomposing. nil only until the first compose has ever run.
@@ -2364,8 +2364,27 @@ local DECK_SHED = {
   listed = {},
 }
 
-local function shownColumns()
+-- The side panel a position opens into. W is its whole width; the scroll bar lives INSIDE it
+-- (SCROLL_GUTTER) so that docked beside the list or laid over it the panel is one rectangle.
+-- DOCK_MIN is the content width from which the list can give the panel its own column and
+-- still read; under it the panel is a sheet over the list's right side -- the item names stay
+-- visible at the left, which is what a seller picks the next row by.
+local INSP = { W = 320, GAP = 28, HEAD_H = 48, SCROLL_GUTTER = 26, PAD = 8, DOCK_MIN = 860 }
+
+-- Whether the panel is open, and whether it has a column of its own. Written by renderRows,
+-- read by everything that needs the LIST's width rather than the container's.
+local inspectorOpen = false
+local function inspectorDocked()
+  return inspectorOpen and (ROW_WIDTH or 0) >= INSP.DOCK_MIN
+end
+local function listWidth()
   local width = ROW_WIDTH or 0
+  if inspectorDocked() then width = width - INSP.W - INSP.GAP end
+  return width
+end
+
+local function shownColumns()
+  local width = listWidth()
   local deck = (filterMode == "listed" or filterMode == "cancelqueue") and "listed" or "post"
   local inDeck = DECK_COLUMNS[deck]
   local dropped = {}
@@ -2450,53 +2469,48 @@ local STAND_MARKS = 5
 -- bulk action no room to name the item it is about to post.
 local DOCK = { H = 44, PAD = 8, STAT_W = 92, NARROW = 700 }
 
--- The drawer: one row that is a PANEL rather than a line, claiming DR.SLOTS of the list's own
--- 32px pitch. It replaces the eleven separate rows an expansion used to spend on the facts
--- line, the price control, the book heading and eight book levels -- which, at 32px each,
--- buried the list under the one row a player opened.
+-- The detail panel's head: one row that is a PANEL rather than a line, claiming DR.SLOTS of the
+-- list's own pitch. It used to open INLINE under its position, two columns wide, with the lot
+-- and purchase rows stacked under it -- ten rows of detail that buried the list it was opened
+-- from, and only five book levels because that was all a panel that short could carry.
 --
--- Two columns, because the two things it carries answer each other: the price you are about to
--- list at on the left, the book that price lands in on the right. Stacked, the seller had to
--- scroll between a number and its own evidence.
+-- It lives in the side panel now (see INSP), one column: the price you are about to list at,
+-- then the book that price lands in, all eight levels the view model hands over.
 local DR = {
-  SLOTS = 5,               -- 5 * ROW_H(32) = 160px
-  LEFT_W = 244,            -- price side; the book takes whatever is left
-  GUTTER = 16,
+  SLOTS = 12,              -- 12 * ROW_H(32) = 384px
   LINE_H = 18,             -- one book level
-  LINES = 5,               -- book levels shown; the rest are still counted in the hint
-  HEAD_Y = -8,             -- column headings
-  BODY_Y = -28,            -- first book line / the price box
+  LINES = 8,               -- SellViewModel's own BOOK_ROWS
+  HEAD_Y = -8,             -- "YOUR PRICE"
+  BOX_Y = -24,             -- the price box
+  NOTE_Y = -48,            -- what that price does
+  CHIPS_Y = -68,           -- the four one-click fills
+  REC_Y = -94,             -- GoldCap's own recommendation
+  BOOK_HEAD_Y = -122,      -- "THE BOOK"
+  HINT_Y = -138,           -- cheapest not yours, depth, the colour key -- two lines of it
+  BODY_Y = -170,           -- first book level
   BAR_MAX = 96,
-  REC_Y = -108,            -- the recommendation, under the price chips
-  FACTS_Y = -138,          -- the one line across the bottom
 }
+-- Derived, not typed twice: the two lines under the book hang off where its last level ends.
+DR.STAND_Y = DR.BODY_Y - DR.LINES * DR.LINE_H - 4
+DR.FACTS_Y = DR.STAND_Y - 20
 
--- The drawer's own two-column layout. Independent of shownColumns for the same reason the book
--- row was: this panel shows the same things at every width, and the column set it sits under
--- belongs to the rows above it, not to it.
+-- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
+-- same things at every window width, and its width is INSP's, not the list's.
 local function layoutDrawer(row)
-  local left = row.itemInset or 2
-  local width = ROW_WIDTH or 0
-  -- The price side keeps its full width until the window can no longer afford it, then yields
-  -- to the book rather than squeezing both: a half-width book bar carries no information.
-  local leftW = math.max(150, math.min(DR.LEFT_W, math.floor(width * 0.45)))
-  local bookX = left + leftW + DR.GUTTER
+  local left, right = INSP.PAD, -INSP.PAD
 
   row.drawerPriceHead:ClearAllPoints()
   row.drawerPriceHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HEAD_Y)
-  row.drawerBookHead:ClearAllPoints()
-  row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", bookX, DR.HEAD_Y)
-  row.drawerHint:ClearAllPoints()
-  row.drawerHint:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Theme.pad.m, DR.HEAD_Y)
-  row.drawerHint:SetPoint("LEFT", row.drawerBookHead, "RIGHT", Theme.pad.s, 0)
-  row.drawerHint:SetWordWrap(false)
-
   row.priceBox:ClearAllPoints()
   row.priceBox:SetSize(PRICE_BOX_W, PRICE_BOX_H)
-  row.priceBox:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BODY_Y)
+  row.priceBox:SetPoint("TOPLEFT", row, "TOPLEFT", left + 4, DR.BOX_Y)
+  -- The head's Post sits on the price box's own line, at the panel's right edge.
+  row.cells.action:ClearAllPoints()
+  row.cells.action:SetSize(88, PRICE_BOX_H)
+  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.BOX_Y)
   row.priceNote:ClearAllPoints()
-  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BODY_Y - 26)
-  row.priceNote:SetPoint("RIGHT", row, "LEFT", left + leftW, 0)
+  row.priceNote:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.NOTE_Y)
+  row.priceNote:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.priceNote:SetWordWrap(false)
 
   local prev
@@ -2504,42 +2518,83 @@ local function layoutDrawer(row)
     local chip = row.priceChips[i]
     chip:ClearAllPoints()
     if prev then chip:SetPoint("LEFT", prev, "RIGHT", Theme.pad.xs, 0)
-    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BODY_Y - 52) end
+    else chip:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.CHIPS_Y) end
     prev = chip
   end
+
+  -- The recommendation lives HERE, not on the position row: WHAT TO DO is not a column on
+  -- either deck, so this is the one place the sentence is ever shown.
+  row.subItem:ClearAllPoints()
+  row.subItem:SetWidth(0)
+  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.REC_Y)
+  row.subItem:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.subItem:SetWordWrap(false)
+
+  row.drawerBookHead:ClearAllPoints()
+  row.drawerBookHead:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.BOOK_HEAD_Y)
+  -- Under the heading rather than beside it, and allowed its second line: at the panel's width
+  -- the hint is longer than the row, and what it cuts off first is the colour key.
+  row.drawerHint:ClearAllPoints()
+  row.drawerHint:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.HINT_Y)
+  row.drawerHint:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerHint:SetJustifyH("LEFT")
+  row.drawerHint:SetWordWrap(true)
+  row.drawerHint:SetMaxLines(2)
 
   for i = 1, DR.LINES do
     local line = row.bookLines[i]
     local y = DR.BODY_Y - (i - 1) * DR.LINE_H
     line.price:ClearAllPoints()
     line.price:SetWidth(BOOK_PRICE_W)
-    line.price:SetPoint("TOPLEFT", row, "TOPLEFT", bookX, y)
+    line.price:SetPoint("TOPLEFT", row, "TOPLEFT", left, y)
     line.qty:ClearAllPoints()
     line.qty:SetWidth(BOOK_UNITS_W)
-    line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Theme.pad.m, y)
+    line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y)
     line.bar:ClearAllPoints()
     line.bar:SetPoint("LEFT", line.price, "RIGHT", Theme.pad.s, 0)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
   end
 
   row.drawerStand:ClearAllPoints()
-  row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", bookX,
-    DR.BODY_Y - DR.LINES * DR.LINE_H - 2)
-  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.m, 0)
+  row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.STAND_Y)
+  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.drawerStand:SetWordWrap(false)
-
-  -- The recommendation lives HERE, not on the position row above, because WHAT TO DO is the
-  -- first column the width sheds (DECK_SHED) -- at the default 720px window it is already gone
-  -- from the row. The drawer is the one place it survives every width.
-  row.subItem:ClearAllPoints()
-  row.subItem:SetWidth(0)
-  row.subItem:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.REC_Y)
-  row.subItem:SetPoint("RIGHT", row, "LEFT", left + leftW, 0)
-  row.subItem:SetWordWrap(false)
 
   row.drawerFacts:ClearAllPoints()
   row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.FACTS_Y)
-  row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.m, 0)
+  row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerFacts:SetJustifyH("LEFT")
+  row.drawerFacts:SetWordWrap(true)
+  row.drawerFacts:SetMaxLines(3)
+end
+
+-- A lot, a bag line, a purchase or a heading inside the panel. None of the deck's columns
+-- apply at this width: a line is its sentence, with its one button -- or, for a purchase, its
+-- unit cost -- at the right edge. Two lines allowed, because "x50 . 3 purchases . bought 29 Aug
+-- . GoldCap . mail-confirmed" is a sentence the panel is narrower than.
+local function layoutDetailRow(row)
+  for _, column in ipairs(COLUMNS) do row.cells[column.key]:Hide() end
+  local edge, edgePoint, inset = row, "RIGHT", -INSP.PAD
+  if row.action:IsShown() then
+    row.cells.action:ClearAllPoints()
+    row.cells.action:SetWidth(88)
+    row.cells.action:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
+    edge, edgePoint, inset = row.cells.action, "LEFT", -4
+  elseif row.kind == "batch" then
+    row.cells.cost:ClearAllPoints()
+    row.cells.cost:SetWidth(72)
+    row.cells.cost:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
+    row.cells.cost:Show()
+    edge, edgePoint, inset = row.cells.cost, "LEFT", -4
+  end
+  row.subItem:ClearAllPoints()
+  row.subItem:SetWidth(0)
+  row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+  row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, 0)
+  row.subItem:SetWordWrap(true)
+  row.subItem:SetMaxLines(2)
+  row.sectionLabel:ClearAllPoints()
+  row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
 end
 
 
@@ -2732,7 +2787,9 @@ local function createRow(parent)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
   row:SetScript("OnEnter", function(self)
-    self.highlight:Show()
+    -- The list's rows are what a hover picks between; a wash over the panel's twelve-slot
+    -- head, or over a heading inside it, points at nothing.
+    if not self.inPanel then self.highlight:Show() end
     -- Rows are pooled and rebound every render, so the item tooltip is wired once here and
     -- reads whatever position the row currently holds. Hooking it per render would stack.
     if GameTooltip and self.kind == "position" and self.position and self.position.itemID then
@@ -3204,9 +3261,14 @@ renderRows = function()
   -- followed by a tail of rows they cannot. NO COST opens it by itself -- those positions are
   -- most of what that chip exists to find, and Set cost lives on their rows.
   local folded = {}
+  -- The position whose detail panel is open, if it is on this deck at all: a deck change or a
+  -- chip can take the row away, and a panel describing a row that is not there shuts.
+  local openPosition
   local function pushPosition(position)
     entries[#entries + 1] = { kind = "position", position = position }
-    if expanded[position.positionKey] then
+    if expanded[position.positionKey] and not openPosition then
+      openPosition = position
+      local first = #entries + 1
       local detail = GC.SellViewModel.Expansion(position)
       -- ONE panel where this used to spend eleven separate 32px rows: the facts line, the
       -- price control, the book heading and eight levels. Opening a position buried the list
@@ -3229,6 +3291,10 @@ renderRows = function()
           hint = GC.L["Sales are costed from your oldest units first"] }
       end
       for _, batch in ipairs(detail.batches) do entries[#entries + 1] = { kind = "batch", position = position, batch = batch } end
+      -- Everything a position opens into is drawn in the side panel, not under the row. The
+      -- entries keep their place in this one list -- and so their pooled rows and every pin a
+      -- post or a cancel holds on one -- and only say where they are to be laid out.
+      for index = first, #entries do entries[index].panel = true end
     end
   end
   for _, position in ipairs(filtered) do
@@ -3259,21 +3325,40 @@ renderRows = function()
     container.emptyText:Hide()
   end
   for i = #rows + 1, #entries do rows[i] = createRow(content) end
-  -- Running Y for the loop below. Rows are pooled and re-anchored on every render, so this is
-  -- rebuilt from scratch each time rather than remembered.
-  local placedHeight = 0
+  -- Known before any row is laid out: a docked panel takes its width out of the list's, and
+  -- shownColumns reads that. The heading row and the scroll area follow whenever it changes.
+  inspectorOpen = openPosition ~= nil
+  if container.applyListGeometry and container.listDocked ~= inspectorDocked() then
+    container.listDocked = inspectorDocked()
+    container.applyListGeometry()
+  end
+  -- Running Y for the loop below, one per surface. Rows are pooled and re-anchored on every
+  -- render, so both are rebuilt from scratch each time rather than remembered.
+  local placedHeight, detailHeight, listIndex = 0, 0, 0
   for i, row in ipairs(rows) do
     local entry = entries[i]
     if not entry then row.renderEntryID = nil; row:Hide()
     else
+      -- One pool, two surfaces. A row is re-parented only when its entry moves between them,
+      -- which a position being opened or shut does and a re-price never does -- so the price
+      -- box a seller is typing into is not touched by the renders their typing causes.
+      local surface = entry.panel and detailContent or content
+      row.inPanel = entry.panel == true
+      if surface and row.surface ~= surface then
+        row.surface = surface
+        if row.SetParent then row:SetParent(surface) end
+      end
       -- Slot-based placement, not a fixed pitch off the index: an entry may claim several
       -- ROW_HEIGHT slots (entry.slots) so that one row can be a PANEL instead of a line. Every
       -- entry that does not ask for slots claims exactly one, which is the old arithmetic
       -- (offset == (i - 1) * ROW_HEIGHT) reproduced exactly -- so nothing but the drawer moves.
       local slots = entry.slots or 1
-      row:Show(); row:SetPoint("TOPLEFT", 0, -placedHeight); row:SetPoint("TOPRIGHT", 0, -placedHeight)
+      local offset = entry.panel and detailHeight or placedHeight
+      row:Show(); row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -offset); row:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -offset)
       row:SetHeight(slots * ROW_HEIGHT)
-      placedHeight = placedHeight + slots * ROW_HEIGHT
+      if entry.panel then detailHeight = detailHeight + slots * ROW_HEIGHT
+      else placedHeight = placedHeight + slots * ROW_HEIGHT; listIndex = listIndex + 1 end
       row.kind, row.position, row.batch, row.lot = entry.kind, entry.position, entry.batch, entry.lot
       -- Read by this row's own OnEnter (below) to decide whether to add a tooltip line about the
       -- number this row is showing. Reset for every kind, not just "position": rows are pooled
@@ -3721,7 +3806,16 @@ renderRows = function()
         setColor(row.subItem, Theme.color.fg)
         row.subItem:Show()
         for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
-        row.action:Hide()
+        -- Post, beside the price it posts at. As a sheet the panel lies over the right side of
+        -- the list -- over the open row's own button -- so without this the one position a
+        -- seller had just priced was the one they could not post. It is the row's Post, through
+        -- the same onPostClick and the same pin; two buttons for one position cannot both arm
+        -- (onPostClick refuses a second row while one is pending).
+        if postable then
+          showRowAction(row, "Post", function() onPostClick(row) end)
+        else
+          row.action:Hide()
+        end
       elseif entry.kind == "fold" then
         -- "+" and "-" rather than an arrow: only in-game-proven punctuation goes on screen (the
         -- bundled face drew tofu for the arrows the design used).
@@ -3910,7 +4004,7 @@ renderRows = function()
         local gc3 = Theme.color.gold
         row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)
       else
-        row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (i % 2 == 1) and (zc2[4] or 0.04) or 0)
+        row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (listIndex % 2 == 1) and (zc2[4] or 0.04) or 0)
       end
       -- The drawer is a SURFACE, not a shaded row: at the well's usual half alpha the window
       -- behind it (and, docked, the auction house's own art at the edges) mixed straight
@@ -3998,15 +4092,22 @@ renderRows = function()
           row.sectionRule:Hide()
         end
       end
-      layoutCells(row)
-      if entry.kind == "drawer" then layoutDrawer(row) end
+      if entry.panel then
+        -- The panel is the surface these sit on: no well, no spine bracketing them to a row
+        -- that is a column away.
+        row.spine:Hide(); row.well:Hide(); row.zebra:Hide()
+        layoutDetailRow(row)
+        if entry.kind == "drawer" then layoutDrawer(row) end
+      else
+        layoutCells(row)
+      end
     end
   end
+  if container.paintInspector then container.paintInspector(openPosition) end
   -- Measured from what was actually placed, not from #entries: a multi-slot entry occupies
   -- more than one row's worth, and a scroll child sized by entry COUNT would clip the drawer.
-  local totalSlots = 0
-  for _, entry in ipairs(entries) do totalSlots = totalSlots + (entry.slots or 1) end
-  content:SetHeight(math.max(1, totalSlots) * ROW_HEIGHT)
+  content:SetHeight(math.max(ROW_HEIGHT, placedHeight))
+  if detailContent then detailContent:SetHeight(math.max(ROW_HEIGHT, detailHeight)) end
   scheduleQuoteExpiry()
   if GC.Sniper and GC.Sniper.UpdateSellTabLabel then GC.Sniper.UpdateSellTabLabel() end
 end
@@ -4623,6 +4724,107 @@ function GC.Sell.Attach(f, geometry)
   emptyText:Hide()
   container.emptyText = emptyText
   content = CreateFrame("Frame", nil, scroll); content:SetSize(ROW_WIDTH, ROW_HEIGHT); scroll:SetScrollChild(content)
+
+  -- The detail panel: what a position opens INTO, beside the list instead of inside it. Opening
+  -- a row used to push ten rows of panel, lots and purchases into the list under it, so the
+  -- list a seller was working down scrolled away from under the cursor on every click. The
+  -- list now stays exactly where it is, and the panel has the height for the whole book.
+  --
+  -- From INSP.DOCK_MIN up it takes a column of its own and the list narrows to make room;
+  -- under that it lies over the list's right side as a sheet (see applyListGeometry). Its rows
+  -- are the SAME pooled rows renderRows has always made -- re-parented, not rebuilt -- so every
+  -- Post, Repost and Remove in it runs the code, and holds the pin, it always has.
+  local inspector = CreateFrame("Frame", nil, container)
+  inspector:SetPoint("TOPRIGHT", 0, -34)
+  inspector:SetPoint("BOTTOMRIGHT", 0, DOCK.H + 6)
+  inspector:SetWidth(INSP.W)
+  -- Above the list it may be lying over, and swallowing its own mouse: a click on the panel's
+  -- background must not land on whichever row sits behind it.
+  inspector:SetFrameLevel((container:GetFrameLevel() or 0) + 20)
+  inspector:EnableMouse(true)
+  inspector:Hide()
+  container.inspector = inspector
+  local ipc = Theme.color.panel
+  local inspectorFill = Theme.SlicedTexture(inspector, "BACKGROUND", Theme.MEDIA .. "card.png",
+    { ipc[1], ipc[2], ipc[3], 1 }, 24)
+  inspectorFill:SetAllPoints(inspector)
+  local ibc = Theme.color.border
+  local inspectorEdge = Theme.SlicedTexture(inspector, "BORDER", Theme.MEDIA .. "ring.png",
+    { 1, 1, 1, (ibc[4] or 0.06) * 2 }, 24)
+  inspectorEdge:SetAllPoints(inspector)
+
+  inspector.icon = inspector:CreateTexture(nil, "ARTWORK")
+  inspector.icon:SetSize(28, 28)
+  inspector.icon:SetPoint("TOPLEFT", INSP.PAD + 2, -10)
+  -- Guarded for busted: most of this suite's frame doubles hand back textures that were never
+  -- taught SetTexCoord, because nothing built at Attach time trimmed an icon before this.
+  if inspector.icon.SetTexCoord then inspector.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+  inspector.name = Theme.Label(inspector, 13)
+  inspector.name:SetJustifyH("LEFT"); inspector.name:SetWordWrap(false)
+  inspector.stock = Theme.Label(inspector, 10)
+  inspector.stock:SetJustifyH("LEFT"); inspector.stock:SetWordWrap(false)
+  setColor(inspector.stock, Theme.color.fgMuted)
+  local closeInspector = Theme.Button(inspector, "ghost", "badge")
+  closeInspector:SetSize(22, 20)
+  closeInspector:SetPoint("TOPRIGHT", -INSP.PAD, -12)
+  closeInspector:SetLabel("X")
+  closeInspector:SetScript("OnClick", function()
+    for key in pairs(expanded) do expanded[key] = nil end
+    renderRows()
+  end)
+  inspector.close = closeInspector
+  local headRule = inspector:CreateTexture(nil, "ARTWORK")
+  headRule:SetColorTexture(ibc[1], ibc[2], ibc[3], ibc[4] or 0.06)
+  headRule:SetHeight(1)
+  headRule:SetPoint("TOPLEFT", INSP.PAD, -INSP.HEAD_H + 2)
+  headRule:SetPoint("TOPRIGHT", -INSP.PAD, -INSP.HEAD_H + 2)
+
+  local detailScroll = CreateFrame("ScrollFrame", nil, inspector, "UIPanelScrollFrameTemplate")
+  detailScroll:SetPoint("TOPLEFT", 4, -INSP.HEAD_H)
+  detailScroll:SetPoint("BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
+  detailContent = CreateFrame("Frame", nil, detailScroll)
+  detailContent:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER, ROW_HEIGHT)
+  detailScroll:SetScrollChild(detailContent)
+
+  -- The list's own width follows the panel: docked, it ends where the panel's column begins
+  -- (the gap is where the list's scroll bar hangs); as a sheet, it keeps the whole width and
+  -- the panel covers its right side. Called by renderRows when that changes and by the resize
+  -- hook, never per render.
+  container.applyListGeometry = function()
+    local inset = inspectorDocked() and (INSP.W + INSP.GAP) or 0
+    header:ClearAllPoints()
+    header:SetPoint("TOPLEFT", 0, -34); header:SetPoint("TOPRIGHT", -inset, -34)
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", 0, -52); scroll:SetPoint("BOTTOMRIGHT", -inset, DOCK.H + 6)
+    content:SetWidth(listWidth())
+    layoutCells(header)
+  end
+
+  -- The panel's head: which item this is, and where its stock is. Read off the position at
+  -- render time -- the panel is one frame reused for every position, like the cost dialog.
+  container.paintInspector = function(position)
+    if not position then inspector:Hide(); return end
+    local icon
+    if position.itemID and C_Item and C_Item.GetItemIconByID then
+      local ok, texture = pcall(C_Item.GetItemIconByID, position.itemID)
+      icon = ok and texture or nil
+    end
+    if icon then inspector.icon:SetTexture(icon); inspector.icon:Show() else inspector.icon:Hide() end
+    local left = icon and (INSP.PAD + 38) or (INSP.PAD + 2)
+    inspector.name:ClearAllPoints()
+    inspector.name:SetPoint("TOPLEFT", left, -9)
+    inspector.name:SetPoint("RIGHT", closeInspector, "LEFT", -6, 0)
+    inspector.stock:ClearAllPoints()
+    inspector.stock:SetPoint("TOPLEFT", left, -27)
+    inspector.stock:SetPoint("RIGHT", closeInspector, "LEFT", -6, 0)
+    local name = position.itemName or GC.L["Item"]
+    inspector.name:SetText(Theme.WithQuality and Theme.WithQuality(name, position.itemID) or name)
+    local parts = {}
+    if (position.bagQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d in bags"]):format(position.bagQty) end
+    if (position.listedQty or 0) > 0 then parts[#parts + 1] = (GC.L["×%d listed"]):format(position.listedQty) end
+    inspector.stock:SetText(#parts > 0 and table.concat(parts, " · ") or GC.SellViewModel.SourceText(position))
+    inspector:Show()
+  end
   local dialog = CreateFrame("Frame", nil, container, "BackdropTemplate"); dialog:SetSize(270, 170); dialog:SetPoint("CENTER"); dialog:Hide(); container.costDialog = dialog
   -- The template was carried but never given a backdrop, a strata or a frame level, so this
   -- opened as bare floating widgets: the rows underneath showed straight through it, its own
@@ -4753,8 +4955,10 @@ function GC.Sell.Attach(f, geometry)
   local resizeRenderToken = 0
   f:HookScript("OnSizeChanged", function(_, width)
     ROW_WIDTH = math.max(1, width - geometry.panelLeft - geometry.panelRightInset)
-    content:SetWidth(ROW_WIDTH)
-    layoutCells(header)
+    -- Through the same function a panel opening uses: the width a resize leaves decides
+    -- whether the panel still has a column of its own.
+    container.listDocked = inspectorDocked()
+    container.applyListGeometry()
     layoutLedger()
     resizeRenderToken = resizeRenderToken + 1
     local token = resizeRenderToken
