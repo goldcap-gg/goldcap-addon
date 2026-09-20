@@ -51,6 +51,9 @@ end
 --   results = { { itemID, quantity, isEnchant }, ... },  -- TRADE_SKILL_ITEM_CRAFTED_RESULT
 -- }
 --
+-- `recipe.outputs` is the set of item ids this recipe can make -- the declared output and its
+-- quality variants. Absent, only the declared id counts.
+--
 -- Returns { outputs, consumed }, each a sorted array of { itemID, quantity }, or nil plus a
 -- reason. Every refusal is deliberate: "no cost" is what the Sell tab says today, and it is a
 -- correct answer. A guessed one is not.
@@ -73,15 +76,27 @@ function GC.CraftCapture.Plan(session)
   -- default.
   if not isPositiveInteger(recipe.outputItemID) then return nil, "random-output" end
 
-  local produced = {}
+  -- What this recipe is allowed to have made: its declared output and, when the client could
+  -- name them, that output's quality variants. TRADE_SKILL_ITEM_CRAFTED_RESULT also fires for
+  -- things that are not the craft -- a first-craft reward, a knowledge item -- and counting one
+  -- as a produced unit would spread the session's materials over more units than it made, and
+  -- so understate what each one cost. Falling back to the declared id alone is the conservative
+  -- read: a quality variant the client did not name is refused, never guessed at.
+  local allowed = type(recipe.outputs) == "table" and recipe.outputs or { [recipe.outputItemID] = true }
+
+  local produced, ignored = {}, 0
   for _, result in ipairs(session.results) do
     -- An enchant is applied, not held; with no item there is no position to cost. A result
-    -- carrying no item id is the same case (Artisan's Mettle and friends arrive this way).
+    -- carrying no item id is the same case.
     if type(result) == "table" and result.isEnchant ~= true
         and isPositiveInteger(result.itemID) and isPositiveInteger(result.quantity) then
-      local running = (produced[result.itemID] or 0) + result.quantity
-      if not isExactInteger(running) then return nil, "bad-counts" end
-      produced[result.itemID] = running
+      if allowed[result.itemID] then
+        local running = (produced[result.itemID] or 0) + result.quantity
+        if not isExactInteger(running) then return nil, "bad-counts" end
+        produced[result.itemID] = running
+      else
+        ignored = ignored + 1
+      end
     end
   end
   local outputs = sortedTotals(produced)
@@ -89,6 +104,9 @@ function GC.CraftCapture.Plan(session)
 
   local spent = {}
   for itemID in pairs(recipe.candidates) do
+    -- An id that is both a reagent and an output nets against itself in the delta: what went
+    -- in is hidden by what came out, and no amount of arithmetic here recovers either.
+    if allowed[itemID] then return nil, "output-is-reagent" end
     local opened, closed = before[itemID], after[itemID]
     -- A candidate the counts do not cover means the snapshot and the recipe disagree, and a
     -- reagent silently priced at zero is exactly the understatement this module exists to
@@ -99,7 +117,7 @@ function GC.CraftCapture.Plan(session)
   local consumed = sortedTotals(spent)
   if #consumed == 0 then return nil, "no-consumption" end
 
-  return { outputs = outputs, consumed = consumed }
+  return { outputs = outputs, consumed = consumed, ignored = ignored }
 end
 
 --- What the reagents a session consumed actually cost the player.

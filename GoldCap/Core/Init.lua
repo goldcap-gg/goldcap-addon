@@ -464,9 +464,25 @@ frame:SetScript("OnEvent", function(_, event, ...)
           end
         end
         if not any then return nil end
+        -- Every item id this recipe can produce: the declared output plus one per quality,
+        -- because a quality variant is its own item. Without them CraftCapture counts only the
+        -- declared id and refuses a run that came out at another quality -- safe, but it would
+        -- refuse most crafts that have qualities at all.
+        local outputs = {}
+        if type(schematic.outputItemID) == "number" then outputs[schematic.outputItemID] = true end
+        if type(C_TradeSkillUI.GetRecipeOutputItemData) == "function" then
+          for quality = 1, 5 do
+            local gotData, data = pcall(C_TradeSkillUI.GetRecipeOutputItemData,
+              schematic.recipeID or spellID, nil, nil, quality)
+            if gotData and type(data) == "table" and type(data.itemID) == "number" then
+              outputs[data.itemID] = true
+            end
+          end
+        end
+
         local recipe = { recipeID = schematic.recipeID or spellID,
           outputItemID = schematic.outputItemID, isRecraft = schematic.isRecraft == true,
-          candidates = candidates }
+          candidates = candidates, outputs = outputs }
         schematics[spellID] = recipe
         return recipe
       end

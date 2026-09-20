@@ -39,6 +39,8 @@ describe("CraftCapture.Plan", function()
 
   it("keeps every output quality of one run in one plan", function()
     local plan = GC.CraftCapture.Plan(session({
+      recipe = { recipeID = 1, outputItemID = 500, isRecraft = false,
+                 candidates = { [10] = true, [11] = true }, outputs = { [500] = true, [501] = true } },
       results = { { itemID = 500, quantity = 3 }, { itemID = 501, quantity = 2 },
                   { itemID = 500, quantity = 1 } },
     }))
@@ -91,6 +93,53 @@ describe("CraftCapture.Plan", function()
     local plan, reason = GC.CraftCapture.Plan(session({ before = { [10] = 20 } }))
     assert.is_nil(plan)
     assert.equal("bad-counts", reason)
+  end)
+
+  it("counts only what the recipe actually makes", function()
+    -- TRADE_SKILL_ITEM_CRAFTED_RESULT also fires for things that are not the craft -- a
+    -- first-craft reward, a knowledge item. Counting one as a produced unit would spread the
+    -- session's materials over more units than it made, and understate what each one cost.
+    local plan = GC.CraftCapture.Plan(session({
+      recipe = { recipeID = 1, outputItemID = 500, isRecraft = false,
+                 candidates = { [10] = true, [11] = true }, outputs = { [500] = true, [501] = true } },
+      results = { { itemID = 500, quantity = 2 }, { itemID = 501, quantity = 1 },
+                  { itemID = 9999, quantity = 1 } },
+    }))
+    assert.same({ { itemID = 500, quantity = 2 }, { itemID = 501, quantity = 1 } }, plan.outputs)
+    assert.equal(1, plan.ignored)
+  end)
+
+  it("refuses a session whose every result was something else", function()
+    local plan, reason = GC.CraftCapture.Plan(session({
+      recipe = { recipeID = 1, outputItemID = 500, isRecraft = false,
+                 candidates = { [10] = true, [11] = true }, outputs = { [500] = true } },
+      results = { { itemID = 9999, quantity = 1 } },
+    }))
+    assert.is_nil(plan)
+    assert.equal("no-output", reason)
+  end)
+
+  it("falls back to the declared output when the client named no variants", function()
+    -- Conservative on purpose: a quality variant the client did not name is refused, not
+    -- guessed at. Refusing costs a craft its basis; guessing costs it the truth.
+    local plan, reason = GC.CraftCapture.Plan(session({
+      results = { { itemID = 501, quantity = 2 } },
+    }))
+    assert.is_nil(plan)
+    assert.equal("no-output", reason)
+  end)
+
+  it("refuses a recipe that eats what it makes", function()
+    -- The same id going both in and out nets against itself in the bag delta, so what the
+    -- craft really consumed cannot be read from it at all.
+    local plan, reason = GC.CraftCapture.Plan(session({
+      recipe = { recipeID = 1, outputItemID = 500, isRecraft = false,
+                 candidates = { [10] = true, [500] = true }, outputs = { [500] = true } },
+      before = { [10] = 20, [500] = 4 },
+      after = { [10] = 10, [500] = 6 },
+    }))
+    assert.is_nil(plan)
+    assert.equal("output-is-reagent", reason)
   end)
 
   it("refuses a session with no recipe at all", function()
