@@ -2613,4 +2613,27 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(row.shown and (row.kind == "listing" or row.kind == "group"), row.kind)
     end
   end)
+  -- Under the price chips: only what the box, the red note and the button do not already say.
+  it("states the reason for the price alone on a postable head, and nothing when there is none", function()
+    local GC = load(620, { calls = {} })
+    local p = { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",
+      exposureQty = 5, knownQty = 5, knownCost = 500, bagQty = 5, listedQty = 0, sources = {},
+      recommendation = { action = "post", unit = 28500, belowCost = true } }
+    GC.SellViewModel.Expansion = function()
+      return { batches = {}, ownedLots = {}, recommendation = p.recommendation,
+        factsText = "above the cheapest, within the day's reach · 12 units queued below" }
+    end
+    local rows = topRows(GC, { p })
+    rows[1].scripts.OnClick(rows[1])
+    assert.equal("above the cheapest, within the day's reach · 12 units queued below", rows[2].subItem.text)
+    local withReason = rows[2].height
+
+    GC.SellViewModel.Expansion = function()
+      return { batches = {}, ownedLots = {}, recommendation = p.recommendation }
+    end
+    upvalue(GC.Sell.Attach, "renderRows")()
+    assert.equal("", rows[2].subItem.text)
+    -- ...and the head gives the paragraph's slot back rather than keeping a gap for it.
+    assert.equal(withReason - 24, rows[2].height)
+  end)
 end)

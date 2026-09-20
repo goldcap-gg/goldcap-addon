@@ -2576,6 +2576,7 @@ local DR = {
   BOOK_Y_BARE = -84,       -- ...and when there is not
   BAR_MAX = 116,
   PRICE_W = 72, UNITS_W = 40, TAG_W = 40,
+  NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
 
@@ -2633,14 +2634,17 @@ local function layoutDrawer(row)
   if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
   row.subItem:SetText(row.subItem:GetText() or "") -- measured again now that it wraps
 
+  -- With nothing to say about the price, Post and the book move up into the paragraph's room
+  -- (one slot of it; the head was given one slot less -- see DR.NO_REASON_SLOTS).
+  local rise = postable and (row.subItem:GetText() or "") == "" and DR.NO_REASON_SLOTS * (ROW_HEIGHT or 32) or 0
   -- Post, the width of the panel: as a sheet the panel lies over the open row's own button.
   row.cells.action:ClearAllPoints()
-  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y)
-  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y)
+  row.cells.action:SetPoint("TOPLEFT", row, "TOPLEFT", left, DR.POST_Y + rise)
+  row.cells.action:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, DR.POST_Y + rise)
   row.cells.action:SetHeight(DR.POST_H)
 
   -- ---- the book section, under a rule across the panel
-  local top = postable and DR.BOOK_Y or DR.BOOK_Y_BARE
+  local top = (postable and DR.BOOK_Y or DR.BOOK_Y_BARE) + rise
   row.headRules[1]:ClearAllPoints()
   row.headRules[1]:SetPoint("TOPLEFT", row, "TOPLEFT", 0, top)
   row.headRules[1]:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, top)
@@ -3633,8 +3637,19 @@ function INSP.paintHead(row, p, d)
   -- The sentence and its reason together ("Post @ 18g15s -- above the cheapest, within the
   -- day's reach..."): the reason used to trail the line of market facts under the book, a
   -- screen away from the price it explains.
-  local advice = recommendationText(d and d.recommendation)
-  if d and d.factsText then advice = (advice ~= "" and (advice .. " · ") or "") .. d.factsText end
+  -- Only what nothing else on the panel already says. With stock to price, "Post @ 2g85s" is
+  -- the box and the button, and "below cost" is the red line under the box -- repeated here
+  -- they pushed the one new thing, WHY the price is what it is, off the end of the second line
+  -- ("...27875 u..."). So a postable head carries the reason alone, and nothing at all when
+  -- there is none; a head with no price control (a live lot) keeps the advice sentence, which
+  -- is the only place "Hold (loss)" is ever said.
+  local advice
+  if postable then
+    advice = d and d.factsText or ""
+  else
+    advice = recommendationText(d and d.recommendation)
+    if d and d.factsText then advice = (advice ~= "" and (advice .. " · ") or "") .. d.factsText end
+  end
   row.subItem:SetText(advice)
   setColor(row.subItem, Theme.color.fgMuted)
   row.subItem:Show()
@@ -3760,7 +3775,8 @@ renderRows = function()
       entries[#entries + 1] = { kind = "drawer", position = position, detail = detail,
         -- Without a book the eight levels are not drawn, and neither is the room for them: the
         -- head used to keep 160px of nothing between its heading and "has not answered yet".
-        slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS) }
+        slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS)
+          - (((position.bagQty or 0) > 0 and not detail.factsText) and DR.NO_REASON_SLOTS or 0) }
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
