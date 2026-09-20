@@ -229,8 +229,9 @@ function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
       -- real book to measure stock from, discovery never does. Items and unknown-liquidity
       -- entries carry no sold figure at all, so DemandCap returns 0 for them and they
       -- naturally collapse to a qty of 1 -- a single-unit flip, same as a one-off item
-      -- auction always was. 200 remains a hard sanity cap regardless of what the demand cap
-      -- or the board says.
+      -- auction always was. The ceiling on all of it is DemandCap's own -- the player's
+      -- "max units per buy", itself bounded by SniperDecision.MAX_QUANTITY_CEILING -- where a
+      -- second, hardcoded 200 here used to pin the board under a ceiling the player had raised.
       local estQty = 1
       if GC.SniperDecision and GC.SniperDecision.DemandCap and cfg then
         local market = GC.SniperDecision.MarketFromValue(value)
@@ -238,7 +239,7 @@ function GC.FullScan.RowsFromBrowse(results, getValue, cfg)
         local cap = GC.SniperDecision.DemandCap(market, cfg, 0)
         if cap and cap > 0 then estQty = cap end
       end
-      estQty = math.min(estQty, result.totalQuantity or 1, 200)
+      estQty = math.min(estQty, result.totalQuantity or 1)
       if estQty < 1 then estQty = 1 end
       -- Fix 1 (honest quantity display): estQty above is a suggested FLIP size, capped well
       -- below what's actually on the board -- rendering it bare as "x200" reads as the lot
