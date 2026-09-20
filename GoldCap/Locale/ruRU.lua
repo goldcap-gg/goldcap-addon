@@ -497,7 +497,6 @@ GC.Locales.ruRU = {
   ["auto-synced data stale -- /goldcap import"] =
     "автосинхронизированные данные устарели -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
-  ["below cost"] = "ниже себестоимости",
   ["below the %s you paid"] = "ниже %s, которые вы заплатили",
   ["big buy"] = "крупная покупка",
   ["bought %d x item %d"] = "куплено %d x предмет %d",

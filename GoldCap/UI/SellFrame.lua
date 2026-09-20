@@ -363,7 +363,6 @@ local MONEY_HEX = "|cffe8c15a"
 -- GC.CancelQueue's own reason tokens; `alarm` paints red, `wait` the watch blue, the rest dim.
 -- @localised-keys
 local ROW_TAG_TEXT = {
-  below_breakeven = "below cost",
   no_fresh_price = "no price",
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
@@ -375,7 +374,9 @@ end
 
 local rowTag
 do
-local ROW_TAG_TONE = { below_breakeven = "alarm", no_fresh_price = "wait" }
+-- No tag for below_breakeven: the red margin under YOU GET is that fact, on the same row, and
+-- the words were the first thing a narrow list cut to "be...".
+local ROW_TAG_TONE = { no_fresh_price = "wait" }
 
 -- The tag itself, already coloured, or "" for a row with nothing to say. `reason` is the skip
 -- token the deck's queue gave this position, if it skipped it. Money leaving silently outranks
@@ -3041,7 +3042,7 @@ local function createRow(parent)
   -- price level from the cheapest, the one this price lands on lit -- and the stock queued
   -- under it in words. Under YOU GET: the margin, which used to be a column of its own a row's
   -- width away from the figure it qualifies. Both answer before anything is opened.
-  row.priceStand = Theme.Num(row, 9)
+  row.priceStand = Theme.Num(row, 10)
   row.priceStand:SetJustifyH("RIGHT")
   row.priceStand:SetWordWrap(false)
   row.priceStand:Hide()
@@ -3052,7 +3053,9 @@ local function createRow(parent)
     mark:Hide()
     row.standMarks[i] = mark
   end
-  row.grossNote = Theme.Num(row, 9)
+  -- 11, the size of the figure above it: at 9 the one number that says whether the row makes
+  -- or loses money was the smallest thing on it.
+  row.grossNote = Theme.Num(row, 11)
   row.grossNote:SetJustifyH("RIGHT")
   row.grossNote:SetWordWrap(false)
   row.grossNote:Hide()

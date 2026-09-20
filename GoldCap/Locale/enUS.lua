@@ -106,7 +106,6 @@ GC.Locales.enUS = {
   ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
-  ["below cost"] = "below cost",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",

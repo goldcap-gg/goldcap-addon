@@ -2338,10 +2338,16 @@ describe("Sell widget geometry and manual cost", function()
     it("tags a row the post queue left out with the reason, and a ready row with nothing", function()
       local GC = load(620, { calls = {} })
       local render = upvalue(GC.Sell.Attach, "renderRows")
-      set(render, "queueSkipped", { { positionKey = "commodity:42", reason = "below_breakeven" } })
-      local rows = topRows(GC, { stock(), stock({ positionKey = "commodity:43", itemID = 43 }) })
-      assert.matches("|cffff0000below cost|r", rows[1].itemStock.text, 1, true)
-      assert.is_nil(rows[2].itemStock.text:find("below cost", 1, true))
+      set(render, "queueSkipped", { { positionKey = "commodity:42", reason = "no_fresh_price" },
+        { positionKey = "commodity:43", reason = "below_breakeven" } })
+      local rows = topRows(GC, { stock(), stock({ positionKey = "commodity:43", itemID = 43 }),
+        stock({ positionKey = "commodity:44", itemID = 44 }) })
+      local WATCH = "|cff59b8e6no price|r"
+      assert.matches(WATCH, rows[1].itemStock.text, 1, true)
+      -- A loss is the red margin under YOU GET, not a second set of words beside the stock.
+      assert.is_nil(rows[2].itemStock.text:find("below", 1, true))
+      assert.is_nil(rows[2].itemStock.text:find("no price", 1, true))
+      assert.is_nil(rows[3].itemStock.text:find("no price", 1, true))
     end)
 
     it("tags uncosted stock with how many units have no receipt", function()
