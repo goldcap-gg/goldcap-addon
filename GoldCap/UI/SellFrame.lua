@@ -287,9 +287,12 @@ local function paintRefreshButton()
     -- Once the bulk fill has priced the tab, what the walk is still fetching is each row's
     -- book -- and a button that went on saying PRICING for twelve seconds over a list whose
     -- prices were all there read as the refresh itself being that slow.
+    -- Of the deck on screen, not of the queue: the walk prices both decks, and "BOOKS 4/27"
+    -- over ten rows was the same puzzle again. While it is on the other deck's rows the count
+    -- stands at this deck's full figure and the button stays lit.
     local counting = refresh.bulkLanded and GC.L["BOOKS %d/%d"] or GC.L["PRICING %d/%d"]
-    label = (#refresh.queue > 0 and refresh.index > 0)
-      and counting:format(refresh.index, #refresh.queue) or GC.L["PRICING…"]
+    local done, total = refresh.deckProgress()
+    label = done > 0 and counting:format(done, total) or GC.L["PRICING…"]
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -971,6 +974,32 @@ end
 -- again (advanceQuote).
 local DRAIN_MAX_SECONDS = 15
 
+-- Whether a position has a row on the deck that is up: bag stock on the posting deck, a live
+-- lot on the other. Kept on `refresh` rather than as two more file locals -- this chunk sits at
+-- Lua 5.1's limit of 200.
+function refresh.onDeck(position)
+  if filterMode == "listed" or filterMode == "cancelqueue" then return (position.listedQty or 0) > 0 end
+  return (position.bagQty or 0) > 0
+end
+
+-- How far the walk has got through the rows of the deck on screen: asked about, out of queued.
+-- The queue covers both decks, and the Refresh button read "BOOKS 4/27" over a list of ten.
+-- Counted when asked rather than when the queue is built, so a deck change mid-walk is followed.
+function refresh.deckProgress()
+  local shown = {}
+  for _, position in ipairs(positions) do
+    if position.itemID and refresh.onDeck(position) then shown[position.itemID] = true end
+  end
+  local done, total = 0, 0
+  for index, itemID in ipairs(refresh.queue) do
+    if shown[itemID] then
+      total = total + 1
+      if index <= refresh.index then done = done + 1 end
+    end
+  end
+  return done, total
+end
+
 local function uniqueQuoteItemIDs()
   local actionable = {}
   for _, position in ipairs(positions) do
@@ -1018,10 +1047,8 @@ local function uniqueQuoteItemIDs()
   -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
   -- its first seconds on rows of the other deck while the ones being looked at waited.
   local need, weight, onScreen, place = {}, {}, {}, {}
-  local listedDeck = filterMode == "listed" or filterMode == "cancelqueue"
   for index, position in ipairs(actionable) do
-    if listedDeck then onScreen[position] = (position.listedQty or 0) > 0
-    else onScreen[position] = (position.bagQty or 0) > 0 end
+    onScreen[position] = refresh.onDeck(position)
     place[position] = rowPlaces[position.positionKey] or math.huge
     local age = position.quoteAge
     need[position] = (position.displayMarketUnit == nil or type(age) ~= "number")
