@@ -2574,8 +2574,8 @@ local DR = {
   POST_H = 24,
   BOOK_Y = -192,           -- where the book section starts when there is a price control
   BOOK_Y_BARE = -84,       -- ...and when there is not
-  BAR_MAX = 116,
-  PRICE_W = 72, UNITS_W = 40, TAG_W = 40,
+  BAR_MAX = 126,
+  PRICE_W = 112, UNITS_W = 40, TAG_W = 40, -- PRICE_W holds the tag's word and "49999g94s" both
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
@@ -2663,12 +2663,15 @@ local function layoutDrawer(row)
     line.price:ClearAllPoints()
     line.price:SetWidth(DR.PRICE_W)
     line.price:SetPoint("TOPLEFT", row, "TOPLEFT", left, y)
+    -- The word sits at the LEFT of its level, in the room a right-aligned price leaves in its
+    -- own column. It had a column to itself at the right edge, empty on every level but one or
+    -- two, so the bars and the unit counts stopped 46px short of the panel they sit in.
     line.tag:ClearAllPoints()
     line.tag:SetWidth(DR.TAG_W)
-    line.tag:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y - 1)
+    line.tag:SetPoint("TOPLEFT", row, "TOPLEFT", left, y - 1)
     line.qty:ClearAllPoints()
     line.qty:SetWidth(DR.UNITS_W)
-    line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right - DR.TAG_W - 6, y)
+    line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y)
     line.bar:ClearAllPoints()
     line.bar:SetPoint("LEFT", line.price, "RIGHT", Theme.pad.s, 0)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
