@@ -792,17 +792,46 @@ describe("Sell widget geometry and manual cost", function()
         row.priceChips[slot].scripts.OnClick(row.priceChips[slot])
         return priceRow(GC).priceBox.text
       end
-      assert.equal("42.05", fill(1)) -- MATCH: the cheapest ask that is not yours
-      assert.equal("42.04", fill(2)) -- UNDERCUT: one silver under it
-      assert.equal("50", fill(3))    -- MARKET: the imported market value
-      assert.equal("40", fill(4))    -- COST: the break-even, 2000000 over 5 units
+      assert.equal("42.05", fill(2)) -- MATCH: the cheapest ask that is not yours
+      assert.equal("42.04", fill(3)) -- UNDERCUT: one silver under it
+      assert.equal("50", fill(4))    -- MARKET: the imported market value
+      assert.equal("40", fill(5))    -- COST: the break-even, 2000000 over 5 units
 
       -- No cost basis, no COST chip: the alternative is a chip that fills a cost the addon
       -- does not have.
       local bare = load(700, { calls = {} })
       local row2 = priceRow(bare, { coverage = "UNKNOWN", knownQty = 0, knownCost = 0 })
-      assert.is_false(row2.priceChips[4].enabled)
-      assert.is_true(row2.priceChips[1].enabled)
+      assert.is_false(row2.priceChips[5].enabled)
+      assert.is_true(row2.priceChips[2].enabled)
+    end)
+
+    -- The first chip is the way back: it carries no price, it clears the seller's own, and it
+    -- is the lit one for as long as the price on screen is GoldCap's.
+    it("hands the price back to GoldCap from the GOLDCAP chip, and lights the chip in force", function()
+      local GC = load(700, { calls = {} })
+      local row = priceRow(GC)
+      assert.equal("GOLDCAP", row.priceChips[1].label)
+      assert.equal("active", row.priceChips[1].variant)
+      assert.equal("ghost", row.priceChips[2].variant)
+      local theirs = row.priceBox.text
+      row.priceChips[4].scripts.OnClick(row.priceChips[4]) -- MARKET
+      row = priceRow(GC)
+      assert.equal("50", row.priceBox.text)
+      assert.equal("active", row.priceChips[4].variant)
+      assert.equal("ghost", row.priceChips[1].variant)
+      row.priceChips[1].scripts.OnClick(row.priceChips[1])
+      row = priceRow(GC)
+      assert.equal(theirs, row.priceBox.text)
+      assert.equal("active", row.priceChips[1].variant)
+    end)
+
+    it("shows what the price fetches beside the box, by the row's own arithmetic", function()
+      local GC = load(700, { calls = {} })
+      local row, rows = priceRow(GC)
+      assert.equal("YOU GET", row.priceNetHead.text)
+      assert.equal(rows[1].cells.gross.text, row.priceNet.text)
+      assert.matches(rows[1].grossNote.text, row.priceNetNote.text, 1, true)
+      assert.matches("after the AH cut", row.priceNetNote.text, 1, true)
     end)
 
     -- The price of letting the price be typed: the addon says what it would otherwise have
@@ -857,9 +886,9 @@ describe("Sell widget geometry and manual cost", function()
       })
       local drawer
       for _, row in ipairs(rows) do if row.kind == "drawer" then drawer = row end end
-      assert.is_true(drawer.priceChips[1].enabled) -- MATCH: one silver is a price
-      assert.is_false(drawer.priceChips[2].enabled) -- UNDERCUT: zero is not
-      assert.is_nil(drawer.priceChips[2].priceSource)
+      assert.is_true(drawer.priceChips[2].enabled) -- MATCH: one silver is a price
+      assert.is_false(drawer.priceChips[3].enabled) -- UNDERCUT: zero is not
+      assert.is_nil(drawer.priceChips[3].priceSource)
     end)
   end)
 
@@ -915,9 +944,9 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("cheapest not yours", drawer.drawerHint.text, 1, true)
       assert.matches("1062 units", drawer.drawerHint.text, 1, true)
       assert.matches("4 prices", drawer.drawerHint.text, 1, true)
-      -- The colour legend is said once, in the hint, because the lines carry the two facts in
-      -- colour rather than in a marker glyph the bundled face does not have.
-      assert.matches("gold is where your price lands", drawer.drawerHint.text, 1, true)
+      -- The colour key is no longer a sentence in the hint: each level that needs one says it
+      -- in a word of its own (see the colouring test below).
+      assert.is_nil(drawer.drawerHint.text:find("gold is", 1, true))
     end)
 
     it("prints each level with its own price and depth, and says where you would stand", function()
@@ -948,6 +977,12 @@ describe("Sell widget geometry and manual cost", function()
       -- A level that is neither is just a price, in the ordinary foreground.
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, drawer.bookLines[1].price.color)
+      -- And in a word, with a wash behind the level: colour alone was a key nobody was given.
+      assert.equal("you", drawer.bookLines[2].tag.text)
+      assert.equal("yours", drawer.bookLines[3].tag.text)
+      assert.is_true(drawer.bookLines[2].wash.shown)
+      assert.is_false(drawer.bookLines[1].tag.shown)
+      assert.is_false(drawer.bookLines[1].wash.shown)
     end)
 
     -- Rows are pooled and rebound to a different kind on every render, so the drawer's own
@@ -2484,6 +2519,65 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(rows[1].highlight.shown)
       rows[2].scripts.OnEnter(rows[2])
       assert.is_false(rows[2].highlight.shown)
+    end)
+  end)
+  describe("the search box", function()
+    local function p(id, name)
+      return { itemID = id, itemName = name, positionKey = "commodity:" .. id, coverage = "COMPLETE",
+        exposureQty = 5, knownQty = 5, knownCost = 50, bagQty = 5, listedQty = 0, sources = {} }
+    end
+    local function names(rows)
+      local out = {}
+      for _, row in ipairs(rows) do
+        if row.shown and row.kind == "position" then out[#out + 1] = row.position.itemName end
+      end
+      return out
+    end
+    local function type_(container, text)
+      container.search:SetText(text)
+      container.search.scripts.OnTextChanged(container.search, true)
+    end
+
+    it("narrows the list to the names that contain what was typed, whatever its case", function()
+      local GC = load(800, { calls = {} })
+      local rows, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Arcanoweave Lining"), p(3, "Pygmy Oil") })
+      type_(container, "  LINING ")
+      assert.same({ "Arcanoweave Lining" }, names(rows))
+      type_(container, "")
+      assert.same({ "Arcanoweave", "Arcanoweave Lining", "Pygmy Oil" }, names(rows))
+    end)
+
+    it("says so when nothing matches, and gives the list back on Escape", function()
+      local GC = load(800, { calls = {} })
+      local rows, container = topRows(GC, { p(1, "Arcanoweave") })
+      type_(container, "zzz")
+      assert.same({}, names(rows))
+      assert.is_true(container.emptyText.shown)
+      assert.equal("Nothing on this deck matches that search", container.emptyText.text)
+      container.search.scripts.OnEscapePressed(container.search)
+      assert.equal("", container.search.text)
+      assert.same({ "Arcanoweave" }, names(rows))
+    end)
+
+    it("leaves the dock's totals the deck's own while it narrows the rows", function()
+      local GC = load(800, { calls = {} })
+      local _, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
+      local before = container.summary.cost.text
+      type_(container, "pygmy")
+      assert.equal(before, container.summary.cost.text)
+    end)
+
+    it("is not drawn where row 1 has no room for it, and cannot filter from there", function()
+      local GC, root = load(800, { calls = {} })
+      local rows, container = topRows(GC, { p(1, "Arcanoweave"), p(2, "Pygmy Oil") })
+      assert.is_true(container.search.shown)
+      type_(container, "pygmy")
+      assert.same({ "Pygmy Oil" }, names(rows))
+      -- 640 is the window's resize floor; this harness insets the content by 16.
+      root.scripts.OnSizeChanged(root, 640)
+      assert.is_false(container.search.shown)
+      upvalue(GC.Sell.Attach, "renderRows")()
+      assert.same({ "Arcanoweave", "Pygmy Oil" }, names(rows))
     end)
   end)
 end)

@@ -39,6 +39,7 @@ GC.Locales.ukUA = {
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
   ["%d/%d covered"] = "%d/%d покрито",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
+  ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
   ["%s under you"] = "%s дешевше за вас",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
@@ -163,6 +164,7 @@ GC.Locales.ukUA = {
     "Безкоштовний, живе в треї, у грі нічого налаштовувати не треба.",
   ["Full pass over them: %.1fs"] = "Повний прохід по них: %.1fс",
   ["Full pass over them: measuring..."] = "Повний прохід по них: вимірюємо...",
+  ["GOLDCAP"] = "GOLDCAP",
   ["Gold tied up"] = "Заморожено золота",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
@@ -271,6 +273,7 @@ GC.Locales.ukUA = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Жоден лот не дотягує до рівня предмета, на якому виміряно еталонну ціну.",
   ["Nothing listed on the AH right now"] = "Зараз на аукціоні нічого не виставлено",
+  ["Nothing on this deck matches that search"] = "На цій вкладці нічого не відповідає пошуку",
   ["Nothing queued to cancel"] = "У черзі на скасування нічого немає",
   ["Nothing queued to post"] = "У черзі на виставлення нічого немає",
   ["Nothing to remove"] = "Нічого видаляти",
@@ -369,6 +372,7 @@ GC.Locales.ukUA = {
   ["SHOW DETAILS ▸"] = "ПОКАЗАТИ ДЕТАЛІ ▸",
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
+  ["Search"] = "Пошук",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
@@ -509,7 +513,6 @@ GC.Locales.ukUA = {
   ["below cost"] = "нижче собівартості",
   ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
-  ["blue is already yours"] = "синє — вже ваше",
   ["bought %d x item %d"] = "куплено %d x предмет %d",
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
@@ -537,9 +540,6 @@ GC.Locales.ukUA = {
   ["full scan stalled -- press Full Scan to retry"] =
     "повне сканування зупинилося -- натисніть Full Scan ще раз",
   ["full scan stalled -- retrying shortly"] = "повне сканування зупинилося -- скоро повторимо",
-  ["gold is where your price lands"] = "золоте — куди стане ваша ціна",
-  ["gold is where your price lands, blue is already yours"] =
-    "золоте — куди стане ваша ціна, синє — вже ваше",
   ["gone / price changed"] = "зникло / ціна змінилася",
   ["high"] = "висока",
   ["hold"] = "тримати",
@@ -673,6 +673,7 @@ GC.Locales.ukUA = {
   ["worst case, selling all %d back into the price standing there now"] =
     "у найгіршому разі, якщо продати всі %d за ціною, що стоїть там зараз",
   ["would sell at a loss"] = "продалося б у збиток",
+  ["you"] = "ви",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "ви ще не імпортували ціни реалму -- встановіть GoldCap Companion (/goldcap companion) або вставте рядок з goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

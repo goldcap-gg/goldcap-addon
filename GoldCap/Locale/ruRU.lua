@@ -35,6 +35,7 @@ GC.Locales.ruRU = {
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
   ["%d/%d covered"] = "%d/%d покрыто",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    всего %s -> %s",
+  ["%s after the AH cut"] = "%s после комиссии",
   ["%s ahead"] = "%s впереди",
   ["%s under you"] = "%s дешевле вас",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
@@ -159,6 +160,7 @@ GC.Locales.ruRU = {
     "Бесплатный, живёт в трее, в игре ничего настраивать не нужно.",
   ["Full pass over them: %.1fs"] = "Полный проход по ним: %.1fс",
   ["Full pass over them: measuring..."] = "Полный проход по ним: измеряем...",
+  ["GOLDCAP"] = "GOLDCAP",
   ["Gold tied up"] = "Заморожено золота",
   ["GoldCap Companion"] = "GoldCap Companion",
   ["GoldCap Sniper"] = "GoldCap Sniper",
@@ -259,6 +261,7 @@ GC.Locales.ruRU = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Ни один лот не дотягивает до уровня предмета, на котором измерена эталонная цена.",
   ["Nothing listed on the AH right now"] = "Сейчас на аукционе ничего не выставлено",
+  ["Nothing on this deck matches that search"] = "На этой вкладке ничего не подходит под поиск",
   ["Nothing queued to cancel"] = "В очереди на отмену ничего нет",
   ["Nothing queued to post"] = "В очереди на выставление ничего нет",
   ["Nothing to remove"] = "Нечего удалять",
@@ -355,6 +358,7 @@ GC.Locales.ruRU = {
   ["SHOW DETAILS ▸"] = "ПОКАЗАТЬ ДЕТАЛИ ▸",
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
+  ["Search"] = "Поиск",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продажа выставляет на одну ступень выше самой дешёвой заявки, если книга ордеров показывает такую же скорость продажи.",
   ["Sell-through"] = "Выкупаемость",
@@ -494,7 +498,6 @@ GC.Locales.ruRU = {
   ["below cost"] = "ниже себестоимости",
   ["below the %s you paid"] = "ниже %s, которые вы заплатили",
   ["big buy"] = "крупная покупка",
-  ["blue is already yours"] = "синее — уже ваше",
   ["bought %d x item %d"] = "куплено %d x предмет %d",
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d после закрытия аукциона",
   ["buying commodity..."] = "покупаем товар...",
@@ -522,9 +525,6 @@ GC.Locales.ruRU = {
   ["full scan stalled -- press Full Scan to retry"] =
     "полное сканирование застряло -- нажмите Full Scan ещё раз",
   ["full scan stalled -- retrying shortly"] = "полное сканирование застряло -- скоро повторим",
-  ["gold is where your price lands"] = "золотое — куда встанет ваша цена",
-  ["gold is where your price lands, blue is already yours"] =
-    "золотое — куда встанет ваша цена, синее — уже ваше",
   ["gone / price changed"] = "исчезло / цена изменилась",
   ["high"] = "высокая",
   ["hold"] = "держать",
@@ -654,6 +654,7 @@ GC.Locales.ruRU = {
   ["worst case, selling all %d back into the price standing there now"] =
     "в худшем случае, если продать все %d по цене, которая стоит там сейчас",
   ["would sell at a loss"] = "продалось бы в убыток",
+  ["you"] = "вы",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "вы ещё не импортировали цены реалма -- установите GoldCap Companion (/goldcap companion) или вставьте строку с goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =
