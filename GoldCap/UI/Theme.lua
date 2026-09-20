@@ -13,8 +13,15 @@ T.color = {
   fg      = { 0.92, 0.91, 0.89 },
   fgMuted = { 0.72, 0.71, 0.69 },
   fgDim   = { 0.55, 0.54, 0.52 },
-  red     = { 0.898, 0.283, 0.302 },
-  green   = { 0.25, 0.85, 0.25 },
+  -- The design's pairs, like gold/goldHi: `red` and `green` are what TEXT wears (a loss, a
+  -- profit), lifted so they read on a panel this dark -- a loss in the fill red was a murky
+  -- brick, and a profit in pure (0.25, 0.85, 0.25) green was the one neon thing on the screen.
+  -- `redFill` is what a BUTTON is filled with (danger below), under near-black lettering.
+  red     = { 0.941, 0.404, 0.420 },
+  redFill = { 0.898, 0.283, 0.302 },
+  green   = { 0.373, 0.827, 0.553 },
+  -- What a unit cost: a muted gold, so a price paid never competes with a price asked.
+  cost    = { 0.788, 0.663, 0.341 },
   zebra   = { 1, 1, 1, 0.04 },
   -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
   -- reads as "grayer", while a gold wash reads as "this is the row you are on".
@@ -648,7 +655,7 @@ local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
   active  = { bg = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.16 }, text = T.color.goldHi },
   ghost   = { bg = nil, text = T.color.fg },
-  danger  = { bg = T.color.red, text = T.color.fg },
+  danger  = { bg = T.color.redFill, text = { 0.102, 0.024, 0.024 } },
   -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
   -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
   warn    = { bg = { T.tier.SUSPECT[1], T.tier.SUSPECT[2], T.tier.SUSPECT[3], 0.16 }, text = T.tier.SUSPECT },
