@@ -756,6 +756,32 @@ local function composePositions()
   if not quotesSeeded then seedPersistedQuotes() end
   local scope = context()
   if scanBagStock then scanBagStock() end
+
+  -- A craft happens away from the auction house, where the client will not say whether the
+  -- item sells as a commodity, so Core/CraftCapture.lua records those batches keyless rather
+  -- than filing them under a guessed key. The bag walk immediately above has just put that
+  -- question to GetItemKeyInfo -- the authority itself -- so this is where a crafted batch
+  -- stops being keyless, and it runs before the batches are read below so the cost shows on
+  -- this very pass. BindItemOnly cannot serve here: it is for legacy item-only evidence and
+  -- requires the item to have been LISTED, which stock the player has only just made has not.
+  if GC.Acquisitions and GC.Acquisitions.BindClassifiedIdentity and scope then
+    local classified, ambiguous = {}, {}
+    for _, stock in ipairs(bagStock) do
+      if type(stock.positionKey) == "string" and stock.positionKey ~= "" then
+        if classified[stock.itemID] and classified[stock.itemID] ~= stock.positionKey then
+          ambiguous[stock.itemID] = true
+        end
+        classified[stock.itemID] = stock.positionKey
+      end
+    end
+    for _, batch in ipairs(GC.Acquisitions.GetActive(scope)) do
+      -- Two stacks of one item under different keys means the bags cannot say which one this
+      -- batch is; leaving it keyless is the honest answer.
+      if not batch.positionKey and classified[batch.itemID] and not ambiguous[batch.itemID] then
+        GC.Acquisitions.BindClassifiedIdentity(batch.id, classified[batch.itemID], scope)
+      end
+    end
+  end
   local stats = {}
   for _, lot in ipairs(ownedLots) do
     stats[lot.itemID] = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(lot.itemID) or nil

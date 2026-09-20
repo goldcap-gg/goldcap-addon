@@ -1455,3 +1455,68 @@ describe("Acquisition store: the craft source", function()
     assert.equal(1, #db.acquisitions)
   end)
 end)
+
+describe("Acquisition store: binding a crafted batch's identity", function()
+  local GC, db
+  local context = { char = "A-R", region = "eu" }
+
+  before_each(function()
+    GC = helper.loadModule("Core/Acquisitions.lua")
+    db = {}
+    GC.Acquisitions.Init(db)
+  end)
+
+  local function craftBatch(overrides)
+    local fields = { source = "craft", itemID = 500, quantity = 4, total = 1000,
+      acquiredAt = 100, character = context.char, region = context.region }
+    for key, value in pairs(overrides or {}) do fields[key] = value end
+    return GC.Acquisitions.Record(fields)
+  end
+
+  it("binds the key the client's own classification produced", function()
+    local batch = craftBatch()
+    assert.is_nil(batch.positionKey)
+    local bound, changed = GC.Acquisitions.BindClassifiedIdentity(batch.id, "commodity:500", context)
+    assert.is_true(changed)
+    assert.equal("commodity:500", bound.positionKey)
+    assert.equal("commodity:500", GC.Acquisitions.GetActive(context)[1].positionKey)
+  end)
+
+  it("binds an item key too, for stock that is not a commodity", function()
+    local batch = craftBatch()
+    local bound = GC.Acquisitions.BindClassifiedIdentity(batch.id, "item:500:610:0:0", context)
+    assert.equal("item:500:610:0:0", bound.positionKey)
+  end)
+
+  it("refuses a key belonging to another item", function()
+    local batch = craftBatch()
+    local bound, changed = GC.Acquisitions.BindClassifiedIdentity(batch.id, "commodity:77", context)
+    assert.is_nil(bound)
+    assert.is_false(changed)
+    assert.is_nil(GC.Acquisitions.GetActive(context)[1].positionKey)
+  end)
+
+  it("never re-keys a batch that already has one", function()
+    local batch = craftBatch({ positionKey = "commodity:500" })
+    local bound, changed = GC.Acquisitions.BindClassifiedIdentity(batch.id, "item:500:610:0:0", context)
+    assert.is_nil(bound)
+    assert.is_false(changed)
+    assert.equal("commodity:500", GC.Acquisitions.GetActive(context)[1].positionKey)
+  end)
+
+  it("leaves every other source to the stricter path", function()
+    -- A purchase is keyed when it is captured; a legacy item-only batch goes through
+    -- BindItemOnly, which also demands the item have been listed.
+    local batch = craftBatch({ source = "auction_house" })
+    local bound, changed = GC.Acquisitions.BindClassifiedIdentity(batch.id, "commodity:500", context)
+    assert.is_nil(bound)
+    assert.is_false(changed)
+  end)
+
+  it("refuses a batch belonging to another character", function()
+    local batch = craftBatch()
+    local bound = GC.Acquisitions.BindClassifiedIdentity(batch.id, "commodity:500",
+      { char = "Other", region = "eu" })
+    assert.is_nil(bound)
+  end)
+end)

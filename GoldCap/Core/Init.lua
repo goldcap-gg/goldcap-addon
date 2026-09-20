@@ -869,6 +869,17 @@ GC.slashHandlers.craft = function()
         tostring(outcome.recipeID), units, units == 1 and "" or "s",
         GetCoinTextureString and GetCoinTextureString(outcome.total) or tostring(outcome.total),
         GetCoinTextureString and GetCoinTextureString(outcome.unitCost) or tostring(outcome.unitCost)))
+      -- Whether the Sell tab can attach that cost to a position yet. A craft is recorded
+      -- keyless away from the auction house and is keyed on the next Sell refresh there, so
+      -- "no key yet" before an auction house visit is expected, and after one is a defect.
+      for _, batchID in ipairs(outcome.batchIDs or {}) do
+        for _, batch in ipairs(GC.Acquisitions and GC.Acquisitions.GetAll() or {}) do
+          if batch.id == batchID then
+            GC.Print(("  item %s x%s: %s"):format(tostring(batch.itemID),
+              tostring(batch.remainingQty), batch.positionKey or "no key yet"))
+          end
+        end
+      end
     end
   end
 end

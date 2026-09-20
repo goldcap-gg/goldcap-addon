@@ -358,6 +358,10 @@ local function close(now)
 
   outcome.total, outcome.unitCost = recorded.total, recorded.unitCost
   outcome.outputs = plan.outputs
+  -- Kept so the diagnostic can read each batch's CURRENT identity: a craft away from the
+  -- auction house is recorded keyless and picks its key up on the next Sell refresh there.
+  outcome.batchIDs = {}
+  for _, batch in ipairs(recorded.batches) do outcome.batchIDs[#outcome.batchIDs + 1] = batch.id end
   remember(outcome)
 end
 

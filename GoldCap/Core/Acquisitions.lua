@@ -1021,6 +1021,36 @@ local function uniqueBoundVariant(batch, candidates, context)
   return candidateKey
 end
 
+-- Identity for a batch the client itself has classified, rather than one inferred from a live
+-- lot. Core/CraftCapture.lua records a crafted batch keyless whenever the craft happened away
+-- from the auction house -- which is where crafting happens -- because
+-- C_AuctionHouse.GetItemKeyInfo, the only authority on whether an item sells as a commodity,
+-- answers nowhere else. The Sell tab's bag walk puts that question to the authority the moment
+-- the auction house opens, and this is how the answer reaches the batch.
+--
+-- Deliberately narrower than BindItemOnly below: only a still-keyless `craft` batch, only a key
+-- that belongs to that batch's own item, only in the batch's own scope. Legacy item-only
+-- evidence keeps the stricter path, which also demands the item have been LISTED -- and stock
+-- the player has only just made never has been, which is exactly why it needs this one.
+function GC.Acquisitions.BindClassifiedIdentity(batchID, positionKey, context)
+  if not db or not isNonEmptyString(batchID) or not isNonEmptyString(positionKey)
+      or not validContext(context) then
+    return nil, false
+  end
+  local batch = batchByID(batchID)
+  if not batch or batch.source ~= "craft" or batch.positionKey ~= nil
+      or batch.character ~= context.char or batch.region ~= context.region
+      or not isPositiveInteger(batch.itemID)
+      or not positionKeyMatchesItem(positionKey, batch.itemID) then
+    return nil, false
+  end
+  batch.positionKey = positionKey
+  batch.positionBinding = { positionKey = positionKey, itemID = batch.itemID,
+    character = context.char, region = context.region,
+    scopeKey = GC.Acquisitions.ScopeKey(positionKey, context) }
+  return batch, true
+end
+
 -- Item-only migrated evidence has no safe variant identity on its own.  This
 -- is intentionally explicit and persisted: pure Sell composition may display
 -- a uniquely compatible live variant, but only this API turns that fact into a
