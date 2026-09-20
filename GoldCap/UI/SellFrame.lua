@@ -2544,7 +2544,7 @@ local BOOK_BAR_H = 6
 -- H is a POSITION row's height in the list -- taller than the list's 32px pitch, which every
 -- other kind keeps: two lines of text, a 28px icon and a button a finger's width tall need the
 -- room. LIFT is how far each of the two lines sits from the row's centre.
-local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26 }
+local ROW = { MARKS = 5, H = 44, LIFT = 10, ICON = 28, BUTTON_H = 26, BUTTON_GAP = 14 }
 -- The dock along the bottom of the tab. STAT_W fits "1234567g89s" at mono-10 and Theme.Scale()
 -- 1.3 (~7.8px/char); NARROW is the content width under which the ledger keeps only the total a
 -- seller is here for -- at the default 720px window all three would leave the line beside the
@@ -2678,27 +2678,25 @@ local function layoutDrawer(row)
   local hasBook = row.bookLines[1].price:IsShown()
   local foot = hasBook and (body - DR.LINES * DR.LINE_H - 4) or body
   row.drawerStand:ClearAllPoints()
-  row.drawerDepth:ClearAllPoints()
-  row.drawerDepth:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 1)
+  -- Three lines, each with the panel's width to itself or a fixed half of it, so nothing is
+  -- ever cut to "stands 1 o...": where the price stands; how deep the book is, with the quote's
+  -- state at the right; how fast it sells and how long the queue is.
   row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
-  if hasBook and row.drawerDepth:IsShown() then
-    row.drawerStand:SetPoint("RIGHT", row.drawerDepth, "LEFT", -8, 0)
-    row.drawerStand:SetWordWrap(false)
-  elseif hasBook then
-    row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
-    row.drawerStand:SetWordWrap(false)
-  else
-    row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
-    row.drawerStand:SetWordWrap(true)
-    row.drawerStand:SetMaxLines(2)
+  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  row.drawerStand:SetWordWrap(not hasBook)
+  row.drawerStand:SetMaxLines(hasBook and 1 or 2)
+  if not hasBook then
     row.drawerStand:SetText(row.drawerStand:GetText() or "")
     foot = foot - 14
   end
+  row.drawerDepth:ClearAllPoints()
+  row.drawerDepth:SetJustifyH("LEFT")
+  row.drawerDepth:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 18)
   row.drawerQuote:ClearAllPoints()
   row.drawerQuote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 18)
   row.drawerFacts:ClearAllPoints()
-  row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 18)
-  row.drawerFacts:SetPoint("RIGHT", row.drawerQuote, "LEFT", -8, 0)
+  row.drawerFacts:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot - 36)
+  row.drawerFacts:SetPoint("RIGHT", row, "RIGHT", right, 0)
   row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(true)
   row.drawerFacts:SetMaxLines(2)
@@ -2858,7 +2856,10 @@ local function layoutCells(row)
       -- stock line (same +-8 split, same reason). Every other kind keeps the cell centred.
       local second = row.kind == "position" and ROW.SECOND_LINE[column.key] and row[ROW.SECOND_LINE[column.key]] or nil
       local lift = second and ROW.LIFT or 0
-      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, lift - rightLift)
+      -- The figure beside the button stands clear of it: at the usual 2px the row's total ran
+      -- into the button's own edge.
+      local gap = right == row and 0 or right == row.cells.action and -ROW.BUTTON_GAP or -2
+      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", gap, lift - rightLift)
       if second then
         second:ClearAllPoints()
         second:SetPoint("RIGHT", cell, "RIGHT", 0, -2 * ROW.LIFT)
@@ -3080,13 +3081,13 @@ local function createRow(parent)
   row.drawerBookHead = Theme.Num(row, 10, true)
   row.drawerHint = Theme.Num(row, 9)
   row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerStand = Theme.Num(row, 10)
+  row.drawerStand = Theme.Num(row, 11)
   row.drawerStand:SetJustifyH("LEFT")
-  row.drawerFacts = Theme.Num(row, 9)
+  row.drawerFacts = Theme.Num(row, 10)
   row.drawerFacts:SetJustifyH("LEFT")
   -- The right-hand ends of the two lines under the book: how deep it is, how old the quote is.
-  row.drawerDepth = Theme.Num(row, 9)
-  row.drawerQuote = Theme.Num(row, 9)
+  row.drawerDepth = Theme.Num(row, 10)
+  row.drawerQuote = Theme.Num(row, 10)
   for _, line in ipairs({ row.drawerDepth, row.drawerQuote }) do
     line:SetWordWrap(false); setColor(line, Theme.color.fgDim); line:Hide()
   end
@@ -3579,9 +3580,6 @@ function INSP.paintHead(row, p, d)
         book.yourRow, book.levels or 0))
       setColor(row.drawerStand, Theme.color.goldHi)
     else
-      -- This sentence is the longer one and the one that matters here; the depth figure gives
-      -- it the line rather than cutting it at "above e...".
-      row.drawerDepth:Hide()
       row.drawerStand:SetText(GC.L["your price is above every level shown"])
       setColor(row.drawerStand, Theme.color.fgDim)
     end
