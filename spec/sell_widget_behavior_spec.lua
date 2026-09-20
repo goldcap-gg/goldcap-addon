@@ -1991,7 +1991,10 @@ describe("Sell widget geometry and manual cost", function()
     -- a minute away, by which point this item's quote had aged out again and the
     -- next click started another walk. That loop is why Post could not be pressed.
     assert.equal(0, refreshes)
-    assert.same({ 43 }, upvalue(GC.Sell.OnThrottleReady, "refresh").queue)
+    -- Asked as a click (refresh.priority), with no tab-wide queue behind it.
+    local walk = upvalue(GC.Sell.OnThrottleReady, "refresh")
+    assert.same({ 43 }, walk.priority)
+    assert.same({}, walk.queue)
     assert.equal(0, protectedCalls)
 
     now.value = 200

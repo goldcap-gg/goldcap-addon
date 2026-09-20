@@ -326,6 +326,7 @@ GC.Locales.ukUA = {
   ["Prices up to date"] = "Ціни актуальні",
   ["Prices up to date · %d did not answer"] = "Ціни актуальні · %d не відповіли",
   ["Pricing %d/%d…"] = "Оцінюємо %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Оцінювання на паузі, поки ви користуєтеся аукціоном",
   ["Pricing…"] = "Оцінюємо…",
   ["Profit"] = "Прибуток",
   ["Profit per unit"] = "Прибуток за штуку",

@@ -307,6 +307,7 @@ GC.Locales.deDE = {
   ["Prices up to date"] = "Preise aktuell",
   ["Prices up to date · %d did not answer"] = "Preise aktuell · %d ohne Antwort",
   ["Pricing %d/%d…"] = "Preisabfrage %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Preisabfrage pausiert, solange du das Auktionshaus nutzt",
   ["Pricing…"] = "Preisabfrage…",
   ["Profit"] = "Gewinn",
   ["Profit per unit"] = "Gewinn pro Stück",

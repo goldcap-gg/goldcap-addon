@@ -326,17 +326,28 @@ describe("Auction House tab", function()
     -- player's own click is the signal: a page that lands without one was opened by a search,
     -- however long that search took to answer -- a queued search answering 20s later used to
     -- read as the player mid-purchase and stop every background sender until Back was pressed.
+    --
+    -- The fake is Blizzard's own shape (Blizzard_AuctionHouseFrame.lua, Gethe/wow-ui-source live,
+    -- read verbatim): SelectBrowseResult opens the page by calling SetDisplayMode as its LAST
+    -- line, so the SetDisplayMode hook fires INSIDE it, before SelectBrowseResult's own post-hook
+    -- has seen the click. A no-op fake followed by a separate SetDisplayMode had the order the
+    -- other way round, and passed while the real client read every clicked page as ours: Auto,
+    -- the verify walk and the Sell tab's pricing all carried on under the player's buy page, and
+    -- the page sat on "Searching..." for good (seen in game).
     it("tells the player's browse click from a page a slow search opened", function()
-      ah.SelectBrowseResult = function() end
+      ah.SelectBrowseResult = function(self)
+        self:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesBuy)
+      end
       GC.AuctionHouseTab.Install()
       GC.AuctionHouseTab.NoteAddonSearch(clock)
       clock = clock + 20
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemBuy)
       assert.is_false(GC.AuctionHouseTab.PlayerIsBuying())
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
-      -- The click Blizzard's list makes on the player's behalf, then the page it opens.
+      -- The player clicks a browse row: Blizzard's list calls SelectBrowseResult, which opens
+      -- the page itself.
+      clock = clock + 30
       ah:SelectBrowseResult({})
-      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesBuy)
       assert.is_true(GC.AuctionHouseTab.PlayerIsBuying())
       assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
     end)

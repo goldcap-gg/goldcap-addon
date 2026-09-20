@@ -307,6 +307,7 @@ GC.Locales.frFR = {
   ["Prices up to date"] = "Prix à jour",
   ["Prices up to date · %d did not answer"] = "Prix à jour · %d sans réponse",
   ["Pricing %d/%d…"] = "Cotation %d/%d…",
+  ["Pricing paused while you use the Auction House"] = "Cotation en pause pendant que tu utilises l'hôtel des ventes",
   ["Pricing…"] = "Cotation…",
   ["Profit"] = "Profit",
   ["Profit per unit"] = "Profit par unité",

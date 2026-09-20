@@ -745,6 +745,134 @@ describe("Sell refresh state fence", function()
     assert.same({ 42 }, sent.keys)
   end)
 
+  -- Reported from the game: GoldCap's Sell tab kept re-pricing every few seconds while the
+  -- player posted through Auctionator, whose Selling tab then sat on "Fetching item info..."
+  -- until each pass let the auction house go. Every other background sender in the addon stands
+  -- down while the player is busy on the auction house (GC.AuctionHouseTab.PlayerIsBusy covers
+  -- another addon's tab too); the pricing walk was the one that did not.
+  it("stands down while the player is busy on the auction house, and carries on after", function()
+    local now, sent, cache, status = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    local timers = {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local busy = true
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
+    set(GC.Sell.Refresh, "setStatus", function(text) status[#status + 1] = text end)
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({}, sent.keys)
+    assert.equal("Pricing paused while you use the Auction House", status[#status])
+    assert.equal(0, refreshState(GC).index) -- the queue position is kept
+    assert.equal(100, refreshState(GC).progressAt) -- standing aside is not a wedge
+
+    GC.Sell.OnThrottleReady() -- a ready slot is not the player's permission
+    assert.same({}, sent.keys)
+
+    busy = false
+    local retry
+    for _, timer in ipairs(timers) do if timer.seconds == 2 then retry = timer.callback end end
+    assert.is_function(retry)
+    retry() -- comes back by itself once the player is done
+    assert.same({ 42 }, sent.keys)
+  end)
+
+  -- The player's own click on a row is not background traffic: standing it down would leave
+  -- Post dead for as long as another addon's tab stays open beside the GoldCap window.
+  it("still prices the item a click asked about while the player is busy elsewhere", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return true end }
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+
+    startFor({ itemID = 77 }) -- the tab is idle: a one-item check
+    assert.same({ 77 }, sent.keys)
+    GC.Sell.OnCommoditySearchResults(77)
+    assert.equal("done", refreshState(GC).phase)
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions() -- the tab-wide pass stands down...
+    startFor({ itemID = 78 }) -- ...but a click during it does not
+    assert.same({ 77, 78 }, sent.keys)
+  end)
+
+  -- The pause left the pass waiting on a key it had stopped asking about, with that key's
+  -- 10-second timeout still armed. Posting takes longer than that, so the timeout fired under the
+  -- pause -- even with the key already in -- and wrote the item off as not having answered: no
+  -- price after the pause, "1 did not answer", and a minute's rest before anybody asked again.
+  it("does not write off the key it was waiting on while the player is busy", function()
+    local now, sent, cache, timers = { value = 100 }, { owned = 0, keys = {} }, {}, {}
+    _G.C_Timer = { After = function(seconds, callback)
+      timers[#timers + 1] = { seconds = seconds, callback = callback }
+    end }
+    local keyed = false
+    local GC = load(now, sent, cache, function() return keyed and { isCommodity = true } or nil end)
+    local busy = false
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("waiting_key", refreshState(GC).phase)
+    busy = true
+    keyed = true
+    GC.Sell.OnItemKeyInfo(42) -- the key lands under the pause: nothing is sent
+    assert.same({}, sent.keys)
+    now.value = 111
+    for _, timer in ipairs(timers) do if timer.seconds == 10 then timer.callback() end end
+    assert.equal(0, refreshState(GC).skipped)
+
+    busy = false
+    GC.Sell.OnThrottleReady()
+    assert.same({ 42 }, sent.keys) -- asked for real once the player is done
+  end)
+
+  it("does not hold a click behind a paused queue item that is waiting on its key", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local keyed = { [77] = true }
+    local GC = load(now, sent, cache, function(itemID) return keyed[itemID] and { isCommodity = true } or nil end)
+    local busy = false
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return busy end }
+    local render = upvalue(GC.Sell.Attach, "renderRows")
+    local startFor = upvalue(upvalue(render, "onPostClick"), "startQuoteRefreshFor")
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.equal("waiting_key", refreshState(GC).phase) -- the pass is waiting on 42's key
+    busy = true
+    startFor({ itemID = 77 })
+    assert.same({ 77 }, sent.keys)
+
+    GC.Sell.OnCommoditySearchResults(77)
+    keyed[42] = true
+    GC.Sell.OnItemKeyInfo(42) -- still busy: the pass's own item waits its turn
+    assert.same({ 77 }, sent.keys)
+    busy = false
+    GC.Sell.OnThrottleReady()
+    assert.same({ 77, 42 }, sent.keys) -- and is picked up again from where the pass left it
+  end)
+
+  -- The Sell content's own shown flag says which tab of the window is up, not whether the
+  -- window is: hiding a parent leaves a child's flag alone. So with the window closed on the Sell
+  -- tab -- or docked and hidden because the player picked another auction-house tab -- the walk
+  -- went on pricing a screen nobody could see.
+  it("does not price while the GoldCap window itself is closed", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    local advance = upvalue(GC.Sell.OnThrottleReady, "advanceQuote")
+    local parked = upvalue(advance, "walkParked")
+    set(GC.Sell.Attach, "renderRows", function() end)
+    set(parked, "container", { IsShown = function() return true end })
+    local windowShown = false
+    GC.Sniper.IsWindowShown = function() return windowShown end
+
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({}, sent.keys)
+    assert.equal("idle", refreshState(GC).phase)
+
+    windowShown = true
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    assert.same({ 42 }, sent.keys)
+  end)
+
   -- OWNED_AUCTIONS_UPDATED and AUCTION_CANCELED fire on their own schedule -- a lot expiring, a
   -- cancel from the Blizzard panel -- and every one of them used to stamp the walk's progress,
   -- which kept the watchdog quiet over a pricing request that was never coming back.
