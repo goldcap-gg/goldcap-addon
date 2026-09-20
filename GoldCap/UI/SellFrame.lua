@@ -2574,6 +2574,11 @@ local SECOND_LINE = { price = "priceStand", gross = "grossNote", listed = "gross
 
 local function layoutCells(row)
   local right = row
+  -- How far `right` itself sits above the row's centre. Every cell anchors to its neighbour,
+  -- so a lifted neighbour lifts whatever hangs off it: offsets are written relative to this,
+  -- or the second lifted cell in a chain lands a full row-half too high (seen in game -- the
+  -- price rode up into the row above it).
+  local rightLift = 0
   local cols, dropped = shownColumns()
   for i = #cols, 1, -1 do
     local column, cell = cols[i], row.cells[cols[i].key]
@@ -2591,11 +2596,11 @@ local function layoutCells(row)
       -- the two boxes touch at ±7 and clear each other at ±8 inside the 32px row.
       local nameY = row.itemStock and 8 or 0
       cell:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, nameY)
-      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY)
+      cell:SetPoint("RIGHT", right, "LEFT", -4, nameY - rightLift)
       if row.itemStock then
         row.itemStock:ClearAllPoints()
         row.itemStock:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, -8)
-        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -8)
+        row.itemStock:SetPoint("RIGHT", right, "LEFT", -4, -8 - rightLift)
       end
       -- The column header row (below) shares this function but carries neither widget -- it is
       -- a single fixed heading, never a position/sub-row/group in the pooled row sense.
@@ -2606,7 +2611,7 @@ local function layoutCells(row)
         -- the LEFT/RIGHT pair below for the rest of its life.
         row.subItem:SetWidth(0)
         row.subItem:SetPoint("LEFT", row, "LEFT", row.itemInset or 2, 0)
-        row.subItem:SetPoint("RIGHT", right, "LEFT", -4, 0)
+        row.subItem:SetPoint("RIGHT", right, "LEFT", -4, -rightLift)
       end
       if row.sectionLabel then
         row.sectionLabel:ClearAllPoints()
@@ -2621,12 +2626,13 @@ local function layoutCells(row)
       -- A position's figures share the row with a second line, exactly as its name does with the
       -- stock line (same +-8 split, same reason). Every other kind keeps the cell centred.
       local second = row.kind == "position" and SECOND_LINE[column.key] and row[SECOND_LINE[column.key]] or nil
-      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, second and 8 or 0)
+      local lift = second and 8 or 0
+      cell:SetPoint("RIGHT", right, right == row and "RIGHT" or "LEFT", right == row and 0 or -2, lift - rightLift)
       if second then
         second:ClearAllPoints()
         second:SetPoint("RIGHT", cell, "RIGHT", 0, -16)
       end
-      right = cell
+      right, rightLift = cell, lift
       cell:Show()
     end
   end
@@ -3534,7 +3540,8 @@ renderRows = function()
         local lit = onListedDeck and Theme.color.watch or Theme.color.gold
         for slot, mark in ipairs(row.standMarks) do
           if not standing then
-            mark:SetColorTexture(1, 1, 1, 0.07)
+            -- No book, no marks: five grey ticks beside nothing read as a broken widget.
+            mark:SetColorTexture(1, 1, 1, 0)
           elseif slot == standing.slot then
             mark:SetColorTexture(lit[1], lit[2], lit[3], 1)
           else

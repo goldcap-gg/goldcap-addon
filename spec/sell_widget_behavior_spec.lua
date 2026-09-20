@@ -1176,7 +1176,12 @@ describe("Sell widget geometry and manual cost", function()
       end
       assert.equal(row.cells.price, row.cells.item.points[2].relative)
       -- A position's two figures sit in the upper half, their second lines in the lower one.
-      assert.equal(8, row.cells.price.points[1].y)
+      -- Offsets are relative to the neighbour a cell hangs off, so a lifted neighbour must not
+      -- lift it a second time: YOU GET rises 8 off the button, the price 0 off YOU GET.
+      assert.equal(8, row.cells.gross.points[1].y)
+      assert.equal(0, row.cells.price.points[1].y)
+      assert.equal(0, row.cells.item.points[2].y)
+      assert.equal(-16, row.itemStock.points[2].y)
       assert.equal(row.cells.price, row.priceStand.points[1].relative)
       assert.equal(row.cells.gross, row.grossNote.points[1].relative)
       assert.equal(header, header.cells.action.points[1].relative)
@@ -2219,7 +2224,7 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ levels = false }) })
       assert.equal("", rows[1].priceStand.text)
-      assert.same({ 1, 1, 1, 0.07 }, rows[1].standMarks[1].colorTexture)
+      assert.same({ 1, 1, 1, 0 }, rows[1].standMarks[1].colorTexture)
     end)
 
     it("counts a live lot's standing in the watch blue, as stock under it", function()
