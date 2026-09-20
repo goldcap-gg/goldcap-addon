@@ -25,6 +25,8 @@ GC.Locales.itIT = {
   ["%d hidden -- the live check refused them"] = "%d nascoste -- la verifica dal vivo le ha rifiutate",
   ["%d missing"] = "ne mancano %d",
   ["%d partial"] = "%d parziali",
+  ["%d prices in one request · books still loading"] =
+    "%d prezzi in una sola richiesta · book ancora in caricamento",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d rifiutate dal controllo dal vivo -- premi \"HIDDEN %d\" sopra per vederle",
   ["%d sales · %s proceeds · %s in the mail"] = "%d vendite · %s di ricavo · %s nella posta",
@@ -35,6 +37,9 @@ GC.Locales.itIT = {
   ["%d · %d/%d covered"] = "%d · %d/%d coperti",
   ["%d/%d covered"] = "%d/%d coperti",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unità    totale %s -> %s",
+  ["%s after the AH cut"] = "%s dopo la commissione della CA",
+  ["%s ahead"] = "%s davanti",
+  ["%s under you"] = "%s sotto di te",
   ["%s — %d unit%s without a cost"] = "%s — %d unità%s senza costo",
   [", %d hidden as unsellable"] = ", %d nascosti perché invendibili",
   ["24h trend"] = "Andamento 24h",
@@ -62,6 +67,7 @@ GC.Locales.itIT = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
     "Auto: tiene Full Scan sempre attivo e cede subito il passo quando compri, cerca tu stesso nella casa d'aste, o controlla la posta. Clicca per alternare.",
   ["Avoid"] = "Evita",
+  ["BOOKS %d/%d"] = "BOOK %d/%d",
   ["BRAKES"] = "FRENI",
   ["BUY — unverified"] = "COMPRA — non verificato",
   ["Background check"] = "Controllo in background",
@@ -223,6 +229,7 @@ GC.Locales.itIT = {
   ["Missing cost"] = "Costo mancante",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "NON ANCORA SU GOLDCAP.GG — SI SINCRONIZZA CON /RELOAD O ALL'USCITA",
+  ["NOT ON HAND %d"] = "NON A PORTATA %d",
   ["NOTHING TO CANCEL"] = "NIENTE DA ANNULLARE",
   ["NOTHING TO POST"] = "NIENTE DA METTERE IN VENDITA",
   ["Needs a live price check before it can be bought."] =
@@ -258,6 +265,7 @@ GC.Locales.itIT = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Nessuna inserzione raggiunge il livello oggetto su cui è stato misurato il prezzo di riferimento.",
   ["Nothing listed on the AH right now"] = "Al momento non c'è nulla in vendita all'asta",
+  ["Nothing on this deck matches that search"] = "Niente in questa scheda corrisponde a questa ricerca",
   ["Nothing queued to cancel"] = "Nulla in coda da annullare",
   ["Nothing queued to post"] = "Nulla in coda da mettere in vendita",
   ["Nothing to remove"] = "Nulla da eliminare",
@@ -355,6 +363,7 @@ GC.Locales.itIT = {
   ["SHOW DETAILS ▸"] = "MOSTRA DETTAGLI ▸",
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
+  ["Search"] = "Cerca",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La scheda Vendi pubblica un gradino sopra l'offerta più economica quando il libro ordini indica che si vende altrettanto in fretta.",
   ["Sell-through"] = "Tasso di vendita",
@@ -506,10 +515,13 @@ GC.Locales.itIT = {
   ["cost basis incomplete -- set costs to get repost advice"] =
     "base di costo incompleta -- imposta i costi per avere un consiglio sulla rimessa in vendita",
   ["cost unknown"] = "costo sconosciuto",
+  ["crafted %s"] = "creato %s",
   ["data from goldcap.gg · synced %s ago"] = "dati da goldcap.gg · sincronizzati %s fa",
   ["due -- will be asked next pass"] = "in scadenza -- verrà richiesto al prossimo passaggio",
   ["fair"] = "media",
+  ["far below market"] = "molto sotto mercato",
   ["finish the pending buy first"] = "completa prima l'acquisto in corso",
+  ["first in line"] = "primo della fila",
   ["full scan already in progress"] = "scansione completa già in corso",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "scansione completa terminata: %d occasion%s da %d grupp%s di oggetti%s",
@@ -521,6 +533,7 @@ GC.Locales.itIT = {
     "la scansione completa si è bloccata -- nuovo tentativo a breve",
   ["gone / price changed"] = "sparito / prezzo cambiato",
   ["high"] = "alta",
+  ["hold"] = "tenere",
   ["identity unresolved (variant item -- not priced by design)"] =
     "identità non risolta (oggetto con varianti -- senza prezzo per scelta)",
   ["if you buy all %d and sell them back at the price standing there now"] =
@@ -531,6 +544,7 @@ GC.Locales.itIT = {
   ["imported %d items for %s (%s) — prices are live now."] =
     "importati %d oggetti per %s (%s) — i prezzi sono attivi.",
   ["in the mail"] = "nella posta",
+  ["in the mail, the bank or on another character"] = "nella posta, in banca o su un altro personaggio",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "è quanto assorbe questo mercato — oltre compri merce che ti resterà in mano",
   ["item %d"] = "oggetto %d",
@@ -552,7 +566,10 @@ GC.Locales.itIT = {
   ["needs a fresh price -- press Refresh"] = "serve un prezzo aggiornato -- premi Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "nessuna conferma dal server -- l'acquisto potrebbe essere andato a buon fine lo stesso, controlla la posta. Chiudere questa finestra non lo annulla.",
+  ["no cost"] = "nessun costo",
+  ["no cost for %d"] = "nessun costo per %d",
   ["no live price yet"] = "ancora nessun prezzo dal vivo",
+  ["no price"] = "nessun prezzo",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "ancora nessun prezzo -- /goldcap companion o /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -571,6 +588,7 @@ GC.Locales.itIT = {
   ["nothing listed"] = "niente in vendita",
   ["of %d"] = "di %d",
   ["off"] = "disattivo",
+  ["oldest units sell first"] = "le unità più vecchie si vendono per prime",
   ["on"] = "attivo",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "oppure incolla una stringa da goldcap.gg con /goldcap import.",
@@ -622,6 +640,7 @@ GC.Locales.itIT = {
     "sessione: %d colpi, %s spesi, ~%s di profitto stim.",
   ["sniped (listing changed on rescan)"] = "soffiato (la vendita è cambiata alla riscansione)",
   ["sniped for "] = "preso per ",
+  ["stack not identified"] = "pila non identificata",
   ["starting full scan..."] = "avvio della scansione completa...",
   ["stopped watching %s"] = "ho smesso di sorvegliare %s",
   ["the Companion wrote prices this addon could not read --"] =

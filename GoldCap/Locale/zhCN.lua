@@ -29,6 +29,7 @@ GC.Locales.zhCN = {
   ["%d hidden -- the live check refused them"] = "已隐藏 %d 项 -- 实时核对已拒绝",
   ["%d missing"] = "缺少 %d 笔",
   ["%d partial"] = "%d 笔部分",
+  ["%d prices in one request · books still loading"] = "一次请求获取 %d 个价格 · 挂单簿仍在加载",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "实时检查拒绝了 %d 笔 -- 按上方的“HIDDEN %d”查看",
   ["%d sales · %s proceeds · %s in the mail"] = "%d 笔销售 · 收入 %s · 邮件 %s",
@@ -39,6 +40,9 @@ GC.Locales.zhCN = {
   ["%d · %d/%d covered"] = "%d · %d/%d 已覆盖",
   ["%d/%d covered"] = "%d/%d 已覆盖",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s 每件    合计 %s -> %s",
+  ["%s after the AH cut"] = "扣除拍卖行手续费后 %s",
+  ["%s ahead"] = "前面有 %s",
+  ["%s under you"] = "%s 低于你的价格",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",
   [", %d hidden as unsellable"] = "，%d 件因无法出售已隐藏",
   ["24h trend"] = "24小时走势",
@@ -65,6 +69,7 @@ GC.Locales.zhCN = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
     "自动：持续运行 Full Scan，你购买时立即让出，自己在拍卖行搜索，或查看邮件。点击可切换。",
   ["Avoid"] = "避开",
+  ["BOOKS %d/%d"] = "挂单簿 %d/%d",
   ["BRAKES"] = "刹车",
   ["BUY — unverified"] = "买入 — 未验证",
   ["Background check"] = "后台检查",
@@ -214,6 +219,7 @@ GC.Locales.zhCN = {
   ["Missing cost"] = "缺少成本",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "尚未同步到 GOLDCAP.GG — /RELOAD 或登出时同步",
+  ["NOT ON HAND %d"] = "不在手边 %d",
   ["NOTHING TO CANCEL"] = "没有可取消的",
   ["NOTHING TO POST"] = "没有可上架的",
   ["Needs a live price check before it can be bought."] = "需要先做一次实时价格检查才能购买。",
@@ -241,6 +247,7 @@ GC.Locales.zhCN = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "没有挂单达到参考价格所对应的物品等级。",
   ["Nothing listed on the AH right now"] = "目前拍卖行上没有挂单",
+  ["Nothing on this deck matches that search"] = "此页没有符合该搜索的内容",
   ["Nothing queued to cancel"] = "取消队列为空",
   ["Nothing queued to post"] = "上架队列为空",
   ["Nothing to remove"] = "没有可删除的",
@@ -329,6 +336,7 @@ GC.Locales.zhCN = {
   ["SESSION %s%s · %d BUYS"] = "本次 %s%s · %d 笔购买",
   ["SHOW DETAILS ▸"] = "显示详情 ▸",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
+  ["Search"] = "搜索",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "当挂单簿显示卖得一样快时，出售标签会挂在最低价上方一级。",
   ["Sell-through"] = "售罄率",
@@ -460,10 +468,13 @@ GC.Locales.zhCN = {
   ["cost basis incomplete -- set costs to get repost advice"] =
     "成本数据不完整 -- 设置成本后才能获得重新上架建议",
   ["cost unknown"] = "成本未知",
+  ["crafted %s"] = "制造 %s",
   ["data from goldcap.gg · synced %s ago"] = "数据来自 goldcap.gg · %s 前同步",
   ["due -- will be asked next pass"] = "到期 -- 下一轮会查询",
   ["fair"] = "一般",
+  ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",
+  ["first in line"] = "排在第一位",
   ["full scan already in progress"] = "完整扫描已在进行中",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "完整扫描结束：%d 笔交易%s，来自 %d 个物品组%s%s",
@@ -472,6 +483,7 @@ GC.Locales.zhCN = {
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
   ["gone / price changed"] = "已消失 / 价格已变",
   ["high"] = "高",
+  ["hold"] = "持有",
   ["identity unresolved (variant item -- not priced by design)"] =
     "无法识别（变体物品 -- 按设计不计价）",
   ["if you buy all %d and sell them back at the price standing there now"] =
@@ -482,6 +494,7 @@ GC.Locales.zhCN = {
   ["imported %d items for %s (%s) — prices are live now."] =
     "已导入 %d 个物品 · %s（%s）— 价格现已生效。",
   ["in the mail"] = "在邮件中",
+  ["in the mail, the bank or on another character"] = "在邮件、银行或其他角色身上",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "是这个市场能消化的量 — 再多就是压在手里的库存",
   ["item %d"] = "物品 %d",
@@ -501,7 +514,10 @@ GC.Locales.zhCN = {
   ["needs a fresh price -- press Refresh"] = "需要最新价格 -- 请按 Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "服务器没有返回确认 -- 购买仍可能已完成，请检查邮件。关闭此窗口不会撤销它。",
+  ["no cost"] = "无成本",
+  ["no cost for %d"] = "%d 件无成本",
   ["no live price yet"] = "还没有实时价格",
+  ["no price"] = "无价格",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "还没有价格 -- /goldcap companion 或 /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] = "未收到购买确认 -- 点 Cancel 后重试",
@@ -518,6 +534,7 @@ GC.Locales.zhCN = {
   ["nothing listed"] = "没有挂单",
   ["of %d"] = "/ %d",
   ["off"] = "关",
+  ["oldest units sell first"] = "最早的货先卖出",
   ["on"] = "开",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "或用 /goldcap import 粘贴 goldcap.gg 的字符串。",
@@ -564,6 +581,7 @@ GC.Locales.zhCN = {
     "本次：%d 次狙击，支出 %s，预计利润约 %s",
   ["sniped (listing changed on rescan)"] = "被抢先（重新扫描时挂单已变）",
   ["sniped for "] = "抢到，花费 ",
+  ["stack not identified"] = "未识别的堆叠",
   ["starting full scan..."] = "开始完整扫描...",
   ["stopped watching %s"] = "已停止关注 %s",
   ["the Companion wrote prices this addon could not read --"] =
