@@ -555,6 +555,7 @@ GC.Locales.ruRU = {
     "безопасность подтверждена вживую -- нажмите Buy, чтобы купить",
   ["live verification required"] = "требуется живая проверка",
   ["low"] = "низкая",
+  ["made %s"] = "сделано %s",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",

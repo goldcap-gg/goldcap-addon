@@ -109,6 +109,7 @@ GC.Locales.enUS = {
   ["first in line"] = "first in line",
   ["hold"] = "hold",
   ["in the mail, the bank or on another character"] = "in the mail, the bank or on another character",
+  ["made %s"] = "made %s",
   ["no cost"] = "no cost",
   ["no cost for %d"] = "no cost for %d",
   ["no price"] = "no price",

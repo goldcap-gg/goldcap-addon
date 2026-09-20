@@ -570,6 +570,7 @@ GC.Locales.ukUA = {
     "безпеку підтверджено наживо -- натисніть Buy, щоб купити",
   ["live verification required"] = "потрібна жива перевірка",
   ["low"] = "низька",
+  ["made %s"] = "зроблено %s",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",

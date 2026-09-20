@@ -2653,28 +2653,44 @@ layoutDetailRow = function(row)
     row.cells.action:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
     edge, edgePoint, inset = row.cells.action, "LEFT", -4
   end
-  -- A purchase is two lines by construction (see the batch branch in renderRows), so neither
-  -- wraps; every other line is one sentence allowed a second line when the panel is narrower
-  -- than it, with air between the two.
-  local twoLine = row.kind == "batch" and (row.itemStock:GetText() or "") ~= ""
-  row.subItem:ClearAllPoints()
-  row.subItem:SetWidth(0)
-  row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, twoLine and 7 or 0)
-  row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, twoLine and 7 or 0)
-  row.subItem:SetWordWrap(not twoLine)
-  row.subItem:SetMaxLines(twoLine and 1 or 2)
-  if row.subItem.SetSpacing then row.subItem:SetSpacing(twoLine and 0 or 3) end
-  row.subItem:SetText(row.subItem:GetText() or "") -- re-measured now that it wraps; see layoutDrawer
-  if twoLine then
+  if row.kind == "batch" then
+    -- Quantity, unit cost, source-and-date, evidence -- or, for a hand-entered cost, the button
+    -- that takes it back, where the evidence word would only say "manual" a second time.
+    row.subItem:ClearAllPoints()
+    row.subItem:SetWidth(44)
+    row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+    row.subItem:SetWordWrap(false)
+    row.subItem:SetMaxLines(1)
+    row.cells.cost:ClearAllPoints()
+    row.cells.cost:SetWidth(76)
+    row.cells.cost:SetPoint("LEFT", row.subItem, "RIGHT", 2, 0)
+    row.cells.cost:Show()
+    row.sectionHint:ClearAllPoints()
+    row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
+    if row.action:IsShown() then row.sectionHint:Hide() end
     row.itemStock:ClearAllPoints()
-    row.itemStock:SetPoint("LEFT", row, "LEFT", INSP.PAD, -8)
-    row.itemStock:SetPoint("RIGHT", edge, edgePoint, inset, -8)
+    row.itemStock:SetPoint("LEFT", row.cells.cost, "RIGHT", 10, 0)
+    if row.action:IsShown() then row.itemStock:SetPoint("RIGHT", row.cells.action, "LEFT", -6, 0)
+    else row.itemStock:SetPoint("RIGHT", row.sectionHint, "LEFT", -8, 0) end
     row.itemStock:Show()
+  else
+    -- Every other line is one sentence, allowed a second line when the panel is narrower than
+    -- it, with air between the two.
+    row.subItem:ClearAllPoints()
+    row.subItem:SetWidth(0)
+    row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
+    row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, 0)
+    row.subItem:SetWordWrap(true)
+    row.subItem:SetMaxLines(2)
+    if row.subItem.SetSpacing then row.subItem:SetSpacing(3) end
+    row.subItem:SetText(row.subItem:GetText() or "") -- re-measured now that it wraps; see layoutDrawer
   end
   row.sectionLabel:ClearAllPoints()
   row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, -4)
-  row.sectionHint:ClearAllPoints()
-  row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, -4)
+  if row.kind ~= "batch" then -- a purchase has just placed it as its evidence column
+    row.sectionHint:ClearAllPoints()
+    row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, -4)
+  end
   -- A section starts under a rule across the whole panel, the way the book's does, rather than
   -- with a gold line trailing off its own heading.
   row.sectionRule:ClearAllPoints()
@@ -4110,32 +4126,21 @@ renderRows = function()
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
           and ("%d still unsold"):format(entry.batch.remainingQty) or "all sold")
         setColor(row.cells.status, Theme.color.fgDim)
-        -- Two lines in the panel, split where the sentence turns from WHAT to WHERE FROM: how
-        -- many, when and at what price above; the source, the evidence and what is left below,
-        -- dimmed. As one wrapped sentence it broke wherever the width ran out ("entered / by
-        -- hand") and the unit cost sat in a column only some rows had (seen in game). The
-        -- sentence is still the translated one -- cut at its own separators, the last one for a
-        -- craft (evidence) and the last two for a purchase (source, evidence).
-        local parts = {}
-        for part in ((row.subItem:GetText() or "") .. " · "):gmatch("(.-) · ") do parts[#parts + 1] = part end
-        local tail = math.min(#parts - 1, entry.batch.source == "craft" and 1 or 2)
-        local head, rest = {}, {}
-        for index, part in ipairs(parts) do
-          if index <= #parts - tail then head[#head + 1] = part else rest[#rest + 1] = part end
+        -- Four columns in the panel, the way a ledger reads: how many, what each cost, where
+        -- from and when, and how far that cost can be trusted. The sentence above is still
+        -- what gets translated -- and, whole, what the row's hover says, with how many of the
+        -- run are purchases and how many are still unsold; the columns are its facts set out
+        -- so that two purchases can be compared down the panel instead of read one by one.
+        row.groupHint = (row.subItem:GetText() or "") .. " · " .. (row.cells.status:GetText() or "")
+        row.subItem:SetText(("×%d"):format(entry.batch.originalQty or entry.batch.quantity or 0))
+        setColor(row.cells.cost, Theme.color.goldHi or Theme.color.gold)
+        if entry.batch.source == "craft" then
+          row.itemStock:SetText((GC.L["made %s"]):format(when))
+        else
+          row.itemStock:SetText(sourceLabel .. ", " .. when)
         end
-        if type(entry.batch.unitCost) == "number" then
-          head[#head + 1] = MONEY_HEX .. formatCell(entry.batch.unitCost) .. "|r"
-        end
-        rest[#rest + 1] = row.cells.status:GetText()
-        row.subItem:SetText(table.concat(head, " · "))
-        -- The second line is drawn only when it changes how far the cost above it can be
-        -- trusted: a cost matched to the mail's own invoice is the ordinary case and needs no
-        -- saying on every purchase, whereas "captured", "unknown evidence" or a figure typed
-        -- by hand is exactly what a seller should see before leaning on it. The whole line is
-        -- on the row's hover either way.
-        local settled = entry.batch.evidence == "mail-confirmed" and entry.batch.source ~= "manual"
-        row.itemStock:SetText(settled and "" or table.concat(rest, " · "))
-        row.groupHint = table.concat(rest, " · ")
+        row.sectionHint:SetText(entry.batch.evidence or GC.L["unknown evidence"])
+        row.sectionHint:Show()
         -- Only a hand-entered cost gets a removal affordance -- goldcap and auction_house
         -- batches are evidence-backed, and Core/Acquisitions' own RemoveManual already refuses
         -- them, but the button should never even offer the click. entry.batch.source is the one
@@ -4274,7 +4279,7 @@ renderRows = function()
         row.action:SetSize(86, 18)
         if row.action.SetVariant then row.action:SetVariant("ghost") end
       end
-      if entry.kind ~= "group" then row.sectionHint:Hide() end
+      if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end
       -- Same rule, and the drawer has the most to put away: five book lines and four headings.
       -- A pooled row that painted a panel last render would otherwise keep every one of them
       -- on top of whatever line it becomes next.
