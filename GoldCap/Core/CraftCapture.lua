@@ -254,3 +254,131 @@ function GC.CraftCapture.OutputKey(itemID, known, existing)
   end
   return nil
 end
+
+-- ---------------------------------------------------------------------------
+-- The session: one press of Create or Create All.
+--
+-- Cost is per batch, not per craft, so the session is the right unit -- a run of twenty crafts
+-- is one batch whose unit cost already has multicraft averaged into it.
+--
+-- The window opens when a recipe cast is SENT, which matters: the mats leave the bags during
+-- the craft, so a snapshot taken at cast success, or at the first result, would miss the first
+-- craft's materials entirely and understate the cost. It extends on every further cast and
+-- result, and closes after QUIET_SECONDS of neither. A /reload in the middle loses the pending
+-- session, and nothing is recorded -- the correct answer.
+--
+-- A run split in two by a long pause is not a problem: each half snapshots its own counts and
+-- settles its own mats against its own output.
+-- ---------------------------------------------------------------------------
+
+local QUIET_SECONDS = 3
+local RECENT_CAP = 10
+
+local driver
+local current
+local sessionSeq = 0
+local recent = {}
+
+--- driver = {
+--   recipeFor(spellID) -> { recipeID, outputItemID, isRecraft, candidates } | nil,
+--   countsFor(candidates) -> { [itemID] = count },
+--   batchesFor(itemID) -> array of this character's active batches for that item,
+--   commodityKinds() -> { [itemID] = boolean },  -- GC.db.commodityByItem
+--   context() -> { char, region },
+-- }
+function GC.CraftCapture.SetDriver(value)
+  driver = type(value) == "table" and value or nil
+  current = nil
+end
+
+function GC.CraftCapture.HasOpenSession()
+  return current ~= nil
+end
+
+-- Newest first. Diagnostics only (`/gc craft`) -- a settled craft is otherwise silent, and a
+-- refused one has to be able to say why without the player reading a log.
+function GC.CraftCapture.RecentOutcomes()
+  local out = {}
+  for index = #recent, 1, -1 do out[#out + 1] = recent[index] end
+  return out
+end
+
+local function remember(outcome)
+  recent[#recent + 1] = outcome
+  while #recent > RECENT_CAP do table.remove(recent, 1) end
+end
+
+local function close(now)
+  local session = current
+  current = nil
+  if not session or not driver then return end
+
+  local outcome = { recipeID = session.recipe.recipeID, at = now }
+  session.after = driver.countsFor(session.recipe.candidates)
+
+  local plan, reason = GC.CraftCapture.Plan(session)
+  if not plan then
+    outcome.reason = reason
+    return remember(outcome)
+  end
+
+  local costing
+  costing, reason = GC.CraftCapture.Cost(plan.consumed, driver.batchesFor)
+  if not costing then
+    outcome.reason = reason
+    return remember(outcome)
+  end
+
+  local known = driver.commodityKinds()
+  local recorded
+  recorded, reason = GC.CraftCapture.Settle(plan, costing, driver.context(), now, session.key,
+    function(itemID) return GC.CraftCapture.OutputKey(itemID, known, driver.batchesFor(itemID)) end)
+  if not recorded then
+    outcome.reason = reason
+    return remember(outcome)
+  end
+
+  outcome.total, outcome.unitCost = recorded.total, recorded.unitCost
+  outcome.outputs = plan.outputs
+  remember(outcome)
+end
+
+--- A spell the player just sent. Opens a session for a recipe, and closes an open one for
+--- anything else -- a cast that is not this run's recipe means the run is over.
+function GC.CraftCapture.OnCastSent(spellID, now)
+  if not driver or not isExactInteger(now) then return end
+  local recipe = driver.recipeFor(spellID)
+  if type(recipe) ~= "table" or type(recipe.candidates) ~= "table" then
+    return close(now)
+  end
+  if current and current.recipe.recipeID == recipe.recipeID then
+    current.lastAt = now
+    return
+  end
+  close(now)
+  sessionSeq = sessionSeq + 1
+  current = {
+    recipe = recipe,
+    before = driver.countsFor(recipe.candidates),
+    results = {},
+    lastAt = now,
+    key = table.concat({ "craft", recipe.recipeID, now, sessionSeq }, ":"),
+  }
+end
+
+--- One TRADE_SKILL_ITEM_CRAFTED_RESULT. Ignored outside a session: with no before-count there
+--- is nothing to cost it against.
+function GC.CraftCapture.OnCraftResult(result, now)
+  if not current or type(result) ~= "table" or not isExactInteger(now) then return end
+  current.results[#current.results + 1] = {
+    itemID = result.itemID, quantity = result.quantity, isEnchant = result.isEnchant,
+  }
+  current.lastAt = now
+end
+
+--- Called from the addon's bag-update handler and from a one-second ticker while a session is
+--- open. Settles the run once it has gone quiet.
+function GC.CraftCapture.Tick(now)
+  if not current or not isExactInteger(now) then return end
+  if now - current.lastAt >= QUIET_SECONDS then close(now) end
+end
