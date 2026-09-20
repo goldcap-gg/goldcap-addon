@@ -1013,8 +1013,15 @@ local function uniqueQuoteItemIDs()
   -- never got asked about. Never-priced first, then oldest quote first, and only
   -- then by value -- which still decides between two equally stale rows, because
   -- a stale price on a 200-unit stack of ore costs more than one on a lone flask.
-  local need, weight = {}, {}
+  -- The deck on screen first, in the order it is drawn. The queue covers BOTH decks -- stock
+  -- in the bags and every live lot -- so a walk of twenty-seven over a deck showing ten spent
+  -- its first seconds on rows of the other deck while the ones being looked at waited.
+  local need, weight, onScreen, place = {}, {}, {}, {}
+  local listedDeck = filterMode == "listed" or filterMode == "cancelqueue"
   for index, position in ipairs(actionable) do
+    if listedDeck then onScreen[position] = (position.listedQty or 0) > 0
+    else onScreen[position] = (position.bagQty or 0) > 0 end
+    place[position] = rowPlaces[position.positionKey] or math.huge
     local age = position.quoteAge
     need[position] = (position.displayMarketUnit == nil or type(age) ~= "number")
       and math.huge or age
@@ -1025,6 +1032,10 @@ local function uniqueQuoteItemIDs()
     position.__walkOrder = index
   end
   table.sort(actionable, function(left, right)
+    if onScreen[left] ~= onScreen[right] then return onScreen[left] end
+    -- Within the deck on screen, top to bottom as drawn; need and value order the rest, and
+    -- break ties between rows that have no place yet.
+    if onScreen[left] and place[left] ~= place[right] then return place[left] < place[right] end
     if need[left] ~= need[right] then return need[left] > need[right] end
     if weight[left] ~= weight[right] then return weight[left] > weight[right] end
     return left.__walkOrder < right.__walkOrder

@@ -495,6 +495,24 @@ describe("Sell refresh state fence", function()
     assert.same({ 43 }, refreshState(GC).queue)
   end)
 
+  -- The queue covers both decks. Asked in order of need alone, a walk of twenty-seven spent its
+  -- first seconds on live lots while the ten rows of bag stock on screen waited for theirs.
+  it("asks about the deck on screen before the other one, in the order it is drawn", function()
+    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+    GC.SellPositions.Build = function()
+      return {
+        { itemID = 50, positionKey = "commodity:50", listedQty = 9 },                 -- never priced, other deck
+        { itemID = 42, positionKey = "commodity:42", bagQty = 5, displayMarketUnit = 100, quoteAge = 40 },
+        { itemID = 43, positionKey = "commodity:43", bagQty = 5 },
+      }
+    end
+    local places = upvalue(GC.Sell.Refresh, "rowPlaces")
+    places["commodity:42"], places["commodity:43"] = 1, 2
+    GC.Sell.Refresh(true)
+    assert.same({ 42, 43, 50 }, refreshState(GC).queue)
+  end)
+
   it("finishes an all-fresh pass immediately instead of re-pricing the whole tab", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)
