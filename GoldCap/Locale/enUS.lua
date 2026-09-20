@@ -729,7 +729,6 @@ GC.Locales.enUS = {
   ["worst case, selling all %d back into the price standing there now"] =
     "worst case, selling all %d back into the price standing there now",
   ["would sell at a loss"] = "would sell at a loss",
-  ["you"] = "you",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

@@ -2574,8 +2574,8 @@ local DR = {
   POST_H = 24,
   BOOK_Y = -192,           -- where the book section starts when there is a price control
   BOOK_Y_BARE = -84,       -- ...and when there is not
-  BAR_MAX = 126,
-  PRICE_W = 112, UNITS_W = 40, TAG_W = 40, -- PRICE_W holds the tag's word and "49999g94s" both
+  BAR_MAX = 160,
+  PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
@@ -3566,13 +3566,16 @@ function INSP.paintHead(row, p, d)
         line.price:Show(); line.qty:Show(); line.bar:Show()
         -- The same two facts in a word and a wash: where the price lands, what is already
         -- the seller's. Where they coincide the landing wins -- it is the one being decided.
+        -- A wash and the colour, no word: a word needs a column, and wherever that column was
+        -- put -- right of the counts, left of the prices -- it held the bars and the figures off
+        -- one edge of the panel for the sake of one level in eight (seen in game, twice). The
+        -- line under the book is the key: it is written in the same gold, and names the blue.
+        line.tag:Hide()
         if tint then
-          line.tag:SetText(book.yourRow == lineIndex and GC.L["you"] or GC.L["yours"])
-          setColor(line.tag, tint)
           line.wash:SetColorTexture(tint[1], tint[2], tint[3], 0.10)
-          line.tag:Show(); line.wash:Show()
+          line.wash:Show()
         else
-          line.tag:Hide(); line.wash:Hide()
+          line.wash:Hide()
         end
       else
         line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
@@ -3582,9 +3585,13 @@ function INSP.paintHead(row, p, d)
     -- heading has room for the price to beat and nothing else.
     row.drawerDepth:SetText((GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0))
     row.drawerDepth:Show()
+    -- What is already the seller's, in the blue its levels are drawn in -- the colour's key.
+    local ownUnits = 0
+    for i = 1, #(book.rows or {}) do ownUnits = ownUnits + (book.rows[i].ownerUnits or 0) end
+    local own = ownUnits > 0 and ("  " .. inlineColor(Theme.color.watch, GC.L["yours"] .. " ×" .. ownUnits)) or ""
     if book.yourRow then
       row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
-        book.yourRow, book.levels or 0))
+        book.yourRow, book.levels or 0) .. own)
       setColor(row.drawerStand, Theme.color.goldHi)
     else
       row.drawerStand:SetText(GC.L["your price is above every level shown"])

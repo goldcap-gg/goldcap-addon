@@ -980,11 +980,13 @@ describe("Sell widget geometry and manual cost", function()
       local FG = GC.Theme.color.fg
       assert.same({ FG[1], FG[2], FG[3], 1 }, drawer.bookLines[1].price.color)
       -- And in a word, with a wash behind the level: colour alone was a key nobody was given.
-      assert.equal("you", drawer.bookLines[2].tag.text)
-      assert.equal("yours", drawer.bookLines[3].tag.text)
+      -- No word beside a level -- a word needs a column, and the column cost the book its
+      -- width. The line under the book is the key: gold like the landing, and naming the blue.
       assert.is_true(drawer.bookLines[2].wash.shown)
-      assert.is_false(drawer.bookLines[1].tag.shown)
+      assert.is_true(drawer.bookLines[3].wash.shown)
       assert.is_false(drawer.bookLines[1].wash.shown)
+      assert.is_false(drawer.bookLines[2].tag.shown)
+      assert.matches("yours ×", drawer.drawerStand.text, 1, true)
     end)
 
     -- Rows are pooled and rebound to a different kind on every render, so the drawer's own
