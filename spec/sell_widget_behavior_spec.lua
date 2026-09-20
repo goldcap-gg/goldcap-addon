@@ -1236,10 +1236,11 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(container.inspector.shown)
       -- The list does not grow by a single row when a position opens -- that is the point.
       assert.equal(1 * 24, content.height)
-      -- Fifteen slots in the panel: an eleven-slot head (this position has nothing in the bags,
-      -- so no price control), the auction-house heading, its lot, the purchase heading and its
-      -- batch. A scroll child sized by entry COUNT would clip the head by ten rows' worth.
-      assert.equal(15 * 24, detailContent.height)
+      -- Eleven slots in the panel: a seven-slot head (this position has nothing in the bags, so
+      -- no price control, and no book, so no room kept for its levels), the auction-house
+      -- heading, its lot, the purchase heading and its batch. A scroll child sized by entry
+      -- COUNT would clip the head by six rows' worth.
+      assert.equal(11 * 24, detailContent.height)
       for index = 2, 6 do assert.equal(detailContent, rows[index].parent, "row " .. index) end
       assert.equal(content, rows[1].parent)
       assert.equal("drawer", rows[2].kind)

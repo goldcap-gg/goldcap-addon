@@ -974,8 +974,13 @@ local function uniqueQuoteItemIDs()
     -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
     local restingSince = restedAt(position.itemID)
     local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
-    local due = (position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
-      or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty
+    -- A PRESS of Refresh asks about everything that can be acted on, whatever its age. The
+    -- age gate exists so the walk's own five-second repeat does not grind the whole tab
+    -- through the throttle for ever; applied to a press as well, it turned "refresh" into "re-ask
+    -- about the three rows older than thirty seconds" -- PRICING 3/4 over a list of twenty,
+    -- with the rest keeping whatever they had, including quotes restored without their book.
+    local due = refresh.manual or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
+      or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
     -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
     -- identity question is about cost, and a commodity's market price is exact for its
     -- itemID no matter whose stock it is -- leaving every tiered reagent caught in identity
@@ -2526,6 +2531,7 @@ local DR = {
   BOOK_Y_BARE = -84,       -- ...and when there is not
   BAR_MAX = 116,
   PRICE_W = 72, UNITS_W = 40, TAG_W = 40,
+  NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
 
 -- The panel head's own layout, one column. Independent of shownColumns: the panel shows the
@@ -2622,13 +2628,24 @@ local function layoutDrawer(row)
     line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 4)
   end
 
-  local foot = body - DR.LINES * DR.LINE_H - 4
+  -- No book: the foot follows the heading directly, and its first line -- the sentence saying
+  -- the auction house has not answered -- is allowed to wrap instead of being cut mid-word.
+  local hasBook = row.bookLines[1].price:IsShown()
+  local foot = hasBook and (body - DR.LINES * DR.LINE_H - 4) or body
   row.drawerStand:ClearAllPoints()
   row.drawerDepth:ClearAllPoints()
   row.drawerDepth:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 1)
   row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
-  row.drawerStand:SetPoint("RIGHT", row.drawerDepth, "LEFT", -8, 0)
-  row.drawerStand:SetWordWrap(false)
+  if hasBook then
+    row.drawerStand:SetPoint("RIGHT", row.drawerDepth, "LEFT", -8, 0)
+    row.drawerStand:SetWordWrap(false)
+  else
+    row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+    row.drawerStand:SetWordWrap(true)
+    row.drawerStand:SetMaxLines(2)
+    row.drawerStand:SetText(row.drawerStand:GetText() or "")
+    foot = foot - 14
+  end
   row.drawerQuote:ClearAllPoints()
   row.drawerQuote:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot - 18)
   row.drawerFacts:ClearAllPoints()
@@ -3692,7 +3709,9 @@ renderRows = function()
       -- it was opened from -- 25 rows of expansion inside a 430px scroll area -- which is the
       -- single complaint this redesign started from.
       entries[#entries + 1] = { kind = "drawer", position = position, detail = detail,
-        slots = (position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE }
+        -- Without a book the eight levels are not drawn, and neither is the room for them: the
+        -- head used to keep 160px of nothing between its heading and "has not answered yet".
+        slots = ((position.bagQty or 0) > 0 and DR.SLOTS or DR.SLOTS_BARE) - (detail.book and 0 or DR.NO_BOOK_SLOTS) }
       -- What you are selling comes before what you paid: the listings are the thing a player
       -- acts on, the purchase history is only there to justify the cost number.
       local inBags = position.bagQty or 0
@@ -4520,6 +4539,9 @@ function GC.Sell.Refresh(automatic)
   -- five-second repeat (`automatic`) is not, and neither is opening the tab mid-session. This
   -- is the one place a settled order is deliberately given up -- see rowPlaces.
   if not automatic then rowPlaces = {} end
+  -- Held for the whole pass the press starts (an automatic Refresh stands aside while one is
+  -- running, above) and dropped by the first repeat after it -- see uniqueQuoteItemIDs.
+  refresh.manual = not automatic
   abandonInFlightQuote()
   quoteExpiryGeneration = quoteExpiryGeneration + 1
   refresh.generation = refresh.generation + 1
