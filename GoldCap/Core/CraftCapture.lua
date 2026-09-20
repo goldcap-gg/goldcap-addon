@@ -101,3 +101,63 @@ function GC.CraftCapture.Plan(session)
 
   return { outputs = outputs, consumed = consumed }
 end
+
+--- What the reagents a session consumed actually cost the player.
+--
+-- `batchesFor(itemID)` hands back that item's active acquisition batches; the caller filters
+-- GC.Acquisitions.GetActive, so scope (character and region) is decided where it always is.
+--
+-- Returns { total, reagents = { { itemID, quantity, positionKey, plan } } } or nil + a reason.
+--
+-- ALL OR NOTHING. A batch carries ONE unit cost for all of its units, so a craft whose inputs
+-- are only partly costed cannot be recorded without either understating that unit cost or
+-- inventing a quantity split that never happened. Understating is the dangerous direction:
+-- Core/Flips.lua turns a cost basis into `breakeven`, and RepostAdvice turns `belowCost` into
+-- "hold, you would sell at a loss". A basis that is merely plausible makes GoldCap give advice
+-- on a number nobody paid. So a reagent the player gathered, looted or bought from a vendor
+-- leaves the whole craft uncosted -- which is exactly what the Sell tab says today.
+function GC.CraftCapture.Cost(consumed, batchesFor)
+  if type(consumed) ~= "table" or #consumed == 0 or type(batchesFor) ~= "function" then
+    return nil, "uncosted"
+  end
+
+  local reagents, total = {}, 0
+  for _, line in ipairs(consumed) do
+    if not isPositiveInteger(line.itemID) or not isPositiveInteger(line.quantity) then
+      return nil, "uncosted"
+    end
+    local batches = batchesFor(line.itemID)
+    if type(batches) ~= "table" or #batches == 0 then return nil, "uncosted" end
+
+    -- The key comes off the batches the purchase already wrote, and is never re-derived here.
+    -- C_AuctionHouse.GetItemKeyInfo is the only authority on commodity-versus-item identity
+    -- and it answers nothing away from the auction house -- which is exactly where crafting
+    -- happens. Batches that disagree mean we cannot tell which variant was consumed.
+    local positionKey
+    for _, candidate in ipairs(batches) do
+      if type(candidate.positionKey) ~= "string" or candidate.positionKey == "" then
+        return nil, "ambiguous-identity"
+      end
+      if positionKey == nil then
+        positionKey = candidate.positionKey
+      elseif positionKey ~= candidate.positionKey then
+        return nil, "ambiguous-identity"
+      end
+    end
+
+    local plan = GC.Acquisitions.Allocate(batches, line.quantity)
+    if not plan or plan.coverage ~= "COMPLETE" then return nil, "uncosted" end
+    if not isExactInteger(plan.knownCost) or total > MAX_EXACT - plan.knownCost then
+      return nil, "overflow"
+    end
+    total = total + plan.knownCost
+    reagents[#reagents + 1] = { itemID = line.itemID, quantity = line.quantity,
+      positionKey = positionKey, plan = plan }
+  end
+
+  -- Mats that are on record as having cost nothing give a basis of zero, and a zero basis
+  -- makes every price look like pure profit. Acquisitions.Record refuses a non-positive total
+  -- anyway; refusing here names the reason.
+  if not isPositiveInteger(total) then return nil, "uncosted" end
+  return { total = total, reagents = reagents }
+end

@@ -101,3 +101,95 @@ describe("CraftCapture.Plan", function()
     assert.equal("no-recipe", reason)
   end)
 end)
+
+describe("CraftCapture.Cost", function()
+  local GC
+
+  before_each(function()
+    GC = helper.loadModule("Core/Acquisitions.lua", {})
+    helper.loadModule("Core/CraftCapture.lua", GC)
+  end)
+
+  local function batch(fields)
+    return { id = fields.id, itemID = fields.itemID, positionKey = fields.positionKey,
+             remainingQty = fields.qty, remainingTotal = fields.total,
+             acquiredAt = fields.at or 1, source = "auction_house" }
+  end
+
+  local function storeOf(byItem)
+    return function(itemID) return byItem[itemID] or {} end
+  end
+
+  it("prices a reagent from its own FIFO batches", function()
+    local costing = GC.CraftCapture.Cost({ { itemID = 10, quantity = 10 } }, storeOf({
+      [10] = { batch({ id = "acq:1", itemID = 10, positionKey = "commodity:10",
+                       qty = 20, total = 2000 }) },
+    }))
+    assert.equal(1000, costing.total)
+    assert.equal("commodity:10", costing.reagents[1].positionKey)
+    assert.equal(10, costing.reagents[1].quantity)
+  end)
+
+  it("walks two batches in the order they were bought", function()
+    local costing = GC.CraftCapture.Cost({ { itemID = 10, quantity = 6 } }, storeOf({
+      [10] = {
+        batch({ id = "acq:2", itemID = 10, positionKey = "commodity:10", qty = 10, total = 2000, at = 2 }),
+        batch({ id = "acq:1", itemID = 10, positionKey = "commodity:10", qty = 4, total = 400, at = 1 }),
+      },
+    }))
+    assert.equal(800, costing.total)   -- the older 4 @100, then 2 of the newer @200
+  end)
+
+  it("adds every reagent of the craft up", function()
+    local costing = GC.CraftCapture.Cost({ { itemID = 10, quantity = 2 }, { itemID = 11, quantity = 3 } },
+      storeOf({
+        [10] = { batch({ id = "acq:1", itemID = 10, positionKey = "commodity:10", qty = 5, total = 500 }) },
+        [11] = { batch({ id = "acq:2", itemID = 11, positionKey = "commodity:11", qty = 5, total = 5000 }) },
+      }))
+    assert.equal(200 + 3000, costing.total)
+    assert.equal(2, #costing.reagents)
+  end)
+
+  it("refuses the whole craft when one reagent is not covered", function()
+    local costing, reason = GC.CraftCapture.Cost({ { itemID = 10, quantity = 10 } }, storeOf({
+      [10] = { batch({ id = "acq:1", itemID = 10, positionKey = "commodity:10", qty = 3, total = 300 }) },
+    }))
+    assert.is_nil(costing)
+    assert.equal("uncosted", reason)
+  end)
+
+  it("refuses the whole craft when a reagent was never bought at all", function()
+    -- Gathered, looted, or bought from a vendor: real cost, no record of it. Phase 1 leaves
+    -- the craft without a basis rather than inventing one.
+    local costing, reason = GC.CraftCapture.Cost({ { itemID = 10, quantity = 1 } }, storeOf({}))
+    assert.is_nil(costing)
+    assert.equal("uncosted", reason)
+  end)
+
+  it("refuses a reagent whose batches disagree on identity", function()
+    local costing, reason = GC.CraftCapture.Cost({ { itemID = 10, quantity = 2 } }, storeOf({
+      [10] = {
+        batch({ id = "acq:1", itemID = 10, positionKey = "commodity:10", qty = 5, total = 500 }),
+        batch({ id = "acq:2", itemID = 10, positionKey = "item:10:600:0:0", qty = 5, total = 900 }),
+      },
+    }))
+    assert.is_nil(costing)
+    assert.equal("ambiguous-identity", reason)
+  end)
+
+  it("refuses a batch carrying no position key", function()
+    local costing, reason = GC.CraftCapture.Cost({ { itemID = 10, quantity = 1 } }, storeOf({
+      [10] = { batch({ id = "acq:1", itemID = 10, positionKey = nil, qty = 20, total = 2000 }) },
+    }))
+    assert.is_nil(costing)
+    assert.equal("ambiguous-identity", reason)
+  end)
+
+  it("refuses a craft whose mats cost nothing on record", function()
+    local costing, reason = GC.CraftCapture.Cost({ { itemID = 10, quantity = 2 } }, storeOf({
+      [10] = { batch({ id = "acq:1", itemID = 10, positionKey = "commodity:10", qty = 5, total = 0 }) },
+    }))
+    assert.is_nil(costing)
+    assert.equal("uncosted", reason)
+  end)
+end)
