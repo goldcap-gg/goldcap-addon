@@ -161,3 +161,64 @@ function GC.CraftCapture.Cost(consumed, batchesFor)
   if not isPositiveInteger(total) then return nil, "uncosted" end
   return { total = total, reagents = reagents }
 end
+
+--- Spend the reagents, record what the session made.
+--
+-- `sessionKey` is one string per crafting session. Every consume keys its evidence off it, and
+-- so does every output batch, which makes the whole settlement idempotent for free:
+-- Acquisitions.Consume refuses a repeated evidence key outright, and Record hands back the
+-- batch that key already wrote.
+--
+-- Returns { batches, unitCost, total } or nil + a reason.
+function GC.CraftCapture.Settle(plan, costing, context, at, sessionKey)
+  if type(plan) ~= "table" or type(costing) ~= "table" or type(plan.outputs) ~= "table"
+      or type(costing.reagents) ~= "table" or not isPositiveInteger(costing.total)
+      or type(context) ~= "table" or not isExactInteger(at)
+      or type(sessionKey) ~= "string" or sessionKey == "" then
+    return nil, "bad-input"
+  end
+
+  local units = 0
+  for _, output in ipairs(plan.outputs) do
+    if not isPositiveInteger(output.itemID) or not isPositiveInteger(output.quantity) then
+      return nil, "bad-input"
+    end
+    units = units + output.quantity
+  end
+  if units <= 0 then return nil, "bad-input" end
+
+  -- One unit cost for the whole session: the same mats went into every craft, whatever quality
+  -- came out, so total / units is right for each output id. Checked BEFORE anything is spent
+  -- -- a craft settled halfway, with the mats written off and the output still uncosted, would
+  -- be worse than the no-cost state this replaces.
+  local unitCost = math.floor(costing.total / units)
+  if unitCost < 1 then return nil, "sub-copper" end
+  local remainder = costing.total - unitCost * units
+
+  for _, reagent in ipairs(costing.reagents) do
+    local spent = GC.Acquisitions.Consume(reagent.positionKey, reagent.quantity,
+      sessionKey .. ":" .. reagent.itemID, at, context, reagent.plan)
+    if not spent then return nil, "consume-failed" end
+  end
+
+  -- The remainder rides on the first output, so the batches still sum to exactly what was
+  -- spent: copper is neither invented nor lost on the way in.
+  local batches = {}
+  for index, output in ipairs(plan.outputs) do
+    local total = unitCost * output.quantity + (index == 1 and remainder or 0)
+    local batch = GC.Acquisitions.Record({
+      source = "craft", itemID = output.itemID, quantity = output.quantity, total = total,
+      acquiredAt = at, positionKey = GC.CraftCapture.OutputKey(output.itemID, context),
+      character = context.char, region = context.region,
+      evidenceKey = sessionKey .. ":out:" .. output.itemID,
+    })
+    if batch then batches[#batches + 1] = batch end
+  end
+  if #batches == 0 then return nil, "record-failed" end
+  return { batches = batches, unitCost = unitCost, total = costing.total }
+end
+
+-- Filled in by the identity step; keyless until then, which Acquisitions.Record accepts.
+function GC.CraftCapture.OutputKey()
+  return nil
+end

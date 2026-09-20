@@ -1411,3 +1411,47 @@ describe("Acquisition store", function()
     } }, "mail:fix5-dictionary")
   end)
 end)
+
+describe("Acquisition store: the craft source", function()
+  local GC, db
+  local context = { char = "A-R", region = "eu" }
+
+  before_each(function()
+    GC = helper.loadModule("Core/Acquisitions.lua")
+    db = {}
+    GC.Acquisitions.Init(db)
+  end)
+
+  local function recordCraft()
+    return GC.Acquisitions.Record({ source = "craft", itemID = 500,
+      positionKey = "commodity:500", quantity = 4, total = 1000, acquiredAt = 100,
+      character = context.char, region = context.region, evidenceKey = "craft:1:100:1:out:500" })
+  end
+
+  it("accepts a batch a crafting session wrote", function()
+    local batch = recordCraft()
+    assert.is_table(batch)
+    assert.equal("craft", batch.source)
+    assert.equal(4, batch.remainingQty)
+  end)
+
+  it("holds it like any other stock the player paid for", function()
+    recordCraft()
+    local active = GC.Acquisitions.GetActive(context)
+    assert.equal(1, #active)
+    assert.equal(4, active[1].remainingQty)
+    assert.equal(1000, active[1].remainingTotal)
+    -- FIFO allocation prices it exactly as it would a purchase.
+    local plan = GC.Acquisitions.Allocate(active, 2)
+    assert.equal("COMPLETE", plan.coverage)
+    assert.equal(500, plan.knownCost)
+  end)
+
+  it("refuses to let the Sell tab delete it", function()
+    -- RemoveManual is the UI's only deletion path and must never discard evidence: a craft is
+    -- as evidence-backed as a purchase.
+    local batch = recordCraft()
+    assert.is_false(GC.Acquisitions.RemoveManual(batch.id))
+    assert.equal(1, #db.acquisitions)
+  end)
+end)

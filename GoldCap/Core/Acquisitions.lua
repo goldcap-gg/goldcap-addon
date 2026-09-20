@@ -12,7 +12,12 @@ local MAX_EXACT = 9007199254740991
 -- cost basis -- it behaves exactly like an `auction_house` batch: the branches below that name a
 -- source at all are the `manual` repair path and the one-shot legacy migrations, and a BUY batch
 -- is correctly none of those.
-local SOURCES = { goldcap = true, auction_house = true, manual = true, goldcap_buy = true }
+-- `craft` is a crafting session (Core/CraftCapture.lua): the reagents the player already paid
+-- for, turned into the item he made out of them. Like `goldcap_buy` it behaves exactly as an
+-- `auction_house` batch everywhere below -- FIFO order, sale reconciliation, the Sell tab's
+-- cost basis -- and is correctly neither the `manual` repair path nor a legacy migration.
+local SOURCES = { goldcap = true, auction_house = true, manual = true, goldcap_buy = true,
+  craft = true }
 local migrateLegacyRepairGroups
 local validRepairGroup
 local repairGroupEvidenceState

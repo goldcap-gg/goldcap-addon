@@ -193,3 +193,113 @@ describe("CraftCapture.Cost", function()
     assert.equal("uncosted", reason)
   end)
 end)
+
+describe("CraftCapture.Settle", function()
+  local GC, db
+  local context = { char = "Tester", region = "eu" }
+
+  before_each(function()
+    GC = helper.loadModule("Core/Acquisitions.lua", {})
+    helper.loadModule("Core/CraftCapture.lua", GC)
+    db = { acquisitions = {} }
+    GC.Acquisitions.Init(db)
+  end)
+
+  -- The reagent lookup the live wiring passes: this character's active batches for one item.
+  local function batchesFor(itemID)
+    local out = {}
+    for _, batch in ipairs(GC.Acquisitions.GetActive(context)) do
+      if batch.itemID == itemID then out[#out + 1] = batch end
+    end
+    return out
+  end
+
+  local function bought(itemID, quantity, total)
+    GC.Acquisitions.Record({ source = "auction_house", itemID = itemID,
+      positionKey = ("commodity:%d"):format(itemID), quantity = quantity, total = total,
+      acquiredAt = 1, character = context.char, region = context.region })
+  end
+
+  local function remainingOf(itemID)
+    for _, batch in ipairs(db.acquisitions) do
+      if batch.itemID == itemID then return batch.remainingQty end
+    end
+  end
+
+  it("consumes the reagents and records one batch for the output", function()
+    bought(10, 20, 2000)
+    local plan = { outputs = { { itemID = 500, quantity = 4 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    local costing = GC.CraftCapture.Cost(plan.consumed, batchesFor)
+    local recorded = GC.CraftCapture.Settle(plan, costing, context, 100, "craft:1:100:1")
+
+    assert.equal(1, #recorded.batches)
+    assert.equal(500, recorded.batches[1].itemID)
+    assert.equal(4, recorded.batches[1].originalQty)
+    assert.equal(1000, recorded.batches[1].originalTotal)   -- 10 mats at 100 each
+    assert.equal("craft", recorded.batches[1].source)
+    assert.equal(10, remainingOf(10))                        -- and the mats are gone from stock
+  end)
+
+  it("gives every output quality the same unit cost", function()
+    -- The same mats went into every craft, whatever quality came out of it.
+    bought(10, 10, 900)
+    local plan = { outputs = { { itemID = 500, quantity = 2 }, { itemID = 501, quantity = 1 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    local costing = GC.CraftCapture.Cost(plan.consumed, batchesFor)
+    local recorded = GC.CraftCapture.Settle(plan, costing, context, 100, "craft:1:100:2")
+
+    local totals = {}
+    for _, batch in ipairs(recorded.batches) do totals[batch.itemID] = batch.originalTotal end
+    assert.equal(600, totals[500])
+    assert.equal(300, totals[501])
+    assert.equal(900, totals[500] + totals[501])   -- nothing invented, nothing lost
+  end)
+
+  it("keeps the remainder rather than losing it to rounding", function()
+    bought(10, 10, 1000)
+    local plan = { outputs = { { itemID = 500, quantity = 3 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    local costing = GC.CraftCapture.Cost(plan.consumed, batchesFor)
+    local recorded = GC.CraftCapture.Settle(plan, costing, context, 100, "craft:1:100:3")
+    assert.equal(1000, recorded.batches[1].originalTotal)   -- 333 + 333 + 333 would lose a copper
+  end)
+
+  it("is idempotent -- a replayed session changes nothing", function()
+    bought(10, 20, 2000)
+    local plan = { outputs = { { itemID = 500, quantity = 4 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    GC.CraftCapture.Settle(plan, GC.CraftCapture.Cost(plan.consumed, batchesFor),
+      context, 100, "craft:1:100:4")
+    local after = #db.acquisitions
+    local replay = GC.CraftCapture.Cost(plan.consumed, batchesFor)
+    if replay then
+      GC.CraftCapture.Settle(plan, replay, context, 100, "craft:1:100:4")
+    end
+    assert.equal(after, #db.acquisitions)
+    assert.equal(10, remainingOf(10))               -- and the mats were not spent twice
+  end)
+
+  it("records nothing when a reagent cannot be consumed", function()
+    local plan = { outputs = { { itemID = 500, quantity = 4 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    local costing = { total = 1000, reagents = { { itemID = 10, quantity = 10,
+      positionKey = "commodity:10", plan = { coverage = "COMPLETE", knownCost = 1000,
+        allocations = { { batchID = "acq:missing", quantity = 10, cost = 1000 } } } } } }
+    local recorded, reason = GC.CraftCapture.Settle(plan, costing, context, 100, "craft:1:100:5")
+    assert.is_nil(recorded)
+    assert.equal("consume-failed", reason)
+    assert.equal(0, #db.acquisitions)
+  end)
+
+  it("refuses before spending anything when a unit would cost under a copper", function()
+    bought(10, 10, 5)
+    local plan = { outputs = { { itemID = 500, quantity = 900 } },
+                   consumed = { { itemID = 10, quantity = 10 } } }
+    local costing = GC.CraftCapture.Cost(plan.consumed, batchesFor)
+    local recorded, reason = GC.CraftCapture.Settle(plan, costing, context, 100, "craft:1:100:6")
+    assert.is_nil(recorded)
+    assert.equal("sub-copper", reason)
+    assert.equal(10, remainingOf(10))               -- the mats were not touched
+  end)
+end)
