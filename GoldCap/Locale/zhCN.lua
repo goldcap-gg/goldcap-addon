@@ -600,6 +600,7 @@ GC.Locales.zhCN = {
   ["×%d listed"] = "×%d 已上架",
   ["×%d listed at %s each"] = "×%d 已上架，每件 %s",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · 购买 %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · 制作 %s · %s",
   ["— = nothing is checking this row right now"] = "— = 目前没有在检查该行",
   ["… = a live check is queued for this row"] = "… = 该行的实时检查已排队",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市场价 — 尚无实时报价",

@@ -3614,10 +3614,21 @@ renderRows = function()
         -- Pooled rows keep whatever colour the last kind painted: a dim detail line must not
         -- bleed into the next render's batch text.
         setColor(row.subItem, Theme.color.fg)
-        row.subItem:SetText((GC.L["×%d%s · bought %s · %s · %s"]):format(
-          entry.batch.originalQty or entry.batch.quantity or 0,
-          purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
-          when, sourceLabel, entry.batch.evidence or GC.L["unknown evidence"]))
+        if entry.batch.source == "craft" then
+          -- A craft was not bought, and calling it a purchase is exactly the kind of small
+          -- untruth this tab exists not to tell. The verb already says where the units came
+          -- from, so the source word would only say it twice. The count is crafting RUNS, not
+          -- crafts: one Create All press settles as one batch however many times it fired.
+          row.subItem:SetText((GC.L["×%d%s · made %s · %s"]):format(
+            entry.batch.originalQty or entry.batch.quantity or 0,
+            purchases and purchases > 1 and (" · %d crafting runs"):format(purchases) or "",
+            when, entry.batch.evidence or GC.L["unknown evidence"]))
+        else
+          row.subItem:SetText((GC.L["×%d%s · bought %s · %s · %s"]):format(
+            entry.batch.originalQty or entry.batch.quantity or 0,
+            purchases and purchases > 1 and (" · %d purchases"):format(purchases) or "",
+            when, sourceLabel, entry.batch.evidence or GC.L["unknown evidence"]))
+        end
         row.cells.cost:SetText(formatCell(entry.batch.unitCost)); row.cells.listed:SetText(formatCell(entry.batch.totalCost)); row.cells.market:SetText("")
         row.cells.profit:SetText("")
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0

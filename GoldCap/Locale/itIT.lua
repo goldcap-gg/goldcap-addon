@@ -662,6 +662,7 @@ GC.Locales.itIT = {
   ["×%d listed"] = "×%d in vendita",
   ["×%d listed at %s each"] = "×%d in vendita a %s l'uno",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprato %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · creato %s · %s",
   ["— = nothing is checking this row right now"] =
     "— = nulla sta controllando questa riga in questo momento",
   ["… = a live check is queued for this row"] =

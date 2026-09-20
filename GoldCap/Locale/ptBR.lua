@@ -660,6 +660,7 @@ GC.Locales.ptBR = {
   ["×%d listed"] = "×%d anunciados",
   ["×%d listed at %s each"] = "×%d anunciados a %s cada",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprado %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · fabricado %s · %s",
   ["— = nothing is checking this row right now"] = "— = nada está verificando esta linha agora",
   ["… = a live check is queued for this row"] =
     "… = há uma verificação ao vivo na fila para esta linha",

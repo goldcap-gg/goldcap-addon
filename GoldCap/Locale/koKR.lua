@@ -621,6 +621,7 @@ GC.Locales.koKR = {
   ["×%d listed"] = "×%d 등록됨",
   ["×%d listed at %s each"] = "×%d, 개당 %s에 등록됨",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · 구매 %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · 제작 %s · %s",
   ["— = nothing is checking this row right now"] = "— = 지금 이 줄을 확인하는 것은 없습니다",
   ["… = a live check is queued for this row"] = "… = 이 줄의 실시간 확인이 대기 중입니다",
   ["≈ goldcap.gg market value — no live quote yet"] =

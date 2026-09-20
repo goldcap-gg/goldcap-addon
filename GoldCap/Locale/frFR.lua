@@ -660,6 +660,7 @@ GC.Locales.frFR = {
   ["×%d listed"] = "×%d en vente",
   ["×%d listed at %s each"] = "×%d en vente à %s pièce",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · acheté %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · fabriqué %s · %s",
   ["— = nothing is checking this row right now"] =
     "— = rien ne vérifie cette ligne pour le moment",
   ["… = a live check is queued for this row"] =

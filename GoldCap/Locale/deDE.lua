@@ -662,6 +662,7 @@ GC.Locales.deDE = {
   ["×%d listed"] = "×%d eingestellt",
   ["×%d listed at %s each"] = "×%d eingestellt zu je %s",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · gekauft %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · hergestellt %s · %s",
   ["— = nothing is checking this row right now"] = "— = diese Zeile wird gerade nicht geprüft",
   ["… = a live check is queued for this row"] =
     "… = für diese Zeile ist eine Live-Prüfung eingereiht",
