@@ -2995,7 +2995,13 @@ local function createRow(parent)
     elseif GameTooltip and (self.kind == "group" or self.kind == "batch")
         and self.groupHint and self.groupHint ~= "" then
       GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
-      GameTooltip:AddLine(self.groupHint, 0.85, 0.85, 0.85, true)
+      -- A fact a line. The sentence is a run of facts joined by one separator, and wrapped as
+      -- a paragraph it broke mid-fact ("bought 29 / Aug"), which is harder to read than the row.
+      local first = true
+      for fact in (self.groupHint .. " · "):gmatch("(.-) · ") do
+        if first then GameTooltip:AddLine(fact, 1, 1, 1) else GameTooltip:AddLine(fact, 0.85, 0.85, 0.85) end
+        first = false
+      end
       GameTooltip:Show()
     end
   end)
@@ -4253,14 +4259,22 @@ renderRows = function()
         row.groupHint = (row.subItem:GetText() or "") .. " · " .. (row.cells.status:GetText() or "")
         row.subItem:SetText(("×%d"):format(entry.batch.originalQty or entry.batch.quantity or 0))
         setColor(row.cells.cost, Theme.color.goldHi or Theme.color.gold)
-        if entry.batch.source == "craft" then
+        -- The evidence word is drawn only when it is news. A purchase matched to the mail's
+        -- invoice and a craft captured as it happened are the ordinary cases, and saying so on
+        -- every line took the room the source and date needed -- "GoldCap,..." (seen in game).
+        -- When the evidence IS worth a look, it gets the room and the source steps back to the
+        -- hover, which carries the whole sentence either way.
+        local craft = entry.batch.source == "craft"
+        local evidence = entry.batch.evidence or GC.L["unknown evidence"]
+        local ordinary = evidence == (craft and "captured" or "mail-confirmed")
+        if craft then
           -- "crafted", not "made": the batch is known to be a craft (its source says so), and
           -- the word a player uses for it is the one that tells them GoldCap knows too.
           row.itemStock:SetText((GC.L["crafted %s"]):format(when))
         else
-          row.itemStock:SetText(sourceLabel .. ", " .. when)
+          row.itemStock:SetText(ordinary and (sourceLabel .. ", " .. when) or when)
         end
-        row.sectionHint:SetText(entry.batch.evidence or GC.L["unknown evidence"])
+        row.sectionHint:SetText(ordinary and "" or evidence)
         row.sectionHint:Show()
         -- Only a hand-entered cost gets a removal affordance -- goldcap and auction_house
         -- batches are evidence-backed, and Core/Acquisitions' own RemoveManual already refuses

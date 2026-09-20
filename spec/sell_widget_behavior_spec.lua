@@ -1619,7 +1619,9 @@ describe("Sell widget geometry and manual cost", function()
     -- Four columns in the panel: how many, what each cost, where from and when, on what
     -- evidence. The whole sentence -- with what is left of the run -- is the row's hover.
     assert.equal("×5", rows[6].subItem.text)
-    assert.match("^GoldCap, ", rows[6].itemStock.text)
+    -- This fixture's evidence is not the ordinary kind, so it gets the room and the source
+    -- steps back to the hover: the middle column is the date alone.
+    assert.is_nil(rows[6].itemStock.text:find("GoldCap", 1, true))
     assert.is_true(rows[6].itemStock.shown)
     assert.equal("Auction 9", rows[6].sectionHint.text)
     assert.is_true(rows[6].sectionHint.shown)
@@ -1797,7 +1799,10 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("400", rows[4].cells.listed.text)
     -- The evidence word is a purchase's last column in the panel.
     assert.equal("captured", rows[6].sectionHint.text)
-    assert.equal("mail-confirmed", rows[7].sectionHint.text)
+    -- The ordinary evidence for a purchase is not drawn: it is on the hover, with the rest.
+    assert.equal("", rows[7].sectionHint.text)
+    assert.match("mail%-confirmed", rows[7].groupHint)
+    assert.match("^Auction House, ", rows[7].itemStock.text) -- ...and the source has its room back
     assert.equal("manual", rows[8].sectionHint.text)
     assert.equal("unknown evidence", rows[9].sectionHint.text)
   end)
@@ -1830,7 +1835,8 @@ describe("Sell widget geometry and manual cost", function()
     -- U+2192 -- it drew a tofu box in game -- so exotic punctuation is proven-glyphs only). The
     -- unit price no longer repeats here -- the COST/LISTED cells two columns over carry it.
     assert.equal("×400", rows[4].subItem.text)
-    assert.equal("GoldCap, 4 - 9", rows[4].itemStock.text)
+    assert.equal("4 - 9", rows[4].itemStock.text) -- "captured" is news for a purchase: it gets the room
+    assert.equal("captured", rows[4].sectionHint.text)
     assert.equal("×400 · 2 purchases · bought 4 - 9 · GoldCap · captured · 350 still unsold", rows[4].groupHint)
     assert.equal("198", rows[4].cells.cost.text)
     assert.equal("7g92s", rows[4].cells.listed.text)
