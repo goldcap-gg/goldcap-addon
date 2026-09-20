@@ -979,7 +979,11 @@ local function uniqueQuoteItemIDs()
     -- through the throttle for ever; applied to a press as well, it turned "refresh" into "re-ask
     -- about the three rows older than thirty seconds" -- PRICING 3/4 over a list of twenty,
     -- with the rest keeping whatever they had, including quotes restored without their book.
-    local due = refresh.manual or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
+    -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
+    -- it and may not back a post (see freshQuote), however young it is.
+    local held = quotes[position.itemID]
+    local due = refresh.manual or (type(held) == "table" and held.bulk == true)
+      or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
     -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
     -- identity question is about cost, and a commodity's market price is exact for its
@@ -1596,6 +1600,10 @@ function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", ite
 local function freshQuote(position)
   local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)
   if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
+  -- A price from the bulk fill (GC.Sell.FoldBulk) is the realm's cheapest unit with nobody
+  -- subtracted from it -- good enough to show, never good enough to spend on. Post and Repost
+  -- get exactly what they get for a stale quote: a fetch of this one item, then the click.
+  if quote.bulk then return nil end
   return quote
 end
 
@@ -4537,6 +4545,86 @@ function GC.Sell.Hide() if container then container:Hide() end end
 -- Whatever was in flight is let go of behind a drain tombstone, exactly the way
 -- Reset already did it, so a late terminal event is consumed rather than
 -- credited to this run.
+-- The bulk fill: every commodity on the tab priced by ONE throttled message.
+--
+-- The walk prices a row per round trip -- a SendSearchQuery each, through the one throttled
+-- slot the whole addon shares -- so a tab of twenty rows filled in over half a minute, top to
+-- bottom, and a press of Refresh did it all again. C_AuctionHouse.SearchForItemKeys answers
+-- for up to a hundred item keys at once with the realm's cheapest unit for each; the Items
+-- board and the BUY tab already share one such batch through UI/SniperFrame.lua's arbiter,
+-- and this is the third name on it. Every addon-wide rule lives there (one batch outstanding,
+-- never across a book pass, never while the player is using the auction house themselves).
+--
+-- What comes back is a price to SHOW. It is the cheapest unit on the realm with nobody
+-- subtracted -- the player's own lots included -- and it carries no book. So a row whose
+-- answer says the player is among the sellers is left for the walk, the price is marked
+-- `bulk`, freshQuote refuses to post against it, and the walk treats it as still owed a real
+-- quote. Commodities only: a basic item key's price can be another variant's, and a wrong
+-- number is worse than none (the walk's own rule, see uniqueQuoteItemIDs).
+local BULK_MAX = 100 -- Blizzard's ceiling for one call; more disconnects the client
+
+function GC.Sell.BulkTargets()
+  local ids, seen = {}, {}
+  for _, position in ipairs(positions) do
+    local commodity = type(position.positionKey) == "string"
+      and position.positionKey:find("commodity:", 1, true) == 1
+    local actionable = (type(position.bagQty) == "number" and position.bagQty > 0)
+      or (type(position.listedQty) == "number" and position.listedQty > 0)
+    local id = position.itemID
+    if commodity and actionable and exact(id) and id > 0 and not seen[id] then
+      seen[id] = true
+      ids[#ids + 1] = id
+      if #ids >= BULK_MAX then break end
+    end
+  end
+  return ids
+end
+
+function GC.Sell.TrySendBulk(playerBusy)
+  if not refresh.bulkWanted or not tabIsLive() then return false end
+  if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView
+      and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return false end
+  local sent = GC.Sniper._TrySendKeysBatchFor({
+    HasPending = function() return refresh.bulkWanted == true end,
+    NextBatch = GC.Sell.BulkTargets,
+  }, "sell", function() return GC.Sniper.CurrentView() == "sell" end, playerBusy) and true or false
+  -- Asked once per press. A batch that could not go this second (a pass paging, the throttle
+  -- shut) is asked for again by the ticker; one that went is not repeated until the next press.
+  if sent then refresh.bulkWanted = false end
+  return sent
+end
+
+-- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker, like GC.Buy.Tick.
+function GC.Sell.Tick()
+  GC.Sell.TrySendBulk()
+end
+
+-- The batch's answer, routed here by GC.Sniper._FoldKeysBatch because this tab asked.
+function GC.Sell.FoldBulk(browsed)
+  local now, filled = time(), 0
+  for i = 1, #(browsed or {}) do
+    local row = browsed[i]
+    local itemKey = type(row) == "table" and row.itemKey or nil
+    local itemID = type(itemKey) == "table" and itemKey.itemID or nil
+    local unit = type(row) == "table" and row.minPrice or nil
+    local held = itemID and quotes[itemID] or nil
+    -- A real quote the walk already holds is better than this in every way; keep it.
+    local keep = type(held) == "table" and not held.bulk and exact(held.at)
+      and (now - held.at) <= QUOTE_REWALK_AGE
+    if exact(itemID) and exact(unit) and unit > 0 and not row.containsOwnerItem and not keep then
+      GC.QuoteCache.Set(quotes, itemID, unit, now)
+      if type(quotes[itemID]) == "table" then
+        quotes[itemID].bulk = true
+        filled = filled + 1
+      end
+    end
+  end
+  if filled > 0 then
+    composePositions()
+    renderRows()
+  end
+end
+
 function GC.Sell.Refresh(automatic)
   if automatic and refresh.phase ~= "idle" and refresh.phase ~= "done" and refresh.phase ~= "error" then
     return
@@ -4572,6 +4660,14 @@ function GC.Sell.Refresh(automatic)
     -- trip plus its wait on every 5-second tick before a single price was asked -- and was
     -- one more phase the walk could wedge in.
     beginQuoteWalk()
+    armPhaseWatchdog()
+    return
+  end
+  -- The whole tab in one message, before anything else is asked: if it goes, the listings
+  -- query takes the next ready tick (the waiting_owned path below is exactly that).
+  refresh.bulkWanted = true
+  if GC.Sell.TrySendBulk() then
+    refresh.phase = "waiting_owned"
     armPhaseWatchdog()
     return
   end
@@ -4768,13 +4864,30 @@ function GC.Sell.Attach(f, geometry)
   -- and finding one of them was a matter of reading down the list. It lives in whatever room
   -- row 1 has left, so under SEARCH_MIN of it the box is not drawn at all -- and takes its
   -- filter with it, because a list narrowed by a box nobody can see is a list that looks broken.
-  local search = CreateFrame("EditBox", nil, container, "InputBoxTemplate")
+  -- The kit's own well at the height of the deck buttons it sits beside (InputBoxTemplate is a
+  -- fixed 20px strip of Blizzard's stone border, a third shorter than everything on the row).
+  local searchWell = CreateFrame("Frame", nil, container)
+  searchWell:SetHeight(26)
+  searchWell:SetPoint("LEFT", deckPrevious, "RIGHT", 12, 0)
+  local swc = Theme.color.bg or Theme.color.panel
+  Theme.SlicedTexture(searchWell, "BACKGROUND", Theme.MEDIA .. "plaque.png",
+    { swc[1], swc[2], swc[3], 1 }, 12):SetAllPoints(searchWell)
+  Theme.SlicedTexture(searchWell, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { 1, 1, 1, 0.12 }, 12):SetAllPoints(searchWell)
+  local search = CreateFrame("EditBox", nil, searchWell)
   search:SetAutoFocus(false)
-  search:SetHeight(20)
-  search:SetPoint("LEFT", deckPrevious, "RIGHT", 18, 0)
+  search:SetPoint("TOPLEFT", 10, -2)
+  search:SetPoint("BOTTOMRIGHT", -8, 2)
+  -- Guarded for busted; in the client a bare EditBox with no font draws no text at all.
+  if search.SetFont then
+    search:SetFont(Theme.FONT_UI, 11 * Theme.Scale(), "")
+    search:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3], 1)
+    Theme.OnRescale(function(scale) search:SetFont(Theme.FONT_UI, 11 * scale, "") end)
+  end
   container.search = search
-  local searchHint = Theme.Label(container, 10)
-  searchHint:SetPoint("LEFT", search, "LEFT", 2, 0)
+  local searchHint = Theme.Num(searchWell, 10)
+  searchHint:SetJustifyH("LEFT")
+  searchHint:SetPoint("LEFT", searchWell, "LEFT", 10, 0)
   searchHint:SetText(GC.L["Search"])
   setColor(searchHint, Theme.color.fgDim)
   container.searchHint = searchHint
@@ -4799,9 +4912,9 @@ function GC.Sell.Attach(f, geometry)
   container.layoutSearch = function()
     local room = (ROW_WIDTH or 0) - ROW1_FIXED - 36
     if room >= SEARCH_MIN then
-      search:SetWidth(math.min(SEARCH_MAX, room)); search:Show()
+      searchWell:SetWidth(math.min(SEARCH_MAX, room)); searchWell:Show(); search:Show()
     else
-      search:Hide()
+      searchWell:Hide(); search:Hide()
     end
     applySearch()
     if not search:IsShown() then searchHint:Hide() end
