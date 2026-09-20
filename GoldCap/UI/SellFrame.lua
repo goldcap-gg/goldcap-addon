@@ -4228,7 +4228,9 @@ renderRows = function()
         row.subItem:SetText(("×%d"):format(entry.batch.originalQty or entry.batch.quantity or 0))
         setColor(row.cells.cost, Theme.color.goldHi or Theme.color.gold)
         if entry.batch.source == "craft" then
-          row.itemStock:SetText((GC.L["made %s"]):format(when))
+          -- "crafted", not "made": the batch is known to be a craft (its source says so), and
+          -- the word a player uses for it is the one that tells them GoldCap knows too.
+          row.itemStock:SetText((GC.L["crafted %s"]):format(when))
         else
           row.itemStock:SetText(sourceLabel .. ", " .. when)
         end

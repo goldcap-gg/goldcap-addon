@@ -528,6 +528,7 @@ GC.Locales.ukUA = {
   ["cost basis incomplete -- set costs to get repost advice"] =
     "собівартість неповна -- задайте її, щоб отримати пораду з перевиставлення",
   ["cost unknown"] = "собівартість невідома",
+  ["crafted %s"] = "скрафчено %s",
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
   ["fair"] = "середня",
@@ -572,7 +573,6 @@ GC.Locales.ukUA = {
     "безпеку підтверджено наживо -- натисніть Buy, щоб купити",
   ["live verification required"] = "потрібна жива перевірка",
   ["low"] = "низька",
-  ["made %s"] = "зроблено %s",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
