@@ -25,6 +25,7 @@ GC.Locales.ruRU = {
   ["%d hidden -- the live check refused them"] = "%d скрыто -- живая проверка их отклонила",
   ["%d missing"] = "%d не хватает",
   ["%d partial"] = "%d частично",
+  ["%d prices in one request · books still loading"] = "%d цен одним запросом · стаканы догружаются",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d отклонено живой проверкой -- нажмите \"HIDDEN %d\" вверху, чтобы посмотреть",
   ["%d sales · %s proceeds · %s in the mail"] = "%d продаж · %s выручка · %s в почте",
@@ -64,6 +65,7 @@ GC.Locales.ruRU = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
     "Авто: держит Full Scan включённым постоянно и мгновенно уступает, когда вы покупаете, поищите на аукционе сами или проверьте почту. Клик переключает.",
   ["Avoid"] = "Избегать",
+  ["BOOKS %d/%d"] = "СТАКАНЫ %d/%d",
   ["BRAKES"] = "ТОРМОЗА",
   ["BUY — unverified"] = "КУПИТЬ — без проверки",
   ["Background check"] = "Фоновая проверка",

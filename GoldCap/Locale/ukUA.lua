@@ -29,6 +29,7 @@ GC.Locales.ukUA = {
   ["%d hidden -- the live check refused them"] = "%d приховано -- жива перевірка їх відхилила",
   ["%d missing"] = "%d бракує",
   ["%d partial"] = "%d частково",
+  ["%d prices in one request · books still loading"] = "%d цін одним запитом · стакани довантажуються",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d відхилено живою перевіркою -- натисніть \"HIDDEN %d\" вгорі, щоб переглянути",
   ["%d sales · %s proceeds · %s in the mail"] = "%d продажів · %s виторг · %s у пошті",
@@ -68,6 +69,7 @@ GC.Locales.ukUA = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
     "Авто: тримає Full Scan увімкненим постійно й миттєво поступається, коли ви купуєте, пошукайте на аукціоні самі або перевірте пошту. Клік перемикає.",
   ["Avoid"] = "Уникати",
+  ["BOOKS %d/%d"] = "СТАКАНИ %d/%d",
   ["BRAKES"] = "ГАЛЬМА",
   ["BUY — unverified"] = "КУПИТИ — без перевірки",
   ["Background check"] = "Фонова перевірка",

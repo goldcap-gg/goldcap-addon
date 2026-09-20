@@ -284,8 +284,12 @@ local function paintRefreshButton()
     -- the tab only had 24 items in it. It is not a count of anything the player owns: it is
     -- how far this pass has got through the pricing queue, which is capped at QUOTE_WALK_CAP
     -- because every entry is a round trip on the same throttled slot the Sniper's scans use.
+    -- Once the bulk fill has priced the tab, what the walk is still fetching is each row's
+    -- book -- and a button that went on saying PRICING for twelve seconds over a list whose
+    -- prices were all there read as the refresh itself being that slow.
+    local counting = refresh.bulkLanded and GC.L["BOOKS %d/%d"] or GC.L["PRICING %d/%d"]
     label = (#refresh.queue > 0 and refresh.index > 0)
-      and (GC.L["PRICING %d/%d"]):format(refresh.index, #refresh.queue) or GC.L["PRICING…"]
+      and counting:format(refresh.index, #refresh.queue) or GC.L["PRICING…"]
   end
   if button.lastLabel ~= label then
     button.lastLabel = label
@@ -974,15 +978,15 @@ local function uniqueQuoteItemIDs()
     -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
     local restingSince = restedAt(position.itemID)
     local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
-    -- A PRESS of Refresh asks about everything that can be acted on, whatever its age. The
-    -- age gate exists so the walk's own five-second repeat does not grind the whole tab
-    -- through the throttle for ever; applied to a press as well, it turned "refresh" into "re-ask
-    -- about the three rows older than thirty seconds" -- PRICING 3/4 over a list of twenty,
-    -- with the rest keeping whatever they had, including quotes restored without their book.
+    -- A PRESS of Refresh is served by the bulk fill (GC.Sell.TrySendBulk): one message
+    -- re-prices every commodity on the tab, which is what a press asks for. The walk does not
+    -- also re-ask about all of them -- at one search per throttled round trip that is twelve
+    -- seconds for a tab of twenty-seven, every press (measured in game). It asks about what is
+    -- still owed a real quote: rows never priced, rows gone stale, rows holding a bulk price.
     -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
     -- it and may not back a post (see freshQuote), however young it is.
     local held = quotes[position.itemID]
-    local due = refresh.manual or (type(held) == "table" and held.bulk == true)
+    local due = (type(held) == "table" and held.bulk == true)
       or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
     -- An unresolved position is priced anyway when it is a COMMODITY holding stock: the
@@ -1492,6 +1496,12 @@ function GC.Sell.OnOwnedAuctions()
 end
 
 function GC.Sell.OnThrottleReady()
+  -- A bulk fill that a press asked for goes before anything else this tab sends. It was tried
+  -- only at the press itself and from a once-a-second ticker, and lost both ways: at the press
+  -- the throttle was still shut by the walk's own search in flight, and after it the walk took
+  -- every ready tick the moment it came -- so the one message that prices the whole tab went
+  -- out last, or not at all, and a press looked exactly as slow as it always had (seen in game).
+  if refresh.bulkWanted and GC.Sell.TrySendBulk() then return end
   if refresh.phase == "waiting_owned" then
     local sent, waiting = requestOwnedAuctions()
     if sent then
@@ -4620,8 +4630,12 @@ function GC.Sell.FoldBulk(browsed)
     end
   end
   if filled > 0 then
+    refresh.bulkLanded = true
     composePositions()
     renderRows()
+    -- Said out loud: without it the only sign this happened is that the numbers were already
+    -- there, which is indistinguishable from the walk having been quick.
+    setStatus((GC.L["%d prices in one request · books still loading"]):format(filled))
   end
 end
 
@@ -4633,9 +4647,6 @@ function GC.Sell.Refresh(automatic)
   -- five-second repeat (`automatic`) is not, and neither is opening the tab mid-session. This
   -- is the one place a settled order is deliberately given up -- see rowPlaces.
   if not automatic then rowPlaces = {} end
-  -- Held for the whole pass the press starts (an automatic Refresh stands aside while one is
-  -- running, above) and dropped by the first repeat after it -- see uniqueQuoteItemIDs.
-  refresh.manual = not automatic
   abandonInFlightQuote()
   quoteExpiryGeneration = quoteExpiryGeneration + 1
   refresh.generation = refresh.generation + 1
@@ -4665,7 +4676,7 @@ function GC.Sell.Refresh(automatic)
   end
   -- The whole tab in one message, before anything else is asked: if it goes, the listings
   -- query takes the next ready tick (the waiting_owned path below is exactly that).
-  refresh.bulkWanted = true
+  refresh.bulkWanted, refresh.bulkLanded = true, nil
   if GC.Sell.TrySendBulk() then
     refresh.phase = "waiting_owned"
     armPhaseWatchdog()

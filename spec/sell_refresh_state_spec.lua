@@ -462,28 +462,6 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 44 }, refreshState(GC).queue)
   end)
 
-  -- A press is a different request from a repeat: "refresh" that re-asked only about rows
-  -- older than thirty seconds read PRICING 3/4 over a list of twenty, and left the rest with
-  -- whatever they had -- including quotes restored without their book.
-  it("asks about every actionable row on a PRESS of Refresh, fresh or not", function()
-    local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
-    local GC = load(now, sent, cache, function() return { isCommodity = true } end)
-    GC.SellPositions.Build = function()
-      return {
-        { itemID = 43, positionKey = "commodity:43", bagQty = 5, displayMarketUnit = 100, quoteAge = 3 },
-        { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
-        { itemID = 44, positionKey = "commodity:44", bagQty = 5, displayMarketUnit = 100, quoteAge = 31 },
-        { itemID = 45, positionKey = "commodity:45" }, -- nothing to act on: still left alone
-      }
-    end
-    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
-    assert.same({ 42, 44, 43 }, refreshState(GC).queue)
-    -- ...and the repeat that follows is an ordinary one again.
-    refreshState(GC).phase = "done"
-    GC.Sell.Refresh(true)
-    assert.same({ 42, 44 }, refreshState(GC).queue)
-  end)
-
   -- Unresolved positions were excluded from pricing wholesale, which left every tiered
   -- reagent caught in identity repair (Progenium Ore, Bismuth...) at "—" forever -- reading
   -- as the walk being broken. Identity questions are about COST; a commodity's market price

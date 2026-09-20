@@ -33,6 +33,7 @@ GC.Locales.enUS = {
     "%d lines · %d to buy · %d to craft · %d at the vendor",
   ["%d missing"] = "%d missing",
   ["%d partial"] = "%d partial",
+  ["%d prices in one request · books still loading"] = "%d prices in one request · books still loading",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] = "%d refused by live checks -- press \"HIDDEN %d\" above to review them",
   ["%d sales · %s proceeds · %s in the mail"] = "%d sales · %s proceeds · %s in the mail",
   ["%d units"] = "%d units",
@@ -76,6 +77,7 @@ GC.Locales.enUS = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
     "Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle.",
   ["Avoid"] = "Avoid",
+  ["BOOKS %d/%d"] = "BOOKS %d/%d",
   ["BRAKES"] = "BRAKES",
   ["BUY"] = "BUY",
   ["BUY %d"] = "BUY %d",

@@ -111,6 +111,19 @@ describe("Sell bulk price fill", function()
     assert.equal("sell", asked.who)
   end)
 
+  -- The ticker alone lost to the walk, which takes every ready tick the moment it comes: the
+  -- batch has to be first in line on the tab's own ready handler.
+  it("takes the first ready tick after a press it could not be sent on, ahead of the walk", function()
+    local now, asked, grant = { value = 100 }, {}, { value = false }
+    local GC = load(now, STOCK, asked, grant)
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    grant.value = true
+    local searched = #(asked.searches or {})
+    GC.Sell.OnThrottleReady()
+    assert.equal("sell", asked.who)
+    assert.equal(searched, #(asked.searches or {})) -- the tick went to the batch, not to a search
+  end)
+
   it("never asks from another tab", function()
     local now, asked = { value = 100 }, { view = "deals" }
     local GC = load(now, STOCK, asked, { value = true })
