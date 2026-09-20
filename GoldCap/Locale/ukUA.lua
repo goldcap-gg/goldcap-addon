@@ -573,12 +573,12 @@ GC.Locales.ukUA = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
-  ["needs a price"] = "потрібна ціна",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
   ["no cost"] = "немає собівартості",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
+  ["no price"] = "немає ціни",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =

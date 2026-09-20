@@ -558,12 +558,12 @@ GC.Locales.ruRU = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
-  ["needs a price"] = "нужна цена",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил -- покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
   ["no cost"] = "нет себестоимости",
   ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
+  ["no price"] = "нет цены",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цен пока нет -- /goldcap companion или /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =

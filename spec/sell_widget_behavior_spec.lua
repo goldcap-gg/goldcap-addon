@@ -1571,7 +1571,11 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("group", rows[5].kind)
     -- No epoch, no allocator counters: how many, when, at what price, from where. The unit
     -- price no longer repeats -- the COST cell two columns over already carries it.
-    assert.match("×5 · bought .+ · GoldCap", rows[6].subItem.text)
+    -- Two lines in the panel: how many, when and at what price; then where from, on what
+    -- evidence, and what is left.
+    assert.match("^×5 · bought .+ · |cffe8c15a50|r$", rows[6].subItem.text)
+    assert.equal("GoldCap · Auction 9 · 2 still unsold", rows[6].itemStock.text)
+    assert.is_true(rows[6].itemStock.shown)
     assert.equal("50", rows[6].cells.cost.text)
     assert.equal("100", rows[6].cells.listed.text)
     assert.equal("2 still unsold", rows[6].cells.status.text)
@@ -1741,10 +1745,11 @@ describe("Sell widget geometry and manual cost", function()
     assert.equal("Post @ 199", rows[2].subItem.text)
     assert.match("×2 listed at 200 each", rows[4].subItem.text)
     assert.equal("400", rows[4].cells.listed.text)
-    assert.match("captured", rows[6].subItem.text)
-    assert.match("mail%-confirmed", rows[7].subItem.text)
-    assert.match("manual", rows[8].subItem.text)
-    assert.match("unknown evidence", rows[9].subItem.text)
+    -- The evidence word is on a purchase's second line in the panel.
+    assert.match("captured", rows[6].itemStock.text)
+    assert.match("mail%-confirmed", rows[7].itemStock.text)
+    assert.match("manual", rows[8].itemStock.text)
+    assert.match("unknown evidence", rows[9].itemStock.text)
   end)
 
   it("renders a collapsed purchase run as one line with its count and date range", function()
@@ -1774,11 +1779,13 @@ describe("Sell widget geometry and manual cost", function()
     -- the formatted dates; the range separator is ASCII on purpose (the client font has no
     -- U+2192 -- it drew a tofu box in game -- so exotic punctuation is proven-glyphs only). The
     -- unit price no longer repeats here -- the COST/LISTED cells two columns over carry it.
-    assert.match("×400 · 2 purchases · bought 4 %- 9 · GoldCap · captured", rows[4].subItem.text)
+    assert.equal("×400 · 2 purchases · bought 4 - 9 · |cffe8c15a198|r", rows[4].subItem.text)
+    assert.equal("GoldCap · captured · 350 still unsold", rows[4].itemStock.text)
     assert.equal("198", rows[4].cells.cost.text)
     assert.equal("7g92s", rows[4].cells.listed.text)
     assert.equal("350 still unsold", rows[4].cells.status.text)
-    assert.match("×30 · 3 purchases · bought 12 · GoldCap · captured", rows[5].subItem.text)
+    assert.match("^×30 · 3 purchases · bought 12 · ", rows[5].subItem.text)
+    assert.equal("GoldCap · captured · all sold", rows[5].itemStock.text)
     assert.equal("all sold", rows[5].cells.status.text)
   end)
 

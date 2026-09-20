@@ -360,7 +360,7 @@ local MONEY_HEX = "|cffe8c15a"
 -- @localised-keys
 local ROW_TAG_TEXT = {
   below_breakeven = "below cost",
-  no_fresh_price = "needs a price",
+  no_fresh_price = "no price",
   unresolved_identity = "stack not identified",
   advised_hold = "hold",
 }
@@ -2609,6 +2609,14 @@ local function layoutDrawer(row)
   row.drawerFacts:SetJustifyH("LEFT")
   row.drawerFacts:SetWordWrap(true)
   row.drawerFacts:SetMaxLines(3)
+  -- Wrapped lines of the client's own face sit almost on top of one another by default.
+  if row.drawerFacts.SetSpacing then row.drawerFacts:SetSpacing(3); row.drawerHint:SetSpacing(3) end
+  -- A FontString sizes itself when its text is SET, and renderRows sets these before this
+  -- runs. On a pooled row that was a one-line kind a moment ago that meant one line's height
+  -- for three lines of facts -- the rest was simply not drawn until the next render (seen in
+  -- game). Stamping the same text again, now that wrapping is on, makes it measure properly.
+  row.drawerFacts:SetText(row.drawerFacts:GetText() or "")
+  row.drawerHint:SetText(row.drawerHint:GetText() or "")
 end
 
 -- A lot, a bag line, a purchase or a heading inside the panel. None of the deck's columns
@@ -2623,19 +2631,25 @@ layoutDetailRow = function(row)
     row.cells.action:SetWidth(88)
     row.cells.action:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
     edge, edgePoint, inset = row.cells.action, "LEFT", -4
-  elseif row.kind == "batch" then
-    row.cells.cost:ClearAllPoints()
-    row.cells.cost:SetWidth(72)
-    row.cells.cost:SetPoint("RIGHT", row, "RIGHT", -INSP.PAD, 0)
-    row.cells.cost:Show()
-    edge, edgePoint, inset = row.cells.cost, "LEFT", -4
   end
+  -- A purchase is two lines by construction (see the batch branch in renderRows), so neither
+  -- wraps; every other line is one sentence allowed a second line when the panel is narrower
+  -- than it, with air between the two.
+  local twoLine = row.kind == "batch"
   row.subItem:ClearAllPoints()
   row.subItem:SetWidth(0)
-  row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
-  row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, 0)
-  row.subItem:SetWordWrap(true)
-  row.subItem:SetMaxLines(2)
+  row.subItem:SetPoint("LEFT", row, "LEFT", INSP.PAD, twoLine and 7 or 0)
+  row.subItem:SetPoint("RIGHT", edge, edgePoint, inset, twoLine and 7 or 0)
+  row.subItem:SetWordWrap(not twoLine)
+  row.subItem:SetMaxLines(twoLine and 1 or 2)
+  if row.subItem.SetSpacing then row.subItem:SetSpacing(twoLine and 0 or 3) end
+  row.subItem:SetText(row.subItem:GetText() or "") -- re-measured now that it wraps; see layoutDrawer
+  if twoLine then
+    row.itemStock:ClearAllPoints()
+    row.itemStock:SetPoint("LEFT", row, "LEFT", INSP.PAD, -8)
+    row.itemStock:SetPoint("RIGHT", edge, edgePoint, inset, -8)
+    row.itemStock:Show()
+  end
   row.sectionLabel:ClearAllPoints()
   row.sectionLabel:SetPoint("LEFT", row, "LEFT", INSP.PAD, 0)
   -- The head lays itself out over this: called from here so renderRows has one panel layout
@@ -2854,6 +2868,10 @@ local function createRow(parent)
         GameTooltip:AddLine(GC.L["Not on hand — the stock is in the mail, the bank, or on another character"],
           0.85, 0.85, 0.85, true)
       end
+      GameTooltip:Show()
+    elseif GameTooltip and self.kind == "group" and self.groupHint and self.groupHint ~= "" then
+      GameTooltip:SetOwner(self, Theme.TooltipAnchor(self))
+      GameTooltip:AddLine(self.groupHint, 0.85, 0.85, 0.85, true)
       GameTooltip:Show()
     end
   end)
@@ -3407,7 +3425,7 @@ renderRows = function()
       -- number this row is showing. Reset for every kind, not just "position": rows are pooled
       -- and rebound, so a flag left set from an earlier position would otherwise ride along onto
       -- an unrelated expansion sub-row.
-      row.marketFallback, row.notOnHand = false, false
+      row.marketFallback, row.notOnHand, row.groupHint = false, false, nil
       local p = entry.position
       local lotID = entry.lot and entry.lot.auctionID or 0
       row.renderEntryID = table.concat({ renderGeneration, i, entry.kind, p.scopeKey or "", p.positionKey or "", lotID }, ":")
@@ -3818,7 +3836,12 @@ renderRows = function()
         end
         if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
         if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
-        if d and type(d.days) == "number" then facts[#facts + 1] = ("clears in ~%dd"):format(math.floor(d.days + 0.5)) end
+        -- In hours under a day: rounded to whole days, anything that sells through by this
+        -- evening read "clears in ~0d".
+        if d and type(d.days) == "number" then
+          facts[#facts + 1] = d.days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(d.days * 24 + 0.5)))
+            or ("clears in ~%dd"):format(math.floor(d.days + 0.5))
+        end
         if d and d.factsText then facts[#facts + 1] = d.factsText end
         local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
         row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
@@ -3856,8 +3879,10 @@ renderRows = function()
         -- a narrow window sheds, and the book's own hint -- the cheapest ask that is not yours
         -- -- is the single most useful line in the section: losing it exactly when the window
         -- is too small to show much else is backwards.
-        row.sectionLabel:SetText(entry.title
-          .. (entry.hint and entry.hint ~= "" and ("  " .. DIM_HEX .. entry.hint .. "|r") or ""))
+        -- On hover, not in the heading: at the panel's width "Sales are costed from your oldest
+        -- units first" ran off the edge after its sixth word.
+        row.sectionLabel:SetText(entry.title)
+        row.groupHint = entry.hint
         for _, column in ipairs(COLUMNS) do row.cells[column.key]:SetText("") end
         row.action:Hide()
       elseif entry.kind == "batch" then
@@ -3919,6 +3944,25 @@ renderRows = function()
         row.cells.status:SetText((entry.batch.remainingQty or 0) > 0
           and ("%d still unsold"):format(entry.batch.remainingQty) or "all sold")
         setColor(row.cells.status, Theme.color.fgDim)
+        -- Two lines in the panel, split where the sentence turns from WHAT to WHERE FROM: how
+        -- many, when and at what price above; the source, the evidence and what is left below,
+        -- dimmed. As one wrapped sentence it broke wherever the width ran out ("entered / by
+        -- hand") and the unit cost sat in a column only some rows had (seen in game). The
+        -- sentence is still the translated one -- cut at its own separators, the last one for a
+        -- craft (evidence) and the last two for a purchase (source, evidence).
+        local parts = {}
+        for part in ((row.subItem:GetText() or "") .. " · "):gmatch("(.-) · ") do parts[#parts + 1] = part end
+        local tail = math.min(#parts - 1, entry.batch.source == "craft" and 1 or 2)
+        local head, rest = {}, {}
+        for index, part in ipairs(parts) do
+          if index <= #parts - tail then head[#head + 1] = part else rest[#rest + 1] = part end
+        end
+        if type(entry.batch.unitCost) == "number" then
+          head[#head + 1] = MONEY_HEX .. formatCell(entry.batch.unitCost) .. "|r"
+        end
+        rest[#rest + 1] = row.cells.status:GetText()
+        row.subItem:SetText(table.concat(head, " · "))
+        row.itemStock:SetText(table.concat(rest, " · "))
         -- Only a hand-entered cost gets a removal affordance -- goldcap and auction_house
         -- batches are evidence-backed, and Core/Acquisitions' own RemoveManual already refuses
         -- them, but the button should never even offer the click. entry.batch.source is the one
