@@ -602,6 +602,7 @@ GC.Locales.zhTW = {
   ["×%d listed"] = "×%d 已上架",
   ["×%d listed at %s each"] = "×%d 已上架，每件 %s",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · 購買 %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · 製作 %s · %s",
   ["— = nothing is checking this row right now"] = "— = 目前沒有在檢查該列",
   ["… = a live check is queued for this row"] = "… = 該列的即時檢查已排隊",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市價 — 尚無即時報價",

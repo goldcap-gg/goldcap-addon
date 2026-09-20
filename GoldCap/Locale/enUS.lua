@@ -734,6 +734,7 @@ GC.Locales.enUS = {
   ["×%d listed"] = "×%d listed",
   ["×%d listed at %s each"] = "×%d listed at %s each",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · bought %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · made %s · %s",
   ["— = nothing is checking this row right now"] = "— = nothing is checking this row right now",
   ["… = a live check is queued for this row"] = "… = a live check is queued for this row",
   ["↳ %s"] = "↳ %s",

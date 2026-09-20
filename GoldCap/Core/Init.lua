@@ -22,6 +22,11 @@ GC.DEFAULTS = {
   mailOccurrenceGeneration = 0,
   -- One-shot marker for the 2026-08-28 region repair (see the ADDON_LOADED handler below).
   ledgerRegionRepairVersion = 0,
+  -- The last few crafting sessions and what each one did -- see Core/CraftCapture.lua and
+  -- `/gc craft`. SavedVariables-resident so the record survives the /reload that someone
+  -- looking for it has usually just done. Capped by the module. Same empty-table
+  -- ApplyDefaults contract as `flips` above.
+  craftOutcomes = {},
   -- itemID -> true/false, "does this item sell as a commodity". Learned from
   -- C_AuctionHouse.GetItemKeyInfo, which only answers while the auction house is
   -- open, and remembered because the Sell tab lists bag stock wherever the player
@@ -278,6 +283,14 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 -- resolves an id it did not have cached yet. Core/ItemNames.lua.
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+-- Craft capture (Core/CraftCapture.lua). UNIT_SPELLCAST_SENT, not _SUCCEEDED: the materials
+-- leave the bags during the craft, so the snapshot this opens a session with has to be taken
+-- before the spell goes out or the first craft's mats are already missing from it.
+-- RegisterUnitEvent so every spell the player casts does not reach this frame's dispatcher
+-- from every other unit too, and pcall-guarded like AUCTION_CANCELED above -- an event name
+-- this client does not know must not abort the rest of the registration list.
+pcall(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player") end)
+pcall(function() frame:RegisterEvent("TRADE_SKILL_ITEM_CRAFTED_RESULT") end)
 
 local function migrateSniperProfitFloor(db)
   local settings = type(db) == "table" and db.settings or nil
@@ -333,6 +346,25 @@ local function migrateSniperDialogDetails(db)
     s.dialogDetailsOpen = true
     s.dialogDetailsOpenVersion = 1
   end
+end
+
+-- A crafting session settles once it has gone quiet, and the bag events alone cannot deliver
+-- that: the last one fires while the run is still inside its quiet window. So a one-second
+-- ticker runs for as long as a session is open, and stops itself the moment one is not --
+-- there is nothing to poll between crafts.
+local craftTicker
+local function pumpCraftCapture()
+  if not GC.CraftCapture then return end
+  GC.CraftCapture.Tick(time())
+  if craftTicker and not GC.CraftCapture.HasOpenSession() then
+    craftTicker:Cancel()
+    craftTicker = nil
+  end
+end
+
+local function ensureCraftTicker()
+  if craftTicker or not GC.CraftCapture or not GC.CraftCapture.HasOpenSession() then return end
+  if C_Timer and C_Timer.NewTicker then craftTicker = C_Timer.NewTicker(1, pumpCraftCapture) end
 end
 
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -404,6 +436,99 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.AppRuns.Adopt()
     end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
+    -- Craft capture's view of the client. Installed here because everything it reads -- the
+    -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
+    -- ready once the database is.
+    if GC.CraftCapture then
+      -- Every player cast reaches recipeFor, so the answer for a spell is remembered: a
+      -- recipe's reagent slots do not change, and a fireball should cost one lookup ever
+      -- rather than one per cast.
+      local schematics = {}
+      local function recipeFor(spellID)
+        if type(spellID) ~= "number" then return nil end
+        local remembered = schematics[spellID]
+        if remembered ~= nil then return remembered or nil end
+        schematics[spellID] = false
+        if not C_TradeSkillUI or type(C_TradeSkillUI.GetRecipeSchematic) ~= "function" then
+          return nil
+        end
+        local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, spellID, false)
+        if not ok or type(schematic) ~= "table"
+            or type(schematic.reagentSlotSchematics) ~= "table" then
+          return nil
+        end
+        -- Every reagent the recipe can take, fixed slots and modified slots alike: since
+        -- Dragonflight the modified slots hold required quality-tiered mats, not just optional
+        -- finishers. A candidate this craft did not use simply shows no change.
+        local candidates, any = {}, false
+        for _, slot in ipairs(schematic.reagentSlotSchematics) do
+          for _, reagent in ipairs(type(slot) == "table" and slot.reagents or {}) do
+            if type(reagent) == "table" and type(reagent.itemID) == "number" then
+              candidates[reagent.itemID], any = true, true
+            end
+          end
+        end
+        if not any then return nil end
+        -- Every item id this recipe can produce: the declared output plus one per quality,
+        -- because a quality variant is its own item. Without them CraftCapture counts only the
+        -- declared id and refuses a run that came out at another quality -- safe, but it would
+        -- refuse most crafts that have qualities at all.
+        local outputs = {}
+        if type(schematic.outputItemID) == "number" then outputs[schematic.outputItemID] = true end
+        if type(C_TradeSkillUI.GetRecipeOutputItemData) == "function" then
+          for quality = 1, 5 do
+            local gotData, data = pcall(C_TradeSkillUI.GetRecipeOutputItemData,
+              schematic.recipeID or spellID, nil, nil, quality)
+            if gotData and type(data) == "table" and type(data.itemID) == "number" then
+              outputs[data.itemID] = true
+            end
+          end
+        end
+
+        local recipe = { recipeID = schematic.recipeID or spellID,
+          outputItemID = schematic.outputItemID, isRecraft = schematic.isRecraft == true,
+          candidates = candidates, outputs = outputs }
+        schematics[spellID] = recipe
+        return recipe
+      end
+
+      GC.CraftCapture.SetDriver({
+        recipeFor = recipeFor,
+        -- Bags, bank, reagent bank and warband bank together -- crafting pulls from all of
+        -- them, and the same flags the BUY tab's HAVE line settled on. A count the client
+        -- cannot give is left nil, which makes CraftCapture refuse the session rather than
+        -- read a missing reagent as a free one.
+        --
+        -- Known limit, inherited from the client: a bank it has not opened on this character
+        -- reports nothing. Opening one mid-run would move a count for reasons that are not the
+        -- craft; the FIFO cover check is the backstop, since a jump like that is not something
+        -- the player's recorded batches can pay for.
+        countsFor = function(candidates)
+          local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
+          local counts = {}
+          if type(fn) ~= "function" then return counts end
+          for itemID in pairs(candidates) do
+            local ok, count = pcall(fn, itemID, true, false, true, true)
+            if ok and type(count) == "number" then counts[itemID] = count end
+          end
+          return counts
+        end,
+        batchesFor = function(itemID)
+          local out = {}
+          if not GC.Acquisitions then return out end
+          local scope = GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+          for _, batch in ipairs(GC.Acquisitions.GetActive(scope)) do
+            if batch.itemID == itemID then out[#out + 1] = batch end
+          end
+          return out
+        end,
+        commodityKinds = function() return GC.db and GC.db.commodityByItem or {} end,
+        outcomes = type(GC.db.craftOutcomes) == "table" and GC.db.craftOutcomes or nil,
+        context = function()
+          return GC.Ledger and GC.Ledger.Context and GC.Ledger.Context() or nil
+        end,
+      })
+    end
     if GC.Acquisitions and acquisitionsInitialized then
       GC.Acquisitions.MigrateLegacy(GoldCapDB.flips, GC.Ledger and GC.Ledger.GetEntries() or {})
       -- One-shot cleanup of phantom mail-buy duplicates (2026-08-17 incident); says what it
@@ -672,6 +797,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- Guarded: the BUY tab is optional in the same sense every other UI file is -- a load that
     -- stopped short of it must not take the event handler down with it.
     if GC.Buy and GC.Buy.OnBagsChanged then GC.Buy.OnBagsChanged() end
+    -- A craft changes the bags, so this is the cheapest settle signal there is; the ticker
+    -- above covers the case where nothing else touches a bag afterwards.
+    if GC.CraftCapture then GC.CraftCapture.Tick(time()) end
   elseif event == "PLAYER_ENTERING_WORLD" then
     -- Item data is not reliably queryable at ADDON_LOADED; the wanted list is walked from
     -- here. Fires again on every loading screen, which Pending() makes harmless.
@@ -679,6 +807,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "GET_ITEM_INFO_RECEIVED" then
     local itemID, success = ...
     if GC.ItemNames and GC.db then GC.ItemNames.OnEngineItemInfo(GC.db, itemID, success) end
+  elseif event == "UNIT_SPELLCAST_SENT" then
+    local _, _, _, spellID = ...
+    if GC.CraftCapture then
+      GC.CraftCapture.OnCastSent(spellID, time())
+      ensureCraftTicker()
+    end
+  elseif event == "TRADE_SKILL_ITEM_CRAFTED_RESULT" then
+    local result = ...
+    if GC.CraftCapture then GC.CraftCapture.OnCraftResult(result, time()) end
   elseif event == "PLAYER_LOGOUT" then
     if GC.Ledger then GC.Ledger.RecordGold(GetMoney(), GC.Ledger.Context(), nil, true) end
   end
@@ -715,6 +852,43 @@ GC.slashHandlers.board = function() if GC.Sniper and GC.Sniper.DebugBoard then G
 GC.slashHandlers.sniper = function() if GC.Sniper and GC.Sniper.DebugPurchase then GC.Sniper.DebugPurchase() end end
 -- Diagnostics for the BUY tab's run/attempt state; see GC.Buy.DebugPrint.
 GC.slashHandlers.buy = function() if GC.Buy and GC.Buy.DebugPrint then GC.Buy.DebugPrint() end end
+
+-- What the last few crafting sessions did, and why the ones that recorded nothing did not.
+-- A settled craft is otherwise silent -- it shows up as a cost on the Sell tab and nowhere
+-- else -- so without this there is no way to tell "GoldCap did not see that" apart from
+-- "GoldCap saw it and could not price it".
+GC.slashHandlers.craft = function()
+  if not GC.CraftCapture then return end
+  local outcomes = GC.CraftCapture.RecentOutcomes()
+  if #outcomes == 0 then
+    GC.Print("no crafting sessions seen yet this session")
+    return
+  end
+  for _, outcome in ipairs(outcomes) do
+    if outcome.reason then
+      GC.Print(("recipe %s: nothing recorded (%s)"):format(
+        tostring(outcome.recipeID), outcome.reason))
+    else
+      local units = 0
+      for _, output in ipairs(outcome.outputs or {}) do units = units + output.quantity end
+      GC.Print(("recipe %s: %d unit%s, %s total, %s each"):format(
+        tostring(outcome.recipeID), units, units == 1 and "" or "s",
+        GetCoinTextureString and GetCoinTextureString(outcome.total) or tostring(outcome.total),
+        GetCoinTextureString and GetCoinTextureString(outcome.unitCost) or tostring(outcome.unitCost)))
+      -- Whether the Sell tab can attach that cost to a position yet. A craft is recorded
+      -- keyless away from the auction house and is keyed on the next Sell refresh there, so
+      -- "no key yet" before an auction house visit is expected, and after one is a defect.
+      for _, batchID in ipairs(outcome.batchIDs or {}) do
+        for _, batch in ipairs(GC.Acquisitions and GC.Acquisitions.GetAll() or {}) do
+          if batch.id == batchID then
+            GC.Print(("  item %s x%s: %s"):format(tostring(batch.itemID),
+              tostring(batch.remainingQty), batch.positionKey or "no key yet"))
+          end
+        end
+      end
+    end
+  end
+end
 
 -- A printed recap rather than a frame: the numbers are the deliverable here,
 -- and an untested UI window isn't worth carrying until the web dashboard makes

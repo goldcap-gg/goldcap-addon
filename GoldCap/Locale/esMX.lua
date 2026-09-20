@@ -666,6 +666,7 @@ GC.Locales.esMX = {
   ["×%d listed"] = "×%d publicados",
   ["×%d listed at %s each"] = "×%d publicados a %s cada uno",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · comprado %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · fabricado %s · %s",
   ["— = nothing is checking this row right now"] =
     "— = nada está verificando esta fila ahora mismo",
   ["… = a live check is queued for this row"] =

@@ -660,6 +660,7 @@ GC.Locales.ruRU = {
   ["×%d listed"] = "×%d выставлено",
   ["×%d listed at %s each"] = "×%d выставлено по %s за штуку",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · куплено %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · изготовлено %s · %s",
   ["— = nothing is checking this row right now"] = "— = сейчас эту строку никто не проверяет",
   ["… = a live check is queued for this row"] =
     "… = для этой строки живая проверка уже в очереди",

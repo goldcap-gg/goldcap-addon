@@ -37,6 +37,7 @@ Core/Ledger.lua
 Core/QuoteCache.lua
 Core/Flips.lua
 Core/BagStock.lua
+Core/CraftCapture.lua
 Core/SellPositions.lua
 Core/PostQueue.lua
 Core/CancelQueue.lua

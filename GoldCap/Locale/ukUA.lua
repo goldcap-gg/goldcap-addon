@@ -682,6 +682,7 @@ GC.Locales.ukUA = {
   ["×%d listed"] = "×%d виставлено",
   ["×%d listed at %s each"] = "×%d виставлено по %s за штуку",
   ["×%d%s · bought %s · %s · %s"] = "×%d%s · куплено %s · %s · %s",
+  ["×%d%s · made %s · %s"] = "×%d%s · виготовлено %s · %s",
   ["— = nothing is checking this row right now"] = "— = зараз цей рядок ніхто не перевіряє",
   ["… = a live check is queued for this row"] =
     "… = для цього рядка жива перевірка вже в черзі",
