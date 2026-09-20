@@ -1,26 +1,7 @@
 # GoldCap
 
-## 0.13.0 (unreleased)
+## 0.13.0 (2026-09-20)
 
-- **The Sell tab, redrawn.** Each row now answers before you open it: under the price, where
-  it stands in the live book — five marks, one per price level, and how much stock is queued
-  under it ("120 ahead", "first in line") — and under YOU GET, the margin. A row says what is
-  wrong with it only when something is (`no price`, `no cost for 12`, `far below market`).
-  Stock that is in the mail, the bank or on another character folds under one heading at the
-  bottom.
-- **A position opens beside the list, not inside it.** The detail panel has its own column on a
-  wide window and lies over the list on a narrow one: a large price box with a ring that says
-  whose price it is, what that price fetches beside it, five one-click fills as one strip
-  (**GOLDCAP** hands the price back), the reason for the price, **Post**, and the whole
-  eight-level book — your level washed in gold, levels that are already yours in blue — then
-  your lots and what you paid, in columns.
-- **The whole tab is priced at once.** Pressing **REFRESH** (or opening the tab) asks the
-  auction house about every commodity on it in one message, so prices arrive together instead
-  of a row at a time; the books and queue standings fill in behind them, the deck you are
-  looking at first, top to bottom. **Post** still checks that one item's price before it lists.
-- **The status is where the button is.** The bottom of the tab is a dock: the bulk action, what
-  it will do next, what is happening right now, and the session's totals. A search box sits in
-  the top row wherever the window has room for it.
 - **The Sell tab, redrawn.** Each row now answers before you open it: under the price, where
   it stands in the live book — five marks, one per price level, and how much stock is queued
   under it ("120 ahead", "first in line") — and under YOU GET, the margin. A row says what is
