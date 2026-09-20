@@ -39,6 +39,8 @@ GC.Locales.ukUA = {
   ["%d · %d/%d covered"] = "%d · %d/%d покрито",
   ["%d/%d covered"] = "%d/%d покрито",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    разом %s -> %s",
+  ["%s ahead"] = "%s попереду",
+  ["%s under you"] = "%s дешевше за вас",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
   ["24h trend"] = "Тренд за 24г",
@@ -218,7 +220,6 @@ GC.Locales.ukUA = {
   ["Live ask"] = "Ціна в стакані",
   ["Lot cancelled; wait for it to return to bags"] =
     "Лот скасовано; чекайте, поки він повернеться до сумок",
-  ["MARGIN"] = "МАРЖА",
   ["MARKET"] = "РИНОК",
   ["MARKET / UNIT"] = "РИНОК / ШТ",
   ["MATCH"] = "ЗРІВНЯТИ",
@@ -232,6 +233,7 @@ GC.Locales.ukUA = {
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЩЕ НЕ НА GOLDCAP.GG — СИНХРОНІЗУЄТЬСЯ ПІСЛЯ /RELOAD АБО ВИХОДУ",
   ["NO COST"] = "БЕЗ ЧЕКА",
+  ["NOT ON HAND %d"] = "НЕМАЄ НА РУКАХ %d",
   ["NOTHING TO CANCEL"] = "НЕМА ЩО СКАСОВУВАТИ",
   ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
   ["Needs a live price check before it can be bought."] =
@@ -504,6 +506,7 @@ GC.Locales.ukUA = {
   ["auto-synced data stale -- /goldcap import"] =
     "автосинхронізовані дані застаріли -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["below cost"] = "нижче собівартості",
   ["below the %s you paid"] = "нижче %s, які ви заплатили",
   ["big buy"] = "велика купівля",
   ["blue is already yours"] = "синє — вже ваше",
@@ -523,7 +526,9 @@ GC.Locales.ukUA = {
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
   ["fair"] = "середня",
+  ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
+  ["first in line"] = "перший у черзі",
   ["full scan already in progress"] = "повне сканування вже триває",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "повне сканування завершено: %d угод%s з %d груп предметів%s%s",
@@ -537,6 +542,7 @@ GC.Locales.ukUA = {
     "золоте — куди стане ваша ціна, синє — вже ваше",
   ["gone / price changed"] = "зникло / ціна змінилася",
   ["high"] = "висока",
+  ["hold"] = "тримати",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не вдалося визначити (варіативний предмет -- ціна не рахується навмисно)",
   ["if you buy all %d and sell them back at the price standing there now"] =
@@ -547,6 +553,7 @@ GC.Locales.ukUA = {
   ["imported %d items for %s (%s) — prices are live now."] =
     "імпортовано %d предметів для %s (%s) — ціни вже живі.",
   ["in the mail"] = "у пошті",
+  ["in the mail, the bank or on another character"] = "у пошті, у банку або на іншому персонажі",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "стільки цей ринок перетравлює — понад те ви купуєте товар, що зависне",
   ["item %d"] = "предмет %d",
@@ -566,8 +573,11 @@ GC.Locales.ukUA = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
+  ["needs a price"] = "потрібна ціна",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
+  ["no cost"] = "немає собівартості",
+  ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
@@ -641,6 +651,7 @@ GC.Locales.ukUA = {
     "сесія: %d перехоплень, витрачено %s, ~%s орієнт. прибутку",
   ["sniped (listing changed on rescan)"] = "перехоплено (лот змінився при перескануванні)",
   ["sniped for "] = "снайпнуто за ",
+  ["stack not identified"] = "стак не розпізнано",
   ["starting full scan..."] = "починаємо повне сканування...",
   ["stopped watching %s"] = "перестали стежити за %s",
   ["the Companion wrote prices this addon could not read --"] =

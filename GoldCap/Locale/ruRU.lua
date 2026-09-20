@@ -35,6 +35,8 @@ GC.Locales.ruRU = {
   ["%d · %d/%d covered"] = "%d · %d/%d покрыто",
   ["%d/%d covered"] = "%d/%d покрыто",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s за штуку    всего %s -> %s",
+  ["%s ahead"] = "%s впереди",
+  ["%s under you"] = "%s дешевле вас",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
   ["24h trend"] = "Тренд за 24ч",
@@ -222,6 +224,7 @@ GC.Locales.ruRU = {
   ["Missing cost"] = "Нет себестоимости",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "ЕЩЁ НЕ НА GOLDCAP.GG — СИНХРОНИЗИРУЕТСЯ ПОСЛЕ /RELOAD ИЛИ ВЫХОДА",
+  ["NOT ON HAND %d"] = "НЕТ НА РУКАХ %d",
   ["NOTHING TO CANCEL"] = "НЕЧЕГО ОТМЕНЯТЬ",
   ["NOTHING TO POST"] = "НЕЧЕГО ВЫСТАВЛЯТЬ",
   ["Needs a live price check before it can be bought."] =
@@ -488,6 +491,7 @@ GC.Locales.ruRU = {
   ["auto-synced data stale -- /goldcap import"] =
     "автосинхронизированные данные устарели -- /goldcap import",
   ["auto: paused"] = "авто: пауза",
+  ["below cost"] = "ниже себестоимости",
   ["below the %s you paid"] = "ниже %s, которые вы заплатили",
   ["big buy"] = "крупная покупка",
   ["blue is already yours"] = "синее — уже ваше",
@@ -507,7 +511,9 @@ GC.Locales.ruRU = {
   ["data from goldcap.gg · synced %s ago"] = "данные с goldcap.gg · синхронизировано %s назад",
   ["due -- will be asked next pass"] = "очередь -- спросим следующим проходом",
   ["fair"] = "средняя",
+  ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
+  ["first in line"] = "первый в очереди",
   ["full scan already in progress"] = "полное сканирование уже идёт",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "полное сканирование завершено: %d сделок%s из %d групп предметов%s%s",
@@ -521,6 +527,7 @@ GC.Locales.ruRU = {
     "золотое — куда встанет ваша цена, синее — уже ваше",
   ["gone / price changed"] = "исчезло / цена изменилась",
   ["high"] = "высокая",
+  ["hold"] = "держать",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не удалось определить (вариативный предмет -- цена не считается намеренно)",
   ["if you buy all %d and sell them back at the price standing there now"] =
@@ -531,6 +538,7 @@ GC.Locales.ruRU = {
   ["imported %d items for %s (%s) — prices are live now."] =
     "импортировано %d предметов для %s (%s) — цены теперь живые.",
   ["in the mail"] = "в почте",
+  ["in the mail, the bank or on another character"] = "в почте, в банке или на другом персонаже",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "столько этот рынок переваривает — сверх того вы покупаете товар, который зависнет",
   ["item %d"] = "предмет %d",
@@ -550,8 +558,11 @@ GC.Locales.ruRU = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
+  ["needs a price"] = "нужна цена",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил -- покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
+  ["no cost"] = "нет себестоимости",
+  ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цен пока нет -- /goldcap companion или /goldcap import",
@@ -623,6 +634,7 @@ GC.Locales.ruRU = {
     "сессия: %d перехватов, потрачено %s, ~%s ориент. прибыли",
   ["sniped (listing changed on rescan)"] = "перехвачено (лот изменился при пересканировании)",
   ["sniped for "] = "снайпнуто за ",
+  ["stack not identified"] = "стак не опознан",
   ["starting full scan..."] = "начинаем полное сканирование...",
   ["stopped watching %s"] = "перестали следить за %s",
   ["the Companion wrote prices this addon could not read --"] =
