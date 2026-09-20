@@ -660,7 +660,10 @@ local BUTTON_VARIANTS = {
 -- on top of its fill without the two notching each other).
 local ROUNDED_BUTTON = {
   plaque = { bg = T.MEDIA .. "plaque.png", ring = T.MEDIA .. "plaque_ring.png", margin = PLAQUE_SLICE },
-  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, margin = BADGE_SLICE },
+  -- `askedRing`: badge_ring.png, a 1px outline on badge.png's own radius. Not drawn unless the
+  -- caller asks (b:SetRing below) -- a badge button is a row control, and a list of outlined
+  -- ones is a grid of boxes.
+  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, askedRing = T.MEDIA .. "badge_ring.png", margin = BADGE_SLICE },
 }
 
 -- Square mode's ghost has no fill by design -- edgeBorder (below) draws its outline instead.
@@ -815,6 +818,24 @@ function T.Button(parent, variant, rounded)
   end
   b:SetVariant(variant)
 
+  -- An outline for the one badge button that should stand out of its list (the Sell row's
+  -- Post). nil takes it off again: rows are pooled, and the next kind to take the row must not
+  -- inherit it. Built on first use and kept, so a render does not mint a texture per call.
+  function b:SetRing(c)
+    if not c then
+      if b.ring then b.ring:Hide() end
+      return
+    end
+    if not b.ring then
+      local file = roundedSpec and (roundedSpec.ring or roundedSpec.askedRing)
+      if not file then return end
+      b.ring = slicedTexture(b, "BORDER", file, c, roundedSpec.margin)
+      b.ring:SetAllPoints()
+      b.ringAsked = true
+    end
+    b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+    b.ring:Show()
+  end
 
   -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
   -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
@@ -825,6 +846,8 @@ function T.Button(parent, variant, rounded)
   -- happens synchronously afterward in the same Lua step, before the next render.
   b:SetScript("OnDisable", function()
     b.bg:SetAlpha(0.45)
+    -- Only a ring SetRing drew: a plaque's own border keeps the button's shape while it is dim.
+    if b.ringAsked then b.ring:SetAlpha(0.45) end
     b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
     -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
     -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
@@ -832,6 +855,7 @@ function T.Button(parent, variant, rounded)
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
+    if b.ringAsked then b.ring:SetAlpha(1) end
     -- Same rounded-vs-square branch as SetVariant above: SetColorTexture on a textured
     -- rounded bg would erase the texture file the re-enable path is meant to restore.
     if b.roundedMargin then

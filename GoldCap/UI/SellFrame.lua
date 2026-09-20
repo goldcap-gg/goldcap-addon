@@ -2639,6 +2639,8 @@ local DR = {
   BOOK_Y = -192,           -- where the book section starts when there is a price control
   BOOK_Y_BARE = -84,       -- ...and when there is not
   BAR_MAX = 160,
+  BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
+  BAR_MIN = 5,             -- the narrowest fill that still holds both caps
   PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
@@ -3137,13 +3139,17 @@ local function createRow(parent)
     line.qty:SetWordWrap(false)
     line.bar = CreateFrame("Frame", nil, row)
     line.bar:SetHeight(BOOK_BAR_H)
-    line.bar.track = line.bar:CreateTexture(nil, "BACKGROUND")
+    -- Pills, as the design drew them: bar.png is white art with rounded ends, sliced so the ends
+    -- keep their shape at any width and tinted through SetVertexColor -- SetColorTexture on a
+    -- sliced region drops the art and paints the square block these replaced.
+    line.bar.track = Theme.SlicedTexture(line.bar, "BACKGROUND", Theme.MEDIA .. "bar.png",
+      { 1, 1, 1, 0.05 }, DR.BAR_SLICE)
     line.bar.track:SetAllPoints()
-    line.bar.track:SetColorTexture(1, 1, 1, 0.05)
-    line.bar.fill = line.bar:CreateTexture(nil, "ARTWORK")
+    line.bar.fill = Theme.SlicedTexture(line.bar, "ARTWORK", Theme.MEDIA .. "bar.png",
+      { 1, 1, 1, 0.22 }, DR.BAR_SLICE)
     line.bar.fill:SetPoint("TOPLEFT")
     line.bar.fill:SetPoint("BOTTOMLEFT")
-    line.bar.fill:SetWidth(1)
+    line.bar.fill:SetWidth(DR.BAR_MIN)
     -- The level the seller's price lands on, or already holds, is said in a word beside it and
     -- a wash behind it. Colour alone carried that, explained once in a hint long enough to be
     -- cut off at the panel's width -- a colour nobody explained is a colour nobody reads.
@@ -3632,9 +3638,9 @@ function INSP.paintHead(row, p, d)
         line.qty:SetText(GC.Util.FormatCount(level.units) or "—")
         setColor(line.qty, Theme.color.fgDim)
         local span = widest > 0 and (level.units / widest) or 0
-        line.bar.fill:SetWidth(math.max(1, math.floor(DR.BAR_MAX * span + 0.5)))
-        if tint then line.bar.fill:SetColorTexture(tint[1], tint[2], tint[3], 0.8)
-        else line.bar.fill:SetColorTexture(1, 1, 1, 0.22) end
+        line.bar.fill:SetWidth(math.max(DR.BAR_MIN, math.floor(DR.BAR_MAX * span + 0.5)))
+        if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
+        else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
         line.price:Show(); line.qty:Show(); line.bar:Show()
         -- The same two facts in a word and a wash: where the price lands, what is already
         -- the seller's. Where they coincide the landing wins -- it is the one being decided.
@@ -3745,6 +3751,8 @@ function INSP.paintHead(row, p, d)
     showRowAction(row, "Post", function() onPostClick(row) end)
     row.action:SetSize(INSP.W - 4 - INSP.SCROLL_GUTTER - 2 * INSP.PAD, DR.POST_H)
     if row.action.SetVariant then row.action:SetVariant("primary") end
+    -- Solid gold already; the outline is the list row's, and this pooled button may have been one.
+    if row.action.SetRing then row.action:SetRing(nil) end
   else
     row.action:Hide()
   end
@@ -4485,6 +4493,12 @@ renderRows = function()
         if entry.kind == "position" and row.action.text and row.action.text.SetTextColor then
           local gold = Theme.color.goldHi or Theme.color.gold
           row.action.text:SetTextColor(gold[1], gold[2], gold[3], 1)
+        end
+        -- ...and a thin gold outline with it, on a position alone: the pooled button is every
+        -- other kind's too, and theirs stay bare.
+        if row.action.SetRing then
+          local ring = Theme.color.gold
+          row.action:SetRing(entry.kind == "position" and { ring[1], ring[2], ring[3], 0.45 } or nil)
         end
       end
       if entry.kind ~= "group" and entry.kind ~= "batch" then row.sectionHint:Hide() end

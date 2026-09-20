@@ -20,6 +20,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:GetText() return self.text or "" end
     function value:SetLabel(text) self.label = text end
     function value:SetVariant(name) self.variant = name end
+    function value:SetRing(c) self.ringColor = c or false end
     function value:SetScript(name, fn) self.scripts[name] = fn end
     function value:HookScript(name, fn) self.scripts[name] = fn end
     function value:Show() self.shown = true end
@@ -100,7 +101,15 @@ describe("Sell widget geometry and manual cost", function()
       -- rounded kit.
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       Card = function(parent) local card = region("Frame", parent); function card:SetTint() end return card end,
-      SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      -- Records what the real one does with its arguments: a caller that tints a sliced region
+      -- any other way than SetVertexColor loses the art, and only the file name shows that.
+      SlicedTexture = function(parent, layer, file, c, margin)
+        local t = region("Texture", parent)
+        t.layer = layer
+        t:SetTexture(file); t:SetTextureSliceMargins(margin, margin, margin, margin)
+        t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+        return t
+      end,
       -- The real one reads the owner's place on screen; the double lets a test plant the answer
       -- on the owner and checks the widget passes it through rather than assuming a side.
       TooltipAnchor = function(owner) return owner.tooltipAnchor or "ANCHOR_RIGHT" end,
@@ -989,6 +998,28 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("yours ×", drawer.drawerStand.text, 1, true)
     end)
 
+    -- The depth bars are pills, as drawn: a sliced bar.png, track and fill. A sliced region is
+    -- tinted through its vertices -- SetColorTexture on it throws the art away and paints the
+    -- square block this replaced -- and may not be narrower than its two end caps.
+    it("draws each level's depth as a rounded bar, tinted without losing its art", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, BOOK), "drawer")
+      local GOLD, WATCH = GC.Theme.color.gold, GC.Theme.color.watch
+      for index = 1, 3 do
+        local bar = drawer.bookLines[index].bar
+        assert.equal("bar.png", bar.track.texture)
+        assert.equal("bar.png", bar.fill.texture)
+        assert.is_nil(bar.track.colorTexture)
+        assert.is_nil(bar.fill.colorTexture)
+      end
+      assert.same({ 1, 1, 1, 0.22 }, drawer.bookLines[1].bar.fill.vertexColor)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 0.8 }, drawer.bookLines[2].bar.fill.vertexColor)
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 0.8 }, drawer.bookLines[3].bar.fill.vertexColor)
+      -- 12 units against a widest level of 340 is under six pixels of a 160px bar.
+      local caps = drawer.bookLines[1].bar.fill.sliceMargins
+      assert.is_true(drawer.bookLines[1].bar.fill.width >= caps[1] + caps[3])
+    end)
+
     -- Rows are pooled and rebound to a different kind on every render, so the drawer's own
     -- widgets have to be put away by whichever kind takes the row next -- and it has more of
     -- them to put away than any other kind.
@@ -1010,7 +1041,12 @@ describe("Sell widget geometry and manual cost", function()
         { itemID = 43, itemName = "Bar", positionKey = "commodity:43", coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 10, bagQty = 5, listedQty = 0, sources = {} },
       })
+      -- The drawer's own button wears no outline; as a position's Post it gets the gold one.
+      assert.is_false(reused.action.ringColor)
       render()
+      local GOLD = GC.Theme.color.gold
+      assert.equal("position", reused.kind)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 0.45 }, reused.action.ringColor)
       assert.is_false(reused.bookLines[1].qty.shown)
       assert.is_false(reused.bookLines[1].bar.shown)
       assert.is_false(reused.drawerBookHead.shown)

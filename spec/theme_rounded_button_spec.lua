@@ -70,6 +70,44 @@ describe("Theme.Button rounded mode / Theme.TierMark", function()
     assert.is_nil(btn.ring)
   end)
 
+  -- The Sell row's Post: a thin gold outline on the one control the row exists for. The ring
+  -- art is its own 1px badge_ring.png -- plaque_ring.png's radius and 12px margins notch an
+  -- 18px button -- and only a button that asks for it wears one.
+  describe("badge SetRing", function()
+    it("draws a ring off badge_ring.png at the badge margins, tinted as asked", function()
+      local T = GC.Theme
+      local btn = T.Button(stubFrame(), "ghost", "badge")
+      btn:SetRing({ 0.8, 0.6, 0.2, 0.45 })
+      assert.equal(T.MEDIA .. "badge_ring.png", btn.ring.textureFile)
+      assert.same({ 6, 6, 6, 6 }, btn.ring.slice)
+      assert.same({ 0.8, 0.6, 0.2, 0.45 }, btn.ring.vertex)
+      assert.is_true(btn.ring.shown)
+    end)
+
+    it("takes the ring off again, and keeps one texture across calls for a pooled row", function()
+      local btn = GC.Theme.Button(stubFrame(), "ghost", "badge")
+      btn:SetRing(nil) -- never had one: nothing to do, nothing built
+      assert.is_nil(btn.ring)
+      btn:SetRing({ 1, 1, 1, 1 })
+      local ring = btn.ring
+      btn:SetRing(nil)
+      assert.is_false(ring.shown)
+      btn:SetRing({ 1, 0, 0, 1 })
+      assert.equal(ring, btn.ring)
+      assert.is_true(ring.shown)
+      assert.same({ 1, 0, 0, 1 }, ring.vertex)
+    end)
+
+    it("dims with the button while it is disabled", function()
+      local btn = GC.Theme.Button(stubFrame(), "ghost", "badge")
+      btn:SetRing({ 1, 1, 1, 1 })
+      btn:Disable()
+      assert.equal(0.45, btn.ring.alpha)
+      btn:Enable()
+      assert.equal(1, btn.ring.alpha)
+    end)
+  end)
+
   it("SetVariant recolors a rounded button's bg via SetVertexColor, not SetColorTexture", function()
     local T = GC.Theme
     local btn = T.Button(stubFrame(), "ghost", "plaque")
