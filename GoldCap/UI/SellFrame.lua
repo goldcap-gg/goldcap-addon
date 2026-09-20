@@ -5458,6 +5458,7 @@ function GC.Sell.Attach(f, geometry)
   paintHeaderText(header, "post")
   layoutCells(header)
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate"); scroll:SetPoint("TOPLEFT", 0, -52)
+  if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
   -- Stops above the footer instead of running to the container's own bottom edge: the bulk
   -- action and the ledger line live there now, and a list that scrolled under them would put
   -- rows behind a control that can spend gold.
@@ -5531,6 +5532,7 @@ function GC.Sell.Attach(f, geometry)
   headRule:SetPoint("TOPRIGHT", -INSP.PAD, -INSP.HEAD_H + 2)
 
   local detailScroll = CreateFrame("ScrollFrame", nil, inspector, "UIPanelScrollFrameTemplate")
+  if Theme.QuietScrollBar then Theme.QuietScrollBar(detailScroll) end -- no Blizzard arrows beside a kit panel
   detailScroll:SetPoint("TOPLEFT", 4, -INSP.HEAD_H)
   detailScroll:SetPoint("BOTTOMRIGHT", -INSP.SCROLL_GUTTER, 6)
   detailContent = CreateFrame("Frame", nil, detailScroll)

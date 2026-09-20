@@ -363,6 +363,37 @@ function T.Card(parent, fill, border, small)
   return f
 end
 
+-- QuietScrollBar: UIPanelScrollFrameTemplate's scrollbar without Blizzard's chrome -- the two
+-- arrow buttons and the knurled thumb floated beside panels drawn in none of that style (seen
+-- in game beside the Sell list AND its detail panel at once). The bar itself stays: the wheel
+-- and a drag of the thumb still scroll. The arrows are made invisible and unclickable rather
+-- than hidden, because the template's own scripts Enable/Disable them and anchor the track
+-- between them. Every part is optional -- which keys a scrollbar carries has changed between
+-- client versions, and a missing one is simply skipped.
+function T.QuietScrollBar(scroll)
+  local bar = scroll and scroll.ScrollBar
+  if not bar then return end
+  for _, key in ipairs({ "ScrollUpButton", "ScrollDownButton" }) do
+    local button = bar[key]
+    if button then
+      if button.SetAlpha then button:SetAlpha(0) end
+      if button.EnableMouse then button:EnableMouse(false) end
+    end
+  end
+  for _, key in ipairs({ "Top", "Middle", "Bottom", "Background", "trackBG" }) do
+    if bar[key] and bar[key].Hide then bar[key]:Hide() end
+  end
+  local thumb = bar.ThumbTexture or (bar.GetThumbTexture and bar:GetThumbTexture())
+  if thumb and thumb.SetTexture then
+    -- bar.png at its own slice (2), the same pill the Sell book's depth bars are drawn with.
+    thumb:SetTexture(T.MEDIA .. "bar.png")
+    if thumb.SetTexCoord then thumb:SetTexCoord(0, 1, 0, 1) end
+    if thumb.SetTextureSliceMargins then thumb:SetTextureSliceMargins(2, 2, 2, 2) end
+    if thumb.SetVertexColor then thumb:SetVertexColor(1, 1, 1, 0.22) end
+    if thumb.SetSize then thumb:SetSize(4, 36) end
+  end
+end
+
 -- Glow: additive halo hung `inset` px outside the parent's own rect. ADD
 -- blend keeps it readable over any fill, same reasoning as HOVER_WASH.
 function T.Glow(parent, c, inset)
@@ -995,12 +1026,22 @@ function T.QualityMarkup(itemID, size)
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
 end
 
---- `name` with its quality pip in front, or `name` unchanged. Convenience so a
--- caller never has to remember the trailing space.
+--- `name` as a list shows an item: in its item quality's colour (uncommon and better -- the
+-- game's colour for common is pure white, brighter than anything else on these panels, so a
+-- common name stays in the interface's own foreground) with its reagent-tier pip AFTER it, so
+-- names start on one edge down a list. `name` unchanged when the client knows neither.
 function T.WithQuality(name, itemID, size)
+  local label = tostring(name)
+  local api = _G.C_Item and _G.C_Item.GetItemQualityByID
+  if api and itemID then
+    local ok, quality = pcall(api, itemID)
+    local colour = ok and type(quality) == "number" and quality >= 2
+      and _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
+    if colour and type(colour.hex) == "string" then label = colour.hex .. label .. "|r" end
+  end
   local markup = T.QualityMarkup(itemID, size)
-  if markup == "" then return name end
-  return markup .. " " .. tostring(name)
+  if markup == "" then return label end
+  return label .. " " .. markup
 end
 
 --- The GameTooltip anchor that opens a tooltip from `owner` into the part of the screen

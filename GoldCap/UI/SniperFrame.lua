@@ -1236,14 +1236,14 @@ local function setRowDeal(row, deal)
       local quality = item:GetItemQuality()
       local qc = quality and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].color
       local label = item:GetItemName() or ("item " .. deal.itemID)
-      -- Reagent quality in front of the name. Two tiers of the same reagent are
+      -- Reagent quality beside the name. Two tiers of the same reagent are
       -- separate itemIDs and so already price separately -- this is identification,
       -- not arithmetic, but on a list of ores and herbs it is the difference
       -- between reading a row and guessing at it.
       local named = (qc and qc:WrapTextInColorCode(label) or label)
       if Theme.QualityMarkup then
         local pip = Theme.QualityMarkup(deal.itemID, 12)
-        if pip ~= "" then named = pip .. " " .. named end
+        if pip ~= "" then named = named .. " " .. pip end -- after the name, as Theme.WithQuality
       end
       nameIconCache[deal.itemID] = { icon = icon, named = named }
       row.icon:SetTexture(icon)
@@ -8182,6 +8182,7 @@ local function createFrame()
   local scrollBottom = Theme.pad.m
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+  if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
   scroll:SetPoint("TOPLEFT", f, "TOPLEFT", WIN.CONTENT_LEFT, scrollTop)
   scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WIN.CONTENT_RIGHT_GUTTER, scrollBottom)
   scroll:EnableMouseWheel(true)

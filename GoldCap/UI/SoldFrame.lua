@@ -848,6 +848,7 @@ function GC.Sold.Attach(f, geo)
   band.header = header
 
   local scroll = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
+  if Theme.QuietScrollBar then Theme.QuietScrollBar(scroll) end -- no Blizzard arrows beside a kit panel
   scroll:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(SD.BAND_HEIGHT + SD.HEADER_H + Theme.pad.xs))
   scroll:SetPoint("BOTTOMRIGHT")
   content = CreateFrame("Frame", nil, scroll)
