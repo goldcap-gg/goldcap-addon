@@ -1233,6 +1233,12 @@ advanceQuote = function()
   -- OnThrottleReady's tail -- so one fenced item held the pass until the watchdog shot it.
   if refresh.phase ~= "pricing" and refresh.phase ~= "waiting_key" and refresh.phase ~= "draining" then return end
   if refresh.pending then return end
+  -- Stands still while this tab's own bulk batch is out. The arbiter holds its passes for an
+  -- outstanding batch for a reason: a search sent on top of an unanswered SearchForItemKeys
+  -- takes its answer with it -- the batch never landed, and the walk's first two searches
+  -- came back empty besides (seen in game: the top two rows at "--" with the walk at 21/27).
+  -- FoldBulk and the ticker are what start it again.
+  if GC.Sell.BulkOutstanding() then return end
   if walkParked() then
     -- Give the queue up rather than hold a phase nobody is watching: a held phase is one
     -- Refresh(automatic) refuses to leave.
@@ -1502,6 +1508,8 @@ function GC.Sell.OnThrottleReady()
   -- every ready tick the moment it came -- so the one message that prices the whole tab went
   -- out last, or not at all, and a press looked exactly as slow as it always had (seen in game).
   if refresh.bulkWanted and GC.Sell.TrySendBulk() then return end
+  -- ...and nothing else goes out over an unanswered batch, the listings query included.
+  if GC.Sell.BulkOutstanding() then return end
   if refresh.phase == "waiting_owned" then
     local sent, waiting = requestOwnedAuctions()
     if sent then
@@ -4590,6 +4598,16 @@ function GC.Sell.BulkTargets()
   return ids
 end
 
+-- Whether this tab's own batch is still waiting for its answer. Eight seconds, not the
+-- arbiter's thirty: that timeout protects a poll that has nothing else to do, whereas this
+-- wait holds up the whole pricing walk, and a batch that has not answered in eight seconds is
+-- not going to make the tab feel fast.
+function GC.Sell.BulkOutstanding()
+  local sniper = GC.Sniper
+  if not (sniper and sniper._keysOwner == "sell" and sniper._keysAwaiting) then return false end
+  return (time() - sniper._keysAwaiting) < 8
+end
+
 function GC.Sell.TrySendBulk(playerBusy)
   if not refresh.bulkWanted or not tabIsLive() then return false end
   if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView
@@ -4600,18 +4618,25 @@ function GC.Sell.TrySendBulk(playerBusy)
   }, "sell", function() return GC.Sniper.CurrentView() == "sell" end, playerBusy) and true or false
   -- Asked once per press. A batch that could not go this second (a pass paging, the throttle
   -- shut) is asked for again by the ticker; one that went is not repeated until the next press.
-  if sent then refresh.bulkWanted = false end
+  if sent then refresh.bulkWanted, refresh.bulkSent = false, true end
   return sent
 end
 
 -- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker, like GC.Buy.Tick.
 function GC.Sell.Tick()
   GC.Sell.TrySendBulk()
+  -- A batch that never answered: once the wait is over, hand the tab's turn back. Nothing else
+  -- would -- the ready event that the walk stood still through has been and gone.
+  if refresh.bulkSent and not GC.Sell.BulkOutstanding() then
+    refresh.bulkSent = nil
+    GC.Sell.OnThrottleReady()
+  end
 end
 
 -- The batch's answer, routed here by GC.Sniper._FoldKeysBatch because this tab asked.
 function GC.Sell.FoldBulk(browsed)
   local now, filled = time(), 0
+  refresh.bulkSent = nil
   for i = 1, #(browsed or {}) do
     local row = browsed[i]
     local itemKey = type(row) == "table" and row.itemKey or nil
@@ -4637,6 +4662,8 @@ function GC.Sell.FoldBulk(browsed)
     -- there, which is indistinguishable from the walk having been quick.
     setStatus((GC.L["%d prices in one request · books still loading"]):format(filled))
   end
+  -- The answer is in: whatever stood still for it -- the listings query, the walk -- goes now.
+  GC.Sell.OnThrottleReady()
 end
 
 function GC.Sell.Refresh(automatic)
@@ -5532,6 +5559,15 @@ function GC.Sell.DebugPrint()
     call(sniper.IsSearchCritical), call(sniper.IsBusy),
     sniper._bookPass and call(function() return sniper._bookPass:IsPaging() end) or "n/a",
     call(sniper._QuietZoneOpen), tostring(sniper._quietSince)))
+  -- The bulk fill's own state: whether a press is still owed one, whether it went, whether it
+  -- landed, and every gate the arbiter would hold it at -- so "the prices did not come at once"
+  -- can be answered from a paste instead of guessed at.
+  GC.Print(("bulk: wanted=%s sent=%s landed=%s outstanding=%s targets=%d view=%s keysOwner=%s keysOut=%s pendingStart=%s playerBusy=%s"):format(
+    tostring(refresh.bulkWanted), tostring(refresh.bulkSent), tostring(refresh.bulkLanded),
+    tostring(GC.Sell.BulkOutstanding()), #GC.Sell.BulkTargets(), call(sniper.CurrentView),
+    tostring(sniper._keysOwner), call(sniper._KeysOutstanding),
+    sniper._bookPass and call(function() return sniper._bookPass:PendingStart() end) or "n/a",
+    GC.AuctionHouseTab and call(GC.AuctionHouseTab.PlayerIsBusy) or "n/a"))
   local status = statusOwner and statusOwner.status and statusOwner.status.GetText and statusOwner.status:GetText()
   GC.Print("status: " .. tostring(status))
   local t = GC.Util.throttleStats

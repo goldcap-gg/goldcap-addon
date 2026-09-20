@@ -38,6 +38,8 @@ describe("Sell bulk price fill", function()
           asked.calls = (asked.calls or 0) + 1
           if not (grant.value and wants() and poll:HasPending()) then return false end
           asked.who, asked.batch = who, poll.NextBatch()
+          -- What the real arbiter records beside the send, and clears before it folds.
+          asked.sniper._keysOwner, asked.sniper._keysAwaiting = who, now.value
           return true
         end,
       },
@@ -53,6 +55,7 @@ describe("Sell bulk price fill", function()
       SellPositions = { NormalizeOwnedLots = function() return {} end,
         Build = function() return positions end },
     }
+    asked.sniper = GC.Sniper
     helper.loadModule("UI/SellFrame.lua", GC)
     set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", {
       isReady = function() return true end, keyInfo = function() return { isCommodity = true } end,
@@ -84,6 +87,7 @@ describe("Sell bulk price fill", function()
     -- The listings query gives the batch the first slot and takes the next ready tick.
     assert.is_nil(asked.owned)
     assert.equal("waiting_owned", refreshState(GC).phase)
+    asked.sniper._keysOwner, asked.sniper._keysAwaiting = nil, nil
     GC.Sell.OnThrottleReady()
     assert.equal(1, asked.owned)
   end)
@@ -124,6 +128,33 @@ describe("Sell bulk price fill", function()
     assert.equal(searched, #(asked.searches or {})) -- the tick went to the batch, not to a search
   end)
 
+  -- A search sent over an unanswered SearchForItemKeys takes the answer with it: seen in game
+  -- as a batch that never landed and a walk whose first two rows came back empty.
+  it("sends nothing over its own unanswered batch, and carries on the moment the answer lands", function()
+    local now, asked = { value = 100 }, {}
+    local GC = load(now, STOCK, asked, { value = true })
+    GC.Sell.Refresh()
+    GC.Sell.OnThrottleReady(); GC.Sell.OnThrottleReady()
+    assert.is_nil(asked.owned)     -- not the listings query...
+    assert.is_nil(asked.searches)  -- ...and not a single search
+    -- The arbiter clears its record, then hands the rows over.
+    asked.sniper._keysOwner, asked.sniper._keysAwaiting = nil, nil
+    GC.Sell.FoldBulk({ { itemKey = { itemID = 42 }, minPrice = 1200 } })
+    assert.equal(1, asked.owned)
+  end)
+
+  it("gives up on a batch that has not answered in eight seconds, from the ticker", function()
+    local now, asked = { value = 100 }, {}
+    local GC = load(now, STOCK, asked, { value = true })
+    GC.Sell.Refresh()
+    now.value = 107
+    GC.Sell.Tick()
+    assert.is_nil(asked.owned)
+    now.value = 108
+    GC.Sell.Tick()
+    assert.equal(1, asked.owned)
+  end)
+
   it("never asks from another tab", function()
     local now, asked = { value = 100 }, { view = "deals" }
     local GC = load(now, STOCK, asked, { value = true })
@@ -147,6 +178,8 @@ describe("Sell bulk price fill", function()
       GC.Sell.Refresh()
       local quotes = upvalue(GC.Sell.FoldBulk, "quotes")
       for id, quote in pairs(before or {}) do quotes[id] = quote end
+      -- As the arbiter does: its record of the wait is cleared before the rows are handed over.
+      asked.sniper._keysOwner, asked.sniper._keysAwaiting = nil, nil
       GC.Sell.FoldBulk(rows)
       return quotes, GC, now, asked
     end
