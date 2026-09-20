@@ -169,6 +169,9 @@ describe("Sell tab, the cancel queue control", function()
     assert.equal("CANCEL 1", button.label)
     assert.is_true(button.enabled)
     assert.equal("danger", button.variant)
+    -- ...and the line beside it names the lot the next click is about.
+    assert.matches("Sanguithorn Tea ×400 @ 2g73s", container.cancelHeldBack.text, 1, true)
+    assert.is_true(container.cancelHeldBack.shown)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()
@@ -303,6 +306,7 @@ describe("Sell tab, the cancel queue control", function()
         if row.inPanel and row.kind == "group" and not head then head = row end
         if row.inPanel and row.kind == "lot" then lot = row end
       end
+      assert.is_true(position.selectRing.shown) -- the open row wears the design's gold outline
       assert.equal("YOUR LOTS", head.sectionLabel.text)
       assert.matches("1 lot", head.sectionHint.text, 1, true)
       assert.equal("Cancel lot", lot.action.label)

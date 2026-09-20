@@ -547,14 +547,20 @@ paintCancelButton = function()
     button:Enable()
   end
   if heldBack then
-    if #cancelSkipped > 0 then
-      heldBack:SetText((GC.L["%d held back"]):format(#cancelSkipped))
-      heldBack:Show()
-      if heldBackHit then heldBackHit:Show() end
-    else
-      heldBack:SetText("")
-      heldBack:Hide()
-      if heldBackHit then heldBackHit:Hide() end
+    -- The line beside the control names what the next click is about -- "Mycobloom ×80 @
+    -- 8g10s" -- the way the posting deck's does, ahead of the held-back count. One line rather
+    -- than the posting deck's two: this deck's lower line is the status.
+    local parts = {}
+    if head then
+      parts[1] = inlineColor(Theme.color.fg, ("%s ×%d @ %s"):format(
+        head.itemName or GC.L["Item"], head.quantity or 0, formatCell(head.listedUnit)))
+    end
+    if #cancelSkipped > 0 then parts[#parts + 1] = (GC.L["%d held back"]):format(#cancelSkipped) end
+    heldBack:SetText(table.concat(parts, "  ·  "))
+    if #parts > 0 then heldBack:Show() else heldBack:Hide() end
+    -- The hover explains the held-back lots, so it is only there when there are any.
+    if heldBackHit then
+      if #cancelSkipped > 0 then heldBackHit:Show() else heldBackHit:Hide() end
     end
   end
 end
@@ -3078,6 +3084,12 @@ local function createRow(parent)
   row.zebra:SetTextureSliceMargins(12, 12, 12, 12)
   row.zebra:SetPoint("TOPLEFT", 2, -1); row.zebra:SetPoint("BOTTOMRIGHT", -2, 1)
   row.zebra:SetVertexColor(zc[1], zc[2], zc[3], 0)
+  -- The open position's outline, over the same rect as its fill: gold at the design's 38%.
+  -- Built through the kit's own sliced texture so a spec's Theme double serves it too.
+  row.selectRing = Theme.SlicedTexture(row, "BORDER", Theme.MEDIA .. "plaque_ring.png",
+    { Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.38 }, 12)
+  row.selectRing:SetPoint("TOPLEFT", 2, -1); row.selectRing:SetPoint("BOTTOMRIGHT", -2, 1)
+  row.selectRing:Hide()
   -- The "well": a sunken fill an expanded position's children sit in instead of the list's
   -- alternating zebra, so a sub-row reads as nested inside its position rather than as one more
   -- row in the same flat list (row.spine, below, is the other half of that cue). Same sliced
@@ -3817,6 +3829,11 @@ function INSP.paintHead(row, p, d)
     advice = d and d.factsText or ""
   else
     advice = recommendationText(d and d.recommendation)
+    -- The verdict in the verdict's colour: green to hold, red to cancel and relist. It is the
+    -- one word this panel is opened for, and it used to sit in the same grey as its reasons.
+    local action = d and type(d.recommendation) == "table" and d.recommendation.action
+    local tone = (action == "hold" and Theme.color.green) or (action == "repost" and Theme.color.red) or nil
+    if tone then advice = (advice:gsub("^(%a+)", function(word) return inlineColor(tone, word) end, 1)) end
     if d and d.factsText then advice = (advice ~= "" and (advice .. " · ") or "") .. d.factsText end
   end
   row.subItem:SetText(advice)
@@ -4296,7 +4313,11 @@ renderRows = function()
         row.cells.gross:SetText(gross and formatCell(gross) or "—")
         setColor(row.cells.gross, gross and Theme.color.fg or Theme.color.fgDim)
         row.cells.price:SetText(rowUnit and formatCell(rowUnit) or "—")
-        setColor(row.cells.price, rowUnit and Theme.color.fg or Theme.color.fgDim)
+        -- A lot the cancel queue calls urgent is priced far under the market: that figure is
+        -- the problem, and it is the one on this row that goes red.
+        local queuedLot = onListed and ROW.queuedLot(p) or nil
+        setColor(row.cells.price, (queuedLot and queuedLot.urgent and Theme.color.red)
+          or (rowUnit and Theme.color.fg) or Theme.color.fgDim)
         if rowUnit and paidUnit and paidUnit > 0 then
           local pct = math.floor(((rowUnit - paidUnit) / paidUnit) * 100 + 0.5)
           row.grossNote:SetText((pct >= 0 and "+" or "") .. pct .. "%")
@@ -4331,7 +4352,9 @@ renderRows = function()
         else
           row.priceStand:SetText((onListedDeck and GC.L["%s under you"] or GC.L["%s ahead"]):format(
             GC.Util.FormatCount(standing.ahead) or tostring(standing.ahead)))
-          setColor(row.priceStand, Theme.color.fgDim)
+          -- Gold where those units are why the lot is worth cancelling; quiet on one being held.
+          setColor(row.priceStand, (queuedLot and not queuedLot.urgent)
+            and (Theme.color.goldHi or Theme.color.gold) or Theme.color.fgDim)
         end
         -- Post is the point of this screen, so it lives on the row itself. It
         -- used to be reachable only by expanding the position and finding a
@@ -4441,7 +4464,7 @@ renderRows = function()
         -- so that two purchases can be compared down the panel instead of read one by one.
         row.groupHint = (row.subItem:GetText() or "") .. " · " .. (row.cells.status:GetText() or "")
         row.subItem:SetText(("×%d"):format(entry.batch.originalQty or entry.batch.quantity or 0))
-        setColor(row.cells.cost, Theme.color.goldHi or Theme.color.gold)
+        setColor(row.cells.cost, Theme.color.cost or Theme.color.goldHi or Theme.color.gold)
         -- The evidence word is drawn only when it is news. A purchase matched to the mail's
         -- invoice and a craft captured as it happened are the ordinary cases, and saying so on
         -- every line took the room the source and date needed -- "GoldCap,..." (seen in game).
@@ -4571,8 +4594,10 @@ renderRows = function()
       if entry.kind == "position" and expanded[p.positionKey] then
         local gc3 = Theme.color.gold
         row.zebra:SetVertexColor(gc3[1], gc3[2], gc3[3], 0.10)
+        row.selectRing:Show()
       else
         row.zebra:SetVertexColor(zc2[1], zc2[2], zc2[3], (listIndex % 2 == 1) and (zc2[4] or 0.04) or 0)
+        row.selectRing:Hide()
       end
       -- The drawer is a SURFACE, not a shaded row: at the well's usual half alpha the window
       -- behind it (and, docked, the auction house's own art at the edges) mixed straight

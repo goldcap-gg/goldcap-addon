@@ -1646,7 +1646,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Split the way it is read: the queue and the velocity on the left, the quote's age right.
     assert.equal("3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
     assert.equal("quote 7s ago", rows[2].drawerQuote.text)
-    assert.equal("Repost @ 149", rows[2].subItem.text)
+    assert.equal("|cffff0000Repost|r @ 149", rows[2].subItem.text) -- the verdict's word in the verdict's colour
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
     assert.equal("400", rows[4].cells.listed.text)
@@ -1793,7 +1793,9 @@ describe("Sell widget geometry and manual cost", function()
         knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "UNLISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    assert.equal("Hold (loss) @ 149", rows[2].subItem.text)
+    -- The verdict is the word the panel is read for, so it wears the verdict's colour -- green
+    -- for a hold -- and the figures after it stay in the sentence's own.
+    assert.equal("|cff00ff00Hold|r (loss) @ 149", rows[2].subItem.text)
   end)
 
   it("keeps the below-cost warning through the trim", function()
@@ -2359,6 +2361,27 @@ describe("Sell widget geometry and manual cost", function()
       assert.equal("360 under you", rows[2].priceStand.text)
       local WATCH = GC.Theme.color.watch
       assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[2].standMarks[4].colorTexture)
+    end)
+
+    -- The count under a lot says whether it matters: gold on a lot the cancel queue holds
+    -- (those units are why it is worth cancelling), quiet on one being held. A lot priced far
+    -- under the market wears its price in red -- that figure is the problem.
+    it("lights the units under a lot worth cancelling, and reddens a price that is far too low", function()
+      local GC = load(620, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 })
+      set(render, "cancelEntries", { { positionKey = lot.positionKey, auctionID = 1 } })
+      local rows = topRows(GC, { lot }, "listed")
+      local GOLD = GC.Theme.color.goldHi or GC.Theme.color.gold
+      assert.equal("360 under you", rows[2].priceStand.text)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[2].priceStand.color)
+      local FG = GC.Theme.color.fg
+      assert.same({ FG[1], FG[2], FG[3], 1 }, rows[2].cells.price.color)
+
+      set(render, "cancelEntries", { { positionKey = lot.positionKey, auctionID = 1, urgent = true } })
+      rows = topRows(GC, { lot }, "listed")
+      local RED = GC.Theme.color.red
+      assert.same({ RED[1], RED[2], RED[3], 1 }, rows[2].cells.price.color)
     end)
 
     it("puts the margin under YOU GET, and names a missing receipt instead of a number", function()
