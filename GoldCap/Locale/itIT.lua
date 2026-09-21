@@ -208,6 +208,8 @@ GC.Locales.itIT = {
     "Non inventerà un costo dal prezzo di mercato, quindi il profitto resta ignoto finché non ne inserisci uno.",
   ["Item"] = "Oggetto",
   ["Item %d"] = "Oggetto %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "Items: equipaggiamento, mascotte e ricette valutati rispetto al riferimento regionale del tuo import. La velocità di vendita non viene mai misurata, quindi non diventano mai SICURO -- questa la decidi tu, e GoldCap li controlla solo finché questa lista è aperta.",
   ["LISTED"] = "IN VENDITA",
   ["Language"] = "Lingua",
   ["Language changed. Type /reload to apply it everywhere."] =

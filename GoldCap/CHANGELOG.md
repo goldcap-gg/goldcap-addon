@@ -6,6 +6,7 @@
   show what you made and what it cost, and the materials it used up stop being
   counted as goods you still hold. Nothing is charged twice: the gold is spent
   when you buy the materials, not again when you craft with them.
+- **`/gc sniper` opens the sniper window again.**
 
 ## 0.13.0 (2026-09-20)
 

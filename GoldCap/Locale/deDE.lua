@@ -207,6 +207,8 @@ GC.Locales.deDE = {
     "Es erfindet keine Kosten aus dem Marktpreis, also bleibt der Gewinn unbekannt, bis du welche einträgst.",
   ["Item"] = "Gegenstand",
   ["Item %d"] = "Gegenstand %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "Items: Ausrüstung, Haustiere und Rezepte, bepreist gegen die Regionsreferenz aus deinem Import. Das Verkaufstempo bleibt ungemessen, daher werden sie nie SICHER -- das entscheidest du, und GoldCap prüft sie nur, solange diese Liste offen ist.",
   ["LISTED"] = "EINGESTELLT",
   ["Language"] = "Sprache",
   ["Language changed. Type /reload to apply it everywhere."] =

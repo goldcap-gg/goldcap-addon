@@ -200,6 +200,8 @@ GC.Locales.zhCN = {
     "它不会拿市场价当成本，所以在你填写之前利润始终显示为未知。",
   ["Item"] = "物品",
   ["Item %d"] = "物品 %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "物品：装备、宠物和配方按你导入的区域参考价定价。售出速度从未被测量，因此它们永远无法判定为安全 -- 是否购买由你决定，GoldCap 只在此面板打开时才会检查它们。",
   ["LISTED"] = "已上架",
   ["Language"] = "语言",
   ["Language changed. Type /reload to apply it everywhere."] =
