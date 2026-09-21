@@ -70,8 +70,14 @@ describe("Sell posting wiring", function()
       "the cancel control's click handler must exist")
     local stop = assert(text:find("-- The number on the Sell tab", start, true))
     local control = text:sub(start, stop - 1)
-    assert.is_truthy(control:find("onRepostClick(", 1, true),
-      "onCancelQueueClick must call onRepostClick")
+    -- The dock's control and a row's own Cancel lot make the same hand-over (ROW.armLot), so
+    -- the chain is checked link by link: the control calls the hand-over, and the hand-over's
+    -- only way to cancel anything is onRepostClick.
+    assert.is_truthy(control:find("ROW.armLot(", 1, true), "onCancelQueueClick must go through ROW.armLot")
+    local armStart = assert(text:find("function ROW.armLot(entry)", 1, true), "ROW.armLot must exist")
+    local armStop = assert(text:find("\nend\n", armStart, true))
+    assert.is_truthy(text:sub(armStart, armStop):find("onRepostClick(", 1, true),
+      "ROW.armLot must call onRepostClick")
   end)
 
   -- Bindings.xml is not a .lua file, so the source-text scans above never see it -- this reads

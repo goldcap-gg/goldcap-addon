@@ -20,6 +20,7 @@ describe("Sell widget geometry and manual cost", function()
     function value:GetText() return self.text or "" end
     function value:SetLabel(text) self.label = text end
     function value:SetVariant(name) self.variant = name end
+    function value:SetRing(c) self.ringColor = c or false end
     function value:SetScript(name, fn) self.scripts[name] = fn end
     function value:HookScript(name, fn) self.scripts[name] = fn end
     function value:Show() self.shown = true end
@@ -100,7 +101,15 @@ describe("Sell widget geometry and manual cost", function()
       -- rounded kit.
       Button = function(parent, _, rounded) local b = region("Button", parent); b.rounded = rounded; return b end,
       Card = function(parent) local card = region("Frame", parent); function card:SetTint() end return card end,
-      SlicedTexture = function(parent, layer) local t = region("Texture", parent); t.layer = layer; return t end,
+      -- Records what the real one does with its arguments: a caller that tints a sliced region
+      -- any other way than SetVertexColor loses the art, and only the file name shows that.
+      SlicedTexture = function(parent, layer, file, c, margin)
+        local t = region("Texture", parent)
+        t.layer = layer
+        t:SetTexture(file); t:SetTextureSliceMargins(margin, margin, margin, margin)
+        t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+        return t
+      end,
       -- The real one reads the owner's place on screen; the double lets a test plant the answer
       -- on the owner and checks the widget passes it through rather than assuming a side.
       TooltipAnchor = function(owner) return owner.tooltipAnchor or "ANCHOR_RIGHT" end,
@@ -123,6 +132,7 @@ describe("Sell widget geometry and manual cost", function()
         -- is loaded for real just below. The rest of the double stays hand-written because
         -- these tests are about the widget, not about the view model's text.
         Deck = realViewModel.SellViewModel.Deck,
+        LotSections = realViewModel.SellViewModel.LotSections,
         Order = realViewModel.SellViewModel.Order,
         -- Borrowed for the same reason Deck is: Settle decides whether a row MOVES between
         -- renders, and a stand-in that handed the list straight back would let every test here
@@ -587,7 +597,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {}, profit = 8500, profitAtHold = 15000 },
       })
-      assert.equal("8500 |cff9d9d9d@1g|r", rows[1].cells.profit.text)
+      assert.equal("8500 |cff8f8d88@1g|r", rows[1].cells.profit.text)
       assert.same({ 0.83, 0.64, 0.22, 1 }, rows[1].cells.profit.color)
     end)
 
@@ -599,7 +609,7 @@ describe("Sell widget geometry and manual cost", function()
           exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, bagQty = 1,
           listedQty = 0, sources = {}, profit = -11500, profitAtHold = 15000 },
       })
-      assert.equal("-1g15s |cff9d9d9d@1g|r", rows[1].cells.profit.text)
+      assert.equal("-1g15s |cff8f8d88@1g|r", rows[1].cells.profit.text)
       assert.same({ 1, 0, 0, 1 }, rows[1].cells.profit.color)
     end)
   end)
@@ -989,6 +999,28 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("yours ×", drawer.drawerStand.text, 1, true)
     end)
 
+    -- The depth bars are pills, as drawn: a sliced bar.png, track and fill. A sliced region is
+    -- tinted through its vertices -- SetColorTexture on it throws the art away and paints the
+    -- square block this replaced -- and may not be narrower than its two end caps.
+    it("draws each level's depth as a rounded bar, tinted without losing its art", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, BOOK), "drawer")
+      local GOLD, WATCH = GC.Theme.color.gold, GC.Theme.color.watch
+      for index = 1, 3 do
+        local bar = drawer.bookLines[index].bar
+        assert.equal("bar.png", bar.track.texture)
+        assert.equal("bar.png", bar.fill.texture)
+        assert.is_nil(bar.track.colorTexture)
+        assert.is_nil(bar.fill.colorTexture)
+      end
+      assert.same({ 1, 1, 1, 0.22 }, drawer.bookLines[1].bar.fill.vertexColor)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 0.8 }, drawer.bookLines[2].bar.fill.vertexColor)
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 0.8 }, drawer.bookLines[3].bar.fill.vertexColor)
+      -- 12 units against a widest level of 340 is under six pixels of a 160px bar.
+      local caps = drawer.bookLines[1].bar.fill.sliceMargins
+      assert.is_true(drawer.bookLines[1].bar.fill.width >= caps[1] + caps[3])
+    end)
+
     -- Rows are pooled and rebound to a different kind on every render, so the drawer's own
     -- widgets have to be put away by whichever kind takes the row next -- and it has more of
     -- them to put away than any other kind.
@@ -1010,7 +1042,12 @@ describe("Sell widget geometry and manual cost", function()
         { itemID = 43, itemName = "Bar", positionKey = "commodity:43", coverage = "COMPLETE",
           exposureQty = 5, knownQty = 5, knownCost = 10, bagQty = 5, listedQty = 0, sources = {} },
       })
+      -- The drawer's own button wears no outline; as a position's Post it gets the gold one.
+      assert.is_false(reused.action.ringColor)
       render()
+      local GOLD = GC.Theme.color.gold
+      assert.equal("position", reused.kind)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 0.45 }, reused.action.ringColor)
       assert.is_false(reused.bookLines[1].qty.shown)
       assert.is_false(reused.bookLines[1].bar.shown)
       assert.is_false(reused.drawerBookHead.shown)
@@ -1152,11 +1189,13 @@ describe("Sell widget geometry and manual cost", function()
         coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 20,
         listedQty = 1, sources = {} },
     }, "listed")
-    assert.equal("Set cost", rows[1].action.label)
-    assert.equal("Cost unknown for 2 of 5", rows[1].cells.status.text)
-    assert.equal("CENTER", rows[1].action.points[1].point)
-    assert.equal(rows[1].cells.action, rows[1].action.points[1].relative)
-    assert.equal("CENTER", rows[1].action.points[1].relativePoint)
+    -- MY LOTS opens on a section heading: rows[1] is it, rows[2] the position.
+    assert.equal("section", rows[1].kind)
+    assert.equal("Set cost", rows[2].action.label)
+    assert.equal("Cost unknown for 2 of 5", rows[2].cells.status.text)
+    assert.equal("CENTER", rows[2].action.points[1].point)
+    assert.equal(rows[2].cells.action, rows[2].action.points[1].relative)
+    assert.equal("CENTER", rows[2].action.points[1].relativePoint)
   end)
 
   -- M11: Theme.Button(parent, variant, rounded) silently falls back to square on an unknown
@@ -1422,7 +1461,7 @@ describe("Sell widget geometry and manual cost", function()
         scopeKey = "eu\1A-R\1item:7:1:0:0", coverage = "UNKNOWN",
         exposureQty = 1, knownQty = 0, trackedQty = 0, listedQty = 1, sources = {} },
     }, "listed")
-    rows[1].action.scripts.OnClick()
+    rows[2].action.scripts.OnClick() -- rows[1] is the deck's section heading
     local dialog, confirm = container.costDialog
     for _, child in ipairs(dialog.children) do if child.label == "Confirm" then confirm = child end end
     dialog.total:SetText("9"); dialog.total.scripts.OnTextChanged()
@@ -1559,7 +1598,7 @@ describe("Sell widget geometry and manual cost", function()
     GC.Sell.OnPostError() -- disarms, and flushes the render the filter asked for
     assert.equal(8, firstLotRow.lot.auctionID)
     assert.is_nil(firstLotRow.repostStage)
-    assert.equal("Repost", firstLotRow.action.label)
+    assert.equal("Cancel lot", firstLotRow.action.label)
     assert.is_true(firstLotRow.action.enabled)
 
     for _, callback in ipairs(timers) do callback() end
@@ -1607,7 +1646,7 @@ describe("Sell widget geometry and manual cost", function()
     -- Split the way it is read: the queue and the velocity on the left, the quote's age right.
     assert.equal("3 ahead of you · sells 4/day · clears in ~1d", rows[2].drawerFacts.text)
     assert.equal("quote 7s ago", rows[2].drawerQuote.text)
-    assert.equal("Repost @ 149", rows[2].subItem.text)
+    assert.equal("|cffff0000Repost|r @ 149", rows[2].subItem.text) -- the verdict's word in the verdict's colour
     -- rows[3] is the listings heading, rows[4] the lot, rows[5] the purchases heading.
     assert.equal("group", rows[3].kind)
     assert.equal("400", rows[4].cells.listed.text)
@@ -1718,10 +1757,10 @@ describe("Sell widget geometry and manual cost", function()
         status = "LISTED", displayMarketUnit = 9900, freshMarketUnit = 9900,
         recommendation = { action = "repost", rec = { unit = 11500, mode = "overcut", ahead = 12 } } },
     }, "listed")
-    rows[1].scripts.OnClick(rows[1])
+    rows[2].scripts.OnClick(rows[2])
     local render = upvalue(GC.Sell.Attach, "renderRows")
     rows = upvalue(render, "rows")
-    -- rows[3] is the "ON THE AUCTION HOUSE" heading, rows[4] the lot.
+    -- rows[1] the deck's section heading, rows[2] the position, rows[3] "YOUR LOTS", rows[4] the lot.
     assert.equal("» 1g15s", rows[4].cells.market.text)
   end)
 
@@ -1754,7 +1793,9 @@ describe("Sell widget geometry and manual cost", function()
         knownQty = 1, knownCost = 100, listedValue = 200, sources = {}, status = "UNLISTED" },
     })
     rows[1].scripts.OnClick(rows[1])
-    assert.equal("Hold (loss) @ 149", rows[2].subItem.text)
+    -- The verdict is the word the panel is read for, so it wears the verdict's colour -- green
+    -- for a hold -- and the figures after it stay in the sentence's own.
+    assert.equal("|cff00ff00Hold|r (loss) @ 149", rows[2].subItem.text)
   end)
 
   it("keeps the below-cost warning through the trim", function()
@@ -1791,20 +1832,22 @@ describe("Sell widget geometry and manual cost", function()
         ownedLots = { { auctionID = 9, quantity = 2, unitPrice = 200 } },
       },
     }, "listed")
-    rows[1].scripts.OnClick(rows[1])
-    -- Listings first, then purchases, each behind its own heading: rows[3] heading, rows[4] the
-    -- lot, rows[5] heading, rows[6..9] the four batches.
-    assert.equal("Post @ 199", rows[2].subItem.text)
+    rows[2].scripts.OnClick(rows[2])
+    -- On MY LOTS the lots open the panel and the advice and book follow: rows[1] the deck's
+    -- section heading, rows[2] the position, rows[3] "YOUR LOTS", rows[4] the lot, rows[5] the
+    -- head, rows[6] "WHAT YOU PAID", rows[7..10] the four batches.
+    assert.equal("YOUR LOTS", rows[3].sectionLabel.text)
     assert.match("×2 listed at 200 each", rows[4].subItem.text)
     assert.equal("400", rows[4].cells.listed.text)
+    assert.equal("Post @ 199", rows[5].subItem.text)
     -- The evidence word is a purchase's last column in the panel.
-    assert.equal("captured", rows[6].sectionHint.text)
+    assert.equal("captured", rows[7].sectionHint.text)
     -- The ordinary evidence for a purchase is not drawn: it is on the hover, with the rest.
-    assert.equal("", rows[7].sectionHint.text)
-    assert.match("mail%-confirmed", rows[7].groupHint)
-    assert.match("^Auction House, ", rows[7].itemStock.text) -- ...and the source has its room back
-    assert.equal("manual", rows[8].sectionHint.text)
-    assert.equal("unknown evidence", rows[9].sectionHint.text)
+    assert.equal("", rows[8].sectionHint.text)
+    assert.match("mail%-confirmed", rows[8].groupHint)
+    assert.match("^Auction House, ", rows[8].itemStock.text) -- ...and the source has its room back
+    assert.equal("manual", rows[9].sectionHint.text)
+    assert.equal("unknown evidence", rows[10].sectionHint.text)
   end)
 
   it("renders a collapsed purchase run as one line with its count and date range", function()
@@ -2314,9 +2357,31 @@ describe("Sell widget geometry and manual cost", function()
     it("counts a live lot's standing in the watch blue, as stock under it", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 }) }, "listed")
-      assert.equal("360 under you", rows[1].priceStand.text)
+      -- rows[1] is the deck's section heading.
+      assert.equal("360 under you", rows[2].priceStand.text)
       local WATCH = GC.Theme.color.watch
-      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[1].standMarks[4].colorTexture)
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, rows[2].standMarks[4].colorTexture)
+    end)
+
+    -- The count under a lot says whether it matters: gold on a lot the cancel queue holds
+    -- (those units are why it is worth cancelling), quiet on one being held. A lot priced far
+    -- under the market wears its price in red -- that figure is the problem.
+    it("lights the units under a lot worth cancelling, and reddens a price that is far too low", function()
+      local GC = load(620, { calls = {} })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      local lot = stock({ bagQty = 0, listedQty = 20, listedValue = 3680000 })
+      set(render, "cancelEntries", { { positionKey = lot.positionKey, auctionID = 1 } })
+      local rows = topRows(GC, { lot }, "listed")
+      local GOLD = GC.Theme.color.goldHi or GC.Theme.color.gold
+      assert.equal("360 under you", rows[2].priceStand.text)
+      assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, rows[2].priceStand.color)
+      local FG = GC.Theme.color.fg
+      assert.same({ FG[1], FG[2], FG[3], 1 }, rows[2].cells.price.color)
+
+      set(render, "cancelEntries", { { positionKey = lot.positionKey, auctionID = 1, urgent = true } })
+      rows = topRows(GC, { lot }, "listed")
+      local RED = GC.Theme.color.red
+      assert.same({ RED[1], RED[2], RED[3], 1 }, rows[2].cells.price.color)
     end)
 
     it("puts the margin under YOU GET, and names a missing receipt instead of a number", function()
@@ -2363,8 +2428,32 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local rows = topRows(GC, { stock({ bagQty = 0, listedQty = 20, listedValue = 3680000,
         coverage = "PARTIAL", knownQty = 10, facts = { underpriced = true } }) }, "listed")
-      assert.matches("|cffff0000far below market|r", rows[1].itemStock.text, 1, true)
+      assert.matches("|cffff0000far below market|r", rows[2].itemStock.text, 1, true)
     end)
+  end)
+
+  -- "TO POST 17" over a list of three rows that could be posted (seen in game): the number
+  -- counted everything the deck HOLDS -- stock in the mail or the bank folded away under NOT ON
+  -- HAND, purchases not yet identified -- where a seller reads it as what there is to post.
+  it("counts what can be posted on the deck switch, not everything the deck holds", function()
+    local GC = load(620, { calls = {} })
+    local function position(id, fields)
+      local entry = { itemID = id, itemName = "Item " .. id, positionKey = "commodity:" .. id,
+        coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 50, sources = {} }
+      for key, value in pairs(fields) do entry[key] = value end
+      return entry
+    end
+    local _, container = topRows(GC, {
+      position(1, { bagQty = 5, listedQty = 0 }),
+      position(2, { bagQty = 3, listedQty = 7 }),          -- on both decks: counted on both
+      position(3, { bagQty = 0, listedQty = 0 }),          -- in the mail or the bank
+      position(4, { bagQty = 0, listedQty = 0 }),
+      position(5, { bagQty = 0, listedQty = 0, unresolved = true }), -- bought, not yet identified
+      position(6, { bagQty = 0, listedQty = 4 }),
+    })
+    container.paintDeckSwitch()
+    assert.equal("TO POST 2", container.deckButtons.post.label)
+    assert.equal("MY LOTS 2", container.deckButtons.listed.label)
   end)
 
   describe("the not-on-hand fold", function()
@@ -2541,9 +2630,11 @@ describe("Sell widget geometry and manual cost", function()
 
       local listedOnly = load(620, { calls = {} })
       rows = topRows(listedOnly, { p(42, { bagQty = 0, listedQty = 5, listedValue = 500 }) }, "listed")
-      rows[1].scripts.OnClick(rows[1])
-      assert.equal("drawer", rows[2].kind)
-      assert.is_false(rows[2].action.shown)
+      rows[2].scripts.OnClick(rows[2]) -- rows[1] is the deck's section heading
+      local head
+      for _, row in ipairs(rows) do if row.shown and row.kind == "drawer" then head = row end end
+      assert.is_table(head)
+      assert.is_false(head.action.shown)
     end)
 
     it("washes a hovered list row and nothing inside the panel", function()

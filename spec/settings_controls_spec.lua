@@ -264,7 +264,7 @@ describe("Settings controls", function()
     GC = { db = { settings = { sniper = {
       maxCapitalShare = 0.1, minimumProfitCopper = 10000, minimumRoi = 0.15,
       dumpTrendPct = 40, spikeTrendPct = 30, wallAbsorbHours = 2, sound = true, auto = false,
-      postDuration = 2,
+      postDuration = 2, maxQuantity = 200,
     } } } }
     -- Read by defaultLine/boolDefaultLine (the tooltip's line 3) and by each left card's own
     -- DEFAULTS button -- deliberately different from the "current value" fixture above so a
@@ -272,7 +272,7 @@ describe("Settings controls", function()
     GC.DEFAULTS = { settings = { sniper = {
       maxCapitalShare = 0.05, minimumProfitCopper = 50000, minimumRoi = 0.10,
       dumpTrendPct = 10, spikeTrendPct = 30, wallAbsorbHours = 2, sound = true, auto = false,
-      overcut = true, postDuration = 2,
+      overcut = true, postDuration = 2, maxQuantity = 200,
     } } }
     GC.Theme = fakeTheme()
     -- T7: RefreshRailActive is GC.Sniper's own export (SniperFrame.lua, right after setView) --
@@ -295,6 +295,9 @@ describe("Settings controls", function()
       gear = region("Button"),
       buttons = { deals = region("Button"), sell = region("Button"), sold = region("Button") },
     }
+    -- The real engine, for the one thing the panel takes from it: the bound on "Max units per
+    -- buy". A stubbed constant would let the field and the engine drift apart unseen.
+    helper.loadModule("Core/SniperDecision.lua", GC)
     helper.loadModule("UI/SettingsFrame.lua", GC)
   end)
 
@@ -438,6 +441,34 @@ describe("Settings controls", function()
     box.editBox:ClearFocus()
 
     assert.same({ 0.05, 0.05, 0.07, 1 }, fill.vertexColor)
+  end)
+
+  -- The ceiling on one purchase was a constant nobody could see or move. It is a field now, and
+  -- its bounds are the engine's own: a box that stored 9000 would show a number
+  -- SniperDecision.normalizeConfig then quietly cut back to 5000.
+  it("Max units per buy lives on WHAT COUNTS AS A DEAL and stores a whole number, 1 to the engine's ceiling", function()
+    GC.SettingsUI.Toggle()
+    local whatCounts = cardByTitle(_G.GoldCapSniperFrame, "WHAT COUNTS AS A DEAL")
+    local box = fieldOf(whatCounts, "Max units per buy")
+    assert.is_not_nil(box)
+    assert.equal("200", box.editBox:GetText())
+
+    box.editBox:SetText("1800")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(1800, GC.db.settings.sniper.maxQuantity)
+
+    box.editBox:SetText("999999")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(GC.SniperDecision.MAX_QUANTITY_CEILING, GC.db.settings.sniper.maxQuantity)
+    assert.equal("5000", box.editBox:GetText())
+
+    box.editBox:SetText("0")
+    box.editBox.scripts.OnEditFocusLost(box.editBox)
+    assert.equal(1, GC.db.settings.sniper.maxQuantity)
+
+    local resetBtn = buttonIn(whatCounts, "DEFAULTS")
+    resetBtn.scripts.OnClick(resetBtn)
+    assert.equal(200, GC.db.settings.sniper.maxQuantity)
   end)
 
   it("a card's DEFAULTS button resets only that card's own fields to GC.DEFAULTS", function()

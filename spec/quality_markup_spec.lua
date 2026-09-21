@@ -100,10 +100,37 @@ describe("Reagent quality markup", function()
     assert.equal("", GC.Theme.QualityMarkup(1))
   end)
 
-  it("prefixes a name only when there is a tier to show", function()
+  -- The pip FOLLOWS the name, as the redesign draws it: names then start on one edge down a
+  -- list, instead of every tiered reagent being pushed right by its own mark.
+  it("puts the pip after a name only when there is a tier to show", function()
     tooltip({ { leftText = "Quality: |A:quality-mark-2:20:20|a" } })
-    assert.equal("|A:quality-mark-2:14:14|a Ore", GC.Theme.WithQuality("Ore", 1))
+    assert.equal("Ore |A:quality-mark-2:14:14|a", GC.Theme.WithQuality("Ore", 1))
     _G.C_TradeSkillUI = { GetItemReagentQualityByItemInfo = function() return nil end }
     assert.equal("Ore", GC.Theme.WithQuality("Ore", 2))
+  end)
+
+  -- A name wears its item quality the way the game's own tooltips colour it. Common is left in
+  -- the interface's own foreground: the game's colour for it is pure white, the one thing
+  -- brighter than every other line on the panel.
+  describe("the name's own colour", function()
+    before_each(function()
+      _G.C_TradeSkillUI = { GetItemReagentQualityByItemInfo = function() return nil end }
+      _G.ITEM_QUALITY_COLORS = { [1] = { hex = "|cffffffff" }, [2] = { hex = "|cff1eff00" }, [4] = { hex = "|cffa335ee" } }
+    end)
+    after_each(function() _G.ITEM_QUALITY_COLORS, _G.C_Item = nil, nil end)
+
+    it("colours an uncommon or better name, and closes the colour before the pip", function()
+      _G.C_Item = { GetItemQualityByID = function() return 4 end }
+      assert.equal("|cffa335eeOre|r", GC.Theme.WithQuality("Ore", 1))
+    end)
+
+    it("leaves a common name, and one the client has not loaded, in the foreground colour", function()
+      _G.C_Item = { GetItemQualityByID = function() return 1 end }
+      assert.equal("Ore", GC.Theme.WithQuality("Ore", 1))
+      _G.C_Item = { GetItemQualityByID = function() return nil end }
+      assert.equal("Ore", GC.Theme.WithQuality("Ore", 1))
+      _G.C_Item = { GetItemQualityByID = function() error("nope") end }
+      assert.equal("Ore", GC.Theme.WithQuality("Ore", 1))
+    end)
   end)
 end)

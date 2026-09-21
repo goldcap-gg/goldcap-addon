@@ -26,8 +26,13 @@ GC.Locales.esMX = {
   ["%d held back"] = "%d retenidas",
   ["%d held back from posting"] = "%d sin publicar",
   ["%d hidden -- the live check refused them"] = "%d ocultos -- la comprobación en vivo los rechazó",
+  ["%d in %d lots"] = "%d en %d lotes",
+  ["%d in 1 lot"] = "%d en 1 lote",
+  ["%d lots, %s asked"] = "%d lotes, se piden %s",
   ["%d missing"] = "faltan %d",
   ["%d partial"] = "%d parciales",
+  ["%d prices in one request · books still loading"] =
+    "%d precios en una sola consulta · los libros siguen cargando",
   ["%d refused by live checks -- press \"HIDDEN %d\" above to review them"] =
     "%d rechazadas por la comprobación en vivo -- pulsa «HIDDEN %d» arriba para verlas",
   ["%d sales · %s proceeds · %s in the mail"] = "%d ventas · %s de ingresos · %s en el correo",
@@ -38,8 +43,12 @@ GC.Locales.esMX = {
   ["%d · %d/%d covered"] = "%d · %d/%d cubiertos",
   ["%d/%d covered"] = "%d/%d cubiertos",
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s por unidad    total %s -> %s",
+  ["%s after the AH cut"] = "%s tras la comisión de la CdS",
+  ["%s ahead"] = "%s por delante",
+  ["%s under you"] = "%s por debajo de ti",
   ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin costo",
   [", %d hidden as unsellable"] = ", %d ocultos por no ser vendibles",
+  ["1 lot, %s asked"] = "1 lote, se piden %s",
   ["24h trend"] = "Tendencia 24 h",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
     "Un guion significa que GoldCap aún no conoce el costo de cada unidad: nunca lo adivinará a partir del precio de mercado.",
@@ -65,6 +74,7 @@ GC.Locales.esMX = {
   ["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."] =
     "Auto: mantiene Full Scan en marcha y cede al instante cuando compras, busca tú mismo en la casa de subastas, o revisa el correo. Haz clic para alternar.",
   ["Avoid"] = "Evitar",
+  ["BOOKS %d/%d"] = "LIBROS %d/%d",
   ["BRAKES"] = "FRENOS",
   ["BUY — unverified"] = "COMPRAR — sin verificar",
   ["Background check"] = "Comprobación en segundo plano",
@@ -82,6 +92,7 @@ GC.Locales.esMX = {
   ["COST / UNIT"] = "COSTO / UNIDAD",
   ["Can't price this"] = "Sin precio confiable",
   ["Cancel"] = "Cancelar",
+  ["Cancel lot"] = "Cancelar",
   ["Cancel lot?"] = "¿Cancelar?",
   ["Cancel this lot and lose its deposit — click again to confirm"] =
     "Cancelar este lote y perder el depósito — pulsa otra vez para confirmar",
@@ -183,6 +194,7 @@ GC.Locales.esMX = {
     "En gris significa que la cotización ha envejecido; Post y Repost la actualizan antes de actuar.",
   ["HIDDEN 0"] = "OCULTAS 0",
   ["HIDE DETAILS ▾"] = "OCULTAR DETALLES ▾",
+  ["HOLDING %d"] = "MANTENER %d",
   ["Held back from cancelling"] = "Retenido de la cancelación",
   ["Held back from the queue"] = "Retenido de la cola",
   ["How many hours of normal sales a wall under your exit may hold before the deal is refused."] =
@@ -221,12 +233,14 @@ GC.Locales.esMX = {
   ["MATCH"] = "IGUALAR",
   ["Market per unit"] = "Mercado por unidad",
   ["Market reference"] = "Referencia de mercado",
+  ["Max units per buy"] = "Máx. de unidades por compra",
   ["Max wallet per buy %"] = "Máx. de tu oro por compra %",
   ["Min profit per buy (gold)"] = "Ganancia mínima por compra (oro)",
   ["Min return per buy %"] = "Retorno mín. por compra %",
   ["Missing cost"] = "Falta el costo",
   ["NOT ON GOLDCAP.GG YET — SYNCS ON /RELOAD OR LOGOUT"] =
     "AÚN NO ESTÁ EN GOLDCAP.GG — SE SINCRONIZA CON /RELOAD O AL SALIR",
+  ["NOT ON HAND %d"] = "NO A MANO %d",
   ["NOTHING TO CANCEL"] = "NADA QUE CANCELAR",
   ["NOTHING TO POST"] = "NADA QUE PUBLICAR",
   ["Needs a live price check before it can be bought."] =
@@ -262,6 +276,7 @@ GC.Locales.esMX = {
   ["Nothing listed matches the item level the reference price was measured on."] =
     "Ningún anuncio alcanza el nivel de objeto con el que se midió el precio de referencia.",
   ["Nothing listed on the AH right now"] = "Ahora mismo no hay nada publicado en la subasta",
+  ["Nothing on this deck matches that search"] = "Nada en esta pestaña coincide con esa búsqueda",
   ["Nothing queued to cancel"] = "Nada en cola para cancelar",
   ["Nothing queued to post"] = "Nada en cola para publicar",
   ["Nothing to remove"] = "Nada que borrar",
@@ -280,6 +295,7 @@ GC.Locales.esMX = {
   ["POSTING…"] = "PUBLICANDO…",
   ["PRICE"] = "PRECIO",
   ["PRICE ROSE %.1fx"] = "EL PRECIO SUBIÓ %.1fx",
+  ["PRICED TOO LOW %d"] = "DEMASIADO BARATO %d",
   ["PRICING %d/%d"] = "PRECIOS %d/%d",
   ["PRICING…"] = "PRECIOS…",
   ["PROFIT"] = "GANANCIA",
@@ -344,7 +360,6 @@ GC.Locales.esMX = {
     "Borra todas las compras introducidas a mano en este grupo -- pulsa otra vez para confirmar",
   ["Removes this entered-by-hand purchase -- click again to confirm"] =
     "Borra esta compra introducida a mano -- pulsa otra vez para confirmar",
-  ["Repost"] = "Republicar",
   ["Repost confirmation expired"] = "La confirmación de republicación ha caducado",
   ["Right-click to stop watching this item"] = "Clic derecho para dejar de vigilar este objeto",
   ["Right-click to watch this item closely"] = "Clic derecho para vigilar de cerca este objeto",
@@ -358,6 +373,7 @@ GC.Locales.esMX = {
   ["SHOW DETAILS ▸"] = "MOSTRAR DETALLES ▸",
   ["Sales are costed from your oldest units first"] =
     "Las ventas se imputan primero a tus unidades más antiguas",
+  ["Search"] = "Buscar",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La pestaña Vender publica un escalón por encima de la oferta más barata cuando el libro indica que se vende igual de rápido.",
   ["Sell-through"] = "Tasa de venta",
@@ -396,6 +412,7 @@ GC.Locales.esMX = {
     "El tablero lo clasificó con el snapshot importado. El libro en vivo no lo respalda.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "El botón espera un momento antes de poder presionarse, así que nunca basta con un doble clic accidental.",
+  ["The cancel did not go through — the lot is still listed"] = "La cancelación no se completó — el lote sigue publicado",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "El anuncio más barato ya no está lo bastante por debajo del precio de referencia.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
@@ -406,6 +423,8 @@ GC.Locales.esMX = {
     "Los datos de liquidez no son lo bastante confiables para actuar.",
   ["The market value is an estimate, not a measurement."] =
     "El valor de mercado es una estimación, no una medición.",
+  ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
+    "Lo máximo que puede llevarse una compra. La velocidad a la que se vende el objeto aún puede reducirlo.",
   ["The price data is over three hours old. Sync the Companion, then /reload -- the addon only reads its data when the UI loads."] =
     "Los datos de precios tienen más de tres horas. Sincroniza el Companion y haz /reload: el addon solo lee sus datos al cargar la interfaz.",
   ["The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge."] =
@@ -430,6 +449,7 @@ GC.Locales.esMX = {
   ["Type a price in gold, or clear the box to use GoldCap's"] =
     "Escribe un precio en oro, o vacía el campo para usar el de GoldCap",
   ["UNDERCUT"] = "REBAJAR",
+  ["UNDERCUT %d"] = "SUPERADOS %d",
   ["UNIT"] = "UNIDAD",
   ["Unit price"] = "Precio por unidad",
   ["Unknown"] = "Desconocido",
@@ -468,6 +488,7 @@ GC.Locales.esMX = {
     "Sin él, GoldCap funciona con precios congelados en la fecha de lanzamiento — las oportunidades se buscan con precios viejos.",
   ["Won't buy"] = "No voy a comprar",
   ["Worst case back"] = "Retorno en el peor caso",
+  ["YOUR LOTS"] = "TUS LOTES",
   ["YOUR PRICE"] = "TU PRECIO",
   ["You paid"] = "Pagaste",
   ["You pay"] = "Pagas",
@@ -508,10 +529,13 @@ GC.Locales.esMX = {
   ["cost basis incomplete -- set costs to get repost advice"] =
     "la base de costo está incompleta -- define los costos para recibir consejo de republicación",
   ["cost unknown"] = "costo desconocido",
+  ["crafted %s"] = "fabricado %s",
   ["data from goldcap.gg · synced %s ago"] = "datos de goldcap.gg · sincronizados hace %s",
   ["due -- will be asked next pass"] = "pendiente -- se consultará en la próxima pasada",
   ["fair"] = "media",
+  ["far below market"] = "muy por debajo del mercado",
   ["finish the pending buy first"] = "termina primero la compra pendiente",
+  ["first in line"] = "primero en la fila",
   ["full scan already in progress"] = "el escaneo completo ya está en marcha",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "escaneo completo terminado: %d oportunidad%s de %d grupo%s de objetos%s",
@@ -523,6 +547,7 @@ GC.Locales.esMX = {
     "el escaneo completo se ha atascado -- se reintentará en breve",
   ["gone / price changed"] = "desaparecido / precio cambiado",
   ["high"] = "alta",
+  ["hold"] = "mantener",
   ["identity unresolved (variant item -- not priced by design)"] =
     "identidad sin resolver (objeto con variantes -- sin precio por diseño)",
   ["if you buy all %d and sell them back at the price standing there now"] =
@@ -533,6 +558,7 @@ GC.Locales.esMX = {
   ["imported %d items for %s (%s) — prices are live now."] =
     "importados %d objetos para %s (%s) — los precios ya están activos.",
   ["in the mail"] = "en el correo",
+  ["in the mail, the bank or on another character"] = "en el correo, el banco o en otro personaje",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "es lo que absorbe este mercado — más allá compras existencias que se te van a quedar",
   ["item %d"] = "objeto %d",
@@ -542,6 +568,7 @@ GC.Locales.esMX = {
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "últimas 24 h — %d ventas, %s bruto, %s de comisión, %d compras, %s gastados",
+  ["leave these alone"] = "déjalos como están",
   ["listing gone -- already bought out or price changed"] =
     "la publicación ha desaparecido -- ya la compraron o cambió el precio",
   ["listing gone -- bought out or repriced"] = "la subasta ya no está: comprada o con otro precio",
@@ -554,7 +581,10 @@ GC.Locales.esMX = {
   ["needs a fresh price -- press Refresh"] = "necesita un precio nuevo -- pulsa Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sin confirmación del servidor -- la compra puede haberse completado igualmente, revisa tu correo. Cerrar esto no la deshará.",
+  ["no cost"] = "sin costo",
+  ["no cost for %d"] = "sin costo para %d",
   ["no live price yet"] = "aún sin precio en vivo",
+  ["no price"] = "sin precio",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "todavía no hay precios -- /goldcap companion o /goldcap import",
   ["no purchase confirmation received -- Cancel and retry"] =
@@ -574,6 +604,7 @@ GC.Locales.esMX = {
   ["nothing listed"] = "nada publicado",
   ["of %d"] = "de %d",
   ["off"] = "desactivado",
+  ["oldest units sell first"] = "las unidades más antiguas se venden primero",
   ["on"] = "activado",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "o pega una cadena de goldcap.gg con /goldcap import.",
@@ -625,6 +656,7 @@ GC.Locales.esMX = {
     "sesión: %d capturas, %s gastados, ~%s de beneficio est.",
   ["sniped (listing changed on rescan)"] = "se lo llevaron (la publicación cambió al reescanear)",
   ["sniped for "] = "cazado por ",
+  ["stack not identified"] = "montón sin identificar",
   ["starting full scan..."] = "iniciando el escaneo completo...",
   ["stopped watching %s"] = "se dejó de vigilar %s",
   ["the Companion wrote prices this addon could not read --"] =
@@ -644,6 +676,7 @@ GC.Locales.esMX = {
     "vigilando %s de cerca -- se recomprueba cada pocos segundos",
   ["worst case, selling all %d back into the price standing there now"] =
     "en el peor caso, revendiendo las %d al precio que hay ahora mismo",
+  ["worth cancelling"] = "conviene cancelar",
   ["would sell at a loss"] = "se vendería con pérdidas",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "aún no has importado los precios del reino -- instala GoldCap Companion (/goldcap companion) o pega una cadena de goldcap.gg (/goldcap import).",

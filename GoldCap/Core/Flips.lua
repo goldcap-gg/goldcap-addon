@@ -622,6 +622,23 @@ end
 -- reachable inside the budget.
 GC.Flips.OVERCUT_ABSORB_HOURS = 6
 
+-- What an hour in the queue is worth, as a share of the price: the rate at which the climb
+-- trades money for time. The budget and the cap say which rungs MAY be posted at; they do not
+-- say which one is worth it, and "the highest that may" stepped over a wall whenever the item
+-- sold fast enough for the budget to swallow it. Seen in game 2026-09-21, Tranquility Bloom
+-- (387k a day): posted at 1g92s behind a 46k wall standing at 1g91s -- 56k units and three and
+-- a half hours in front of the post, for one silver (0.5%) more than the head of that wall,
+-- which is the trade this design's own text rules out ("behind the entire rung for one silver
+-- of gain"). So every rung that may be posted at is weighed as price x (1 - hours queued x
+-- this rate), against the cheapest ask itself at zero hours, and the best one wins.
+--
+-- Half a percent an hour sits inside the band the worked examples leave open: above 0.18%/h
+-- the Bloom joins the head of its wall at 1g91s rather than standing behind it, and under
+-- 0.98%/h Amphibious Scrap still climbs to 6g35s (+6% for under six hours) and the Bloom
+-- still takes 1g91s over 1g90s. It also rejects by itself the rung one silver over a deep
+-- cheapest level -- the case the synthetic rung was removed for.
+GC.Flips.OVERCUT_WAIT_COST_PER_HOUR = 0.005
+
 -- How far above the cheapest ask the cheap-quarter FALLBACK may reach on its own -- the band
 -- the study measured, and not a copper more. Unused for any item whose import carries a reach
 -- line; it exists so a build running against an older string still cannot repeat the 209g
@@ -654,6 +671,13 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   if not cap or cap <= marketUnit then return nil, nil, cap, capBy end
 
   local budget = opts.sold * GC.Flips.OVERCUT_ABSORB_HOURS / 24
+  -- A price weighed against the hours its queue takes to sell through (see
+  -- OVERCUT_WAIT_COST_PER_HOUR). The cheapest ask, at no queue at all, is the score to beat.
+  local perHour = opts.sold / 24
+  local function worth(price, queued)
+    return price * (1 - (queued / perHour) * GC.Flips.OVERCUT_WAIT_COST_PER_HOUR)
+  end
+  local bestWorth = worth(marketUnit, 0)
 
   -- One ascending pass. `below` is the units queued STRICTLY below the level being looked at:
   -- a level's own quantity is folded in only once the price changes, so two entries sharing a
@@ -678,10 +702,13 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
       -- An occupied rung can sit within one silver of the ask and round DOWN onto it on the
       -- grid -- that is the match price wearing the overcut label, not a step up -- so a
       -- normalised price that is not actually ahead of the ask is no candidate at all.
-      -- Eligibility is monotone in the price (the queue below a rung only grows as the rung
-      -- rises), so the last one this loop accepts is the highest one there is.
+      -- Of the rungs that may be posted at, the one worth most once its queue is priced in --
+      -- not simply the highest. A later rung has to beat the best so far outright, so a tie
+      -- goes to the shorter queue.
       local normalized = GC.Flips.SilverDown(price)
-      if normalized and normalized > marketUnit then best = normalized end
+      if normalized and normalized > marketUnit and worth(normalized, below) > bestWorth then
+        best, bestWorth = normalized, worth(normalized, below)
+      end
     end
   end
 
@@ -695,7 +722,9 @@ function GC.Flips.OvercutCandidate(marketUnit, opts)
   -- rung and the cap -- jumping past the end of a truncated book is how a post lands above a
   -- queue nobody measured. Same proof F5 demands below.
   local belowCap = GC.Flips.DepthBelow(opts.levels, cap) or 0
-  if sawAboveCap and belowCap <= budget then return cap, belowCap, cap, capBy end
+  if sawAboveCap and belowCap <= budget and worth(cap, belowCap) > bestWorth then
+    return cap, belowCap, cap, capBy
+  end
   return nil, nil, cap, capBy
 end
 

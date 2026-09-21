@@ -570,6 +570,42 @@ describe("Search slot arbiter", function()
       assert.is_nil(GC.Sniper._keysBatch)
     end)
 
+    -- The Sell tab's bulk fill stops waiting for its own batch after eight seconds
+    -- (GC.Sell.BulkOutstanding). The arbiter kept the slot shut for the full thirty: REFRESH on
+    -- Sell, straight over to Deals, and the board stood still for up to half a minute over an
+    -- answer nobody wanted any more.
+    describe("unanswered batch, by owner", function()
+      local function outstandingAfter(owner, seconds)
+        local GC = load()
+        local clock = 1000
+        _G.time = function() return clock end
+        GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, owner, { 1, 2, 3 }
+        clock = clock + seconds
+        return GC.Sniper._KeysOutstanding(), GC
+      end
+
+      it("writes the Sell tab's batch off after eight seconds, and forgets what it asked", function()
+        assert.is_true((outstandingAfter("sell", 7)))
+        local outstanding, GC = outstandingAfter("sell", 8)
+        assert.is_false(outstanding)
+        assert.is_nil(GC.Sniper._keysAwaiting)
+        assert.is_nil(GC.Sniper._keysOwner)
+        assert.is_nil(GC.Sniper._keysBatch)
+      end)
+
+      it("still waits the full thirty for the realm poll's batch", function()
+        assert.is_true((outstandingAfter("sniper", 8)))
+        assert.is_true((outstandingAfter("sniper", 29)))
+        assert.is_false((outstandingAfter("sniper", 30)))
+      end)
+
+      it("still waits the full thirty for the BUY tab's batch", function()
+        assert.is_true((outstandingAfter("buy", 8)))
+        assert.is_true((outstandingAfter("buy", 29)))
+        assert.is_false((outstandingAfter("buy", 30)))
+      end)
+    end)
+
     -- Observed in game as the player's own Browse pane jumping to an item page with a spinner
     -- on it: both of these replace the buffer that pane is showing.
     it("sends neither a keys batch nor a browse page while the player is using the auction house", function()

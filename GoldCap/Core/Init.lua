@@ -779,6 +779,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sell.OnOwnedAuctions()
     end
   elseif event == "AUCTION_CANCELED" then
+    -- The lot the event names goes to the Sell tab FIRST: the owned-auctions list it re-reads
+    -- next is a cache that still holds that lot (see GC.Sell.OnAuctionCanceled).
+    if GC.Sell.OnAuctionCanceled then
+      GC.Sell.OnAuctionCanceled((...))
+    end
     if GC.Sell.OnOwnedAuctions then
       GC.Sell.OnOwnedAuctions()
     end

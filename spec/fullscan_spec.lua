@@ -316,11 +316,25 @@ describe("FullScan.RowsFromBrowse (engine demand cap)", function()
     assert.equal(30, rows[1].count)
   end)
 
-  it("caps qty at 200 even when the raw demand-cap arithmetic would allow far more", function()
+  it("caps qty at the player's ceiling even when the raw demand-cap arithmetic would allow far more", function()
     local rows = GC.FullScan.RowsFromBrowse({
       { itemKey = { itemID = 600 }, totalQuantity = 100000, minPrice = 500 },
     }, getValue, cfg)
     assert.equal(200, rows[1].count)
+  end)
+
+  -- The flip size a row advertises is the one a live Check can approve: raise the ceiling and
+  -- the board follows it, up to the engine's own bound and no further.
+  it("follows a raised ceiling, and stops at the engine's bound", function()
+    local browse = { { itemKey = { itemID = 600 }, totalQuantity = 100000, minPrice = 500 } }
+    local raised = { maxDailyDemandShare = 0.02, maxQuantity = 1000 }
+    local wild = { maxDailyDemandShare = 0.02, maxQuantity = 100000000 }
+    local atRaised = GC.FullScan.RowsFromBrowse(browse, getValue, raised)[1].count
+    local atWild = GC.FullScan.RowsFromBrowse(browse, getValue, wild)[1].count
+    assert.is_true(atRaised > 200 and atRaised <= 1000, "count " .. atRaised)
+    assert.is_true(atWild <= GC.SniperDecision.MAX_QUANTITY_CEILING, "count " .. atWild)
+    assert.equal(GC.SniperDecision.DemandCap(
+      GC.SniperDecision.MarketFromValue(getValue(600)), raised, 0), atRaised)
   end)
 
   it("falls back to the browse result's totalQuantity for stock when currentQty is absent", function()

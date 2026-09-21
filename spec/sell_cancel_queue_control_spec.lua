@@ -41,11 +41,21 @@ describe("Sell tab, the cancel queue control", function()
     return v
   end
 
+  local now
   local function upvalue(fn, wanted)
     for i = 1, math.huge do
       local n, val = debug.getupvalue(fn, i)
       if not n then break end
       if n == wanted then return val end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  local function set(fn, wanted, value)
+    for i = 1, math.huge do
+      local n = debug.getupvalue(fn, i)
+      if not n then break end
+      if n == wanted then debug.setupvalue(fn, i, value); return end
     end
     error("missing upvalue " .. wanted)
   end
@@ -58,7 +68,8 @@ describe("Sell tab, the cancel queue control", function()
 
   before_each(function()
     cancelCalls = 0
-    _G.time = function() return 1000 end
+    now = 1000
+    _G.time = function() return now end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
     _G.C_Container = {
@@ -169,6 +180,9 @@ describe("Sell tab, the cancel queue control", function()
     assert.equal("CANCEL 1", button.label)
     assert.is_true(button.enabled)
     assert.equal("danger", button.variant)
+    -- ...and the line beside it names the lot the next click is about.
+    assert.matches("Sanguithorn Tea ×400 @ 2g73s", container.cancelHeldBack.text, 1, true)
+    assert.is_true(container.cancelHeldBack.shown)
   end)
 
   it("surfaces the held-back count in plain words, not the raw skip token", function()
@@ -223,8 +237,208 @@ describe("Sell tab, the cancel queue control", function()
     button.scripts.OnClick(button)
 
     assert.equal(1, cancelCalls)
-    assert.equal("cancelling", lotRow.repostStage)
-    assert.matches("CANCELLING", button.label)
-    assert.is_false(button.enabled)
+    -- Sent is sent: the arm is let go at once rather than held until the client's list
+    -- catches up (see "a cancel that was sent" below).
+    assert.is_nil(lotRow.repostStage)
+    assert.matches("Cancelling", root.status.text, 1, true)
+  end)
+  -- Seen in game, twice: after the confirming click the tab went dead -- the lot still listed,
+  -- its button greyed at "Cancel lot?", no row opening, the panel refusing to shut -- until the
+  -- cancel's own 30-second timeout. The tab held every render behind the cancel while it waited
+  -- to SEE the lot leave C_AuctionHouse.GetOwnedAuctions(), which is a cache only a new query
+  -- refreshes; and whether AUCTION_CANCELED arrives to say so is not something to bet the
+  -- whole tab on. Once CancelAuction is sent the pin has done its job: the tab lets go at once,
+  -- stops showing the lot, and sorts out what the server said afterwards.
+  describe("a cancel that was sent", function()
+    local function cancelHead()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose()
+      local button = container.cancelButton
+      button.scripts.OnClick(button)
+      local lotRow = armedLotRow()
+      lotRow.repostReady = true
+      button.scripts.OnClick(button)
+      assert.equal(1, cancelCalls)
+      return lotRow
+    end
+
+    local function lotShown()
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.shown == true and (row.kind == "lot" or row.kind == "position") then return true end
+      end
+      return false
+    end
+
+    it("lets go of the tab at once, and stops showing the lot the client's list still holds", function()
+      local lotRow = cancelHead()
+      assert.is_nil(lotRow.repostStage)
+      assert.matches("Cancelling", root.status.text, 1, true)
+      assert.is_false(lotShown())
+      assert.matches("NOTHING", container.cancelButton.label)
+      -- ...and a list read that still holds lot 77 (the cache is stale) does not bring it back.
+      GC.Sell.OnOwnedAuctions()
+      assert.is_false(lotShown())
+    end)
+
+    it("says so when the server confirms, whether or not the event names the lot", function()
+      cancelHead()
+      GC.Sell.OnAuctionCanceled(77)
+      assert.matches("cancelled", root.status.text, 1, true)
+    end)
+
+    it("asks the auction house for the listings again, once, when it can", function()
+      local asked = 0
+      _G.C_AuctionHouse.QueryOwnedAuctions = function() asked = asked + 1 end
+      GC.Sniper = { IsAHOpen = function() return true end, IsBusy = function() return false end }
+      set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", { isReady = function() return true end })
+      cancelHead()
+      GC.Sell.Tick(); GC.Sell.Tick()
+      assert.equal(1, asked)
+    end)
+
+    it("brings the lot back if nothing confirmed the cancel and a later list still holds it", function()
+      cancelHead()
+      now = 1000 + 16 -- past the wait for a confirmation
+      GC.Sell.OnOwnedAuctions()
+      assert.is_true(lotShown())
+      assert.matches("did not", root.status.text, 1, true)
+    end)
+
+    it("hides nothing on an event for a lot nobody here cancelled", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      GC.Sell.OnAuctionCanceled(nil)
+      GC.Sell.OnOwnedAuctions()
+      compose()
+      assert.equal("CANCEL 1", container.cancelButton.label)
+    end)
+  end)
+
+  -- The button that was pressed is the one that has to answer. The row's Cancel lot armed the
+  -- lot's own button over in the panel and stayed exactly as it was -- "I press it and nothing
+  -- happens", with the confirm waiting on a small button a column away.
+  describe("the row's own button", function()
+    it("asks for the confirming click itself, and goes back when the arm is let go", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local action
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.shown and row.kind == "position" then action = row.action end
+      end
+      action.scripts.OnClick(action)
+      assert.equal("Cancel lot?", action.label)
+      assert.is_false(action.enabled) -- until the arm's delay has passed, like the lot's own
+      armedLotRow().repostReady = true
+      upvalue(GC.Sell.Attach, "paintCancelButton")()
+      assert.is_true(action.enabled)
+      action.scripts.OnClick(action)
+      assert.equal(1, cancelCalls)
+    end)
+  end)
+
+  -- An armed cancel is a question, and a click anywhere else is the answer "no". The render
+  -- used to stay held for the arm's full twenty seconds: rows would not open, the panel would
+  -- not shut, and the tab looked hung.
+  describe("walking away from an armed cancel", function()
+    it("lets go of the arm when the player clicks a row, and does what the click asked", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose()
+      local button = container.cancelButton
+      button.scripts.OnClick(button)
+      local lotRow = armedLotRow()
+      assert.equal("armed", lotRow.repostStage)
+      local position
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.shown and row.kind == "position" then position = row end
+      end
+      position.scripts.OnClick(position) -- the open position's own row: shut it
+      assert.is_nil(lotRow.repostStage)
+      assert.equal(0, cancelCalls)
+      for _, row in ipairs(upvalue(render, "rows")) do
+        assert.is_false(row.shown == true and row.kind == "lot")
+      end
+    end)
+  end)
+
+  -- MY LOTS as the redesign drew it: the deck answers "what do I do with these" in three
+  -- sections, a row says how its stock is listed, and the row that is worth cancelling carries
+  -- the control for it -- which, like the dock's, only ever hands the click to onRepostClick.
+  describe("the deck as designed", function()
+    local function shownRows()
+      local out = {}
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.IsShown and row:IsShown() then out[#out + 1] = row end
+      end
+      return out
+    end
+
+    it("files a lot worth cancelling under UNDERCUT, with its count", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local rows = shownRows()
+      assert.equal("section", rows[1].kind)
+      assert.matches("UNDERCUT 1", rows[1].sectionLabel.text, 1, true)
+      assert.matches("worth cancelling", rows[1].sectionLabel.text, 1, true)
+      assert.equal("position", rows[2].kind)
+      assert.equal(2, #rows)
+    end)
+
+    it("files a lot nobody has judged yet under HOLDING", function()
+      compose(); render() -- no quote: nothing is queued
+      local rows = shownRows()
+      assert.equal("section", rows[1].kind)
+      assert.matches("HOLDING 1", rows[1].sectionLabel.text, 1, true)
+      assert.equal("position", rows[2].kind)
+    end)
+
+    it("says how the stock is listed: how many, in how many lots", function()
+      compose(); render()
+      assert.matches("400 in 1 lot", shownRows()[2].itemStock.text, 1, true)
+    end)
+
+    it("puts Cancel lot on the row that is worth cancelling, and nothing on one that is not", function()
+      compose(); render()
+      assert.is_false(shownRows()[2].action.shown)
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local action = shownRows()[2].action
+      assert.is_true(action.shown)
+      assert.equal("Cancel lot", action.label)
+      assert.equal("Cancel lot", action.helpKey)
+    end)
+
+    it("arms the lot through onRepostClick from the row's button -- destroying nothing", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local action = shownRows()[2].action
+      action.scripts.OnClick(action)
+      local lotRow = armedLotRow()
+      assert.is_table(lotRow)
+      assert.equal("armed", lotRow.repostStage)
+      assert.equal("Cancel lot?", lotRow.action.label)
+      assert.equal(0, cancelCalls)
+      -- The deck stays the deck: the row's own button does not turn the list into the queue.
+      assert.equal("section", shownRows()[1].kind)
+    end)
+
+    it("opens the panel on the lots themselves: YOUR LOTS first, each with its own Cancel lot", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local position = shownRows()[2]
+      position.scripts.OnClick(position)
+      local kinds = {}
+      for _, row in ipairs(shownRows()) do if row.inPanel then kinds[#kinds + 1] = row.kind end end
+      assert.equal("group", kinds[1])
+      assert.equal("lot", kinds[2])
+      assert.equal("drawer", kinds[3])
+      local head, lot
+      for _, row in ipairs(shownRows()) do
+        if row.inPanel and row.kind == "group" and not head then head = row end
+        if row.inPanel and row.kind == "lot" then lot = row end
+      end
+      assert.is_true(position.selectRing.shown) -- the open row wears the design's gold outline
+      assert.equal("YOUR LOTS", head.sectionLabel.text)
+      assert.matches("1 lot", head.sectionHint.text, 1, true)
+      assert.equal("Cancel lot", lot.action.label)
+    end)
   end)
 end)

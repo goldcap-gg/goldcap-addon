@@ -161,6 +161,43 @@ describe("RecommendPost, the climb (v2)", function()
     end)
   end)
 
+  -- Seen in game 2026-09-21, Tranquility Bloom: 1g88s:338, 1g89s:1.0k, 1g90s:8.6k, a wall of
+  -- 46k at 1g91s and another of 52k at 1g92s, selling 387k a day with the floor reaching 2g03s.
+  -- The budget alone (six hours = 97k units) let the climb step OVER the 46k wall onto 1g92s:
+  -- 56k units in front of the post, for one silver more than the head of that wall. The spec's
+  -- own words for that trade are "behind the entire rung for one silver of gain". The whole
+  -- budget is what the whole climb to the cap is worth; a share of the climb earns that share
+  -- of the budget, and no more.
+  describe("the queue a step is worth", function()
+    local bloom = {
+      level(18800, 338), level(18900, 1000), level(19000, 8600), level(19100, 46000),
+      level(19200, 52000), level(19300, 1900), level(19400, 1700), level(19500, 1000),
+      level(20400, 5000),
+    }
+    local opts = { levels = bloom, sold = 386749, reachUnit = 20300 }
+
+    it("joins the head of a wall instead of stepping over it for a silver", function()
+      local unit, ahead = GC.Flips.OvercutCandidate(18800, opts)
+      assert.equal(19100, unit)
+      assert.equal(338 + 1000 + 8600, ahead)
+    end)
+
+    it("still steps over the same wall when the step is worth the wait", function()
+      -- The same 56k in front, but the next occupied rung is most of the way to the cap: most
+      -- of the climb for most of the budget is the trade the budget was set for.
+      local far = { level(18800, 338), level(18900, 1000), level(19000, 8600), level(19100, 46000),
+        level(20000, 52000), level(20400, 5000) }
+      local unit = GC.Flips.OvercutCandidate(18800, { levels = far, sold = 386749, reachUnit = 20300 })
+      assert.equal(20000, unit)
+    end)
+
+    it("leaves a climb whose queue is small for its gain exactly where it was", function()
+      -- Stinky: 814 units under the 100g rung against a 2,761-unit budget, for 7g of a 7g climb.
+      local unit = GC.Flips.OvercutCandidate(930000, { levels = stinky, sold = STINKY_SOLD, reachUnit = 1000000 })
+      assert.equal(1000000, unit)
+    end)
+  end)
+
   describe("the synthetic rung at the cap", function()
     it("posts at the cap when no rung is occupied under it, with a stocked level above it", function()
       local thin = { level(10000, 400), level(13000, 100) }

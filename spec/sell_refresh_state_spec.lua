@@ -513,6 +513,51 @@ describe("Sell refresh state fence", function()
     assert.same({ 42, 43, 50 }, refreshState(GC).queue)
   end)
 
+  -- The button counted the whole queue -- both decks -- over a list showing one of them:
+  -- "BOOKS 4/27" above ten rows. It counts the rows of the deck on screen.
+  describe("the Refresh button's progress", function()
+    local function walking(filterMode)
+      local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
+      local GC = load(now, sent, cache, function() return { isCommodity = true } end)
+      GC.SellPositions.Build = function()
+        return {
+          { itemID = 50, positionKey = "commodity:50", listedQty = 9 },
+          { itemID = 42, positionKey = "commodity:42", bagQty = 5 },
+          { itemID = 43, positionKey = "commodity:43", bagQty = 5 },
+        }
+      end
+      GC.Sell.Refresh(true)
+      assert.same({ 42, 43, 50 }, refreshState(GC).queue)
+      local setStatus = upvalue(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "setStatus")
+      local paint = upvalue(setStatus, "paintRefreshButton")
+      local button = { SetLabel = function(self, label) self.label = label end }
+      set(paint, "container", { refreshButton = button })
+      if filterMode then set(refreshState(GC).onDeck, "filterMode", filterMode) end
+      return function(index)
+        refreshState(GC).index = index
+        paint()
+        return button.label
+      end
+    end
+
+    it("counts the deck on screen, not the whole queue", function()
+      local labelAt = walking()
+      assert.equal("PRICING 1/2", labelAt(1))
+      assert.equal("PRICING 2/2", labelAt(2))
+    end)
+
+    it("stays at the deck's full count while the walk finishes the other deck", function()
+      local labelAt = walking()
+      assert.equal("PRICING 2/2", labelAt(3))
+    end)
+
+    it("follows a deck change made mid-walk", function()
+      local labelAt = walking("listed")
+      assert.equal("PRICING…", labelAt(1)) -- nothing of this deck asked about yet
+      assert.equal("PRICING 1/1", labelAt(3))
+    end)
+  end)
+
   it("finishes an all-fresh pass immediately instead of re-pricing the whole tab", function()
     local now, sent, cache = { value = 100 }, { owned = 0, keys = {} }, {}
     local GC = load(now, sent, cache, function() return { isCommodity = true } end)

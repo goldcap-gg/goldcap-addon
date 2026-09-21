@@ -300,6 +300,147 @@ describe("SniperDecision", function()
     assert.equal(50000, result.requiredProfit)
   end)
 
+  -- The 200-unit ceiling was a constant, not a judgement: a wall of cheap linen took five
+  -- purchases (4 x 200, then 99) although the demand cap allowed 1800 in one. The ceiling is
+  -- now the player's own setting, up to MAX_QUANTITY_CEILING -- and past the old 200 the engine
+  -- no longer tries every quantity (one deposit call each), only the quantities at which the
+  -- projected profit can turn.
+  describe("a quantity ceiling above the old 200", function()
+    local function linen()
+      local input = validInput()
+      input.market.marketValue, input.market.stressUnit = 17700, 15100
+      input.market.soldPerDay = 200000
+      input.live.levels = {
+        { unitPrice = 10000, quantity = 899 },
+        { unitPrice = 15200, quantity = 5000 },
+      }
+      input.config.maxQuantity = 5000
+      input.config.minimumProfitCopper = 50000
+      return input
+    end
+
+    it("publishes the ceiling the settings panel and discovery share", function()
+      assert.equal(5000, GC.SniperDecision.MAX_QUANTITY_CEILING)
+    end)
+
+    it("buys the whole cheap wall in one purchase", function()
+      local result = evaluate(linen())
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(899, result.quantity)
+      assert.equal(8990000, result.entryTotal)
+      assert.equal(15100, result.exitUnit)
+    end)
+
+    it("keeps the player's own lower ceiling", function()
+      local input = linen()
+      input.config.maxQuantity = 500
+      assert.equal(500, evaluate(input).quantity)
+    end)
+
+    it("clamps a hand-edited ceiling instead of trusting it", function()
+      local input = linen()
+      input.live.levels = { { unitPrice = 10000, quantity = 900000 }, { unitPrice = 15200, quantity = 1 } }
+      input.market.soldPerDay = 100000000
+      input.config.maxQuantity = 100000000
+      assert.equal(5000, evaluate(input).quantity)
+      assert.equal(5000, GC.SniperDecision.DemandCap(input.market, input.config, 900001))
+    end)
+
+    it("stops where the wallet share does, inside a level", function()
+      local input = linen()
+      input.walletCopper = 100000000 -- five percent is 5,000,000 copper: 500 units of the wall
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(500, result.quantity)
+    end)
+
+    -- A dearer level can add profit and still drag the whole purchase under the ROI floor: the
+    -- best passing quantity is then in the MIDDLE of that level, at no breakpoint of the book.
+    it("finds the last quantity that still clears the ROI floor inside a level", function()
+      local input = linen()
+      input.live.levels = {
+        { unitPrice = 10000, quantity = 300 },
+        { unitPrice = 13500, quantity = 3000 },
+        { unitPrice = 15200, quantity = 5000 },
+      }
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      local best
+      for quantity = 1, 5000 do
+        local fixedInput = linen()
+        fixedInput.live.levels = input.live.levels
+        fixedInput.live.fixedQuantity = quantity
+        local fixed = evaluate(fixedInput)
+        if fixed.computedStatus == "SAFE" and (not best or fixed.stressProfit > best.stressProfit) then
+          best = fixed
+        end
+      end
+      -- 300 of the wall, and as much of the 1g35s level as the ten-percent floor survives:
+      -- short of the level's end and of the demand cap alike.
+      assert.equal(2287, best.quantity)
+      assert.equal(best.quantity, result.quantity)
+      assert.equal(best.stressProfit, result.stressProfit)
+    end)
+
+    -- The proof the shortcut is one: against every quantity tried one by one (which is what
+    -- fixedQuantity does), over books with walls, ladders, deposits and a tight wallet.
+    it("agrees with trying every quantity, on a spread of generated books", function()
+      local seed = 20260921
+      local function random(low, high)
+        -- Park-Miller: the product stays under 2^53, so Lua 5.1's doubles (CI) and a newer
+        -- Lua's integers draw the same books.
+        seed = (seed * 48271) % 2147483647
+        return low + math.floor(seed / 2147483647 * (high - low + 1))
+      end
+      for _ = 1, 40 do
+        local levels, price = {}, random(8000, 12000)
+        for index = 1, random(2, 9) do
+          levels[index] = { unitPrice = price, quantity = random(1, 700) }
+          price = price + random(1, 2500)
+        end
+        local perUnitDeposit, wallet = random(0, 40), random(20000000, 4000000000)
+        local function input(fixedQuantity)
+          local made = linen()
+          made.live.levels = levels
+          made.live.fixedQuantity = fixedQuantity
+          made.walletCopper = wallet
+          made.config.maxQuantity = 1500
+          made.depositForQuantity = function(quantity) return quantity * perUnitDeposit end
+          return made
+        end
+        local best
+        for quantity = 1, 1500 do
+          local fixed = evaluate(input(quantity))
+          if fixed.computedStatus == "SAFE" and (not best or fixed.stressProfit > best.stressProfit) then
+            best = fixed
+          end
+        end
+        local result = evaluate(input(nil))
+        if best then
+          assert.equal("SAFE", result.computedStatus)
+          assert.equal(best.stressProfit, result.stressProfit)
+          assert.equal(best.quantity, result.quantity)
+        else
+          assert.not_equal("SAFE", result.computedStatus)
+        end
+      end
+    end)
+
+    it("asks for a deposit a bounded number of times, however high the ceiling", function()
+      local input = linen()
+      input.live.levels = {}
+      for index = 1, 99 do input.live.levels[index] = { unitPrice = 10000 + index, quantity = 60 } end
+      input.live.levels[100] = { unitPrice = 15200, quantity = 60 } -- an ask above the exit: the book is whole
+      input.market.soldPerDay = 100000000
+      local calls = 0
+      input.depositForQuantity = function() calls = calls + 1; return 0 end
+      local result = evaluate(input)
+      assert.equal("SAFE", result.computedStatus)
+      assert.equal(5000, result.quantity)
+      assert.is_true(calls <= 600, calls .. " deposit calls")
+    end)
+  end)
+
   it("does not report capital_limit when an affordable quantity exists but misses profit", function()
     local input = validInput()
     input.live.levels = {

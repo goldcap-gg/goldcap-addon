@@ -29,6 +29,14 @@ GC.SniperDecision.SPIKE_TREND_PCT = 30
 -- written as a hardcoded 10. Core/DealMath.lua reads the same setting for the discovery tier.
 GC.SniperDecision.DUMP_TREND_PCT = 10
 
+-- The most units one purchase may hold, whatever settings.sniper.maxQuantity says -- the bound
+-- the settings panel's field, discovery's flip size and Evaluate's own config all clamp to.
+-- It was a bare 200 in three places, with no setting behind it: a wall of cheap cloth the
+-- demand cap allowed 1,800 of took five purchases (seen in game 2026-09-21: 4 x 200, then 99).
+-- What keeps a big number honest is not this ceiling but the gates under it -- the share of
+-- daily sales (DemandCap), the share of the wallet, and the profit floors on the whole fill.
+GC.SniperDecision.MAX_QUANTITY_CEILING = 5000
+
 local MAX_EXACT = 9007199254740991
 -- Three hours, calibrated to the upstream rather than picked round. Blizzard republishes
 -- commodity data roughly once an hour, so a two-hour limit left no room for a single missed
@@ -120,7 +128,7 @@ local function normalizeConfig(config)
   return {
     maxCapitalShare = clamp(capital, 0.01, 0.20),
     maxDailyDemandShare = clamp(demand, 0, 0.02),
-    maxQuantity = clamp(quantity, 1, 200),
+    maxQuantity = clamp(quantity, 1, GC.SniperDecision.MAX_QUANTITY_CEILING),
     minimumProfitCopper = math.max(profit, 10000),
     minimumRoi = math.max(roi, 0.10),
     wallAbsorbHours = clamp(absorb or 2, 0, 6),
@@ -274,7 +282,7 @@ function GC.SniperDecision.DemandCap(market, config, visible)
   end
   if not (isFinite(market.soldPerDay) and market.soldPerDay >= 3 and visible) then return 0 end
   local demandShare = clamp(config.maxDailyDemandShare, 0, 0.02)
-  local maxQuantity = clamp(config.maxQuantity, 1, 200)
+  local maxQuantity = clamp(config.maxQuantity, 1, GC.SniperDecision.MAX_QUANTITY_CEILING)
   local mad = market.madBps or 0
   local stressDiscount = clamp(0.10 + 2 * mad / 10000, 0.10, 0.30)
   local stock = math.max(market.currentQty or 0, visible)
@@ -282,6 +290,83 @@ function GC.SniperDecision.DemandCap(market, config, visible)
   local demandCap = math.max(1, math.floor(market.soldPerDay * demandShare
     * supplyFactor * (1 - stressDiscount)))
   return math.min(demandCap, maxQuantity)
+end
+
+-- Which quantities Evaluate tries. It used to be every one from 1 to the cap, which was sound
+-- while the cap could not pass 200 and is not at 5000: each attempt walks the book twice and
+-- asks the client for a deposit, and Evaluate runs on every live check and every watch poll.
+--
+-- Up to EXHAUSTIVE_QUANTITY nothing changes -- every quantity, in order, exactly as before, so
+-- a save that never raises its ceiling gets the answers it always got. Past it, only the
+-- quantities at which the projected profit can turn. Between two of these the book is one price
+-- level and the exit one figure, so the profit is a straight line and its best point is an end:
+--   * the last unit of a level, and the first of the next (the competing ask jumps there);
+--   * the quantity from which the velocity release lets the exit climb a rung, per rung;
+--   * the last unit the wallet share pays for, and the cap itself.
+-- One thing is NOT at an end: a floor crossed inside a level -- a dearer level that still adds
+-- profit while dragging the purchase under the ROI floor, or the first quantity big enough to
+-- clear the minimum profit. Each floor is crossed at most once between two marks, so where the
+-- ends of a stretch disagree about one, that crossing is found by halving.
+--
+-- `attempt` applies every gate to every quantity it is handed, so this list can only cost a
+-- better answer, never approve a worse one (spec/sniper_decision_spec.lua checks it against
+-- trying everything).
+local EXHAUSTIVE_QUANTITY = 200
+local PROFIT_FLOORS = { "clearsMinimum", "clearsRoi" }
+
+local function searchQuantities(attempt, cap, levels, budget, turnoverUnits, wall)
+  for quantity = 1, math.min(cap, EXHAUSTIVE_QUANTITY) do
+    if attempt(quantity) == "invalid" then return "invalid" end
+  end
+  if cap <= EXHAUSTIVE_QUANTITY then return nil end
+
+  -- Both sides of every turn, so that no stretch between two marks has one inside it.
+  local marked = {}
+  local function mark(quantity)
+    for near = quantity - 1, quantity + 1 do
+      if near > EXHAUSTIVE_QUANTITY and near <= cap then marked[near] = true end
+    end
+  end
+  mark(cap)
+  if turnoverUnits and wall then mark(math.ceil(wall - turnoverUnits)) end
+  local units, cost, overBudget = 0, 0, false
+  for i = 1, #levels do
+    local level = levels[i]
+    if level.quantity > 0 then
+      local levelCost = level.quantity * level.unitPrice
+      if not overBudget and cost + levelCost > budget then
+        overBudget = true
+        mark(units + math.floor((budget - cost) / level.unitPrice))
+      end
+      units, cost = units + level.quantity, cost + levelCost
+      mark(units)
+      if turnoverUnits then mark(math.ceil(units - turnoverUnits)) end
+      if units > cap then break end
+    end
+  end
+  local marks = {}
+  for quantity in pairs(marked) do marks[#marks + 1] = quantity end
+  table.sort(marks)
+
+  local low = EXHAUSTIVE_QUANTITY
+  for _, high in ipairs(marks) do
+    local ends = { attempt(low), attempt(high) }
+    if ends[2] == "invalid" then return "invalid" end
+    for _, floor in ipairs(PROFIT_FLOORS) do
+      local from, to = low, high
+      local atFrom = ends[1][floor]
+      if atFrom ~= nil and ends[2][floor] ~= nil and atFrom ~= ends[2][floor] then
+        while to - from > 1 do
+          local middle = math.floor((from + to) / 2)
+          local verdict = attempt(middle)
+          if verdict == "invalid" then return "invalid" end
+          if verdict[floor] == atFrom then from = middle else to = middle end
+        end
+      end
+    end
+    low = high
+  end
+  return nil
 end
 
 function GC.SniperDecision.Evaluate(input)
@@ -461,6 +546,14 @@ function GC.SniperDecision.Evaluate(input)
   if releaseCeiling and GC.Book and GC.Book.UnitsAtOrBelow then
     wallBelowCeiling = GC.Book.UnitsAtOrBelow(live.levels, releaseCeiling)
   end
+  -- What `wallAbsorbHours` of this item's sales comes to, or nil when the release cannot apply
+  -- at all. Worked out once: each attempt measures its leftover wall against it, and the search
+  -- needs it to know at which quantities that comparison turns.
+  local turnoverUnits
+  if releaseCeiling and wallBelowCeiling and config.wallAbsorbHours > 0
+      and isFinite(market.soldPerDay) and market.soldPerDay >= 3 then
+    turnoverUnits = market.soldPerDay * config.wallAbsorbHours / 24
+  end
   local selected
   -- The best attempt that cleared every gate EXCEPT the profit floor. Published on a profit
   -- refusal so the panel can show the trade that was almost good enough -- "+38g, you require
@@ -469,15 +562,23 @@ function GC.SniperDecision.Evaluate(input)
   -- never buyable: it exists to explain the refusal, not to soften it.
   local bestShort
   local sawCapital, sawAffordable, sawProfit, sawExhausted, sawCompeting = false, false, false, false, false
-  local start, finish = fixed and fixed or 1, coarseCap
-  for quantity = start, finish do
+  -- One quantity, judged in full: every gate below runs for every quantity the search proposes,
+  -- so HOW the search picks its quantities (searchQuantities, further down) can cost a better
+  -- answer but never approve a worse one. Remembers what it found in `tried` -- "invalid", or
+  -- which of the two profit floors the attempt cleared (nil for both when it never got as far
+  -- as a profit) -- which is what the search steers by.
+  local tried = {}
+  local function attempt(quantity)
+    if tried[quantity] then return tried[quantity] end
+    local verdict = {}
+    tried[quantity] = verdict
     local fill = GC.Book and GC.Book.Fill and GC.Book.Fill(live.levels, quantity)
     if not fill then
       sawExhausted = true
     elseif fill.exhausted or fill.filled ~= quantity then
       sawExhausted = true
     elseif not isInteger(fill.total) or not isInteger(fill.unit) then
-      return invalid()
+      tried[quantity] = "invalid"
     else
       local entryTotal = live.quotedTotal or fill.total
       if entryTotal <= budget then sawAffordable = true end
@@ -503,10 +604,8 @@ function GC.SniperDecision.Evaluate(input)
         -- book, never above stress; the walk stops at the first level whose queue exceeds
         -- the budget, since the queue only grows with height.
         local released = false
-        if fill.partialLevel and releaseCeiling and exitUnit < releaseCeiling
-            and config.wallAbsorbHours > 0 and wallBelowCeiling
-            and isFinite(market.soldPerDay) and market.soldPerDay >= 3 then
-          local budgetUnits = market.soldPerDay * config.wallAbsorbHours / 24
+        if fill.partialLevel and turnoverUnits and exitUnit < releaseCeiling then
+          local budgetUnits = turnoverUnits
           local best = exitUnit
           -- The plain ceiling candidate needs PROOF the whole sub-ceiling book was visible: a
           -- stocked ask above the ceiling. Levels arrive ascending and are capped, so a book
@@ -556,23 +655,27 @@ function GC.SniperDecision.Evaluate(input)
           local cutBase = gross and safeMultiply(gross, 5)
           local ahCut = cutBase and safeCeilDiv(cutBase, 100)
           local deposit = input.depositForQuantity(quantity)
+          local afterCut = gross and ahCut and safeSubtract(gross, ahCut)
+          local afterEntry = afterCut and safeSubtract(afterCut, entryTotal)
+          local stressProfit = afterEntry and isInteger(deposit) and safeSubtract(afterEntry, deposit)
+          local requiredProfit = requiredProfitFor(
+            entryTotal, config.minimumProfitCopper, config.minimumRoi)
           if deposit == nil then
             add("deposit_missing", 2)
-          elseif not isInteger(deposit) then
-            return invalid()
-          elseif not gross or not ahCut then
-            return invalid()
+          elseif not isInteger(deposit) or not gross or not ahCut or not requiredProfit
+              or not stressProfit then
+            tried[quantity] = "invalid"
           else
-            local afterCut = safeSubtract(gross, ahCut)
-            local afterEntry = afterCut and safeSubtract(afterCut, entryTotal)
-            local stressProfit = afterEntry and safeSubtract(afterEntry, deposit)
-            local requiredProfit = requiredProfitFor(
-              entryTotal, config.minimumProfitCopper, config.minimumRoi)
-            if not requiredProfit then return invalid() end
-            if not stressProfit then return invalid() end
+            -- The two floors requiredProfit is the larger of, kept apart: inside one price
+            -- level each of them is crossed at most once, which the greater of the two is not.
+            verdict.clearsMinimum = stressProfit >= config.minimumProfitCopper
+            verdict.clearsRoi = stressProfit >= requiredProfitFor(entryTotal, 0, config.minimumRoi)
+            -- Ties go to the smaller purchase, as trying them in ascending order always did --
+            -- said outright now that the search no longer visits them in order.
             if stressProfit < requiredProfit then
               sawProfit = true
-              if not bestShort or stressProfit > bestShort.stressProfit then
+              if not bestShort or stressProfit > bestShort.stressProfit
+                  or (stressProfit == bestShort.stressProfit and quantity < bestShort.quantity) then
                 bestShort = {
                   quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
                   competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
@@ -580,7 +683,8 @@ function GC.SniperDecision.Evaluate(input)
                 }
               end
             else
-              if not selected or stressProfit > selected.stressProfit then
+              if not selected or stressProfit > selected.stressProfit
+                  or (stressProfit == selected.stressProfit and quantity < selected.quantity) then
                 selected = {
                   quantity = quantity, entryTotal = entryTotal, entryUnitDisplay = math.floor(entryTotal / quantity),
                   competingUnit = fill.competing, exitUnit = exitUnit, ahCut = ahCut,
@@ -593,6 +697,14 @@ function GC.SniperDecision.Evaluate(input)
         end
       end
     end
+    return tried[quantity]
+  end
+
+  if fixed then
+    if attempt(fixed) == "invalid" then return invalid() end
+  elseif searchQuantities(attempt, coarseCap, live.levels, budget, turnoverUnits, wallBelowCeiling)
+      == "invalid" then
+    return invalid()
   end
 
   if not selected then

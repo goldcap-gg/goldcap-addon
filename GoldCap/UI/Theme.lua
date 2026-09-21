@@ -13,8 +13,15 @@ T.color = {
   fg      = { 0.92, 0.91, 0.89 },
   fgMuted = { 0.72, 0.71, 0.69 },
   fgDim   = { 0.55, 0.54, 0.52 },
-  red     = { 0.898, 0.283, 0.302 },
-  green   = { 0.25, 0.85, 0.25 },
+  -- The design's pairs, like gold/goldHi: `red` and `green` are what TEXT wears (a loss, a
+  -- profit), lifted so they read on a panel this dark -- a loss in the fill red was a murky
+  -- brick, and a profit in pure (0.25, 0.85, 0.25) green was the one neon thing on the screen.
+  -- `redFill` is what a BUTTON is filled with (danger below), under near-black lettering.
+  red     = { 0.941, 0.404, 0.420 },
+  redFill = { 0.898, 0.283, 0.302 },
+  green   = { 0.373, 0.827, 0.553 },
+  -- What a unit cost: a muted gold, so a price paid never competes with a price asked.
+  cost    = { 0.788, 0.663, 0.341 },
   zebra   = { 1, 1, 1, 0.04 },
   -- Hover is the brand gold, not a neutral white lift: on a panel this dark a white film just
   -- reads as "grayer", while a gold wash reads as "this is the row you are on".
@@ -356,6 +363,37 @@ function T.Card(parent, fill, border, small)
   return f
 end
 
+-- QuietScrollBar: UIPanelScrollFrameTemplate's scrollbar without Blizzard's chrome -- the two
+-- arrow buttons and the knurled thumb floated beside panels drawn in none of that style (seen
+-- in game beside the Sell list AND its detail panel at once). The bar itself stays: the wheel
+-- and a drag of the thumb still scroll. The arrows are made invisible and unclickable rather
+-- than hidden, because the template's own scripts Enable/Disable them and anchor the track
+-- between them. Every part is optional -- which keys a scrollbar carries has changed between
+-- client versions, and a missing one is simply skipped.
+function T.QuietScrollBar(scroll)
+  local bar = scroll and scroll.ScrollBar
+  if not bar then return end
+  for _, key in ipairs({ "ScrollUpButton", "ScrollDownButton" }) do
+    local button = bar[key]
+    if button then
+      if button.SetAlpha then button:SetAlpha(0) end
+      if button.EnableMouse then button:EnableMouse(false) end
+    end
+  end
+  for _, key in ipairs({ "Top", "Middle", "Bottom", "Background", "trackBG" }) do
+    if bar[key] and bar[key].Hide then bar[key]:Hide() end
+  end
+  local thumb = bar.ThumbTexture or (bar.GetThumbTexture and bar:GetThumbTexture())
+  if thumb and thumb.SetTexture then
+    -- bar.png at its own slice (2), the same pill the Sell book's depth bars are drawn with.
+    thumb:SetTexture(T.MEDIA .. "bar.png")
+    if thumb.SetTexCoord then thumb:SetTexCoord(0, 1, 0, 1) end
+    if thumb.SetTextureSliceMargins then thumb:SetTextureSliceMargins(2, 2, 2, 2) end
+    if thumb.SetVertexColor then thumb:SetVertexColor(1, 1, 1, 0.22) end
+    if thumb.SetSize then thumb:SetSize(4, 36) end
+  end
+end
+
 -- Glow: additive halo hung `inset` px outside the parent's own rect. ADD
 -- blend keeps it readable over any fill, same reasoning as HOVER_WASH.
 function T.Glow(parent, c, inset)
@@ -648,7 +686,7 @@ local BUTTON_VARIANTS = {
   primary = { bg = T.color.gold, text = { 0.05, 0.05, 0.06 } },
   active  = { bg = { T.color.gold[1], T.color.gold[2], T.color.gold[3], 0.16 }, text = T.color.goldHi },
   ghost   = { bg = nil, text = T.color.fg },
-  danger  = { bg = T.color.red, text = T.color.fg },
+  danger  = { bg = T.color.redFill, text = { 0.102, 0.024, 0.024 } },
   -- Attention without alarm: a purchase that is real but not the whole line (the BUY tab's
   -- capped fill). Red is what CANCEL and losses wear and reads as "do not".
   warn    = { bg = { T.tier.SUSPECT[1], T.tier.SUSPECT[2], T.tier.SUSPECT[3], 0.16 }, text = T.tier.SUSPECT },
@@ -660,7 +698,10 @@ local BUTTON_VARIANTS = {
 -- on top of its fill without the two notching each other).
 local ROUNDED_BUTTON = {
   plaque = { bg = T.MEDIA .. "plaque.png", ring = T.MEDIA .. "plaque_ring.png", margin = PLAQUE_SLICE },
-  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, margin = BADGE_SLICE },
+  -- `askedRing`: badge_ring.png, a 1px outline on badge.png's own radius. Not drawn unless the
+  -- caller asks (b:SetRing below) -- a badge button is a row control, and a list of outlined
+  -- ones is a grid of boxes.
+  badge  = { bg = T.MEDIA .. "badge.png", ring = nil, askedRing = T.MEDIA .. "badge_ring.png", margin = BADGE_SLICE },
 }
 
 -- Square mode's ghost has no fill by design -- edgeBorder (below) draws its outline instead.
@@ -815,6 +856,24 @@ function T.Button(parent, variant, rounded)
   end
   b:SetVariant(variant)
 
+  -- An outline for the one badge button that should stand out of its list (the Sell row's
+  -- Post). nil takes it off again: rows are pooled, and the next kind to take the row must not
+  -- inherit it. Built on first use and kept, so a render does not mint a texture per call.
+  function b:SetRing(c)
+    if not c then
+      if b.ring then b.ring:Hide() end
+      return
+    end
+    if not b.ring then
+      local file = roundedSpec and (roundedSpec.ring or roundedSpec.askedRing)
+      if not file then return end
+      b.ring = slicedTexture(b, "BORDER", file, c, roundedSpec.margin)
+      b.ring:SetAllPoints()
+      b.ringAsked = true
+    end
+    b.ring:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+    b.ring:Show()
+  end
 
   -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
   -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
@@ -825,6 +884,8 @@ function T.Button(parent, variant, rounded)
   -- happens synchronously afterward in the same Lua step, before the next render.
   b:SetScript("OnDisable", function()
     b.bg:SetAlpha(0.45)
+    -- Only a ring SetRing drew: a plaque's own border keeps the button's shape while it is dim.
+    if b.ringAsked then b.ring:SetAlpha(0.45) end
     b.text:SetTextColor(T.color.fgDim[1], T.color.fgDim[2], T.color.fgDim[3], T.color.fgDim[4] or 1)
     -- The engine keeps drawing HIGHLIGHT over a disabled button (that is how a dimmed control
     -- can still raise a tooltip), so the wash is muted here instead of guarded in a script.
@@ -832,6 +893,7 @@ function T.Button(parent, variant, rounded)
   end)
   b:SetScript("OnEnable", function()
     b.bg:SetAlpha(1)
+    if b.ringAsked then b.ring:SetAlpha(1) end
     -- Same rounded-vs-square branch as SetVariant above: SetColorTexture on a textured
     -- rounded bg would erase the texture file the re-enable path is meant to restore.
     if b.roundedMargin then
@@ -964,12 +1026,22 @@ function T.QualityMarkup(itemID, size)
   return ("|A:%s:%d:%d|a"):format(atlas, size, size)
 end
 
---- `name` with its quality pip in front, or `name` unchanged. Convenience so a
--- caller never has to remember the trailing space.
+--- `name` as a list shows an item: in its item quality's colour (uncommon and better -- the
+-- game's colour for common is pure white, brighter than anything else on these panels, so a
+-- common name stays in the interface's own foreground) with its reagent-tier pip AFTER it, so
+-- names start on one edge down a list. `name` unchanged when the client knows neither.
 function T.WithQuality(name, itemID, size)
+  local label = tostring(name)
+  local api = _G.C_Item and _G.C_Item.GetItemQualityByID
+  if api and itemID then
+    local ok, quality = pcall(api, itemID)
+    local colour = ok and type(quality) == "number" and quality >= 2
+      and _G.ITEM_QUALITY_COLORS and _G.ITEM_QUALITY_COLORS[quality]
+    if colour and type(colour.hex) == "string" then label = colour.hex .. label .. "|r" end
+  end
   local markup = T.QualityMarkup(itemID, size)
-  if markup == "" then return name end
-  return markup .. " " .. tostring(name)
+  if markup == "" then return label end
+  return label .. " " .. markup
 end
 
 --- The GameTooltip anchor that opens a tooltip from `owner` into the part of the screen

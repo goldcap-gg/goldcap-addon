@@ -23,7 +23,7 @@ describe("row button labels fit the button", function()
   --   COLUMNS { key = "buy", w = 64 }     -- UI/SniperFrame.lua, setRowDeal
   local BUTTONS = {
     { what = "the 86px Sell action button", budget = 11,
-      keys = { "Set cost", "Post", "Repost", "Cancel lot?", "Remove", "Remove?" } },
+      keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?" } },
     { what = "the 64px Deals buy button", budget = 8,
       keys = { "Buy", "Check", "Avoid" } },
   }
