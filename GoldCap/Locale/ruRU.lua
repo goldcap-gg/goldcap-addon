@@ -201,6 +201,8 @@ GC.Locales.ruRU = {
     "Себестоимость не выдумывается из рыночной цены — пока вы её не введёте, прибыль останется неизвестной.",
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "Предметы: снаряжение, питомцы и рецепты, оценённые по эталону региона из вашего импорта. Скорость продажи никогда не измеряется, поэтому они никогда не получают статус БЕЗОПАСНО -- покупать или нет, решать вам, и GoldCap проверяет их только пока эта доска открыта.",
   ["LISTED"] = "ВЫСТАВЛЕНО",
   ["Language"] = "Язык",
   ["Language changed. Type /reload to apply it everywhere."] =

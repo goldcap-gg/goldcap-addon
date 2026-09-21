@@ -197,6 +197,8 @@ GC.Locales.ptBR = {
     "Ele não vai inventar um custo a partir do preço de mercado, então o lucro fica desconhecido até você informar um.",
   ["Item"] = "Item",
   ["Item %d"] = "Item %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "Items: equipamento, mascotes e receitas precificados contra a referência da região da sua importação. A velocidade de venda nunca é medida, então nunca ficam SEGURO -- a compra é sua decisão, e o GoldCap só os verifica enquanto este painel está aberto.",
   ["LISTED"] = "ANUNCIADO",
   ["Language"] = "Idioma",
   ["Language changed. Type /reload to apply it everywhere."] =

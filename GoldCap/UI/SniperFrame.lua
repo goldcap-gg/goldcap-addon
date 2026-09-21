@@ -8151,7 +8151,7 @@ local function createFrame()
   setPlainTooltip(f.boardChips.commodities,
     GC.L["Commodities: reagents, consumables, gems and enchants the scan found under their region price. These are the rows a live check can approve for buying."])
   setPlainTooltip(f.boardChips.items,
-    GC.L["Items: gear, pets and recipes priced against the region reference from your import. Leads only -- they are never approved for buying, and GoldCap only checks them while this board is open."])
+    GC.L["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."])
   GC.Sniper._PaintBoardChips(f)
 
   -- Deals-only toolbar chrome: setView shows/hides these alongside the scroll/header

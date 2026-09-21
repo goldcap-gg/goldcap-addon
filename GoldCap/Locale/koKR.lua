@@ -191,6 +191,8 @@ GC.Locales.koKR = {
     "시세로 매입가를 지어내지 않으므로, 입력하기 전까지 수익은 알 수 없음으로 남습니다.",
   ["Item"] = "아이템",
   ["Item %d"] = "아이템 %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "아이템: 장비, 펫, 제작법을 가져온 지역 기준가와 비교해 가격을 매깁니다. 판매 속도는 절대 측정되지 않으므로 안전 판정을 받는 일이 없습니다 -- 구매는 당신 몫이며, GoldCap은 이 목록이 열려 있는 동안만 확인합니다.",
   ["LISTED"] = "등록됨",
   ["Language"] = "언어",
   ["Language changed. Type /reload to apply it everywhere."] =

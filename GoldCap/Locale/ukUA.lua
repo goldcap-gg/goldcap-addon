@@ -206,6 +206,8 @@ GC.Locales.ukUA = {
     "Собівартість не вигадується з ринкової ціни — доки ви її не введете, прибуток лишиться невідомим.",
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
+  ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
+    "Items: спорядження, вихованці та рецепти, оцінені за еталоном регіону з вашого імпорту. Швидкість продажу ніколи не вимірюється, тож вони ніколи не отримують статус БЕЗПЕЧНО -- купувати чи ні, вирішувати вам, а GoldCap перевіряє їх лише поки ця дошка відкрита.",
   ["LISTED"] = "ВИСТАВЛЕНО",
   ["LISTED AS"] = "ВИСТАВЛЕНО",
   ["LOT VALUE"] = "СУМА ЛОТА",
