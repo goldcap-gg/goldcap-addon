@@ -8830,7 +8830,7 @@ end
 -- ask about, whether a batch is out, what would stop the next one, and how many realm rows
 -- the store holds. For a live client showing an empty Items board with nothing on screen
 -- that says which gate is closed.
--- `/gc sniper`: the commodity purchase state, for the one question the board dump cannot answer
+-- `/gc purchase`: the commodity purchase state, for the one question the board dump cannot answer
 -- -- why a Buy is being refused. Every refusal in onDialogPrimaryClick reads from what is printed
 -- here: the shared slot and its age, the attempt in flight and its stage, the tombstone and
 -- whether it is confirmed (a confirmed one is never retired on a timer), the record-only

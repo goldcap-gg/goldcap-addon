@@ -288,6 +288,19 @@ describe("TOC load order", function()
     assert.is_function(GC.SniperDecision.Evaluate)
     assert.is_function(GC.slashHandlers.sniper)
     assert.is_function(GC.Sniper.Toggle)
+    -- Regression: `/gc sniper` was once assigned twice in Core/Init.lua -- a diagnostic
+    -- handler added later for the commodity purchase path (now `/gc purchase`) silently
+    -- overwrote this one, so the command stopped toggling the window at all. Route the
+    -- call through a spy rather than only checking both exist, so a future duplicate
+    -- assignment of the same key fails here too.
+    do
+      local toggleCalls = 0
+      local realToggle = GC.Sniper.Toggle
+      GC.Sniper.Toggle = function(...) toggleCalls = toggleCalls + 1 return realToggle(...) end
+      GC.slashHandlers.sniper()
+      GC.Sniper.Toggle = realToggle
+      assert.equal(1, toggleCalls)
+    end
     assert.is_function(GC.SettingsUI.Toggle)
     -- `/goldcap reset` is the way back to a window that has ended up somewhere unreachable --
     -- the button that does the same job lives inside the window it would rescue. Both go
@@ -298,6 +311,9 @@ describe("TOC load order", function()
     -- guard-then-dispatch shape Core/Init.lua uses for `/gc sell` and `/gc board`.
     assert.is_function(GC.slashHandlers.buy)
     assert.is_function(GC.Buy.DebugPrint)
+    -- `/gc purchase`: diagnostics for the commodity purchase path, same shape again.
+    assert.is_function(GC.slashHandlers.purchase)
+    assert.is_function(GC.Sniper.DebugPurchase)
 
     -- Batch 5: RESET WINDOW (UI/SettingsFrame.lua) reads the live default straight off
     -- SniperFrame.lua's own WIN table via this export, instead of a mirrored constant that can
