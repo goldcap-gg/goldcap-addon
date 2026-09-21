@@ -1,5 +1,12 @@
 # GoldCap
 
+## 0.14.0 (unreleased)
+
+- **Your crafts reach goldcap.gg too.** The ledger and portfolio on the site now
+  show what you made and what it cost, and the materials it used up stop being
+  counted as goods you still hold. Nothing is charged twice: the gold is spent
+  when you buy the materials, not again when you craft with them.
+
 ## 0.13.0 (2026-09-20)
 
 - **The Sell tab, redrawn.** Each row now answers before you open it: under the price, where
