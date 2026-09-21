@@ -2432,6 +2432,30 @@ describe("Sell widget geometry and manual cost", function()
     end)
   end)
 
+  -- "TO POST 17" over a list of three rows that could be posted (seen in game): the number
+  -- counted everything the deck HOLDS -- stock in the mail or the bank folded away under NOT ON
+  -- HAND, purchases not yet identified -- where a seller reads it as what there is to post.
+  it("counts what can be posted on the deck switch, not everything the deck holds", function()
+    local GC = load(620, { calls = {} })
+    local function position(id, fields)
+      local entry = { itemID = id, itemName = "Item " .. id, positionKey = "commodity:" .. id,
+        coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 50, sources = {} }
+      for key, value in pairs(fields) do entry[key] = value end
+      return entry
+    end
+    local _, container = topRows(GC, {
+      position(1, { bagQty = 5, listedQty = 0 }),
+      position(2, { bagQty = 3, listedQty = 7 }),          -- on both decks: counted on both
+      position(3, { bagQty = 0, listedQty = 0 }),          -- in the mail or the bank
+      position(4, { bagQty = 0, listedQty = 0 }),
+      position(5, { bagQty = 0, listedQty = 0, unresolved = true }), -- bought, not yet identified
+      position(6, { bagQty = 0, listedQty = 4 }),
+    })
+    container.paintDeckSwitch()
+    assert.equal("TO POST 2", container.deckButtons.post.label)
+    assert.equal("MY LOTS 2", container.deckButtons.listed.label)
+  end)
+
   describe("the not-on-hand fold", function()
     local function onHand()
       return { itemID = 42, itemName = "Ore", positionKey = "commodity:42", coverage = "COMPLETE",

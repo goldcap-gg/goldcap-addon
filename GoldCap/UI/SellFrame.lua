@@ -5225,7 +5225,11 @@ function GC.Sell.Attach(f, geometry)
     for _, position in ipairs(positions) do
       local bags = type(position.bagQty) == "number" and position.bagQty or 0
       local live = type(position.listedQty) == "number" and position.listedQty or 0
-      if bags > 0 or live == 0 then post = post + 1 end
+      -- What can be POSTED, not everything the deck holds. The deck also lists stock that is
+      -- neither in the bags nor listed -- folded away under NOT ON HAND, or a purchase not yet
+      -- identified -- and counting those read "TO POST 17" over three rows with a Post button
+      -- (seen in game). The rows stay where they were; only the number says what it names.
+      if bags > 0 then post = post + 1 end
       if live > 0 then listed = listed + 1 end
     end
     return post, listed
