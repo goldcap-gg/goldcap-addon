@@ -1,7 +1,30 @@
 # GoldCap
 
-## 0.14.0 (unreleased)
+## 0.14.0 (2026-09-21)
 
+- **My lots tells you what to do with them.** The tab is split into three: lots that have
+  been undercut and are worth cancelling, lots priced far under the market, and lots to leave
+  alone. A row says how the stock is listed ("400 in 2 lots"), the rows worth cancelling carry
+  their own Cancel lot button, and the panel opens on your lots, each with its own. The button
+  that used to say Repost now says what it does: it cancels the lot, after a second click.
+- **Cancelling a lot no longer freezes the tab.** After the confirming click the Sell tab could
+  sit dead for half a minute — no row would open, the panel would not close. The lot now
+  leaves the list at once, and the tab says when the auction house has confirmed it.
+- **GoldCap's price no longer queues behind a wall for one silver.** On fast-selling goods it
+  could pick a price one step above a huge stack of listings, putting tens of thousands of
+  units in front of yours for half a percent more. It now weighs each price against the wait
+  in front of it, and joins the front of that stack instead.
+- **Buy more than 200 at a time.** A new setting, "Max units per buy" (up to 5,000; still 200
+  until you raise it), lets the sniper take a whole cheap wall in one purchase. How fast the
+  item sells, your wallet limit and the profit floors still decide the final amount.
+- **Counts that mean what they say.** TO POST counts what you can actually post, not the stock
+  sitting in your mail or bank with it; the Refresh button counts the tab you are looking at.
+- **A cleaner look everywhere.** Profit, loss and cost wear calmer colours, item names are in
+  their quality colour, the scrollbars lost their arrows, the row's Post button has a gold
+  outline and the order book's bars have rounded ends.
+- **Deals no longer pauses after a Sell refresh.** Pressing Refresh on Sell and switching
+  straight to Deals could leave the board standing still for up to half a minute.
+- The Sell tab's newer texts are translated in every language the addon speaks.
 - **Your crafts reach goldcap.gg too.** The ledger and portfolio on the site now
   show what you made and what it cost, and the materials it used up stop being
   counted as goods you still hold. Nothing is charged twice: the gold is spent
