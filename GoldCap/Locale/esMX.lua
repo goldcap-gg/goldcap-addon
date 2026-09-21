@@ -412,6 +412,7 @@ GC.Locales.esMX = {
     "El tablero lo clasificó con el snapshot importado. El libro en vivo no lo respalda.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "El botón espera un momento antes de poder presionarse, así que nunca basta con un doble clic accidental.",
+  ["The cancel did not go through — the lot is still listed"] = "La cancelación no se completó — el lote sigue publicado",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "El anuncio más barato ya no está lo bastante por debajo del precio de referencia.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

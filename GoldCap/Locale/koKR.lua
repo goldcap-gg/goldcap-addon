@@ -384,6 +384,7 @@ GC.Locales.koKR = {
     "목록은 가져온 스냅숏으로 등급을 매겼습니다. 실시간 호가창은 이를 뒷받침하지 않습니다.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "버튼은 잠시 뒤에야 눌립니다. 실수로 두 번 클릭해도 실행되지 않습니다.",
+  ["The cancel did not go through — the lot is still listed"] = "취소가 처리되지 않았습니다 — 물량이 아직 등록되어 있습니다",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "가장 싼 매물이 더 이상 기준 가격보다 충분히 낮지 않습니다.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

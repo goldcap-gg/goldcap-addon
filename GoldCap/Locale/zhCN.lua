@@ -376,6 +376,7 @@ GC.Locales.zhCN = {
     "榜单是按导入的快照分级的，实时挂单簿并不支持这个结论。",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "按钮会先等待片刻才可按下，因此误双击不会触发。",
+  ["The cancel did not go through — the lot is still listed"] = "取消未成功 — 该批仍在上架中",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "最便宜的挂单已不再明显低于参考价格。",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

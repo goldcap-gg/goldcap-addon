@@ -409,6 +409,7 @@ GC.Locales.itIT = {
     "La lista lo ha classificato sullo snapshot importato. Il book in tempo reale non lo conferma.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Il pulsante attende un momento prima di poter essere premuto, così un doppio clic accidentale non basta mai.",
+  ["The cancel did not go through — the lot is still listed"] = "L'annullamento non è andato a buon fine — il lotto è ancora in vendita",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "L'inserzione più economica non è più abbastanza sotto il prezzo di riferimento.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

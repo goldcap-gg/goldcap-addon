@@ -557,6 +557,7 @@ paintCancelButton = function()
     end
     if #cancelSkipped > 0 then parts[#parts + 1] = (GC.L["%d held back"]):format(#cancelSkipped) end
     heldBack:SetText(table.concat(parts, "  ·  "))
+    if GC.Sell.PaintCancelMirror then GC.Sell.PaintCancelMirror() end
     if #parts > 0 then heldBack:Show() else heldBack:Hide() end
     -- The hover explains the held-back lots, so it is only there when there are any.
     if heldBackHit then
@@ -1523,34 +1524,57 @@ local function classifyOwnedAuctions(auctions)
   return auctions
 end
 
--- AUCTION_CANCELED (Core/Init.lua), with the lot it names when the client names one. This is
--- the ANSWER to a cancel, and the owned-auctions list is not: C_AuctionHouse.GetOwnedAuctions
--- reads a cache that only a new QueryOwnedAuctions refreshes, so straight after a cancel it
--- still holds the lot the server has just removed. Waiting for the list to drop it left the
--- arm unreleased and every render held behind it until the cancel's own 30-second timeout --
--- seen in game as a tab that went dead after Cancel lot (no row opened, the panel would not
--- shut) and "came back by itself" half a minute later, or at once on a trip to another tab,
--- which re-queries. An auction ID is never reused, so a lot named here is left out of every
--- list read for the rest of the session. An event that names no lot is taken as the answer to
--- the cancel in flight, if there is one, and concludes nothing otherwise.
+-- Lots this tab has cancelled, by auction ID: `{ at = when the cancel was sent, confirmed =
+-- whether the server said so }`. A lot in here is left out of every list this tab reads.
+--
+-- It exists because the tab used to wait, holding every render, until it SAW the lot leave
+-- C_AuctionHouse.GetOwnedAuctions() -- and that is a cache only a new QueryOwnedAuctions
+-- refreshes, so straight after a cancel it still holds the lot the server has just removed.
+-- Seen in game (twice) as a tab that went dead after the confirming click: the lot still
+-- listed, its button greyed at "Cancel lot?", no row opening, the panel refusing to shut, until
+-- the cancel's own 30-second timeout -- or a trip to another tab, which re-queries. Nothing is
+-- waited for any more: the moment CancelAuction is sent the arm is let go (ROW.cancelSent) and
+-- the lot stops being shown. AUCTION_CANCELED confirms it when the client sends one; an auction
+-- ID is never reused, so a confirmed entry stands for the session. One that nothing confirmed
+-- is given SENT_WAIT seconds, after which a list that still holds the lot is believed instead:
+-- the cancel did not go through, the lot comes back and the tab says so.
+GC.Sell.cancelledLots = {}
+-- How long a cancel nothing confirmed is believed over a list that still holds the lot.
+GC.Sell.CANCEL_SENT_WAIT = 15
+
 function GC.Sell.OnAuctionCanceled(auctionID)
+  local lots = GC.Sell.cancelledLots
   if not exact(auctionID) or auctionID <= 0 then
-    auctionID = repostingRow and repostingRow.repostStage == "cancelling" and repostPin
-      and repostPin.auctionID or nil
+    -- An event that names no lot answers the one cancel still waiting, when there is exactly
+    -- one; with none, or several, it concludes nothing.
+    local waiting
+    for id, lot in pairs(lots) do
+      if not lot.confirmed then
+        if waiting then return end
+        waiting = id
+      end
+    end
+    auctionID = waiting
   end
   if not auctionID then return end
-  GC.Sell.cancelledLots = GC.Sell.cancelledLots or {}
-  GC.Sell.cancelledLots[auctionID] = true
+  local known = lots[auctionID] ~= nil
+  lots[auctionID] = { at = time(), confirmed = true }
+  if known then setStatus(GC.L["Lot cancelled; wait for it to return to bags"]) end
 end
 
 function GC.Sell.OnOwnedAuctions()
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
-  if GC.Sell.cancelledLots then
-    local live = {}
+  do
+    local live, returned = {}, false
     for _, auction in ipairs(auctions) do
-      if not GC.Sell.cancelledLots[auction.auctionID] then live[#live + 1] = auction end
+      local lot = GC.Sell.cancelledLots[auction.auctionID]
+      if lot and not lot.confirmed and time() - lot.at > GC.Sell.CANCEL_SENT_WAIT then
+        GC.Sell.cancelledLots[auction.auctionID], lot, returned = nil, nil, true
+      end
+      if not lot then live[#live + 1] = auction end
     end
     auctions = live
+    if returned then setStatus(GC.L["The cancel did not go through — the lot is still listed"]) end
   end
   ownedLots = GC.SellPositions.NormalizeOwnedLots(classifyOwnedAuctions(auctions), time())
   local scope = context()
@@ -2716,6 +2740,37 @@ do
     if removingRow and removingRow.removeStage == "armed" then disarmRemove() end
   end
 
+  -- Straight after a click that reached onRepostClick -- the lot's own button, the row's, the
+  -- dock's. If that click SENT the cancel, the pin has done its job: record the lot, let the arm
+  -- go (which releases every held render) and show the tab without it. See GC.Sell.cancelledLots
+  -- for why nothing here waits for the server. onRepostClick itself is untouched.
+  function ROW.cancelSent()
+    if not (repostingRow and repostingRow.repostStage == "cancelling" and repostPin) then return end
+    GC.Sell.cancelledLots[repostPin.auctionID] = { at = time() }
+    refresh.ownedWanted = true -- ask for the listings again as soon as the throttle allows
+    disarmRepost()
+    GC.Sell.OnOwnedAuctions()
+    setStatus(GC.L["Cancelling lot…"])
+  end
+
+  -- The button that was pressed is the one that has to answer. The row's Cancel lot arms the
+  -- lot's own button over in the panel; left as it was, it read as a dead control ("I press it
+  -- and nothing happens") with the confirm waiting a column away. Painted from
+  -- paintCancelButton, which every step of an arm already repaints through -- renders are
+  -- held while an arm lives, so a render cannot be what keeps this in step.
+  -- (On GC.Sell, not ROW: paintCancelButton is written above where ROW is declared.)
+  function GC.Sell.PaintCancelMirror()
+    local button = ROW.mirror
+    if not button then return end
+    if repostingRow and repostingRow.repostStage == "armed" then
+      button.helpKey = "Cancel lot?"; button:SetLabel(GC.L["Cancel lot?"])
+      if repostingRow.repostReady then button:Enable() else button:Disable() end
+    else
+      button.helpKey = "Cancel lot"; button:SetLabel(GC.L["Cancel lot"]); button:Enable()
+      ROW.mirror = nil
+    end
+  end
+
   -- The destructive-action rule, for the row's button and the dock's alike: nothing here
   -- cancels. It opens the lot's position -- onRepostClick pins to a RENDERED lot row, and a
   -- shut position renders none -- finds that row and hands it the click, so the two-click arm,
@@ -2732,6 +2787,7 @@ do
       if row.IsShown and row:IsShown() and row.kind == "lot" and row.lot
           and row.lot.auctionID == entry.auctionID then
         onRepostClick(row, entry.auctionID)
+        ROW.cancelSent()
         paintCancelButton()
         return
       end
@@ -4404,7 +4460,10 @@ renderRows = function()
         if onListed and ROW.queuedLot(p) then
           -- MY LOTS' own control, on the rows worth cancelling and no others. It cancels nothing
           -- itself: ROW.armLot opens the position and hands the click to the lot's own button.
-          showRowAction(row, "Cancel lot", function() ROW.armLot(ROW.queuedLot(row.position)) end)
+          showRowAction(row, "Cancel lot", function()
+            ROW.mirror = row.action
+            ROW.armLot(ROW.queuedLot(row.position))
+          end)
         elseif bagQty > 0 and not onListed then
           showRowAction(row, "Post", function() onPostClick(row) end)
         elseif canSetCost(p) then
@@ -4563,7 +4622,10 @@ renderRows = function()
         row.cells.profit:SetText("")
         row.cells.status:SetText(recommendationText(p.recommendation))
         setColor(row.cells.status, Theme.color.fg)
-        showRowAction(row, "Cancel lot", function() onRepostClick(row, entry.lot.auctionID) end)
+        showRowAction(row, "Cancel lot", function()
+          onRepostClick(row, entry.lot.auctionID)
+          ROW.cancelSent()
+        end)
       else
         -- "In your bags" used to be inferred as tracked minus listed, which is an accounting
         -- leftover, not a measurement: whenever GoldCap had not seen one of the player's own
@@ -4930,6 +4992,9 @@ end
 
 -- The once-a-second nudge from UI/SniperFrame.lua's auction-house ticker, like GC.Buy.Tick.
 function GC.Sell.Tick()
+  -- The listings again after a cancel, once, when the throttle lets it through: the client's
+  -- own list is a cache that nothing else refreshes (see GC.Sell.cancelledLots).
+  if refresh.ownedWanted and requestOwnedAuctions() then refresh.ownedWanted = nil end
   GC.Sell.TrySendBulk()
   -- A batch that never answered: once the wait is over, hand the tab's turn back. Nothing else
   -- would -- the ready event that the walk stood still through has been and gone.
@@ -5877,6 +5942,18 @@ function GC.Sell.DebugPrint()
     tostring(sniper._keysOwner), call(sniper._KeysOutstanding),
     sniper._bookPass and call(function() return sniper._bookPass:PendingStart() end) or "n/a",
     GC.AuctionHouseTab and call(GC.AuctionHouseTab.PlayerIsBusy) or "n/a"))
+  -- A cancel's own state, so "I pressed Cancel lot and the tab went dead" can be answered from a
+  -- paste: what is armed and how far it got, whether a render is being held behind it, and
+  -- which lots were sent for cancelling and whether the server ever confirmed them.
+  local sent, confirmed = 0, 0
+  for _, lot in pairs(GC.Sell.cancelledLots or {}) do
+    if lot.confirmed then confirmed = confirmed + 1 else sent = sent + 1 end
+  end
+  GC.Print(("cancel: armed=%s stage=%s ready=%s lot=%s renderHeld=%s posting=%s removing=%s sentUnconfirmed=%d confirmed=%d requery=%s"):format(
+    tostring(repostingRow ~= nil), tostring(repostingRow and repostingRow.repostStage),
+    tostring(repostingRow and repostingRow.repostReady), tostring(repostPin and repostPin.auctionID),
+    tostring(deferredRender), tostring(postingRow ~= nil), tostring(removingRow ~= nil),
+    sent, confirmed, tostring(refresh.ownedWanted)))
   local status = statusOwner and statusOwner.status and statusOwner.status.GetText and statusOwner.status:GetText()
   GC.Print("status: " .. tostring(status))
   local t = GC.Util.throttleStats

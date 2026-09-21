@@ -407,6 +407,7 @@ GC.Locales.ruRU = {
     "Доска оценила лот по импортированному снимку. Живой стакан этого не подтверждает.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка становится нажимаемой не сразу, поэтому случайный двойной клик её не сработает.",
+  ["The cancel did not go through — the lot is still listed"] = "Отмена не прошла — лот всё ещё выставлен",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "Самый дешёвый лот уже недостаточно ниже эталонной цены.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

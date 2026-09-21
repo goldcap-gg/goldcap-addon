@@ -408,6 +408,7 @@ GC.Locales.frFR = {
     "Le tableau l'a classé d'après l'instantané importé. Le carnet en direct ne le confirme pas.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Le bouton attend un instant avant d'être cliquable : un double-clic accidental ne suffit jamais.",
+  ["The cancel did not go through — the lot is still listed"] = "L'annulation n'a pas abouti — le lot est toujours en vente",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "La vente la moins chère n'est plus assez en dessous du prix de référence.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

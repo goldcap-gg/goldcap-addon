@@ -422,6 +422,7 @@ GC.Locales.ukUA = {
     "Дошка оцінила лот за імпортованим знімком. Живий стакан цього не підтверджує.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Кнопка стає натискною не одразу, тож випадковий подвійний клік її не спрацює.",
+  ["The cancel did not go through — the lot is still listed"] = "Скасування не пройшло — лот досі виставлений",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "Найдешевший лот уже не настільки нижчий за еталонну ціну.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

@@ -409,6 +409,7 @@ GC.Locales.deDE = {
     "Die Liste hat das aus dem importierten Snapshot eingestuft. Das laufende Orderbuch stützt es nicht.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "Der Knopf wartet kurz, bevor er gedrückt werden kann — ein versehentlicher Doppelklick reicht also nie.",
+  ["The cancel did not go through — the lot is still listed"] = "Der Abbruch ging nicht durch — der Posten ist noch eingestellt",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "Das günstigste Angebot liegt nicht mehr weit genug unter dem Referenzpreis.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =

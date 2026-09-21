@@ -41,11 +41,21 @@ describe("Sell tab, the cancel queue control", function()
     return v
   end
 
+  local now
   local function upvalue(fn, wanted)
     for i = 1, math.huge do
       local n, val = debug.getupvalue(fn, i)
       if not n then break end
       if n == wanted then return val end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  local function set(fn, wanted, value)
+    for i = 1, math.huge do
+      local n = debug.getupvalue(fn, i)
+      if not n then break end
+      if n == wanted then debug.setupvalue(fn, i, value); return end
     end
     error("missing upvalue " .. wanted)
   end
@@ -58,7 +68,8 @@ describe("Sell tab, the cancel queue control", function()
 
   before_each(function()
     cancelCalls = 0
-    _G.time = function() return 1000 end
+    now = 1000
+    _G.time = function() return now end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
     _G.C_Container = {
@@ -226,17 +237,19 @@ describe("Sell tab, the cancel queue control", function()
     button.scripts.OnClick(button)
 
     assert.equal(1, cancelCalls)
-    assert.equal("cancelling", lotRow.repostStage)
-    assert.matches("CANCELLING", button.label)
-    assert.is_false(button.enabled)
+    -- Sent is sent: the arm is let go at once rather than held until the client's list
+    -- catches up (see "a cancel that was sent" below).
+    assert.is_nil(lotRow.repostStage)
+    assert.matches("Cancelling", root.status.text, 1, true)
   end)
-  -- Seen in game: the cancel went through, and the tab sat dead for half a minute -- the lot
-  -- still listed, "Cancel lot?" greyed out, no row or close button answering a click -- until
-  -- the cancel's own timeout fired. The client's owned-auctions list is a CACHE that only a new
-  -- query refreshes, so the lot the server had just cancelled was still in it, the arm was
-  -- never released, and every render was held behind it. AUCTION_CANCELED names the lot: that
-  -- is the answer, whatever the cache still says.
-  describe("a cancel that landed", function()
+  -- Seen in game, twice: after the confirming click the tab went dead -- the lot still listed,
+  -- its button greyed at "Cancel lot?", no row opening, the panel refusing to shut -- until the
+  -- cancel's own 30-second timeout. The tab held every render behind the cancel while it waited
+  -- to SEE the lot leave C_AuctionHouse.GetOwnedAuctions(), which is a cache only a new query
+  -- refreshes; and whether AUCTION_CANCELED arrives to say so is not something to bet the
+  -- whole tab on. Once CancelAuction is sent the pin has done its job: the tab lets go at once,
+  -- stops showing the lot, and sorts out what the server said afterwards.
+  describe("a cancel that was sent", function()
     local function cancelHead()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
       compose()
@@ -249,31 +262,76 @@ describe("Sell tab, the cancel queue control", function()
       return lotRow
     end
 
-    it("is over when the server says so, though the client's list still holds the lot", function()
-      local lotRow = cancelHead()
-      GC.Sell.OnAuctionCanceled(77)
-      GC.Sell.OnOwnedAuctions() -- GetOwnedAuctions still returns lot 77: the cache is stale
-      assert.is_nil(lotRow.repostStage)
-      assert.matches("cancelled", root.status.text, 1, true)
-      assert.matches("NOTHING", container.cancelButton.label)
+    local function lotShown()
       for _, row in ipairs(upvalue(render, "rows")) do
-        assert.is_false(row.shown == true and row.kind == "lot")
+        if row.shown == true and (row.kind == "lot" or row.kind == "position") then return true end
       end
+      return false
+    end
+
+    it("lets go of the tab at once, and stops showing the lot the client's list still holds", function()
+      local lotRow = cancelHead()
+      assert.is_nil(lotRow.repostStage)
+      assert.matches("Cancelling", root.status.text, 1, true)
+      assert.is_false(lotShown())
+      assert.matches("NOTHING", container.cancelButton.label)
+      -- ...and a list read that still holds lot 77 (the cache is stale) does not bring it back.
+      GC.Sell.OnOwnedAuctions()
+      assert.is_false(lotShown())
     end)
 
-    it("takes an event that names no lot as the answer to the cancel in flight", function()
-      local lotRow = cancelHead()
-      GC.Sell.OnAuctionCanceled(nil)
+    it("says so when the server confirms, whether or not the event names the lot", function()
+      cancelHead()
+      GC.Sell.OnAuctionCanceled(77)
+      assert.matches("cancelled", root.status.text, 1, true)
+    end)
+
+    it("asks the auction house for the listings again, once, when it can", function()
+      local asked = 0
+      _G.C_AuctionHouse.QueryOwnedAuctions = function() asked = asked + 1 end
+      GC.Sniper = { IsAHOpen = function() return true end, IsBusy = function() return false end }
+      set(upvalue(GC.Sell.OnThrottleReady, "advanceQuote"), "driver", { isReady = function() return true end })
+      cancelHead()
+      GC.Sell.Tick(); GC.Sell.Tick()
+      assert.equal(1, asked)
+    end)
+
+    it("brings the lot back if nothing confirmed the cancel and a later list still holds it", function()
+      cancelHead()
+      now = 1000 + 16 -- past the wait for a confirmation
       GC.Sell.OnOwnedAuctions()
-      assert.is_nil(lotRow.repostStage)
+      assert.is_true(lotShown())
+      assert.matches("did not", root.status.text, 1, true)
     end)
 
     it("hides nothing on an event for a lot nobody here cancelled", function()
       GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
-      GC.Sell.OnAuctionCanceled(nil) -- no cancel in flight, no lot named: nothing to conclude
+      GC.Sell.OnAuctionCanceled(nil)
       GC.Sell.OnOwnedAuctions()
       compose()
       assert.equal("CANCEL 1", container.cancelButton.label)
+    end)
+  end)
+
+  -- The button that was pressed is the one that has to answer. The row's Cancel lot armed the
+  -- lot's own button over in the panel and stayed exactly as it was -- "I press it and nothing
+  -- happens", with the confirm waiting on a small button a column away.
+  describe("the row's own button", function()
+    it("asks for the confirming click itself, and goes back when the arm is let go", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose(); render()
+      local action
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.shown and row.kind == "position" then action = row.action end
+      end
+      action.scripts.OnClick(action)
+      assert.equal("Cancel lot?", action.label)
+      assert.is_false(action.enabled) -- until the arm's delay has passed, like the lot's own
+      armedLotRow().repostReady = true
+      upvalue(GC.Sell.Attach, "paintCancelButton")()
+      assert.is_true(action.enabled)
+      action.scripts.OnClick(action)
+      assert.equal(1, cancelCalls)
     end)
   end)
 

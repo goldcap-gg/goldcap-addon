@@ -409,6 +409,7 @@ GC.Locales.ptBR = {
     "O painel classificou isto pelo snapshot importado. O livro ao vivo não confirma.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
     "O botão espera um instante antes de poder ser pressionado, então um duplo clique acidental nunca basta.",
+  ["The cancel did not go through — the lot is still listed"] = "O cancelamento não foi concluído — o lote continua anunciado",
   ["The cheapest listing is no longer far enough under the reference price."] =
     "O anúncio mais barato já não está bem abaixo do preço de referência.",
   ["The cheapest price somebody ELSE is currently asking, from a live Auction House query. Your own listings are excluded, so the number never chases itself downwards."] =
