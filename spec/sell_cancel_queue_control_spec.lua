@@ -230,6 +230,77 @@ describe("Sell tab, the cancel queue control", function()
     assert.matches("CANCELLING", button.label)
     assert.is_false(button.enabled)
   end)
+  -- Seen in game: the cancel went through, and the tab sat dead for half a minute -- the lot
+  -- still listed, "Cancel lot?" greyed out, no row or close button answering a click -- until
+  -- the cancel's own timeout fired. The client's owned-auctions list is a CACHE that only a new
+  -- query refreshes, so the lot the server had just cancelled was still in it, the arm was
+  -- never released, and every render was held behind it. AUCTION_CANCELED names the lot: that
+  -- is the answer, whatever the cache still says.
+  describe("a cancel that landed", function()
+    local function cancelHead()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose()
+      local button = container.cancelButton
+      button.scripts.OnClick(button)
+      local lotRow = armedLotRow()
+      lotRow.repostReady = true
+      button.scripts.OnClick(button)
+      assert.equal(1, cancelCalls)
+      return lotRow
+    end
+
+    it("is over when the server says so, though the client's list still holds the lot", function()
+      local lotRow = cancelHead()
+      GC.Sell.OnAuctionCanceled(77)
+      GC.Sell.OnOwnedAuctions() -- GetOwnedAuctions still returns lot 77: the cache is stale
+      assert.is_nil(lotRow.repostStage)
+      assert.matches("cancelled", root.status.text, 1, true)
+      assert.matches("NOTHING", container.cancelButton.label)
+      for _, row in ipairs(upvalue(render, "rows")) do
+        assert.is_false(row.shown == true and row.kind == "lot")
+      end
+    end)
+
+    it("takes an event that names no lot as the answer to the cancel in flight", function()
+      local lotRow = cancelHead()
+      GC.Sell.OnAuctionCanceled(nil)
+      GC.Sell.OnOwnedAuctions()
+      assert.is_nil(lotRow.repostStage)
+    end)
+
+    it("hides nothing on an event for a lot nobody here cancelled", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      GC.Sell.OnAuctionCanceled(nil) -- no cancel in flight, no lot named: nothing to conclude
+      GC.Sell.OnOwnedAuctions()
+      compose()
+      assert.equal("CANCEL 1", container.cancelButton.label)
+    end)
+  end)
+
+  -- An armed cancel is a question, and a click anywhere else is the answer "no". The render
+  -- used to stay held for the arm's full twenty seconds: rows would not open, the panel would
+  -- not shut, and the tab looked hung.
+  describe("walking away from an armed cancel", function()
+    it("lets go of the arm when the player clicks a row, and does what the click asked", function()
+      GC.QuoteCache.Set(quotes(), 23427, 19800, 1000)
+      compose()
+      local button = container.cancelButton
+      button.scripts.OnClick(button)
+      local lotRow = armedLotRow()
+      assert.equal("armed", lotRow.repostStage)
+      local position
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row.shown and row.kind == "position" then position = row end
+      end
+      position.scripts.OnClick(position) -- the open position's own row: shut it
+      assert.is_nil(lotRow.repostStage)
+      assert.equal(0, cancelCalls)
+      for _, row in ipairs(upvalue(render, "rows")) do
+        assert.is_false(row.shown == true and row.kind == "lot")
+      end
+    end)
+  end)
+
   -- MY LOTS as the redesign drew it: the deck answers "what do I do with these" in three
   -- sections, a row says how its stock is listed, and the row that is worth cancelling carries
   -- the control for it -- which, like the dock's, only ever hands the click to onRepostClick.

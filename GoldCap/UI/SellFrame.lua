@@ -1523,8 +1523,35 @@ local function classifyOwnedAuctions(auctions)
   return auctions
 end
 
+-- AUCTION_CANCELED (Core/Init.lua), with the lot it names when the client names one. This is
+-- the ANSWER to a cancel, and the owned-auctions list is not: C_AuctionHouse.GetOwnedAuctions
+-- reads a cache that only a new QueryOwnedAuctions refreshes, so straight after a cancel it
+-- still holds the lot the server has just removed. Waiting for the list to drop it left the
+-- arm unreleased and every render held behind it until the cancel's own 30-second timeout --
+-- seen in game as a tab that went dead after Cancel lot (no row opened, the panel would not
+-- shut) and "came back by itself" half a minute later, or at once on a trip to another tab,
+-- which re-queries. An auction ID is never reused, so a lot named here is left out of every
+-- list read for the rest of the session. An event that names no lot is taken as the answer to
+-- the cancel in flight, if there is one, and concludes nothing otherwise.
+function GC.Sell.OnAuctionCanceled(auctionID)
+  if not exact(auctionID) or auctionID <= 0 then
+    auctionID = repostingRow and repostingRow.repostStage == "cancelling" and repostPin
+      and repostPin.auctionID or nil
+  end
+  if not auctionID then return end
+  GC.Sell.cancelledLots = GC.Sell.cancelledLots or {}
+  GC.Sell.cancelledLots[auctionID] = true
+end
+
 function GC.Sell.OnOwnedAuctions()
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
+  if GC.Sell.cancelledLots then
+    local live = {}
+    for _, auction in ipairs(auctions) do
+      if not GC.Sell.cancelledLots[auction.auctionID] then live[#live + 1] = auction end
+    end
+    auctions = live
+  end
   ownedLots = GC.SellPositions.NormalizeOwnedLots(classifyOwnedAuctions(auctions), time())
   local scope = context()
   -- My-auctions (docs/superpowers/specs/2026-09-06-my-auctions-design.md): the roster this
@@ -2678,6 +2705,17 @@ do
     return nil
   end
 
+  -- An arm that is still a QUESTION -- a post awaiting Confirm, a cancel or a removal awaiting
+  -- its second click -- is answered "no" by a click on a row or on the panel's X. Without this
+  -- that click was swallowed by the render the arm holds back, for as long as the arm lived
+  -- (twenty seconds for a cancel): rows would not open, the panel would not shut, and the tab
+  -- looked hung. Anything already SENT keeps its pin until the server answers.
+  function ROW.walkAway()
+    if postingRow and postingRow.postStage == "confirm" then disarmPost() end
+    if repostingRow and repostingRow.repostStage == "armed" then disarmRepost() end
+    if removingRow and removingRow.removeStage == "armed" then disarmRemove() end
+  end
+
   -- The destructive-action rule, for the row's button and the dock's alike: nothing here
   -- cancels. It opens the lot's position -- onRepostClick pins to a RENDERED lot row, and a
   -- shut position renders none -- finds that row and hands it the click, so the two-click arm,
@@ -3494,6 +3532,7 @@ local function createRow(parent)
       showNotOnHand = not showNotOnHand
       renderRows()
     elseif self.kind == "position" and type(self.position.positionKey) == "string" then
+      ROW.walkAway() -- an armed post or cancel is a question; this click answers it "no"
       -- One open position at a time. Two open panels are two hundred pixels of detail each,
       -- and the second one pushed the first -- the one being compared against -- off screen.
       local key = self.position.positionKey
@@ -5546,6 +5585,7 @@ function GC.Sell.Attach(f, geometry)
   closeInspector:SetPoint("TOPRIGHT", -INSP.PAD - 2, -18)
   closeInspector:SetLabel("X")
   closeInspector:SetScript("OnClick", function()
+    ROW.walkAway()
     for key in pairs(expanded) do expanded[key] = nil end
     renderRows()
   end)
