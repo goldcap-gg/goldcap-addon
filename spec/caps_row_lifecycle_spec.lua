@@ -745,6 +745,30 @@ describe("Caps row lifecycle -- commodity board across a book pass", function()
     assert.equal(150000, deal.unitPrice)
   end)
 
+  -- Fix round 1: a cap row found before the first full scan of the session goes on the board
+  -- then on screen -- the watchlist map (3b) -- and the first scan switches the Commodities board
+  -- to the full-scan list. The row used to stay behind in the map, off screen, until something
+  -- happened to re-decide the item. Starting a scan takes it along.
+  it("moves a cap row found before the first scan onto the full-scan board when one starts", function()
+    local GC = loadSniper()
+    local capRow = { itemID = 42, isCommodity = true, unitPrice = 80, qty = 3, capTotal = 240,
+      discount = 0, profit = -80, estProfit = -80, tier = "WATCH", cap = 100, stale = true }
+    local ordinary = { itemID = 7, isCommodity = true, unitPrice = 500, qty = 1, profit = 100,
+      estProfit = 100, tier = "WATCH" }
+    set(sortedDeals(GC), "deals", { [42] = capRow, [7] = ordinary })
+    assert.equal("watchlist", upvalue(sortedDeals(GC), "mode"))
+    assert.equal(capRow, onBoard(GC, 42))
+
+    -- The scan starts the way Auto starts one (spec/book_pass_wiring_spec.lua's route in).
+    local autoScan = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "feedAuto"), "autoScan")
+    autoScan:Input("toggleOn", 1000)
+    autoScan:Tick(1000)
+
+    assert.equal("fullscan", upvalue(sortedDeals(GC), "mode"))
+    assert.equal(capRow, onBoard(GC, 42))
+    assert.is_nil(onBoard(GC, 7)) -- an ordinary watchlist row keeps its old behaviour
+  end)
+
   -- Caps fixes 3g: the full-scan board is kept across an Auction House close on purpose -- the
   -- next visit opens on the last scan's rows (OnAuctionHouseShow) -- and a cap row went with it.
   -- A cap row is a claim about a lot, drilled live, that this visit alone vouches for; the next

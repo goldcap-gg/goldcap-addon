@@ -3048,6 +3048,16 @@ local function startFullScan()
   streamRows, streamRowsCount = {}, 0
   GC.Sniper._screenedCount = 0
   mode = "fullscan"
+  -- Caps fixes 3b, round 1: the Commodities board has just switched stores. A cap row put on
+  -- the watchlist map while that map was the board on screen (GC.Sniper._PutCapRow) comes along
+  -- -- left behind it would sit off screen until something re-decided the item. Ordinary
+  -- watchlist rows keep their old behaviour.
+  for itemID, deal in pairs(deals) do
+    if deal.cap then
+      deals[itemID] = nil
+      GC.Sniper._PutCapRow(itemID, deal)
+    end
+  end
   refreshRows()
   -- Sniper phase 2: one loop cycle is one pass plus one visit to every key-poll target, so a
   -- fresh pass is what re-arms the poll. The count from the cycle that just ended is carried
