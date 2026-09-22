@@ -83,3 +83,69 @@ function GC.Caps.BookHits(book, isCommodity)
   end
   return hits
 end
+
+-- Addon task 5: judge a drilled lot/book against the player's own cap, not the market. Both
+-- pure -- the drill-results handler (UI/SniperFrame.lua) runs one of these FIRST, ahead of the
+-- ordinary SniperDecision.EvaluateRealm/Evaluate, whenever GC.Caps.For(itemID) is non-nil.
+
+-- `lots` as itemLots() returns them: { auctionID, buyout, itemLevel, quantity }, already
+-- excluding bid-only and the player's own lots. The cheapest COMPARABLE lot (itemLevel >=
+-- cap.l) at or under cap.c, or nil when none qualifies. The shape returned is exactly what
+-- onDialogPrimaryClick reads off row.decisionSnapshot for a realm item: status == "WATCH" and
+-- a candidate carrying auctionID/buyout/quantity/itemLevel.
+function GC.Caps.DecideRealm(cap, lots)
+  local best, bestUnit
+  for i = 1, #lots do
+    local lot = lots[i]
+    local itemLevel = lot.itemLevel or 0
+    if itemLevel >= cap.l then
+      local quantity = lot.quantity or 1
+      local unit = math.floor(lot.buyout / quantity)
+      if unit <= cap.c and (not best or unit < bestUnit) then
+        best, bestUnit = lot, unit
+      end
+    end
+  end
+  if not best then return nil end
+  return {
+    status = "WATCH",
+    cap = true,
+    candidate = {
+      auctionID = best.auctionID,
+      buyout = best.buyout,
+      quantity = best.quantity or 1,
+      itemLevel = best.itemLevel,
+    },
+    unit = bestUnit,
+  }
+end
+
+-- `levels` as the commodity book holds them (Core/BookPass.lua / driver.commodityBook):
+-- { { unitPrice, quantity }, … } ascending, the player's own units already excluded. Sums
+-- every level at or under cap.c into one buyable quantity and its stress-tested saving; nil
+-- when there is nothing to buy, or when the saving does not clear the player's own
+-- minimumProfitCopper floor (GC.db.settings.sniper.minimumProfitCopper). The shape returned is
+-- exactly what onDialogPrimaryClick and armReady read for a commodity: status == "SAFE",
+-- buyable == true, quantity.
+function GC.Caps.DecideCommodity(cap, levels, minimumProfitCopper)
+  local quantity, stressProfit, unit = 0, 0, nil
+  for i = 1, #levels do
+    local level = levels[i]
+    if level.unitPrice <= cap.c then
+      local levelQty = level.quantity or 0
+      quantity = quantity + levelQty
+      stressProfit = stressProfit + (cap.c - level.unitPrice) * levelQty
+      if not unit then unit = level.unitPrice end
+    end
+  end
+  if quantity == 0 then return nil end
+  if stressProfit < (minimumProfitCopper or 0) then return nil end
+  return {
+    status = "SAFE",
+    buyable = true,
+    cap = true,
+    quantity = quantity,
+    stressProfit = stressProfit,
+    unit = unit,
+  }
+end

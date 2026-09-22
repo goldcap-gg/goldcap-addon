@@ -3975,6 +3975,37 @@ local function availableFromLevels(levels)
   return total > 0 and total or nil
 end
 
+-- Live price caps, addon task 5: the deal a capped item's own drilled result builds, once
+-- GC.Caps.DecideRealm/DecideCommodity finds a lot/book at or under the player's price. Same
+-- shape a GC.DealMath.Evaluate deal carries (the renderer reads either one identically) --
+-- `mv`/`estProfit` degrade to no-reference/`-unit` gracefully since a capped item needs no
+-- market value to qualify (GC.Caps.For's own contract: the cap IS the player's own price).
+-- `discount`/`profit`/`tier` are given the same values an ordinary deal falls back to; nothing
+-- reads a "CAP" tier, so there is no reason to invent one.
+local function buildCapDeal(itemID, isCommodity, unit, qty, auctionID, cap)
+  local value = GC.Data.GetItemValue(itemID)
+  local estProfit = (value and math.floor(value.mv * 0.95) or 0) - unit
+  return {
+    itemID = itemID,
+    isCommodity = isCommodity,
+    unitPrice = unit,
+    qty = qty,
+    auctionID = auctionID,
+    mv = value and value.mv,
+    discount = 0,
+    profit = estProfit,
+    estProfit = estProfit,
+    tier = "WATCH",
+    cap = cap.c,
+    capGroup = cap.group,
+    capManual = cap.manual,
+    -- Same flag every full-scan-derived deal carries: this snapshot is not itself the last
+    -- word, and openDialog's first click on it is a live re-Check, exactly like any other
+    -- `.stale` row -- never an arm straight off a background read.
+    stale = true,
+  }
+end
+
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
 -- onObservation below passes its own so the same poll's book is not fetched twice. Every other
 -- call site omits it and gets the old behaviour of building its own.
@@ -3982,10 +4013,30 @@ evaluateLiveCommodityDeal = function(itemID, levels)
   levels = levels or driver.commodityBook(itemID)
   if not levels then return nil end
   local result = driver.commodityResult(itemID)
+  local avail = (result and result.avail) or availableFromLevels(levels)
+  -- Task 5: a capped commodity is judged against the player's OWN price first -- the whole
+  -- reason GC.Caps.For needs no market reference to fire (Core/Caps.lua's own contract). Only
+  -- when there is nothing to buy under the cap (or the saving misses minimumProfitCopper) does
+  -- this fall through to the ordinary region/market-value Evaluate below, exactly like any
+  -- other item: a capped item that is not currently a deal by its own price can still be one
+  -- by the market's.
+  local cap = GC.Caps and GC.Caps.For(itemID)
+  if cap then
+    local capDecision = GC.Caps.DecideCommodity(cap, levels, GC.db.settings.sniper.minimumProfitCopper)
+    if capDecision then
+      local capDeal = buildCapDeal(itemID, true, capDecision.unit, capDecision.quantity, nil, cap)
+      if GC.Sniper._liveTracksScanDeals then
+        scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, capDeal, WIN.ROW_CAP)
+      else
+        deals[itemID] = capDeal
+      end
+      return { isCommodity = true, levels = levels, avail = avail, decision = capDecision }
+    end
+  end
   return {
     isCommodity = true,
     levels = levels,
-    avail = (result and result.avail) or availableFromLevels(levels),
+    avail = avail,
     decision = evaluateLive(itemID, levels),
   }
 end
@@ -5190,6 +5241,21 @@ end
 -- applyRequeryResult by construction, not by coincidence.
 local function evaluateLiveItemDeal(itemID)
   if not driver.itemResult(itemID) then return nil end
+  -- Live price caps, addon task 5: judged against the player's own price FIRST -- see the
+  -- matching branch in evaluateLiveCommodityDeal above for why GC.Caps.For needs no market
+  -- reference to fire, and Core/Caps.lua for the contract. Falls through to the ordinary
+  -- realm/region verdict below when no lot qualifies under the cap.
+  local cap = GC.Caps and GC.Caps.For(itemID)
+  if cap then
+    local capDecision = GC.Caps.DecideRealm(cap, driver.itemLots(itemID))
+    if capDecision then
+      local capDeal = buildCapDeal(itemID, false, capDecision.unit, capDecision.candidate.quantity,
+        capDecision.candidate.auctionID, cap)
+      GC.Sniper._realmDeals[itemID] = capDeal
+      GC.FullScan.CapDeals(GC.Sniper._realmDeals, WIN.ROW_CAP)
+      return { isCommodity = false, decision = capDecision }
+    end
+  end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
   -- across the region, naming that exact auction as a candidate. It is still never SAFE and
