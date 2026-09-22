@@ -313,18 +313,21 @@ describe("Deals board re-stamps itself on the way back", function()
   end)
 
   -- The sorted column is stamped once, with its arrow -- not first plain and then again with
-  -- the arrow, and not left holding the plain text either.
+  -- the arrow, and not left holding the plain text either. Both directions: the first click
+  -- sorts descending, a second click on the same heading flips it to ascending.
   it("keeps the active sort arrow on its heading through the restamp", function()
     local ctx = buildFrame()
     local profit = ctx.frame.headerRow.cells.profit
-    profit.scripts.OnMouseDown(profit) -- the player's own click: sort by profit, descending
-    assert.equal(profit.baseText .. " ▼", profit.label.text)
-    setUpvalue(ctx.setView, "view", "sell")
-    local seen = recordHeadings(ctx)
+    for _, arrow in ipairs({ " ▼", " ▲" }) do
+      profit.scripts.OnMouseDown(profit) -- the player's own click on PROFIT
+      assert.equal(profit.baseText .. arrow, profit.label.text)
+      setUpvalue(ctx.setView, "view", "sell")
+      local seen = recordHeadings(ctx)
 
-    ctx.setView("deals")
+      ctx.setView("deals")
 
-    assertHeadingsRestamped(ctx, seen, "profit", " ▼")
+      assertHeadingsRestamped(ctx, seen, "profit", arrow)
+    end
   end)
 
   -- AUTO, SCAN and HIDDEN each skip a restamp identical to the one they last made -- right

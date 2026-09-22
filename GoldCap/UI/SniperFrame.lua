@@ -1351,19 +1351,15 @@ end
 -- (not \xXX escapes -- WoW's client Lua is 5.1, which has no hex string escape) in a file
 -- saved as UTF-8; Lua strings are just byte arrays so this needs no special handling.
 --
--- It also re-stamps EVERY heading label, sortable or not, from its base text. A one-line
--- (SetMaxLines(1)) FontString that lives inside a frame which was hidden and shown again --
--- the header row behind the Sell/Sold tabs -- can come back with its text simply not drawn
--- (the PROFIT/TREND labels went blank in-game after a tab switch, and reappeared only when a
--- header was clicked, i.e. when this function next ran). SetText is what the client needs to
--- draw it again, so every caller that re-shows the row goes through here.
---
--- But SetText with the text the string already holds is a no-op to the client, and a no-op
--- does not make it draw -- which is all this used to do, so the row still came back blank
--- after a tab switch or a window re-show, tooltips working over empty cells. Each label is now
--- cleared, set, hidden and shown, the cure UI/SoldFrame.lua's and UI/BuyFrame.lua's
--- restampHeadings measured in game. A sortable heading is in header.cells and sortHeaders
--- both, so the text is settled first and every label is stamped once, arrow included.
+-- It also re-stamps EVERY heading label, sortable or not, and every caller that re-shows the
+-- row goes through here: a one-line (SetMaxLines(1)) FontString inside a frame that was
+-- hidden and shown again -- the header row behind the Sell/Sold/BUY tabs, or the whole window
+-- -- can come back with its text simply not drawn, tooltips still working over empty cells.
+-- Setting the text it already holds is a no-op to the client and does not make it draw, so
+-- each label is cleared, set, hidden and shown -- the cure UI/SoldFrame.lua's and
+-- UI/BuyFrame.lua's restampHeadings measured in game. A sortable heading is in header.cells
+-- and sortHeaders both, so the text is settled first and every label is stamped once, arrow
+-- included.
 local function updateHeaderSortIndicators()
   local texts = {} -- label -> the text it draws
   local header = frame and frame.headerRow
