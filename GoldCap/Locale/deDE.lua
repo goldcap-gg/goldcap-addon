@@ -518,6 +518,8 @@ GC.Locales.deDE = {
     "gegen den Regionspreis dieses Gegenstands, nach 5% Gebühr — falls er sich verkauft",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
+  ["at or under your price -- click Buy to purchase"] =
+    "zu oder unter deinem Preis -- Buy klicken zum Kaufen",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "zu dem Preis, den GoldCap für den Verkauf erwartet, nach 5% Gebühr — nicht dein Angebotspreis",
   ["auto off"] = "auto aus",

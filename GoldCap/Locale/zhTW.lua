@@ -474,6 +474,7 @@ GC.Locales.zhTW = {
     "對比該物品的區域價格，扣除 5% 手續費後 — 前提是能賣掉",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
+  ["at or under your price -- click Buy to purchase"] = "不高於你的價格 -- 按 Buy 購買",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "依 GoldCap 預估這些會賣出的價格計算，已扣除 5% 手續費 — 不是你的開價",
   ["auto off"] = "自動已關閉",

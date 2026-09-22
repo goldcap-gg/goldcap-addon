@@ -653,7 +653,8 @@ local SORT_VALUE = {
   tier = function(deal, pending) return GC.BoardRows.Rank(verdictFor(deal), pending) end,
   pct = function(deal) return deal.discount end,
   unit = function(deal) return deal.unitPrice end,
-  price = function(deal) return deal.unitPrice * deal.qty end,
+  -- A cap row's total is what its decision's units cost (buildCapDeal's capTotal).
+  price = function(deal) return deal.capTotal or deal.unitPrice * deal.qty end,
   profit = function(deal) return deal.profit end,
 }
 
@@ -1097,6 +1098,8 @@ local function setRowDeal(row, deal)
     -- SAME unitPrice+profit (a re-Adopt from the site swapping which group owns this item)
     -- moves the CAP tier chip and the row subtitle -- neither is covered by anything above.
     (verdict and verdict.cap) and 1 or 0, tostring(deal.capGroup),
+    -- A cap row's total can move while its cheapest level and quantity do not.
+    tostring(deal.capTotal),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1201,7 +1204,8 @@ local function setRowDeal(row, deal)
   else
     row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    row.priceText:SetText(GC.Util.FormatMoney(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+    -- Total cost, not per-unit -- and for a cap row the real sum over the levels it buys.
+    row.priceText:SetText(GC.Util.FormatMoney(deal.capTotal or deal.unitPrice * deal.qty))
     row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   end
 
@@ -3747,6 +3751,34 @@ local function purchaseFacts(deal, quote)
     return nil
   end
   local market = quote.market or {}
+  -- Live price caps: a buy on the player's own price, realm lot or commodity. What it cost is
+  -- exact -- the buyout PlaceBid paid, the quote a commodity Confirm paid -- and it is recorded
+  -- wherever a sniper buy is: the session, the ledger, the acquisition batch the Sell tab's
+  -- cost basis comes from. What it never had is the engine's decision evidence: no stress exit,
+  -- no region reference, no decision version. None is invented. `cap` stands in its place, and
+  -- each store takes what it honestly can: the ledger row goes up with no evidence group at all
+  -- (GC.Ledger.RecordSniperBuy), the acquisition batch has no resale target, and the old flip
+  -- queue, which cannot hold a buy without one, records nothing. It claims no profit either.
+  if decision.cap then
+    local candidate = type(decision.candidate) == "table" and decision.candidate or nil
+    local quantity
+    if candidate then
+      quantity = (type(candidate.quantity) == "number" and candidate.quantity >= 1)
+        and math.floor(candidate.quantity) or 1
+    elseif decision.status == "SAFE" and decision.buyable and quote.quantity == decision.quantity then
+      quantity = quote.quantity
+    else
+      return nil
+    end
+    return {
+      itemID = deal.itemID,
+      quantity = quantity,
+      total = quote.total,
+      unitDisplay = math.floor(quote.total / quantity),
+      cap = true,
+      expectedProfit = 0,
+    }
+  end
   -- Sniper phase 2: a realm lot has no SAFE decision to anchor a cost basis to -- it is bought
   -- on a candidate, one named auction at one named price -- but a purchase is a purchase and
   -- gold that left the player's bags has to be recorded. `unverified` is the fact that carries
@@ -3793,9 +3825,7 @@ local function purchaseFacts(deal, quote)
     decisionStatus = decision.status,
     decisionReasons = copyReasons(decision.reasons),
     stressUnit = decision.exitUnit,
-    -- A cap buy claims no profit: it was made on the player's own price, and nothing measured
-    -- a resale (Core/Caps.lua carries no stressProfit for exactly that reason).
-    expectedProfit = decision.cap and 0 or decision.stressProfit,
+    expectedProfit = decision.stressProfit,
     recommendedQuantity = decision.quantity,
     sourceAt = market.sourceAt,
   }
@@ -4213,7 +4243,13 @@ end
 -- A value table is not proof of an mv: GC.Data.GetItemValue answers gear the import lists only
 -- in `T:` with its region reference and no mv at all (Core/Data.lua's target-only branch), and
 -- that is exactly the gear a cap exists for. It degrades like no value at all.
-local function buildCapDeal(itemID, isCommodity, unit, qty, auctionID, cap)
+--
+-- `capTotal` is what the decision's units really cost (its entryTotal). An ordinary row's total
+-- is its unit price times its quantity, but a commodity cap buys up a ladder of levels, and
+-- "cheapest level x quantity" put 2000g on a row whose buy costs 2900g. The row's total cell and
+-- the total sort (SORT_VALUE.price) read this first.
+local function buildCapDeal(itemID, isCommodity, decision, cap)
+  local unit = decision.unit
   local value = GC.Data.GetItemValue(itemID)
   local mv = value and value.mv or nil
   local estProfit = (mv and math.floor(mv * 0.95) or 0) - unit
@@ -4221,8 +4257,9 @@ local function buildCapDeal(itemID, isCommodity, unit, qty, auctionID, cap)
     itemID = itemID,
     isCommodity = isCommodity,
     unitPrice = unit,
-    qty = qty,
-    auctionID = auctionID,
+    qty = decision.quantity,
+    capTotal = decision.entryTotal,
+    auctionID = decision.candidate and decision.candidate.auctionID or nil,
     mv = mv,
     discount = 0,
     profit = estProfit,
@@ -4283,7 +4320,7 @@ evaluateLiveCommodityDeal = function(itemID, levels)
   if cap then
     local capDecision = GC.Sniper._DecideCap(cap, levels)
     if capDecision then
-      local capDeal = buildCapDeal(itemID, true, capDecision.unit, capDecision.quantity, nil, cap)
+      local capDeal = buildCapDeal(itemID, true, capDecision, cap)
       if GC.Sniper._liveTracksScanDeals then
         scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, capDeal, WIN.ROW_CAP)
       else
@@ -4336,12 +4373,22 @@ local function applyRequeryResult(row, itemID, live)
     end
     if live.isCommodity and decision.buyable then
       armReady(row, deal, decision, live.levels)
-      if frame then frame.status:SetText(GC.L["live safety confirmed -- click Buy to purchase"]) end
+      -- A cap decision is the player's own price, not the engine's safety verdict.
+      if frame then
+        frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
+          or GC.L["live safety confirmed -- click Buy to purchase"])
+      end
     elseif not live.isCommodity and decision.status == "WATCH" and decision.candidate then
       -- Sniper phase 2: a realm lot, checked live and found under its region reference. The
       -- decision is deliberately not `buyable` -- nothing here measured how fast this item
       -- sells -- so this arms its own way rather than through armReady, and the button says
       -- what it is: a buy the player is making on their own judgement, not on a verdict.
+      --
+      -- A live price cap arms here too (GC.Caps.DecideRealm names a candidate the same way),
+      -- and its judgement is also the player's -- but a judgement already made, as a price, on
+      -- goldcap.gg. "Unverified" and "sale speed unknown" describe a lot measured against a
+      -- region reference; a cap lot says what it is instead: at or under your price.
+      local capLot = decision.cap == true
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
@@ -4349,7 +4396,9 @@ local function applyRequeryResult(row, itemID, live)
       activeItemID[deal.itemID] = true
       if dialog and dialog.row == row then
         hideRequoteBanner()
-        setPrimaryLabel(GC.L["BUY — unverified"])
+        -- The same bare "Buy" armReady puts on a commodity, which is the word every "click Buy"
+        -- status line in every locale names.
+        setPrimaryLabel(capLot and "Buy" or GC.L["BUY — unverified"])
         setDialogHeader(deal, decision)
         stampDialogFromDecision(deal, decision)
         -- Affordability, checked here rather than through updateBuyAffordance: that helper
@@ -4360,6 +4409,9 @@ local function applyRequeryResult(row, itemID, live)
           dialog.primaryBtn:Disable()
           setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
             :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
+        elseif capLot then
+          dialog.primaryBtn:Enable()
+          setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
         else
           dialog.primaryBtn:Enable()
           setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
@@ -5550,8 +5602,7 @@ local function evaluateLiveItemDeal(itemID)
   if cap then
     local capDecision = GC.Caps.DecideRealm(cap, driver.itemLots(itemID))
     if capDecision then
-      local capDeal = buildCapDeal(itemID, false, capDecision.unit, capDecision.candidate.quantity,
-        capDecision.candidate.auctionID, cap)
+      local capDeal = buildCapDeal(itemID, false, capDecision, cap)
       GC.Sniper._realmDeals[itemID] = capDeal
       GC.FullScan.CapDeals(GC.Sniper._realmDeals, WIN.ROW_CAP)
       -- Addon task 6: queued for the board-ring, once per GC.Caps.Announce's own dedup -- a
@@ -6497,11 +6548,15 @@ end
 local function qtyMaxAvailable(deal)
   -- Live price caps (caps fixes 2f): on a row armed by the player's own price the ceiling is what
   -- that price allows on this book -- never the whole book, whose dearer units the cap rule would
-  -- refuse. Nothing left under it answers 1, and applyChosenQty then refuses even that.
+  -- refuse. But never below the quantity already armed either: the box shows exactly that
+  -- number, Buy starts exactly that purchase, and "of N" beside it must not contradict it. When
+  -- the wallet has dropped since the Check and the rule now allows fewer, the armed quantity is
+  -- judged again where it can actually be refused -- at the quote, against the gold in the bags
+  -- then (GC.Caps.QuoteOk) -- and a smaller number typed here is re-decided by the rule as usual.
   local cap = dialog and GC.Sniper._RowCap(dialog.row, deal)
   if cap then
     local most = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels)
-    return most and most.quantity or 1
+    return math.max(most and most.quantity or 1, dialog.row.decisionSnapshot.quantity or 1)
   end
   local maxQty
   if dialog and dialog.bookLevels then

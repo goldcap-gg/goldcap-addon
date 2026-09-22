@@ -516,6 +516,8 @@ GC.Locales.frFR = {
     "face au prix régional de cet objet, après la commission de 5% — s'il se vend",
   ["any figure here would be invented out of the very number being refused"] =
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
+  ["at or under your price -- click Buy to purchase"] =
+    "à ton prix ou en dessous -- clique sur Buy pour acheter",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "au prix auquel GoldCap s'attend à ce que cela se vende, après la commission de 5% — pas votre prix demandé",
   ["auto off"] = "auto désactivé",

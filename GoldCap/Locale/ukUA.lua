@@ -531,6 +531,8 @@ GC.Locales.ukUA = {
     "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
+  ["at or under your price -- click Buy to purchase"] =
+    "за вашою ціною або дешевше -- натисніть Buy, щоб купити",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "за ціною, за якою GoldCap очікує продаж, за вирахуванням 5% — а не за вашою запитаною ціною",
   ["auto off"] = "авто вимкнено",

@@ -519,6 +519,8 @@ GC.Locales.esMX = {
     "frente al precio de la región para este objeto, tras la comisión del 5% — si se vende",
   ["any figure here would be invented out of the very number being refused"] =
     "cualquier cifra aquí saldría inventada del mismo número que se está rechazando",
+  ["at or under your price -- click Buy to purchase"] =
+    "a tu precio o por debajo -- pulsa Buy para comprar",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "al precio al que GoldCap espera que esto se venda, tras la comisión del 5% — no tu precio pedido",
   ["auto off"] = "auto desactivado",

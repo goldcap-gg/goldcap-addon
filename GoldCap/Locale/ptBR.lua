@@ -517,6 +517,8 @@ GC.Locales.ptBR = {
     "em relação ao preço da região para este item, após a taxa de 5% — se vender",
   ["any figure here would be invented out of the very number being refused"] =
     "qualquer valor aqui seria inventado a partir do mesmo número que está sendo recusado",
+  ["at or under your price -- click Buy to purchase"] =
+    "no seu preço ou abaixo -- clique em Buy para comprar",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "pelo preço que a GoldCap espera que isso venda, após a taxa de 5% — não o seu preço pedido",
   ["auto off"] = "auto desligado",

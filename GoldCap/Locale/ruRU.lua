@@ -516,6 +516,8 @@ GC.Locales.ruRU = {
     "против региональной цены этого предмета, за вычетом 5% — если он продастся",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
+  ["at or under your price -- click Buy to purchase"] =
+    "по вашей цене или дешевле -- нажмите Buy, чтобы купить",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "по цене, по которой GoldCap ожидает продажу, за вычетом 5% — а не по вашей запрошенной цене",
   ["auto off"] = "авто выключено",

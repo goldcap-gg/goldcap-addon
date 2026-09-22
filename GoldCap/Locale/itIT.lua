@@ -517,6 +517,8 @@ GC.Locales.itIT = {
     "rispetto al prezzo regionale di questo oggetto, al netto del 5% — se si vende",
   ["any figure here would be invented out of the very number being refused"] =
     "qualsiasi cifra qui sarebbe inventata proprio dal numero che viene rifiutato",
+  ["at or under your price -- click Buy to purchase"] =
+    "al tuo prezzo o meno -- clicca Buy per acquistare",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "al prezzo a cui GoldCap si aspetta che questi si vendano, al netto del 5% — non il tuo prezzo richiesto",
   ["auto off"] = "auto disattivato",

@@ -473,6 +473,7 @@ GC.Locales.zhCN = {
     "对比该物品的区域价格，扣除 5% 手续费后 — 前提是能卖掉",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
+  ["at or under your price -- click Buy to purchase"] = "不高于你的价格 -- 点击 Buy 购买",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "按 GoldCap 预计这些会卖出的价格计算，已扣除 5% 手续费 — 不是你的要价",
   ["auto off"] = "自动已关闭",

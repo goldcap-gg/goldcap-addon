@@ -32,7 +32,7 @@ describe("Live price caps -- buying at the player's own price", function()
     error("missing upvalue " .. wanted)
   end
 
-  local books, money, cancels, confirms, recorded
+  local books, money, cancels, confirms
 
   -- 10 x 100g + 10 x 190g + 10 x 250g, with the cap at 200g: twenty units qualify, ten do not.
   local LADDER = {
@@ -43,7 +43,6 @@ describe("Live price caps -- buying at the player's own price", function()
 
   local function loadSniper(settings)
     books, money, cancels, confirms = {}, 10000000000, 0, 0
-    recorded = { acquisitions = 0, flips = 0, ledger = 0 }
     _G.time = function() return 100000 end
     _G.GetTime = function() return 100 end
     _G.GetMoney = function() return money end
@@ -78,13 +77,9 @@ describe("Live price caps -- buying at the player's own price", function()
         -- No market data for anything: the items a cap exists for are exactly those.
         GetItemValue = function() return nil end,
         GetWatchlist = function() return {} end,
-        RecordFlip = function() recorded.flips = recorded.flips + 1 end,
+        -- The old flip queue; what it takes from a cap buy (nothing) is spec/flips_spec.lua's.
+        RecordFlip = function() end,
       },
-      Ledger = {
-        Context = function() return { char = "A-R", region = "eu" } end,
-        RecordSniperBuy = function() recorded.ledger = recorded.ledger + 1 end,
-      },
-      Acquisitions = { RecordGoldCap = function() recorded.acquisitions = recorded.acquisitions + 1 end },
       Print = function() end,
       db = { settings = { sniper = sniper } },
     }
@@ -101,6 +96,13 @@ describe("Live price caps -- buying at the player's own price", function()
     helper.loadModule("Core/KeyPoll.lua", GC)
     helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("Core/Caps.lua", GC)
+    -- The two stores a purchase is recorded in, for real: the ledger the Companion uploads and
+    -- the acquisition batches the Sell tab's cost basis is built from.
+    helper.loadModule("Core/Ledger.lua", GC)
+    helper.loadModule("Core/Acquisitions.lua", GC)
+    local saved = {}
+    GC.Ledger.Init(saved)
+    GC.Acquisitions.Init(saved)
     helper.loadModule("UI/SniperFrame.lua", GC)
     -- The live driver, at its seam: `books` is the client's commodity search buffer.
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
@@ -114,6 +116,38 @@ describe("Live price caps -- buying at the player's own price", function()
       onStatus = function() end,
     })
     return GC
+  end
+
+  -- The seven fields the upload takes all-or-nothing as the engine's decision evidence
+  -- (goldcap-companion's savedvars.rs decision_evidence, the site's ledger entrySchema).
+  local EVIDENCE = { "decisionVersion", "decisionStatus", "decisionReasons", "stressUnit",
+    "expectedProfit", "recommendedQuantity", "sourceAt" }
+
+  -- A cap buy is recorded where every sniper buy is -- the session, the ledger row the
+  -- Companion uploads, the acquisition batch behind the Sell tab's cost basis -- at exactly
+  -- what it cost, and with none of the decision evidence it never had.
+  local function assertRecordedCapBuy(GC, itemID, quantity, total)
+    assert.equal(1, GC.Sniper.session.buys)
+    assert.equal(total, GC.Sniper.session.spent)
+    assert.equal(0, GC.Sniper.session.estProfit)
+    local entries = GC.Ledger.GetEntries()
+    assert.equal(1, #entries)
+    local entry = entries[1]
+    assert.equal("buy", entry.kind)
+    assert.equal("goldcap_sniper", entry.source)
+    assert.equal(itemID, entry.itemID)
+    assert.equal(quantity, entry.qty)
+    assert.equal(total, entry.total)
+    assert.is_true(entry.cap)
+    for _, field in ipairs(EVIDENCE) do assert.is_nil(entry[field], field) end
+    local batches = GC.Acquisitions.GetAll()
+    assert.equal(1, #batches)
+    assert.equal("goldcap", batches[1].source)
+    assert.equal(quantity, batches[1].originalQty)
+    assert.equal(total, batches[1].originalTotal)
+    assert.is_nil(batches[1].targetUnit) -- no resale target was ever measured
+    assert.is_string(batches[1].positionKey)
+    assert.equal(entry.key, batches[1].sniperEvidenceKey)
   end
 
   local function adoptCap(GC, itemID, c, l)
@@ -283,6 +317,30 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_truthy(d.written[#d.written]:find("not enough gold", 1, true))
     end)
 
+    -- The window's own status line said "live safety confirmed" over a cap arm -- the engine's
+    -- verdict, which a cap never asked for. It says what the Check actually found.
+    it("says the price is at or under yours, not that the engine confirmed its safety", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      local levels = { { unitPrice = 900000, quantity = 5 } }
+      local live = capLive(GC, 42, levels)
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local lines = {}
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", fakeDialog(row, deal))
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "frame",
+        { status = { SetText = function(_, text) lines[#lines + 1] = text end } })
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local applyRequeryResult = getUpvalue(finishRequery, "applyRequeryResult")
+      -- The board repaint needs the whole frame; it is not this test's subject.
+      setUpvalue(applyRequeryResult, "refreshRows", function() end)
+
+      applyRequeryResult(row, 42, live)
+
+      assert.equal("ready", row.purchaseStage)
+      assert.equal("at or under your price -- click Buy to purchase", lines[1])
+    end)
+
     -- A cap decision carries no stressProfit -- nothing measured a resale -- and a successful
     -- buy adds its expected profit into the session: a cap buy counts there as exactly nothing,
     -- not as a crash and not as the saving under the cap dressed up as profit.
@@ -304,10 +362,8 @@ describe("Live price caps -- buying at the player's own price", function()
 
       GC.Sniper.OnCommodityPurchaseSucceeded()
 
-      assert.equal(1, recorded.acquisitions)
       assert.is_nil(row.purchaseStage)
-      assert.equal(4500000, GC.Sniper.session.spent)
-      assert.equal(0, GC.Sniper.session.estProfit)
+      assertRecordedCapBuy(GC, 42, 5, 4500000)
     end)
   end)
 
@@ -358,10 +414,8 @@ describe("Live price caps -- buying at the player's own price", function()
 
       GC.Sniper.OnCommodityPurchaseSucceeded()
 
-      assert.equal(1, recorded.acquisitions)
       assert.is_nil(row.purchaseStage) -- resolved, not "frozen"
-      assert.equal(1, GC.Sniper.session.buys)
-      assert.equal(1800000, GC.Sniper.session.spent)
+      assertRecordedCapBuy(GC, 42, 2, 1800000)
     end)
 
     -- Caps fixes 2f: a quote's AVERAGE can sit under the cap while units inside it do not.
@@ -415,6 +469,118 @@ describe("Live price caps -- buying at the player's own price", function()
     end)
   end)
 
+  describe("a realm cap lot", function()
+    local function realmLot(GC)
+      adoptCap(GC, 42, 1000000)
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 800000, itemLevel = 615, quantity = 1 } })
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 1,
+        auctionID = 9, stale = true }
+      return deal, decision
+    end
+
+    -- Review fix: DecideRealm names no region reference -- a cap needs none -- and the realm
+    -- purchase record was built only for a lot with one, so a gear buy on the player's own price
+    -- was recorded nowhere: no session spend, no ledger row, no cost basis in the Sell tab.
+    it("is recorded everywhere a sniper buy is, at what PlaceBid paid", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      -- The copy onDialogPrimaryClick buys on: the candidate's identity, item level included.
+      local purchaseDeal = { itemID = 42, isCommodity = false, cap = 1000000, boardDeal = deal,
+        auctionID = 9, qty = 1, unitPrice = 800000,
+        itemKey = { itemID = 42, itemLevel = 615, itemSuffix = 0, battlePetSpeciesID = 0 } }
+      local row = { deal = deal, purchaseDeal = purchaseDeal, purchaseStage = "buying",
+        purchaseToken = 7, decisionSnapshot = decision }
+      getUpvalue(GC.Sniper.OnPurchaseCompleted, "pendingAuction")[9] = row
+
+      GC.Sniper.OnPurchaseCompleted(9)
+
+      assert.is_nil(row.purchaseStage)
+      assertRecordedCapBuy(GC, 42, 1, 800000)
+      assert.is_truthy(GC.Acquisitions.GetAll()[1].positionKey:find("615", 1, true))
+    end)
+
+    -- Review fix: the panel said "At your price" over a button reading "BUY — unverified" and a
+    -- status line about unmeasured sale speed -- the words for a lot judged against a region
+    -- reference, not for the player's own price.
+    it("is offered as a buy at the player's own price, not an unverified one", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local applyRequeryResult = getUpvalue(finishRequery, "applyRequeryResult")
+
+      applyRequeryResult(row, 42, { isCommodity = false, decision = decision })
+
+      assert.equal("ready", row.purchaseStage)
+      assert.equal("Buy", d.label)
+      assert.is_true(d.enabled)
+      assert.equal("at or under your price -- click Buy to purchase", d.written[#d.written])
+    end)
+  end)
+
+  describe("a commodity cap row on the board", function()
+    local function fakeRow()
+      local function cell()
+        local w = { text = "" }
+        function w:SetText(t) self.text = t end
+        function w:SetTextColor() end
+        function w:SetTexture() end
+        function w:SetLabel() end
+        function w:SetVariant() end
+        function w:Show() end
+        function w:Hide() end
+        function w:SetColorTexture() end
+        function w:Enable() end
+        function w:Disable() end
+        return w
+      end
+      local row = { buy = cell(), tierChip = cell(), icon = cell(), nameText = cell(),
+        discountText = cell(), unitText = cell(), priceText = cell(), profitText = cell(),
+        trendText = cell(), highlight = cell(), rail = cell(), pinBg = cell(), shown = false }
+      function row:Show() self.shown = true end
+      function row:Hide() self.shown = false end
+      function row:IsShown() return self.shown end
+      function row:SetAlpha() end
+      return row
+    end
+
+    local TWO_LEVELS = { { unitPrice = 1000000, quantity = 10 }, { unitPrice = 1900000, quantity = 10 } }
+
+    local function refreshRowsOf(GC)
+      return getUpvalue(getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals"), "refreshRows")
+    end
+
+    -- Review fix: the row's total was its cheapest level times the quantity -- 2000g for a buy
+    -- that costs 2900g across two levels.
+    it("shows what the whole cap buy costs, not the cheapest level times the quantity", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 2000000)
+      capLive(GC, 42, TWO_LEVELS)
+      local row = fakeRow()
+
+      getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+
+      assert.equal(GC.Util.FormatMoney(1000000), row.unitText.text)
+      assert.equal(GC.Util.FormatMoney(29000000), row.priceText.text)
+    end)
+
+    it("sorts by that same total", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 2000000)
+      capLive(GC, 42, TWO_LEVELS)
+      local ordinary = { itemID = 7, isCommodity = true, unitPrice = 25000000, qty = 1, profit = 0 }
+      local applySortOverride = getUpvalue(getUpvalue(refreshRowsOf(GC), "renderList"), "applySortOverride")
+      setUpvalue(applySortOverride, "sortOverride", { key = "price", desc = true })
+
+      local sorted = applySortOverride({ ordinary, boardDeal(GC, 42) })
+
+      assert.equal(42, sorted[1].itemID) -- 2900g ahead of 2500g
+    end)
+  end)
+
   describe("choosing a quantity on a cap row", function()
     local function armLadder(GC)
       adoptCap(GC, 42, 2000000)
@@ -461,6 +627,28 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.equal("ready", row.purchaseStage)
       assert.equal(20, row.decisionSnapshot.quantity)
       assert.equal(29000000, row.decisionSnapshot.entryTotal)
+    end)
+
+    -- Review fix: after the wallet dropped since the Check, the cap rule allowed one unit and
+    -- "of N" said "of 1" beside a box still showing the ten that were armed. The box shows what
+    -- Buy will start; the ceiling beside it never reads below it. Whether those ten still fit the
+    -- wallet limit is judged again at the quote, against the gold in the bags then.
+    it("never says 'of N' below the quantity the box is showing", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 2000000)
+      local levels = { { unitPrice = 1000000, quantity = 10 } }
+      local live = capLive(GC, 42, levels)
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal }
+      local d = armOnDialog(GC, row, deal, live.decision, levels)
+      assert.equal("10", d.qtyBox.editBox.text)
+      money = 30000000 -- 3,000g now: 5% of it pays for one unit at 100g
+
+      local stamp = getUpvalue(armReadyFn(GC), "stampDialogFromDecision")
+      getUpvalue(stamp, "refreshQtyRow")()
+
+      assert.equal("10", d.qtyBox.editBox.text)
+      assert.equal("of 10", d.qtyOfLabel.text)
     end)
 
     it("will not arm units above the cap, even where the market would", function()

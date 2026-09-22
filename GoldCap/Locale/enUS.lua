@@ -574,6 +574,8 @@ GC.Locales.enUS = {
   ["another purchase is in flight"] = "another purchase is in flight",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
+  ["at or under your price -- click Buy to purchase"] =
+    "at or under your price -- click Buy to purchase",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "at the price GoldCap expects these to sell for, after the 5% cut — not your asking price",
   ["auction house error"] = "auction house error",
