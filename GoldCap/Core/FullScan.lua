@@ -172,6 +172,11 @@ end
 -- to fit the board -- keepUnderCap, the rule CapDeals and ApplyLiveObservation already apply --
 -- because the cut ranks by estProfit against the market, which a cap set above the market loses
 -- by construction.
+--
+-- "The cap" is the player's price as Core/Caps.lua holds it NOW (GC.Caps.For), not the copy
+-- stamped on the row when it was built -- the same price the end-of-pass reconcile judges by
+-- (UI/SniperFrame.lua's GC.Sniper._CapRowsHeld). A cap lowered or removed since keeps no row
+-- alive. Read at call time, so Core/Caps.lua loading after this file changes nothing.
 function GC.FullScan.MergeDeals(existing, incoming, cap)
   local byItem = {}
   for _, deal in ipairs(existing) do
@@ -179,7 +184,8 @@ function GC.FullScan.MergeDeals(existing, incoming, cap)
   end
   for _, deal in ipairs(incoming) do
     local held = byItem[deal.itemID]
-    if not (held and held.cap and not deal.cap and deal.unitPrice <= held.cap) then
+    local live = held and held.cap and not deal.cap and GC.Caps and GC.Caps.For(deal.itemID)
+    if not (live and deal.unitPrice <= live.c) then
       byItem[deal.itemID] = deal
     end
   end

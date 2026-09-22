@@ -514,6 +514,33 @@ describe("EvaluateDelta/MergeDeals", function()
       return mkDeal(itemID, unitPrice, { cap = cap, profit = -5000, estProfit = -5000 })
     end
 
+    -- The player's caps as Core/Caps.lua holds them: the merge judges a held cap row by the
+    -- CURRENT price, not the copy stamped on the row when it was built.
+    local function adopt(list)
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, groups = {}, caps = list }
+      GC.Caps.Adopt()
+    end
+
+    before_each(function()
+      helper.loadModule("Core/Caps.lua", GC)
+      adopt({ { i = 5, c = 100 }, { i = 6, c = 100 }, { i = 9, c = 100 } })
+    end)
+
+    after_each(function() _G.GoldCap_AppRuns = nil end)
+
+    it("is judged by the player's current price, not the one stamped on it", function()
+      adopt({ { i = 5, c = 70 } }) -- lowered since the row was built at a 100 cap
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 60, 100) }, { mkDeal(5, 90) }, 100)
+      assert.is_nil(findDeal(m, 5).cap)
+      assert.equals(90, findDeal(m, 5).unitPrice)
+    end)
+
+    it("gives way to the market row once the player's cap for the item is gone", function()
+      adopt({ { i = 6, c = 100 } })
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 80, 100) }, { mkDeal(5, 90) }, 100)
+      assert.is_nil(findDeal(m, 5).cap)
+    end)
+
     it("outlives an incoming market row for its item while that row is at or under the cap", function()
       local held = mkCapDeal(5, 80, 100)
       local m = GC.FullScan.MergeDeals({ held }, { mkDeal(5, 100) }, 100)
