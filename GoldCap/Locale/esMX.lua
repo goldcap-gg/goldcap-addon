@@ -70,6 +70,7 @@ GC.Locales.esMX = {
     "Por encima de esta subida en 24 horas, el valor de mercado se trata como un pico y se reduce.",
   ["Above your price -- quoted %s, your price %s"] = "Por encima de tu precio -- cotizado %s, tu precio %s",
   ["Asks for a second click to confirm."] = "Pide un segundo clic para confirmar.",
+  ["At your price"] = "A tu precio",
   ["Auction House did not answer — press Refresh"] =
     "La casa de subastas no respondió — pulsa Refresh",
   ["Auction House is not open"] = "La casa de subastas no está abierta",
@@ -226,6 +227,8 @@ GC.Locales.esMX = {
   ["Listed"] = "Publicados",
   ["Listed at %s — far below market. Repost."] =
     "Publicado a %s — muy por debajo del mercado. Vuelve a publicarlo.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "Publicado a tu precio de goldcap.gg o por debajo. Si se revende o no, lo valoras tú.",
   ["Listed value"] = "Valor publicado",
   ["Listings"] = "Publicaciones",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -504,6 +507,8 @@ GC.Locales.esMX = {
   ["You would pay"] = "Pagarías",
   ["Your call"] = "Tú decides",
   ["Your minimum"] = "Tu mínimo",
+  ["Your price"] = "Tu precio",
+  ["a unit, at or under your price of %s"] = "por unidad, a tu precio de %s o por debajo",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "arriba del más barato, dentro del cuarto barato · %d unidades en fila por debajo",
   ["above the cheapest, within the day's reach · %d units queued below"] =

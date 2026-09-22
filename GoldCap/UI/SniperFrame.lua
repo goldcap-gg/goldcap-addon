@@ -3515,7 +3515,7 @@ local function drawVerdict(deal, decision, market)
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
-  elseif tone == "adjust" or tone == "unverified" then accent = Theme.color.gold end
+  elseif tone == "adjust" or tone == "unverified" or tone == "cap" then accent = Theme.color.gold end
 
   if dialog.setHeroTone then dialog.setHeroTone(accent) end
   if dialog.verdictLabel then
@@ -3553,6 +3553,12 @@ local function drawVerdict(deal, decision, market)
     figure = (GC.L["%d units"]):format(hero.quantity)
     figureColor = Theme.color.gold
     caption = GC.L[CV.HERO_CAPTION.units]
+  elseif hero.kind == "cap" then
+    -- Live price caps: what one unit costs, unsigned -- a price, not a gain -- under the price
+    -- the player set.
+    figure = displayDecisionAmount(hero.copper)
+    figureColor = Theme.color.gold
+    caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
   else
     caption = GC.L[CV.HERO_CAPTION.unpriceable]
   end
@@ -3787,7 +3793,9 @@ local function purchaseFacts(deal, quote)
     decisionStatus = decision.status,
     decisionReasons = copyReasons(decision.reasons),
     stressUnit = decision.exitUnit,
-    expectedProfit = decision.stressProfit,
+    -- A cap buy claims no profit: it was made on the player's own price, and nothing measured
+    -- a resale (Core/Caps.lua carries no stressProfit for exactly that reason).
+    expectedProfit = decision.cap and 0 or decision.stressProfit,
     recommendedQuantity = decision.quantity,
     sourceAt = market.sourceAt,
   }
@@ -4230,6 +4238,16 @@ local function buildCapDeal(itemID, isCommodity, unit, qty, auctionID, cap)
   }
 end
 
+-- Live price caps: a commodity cap decided on `levels` within the player's own per-buy limits --
+-- Max units per buy and the wallet limit, as GC.SniperDecision.BuyLimits works them out from
+-- the settings and the gold in the bags right now. Every place that decides a cap on a book
+-- comes through here, so no two of them can apply a different limit. A table field, not a
+-- local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._DecideCap(cap, levels)
+  return GC.Caps.DecideCommodity(cap, levels,
+    GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()))
+end
+
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
 -- onObservation below passes its own so the same poll's book is not fetched twice. Every other
 -- call site omits it and gets the old behaviour of building its own.
@@ -4244,13 +4262,13 @@ evaluateLiveCommodityDeal = function(itemID, levels)
   local avail = (result and result.avail) or availableFromLevels(levels)
   -- Task 5: a capped commodity is judged against the player's OWN price first -- the whole
   -- reason GC.Caps.For needs no market reference to fire (Core/Caps.lua's own contract). Only
-  -- when there is nothing to buy under the cap (or the saving misses minimumProfitCopper) does
-  -- this fall through to the ordinary region/market-value Evaluate below, exactly like any
+  -- when there is nothing to buy under the cap (or not one unit fits the player's wallet limit)
+  -- does this fall through to the ordinary region/market-value Evaluate below, exactly like any
   -- other item: a capped item that is not currently a deal by its own price can still be one
   -- by the market's.
   local cap = GC.Caps and GC.Caps.For(itemID)
   if cap then
-    local capDecision = GC.Caps.DecideCommodity(cap, levels, GC.db.settings.sniper.minimumProfitCopper)
+    local capDecision = GC.Sniper._DecideCap(cap, levels)
     if capDecision then
       local capDeal = buildCapDeal(itemID, true, capDecision.unit, capDecision.quantity, nil, cap)
       if GC.Sniper._liveTracksScanDeals then
@@ -5724,7 +5742,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   local finalDecision
   local cap = deal.cap and GC.Caps and GC.Caps.For(deal.itemID) or nil
   if cap and levels then
-    local capDecision = GC.Caps.DecideCommodity(cap, levels, GC.db.settings.sniper.minimumProfitCopper)
+    local capDecision = GC.Sniper._DecideCap(cap, levels)
     if capDecision and GC.Caps.QuoteOk(deal, unitPrice)
         and capDecision.quantity >= decision.quantity then
       finalDecision = capDecision
@@ -5803,15 +5821,11 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- the affordability gate did not run.
   local affordable = totalPrice <= GetMoney()
 
-  -- Final review M2: a cap decision carries no entryTotal -- it is the player's OWN price, not
-  -- a quote the market made -- so the ratio below had nothing to divide by, and every figure
-  -- derived from it (the banner's multiple, the per-unit detail line, the status tail) would
-  -- have formatted a nil. What a cap decision does carry is the level it was made at and how
-  -- much of it, and that product IS what this row was going to cost: the honest thing to hold
-  -- the server's quote against. The last fallback only keeps the arithmetic safe.
-  local entryTotal = decision.entryTotal
-    or (decision.unit and decision.quantity and decision.unit * decision.quantity)
-    or totalPrice
+  -- What this row was going to cost, which every armed decision now carries -- a cap decision
+  -- included (Core/Caps.lua: the sum over exactly the units it chose). The old stand-in for a
+  -- cap, cheapest level x quantity, called a cap spanning two levels a 1.45x "PRICE ROSE" on its
+  -- own honest quote. The fallback only keeps the arithmetic safe: no plan, no ratio.
+  local entryTotal = decision.entryTotal or totalPrice
   local severity, ratio = GC.DealMath.RequoteSeverity(
     entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
   -- Task 7: a cap is the player's own price, not a market read -- a quote above it is always

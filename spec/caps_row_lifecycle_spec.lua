@@ -234,7 +234,10 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
         Hide = function() end, Show = function() end },
       SniperDecision = { Evaluate = function() return decision end,
         MarketFromValue = function() return {} end,
-        ReasonText = function(t) return "reason:" .. tostring(t) end },
+        ReasonText = function(t) return "reason:" .. tostring(t) end,
+        -- The player's own per-buy limits a cap decision is made within; roomy, so they bind
+        -- nothing in this block -- what a cap may spend is spec/caps_purchase_spec.lua's subject.
+        BuyLimits = function() return { maxQuantity = 5000, budget = 1000000000000 } end },
       FullScan = { ApplyLiveObservation = function(list) return list end },
       Print = function() end,
       db = { settings = { sniper = { sound = false, showRefused = false, watchPins = {},

@@ -78,6 +78,7 @@ GC.Locales.enUS = {
   ["Above your price -- quoted %s, your price %s"] = "Above your price -- quoted %s, your price %s",
   ["Alerts"] = "Alerts",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
+  ["At your price"] = "At your price",
   ["Auction House did not answer — press Refresh"] = "Auction House did not answer — press Refresh",
   ["Auction House is not open"] = "Auction House is not open",
   ["Auto-scan on next AH visit"] = "Auto-scan on next AH visit",
@@ -283,6 +284,8 @@ GC.Locales.enUS = {
   ["Last result: none yet this visit"] = "Last result: none yet this visit",
   ["Listed"] = "Listed",
   ["Listed at %s — far below market. Repost."] = "Listed at %s — far below market. Repost.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
   ["Listed value"] = "Listed value",
   ["Listings"] = "Listings",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -555,8 +558,10 @@ GC.Locales.enUS = {
   ["You would pay"] = "You would pay",
   ["Your call"] = "Your call",
   ["Your minimum"] = "Your minimum",
+  ["Your price"] = "Your price",
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
+  ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "above the cheapest, inside the cheap quarter · %d units queued below",
   ["above the cheapest, within the day's reach · %d units queued below"] =

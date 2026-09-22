@@ -69,6 +69,7 @@ GC.Locales.koKR = {
     "24시간 동안 이 상승폭을 넘으면 시세를 급등으로 간주해 낮춰서 반영합니다.",
   ["Above your price -- quoted %s, your price %s"] = "설정 가격 초과 -- 견적 %s, 내 가격 %s",
   ["Asks for a second click to confirm."] = "확인을 위해 한 번 더 눌러야 합니다.",
+  ["At your price"] = "내 가격 도달",
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",
   ["Auto-scan on next AH visit"] = "다음 경매장 방문 시 자동 검색",
@@ -215,6 +216,8 @@ GC.Locales.koKR = {
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
   ["Listed"] = "등록 수량",
   ["Listed at %s — far below market. Repost."] = "%s에 등록됨 — 시세보다 훨씬 낮습니다. 다시 등록하세요.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "goldcap.gg에서 정한 내 가격 이하로 등록되어 있습니다. 되팔 수 있을지는 직접 판단하세요.",
   ["Listed value"] = "등록 금액",
   ["Listings"] = "등록 수",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -471,6 +474,8 @@ GC.Locales.koKR = {
   ["You would pay"] = "지불할 금액",
   ["Your call"] = "당신의 판단",
   ["Your minimum"] = "내 최소 기준",
+  ["Your price"] = "내 가격",
+  ["a unit, at or under your price of %s"] = "개당 가격, 내 가격 %s 이하",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "최저가보다 높게, 저가 구간 안 · 아래에 %d개 대기 중",
   ["above the cheapest, within the day's reach · %d units queued below"] =

@@ -67,6 +67,7 @@ GC.Locales.frFR = {
     "Au-delà de cette hausse sur 24 heures, la valeur de marché est considérée comme une flambée et est atténuée.",
   ["Above your price -- quoted %s, your price %s"] = "Au-dessus de ton prix -- proposé %s, ton prix %s",
   ["Asks for a second click to confirm."] = "Demande un second clic pour confirmer.",
+  ["At your price"] = "À ton prix",
   ["Auction House did not answer — press Refresh"] =
     "L'hôtel des ventes n'a pas répondu — appuyez sur Refresh",
   ["Auction House is not open"] = "L'hôtel des ventes n'est pas ouvert",
@@ -222,6 +223,8 @@ GC.Locales.frFR = {
   ["Listed"] = "En vente",
   ["Listed at %s — far below market. Repost."] =
     "En vente à %s — bien sous le marché. Remettez en vente.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "Mis en vente à ton prix fixé sur goldcap.gg ou en dessous. Sa revente, c'est à toi d'en juger.",
   ["Listed value"] = "Valeur en vente",
   ["Listings"] = "Ventes",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -501,6 +504,8 @@ GC.Locales.frFR = {
   ["You would pay"] = "Tu paierais",
   ["Your call"] = "À toi de voir",
   ["Your minimum"] = "Ton minimum",
+  ["Your price"] = "Ton prix",
+  ["a unit, at or under your price of %s"] = "l'unité, à ton prix de %s ou en dessous",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "au-dessus du moins cher, dans le quart bon marché · %d unités en file en dessous",
   ["above the cheapest, within the day's reach · %d units queued below"] =

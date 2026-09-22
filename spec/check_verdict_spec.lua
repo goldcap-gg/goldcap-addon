@@ -315,6 +315,68 @@ describe("CheckVerdict", function()
     end)
   end)
 
+  -- Caps fixes 2b. A cap decision is the player's own rule -- "this item at or under this
+  -- price" -- and it has no resale figure of its own. The commodity one led with a "+saving"
+  -- hero over a caption about selling every unit back into the live book (false: nothing was
+  -- measured about selling), and the realm one read "Can't price this" over a lot whose price is
+  -- known to the copper. What a cap does have is what the player pays and the price they set.
+  describe("a live price cap", function()
+    local function commodityCap(over)
+      local d = { status = "SAFE", buyable = true, cap = true, quantity = 20,
+        entryTotal = 29000000, entryUnitDisplay = 1450000, unit = 1000000, capUnit = 2000000 }
+      for k, v in pairs(over or {}) do d[k] = v end
+      return d
+    end
+
+    local function realmCap()
+      return { status = "WATCH", cap = true, quantity = 1, entryTotal = 800000,
+        entryUnitDisplay = 800000, unit = 800000, capUnit = 1000000,
+        candidate = { auctionID = 9, buyout = 800000, quantity = 1, itemLevel = 615 } }
+    end
+
+    it("answers in the player's own terms, with nothing to act on withheld", function()
+      local v = GC.CheckVerdict.Build(commodityCap(), market())
+      assert.equal("cap", v.tone)
+      assert.is_true(v.actionable)
+      assert.is_false(v.reconcile)
+    end)
+
+    it("leads with what one unit costs, not with a profit nobody measured", function()
+      local v = GC.CheckVerdict.Build(commodityCap(), market())
+      assert.same({ kind = "cap", copper = 1450000, cap = 2000000 }, v.hero)
+    end)
+
+    it("shows what the player pays and the price they set", function()
+      local v = GC.CheckVerdict.Build(commodityCap(), market())
+      assert.equal(29000000, factById(v, "youPayFlat").copper)
+      assert.equal(2000000, factById(v, "yourPrice").copper)
+      assert.is_nil(factById(v, "worstCaseBack"))
+      assert.is_nil(factById(v, "youGet"))
+    end)
+
+    it("prices a realm cap lot instead of saying it cannot", function()
+      local v = GC.CheckVerdict.Build(realmCap(), market({ marketValue = NONE, soldPerDay = NONE,
+        sellThroughBps = NONE, liquidityConfidence = NONE, listings = NONE }))
+      assert.equal("cap", v.tone)
+      assert.same({ kind = "cap", copper = 800000, cap = 1000000 }, v.hero)
+      assert.equal(800000, factById(v, "youPayFlat").copper)
+      assert.equal(1000000, factById(v, "yourPrice").copper)
+      assert.is_nil(factById(v, "snapshotValue")) -- no market value, so no dash either
+    end)
+
+    it("keeps the market's own value beside the cap when there is one, as a reference", function()
+      local v = GC.CheckVerdict.Build(commodityCap(), market())
+      assert.equal("muted", factById(v, "snapshotValue").tone)
+    end)
+
+    it("has its words in every table the panel reads", function()
+      assert.is_string(GC.CheckVerdict.TONE_WORD.cap)
+      assert.is_string(GC.CheckVerdict.TONE_SENTENCE.cap)
+      assert.is_string(GC.CheckVerdict.HERO_CAPTION.cap)
+      assert.is_string(GC.CheckVerdict.FACT_LABEL.yourPrice)
+    end)
+  end)
+
   it("survives a decision it cannot read rather than erroring on the buy path", function()
     assert.is_table(GC.CheckVerdict.Build(nil, nil))
     assert.equal("refuse", GC.CheckVerdict.Build(nil, nil).tone)

@@ -70,6 +70,7 @@ GC.Locales.zhCN = {
     "24 小时涨幅超过这个数值时，市场价会被视为暴涨并被压低。",
   ["Above your price -- quoted %s, your price %s"] = "高于你的价格 -- 报价 %s，你的价格 %s",
   ["Asks for a second click to confirm."] = "需要再点一次确认。",
+  ["At your price"] = "达到你的价格",
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
@@ -213,6 +214,8 @@ GC.Locales.zhCN = {
   ["Last result: none yet this visit"] = "上次结果：本次还没有",
   ["Listed"] = "在售数量",
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 远低于市场价。请重新上架。",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "挂单价不高于你在 goldcap.gg 设定的价格。能否转手卖出，要你自己判断。",
   ["Listed value"] = "在售金额",
   ["Listings"] = "挂单数",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -459,6 +462,8 @@ GC.Locales.zhCN = {
   ["You would pay"] = "你会支付",
   ["Your call"] = "由你决定",
   ["Your minimum"] = "你的最低要求",
+  ["Your price"] = "你的价格",
+  ["a unit, at or under your price of %s"] = "单价，不高于你的价格 %s",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "高于最低价，处于低价四分位内 · 下方排队 %d 件",
   ["above the cheapest, within the day's reach · %d units queued below"] =

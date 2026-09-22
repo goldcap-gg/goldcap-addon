@@ -137,6 +137,27 @@ local function normalizeConfig(config)
   }
 end
 
+-- The two limits a player sets on ONE purchase, whatever else decides it: "Max units per buy"
+-- (maxQuantity) and the share of the wallet one buy may spend (maxCapitalShare -- the budget).
+-- `normalized` is a config normalizeConfig has already accepted, so both are within bounds.
+local function limitsFor(normalized, walletCopper)
+  return {
+    maxQuantity = normalized.maxQuantity,
+    budget = math.floor(walletCopper * normalized.maxCapitalShare),
+  }
+end
+
+-- The same two limits for a caller outside Evaluate. A live price cap (Core/Caps.lua) is the
+-- player's own rule and may have no market data at all, so it applies exactly these two and
+-- nothing market-derived -- but it must apply them as Evaluate does, through the same bounds,
+-- or "your wallet limit" would mean one thing on a cap row and another on every other row.
+-- nil, as Evaluate's own fail-closed answer is, when the settings or the wallet are not numbers.
+function GC.SniperDecision.BuyLimits(config, walletCopper)
+  local normalized = normalizeConfig(config)
+  if not normalized or not isInteger(walletCopper) then return nil end
+  return limitsFor(normalized, walletCopper)
+end
+
 local function preflightLevels(levels, maximum)
   if type(levels) ~= "table" then return nil, "invalid" end
   local visible, remaining, cost = 0, maximum, 0
@@ -518,7 +539,7 @@ function GC.SniperDecision.Evaluate(input)
 
   local coarseCap = fixed or computedCap
 
-  local budget = math.floor(input.walletCopper * config.maxCapitalShare)
+  local budget = limitsFor(config, input.walletCopper).budget
   -- Velocity release, computed once (the book is fixed across the quantity loop): the units
   -- listed at or below the stress exit. If what remains of them after the buy is no more than
   -- `wallAbsorbHours` of this item's measured daily sales, the leftover wall is not

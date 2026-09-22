@@ -67,6 +67,7 @@ GC.CheckVerdict.TONE_WORD = {
   -- sale speed is not measured anywhere and never will be from an import. "Won't buy" would
   -- be a lie over an enabled buy button, and "Clear to buy" would be a bigger one.
   unverified = "Your call",
+  cap = "At your price",
 }
 
 -- What the headline figure is OF. Keyed by the hero's unit rather than by the reason, because
@@ -80,15 +81,17 @@ GC.CheckVerdict.HERO_CAPTION = {
   units = "is what this market absorbs — past that you are buying stock you will sit on",
   unpriceable = "any figure here would be invented out of the very number being refused",
   reference = "against the region's own price for this item, after the 5% cut — if it sells",
+  cap = "a unit, at or under your price of %s",
 }
 
--- The sentence under the hero on the two verdicts that are not a refusal. A refusal already
--- has one: the reason SniperDecision filed.
+-- The sentence under the hero on the verdicts that are not a refusal. A refusal already has
+-- one: the reason SniperDecision filed.
 -- @localised-keys
 GC.CheckVerdict.TONE_SENTENCE = {
   adjust = "Capped by how fast this actually sells, not by your wallet.",
   clear = "Checked against the live order book a moment ago.",
   unverified = "The price is checked. How fast this sells is not measured anywhere, so this one is yours to judge.",
+  cap = "Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge.",
 }
 
 -- Said beside the board's own tier chip, and only when the two disagree.
@@ -113,6 +116,7 @@ GC.CheckVerdict.FACT_LABEL = {
   youPayFlat = "You pay",
   worstCaseBack = "Worst case back",
   yourMinimum = "Your minimum",
+  yourPrice = "Your price",
 }
 
 -- A confidence score is 0-100 with no unit, so a bare "90" says nothing a player can act on.
@@ -252,7 +256,13 @@ function GC.CheckVerdict.Build(decision, market, context)
   local reason = headlineReason(decision)
 
   local tone = "refuse"
-  if buyable then
+  if decision.cap == true then
+    -- Live price caps: the player's own rule -- this item at or under this price -- met by a
+    -- listing Core/Caps.lua just found. Not the engine's approval ("Clear to buy" would claim
+    -- a resale nothing measured) and not a refusal: its own answer, checked first, because a
+    -- commodity cap is also `buyable` and a realm one also names a candidate.
+    tone = "cap"
+  elseif buyable then
     tone = informational.demand_limit and "adjust" or "clear"
   elseif type(decision.candidate) == "table" then
     -- Sniper phase 2: a realm decision that named a specific lot. Not an approval -- it is not
@@ -262,7 +272,14 @@ function GC.CheckVerdict.Build(decision, market, context)
   end
 
   local hero
-  if tone == "unverified" then
+  if tone == "cap" then
+    -- What one unit costs, against the price the player set. Not the saving under the cap as
+    -- a "+" figure: nothing here sells anything back, and a gold-up hero with the "worst case,
+    -- selling all back" caption is exactly the invented profit this tone exists to avoid.
+    hero = positive(decision.entryUnitDisplay)
+      and { kind = "cap", copper = decision.entryUnitDisplay, cap = decision.capUnit }
+      or { kind = "unpriceable" }
+  elseif tone == "unverified" then
     -- Its own kind, not "gold": the caption for a gold hero is about selling a commodity back
     -- into a live book, and this figure is measured against a region reference instead.
     hero = number(decision.estProfit) and { kind = "reference", copper = decision.estProfit }
@@ -306,6 +323,12 @@ function GC.CheckVerdict.Build(decision, market, context)
     take(facts, velocityFact(market), sellThroughFact(market),
       flat("youPayFlat", "copper", decision.entryTotal),
       flat("worstCaseBack", "copper", decision.stressProfit, "good"))
+  elseif tone == "cap" then
+    -- What the player pays and the price they set -- the two numbers the rule is about -- and
+    -- the market's own value beside them when there is one, muted: a reference, not a verdict.
+    take(facts, flat("youPayFlat", "copper", decision.entryTotal),
+      flat("yourPrice", "copper", decision.capUnit),
+      flat("snapshotValue", "copper", market.marketValue, "muted"))
   elseif tone == "unverified" then
     -- Two facts, because two are all a realm item honestly has: what this lot costs, and the
     -- reference it is being compared with. No sellers, no sell-through, no velocity -- an

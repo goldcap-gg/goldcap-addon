@@ -70,6 +70,7 @@ GC.Locales.ukUA = {
     "Вище цього зростання за 24 години ринкова вартість вважається стрибком і занижується.",
   ["Above your price -- quoted %s, your price %s"] = "Вище за вашу ціну -- котирування %s, ваша ціна %s",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
+  ["At your price"] = "За вашою ціною",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",
   ["Auto-scan on next AH visit"] = "Автосканування при наступному візиті на АД",
@@ -228,6 +229,8 @@ GC.Locales.ukUA = {
   ["Listed"] = "Виставлено",
   ["Listed at %s — far below market. Repost."] =
     "Виставлено за %s — значно нижче ринку. Перевиставте.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше. Чи перепродасться — судити вам.",
   ["Listed value"] = "Виставлено на суму",
   ["Listings"] = "Лотів",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -516,6 +519,8 @@ GC.Locales.ukUA = {
   ["You would pay"] = "Ви заплатите",
   ["Your call"] = "Вирішувати вам",
   ["Your minimum"] = "Твій мінімум",
+  ["Your price"] = "Ваша ціна",
+  ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
   ["above the cheapest, within the day's reach · %d units queued below"] =

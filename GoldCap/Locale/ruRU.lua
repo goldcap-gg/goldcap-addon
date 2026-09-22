@@ -66,6 +66,7 @@ GC.Locales.ruRU = {
     "Выше этого роста за 24 часа рыночная стоимость считается всплеском и занижается.",
   ["Above your price -- quoted %s, your price %s"] = "Выше вашей цены -- котировка %s, ваша цена %s",
   ["Asks for a second click to confirm."] = "Требует второй клик для подтверждения.",
+  ["At your price"] = "По вашей цене",
   ["Auction House did not answer — press Refresh"] = "Аукцион не ответил — нажмите Refresh",
   ["Auction House is not open"] = "Аукцион не открыт",
   ["Auto-scan on next AH visit"] = "Автоскан при следующем визите на АД",
@@ -221,6 +222,8 @@ GC.Locales.ruRU = {
   ["Listed"] = "Выставлено",
   ["Listed at %s — far below market. Repost."] =
     "Выставлено за %s — намного ниже рынка. Перевыставьте.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "Выставлено по цене, заданной вами на goldcap.gg, или дешевле. Перепродастся ли — судить вам.",
   ["Listed value"] = "Выставлено на сумму",
   ["Listings"] = "Лотов",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -501,6 +504,8 @@ GC.Locales.ruRU = {
   ["You would pay"] = "Вы заплатите",
   ["Your call"] = "Решать вам",
   ["Your minimum"] = "Твой минимум",
+  ["Your price"] = "Ваша цена",
+  ["a unit, at or under your price of %s"] = "за штуку, по вашей цене %s или ниже",
   ["above the cheapest, inside the cheap quarter · %d units queued below"] =
     "выше самого дешёвого, в дешёвой четверти · в очереди ниже %d шт.",
   ["above the cheapest, within the day's reach · %d units queued below"] =

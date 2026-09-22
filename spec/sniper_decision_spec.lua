@@ -727,6 +727,47 @@ describe("SniperDecision", function()
     end)
   end)
 
+  -- Caps fixes 2c: the two limits the player sets on ONE purchase -- "Max units per buy" and
+  -- the share of the wallet a buy may spend -- as one answer both deciders read. Evaluate
+  -- applies them under its market gates; a live price cap (Core/Caps.lua) applies exactly these
+  -- two and nothing market-derived, so there must be one place that says what they come to.
+  describe("BuyLimits", function()
+    local config = validInput().config
+
+    it("is the player's own Max units per buy and wallet limit", function()
+      local limits = GC.SniperDecision.BuyLimits(config, 10000000000)
+      assert.same({ maxQuantity = 200, budget = 500000000 }, limits)
+    end)
+
+    it("uses the same bounds Evaluate clamps the two settings to", function()
+      local wide = { maxCapitalShare = 0.9, maxDailyDemandShare = 0.02, maxQuantity = 999999,
+        minimumProfitCopper = 1000000, minimumRoi = 0.10 }
+      local limits = GC.SniperDecision.BuyLimits(wide, 1000000)
+      assert.equal(GC.SniperDecision.MAX_QUANTITY_CEILING, limits.maxQuantity)
+      assert.equal(200000, limits.budget) -- 20%, the most one buy may spend
+    end)
+
+    it("bites exactly where Evaluate's own wallet gate bites", function()
+      -- 200 units at 100g cost 20,000g, and 5% of a 400,000g wallet is exactly that.
+      local input = validInput()
+      input.walletCopper = 4000000000
+      assert.equal(200000000, GC.SniperDecision.BuyLimits(input.config, input.walletCopper).budget)
+      assert.equal(200, evaluate(input).quantity)
+      -- One copper less and neither of them will pay for the 200.
+      input.walletCopper = 3999999999
+      assert.equal(199999999, GC.SniperDecision.BuyLimits(input.config, input.walletCopper).budget)
+      assert.not_equal(200, evaluate(input).quantity)
+    end)
+
+    it("fails closed on a setting or a wallet that is not a number", function()
+      assert.is_nil(GC.SniperDecision.BuyLimits(nil, 1000))
+      local bad = validInput().config
+      bad.maxQuantity = "lots"
+      assert.is_nil(GC.SniperDecision.BuyLimits(bad, 1000))
+      assert.is_nil(GC.SniperDecision.BuyLimits(config, 0 / 0))
+    end)
+  end)
+
   -- A refusal shown as a bare token ("source_stale") tells a player what the engine calls the
   -- problem, not what to do about it. The dialog needs a sentence, and it has to come from the
   -- same file that owns the reasons so a new gate cannot ship without one.

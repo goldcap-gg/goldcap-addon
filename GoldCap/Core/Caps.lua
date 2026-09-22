@@ -140,7 +140,12 @@ end
 -- excluding bid-only and the player's own lots. The cheapest COMPARABLE lot (itemLevel >=
 -- cap.l) at or under cap.c, or nil when none qualifies. The shape returned is exactly what
 -- onDialogPrimaryClick reads off row.decisionSnapshot for a realm item: status == "WATCH" and
--- a candidate carrying auctionID/buyout/quantity/itemLevel.
+-- a candidate carrying auctionID/buyout/quantity/itemLevel -- plus what that lot costs, in the
+-- same three fields GC.SniperDecision.EvaluateRealm's result carries (`quantity`, `entryTotal`,
+-- `entryUnitDisplay`), and the player's own price (`capUnit`). The dialog prices UNIT and TOTAL
+-- from those and the check panel shows them beside the cap; without them the one lot whose price
+-- is known to the copper read "—" and "Can't price this". For an item auction the whole buyout
+-- is exactly what PlaceBid pays.
 function GC.Caps.DecideRealm(cap, lots)
   local best, bestUnit
   for i = 1, #lots do
@@ -155,50 +160,76 @@ function GC.Caps.DecideRealm(cap, lots)
     end
   end
   if not best then return nil end
+  local quantity = best.quantity or 1
   return {
     status = "WATCH",
     cap = true,
     candidate = {
       auctionID = best.auctionID,
       buyout = best.buyout,
-      quantity = best.quantity or 1,
+      quantity = quantity,
       itemLevel = best.itemLevel,
     },
     unit = bestUnit,
+    quantity = quantity,
+    entryTotal = best.buyout,
+    entryUnitDisplay = bestUnit,
+    capUnit = cap.c,
   }
 end
 
 -- `levels` as the commodity book holds them (Core/BookPass.lua / driver.commodityBook):
--- { { unitPrice, quantity }, … } ascending, the player's own units already excluded. Sums
--- every level at or under cap.c into one buyable quantity and its stress-tested saving; nil
--- when there is nothing to buy, or when the saving does not clear the player's own
--- minimumProfitCopper floor (GC.db.settings.sniper.minimumProfitCopper). The shape returned is
--- exactly what onDialogPrimaryClick and armReady read for a commodity: status == "SAFE",
--- buyable == true, quantity.
-function GC.Caps.DecideCommodity(cap, levels, minimumProfitCopper)
-  local quantity, stressProfit, unit = 0, 0, nil
+-- { { unitPrice, quantity }, … }, the player's own units already excluded. Buys the units at or
+-- under cap.c, CHEAPEST FIRST, inside `limits` -- the player's own Max units per buy and wallet
+-- limit, as GC.SniperDecision.BuyLimits works them out -- and says exactly what those units cost
+-- (`entryTotal`, `entryUnitDisplay`), the figures every stamp, the wallet check and the requote
+-- guard price a buy by. The whole book under the cap used to go into one purchase.
+--
+-- Nothing market-derived bounds it -- no share of daily sales, no profit floor. A cap is the
+-- player's own rule and may have no market data at all, and "at or under your price" is the
+-- whole promise, on the site and on the realm side (DecideRealm has no floor either): a floor
+-- exactly at the cap qualifies. nil when nothing qualifies, when not one unit fits the wallet
+-- limit, and without `limits` at all (fail closed). The shape returned is exactly what
+-- onDialogPrimaryClick and armReady read for a commodity: status == "SAFE", buyable == true,
+-- quantity. It carries no stressProfit: nothing here measured a resale, and a "profit" figure
+-- made of the saving under the cap would be one the panel invented.
+function GC.Caps.DecideCommodity(cap, levels, limits)
+  if type(limits) ~= "table" then return nil end
+  local qualifying = {}
   for i = 1, #levels do
     local level = levels[i]
-    if level.unitPrice <= cap.c then
-      local levelQty = level.quantity or 0
-      quantity = quantity + levelQty
-      stressProfit = stressProfit + (cap.c - level.unitPrice) * levelQty
-      -- Final review M3: the CHEAPEST qualifying level, not the first one walked. `unit` is
-      -- what the board row, the ring's own dedup and the dialog header all show as the price on
-      -- offer. The book arrives ascending today, which made the two answers identical by luck;
-      -- a client that ever answers unsorted would have put the wrong price on screen silently.
-      if not unit or level.unitPrice < unit then unit = level.unitPrice end
+    if level.unitPrice > 0 and level.unitPrice <= cap.c and (level.quantity or 0) > 0 then
+      qualifying[#qualifying + 1] = level
     end
   end
+  -- Final review M3: the CHEAPEST levels, not the first ones walked. `unit` is what the board
+  -- row, the ring's own dedup and the dialog header all show as the price on offer, and a buy
+  -- the limits cut short has to be the cheapest part of what is on offer. The book arrives
+  -- ascending today, which made both answers right by luck; a client that ever answers unsorted
+  -- would have put the wrong price on screen, and bought the wrong units, silently. Sorted on a
+  -- copy -- the caller's book is never reordered.
+  table.sort(qualifying, function(a, b) return a.unitPrice < b.unitPrice end)
+  local quantity, total = 0, 0
+  for i = 1, #qualifying do
+    local level = qualifying[i]
+    local take = math.min(level.quantity, limits.maxQuantity - quantity,
+      math.floor((limits.budget - total) / level.unitPrice))
+    if take > 0 then
+      quantity, total = quantity + take, total + take * level.unitPrice
+    end
+    -- A limit bit inside this level: every level after it is dearer, so nothing more fits.
+    if take < level.quantity then break end
+  end
   if quantity == 0 then return nil end
-  if stressProfit < (minimumProfitCopper or 0) then return nil end
   return {
     status = "SAFE",
     buyable = true,
     cap = true,
     quantity = quantity,
-    stressProfit = stressProfit,
-    unit = unit,
+    entryTotal = total,
+    entryUnitDisplay = math.floor(total / quantity),
+    unit = qualifying[1].unitPrice,
+    capUnit = cap.c,
   }
 end
 
