@@ -1,5 +1,13 @@
 # GoldCap
 
+## 0.15.0 (unreleased)
+
+- The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or
+  under your price shows up as a "YOUR PRICE" row, rings, and buys through the usual window.
+  Needs the current Companion release; the group's minimum item level is honoured for gear.
+- New option: stop scanning and open the buy window as soon as one of your prices is met (off
+  by default).
+
 ## 0.14.0 (2026-09-21)
 
 - **My lots tells you what to do with them.** The tab is split into three: lots that have

@@ -182,3 +182,14 @@ end
 function GC.Caps.Forget(itemID)
   announcedUnit[itemID] = nil
 end
+
+-- Addon task 7: the requote guard. `deal` is a board deal (buildCapDeal's own `.cap`, the
+-- copper amount, or nil for an uncapped item) and `unit` is the unit price a live server quote
+-- just came back with (UI/SniperFrame.lua's OnCommodityPriceUpdated). True when there is no cap
+-- to violate, or the quote is at or under it; false only when a cap exists and the quote broke
+-- it -- the one case the player must never be allowed to confirm quietly.
+function GC.Caps.QuoteOk(deal, unit)
+  local cap = deal and deal.cap
+  if not cap then return true end
+  return unit <= cap
+end

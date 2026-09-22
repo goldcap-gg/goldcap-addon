@@ -5631,6 +5631,12 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
 
   local severity, ratio = GC.DealMath.RequoteSeverity(
     decision.entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
+  -- Task 7: a cap is the player's own price, not a market read -- a quote above it is always
+  -- loud, however small the rise from the entry total looked (the entry total may already have
+  -- been at or near the cap, so an ordinary "warn"-sized move can still cross it). Guarded like
+  -- every other GC.Caps read in this file (GC.Caps.For above) so a fixture that never loads
+  -- Core/Caps.lua is unaffected.
+  if GC.Caps and not GC.Caps.QuoteOk(deal, unitPrice) then severity = "loud" end
   if severity == "none" then
     row.purchaseStage = "confirm"
     if dialog and dialog.row == row then

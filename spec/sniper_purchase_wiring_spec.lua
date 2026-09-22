@@ -2459,6 +2459,7 @@ describe("Sniper purchase wiring", function()
       helper.loadModule("Core/BookPass.lua", GC)
       helper.loadModule("Core/DrillQueue.lua", GC)
       helper.loadModule("Core/KeyPoll.lua", GC)
+      helper.loadModule("Core/Caps.lua", GC)
       helper.loadModule("UI/SniperFrame.lua", GC)
       -- The board repaint is another spec's subject and needs the whole frame to exist.
       setUpvalue(GC.Sniper._ReleaseStrandedConfirmed, "refreshRows", function() end)
@@ -2762,6 +2763,51 @@ describe("Sniper purchase wiring", function()
       money = 10000000000
       row.purchaseStage, row.quoteSnapshot = "buying", nil
       GC.Sniper.OnCommodityPriceUpdated(1200, 1200)
+      assert.is_true(dialog.enabled)
+    end)
+
+    -- Task 7: a cap is the player's own price, not a market read. A quote that breaks it must
+    -- never slip through as a quiet "confirm" just because the rise from the entry total was
+    -- too small to trip RequoteSeverity on its own.
+    it("forces the loud requote path when the quote breaks the player's own price cap", function()
+      local GC = loadSniper()
+      -- 1290 is only a 0.78% rise over the 1280 entry -- well under REQUOTE_WARN_RATIO (5%) on
+      -- its own -- but 5 copper over the player's own 1285 cap.
+      local deal = { itemID = 42, isCommodity = true, cap = 1285 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1280 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+
+      GC.Sniper.OnCommodityPriceUpdated(1290, 1290)
+      assert.equal("requote", row.purchaseStage) -- not "confirm": the cap breach forces the banner
+      assert.is_true(dialog.banner.shown)
+    end)
+
+    -- The other side of the same guard: a quote that stays at or under the cap is judged
+    -- exactly as it would be with no cap at all -- the guard narrows nothing else.
+    it("leaves an ordinary requote alone when the quote stays at or under the player's cap", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true, cap = 1300 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1280 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+
+      GC.Sniper.OnCommodityPriceUpdated(1290, 1290) -- rose, but stayed under the 1300 cap
+      assert.equal("confirm", row.purchaseStage)
       assert.is_true(dialog.enabled)
     end)
 
