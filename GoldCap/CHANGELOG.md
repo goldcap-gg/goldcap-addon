@@ -7,6 +7,13 @@
   Needs the current Companion release; the group's minimum item level is honoured for gear.
 - New option: stop scanning and open the buy window as soon as one of your prices is met (off
   by default).
+- A realm item listed in several item-level variants is now checked and bought at its cheapest
+  variant, not whichever one the auction house answered first.
+
+## 0.14.1 (unreleased)
+
+- The sniper no longer replaces your own search results while you are on the auction house's
+  Browse tab with the GoldCap window closed.
 
 ## 0.14.0 (2026-09-21)
 

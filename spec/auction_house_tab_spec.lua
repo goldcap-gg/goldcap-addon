@@ -508,11 +508,54 @@ describe("Auction House tab", function()
     end)
   end)
 
+  -- The player's own browse results (a plain search like "Teebu") are theirs. The book pass
+  -- and the key polls (SearchForItemKeys, both the Items board's and the BUY tab's floor
+  -- refresh) all answer through the same GetBrowseResults() buffer Blizzard's Buy pane reads
+  -- from, so while that pane is on screen and GoldCap's own window is not, nothing of ours may
+  -- touch it. Reported in-game 2026-09-22: with GoldCap closed, a player's own "Teebu" search
+  -- on Blizzard's Buy tab turned into the alphabetical "everything" list after ~10s and kept
+  -- jumping, because none of the other predicates fire merely from Buy being the visible pane.
+  describe("PlayerIsBrowsing", function()
+    it("fails open before Install has ever run", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is true on the Buy display mode with our dock hidden", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false on the Buy display mode when our own dock is shown", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false on the ItemSell display mode", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false on the CommoditiesSell display mode", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false when there is no auction house frame at all", function()
+      _G.AuctionHouseFrame = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+  end)
+
   describe("PlayerIsBusy", function()
     -- Also the "nothing has been selected yet" case for PlayerIsUsingAnotherTab: an auction
     -- house that has chosen nothing has no display mode either, and reading THAT as "the player
     -- is busy" would silence the sniper for a whole session.
-    it("is false when none of the four are true", function()
+    it("is false when none of the five are true", function()
       assert.is_false(GC.AuctionHouseTab.PlayerIsBusy())
     end)
 
@@ -530,6 +573,12 @@ describe("Auction House tab", function()
 
     it("is true while searching", function()
       GC.AuctionHouseTab.NoteSearchFocus(true)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    it("is true while browsing Blizzard's own Buy pane with our window closed", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
     end)
   end)
