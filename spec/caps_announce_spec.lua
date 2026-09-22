@@ -75,6 +75,32 @@ describe("Caps.Announce", function()
     assert.is_false(GC.Caps.Announce({ isCommodity = true, unitPrice = 400 }))
   end)
 
+  -- Caps fixes 3e: the question without the commitment. The board queues a ring when a cap row
+  -- is news and commits the memory only once the ring actually plays on a row the player can
+  -- see -- asked and remembered in one call, a hit that landed on a hidden board or a closed
+  -- window was spent for the whole visit.
+  describe("IsNews", function()
+    it("answers the same as Announce would, and remembers nothing", function()
+      local lot = { itemID = 1, isCommodity = false, auctionID = 111, unitPrice = 500 }
+      assert.is_true(GC.Caps.IsNews(lot))
+      assert.is_true(GC.Caps.IsNews(lot))
+      assert.is_true(GC.Caps.Announce(lot))
+      assert.is_false(GC.Caps.IsNews(lot))
+    end)
+
+    it("follows a commodity's price the way Announce does", function()
+      GC.Caps.Announce({ itemID = 2, isCommodity = true, unitPrice = 400 })
+      assert.is_false(GC.Caps.IsNews({ itemID = 2, isCommodity = true, unitPrice = 400 }))
+      assert.is_false(GC.Caps.IsNews({ itemID = 2, isCommodity = true, unitPrice = 450 }))
+      assert.is_true(GC.Caps.IsNews({ itemID = 2, isCommodity = true, unitPrice = 350 }))
+    end)
+
+    it("is false for what Announce refuses outright", function()
+      assert.is_false(GC.Caps.IsNews(nil))
+      assert.is_false(GC.Caps.IsNews({ itemID = 1, isCommodity = false, unitPrice = 500 }))
+    end)
+  end)
+
   -- Final review I4: an Auction House session is the unit this memory belongs to, exactly as
   -- seenHotDeals is (UI/SniperFrame.lua's close handler clears them side by side). Without
   -- this, a lot announced in the morning stayed silenced for the rest of the login -- a fresh

@@ -189,6 +189,11 @@ LIM.WATCH_SET_SIZE = 10
 -- buyable several times a minute, and every one of those is worth SHOWING, but not worth a
 -- separate bell each time. See stampVerdict's own comment for why this is per item, not global.
 LIM.RING_FLOOR_SECONDS = 30
+-- Caps fixes 3e: how long a "your price" ring waits for its row to come on screen (the player
+-- on another board or tab, the window closed) before it is dropped. A ring is news; ten minutes
+-- on, the row -- still on the board if the cap still holds -- is what says it, and a later
+-- sighting of a lot that was never announced queues a fresh ring anyway.
+LIM.CAP_PING_WAIT_SECONDS = 600
 
 -- Sniper fast loop, phase 1: the book-pass wide-pass cadence and the drill-down queue's
 -- per-minute SendSearchQuery budget. See Core/BookPass.lua / Core/DrillQueue.lua.
@@ -525,11 +530,17 @@ local drainCapPings
 -- -- clicking a row still runs the same live Check it always did (openDialog -> startRequery),
 -- and the purchase calls themselves are protected and reachable only from a hardware click.
 local verdicts = {}
--- Live price caps, addon task 6: cap deals GC.Caps.Announce just approved as newly-rung, queued
--- by evaluateLiveCommodityDeal/evaluateLiveItemDeal (wherever buildCapDeal merges one into board
--- state) and drained by refreshRows() at the end of its own render -- by then the row painting
--- loop above it has already stamped `row.deal` for this pass, so pingNewHotDeals' table-identity
--- match (the same one a full-scan HOT deal uses) can find the row this exact table landed on.
+-- Live price caps, addon task 6: cap rows waiting to ring, queued by evaluateLiveCommodityDeal/
+-- evaluateLiveItemDeal (wherever buildCapDeal puts one on the board) through
+-- GC.Sniper._QueueCapPing, and drained by refreshRows() at the end of its own render -- by then
+-- the row painting loop has stamped `row.deal` for this pass, so the drain can find the row the
+-- deal landed on by table identity -- and by the Auction House ticker.
+--
+-- Caps fixes 3e: an entry is { deal, at, rung, opened }, at most one per item, and it WAITS:
+-- until its row is on screen (the player may be on the other board, another tab, or have the
+-- window closed), for no longer than LIM.CAP_PING_WAIT_SECONDS, and only while the row is still
+-- on the board. It used to be drained -- announced, floored, rung at nothing -- in the very
+-- render that found it.
 local pendingCapPings = {}
 -- How many of the rows the current render WOULD have shown carry a refusal. Recomputed by
 -- renderList on every render and displayed by the toolbar toggle, so a shorter list always
@@ -1387,16 +1398,11 @@ local function refreshRows()
   GC.Sniper._PaintBoardChips()
 
   -- Live price caps, addon task 6: the row-painting loop above has just stamped `row.deal` for
-  -- this render, so a cap deal GC.Caps.Announce approved earlier this call chain (queued into
-  -- pendingCapPings by evaluateLiveCommodityDeal/evaluateLiveItemDeal) can now be matched to the
-  -- row it landed on, the same way CollectNewHot's own HOT deals are. Reassigning the table
-  -- (rather than clearing it in place) is safe: every closure that pushes into it shares this
-  -- same upvalue, so the next push lands in the fresh one.
-  if #pendingCapPings > 0 then
-    local pings = pendingCapPings
-    pendingCapPings = {}
-    drainCapPings(pings)
-  end
+  -- this render, so a cap row queued earlier this call chain (GC.Sniper._QueueCapPing, from
+  -- evaluateLiveCommodityDeal/evaluateLiveItemDeal) can now be matched to the row it landed on,
+  -- the same way CollectNewHot's own HOT deals are. Rings only (caps fixes 3e): an open waits
+  -- for the ticker, because a render runs inside a closing dialog's own OnHide too.
+  if #pendingCapPings > 0 then drainCapPings(false) end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -4372,6 +4378,39 @@ function GC.Sniper._DropCapRow(itemID)
   end
 end
 
+-- Caps fixes 3e: the cap row `deal` is still on the board as, or nil once it has left. Tables
+-- are rebuilt all the time -- a re-drill of the same lot, a watch-loop pass over the same book --
+-- so a waiting ring follows the board's CURRENT row for the same opportunity: for a realm item
+-- the same auction (a different lot is a different opportunity, with a ring of its own if it is
+-- news), for a commodity the item's cap row on the board _PutCapRow writes to.
+function GC.Sniper._BoardCapRow(deal)
+  local itemID = deal.itemID
+  if not deal.isCommodity then
+    local held = GC.Sniper._realmDeals[itemID]
+    return (held and held.cap and held.auctionID == deal.auctionID) and held or nil
+  end
+  if mode ~= "fullscan" then
+    local held = deals[itemID]
+    return (held and held.cap) and held or nil
+  end
+  for _, held in ipairs(scanDeals) do
+    if held.itemID == itemID then return held.cap and held or nil end
+  end
+  return nil
+end
+
+-- Queues the board-ring for a cap row just put on the board -- if it is news (GC.Caps.IsNews:
+-- a lot not yet announced, or a commodity price better than the last one announced). Nothing is
+-- remembered here; drainCapPings commits the announcement when the ring plays. One entry per
+-- item: a newer row for the item replaces whatever was still waiting for it.
+function GC.Sniper._QueueCapPing(capDeal)
+  if not (GC.Caps and GC.Caps.IsNews(capDeal)) then return end
+  for i = #pendingCapPings, 1, -1 do
+    if pendingCapPings[i].deal.itemID == capDeal.itemID then table.remove(pendingCapPings, i) end
+  end
+  pendingCapPings[#pendingCapPings + 1] = { deal = capDeal, at = GetTime() }
+end
+
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
 -- onObservation below passes its own so the same poll's book is not fetched twice. Every other
 -- call site omits it and gets the old behaviour of building its own.
@@ -4397,12 +4436,10 @@ evaluateLiveCommodityDeal = function(itemID, levels)
       local capDeal = buildCapDeal(itemID, true, capDecision, cap)
       GC.Sniper._PutCapRow(itemID, capDeal)
       -- Addon task 6: queued for the board-ring (drained by refreshRows(), see pendingCapPings)
-      -- only once per GC.Caps.Announce's own dedup -- an unchanged or worse floor on a re-poll
+      -- only while it is news by GC.Caps' own dedup -- an unchanged or worse floor on a re-poll
       -- stays silent. Queued BEFORE the stamp below, whose refreshRows() is what drains it:
       -- by then the cap deal is already on the board, so the ring has a row to land on.
-      if GC.Caps.Announce(capDeal) then
-        pendingCapPings[#pendingCapPings + 1] = capDeal
-      end
+      GC.Sniper._QueueCapPing(capDeal)
       local capLive = { isCommodity = true, levels = levels, avail = avail, decision = capDecision }
       -- Final review I1: the verdict is filed against the deal the CAP DECISION built, at the
       -- price that row is asking. A background drill is started from { itemID, unitPrice =
@@ -5676,11 +5713,9 @@ local function evaluateLiveItemDeal(itemID)
       local capDeal = buildCapDeal(itemID, false, capDecision, cap)
       GC.Sniper._realmDeals[itemID] = capDeal
       GC.FullScan.CapDeals(GC.Sniper._realmDeals, WIN.ROW_CAP)
-      -- Addon task 6: queued for the board-ring, once per GC.Caps.Announce's own dedup -- a
+      -- Addon task 6: queued for the board-ring while it is news by GC.Caps' own dedup -- a
       -- realm lot rings once per resolved auctionID, however many drills/polls see it again.
-      if GC.Caps.Announce(capDeal) then
-        pendingCapPings[#pendingCapPings + 1] = capDeal
-      end
+      GC.Sniper._QueueCapPing(capDeal)
       local capLive = { isCommodity = false, decision = capDecision }
       -- Final review I1, exactly as on the commodity side above: the verdict belongs to the row
       -- the cap decision built, at the qualifying lot's own unit price -- not to the browse
@@ -7773,46 +7808,78 @@ end
 -- (the stop) before showing the dialog (the open) -- the exact reaction a manual click on the
 -- row would trigger. Neither call reaches a protected purchase function: those stay behind
 -- onDialogPrimaryClick's own hardware click, untouched (spec/sniper_purchase_wiring_spec.lua).
-drainCapPings = function(pings)
-  -- Final review I6: the cap bell is floored per item exactly like the verdict bell is
-  -- (stampVerdict's own GC.Sniper._rangAt / LIM.RING_FLOOR_SECONDS, and its comment for why
-  -- this is per item and not a global mute). A capped commodity whose book churns under the
-  -- cap re-announces on every improvement, and every one of those SHOWS -- but a bell every
-  -- few seconds stops carrying information. The rows themselves are never filtered here: only
-  -- what makes a sound is.
+--
+-- Caps fixes 3e: nothing here is spent on a row the player cannot see. Each entry waits in
+-- pendingCapPings (see its declaration) until the row carrying its deal IsVisible -- IsShown is
+-- true of a row on a hidden board, tab or window, which is where the ring and the open used to
+-- go -- and only then is the lot announced (GC.Caps.Announce) and the bell floor stamped. The
+-- open is a second obligation on the same entry and waits on its own: for `allowOpen` (the
+-- ticker's drain; a render's drain rings only, since a render also runs inside a closing
+-- dialog's OnHide, and a window opened from there would open under the one closing), for a
+-- player not busy on Blizzard's own panes, and for the screen to hold no other dialog -- then it
+-- is retried on the next drain, which is how it follows the other dialog closing.
+drainCapPings = function(allowOpen)
+  local pings = pendingCapPings
+  pendingCapPings = {}
   local now = GetTime()
-  local ring = {}
-  for _, capDeal in ipairs(pings) do
-    local rang = GC.Sniper._rangAt[capDeal.itemID]
-    if not (rang and (now - rang) < LIM.RING_FLOOR_SECONDS) then
-      GC.Sniper._rangAt[capDeal.itemID] = now
-      ring[#ring + 1] = capDeal
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  local stopAndOpen = (cfg and cfg.capStopAndOpen) and true or false
+  local busy = GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
+    and GC.AuctionHouseTab.PlayerIsBusy() or false
+  local ring, openRow = {}, nil
+  for _, ping in ipairs(pings) do
+    -- The board's current row for this opportunity, or nil: expired, or the row has left.
+    local deal = (now - ping.at) <= LIM.CAP_PING_WAIT_SECONDS and GC.Sniper._BoardCapRow(ping.deal) or nil
+    local row
+    if deal then
+      ping.deal = deal
+      for i = 1, #rows do
+        if rows[i].deal == deal and rows[i]:IsVisible() then row = rows[i]; break end
+      end
+    end
+    if row and not ping.rung then
+      ping.rung = true
+      -- Final review I6: the cap bell is floored per item exactly like the verdict bell is
+      -- (stampVerdict's own GC.Sniper._rangAt / LIM.RING_FLOOR_SECONDS, and its comment for why
+      -- this is per item and not a global mute). A capped commodity whose book churns under
+      -- the cap re-announces on every improvement, and every one of those SHOWS -- but a bell
+      -- every few seconds stops carrying information. Only what makes a sound is filtered: a
+      -- floored improvement is on screen, announced, and silent.
+      if GC.Caps.Announce(deal) then
+        local rang = GC.Sniper._rangAt[deal.itemID]
+        if not (rang and (now - rang) < LIM.RING_FLOOR_SECONDS) then
+          GC.Sniper._rangAt[deal.itemID] = now
+          ring[#ring + 1] = deal
+        end
+      end
+    end
+    -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a dialog
+    -- whose row has a purchase call in flight, but a dialog merely "ready" or "requerying" it
+    -- aborts and replaces -- fine for a click the player made, wrong for a background poll: a
+    -- cap hit landing while they were reading a Check swapped the window under their cursor,
+    -- and the next click went to a row they had not chosen. Any dialog on screen for a
+    -- DIFFERENT row -- or for none, a listing that has gone -- owns the screen; this waits.
+    -- One window per drain: a pass that finds three cap rows at once must not open three
+    -- dialogs in a row, each replacing the last before it can be read.
+    if row and allowOpen and stopAndOpen and not ping.opened and not openRow and not busy
+        and not (dialog and dialog:IsShown() and dialog.row ~= row) then
+      ping.opened = true
+      openRow = row
+    end
+    if deal and (not ping.rung or (stopAndOpen and not ping.opened)) then
+      pendingCapPings[#pendingCapPings + 1] = ping
     end
   end
   pingNewHotDeals(ring)
-  if not (GC.db and GC.db.settings and GC.db.settings.sniper.capStopAndOpen) then return end
-  for _, capDeal in ipairs(pings) do
-    local opened = false
-    for i = 1, #rows do
-      local row = rows[i]
-      if row.deal == capDeal and row:IsShown() then
-        -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a
-        -- dialog whose row has a purchase call in flight, but a dialog merely "ready" or
-        -- "requerying" it aborts and replaces -- fine for a click the player made, wrong for a
-        -- background poll: a cap hit landing while they were reading a Check swapped the window
-        -- under their cursor, and the next click went to a row they had not chosen. A dialog
-        -- that is open for a DIFFERENT row owns the screen; this waits.
-        if not (dialog and dialog.row and dialog.row ~= row) then
-          onBuyClick(row)
-          opened = true
-        end
-        break
-      end
-    end
-    -- One window, one drain. A pass that finds three cap rows at once must not open three
-    -- dialogs in a row, each replacing the last before it can be read.
-    if opened then break end
-  end
+  -- Last, once the queue is whole again: opening renders, and that render drains the queue too.
+  if openRow then onBuyClick(openRow) end
+end
+
+-- The Auction House ticker's half of the drain: rings for rows that came on screen without a
+-- render (the window shown, the tab switched back), and every open. A field, not a local: this
+-- chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._TickCapPings()
+  if #pendingCapPings > 0 then drainCapPings(true) end
 end
 
 -- Cancels/resets non-confirmed work and clears tracking tables on AH close. A confirmed
@@ -9365,6 +9432,10 @@ function GC.Sniper.OnAuctionHouseShow()
     -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
     -- GC.Sniper.session either.
     refreshSessionText()
+    -- And a "your price" ring or open still waiting for its row (caps fixes 3e): a row can come
+    -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
+    -- notice, and every stop-and-open comes from here.
+    GC.Sniper._TickCapPings()
   end)
   feedAuto("ahOpened")
   if GC.db.settings.sniper.auto then

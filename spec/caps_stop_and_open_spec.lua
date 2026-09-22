@@ -6,6 +6,17 @@ local helper = require("spec.spec_helper")
 -- Neither reaches a protected purchase call -- those stay behind onDialogPrimaryClick's
 -- hardware click (spec/sniper_purchase_wiring_spec.lua) -- but "opens a window" is still an
 -- action taken out of the player's hands, so it may never take a window away from them.
+--
+-- Caps fixes 3e: and both wait for the row. The hit used to spend its announcement (GC.Caps
+-- .Announce) and its bell floor the moment it was found, and the open looked for a row that
+-- was merely IsShown -- so a hit found while the player was on another board, another tab or
+-- with the window closed rang for nothing, opened nothing, and was never told again that
+-- visit. A cap ping now waits in the queue until its row is on screen (bounded, and dropped
+-- when the row leaves the board); the announcement is committed only when the ring plays there;
+-- the open wants a visible row, a player not busy on Blizzard's own panes, and no other dialog
+-- on screen -- and is retried once that dialog closes. Opens happen on the 0.25s ticker
+-- (drainCapPings(true)), never from inside a render, so a dialog's own OnHide can never open
+-- the next one from under itself.
 describe("Caps stop-and-open", function()
   local function upvalue(fn, wanted)
     for i = 1, math.huge do
@@ -24,10 +35,10 @@ describe("Caps stop-and-open", function()
     error("missing upvalue " .. wanted)
   end
 
-  local now, clicked, rung
+  local now, clicked, rung, busy
 
   local function load(stopAndOpen)
-    now, clicked, rung = 100, {}, {}
+    now, clicked, rung, busy = 100, {}, {}, false
     _G.GetTime = function() return now end
     _G.time = function() return 1000 end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
@@ -61,6 +72,7 @@ describe("Caps stop-and-open", function()
         CapDeals = function(deals) return deals end,
       },
       WatchSet = { Observe = function() end, Select = function() return {} end },
+      AuctionHouseTab = { PlayerIsBusy = function() return busy end },
       Print = function() end,
       db = { settings = { sniper = { sound = false, board = "items",
         capStopAndOpen = stopAndOpen and true or false } } },
@@ -78,8 +90,28 @@ describe("Caps stop-and-open", function()
     return GC, drain
   end
 
-  local function fakeRow(deal)
-    return { deal = deal, IsShown = function() return true end }
+  -- A realm cap row, put on the Items board and queued the way evaluateLiveItemDeal does.
+  local function hit(GC, itemID, auctionID, unitPrice)
+    local deal = { itemID = itemID, isCommodity = false, auctionID = auctionID,
+      unitPrice = unitPrice or 80, cap = 100 }
+    GC.Sniper._realmDeals[itemID] = deal
+    GC.Sniper._QueueCapPing(deal)
+    return deal
+  end
+
+  -- A pooled row carrying `deal`. `visible` is what IsVisible answers -- the row and every
+  -- parent up to the screen shown -- and it is false for a row that is merely IsShown on a
+  -- hidden board, tab or window.
+  local function fakeRow(deal, visible)
+    local row = { deal = deal, visible = visible ~= false }
+    function row:IsShown() return true end
+    function row:IsVisible() return self.visible end
+    return row
+  end
+  local function fakeDialog(row)
+    local d = { row = row, shown = true }
+    function d:IsShown() return self.shown end
+    return d
   end
 
   after_each(function()
@@ -89,61 +121,205 @@ describe("Caps stop-and-open", function()
 
   it("opens the buy window for the row it just rang", function()
     local GC, drain = load(true)
-    local deal = { itemID = 42, unitPrice = 80, cap = 100 }
+    local deal = hit(GC, 42, 1)
     local row = fakeRow(deal)
     set(drain, "rows", { row })
 
-    drain({ deal })
+    drain(true)
 
     assert.same({ row }, clicked)
     assert.equal(GC.Sniper._rangAt[42], 100)
   end)
 
+  it("rings from a render but leaves the opening to the ticker", function()
+    local GC, drain = load(true)
+    local deal = hit(GC, 42, 1)
+    local row = fakeRow(deal)
+    set(drain, "rows", { row })
+
+    drain(false)
+    assert.equal(1, #rung[1])
+    assert.same({}, clicked)
+
+    GC.Sniper._TickCapPings()
+    assert.same({ row }, clicked)
+    assert.same({}, rung[2]) -- rang once, not again for the open
+  end)
+
   it("leaves a dialog the player is reading for another row exactly where it is", function()
-    local _, drain = load(true)
-    local deal = { itemID = 42, unitPrice = 80, cap = 100 }
+    local GC, drain = load(true)
+    local deal = hit(GC, 42, 1)
     local row, otherRow = fakeRow(deal), fakeRow({ itemID = 7 })
     set(drain, "rows", { row })
-    set(drain, "dialog", { row = otherRow })
+    set(drain, "dialog", fakeDialog(otherRow))
 
-    drain({ deal })
+    drain(true)
 
     assert.same({}, clicked)
   end)
 
+  it("never replaces a dialog left on screen with no row (a listing gone)", function()
+    local GC, drain = load(true)
+    local deal = hit(GC, 42, 1)
+    set(drain, "rows", { fakeRow(deal) })
+    set(drain, "dialog", fakeDialog(nil))
+
+    drain(true)
+
+    assert.same({}, clicked)
+  end)
+
+  it("opens it once the dialog for the other row has closed", function()
+    local GC, drain = load(true)
+    local deal = hit(GC, 42, 1)
+    local row = fakeRow(deal)
+    local dialog = fakeDialog(fakeRow({ itemID = 7 }))
+    set(drain, "rows", { row })
+    set(drain, "dialog", dialog)
+
+    drain(true)
+    assert.same({}, clicked)
+
+    dialog.row, dialog.shown = nil, false
+    drain(true)
+    assert.same({ row }, clicked)
+    assert.equal(1, #rung[1]) -- the bell rang the first time,
+    assert.same({}, rung[2]) -- and only then
+  end)
+
   it("still reaches the row whose dialog is already open (it only needs raising)", function()
-    local _, drain = load(true)
-    local deal = { itemID = 42, unitPrice = 80, cap = 100 }
+    local GC, drain = load(true)
+    local deal = hit(GC, 42, 1)
     local row = fakeRow(deal)
     set(drain, "rows", { row })
-    set(drain, "dialog", { row = row })
+    set(drain, "dialog", fakeDialog(row))
 
-    drain({ deal })
+    drain(true)
 
     assert.same({ row }, clicked)
   end)
 
   it("opens one window per drain, not one per hit", function()
-    local _, drain = load(true)
-    local first = { itemID = 42, unitPrice = 80, cap = 100 }
-    local second = { itemID = 43, unitPrice = 80, cap = 100 }
-    local rowA, rowB = fakeRow(first), fakeRow(second)
+    local GC, drain = load(true)
+    local rowA, rowB = fakeRow(hit(GC, 42, 1)), fakeRow(hit(GC, 43, 2))
     set(drain, "rows", { rowA, rowB })
 
-    drain({ first, second })
+    drain(true)
 
     assert.same({ rowA }, clicked)
   end)
 
   it("opens nothing at all when the player has not opted in", function()
-    local _, drain = load(false)
-    local deal = { itemID = 42, unitPrice = 80, cap = 100 }
-    set(drain, "rows", { fakeRow(deal) })
+    local GC, drain = load(false)
+    set(drain, "rows", { fakeRow(hit(GC, 42, 1)) })
 
-    drain({ deal })
+    drain(true)
 
     assert.same({}, clicked)
-    assert.equal(1, #rung) -- the bell is not the opt-in; it always rings
+    assert.equal(1, #rung[1]) -- the bell is not the opt-in; it always rings
+  end)
+
+  it("does not open while the player is busy on Blizzard's own panes, and does once they are not", function()
+    local GC, drain = load(true)
+    local row = fakeRow(hit(GC, 42, 1))
+    set(drain, "rows", { row })
+    busy = true
+
+    drain(true)
+    assert.equal(1, #rung[1]) -- the ring is not theirs to hold up
+    assert.same({}, clicked)
+
+    busy = false
+    drain(true)
+    assert.same({ row }, clicked)
+  end)
+
+  describe("a row the player cannot see", function()
+    it("neither rings nor opens, and leaves the lot unannounced", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      set(drain, "rows", { fakeRow(deal, false) }) -- shown, under a hidden board or window
+
+      drain(true)
+
+      assert.same({}, rung[1])
+      assert.same({}, clicked)
+      assert.is_nil(GC.Sniper._rangAt[42])
+      assert.is_true(GC.Caps.IsNews(deal))
+    end)
+
+    it("rings and opens once it is on screen", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal, false)
+      set(drain, "rows", { row })
+      drain(true)
+
+      row.visible = true
+      drain(true)
+
+      assert.equal(deal, rung[2][1])
+      assert.same({ row }, clicked)
+      assert.is_false(GC.Caps.IsNews(deal))
+    end)
+
+    it("waits for a row the render has not stamped yet (another board is on screen)", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      set(drain, "rows", {})
+      drain(true)
+
+      local row = fakeRow(deal)
+      set(drain, "rows", { row })
+      drain(true)
+
+      assert.equal(deal, rung[2][1])
+      assert.same({ row }, clicked)
+    end)
+
+    it("stops waiting once the row has left the board", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal, false)
+      set(drain, "rows", { row })
+      drain(true)
+
+      GC.Sniper._realmDeals[42] = nil
+      row.visible = true
+      drain(true)
+
+      assert.same({}, rung[2])
+      assert.same({}, clicked)
+    end)
+
+    it("stops waiting once the lot on the board is a different one", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal, false)
+      set(drain, "rows", { row })
+      drain(true)
+
+      GC.Sniper._realmDeals[42] = { itemID = 42, isCommodity = false, auctionID = 2, unitPrice = 90, cap = 100 }
+      row.visible = true
+      drain(true)
+
+      assert.same({}, rung[2])
+    end)
+
+    it("stops waiting after its bound", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal, false)
+      set(drain, "rows", { row })
+      drain(true)
+
+      now = now + 3600
+      row.visible = true
+      drain(true)
+
+      assert.same({}, rung[2])
+      assert.same({}, clicked)
+    end)
   end)
 
   -- I6: the same per-item floor stampVerdict's own bell observes. A capped commodity whose
@@ -151,32 +327,52 @@ describe("Caps stop-and-open", function()
   -- SHOWS on the board -- but a bell every few seconds stops carrying information.
   describe("the ring floor", function()
     it("does not ring the same item twice inside the floor", function()
-      local _, drain = load(false)
-      local deal = { itemID = 42, unitPrice = 80, cap = 100 }
-      drain({ deal })
+      local GC, drain = load(false)
+      local first = hit(GC, 42, 1)
+      set(drain, "rows", { fakeRow(first) })
+      drain(true)
       assert.equal(1, #rung[1])
 
       now = now + 5
-      drain({ { itemID = 42, unitPrice = 70, cap = 100 } })
+      local second = hit(GC, 42, 2, 70)
+      set(drain, "rows", { fakeRow(second) })
+      drain(true)
       assert.same({}, rung[2])
     end)
 
     it("rings again once the floor has passed", function()
-      local _, drain = load(false)
-      drain({ { itemID = 42, unitPrice = 80, cap = 100 } })
+      local GC, drain = load(false)
+      set(drain, "rows", { fakeRow(hit(GC, 42, 1)) })
+      drain(true)
 
       now = now + 3600
-      drain({ { itemID = 42, unitPrice = 70, cap = 100 } })
+      set(drain, "rows", { fakeRow(hit(GC, 42, 2, 70)) })
+      drain(true)
       assert.equal(1, #rung[2])
     end)
 
     it("never lets one item silence a different one", function()
-      local _, drain = load(false)
-      drain({ { itemID = 42, unitPrice = 80, cap = 100 } })
+      local GC, drain = load(false)
+      set(drain, "rows", { fakeRow(hit(GC, 42, 1)) })
+      drain(true)
 
       now = now + 5
-      drain({ { itemID = 43, unitPrice = 80, cap = 100 } })
+      set(drain, "rows", { fakeRow(hit(GC, 43, 2)) })
+      drain(true)
       assert.equal(1, #rung[2])
     end)
+  end)
+
+  -- The ticker is the one place opens come from, so it has to be wired to the queue. Checked
+  -- against the source: the ticker's body cannot run headless (it repaints the window's
+  -- toolbar, which a spec without a frame does not have).
+  it("is driven off the Auction House ticker", function()
+    local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local src = f:read("*a")
+    f:close()
+    local start = src:find("autoScanTicker = autoScanTicker or C_Timer.NewTicker(", 1, true)
+    assert.is_number(start)
+    local body = src:sub(start, src:find("\n  end)\n", start, true))
+    assert.is_truthy(body:find("GC.Sniper._TickCapPings()", 1, true))
   end)
 end)

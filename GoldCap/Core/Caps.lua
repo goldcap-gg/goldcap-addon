@@ -267,17 +267,27 @@ end
 -- repeat of the old one.
 local announcedAuctions, announcedUnit = {}, {}
 
-function GC.Caps.Announce(deal)
+-- Caps fixes 3e: the same question Announce answers, without the commitment. The board queues
+-- a ring for a cap row that is news (UI/SniperFrame.lua's GC.Sniper._QueueCapPing) and commits
+-- the memory through Announce only once the ring actually plays on a row the player can see.
+-- Asked and remembered in one call, a hit that landed while the player was on another board, on
+-- another tab or had the window closed was spent for the rest of the visit.
+function GC.Caps.IsNews(deal)
   if not deal or not deal.itemID then return false end
   if deal.isCommodity then
     local last = announcedUnit[deal.itemID]
-    if last ~= nil and not (deal.unitPrice and deal.unitPrice < last) then return false end
-    announcedUnit[deal.itemID] = deal.unitPrice
-    return true
+    return last == nil or (deal.unitPrice ~= nil and deal.unitPrice < last)
   end
-  local auctionID = deal.auctionID
-  if not auctionID or announcedAuctions[auctionID] then return false end
-  announcedAuctions[auctionID] = true
+  return deal.auctionID ~= nil and not announcedAuctions[deal.auctionID]
+end
+
+function GC.Caps.Announce(deal)
+  if not GC.Caps.IsNews(deal) then return false end
+  if deal.isCommodity then
+    announcedUnit[deal.itemID] = deal.unitPrice
+  else
+    announcedAuctions[deal.auctionID] = true
+  end
   return true
 end
 

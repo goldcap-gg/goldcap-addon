@@ -174,6 +174,25 @@ describe("Caps row lifecycle -- realm key poll (onRows)", function()
     assert.equal(-800000, deal.estProfit) -- "no reference", exactly as buildCapDeal promises
   end)
 
+  -- Caps fixes 3e: finding a lot is not telling the player about it. The drill used to commit
+  -- the lot's announcement (GC.Caps.Announce) the moment it built the row -- here with no
+  -- window at all, so nothing could ring -- and the lot then never rang for the rest of the
+  -- visit, whatever the player did next.
+  it("does not spend a lot's announcement on a hit nobody could see", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 1000000, 0)
+    local evaluateLiveItemDeal = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")
+    setUpvalue(evaluateLiveItemDeal, "driver", {
+      itemResult = function() return {} end,
+      itemLots = function() return { { auctionID = 9, buyout = 800000, itemLevel = 615, quantity = 1 } } end,
+    })
+
+    evaluateLiveItemDeal(42)
+
+    assert.is_table(GC.Sniper._realmDeals[42])
+    assert.is_true(GC.Caps.Announce({ itemID = 42, isCommodity = false, auctionID = 9 }))
+  end)
+
   it("does not resurrect an ordinary (non-cap) row that fails to qualify", function()
     -- Guards the fix itself: only an EXISTING cap-flagged deal gets the survival check: an
     -- ordinary unqualified row (no `.cap` field) is removed exactly as before.
@@ -363,6 +382,9 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
       function row:Show() self.shown = true end
       function row:Hide() self.shown = false end
       function row:IsShown() return self.shown end
+      -- The window this board lives in is on screen (see `frame` below), so a shown row is a
+      -- visible one -- the question the cap ring asks before it spends anything (caps fixes 3e).
+      function row:IsVisible() return self.shown end
       function row:SetAlpha() end
       return row
     end)
