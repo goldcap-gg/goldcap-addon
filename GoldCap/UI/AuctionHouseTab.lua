@@ -479,10 +479,32 @@ function GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
   return not (dock and dock:IsShown())
 end
 
+-- True while Blizzard's own Buy/Browse pane -- the browse list itself, .Buy, distinct from the
+-- .ItemBuy/.CommoditiesBuy purchase form PlayerIsBuying reads -- is the visible panel and our
+-- own window is not. The player's own browse results are theirs: the book pass
+-- (SendBrowseQuery/RequestMoreBrowseResults) and the key polls (SearchForItemKeys, both the
+-- Items board's and the BUY tab's floor refresh, all in UI/SniperFrame.lua) answer through the
+-- same GetBrowseResults() buffer Blizzard's list reads from, so while that pane is on screen and
+-- GoldCap's window is not, nothing of ours may send a browse or keys query. None of the other
+-- predicates catch this alone: PlayerIsBuying reads a different display mode, PlayerIsUsingAnotherTab
+-- is false here because Blizzard's own tab leaves ah.displayMode non-nil, and PlayerIsSearching
+-- only covers focus plus a 10s grace, not simply having Buy on screen. Same dock read as
+-- PlayerIsUsingAnotherTab: our own tab showing the dock is not "using another tab", but it is
+-- also not "the player's browse results, undisturbed" once GoldCap's own board is what the dock
+-- holds -- so the dock hides this window the same way it exempts that predicate.
+function GC.AuctionHouseTab.PlayerIsBrowsing()
+  if not currentMode then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes then return false end
+  if currentMode ~= modes.Buy then return false end
+  return not (dock and dock:IsShown())
+end
+
 function GC.AuctionHouseTab.PlayerIsBusy(now)
   return GC.AuctionHouseTab.PlayerIsPosting() or GC.AuctionHouseTab.PlayerIsBuying()
     or GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
     or GC.AuctionHouseTab.PlayerIsSearching(now)
+    or GC.AuctionHouseTab.PlayerIsBrowsing()
 end
 
 -- Called from the window's own OnHide (see UI/SniperFrame.lua): the player closed the docked

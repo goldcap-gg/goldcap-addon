@@ -1,5 +1,10 @@
 # GoldCap
 
+## 0.14.1 (unreleased)
+
+- The sniper no longer replaces your own search results while you are on the auction house's
+  Browse tab with the GoldCap window closed.
+
 ## 0.14.0 (2026-09-21)
 
 - **My lots tells you what to do with them.** The tab is split into three: lots that have
