@@ -205,7 +205,12 @@ describe("Caps stop-and-open", function()
     assert.same({}, rung[2]) -- and only then
   end)
 
-  it("still reaches the row whose dialog is already open (it only needs raising)", function()
+  -- Fix round 3: while the buy window is on screen for this very item, the player is already
+  -- looking at it. A ping for the item -- queued by the window's own Check when it sees a better
+  -- price or a cheaper lot, or pending from before a manual open -- is settled right there:
+  -- announced, with no bell and no open. Left queued, it rang the moment the player cancelled,
+  -- and the next tick reopened the window on what they had just declined.
+  it("settles a ping for the item whose buy window is already open: no bell, no open, told", function()
     local GC, drain = load(true)
     local deal = hit(GC, 42, 1)
     local row = fakeRow(deal)
@@ -214,7 +219,48 @@ describe("Caps stop-and-open", function()
 
     drain(true)
 
-    assert.same({ row }, clicked)
+    assert.same({}, clicked)
+    assert.same({}, rung[1])
+    assert.is_false(GC.Caps.IsNews(deal))
+  end)
+
+  it("does not ring or reopen what the window's own Check found once the player cancels", function()
+    local GC, drain = load(true)
+    local first = hit(GC, 42, 1)
+    local row = fakeRow(first)
+    local window = fakeDialog(row)
+    set(drain, "rows", { row })
+    set(drain, "dialog", window)
+    drain(true)
+
+    -- The window's live Check sees a cheaper lot for the item and queues it, under the window.
+    local cheaper = hit(GC, 42, 2, 60)
+    drain(false)
+    window.shown, window.row = false, nil -- the player cancels
+    row.deal = cheaper
+    drain(true)
+    drain(true)
+
+    assert.same({}, clicked)
+    for i = 1, #rung do assert.same({}, rung[i]) end
+  end)
+
+  it("settles a ring still held by the floor when the player opens the item's window by hand", function()
+    local GC, drain = load(false)
+    GC.Sniper._rangAt[42] = now
+    local deal = hit(GC, 42, 1)
+    local row = fakeRow(deal)
+    set(drain, "rows", { row })
+    drain(true) -- held by the floor
+    local window = fakeDialog(row) -- the player clicks the row
+    set(drain, "dialog", window)
+    drain(false)
+
+    window.shown = false -- and cancels
+    now = now + 31
+    drain(true)
+
+    for i = 1, #rung do assert.same({}, rung[i]) end
   end)
 
   it("opens one window per drain, not one per hit", function()

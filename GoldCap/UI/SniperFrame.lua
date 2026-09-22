@@ -7859,7 +7859,8 @@ end
 -- dialog's OnHide, and a window opened from there would open under the one closing), for a
 -- player not busy on Blizzard's own panes, and for the screen to hold no other dialog -- then it
 -- is retried on the next drain, which is how it follows the other dialog closing. An open
--- announces the lot too, bell or no bell.
+-- announces the lot too, bell or no bell, and so does the buy window already being on screen for
+-- the item: that ping is settled on the spot.
 drainCapPings = function(allowOpen)
   local pings = pendingCapPings
   pendingCapPings = {}
@@ -7872,6 +7873,16 @@ drainCapPings = function(allowOpen)
   for _, ping in ipairs(pings) do
     -- The board's current row for this opportunity, or nil: expired, or the row has left.
     local deal = (now - ping.at) <= LIM.CAP_PING_WAIT_SECONDS and GC.Sniper._BoardCapRow(ping.deal) or nil
+    -- Round 3: the buy window is on screen for this very item, so the player is already looking
+    -- at it. The ping -- queued by that window's own Check when it saw a better price or a cheaper
+    -- lot, or still pending from before the player opened the window by hand -- is settled here:
+    -- announced, with no bell and no open, and it leaves the queue. Left queued, it rang the
+    -- moment the player cancelled, and the next tick reopened the window on what they had just
+    -- declined.
+    if deal and dialog and dialog:IsShown() and dialog.deal and dialog.deal.itemID == deal.itemID then
+      GC.Caps.Announce(deal)
+      deal = nil
+    end
     local row
     if deal then
       ping.deal = deal
