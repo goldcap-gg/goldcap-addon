@@ -496,6 +496,62 @@ describe("Caps polling", function()
       end)
     end)
 
+    -- Caps fixes 4c. "610 or better, at 100": the poll's aggregate floor is the cheapest variant
+    -- of ANY level, so the cap woke for every move of a 590 -- a priority drill each time, which
+    -- the cap then refused -- and never for a drop on the 615 it was actually waiting for, as
+    -- long as the 590 sat under it.
+    describe("with an item-level floor", function()
+      local function variantRow(itemID, itemLevel, minPrice)
+        return { itemKey = { itemID = itemID, itemLevel = itemLevel, itemSuffix = 0, battlePetSpeciesID = 0 },
+          minPrice = minPrice, totalQuantity = 1 }
+      end
+
+      it("does not spend a drill on a variant below its level", function()
+        local GC = loadSniper()
+        adoptCaps(GC, { { i = 42, c = 100, l = 610 } })
+        GC.Sniper._capPoll:Fold({ variantRow(42, 590, 50), variantRow(42, 615, 150) })
+        GC.Sniper._capPoll:Fold({ variantRow(42, 590, 40), variantRow(42, 615, 150) })
+        assert.is_false(GC.Sniper._drillQueue:Has(42))
+      end)
+
+      it("drills a drop on the variant at its level while a cheaper one sits under it", function()
+        local GC = loadSniper()
+        adoptCaps(GC, { { i = 42, c = 100, l = 610 } })
+        GC.Sniper._capPoll:Fold({ variantRow(42, 590, 40), variantRow(42, 615, 150) })
+        GC.Sniper._capPoll:Fold({ variantRow(42, 590, 40), variantRow(42, 615, 90) })
+        local head = GC.Sniper._drillQueue:Peek()
+        assert.equal(42, head.itemID)
+        assert.equal(90, head.floor)
+        assert.is_true(head.cap)
+
+        -- ...and the arbiter does not throw it away for failing to match the aggregate floor (40):
+        -- the book it re-reads is judged at the cap's level too.
+        local drilled = {}
+        setUpvalue(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+        setUpvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function(deal)
+          drilled[#drilled + 1] = deal.itemID .. "@" .. deal.unitPrice
+          return true
+        end)
+        GC.Sniper.OnThrottleReady()
+        assert.same({ "42@90" }, drilled)
+      end)
+
+      -- An item level means nothing to a commodity -- GC.Caps.DecideCommodity never reads one --
+      -- and its browse row states none. Held to one anyway, the cap could never fire.
+      it("means nothing to a commodity", function()
+        local GC = loadSniper()
+        openAH(GC)
+        GC.db.commodityByItem[77] = true
+        adoptCaps(GC, { { i = 77, c = 50, l = 610 } })
+        GC.Sniper._PutCapRow(77, { itemID = 77, isCommodity = true, unitPrice = 40, qty = 1,
+          discount = 0, profit = 1, estProfit = 1, tier = "WATCH", cap = 50, stale = true })
+        GC.Sniper.OnThrottleReady()
+        answer(GC, { browseRow(77, 40) })
+        assert.is_true(GC.Sniper._drillQueue:Has(77))
+        assert.is_table(GC.Sniper._BoardCapRow({ itemID = 77, isCommodity = true }))
+      end)
+    end)
+
     it("forgets its book when the auction house closes", function()
       local GC = loadSniper()
       adoptCaps(GC, { { i = 42, c = 100 } })

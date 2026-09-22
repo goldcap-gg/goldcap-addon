@@ -9,7 +9,7 @@ local _, GC = ...
 -- Pure and driver-injected like every module in this batch: no WoW API call lives here. The
 -- caller (UI/SniperFrame.lua) owns the item keys, the throttle slot and what a hit means;
 -- this module owns "which 100 ids go out next" and "is this row news or the same thing we
--- already knew". driver = { now, triggerFor, onHit, onRows }.
+-- already knew". driver = { now, triggerFor, onHit, onRows, minIlvlFor? }.
 --
 -- One cycle = one visit to every target. HasPending() stays true until the whole set has been
 -- handed out once since BeginCycle(), which the arbiter calls when a fresh book pass starts,
@@ -213,6 +213,16 @@ function GC.KeyPoll.New(driver, opts)
   -- that grew, or an item nobody has seen this session. Without it every batch would re-report
   -- the same unsold lot every cycle, and the drill queue would spend its whole budget
   -- re-confirming listings nothing has happened to.
+  --
+  -- Caps fixes 4c: WHICH floor is judged. Ordinarily the collapsed one -- the cheapest variant on
+  -- offer. But an item the caller names an item-level floor for (driver.minIlvlFor: a cap's `l`)
+  -- is judged by the cheapest variant at or above that level, off the rows collapse() has just
+  -- kept, and so is its ratchet. Judged on the collapsed floor, "610 or better, at 100" woke for
+  -- every move of a 590 sitting under it -- a drill each time, which the cap then refused -- and a
+  -- drop on the 615 it was waiting for was never news while the 590 stayed cheaper. The hit
+  -- carries that variant's own price and quantity; the entry keeps both (`judged`, `judgedQty`,
+  -- nil while no variant reaches the level) beside the collapsed floor, which is still the
+  -- cheapest thing on offer and still what `floor` means.
   function obj:Fold(rows)
     local variants
     rows, variants = collapse(rows or {})
@@ -223,17 +233,24 @@ function GC.KeyPoll.New(driver, opts)
       local floor = row.minPrice
       if itemID and floor and floor > 0 then
         local qty = row.totalQuantity
+        local judged, judgedQty = floor, qty
+        local minIlvl = driver.minIlvlFor and driver.minIlvlFor(itemID)
+        if type(minIlvl) == "number" and minIlvl > 0 then
+          local best = cheapestVariant({ variants = variants[itemID] }, minIlvl)
+          judged, judgedQty = best and best.floor or nil, best and best.qty or nil
+        end
         local prev = book[itemID]
         local trigger = driver.triggerFor(itemID)
-        local hit = trigger and floor < trigger
-          and (not prev or prev.rearm or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
+        local hit = trigger and judged and judged < trigger
+          and (not prev or prev.rearm or prev.judged ~= judged
+            or (judgedQty or 0) > (prev.judgedQty or 0))
         -- `itemID` and `variants` make the entry self-describing: the drill is handed the entry
         -- alone (the book is keyed by item id, which a lone entry cannot know) and asks it which
         -- key to search with. See GC.KeyPoll.VariantKeyFor below.
         book[itemID] = { itemID = itemID, floor = floor, qty = qty, seenAt = driver.now(),
-          variants = variants[itemID] }
+          variants = variants[itemID], judged = judged, judgedQty = judgedQty }
         if hit then
-          driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
+          driver.onHit({ itemID = itemID, floor = judged, qty = judgedQty, prev = prev })
         end
       end
     end

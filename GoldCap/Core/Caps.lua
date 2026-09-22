@@ -19,14 +19,6 @@ local function num(v)
   return v
 end
 
--- Spec §5: a cap with an item-level floor cannot be judged from a poll answer at all -- the
--- aggregate row SearchForItemKeys returns says nothing about item level, so every one of them
--- costs a drill. At most this many of them get a polling slot; the rest stay real caps (For()
--- answers for them, and a hit that reaches the addon another way is still judged against them),
--- they simply are not polled for. A cap with no level floor is decided off the poll's own row
--- and is never limited.
-local TARGET_GATED_MAX = 200
-
 function GC.Caps.Adopt()
   local raw = _G.GoldCap_AppRuns
   local next_caps, next_order = {}, {}
@@ -79,20 +71,14 @@ function GC.Caps.For(itemID) return caps[itemID] end
 -- the whole target set of the caps' own poll (UI/SniperFrame.lua's GC.Sniper._capPoll), realm items
 -- and commodities alike: the cap is the player's own price, so a capped item is polled with no
 -- market reference of any kind, which nothing else is.
+--
+-- Every cap, an item-level floor or not. Spec §5 held the poll to 200 of the gated ones, because
+-- the aggregate floor a poll answers with says nothing about item level and each of them cost a
+-- drill to judge. The poll judges a gated cap on the cheapest variant at its own level now
+-- (Core/KeyPoll.lua's minIlvlFor, caps fixes 4c), which costs no more than any other cap.
 function GC.Caps.Targets()
-  local out, gated = {}, 0
-  for i = 1, #order do
-    local itemID = order[i]
-    local cap = caps[itemID]
-    if cap and cap.l > 0 then
-      if gated < TARGET_GATED_MAX then
-        gated = gated + 1
-        out[#out + 1] = itemID
-      end
-    else
-      out[#out + 1] = itemID
-    end
-  end
+  local out = {}
+  for i = 1, #order do out[i] = order[i] end
   return out
 end
 function GC.Caps.GeneratedAt() return generatedAt end

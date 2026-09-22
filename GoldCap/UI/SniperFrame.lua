@@ -2919,6 +2919,15 @@ function GC.Sniper._KeysAnswered(results)
   return answered
 end
 
+-- The item level a cap is judged at: its own `l` for a realm item, none for a commodity. A
+-- commodity has no item-level variants -- GC.Caps.DecideCommodity never reads `l`, and its browse
+-- row states no level -- so held to one, a commodity cap carrying an `l` (a file from before the
+-- site stopped sending one) could never fire and its row would never survive a poll.
+function GC.Sniper._CapIlvl(itemID, cap)
+  if not cap or GC.Sniper._IsCommodityId(itemID) then return 0 end
+  return cap.l or 0
+end
+
 -- Whether the player's cap on `itemID` still holds by what `poll`'s latest answer says: the answer
 -- spoke for the item (`answered`, above) and the poll's own book entry, read at the cap's own item
 -- level (caps fixes 3d: GC.KeyPoll.FloorFor -- the entry's plain floor is the cheapest variant of
@@ -2928,7 +2937,7 @@ end
 function GC.Sniper._CapHoldsIn(poll, itemID, answered)
   local cap = GC.Caps and GC.Caps.For(itemID)
   if not (cap and answered[itemID]) then return false end
-  local floor = GC.KeyPoll.FloorFor(poll:Book()[itemID], cap.l)
+  local floor = GC.KeyPoll.FloorFor(poll:Book()[itemID], GC.Sniper._CapIlvl(itemID, cap))
   return floor ~= nil and floor <= cap.c
 end
 
@@ -3056,6 +3065,13 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
   now = time,
   -- At or under the cap: Core/KeyPoll.lua fires on floor < trigger, and TriggerFor is cap + 1.
   triggerFor = function(itemID) return GC.Caps and GC.Caps.TriggerFor(itemID) or nil end,
+  -- Caps fixes 4c: at the cap's own item level. The poll then judges -- and ratchets -- the
+  -- cheapest variant at or above it, not the cheapest of any level, and a hit carries that
+  -- variant's price: a junk variant under the cap no longer spends a priority drill the cap then
+  -- refuses, and a drop on the variant the player asked for is news even while junk sits under it.
+  minIlvlFor = function(itemID)
+    return GC.Sniper._CapIlvl(itemID, GC.Caps and GC.Caps.For(itemID))
+  end,
   onHit = function(hit)
     local cap = GC.Caps and GC.Caps.For(hit.itemID)
     if not (cap and hit.floor <= cap.c) then return end
@@ -5553,19 +5569,19 @@ function GC.Sniper.OnThrottleReady()
     local hit = GC.Sniper._drillQueue:Peek()
     if not hit or not canDrillNow() then break end
     -- Any book may be the one that saw this floor: commodities come from the book pass, realm
-    -- items from the key poll, caps from their own poll, and none knows about the others'
-    -- items. The hit is still worth a query as long as ONE of them still shows the price it was
-    -- queued for.
+    -- items from the key poll, caps from their own poll (caps fixes 4a -- the only one that ever
+    -- sees a capped item nothing else lists), and none knows about the others' items. The hit is
+    -- still worth a query as long as ONE of them still shows the price it was queued for. A
+    -- poll's entry is read by the floor its hit test judged (Core/KeyPoll.lua's `judged`): the
+    -- collapsed floor as a rule, but for a cap with an item level the cheapest variant at that
+    -- level (caps fixes 4c) -- the price that hit was queued at, not the aggregate under it.
     local booked = GC.Sniper._bookPass:Book()[hit.itemID]
-    if not booked or booked.floor ~= hit.floor then
-      booked = GC.Sniper._keyPoll:Book()[hit.itemID]
-    end
-    -- ...and the caps' own poll, which is the only one that ever sees a capped item nothing
-    -- else lists (caps fixes 4a).
-    if not booked or booked.floor ~= hit.floor then
-      booked = GC.Sniper._capPoll:Book()[hit.itemID]
-    end
-    if not booked or booked.floor ~= hit.floor then
+    local polled = GC.Sniper._keyPoll:Book()[hit.itemID]
+    local capped = GC.Sniper._capPoll:Book()[hit.itemID]
+    local live = (booked ~= nil and booked.floor == hit.floor)
+      or (polled ~= nil and polled.judged == hit.floor)
+      or (capped ~= nil and capped.judged == hit.floor)
+    if not live then
       GC.Sniper._drillQueue:Drop(hit)
     else
       -- Pop is what charges the per-minute budget, and it REFUSES once that budget is spent.

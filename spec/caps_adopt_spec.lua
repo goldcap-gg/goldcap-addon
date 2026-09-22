@@ -46,46 +46,23 @@ describe("Caps.Adopt", function()
     assert.is_nil(GC.Caps.For(3))
   end)
 
-  -- Spec §5: an ilvl-gated cap costs a drill to judge (the aggregate row a poll answers with
-  -- says nothing about item level), so the poll set holds at most 200 of them. The rest are
-  -- still real caps -- For() answers for them, and a hit that reaches the addon some other way
-  -- is still judged against them; they simply do not get a polling slot of their own.
-  describe("the 200-entry ceiling on ilvl-gated caps", function()
-    local function adopt(count, l)
-      local caps = {}
-      for i = 1, count do caps[i] = { i = 1000 + i, c = 100, l = l } end
-      _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = {}, caps = caps }
-      GC.Caps.Adopt()
-    end
-
-    it("polls at most the first 200 ilvl-gated caps, in delivery order", function()
-      adopt(250, 610)
-      local targets = GC.Caps.Targets()
-      assert.equal(200, #targets)
-      assert.equal(1001, targets[1])
-      assert.equal(1200, targets[200])
-      -- Everything adopted is still a cap, ceiling or no ceiling.
-      assert.equal(250, GC.Caps.Count())
-      assert.is_table(GC.Caps.For(1250))
-      assert.equal(101, GC.Caps.TriggerFor(1250))
-    end)
-
-    it("never limits caps with no item-level floor", function()
-      adopt(250, 0)
-      assert.equal(250, #GC.Caps.Targets())
-    end)
-
-    it("counts only the gated ones against the ceiling", function()
+  -- Caps fixes 4a + 4c. Spec §5 held the poll to 200 ilvl-gated caps because each of them cost a
+  -- drill to judge: the poll's aggregate floor says nothing about item level. The poll now judges
+  -- a gated cap on the cheapest variant at its own level (Core/KeyPoll.lua's minIlvlFor), which
+  -- costs no more than any other cap -- and every cap is polled, whatever board is on screen.
+  describe("ilvl-gated caps", function()
+    it("are all polled, in delivery order, however many there are", function()
       local caps = {}
       for i = 1, 210 do caps[#caps + 1] = { i = 2000 + i, c = 100, l = 610 } end
       for i = 1, 30 do caps[#caps + 1] = { i = 3000 + i, c = 100, l = 0 } end
       _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = {}, caps = caps }
       GC.Caps.Adopt()
       local targets = GC.Caps.Targets()
-      assert.equal(230, #targets) -- 200 gated + all 30 ungated
-      assert.equal(2200, targets[200])
-      assert.equal(3030, targets[230]) -- an ungated cap is never squeezed out by a gated one
-      assert.is_table(GC.Caps.For(2210)) -- and the gated ones past the ceiling are still caps
+      assert.equal(240, #targets)
+      assert.equal(2001, targets[1])
+      assert.equal(2210, targets[210])
+      assert.equal(3030, targets[240])
+      assert.equal(101, GC.Caps.TriggerFor(2210))
     end)
   end)
 

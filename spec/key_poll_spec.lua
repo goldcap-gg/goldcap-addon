@@ -2,7 +2,7 @@ local helper = require("spec.spec_helper")
 
 describe("KeyPoll", function()
   local GC
-  local now, triggers, hits, rowsEmitted
+  local now, triggers, hits, rowsEmitted, minIlvls
 
   local function row(itemID, minPrice, totalQuantity)
     return { itemKey = { itemID = itemID }, minPrice = minPrice, totalQuantity = totalQuantity }
@@ -22,6 +22,7 @@ describe("KeyPoll", function()
     return {
       now = function() return now end,
       triggerFor = function(itemID) return triggers[itemID] end,
+      minIlvlFor = function(itemID) return minIlvls[itemID] end,
       onHit = function(hit) hits[#hits + 1] = hit end,
       onRows = function(rows) rowsEmitted[#rowsEmitted + 1] = rows end,
     }
@@ -30,7 +31,7 @@ describe("KeyPoll", function()
   before_each(function()
     GC = helper.loadModule("Core/KeyPoll.lua")
     now = 1000
-    triggers, hits, rowsEmitted = {}, {}, {}
+    triggers, hits, rowsEmitted, minIlvls = {}, {}, {}, {}
   end)
 
   local function newPoll(opts)
@@ -263,6 +264,72 @@ describe("KeyPoll", function()
       assert.equal(5, poll:Book()[7].qty)
       assert.equal(300, poll:Book()[8].floor)
       assert.equal(1, poll:Book()[8].qty)
+    end)
+  end)
+
+  -- Caps fixes 4c. A cap with an item-level floor ("610 or better, at 100") was judged on the
+  -- collapsed floor -- the cheapest variant of ANY level. So a price drop on the 615 already
+  -- listed was never news while a 590 sat under it, and every move of the 590 woke the poll for a
+  -- drill the cap then refused. driver.minIlvlFor names the level; the hit test and the ratchet
+  -- then read the cheapest variant at or above it, and the hit carries that variant's price.
+  describe("an item-level floor", function()
+    local function variantsOf(itemID, ...)
+      local rows, spec = {}, { ... }
+      for i = 1, #spec, 2 do rows[#rows + 1] = variantRow(itemID, spec[i], spec[i + 1], 1) end
+      return rows
+    end
+
+    before_each(function()
+      triggers[300] = 101 -- a cap of 100: at or under it
+      minIlvls[300] = 610
+    end)
+
+    it("does not wake for a variant below the level", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 50, 615, 150))
+      poll:Fold(variantsOf(300, 590, 40, 615, 150)) -- the junk moved, nothing at the level did
+      assert.same({}, hits)
+      assert.equal(40, poll:Book()[300].floor) -- the collapsed floor is still the cheapest on offer
+      assert.equal(150, poll:Book()[300].judged)
+    end)
+
+    it("wakes for the variant at the level, at its own price, while junk sits under it", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 40, 615, 150))
+      poll:Fold(variantsOf(300, 590, 40, 615, 90))
+      assert.equal(1, #hits)
+      assert.equal(90, hits[1].floor)
+      assert.equal(1, hits[1].qty)
+      assert.equal(90, poll:Book()[300].judged)
+    end)
+
+    it("ratchets on the variant at the level, not on the junk", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 40, 615, 90))
+      poll:Fold(variantsOf(300, 590, 30, 615, 90)) -- junk moved: not news
+      assert.equal(1, #hits)
+      poll:Fold(variantsOf(300, 590, 30, 615, 80)) -- the 615 dropped: news
+      assert.equal(2, #hits)
+      assert.equal(80, hits[2].floor)
+    end)
+
+    it("says nothing while no variant reaches the level, and wakes for the first one that does", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 40))
+      assert.same({}, hits)
+      assert.is_nil(poll:Book()[300].judged)
+      poll:Fold(variantsOf(300, 590, 40, 620, 95))
+      assert.equal(1, #hits)
+      assert.equal(95, hits[1].floor)
+    end)
+
+    it("judges an item without a level by its collapsed floor, as ever", function()
+      local poll = newPoll()
+      minIlvls[300] = nil
+      poll:Fold(variantsOf(300, 590, 50, 615, 150))
+      assert.equal(1, #hits)
+      assert.equal(50, hits[1].floor)
+      assert.equal(50, poll:Book()[300].judged)
     end)
   end)
 
