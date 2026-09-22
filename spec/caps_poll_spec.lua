@@ -251,6 +251,31 @@ describe("Caps polling", function()
         assert.is_true(GC.Sniper._TrySendCapBatch())
       end)
 
+      -- The auction-house ticker asks this directly, off the arbiter's own order, so the
+      -- arbiter's first rule has to hold here too: the player's own Check goes first.
+      it("does not ask ahead of a parked Check", function()
+        local GC = loadSniper()
+        openAH(GC)
+        adoptCaps(GC, { { i = 42, c = 100 } })
+        local parked = upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")
+        parked[42] = { itemID = 42 }
+        assert.is_false(GC.Sniper._TrySendCapBatch())
+        parked[42] = nil
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+      end)
+
+      -- With Auto paging back to back, the end of a pass is the one settled buffer there is.
+      it("asks the moment a pass completes", function()
+        local GC = loadSniper()
+        openAH(GC)
+        adoptCaps(GC, { { i = 42, c = 100 } })
+        GC.Sniper._bookPass:Start("classes")
+        GC.Sniper._bookPass:OnThrottleReady() -- the pass's query goes out...
+        GC.Sniper.OnBrowseResults()           -- ...and its one page completes it
+        assert.is_false(GC.Sniper._bookPass:IsPaging())
+        assert.same({ { 42 } }, keysSent)
+      end)
+
       it("never replaces a browse buffer a pass owns", function()
         local GC = loadSniper()
         openAH(GC)
@@ -332,6 +357,20 @@ describe("Caps polling", function()
         now = now + 3
         assert.is_true(GC.Sniper._TrySendCapBatch())
         assert.same({ { 42 }, { 42 } }, keysSent)
+      end)
+
+      it("takes a breath after a batch the client dropped", function()
+        local GC = loadSniper()
+        openAH(GC)
+        local caps = {}
+        for i = 1, 150 do caps[i] = { i = 1000 + i, c = 100 } end
+        adoptCaps(GC, caps)
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+        GC.Sniper.OnThrottledMessageDropped()
+        assert.is_false(GC.Sniper._KeysOutstanding())
+        assert.is_false(GC.Sniper._TrySendCapBatch())
+        now = now + 2
+        assert.is_true(GC.Sniper._TrySendCapBatch())
       end)
 
       it("takes a breath after a batch that never answered, too", function()
