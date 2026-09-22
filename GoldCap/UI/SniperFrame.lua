@@ -2678,7 +2678,19 @@ local function armScanWatchdog(token)
   end)
 end
 
-GC.Sniper._drillQueue = GC.DrillQueue.New({ now = time }, { perMinute = LIM.DRILL_PER_MINUTE })
+GC.Sniper._drillQueue = GC.DrillQueue.New({
+  now = time,
+  -- Caps fixes 4b: a cap hit the queue let go of without drilling it (aged out -- ninety seconds
+  -- on another tab, or behind a few hundred other caps -- or pushed out of a full queue). Every
+  -- ratchet that can have reported it is re-armed, so the next look at the same floor reports it
+  -- again: they never repeat an unchanged floor, and without this the lot sat there at the
+  -- player's price for the rest of the visit, unlooked at. Only the ratchets -- the ring's memory
+  -- stays, since nothing has been announced.
+  onLost = function(hit)
+    if GC.Caps then GC.Caps.Rearm(hit.itemID) end
+    if GC.Sniper._keyPoll then GC.Sniper._keyPoll:Rearm(hit.itemID) end
+  end,
+}, { perMinute = LIM.DRILL_PER_MINUTE })
 
 -- No isReady in this driver: the pass never decides for itself whether the throttled system
 -- is ready, because it never sends on its own initiative. Both of its sends happen inside

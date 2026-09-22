@@ -22,6 +22,12 @@ GC.DrillQueue = {}
 -- is in no position to notice either.
 local MAX_ENTRIES = 200
 local ENTRY_TTL_SECONDS = 90
+-- Caps fixes 4b: strict priority, bounded. A priority hit (the player's own cap) still goes ahead
+-- of every ordinary one -- but after this many priority pops in a row that an ordinary hit waited
+-- through, the next pop is the best ordinary hit. A few hundred caps hitting at once (the first
+-- round after opening the auction house) are a stream long enough to hold the ordinary drills back
+-- for minutes; with this they still get one drill in five.
+local PRIORITY_RUN = 4
 
 function GC.DrillQueue.New(driver, opts)
   opts = opts or {}
@@ -35,8 +41,22 @@ function GC.DrillQueue.New(driver, opts)
   -- below is skipped outright on the overwhelming majority of calls -- Has() runs once per
   -- rendered row, several times a second.
   local nextExpiryAt = math.huge
+  -- Priority pops in a row that an ordinary hit sat through (PRIORITY_RUN above).
+  local priorityRun = 0
 
   local function key(itemID, floor) return itemID .. ":" .. floor end
+
+  -- Caps fixes 4b: a cap hit that leaves without being drilled -- aged out, evicted from a full
+  -- queue, or refused by one -- is told to the caller. It came from a ratchet (Core/KeyPoll.lua's
+  -- Fold, GC.Caps.BookHits) that does not report an unchanged floor twice, so without a word here
+  -- the item was never looked at again until its price happened to move. The caller re-arms that
+  -- ratchet. An ordinary hit is not reported: the market's own leads were always best-effort.
+  -- A drilled (Pop), discarded (Drop) or session-cleared (Clear) entry is not lost.
+  local function lose(entry)
+    if entry.cap and driver.onLost then
+      driver.onLost({ itemID = entry.itemID, floor = entry.floor, priority = entry.priority, cap = true })
+    end
+  end
 
   local function forget(index)
     local entry = table.remove(items, index)
@@ -52,7 +72,7 @@ function GC.DrillQueue.New(driver, opts)
     for i = #items, 1, -1 do
       local expiresAt = items[i].pushedAt + ENTRY_TTL_SECONDS
       if now >= expiresAt then
-        forget(i)
+        lose(forget(i))
       elseif expiresAt < nextExpiryAt then
         nextExpiryAt = expiresAt
       end
@@ -62,19 +82,40 @@ function GC.DrillQueue.New(driver, opts)
   -- True when `a` ranks below `b`: lower priority first, estProfit desc breaks a tie. A cap
   -- hit is the player's own rule; it is verified before any market-derived re-check, so it
   -- outranks every priority-less (estProfit-only) hit regardless of how small its own
-  -- estProfit is.
+  -- estProfit is -- up to PRIORITY_RUN pops in a row, see bestIndex.
   local function ranksBelow(a, b)
     if a.priority ~= b.priority then return a.priority < b.priority end
     return a.estProfit < b.estProfit
   end
 
+  -- The entry the next Pop takes, which is also the one Peek names. Ordinarily the best-ranked
+  -- one; once PRIORITY_RUN priority pops in a row have gone ahead of a waiting lower-priority
+  -- hit, the best of those instead.
   local function bestIndex()
     if #items == 0 then return nil end
     local best = 1
     for i = 2, #items do
       if ranksBelow(items[best], items[i]) then best = i end
     end
+    if priorityRun >= PRIORITY_RUN then
+      local waiting
+      for i = 1, #items do
+        if items[i].priority < items[best].priority
+            and (not waiting or ranksBelow(items[waiting], items[i])) then
+          waiting = i
+        end
+      end
+      if waiting then return waiting end
+    end
     return best
+  end
+
+  -- Whether anything still queued ranks below `priority` -- i.e. is being made to wait by it.
+  local function anyBelow(priority)
+    for i = 1, #items do
+      if items[i].priority < priority then return true end
+    end
+    return false
   end
 
   function obj:Push(hit)
@@ -84,10 +125,22 @@ function GC.DrillQueue.New(driver, opts)
     local now = driver.now()
     pruneExpired(now)
     local k = key(hit.itemID, hit.floor)
-    if queued[k] then return false end
     local estProfit = hit.estProfit or 0
     local priority = tonumber(hit.priority) or 0
     local cap = hit.cap == true
+    if queued[k] then
+      -- The same item at the same floor, already queued -- but maybe reported by another source
+      -- at a higher priority (the realm poll's ordinary hit, then the player's own cap). Still one
+      -- entry; it just may not stay queued at the lower of the two.
+      for i = 1, #items do
+        local entry = items[i]
+        if entry.key == k and priority > entry.priority then
+          entry.priority = priority
+          entry.cap = entry.cap or cap
+        end
+      end
+      return false
+    end
     if #items >= MAX_ENTRIES then
       -- Full: the queue keeps the best MAX_ENTRIES hits it has been offered, so a new hit
       -- either displaces the worst one queued or is refused outright. Refusing the CHEAPEST
@@ -98,9 +151,10 @@ function GC.DrillQueue.New(driver, opts)
         if ranksBelow(items[i], items[worst]) then worst = i end
       end
       if not ranksBelow(items[worst], { priority = priority, estProfit = estProfit }) then
+        lose({ itemID = hit.itemID, floor = hit.floor, priority = priority, cap = cap })
         return false
       end
-      forget(worst)
+      lose(forget(worst))
     end
     queued[k] = true
     queuedItems[hit.itemID] = (queuedItems[hit.itemID] or 0) + 1
@@ -166,6 +220,13 @@ function GC.DrillQueue.New(driver, opts)
 
     local chosen = forget(bestIndex())
     sentAt[#sentAt + 1] = now
+    -- The run counts only pops that made something lower wait; an ordinary pop, or a priority
+    -- pop with nothing below it in the queue, owes nobody anything.
+    if anyBelow(chosen.priority) then
+      priorityRun = priorityRun + 1
+    else
+      priorityRun = 0
+    end
     return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit,
       priority = chosen.priority, cap = chosen.cap, pushedAt = chosen.pushedAt }
   end

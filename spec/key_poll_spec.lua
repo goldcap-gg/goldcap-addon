@@ -121,6 +121,32 @@ describe("KeyPoll", function()
       assert.equal(1000, poll:Book()[7].seenAt)
     end)
 
+    -- Caps fixes 4b: the ratchet's one way back for a hit that was reported and then lost
+    -- before anybody drilled it (Core/DrillQueue.lua's onLost). The next fold of the same floor
+    -- is news again -- once.
+    it("reports an unchanged floor again after Rearm, and only once", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)
+      poll:Rearm(7)
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)
+      assert.equal(900, hits[2].floor)
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)
+    end)
+
+    it("does nothing on Rearm for an item it has never seen", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Rearm(7)
+      assert.is_nil(poll:Book()[7])
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)
+    end)
+
     it("says nothing about a floor at or above the trigger", function()
       local poll = newPoll()
       triggers[7] = 1000

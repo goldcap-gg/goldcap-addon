@@ -282,6 +282,147 @@ describe("DrillQueue", function()
     end)
   end)
 
+  -- Caps fixes 4b. Strict priority with nothing else meant a steady stream of cap hits (the
+  -- player's own prices, priority 1) held every ordinary drill back for as long as it lasted --
+  -- the first round after opening the auction house with a few hundred caps is exactly such a
+  -- stream. Bounded now: after four priority pops in a row that an ordinary hit waited through,
+  -- the next pop is the best ordinary hit.
+  describe("fairness under a stream of priority hits", function()
+    local function pushCaps(q, first, last)
+      for id = first, last do
+        q:Push({ itemID = id, floor = 1, estProfit = 1, priority = 1, cap = true })
+      end
+    end
+
+    it("drills one ordinary hit after four priority pops in a row", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 1, estProfit = 9999 })
+      pushCaps(q, 101, 110)
+      local order = {}
+      for _ = 1, 6 do order[#order + 1] = q:Pop().itemID end
+      assert.equal(1, order[5])
+      for i = 1, 4 do assert.is_true(order[i] > 100) end
+      assert.is_true(order[6] > 100) -- and the stream resumes behind it
+    end)
+
+    it("names the same entry at Peek that Pop is about to take", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 1, estProfit = 9999 })
+      pushCaps(q, 101, 110)
+      for _ = 1, 4 do q:Pop() end
+      assert.equal(1, q:Peek().itemID)
+      assert.equal(1, q:Pop().itemID)
+    end)
+
+    it("counts only the priority pops an ordinary hit actually waited through", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      pushCaps(q, 101, 106)
+      for _ = 1, 6 do q:Pop() end -- nobody was waiting: nothing is owed
+      q:Push({ itemID = 1, floor = 1, estProfit = 9999 })
+      pushCaps(q, 201, 210)
+      local order = {}
+      for _ = 1, 5 do order[#order + 1] = q:Pop().itemID end
+      assert.same({ true, true, true, true }, {
+        order[1] > 200, order[2] > 200, order[3] > 200, order[4] > 200 })
+      assert.equal(1, order[5])
+    end)
+
+    it("keeps strict priority for the pops in between", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 1, estProfit = 9999 })
+      q:Push({ itemID = 2, floor = 1, estProfit = 5000 })
+      pushCaps(q, 101, 104)
+      assert.is_true(q:Pop().itemID > 100)
+      assert.is_true(q:Pop().itemID > 100)
+    end)
+  end)
+
+  -- Caps fixes 4b, the other half. A cap hit is reported by a ratchet (Core/KeyPoll.lua's Fold,
+  -- GC.Caps.BookHits) that never repeats an unchanged floor, so a cap hit the queue let go of
+  -- without drilling it was gone for good -- until the floor happened to move. The queue now says
+  -- so (driver.onLost) and the caller re-arms the ratchet; ordinary hits are not reported.
+  describe("a cap hit lost un-drilled", function()
+    local lost
+
+    local function losingDriver()
+      lost = {}
+      return { now = function() return now end,
+        onLost = function(entry) lost[#lost + 1] = entry end }
+    end
+
+    it("is reported when it expires", function()
+      local q = GC.DrillQueue.New(losingDriver())
+      q:Push({ itemID = 1, floor = 100, estProfit = 5, priority = 1, cap = true })
+      q:Push({ itemID = 2, floor = 200, estProfit = 5 })
+      now = now + 91
+      assert.equal(0, q:Depth())
+      assert.equal(1, #lost)
+      assert.equal(1, lost[1].itemID)
+      assert.equal(100, lost[1].floor)
+      assert.is_true(lost[1].cap)
+    end)
+
+    it("is reported when a better hit evicts it from a full queue", function()
+      local q = GC.DrillQueue.New(losingDriver())
+      for i = 1, 200 do
+        q:Push({ itemID = i, floor = 1, estProfit = i, priority = 1, cap = true })
+      end
+      assert.is_true(q:Push({ itemID = 9001, floor = 1, estProfit = 500, priority = 1, cap = true }))
+      assert.equal(1, #lost)
+      assert.equal(1, lost[1].itemID)
+    end)
+
+    it("is reported when a full queue refuses it", function()
+      local q = GC.DrillQueue.New(losingDriver())
+      for i = 1, 200 do
+        q:Push({ itemID = i, floor = 1, estProfit = 1000 + i, priority = 1, cap = true })
+      end
+      assert.is_false(q:Push({ itemID = 9001, floor = 7, estProfit = 1, priority = 1, cap = true }))
+      assert.equal(1, #lost)
+      assert.equal(9001, lost[1].itemID)
+      assert.equal(7, lost[1].floor)
+    end)
+
+    it("is not reported when it is drilled, dropped, cleared or already queued", function()
+      local q = GC.DrillQueue.New(losingDriver())
+      q:Push({ itemID = 1, floor = 100, estProfit = 5, priority = 1, cap = true })
+      q:Push({ itemID = 2, floor = 100, estProfit = 5, priority = 1, cap = true })
+      q:Push({ itemID = 3, floor = 100, estProfit = 5, priority = 1, cap = true })
+      assert.is_false(q:Push({ itemID = 3, floor = 100, estProfit = 5, priority = 1, cap = true }))
+      q:Pop()
+      q:Drop({ itemID = 2, floor = 100 })
+      q:Clear()
+      now = now + 91
+      q:Depth()
+      assert.same({}, lost)
+    end)
+
+    it("is not reported for an ordinary hit", function()
+      local q = GC.DrillQueue.New(losingDriver())
+      for i = 1, 200 do q:Push({ itemID = i, floor = 1, estProfit = 1000 + i }) end
+      q:Push({ itemID = 9001, floor = 1, estProfit = 1 })    -- refused
+      q:Push({ itemID = 9002, floor = 1, estProfit = 5000 }) -- evicts item 1
+      now = now + 91                                          -- the rest expire
+      q:Depth()
+      assert.same({}, lost)
+    end)
+  end)
+
+  -- The same item at the same floor can be reported by two sources -- the realm poll as an
+  -- ordinary hit, the player's own cap as a priority one. The key is the same, so the second push
+  -- is a duplicate; it may not leave the hit queued at the lower of the two priorities.
+  it("upgrades a queued hit when the same item and floor come back as a cap hit", function()
+    local q = GC.DrillQueue.New(fakeDriver())
+    q:Push({ itemID = 1, floor = 100, estProfit = 5 })
+    q:Push({ itemID = 2, floor = 100, estProfit = 9999 })
+    assert.is_false(q:Push({ itemID = 1, floor = 100, estProfit = 5, priority = 1, cap = true }))
+    assert.equal(2, q:Depth())
+    local head = q:Pop()
+    assert.equal(1, head.itemID)
+    assert.equal(1, head.priority)
+    assert.is_true(head.cap)
+  end)
+
   describe("Clear", function()
     it("empties the queue", function()
       local q = GC.DrillQueue.New(fakeDriver())

@@ -300,6 +300,14 @@ function GC.Caps.Forget(itemID)
   emittedFloor[itemID] = nil
 end
 
+-- Caps fixes 4b: BookHits reports this item's floor again on the next pass even if it has not
+-- moved -- the ratchet alone, not the ring's memory. For a hit the drill queue let go of without
+-- drilling it (Core/DrillQueue.lua's driver.onLost): the player has not been told anything about
+-- it, and nothing else would ever report the unchanged floor again.
+function GC.Caps.Rearm(itemID)
+  emittedFloor[itemID] = nil
+end
+
 -- Final review I4: the whole memory, for the Auction House close (UI/SniperFrame.lua clears it
 -- beside `seenHotDeals`, which is the same claim about the same session). Announcement memory
 -- is a statement about ONE visit to the auction house -- "the player has already been told

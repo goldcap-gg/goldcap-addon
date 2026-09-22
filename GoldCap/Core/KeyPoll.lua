@@ -226,7 +226,7 @@ function GC.KeyPoll.New(driver, opts)
         local prev = book[itemID]
         local trigger = driver.triggerFor(itemID)
         local hit = trigger and floor < trigger
-          and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
+          and (not prev or prev.rearm or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
         -- `itemID` and `variants` make the entry self-describing: the drill is handed the entry
         -- alone (the book is keyed by item id, which a lone entry cannot know) and asks it which
         -- key to search with. See GC.KeyPoll.VariantKeyFor below.
@@ -241,6 +241,17 @@ function GC.KeyPoll.New(driver, opts)
   end
 
   function obj:Book() return book end
+
+  -- Caps fixes 4b: the next fold of this item is news again even at the floor it already shows --
+  -- once. For a hit that was reported and then lost before anybody drilled it (Core/DrillQueue.lua's
+  -- driver.onLost): the ratchet above never repeats an unchanged floor, so without this the item
+  -- was not looked at again until its price moved. The fold that follows writes a fresh entry,
+  -- which carries no flag. Nothing to do for an item the book has never seen: its first sighting
+  -- is news anyway.
+  function obj:Rearm(itemID)
+    local entry = book[itemID]
+    if entry then entry.rearm = true end
+  end
 
   -- The book is a claim about one Auction House session's listings and does not outlive it,
   -- exactly as in BookPass: kept across the close, the first batch of the next session would

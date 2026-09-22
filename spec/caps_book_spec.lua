@@ -110,6 +110,23 @@ describe("Caps.BookHits", function()
       assert.is_true(GC.Caps.Announce({ itemID = 100, isCommodity = true, unitPrice = 480 }))
     end)
 
+    -- Caps fixes 4b: a hit the drill queue let go of without drilling it (aged out, or pushed
+    -- out of a full queue) was never reported again while its floor stood still -- the item sat
+    -- under the player's price for the rest of the visit, unlooked at. Rearm re-arms the ratchet
+    -- for exactly that, and nothing else: the ring has not played, so its memory stays.
+    it("reports an unchanged floor again after Rearm, and only once", function()
+      assert.equal(2, #GC.Caps.BookHits(book, isCommodity))
+      GC.Caps.Rearm(500)
+      assert.same({ { itemID = 500, floor = 800, estProfit = 200 } }, GC.Caps.BookHits(book, isCommodity))
+      assert.same({}, GC.Caps.BookHits(book, isCommodity))
+    end)
+
+    it("leaves the ring's memory alone on Rearm", function()
+      GC.Caps.Announce({ itemID = 500, isCommodity = true, unitPrice = 800 })
+      GC.Caps.Rearm(500)
+      assert.is_false(GC.Caps.Announce({ itemID = 500, isCommodity = true, unitPrice = 800 }))
+    end)
+
     it("leaves an item that is still under its cap exactly as it was", function()
       GC.Caps.Announce({ itemID = 500, isCommodity = true, unitPrice = 800 })
       GC.Caps.BookHits(book, isCommodity)
