@@ -20,7 +20,7 @@ GC.Locales.zhCN = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可简写 /gc）",
   ["%d (whole lot)"] = "%d（整批）",
-  ["%d caps from %s"] = "%d 个价格上限 · %s",
+  ["%d caps · %s"] = "%d 个价格上限 · %s",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "上次扫描的 %d 笔交易 -- 按 Full Scan 刷新",
@@ -68,6 +68,7 @@ GC.Locales.zhCN = {
   ["AVOID"] = "避开",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "24 小时涨幅超过这个数值时，市场价会被视为暴涨并被压低。",
+  ["Above your price -- quoted %s, your price %s"] = "高于你的价格 -- 报价 %s，你的价格 %s",
   ["Asks for a second click to confirm."] = "需要再点一次确认。",
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",

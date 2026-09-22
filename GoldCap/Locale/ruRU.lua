@@ -16,7 +16,7 @@ GC.Locales.ruRU = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (или коротко /gc)",
   ["%d (whole lot)"] = "%d (весь лот)",
-  ["%d caps from %s"] = "%d потолков цены от %s",
+  ["%d caps · %s"] = "%d потолков · %s",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d сделок с последнего сканирования -- Full Scan, чтобы обновить",
@@ -64,6 +64,7 @@ GC.Locales.ruRU = {
   ["AVOID"] = "ИЗБЕГАТЬ",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "Выше этого роста за 24 часа рыночная стоимость считается всплеском и занижается.",
+  ["Above your price -- quoted %s, your price %s"] = "Выше вашей цены -- котировка %s, ваша цена %s",
   ["Asks for a second click to confirm."] = "Требует второй клик для подтверждения.",
   ["Auction House did not answer — press Refresh"] = "Аукцион не ответил — нажмите Refresh",
   ["Auction House is not open"] = "Аукцион не открыт",

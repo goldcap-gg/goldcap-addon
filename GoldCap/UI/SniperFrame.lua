@@ -1589,9 +1589,19 @@ local function refreshStaleText()
   -- imports still needs to know how current the price ceilings they're being shown are.
   -- _G.date is a WoW-injected global, absent under busted (see UI/SoldFrame.lua's own guard
   -- for the same fact) -- this degrades to nothing where it isn't stubbed, rather than erroring.
-  if GC.Caps and GC.Caps.Count() > 0 and _G.date then
-    local capsNote = (GC.L["%d caps from %s"]):format(
-      GC.Caps.Count(), _G.date("%H:%M", GC.Caps.GeneratedAt()))
+  --
+  -- Final review M4: date() was handed GeneratedAt() straight, and a caps file carrying no
+  -- generatedAt (or a malformed one) answers nil -- date(fmt, nil) is date(fmt), i.e. NOW, so
+  -- the banner would have claimed ceilings of unknown age were minted this minute. Say nothing
+  -- rather than say that. M5: shortened, and shown only while the window has room for it --
+  -- staleText does not wrap and is right-justified against the close button, so it overflows
+  -- LEFTWARD into the window title, and appending to an already-long origin banner at
+  -- RESIZE_MIN_WIDTH (640) is exactly where the two meet.
+  local generatedAt = GC.Caps and GC.Caps.GeneratedAt() or nil
+  local width = (frame.GetWidth and frame:GetWidth()) or 0
+  if GC.Caps and GC.Caps.Count() > 0 and type(generatedAt) == "number" and _G.date
+      and width > WIN.RESIZE_MIN_WIDTH then
+    local capsNote = (GC.L["%d caps · %s"]):format(GC.Caps.Count(), _G.date("%H:%M", generatedAt))
     text = shown and (text .. "  " .. capsNote) or capsNote
     color = color or Theme.color.fgDim
     shown = true
@@ -5725,14 +5735,24 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- the affordability gate did not run.
   local affordable = totalPrice <= GetMoney()
 
+  -- Final review M2: a cap decision carries no entryTotal -- it is the player's OWN price, not
+  -- a quote the market made -- so the ratio below had nothing to divide by, and every figure
+  -- derived from it (the banner's multiple, the per-unit detail line, the status tail) would
+  -- have formatted a nil. What a cap decision does carry is the level it was made at and how
+  -- much of it, and that product IS what this row was going to cost: the honest thing to hold
+  -- the server's quote against. The last fallback only keeps the arithmetic safe.
+  local entryTotal = decision.entryTotal
+    or (decision.unit and decision.quantity and decision.unit * decision.quantity)
+    or totalPrice
   local severity, ratio = GC.DealMath.RequoteSeverity(
-    decision.entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
+    entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
   -- Task 7: a cap is the player's own price, not a market read -- a quote above it is always
   -- loud, however small the rise from the entry total looked (the entry total may already have
   -- been at or near the cap, so an ordinary "warn"-sized move can still cross it). Guarded like
   -- every other GC.Caps read in this file (GC.Caps.For above) so a fixture that never loads
   -- Core/Caps.lua is unaffected.
-  if GC.Caps and not GC.Caps.QuoteOk(deal, unitPrice) then severity = "loud" end
+  local capBreach = (GC.Caps and not GC.Caps.QuoteOk(deal, unitPrice)) and true or false
+  if capBreach then severity = "loud" end
   if severity == "none" then
     row.purchaseStage = "confirm"
     if dialog and dialog.row == row then
@@ -5760,11 +5780,21 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
 
   row.purchaseStage = "requote"
   local detail = (GC.L["%s -> %s per unit    total %s -> %s"]):format(
-    GC.Util.FormatMoney(math.floor(decision.entryTotal / decision.quantity)), GC.Util.FormatMoney(unitPrice),
-    GC.Util.FormatMoney(decision.entryTotal), GC.Util.FormatMoney(totalPrice))
+    GC.Util.FormatMoney(math.floor(entryTotal / decision.quantity)), GC.Util.FormatMoney(unitPrice),
+    GC.Util.FormatMoney(entryTotal), GC.Util.FormatMoney(totalPrice))
+  -- Final review M2: a breached cap is not a price MOVE, and reporting it as one put "PRICE
+  -- ROSE 1.0x" on screen over a quote that had simply crossed the player's own ceiling -- the
+  -- entry it is measured against was already AT the cap, so the multiple is about 1 by
+  -- construction and says nothing. Name the two numbers that actually decide it instead: what
+  -- the server is asking, and what the player said they would pay. The arming is unchanged --
+  -- this is still the loud requote, with its countdown and its explicit second click.
+  local loudHead = capBreach
+    and (GC.L["Above your price -- quoted %s, your price %s"]):format(
+      GC.Util.FormatMoney(unitPrice), GC.Util.FormatMoney(deal.cap))
+    or (GC.L["PRICE ROSE %.1fx"]):format(ratio)
   if dialog and dialog.row == row then
     if severity == "loud" then
-      showRequoteBanner((GC.L["PRICE ROSE %.1fx"]):format(ratio), detail)
+      showRequoteBanner(loudHead, detail)
       -- armLoudConfirm re-enables Confirm once its countdown is up; a quote the player cannot
       -- pay for never gets that far, so the countdown is not started at all.
       if affordable then
@@ -5797,7 +5827,12 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     return
   end
   setDialogStatus(detail, 1, 0.3, 0.3)
-  if frame then frame.status:SetText((GC.L["price rose %.1fx — still safe, confirm"]):format(ratio)) end
+  -- "still safe" is a claim the cap has just contradicted, so a breach says on the status line
+  -- exactly what the banner says (M2).
+  if frame then
+    frame.status:SetText(capBreach and loudHead
+      or (GC.L["price rose %.1fx — still safe, confirm"]):format(ratio))
+  end
 end
 
 function GC.Sniper.OnCommodityPriceUnavailable()
@@ -7497,13 +7532,26 @@ drainCapPings = function(pings)
   pingNewHotDeals(ring)
   if not (GC.db and GC.db.settings and GC.db.settings.sniper.capStopAndOpen) then return end
   for _, capDeal in ipairs(pings) do
+    local opened = false
     for i = 1, #rows do
       local row = rows[i]
       if row.deal == capDeal and row:IsShown() then
-        onBuyClick(row)
+        -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a
+        -- dialog whose row has a purchase call in flight, but a dialog merely "ready" or
+        -- "requerying" it aborts and replaces -- fine for a click the player made, wrong for a
+        -- background poll: a cap hit landing while they were reading a Check swapped the window
+        -- under their cursor, and the next click went to a row they had not chosen. A dialog
+        -- that is open for a DIFFERENT row owns the screen; this waits.
+        if not (dialog and dialog.row and dialog.row ~= row) then
+          onBuyClick(row)
+          opened = true
+        end
         break
       end
     end
+    -- One window, one drain. A pass that finds three cap rows at once must not open three
+    -- dialogs in a row, each replacing the last before it can be read.
+    if opened then break end
   end
 end
 

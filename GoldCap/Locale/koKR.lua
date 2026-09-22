@@ -19,7 +19,7 @@ GC.Locales.koKR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
   ["%d (whole lot)"] = "%d (전체 물량)",
-  ["%d caps from %s"] = "가격 상한 %d개 (%s 기준)",
+  ["%d caps · %s"] = "가격 상한 %d개 · %s",
   ["%d days"] = "%d일",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "지난 검색의 거래 %d건 -- 갱신하려면 Full Scan",
@@ -67,6 +67,7 @@ GC.Locales.koKR = {
   ["AVOID"] = "회피",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "24시간 동안 이 상승폭을 넘으면 시세를 급등으로 간주해 낮춰서 반영합니다.",
+  ["Above your price -- quoted %s, your price %s"] = "설정 가격 초과 -- 견적 %s, 내 가격 %s",
   ["Asks for a second click to confirm."] = "확인을 위해 한 번 더 눌러야 합니다.",
   ["Auction House did not answer — press Refresh"] = "경매장이 응답하지 않았습니다 — Refresh를 누르세요",
   ["Auction House is not open"] = "경매장이 열려 있지 않습니다",

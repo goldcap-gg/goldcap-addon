@@ -20,7 +20,7 @@ GC.Locales.ukUA = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — команди: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (або коротко /gc)",
   ["%d (whole lot)"] = "%d (увесь лот)",
-  ["%d caps from %s"] = "%d стель ціни від %s",
+  ["%d caps · %s"] = "%d стель · %s",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d угод з останнього сканування -- Full Scan, щоб оновити",
@@ -68,6 +68,7 @@ GC.Locales.ukUA = {
   ["AVOID"] = "УНИКАТИ",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "Вище цього зростання за 24 години ринкова вартість вважається стрибком і занижується.",
+  ["Above your price -- quoted %s, your price %s"] = "Вище за вашу ціну -- котирування %s, ваша ціна %s",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",

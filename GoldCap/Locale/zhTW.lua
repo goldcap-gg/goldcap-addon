@@ -21,7 +21,7 @@ GC.Locales.zhTW = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 指令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可簡寫 /gc）",
   ["%d (whole lot)"] = "%d（整批）",
-  ["%d caps from %s"] = "%d 個價格上限 · %s",
+  ["%d caps · %s"] = "%d 個價格上限 · %s",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "上次掃描的 %d 筆交易 -- 按 Full Scan 更新",
@@ -69,6 +69,7 @@ GC.Locales.zhTW = {
   ["AVOID"] = "避開",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "24 小時漲幅超過這個數值時，市場價會被視為暴漲並被壓低。",
+  ["Above your price -- quoted %s, your price %s"] = "高於你的價格 -- 報價 %s，你的價格 %s",
   ["Asks for a second click to confirm."] = "需要再點一次確認。",
   ["Auction House did not answer — press Refresh"] = "拍賣場沒有回應 — 請按 Refresh",
   ["Auction House is not open"] = "拍賣場未開啟",

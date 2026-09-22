@@ -19,7 +19,7 @@ GC.Locales.esMX = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (o /gc para abreviar)",
   ["%d (whole lot)"] = "%d (lote completo)",
-  ["%d caps from %s"] = "%d topes desde %s",
+  ["%d caps · %s"] = "%d topes · %s",
   ["%d days"] = "%d días",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d oportunidades del último escaneo -- pulsa Full Scan para actualizar",
@@ -68,6 +68,7 @@ GC.Locales.esMX = {
   ["AVOID"] = "EVITAR",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "Por encima de esta subida en 24 horas, el valor de mercado se trata como un pico y se reduce.",
+  ["Above your price -- quoted %s, your price %s"] = "Por encima de tu precio -- cotizado %s, tu precio %s",
   ["Asks for a second click to confirm."] = "Pide un segundo clic para confirmar.",
   ["Auction House did not answer — press Refresh"] =
     "La casa de subastas no respondió — pulsa Refresh",

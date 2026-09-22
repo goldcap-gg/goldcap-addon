@@ -74,13 +74,17 @@ describe("Sniper stale-text banner (companion nudge)", function()
     helper.loadModule("Core/BookPass.lua", GC)
     helper.loadModule("Core/DrillQueue.lua", GC)
     helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("Core/Caps.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     -- IsMovable/StartMoving/StopMovingOrSizing back the drag-forwarding the hit region does
     -- (I-1): a docked window flips movable off, so moving() must not be called unconditionally.
+    -- The width is the window's own: the caps note only fits above RESIZE_MIN_WIDTH (640).
     staleFrame = {
       staleText = fontString(), movable = true, movingCalled = false, stoppedCalled = false,
+      width = 900,
       IsMovable = function(self) return self.movable end,
+      GetWidth = function(self) return self.width end,
       StartMoving = function(self) self.movingCalled = true end,
       StopMovingOrSizing = function(self) self.stoppedCalled = true end,
     }
@@ -193,5 +197,77 @@ describe("Sniper stale-text banner (companion nudge)", function()
     refresh(GC)
     assert.is_false(staleFrame.staleText.shown)
     assert.is_false(staleFrame.staleHit.mouseEnabled)
+  end)
+
+  -- Live price caps: the ceilings are on their own clock, so a player running an all-caps alert
+  -- group with fresh (or no) imports still needs to know how current the prices they are being
+  -- shown are. Final review M4 + M5: never at the cost of a lie about their age, and never at
+  -- the cost of the window title -- this banner does not wrap and is right-justified against
+  -- the close button, so it overflows LEFTWARD across the title.
+  describe("the caps freshness note", function()
+    local function adopt(GC, count, generatedAt)
+      local caps = {}
+      for i = 1, count do caps[i] = { i = 1000 + i, c = 100 } end
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = generatedAt, runs = {}, groups = {}, caps = caps }
+      GC.Caps.Adopt()
+    end
+
+    local function withDate(fn)
+      _G.date = function(_, at) return "T" .. tostring(at) end
+      local ok, err = pcall(fn)
+      _G.date = nil
+      if not ok then error(err, 0) end
+    end
+
+    after_each(function() _G.GoldCap_AppRuns = nil end)
+
+    it("stands alone when nothing else is on the banner", function()
+      local GC = loadSniper()
+      origin = "app"
+      GC.db.imported = { ts = 1000000, origin = "app" }
+      adopt(GC, 3, 1699999000)
+      withDate(function()
+        refresh(GC)
+        assert.equal("3 caps · T1699999000", staleFrame.staleText.text)
+        assert.is_true(staleFrame.staleText.shown)
+      end)
+    end)
+
+    it("says nothing at all when the file carries no timestamp", function()
+      -- date(fmt, nil) is date(fmt) -- i.e. NOW -- so the unguarded call claimed ceilings of
+      -- unknown age had been minted this minute.
+      local GC = loadSniper()
+      origin = "app"
+      GC.db.imported = { ts = 1000000, origin = "app" }
+      adopt(GC, 3, nil)
+      withDate(function()
+        refresh(GC)
+        assert.is_false(staleFrame.staleText.shown)
+      end)
+    end)
+
+    it("stays off the title bar at the window's minimum width", function()
+      local GC = loadSniper()
+      origin = "none"
+      adopt(GC, 3, 1699999000)
+      staleFrame.width = 640
+      withDate(function()
+        refresh(GC)
+        -- The origin banner alone, with nothing appended to push it over the title.
+        assert.equal("no prices yet -- /goldcap companion or /goldcap import",
+          staleFrame.staleText.text)
+      end)
+    end)
+
+    it("appends to the origin banner when the window is wide enough", function()
+      local GC = loadSniper()
+      origin = "none"
+      adopt(GC, 3, 1699999000)
+      withDate(function()
+        refresh(GC)
+        assert.equal("no prices yet -- /goldcap companion or /goldcap import  3 caps · T1699999000",
+          staleFrame.staleText.text)
+      end)
+    end)
   end)
 end)

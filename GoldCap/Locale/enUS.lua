@@ -21,7 +21,7 @@ GC.Locales.enUS = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
-  ["%d caps from %s"] = "%d caps from %s",
+  ["%d caps · %s"] = "%d caps · %s",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
   ["%d filtered out as hard to resell"] = "%d filtered out as hard to resell",
@@ -75,6 +75,7 @@ GC.Locales.enUS = {
   ["AVOID"] = "AVOID",
   ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
     "Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down.",
+  ["Above your price -- quoted %s, your price %s"] = "Above your price -- quoted %s, your price %s",
   ["Alerts"] = "Alerts",
   ["Asks for a second click to confirm."] = "Asks for a second click to confirm.",
   ["Auction House did not answer — press Refresh"] = "Auction House did not answer — press Refresh",
