@@ -435,6 +435,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- time the Auction House opens, rather than waiting for the next full login.
       GC.AppRuns.Adopt()
     end
+    -- Live price caps: adopt alongside AppRuns above (same GoldCap_AppRuns file, see
+    -- Core/Caps.lua). Guarded on the Sniper frame existing because it is built lazily
+    -- (first Toggle()/AH visit) -- at ADDON_LOADED there may be nothing to rebuild yet.
+    if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
+      GC.Sniper._RebuildKeyTargets()
+    end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
@@ -631,6 +637,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- full contract) so a /reload the player did mid-session picks up a run the companion
       -- wrote in between, by the next time the board that shows it actually matters.
       if GC.AppRuns then GC.AppRuns.Adopt() end
+      -- Live price caps: re-adopt here too, same reasoning as AppRuns.Adopt above.
+      if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
+        GC.Sniper._RebuildKeyTargets()
+      end
       -- The BUY tab too: a new session cannot answer for the last one, so what the last one left
       -- half-finished is cleared here rather than carried into a book that has since moved.
       if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end

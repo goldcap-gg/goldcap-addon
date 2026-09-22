@@ -2559,31 +2559,46 @@ function GC.Sniper._RealmNeedsReference(itemID)
   return (value and value.kind == "realm_item" and not value.ref) and true or false
 end
 
--- The poll set: the player's pins, the site watchlist the import carried (W section) and the
--- region's own list of realm items worth watching (T section), realm items only. GetWatchlist(0)
--- is deliberate -- with a zero fallback it answers with the W section or nothing, never the
--- top-N-by-value list it otherwise invents, which is not a watchlist and has no business being
--- polled. A commodity the Sell tab has already classified is left out (the book pass sweeps
--- those); an item nobody has classified is polled and answers for itself.
---
--- Called when the set can actually have changed -- AH open, a pin toggle, a fresh import --
--- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that finds nothing
--- new leaves a half-finished cycle exactly where it was.
-function GC.Sniper._RebuildKeyTargets()
+-- Pure: which realm item ids the key poll watches, caps first. A capped item is the player's
+-- own price (GC.Caps.For), so it needs no realm reference to be watched -- everything after it
+-- does. Exposed for the spec (spec/caps_targets_spec.lua).
+function GC.Sniper._KeyTargetIds(caps, pins, watchlist, targets, isCommodity, hasRealmValue)
   local ids, seen = {}, {}
-  local commodities = GC.db and GC.db.commodityByItem or {}
-  local function add(itemID)
+  local function add(itemID, needsValue)
     if type(itemID) ~= "number" or seen[itemID] then return end
-    if commodities[itemID] == true then return end
-    if not GC.Sniper._RealmValue(itemID) then return end
+    if isCommodity(itemID) then return end
+    if needsValue and not hasRealmValue(itemID) then return end
     seen[itemID] = true
     ids[#ids + 1] = itemID
   end
+  for _, itemID in ipairs(caps) do add(itemID, false) end
+  for _, itemID in ipairs(pins) do add(itemID, true) end
+  for _, itemID in ipairs(watchlist) do add(itemID, true) end
+  for _, itemID in ipairs(targets) do add(itemID, true) end
+  return ids
+end
+
+-- The poll set: capped items first (see _KeyTargetIds), then the player's pins, the site
+-- watchlist the import carried (W section) and the region's own list of realm items worth
+-- watching (T section), realm items only. GetWatchlist(0) is deliberate -- with a zero fallback
+-- it answers with the W section or nothing, never the top-N-by-value list it otherwise invents,
+-- which is not a watchlist and has no business being polled. A commodity the Sell tab has
+-- already classified is left out (the book pass sweeps those); an item nobody has classified is
+-- polled and answers for itself.
+--
+-- Called when the set can actually have changed -- AH open, a pin toggle, a fresh import, a
+-- caps adoption -- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that
+-- finds nothing new leaves a half-finished cycle exactly where it was.
+function GC.Sniper._RebuildKeyTargets()
+  local commodities = GC.db and GC.db.commodityByItem or {}
   local data = GC.Data or {}
-  for _, itemID in ipairs(GC.Sniper._WatchPins()) do add(itemID) end
-  for _, itemID in ipairs(data.GetWatchlist and data.GetWatchlist(0) or {}) do add(itemID) end
-  for _, itemID in ipairs(data.TargetIds and data.TargetIds() or {}) do add(itemID) end
-  GC.Sniper._keyPoll:SetTargets(ids)
+  GC.Sniper._keyPoll:SetTargets(GC.Sniper._KeyTargetIds(
+    GC.Caps and GC.Caps.Targets() or {},
+    GC.Sniper._WatchPins(),
+    data.GetWatchlist and data.GetWatchlist(0) or {},
+    data.TargetIds and data.TargetIds() or {},
+    function(id) return commodities[id] == true end,
+    function(id) return GC.Sniper._RealmValue(id) ~= nil end))
 end
 
 -- The realm-item poll (Core/KeyPoll.lua), built beside the book pass above and driven from the
@@ -2591,13 +2606,27 @@ end
 -- see GC.Sniper.OnThrottleReady.
 GC.Sniper._keyPoll = GC.KeyPoll.New({
   now = time,
+  -- The wider of the two triggers: a capped item polls at its own cap as well as (not
+  -- instead of) its realm reference, so a price drop past either one wakes the poll.
   triggerFor = function(itemID)
     local value = GC.Sniper._RealmValue(itemID)
-    return value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
+    local realm = value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
+    local cap = GC.Caps and GC.Caps.TriggerFor(itemID) or nil
+    if realm and cap then return math.max(realm, cap) end
+    return realm or cap
   end,
   -- Same queue, same currency as a book-pass hit: what the lot would clear after the auction
-  -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it).
+  -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it). A hit at
+  -- or under the player's own cap is checked first, regardless of estProfit -- see
+  -- Core/DrillQueue.lua's ranksBelow.
   onHit = function(hit)
+    local cap = GC.Caps and GC.Caps.For(hit.itemID) or nil
+    if cap and hit.floor <= cap.c then
+      -- The player's own price: verify first in line, the saving is the profit estimate.
+      GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
+        estProfit = cap.c - hit.floor, priority = 1, cap = true })
+      return
+    end
     local value = GC.Sniper._RealmValue(hit.itemID)
     if not value then return end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
