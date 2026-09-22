@@ -62,3 +62,24 @@ function GC.Caps.TriggerFor(itemID)
   local cap = caps[itemID]
   return cap and (cap.c + 1) or nil
 end
+
+-- Commodity caps off the book pass (Core/BookPass.lua's `book`: itemID -> { floor, qty, … }).
+-- A capped commodity is excluded from the key poll's own target set on purpose
+-- (UI/SniperFrame.lua's `_KeyTargetIds`) -- the book pass is what actually sees a commodity
+-- floor, so this is the only place these hits come from. Pure, caps order, and silent about
+-- anything the book pass has not (yet) reported: a realm item (isCommodity false), an over-cap
+-- floor, and a capped commodity the book has no row for at all are all just not in the output.
+function GC.Caps.BookHits(book, isCommodity)
+  local hits = {}
+  for i = 1, #order do
+    local itemID = order[i]
+    if isCommodity(itemID) then
+      local cap = caps[itemID]
+      local booked = book[itemID]
+      if cap and booked and booked.floor and booked.floor <= cap.c then
+        hits[#hits + 1] = { itemID = itemID, floor = booked.floor, estProfit = cap.c - booked.floor }
+      end
+    end
+  end
+  return hits
+end

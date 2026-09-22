@@ -2264,6 +2264,24 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- already walked is moot. Reset here (the scan's one completion point) rather than in
   -- every caller.
   streamRows, streamRowsCount = {}, 0
+  -- Live price caps, addon task 4: a capped commodity whose floor THIS pass's own book shows
+  -- at or under the player's cap goes straight to the drill queue, same priority = 1, cap =
+  -- true the key poll's onHit already gives a capped realm item below -- the book pass is the
+  -- only place a commodity floor is ever seen (commodities are excluded from the key poll's
+  -- own target set, see _KeyTargetIds's isCommodity guard). DrillQueue's itemID:floor dedup
+  -- means an unchanged floor does not re-drill on every pass. driver.getKeyInfo answers nil for
+  -- an item key the client hasn't cached yet; treated as "not a commodity (yet)" rather than
+  -- guessed -- a later pass, once the key resolves, picks it up.
+  if GC.Caps then
+    local hits = GC.Caps.BookHits(GC.Sniper._bookPass:Book(), function(itemID)
+      local info = driver.getKeyInfo(itemID)
+      return info ~= nil and info.isCommodity == true
+    end)
+    for _, hit in ipairs(hits) do
+      GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
+        estProfit = hit.estProfit, priority = 1, cap = true })
+    end
+  end
   -- Sniper v3 §3: tells AutoScan the scan it started (if it was the one that started this
   -- one) is done, so it can start its breather countdown toward the next pass. A no-op
   -- whenever the machine's own state isn't SCANNING -- e.g. a manual "Scan" click while Auto
