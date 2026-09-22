@@ -7898,6 +7898,15 @@ drainCapPings = function(allowOpen)
         and not (dialog and dialog:IsShown() and dialog.row ~= row) then
       ping.opened = true
       openRow = row
+      -- Round 2: the open IS the announcement. A ring the floor was holding back is settled here,
+      -- silently -- the window in front of the player says more than a bell would. Left news, the
+      -- lot was queued again by every re-decision of it (the watch loop, the dialog's own Check)
+      -- as a fresh entry that had never opened, and the next tick reopened the window the player
+      -- had just cancelled -- until the floor passed and a late bell rang over it.
+      if not ping.rung then
+        ping.rung = true
+        GC.Caps.Announce(deal)
+      end
     end
     if deal and (not ping.rung or (stopAndOpen and not ping.opened)) then
       pendingCapPings[#pendingCapPings + 1] = ping

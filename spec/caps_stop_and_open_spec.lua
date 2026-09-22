@@ -444,6 +444,76 @@ describe("Caps stop-and-open", function()
     end)
   end)
 
+  -- Fix round 2: with the floor holding a ring back and the opt-in on, the drain opened the row
+  -- without announcing it. The lot stayed news, so every re-decision of it -- the watch loop, the
+  -- dialog's own Check -- queued it again as a fresh entry, and the next tick opened the window
+  -- again over a player who had just cancelled it (each open also stopping the pass and pausing
+  -- Auto), until the floor passed and a late bell rang for a window already shown. An open IS
+  -- the announcement: the lot is told, and nothing re-decided about it is news any more.
+  describe("an open is the announcement", function()
+    local function hitCommodity(GC, itemID, unitPrice)
+      local deal = { itemID = itemID, isCommodity = true, unitPrice = unitPrice, cap = 100 }
+      GC.Sniper._PutCapRow(itemID, deal) -- the watchlist board: no scan has run in this spec
+      GC.Sniper._QueueCapPing(deal)
+      return deal
+    end
+
+    it("opens a realm lot the floor holds back once, and never rings it late", function()
+      local GC, drain = load(true)
+      GC.Sniper._rangAt[42] = now -- another bell for the item a moment ago
+      local row = fakeRow(hit(GC, 42, 1))
+      set(drain, "rows", { row })
+
+      drain(true)
+      assert.same({ row }, clicked)
+      assert.same({}, rung[1])
+
+      -- The player cancels; the dialog's own Check and the watch loop re-decide the same lot.
+      row.deal = hit(GC, 42, 1)
+      drain(true)
+      now = now + 31 -- past the floor
+      row.deal = hit(GC, 42, 1)
+      drain(true)
+
+      assert.same({ row }, clicked) -- no second open
+      assert.same({}, rung[2])
+      assert.same({}, rung[3]) -- and no late bell
+    end)
+
+    it("does the same for a commodity re-decided at the same price", function()
+      local GC, drain = load(true)
+      GC.Sniper._rangAt[42] = now
+      local row = fakeRow(hitCommodity(GC, 42, 80))
+      set(drain, "rows", { row })
+
+      drain(true)
+      assert.same({ row }, clicked)
+
+      row.deal = hitCommodity(GC, 42, 80)
+      now = now + 31
+      drain(true)
+
+      assert.same({ row }, clicked)
+      assert.same({}, rung[1])
+      assert.same({}, rung[2])
+    end)
+
+    it("still treats a better commodity price as a new opportunity", function()
+      local GC, drain = load(true)
+      GC.Sniper._rangAt[42] = now
+      local row = fakeRow(hitCommodity(GC, 42, 80))
+      set(drain, "rows", { row })
+      drain(true)
+
+      row.deal = hitCommodity(GC, 42, 70)
+      now = now + 31
+      drain(true)
+
+      assert.equal(2, #clicked)
+      assert.same({ row.deal }, rung[2])
+    end)
+  end)
+
   -- The ticker is the one place opens come from, so it has to be wired to the queue. Checked
   -- against the source: the ticker's body cannot run headless (it repaints the window's
   -- toolbar, which a spec without a frame does not have).
