@@ -7810,15 +7810,37 @@ end
 -- onDialogPrimaryClick's own hardware click, untouched (spec/sniper_purchase_wiring_spec.lua).
 --
 -- Caps fixes 3e: nothing here is spent on a row the player cannot see. Each entry waits in
--- pendingCapPings (see its declaration) until the row carrying its deal IsVisible -- IsShown is
--- true of a row on a hidden board, tab or window, which is where the ring and the open used to
--- go -- and the item's bell floor has passed; only then is the lot announced (GC.Caps.Announce)
+-- pendingCapPings (see its declaration) until the row carrying its deal is on screen
+-- (GC.Sniper._RowOnScreen: visible, and inside the board's scrolled view) -- IsShown is true of
+-- a row on a hidden board, tab or window, which is where the ring and the open used to go --
+-- and the item's bell floor has passed; only then is the lot announced (GC.Caps.Announce)
 -- and the floor stamped again. The
 -- open is a second obligation on the same entry and waits on its own: for `allowOpen` (the
 -- ticker's drain; a render's drain rings only, since a render also runs inside a closing
 -- dialog's OnHide, and a window opened from there would open under the one closing), for a
 -- player not busy on Blizzard's own panes, and for the screen to hold no other dialog -- then it
 -- is retried on the next drain, which is how it follows the other dialog closing.
+-- Whether the player can actually see `row` on the board. IsVisible alone says only that the row
+-- and every parent up to the screen are shown -- and the board is a real ScrollFrame
+-- (createFrame's UIPanelScrollFrameTemplate) over a row pool that is not virtualised: every
+-- stamped row is shown, anchored at its slot down the scroll child (createRow), and one scrolled
+-- out of view is clipped, not hidden, so it stays IsVisible. So the row's middle must also lie
+-- inside the ScrollFrame's own edges. Both are read off the engine (Region:GetTop/GetBottom);
+-- the rows are descendants of the ScrollFrame at the same scale, so the numbers compare
+-- directly. Before its first layout a row has no edges yet, and that is a "not yet": the drain
+-- asks again on the next render or tick. A field, not a local: this chunk sits near Lua's
+-- 200-local ceiling.
+function GC.Sniper._RowOnScreen(row)
+  if not row:IsVisible() then return false end
+  local scroll = frame and frame.scroll
+  if not scroll then return false end
+  local top, bottom = row:GetTop(), row:GetBottom()
+  local viewTop, viewBottom = scroll:GetTop(), scroll:GetBottom()
+  if not (top and bottom and viewTop and viewBottom) then return false end
+  local middle = (top + bottom) / 2
+  return middle <= viewTop and middle >= viewBottom
+end
+
 drainCapPings = function(allowOpen)
   local pings = pendingCapPings
   pendingCapPings = {}
@@ -7835,7 +7857,7 @@ drainCapPings = function(allowOpen)
     if deal then
       ping.deal = deal
       for i = 1, #rows do
-        if rows[i].deal == deal and rows[i]:IsVisible() then row = rows[i]; break end
+        if rows[i].deal == deal and GC.Sniper._RowOnScreen(rows[i]) then row = rows[i]; break end
       end
     end
     -- Final review I6: the cap bell is floored per item exactly like the verdict bell is

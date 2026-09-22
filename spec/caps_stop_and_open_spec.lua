@@ -87,6 +87,10 @@ describe("Caps stop-and-open", function()
     -- Hooks in place of the two things this may reach: the row's own click path, and the bell.
     set(drain, "onBuyClick", function(row) clicked[#clicked + 1] = row end)
     set(drain, "pingNewHotDeals", function(list) rung[#rung + 1] = list end)
+    -- The window, as far as the drain looks at it: the board's ScrollFrame and the part of the
+    -- screen it shows (UI coordinates, bottom-up, like Region:GetTop/GetBottom).
+    set(GC.Sniper.OnAuctionHouseShow, "frame", { scroll = {
+      GetTop = function() return 500 end, GetBottom = function() return 100 end } })
     return GC, drain
   end
 
@@ -103,9 +107,11 @@ describe("Caps stop-and-open", function()
   -- parent up to the screen shown -- and it is false for a row that is merely IsShown on a
   -- hidden board, tab or window.
   local function fakeRow(deal, visible)
-    local row = { deal = deal, visible = visible ~= false }
+    local row = { deal = deal, visible = visible ~= false, top = 480 }
     function row:IsShown() return true end
     function row:IsVisible() return self.visible end
+    function row:GetTop() return self.top end
+    function row:GetBottom() return self.top - 32 end
     return row
   end
   local function fakeDialog(row)
@@ -261,6 +267,42 @@ describe("Caps stop-and-open", function()
       assert.equal(deal, rung[2][1])
       assert.same({ row }, clicked)
       assert.is_false(GC.Caps.IsNews(deal))
+    end)
+
+    -- Fix round 1: the board is a real ScrollFrame and its row pool is not virtualised -- every
+    -- stamped row is shown and anchored down the scroll child (createRow), so a row scrolled out
+    -- of view is still IsVisible. Visible has to mean inside the part of the board on screen.
+    it("neither rings nor opens a row scrolled out of the board's view, and does once it is in it", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal)
+      row.top = 60 -- below the viewport's bottom edge (100): scrolled out of view
+      set(drain, "rows", { row })
+
+      drain(true)
+      assert.same({}, rung[1])
+      assert.same({}, clicked)
+      assert.is_true(GC.Caps.IsNews(deal))
+
+      row.top = 300 -- scrolled into view
+      drain(true)
+      assert.same({ deal }, rung[2])
+      assert.same({ row }, clicked)
+    end)
+
+    it("counts a row cut in half by the view's edge as on screen only past its middle", function()
+      local GC, drain = load(false)
+      local row = fakeRow(hit(GC, 42, 1))
+      row.top = 510 -- 10 px above the top edge, 22 px of it inside: its middle (494) is in view
+      set(drain, "rows", { row })
+      drain(true)
+      assert.equal(1, #rung[1])
+
+      local other = fakeRow(hit(GC, 43, 2))
+      other.top = 520 -- only 12 px inside: its middle (504) is not
+      set(drain, "rows", { other })
+      drain(true)
+      assert.same({}, rung[2])
     end)
 
     it("waits for a row the render has not stamped yet (another board is on screen)", function()
