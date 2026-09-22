@@ -6,7 +6,8 @@
   under your price shows up as a "YOUR PRICE" row, rings, and buys through the usual window.
   Needs the current Companion release; the group's minimum item level is honoured for gear.
 - New option: stop scanning and open the buy window as soon as one of your prices is met (off
-  by default).
+  by default). It never takes over a buy window you already have open: it waits until you
+  close it.
 - A realm item listed in several item-level variants is now checked and bought at its cheapest
   variant, not whichever one the auction house answered first.
 
