@@ -5241,10 +5241,10 @@ function GC.Sniper._KeysOutstanding()
   return false
 end
 
--- Two consumers share the one outstanding batch: the Items board's realm poll ("sniper") and
--- the BUY tab's floor refresh ("buy"). They can never both want it -- each is gated on its own
--- tab being the one on screen -- but the ANSWER arrives as an untagged browse event either
--- way, so the batch has to say whose it was. _keysOwner is that record, written beside
+-- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"),
+-- the BUY tab's floor refresh ("buy"), the Sell tab's bulk fill ("sell") and the player's caps
+-- ("caps", on every tab -- caps fixes 4a). Only one batch is ever out, but the ANSWER arrives as
+-- an untagged browse event whoever sent it, so the batch has to say whose it was. _keysOwner is that record, written beside
 -- _keysAwaiting by whichever sender spent the slot and cleared on every path that gives the
 -- wait up. Without it a BUY refresh's rows would be folded into the realm poll, which reads a
 -- silence about an item as "sold out" and would wipe the Items board on every BUY refresh.
@@ -5502,8 +5502,8 @@ end
 -- two vetoes, since the auction-house ticker calls this directly: a purchase in flight and a
 -- parked Check both go first. No second throttle, no bypass.
 --
--- Fairness. The batch holds the one keys interlock until it answers, and a round is up to ten
--- batches; sent back to back they would keep the Items board's poll, the BUY refresh, the Sell
+-- Fairness. The batch holds the one keys interlock until it answers, and a round is one batch per
+-- hundred caps; sent back to back they would keep the Items board's poll, the BUY refresh, the Sell
 -- tab's bulk fill and Auto's next pass waiting for the whole round. So after every answer (or a
 -- batch written off) the poll stands aside for LIM.CAPS_BATCH_GAP_SECONDS -- longer than any of
 -- those takes to ask again -- and rests LIM.CAPS_ROUND_BREATHER_SECONDS between two rounds.
