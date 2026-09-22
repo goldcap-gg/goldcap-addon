@@ -325,8 +325,14 @@ describe("Caps stop-and-open", function()
   -- I6: the same per-item floor stampVerdict's own bell observes. A capped commodity whose
   -- book churns under the cap announces on every improvement, and every one of those still
   -- SHOWS on the board -- but a bell every few seconds stops carrying information.
+  --
+  -- Fix round 1: a ring the floor holds back is held, not spent. It used to be announced on the
+  -- spot and dropped without a sound -- and the floor is not only the cap bell's: stampVerdict
+  -- stamps it for an ordinary verdict too, so a cap row that came on screen within thirty seconds
+  -- of some other bell for the item was never rung at all. It now waits, unannounced, and rings
+  -- once the floor has passed (still bounded, still dropped when the row leaves).
   describe("the ring floor", function()
-    it("does not ring the same item twice inside the floor", function()
+    it("holds a ring inside the floor back, unannounced, and plays it once the floor has passed", function()
       local GC, drain = load(false)
       local first = hit(GC, 42, 1)
       set(drain, "rows", { fakeRow(first) })
@@ -336,6 +342,39 @@ describe("Caps stop-and-open", function()
       now = now + 5
       local second = hit(GC, 42, 2, 70)
       set(drain, "rows", { fakeRow(second) })
+      drain(true)
+      assert.same({}, rung[2])
+      assert.is_true(GC.Caps.IsNews(second))
+
+      now = now + 30 -- 35 s after the first bell
+      drain(true)
+      assert.same({ second }, rung[3])
+      assert.is_false(GC.Caps.IsNews(second))
+    end)
+
+    it("does not let a floor stamped by another bell swallow a cap row's ring", function()
+      local GC, drain = load(false)
+      GC.Sniper._rangAt[42] = now -- an ordinary verdict bell for the item, a moment ago
+      local deal = hit(GC, 42, 1)
+      set(drain, "rows", { fakeRow(deal) })
+
+      drain(true)
+      assert.same({}, rung[1])
+      assert.is_true(GC.Caps.IsNews(deal))
+
+      now = now + 31
+      drain(true)
+      assert.same({ deal }, rung[2])
+    end)
+
+    it("still drops a held-back ring whose row leaves the board meanwhile", function()
+      local GC, drain = load(false)
+      GC.Sniper._rangAt[42] = now
+      set(drain, "rows", { fakeRow(hit(GC, 42, 1)) })
+      drain(true)
+
+      GC.Sniper._realmDeals[42] = nil
+      now = now + 31
       drain(true)
       assert.same({}, rung[2])
     end)

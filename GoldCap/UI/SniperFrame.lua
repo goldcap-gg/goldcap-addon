@@ -7812,7 +7812,8 @@ end
 -- Caps fixes 3e: nothing here is spent on a row the player cannot see. Each entry waits in
 -- pendingCapPings (see its declaration) until the row carrying its deal IsVisible -- IsShown is
 -- true of a row on a hidden board, tab or window, which is where the ring and the open used to
--- go -- and only then is the lot announced (GC.Caps.Announce) and the bell floor stamped. The
+-- go -- and the item's bell floor has passed; only then is the lot announced (GC.Caps.Announce)
+-- and the floor stamped again. The
 -- open is a second obligation on the same entry and waits on its own: for `allowOpen` (the
 -- ticker's drain; a render's drain rings only, since a render also runs inside a closing
 -- dialog's OnHide, and a window opened from there would open under the one closing), for a
@@ -7837,20 +7838,20 @@ drainCapPings = function(allowOpen)
         if rows[i].deal == deal and rows[i]:IsVisible() then row = rows[i]; break end
       end
     end
-    if row and not ping.rung then
+    -- Final review I6: the cap bell is floored per item exactly like the verdict bell is
+    -- (stampVerdict's own GC.Sniper._rangAt / LIM.RING_FLOOR_SECONDS, and its comment for why
+    -- this is per item and not a global mute). A capped commodity whose book churns under the
+    -- cap re-announces on every improvement, and every one of those SHOWS -- but a bell every
+    -- few seconds stops carrying information. Caps fixes 3e, round 1: a ring the floor holds back
+    -- is HELD, unannounced, and plays once the floor has passed -- never spent in silence. The
+    -- floor is not only this bell's (stampVerdict stamps it for an ordinary verdict too), so a
+    -- silent spend lost the cap row's only ring to a bell rung for something else.
+    local rang = row and GC.Sniper._rangAt[deal.itemID]
+    if row and not ping.rung and not (rang and (now - rang) < LIM.RING_FLOOR_SECONDS) then
       ping.rung = true
-      -- Final review I6: the cap bell is floored per item exactly like the verdict bell is
-      -- (stampVerdict's own GC.Sniper._rangAt / LIM.RING_FLOOR_SECONDS, and its comment for why
-      -- this is per item and not a global mute). A capped commodity whose book churns under
-      -- the cap re-announces on every improvement, and every one of those SHOWS -- but a bell
-      -- every few seconds stops carrying information. Only what makes a sound is filtered: a
-      -- floored improvement is on screen, announced, and silent.
       if GC.Caps.Announce(deal) then
-        local rang = GC.Sniper._rangAt[deal.itemID]
-        if not (rang and (now - rang) < LIM.RING_FLOOR_SECONDS) then
-          GC.Sniper._rangAt[deal.itemID] = now
-          ring[#ring + 1] = deal
-        end
+        GC.Sniper._rangAt[deal.itemID] = now
+        ring[#ring + 1] = deal
       end
     end
     -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a dialog
