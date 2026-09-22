@@ -222,6 +222,66 @@ describe("DrillQueue", function()
     end)
   end)
 
+  describe("priority", function()
+    it("pops a priority hit before a higher-estProfit priority-less one", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 100, estProfit = 9999 })
+      q:Push({ itemID = 2, floor = 200, estProfit = 5, priority = 1 })
+      assert.equal(2, q:Pop().itemID)
+      assert.equal(1, q:Pop().itemID)
+    end)
+
+    it("breaks a priority tie by estProfit desc", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 100, estProfit = 50, priority = 1 })
+      q:Push({ itemID = 2, floor = 200, estProfit = 90, priority = 1 })
+      assert.equal(2, q:Pop().itemID)
+      assert.equal(1, q:Pop().itemID)
+    end)
+
+    it("keeps priority and cap on the stored entry", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 100, estProfit = 5, priority = 1, cap = true })
+      local peeked = q:Peek()
+      assert.equal(1, peeked.priority)
+      assert.is_true(peeked.cap)
+      local popped = q:Pop()
+      assert.equal(1, popped.priority)
+      assert.is_true(popped.cap)
+    end)
+
+    it("defaults priority to 0 and cap to false when absent", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 100, estProfit = 5 })
+      local popped = q:Pop()
+      assert.equal(0, popped.priority)
+      assert.is_false(popped.cap)
+    end)
+
+    it("does not change the dedup key", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      assert.is_true(q:Push({ itemID = 1, floor = 100, estProfit = 5, priority = 1 }))
+      assert.is_false(q:Push({ itemID = 1, floor = 100, estProfit = 999, priority = 5 }))
+      assert.equal(1, q:Depth())
+    end)
+
+    it("displaces a low-priority entry before a high-priority one when full", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      -- item 1 is priority 1 (protected), the rest are priority 0 with rising estProfit
+      q:Push({ itemID = 1, floor = 1, estProfit = 1, priority = 1 })
+      for i = 2, 200 do
+        q:Push({ itemID = i, floor = 1, estProfit = i * 10 })
+      end
+      assert.equal(200, q:Depth())
+      -- worth more than item 2's estProfit (20) but less than item 1's own estProfit (1) is
+      -- not the point here -- the point is it is priority-0, same as item 2, so it competes
+      -- with item 2, not with the protected item 1.
+      assert.is_true(q:Push({ itemID = 9001, floor = 1, estProfit = 25 }))
+      assert.is_true(q:Has(1))     -- the priority hit survives despite the lowest estProfit
+      assert.is_false(q:Has(2))    -- the lowest priority-0 estProfit is displaced instead
+    end)
+  end)
+
   describe("Clear", function()
     it("empties the queue", function()
       local q = GC.DrillQueue.New(fakeDriver())

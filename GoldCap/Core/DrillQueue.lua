@@ -59,11 +59,20 @@ function GC.DrillQueue.New(driver, opts)
     end
   end
 
+  -- True when `a` ranks below `b`: lower priority first, estProfit desc breaks a tie. A cap
+  -- hit is the player's own rule; it is verified before any market-derived re-check, so it
+  -- outranks every priority-less (estProfit-only) hit regardless of how small its own
+  -- estProfit is.
+  local function ranksBelow(a, b)
+    if a.priority ~= b.priority then return a.priority < b.priority end
+    return a.estProfit < b.estProfit
+  end
+
   local function bestIndex()
     if #items == 0 then return nil end
     local best = 1
     for i = 2, #items do
-      if items[i].estProfit > items[best].estProfit then best = i end
+      if ranksBelow(items[best], items[i]) then best = i end
     end
     return best
   end
@@ -77,15 +86,20 @@ function GC.DrillQueue.New(driver, opts)
     local k = key(hit.itemID, hit.floor)
     if queued[k] then return false end
     local estProfit = hit.estProfit or 0
+    local priority = tonumber(hit.priority) or 0
+    local cap = hit.cap == true
     if #items >= MAX_ENTRIES then
       -- Full: the queue keeps the best MAX_ENTRIES hits it has been offered, so a new hit
       -- either displaces the worst one queued or is refused outright. Refusing the CHEAPEST
-      -- of the two is the only ordering that cannot be gamed by arrival time.
+      -- of the two is the only ordering that cannot be gamed by arrival time -- and a
+      -- low-priority entry is displaced before a high-priority one, same comparator as above.
       local worst = 1
       for i = 2, #items do
-        if items[i].estProfit < items[worst].estProfit then worst = i end
+        if ranksBelow(items[i], items[worst]) then worst = i end
       end
-      if items[worst].estProfit >= estProfit then return false end
+      if not ranksBelow(items[worst], { priority = priority, estProfit = estProfit }) then
+        return false
+      end
       forget(worst)
     end
     queued[k] = true
@@ -97,7 +111,7 @@ function GC.DrillQueue.New(driver, opts)
     -- re-queue bought the same undrillable item another ninety seconds at the front.
     local pushedAt = (type(hit.pushedAt) == "number" and hit.pushedAt < now) and hit.pushedAt or now
     items[#items + 1] = { itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      key = k, pushedAt = pushedAt }
+      priority = priority, cap = cap, key = k, pushedAt = pushedAt }
     local expiresAt = pushedAt + ENTRY_TTL_SECONDS
     if expiresAt < nextExpiryAt then nextExpiryAt = expiresAt end
     return true
@@ -119,9 +133,11 @@ function GC.DrillQueue.New(driver, opts)
     if not best then return nil end
     local entry = items[best]
     -- pushedAt travels with the hit so a caller that hands it back (a declined send is
-    -- re-queued) cannot reset its age -- see Push.
+    -- re-queued) cannot reset its age -- see Push. priority and cap travel too, for the same
+    -- reason: a re-queued cap hit that lost its priority on the way back in would fall to the
+    -- back of the line behind ordinary estProfit hits.
     return { itemID = entry.itemID, floor = entry.floor, estProfit = entry.estProfit,
-      pushedAt = entry.pushedAt }
+      priority = entry.priority, cap = entry.cap, pushedAt = entry.pushedAt }
   end
 
   -- Discards one entry without charging the budget: the hit describes a floor the book has
@@ -151,7 +167,7 @@ function GC.DrillQueue.New(driver, opts)
     local chosen = forget(bestIndex())
     sentAt[#sentAt + 1] = now
     return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit,
-      pushedAt = chosen.pushedAt }
+      priority = chosen.priority, cap = chosen.cap, pushedAt = chosen.pushedAt }
   end
 
   -- Whether a live look at this item is already queued -- what a board row asks before it is
