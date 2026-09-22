@@ -35,10 +35,10 @@ describe("Caps stop-and-open", function()
     error("missing upvalue " .. wanted)
   end
 
-  local now, clicked, rung, busy
+  local now, clicked, rung, busy, settingsOpen
 
   local function load(stopAndOpen)
-    now, clicked, rung, busy = 100, {}, {}, false
+    now, clicked, rung, busy, settingsOpen = 100, {}, {}, false, false
     _G.GetTime = function() return now end
     _G.time = function() return 1000 end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
@@ -73,6 +73,7 @@ describe("Caps stop-and-open", function()
       },
       WatchSet = { Observe = function() end, Select = function() return {} end },
       AuctionHouseTab = { PlayerIsBusy = function() return busy end },
+      SettingsUI = { IsShown = function() return settingsOpen end },
       Print = function() end,
       db = { settings = { sniper = { sound = false, board = "items",
         capStopAndOpen = stopAndOpen and true or false } } },
@@ -122,7 +123,7 @@ describe("Caps stop-and-open", function()
   -- (createDialog). On the docked window it covers the right part of every row -- price, profit,
   -- the button -- and leaves the item and its verdict chip in view.
   local function fakeDialog(row)
-    local d = { row = row, shown = true, left = 485, right = 805 }
+    local d = { row = row, deal = row and row.deal, shown = true, left = 485, right = 805 }
     function d:IsShown() return self.shown end
     function d:GetLeft() return self.left end
     function d:GetRight() return self.right end
@@ -316,36 +317,52 @@ describe("Caps stop-and-open", function()
       assert.same({}, rung[2])
     end)
 
-    -- Fix round 2: below WIN.PANEL_SHIFT_MIN the check drawer is an opaque sheet lying OVER the
-    -- list (createDialog, applyPanelInset), and it is on screen whenever another row's check is.
-    -- A row whose middle lies under it is not one the player can see.
-    it("does not spend a ring on a row the open check drawer covers, and rings it once it closes", function()
-      local GC, drain = load(false)
-      local deal = hit(GC, 42, 1)
-      local row = fakeRow(deal)
-      row.right = 438 -- the narrowest window: the row's middle (261) is under the drawer
-      local drawer = fakeDialog(fakeRow({ itemID = 7 }))
-      drawer.left, drawer.right = 150, 470
-      set(drain, "rows", { row })
-      set(drain, "dialog", drawer)
-
-      drain(true)
-      assert.same({}, rung[1])
-      assert.is_true(GC.Caps.IsNews(deal))
-
-      drawer.shown = false
-      drain(true)
-      assert.same({ deal }, rung[2])
-    end)
-
+    -- Fix round 3: below WIN.PANEL_SHIFT_MIN the check drawer lies over the list, but it covers
+    -- exactly the rightmost 288 px of a row (320 wide, flush with the window's right edge; the
+    -- row ends 32 px short of it), and at every width below 990 the item and its verdict chip
+    -- stay in view. A row under the drawer is a row the player can see.
     it("rings a row the drawer only partly covers, its item and verdict still in view", function()
       local GC, drain = load(false)
       local deal = hit(GC, 42, 1)
-      set(drain, "rows", { fakeRow(deal) }) -- middle 428.5, drawer from 485
+      set(drain, "rows", { fakeRow(deal) }) -- the docked window
       set(drain, "dialog", fakeDialog(fakeRow({ itemID = 7 })))
 
       drain(true)
       assert.same({ deal }, rung[1])
+    end)
+
+    it("still rings it on a narrow window, where the drawer reaches past the row's middle", function()
+      local GC, drain = load(false)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal)
+      row.right = 648 -- a 680-wide undocked window: the row's middle (366) is under the drawer
+      local drawer = fakeDialog(fakeRow({ itemID = 7 }))
+      drawer.left, drawer.right = 360, 680
+      set(drain, "rows", { row })
+      set(drain, "dialog", drawer)
+
+      drain(true)
+      assert.same({ deal }, rung[1])
+    end)
+
+    -- Fix round 3: the settings sheet is another matter. It lies over the whole content area,
+    -- every row entire, at every width (UI/SettingsFrame.lua), fifty levels above them.
+    it("neither rings nor opens a row under the settings sheet, and does once settings close", function()
+      local GC, drain = load(true)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal)
+      set(drain, "rows", { row })
+      settingsOpen = true
+
+      drain(true)
+      assert.same({}, rung[1])
+      assert.same({}, clicked)
+      assert.is_true(GC.Caps.IsNews(deal))
+
+      settingsOpen = false
+      drain(true)
+      assert.same({ deal }, rung[2])
+      assert.same({ row }, clicked)
     end)
 
     it("waits for a row the render has not stamped yet (another board is on screen)", function()

@@ -908,6 +908,14 @@ function GC.SettingsUI.Hide()
   if panel and panel:IsShown() then panel:Hide() end
 end
 
+-- Whether the sheet is up. It lies over the whole content area -- every deal row entire, at
+-- every window width, fifty levels above them -- so SniperFrame.lua's GC.Sniper._RowOnScreen
+-- asks this before it spends a "your price" ring (or opens a buy window) on a row under it.
+-- False before the first gear click, when there is no sheet at all.
+function GC.SettingsUI.IsShown()
+  return (panel and panel:IsShown()) and true or false
+end
+
 -- Called from SniperFrame.lua's GC.Sniper.SetDocked, both directions, beside the check
 -- drawer's own raiseStrata: docking changes the window's strata, and the engine reassigns
 -- every child's level when it does -- so an overlay ALREADY open when the auction house

@@ -7815,40 +7815,28 @@ end
 -- (createFrame's UIPanelScrollFrameTemplate) over a row pool that is not virtualised: every
 -- stamped row is shown, anchored at its slot down the scroll child (createRow), and one scrolled
 -- out of view is clipped, not hidden, so it stays IsVisible. So the row's middle must also lie
--- inside the ScrollFrame's own edges.
+-- inside the ScrollFrame's own edges. Both are read off the engine (Region:GetTop/GetBottom);
+-- the rows are descendants of the ScrollFrame at the same scale, so the numbers compare
+-- directly. Before its first layout a row has no edges yet, and that is a "not yet": the drain
+-- asks again on the next render or tick.
 --
--- Nor under the check drawer. On a window narrower than WIN.PANEL_SHIFT_MIN -- the docked
--- auction house always is -- the drawer does not push the list aside (applyPanelInset); it lies
--- over it as an opaque sheet, full height, on the window's right edge, whenever a Check is open.
--- A row whose middle is under it is not on screen. The docked window's drawer covers only the
--- right part of a row (price, profit, the button), so the item and its verdict chip stay in
--- view and the row still counts; on the narrowest window it covers most of every row.
---
--- Every edge is read off the engine (Region:GetTop/GetBottom/GetLeft/GetRight); the rows, the
--- ScrollFrame and the drawer are all descendants of the window at the same scale, so the numbers
--- compare directly. Before its first layout a row has no edges yet, and that is a "not yet": the
--- drain asks again on the next render or tick. A field, not a local: this chunk sits near Lua's
--- 200-local ceiling.
+-- Two sheets can lie over the list, and only one of them hides a row. The settings sheet
+-- (UI/SettingsFrame.lua) covers the whole content area, every row entire, at every width, so
+-- while it is up no row is on screen; the ticker picks the ring up once it closes. The check
+-- drawer does not count: below WIN.PANEL_SHIFT_MIN it lies over the list rather than pushing it
+-- aside, but it covers exactly the rightmost 288 px of a row (320 wide, flush with the window's
+-- right edge, where the row stops 32 px short), so the item and its verdict chip stay in view at
+-- every width. A field, not a local: this chunk sits near Lua's 200-local ceiling.
 function GC.Sniper._RowOnScreen(row)
   if not row:IsVisible() then return false end
+  if GC.SettingsUI and GC.SettingsUI.IsShown and GC.SettingsUI.IsShown() then return false end
   local scroll = frame and frame.scroll
   if not scroll then return false end
   local top, bottom = row:GetTop(), row:GetBottom()
   local viewTop, viewBottom = scroll:GetTop(), scroll:GetBottom()
   if not (top and bottom and viewTop and viewBottom) then return false end
   local middle = (top + bottom) / 2
-  if middle > viewTop or middle < viewBottom then return false end
-  if dialog and dialog:IsShown() then
-    local left, right = row:GetLeft(), row:GetRight()
-    local sheetLeft, sheetRight = dialog:GetLeft(), dialog:GetRight()
-    local sheetTop, sheetBottom = dialog:GetTop(), dialog:GetBottom()
-    if not (left and right and sheetLeft and sheetRight and sheetTop and sheetBottom) then return false end
-    local centre = (left + right) / 2
-    if centre >= sheetLeft and centre <= sheetRight and middle <= sheetTop and middle >= sheetBottom then
-      return false
-    end
-  end
-  return true
+  return middle <= viewTop and middle >= viewBottom
 end
 
 -- Live price caps, addon task 6: drains pendingCapPings (see refreshRows()'s own comment).
