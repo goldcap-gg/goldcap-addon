@@ -8905,10 +8905,11 @@ function GC.Sniper.DebugBoard()
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
   local tab = GC.AuctionHouseTab or {}
-  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s"):format(
+  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s"):format(
     autoScan:State(), table.concat(reasons, ","), s(pass:PendingStart()),
     s(tab.PlayerIsPosting and tab.PlayerIsPosting()), s(tab.PlayerIsBuying and tab.PlayerIsBuying()),
-    s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching())))
+    s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching()),
+    s(tab.PlayerIsBrowsing and tab.PlayerIsBrowsing())))
   if GC.Util and GC.Util.TraceDump then
     local t = GC.Util.throttleStats
     GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))

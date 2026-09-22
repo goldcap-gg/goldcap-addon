@@ -492,12 +492,22 @@ end
 -- PlayerIsUsingAnotherTab: our own tab showing the dock is not "using another tab", but it is
 -- also not "the player's browse results, undisturbed" once GoldCap's own board is what the dock
 -- holds -- so the dock hides this window the same way it exempts that predicate.
+--
+-- The window open floating is the other half of "our own window is not" on screen. The auction
+-- house opens on Buy and autoOpen (on by default) shows the window floating beside it, so a
+-- predicate that read only the dock was true from the moment the auction house opened, and
+-- every sender PlayerIsBusy gates stood down for the whole visit -- the window open, nothing in
+-- it moving (confirmed in game 2026-09-22). A window that cannot be asked fails open, like
+-- every detector here: a broken read must never silence the addon.
 function GC.AuctionHouseTab.PlayerIsBrowsing()
   if not currentMode then return false end
   local modes = _G.AuctionHouseFrameDisplayMode
   if not modes then return false end
   if currentMode ~= modes.Buy then return false end
-  return not (dock and dock:IsShown())
+  if dock and dock:IsShown() then return false end
+  local sniper = GC.Sniper
+  if not (sniper and sniper.IsWindowShown) then return false end
+  return not sniper.IsWindowShown()
 end
 
 function GC.AuctionHouseTab.PlayerIsBusy(now)
