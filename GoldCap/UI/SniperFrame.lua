@@ -1357,18 +1357,28 @@ end
 -- (the PROFIT/TREND labels went blank in-game after a tab switch, and reappeared only when a
 -- header was clicked, i.e. when this function next ran). SetText is what the client needs to
 -- draw it again, so every caller that re-shows the row goes through here.
+--
+-- But SetText with the text the string already holds is a no-op to the client, and a no-op
+-- does not make it draw -- which is all this used to do, so the row still came back blank
+-- after a tab switch or a window re-show, tooltips working over empty cells. Each label is now
+-- cleared, set, hidden and shown, the cure UI/SoldFrame.lua's and UI/BuyFrame.lua's
+-- restampHeadings measured in game. A sortable heading is in header.cells and sortHeaders
+-- both, so the text is settled first and every label is stamped once, arrow included.
 local function updateHeaderSortIndicators()
+  local texts = {} -- label -> the text it draws
   local header = frame and frame.headerRow
   if header and header.cells then -- specs fake headerRow as a bare Show/Hide stub
-    for _, cell in pairs(header.cells) do cell.label:SetText(cell.baseText) end
-    if header.itemCell then header.itemCell.label:SetText(GC.L["ITEM"]) end
+    for _, cell in pairs(header.cells) do texts[cell.label] = cell.baseText end
+    if header.itemCell then texts[header.itemCell.label] = GC.L["ITEM"] end
   end
   for key, h in pairs(sortHeaders) do
-    if sortOverride and sortOverride.key == key then
-      h.label:SetText(h.base .. (sortOverride.desc and " ▼" or " ▲"))
-    else
-      h.label:SetText(h.base)
-    end
+    local active = sortOverride and sortOverride.key == key
+    texts[h.label] = active and (h.base .. (sortOverride.desc and " ▼" or " ▲")) or h.base
+  end
+  for label, text in pairs(texts) do
+    label:SetText("")
+    label:SetText(text)
+    if label.Hide and label.Show then label:Hide(); label:Show() end
   end
 end
 
