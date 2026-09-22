@@ -1,10 +1,9 @@
 local helper = require("spec.spec_helper")
 
--- Live price caps, addon task 2: which realm item ids the key poll watches, and in what
--- order. GC.Sniper._KeyTargetIds is the pure helper _RebuildKeyTargets folds through
--- GC.Caps.Targets(), the player's pins, the site watchlist and the region's target list --
--- caps first (a capped item is the player's own price, so it needs no realm reference to be
--- watched), everything else needs one.
+-- Live price caps, addon task 2: which realm item ids the key poll watches. GC.Sniper._KeyTargetIds
+-- is the pure helper _RebuildKeyTargets folds through the player's pins, the site watchlist and the
+-- region's target list -- realm items with a realm reference only. Caps fixes 4a took the caps out
+-- of it: they have a poll of their own that runs on every board (spec/caps_poll_spec.lua).
 describe("Key target ids", function()
   local GC
 
@@ -67,32 +66,26 @@ describe("Key target ids", function()
     return function(itemID) return set[itemID] == true end
   end
 
-  it("puts caps first, ahead of pins, watchlist and targets", function()
-    local ids = GC.Sniper._KeyTargetIds({ 10 }, { 20 }, { 30 }, { 40 },
+  it("lists pins, the watchlist and the targets", function()
+    local ids = GC.Sniper._KeyTargetIds({ 20 }, { 30 }, { 40 },
       commodityFn({}), noValueFn({}))
-    assert.same({ 10, 20, 30, 40 }, ids)
+    assert.same({ 20, 30, 40 }, ids)
   end)
 
-  it("excludes a commodity cap", function()
-    local ids = GC.Sniper._KeyTargetIds({ 10, 11 }, {}, {}, {},
+  it("excludes a commodity", function()
+    local ids = GC.Sniper._KeyTargetIds({ 10, 11 }, {}, {},
       commodityFn({ 11 }), noValueFn({}))
     assert.same({ 10 }, ids)
   end)
 
-  it("keeps a cap that has no realm value", function()
-    local ids = GC.Sniper._KeyTargetIds({ 10 }, {}, {}, {},
-      commodityFn({}), noValueFn({ 10 }))
-    assert.same({ 10 }, ids)
+  it("drops anything with no realm value, a pin included", function()
+    local ids = GC.Sniper._KeyTargetIds({ 20 }, { 21 }, { 22, 23 },
+      commodityFn({}), noValueFn({ 20, 21, 22 }))
+    assert.same({ 23 }, ids)
   end)
 
-  it("drops a pin that has no realm value", function()
-    local ids = GC.Sniper._KeyTargetIds({}, { 20 }, {}, {},
-      commodityFn({}), noValueFn({ 20 }))
-    assert.same({}, ids)
-  end)
-
-  it("lists a duplicate only once, at its first (highest-priority) slot", function()
-    local ids = GC.Sniper._KeyTargetIds({ 10 }, { 10, 20 }, { 20 }, { 10, 30 },
+  it("lists a duplicate only once", function()
+    local ids = GC.Sniper._KeyTargetIds({ 10, 20 }, { 20 }, { 10, 30 },
       commodityFn({}), noValueFn({}))
     assert.same({ 10, 20, 30 }, ids)
   end)

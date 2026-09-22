@@ -221,6 +221,16 @@ LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- exactly once after a switch and then stood still for the rest of the visit (seen in game
 -- 2026-09-15: "sat on Commodities, switched to Items, nothing updated").
 LIM.KEYS_CYCLE_BREATHER_SECONDS = 5
+-- Caps fixes 4a: the cap poll (GC.Sniper._capPoll) runs on every board and tab, so it shares the
+-- one keys interlock with everyone who uses it -- the Items board's poll, the BUY refresh, the Sell
+-- tab's bulk fill, and Auto's pass, which may not start over an outstanding batch. Each of those
+-- asks again at least every 1.25 seconds (the arbiter's own answer-brings-the-next-turn, the
+-- auction-house ticker's once-a-second nudge, Auto's one-second settle on a 0.25s tick), so after
+-- every cap answer the poll stands aside for longer than that and whoever was kept waiting goes
+-- first. It also bounds the poll's share of the throttle to one message per answer plus this.
+LIM.CAPS_BATCH_GAP_SECONDS = 2
+-- And between two full rounds over the caps it rests longer, as the Items board's own loop does.
+LIM.CAPS_ROUND_BREATHER_SECONDS = 5
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
@@ -1686,8 +1696,16 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   if board == "items" and GC.Data.OriginState() ~= "none" then
     -- Count(), not the store: an empty poll set means the import carries no region reference
     -- for anything this board could watch, which is a different problem from a full poll set
-    -- finding nothing cheap, and needs a different answer.
-    if GC.Sniper._keyPoll:Count() == 0 then
+    -- finding nothing cheap, and needs a different answer. The player's caps on realm items are
+    -- watched for this board too, by their own poll (caps fixes 4a) -- a commodity cap is the
+    -- other board's.
+    local watching = GC.Sniper._keyPoll:Count() > 0
+    if not watching and GC.Caps and GC.Caps.Count() > 0 then
+      for _, itemID in ipairs(GC.Caps.Targets()) do
+        if not GC.Sniper._IsCommodityId(itemID) then watching = true; break end
+      end
+    end
+    if not watching then
       text = GC.L["Nothing to watch on this board yet."] .. "\n"
         .. GC.L["Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg."]
     else
@@ -1909,8 +1927,15 @@ driver = {
   -- never queues a drill for one. Both Items-board writers are this poll and this drill.
   variantKey = function(itemID)
     if not (GC.KeyPoll and GC.KeyPoll.VariantKeyFor and GC.Sniper._keyPoll) then return nil end
+    -- Two polls see realm items now (caps fixes 4a): the realm poll, and the caps' own, which is
+    -- the only one to see a capped item nothing else lists. Whichever looked last knows best.
     local entry = GC.Sniper._keyPoll:Book()[itemID]
+    local capped = GC.Sniper._capPoll and GC.Sniper._capPoll:Book()[itemID]
+    if capped and (not entry or (capped.seenAt or 0) >= (entry.seenAt or 0)) then entry = capped end
     if not entry then return nil end
+    -- A commodity has one key -- the bare one -- whatever its browse row carried: the caps' poll
+    -- folds commodities too, and nothing here is gained by naming anything else.
+    if GC.Sniper._IsCommodityId(itemID) then return nil end
     local cap = GC.Caps and GC.Caps.For(itemID)
     local floor = cap and cap.l
     if not floor then
@@ -2507,8 +2532,9 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- whenever the machine's own state isn't SCANNING -- e.g. a manual "Scan" click while Auto
   -- is off/paused -- see AutoScan.lua's onScanFinished.
   feedAuto("scanFinished")
-  -- The settled buffer the Items board's keys batch needs -- see _TrySendKeysBatch.
-  GC.Sniper._TrySendKeysBatch()
+  -- The settled buffer the Items board's keys batch needs -- see _TrySendKeysBatch. The caps'
+  -- batch needs the same, and this is the moment on a board where Auto pages back to back.
+  if not GC.Sniper._TrySendKeysBatch() then GC.Sniper._TrySendCapBatch() end
 end
 
 function GC.Sniper._WatchPins()
@@ -2689,6 +2715,7 @@ GC.Sniper._drillQueue = GC.DrillQueue.New({
   onLost = function(hit)
     if GC.Caps then GC.Caps.Rearm(hit.itemID) end
     if GC.Sniper._keyPoll then GC.Sniper._keyPoll:Rearm(hit.itemID) end
+    if GC.Sniper._capPoll then GC.Sniper._capPoll:Rearm(hit.itemID) end
   end,
 }, { perMinute = LIM.DRILL_PER_MINUTE })
 
@@ -2820,6 +2847,10 @@ end
 -- classification (which knows the whole catalogue, priced or not), and the client's key info
 -- only where it has ALREADY answered -- `_keyInfoCommodity` is a memo filled by driver.getKeyInfo
 -- for whoever had to ask anyway, and nothing here ever asks on its own.
+-- (Caps fixes 4a: the cap poll, GC.Sniper._capPoll, does put capped commodities into
+-- SearchForItemKeys, on purpose. All it wants from the answer is the cheapest unit, which a
+-- commodity's key answers with -- the Sell tab's bulk fill and the BUY refresh rely on the same --
+-- and the book itself comes from the drill that follows a hit.)
 GC.Sniper._keyInfoCommodity = {}
 function GC.Sniper._IsCommodityId(itemID)
   local commodities = GC.db and GC.db.commodityByItem or {}
@@ -2829,50 +2860,76 @@ function GC.Sniper._IsCommodityId(itemID)
   return GC.Sniper._keyInfoCommodity[itemID] == true
 end
 
--- Pure: which realm item ids the key poll watches. A capped item is the player's own price
--- (GC.Caps.For), so it needs no realm reference to be watched -- everything after it does.
--- Final review M1: the ORDER here is not a priority. Core/KeyPoll.lua's SetTargets sorts what
--- it is handed, so listing caps ahead of the rest decides nothing except which id wins a
--- duplicate's "needs a realm value" question. Exposed for the spec (spec/caps_targets_spec.lua).
-function GC.Sniper._KeyTargetIds(caps, pins, watchlist, targets, isCommodity, hasRealmValue)
+-- Pure: which realm item ids the key poll watches -- items this realm can price, each with a
+-- realm reference. Final review M1: the ORDER here is not a priority. Core/KeyPoll.lua's
+-- SetTargets sorts what it is handed. Exposed for the spec (spec/caps_targets_spec.lua).
+--
+-- Caps fixes 4a: the player's caps are not in it any more. They have a poll of their own
+-- (GC.Sniper._capPoll below), which runs on every board and tab -- this one runs on the Items board
+-- only, which is why half the caps slept at any moment. A capped item that is also on one of these
+-- lists stays here for its realm reference, and is asked about by both.
+function GC.Sniper._KeyTargetIds(pins, watchlist, targets, isCommodity, hasRealmValue)
   local ids, seen = {}, {}
-  local function add(itemID, needsValue)
+  local function add(itemID)
     if type(itemID) ~= "number" or seen[itemID] then return end
     if isCommodity(itemID) then return end
-    if needsValue and not hasRealmValue(itemID) then return end
+    if not hasRealmValue(itemID) then return end
     seen[itemID] = true
     ids[#ids + 1] = itemID
   end
-  for _, itemID in ipairs(caps) do add(itemID, false) end
-  for _, itemID in ipairs(pins) do add(itemID, true) end
-  for _, itemID in ipairs(watchlist) do add(itemID, true) end
-  for _, itemID in ipairs(targets) do add(itemID, true) end
+  for _, itemID in ipairs(pins) do add(itemID) end
+  for _, itemID in ipairs(watchlist) do add(itemID) end
+  for _, itemID in ipairs(targets) do add(itemID) end
   return ids
 end
 
--- The poll set: the player's caps, their pins, the site watchlist the import carried (W
--- section) and the region's own list of realm items worth watching (T section), realm items
--- only. The poll VISITS them in id order whatever order they are handed in (Core/KeyPoll.lua's
--- SetTargets sorts) -- what a cap gets out of being listed first is not a turn but an
--- exemption: it is polled with no realm value at all, which nothing else here is.
--- GetWatchlist(0) is deliberate -- with a zero fallback
--- it answers with the W section or nothing, never the top-N-by-value list it otherwise invents,
--- which is not a watchlist and has no business being polled. A commodity the Sell tab has
--- already classified is left out (the book pass sweeps those); an item nobody has classified is
--- polled and answers for itself.
+-- The poll sets. The realm poll's: the player's pins, the site watchlist the import carried (W
+-- section) and the region's own list of realm items worth watching (T section), realm items with a
+-- realm reference only. GetWatchlist(0) is deliberate -- with a zero fallback it answers with the
+-- W section or nothing, never the top-N-by-value list it otherwise invents, which is not a
+-- watchlist and has no business being polled. A commodity the Sell tab has already classified is
+-- left out (the book pass sweeps those); an item nobody has classified is polled and answers for
+-- itself. The cap poll's: every cap the player has, as GC.Caps.Targets() hands them over -- realm
+-- or commodity, with or without any price of GoldCap's own (a cap IS the player's price).
 --
--- Called when the set can actually have changed -- AH open, a pin toggle, a fresh import, a
+-- Called when the sets can actually have changed -- AH open, a pin toggle, a fresh import, a
 -- caps adoption -- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that
 -- finds nothing new leaves a half-finished cycle exactly where it was.
 function GC.Sniper._RebuildKeyTargets()
   local data = GC.Data or {}
   GC.Sniper._keyPoll:SetTargets(GC.Sniper._KeyTargetIds(
-    GC.Caps and GC.Caps.Targets() or {},
     GC.Sniper._WatchPins(),
     data.GetWatchlist and data.GetWatchlist(0) or {},
     data.TargetIds and data.TargetIds() or {},
     GC.Sniper._IsCommodityId,
     function(id) return GC.Sniper._RealmValue(id) ~= nil end))
+  GC.Sniper._capPoll:SetTargets(GC.Caps and GC.Caps.Targets() or {})
+end
+
+-- Which items a keys answer speaks for: the same test Core/KeyPoll.lua's Fold writes a book entry
+-- under, so an entry read for one of these is this answer's. An item a batch asked about by name
+-- and is not in here has no listing left at all.
+function GC.Sniper._KeysAnswered(results)
+  local answered = {}
+  for i = 1, #results do
+    local result = results[i]
+    local itemID = result.itemKey and result.itemKey.itemID
+    if itemID and result.minPrice and result.minPrice > 0 then answered[itemID] = true end
+  end
+  return answered
+end
+
+-- Whether the player's cap on `itemID` still holds by what `poll`'s latest answer says: the answer
+-- spoke for the item (`answered`, above) and the poll's own book entry, read at the cap's own item
+-- level (caps fixes 3d: GC.KeyPoll.FloorFor -- the entry's plain floor is the cheapest variant of
+-- ANY level), is at or under the cap. Shared by both polls' folds: the realm poll's keeps a cap
+-- row from being overwritten or dropped by its ordinary path (3c), the cap poll's takes a row down
+-- once the cap no longer holds (4a).
+function GC.Sniper._CapHoldsIn(poll, itemID, answered)
+  local cap = GC.Caps and GC.Caps.For(itemID)
+  if not (cap and answered[itemID]) then return false end
+  local floor = GC.KeyPoll.FloorFor(poll:Book()[itemID], cap.l)
+  return floor ~= nil and floor <= cap.c
 end
 
 -- The realm-item poll (Core/KeyPoll.lua), built beside the book pass above and driven from the
@@ -2880,27 +2937,16 @@ end
 -- see GC.Sniper.OnThrottleReady.
 GC.Sniper._keyPoll = GC.KeyPoll.New({
   now = time,
-  -- The wider of the two triggers: a capped item polls at its own cap as well as (not
-  -- instead of) its realm reference, so a price drop past either one wakes the poll.
+  -- The realm reference's own trigger, and nothing else: a cap is the cap poll's to judge
+  -- (GC.Sniper._capPoll below), at the cap's own item level. Judged here as well, on this poll's
+  -- aggregate floor, a cap woke to every price of a variant below its level (caps fixes 4c).
   triggerFor = function(itemID)
     local value = GC.Sniper._RealmValue(itemID)
-    local realm = value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
-    local cap = GC.Caps and GC.Caps.TriggerFor(itemID) or nil
-    if realm and cap then return math.max(realm, cap) end
-    return realm or cap
+    return value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
   end,
   -- Same queue, same currency as a book-pass hit: what the lot would clear after the auction
-  -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it). A hit at
-  -- or under the player's own cap is checked first, regardless of estProfit -- see
-  -- Core/DrillQueue.lua's ranksBelow.
+  -- house's 5% cut, measured against the reference (Core/DrillQueue.lua sorts by it).
   onHit = function(hit)
-    local cap = GC.Caps and GC.Caps.For(hit.itemID) or nil
-    if cap and hit.floor <= cap.c then
-      -- The player's own price: verify first in line, the saving is the profit estimate.
-      GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
-        estProfit = cap.c - hit.floor, priority = 1, cap = true })
-      return
-    end
     local value = GC.Sniper._RealmValue(hit.itemID)
     if not value then return end
     GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
@@ -2945,22 +2991,13 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     --
     -- Caps fixes 3d: "holds" is read off the poll's own book entry, which Fold has just written
     -- for every item this batch answered -- not off the rows the ordinary path above turned into
-    -- deals -- and at the cap's own item level (GC.KeyPoll.FloorFor): the entry's plain floor is
-    -- the cheapest variant of ANY level, which kept a "610 or better" cap alive on a 590 after
-    -- the 615 it had found was sold. An item the batch did not answer for at all has sold out.
-    local answered = {}
-    for i = 1, #results do
-      local result = results[i]
-      local itemID = result.itemKey and result.itemKey.itemID
-      -- The same test Fold writes the book entry under, so the entry read below is this batch's.
-      if itemID and result.minPrice and result.minPrice > 0 then answered[itemID] = true end
-    end
+    -- deals -- and at the cap's own item level (GC.Sniper._CapHoldsIn). An item the batch did not
+    -- answer for at all has sold out.
+    local answered = GC.Sniper._KeysAnswered(results)
     local function capHolds(itemID)
       local existing = GC.Sniper._realmDeals[itemID]
-      local cap = existing and existing.cap and GC.Caps and GC.Caps.For(itemID)
-      if not (cap and answered[itemID]) then return false end
-      local floor = GC.KeyPoll.FloorFor(GC.Sniper._keyPoll:Book()[itemID], cap.l)
-      return floor ~= nil and floor <= cap.c
+      return (existing and existing.cap and GC.Sniper._CapHoldsIn(GC.Sniper._keyPoll, itemID, answered))
+        and true or false
     end
     -- GC.Sniper._realmDeals IS the Items board (0.9.2) -- not a copy kept beside the
     -- commodity one to survive a pass, which is what it was while the two shared a list.
@@ -3004,6 +3041,59 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
 -- realm row -- see onRows above and applyFullScanResults). Capped at WIN.ROW_CAP by the same
 -- comparator the commodity board uses, in onRows.
 GC.Sniper._realmDeals = {}
+
+-- Caps fixes 4a: the player's caps, polled on their own. Realm-item caps used to ride the realm
+-- poll above, which runs on the Items board only, and commodity caps were seen only by Auto's book
+-- pass, which stands paused on that board -- so at any moment half the caps were not watched, and
+-- on the Sell, Sold and BUY tabs none were. This poll asks about every cap, realm and commodity
+-- alike (a commodity's item key answers with its cheapest unit as well: the Sell tab's bulk fill
+-- and the BUY refresh already rely on it), whatever board or tab is on screen, for as long as the
+-- auction house is open, the window is up and the player is not using Blizzard's own panes --
+-- through the same arbiter, the same one-batch interlock and the same throttle claim as every
+-- other keys batch (GC.Sniper._TrySendCapBatch). A hit goes to the drill queue as the player's
+-- own price, first in line; the drill that follows is the one that decides, exactly as before.
+GC.Sniper._capPoll = GC.KeyPoll.New({
+  now = time,
+  -- At or under the cap: Core/KeyPoll.lua fires on floor < trigger, and TriggerFor is cap + 1.
+  triggerFor = function(itemID) return GC.Caps and GC.Caps.TriggerFor(itemID) or nil end,
+  onHit = function(hit)
+    local cap = GC.Caps and GC.Caps.For(hit.itemID)
+    if not (cap and hit.floor <= cap.c) then return end
+    -- The player's own price: verified first in line (Core/DrillQueue.lua's priority), the saving
+    -- under the cap is the profit estimate that orders the caps among themselves.
+    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
+      estProfit = cap.c - hit.floor, priority = 1, cap = true })
+  end,
+  -- The batch asked about these items by name, so what it says is the standing word on every
+  -- "your price" row for them, wherever the row lives (the Items store for a realm lot, the
+  -- commodity board _PutCapRow wrote to for a commodity): a floor above the cap -- at the cap's own
+  -- item level -- or no answer at all takes the row down. Only a cap row: an ordinary realm row is
+  -- the realm poll's to keep or drop. And the memory goes with it, the book pass's rule (caps fixes
+  -- 3f): a price that climbed above the cap and comes back down is a new opportunity.
+  onRows = function(results)
+    local asked = GC.Sniper._keysBatch
+    GC.Sniper._keysBatch = nil
+    if asked and GC.Caps then
+      local answered = GC.Sniper._KeysAnswered(results)
+      for i = 1, #asked do
+        local itemID = asked[i]
+        if not GC.Sniper._CapHoldsIn(GC.Sniper._capPoll, itemID, answered) then
+          local held = GC.Sniper._realmDeals[itemID]
+          if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
+          GC.Sniper._DropCapRow(itemID)
+          GC.Caps.Forget(itemID)
+        end
+      end
+    end
+    refreshRows()
+    -- The answer frees the interlock: the arbiter, deferred a frame, gives it to whoever was kept
+    -- waiting (the cap poll itself stands aside for LIM.CAPS_BATCH_GAP_SECONDS -- see
+    -- _TrySendCapBatch) and sends the drills this answer has just queued.
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0, function() if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end end)
+    end
+  end,
+})
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
@@ -5126,6 +5216,9 @@ function GC.Sniper._KeysOutstanding()
   local limit = GC.Sniper._keysOwner == "sell" and LIM.KEYS_SELL_TIMEOUT_SECONDS
     or LIM.KEYS_TIMEOUT_SECONDS
   if (time() - sentAt) < limit then return true end
+  -- A cap batch written off held the interlock for its whole wait: the breath after it is owed to
+  -- whoever sat through that, exactly as after an answer (see _TrySendCapBatch).
+  if GC.Sniper._keysOwner == "caps" then GC.Sniper._capsLandedAt = GetTime() end
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
@@ -5165,6 +5258,15 @@ function GC.Sniper._FoldKeysBatch()
     if GC.Sell and GC.Sell.FoldBulk then GC.Sell.FoldBulk(browsed) end
     return true
   end
+  if owner == "caps" then
+    -- The caps' own poll (caps fixes 4a). Its fold consumes _keysBatch, like the realm poll's.
+    -- The landing starts the breath it stands aside for, and the last batch of a round starts the
+    -- rest between rounds -- see _TrySendCapBatch.
+    GC.Sniper._capsLandedAt = GetTime()
+    if not GC.Sniper._capPoll:HasPending() then GC.Sniper._capsRoundDoneAt = GetTime() end
+    GC.Sniper._capPoll:Fold(browsed)
+    return true
+  end
   GC.Sniper._keyPoll:Fold(browsed)
   -- The cycle is over once nothing is left to hand out; the Items board's own loop starts
   -- the next one after a breather (see _TrySendKeysBatch).
@@ -5184,6 +5286,7 @@ end
 -- NOT fenced into requeryDraining either: a message that never reached the server cannot
 -- produce the late untagged result that fence exists for.
 function GC.Sniper.OnThrottledMessageDropped()
+  if GC.Sniper._keysOwner == "caps" then GC.Sniper._capsLandedAt = GetTime() end
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
@@ -5331,7 +5434,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   -- consumer per stuck window, so BUY's refresh and the Items poll do not spend each other's.
   -- driver.claimSend is the Sniper's own spelling of that call and stays the path for "sniper",
   -- since specs that load this file without Core/Util.lua rely on its "no pacing" fallback.
-  if who == "sniper" then
+  if who == "sniper" or who == "caps" then
     if driver.claimSend and not driver.claimSend() then return false end
   elseif GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend(who) then
     return false
@@ -5372,6 +5475,37 @@ function GC.Sniper._TrySendKeysBatch(playerBusy)
   return GC.Sniper._TrySendKeysBatchFor(poll, "sniper", function()
     return view == "deals" and GC.Sniper._Board() == "items"
   end, playerBusy)
+end
+
+-- Caps fixes 4a: one batch of the caps' own poll (GC.Sniper._capPoll), if this is a moment one
+-- may go. Unlike the realm poll's it does not ask which board or tab is on screen: the player's
+-- caps are watched whatever they are looking at, for as long as the auction house is open and the
+-- window is up. Everything else is the same addon-wide law _TrySendKeysBatchFor holds every keys
+-- batch to -- one outstanding, never across a pass's browse buffer, never while the player is on
+-- Blizzard's own panes, the throttle claimed under the Sniper's own name -- plus the arbiter's
+-- two vetoes, since the auction-house ticker calls this directly: a purchase in flight and a
+-- parked Check both go first. No second throttle, no bypass.
+--
+-- Fairness. The batch holds the one keys interlock until it answers, and a round is up to ten
+-- batches; sent back to back they would keep the Items board's poll, the BUY refresh, the Sell
+-- tab's bulk fill and Auto's next pass waiting for the whole round. So after every answer (or a
+-- batch written off) the poll stands aside for LIM.CAPS_BATCH_GAP_SECONDS -- longer than any of
+-- those takes to ask again -- and rests LIM.CAPS_ROUND_BREATHER_SECONDS between two rounds.
+function GC.Sniper._TrySendCapBatch(playerBusy)
+  local poll = GC.Sniper._capPoll
+  if poll:Count() == 0 then return false end
+  if not (GC.Sniper.IsAHOpen() and GC.Sniper.IsWindowShown()) then return false end
+  if GC.Sniper.IsPurchaseQuiet() or next(pendingRequerySend) ~= nil then return false end
+  local now = GetTime()
+  local landed = GC.Sniper._capsLandedAt
+  if landed and (now - landed) < LIM.CAPS_BATCH_GAP_SECONDS then return false end
+  if not poll:HasPending() then
+    local done = GC.Sniper._capsRoundDoneAt
+    if GC.Sniper._KeysOutstanding() then return false end
+    if done and (now - done) < LIM.CAPS_ROUND_BREATHER_SECONDS then return false end
+    poll:BeginCycle()
+  end
+  return GC.Sniper._TrySendKeysBatchFor(poll, "caps", function() return true end, playerBusy)
 end
 
 function GC.Sniper.OnThrottleReady()
@@ -5418,12 +5552,18 @@ function GC.Sniper.OnThrottleReady()
   for _ = 1, 2 do
     local hit = GC.Sniper._drillQueue:Peek()
     if not hit or not canDrillNow() then break end
-    -- Either book may be the one that saw this floor: commodities come from the book pass,
-    -- realm items from the key poll, and neither knows about the other's items. The hit is
-    -- still worth a query as long as ONE of them still shows the price it was queued for.
+    -- Any book may be the one that saw this floor: commodities come from the book pass, realm
+    -- items from the key poll, caps from their own poll, and none knows about the others'
+    -- items. The hit is still worth a query as long as ONE of them still shows the price it was
+    -- queued for.
     local booked = GC.Sniper._bookPass:Book()[hit.itemID]
     if not booked or booked.floor ~= hit.floor then
       booked = GC.Sniper._keyPoll:Book()[hit.itemID]
+    end
+    -- ...and the caps' own poll, which is the only one that ever sees a capped item nothing
+    -- else lists (caps fixes 4a).
+    if not booked or booked.floor ~= hit.floor then
+      booked = GC.Sniper._capPoll:Book()[hit.itemID]
     end
     if not booked or booked.floor ~= hit.floor then
       GC.Sniper._drillQueue:Drop(hit)
@@ -5441,6 +5581,12 @@ function GC.Sniper.OnThrottleReady()
       break
     end
   end
+
+  -- 2b. The player's caps (caps fixes 4a): one batch of their own poll, on whatever board or tab
+  -- is on screen. Ahead of the realm poll's batch, which would otherwise take every turn on the
+  -- Items board -- its answer brings its next batch straight away -- while the caps' own breath
+  -- after each answer (see _TrySendCapBatch) is what hands the turns back the other way.
+  if GC.Sniper._TrySendCapBatch(playerBusy) then return end
 
   -- 3. One batch of item keys (Core/KeyPoll.lua), and only between book-pass pages. A keys
   -- call REPLACES the browse buffer, so one granted mid-pass would delete the page the pass is
@@ -9503,6 +9649,9 @@ function GC.Sniper.OnAuctionHouseShow()
       if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
         GC.Sniper._TrySendKeysBatch()
       end
+      -- The caps' own poll (caps fixes 4a), on every board and tab -- the Sold tab has no other
+      -- sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
+      GC.Sniper._TrySendCapBatch()
       -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
       -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
       -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
@@ -9666,6 +9815,10 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- own Reset), and a batch that was in flight when the session ended has nothing left to
   -- answer it -- the counters go with it so the next visit's readout counts its own traffic.
   GC.Sniper._keyPoll:Reset()
+  -- The caps' own poll too (caps fixes 4a), and its pacing: a new visit's first round goes at once.
+  GC.Sniper._capPoll:Reset()
+  GC.Sniper._capsLandedAt = nil
+  GC.Sniper._capsRoundDoneAt = nil
   -- The keys the drill searched with go with that book: they were chosen FROM it (see
   -- driver.variantKey), so keeping them past the close would have a read use one session's
   -- variant for a search the next session has not made yet.
@@ -9760,6 +9913,11 @@ function GC.Sniper.DebugBoard()
     s(GC.Sniper._keysOwner),
     GC.Sniper._keysBatch and #GC.Sniper._keysBatch or "nil",
     s(GC.Sniper._keysThisCycle), s(GC.Sniper._keysLastCycle)))
+  -- The caps' own poll (caps fixes 4a): what it asks about, and where it is in its pacing.
+  local function ago(at) return at and ("%.1fs ago"):format(GetTime() - at) or "nil" end
+  GC.Print(("caps: targets=%d pending=%s landed=%s roundDone=%s window=%s"):format(
+    GC.Sniper._capPoll:Count(), s(GC.Sniper._capPoll:HasPending()),
+    ago(GC.Sniper._capsLandedAt), ago(GC.Sniper._capsRoundDoneAt), s(GC.Sniper.IsWindowShown())))
   GC.Print(("gates: paging=%s passWants=%s fullBrowse=%s playerBusy=%s prewarm=%s quiet=%s apiReady=%s"):format(
     s(pass:IsPaging()), s(pass:Wants()),
     s(C_AuctionHouse and C_AuctionHouse.HasFullBrowseResults and C_AuctionHouse.HasFullBrowseResults()),

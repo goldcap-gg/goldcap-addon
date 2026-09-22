@@ -1,8 +1,9 @@
 -- Player price caps: the alert-group ceilings the site ships through the companion
 -- (GoldCap_AppRuns.caps / .groups, see Core/AppRuns.lua for the file's contract). This
--- module only holds and judges them; polling is KeyPoll's and the book pass's, verification
--- the drill queue's, buying onDialogPrimaryClick's. A cap is the player's own price, so a
--- capped item needs no realm reference to be watched.
+-- module only holds and judges them; polling is the caps' own key poll's (UI/SniperFrame.lua's
+-- GC.Sniper._capPoll, on every board and tab) and the book pass's, verification the drill
+-- queue's, buying onDialogPrimaryClick's. A cap is the player's own price, so a capped item
+-- needs no realm reference to be watched.
 local _, GC = ...
 GC.Caps = {}
 
@@ -74,10 +75,10 @@ end
 function GC.Caps.Count() return #order end
 function GC.Caps.For(itemID) return caps[itemID] end
 -- Item ids in DELIVERY order, which is the site's own order and nothing more. Final review M1:
--- position here is not priority -- Core/KeyPoll.lua's SetTargets sorts what it is handed, so
--- "caps first" was a claim this list could not keep. What a cap really bypasses is the realm
--- VALUE requirement (UI/SniperFrame.lua's _KeyTargetIds): the cap is the player's own price, so
--- a capped item is polled with no market reference of any kind, which nothing else is.
+-- position here is not priority -- Core/KeyPoll.lua's SetTargets sorts what it is handed. This is
+-- the whole target set of the caps' own poll (UI/SniperFrame.lua's GC.Sniper._capPoll), realm items
+-- and commodities alike: the cap is the player's own price, so a capped item is polled with no
+-- market reference of any kind, which nothing else is.
 function GC.Caps.Targets()
   local out, gated = {}, 0
   for i = 1, #order do
@@ -110,11 +111,12 @@ end
 local emittedFloor = {}
 
 -- Commodity caps off the book pass (Core/BookPass.lua's `book`: itemID -> { floor, qty, … }).
--- A capped commodity is excluded from the key poll's own target set on purpose
--- (UI/SniperFrame.lua's `_KeyTargetIds`) -- the book pass is what actually sees a commodity
--- floor, so this is the only place these hits come from. Caps order, and silent about anything
--- the book pass has not (yet) reported: a realm item (isCommodity false), an over-cap floor,
--- and a capped commodity the book has no row for at all are all just not in the output.
+-- The pass sees every commodity floor it pages over anyway, so a capped commodity it finds under
+-- the cap is reported from here as well as by the caps' own poll (caps fixes 4a), which is what
+-- watches it when no pass runs -- on the Items board, with Auto off, on another tab. Caps order,
+-- and silent about anything the book pass has not (yet) reported: a realm item (isCommodity
+-- false), an over-cap floor, and a capped commodity the book has no row for at all are all just
+-- not in the output.
 --
 -- Caps fixes 3f: a floor the book shows ABOVE the cap clears the item's memory (Forget below),
 -- ratchet and ring alike. Nothing else would: Forget used to be reached only through a drill
