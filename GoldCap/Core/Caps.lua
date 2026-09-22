@@ -115,6 +115,12 @@ local emittedFloor = {}
 -- floor, so this is the only place these hits come from. Caps order, and silent about anything
 -- the book pass has not (yet) reported: a realm item (isCommodity false), an over-cap floor,
 -- and a capped commodity the book has no row for at all are all just not in the output.
+--
+-- Caps fixes 3f: a floor the book shows ABOVE the cap clears the item's memory (Forget below),
+-- ratchet and ring alike. Nothing else would: Forget used to be reached only through a drill
+-- that came back empty, and a floor above the cap is never drilled -- so a dip to 90 under a
+-- 100 cap, a rise to 120 and a re-dip to 90 left the ratchet holding 90, and the second dip,
+-- a new opportunity, read as the old one.
 function GC.Caps.BookHits(book, isCommodity)
   local hits = {}
   for i = 1, #order do
@@ -122,8 +128,9 @@ function GC.Caps.BookHits(book, isCommodity)
     if isCommodity(itemID) then
       local cap = caps[itemID]
       local booked = book[itemID]
-      if cap and booked and booked.floor and booked.floor <= cap.c
-          and emittedFloor[itemID] ~= booked.floor then
+      if cap and booked and booked.floor and booked.floor > cap.c then
+        GC.Caps.Forget(itemID)
+      elseif cap and booked and booked.floor and emittedFloor[itemID] ~= booked.floor then
         emittedFloor[itemID] = booked.floor
         hits[#hits + 1] = { itemID = itemID, floor = booked.floor, estProfit = cap.c - booked.floor }
       end

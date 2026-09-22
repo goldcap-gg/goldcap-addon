@@ -90,5 +90,33 @@ describe("Caps.BookHits", function()
       GC.Caps.ForgetAll()
       assert.equal(2, #GC.Caps.BookHits(book, isCommodity))
     end)
+
+    -- Caps fixes 3f: the memory used to reset only through Forget, which the drill reaches
+    -- when it comes back empty -- and a floor that climbs back above the cap is never drilled.
+    -- So 480 under a 500 cap, then 600, then 480 again said nothing the second time: the
+    -- ratchet still held 480, and a re-dip to the very price it remembered read as no news.
+    it("forgets a floor that climbed above the cap, so a re-dip to it is news again", function()
+      assert.equal(2, #GC.Caps.BookHits(book, isCommodity))
+      book[100].floor = 600 -- above its 500 cap
+      assert.same({}, GC.Caps.BookHits(book, isCommodity))
+      book[100].floor = 480
+      assert.same({ { itemID = 100, floor = 480, estProfit = 20 } }, GC.Caps.BookHits(book, isCommodity))
+    end)
+
+    it("forgets the ring's memory for it too", function()
+      GC.Caps.Announce({ itemID = 100, isCommodity = true, unitPrice = 480 })
+      book[100].floor = 600
+      GC.Caps.BookHits(book, isCommodity)
+      assert.is_true(GC.Caps.Announce({ itemID = 100, isCommodity = true, unitPrice = 480 }))
+    end)
+
+    it("leaves an item that is still under its cap exactly as it was", function()
+      GC.Caps.Announce({ itemID = 500, isCommodity = true, unitPrice = 800 })
+      GC.Caps.BookHits(book, isCommodity)
+      book[100].floor = 600
+      GC.Caps.BookHits(book, isCommodity)
+      assert.is_false(GC.Caps.Announce({ itemID = 500, isCommodity = true, unitPrice = 800 }))
+      assert.same({}, GC.Caps.BookHits(book, isCommodity))
+    end)
   end)
 end)
