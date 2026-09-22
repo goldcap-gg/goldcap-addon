@@ -4378,11 +4378,11 @@ function GC.Sniper._DropCapRow(itemID)
   end
 end
 
--- Caps fixes 3e: the cap row `deal` is still on the board as, or nil once it has left. Tables
--- are rebuilt all the time -- a re-drill of the same lot, a watch-loop pass over the same book --
--- so a waiting ring follows the board's CURRENT row for the same opportunity: for a realm item
--- the same auction (a different lot is a different opportunity, with a ring of its own if it is
--- news), for a commodity the item's cap row on the board _PutCapRow writes to.
+-- Caps fixes 3e: the board's current cap row for the opportunity `deal` stands for, or nil once
+-- it has left. Tables are rebuilt all the time -- a re-drill of the same lot, a watch-loop pass
+-- over the same book -- so a waiting ring follows the CURRENT row: for a realm item the same
+-- auction (a different lot is a different opportunity, with a ring of its own if it is news),
+-- for a commodity the item's cap row on the board _PutCapRow writes to.
 function GC.Sniper._BoardCapRow(deal)
   local itemID = deal.itemID
   if not deal.isCommodity then
@@ -4848,11 +4848,11 @@ stampVerdict = function(deal, data, manual)
   end
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
-  -- Final review I6: a cap decision has ALREADY rung, through drainCapPings (the cap branch of
-  -- evaluateLiveCommodityDeal/evaluateLiveItemDeal queues the deal into pendingCapPings, and
-  -- refreshRows below drains it). A commodity cap decision is SAFE and buyable, so without this
-  -- the same opportunity rang twice in one call chain -- two different bells, a frame apart, for
-  -- one price. The cap ring observes the same per-item floor this one does; see drainCapPings.
+  -- Final review I6: a cap decision rings through drainCapPings instead (the cap branch of
+  -- evaluateLiveCommodityDeal/evaluateLiveItemDeal queues the deal into pendingCapPings, and it
+  -- rings once its row is on screen). A commodity cap decision is SAFE and buyable, so without
+  -- this the same opportunity rang twice -- two different bells for one price. The cap ring
+  -- observes the same per-item floor this one does; see drainCapPings.
   if decision and decision.cap then return end
   -- Per ITEM, never a global mute. A watched item whose floor is reset every few seconds is a
   -- real sequence of opportunities and every one of them still SHOWS -- but a bell every five
