@@ -786,8 +786,13 @@ local function renderList()
     -- `unverified` rows are not pruned and not counted either, for the same reason `manual`
     -- ones are not: a realm lot the check found under its region reference did not shorten
     -- this list, it is one of the things ON it (see stampVerdict).
+    -- Final review: a CAP row is kept explicitly, not by luck. Today a cap verdict happens to
+    -- carry `unverified` (a realm cap) or `buyable` (a commodity cap), so it survived the
+    -- filter as a side effect of two unrelated flags -- and a cap decision that ever stops
+    -- setting either would silently vanish from the board. A cap is the player's own standing
+    -- instruction: whatever its status, it is never one of the rows the live check refused.
     if verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
-        and not pinned then
+        and not verdict.cap and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -4525,6 +4530,12 @@ stampVerdict = function(deal, data, manual)
   end
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  -- Final review I6: a cap decision has ALREADY rung, through drainCapPings (the cap branch of
+  -- evaluateLiveCommodityDeal/evaluateLiveItemDeal queues the deal into pendingCapPings, and
+  -- refreshRows below drains it). A commodity cap decision is SAFE and buyable, so without this
+  -- the same opportunity rang twice in one call chain -- two different bells, a frame apart, for
+  -- one price. The cap ring observes the same per-item floor this one does; see drainCapPings.
+  if decision and decision.cap then return end
   -- Per ITEM, never a global mute. A watched item whose floor is reset every few seconds is a
   -- real sequence of opportunities and every one of them still SHOWS -- but a bell every five
   -- seconds stops carrying information, and two different items must never silence each other.
@@ -5556,7 +5567,27 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   local levels = driver.commodityResult(deal.itemID) and driver.commodityBook(deal.itemID) or nil
   if not levels and row.armedItemID == deal.itemID then levels = row.armedLevels end
   if not levels and dialog and dialog.row == row then levels = dialog.bookLevels end
-  local finalDecision = evaluateLive(deal.itemID, levels, decision.quantity, totalPrice)
+  -- Live price caps, final review C1: a capped commodity is re-judged HERE against the player's
+  -- own price too, not against the market. Running the market engine over a cap decision asks
+  -- it about an item a cap exists precisely BECAUSE the market has nothing to say: it answered
+  -- invalid/demand_limit/thin-market, the quote was cancelled, the row requeried, the cap
+  -- decided it again, the server quoted again -- a loop no amount of clicking could break, and
+  -- a capped commodity simply could not be bought. Three conditions, the same three the board
+  -- used to build the row: a cap decision still stands on the levels this quote came with, the
+  -- quote itself is at or under the cap (GC.Caps.QuoteOk -- the one thing that must never be
+  -- waved through), and it still covers the quantity that was armed. A cap decision that now
+  -- covers LESS falls through to the branch below, which is already the "re-check what remains"
+  -- path a book that shrank under the plan takes.
+  local finalDecision
+  local cap = deal.cap and GC.Caps and GC.Caps.For(deal.itemID) or nil
+  if cap and levels then
+    local capDecision = GC.Caps.DecideCommodity(cap, levels, GC.db.settings.sniper.minimumProfitCopper)
+    if capDecision and GC.Caps.QuoteOk(deal, unitPrice)
+        and capDecision.quantity >= decision.quantity then
+      finalDecision = capDecision
+    end
+  end
+  finalDecision = finalDecision or evaluateLive(deal.itemID, levels, decision.quantity, totalPrice)
   if not finalDecision.buyable or finalDecision.status ~= "SAFE" then
     -- Visual price-change thresholds are never economic approval. A 1-copper or sub-5%
     -- repriced order that breaks the fixed safety decision cancels immediately.
@@ -7383,7 +7414,22 @@ end
 -- row would trigger. Neither call reaches a protected purchase function: those stay behind
 -- onDialogPrimaryClick's own hardware click, untouched (spec/sniper_purchase_wiring_spec.lua).
 drainCapPings = function(pings)
-  pingNewHotDeals(pings)
+  -- Final review I6: the cap bell is floored per item exactly like the verdict bell is
+  -- (stampVerdict's own GC.Sniper._rangAt / LIM.RING_FLOOR_SECONDS, and its comment for why
+  -- this is per item and not a global mute). A capped commodity whose book churns under the
+  -- cap re-announces on every improvement, and every one of those SHOWS -- but a bell every
+  -- few seconds stops carrying information. The rows themselves are never filtered here: only
+  -- what makes a sound is.
+  local now = GetTime()
+  local ring = {}
+  for _, capDeal in ipairs(pings) do
+    local rang = GC.Sniper._rangAt[capDeal.itemID]
+    if not (rang and (now - rang) < LIM.RING_FLOOR_SECONDS) then
+      GC.Sniper._rangAt[capDeal.itemID] = now
+      ring[#ring + 1] = capDeal
+    end
+  end
+  pingNewHotDeals(ring)
   if not (GC.db and GC.db.settings and GC.db.settings.sniper.capStopAndOpen) then return end
   for _, capDeal in ipairs(pings) do
     for i = 1, #rows do
@@ -9057,6 +9103,12 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
   -- what's worth flagging) -- see seenHotDeals' own declaration.
   for key in pairs(seenHotDeals) do seenHotDeals[key] = nil end
+  -- Final review I4: the cap board-ring's own memory is exactly the same claim about exactly
+  -- the same session ("the player has already been told about this lot"), so it ends with the
+  -- session too. Kept, a lot announced hours ago stayed silenced for the rest of the login,
+  -- and the auction STILL sitting there at the player's own price was the one thing the next
+  -- visit never mentioned. Guarded like every other GC.Caps read in this file.
+  if GC.Caps then GC.Caps.ForgetAll() end
   -- What the addon worked out for itself is a claim about a live market and does not survive
   -- the session, exactly like a verdict. Pins do: they are a standing instruction, and they
   -- live in SavedVariables.

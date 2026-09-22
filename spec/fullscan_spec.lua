@@ -664,4 +664,43 @@ describe("FullScan.CapDeals", function()
     assert.is_table(store[2])
     assert.is_table(store[3])
   end)
+
+  -- Final review M7: the comparator ranks by estProfit against the MARKET, and a cap deal
+  -- needs no market at all (Core/Caps.lua's own contract) -- so a cap set ABOVE the region
+  -- reference, which the design wants shown in red, carries a NEGATIVE estProfit and sorts
+  -- last. On a full board it was then the first thing truncated away, and the one row the
+  -- player themselves asked for never reached the screen. A cap row is the player's standing
+  -- instruction, not a lead this addon found: it is never dropped to make room.
+  local function capDeal(itemID, profit)
+    local d = deal(itemID, profit)
+    d.cap = 1000
+    return d
+  end
+
+  it("never truncates a cap row off a full board, however badly it ranks", function()
+    local store = {}
+    for id = 1, 10 do store[id] = deal(id, id * 1000) end
+    store[99] = capDeal(99, -5000) -- a cap above the reference: worst possible estProfit
+
+    local kept = GC.FullScan.CapDeals(store, 5)
+
+    assert.equal(5, #kept)
+    assert.is_table(store[99])
+    assert.equal(99, kept[#kept].itemID) -- still last in the board's own order
+    -- The cap row costs an ordinary one its place; the board does not grow past its own cap.
+    assert.same({ 10, 9, 8, 7 }, { kept[1].itemID, kept[2].itemID, kept[3].itemID, kept[4].itemID })
+    assert.is_nil(store[6])
+  end)
+
+  it("keeps every cap row even when the caps alone exceed the board", function()
+    local store = {}
+    for id = 1, 8 do store[id] = capDeal(id, -id) end
+    store[50] = deal(50, 9000)
+
+    local kept = GC.FullScan.CapDeals(store, 3)
+
+    assert.equal(8, #kept) -- every cap, and no budget left for the ordinary lead
+    assert.is_nil(store[50])
+    for id = 1, 8 do assert.is_table(store[id]) end
+  end)
 end)

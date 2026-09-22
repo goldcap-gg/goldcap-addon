@@ -183,6 +183,18 @@ function GC.Caps.Forget(itemID)
   announcedUnit[itemID] = nil
 end
 
+-- Final review I4: the whole memory, for the Auction House close (UI/SniperFrame.lua clears it
+-- beside `seenHotDeals`, which is the same claim about the same session). Announcement memory
+-- is a statement about ONE visit to the auction house -- "the player has already been told
+-- about this lot" -- and a fresh visit is a fresh judgment of what is worth flagging. Kept
+-- across the close, a lot announced hours ago stayed silenced for the rest of the login, and
+-- the auction still sitting there at the player's own price was the one thing the new session
+-- never mentioned.
+function GC.Caps.ForgetAll()
+  for k in pairs(announcedUnit) do announcedUnit[k] = nil end
+  for k in pairs(announcedAuctions) do announcedAuctions[k] = nil end
+end
+
 -- Addon task 7: the requote guard. `deal` is a board deal (buildCapDeal's own `.cap`, the
 -- copper amount, or nil for an uncapped item) and `unit` is the unit price a live server quote
 -- just came back with (UI/SniperFrame.lua's OnCommodityPriceUpdated). True when there is no cap

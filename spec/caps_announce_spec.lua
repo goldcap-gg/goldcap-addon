@@ -74,4 +74,31 @@ describe("Caps.Announce", function()
     assert.is_false(GC.Caps.Announce(nil))
     assert.is_false(GC.Caps.Announce({ isCommodity = true, unitPrice = 400 }))
   end)
+
+  -- Final review I4: an Auction House session is the unit this memory belongs to, exactly as
+  -- seenHotDeals is (UI/SniperFrame.lua's close handler clears them side by side). Without
+  -- this, a lot announced in the morning stayed silenced for the rest of the login -- a fresh
+  -- AH visit is a fresh judgment of what is worth flagging, and the auction that is STILL
+  -- sitting there at the player's own price is the first thing the new session should say.
+  describe("ForgetAll (the AH close)", function()
+    it("lets a realm lot ring again in the next session", function()
+      GC.Caps.Announce({ itemID = 1, isCommodity = false, auctionID = 111, unitPrice = 500 })
+      GC.Caps.ForgetAll()
+      assert.is_true(GC.Caps.Announce({ itemID = 1, isCommodity = false, auctionID = 111, unitPrice = 500 }))
+    end)
+
+    it("lets a commodity ring again at the same price", function()
+      GC.Caps.Announce({ itemID = 2, isCommodity = true, unitPrice = 400 })
+      GC.Caps.ForgetAll()
+      assert.is_true(GC.Caps.Announce({ itemID = 2, isCommodity = true, unitPrice = 400 }))
+    end)
+
+    it("clears every item, not just the last one", function()
+      GC.Caps.Announce({ itemID = 2, isCommodity = true, unitPrice = 400 })
+      GC.Caps.Announce({ itemID = 3, isCommodity = true, unitPrice = 400 })
+      GC.Caps.ForgetAll()
+      assert.is_true(GC.Caps.Announce({ itemID = 2, isCommodity = true, unitPrice = 400 }))
+      assert.is_true(GC.Caps.Announce({ itemID = 3, isCommodity = true, unitPrice = 400 }))
+    end)
+  end)
 end)

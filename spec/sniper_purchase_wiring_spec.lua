@@ -345,6 +345,111 @@ describe("Sniper purchase wiring", function()
     _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
   end)
 
+  -- Live price caps, final review C1. A cap is the player's own price and needs no market read
+  -- (Core/Caps.lua's own contract), so the items a cap exists for are exactly the ones the
+  -- market engine refuses: no value, no sell-through, no velocity. Re-judging the server's
+  -- quote with that engine cancelled every capped commodity purchase -- cancel, requery, the
+  -- cap decides it again, quote again, cancel again -- a loop no click could break. The quote
+  -- is judged by the cap that armed it, and the one thing that may never be waved through is a
+  -- quote ABOVE the cap. No protected call is issued from this event either way.
+  it("arms Confirm on a capped commodity the market engine would refuse", function()
+    local cancelCalls, confirmCalls = 0, 0
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end,
+      GetNumCommoditySearchResults = function() return 1 end,
+      GetCommoditySearchResultInfo = function() return { unitPrice = 900000, quantity = 5 } end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+    -- No import value at all for item 42: every market gate refuses it, which is the whole
+    -- premise of the bug.
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = {},
+      caps = { { i = 42, c = 1000000 } } }
+
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+        PauseReasons = function() return {} end, Tick = function() end } end },
+      Data = { GetItemValue = function() return nil end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("Core/Caps.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+    GC.Caps.Adopt()
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    -- The board's own cap deal (buildCapDeal's shape) and the decision GC.Caps.DecideCommodity
+    -- armed it with: five units at 9g against a 10g cap, no market figures anywhere.
+    local deal = { itemID = 42, isCommodity = true, cap = 1000000, unitPrice = 900000, qty = 5 }
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7, deal = deal, purchaseDeal = deal,
+      decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+        unit = 900000, stressProfit = 200000 },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() end,
+      commodityBook = function() return { { unitPrice = 900000, quantity = 5 } } end,
+      commodityResult = function() return { avail = 5 } end,
+    })
+
+    GC.Sniper.OnCommodityPriceUpdated(900000, 1800000)
+
+    assert.equal(0, cancelCalls)
+    assert.equal(0, confirmCalls) -- the event never confirms; the player's next click does
+    assert.equal("confirm", row.purchaseStage)
+    assert.is_table(row.quoteSnapshot)
+    assert.is_true(row.quoteSnapshot.decision.buyable)
+    assert.equal("SAFE", row.quoteSnapshot.decision.status)
+    assert.is_true(row.quoteSnapshot.decision.cap)
+
+    -- And the one case that must still refuse: the same book, quoted ABOVE the player's price.
+    row.purchaseStage, row.quoteSnapshot = "buying", nil
+    row.decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+      unit = 900000, stressProfit = 200000 }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    GC.Sniper.OnCommodityPriceUpdated(1100000, 2200000)
+
+    assert.equal(1, cancelCalls)
+    assert.equal(0, confirmCalls)
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+    _G.GoldCap_AppRuns = nil
+  end)
+
   it("retires the cancel's tombstone when the requery it started answers", function()
     local cancelCalls = 0
     _G.time = function() return 100000 end
