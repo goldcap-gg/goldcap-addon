@@ -21,6 +21,44 @@ GC.KeyPoll = {}
 -- raise it (the specs use a small batch to exercise the round-robin without 100 ids).
 local MAX_BATCH = 100
 
+-- Which of an item's item-level variants a drill should actually search for: the cheapest one
+-- at or above `minIlvl` (0 -- or absent -- meaning any), as an item key
+-- (C_AuctionHouse.MakeItemKey's own four fields). `entry` is a book entry as Book() returns
+-- them.
+--
+-- The floor matters because a bare item key -- MakeItemKey(itemID), item level 0 -- resolves to
+-- ONE variant server-side, and the client answers GetItemSearchResultInfo for the key the query
+-- was sent with and no other (API_C_AuctionHouse.SendSearchQuery). So a drill on a bare key
+-- both asks about and reads back whichever variant the server picked: Teebu's Scorching
+-- Straight Sword was boarded at 250,000 for its (19) while its (66) sat at 211,111 in
+-- Blizzard's own browse, unseen. `minIlvl` is the level the decision the drill is feeding
+-- compares against -- a cap's `l` (Core/Caps.lua's DecideRealm) or the realm reference's
+-- refIlvl (GC.SniperDecision.EvaluateRealm) -- so what comes back is the cheapest lot that
+-- decision can actually approve.
+--
+-- nil when the entry carries no variants (an item this poll has never folded) and nil when no
+-- variant reaches `minIlvl`. Both mean "this module has no key to offer"; what the caller does
+-- with each is the caller's (UI/SniperFrame.lua's driver.variantKey).
+function GC.KeyPoll.VariantKeyFor(entry, minIlvl)
+  local variants = type(entry) == "table" and entry.variants or nil
+  if type(variants) ~= "table" or #variants == 0 or not entry.itemID then return nil end
+  minIlvl = (type(minIlvl) == "number" and minIlvl > 0) and minIlvl or 0
+  local best
+  for i = 1, #variants do
+    local variant = variants[i]
+    if (variant.itemLevel or 0) >= minIlvl and (not best or variant.floor < best.floor) then
+      best = variant
+    end
+  end
+  if not best then return nil end
+  return {
+    itemID = entry.itemID,
+    itemLevel = best.itemLevel or 0,
+    itemSuffix = best.itemSuffix or 0,
+    battlePetSpeciesID = best.battlePetSpeciesID or 0,
+  }
+end
+
 function GC.KeyPoll.New(driver, opts)
   opts = opts or {}
   local maxBatch = opts.maxBatch or MAX_BATCH
@@ -97,11 +135,30 @@ function GC.KeyPoll.New(driver, opts)
   -- The client's result rows are never written into: the first duplicate turns the kept entry
   -- into a copy of our own, and rows with no itemID at all are passed through untouched for the
   -- fold below to ignore exactly as it always has.
+  --
+  -- What is folded away here is also the ONLY place the addon ever sees the variants: the fold
+  -- below keeps one floor per item, and a drill has to name an item key to search with. So each
+  -- variant's own row is kept beside the collapsed one (second return value, itemID -> list) and
+  -- goes onto the book entry, for GC.KeyPoll.VariantKeyFor and UI/SniperFrame.lua's drill.
   local function collapse(rows)
-    local out, index, owned = {}, {}, {}
+    local out, index, owned, variants = {}, {}, {}, {}
     for i = 1, #rows do
       local row = rows[i]
       local itemID = row.itemKey and row.itemKey.itemID
+      if itemID and row.minPrice and row.minPrice > 0 then
+        local list = variants[itemID]
+        if not list then list = {}; variants[itemID] = list end
+        -- Copied field by field, never a reference into the client's own key: the three that
+        -- rebuild a full item key (C_AuctionHouse.MakeItemKey takes exactly these, after the
+        -- item id) plus what this variant is asking and how much of it there is.
+        list[#list + 1] = {
+          itemLevel = row.itemKey.itemLevel or 0,
+          itemSuffix = row.itemKey.itemSuffix or 0,
+          battlePetSpeciesID = row.itemKey.battlePetSpeciesID or 0,
+          floor = row.minPrice,
+          qty = row.totalQuantity,
+        }
+      end
       local at = itemID and index[itemID]
       if not at then
         if itemID then index[itemID] = #out + 1 end
@@ -119,7 +176,18 @@ function GC.KeyPoll.New(driver, opts)
         kept.totalQuantity = (kept.totalQuantity or 0) + (row.totalQuantity or 0)
       end
     end
-    return out
+    -- Cheapest first, which is the order the drill asks in. Sorted by price alone the order of
+    -- two variants asking the same price would be whatever table.sort happened to leave (it is
+    -- not stable), so item level and suffix settle the tie -- a book that reshuffles itself
+    -- between identical batches is the kind of noise this whole module exists to remove.
+    for _, list in pairs(variants) do
+      table.sort(list, function(a, b)
+        if a.floor ~= b.floor then return a.floor < b.floor end
+        if a.itemLevel ~= b.itemLevel then return a.itemLevel < b.itemLevel end
+        return a.itemSuffix < b.itemSuffix
+      end)
+    end
+    return out, variants
   end
 
   -- Folds one keys result into the book. Same ratchet as BookPass.foldRow, deliberately: a
@@ -128,7 +196,8 @@ function GC.KeyPoll.New(driver, opts)
   -- the same unsold lot every cycle, and the drill queue would spend its whole budget
   -- re-confirming listings nothing has happened to.
   function obj:Fold(rows)
-    rows = collapse(rows or {})
+    local variants
+    rows, variants = collapse(rows or {})
     for i = 1, #rows do
       local row = rows[i]
       local itemKey = row.itemKey
@@ -140,7 +209,11 @@ function GC.KeyPoll.New(driver, opts)
         local trigger = driver.triggerFor(itemID)
         local hit = trigger and floor < trigger
           and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
-        book[itemID] = { floor = floor, qty = qty, seenAt = driver.now() }
+        -- `itemID` and `variants` make the entry self-describing: the drill is handed the entry
+        -- alone (the book is keyed by item id, which a lone entry cannot know) and asks it which
+        -- key to search with. See GC.KeyPoll.VariantKeyFor below.
+        book[itemID] = { itemID = itemID, floor = floor, qty = qty, seenAt = driver.now(),
+          variants = variants[itemID] }
         if hit then
           driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
         end

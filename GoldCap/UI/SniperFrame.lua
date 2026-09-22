@@ -1869,10 +1869,66 @@ driver = {
     return info
   end,
 
+  -- The key the LAST search for this item went out with, so every read below asks the client
+  -- about the same key the query was made with -- which is the only key it will answer for
+  -- (API_C_AuctionHouse.SendSearchQuery). A table field, not a top-level local: this file sits
+  -- at its 200-local ceiling (docs/addon/AGENTS.md, "Hard limits").
+  lastSearchKey = {},
+
+  -- Which item key a drill for this item should actually send. nil means "nothing is known
+  -- about this item's variants" and the caller keeps the bare key.
+  --
+  -- A BARE key -- MakeItemKey(itemID), item level 0 -- resolves to ONE item-level variant
+  -- server-side. Teebu's Scorching Straight Sword (159840) is listed as a (66) asking 211,111
+  -- and a (19) asking 250,000; the drill sent the bare key, read the results back with it, and
+  -- so priced the board row off whichever variant the server picked -- 250,000g for a sword the
+  -- same browse was offering at 211,111. The key poll is the one place both variants are ever
+  -- seen (Core/KeyPoll.lua's collapse keeps their rows on the book entry), so the drill aims at
+  -- the cheapest one the decision it feeds can actually approve: the cap's own item-level floor
+  -- (Core/Caps.lua's DecideRealm) when the player has a cap on this item, otherwise the realm
+  -- reference's refIlvl, which is the same floor GC.SniperDecision.EvaluateRealm applies to the
+  -- lots it is handed (0 -- any variant -- for a reference that carries no item level).
+  --
+  -- An item this poll has never folded keeps the bare key, deliberately: nothing here knows its
+  -- variants, and one variant of an unknown item is still better than no drill at all. In
+  -- practice that is a commodity -- the book pass's own items, which have no item-level variants
+  -- for a key to name, so the bare key is the only key they have -- and a realm item Checked
+  -- before its first poll batch has landed. The WIDE browse pass is not a third case: its hits
+  -- run GC.SniperDecision.PreScreen first (the book pass's onHit below), and a realm item has
+  -- none of the sell-through, velocity or liquidity facts that screen demands, so a pass hit
+  -- never queues a drill for one. Both Items-board writers are this poll and this drill.
+  variantKey = function(itemID)
+    if not (GC.KeyPoll and GC.KeyPoll.VariantKeyFor and GC.Sniper._keyPoll) then return nil end
+    local entry = GC.Sniper._keyPoll:Book()[itemID]
+    if not entry then return nil end
+    local cap = GC.Caps and GC.Caps.For(itemID)
+    local floor = cap and cap.l
+    if not floor then
+      local value = GC.Sniper._RealmValue(itemID)
+      floor = (value and value.refIlvl) or 0
+    end
+    local variant = GC.KeyPoll.VariantKeyFor(entry, floor)
+    -- No variant reaches that floor. Both decisions already say so on their own -- DecideRealm
+    -- finds no lot at cap.l, EvaluateRealm answers no_comparable_lot -- so this search cannot
+    -- produce a deal. It still goes out, on the cheapest variant: a Check the player asked for
+    -- is waiting on this very query, and an answer naming the lots that DO exist is the honest
+    -- one. What it must NOT fall back to is the bare key, which is the bug this exists to fix.
+    if not variant and floor > 0 then variant = GC.KeyPoll.VariantKeyFor(entry, 0) end
+    if not variant then return nil end
+    return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
+      variant.battlePetSpeciesID)
+  end,
+
   sendSearch = function(itemID)
     trace("search: item " .. tostring(itemID))
-    local key = C_AuctionHouse.MakeItemKey(itemID)
-    local info = C_AuctionHouse.GetItemKeyInfo(key)
+    local key = driver.variantKey(itemID) or C_AuctionHouse.MakeItemKey(itemID)
+    driver.lastSearchKey[itemID] = key
+    -- Classification is asked of the BARE key through driver.getKeyInfo on purpose: isCommodity
+    -- is a fact about the ITEM, not about one of its item-level variants, and the bare key is
+    -- the one the client has already cached for it (the pre-warm asks for exactly that, and
+    -- getKeyInfo remembers the answer) -- asking about a variant key nothing has warmed is a
+    -- fresh server round-trip for something already known.
+    local info = driver.getKeyInfo(itemID)
     -- Blizzard's pane may open this item's buy page in answer; that page is ours, not a buy.
     if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
     if info and info.isCommodity then
@@ -1883,8 +1939,11 @@ driver = {
     end
   end,
 
+  -- The probe evaluateLiveItemDeal gates on, so it reads with the key sendSearch actually sent
+  -- for this item -- a read on any other key is the client's silence about a query nobody made,
+  -- which this path would report as "no results" for an item that has plenty.
   itemResult = function(itemID)
-    local key = C_AuctionHouse.MakeItemKey(itemID)
+    local key = driver.lastSearchKey[itemID] or C_AuctionHouse.MakeItemKey(itemID)
     local info = C_AuctionHouse.GetItemSearchResultInfo(key, 1)
     if not info or not info.buyoutAmount or info.buyoutAmount == 0 then return nil end
     if not info.quantity or info.quantity <= 0 then return nil end
@@ -1998,7 +2057,11 @@ driver = {
   -- The player's own listings are skipped. Buying one is impossible, and letting one become
   -- the "cheapest comparable lot" would have the addon offer the player their own auction.
   itemLots = function(itemID)
-    local key = C_AuctionHouse.MakeItemKey(itemID)
+    -- The key the drill SENT, never a freshly-made bare one (driver.lastSearchKey above): the
+    -- client answers about the key a query was made with, so reading a different one is either
+    -- another variant's lots or nothing at all. This is the read half of the same bug
+    -- driver.variantKey fixes in the send half -- one without the other fixes nothing.
+    local key = driver.lastSearchKey[itemID] or C_AuctionHouse.MakeItemKey(itemID)
     local n = C_AuctionHouse.GetNumItemSearchResults(key)
     if not n or n <= 0 then return {} end
     if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
@@ -9240,6 +9303,12 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- own Reset), and a batch that was in flight when the session ended has nothing left to
   -- answer it -- the counters go with it so the next visit's readout counts its own traffic.
   GC.Sniper._keyPoll:Reset()
+  -- The keys the drill searched with go with that book: they were chosen FROM it (see
+  -- driver.variantKey), so keeping them past the close would have a read use one session's
+  -- variant for a search the next session has not made yet.
+  -- Replaced rather than emptied in place: nothing holds a reference to the table itself, every
+  -- reader goes through `driver.lastSearchKey[itemID]` at call time.
+  driver.lastSearchKey = {}
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
