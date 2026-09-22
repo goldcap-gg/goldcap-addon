@@ -283,6 +283,35 @@ describe("KeyPoll", function()
     end)
   end)
 
+  -- Caps fixes 3d: what an item costs at or above an item-level floor, off the same book entry.
+  -- The entry's own `floor` is the cheapest variant of ANY level, so a cap with a level floor
+  -- judged by it was kept alive by the junk variant after the one it wanted had sold.
+  describe("FloorFor", function()
+    local function ladder()
+      local poll = newPoll()
+      poll:Fold({ variantRow(300, 19, 100000, 1), variantRow(300, 66, 211111, 1),
+        variantRow(300, 610, 900000, 1), variantRow(300, 615, 950000, 1) })
+      return poll:Book()[300]
+    end
+
+    it("is the entry's own floor when any item level will do", function()
+      assert.equal(100000, GC.KeyPoll.FloorFor(ladder(), 0))
+      assert.equal(100000, GC.KeyPoll.FloorFor(ladder(), nil))
+    end)
+
+    it("is the cheapest variant at or above the item-level floor", function()
+      assert.equal(211111, GC.KeyPoll.FloorFor(ladder(), 20))
+      assert.equal(900000, GC.KeyPoll.FloorFor(ladder(), 610))
+      assert.equal(950000, GC.KeyPoll.FloorFor(ladder(), 611))
+    end)
+
+    it("has no answer when no variant reaches the floor, or there is no entry", function()
+      assert.is_nil(GC.KeyPoll.FloorFor(ladder(), 616))
+      assert.is_nil(GC.KeyPoll.FloorFor(nil, 0))
+      assert.is_nil(GC.KeyPoll.FloorFor({ itemID = 7, floor = 900 }, 610))
+    end)
+  end)
+
   it("forgets the book on reset but keeps the targets", function()
     local poll = newPoll({ maxBatch = 2 })
     triggers[7] = 1000

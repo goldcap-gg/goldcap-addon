@@ -2896,16 +2896,10 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- being rescued FROM here, and the row says "unverified" instead of pretending otherwise.
   onRows = function(results)
     local realmRows = GC.FullScan.RowsFromBrowse(results, GC.Sniper._RealmValue, GC.db.settings.sniper)
-    local fresh, qualified, floorOf = {}, {}, {}
+    local fresh, qualified = {}, {}
     for i = 1, #realmRows do
       local row = realmRows[i]
-      -- Live price caps, addon task 5 fix: this batch's own floor for the item, kept regardless
-      -- of whether it goes on to qualify as an ordinary deal below -- the null-out pass past the
-      -- end of this loop reads it to judge a CAP row on its own terms (the cap needs no realm
-      -- value at all, so an ordinary deal here will often be nil for exactly the item a cap
-      -- exists to rescue).
       local unitPrice = math.floor(row.buyoutStack / row.count)
-      floorOf[row.itemID] = unitPrice
       local value = GC.Sniper._RealmValue(row.itemID)
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
@@ -2923,6 +2917,33 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
         qualified[row.itemID] = true
       end
     end
+    -- A CAP row answers to the cap, not to the ordinary deal this batch may or may not have made
+    -- for the item: it needs no realm value to exist (GC.Caps.For's own contract, Core/Caps.lua),
+    -- so an ordinary deal's absence says nothing about it -- and, caps fixes 3c, neither does an
+    -- ordinary deal's PRESENCE: for an item with a region reference the batch's aggregate floor
+    -- qualifies off the same row, and writing that deal over the cap row threw away its label,
+    -- its CAP bucket and the lot the drill resolved. So a cap row stands for as long as the cap
+    -- holds, and the batch's ordinary deal only takes the item over once it does not.
+    --
+    -- Caps fixes 3d: "holds" is read off the poll's own book entry, which Fold has just written
+    -- for every item this batch answered -- not off the rows the ordinary path above turned into
+    -- deals -- and at the cap's own item level (GC.KeyPoll.FloorFor): the entry's plain floor is
+    -- the cheapest variant of ANY level, which kept a "610 or better" cap alive on a 590 after
+    -- the 615 it had found was sold. An item the batch did not answer for at all has sold out.
+    local answered = {}
+    for i = 1, #results do
+      local result = results[i]
+      local itemID = result.itemKey and result.itemKey.itemID
+      -- The same test Fold writes the book entry under, so the entry read below is this batch's.
+      if itemID and result.minPrice and result.minPrice > 0 then answered[itemID] = true end
+    end
+    local function capHolds(itemID)
+      local existing = GC.Sniper._realmDeals[itemID]
+      local cap = existing and existing.cap and GC.Caps and GC.Caps.For(itemID)
+      if not (cap and answered[itemID]) then return false end
+      local floor = GC.KeyPoll.FloorFor(GC.Sniper._keyPoll:Book()[itemID], cap.l)
+      return floor ~= nil and floor <= cap.c
+    end
     -- GC.Sniper._realmDeals IS the Items board (0.9.2) -- not a copy kept beside the
     -- commodity one to survive a pass, which is what it was while the two shared a list.
     -- Nothing here writes to scanDeals any more: a realm row belongs to the board built for
@@ -2936,24 +2957,15 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
       -- disprove it.
       for i = 1, #asked do
         local itemID = asked[i]
-        if not qualified[itemID] then
-          -- A CAP row gets a second life an ordinary deal does not: it needs no realm value to
-          -- exist (GC.Caps.For's own contract, Core/Caps.lua), so `qualified` above -- which
-          -- only ever fires off a REAL GC.DealMath.Evaluate against a realm/region value -- is
-          -- silent about it by construction, not because the cap has stopped clearing. Keep it
-          -- as long as this batch's own floor is still at or under the cap; only a floor that
-          -- climbed back above it, or the id vanishing from the results entirely (no entry in
-          -- `floorOf`), removes it -- same as an ordinary deal's silence always has.
-          local existing = GC.Sniper._realmDeals[itemID]
-          local cap = existing and existing.cap and GC.Caps and GC.Caps.For(itemID)
-          local floor = floorOf[itemID]
-          if not (cap and floor and floor <= cap.c) then
-            GC.Sniper._realmDeals[itemID] = nil
-          end
+        if not qualified[itemID] and not capHolds(itemID) then
+          GC.Sniper._realmDeals[itemID] = nil
         end
       end
     end
-    for i = 1, #fresh do GC.Sniper._realmDeals[fresh[i].itemID] = fresh[i] end
+    for i = 1, #fresh do
+      local itemID = fresh[i].itemID
+      if not capHolds(itemID) then GC.Sniper._realmDeals[itemID] = fresh[i] end
+    end
     -- A map grows for as long as the poll keeps finding things; the board under it renders a
     -- hundred rows. Same cap, same order (Core/FullScan.lua's own comparator) the commodity
     -- side has always had -- see GC.FullScan.CapDeals.

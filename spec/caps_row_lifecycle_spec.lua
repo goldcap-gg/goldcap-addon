@@ -186,6 +186,85 @@ describe("Caps row lifecycle -- realm key poll (onRows)", function()
 
     assert.is_nil(GC.Sniper._CurrentLiveDeal(42))
   end)
+
+  -- Caps fixes 3c: an item with a region reference qualifies as an ORDINARY deal off the same
+  -- batch -- the aggregate floor under the reference -- and that deal used to be written over
+  -- the cap row: the "group · your price" label, the CAP bucket and the lot the drill resolved
+  -- all went, replaced by an unverified aggregate at the floor.
+  it("keeps the cap row when the same batch also qualifies the item as an ordinary deal", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 100, 0)
+    values[42] = { ts = 1, source = "import", kind = "realm_item", ref = 150 }
+    local held = capDeal(42, 80, 100)
+    GC.Sniper._realmDeals[42] = held
+    GC.Sniper._keysBatch = { 42 }
+
+    GC.Sniper._keyPoll:Fold({ browseRow(42, 90, 3) }) -- under the cap, and 40% under the reference
+
+    assert.equal(held, GC.Sniper._realmDeals[42])
+  end)
+
+  it("hands the item to the ordinary deal once the cap no longer holds", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 100, 0)
+    values[42] = { ts = 1, source = "import", kind = "realm_item", ref = 150 }
+    GC.Sniper._realmDeals[42] = capDeal(42, 80, 100)
+    GC.Sniper._keysBatch = { 42 }
+
+    GC.Sniper._keyPoll:Fold({ browseRow(42, 120, 3) }) -- above the cap, still 20% under the reference
+
+    local deal = GC.Sniper._realmDeals[42]
+    assert.is_table(deal)
+    assert.is_nil(deal.cap)
+    assert.equal(120, deal.unitPrice)
+  end)
+
+  -- Caps fixes 3d: the keep-alive judged the item by its aggregate floor -- the cheapest variant
+  -- of ANY level. A cap with a level floor ("610 or better at 100") was then kept alive by a 590
+  -- selling at 50 after the 615 it had found was gone. It reads the poll's own book entry now,
+  -- at the cap's own level.
+  local function variantRow(itemID, itemLevel, minPrice)
+    return { itemKey = { itemID = itemID, itemLevel = itemLevel }, minPrice = minPrice, totalQuantity = 1 }
+  end
+
+  it("lets an item-level cap row go once only a variant below its level is under the cap", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 100, 610)
+    GC.Sniper._realmDeals[42] = capDeal(42, 80, 100)
+    GC.Sniper._keysBatch = { 42 }
+
+    GC.Sniper._keyPoll:Fold({ variantRow(42, 590, 50), variantRow(42, 615, 150) })
+
+    assert.is_nil(GC.Sniper._realmDeals[42])
+  end)
+
+  it("keeps an item-level cap row while a variant at its level is still under the cap", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 100, 610)
+    local held = capDeal(42, 80, 100)
+    GC.Sniper._realmDeals[42] = held
+    GC.Sniper._keysBatch = { 42 }
+
+    GC.Sniper._keyPoll:Fold({ variantRow(42, 590, 50), variantRow(42, 615, 90) })
+
+    assert.equal(held, GC.Sniper._realmDeals[42])
+  end)
+
+  -- The other half of 3d: the keep-alive may not depend on which rows the ordinary path turned
+  -- into realm rows. A capped item the import knows no region reference for is still answered
+  -- for by the batch, and its own floor keeps its row.
+  it("keeps the cap row of an item the import has no region reference for", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 100, 0)
+    values[42] = { ts = 1, source = "import", kind = "realm_item", mv = 500 } -- a median, no ref
+    local held = capDeal(42, 80, 100)
+    GC.Sniper._realmDeals[42] = held
+    GC.Sniper._keysBatch = { 42 }
+
+    GC.Sniper._keyPoll:Fold({ browseRow(42, 90, 3) })
+
+    assert.equal(held, GC.Sniper._realmDeals[42])
+  end)
 end)
 
 describe("Caps row lifecycle -- commodity watch loop (onObservation)", function()

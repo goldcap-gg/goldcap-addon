@@ -39,9 +39,9 @@ local MAX_BATCH = 100
 -- nil when the entry carries no variants (an item this poll has never folded) and nil when no
 -- variant reaches `minIlvl`. Both mean "this module has no key to offer"; what the caller does
 -- with each is the caller's (UI/SniperFrame.lua's driver.variantKey).
-function GC.KeyPoll.VariantKeyFor(entry, minIlvl)
+local function cheapestVariant(entry, minIlvl)
   local variants = type(entry) == "table" and entry.variants or nil
-  if type(variants) ~= "table" or #variants == 0 or not entry.itemID then return nil end
+  if type(variants) ~= "table" then return nil end
   minIlvl = (type(minIlvl) == "number" and minIlvl > 0) and minIlvl or 0
   local best
   for i = 1, #variants do
@@ -50,6 +50,11 @@ function GC.KeyPoll.VariantKeyFor(entry, minIlvl)
       best = variant
     end
   end
+  return best
+end
+
+function GC.KeyPoll.VariantKeyFor(entry, minIlvl)
+  local best = type(entry) == "table" and entry.itemID and cheapestVariant(entry, minIlvl) or nil
   if not best then return nil end
   return {
     itemID = entry.itemID,
@@ -57,6 +62,19 @@ function GC.KeyPoll.VariantKeyFor(entry, minIlvl)
     itemSuffix = best.itemSuffix or 0,
     battlePetSpeciesID = best.battlePetSpeciesID or 0,
   }
+end
+
+-- What the item costs at or above `minIlvl`, off the same book entry: the entry's own floor when
+-- any level will do (0 or absent -- the collapse already keeps the cheapest variant there), else
+-- the cheapest variant that reaches the level. nil when no variant does, or there is no entry.
+-- The entry's own `floor` alone is the wrong answer for a level floor: it is the cheapest variant
+-- of ANY level, so a cap asking for 610 at 100 read a 590 at 50 as "still under the cap" (caps
+-- fixes 3d, UI/SniperFrame.lua's keys-batch keep-alive).
+function GC.KeyPoll.FloorFor(entry, minIlvl)
+  if type(entry) ~= "table" then return nil end
+  if not (type(minIlvl) == "number" and minIlvl > 0) then return entry.floor end
+  local best = cheapestVariant(entry, minIlvl)
+  return best and best.floor or nil
 end
 
 function GC.KeyPoll.New(driver, opts)
