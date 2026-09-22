@@ -385,6 +385,9 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
       -- The window this board lives in is on screen (see `frame` below), so a shown row is a
       -- visible one -- the question the cap ring asks before it spends anything (caps fixes 3e).
       function row:IsVisible() return self.shown end
+      -- Every pooled row sits inside the board's view here.
+      function row:GetTop() return 400 end
+      function row:GetBottom() return 368 end
       function row:SetAlpha() end
       return row
     end)
@@ -403,7 +406,9 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     set(show, "ahOpen", true)
     set(show, "mode", "fullscan")
     set(show, "frame", { IsShown = function() return true end, Hide = function() end,
-      status = { SetText = function() end } })
+      status = { SetText = function() end },
+      -- The board's ScrollFrame, as far as GC.Sniper._RowOnScreen reads it (UI coordinates).
+      scroll = { GetTop = function() return 500 end, GetBottom = function() return 100 end } })
     return GC
   end
 
@@ -535,6 +540,32 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     assert.equal(80, verdict.unitPrice)
     -- And nothing is filed at the browse floor the drill was queued at.
     assert.is_nil(verdictFor({ itemID = 42, unitPrice = 90 }))
+  end)
+
+  -- Caps fixes 3e, round 1: a render rings but never opens. refreshRows runs inside a closing
+  -- dialog's own OnHide (Cancel/Escape -> abortRowPurchase -> resolvePurchase -> refreshRows), and
+  -- a stop-and-open from there would open the next window under the one closing -- so a render
+  -- drains with opens off and the 0.25s ticker (GC.Sniper._TickCapPings) does every opening.
+  it("rings from a render but never opens the buy window from one", function()
+    local GC = load()
+    GC.db.settings.sniper.capStopAndOpen = true
+    adoptCap(GC, 42, 100, 0)
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    local opened = {}
+    set(upvalue(refreshRows, "drainCapPings"), "onBuyClick", function(row) opened[#opened + 1] = row end)
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    driverTbl.commodityBook = function() return { { unitPrice = 80, quantity = 3 } } end
+
+    driverTbl.onObservation(42, nil) -- builds the row, queues its ring, renders
+    refreshRows() -- and a render of its own, the way a closing dialog's OnHide renders
+
+    local capDeal = onBoard(GC, 42)
+    assert.is_false(GC.Caps.IsNews(capDeal)) -- rung (and announced) on the render
+    assert.same({}, opened)
+
+    GC.Sniper._TickCapPings()
+    assert.equal(1, #opened)
+    assert.equal(capDeal, opened[1].deal)
   end)
 
   it("does not touch the board for an item with no cap at all when the plain deal is nil", function()
@@ -784,6 +815,18 @@ describe("Caps row lifecycle -- commodity board across a book pass", function()
 
     assert.is_nil(onBoard(GC, 42))
     assert.equal(ordinary, onBoard(GC, 7)) -- an ordinary row keeps its old behaviour
+  end)
+
+  -- The Items board's side of the same claim. Its store is wiped whole on the close already
+  -- (every realm row, cap or not); pinned here because the promise above leans on it.
+  it("does not carry a realm cap row across the close either", function()
+    local GC = loadSniper()
+    GC.Sniper._realmDeals[99] = { itemID = 99, isCommodity = false, auctionID = 5, unitPrice = 80,
+      qty = 1, profit = -80, estProfit = -80, tier = "WATCH", cap = 100, stale = true }
+
+    GC.Sniper.OnAuctionHouseClosed()
+
+    assert.is_nil(GC.Sniper._realmDeals[99])
   end)
 
   it("does not carry a ring still waiting for its row across the close either", function()
