@@ -439,6 +439,8 @@ GC.Locales.itIT = {
     "Il prezzo sta scendendo; entrarci è il modo per restare incastrato.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "Il prezzo è l'ultima quotazione, vecchia al massimo di 45 secondi. Se cambia prima della conferma, la pubblicazione viene abbandonata anziché inviata al vecchio prezzo.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "Il prezzo si è mosso -- parte di questa quotazione può superare il tuo prezzo",
   ["The price moved and the trade is no longer safe."] =
     "Il prezzo si è mosso e l'operazione non è più sicura.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

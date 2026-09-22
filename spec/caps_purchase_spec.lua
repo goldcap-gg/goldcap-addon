@@ -7,7 +7,10 @@ local helper = require("spec.spec_helper")
 --   * a cap decision says what its units cost (`entryTotal`), so the dialog shows real UNIT and
 --     TOTAL, the requote guard holds the quote against the real plan, and the wallet check runs;
 --   * a commodity cap buys within the player's own Max units per buy and wallet limit, and at
---     any saving at all -- "at or under" is the promise, with no 5g floor under it.
+--     any saving at all -- "at or under" is the promise, with no 5g floor under it;
+--   * at the server's quote the window shows the quantity that Confirm will actually buy;
+--   * a quantity chosen on a cap row is decided by the cap rule, never by the market engine, and
+--     a quote that may hold units above the cap is never confirmed quietly.
 --
 -- No protected call is issued anywhere here: every purchase call stays in onDialogPrimaryClick,
 -- which spec/sniper_purchase_wiring_spec.lua pins.
@@ -29,10 +32,17 @@ describe("Live price caps -- buying at the player's own price", function()
     error("missing upvalue " .. wanted)
   end
 
-  local values, books, money, cancels, confirms, recorded
+  local books, money, cancels, confirms, recorded
+
+  -- 10 x 100g + 10 x 190g + 10 x 250g, with the cap at 200g: twenty units qualify, ten do not.
+  local LADDER = {
+    { unitPrice = 1000000, quantity = 10 },
+    { unitPrice = 1900000, quantity = 10 },
+    { unitPrice = 2500000, quantity = 10 },
+  }
 
   local function loadSniper(settings)
-    values, books, money, cancels, confirms = {}, {}, 10000000000, 0, 0
+    books, money, cancels, confirms = {}, 10000000000, 0, 0
     recorded = { acquisitions = 0, flips = 0, ledger = 0 }
     _G.time = function() return 100000 end
     _G.GetTime = function() return 100 end
@@ -65,7 +75,8 @@ describe("Live price caps -- buying at the player's own price", function()
       AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
         PauseReasons = function() return {} end, Tick = function() end } end },
       Data = {
-        GetItemValue = function(itemID) return values[itemID] end,
+        -- No market data for anything: the items a cap exists for are exactly those.
+        GetItemValue = function() return nil end,
         GetWatchlist = function() return {} end,
         RecordFlip = function() recorded.flips = recorded.flips + 1 end,
       },
@@ -297,6 +308,173 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_nil(row.purchaseStage)
       assert.equal(4500000, GC.Sniper.session.spent)
       assert.equal(0, GC.Sniper.session.estProfit)
+    end)
+  end)
+
+  describe("at the server's quote", function()
+    -- Caps fixes 2e: the stamp wrote every unit under the cap into the quantity box while
+    -- Confirm bought the two that were armed.
+    it("shows the quantity Confirm will buy and the quote's own total for it", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      books[42] = { { unitPrice = 900000, quantity = 5 } }
+      local deal = { itemID = 42, isCommodity = true, cap = 1000000, unitPrice = 900000, qty = 5 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+          entryTotal = 1800000, entryUnitDisplay = 900000, unit = 900000, capUnit = 1000000 } }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+
+      GC.Sniper.OnCommodityPriceUpdated(900000, 1800000)
+
+      assert.equal("confirm", row.purchaseStage)
+      assert.equal("2", d.qtyBox.editBox.text)
+      assert.equal(GC.Util.FormatMoney(1800000), d.totalCostText.text)
+      assert.equal(2, row.quoteSnapshot.quantity)
+      assert.equal(2, row.quoteSnapshot.decision.quantity)
+      assert.equal(1800000, row.quoteSnapshot.decision.entryTotal)
+    end)
+
+    -- The same quantity is what the purchase is recorded from. A quote decision that named a
+    -- different quantity than the quote itself used to leave a successful cap buy frozen on
+    -- "purchase total unavailable -- inspect mailbox" with nothing recorded.
+    it("records a confirmed cap buy instead of freezing it for the mailbox", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      books[42] = { { unitPrice = 900000, quantity = 5 } }
+      local deal = { itemID = 42, isCommodity = true, cap = 1000000, unitPrice = 900000, qty = 5 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+          entryTotal = 1800000, entryUnitDisplay = 900000, unit = 900000, capUnit = 1000000 } }
+      local d = fakeDialog(row, deal)
+      local pending = { row = row, itemID = 42, token = 7 }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      GC.Sniper.OnCommodityPriceUpdated(900000, 1800000)
+      -- What the Confirm click records on the attempt (onDialogPrimaryClick's own bookkeeping).
+      pending.confirmed, pending.deal, pending.quote = true, row.purchaseDeal, row.quoteSnapshot
+      row.purchaseStage = "confirming"
+
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.equal(1, recorded.acquisitions)
+      assert.is_nil(row.purchaseStage) -- resolved, not "frozen"
+      assert.equal(1, GC.Sniper.session.buys)
+      assert.equal(1800000, GC.Sniper.session.spent)
+    end)
+
+    -- Caps fixes 2f: a quote's AVERAGE can sit under the cap while units inside it do not.
+    -- The market engine approved 25 units off a ladder with only 20 under the cap; the old
+    -- guard read the 166g average against the 200g cap and confirmed it quietly.
+    it("never confirms quietly a quote the book says must reach above the cap", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 2000000)
+      books[42] = LADDER
+      local deal = { itemID = 42, isCommodity = true, cap = 2000000, unitPrice = 1000000, qty = 20 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { status = "SAFE", buyable = true, quantity = 25, entryTotal = 41500000,
+          reasons = {} } }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+      -- The market still approves it: the cap is the only thing that can object.
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { status = "SAFE", buyable = true, quantity = 25, entryTotal = 41500000, reasons = {} }
+      end)
+
+      GC.Sniper.OnCommodityPriceUpdated(1660000, 41500000)
+
+      assert.equal("requote", row.purchaseStage) -- the loud path, not "confirm"
+      assert.is_true(d.banner.shown)
+      assert.is_false(d.enabled)
+      assert.equal(0, confirms)
+      assert.is_nil(d.bannerHead:find("Above your price", 1, true)) -- the average is not above it
+      assert.is_truthy(d.bannerHead:find("your price", 1, true))
+    end)
+
+    it("does not confirm a quote costing more than the book's own units under the cap", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 2000000)
+      books[42] = LADDER
+      local deal = { itemID = 42, isCommodity = true, cap = 2000000, unitPrice = 1000000, qty = 20 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 20,
+          entryTotal = 29000000, entryUnitDisplay = 1450000, unit = 1000000, capUnit = 2000000 } }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+
+      -- 200 copper over what the twenty units under the cap cost on the book: something in
+      -- the quote is not what the book showed, and the book cannot say it is under the cap.
+      GC.Sniper.OnCommodityPriceUpdated(1450010, 29000200)
+
+      assert.not_equal("confirm", row.purchaseStage)
+      assert.equal(1, cancels) -- no market data to fall back on: cancelled and re-checked
+      assert.equal(0, confirms)
+    end)
+  end)
+
+  describe("choosing a quantity on a cap row", function()
+    local function armLadder(GC)
+      adoptCap(GC, 42, 2000000)
+      local live = capLive(GC, 42, LADDER)
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal }
+      local d = armOnDialog(GC, row, deal, live.decision, LADDER)
+      -- The quantity controls are wired inside createDialog; reach them the way the dialog does.
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local createDialog = getUpvalue(openDialog, "createDialog")
+      return row, deal, d, getUpvalue(createDialog, "applyQuickFillQty")
+    end
+
+    -- Caps fixes 2f: a typed quantity went to the market engine, which knows nothing about an
+    -- item a cap exists for -- any number disarmed the dialog.
+    it("re-decides a typed quantity by the cap rule, not the market engine", function()
+      local GC = loadSniper()
+      local row, _, d, applyQuickFillQty = armLadder(GC)
+      local applyChosenQty = getUpvalue(applyQuickFillQty, "applyChosenQty")
+
+      applyChosenQty(row, 5)
+
+      assert.equal("ready", row.purchaseStage)
+      assert.is_true(row.decisionSnapshot.cap)
+      assert.equal(5, row.decisionSnapshot.quantity)
+      assert.equal(5 * 1000000, row.decisionSnapshot.entryTotal)
+      assert.is_true(d.enabled)
+    end)
+
+    it("fills to what the cap allows, not to the whole book", function()
+      local GC = loadSniper()
+      local row, deal, d, applyQuickFillQty = armLadder(GC)
+      local qtyMaxAvailable = getUpvalue(applyQuickFillQty, "qtyMaxAvailable")
+
+      assert.equal(20, qtyMaxAvailable(deal))
+      assert.equal("of 20", d.qtyOfLabel.text)
+      applyQuickFillQty(100)
+
+      assert.equal("ready", row.purchaseStage)
+      assert.equal(20, row.decisionSnapshot.quantity)
+      assert.equal(29000000, row.decisionSnapshot.entryTotal)
+    end)
+
+    it("will not arm units above the cap, even where the market would", function()
+      local GC = loadSniper()
+      local row, _, _, applyQuickFillQty = armLadder(GC)
+      local applyChosenQty = getUpvalue(applyQuickFillQty, "applyChosenQty")
+      setUpvalue(applyChosenQty, "evaluateLive", function(_, _, n)
+        return { status = "SAFE", buyable = true, quantity = n, entryTotal = n * 1660000, reasons = {} }
+      end)
+
+      applyChosenQty(row, 25)
+
+      assert.not_equal(25, row.decisionSnapshot and row.decisionSnapshot.quantity)
+      assert.not_equal("ready", row.purchaseStage)
     end)
   end)
 end)

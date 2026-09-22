@@ -437,6 +437,8 @@ GC.Locales.ruRU = {
     "Цена падает; заходить в неё — это и есть способ застрять.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "Цена — последняя полученная, не старше 45 секунд. Если она изменится до подтверждения, выставление отменяется, а не уходит по старой цене.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "Цена сдвинулась -- часть этого предложения может быть выше вашей цены",
   ["The price moved and the trade is no longer safe."] =
     "Цена сдвинулась, и сделка больше не безопасна.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

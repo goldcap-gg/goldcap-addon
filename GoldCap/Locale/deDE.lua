@@ -439,6 +439,8 @@ GC.Locales.deDE = {
     "Der Preis fällt; da einzusteigen ist genau, wie man festsitzt.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "Der Preis ist der zuletzt geholte, höchstens 45 Sekunden alt. Ändert er sich vor dem Bestätigen, wird das Einstellen abgebrochen statt zum alten Preis abgeschickt.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "Der Preis hat sich bewegt -- ein Teil dieses Angebots liegt womöglich über deinem Preis",
   ["The price moved and the trade is no longer safe."] =
     "Der Preis hat sich bewegt, der Handel ist nicht mehr sicher.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

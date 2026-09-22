@@ -184,6 +184,38 @@ describe("Caps.DecideCommodity", function()
     assert.is_nil(GC.Caps.DecideCommodity({ c = 100 }, { { unitPrice = 80, quantity = 3 } }, nil))
   end)
 
+  -- Caps fixes 2e/2f: a quantity the player chose on the dialog, and the one a server quote was
+  -- armed on, are judged by the cap rule too -- exactly that many units, at or under the cap,
+  -- inside the same two limits -- or not at all.
+  it("decides exactly a chosen quantity, cheapest first", function()
+    local levels = {
+      { unitPrice = 80, quantity = 3 },
+      { unitPrice = 90, quantity = 2 },
+    }
+    local decision = GC.Caps.DecideCommodity({ c = 100 }, levels, ROOMY, 4)
+    assert.equal(4, decision.quantity)
+    assert.equal(80 * 3 + 90, decision.entryTotal)
+    assert.equal(80, decision.unit)
+  end)
+
+  it("refuses a chosen quantity the book cannot fill at or under the cap", function()
+    local levels = {
+      { unitPrice = 80, quantity = 3 },
+      { unitPrice = 120, quantity = 50 }, -- plenty of units, all of them over the cap
+    }
+    assert.is_nil(GC.Caps.DecideCommodity({ c = 100 }, levels, ROOMY, 4))
+  end)
+
+  it("refuses a chosen quantity past the player's Max units per buy", function()
+    local levels = { { unitPrice = 80, quantity = 30 } }
+    assert.is_nil(GC.Caps.DecideCommodity({ c = 100 }, levels, { maxQuantity = 20, budget = 1000000 }, 21))
+  end)
+
+  it("refuses a chosen quantity past the player's wallet limit", function()
+    local levels = { { unitPrice = 80, quantity = 30 } }
+    assert.is_nil(GC.Caps.DecideCommodity({ c = 100 }, levels, { maxQuantity = 200, budget = 799 }, 10))
+  end)
+
   it("returns nil for an empty book", function()
     assert.is_nil(GC.Caps.DecideCommodity({ c = 100 }, {}, ROOMY))
   end)

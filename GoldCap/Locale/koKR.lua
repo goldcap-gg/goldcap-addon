@@ -412,6 +412,8 @@ GC.Locales.koKR = {
     "가격이 내려가는 중입니다. 여기서 사면 물리기 딱 좋습니다.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "가격은 마지막으로 받아온 값으로, 최대 45초 전의 것입니다. 확인하기 전에 값이 바뀌면 옛 가격으로 보내지 않고 등록을 포기합니다.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "가격이 바뀌었습니다 -- 이 견적의 일부가 내 가격보다 비쌀 수 있습니다",
   ["The price moved and the trade is no longer safe."] = "가격이 움직여 더 이상 안전한 거래가 아닙니다.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "5% 수수료와 등록비를 내고 나면 설정한 최소 수익에 미치지 못합니다.",

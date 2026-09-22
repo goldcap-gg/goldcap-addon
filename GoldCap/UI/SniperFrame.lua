@@ -4240,12 +4240,25 @@ end
 
 -- Live price caps: a commodity cap decided on `levels` within the player's own per-buy limits --
 -- Max units per buy and the wallet limit, as GC.SniperDecision.BuyLimits works them out from
--- the settings and the gold in the bags right now. Every place that decides a cap on a book
--- comes through here, so no two of them can apply a different limit. A table field, not a
--- local: this chunk sits near Lua's 200-local ceiling.
-function GC.Sniper._DecideCap(cap, levels)
+-- the settings and the gold in the bags right now. `quantity` asks for exactly that many units
+-- (a quantity the player chose, or the one a quote was armed on); nil asks for the most the rule
+-- allows. Every place that decides a cap on a book comes through here, so no two of them can
+-- apply a different limit. Table fields, not locals: this chunk sits near Lua's 200-local
+-- ceiling.
+function GC.Sniper._DecideCap(cap, levels, quantity)
   return GC.Caps.DecideCommodity(cap, levels,
-    GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()))
+    GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()), quantity)
+end
+
+-- The cap that governs the quantity controls of `row`, or nil when the market engine does: a
+-- commodity row armed on a cap decision (GC.Caps.DecideCommodity) takes every quantity from the
+-- cap rule -- units at or under the player's own price, inside their own limits. Keyed on the
+-- ARMED decision, not on the deal: a cap row the market approved instead (nothing left under
+-- the cap) is the market's to size, and its quote is still held to the cap on the way in.
+function GC.Sniper._RowCap(row, deal)
+  local armed = row and row.decisionSnapshot
+  if not (armed and armed.cap and deal and deal.isCommodity) then return nil end
+  return GC.Caps and GC.Caps.For(deal.itemID) or nil
 end
 
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
@@ -5733,20 +5746,28 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- it about an item a cap exists precisely BECAUSE the market has nothing to say: it answered
   -- invalid/demand_limit/thin-market, the quote was cancelled, the row requeried, the cap
   -- decided it again, the server quoted again -- a loop no amount of clicking could break, and
-  -- a capped commodity simply could not be bought. Three conditions, the same three the board
-  -- used to build the row: a cap decision still stands on the levels this quote came with, the
-  -- quote itself is at or under the cap (GC.Caps.QuoteOk -- the one thing that must never be
-  -- waved through), and it still covers the quantity that was armed. A cap decision that now
-  -- covers LESS falls through to the branch below, which is already the "re-check what remains"
-  -- path a book that shrank under the plan takes.
+  -- a capped commodity simply could not be bought.
+  --
+  -- Caps fixes 2e/2f: judged for EXACTLY the armed quantity -- the one Confirm will buy
+  -- (quoteSnapshot.quantity below) -- not for every unit the book has under the cap. The stamp
+  -- below used to write that larger number into the quantity box while Confirm bought the armed
+  -- one. `capFresh` is the cap decision for that quantity on this book, or `false` when the book
+  -- cannot fill it at or under the cap (or there is no book to judge by), and GC.Caps.QuoteOk
+  -- holds the server's quote to it: an average at or under the cap is not enough, the quote may
+  -- cost no more than those units do (Core/Caps.lua says why). Anything it refuses falls through
+  -- to the branch below, which is already the "re-check what remains" path a book that shrank
+  -- under the plan takes -- and whatever that approves is then loud, never a quiet Confirm.
   local finalDecision
   local cap = deal.cap and GC.Caps and GC.Caps.For(deal.itemID) or nil
-  if cap and levels then
-    local capDecision = GC.Sniper._DecideCap(cap, levels)
-    if capDecision and GC.Caps.QuoteOk(deal, unitPrice)
-        and capDecision.quantity >= decision.quantity then
-      finalDecision = capDecision
-    end
+  local capFresh
+  if cap then capFresh = levels and GC.Sniper._DecideCap(cap, levels, decision.quantity) or false end
+  local capOk = not GC.Caps or GC.Caps.QuoteOk(deal, unitPrice, totalPrice, capFresh)
+  if capFresh and capOk then
+    -- What Confirm pays is the server's quote, which QuoteOk has just held to the book's own
+    -- cost of these units: the same, or less. The stamp and the purchase record read this.
+    capFresh.entryTotal = totalPrice
+    capFresh.entryUnitDisplay = math.floor(totalPrice / capFresh.quantity)
+    finalDecision = capFresh
   end
   finalDecision = finalDecision or evaluateLive(deal.itemID, levels, decision.quantity, totalPrice)
   if not finalDecision.buyable or finalDecision.status ~= "SAFE" then
@@ -5830,10 +5851,10 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
   -- Task 7: a cap is the player's own price, not a market read -- a quote above it is always
   -- loud, however small the rise from the entry total looked (the entry total may already have
-  -- been at or near the cap, so an ordinary "warn"-sized move can still cross it). Guarded like
-  -- every other GC.Caps read in this file (GC.Caps.For above) so a fixture that never loads
-  -- Core/Caps.lua is unaffected.
-  local capBreach = (GC.Caps and not GC.Caps.QuoteOk(deal, unitPrice)) and true or false
+  -- been at or near the cap, so an ordinary "warn"-sized move can still cross it). The same
+  -- verdict the cap branch above reached (`capOk`, true whenever Core/Caps.lua is not loaded), so
+  -- a quote that may hold units above the cap is loud too, whatever else approved it.
+  local capBreach = not capOk
   if capBreach then severity = "loud" end
   if severity == "none" then
     row.purchaseStage = "confirm"
@@ -5870,10 +5891,20 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- construction and says nothing. Name the two numbers that actually decide it instead: what
   -- the server is asking, and what the player said they would pay. The arming is unchanged --
   -- this is still the loud requote, with its countdown and its explicit second click.
-  local loudHead = capBreach
-    and (GC.L["Above your price -- quoted %s, your price %s"]):format(
+  --
+  -- Caps fixes 2f: a breach whose AVERAGE is still at or under the cap -- the quote costs more
+  -- than the book's own units under the cap, or the book cannot fill the quantity under it -- is
+  -- not "above your price" by that number, and saying so would print a quote under the price it
+  -- claims to break. It says what is actually known: some of it may be.
+  local loudHead
+  if capBreach and unitPrice > deal.cap then
+    loudHead = (GC.L["Above your price -- quoted %s, your price %s"]):format(
       GC.Util.FormatMoney(unitPrice), GC.Util.FormatMoney(deal.cap))
-    or (GC.L["PRICE ROSE %.1fx"]):format(ratio)
+  elseif capBreach then
+    loudHead = GC.L["The price moved -- part of this quote may be above your price"]
+  else
+    loudHead = (GC.L["PRICE ROSE %.1fx"]):format(ratio)
+  end
   if dialog and dialog.row == row then
     if severity == "loud" then
       showRequoteBanner(loudHead, detail)
@@ -6464,6 +6495,14 @@ end
 -- deal.qty as a last resort (never less than what's already being proposed) -- floored at 1 so
 -- a degenerate 0 can never make the controls unusable.
 local function qtyMaxAvailable(deal)
+  -- Live price caps (caps fixes 2f): on a row armed by the player's own price the ceiling is what
+  -- that price allows on this book -- never the whole book, whose dearer units the cap rule would
+  -- refuse. Nothing left under it answers 1, and applyChosenQty then refuses even that.
+  local cap = dialog and GC.Sniper._RowCap(dialog.row, deal)
+  if cap then
+    local most = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels)
+    return most and most.quantity or 1
+  end
   local maxQty
   if dialog and dialog.bookLevels then
     maxQty = sumLevelQty(dialog.bookLevels)
@@ -6495,6 +6534,8 @@ refreshQtyRow = function()
       local bookTotal = sumLevelQty(dialog.bookLevels)
       if bookTotal > 0 then known = bookTotal end
     end
+    -- A cap row's "of N" is the ceiling its box clamps to (qtyMaxAvailable), not the whole book.
+    if GC.Sniper._RowCap(dialog.row, deal) then known = qtyMaxAvailable(deal) end
     if known then
       dialog.qtyOfLabel:SetText((GC.L["of %d"]):format(known))
       dialog.qtyOfLabel:Show()
@@ -6561,7 +6602,18 @@ local function applyChosenQty(row, n)
   -- A player-selected quantity is a new safety decision, not a legacy UI price recomputation.
   -- It reuses the exact live book captured by the authoritative requery; missing depth fails
   -- closed rather than falling back to a discovery quote or an estimated total.
-  local decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
+  --
+  -- Live price caps (caps fixes 2f): on a row armed by the player's own price that decision is
+  -- the cap rule's -- exactly n units at or under the cap, inside their own limits. The market
+  -- engine knows nothing about an item a cap exists for (any number disarmed the dialog), and
+  -- where it does know the item it would arm units above the cap whenever the average held.
+  local cap = GC.Sniper._RowCap(row, deal)
+  local decision
+  if cap then
+    decision = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels, n) or nil
+  else
+    decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
+  end
   if not decision or not decision.buyable or decision.status ~= "SAFE" then
     armCheck(row, deal, decision or { status = "WATCH", reasons = { "live_verification_required" } },
       GC.SniperDecision.ReasonText((decision and decision.reasons and decision.reasons[1])

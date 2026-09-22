@@ -452,6 +452,8 @@ GC.Locales.ukUA = {
     "Ціна падає; заходити в неї — це і є спосіб застрягти.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "Ціна — остання отримана, не старша за 45 секунд. Якщо вона зміниться до підтвердження, виставлення скасовується, а не йде за старою ціною.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "Ціна зрушила -- частина цього котирування може бути вищою за вашу ціну",
   ["The price moved and the trade is no longer safe."] =
     "Ціна зрушила, і угода більше не безпечна.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

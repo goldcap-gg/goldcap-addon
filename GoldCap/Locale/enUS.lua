@@ -490,6 +490,8 @@ GC.Locales.enUS = {
     "The price is falling; buying into it is how you get stuck.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "The price moved -- part of this quote may be above your price",
   ["The price moved and the trade is no longer safe."] =
     "The price moved and the trade is no longer safe.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

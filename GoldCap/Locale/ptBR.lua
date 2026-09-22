@@ -439,6 +439,8 @@ GC.Locales.ptBR = {
     "O preço está caindo; entrar nisso é como você fica preso.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "O preço é a última cotação, com no máximo 45 segundos. Se ele mudar antes de confirmar, o anúncio é abandonado em vez de enviado pelo preço antigo.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "O preço mudou -- parte desta cotação pode estar acima do seu preço",
   ["The price moved and the trade is no longer safe."] =
     "O preço se moveu e a operação não é mais segura.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

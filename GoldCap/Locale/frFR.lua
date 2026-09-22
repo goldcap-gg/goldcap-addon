@@ -438,6 +438,8 @@ GC.Locales.frFR = {
     "Le prix baisse ; y entrer, c'est exactement comme on se retrouve coincé.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "Le prix est la dernière cotation, vieille de 45 secondes au plus. S'il change avant la confirmation, la mise en vente est abandonnée plutôt qu'envoyée à l'ancien prix.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "Le prix a bougé -- une partie de cette offre peut dépasser ton prix",
   ["The price moved and the trade is no longer safe."] =
     "Le prix a bougé et l'opération n'est plus sûre.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =

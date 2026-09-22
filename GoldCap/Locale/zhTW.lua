@@ -403,6 +403,7 @@ GC.Locales.zhTW = {
   ["The price is falling; buying into it is how you get stuck."] = "價格正在下跌，此時接手正是被套的方式。",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "價格是最後一次取得的報價，最多 45 秒前。若在確認前發生變化，會放棄本次上架，而不是按舊價發出。",
+  ["The price moved -- part of this quote may be above your price"] = "價格變了 -- 這次報價可能有一部分高於你的價格",
   ["The price moved and the trade is no longer safe."] = "價格變動了，這筆交易不再安全。",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "扣掉 5% 手續費和上架費後，利潤達不到你設定的下限。",

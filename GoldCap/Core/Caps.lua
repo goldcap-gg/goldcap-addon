@@ -193,8 +193,20 @@ end
 -- onDialogPrimaryClick and armReady read for a commodity: status == "SAFE", buyable == true,
 -- quantity. It carries no stressProfit: nothing here measured a resale, and a "profit" figure
 -- made of the saving under the cap would be one the panel invented.
-function GC.Caps.DecideCommodity(cap, levels, limits)
+--
+-- `fixedQuantity`, when given, is a quantity asked for outright -- one the player chose on the
+-- dialog, or the one a server quote was armed on. It is decided by the same rule or not at all:
+-- exactly that many units, the cheapest at or under the cap, inside the same two limits, and nil
+-- when the book cannot fill it that way. Never a smaller fill than was asked for, and never the
+-- market engine's say-so: it knows nothing about an item a cap exists for, and would approve
+-- units priced above the cap whenever the average stayed under it.
+function GC.Caps.DecideCommodity(cap, levels, limits, fixedQuantity)
   if type(limits) ~= "table" then return nil end
+  if fixedQuantity ~= nil and (type(fixedQuantity) ~= "number" or fixedQuantity % 1 ~= 0
+      or fixedQuantity < 1 or fixedQuantity > limits.maxQuantity) then
+    return nil
+  end
+  local want = fixedQuantity or limits.maxQuantity
   local qualifying = {}
   for i = 1, #levels do
     local level = levels[i]
@@ -212,7 +224,7 @@ function GC.Caps.DecideCommodity(cap, levels, limits)
   local quantity, total = 0, 0
   for i = 1, #qualifying do
     local level = qualifying[i]
-    local take = math.min(level.quantity, limits.maxQuantity - quantity,
+    local take = math.min(level.quantity, want - quantity,
       math.floor((limits.budget - total) / level.unitPrice))
     if take > 0 then
       quantity, total = quantity + take, total + take * level.unitPrice
@@ -220,7 +232,7 @@ function GC.Caps.DecideCommodity(cap, levels, limits)
     -- A limit bit inside this level: every level after it is dearer, so nothing more fits.
     if take < level.quantity then break end
   end
-  if quantity == 0 then return nil end
+  if quantity == 0 or (fixedQuantity and quantity < fixedQuantity) then return nil end
   return {
     status = "SAFE",
     buyable = true,
@@ -289,8 +301,21 @@ end
 -- just came back with (UI/SniperFrame.lua's OnCommodityPriceUpdated). True when there is no cap
 -- to violate, or the quote is at or under it; false only when a cap exists and the quote broke
 -- it -- the one case the player must never be allowed to confirm quietly.
-function GC.Caps.QuoteOk(deal, unit)
+--
+-- Caps fixes 2f: the server quotes an AVERAGE unit price, and an average at or under the cap
+-- says nothing about the dearest unit inside it -- 10 x 100g + 10 x 190g + 5 x 250g averages
+-- 166g under a 200g cap with five of its units above it. So the quote is also held to the
+-- freshest book the handler has. `fresh` is the cap decision for exactly the armed quantity on
+-- that book (DecideCommodity with that fixedQuantity): what those units cost at or under the cap
+-- is its entryTotal, and a `total` above that is a quote the book cannot vouch for -- whatever
+-- it holds, it is not the units the book showed under the cap. `false` says the book cannot fill
+-- the armed quantity at or under the cap at all, which a quote for it then cannot either. nil
+-- means there is no book to hold it to: the average is all there is to judge.
+function GC.Caps.QuoteOk(deal, unit, total, fresh)
   local cap = deal and deal.cap
   if not cap then return true end
-  return unit <= cap
+  if unit > cap then return false end
+  if fresh == nil then return true end
+  if fresh == false then return false end
+  return type(total) == "number" and type(fresh.entryTotal) == "number" and total <= fresh.entryTotal
 end

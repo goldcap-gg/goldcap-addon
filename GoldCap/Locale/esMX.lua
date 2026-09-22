@@ -442,6 +442,8 @@ GC.Locales.esMX = {
     "El precio está cayendo; entrar ahí es como te quedas atrapado.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "El precio es la última cotización, de 45 segundos de antigüedad como máximo. Si cambia antes de confirmar, la publicación se abandona en lugar de enviarse al precio viejo.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "El precio cambió -- parte de esta cotización puede estar por encima de tu precio",
   ["The price moved and the trade is no longer safe."] =
     "El precio se movió y la operación ya no es segura.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
