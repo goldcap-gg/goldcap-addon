@@ -502,6 +502,51 @@ describe("EvaluateDelta/MergeDeals", function()
     local singleCapped = GC.FullScan.Evaluate(rows, getValue, settings, 2)
     assert.same(singleCapped, mergedCapped)
   end)
+
+  -- Caps fixes 3a: a "your price" row (UI/SniperFrame.lua's buildCapDeal, `cap` = the player's
+  -- price in copper) is not a browse aggregate. The pass's own row for the same item is, and it
+  -- used to replace the cap row outright -- incoming wins -- and then the hundred-row cut ranked
+  -- it by estProfit against the market, which a cap set above the market loses by construction.
+  -- The cap row stands for as long as the pass's own price says the cap still holds, and it is
+  -- never cut to make room.
+  describe("a cap row", function()
+    local function mkCapDeal(itemID, unitPrice, cap)
+      return mkDeal(itemID, unitPrice, { cap = cap, profit = -5000, estProfit = -5000 })
+    end
+
+    it("outlives an incoming market row for its item while that row is at or under the cap", function()
+      local held = mkCapDeal(5, 80, 100)
+      local m = GC.FullScan.MergeDeals({ held }, { mkDeal(5, 100) }, 100)
+      assert.equals(1, #m)
+      assert.equals(held, findDeal(m, 5))
+    end)
+
+    it("gives way to the market row once the pass prices the item above the cap", function()
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 80, 100) }, { mkDeal(5, 120) }, 100)
+      assert.equals(1, #m)
+      assert.is_nil(findDeal(m, 5).cap)
+      assert.equals(120, findDeal(m, 5).unitPrice)
+    end)
+
+    it("is replaced by a fresher cap row, and replaces a market row itself", function()
+      local fresher = mkCapDeal(5, 70, 100)
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 80, 100) }, { fresher }, 100)
+      assert.equals(fresher, findDeal(m, 5))
+      local capRow = mkCapDeal(6, 80, 100)
+      m = GC.FullScan.MergeDeals({ mkDeal(6, 90) }, { capRow }, 100)
+      assert.equals(capRow, findDeal(m, 6))
+    end)
+
+    it("is never cut off a full board, however badly it ranks", function()
+      local existing = { mkCapDeal(9, 80, 100) }
+      for id = 1, 3 do existing[#existing + 1] = mkDeal(id, 100, { profit = id * 1000 }) end
+      local m = GC.FullScan.MergeDeals(existing, { mkDeal(4, 100, { profit = 9000 }) }, 3)
+      assert.equals(3, #m)
+      assert.is_table(findDeal(m, 9))
+      assert.is_table(findDeal(m, 4))
+      assert.is_table(findDeal(m, 3))
+    end)
+  end)
 end)
 
 -- Sniper v3 §3 ping (fix round 1, I2/I6): pulled out of SniperFrame.lua so both of its call

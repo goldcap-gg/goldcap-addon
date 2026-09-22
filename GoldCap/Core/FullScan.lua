@@ -162,13 +162,26 @@ end
 -- cheaper row would advertise a lot that's already gone (bought out, requoted, or expired
 -- since the earlier pass saw it). Re-sorts with the same comparator Evaluate uses and
 -- truncates to cap.
+--
+-- Caps fixes 3a: except over a player's price-cap row (UI/SniperFrame.lua's buildCapDeal, whose
+-- `cap` is that price in copper). A cap row is not a browse aggregate -- it was built from a
+-- live book against the player's own rule -- and the pass's market row for the same item says
+-- nothing new about it while that row's own price is still at or under the cap: the lot the cap
+-- row names may well still be there, and the rule it answers to certainly is. So it stands until
+-- the incoming price climbs above the cap, or a fresher cap row replaces it. And it is never cut
+-- to fit the board -- keepUnderCap, the rule CapDeals and ApplyLiveObservation already apply --
+-- because the cut ranks by estProfit against the market, which a cap set above the market loses
+-- by construction.
 function GC.FullScan.MergeDeals(existing, incoming, cap)
   local byItem = {}
   for _, deal in ipairs(existing) do
     byItem[deal.itemID] = deal
   end
   for _, deal in ipairs(incoming) do
-    byItem[deal.itemID] = deal
+    local held = byItem[deal.itemID]
+    if not (held and held.cap and not deal.cap and deal.unitPrice <= held.cap) then
+      byItem[deal.itemID] = deal
+    end
   end
 
   local merged = {}
@@ -176,8 +189,7 @@ function GC.FullScan.MergeDeals(existing, incoming, cap)
     merged[#merged + 1] = deal
   end
   table.sort(merged, compareDeals)
-  truncate(merged, cap)
-  return merged
+  return keepUnderCap(merged, cap)
 end
 
 -- Bounds a deal store that is not an array. The Items board (UI/SniperFrame.lua's

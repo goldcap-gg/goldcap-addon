@@ -389,3 +389,199 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     assert.is_nil(dealsMap[7]) -- the plain (nil-deal) write/removal path still runs, unchanged
   end)
 end)
+
+-- Caps fixes 3a: a capped commodity's "your price" row lives on the commodity board's own
+-- store (scanDeals), and every completed book pass used to replace that store wholesale with
+-- what FullScan.Evaluate built from the pass's rows -- market deals only. A capped commodity
+-- with no market deal of its own simply vanished at the end of the next pass, and the book-pass
+-- ratchet (GC.Caps.BookHits) never re-drilled it while its floor stood still. The row now
+-- stands for as long as the pass says the cap still holds.
+describe("Caps row lifecycle -- commodity board across a book pass", function()
+  local values, browseResults
+
+  local function upvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value end
+    end
+    error("missing upvalue " .. wanted)
+  end
+  local function set(fn, wanted, value)
+    for i = 1, math.huge do
+      local name = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then debug.setupvalue(fn, i, value); return end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  local function browseRow(itemID, minPrice, totalQuantity)
+    return { itemKey = { itemID = itemID }, minPrice = minPrice, totalQuantity = totalQuantity or 3 }
+  end
+
+  local function loadSniper(capCopper)
+    _G.GetTime = function() return 100 end
+    _G.time = function() return 1000 end
+    _G.GetMoney = function() return 10 * 1000 * 10000 end
+    _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
+    _G.ITEM_QUALITY_COLORS = {}
+    _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+    _G.PlaySound = function() end
+    _G.SOUNDKIT = { READY_CHECK = 8960, MAP_PING = 3175, RAID_WARNING = 1 }
+    _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
+    _G.Enum = { ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8 } }
+    browseResults = {}
+    _G.C_AuctionHouse = {
+      IsThrottledMessageSystemReady = function() return true end,
+      SendBrowseQuery = function() end,
+      RequestMoreBrowseResults = function() end,
+      HasFullBrowseResults = function() return true end,
+      GetBrowseResults = function() return browseResults end,
+      MakeItemKey = function(itemID) return { itemID = itemID } end,
+      SearchForItemKeys = function() end,
+    }
+
+    values = {}
+    local GC = { db = { commodityByItem = { [42] = true }, settings = { sniper = { sound = true,
+      showRefused = false, board = "commodities",
+      minimumProfitCopper = 50000, minimumRoi = 0.10, watchDiscount = 0.10,
+      suspectDiscount = 0.90, hotDiscount = 0.40, hotProfit = 500000,
+      goodDiscount = 0.25, goodProfit = 100000, hotMinSold = 3, goodMinSold = 1,
+      dumpTrendPct = 10, watchPins = {} } } } }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("Core/FullScan.lua", GC)
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("Core/WatchSet.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/BoardRows.lua", GC)
+    helper.loadModule("Core/Caps.lua", GC)
+    GC.Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 },
+      tier = { HOT = { 1, 1, 1 }, GOOD = { 1, 1, 1 }, WATCH = { 1, 1, 1 } },
+      color = { green = { 0, 1, 0 }, red = { 1, 0, 0 }, fgDim = { 0.5, 0.5, 0.5 },
+        fgMuted = { 0.72, 0.71, 0.69 }, fg = { 0.92, 0.91, 0.89 },
+        gold = { 0.83, 0.64, 0.22 }, watch = { 0.35, 0.72, 0.90 } } }
+    GC.Data = {
+      GetItemValue = function(itemID) return values[itemID] end,
+      GetWatchlist = function() return {} end,
+      TargetIds = function() return {} end,
+    }
+    GC.Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end }
+    GC.Print = function() end
+    GC.AuctionHouseTab = { PlayerIsBusy = function() return false end }
+    helper.loadModule("UI/SniperFrame.lua", GC)
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, groups = {},
+      caps = { { i = 42, c = capCopper or 100, l = 0 } } }
+    GC.Caps.Adopt()
+    return GC
+  end
+
+  after_each(function()
+    _G.GetTime, _G.time, _G.GetMoney, _G.GetCoinTextureString = nil, os.time, nil, nil
+    _G.ITEM_QUALITY_COLORS, _G.Item, _G.PlaySound, _G.SOUNDKIT, _G.C_Timer = nil, nil, nil, nil, nil
+    _G.C_AuctionHouse, _G.Enum, _G.GoldCap_AppRuns = nil, nil, nil
+  end)
+
+  -- The commodity board the player is looking at: what sortedDeals hands the renderer.
+  local function sortedDeals(GC)
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    return upvalue(upvalue(refreshRows, "renderList"), "sortedDeals")
+  end
+  local function onBoard(GC, itemID)
+    for _, deal in ipairs(sortedDeals(GC)()) do
+      if deal.itemID == itemID then return deal end
+    end
+    return nil
+  end
+
+  -- A cap row as the drill builds it, on the full-scan board.
+  local function seedCapRow(GC, unitPrice, capCopper)
+    unitPrice = unitPrice or 80
+    local capRow = { itemID = 42, isCommodity = true, unitPrice = unitPrice, qty = 3,
+      capTotal = unitPrice * 3, mv = nil, discount = 0, profit = -unitPrice,
+      estProfit = -unitPrice, tier = "WATCH", cap = capCopper or 100, stale = true }
+    set(sortedDeals(GC), "mode", "fullscan")
+    set(sortedDeals(GC), "scanDeals", { capRow })
+    return capRow
+  end
+
+  -- One book pass of `kind`, from arming to the completion reconcile, answering `rows`.
+  local function runPass(GC, kind, rows)
+    browseResults = rows
+    GC.Sniper._bookPass:Start(kind)
+    GC.Sniper._bookPass:OnThrottleReady()
+    GC.Sniper.OnBrowseResults()
+    assert.is_false(GC.Sniper._bookPass:IsPaging())
+  end
+
+  it("keeps the row through a pass that shows the item still at or under the cap", function()
+    local GC = loadSniper()
+    local capRow = seedCapRow(GC)
+
+    runPass(GC, "wide", { browseRow(42, 90) })
+
+    assert.equal(capRow, onBoard(GC, 42))
+  end)
+
+  it("keeps the row through a classes pass that never looked at the item", function()
+    local GC = loadSniper()
+    local capRow = seedCapRow(GC)
+
+    runPass(GC, "classes", { browseRow(7, 500) })
+
+    assert.equal(capRow, onBoard(GC, 42))
+  end)
+
+  it("lets the row go once the pass prices the item above the cap", function()
+    local GC = loadSniper()
+    seedCapRow(GC)
+
+    runPass(GC, "wide", { browseRow(42, 150) })
+
+    assert.is_nil(onBoard(GC, 42))
+  end)
+
+  it("lets the row go once a pass that looked for the item no longer finds it", function()
+    local GC = loadSniper()
+    seedCapRow(GC)
+
+    runPass(GC, "wide", { browseRow(7, 500) })
+
+    assert.is_nil(onBoard(GC, 42))
+  end)
+
+  -- The same item can be a market deal as well: its own browse row, under the region value,
+  -- merged in page by page and rebuilt at the end. Neither may replace the row the player's
+  -- own price built while that price still holds.
+  local MARKET = { kind = "commodity", source = "import", mv = 250000, stressUnit = 200000,
+    sold = 12, sellThroughBps = 9000, liquidityConfidence = 90, listings = 20,
+    currentQty = 400, trend = 0 }
+
+  it("keeps the row over the pass's own market row for the item while the cap holds", function()
+    local GC = loadSniper(200000)
+    values[42] = MARKET
+    local capRow = seedCapRow(GC, 140000, 200000)
+
+    runPass(GC, "wide", { browseRow(42, 150000, 50) })
+
+    assert.equal(capRow, onBoard(GC, 42))
+  end)
+
+  it("(the pass above does build a market row for the item of its own)", function()
+    local GC = loadSniper(200000)
+    values[42] = MARKET
+    set(sortedDeals(GC), "mode", "fullscan")
+
+    runPass(GC, "wide", { browseRow(42, 150000, 50) })
+
+    local deal = onBoard(GC, 42)
+    assert.is_table(deal)
+    assert.is_nil(deal.cap)
+    assert.equal(150000, deal.unitPrice)
+  end)
+end)

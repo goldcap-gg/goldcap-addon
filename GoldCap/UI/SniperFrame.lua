@@ -2343,12 +2343,45 @@ pingNewHotDeals = function(newHotDeals)
   end
 end
 
+-- Caps fixes 3a: which of the "your price" rows the commodity board held before this pass
+-- (`previous`) the pass leaves standing. The reconcile below rebuilds the board from the pass's
+-- own rows, and those only ever make market deals -- a capped commodity with no market deal of
+-- its own was deleted at the end of every pass, and GC.Caps.BookHits' ratchet then never
+-- re-drilled it while its floor stood still. A cap row stands while the pass says the cap
+-- holds: the pass saw the item at or under the player's price, or the pass never looked for it
+-- at all (a classes pass and an out-of-class item -- the same "not looked at is not gone" rule
+-- the wide-pass extras below follow). A pass that looked and found the item above the cap, or
+-- not at all, has disproved it. `seen` is the set of items the pass has a row for. A table
+-- field, not a new top-level local: this file sits near its 200-local ceiling.
+function GC.Sniper._CapRowsHeld(previous, seen, kind)
+  local held = {}
+  if not GC.Caps then return held end
+  local book = GC.Sniper._bookPass:Book()
+  for _, deal in ipairs(previous) do
+    local cap = deal.cap and GC.Caps.For(deal.itemID)
+    if cap then
+      local holds
+      if seen[deal.itemID] then
+        local booked = book[deal.itemID]
+        holds = booked ~= nil and booked.floor <= cap.c
+      else
+        holds = kind ~= "wide" and not GC.Sniper._bookPass:SeenByClasses(deal.itemID)
+      end
+      if holds then held[#held + 1] = deal end
+    end
+  end
+  return held
+end
+
 -- `kind` is the book pass's own "wide" or "classes" (Core/BookPass.lua's onPassDone) -- the
 -- difference matters twice below: what the status line may honestly claim to have looked at,
 -- and whether a deal this pass did not report is a deal that is GONE or merely one this pass
 -- could not see.
 local function applyFullScanResults(rowsList, groupCount, kind)
   local screened
+  local previous = scanDeals
+  local seen = {}
+  for _, row in ipairs(rowsList) do seen[row.itemID] = true end
   scanDeals, screened = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
   GC.Sniper._screenedCount = screened or 0
   -- A classes pass browses four item classes; the wide pass browses everything. Replacing the
@@ -2370,8 +2403,6 @@ local function applyFullScanResults(rowsList, groupCount, kind)
     end
     GC.Sniper._wideExtras = extras
   elseif GC.Sniper._wideExtras then
-    local seen = {}
-    for _, row in ipairs(rowsList) do seen[row.itemID] = true end
     local carried = {}
     for itemID, deal in pairs(GC.Sniper._wideExtras) do
       -- "This pass did not see it" is not enough to keep an extra alive: an item this pass
@@ -2395,6 +2426,11 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
   GC.WatchSet.Observe(GC.Sniper._churn, scanDeals, GC.Sniper._churnSeq)
   GC.Sniper._RefreshWatchSet()
+  -- Folded in after the churn count on purpose: that count is about the prices the market
+  -- showed this pass, and a cap row's price is the drill's. The list it reads never held a cap
+  -- row before, and keeping them past the pass must not start feeding it.
+  local held = GC.Sniper._CapRowsHeld(previous, seen, kind)
+  if #held > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, held, 100) end
   -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
   -- single resolved auction: isCommodity is unknown here and auctionID is always nil. Mark
   -- every deal `.stale` so onBuyClick knows to requery live before it will let one arm for
