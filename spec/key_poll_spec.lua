@@ -151,6 +151,50 @@ describe("KeyPoll", function()
       poll:Fold(rows)
       assert.same({ rows }, rowsEmitted)
     end)
+
+    -- Final review: SearchForItemKeys may answer with one row per item-level variant of the
+    -- same item, and it may answer with one row for the whole item group -- both shapes are
+    -- legal and the client is contractually neither. Folded row by row, the variant shape made
+    -- the book flip between variants on every batch, so the ratchet above read noise as news,
+    -- the arbiter's own `booked.floor == hit.floor` re-check then dropped the drill it had just
+    -- queued, and the caller's floor-per-item map took whichever variant came last. Collapsing
+    -- first makes all three right whichever way the client answers.
+    it("collapses several rows for one item into the cheapest floor and the whole stack", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 950, 2), row(7, 900, 3), row(7, 980, 1) })
+
+      assert.equal(1, #hits)
+      assert.equal(900, hits[1].floor)
+      assert.equal(6, hits[1].qty)
+      assert.equal(900, poll:Book()[7].floor)
+      assert.equal(6, poll:Book()[7].qty)
+      -- The caller sees the same one row per item the book does.
+      assert.equal(1, #rowsEmitted[1])
+      assert.equal(900, rowsEmitted[1][1].minPrice)
+      assert.equal(6, rowsEmitted[1][1].totalQuantity)
+    end)
+
+    it("never writes the collapsed figures back into the client's own result rows", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      local first, second = row(7, 950, 2), row(7, 900, 3)
+      poll:Fold({ first, second })
+      assert.equal(950, first.minPrice)
+      assert.equal(2, first.totalQuantity)
+      assert.equal(3, second.totalQuantity)
+    end)
+
+    it("keeps two different items apart while collapsing", function()
+      local poll = newPoll()
+      triggers[7], triggers[8] = 1000, 1000
+      poll:Fold({ row(7, 950, 2), row(8, 300, 1), row(7, 900, 3) })
+      assert.equal(2, #hits)
+      assert.equal(900, poll:Book()[7].floor)
+      assert.equal(5, poll:Book()[7].qty)
+      assert.equal(300, poll:Book()[8].floor)
+      assert.equal(1, poll:Book()[8].qty)
+    end)
   end)
 
   it("forgets the book on reset but keeps the targets", function()

@@ -8,7 +8,23 @@ GC.Caps = {}
 
 local caps, order, generatedAt = {}, {}, nil
 
-local function num(v) return type(v) == "number" and v == v and v or nil end
+-- Final review M9: `v == v` rejects a NaN and nothing else, so an infinity walked straight
+-- through -- and an infinite `c` is a cap no price on earth can break (every lot qualifies,
+-- every server quote passes GC.Caps.QuoteOk), while an infinite `l` is not an item level at
+-- all. Neither is a number the site can have meant; both are dropped with the rest of the junk.
+local function num(v)
+  if type(v) ~= "number" or v ~= v then return nil end
+  if v == math.huge or v == -math.huge then return nil end
+  return v
+end
+
+-- Spec §5: a cap with an item-level floor cannot be judged from a poll answer at all -- the
+-- aggregate row SearchForItemKeys returns says nothing about item level, so every one of them
+-- costs a drill. At most this many of them get a polling slot; the rest stay real caps (For()
+-- answers for them, and a hit that reaches the addon another way is still judged against them),
+-- they simply are not polled for. A cap with no level floor is decided off the poll's own row
+-- and is never limited.
+local TARGET_GATED_MAX = 200
 
 function GC.Caps.Adopt()
   local raw = _G.GoldCap_AppRuns
@@ -19,11 +35,17 @@ function GC.Caps.Adopt()
     for _, entry in ipairs(raw.caps) do
       if type(entry) == "table" then
         local i, c = num(entry.i), num(entry.c)
-        if i and i > 0 and c and c > 0 and not next_caps[i] then
+        -- An ABSENT `l` means "no item-level floor" and is legitimate (a commodity cap has
+        -- none). An `l` that is present and unusable is a different thing, and it may not fall
+        -- back to 0: that would quietly widen the player's own "1500g for ilvl >= 610" into
+        -- "1500g for anything" and green-light the junk variant at the price meant for the good
+        -- one. It drops the entry, exactly as an unusable price does.
+        local l = entry.l == nil and 0 or num(entry.l)
+        if i and i > 0 and c and c > 0 and l and not next_caps[i] then
           local g = num(entry.g)
           next_caps[i] = {
             c = math.floor(c),
-            l = math.max(0, math.floor(num(entry.l) or 0)),
+            l = math.max(0, math.floor(l)),
             group = g and type(groups[g]) == "string" and groups[g] or nil,
             manual = entry.m == true,
           }
@@ -51,9 +73,25 @@ end
 
 function GC.Caps.Count() return #order end
 function GC.Caps.For(itemID) return caps[itemID] end
+-- Item ids in DELIVERY order, which is the site's own order and nothing more. Final review M1:
+-- position here is not priority -- Core/KeyPoll.lua's SetTargets sorts what it is handed, so
+-- "caps first" was a claim this list could not keep. What a cap really bypasses is the realm
+-- VALUE requirement (UI/SniperFrame.lua's _KeyTargetIds): the cap is the player's own price, so
+-- a capped item is polled with no market reference of any kind, which nothing else is.
 function GC.Caps.Targets()
-  local out = {}
-  for i = 1, #order do out[i] = order[i] end
+  local out, gated = {}, 0
+  for i = 1, #order do
+    local itemID = order[i]
+    local cap = caps[itemID]
+    if cap and cap.l > 0 then
+      if gated < TARGET_GATED_MAX then
+        gated = gated + 1
+        out[#out + 1] = itemID
+      end
+    else
+      out[#out + 1] = itemID
+    end
+  end
   return out
 end
 function GC.Caps.GeneratedAt() return generatedAt end
@@ -63,12 +101,20 @@ function GC.Caps.TriggerFor(itemID)
   return cap and (cap.c + 1) or nil
 end
 
+-- Final review I2: the last floor this reported per item. The book pass folds a book that
+-- mostly does not move, so without a ratchet every capped commodity sitting under its cap was
+-- reported again on EVERY completed pass -- a drill-queue push per pass, per item, for a price
+-- nothing had happened to. The key poll's side has always ratcheted (Core/KeyPoll.lua's Fold:
+-- a hit is a floor that is also NEWS); this is the same rule for the book-pass side. Cleared by
+-- Forget/ForgetAll below, together with the ring's memory, for the same reasons.
+local emittedFloor = {}
+
 -- Commodity caps off the book pass (Core/BookPass.lua's `book`: itemID -> { floor, qty, … }).
 -- A capped commodity is excluded from the key poll's own target set on purpose
 -- (UI/SniperFrame.lua's `_KeyTargetIds`) -- the book pass is what actually sees a commodity
--- floor, so this is the only place these hits come from. Pure, caps order, and silent about
--- anything the book pass has not (yet) reported: a realm item (isCommodity false), an over-cap
--- floor, and a capped commodity the book has no row for at all are all just not in the output.
+-- floor, so this is the only place these hits come from. Caps order, and silent about anything
+-- the book pass has not (yet) reported: a realm item (isCommodity false), an over-cap floor,
+-- and a capped commodity the book has no row for at all are all just not in the output.
 function GC.Caps.BookHits(book, isCommodity)
   local hits = {}
   for i = 1, #order do
@@ -76,7 +122,9 @@ function GC.Caps.BookHits(book, isCommodity)
     if isCommodity(itemID) then
       local cap = caps[itemID]
       local booked = book[itemID]
-      if cap and booked and booked.floor and booked.floor <= cap.c then
+      if cap and booked and booked.floor and booked.floor <= cap.c
+          and emittedFloor[itemID] ~= booked.floor then
+        emittedFloor[itemID] = booked.floor
         hits[#hits + 1] = { itemID = itemID, floor = booked.floor, estProfit = cap.c - booked.floor }
       end
     end
@@ -135,7 +183,11 @@ function GC.Caps.DecideCommodity(cap, levels, minimumProfitCopper)
       local levelQty = level.quantity or 0
       quantity = quantity + levelQty
       stressProfit = stressProfit + (cap.c - level.unitPrice) * levelQty
-      if not unit then unit = level.unitPrice end
+      -- Final review M3: the CHEAPEST qualifying level, not the first one walked. `unit` is
+      -- what the board row, the ring's own dedup and the dialog header all show as the price on
+      -- offer. The book arrives ascending today, which made the two answers identical by luck;
+      -- a client that ever answers unsorted would have put the wrong price on screen silently.
+      if not unit or level.unitPrice < unit then unit = level.unitPrice end
     end
   end
   if quantity == 0 then return nil end
@@ -181,6 +233,11 @@ end
 
 function GC.Caps.Forget(itemID)
   announcedUnit[itemID] = nil
+  -- Final review I2: the book-pass ratchet goes with it. The two memories answer the same
+  -- question one step apart -- "has the player already been shown this price?" -- so a floor
+  -- that climbed back above the cap has to clear both, or the next dip to the SAME price is
+  -- announced but never re-drilled (or the other way round).
+  emittedFloor[itemID] = nil
 end
 
 -- Final review I4: the whole memory, for the Auction House close (UI/SniperFrame.lua clears it
@@ -193,6 +250,7 @@ end
 function GC.Caps.ForgetAll()
   for k in pairs(announcedUnit) do announcedUnit[k] = nil end
   for k in pairs(announcedAuctions) do announcedAuctions[k] = nil end
+  for k in pairs(emittedFloor) do emittedFloor[k] = nil end
 end
 
 -- Addon task 7: the requote guard. `deal` is a board deal (buildCapDeal's own `.cap`, the

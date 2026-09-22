@@ -303,6 +303,37 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     assert.is_nil(dealsMap[42])
   end)
 
+  -- Final review I1: the background drill is handed { itemID, unitPrice = hit.floor } -- the
+  -- BROWSE floor -- so the verdict it recorded was filed under a price no row on the board was
+  -- showing. verdictFor matches item AND asking price, so it answered nil for the very row the
+  -- cap decision had just built: no CAP bucket, no label, no rank, until the player ran a
+  -- manual Check on it. The verdict is now stamped off the deal the cap decision built, at the
+  -- price that row is actually asking.
+  it("files the verdict under the cap row's own price, so the board can label it", function()
+    local GC = load()
+    adoptCap(GC, 42, 100, 0)
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    -- The drill was queued at the browse floor (90) and the cap decision buys at the book's
+    -- own cheapest qualifying level (80) -- the two prices that used to disagree.
+    driverTbl.commodityBook = function() return { { unitPrice = 80, quantity = 3 } } end
+
+    driverTbl.onObservation(42, nil)
+
+    local dealsMap = upvalue(driverTbl.onObservation, "deals")
+    local capDeal = dealsMap[42]
+    assert.is_table(capDeal)
+    assert.equal(80, capDeal.unitPrice)
+
+    local show = GC.Sniper.OnAuctionHouseShow
+    local verdictFor = upvalue(upvalue(upvalue(show, "refreshRows"), "renderList"), "verdictFor")
+    local verdict = verdictFor(capDeal)
+    assert.is_table(verdict)
+    assert.is_true(verdict.cap)
+    assert.equal(80, verdict.unitPrice)
+    -- And nothing is filed at the browse floor the drill was queued at.
+    assert.is_nil(verdictFor({ itemID = 42, unitPrice = 90 }))
+  end)
+
   it("does not touch the board for an item with no cap at all when the plain deal is nil", function()
     local GC = load()
     local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")

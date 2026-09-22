@@ -50,4 +50,45 @@ describe("Caps.BookHits", function()
     local hits = GC.Caps.BookHits(book, commodityFn({ 500, 100, 200, 600 }))
     assert.same({}, hits)
   end)
+
+  -- Final review I2: the book pass folds a book that mostly does not move, and this used to
+  -- re-report every capped commodity sitting under its cap on EVERY completed pass -- a hit per
+  -- pass, per item, for a price nothing had happened to. The key poll's own side has always
+  -- ratcheted (Core/KeyPoll.lua's Fold: a hit is a floor that is also NEWS); this is the same
+  -- rule for the book-pass side. A floor that MOVED is news again, in either direction, and
+  -- Forget/ForgetAll clear the memory the same way they clear the ring's.
+  describe("the floor ratchet", function()
+    local book
+
+    before_each(function()
+      book = { [500] = { floor = 800, qty = 3 }, [100] = { floor = 480, qty = 5 } }
+    end)
+
+    local isCommodity = function() return true end
+
+    it("reports a floor once and stays silent on the same book", function()
+      assert.equal(2, #GC.Caps.BookHits(book, isCommodity))
+      assert.same({}, GC.Caps.BookHits(book, isCommodity))
+    end)
+
+    it("reports again once a floor actually moves", function()
+      GC.Caps.BookHits(book, isCommodity)
+      book[500].floor = 700
+      local hits = GC.Caps.BookHits(book, isCommodity)
+      assert.same({ { itemID = 500, floor = 700, estProfit = 300 } }, hits)
+    end)
+
+    it("reports again after Forget, at the very same floor", function()
+      GC.Caps.BookHits(book, isCommodity)
+      GC.Caps.Forget(500)
+      local hits = GC.Caps.BookHits(book, isCommodity)
+      assert.same({ { itemID = 500, floor = 800, estProfit = 200 } }, hits)
+    end)
+
+    it("reports every item again after ForgetAll", function()
+      GC.Caps.BookHits(book, isCommodity)
+      GC.Caps.ForgetAll()
+      assert.equal(2, #GC.Caps.BookHits(book, isCommodity))
+    end)
+  end)
 end)

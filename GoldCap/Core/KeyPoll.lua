@@ -83,13 +83,52 @@ function GC.KeyPoll.New(driver, opts)
     return batch
   end
 
+  -- Final review: SearchForItemKeys may answer with ONE row per item-level variant of an item,
+  -- and it may answer with one row for the whole item group. Both shapes are legal and the
+  -- client is contractually neither, so this module refuses to depend on the answer: several
+  -- rows for one itemID become one row carrying the cheapest floor on offer and the whole
+  -- quantity behind it, before anything downstream looks at them.
+  --
+  -- Folded row by row instead, the variant shape made the book flip between variants on every
+  -- batch, so the ratchet below read noise as news; the arbiter's own `booked.floor ==
+  -- hit.floor` re-check then dropped the drill that very hit had just queued; and the caller's
+  -- own floor-per-item map (UI/SniperFrame.lua's onRows) took whichever variant came last.
+  --
+  -- The client's result rows are never written into: the first duplicate turns the kept entry
+  -- into a copy of our own, and rows with no itemID at all are passed through untouched for the
+  -- fold below to ignore exactly as it always has.
+  local function collapse(rows)
+    local out, index, owned = {}, {}, {}
+    for i = 1, #rows do
+      local row = rows[i]
+      local itemID = row.itemKey and row.itemKey.itemID
+      local at = itemID and index[itemID]
+      if not at then
+        if itemID then index[itemID] = #out + 1 end
+        out[#out + 1] = row
+      else
+        local kept = out[at]
+        if not owned[at] then
+          local copy = {}
+          for k, v in pairs(kept) do copy[k] = v end
+          kept, out[at], owned[at] = copy, copy, true
+        end
+        if row.minPrice and (not kept.minPrice or row.minPrice < kept.minPrice) then
+          kept.minPrice = row.minPrice
+        end
+        kept.totalQuantity = (kept.totalQuantity or 0) + (row.totalQuantity or 0)
+      end
+    end
+    return out
+  end
+
   -- Folds one keys result into the book. Same ratchet as BookPass.foldRow, deliberately: a
   -- hit is a floor UNDER the item's trigger that is also news -- a price that moved, a stack
   -- that grew, or an item nobody has seen this session. Without it every batch would re-report
   -- the same unsold lot every cycle, and the drill queue would spend its whole budget
   -- re-confirming listings nothing has happened to.
   function obj:Fold(rows)
-    rows = rows or {}
+    rows = collapse(rows or {})
     for i = 1, #rows do
       local row = rows[i]
       local itemKey = row.itemKey

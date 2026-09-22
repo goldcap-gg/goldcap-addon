@@ -1849,7 +1849,14 @@ driver = {
     -- specs that render a board without the AH API stub nothing here. Unknown is nil, the
     -- same answer an uncached key gives in the client.
     if not C_AuctionHouse then return nil end
-    return C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+    local info = C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+    -- Final review M6: an answer the client HAS given is remembered, so GC.Sniper._IsCommodityId
+    -- can read the classification without ever asking for it -- GetItemKeyInfo on an uncached
+    -- key is a server request, and the cap hits used to make one per cap on every pass. Only
+    -- the paths that genuinely need the key info (a search, a pre-warm, the verify slice) pay
+    -- for it; everybody else reads what they left behind.
+    if info ~= nil then GC.Sniper._keyInfoCommodity[itemID] = info.isCommodity == true end
+    return info
   end,
 
   sendSearch = function(itemID)
@@ -2076,7 +2083,12 @@ driver = {
     -- tickAutoVerify a query, and the ring it may produce goes through the one shared
     -- transition path rather than a second notion of "buyable". Reuses `capLive` when the cap
     -- branch above already computed it, rather than asking the decision engine twice.
-    if deal and GC.Sniper._IsWatched(itemID) then
+    -- Final review I1: not when the cap branch above already filed one. That stamp is against
+    -- the deal the cap decision BUILT, at the price its row is asking; `deal` here is the plain
+    -- market deal, and re-stamping with it would refile the same item under a different asking
+    -- price -- which verdictFor reads as "no verdict for this row" (it matches item AND price).
+    if deal and GC.Sniper._IsWatched(itemID)
+        and not (capLive and capLive.decision and capLive.decision.cap) then
       stampVerdict(deal, capLive or evaluateLiveCommodityDeal(itemID, book))
     end
     -- The live price this observation just fetched, independent of whether it qualified as a
@@ -2358,15 +2370,14 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- at or under the player's cap goes straight to the drill queue, same priority = 1, cap =
   -- true the key poll's onHit already gives a capped realm item below -- the book pass is the
   -- only place a commodity floor is ever seen (commodities are excluded from the key poll's
-  -- own target set, see _KeyTargetIds's isCommodity guard). DrillQueue's itemID:floor dedup
-  -- means an unchanged floor does not re-drill on every pass. driver.getKeyInfo answers nil for
-  -- an item key the client hasn't cached yet; treated as "not a commodity (yet)" rather than
-  -- guessed -- a later pass, once the key resolves, picks it up.
+  -- own target set, see _KeyTargetIds's isCommodity guard). Final review I3 + M6: the SAME
+  -- classification the poll set uses, and it asks the client nothing -- this used to call
+  -- GetItemKeyInfo once per cap per completed pass, which on an uncached key is a server
+  -- request. An item nothing has classified yet is "not a commodity (yet)"; a later pass, once
+  -- something has had to resolve the key anyway, picks it up. GC.Caps.BookHits ratchets on its
+  -- own side too, so an unchanged floor is not reported again at all.
   if GC.Caps then
-    local hits = GC.Caps.BookHits(GC.Sniper._bookPass:Book(), function(itemID)
-      local info = driver.getKeyInfo(itemID)
-      return info ~= nil and info.isCommodity == true
-    end)
+    local hits = GC.Caps.BookHits(GC.Sniper._bookPass:Book(), GC.Sniper._IsCommodityId)
     for _, hit in ipairs(hits) do
       GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
         estProfit = hit.estProfit, priority = 1, cap = true })
@@ -2667,9 +2678,31 @@ function GC.Sniper._RealmNeedsReference(itemID)
   return (value and value.kind == "realm_item" and not value.ref) and true or false
 end
 
--- Pure: which realm item ids the key poll watches, caps first. A capped item is the player's
--- own price (GC.Caps.For), so it needs no realm reference to be watched -- everything after it
--- does. Exposed for the spec (spec/caps_targets_spec.lua).
+-- Final review I3 + M6: the ONE answer this file gives to "is this a commodity", shared by the
+-- poll's target set below and by the book pass's cap hits (applyFullScanResults). There used to
+-- be two. The poll asked GC.db.commodityByItem alone -- a cache the SELL tab fills, so an item
+-- nobody has priced is simply absent from it, and a capped commodity therefore went into
+-- SearchForItemKeys, which answers about item keys and never about a commodity book. The book
+-- pass asked the client's GetItemKeyInfo instead, once per cap per completed pass, and on an
+-- uncached key that call is a SERVER REQUEST -- a cap list of a few hundred was a request storm
+-- every pass. Order is deliberate: the Sell tab's own observation, then the import's
+-- classification (which knows the whole catalogue, priced or not), and the client's key info
+-- only where it has ALREADY answered -- `_keyInfoCommodity` is a memo filled by driver.getKeyInfo
+-- for whoever had to ask anyway, and nothing here ever asks on its own.
+GC.Sniper._keyInfoCommodity = {}
+function GC.Sniper._IsCommodityId(itemID)
+  local commodities = GC.db and GC.db.commodityByItem or {}
+  if commodities[itemID] == true then return true end
+  local value = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
+  if value and value.kind == "region_commodity" then return true end
+  return GC.Sniper._keyInfoCommodity[itemID] == true
+end
+
+-- Pure: which realm item ids the key poll watches. A capped item is the player's own price
+-- (GC.Caps.For), so it needs no realm reference to be watched -- everything after it does.
+-- Final review M1: the ORDER here is not a priority. Core/KeyPoll.lua's SetTargets sorts what
+-- it is handed, so listing caps ahead of the rest decides nothing except which id wins a
+-- duplicate's "needs a realm value" question. Exposed for the spec (spec/caps_targets_spec.lua).
 function GC.Sniper._KeyTargetIds(caps, pins, watchlist, targets, isCommodity, hasRealmValue)
   local ids, seen = {}, {}
   local function add(itemID, needsValue)
@@ -2686,9 +2719,12 @@ function GC.Sniper._KeyTargetIds(caps, pins, watchlist, targets, isCommodity, ha
   return ids
 end
 
--- The poll set: capped items first (see _KeyTargetIds), then the player's pins, the site
--- watchlist the import carried (W section) and the region's own list of realm items worth
--- watching (T section), realm items only. GetWatchlist(0) is deliberate -- with a zero fallback
+-- The poll set: the player's caps, their pins, the site watchlist the import carried (W
+-- section) and the region's own list of realm items worth watching (T section), realm items
+-- only. The poll VISITS them in id order whatever order they are handed in (Core/KeyPoll.lua's
+-- SetTargets sorts) -- what a cap gets out of being listed first is not a turn but an
+-- exemption: it is polled with no realm value at all, which nothing else here is.
+-- GetWatchlist(0) is deliberate -- with a zero fallback
 -- it answers with the W section or nothing, never the top-N-by-value list it otherwise invents,
 -- which is not a watchlist and has no business being polled. A commodity the Sell tab has
 -- already classified is left out (the book pass sweeps those); an item nobody has classified is
@@ -2698,14 +2734,13 @@ end
 -- caps adoption -- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that
 -- finds nothing new leaves a half-finished cycle exactly where it was.
 function GC.Sniper._RebuildKeyTargets()
-  local commodities = GC.db and GC.db.commodityByItem or {}
   local data = GC.Data or {}
   GC.Sniper._keyPoll:SetTargets(GC.Sniper._KeyTargetIds(
     GC.Caps and GC.Caps.Targets() or {},
     GC.Sniper._WatchPins(),
     data.GetWatchlist and data.GetWatchlist(0) or {},
     data.TargetIds and data.TargetIds() or {},
-    function(id) return commodities[id] == true end,
+    GC.Sniper._IsCommodityId,
     function(id) return GC.Sniper._RealmValue(id) ~= nil end))
 end
 
@@ -4120,6 +4155,10 @@ end
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
 -- onObservation below passes its own so the same poll's book is not fetched twice. Every other
 -- call site omits it and gets the old behaviour of building its own.
+--
+-- M8: this is not only a reader. On the cap path it WRITES the commodity board (the cap deal
+-- goes into scanDeals/deals), files that deal's verdict, and queues its board-ring into
+-- pendingCapPings -- see the cap branch below.
 evaluateLiveCommodityDeal = function(itemID, levels)
   levels = levels or driver.commodityBook(itemID)
   if not levels then return nil end
@@ -4143,11 +4182,21 @@ evaluateLiveCommodityDeal = function(itemID, levels)
       end
       -- Addon task 6: queued for the board-ring (drained by refreshRows(), see pendingCapPings)
       -- only once per GC.Caps.Announce's own dedup -- an unchanged or worse floor on a re-poll
-      -- stays silent.
+      -- stays silent. Queued BEFORE the stamp below, whose refreshRows() is what drains it:
+      -- by then the cap deal is already on the board, so the ring has a row to land on.
       if GC.Caps.Announce(capDeal) then
         pendingCapPings[#pendingCapPings + 1] = capDeal
       end
-      return { isCommodity = true, levels = levels, avail = avail, decision = capDecision }
+      local capLive = { isCommodity = true, levels = levels, avail = avail, decision = capDecision }
+      -- Final review I1: the verdict is filed against the deal the CAP DECISION built, at the
+      -- price that row is asking. A background drill is started from { itemID, unitPrice =
+      -- hit.floor } -- the browse floor -- so resolvePrewarm's own stamp landed under a price
+      -- no row on the board was showing, and verdictFor (which matches item AND asking price)
+      -- then answered nil for the very row this just built: no CAP bucket, no label, no rank,
+      -- until the player ran a manual Check. resolvePrewarm skips its stamp when the result
+      -- carries a cap decision, so this is the only one.
+      stampVerdict(capDeal, capLive)
+      return capLive
     end
     -- The floor rose back above the cap (or the book emptied) -- forget the last announced
     -- price so the NEXT time this item dips under the cap, even at the same price as before,
@@ -4580,6 +4629,13 @@ local function resolvePrewarm(itemID, data)
   prewarmAttempt = nil
   if not deal then return end
   deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
+  -- Final review I1: a cap decision has already filed its own verdict, against the deal the cap
+  -- BUILT (evaluateLiveItemDeal/evaluateLiveCommodityDeal). `deal` here is whatever the drill
+  -- was started from -- for a queued cap hit, a bare { itemID, unitPrice = hit.floor } stand-in
+  -- at the browse floor -- so stamping it again would overwrite the row's verdict with one
+  -- filed under a price nothing on the board is asking. The pre-warm cache above is still set:
+  -- that is keyed by the attempt, not by price.
+  if data and data.decision and data.decision.cap then return end
   stampVerdict(deal, data)
 end
 
@@ -5371,6 +5427,10 @@ end
 -- the two paths always shape a search result into a "liveDeal" the exact same way -- a
 -- deal.prewarm cache and a live finishRequery landing are indistinguishable to
 -- applyRequeryResult by construction, not by coincidence.
+--
+-- M8: this is not only a reader. On the cap path it WRITES the Items board (the cap deal goes
+-- into GC.Sniper._realmDeals), files that deal's verdict, and queues its board-ring into
+-- pendingCapPings -- see the cap branch below.
 local function evaluateLiveItemDeal(itemID)
   if not driver.itemResult(itemID) then return nil end
   -- Live price caps, addon task 5: judged against the player's own price FIRST -- see the
@@ -5390,7 +5450,12 @@ local function evaluateLiveItemDeal(itemID)
       if GC.Caps.Announce(capDeal) then
         pendingCapPings[#pendingCapPings + 1] = capDeal
       end
-      return { isCommodity = false, decision = capDecision }
+      local capLive = { isCommodity = false, decision = capDecision }
+      -- Final review I1, exactly as on the commodity side above: the verdict belongs to the row
+      -- the cap decision built, at the qualifying lot's own unit price -- not to the browse
+      -- floor the drill was queued at. See evaluateLiveCommodityDeal for the whole account.
+      stampVerdict(capDeal, capLive)
+      return capLive
     end
   end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm

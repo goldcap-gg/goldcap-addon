@@ -96,4 +96,40 @@ describe("Key target ids", function()
       commodityFn({}), noValueFn({}))
     assert.same({ 10, 20, 30 }, ids)
   end)
+
+  -- Final review I3 + M6: ONE answer to "is this a commodity", shared by the poll's own target
+  -- set and the book pass's cap hits. Two different answers used to live in this file: the poll
+  -- asked GC.db.commodityByItem alone -- a cache the Sell tab fills, so an item nobody has
+  -- priced is simply absent from it, and a capped commodity therefore went into
+  -- SearchForItemKeys, which answers about item keys and never about a commodity book. The book
+  -- pass asked the client's GetItemKeyInfo instead, once per cap per pass, which on an uncached
+  -- key is a server request: a cap list of a few hundred was a request storm every pass.
+  describe("_IsCommodityId", function()
+    it("takes the Sell tab's own classification first", function()
+      GC.db.commodityByItem = { [10] = true }
+      assert.is_true(GC.Sniper._IsCommodityId(10))
+      assert.is_false(GC.Sniper._IsCommodityId(11))
+    end)
+
+    it("reads the import's classification, which knows items nobody has priced", function()
+      GC.Data.GetItemValue = function(id) return id == 12 and { kind = "region_commodity" } or nil end
+      assert.is_true(GC.Sniper._IsCommodityId(12))
+      assert.is_false(GC.Sniper._IsCommodityId(13))
+    end)
+
+    it("does not read a realm item as a commodity", function()
+      GC.Data.GetItemValue = function() return { kind = "realm_item", ref = 5 } end
+      assert.is_false(GC.Sniper._IsCommodityId(14))
+    end)
+
+    it("falls back to client key info only where the client has ALREADY answered", function()
+      -- The memo is filled by whichever path already had to ask the client (driver.getKeyInfo);
+      -- nothing here ever asks on its own, which is the whole point.
+      GC.Sniper._keyInfoCommodity[15] = true
+      GC.Sniper._keyInfoCommodity[16] = false
+      assert.is_true(GC.Sniper._IsCommodityId(15))
+      assert.is_false(GC.Sniper._IsCommodityId(16))
+      assert.is_false(GC.Sniper._IsCommodityId(17)) -- never asked about: not a commodity yet
+    end)
+  end)
 end)

@@ -124,4 +124,22 @@ describe("Caps.DecideCommodity", function()
     GC.Caps.DecideCommodity(cap, levels, 0)
     assert.same(before, levels[1])
   end)
+
+  -- Final review M3: `unit` is what the board row, the ring dedup and the dialog header all
+  -- show as the price on offer, so it has to be the CHEAPEST qualifying level and not merely
+  -- the first one walked. The book is handed over ascending today, which made the two the same
+  -- answer by luck -- and a client that ever answers unsorted would have put the wrong price in
+  -- front of the player with nothing failing to say so.
+  it("reports the cheapest qualifying level, not the first one seen", function()
+    local cap = { c = 100 }
+    local levels = { -- deliberately not ascending
+      { unitPrice = 95, quantity = 1 },
+      { unitPrice = 70, quantity = 2 },
+      { unitPrice = 120, quantity = 9 }, -- over cap, excluded
+      { unitPrice = 90, quantity = 1 },
+    }
+    local decision = GC.Caps.DecideCommodity(cap, levels, 0)
+    assert.equal(70, decision.unit)
+    assert.equal(4, decision.quantity)
+  end)
 end)
