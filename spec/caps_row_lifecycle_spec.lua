@@ -14,6 +14,23 @@ local helper = require("spec.spec_helper")
 describe("Caps row lifecycle -- realm key poll (onRows)", function()
   local values, watchlist, targetIds
 
+  local function getUpvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value end
+    end
+    error("missing upvalue " .. wanted)
+  end
+  local function setUpvalue(fn, wanted, value)
+    for i = 1, math.huge do
+      local name = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then debug.setupvalue(fn, i, value); return end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
   local function browseRow(itemID, minPrice, totalQuantity)
     return { itemKey = { itemID = itemID }, minPrice = minPrice, totalQuantity = totalQuantity or 3 }
   end
@@ -132,6 +149,29 @@ describe("Caps row lifecycle -- realm key poll (onRows)", function()
     GC.Sniper._keyPoll:Fold({}) -- sold out: nothing came back for it
 
     assert.is_nil(GC.Sniper._CurrentLiveDeal(42))
+  end)
+
+  -- Caps fixes 2a: GC.Data.GetItemValue answers a realm item the import lists only in `T:`
+  -- with its region reference and NO mv (Core/Data.lua's target-only branch). buildCapDeal
+  -- multiplied that nil inside the drill-result handler -- for exactly the gear a cap exists
+  -- for -- so the drill threw instead of building the row.
+  it("builds a cap row for gear the import knows only by its region reference", function()
+    local GC = loadSniper()
+    adoptCap(GC, 42, 1000000, 0)
+    values[42] = { ts = 1, source = "import", kind = "realm_item", ref = 5000000, refIlvl = 610 }
+    local evaluateLiveItemDeal = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")
+    setUpvalue(evaluateLiveItemDeal, "driver", {
+      itemResult = function() return {} end,
+      itemLots = function() return { { auctionID = 9, buyout = 800000, itemLevel = 615, quantity = 1 } } end,
+    })
+
+    local live = evaluateLiveItemDeal(42)
+
+    assert.is_true(live.decision.cap)
+    local deal = GC.Sniper._realmDeals[42]
+    assert.equal(1000000, deal.cap)
+    assert.is_nil(deal.mv)
+    assert.equal(-800000, deal.estProfit) -- "no reference", exactly as buildCapDeal promises
   end)
 
   it("does not resurrect an ordinary (non-cap) row that fails to qualify", function()

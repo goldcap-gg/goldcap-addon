@@ -4201,16 +4201,21 @@ end
 -- market value to qualify (GC.Caps.For's own contract: the cap IS the player's own price).
 -- `discount`/`profit`/`tier` are given the same values an ordinary deal falls back to; nothing
 -- reads a "CAP" tier, so there is no reason to invent one.
+--
+-- A value table is not proof of an mv: GC.Data.GetItemValue answers gear the import lists only
+-- in `T:` with its region reference and no mv at all (Core/Data.lua's target-only branch), and
+-- that is exactly the gear a cap exists for. It degrades like no value at all.
 local function buildCapDeal(itemID, isCommodity, unit, qty, auctionID, cap)
   local value = GC.Data.GetItemValue(itemID)
-  local estProfit = (value and math.floor(value.mv * 0.95) or 0) - unit
+  local mv = value and value.mv or nil
+  local estProfit = (mv and math.floor(mv * 0.95) or 0) - unit
   return {
     itemID = itemID,
     isCommodity = isCommodity,
     unitPrice = unit,
     qty = qty,
     auctionID = auctionID,
-    mv = value and value.mv,
+    mv = mv,
     discount = 0,
     profit = estProfit,
     estProfit = estProfit,
