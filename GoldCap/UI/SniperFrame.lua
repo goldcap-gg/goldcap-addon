@@ -9542,6 +9542,17 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- own comment for why (a browse scan has no cooldown, and every buy re-quotes live anyway).
   -- So this is not "a clean slate": what a closed AH guarantees is that no purchase or Sell
   -- state survives (resetAllPurchases above, GC.Sell.Reset below), not that the board is empty.
+  --
+  -- Except for a player's price-cap row (caps fixes 3g). An ordinary scan row is an aggregate
+  -- that any Check re-verifies; a cap row names a lot, drilled live and labelled "your price",
+  -- that only this visit vouched for -- carried over, the next visit showed it before its first
+  -- pass had looked at anything. Removed before clearDeals renders, with the rings still waiting
+  -- for their rows: the announcement memory they would have spent is itself wiped below
+  -- (GC.Caps.ForgetAll), so a lot still there next visit is found, and told, afresh.
+  for i = #scanDeals, 1, -1 do
+    if scanDeals[i].cap then table.remove(scanDeals, i) end
+  end
+  pendingCapPings = {}
   clearDeals()
   -- Sniper v3 §3 ping: a HOT listing that pinged this session should be able to ping again
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of

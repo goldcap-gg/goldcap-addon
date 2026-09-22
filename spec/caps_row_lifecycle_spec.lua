@@ -744,4 +744,33 @@ describe("Caps row lifecycle -- commodity board across a book pass", function()
     assert.is_nil(deal.cap)
     assert.equal(150000, deal.unitPrice)
   end)
+
+  -- Caps fixes 3g: the full-scan board is kept across an Auction House close on purpose -- the
+  -- next visit opens on the last scan's rows (OnAuctionHouseShow) -- and a cap row went with it.
+  -- A cap row is a claim about a lot, drilled live, that this visit alone vouches for; the next
+  -- one showed it, labelled "your price", before its first pass had looked at anything.
+  it("does not carry a cap row across an Auction House close", function()
+    local GC = loadSniper()
+    local capRow = seedCapRow(GC)
+    local ordinary = { itemID = 7, isCommodity = false, unitPrice = 500, qty = 1, profit = 100,
+      estProfit = 100, tier = "WATCH", stale = true }
+    set(sortedDeals(GC), "scanDeals", { capRow, ordinary })
+
+    GC.Sniper.OnAuctionHouseClosed()
+
+    assert.is_nil(onBoard(GC, 42))
+    assert.equal(ordinary, onBoard(GC, 7)) -- an ordinary row keeps its old behaviour
+  end)
+
+  it("does not carry a ring still waiting for its row across the close either", function()
+    local GC = loadSniper()
+    local capRow = seedCapRow(GC)
+    GC.Sniper._QueueCapPing(capRow)
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    assert.equal(1, #upvalue(refreshRows, "pendingCapPings"))
+
+    GC.Sniper.OnAuctionHouseClosed()
+
+    assert.equal(0, #upvalue(refreshRows, "pendingCapPings"))
+  end)
 end)
