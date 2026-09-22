@@ -1971,23 +1971,41 @@ driver = {
     -- The observation is not wasted: the verdict below still lands, and lastSeenPrice still
     -- records what the item costs right now, which is what a pin placeholder shows.
     local realmItem = GC.Sniper._RealmValue and GC.Sniper._RealmValue(itemID) ~= nil
-    if not realmItem then
-      if GC.Sniper._liveTracksScanDeals then
-        scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, WIN.ROW_CAP)
-      else
-        deals[itemID] = deal
-      end
-    end
     -- Built once and threaded through below (to evaluateLiveCommodityDeal and to the
     -- observation recorder) instead of letting each ask driver.commodityBook for its own copy
     -- of the same already-fetched poll.
     local book = driver.commodityBook(itemID)
+    -- Live price caps, addon task 5 fix: the plain `deal` parameter is whatever the watch loop
+    -- already measured against the MARKET (GC.DealMath.Evaluate) -- nil for exactly the item a
+    -- cap exists to rescue, since GC.Caps.For needs no market reference to fire (Core/Caps.lua's
+    -- own contract). Writing that nil straight into the board, unconditionally, deleted a
+    -- capped commodity's row every single cycle it had no market-side deal of its own. Run the
+    -- cap-aware evaluation FIRST when a cap exists, regardless of `deal` -- it already
+    -- merges/refreshes the board deal itself when the cap decision is non-nil (see
+    -- evaluateLiveCommodityDeal above) -- and only fall back to the plain write/removal below
+    -- when this cycle's cap decision came back nil (no cap, the book emptied, or the floor
+    -- climbed back above it), exactly as before.
+    local capLive
+    if not realmItem then
+      local cap = GC.Caps and GC.Caps.For(itemID)
+      if cap then
+        capLive = evaluateLiveCommodityDeal(itemID, book)
+      end
+      if not (capLive and capLive.decision and capLive.decision.cap) then
+        if GC.Sniper._liveTracksScanDeals then
+          scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, WIN.ROW_CAP)
+        else
+          deals[itemID] = deal
+        end
+      end
+    end
     -- The poll has just pulled this item's live book, which is exactly what a verdict is
     -- computed from -- so compute it here, for nothing. A watched item therefore never costs
     -- tickAutoVerify a query, and the ring it may produce goes through the one shared
-    -- transition path rather than a second notion of "buyable".
+    -- transition path rather than a second notion of "buyable". Reuses `capLive` when the cap
+    -- branch above already computed it, rather than asking the decision engine twice.
     if deal and GC.Sniper._IsWatched(itemID) then
-      stampVerdict(deal, evaluateLiveCommodityDeal(itemID, book))
+      stampVerdict(deal, capLive or evaluateLiveCommodityDeal(itemID, book))
     end
     -- The live price this observation just fetched, independent of whether it qualified as a
     -- deal (DealMath.Evaluate above returns nil `deal` for a price that isn't cheap enough --
@@ -2658,13 +2676,20 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
   -- being rescued FROM here, and the row says "unverified" instead of pretending otherwise.
   onRows = function(results)
     local realmRows = GC.FullScan.RowsFromBrowse(results, GC.Sniper._RealmValue, GC.db.settings.sniper)
-    local fresh, qualified = {}, {}
+    local fresh, qualified, floorOf = {}, {}, {}
     for i = 1, #realmRows do
       local row = realmRows[i]
+      -- Live price caps, addon task 5 fix: this batch's own floor for the item, kept regardless
+      -- of whether it goes on to qualify as an ordinary deal below -- the null-out pass past the
+      -- end of this loop reads it to judge a CAP row on its own terms (the cap needs no realm
+      -- value at all, so an ordinary deal here will often be nil for exactly the item a cap
+      -- exists to rescue).
+      local unitPrice = math.floor(row.buyoutStack / row.count)
+      floorOf[row.itemID] = unitPrice
       local value = GC.Sniper._RealmValue(row.itemID)
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
-          unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
+          unitPrice = unitPrice, qty = row.count, avail = row.avail },
         value, GC.db.settings.sniper) or nil
       if deal then
         -- An aggregate across every seller, exactly like a browse row: no auctionID, no
@@ -2691,7 +2716,21 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
       -- disprove it.
       for i = 1, #asked do
         local itemID = asked[i]
-        if not qualified[itemID] then GC.Sniper._realmDeals[itemID] = nil end
+        if not qualified[itemID] then
+          -- A CAP row gets a second life an ordinary deal does not: it needs no realm value to
+          -- exist (GC.Caps.For's own contract, Core/Caps.lua), so `qualified` above -- which
+          -- only ever fires off a REAL GC.DealMath.Evaluate against a realm/region value -- is
+          -- silent about it by construction, not because the cap has stopped clearing. Keep it
+          -- as long as this batch's own floor is still at or under the cap; only a floor that
+          -- climbed back above it, or the id vanishing from the results entirely (no entry in
+          -- `floorOf`), removes it -- same as an ordinary deal's silence always has.
+          local existing = GC.Sniper._realmDeals[itemID]
+          local cap = existing and existing.cap and GC.Caps and GC.Caps.For(itemID)
+          local floor = floorOf[itemID]
+          if not (cap and floor and floor <= cap.c) then
+            GC.Sniper._realmDeals[itemID] = nil
+          end
+        end
       end
     end
     for i = 1, #fresh do GC.Sniper._realmDeals[fresh[i].itemID] = fresh[i] end
