@@ -238,7 +238,6 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
         -- The player's own per-buy limits a cap decision is made within; roomy, so they bind
         -- nothing in this block -- what a cap may spend is spec/caps_purchase_spec.lua's subject.
         BuyLimits = function() return { maxQuantity = 5000, budget = 1000000000000 } end },
-      FullScan = { ApplyLiveObservation = function(list) return list end },
       Print = function() end,
       db = { settings = { sniper = { sound = false, showRefused = false, watchPins = {},
         minimumProfitCopper = 0 } } },
@@ -251,6 +250,10 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     helper.loadModule("Core/Util.lua", GC)
     helper.loadModule("Core/BoardRows.lua", GC)
     helper.loadModule("Core/Caps.lua", GC)
+    -- The real store operations: the board a cap row lands on is this suite's subject, and a
+    -- stubbed ApplyLiveObservation that returns its list untouched is how an assertion on the
+    -- wrong store (`deals` in full-scan mode) once passed.
+    helper.loadModule("Core/FullScan.lua", GC)
     helper.loadModule("UI/SniperFrame.lua", GC)
 
     GC.Scanner = { New = function() end }
@@ -315,6 +318,32 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     GC.Caps.Adopt()
   end
 
+  -- Caps fixes 3b: the board the player sees. A cap row used to be written into the watchlist
+  -- map (`deals`) whenever the watch loop had not yet taken over the full-scan list
+  -- (_liveTracksScanDeals false -- the start of every visit, until three distinct prices have
+  -- churned), while the Commodities board in full-scan mode reads scanDeals alone. The hit was
+  -- announced, rang for nothing on screen, and the ratchet then kept it off the board for the
+  -- rest of the visit. These assertions used to read `deals[42]` in full-scan mode -- pinning
+  -- exactly that. They now read what the board renders.
+  local function board(GC)
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    return upvalue(upvalue(refreshRows, "renderList"), "sortedDeals")()
+  end
+  local function onBoard(GC, itemID)
+    for _, deal in ipairs(board(GC)) do
+      if deal.itemID == itemID then return deal end
+    end
+    return nil
+  end
+  -- And the pooled row the render stamped it on, shown.
+  local function renderedRow(GC, itemID)
+    local rowsList = upvalue(upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows"), "rows")
+    for _, row in ipairs(rowsList) do
+      if row.deal and row.deal.itemID == itemID and row:IsShown() then return row end
+    end
+    return nil
+  end
+
   it("keeps/creates a cap row from an observation with no plain (market) deal at all", function()
     local GC = load()
     adoptCap(GC, 42, 100, 0)
@@ -325,25 +354,56 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
     -- with no GC.Data.GetItemValue entry produces every cycle) -- but the book is under cap.
     driverTbl.onObservation(42, nil)
 
-    local dealsMap = upvalue(driverTbl.onObservation, "deals")
-    assert.is_table(dealsMap[42])
-    assert.equal(100, dealsMap[42].cap)
-    assert.equal(80, dealsMap[42].unitPrice)
+    local capDeal = onBoard(GC, 42)
+    assert.is_table(capDeal)
+    assert.equal(100, capDeal.cap)
+    assert.equal(80, capDeal.unitPrice)
+    assert.equal(capDeal, renderedRow(GC, 42).deal)
   end)
 
   it("removes a cap row once the book's floor is back above the cap", function()
     local GC = load()
     adoptCap(GC, 42, 100, 0)
     local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
-    local dealsMap = upvalue(driverTbl.onObservation, "deals")
 
     driverTbl.commodityBook = function() return { { unitPrice = 80, quantity = 3 } } end
     driverTbl.onObservation(42, nil)
-    assert.is_table(dealsMap[42])
+    assert.is_table(onBoard(GC, 42))
 
     driverTbl.commodityBook = function() return { { unitPrice = 150, quantity = 3 } } end -- over cap now
     driverTbl.onObservation(42, nil)
-    assert.is_nil(dealsMap[42])
+    assert.is_nil(onBoard(GC, 42))
+  end)
+
+  -- The first hit of a visit comes from a drill, not the watch loop: the book pass's hit is
+  -- queued and its answer lands in OnCommoditySearchResults, long before the watch set exists.
+  it("puts a drilled cap hit on the Commodities board before the watch loop has started", function()
+    local GC = load()
+    adoptCap(GC, 42, 100, 0)
+    assert.is_false(GC.Sniper._liveTracksScanDeals)
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+    local evaluateLiveCommodityDeal = upvalue(driverTbl.onObservation, "evaluateLiveCommodityDeal")
+
+    evaluateLiveCommodityDeal(42, { { unitPrice = 80, quantity = 3 } })
+
+    assert.equal(100, onBoard(GC, 42).cap)
+    assert.is_table(renderedRow(GC, 42))
+  end)
+
+  it("puts it on the watchlist board when that is the board on screen", function()
+    local GC = load()
+    adoptCap(GC, 42, 100, 0)
+    set(GC.Sniper.OnAuctionHouseShow, "mode", "watchlist")
+    GC.Sniper._liveTracksScanDeals = true -- a pinned item's watch loop, before any scan
+    local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+
+    driverTbl.commodityBook = function() return { { unitPrice = 80, quantity = 3 } } end
+    driverTbl.onObservation(42, nil)
+    assert.equal(100, onBoard(GC, 42).cap)
+
+    driverTbl.commodityBook = function() return { { unitPrice = 150, quantity = 3 } } end
+    driverTbl.onObservation(42, nil)
+    assert.is_nil(onBoard(GC, 42))
   end)
 
   -- Final review I1: the background drill is handed { itemID, unitPrice = hit.floor } -- the
@@ -362,8 +422,7 @@ describe("Caps row lifecycle -- commodity watch loop (onObservation)", function(
 
     driverTbl.onObservation(42, nil)
 
-    local dealsMap = upvalue(driverTbl.onObservation, "deals")
-    local capDeal = dealsMap[42]
+    local capDeal = onBoard(GC, 42)
     assert.is_table(capDeal)
     assert.equal(80, capDeal.unitPrice)
 

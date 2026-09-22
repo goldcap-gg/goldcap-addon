@@ -4334,6 +4334,32 @@ function GC.Sniper._RowCap(row, deal)
   return GC.Caps and GC.Caps.For(deal.itemID) or nil
 end
 
+-- Caps fixes 3b: a commodity cap row goes on the board the player is looking at -- the store
+-- sortedDeals renders for Commodities, which `mode` picks: scanDeals once a full scan has run,
+-- the watchlist map before. It used to follow _liveTracksScanDeals instead, which only turns
+-- true once the watch set has members (three distinct prices churned, or a pin) -- so at the
+-- start of every visit a cap hit landed in the watchlist map, under a board reading scanDeals.
+-- The ring and the ratchet were spent on a row nobody could see.
+function GC.Sniper._PutCapRow(itemID, capDeal)
+  if mode == "fullscan" then
+    scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, capDeal, WIN.ROW_CAP)
+  else
+    deals[itemID] = capDeal
+  end
+end
+
+-- The other half: once the cap no longer holds for this item, its row leaves whichever store it
+-- was put on. The watch loop's own plain write (driver.onObservation) goes to the store
+-- _liveTracksScanDeals names, which is not always the one above; a drill has no plain write at
+-- all. Only a CAP row is touched -- a market row for the item is the market's to keep or drop.
+function GC.Sniper._DropCapRow(itemID)
+  local held = deals[itemID]
+  if held and held.cap then deals[itemID] = nil end
+  for i = #scanDeals, 1, -1 do
+    if scanDeals[i].itemID == itemID and scanDeals[i].cap then table.remove(scanDeals, i) end
+  end
+end
+
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
 -- onObservation below passes its own so the same poll's book is not fetched twice. Every other
 -- call site omits it and gets the old behaviour of building its own.
@@ -4357,11 +4383,7 @@ evaluateLiveCommodityDeal = function(itemID, levels)
     local capDecision = GC.Sniper._DecideCap(cap, levels)
     if capDecision then
       local capDeal = buildCapDeal(itemID, true, capDecision, cap)
-      if GC.Sniper._liveTracksScanDeals then
-        scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, capDeal, WIN.ROW_CAP)
-      else
-        deals[itemID] = capDeal
-      end
+      GC.Sniper._PutCapRow(itemID, capDeal)
       -- Addon task 6: queued for the board-ring (drained by refreshRows(), see pendingCapPings)
       -- only once per GC.Caps.Announce's own dedup -- an unchanged or worse floor on a re-poll
       -- stays silent. Queued BEFORE the stamp below, whose refreshRows() is what drains it:
@@ -4385,6 +4407,7 @@ evaluateLiveCommodityDeal = function(itemID, levels)
     -- it rings again as the new opportunity it is, instead of staying silenced by a price the
     -- board hasn't shown in a while.
     GC.Caps.Forget(itemID)
+    GC.Sniper._DropCapRow(itemID)
   end
   return {
     isCommodity = true,
