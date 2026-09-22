@@ -19,6 +19,7 @@ GC.Locales.koKR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
   ["%d (whole lot)"] = "%d (전체 물량)",
+  ["%d caps from %s"] = "가격 상한 %d개 (%s 기준)",
   ["%d days"] = "%d일",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "지난 검색의 거래 %d건 -- 갱신하려면 Full Scan",
@@ -45,6 +46,7 @@ GC.Locales.koKR = {
   ["%s after the AH cut"] = "경매장 수수료 제외 %s",
   ["%s ahead"] = "앞에 %s",
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
+  ["%s · your price %s"] = "%s · 내 가격 %s",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
@@ -372,6 +374,7 @@ GC.Locales.koKR = {
   ["Spike-trend threshold %"] = "급등 추세 기준 %",
   ["Start scanning as soon as the auction house opens."] = "경매장을 열자마자 바로 검색을 시작합니다.",
   ["Status"] = "상태",
+  ["Stop and open the buy window on your price"] = "내 가격에 도달하면 중지 후 구매 창 열기",
   ["Stress exit unit"] = "스트레스 청산 단가",
   ["Stress profit"] = "스트레스 수익",
   ["THE BOOK"] = "호가창",
@@ -450,6 +453,8 @@ GC.Locales.koKR = {
     "시세에 팔렸을 때 한 개로 남는 돈: 판매가에서 경매장 수수료 5%와 매입가를 뺀 값.",
   ["What your live auctions for this item add up to at their current asking price."] =
     "이 아이템으로 올려둔 경매들의 현재 호가 합계.",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "매물이 사이트에서 설정한 가격에 도달하면 검색을 멈추고 구매 창을 엽니다.",
   ["Window position & size"] = "창 위치와 크기",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "있으면 서버 시세가 자동으로 갱신되고, 판매 기록과 수익이 goldcap.gg에 쌓입니다.",

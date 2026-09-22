@@ -503,6 +503,14 @@ local evaluateLiveCommodityDeal
 -- Forward-declared for the same reason again: applySortOverride (below) now reads the live
 -- verdict through GC.BoardRows.Compare, and it is defined above verdictFor's own body.
 local verdictFor
+-- Live price caps, addon task 6: forward-declared for the same reason as stampVerdict above --
+-- refreshRows() (below) drains pendingCapPings through this at the end of every render, but its
+-- real body (built on flashRow) is defined far below refreshRows.
+local pingNewHotDeals
+-- Forward-declared for the same reason again: refreshRows() drains pendingCapPings through this
+-- too, and its real body reuses onBuyClick -- the row's own click path -- which is defined far
+-- below refreshRows.
+local drainCapPings
 
 -- Background verification. itemID -> { unitPrice, at, buyable, status, reason }: what a live
 -- Check said about this item the last time one was run for it in the background.
@@ -517,6 +525,12 @@ local verdictFor
 -- -- clicking a row still runs the same live Check it always did (openDialog -> startRequery),
 -- and the purchase calls themselves are protected and reachable only from a hardware click.
 local verdicts = {}
+-- Live price caps, addon task 6: cap deals GC.Caps.Announce just approved as newly-rung, queued
+-- by evaluateLiveCommodityDeal/evaluateLiveItemDeal (wherever buildCapDeal merges one into board
+-- state) and drained by refreshRows() at the end of its own render -- by then the row painting
+-- loop above it has already stamped `row.deal` for this pass, so pingNewHotDeals' table-identity
+-- match (the same one a full-scan HOT deal uses) can find the row this exact table landed on.
+local pendingCapPings = {}
 -- How many of the rows the current render WOULD have shown carry a refusal. Recomputed by
 -- renderList on every render and displayed by the toolbar toggle, so a shorter list always
 -- comes with the number that explains it.
@@ -1074,6 +1088,10 @@ local function setRowDeal(row, deal)
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
     (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
     tostring(trend),
+    -- Live price caps, addon task 6: a cap-bucket transition or a changed group/price at the
+    -- SAME unitPrice+profit (a re-Adopt from the site swapping which group owns this item)
+    -- moves the CAP tier chip and the row subtitle -- neither is covered by anything above.
+    (verdict and verdict.cap) and 1 or 0, tostring(deal.capGroup),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1184,7 +1202,14 @@ local function setRowDeal(row, deal)
 
   -- A pin placeholder has no deal to have made a profit on -- this cell says nothing rather
   -- than a formatted 0-copper coin string (profit = 0, the same placeholder sentinel).
-  if deal.pinPlaceholder then
+  --
+  -- Live price caps, addon task 6: a cap deal with nothing to compare against (no market value
+  -- at all for this item -- the cap needs none, Core/Caps.lua's own contract) has the same
+  -- "nothing to show" problem. buildCapDeal's estProfit degrades to `-unit` in that case, which
+  -- would read as a real loss instead of "we don't know" -- deal.profit already equals
+  -- deal.estProfit for a cap deal (buildCapDeal sets both from the same number), so this is the
+  -- one case that needs its own branch rather than a field swap.
+  if deal.pinPlaceholder or (deal.cap and deal.mv == nil) then
     row.profitText:SetText("—")
     row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
   else
@@ -1221,12 +1246,20 @@ local function setRowDeal(row, deal)
   -- well after this call returns.
   local watchSuffix = deal.pinPlaceholder
     and ("|cff8c8a85%s|r"):format(GC.L[" · watching"]) or ""
+  -- Live price caps, addon task 6: a cap row belongs to an alert group -- say so, and say the
+  -- price it rang for, the same dim suffix pattern watchSuffix uses (own color code, so it
+  -- never inherits the quality-colored name). Only for a named group; a manual (ungrouped) cap
+  -- has nothing extra to say here that the CAP tier chip does not already.
+  local capSuffix = deal.capGroup
+    and ("|cff8c8a85 %s|r"):format((GC.L["%s · your price %s"]):format(
+      deal.capGroup, GC.Util.FormatGoldFloor(deal.cap)))
+    or ""
   local cached = nameIconCache[deal.itemID]
   if cached then
     row.icon:SetTexture(cached.icon)
-    row.nameText:SetText(cached.named .. qtySuffix(deal) .. watchSuffix)
+    row.nameText:SetText(cached.named .. qtySuffix(deal) .. capSuffix .. watchSuffix)
   else
-    row.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. qtySuffix(deal) .. watchSuffix)
+    row.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. qtySuffix(deal) .. capSuffix .. watchSuffix)
     row.icon:SetTexture(nil)
 
     local item = Item:CreateFromItemID(deal.itemID)
@@ -1247,7 +1280,7 @@ local function setRowDeal(row, deal)
       end
       nameIconCache[deal.itemID] = { icon = icon, named = named }
       row.icon:SetTexture(icon)
-      row.nameText:SetText(named .. qtySuffix(deal) .. watchSuffix)
+      row.nameText:SetText(named .. qtySuffix(deal) .. capSuffix .. watchSuffix)
     end)
   end
 
@@ -1343,6 +1376,18 @@ local function refreshRows()
   -- read (the player is on Commodities most of the time), so it is re-derived here rather
   -- than at each of the half-dozen places a realm row can appear or leave.
   GC.Sniper._PaintBoardChips()
+
+  -- Live price caps, addon task 6: the row-painting loop above has just stamped `row.deal` for
+  -- this render, so a cap deal GC.Caps.Announce approved earlier this call chain (queued into
+  -- pendingCapPings by evaluateLiveCommodityDeal/evaluateLiveItemDeal) can now be matched to the
+  -- row it landed on, the same way CollectNewHot's own HOT deals are. Reassigning the table
+  -- (rather than clearing it in place) is safe: every closure that pushes into it shares this
+  -- same upvalue, so the next push lands in the fresh one.
+  if #pendingCapPings > 0 then
+    local pings = pendingCapPings
+    pendingCapPings = {}
+    drainCapPings(pings)
+  end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -1495,42 +1540,64 @@ local function refreshStaleText()
   if origin ~= "none" and not age then origin = "none" end
   frame.staleHit:EnableMouse(origin ~= "app")
 
+  -- Live price caps, addon task 6: text/color/shown are decided here and applied once at the
+  -- end, rather than each branch calling SetText/SetTextColor/Show/Hide directly as before --
+  -- the caps freshness note below needs to APPEND to (or stand in for) whatever this decided,
+  -- including the "hide the banner entirely" case, without reading the widget back
+  -- (frame.staleText is a bare fake in several specs, with no GetText/IsShown of its own).
+  local text, color, shown
+
   if origin == "none" then
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    frame.staleText:SetText(GC.L["no prices yet -- /goldcap companion or /goldcap import"])
-    frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-    frame.staleText:Show()
+    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
-      frame.staleText:Hide()
+      shown = false
     elseif age < LIM.STALE_RED_SECONDS then
-      frame.staleText:SetText((GC.L["auto-synced %dh ago"]):format(math.floor(age / 3600)))
-      frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
-      frame.staleText:Show()
+      text = (GC.L["auto-synced %dh ago"]):format(math.floor(age / 3600))
+      color, shown = Theme.tier.SUSPECT, true
     else
-      frame.staleText:SetText(GC.L["auto-synced data stale -- /goldcap import"])
-      frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-      frame.staleText:Show()
+      text = GC.L["auto-synced data stale -- /goldcap import"]
+      color, shown = Theme.color.red, true
     end
   else -- manual
     if age < LIM.STALE_YELLOW_SECONDS then
       -- Fresh manual data used to hide the banner entirely; it now stays up, dim, as the
       -- nudge toward the Companion -- the whole point is that "fresh" here still means
       -- "will go stale on its own", unlike auto-synced data.
-      frame.staleText:SetText(GC.L["manual import -- Companion keeps this fresh: /goldcap companion"])
-      frame.staleText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-      frame.staleText:Show()
+      text = GC.L["manual import -- Companion keeps this fresh: /goldcap companion"]
+      color, shown = Theme.color.fgDim, true
     elseif age < LIM.STALE_RED_SECONDS then
-      frame.staleText:SetText((GC.L["import %dh old"]):format(math.floor(age / 3600)))
-      frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
-      frame.staleText:Show()
+      text = (GC.L["import %dh old"]):format(math.floor(age / 3600))
+      color, shown = Theme.tier.SUSPECT, true
     else
-      frame.staleText:SetText(GC.L["import stale -- /goldcap import or /goldcap companion"])
-      frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-      frame.staleText:Show()
+      text = GC.L["import stale -- /goldcap import or /goldcap companion"]
+      color, shown = Theme.color.red, true
     end
+  end
+
+  -- Caps freshness is independent of the import-origin banner above: a companion-synced cap
+  -- list is on its own clock, so a player running an all-caps alert group with fresh (or no)
+  -- imports still needs to know how current the price ceilings they're being shown are.
+  -- _G.date is a WoW-injected global, absent under busted (see UI/SoldFrame.lua's own guard
+  -- for the same fact) -- this degrades to nothing where it isn't stubbed, rather than erroring.
+  if GC.Caps and GC.Caps.Count() > 0 and _G.date then
+    local capsNote = (GC.L["%d caps from %s"]):format(
+      GC.Caps.Count(), _G.date("%H:%M", GC.Caps.GeneratedAt()))
+    text = shown and (text .. "  " .. capsNote) or capsNote
+    color = color or Theme.color.fgDim
+    shown = true
+  end
+
+  if shown then
+    frame.staleText:SetText(text)
+    frame.staleText:SetTextColor(color[1], color[2], color[3])
+    frame.staleText:Show()
+  else
+    frame.staleText:Hide()
   end
 end
 
@@ -2158,7 +2225,7 @@ end
 -- MergeDeals splices deal tables by reference (see FullScan.lua's MergeDeals), so the exact
 -- same table handed to pingNewHotDeals is what refreshRows() (already called by the caller,
 -- just before this) stamped onto whichever pooled row rendered it, if any.
-local function pingNewHotDeals(newHotDeals)
+pingNewHotDeals = function(newHotDeals)
   local matched = false
   for _, deal in ipairs(newHotDeals) do
     for i = 1, #rows do
@@ -4069,8 +4136,19 @@ evaluateLiveCommodityDeal = function(itemID, levels)
       else
         deals[itemID] = capDeal
       end
+      -- Addon task 6: queued for the board-ring (drained by refreshRows(), see pendingCapPings)
+      -- only once per GC.Caps.Announce's own dedup -- an unchanged or worse floor on a re-poll
+      -- stays silent.
+      if GC.Caps.Announce(capDeal) then
+        pendingCapPings[#pendingCapPings + 1] = capDeal
+      end
       return { isCommodity = true, levels = levels, avail = avail, decision = capDecision }
     end
+    -- The floor rose back above the cap (or the book emptied) -- forget the last announced
+    -- price so the NEXT time this item dips under the cap, even at the same price as before,
+    -- it rings again as the new opportunity it is, instead of staying silenced by a price the
+    -- board hasn't shown in a while.
+    GC.Caps.Forget(itemID)
   end
   return {
     isCommodity = true,
@@ -4425,6 +4503,10 @@ stampVerdict = function(deal, data, manual)
     unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
     buyable = buyable, unverified = unverified, status = status, reason = reason,
     stressProfit = data and data.decision and data.decision.stressProfit,
+    -- Live price caps, addon task 6: carried through so GC.BoardRows.Bucket/Label (read off
+    -- THIS table, not off `decision` directly -- see verdictFor) can rank/label a cap row ahead
+    -- of an ordinary SAFE/WATCH one. GC.Caps.DecideRealm/DecideCommodity both set it.
+    cap = decision and decision.cap or nil,
   }
   refreshRows()
 
@@ -5292,6 +5374,11 @@ local function evaluateLiveItemDeal(itemID)
         capDecision.candidate.auctionID, cap)
       GC.Sniper._realmDeals[itemID] = capDeal
       GC.FullScan.CapDeals(GC.Sniper._realmDeals, WIN.ROW_CAP)
+      -- Addon task 6: queued for the board-ring, once per GC.Caps.Announce's own dedup -- a
+      -- realm lot rings once per resolved auctionID, however many drills/polls see it again.
+      if GC.Caps.Announce(capDeal) then
+        pendingCapPings[#pendingCapPings + 1] = capDeal
+      end
       return { isCommodity = false, decision = capDecision }
     end
   end
@@ -7279,6 +7366,28 @@ local function onBuyClick(row)
   end
 
   openDialog(row, deal)
+end
+
+-- Live price caps, addon task 6: drains pendingCapPings (see refreshRows()'s own comment).
+-- pingNewHotDeals is reused verbatim -- the SAME flash + PlaySound(MAP_PING) + FlashClientIcon
+-- a full-scan HOT deal gets, never a second PlaySound for this bell. When the player has opted
+-- in (settings.sniper.capStopAndOpen), onBuyClick is reused verbatim too: it is the row's own
+-- click-path function, and openDialog inside it already calls GC.Sniper.NotifyDialogOpened
+-- (the stop) before showing the dialog (the open) -- the exact reaction a manual click on the
+-- row would trigger. Neither call reaches a protected purchase function: those stay behind
+-- onDialogPrimaryClick's own hardware click, untouched (spec/sniper_purchase_wiring_spec.lua).
+drainCapPings = function(pings)
+  pingNewHotDeals(pings)
+  if not (GC.db and GC.db.settings and GC.db.settings.sniper.capStopAndOpen) then return end
+  for _, capDeal in ipairs(pings) do
+    for i = 1, #rows do
+      local row = rows[i]
+      if row.deal == capDeal and row:IsShown() then
+        onBuyClick(row)
+        break
+      end
+    end
+  end
 end
 
 -- Cancels/resets non-confirmed work and clears tracking tables on AH close. A confirmed

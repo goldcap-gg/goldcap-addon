@@ -574,7 +574,7 @@ local function build(sniperFrame)
   posting:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -48)
   posting:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
-  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], 3)
+  local automation = card(panel, GC.L["AUTOMATION & ALERTS"], 4)
   automation:SetPoint("TOPRIGHT", posting, "BOTTOMRIGHT", 0, -12)
   automation:SetPoint("LEFT", panel, "CENTER", 7, 0)
 
@@ -718,6 +718,12 @@ local function build(sniperFrame)
   -- floor still reaches within a day. Off = post at the cheapest ask.
   toggleRow(automation, 3, GC.L["Post above the cheapest"], "overcut",
     GC.L["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."])
+
+  -- Live price caps (Core/Caps.lua): the same stop-and-open reaction the row's own click
+  -- already does, run automatically the first time a cap fires. Off by default -- see
+  -- Core/Init.lua's DEFAULTS comment on capStopAndOpen.
+  toggleRow(automation, 4, GC.L["Stop and open the buy window on your price"], "capStopAndOpen",
+    GC.L["When a listing meets a price you set on the site, stop scanning and open its buy window."])
 
   -- I1: unlike every other row, this label wasn't RIGHT-bound to anything, so at the 640
   -- minimum (card 259px) it ran straight into the readout -- 32px of overlap at 1.0x scale, 63px

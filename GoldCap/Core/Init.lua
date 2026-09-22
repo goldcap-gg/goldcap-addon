@@ -200,6 +200,12 @@ GC.DEFAULTS = {
       -- = up to 30% over). Filed under `sniper` for the same reason postDuration is above --
       -- one settings table UI/SettingsFrame.lua already reads, not a second branch for one field.
       buyCapPct = 130,
+      -- Live price caps, addon task 6: when a cap row (a listing at or under the player's own
+      -- price, Core/Caps.lua) is announced for the first time, also stop the scan and open its
+      -- buy window -- the same reaction a manual click on the row would trigger. Off by
+      -- default: a cap firing while the player is away must not open a purchase dialog nobody
+      -- asked for.
+      capStopAndOpen = false,
       -- buyRun: undeclared here on purpose (a nil-valued table field is never actually stored,
       -- so ApplyDefaults' pairs() walk would just skip it either way). The run code last shown
       -- in the Buy Runs panel, so reopening it returns to where the player left off; written by

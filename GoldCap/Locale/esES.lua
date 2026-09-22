@@ -17,6 +17,7 @@ GC.Locales.esES = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (o /gc para abreviar)",
   ["%d (whole lot)"] = "%d (lote completo)",
+  ["%d caps from %s"] = "%d topes desde %s",
   ["%d days"] = "%d días",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d oportunidades del último escaneo -- pulsa Full Scan para actualizar",
@@ -44,6 +45,7 @@ GC.Locales.esES = {
   ["%s after the AH cut"] = "%s tras la comisión de la CdS",
   ["%s ahead"] = "%s por delante",
   ["%s under you"] = "%s por debajo de ti",
+  ["%s · your price %s"] = "%s · tu precio %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin coste",
   [", %d hidden as unsellable"] = ", %d ocultos por no ser vendibles",
   ["1 lot, %s asked"] = "1 lote, se piden %s",
@@ -397,6 +399,7 @@ GC.Locales.esES = {
   ["Start scanning as soon as the auction house opens."] =
     "Empezar a escanear en cuanto se abra la Casa de Subastas.",
   ["Status"] = "Estado",
+  ["Stop and open the buy window on your price"] = "Detener y abrir la ventana de compra a tu precio",
   ["Stress exit unit"] = "Precio de salida bajo presión",
   ["Stress profit"] = "Beneficio bajo presión",
   ["THE BOOK"] = "EL LIBRO DE ÓRDENES",
@@ -481,6 +484,8 @@ GC.Locales.esES = {
     "Lo que te queda de una unidad si se vende al precio de mercado: precio de venta, menos el 5 % de comisión, menos tu coste.",
   ["What your live auctions for this item add up to at their current asking price."] =
     "Lo que suman tus subastas activas de este objeto a su precio actual.",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "Cuando un lote alcanza un precio que fijaste en el sitio web, se detiene el escaneo y se abre su ventana de compra.",
   ["Window position & size"] = "Posición y tamaño de la ventana",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "Con él, los precios de tu reino se actualizan solos y tus ventas y beneficios llegan a goldcap.gg.",

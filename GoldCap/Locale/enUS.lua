@@ -21,6 +21,7 @@ GC.Locales.enUS = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
+  ["%d caps from %s"] = "%d caps from %s",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
   ["%d filtered out as hard to resell"] = "%d filtered out as hard to resell",
@@ -51,6 +52,7 @@ GC.Locales.enUS = {
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
   ["%s under you"] = "%s under you",
+  ["%s · your price %s"] = "%s · your price %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
@@ -448,6 +450,7 @@ GC.Locales.enUS = {
   ["Start scanning as soon as the auction house opens."] =
     "Start scanning as soon as the auction house opens.",
   ["Status"] = "Status",
+  ["Stop and open the buy window on your price"] = "Stop and open the buy window on your price",
   ["Stress exit unit"] = "Stress exit unit",
   ["Stress profit"] = "Stress profit",
   ["THE BOOK"] = "THE BOOK",
@@ -534,6 +537,8 @@ GC.Locales.enUS = {
     "What you clear on one unit if it sells at the market price: sale price, minus the 5% Auction House cut, minus your cost.",
   ["What your live auctions for this item add up to at their current asking price."] =
     "What your live auctions for this item add up to at their current asking price.",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "When a listing meets a price you set on the site, stop scanning and open its buy window.",
   ["Window position & size"] = "Window position & size",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg.",

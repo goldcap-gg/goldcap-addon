@@ -16,6 +16,7 @@ GC.Locales.ruRU = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — команды: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (или коротко /gc)",
   ["%d (whole lot)"] = "%d (весь лот)",
+  ["%d caps from %s"] = "%d потолков цены от %s",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d сделок с последнего сканирования -- Full Scan, чтобы обновить",
@@ -42,6 +43,7 @@ GC.Locales.ruRU = {
   ["%s after the AH cut"] = "%s после комиссии",
   ["%s ahead"] = "%s впереди",
   ["%s under you"] = "%s дешевле вас",
+  ["%s · your price %s"] = "%s · ваша цена %s",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
   ["1 lot, %s asked"] = "1 лот, просят %s",
@@ -394,6 +396,7 @@ GC.Locales.ruRU = {
   ["Start scanning as soon as the auction house opens."] =
     "Начинать сканирование сразу при открытии аукционного дома.",
   ["Status"] = "Статус",
+  ["Stop and open the buy window on your price"] = "Остановить и открыть окно покупки по вашей цене",
   ["Stress exit unit"] = "Цена стресс-выхода",
   ["Stress profit"] = "Стресс-прибыль",
   ["THE BOOK"] = "СТАКАН ЗАЯВОК",
@@ -480,6 +483,8 @@ GC.Locales.ruRU = {
     "Сколько остаётся с одной штуки при продаже по рынку: цена продажи минус 5% комиссии аукциона минус ваша себестоимость.",
   ["What your live auctions for this item add up to at their current asking price."] =
     "Во сколько складываются ваши активные лоты этого предмета по текущей цене.",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "Когда лот достигает цены, заданной вами на сайте, сканирование останавливается и открывается окно покупки.",
   ["Window position & size"] = "Позиция и размер окна",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "С ним цены вашего реалма обновляются сами, а продажи и прибыль попадают на goldcap.gg.",

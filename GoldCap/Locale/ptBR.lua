@@ -17,6 +17,7 @@ GC.Locales.ptBR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (ou /gc para encurtar)",
   ["%d (whole lot)"] = "%d (lote inteiro)",
+  ["%d caps from %s"] = "%d tetos de preço desde %s",
   ["%d days"] = "%d dias",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d oportunidades da última varredura -- Full Scan para atualizar",
@@ -44,6 +45,7 @@ GC.Locales.ptBR = {
   ["%s after the AH cut"] = "%s após a taxa da CdL",
   ["%s ahead"] = "%s à frente",
   ["%s under you"] = "%s abaixo de você",
+  ["%s · your price %s"] = "%s · seu preço %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unidade%s sem custo",
   [", %d hidden as unsellable"] = ", %d ocultos por não serem vendáveis",
   ["1 lot, %s asked"] = "1 lote, pedindo %s",
@@ -396,6 +398,7 @@ GC.Locales.ptBR = {
   ["Start scanning as soon as the auction house opens."] =
     "Começar a escanear assim que a Casa de Leilões abrir.",
   ["Status"] = "Estado",
+  ["Stop and open the buy window on your price"] = "Parar e abrir a janela de compra no seu preço",
   ["Stress exit unit"] = "Preço de saída sob pressão",
   ["Stress profit"] = "Lucro sob pressão",
   ["THE BOOK"] = "O LIVRO DE OFERTAS",
@@ -481,6 +484,8 @@ GC.Locales.ptBR = {
     "O que sobra numa unidade se ela vender pelo preço de mercado: preço de venda, menos os 5 % de comissão, menos o seu custo.",
   ["What your live auctions for this item add up to at their current asking price."] =
     "Quanto somam seus leilões ativos deste item pelo preço atual.",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "Quando um anúncio atinge um preço que você definiu no site, o escaneamento para e a janela de compra é aberta.",
   ["Window position & size"] = "Posição e tamanho da janela",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "Com ele, os preços do seu reino se atualizam sozinhos e suas vendas e lucro vão para o goldcap.gg.",

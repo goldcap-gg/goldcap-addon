@@ -149,3 +149,36 @@ function GC.Caps.DecideCommodity(cap, levels, minimumProfitCopper)
     unit = unit,
   }
 end
+
+-- Addon task 6: has THIS cap row already been rung/flashed? Pure module state, deliberately
+-- separate from the caps/order tables above -- Adopt() rebuilds those wholesale on every
+-- companion sync, and announcement memory must not reset with it, or the player would hear the
+-- same lot ring again on the very next sync that changes nothing about it.
+--
+-- A realm lot IS a single resolved auction (buildCapDeal's own `auctionID`): once announced,
+-- that exact auctionID never rings twice, however many drills/polls see it again -- it is the
+-- SAME opportunity, not a new one. A commodity has no single lot to key on, only a book, so it
+-- rings again only when the price actually IMPROVES on the last one announced for that item; a
+-- re-poll of an unchanged (or worse) floor stays silent. `Forget` clears that memory for an item
+-- whose cap decision just came back nil (the floor rose back above the cap) -- the next time it
+-- dips under the cap again, even at the SAME price as before, that is a new opportunity, not a
+-- repeat of the old one.
+local announcedAuctions, announcedUnit = {}, {}
+
+function GC.Caps.Announce(deal)
+  if not deal or not deal.itemID then return false end
+  if deal.isCommodity then
+    local last = announcedUnit[deal.itemID]
+    if last ~= nil and not (deal.unitPrice and deal.unitPrice < last) then return false end
+    announcedUnit[deal.itemID] = deal.unitPrice
+    return true
+  end
+  local auctionID = deal.auctionID
+  if not auctionID or announcedAuctions[auctionID] then return false end
+  announcedAuctions[auctionID] = true
+  return true
+end
+
+function GC.Caps.Forget(itemID)
+  announcedUnit[itemID] = nil
+end

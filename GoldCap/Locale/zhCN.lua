@@ -20,6 +20,7 @@ GC.Locales.zhCN = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可简写 /gc）",
   ["%d (whole lot)"] = "%d（整批）",
+  ["%d caps from %s"] = "%d 个价格上限 · %s",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "上次扫描的 %d 笔交易 -- 按 Full Scan 刷新",
@@ -46,6 +47,7 @@ GC.Locales.zhCN = {
   ["%s after the AH cut"] = "扣除拍卖行手续费后 %s",
   ["%s ahead"] = "前面有 %s",
   ["%s under you"] = "%s 低于你的价格",
+  ["%s · your price %s"] = "%s · 你的价格 %s",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",
   [", %d hidden as unsellable"] = "，%d 件因无法出售已隐藏",
   ["1 lot, %s asked"] = "1 批，要价 %s",
@@ -365,6 +367,7 @@ GC.Locales.zhCN = {
   ["Spike-trend threshold %"] = "暴涨阈值 %",
   ["Start scanning as soon as the auction house opens."] = "一进入拍卖行就立即开始扫描。",
   ["Status"] = "状态",
+  ["Stop and open the buy window on your price"] = "达到你的价格时停止并打开购买窗口",
   ["Stress exit unit"] = "压力退出单价",
   ["Stress profit"] = "压力利润",
   ["THE BOOK"] = "挂单簿",
@@ -438,6 +441,8 @@ GC.Locales.zhCN = {
     "若按市场价卖出，一件能净落多少：售价减去 5% 拍卖行抽成，再减去你的成本。",
   ["What your live auctions for this item add up to at their current asking price."] =
     "你这件物品在售拍卖按当前要价的合计金额。",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "当某个拍卖达到你在网站上设置的价格时，停止扫描并打开其购买窗口。",
   ["Window position & size"] = "窗口位置和大小",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "有了它，你所在服务器的价格会自动更新，销售记录和利润会同步到 goldcap.gg。",
