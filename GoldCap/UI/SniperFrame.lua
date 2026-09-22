@@ -7825,8 +7825,9 @@ end
 -- while it is up no row is on screen; the ticker picks the ring up once it closes. The check
 -- drawer does not count: below WIN.PANEL_SHIFT_MIN it lies over the list rather than pushing it
 -- aside, but it covers exactly the rightmost 288 px of a row (320 wide, flush with the window's
--- right edge, where the row stops 32 px short), so the item and its verdict chip stay in view at
--- every width. A field, not a local: this chunk sits near Lua's 200-local ceiling.
+-- right edge, where the row stops 32 px short), so the item stays in view, and its verdict chip
+-- with it -- only just clipped at the narrowest width a window can be resized to
+-- (WIN.RESIZE_MIN_WIDTH). A field, not a local: this chunk sits near Lua's 200-local ceiling.
 function GC.Sniper._RowOnScreen(row)
   if not row:IsVisible() then return false end
   if GC.SettingsUI and GC.SettingsUI.IsShown and GC.SettingsUI.IsShown() then return false end
@@ -7873,13 +7874,22 @@ drainCapPings = function(allowOpen)
   for _, ping in ipairs(pings) do
     -- The board's current row for this opportunity, or nil: expired, or the row has left.
     local deal = (now - ping.at) <= LIM.CAP_PING_WAIT_SECONDS and GC.Sniper._BoardCapRow(ping.deal) or nil
-    -- Round 3: the buy window is on screen for this very item, so the player is already looking
-    -- at it. The ping -- queued by that window's own Check when it saw a better price or a cheaper
-    -- lot, or still pending from before the player opened the window by hand -- is settled here:
-    -- announced, with no bell and no open, and it leaves the queue. Left queued, it rang the
-    -- moment the player cancelled, and the next tick reopened the window on what they had just
-    -- declined.
-    if deal and dialog and dialog:IsShown() and dialog.deal and dialog.deal.itemID == deal.itemID then
+    -- Round 3: the buy window is on screen for this very item and owns its live state -- armed or
+    -- re-checking, the item pinned in activeItemID -- so the player is already looking at what
+    -- this ping is about. The ping -- queued by that window's own Check when it saw a better price
+    -- or a cheaper lot, or still pending from before the player opened the window by hand -- is
+    -- settled here: announced, with no bell and no open, and it leaves the queue. Left queued, it
+    -- rang the moment the player cancelled, and the next tick reopened the window on what they had
+    -- just declined.
+    --
+    -- Round 4: only while pinned. A window that has let go of the item -- a Check that came back
+    -- not buyable (armCheck releases the pin), or the "listing gone" notice left up with no row
+    -- (showGoneState) -- shows nothing a background drill finds afterwards: the lot it found is
+    -- on the board, not in that window. That ping takes the ordinary road, a bell where it lands
+    -- and an open once the window is out of the way -- which is exactly when stop-and-open
+    -- matters: the window it opened found its lot sniped, and a repost lands a minute later.
+    if deal and activeItemID[deal.itemID] and dialog and dialog:IsShown() and dialog.deal
+        and dialog.deal.itemID == deal.itemID then
       GC.Caps.Announce(deal)
       deal = nil
     end

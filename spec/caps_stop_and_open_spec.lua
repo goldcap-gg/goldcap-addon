@@ -205,17 +205,27 @@ describe("Caps stop-and-open", function()
     assert.same({}, rung[2]) -- and only then
   end)
 
-  -- Fix round 3: while the buy window is on screen for this very item, the player is already
+  -- Fix round 3: while the buy window is on screen for this very item AND owns its live state --
+  -- armed or re-checking, the item pinned in activeItemID (round 4) -- the player is already
   -- looking at it. A ping for the item -- queued by the window's own Check when it sees a better
   -- price or a cheaper lot, or pending from before a manual open -- is settled right there:
   -- announced, with no bell and no open. Left queued, it rang the moment the player cancelled,
   -- and the next tick reopened the window on what they had just declined.
+  --
+  -- The window's pin, as openDialog/startRequery/armReady set it and abortRowPurchase/armCheck/
+  -- showGoneState clear it: the file's own activeItemID table.
+  local function activeItems(GC)
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    return upvalue(upvalue(upvalue(refreshRows, "renderList"), "sortedDeals"), "activeItemID")
+  end
+
   it("settles a ping for the item whose buy window is already open: no bell, no open, told", function()
     local GC, drain = load(true)
     local deal = hit(GC, 42, 1)
     local row = fakeRow(deal)
     set(drain, "rows", { row })
     set(drain, "dialog", fakeDialog(row))
+    activeItems(GC)[42] = true
 
     drain(true)
 
@@ -231,12 +241,14 @@ describe("Caps stop-and-open", function()
     local window = fakeDialog(row)
     set(drain, "rows", { row })
     set(drain, "dialog", window)
+    activeItems(GC)[42] = true
     drain(true)
 
     -- The window's live Check sees a cheaper lot for the item and queues it, under the window.
     local cheaper = hit(GC, 42, 2, 60)
     drain(false)
     window.shown, window.row = false, nil -- the player cancels
+    activeItems(GC)[42] = nil
     row.deal = cheaper
     drain(true)
     drain(true)
@@ -252,15 +264,67 @@ describe("Caps stop-and-open", function()
     local row = fakeRow(deal)
     set(drain, "rows", { row })
     drain(true) -- held by the floor
-    local window = fakeDialog(row) -- the player clicks the row
+    local window = fakeDialog(row) -- the player clicks the row (startRequery pins the item)
     set(drain, "dialog", window)
+    activeItems(GC)[42] = true
     drain(false)
 
     window.shown = false -- and cancels
+    activeItems(GC)[42] = nil
     now = now + 31
     drain(true)
 
     for i = 1, #rung do assert.same({}, rung[i]) end
+  end)
+
+  -- Fix round 4: but a window that does NOT own the item's live state shows nothing new. After a
+  -- Check that came back not buyable (armCheck releases the pin) or once the listing has gone
+  -- (showGoneState: the notice stays up, with no row and no pin), a background drill can still
+  -- find another lot at the player's price -- and nothing puts it in that window. It takes the
+  -- ordinary road: it rings where it lands, and it opens once the window is out of the way.
+  it("rings a lot found while the window says the listing is gone, and opens it after Close", function()
+    local GC, drain = load(true)
+    local gone = hit(GC, 42, 1)
+    local row = fakeRow(gone)
+    local notice = fakeDialog(row)
+    notice.row = nil -- showGoneState: the notice stays, the row is released, no pin
+    set(drain, "rows", { row })
+    set(drain, "dialog", notice)
+    drain(false) -- the first lot's own ping is dealt with; what matters is the next one
+    rung, clicked = {}, {}
+    now = now + 60 -- the repost lands a minute later, past the first lot's bell floor
+
+    local repost = hit(GC, 42, 2, 70) -- a drill finds a new lot at the player's price
+    row.deal = repost -- the released row renders it
+    drain(true)
+    assert.same({ repost }, rung[1])
+    assert.same({}, clicked) -- the notice is still on screen: no window replaces it
+
+    notice.shown = false -- the player closes the notice
+    drain(true)
+    assert.same({ row }, clicked)
+  end)
+
+  it("rings a lot found while the window shows a Check that came back not buyable", function()
+    local GC, drain = load(true)
+    local first = hit(GC, 42, 1)
+    local row = fakeRow(first) -- frozen under the window on the lot it checked
+    local window = fakeDialog(row) -- armCheck: the window stays, the pin is released
+    set(drain, "rows", { row })
+    set(drain, "dialog", window)
+    drain(false)
+    rung, clicked = {}, {}
+    now = now + 60 -- past the first lot's bell floor
+
+    local other = hit(GC, 42, 2, 70)
+    drain(true)
+    assert.is_true(GC.Caps.IsNews(other)) -- not settled: that window never shows it
+
+    window.shown, window.row = false, nil -- the player cancels
+    row.deal = other -- and the board renders the lot it did not show
+    drain(true)
+    assert.same({ other }, rung[#rung])
+    assert.same({ row }, clicked)
   end)
 
   it("opens one window per drain, not one per hit", function()
