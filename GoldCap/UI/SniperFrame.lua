@@ -7810,6 +7810,47 @@ local function onBuyClick(row)
   openDialog(row, deal)
 end
 
+-- Whether the player can actually see `row` on the board. IsVisible alone says only that the row
+-- and every parent up to the screen are shown -- and the board is a real ScrollFrame
+-- (createFrame's UIPanelScrollFrameTemplate) over a row pool that is not virtualised: every
+-- stamped row is shown, anchored at its slot down the scroll child (createRow), and one scrolled
+-- out of view is clipped, not hidden, so it stays IsVisible. So the row's middle must also lie
+-- inside the ScrollFrame's own edges.
+--
+-- Nor under the check drawer. On a window narrower than WIN.PANEL_SHIFT_MIN -- the docked
+-- auction house always is -- the drawer does not push the list aside (applyPanelInset); it lies
+-- over it as an opaque sheet, full height, on the window's right edge, whenever a Check is open.
+-- A row whose middle is under it is not on screen. The docked window's drawer covers only the
+-- right part of a row (price, profit, the button), so the item and its verdict chip stay in
+-- view and the row still counts; on the narrowest window it covers most of every row.
+--
+-- Every edge is read off the engine (Region:GetTop/GetBottom/GetLeft/GetRight); the rows, the
+-- ScrollFrame and the drawer are all descendants of the window at the same scale, so the numbers
+-- compare directly. Before its first layout a row has no edges yet, and that is a "not yet": the
+-- drain asks again on the next render or tick. A field, not a local: this chunk sits near Lua's
+-- 200-local ceiling.
+function GC.Sniper._RowOnScreen(row)
+  if not row:IsVisible() then return false end
+  local scroll = frame and frame.scroll
+  if not scroll then return false end
+  local top, bottom = row:GetTop(), row:GetBottom()
+  local viewTop, viewBottom = scroll:GetTop(), scroll:GetBottom()
+  if not (top and bottom and viewTop and viewBottom) then return false end
+  local middle = (top + bottom) / 2
+  if middle > viewTop or middle < viewBottom then return false end
+  if dialog and dialog:IsShown() then
+    local left, right = row:GetLeft(), row:GetRight()
+    local sheetLeft, sheetRight = dialog:GetLeft(), dialog:GetRight()
+    local sheetTop, sheetBottom = dialog:GetTop(), dialog:GetBottom()
+    if not (left and right and sheetLeft and sheetRight and sheetTop and sheetBottom) then return false end
+    local centre = (left + right) / 2
+    if centre >= sheetLeft and centre <= sheetRight and middle <= sheetTop and middle >= sheetBottom then
+      return false
+    end
+  end
+  return true
+end
+
 -- Live price caps, addon task 6: drains pendingCapPings (see refreshRows()'s own comment).
 -- pingNewHotDeals is reused verbatim -- the SAME flash + PlaySound(MAP_PING) + FlashClientIcon
 -- a full-scan HOT deal gets, never a second PlaySound for this bell. When the player has opted
@@ -7821,36 +7862,16 @@ end
 --
 -- Caps fixes 3e: nothing here is spent on a row the player cannot see. Each entry waits in
 -- pendingCapPings (see its declaration) until the row carrying its deal is on screen
--- (GC.Sniper._RowOnScreen: visible, and inside the board's scrolled view) -- IsShown is true of
--- a row on a hidden board, tab or window, which is where the ring and the open used to go --
--- and the item's bell floor has passed; only then is the lot announced (GC.Caps.Announce)
--- and the floor stamped again. The
--- open is a second obligation on the same entry and waits on its own: for `allowOpen` (the
+-- (GC.Sniper._RowOnScreen above) -- IsShown is true of a row on a hidden board, tab or window,
+-- which is where the ring and the open used to go -- and until the item's bell floor has
+-- passed. Only then is the lot announced (GC.Caps.Announce) and the floor stamped again.
+--
+-- The open is a second obligation on the same entry and waits on its own: for `allowOpen` (the
 -- ticker's drain; a render's drain rings only, since a render also runs inside a closing
 -- dialog's OnHide, and a window opened from there would open under the one closing), for a
 -- player not busy on Blizzard's own panes, and for the screen to hold no other dialog -- then it
--- is retried on the next drain, which is how it follows the other dialog closing.
--- Whether the player can actually see `row` on the board. IsVisible alone says only that the row
--- and every parent up to the screen are shown -- and the board is a real ScrollFrame
--- (createFrame's UIPanelScrollFrameTemplate) over a row pool that is not virtualised: every
--- stamped row is shown, anchored at its slot down the scroll child (createRow), and one scrolled
--- out of view is clipped, not hidden, so it stays IsVisible. So the row's middle must also lie
--- inside the ScrollFrame's own edges. Both are read off the engine (Region:GetTop/GetBottom);
--- the rows are descendants of the ScrollFrame at the same scale, so the numbers compare
--- directly. Before its first layout a row has no edges yet, and that is a "not yet": the drain
--- asks again on the next render or tick. A field, not a local: this chunk sits near Lua's
--- 200-local ceiling.
-function GC.Sniper._RowOnScreen(row)
-  if not row:IsVisible() then return false end
-  local scroll = frame and frame.scroll
-  if not scroll then return false end
-  local top, bottom = row:GetTop(), row:GetBottom()
-  local viewTop, viewBottom = scroll:GetTop(), scroll:GetBottom()
-  if not (top and bottom and viewTop and viewBottom) then return false end
-  local middle = (top + bottom) / 2
-  return middle <= viewTop and middle >= viewBottom
-end
-
+-- is retried on the next drain, which is how it follows the other dialog closing. An open
+-- announces the lot too, bell or no bell.
 drainCapPings = function(allowOpen)
   local pings = pendingCapPings
   pendingCapPings = {}

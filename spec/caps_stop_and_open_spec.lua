@@ -106,17 +106,28 @@ describe("Caps stop-and-open", function()
   -- A pooled row carrying `deal`. `visible` is what IsVisible answers -- the row and every
   -- parent up to the screen shown -- and it is false for a row that is merely IsShown on a
   -- hidden board, tab or window.
+  -- Geometry is the docked window's (about 805 wide): the row runs from the rail (84) to the
+  -- scrollbar gutter (773).
   local function fakeRow(deal, visible)
-    local row = { deal = deal, visible = visible ~= false, top = 480 }
+    local row = { deal = deal, visible = visible ~= false, top = 480, left = 84, right = 773 }
     function row:IsShown() return true end
     function row:IsVisible() return self.visible end
     function row:GetTop() return self.top end
     function row:GetBottom() return self.top - 32 end
+    function row:GetLeft() return self.left end
+    function row:GetRight() return self.right end
     return row
   end
+  -- The check drawer: 320 wide on the window's right edge, full height below the title bar
+  -- (createDialog). On the docked window it covers the right part of every row -- price, profit,
+  -- the button -- and leaves the item and its verdict chip in view.
   local function fakeDialog(row)
-    local d = { row = row, shown = true }
+    local d = { row = row, shown = true, left = 485, right = 805 }
     function d:IsShown() return self.shown end
+    function d:GetLeft() return self.left end
+    function d:GetRight() return self.right end
+    function d:GetTop() return 520 end
+    function d:GetBottom() return 0 end
     return d
   end
 
@@ -303,6 +314,38 @@ describe("Caps stop-and-open", function()
       set(drain, "rows", { other })
       drain(true)
       assert.same({}, rung[2])
+    end)
+
+    -- Fix round 2: below WIN.PANEL_SHIFT_MIN the check drawer is an opaque sheet lying OVER the
+    -- list (createDialog, applyPanelInset), and it is on screen whenever another row's check is.
+    -- A row whose middle lies under it is not one the player can see.
+    it("does not spend a ring on a row the open check drawer covers, and rings it once it closes", function()
+      local GC, drain = load(false)
+      local deal = hit(GC, 42, 1)
+      local row = fakeRow(deal)
+      row.right = 438 -- the narrowest window: the row's middle (261) is under the drawer
+      local drawer = fakeDialog(fakeRow({ itemID = 7 }))
+      drawer.left, drawer.right = 150, 470
+      set(drain, "rows", { row })
+      set(drain, "dialog", drawer)
+
+      drain(true)
+      assert.same({}, rung[1])
+      assert.is_true(GC.Caps.IsNews(deal))
+
+      drawer.shown = false
+      drain(true)
+      assert.same({ deal }, rung[2])
+    end)
+
+    it("rings a row the drawer only partly covers, its item and verdict still in view", function()
+      local GC, drain = load(false)
+      local deal = hit(GC, 42, 1)
+      set(drain, "rows", { fakeRow(deal) }) -- middle 428.5, drawer from 485
+      set(drain, "dialog", fakeDialog(fakeRow({ itemID = 7 })))
+
+      drain(true)
+      assert.same({ deal }, rung[1])
     end)
 
     it("waits for a row the render has not stamped yet (another board is on screen)", function()
