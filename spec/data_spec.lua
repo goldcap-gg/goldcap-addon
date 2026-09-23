@@ -607,8 +607,9 @@ describe("Data", function()
     -- A Companion that stopped syncing leaves its last payload on disk, adopted again on every
     -- load; a fresher import of the same region -- a manual paste -- has to win over it, facts and
     -- all, or every tooltip and Check reads days-old prices until the AppData folder is deleted.
+    -- One second past the window: the rule is "more than 3 h", and nothing wider.
     it("yields to an import of its region more than 3 h newer than it", function()
-      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 4 * 3600,
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3 * 3600 + 1,
         items = { [42] = { m = 9999, s = 5 } }, verification = { [42] = FACT }, watchlist = {} })
       assert.is_nil(GC.Data.RegionPayload())
       local v = GC.Data.GetItemValue(42)
@@ -627,6 +628,31 @@ describe("Data", function()
       assert.is_truthy(GC.Data.RegionPayload())
       assert.equal("region", GC.Data.GetItemValue(42).source)
       assert.is_nil(GC.Data.RegionPayloadStatus())
+    end)
+
+    -- A payload that stops answering mid-session is let go there and then, like one that could not
+    -- answer at load: held, it would come back into play the moment the loaded import changed back.
+    it("does not come back when a newer import of its region is replaced by an older one", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 4 * 3600,
+        items = { [42] = { m = 9999 } }, watchlist = {} })
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2500,
+        items = { [42] = { m = 8888 } }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      assert.equal("import", GC.Data.GetItemValue(42).source)
+      assert.equal(8888, GC.Data.GetItemValue(42).mv)
+      assert.is_nil(GC.Data.RegionPayloadMemoryKB())
+      assert.same({ reason = "older_than_import", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    it("does not come back when another region's prices are replaced by its own region's", function()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3600,
+        items = { [42] = { m = 8888 } }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      assert.equal("import", GC.Data.GetItemValue(42).source)
+      assert.equal(8888, GC.Data.GetItemValue(42).mv)
+      assert.same({ reason = "other_region", ts = 3000 }, GC.Data.RegionPayloadStatus())
     end)
   end)
 end)

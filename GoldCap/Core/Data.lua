@@ -19,6 +19,7 @@ local PAYLOAD_IMPORT_LAG_SECONDS = 3 * 3600
 -- { reason, ts } for the last payload offered that could not be used, or nil; read through
 -- RegionPayloadStatus. In memory only, like the payload.
 local payloadFailure
+local dropIdlePayload -- defined beside inactiveReason, called from SetImported
 
 local function countItems(t)
   local n = 0
@@ -213,6 +214,7 @@ function GC.Data.SetImported(parsed)
   db.appDataError = nil
   warnedAppDataError = nil
   adoptRegion()
+  dropIdlePayload()
   GC.Data.WarnRegionMismatch()
   -- A fresh import can carry a fresh wanted list; resolve it now if the client is already
   -- in the world (the login path starts the first pass from Core/Init.lua instead).
@@ -280,6 +282,20 @@ end
 local function activePayload()
   if payload and not inactiveReason(payload) then return payload end
   return nil
+end
+
+-- A payload that stops answering mid-session -- the import just loaded is another region's, or its
+-- region's and more than PAYLOAD_IMPORT_LAG_SECONDS newer -- is let go there and then, as one that
+-- could not answer at load is (AdoptRegionPayload). Held, it would be megabytes kept for nothing, and
+-- it would come back into play the moment the loaded import changed back: an older paste of its
+-- region, or its region's prices pasted again after another region's. Only the next load's payload
+-- answers after this.
+function dropIdlePayload()
+  local why = payload and inactiveReason(payload)
+  if why then
+    payloadFailure = { reason = why, ts = payload.ts }
+    payload = nil
+  end
 end
 
 function GC.Data.RegionPayload()

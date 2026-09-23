@@ -325,6 +325,20 @@ describe("Data.AdoptAppData", function()
     assert.is_nil(_G.GoldCap_AppData.regionString)
   end)
 
+  -- Not held either: an import of its region later in the session, dated within 3 h of it, would
+  -- otherwise bring it back into play.
+  it("drops a payload older than the import at load, so a later older import does not revive it", function()
+    local fresh = 2000 + 3 * 86400
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;silvermoon;" .. fresh .. ";I:190396=9999=5.0"))
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;silvermoon;5600;I:190396=8888=5.0"))
+    assert.is_nil(GC.Data.RegionPayload())
+    assert.equal("import", GC.Data.GetItemValue(190396).source)
+    assert.equal(8888, GC.Data.GetItemValue(190396).mv)
+    assert.same({ reason = "older_than_import", ts = 2000 }, GC.Data.RegionPayloadStatus())
+  end)
+
   -- Held, it would be megabytes kept all session for a region nothing is priced in -- and would
   -- quietly come back into play if the player later pasted that region's prices by hand.
   it("drops another region's payload at load, so a later import of that region does not revive it", function()
