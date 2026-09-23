@@ -4,9 +4,9 @@
 
 - The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or
   under your price shows up as a "YOUR PRICE" row, rings, and buys through the usual window.
-  It keeps watching them whichever board or tab you are on, as long as the GoldCap window is open
-  at the auction house. Needs the current Companion release; the group's minimum item level is
-  honoured for gear.
+  Your prices are watched on both Deals boards, Commodities and Items, while the GoldCap window is
+  open at the auction house; each find shows up on its own board. Needs the current Companion
+  release; the group's minimum item level is honoured for gear.
 - New option: stop scanning and open the buy window as soon as one of your prices is met (off
   by default). It never takes over a buy window you already have open: it waits until you
   close it.
