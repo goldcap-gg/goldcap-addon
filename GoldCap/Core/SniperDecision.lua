@@ -196,6 +196,11 @@ local function resultTemplate()
   }
 end
 
+-- The figures of a planned buy, as a SAFE result carries them -- what a refusal the wallet limit
+-- alone decided takes over from the plan it would have made with the gold (see Evaluate's end).
+local PLAN_FIELDS = { "quantity", "entryTotal", "entryUnitDisplay", "competingUnit", "exitUnit",
+  "ahCut", "deposit", "stressProfit", "requiredProfit" }
+
 -- The set of reasons the engine can return, and the sentence each one shows a player.
 --
 -- Through GC.L, even though nothing in this file draws anything. These are the most-read
@@ -758,6 +763,31 @@ function GC.SniperDecision.Evaluate(input)
   out.status = severity == 1 and "WATCH" or "AVOID"
   out.buyable = false
   orderReasons(out.reasons)
+  -- A buy the wallet limit ALONE refuses is a deal that needs gold, not a bad one. Owner report
+  -- 2026-09-24: a character with no gold watched the board for an hour, every Check came back
+  -- capital_limit, every row went to Hidden, and the market read as having no deals at all.
+  -- So when capital_limit is the one reason that refused, the same question is asked again with
+  -- the wallet out of the way, and if THAT answer is a buy, its plan rides along on the refusal:
+  -- `needsGold` is what that buy costs, and its figures fill the ones this attempt never got to.
+  -- Nothing about the refusal changes -- status, reasons and buyable are this wallet's, and no
+  -- purchase path reads `needsGold`. Any other reason, or a plan that would still be refused
+  -- with the gold, names nothing and stays an ordinary refusal.
+  if knownReasons.capital_limit and input.walletCopper < MAX_EXACT then
+    local blocking = 0
+    for i = 1, #out.reasons do
+      if not (out.informational and out.informational[out.reasons[i]]) then blocking = blocking + 1 end
+    end
+    if blocking == 1 then
+      local funded = {}
+      for k, v in pairs(input) do funded[k] = v end
+      funded.walletCopper = MAX_EXACT
+      local plan = GC.SniperDecision.Evaluate(funded)
+      if plan.buyable then
+        for _, field in ipairs(PLAN_FIELDS) do out[field] = plan[field] end
+        out.needsGold = plan.entryTotal
+      end
+    end
+  end
   return finalizePublicResult()
 end
 
