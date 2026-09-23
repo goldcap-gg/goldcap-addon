@@ -750,4 +750,6 @@ GC.Locales.esMX = {
   ["AUTO · WAITING: YOUR LIST"] = "AUTO · ESPERA: TU LISTA",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Espera: tu propia búsqueda está en la lista de compra de la casa de subastas y un escaneo la reemplazaría. Abre la pestaña de GoldCap en la casa de subastas, o ciérrala, y Auto empieza.",
+  ["Market %s · unverified until a live Check"] =
+    "Mercado %s · sin verificar hasta una revisión en vivo",
 }

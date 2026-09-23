@@ -702,4 +702,5 @@ GC.Locales.koKR = {
   ["AUTO · WAITING: YOUR LIST"] = "자동 · 대기: 내 목록",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "대기 중: 경매장 구매 목록에 내 검색 결과가 있고, 검색하면 그것을 덮어씁니다. 경매장의 GoldCap 탭을 열거나 경매장을 닫으면 자동이 시작합니다.",
+  ["Market %s · unverified until a live Check"] = "시세 %s · 실시간 확인 전까지는 미검증",
 }

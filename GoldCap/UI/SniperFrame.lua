@@ -15,6 +15,9 @@ GC.Sniper._rangAt = {}
 -- (renderList) can show a real number instead of a dash. Same "field, not a local" reasoning
 -- as _churn above.
 GC.Sniper._lastPrice = {}
+-- itemID -> how many units that observation saw at that price: the quantity a watched row's
+-- PRICE and PROFIT are figured on, the same one the watch loop hands DealMath for a deal.
+GC.Sniper._lastQty = {}
 
 local Theme = GC.Theme
 
@@ -888,8 +891,21 @@ local function renderList()
       -- has no observation for a pin nothing has polled yet. `unitPrice = 0` stays the sentinel
       -- in the table -- `priceUnknown` is what setRowDeal checks before it will render that as
       -- a real number, so a session-old pin never shows a fabricated 0-copper price.
+      --
+      -- What the market says about it is figured the way every other row's is
+      -- (GC.DealMath.Measure), off the price and quantity the watch loop last saw -- against the
+      -- region reference on the Items board, the imported value on Commodities. `measured` nil
+      -- (no market, or nothing seen) leaves the cells to say nothing, as before; `qtyKnown`
+      -- likewise for the total. In game 2026-09-23 every pinned row showed its unit and dashes.
+      local lastQty = lastPrice and GC.Sniper._lastQty[itemID] or nil
+      local value = realmPin and GC.Sniper._RealmValue(itemID)
+        or (GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID))
+      local measured = lastPrice and lastQty and GC.DealMath and GC.DealMath.Measure(lastPrice, lastQty, value) or nil
       kept[#kept + 1] = { itemID = itemID, pinPlaceholder = true, unitPrice = lastPrice or 0,
-        qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
+        qty = lastQty or 1, qtyKnown = lastQty ~= nil, mv = measured and value.mv or nil,
+        profit = measured and measured.profit or 0, discount = measured and measured.discount or 0,
+        marketKnown = measured ~= nil,
+        tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
     end
   end
 
@@ -1230,9 +1246,14 @@ local function setRowDeal(row, deal)
   -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
   -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
   -- that need a number) would otherwise print.
-  if deal.pinPlaceholder then
+  -- A watched row's figures are estimates off the last price seen, never a verdict, so they
+  -- keep the row's dim look (fgMuted); a dash is only for what is genuinely unknown.
+  if deal.pinPlaceholder and not deal.marketKnown then
     row.discountText:SetText("—")
     row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  elseif deal.pinPlaceholder then
+    row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
+    row.discountText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   else
     row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
     row.discountText:SetTextColor(verdictColor[1], verdictColor[2], verdictColor[3])
@@ -1254,8 +1275,14 @@ local function setRowDeal(row, deal)
     -- unit right now) and nothing where a total was never actually quoted.
     row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    row.priceText:SetText("—")
-    row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    if deal.qtyKnown then
+      -- The quantity the watch loop saw at that price is known: the total is a real one.
+      row.priceText:SetText(GC.Util.FormatMoney(deal.unitPrice * deal.qty))
+      row.priceText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
+    else
+      row.priceText:SetText("—")
+      row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    end
   else
     row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
@@ -1273,9 +1300,12 @@ local function setRowDeal(row, deal)
   -- would read as a real loss instead of "we don't know" -- deal.profit already equals
   -- deal.estProfit for a cap deal (buildCapDeal sets both from the same number), so this is the
   -- one case that needs its own branch rather than a field swap.
-  if deal.pinPlaceholder or (deal.cap and deal.mv == nil) then
+  if (deal.pinPlaceholder and not deal.marketKnown) or (deal.cap and deal.mv == nil) then
     row.profitText:SetText("—")
     row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  elseif deal.pinPlaceholder then
+    row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
+    row.profitText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   else
     row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
     if deal.profit >= 0 then
@@ -2262,11 +2292,16 @@ driver = {
     -- actually queried for such an item (see driver.getKeyInfo/sendSearch above).
     local live = driver.commodityResult(itemID)
     local unitPrice = live and live.unitPrice
+    local seenQty = live and live.qty
     if not unitPrice then
       local itemLive = driver.itemResult(itemID)
       unitPrice = itemLive and itemLive.unitPrice
+      seenQty = itemLive and itemLive.qty
     end
-    if unitPrice then GC.Sniper._lastPrice[itemID] = unitPrice end
+    if unitPrice then
+      GC.Sniper._lastPrice[itemID] = unitPrice
+      GC.Sniper._lastQty[itemID] = seenQty
+    end
     -- Live observation for the export pipeline. Commodities get the real
     -- book (driver.commodityBook reads already-fetched results, no query);
     -- item searches only ever read the top listing here, so the observation
@@ -4707,6 +4742,13 @@ function GC.Sniper._CapNote(deal)
     return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
   end
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+end
+
+-- A watched row's market reference, for its tooltip: the figures on the row are measured
+-- against it and nothing has checked them live. nil when the row had no market to measure by.
+function GC.Sniper._WatchNote(deal)
+  if not (deal and deal.pinPlaceholder and deal.marketKnown and deal.mv) then return nil end
+  return (GC.L["Market %s · unverified until a live Check"]):format(GC.Util.FormatMoney(deal.mv))
 end
 
 -- Caps fixes 3b: a commodity cap row goes on the board the player is looking at -- the store
@@ -9133,6 +9175,10 @@ createRow = function(parent, index)
     if self.deal.pinPlaceholder then
       GameTooltip:AddLine(GC.L["Watching — pinned, but not a deal right now"],
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      local watchNote = GC.Sniper._WatchNote(self.deal)
+      if watchNote then
+        GameTooltip:AddLine(watchNote, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      end
     end
     GameTooltip:AddLine(isPinned(self.deal.itemID)
       and GC.L["Right-click to stop watching this item"]
@@ -10533,6 +10579,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._churnSeq = 0
   for itemID in pairs(GC.Sniper._rangAt) do GC.Sniper._rangAt[itemID] = nil end
   for itemID in pairs(GC.Sniper._lastPrice) do GC.Sniper._lastPrice[itemID] = nil end
+  for itemID in pairs(GC.Sniper._lastQty) do GC.Sniper._lastQty[itemID] = nil end
   -- Same reasoning, and the same session boundary: the book is what each item's floor was the
   -- last time we looked, and the drill queue is a list of prices worth a live look. Kept
   -- across the close, the first pass of the next session says nothing about every item whose

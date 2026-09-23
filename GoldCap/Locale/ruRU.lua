@@ -743,4 +743,5 @@ GC.Locales.ruRU = {
   ["AUTO · WAITING: YOUR LIST"] = "АВТО · ЖДЁТ: ВАШ СПИСОК",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Ждёт: в списке покупки аукциона ваш собственный поиск, и скан заменил бы его. Откройте вкладку GoldCap на аукционе или закройте аукцион — и Авто начнёт.",
+  ["Market %s · unverified until a live Check"] = "Рынок %s · не проверено до живой проверки",
 }

@@ -118,6 +118,7 @@ GC.Locales.enUS = {
   ["HOLDING %d"] = "HOLDING %d",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
+  ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",

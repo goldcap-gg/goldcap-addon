@@ -764,4 +764,5 @@ GC.Locales.ukUA = {
   ["AUTO · WAITING: YOUR LIST"] = "АВТО · ЧЕКАЄ: ВАШ СПИСОК",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Чекає: у списку купівлі аукціону ваш власний пошук, і скан замінив би його. Відкрийте вкладку GoldCap на аукціоні або закрийте аукціон — і Авто почне.",
+  ["Market %s · unverified until a live Check"] = "Ринок %s · не перевірено до живої перевірки",
 }

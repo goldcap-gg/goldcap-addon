@@ -747,4 +747,6 @@ GC.Locales.itIT = {
   ["AUTO · WAITING: YOUR LIST"] = "AUTO · ATTESA: LA TUA LISTA",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Attesa: la tua ricerca è nell'elenco d'acquisto della casa d'aste e una scansione la sostituirebbe. Apri la scheda GoldCap nella casa d'aste, o chiudi la casa d'aste, e Auto parte.",
+  ["Market %s · unverified until a live Check"] =
+    "Mercato %s · non verificato fino a un controllo dal vivo",
 }

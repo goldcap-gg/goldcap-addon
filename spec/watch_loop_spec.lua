@@ -360,6 +360,48 @@ describe("Watch loop", function()
     assert.equal(43, list[2].itemID)
   end)
 
+  -- In game 2026-09-23: rows the owner pinned showed UNIT and nothing else -- DISC, PRICE and
+  -- PROFIT were "—" on items the addon had a market value for. They are figured the way every
+  -- other row is (Core/DealMath.lua), off the price and quantity the watch loop last saw, and
+  -- stay dim: nothing here is verified until a live Check.
+  it("figures a watched row off the market it knows, the way every other row is", function()
+    local GC = load()
+    helper.loadModule("Core/DealMath.lua", GC)
+    GC.Sniper._TogglePin(42)
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", {})
+    GC.Sniper._lastPrice[42] = 100
+    GC.Sniper._lastQty[42] = 3
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    refreshRows()
+    local row = upvalue(refreshRows, "rows")[1]
+    assert.is_true(row.deal.pinPlaceholder)
+    assert.equal("50%", row.discountText.text)                        -- 100 against a 200 market
+    assert.equal(GC.Util.FormatMoney(100), row.unitText.text)
+    assert.equal(GC.Util.FormatMoney(300), row.priceText.text)        -- the 3 the loop saw at it
+    assert.equal("+" .. GC.Util.FormatMoney((190 - 100) * 3), row.profitText.text)
+    local watching = "· watching|r"
+    assert.equal(watching, row.nameText.text:sub(-#watching))         -- still a watching row
+    assert.equal((GC.L["Market %s · unverified until a live Check"]):format(GC.Util.FormatMoney(200)),
+      GC.Sniper._WatchNote(row.deal))
+  end)
+
+  it("still says nothing where the market is genuinely unknown", function()
+    local GC = load()
+    helper.loadModule("Core/DealMath.lua", GC)
+    GC.Data.GetItemValue = function() return nil end
+    GC.Sniper._TogglePin(42)
+    set(GC.Sniper.OnAuctionHouseShow, "scanDeals", {})
+    GC.Sniper._lastPrice[42] = 100
+    GC.Sniper._lastQty[42] = 3
+    local refreshRows = upvalue(GC.Sniper.OnAuctionHouseShow, "refreshRows")
+    refreshRows()
+    local row = upvalue(refreshRows, "rows")[1]
+    assert.equal("—", row.discountText.text)
+    assert.equal("—", row.profitText.text)
+    assert.equal(GC.Util.FormatMoney(300), row.priceText.text) -- price and quantity are still known
+    assert.is_nil(GC.Sniper._WatchNote(row.deal))
+  end)
+
   it("does not render a fabricated price for a placeholder pin nothing has observed yet", function()
     local GC = load()
     GC.Sniper._TogglePin(42)

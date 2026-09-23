@@ -679,4 +679,5 @@ GC.Locales.zhTW = {
   ["AUTO · WAITING: YOUR LIST"] = "自動 · 等待：你的列表",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "等待：拍賣場的購買列表裡是你自己的搜尋，掃描會把它替換掉。打開拍賣場裡的 GoldCap 分頁，或關閉拍賣場，自動就會開始。",
+  ["Market %s · unverified until a live Check"] = "市場 %s · 即時核對前未經驗證",
 }
