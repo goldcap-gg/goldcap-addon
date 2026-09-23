@@ -1428,6 +1428,27 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.equal("requerying", second.purchaseStage)
       end)
 
+      -- The same row, opened again after Escape and armed by its own Check: the old gate let its
+      -- Buy through, a second Start replaced the confirmed attempt, and the first purchase's
+      -- success was then read as the answer to the new one -- and never booked.
+      it("does not start a second purchase on the same row while its first is owed", function()
+        local GC, first, deal, d, click, abort = armed()
+        confirmOn(GC, first, click)
+        d.row = nil
+        abort(first, "purchase canceled")
+        reopened(GC, first, deal)
+        getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(first, deal)
+        answer(GC)
+        assert.equal("ready", first.purchaseStage)
+
+        click()
+        assert.equal(1, starts)
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+        assertRecordedCapBuy(GC, 42, QTY, UNIT * QTY)
+        assert.equal("expired", first.purchaseStage)
+      end)
+
       it("holds a realm lot's bid the same way, and its next click is a Check", function()
         local GC, first, _, d, click, abort = armed()
         confirmOn(GC, first, click)
