@@ -1432,24 +1432,30 @@ end
 -- (not \xXX escapes -- WoW's client Lua is 5.1, which has no hex string escape) in a file
 -- saved as UTF-8; Lua strings are just byte arrays so this needs no special handling.
 --
--- It also re-stamps EVERY heading label, sortable or not, from its base text. A one-line
--- (SetMaxLines(1)) FontString that lives inside a frame which was hidden and shown again --
--- the header row behind the Sell/Sold tabs -- can come back with its text simply not drawn
--- (the PROFIT/TREND labels went blank in-game after a tab switch, and reappeared only when a
--- header was clicked, i.e. when this function next ran). SetText is what the client needs to
--- draw it again, so every caller that re-shows the row goes through here.
+-- It also re-stamps EVERY heading label, sortable or not, and every caller that re-shows the
+-- row goes through here: a one-line (SetMaxLines(1)) FontString inside a frame that was
+-- hidden and shown again -- the header row behind the Sell/Sold/BUY tabs, or the whole window
+-- -- can come back with its text simply not drawn, tooltips still working over empty cells.
+-- Setting the text it already holds is a no-op to the client and does not make it draw, so
+-- each label is cleared, set, hidden and shown -- the cure UI/SoldFrame.lua's and
+-- UI/BuyFrame.lua's restampHeadings measured in game. A sortable heading is in header.cells
+-- and sortHeaders both, so the text is settled first and every label is stamped once, arrow
+-- included.
 local function updateHeaderSortIndicators()
+  local texts = {} -- label -> the text it draws
   local header = frame and frame.headerRow
   if header and header.cells then -- specs fake headerRow as a bare Show/Hide stub
-    for _, cell in pairs(header.cells) do cell.label:SetText(cell.baseText) end
-    if header.itemCell then header.itemCell.label:SetText(GC.L["ITEM"]) end
+    for _, cell in pairs(header.cells) do texts[cell.label] = cell.baseText end
+    if header.itemCell then texts[header.itemCell.label] = GC.L["ITEM"] end
   end
   for key, h in pairs(sortHeaders) do
-    if sortOverride and sortOverride.key == key then
-      h.label:SetText(h.base .. (sortOverride.desc and " ▼" or " ▲"))
-    else
-      h.label:SetText(h.base)
-    end
+    local active = sortOverride and sortOverride.key == key
+    texts[h.label] = active and (h.base .. (sortOverride.desc and " ▼" or " ▲")) or h.base
+  end
+  for label, text in pairs(texts) do
+    label:SetText("")
+    label:SetText(text)
+    if label.Hide and label.Show then label:Hide(); label:Show() end
   end
 end
 
@@ -10137,10 +10143,11 @@ function GC.Sniper.DebugBoard()
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
   local tab = GC.AuctionHouseTab or {}
-  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s"):format(
+  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s"):format(
     autoScan:State(), table.concat(reasons, ","), s(pass:PendingStart()),
     s(tab.PlayerIsPosting and tab.PlayerIsPosting()), s(tab.PlayerIsBuying and tab.PlayerIsBuying()),
-    s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching())))
+    s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching()),
+    s(tab.PlayerIsBrowsing and tab.PlayerIsBrowsing())))
   if GC.Util and GC.Util.TraceDump then
     local t = GC.Util.throttleStats
     GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))

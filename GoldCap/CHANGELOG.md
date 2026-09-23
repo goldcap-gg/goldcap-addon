@@ -16,7 +16,9 @@
 ## 0.14.1 (unreleased)
 
 - The sniper no longer replaces your own search results while you are on the auction house's
-  Browse tab with the GoldCap window closed.
+  Buy tab with the GoldCap window closed.
+- The Deals column headings no longer go blank after you visit another tab or reopen the
+  window.
 
 ## 0.14.0 (2026-09-21)
 

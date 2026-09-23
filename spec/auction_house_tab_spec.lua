@@ -520,7 +520,7 @@ describe("Auction House tab", function()
       assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
     end)
 
-    it("is true on the Buy display mode with our dock hidden", function()
+    it("is true on the Buy display mode with our dock and our window both hidden", function()
       GC.AuctionHouseTab.Install()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       assert.is_true(GC.AuctionHouseTab.PlayerIsBrowsing())
@@ -530,6 +530,24 @@ describe("Auction House tab", function()
       GC.AuctionHouseTab.Install()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    -- The auction house opens on Buy, and autoOpen (on by default) shows the GoldCap window
+    -- floating beside it. Reading that as "the player is browsing" switched the whole addon
+    -- off for the entire visit (confirmed in game 2026-09-22): the window was open and nothing
+    -- in it ever moved.
+    it("is false on the Buy display mode while the GoldCap window is shown floating", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("fails open when the window cannot be asked whether it is shown", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.IsWindowShown = nil
       assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
     end)
 
@@ -580,6 +598,33 @@ describe("Auction House tab", function()
       GC.AuctionHouseTab.Install()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    -- The default visit: the auction house opens on Buy and the window opens floating with it.
+    -- Every background sender reads this predicate, so a true here is the whole addon idle.
+    it("is false on Blizzard's Buy pane while the GoldCap window is shown floating", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+    end)
+
+    it("stays false as time passes with the window up over the Buy pane", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+      for _ = 1, 3 do
+        clock = clock + 60
+        assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+      end
+    end)
+
+    it("is false while the window is docked in our own tab", function()
+      GC.AuctionHouseTab.Install()
+      local tab = tabButton()
+      tab.scripts.OnClick(tab)
+      assert.is_true(GC.Sniper.IsWindowShown())
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
     end)
   end)
 
