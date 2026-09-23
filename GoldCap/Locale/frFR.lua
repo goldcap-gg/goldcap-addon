@@ -16,7 +16,7 @@ GC.Locales.frFR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — commandes : /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (ou /gc en raccourci)",
   ["%d (whole lot)"] = "%d (lot entier)",
-  ["%d ahead of you"] = "%d devant vous",
+  ["%d ahead of you"] = "%d devant toi",
   ["%d caps · %s"] = "%d plafonds · %s",
   ["%d days"] = "%d jours",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -524,6 +524,7 @@ GC.Locales.frFR = {
     "au-dessus du moins cher, dans la portée du jour · %s unités devant",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "face au prix régional de cet objet, après la commission de 5% — s'il se vend",
+  ["age %ss"] = "il y a %ss",
   ["any figure here would be invented out of the very number being refused"] =
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
   ["at or under your price -- click Buy to purchase"] =
@@ -563,6 +564,7 @@ GC.Locales.frFR = {
   ["far below market"] = "bien sous le marché",
   ["finish the pending buy first"] = "terminez d'abord l'achat en cours",
   ["first in line"] = "premier de la file",
+  ["fresh"] = "à jour",
   ["full scan already in progress"] = "scan complet déjà en cours",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "scan complet terminé : %d affaire%s issues de %d groupe%s d'objets%s",
@@ -610,12 +612,14 @@ GC.Locales.frFR = {
   ["low"] = "faible",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "import manuel -- Companion garde ça à jour : /goldcap companion",
+  ["market %s"] = "marché %s",
   ["needs a fresh price -- press Refresh"] = "besoin d'un prix frais -- appuyez sur Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "pas de confirmation du serveur -- l'achat a pu aboutir quand même, vérifiez votre courrier. Fermer cette fenêtre ne l'annulera pas.",
   ["no cost"] = "pas de coût",
   ["no cost for %d"] = "pas de coût pour %d",
   ["no live price yet"] = "pas encore de prix en direct",
+  ["no live quote yet — pricing…"] = "pas encore de cotation en direct — estimation du prix…",
   ["no market figure for this item level"] = "pas de chiffre de marché pour ce niveau d'objet",
   ["no market figure for this pet"] = "pas de chiffre de marché pour cette mascotte",
   ["no price"] = "pas de prix",
@@ -632,6 +636,7 @@ GC.Locales.frFR = {
   ["not enough gold for this quote -- Cancel"] = "pas assez d'or pour cette cotation -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "pas assez d'unités restantes pour cette quantité -- nouvelle vérification de ce qui reste...",
+  ["not priced — nothing on hand to sell"] = "pas de prix — rien à vendre sous la main",
   ["not ready to cancel"] = "pas prêt à annuler",
   ["not ready to post"] = "pas prêt à mettre en vente",
   ["nothing listed"] = "rien en vente",
@@ -695,6 +700,7 @@ GC.Locales.frFR = {
   ["sniped (listing changed on rescan)"] = "raflé (la vente a changé au rescan)",
   ["sniped for "] = "sniper pour ",
   ["stack not identified"] = "pile non identifiée",
+  ["stale"] = "périmée",
   ["starting full scan..."] = "démarrage du scan complet...",
   ["stopped watching %s"] = "surveillance de %s arrêtée",
   ["the Companion wrote prices this addon could not read --"] =
@@ -706,6 +712,7 @@ GC.Locales.frFR = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "pour écouler %d unités à %s ventes par jour, avec %s immobilisé pendant tout ce temps",
+  ["unavailable"] = "indisponible",
   ["under GoldCap's own floor of %s"] = "sous le plancher de GoldCap, %s",
   ["unknown evidence"] = "preuve inconnue",
   ["waiting for previous commodity purchase to settle"] =

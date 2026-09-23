@@ -377,9 +377,9 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     GC.Theme.ItemTooltipOutside = function() end
     row.scripts.OnEnter(row)
     assert.same({ bag = 0, slot = 1 }, shown)
-    -- While a variant row is hovered, GoldCap's own tooltip block knows the figure it has is
-    -- every item level's, not this one's (UI/Tooltip.lua) -- review N7.
-    assert.equal("level", GC.Sell._hoverVariant)
+    -- The row owns the tooltip, and says which variant it stands for: GoldCap's own block under
+    -- it (UI/Tooltip.lua) reads that off the tooltip's owner -- review N7, NI-B.
+    assert.equal("level", row.goldcapVariant)
     -- Leaving closes the whole tooltip, the pet card Blizzard may have opened for a cage too
     -- (GameTooltip_Hide) -- review N5.
     local hid = false
@@ -387,7 +387,49 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     row.scripts.OnLeave(row)
     _G.GameTooltip, _G.GameTooltip_Hide = nil, nil
     assert.is_true(hid)
-    assert.is_nil(GC.Sell._hoverVariant)
+    assert.is_nil(row.goldcapVariant)
+  end)
+
+  -- Escape, the auction house closing, a tab switch by keybinding, a re-render after a post: the
+  -- row goes with the cursor still on it, and OnLeave never comes. The next item tooltip -- a bag
+  -- slot's -- is its own, and keeps GoldCap's value (review NI-B).
+  it("keeps GoldCap's value on the next item tooltip after a variant row goes without OnLeave", function()
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { itemName = "Foo Helm" })
+    slotKeys["0:1"] = key(222, 619)
+    compose()
+    local row
+    for _, candidate in ipairs(upvalue(render, "rows")) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    local owner, lines, postCall = nil, {}, nil
+    _G.GameTooltip = { SetOwner = function(_, frame) owner = frame end, GetOwner = function() return owner end,
+      Show = function() end, SetBagItem = function() end,
+      AddLine = function(_, text) lines[#lines + 1] = text end,
+      AddDoubleLine = function(_, left) lines[#lines + 1] = left end }
+    GC.Theme.ItemTooltipOutside = function(frame) _G.GameTooltip:SetOwner(frame) end
+    _G.TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) postCall = fn end }
+    _G.Enum.TooltipDataType = { Item = 0 }
+    _G.C_Item.GetItemInfoInstant = function() return 222 end
+    GC.db = { settings = { tooltip = true } }
+    GC.Data.GetItemValue = function() return { mv = 9000000, sold = 50, ts = 1000 } end
+    helper.loadModule("Core/Trigger.lua", GC)
+    helper.loadModule("UI/Tooltip.lua", GC)
+
+    row.scripts.OnEnter(row)
+    postCall(_G.GameTooltip, { id = 222 })
+    assert.matches("no market figure for this item level", table.concat(lines, " | "), 1, true)
+
+    container:Hide() -- Escape: gone under a stationary cursor, no OnLeave
+    row.scripts.OnHide(row)
+    assert.is_nil(row.goldcapVariant)
+    lines = {}
+    _G.GameTooltip:SetOwner({}) -- a bag slot's button
+    postCall(_G.GameTooltip, { id = 222 })
+    local text = table.concat(lines, " | ")
+    _G.GameTooltip, _G.TooltipDataProcessor = nil, nil
+    assert.matches("GoldCap value", text, 1, true)
+    assert.is_nil(text:find("no market figure", 1, true))
   end)
 
   -- A read cut short -- more rows than the tab reads, or an answer the client does not hold in

@@ -523,6 +523,7 @@ GC.Locales.ruRU = {
     "выше самого дешёвого, в пределах дневного размаха · впереди %s шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "против региональной цены этого предмета, за вычетом 5% — если он продастся",
+  ["age %ss"] = "%sс назад",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["at or under your price -- click Buy to purchase"] =
@@ -561,6 +562,7 @@ GC.Locales.ruRU = {
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["first in line"] = "первый в очереди",
+  ["fresh"] = "свежая",
   ["full scan already in progress"] = "полное сканирование уже идёт",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "полное сканирование завершено: %d сделок%s из %d групп предметов%s%s",
@@ -607,12 +609,14 @@ GC.Locales.ruRU = {
   ["low"] = "низкая",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
+  ["market %s"] = "рынок %s",
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил -- покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
   ["no cost"] = "нет себестоимости",
   ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
+  ["no live quote yet — pricing…"] = "живой котировки пока нет — оцениваем цену…",
   ["no market figure for this item level"] = "нет рыночных данных для этого уровня предмета",
   ["no market figure for this pet"] = "нет рыночных данных для этого питомца",
   ["no price"] = "нет цены",
@@ -629,6 +633,7 @@ GC.Locales.ruRU = {
   ["not enough gold for this quote -- Cancel"] = "не хватает золота по этой цене -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такого количества единиц уже не хватает -- перепроверяем, что осталось...",
+  ["not priced — nothing on hand to sell"] = "без цены — продавать нечего",
   ["not ready to cancel"] = "не готово к отмене",
   ["not ready to post"] = "не готово к выставлению",
   ["nothing listed"] = "ничего не выставлено",
@@ -693,6 +698,7 @@ GC.Locales.ruRU = {
   ["sniped (listing changed on rescan)"] = "перехвачено (лот изменился при пересканировании)",
   ["sniped for "] = "снайпнуто за ",
   ["stack not identified"] = "стак не опознан",
+  ["stale"] = "устарела",
   ["starting full scan..."] = "начинаем полное сканирование...",
   ["stopped watching %s"] = "перестали следить за %s",
   ["the Companion wrote prices this addon could not read --"] =
@@ -704,6 +710,7 @@ GC.Locales.ruRU = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "чтобы распродать %d шт. при %s продажах в день, и всё это время %s заморожено",
+  ["unavailable"] = "недоступна",
   ["under GoldCap's own floor of %s"] = "ниже собственного порога GoldCap — %s",
   ["unknown evidence"] = "неизвестное подтверждение",
   ["waiting for previous commodity purchase to settle"] =

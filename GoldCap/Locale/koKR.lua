@@ -492,6 +492,7 @@ GC.Locales.koKR = {
     "최저가보다 높게, 하루 도달 범위 안 · 앞에 %s개",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "이 아이템의 지역 기준가 대비, 수수료 5% 제외 — 팔린다면",
+  ["age %ss"] = "%s초 전",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
   ["at or under your price -- click Buy to purchase"] = "내 가격 이하 -- Buy를 눌러 구매하세요",
@@ -527,6 +528,7 @@ GC.Locales.koKR = {
   ["far below market"] = "시세보다 훨씬 낮음",
   ["finish the pending buy first"] = "진행 중인 구매를 먼저 끝내세요",
   ["first in line"] = "맨 앞 순서",
+  ["fresh"] = "최신",
   ["full scan already in progress"] = "전체 검색이 이미 진행 중입니다",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "전체 검색 완료: 거래 %d건%s · 아이템 그룹 %d개%s%s",
@@ -571,12 +573,14 @@ GC.Locales.koKR = {
   ["low"] = "낮음",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "수동 가져오기 -- Companion이 자동 갱신합니다: /goldcap companion",
+  ["market %s"] = "시세 %s",
   ["needs a fresh price -- press Refresh"] = "최신 가격이 필요합니다 -- Refresh를 누르세요",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "서버 확인이 없습니다 -- 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
   ["no cost"] = "원가 없음",
   ["no cost for %d"] = "%d개 원가 없음",
   ["no live price yet"] = "아직 실시간 가격 없음",
+  ["no live quote yet — pricing…"] = "아직 실시간 시세가 없습니다 — 가격 확인 중…",
   ["no market figure for this item level"] = "이 아이템 레벨의 시장 수치 없음",
   ["no market figure for this pet"] = "이 애완동물의 시장 수치 없음",
   ["no price"] = "가격 없음",
@@ -593,6 +597,7 @@ GC.Locales.koKR = {
   ["not enough gold for this quote -- Cancel"] = "이 가격에 필요한 골드가 부족합니다 -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "해당 수량만큼 남아 있지 않습니다 -- 남은 물량을 다시 확인하는 중...",
+  ["not priced — nothing on hand to sell"] = "가격 없음 — 판매할 물건이 없습니다",
   ["not ready to cancel"] = "취소할 준비가 되지 않았습니다",
   ["not ready to post"] = "등록할 준비가 되지 않았습니다",
   ["nothing listed"] = "등록된 것이 없습니다",
@@ -654,6 +659,7 @@ GC.Locales.koKR = {
   ["sniped (listing changed on rescan)"] = "저격됨 (재검색에서 등록이 바뀜)",
   ["sniped for "] = "낚아챈 금액 ",
   ["stack not identified"] = "묶음 식별 불가",
+  ["stale"] = "오래됨",
   ["starting full scan..."] = "전체 검색을 시작합니다...",
   ["stopped watching %s"] = "%s 주시를 멈췄습니다",
   ["the Companion wrote prices this addon could not read --"] =
@@ -664,6 +670,7 @@ GC.Locales.koKR = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "%d개를 하루 %s개 속도로 파는 동안 %s이(가) 계속 묶입니다",
+  ["unavailable"] = "없음",
   ["under GoldCap's own floor of %s"] = "GoldCap 자체 하한 %s보다 낮음",
   ["unknown evidence"] = "알 수 없는 근거",
   ["waiting for previous commodity purchase to settle"] = "이전 상품 구매가 끝나기를 기다리는 중",

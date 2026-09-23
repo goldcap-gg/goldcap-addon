@@ -1170,6 +1170,46 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("12 vor dir", drawer.drawerFacts.text, 1, true)
     end)
 
+    -- The rest of the same foot: the market price, the quote's state and age, and the line said
+    -- when there are no facts at all (review NM-D: "weg in ~1 Std." beside "fresh · age 12s").
+    it("says the whole drawer foot in the panel's language", function()
+      local GC = load(620, { calls = {} })
+      local german = { ["market %s"] = "Markt %s", ["fresh"] = "aktuell", ["stale"] = "veraltet",
+        ["age %ss"] = "vor %ss" }
+      GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
+      GC.SellViewModel.Expansion = function(position)
+        return { note = "FIFO allocations", batches = {}, ownedLots = {},
+          displayMarketUnit = position.displayMarketUnit, quoteAge = position.quoteAge,
+          marketState = position.marketState, marketFresh = position.marketFresh,
+          marketStale = position.marketStale }
+      end
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 1, knownQty = 1, knownCost = 100, listedValue = 0, sources = {},
+        displayMarketUnit = 150, freshMarketUnit = 150, quoteAge = 3,
+        marketState = "fresh", marketFresh = true, marketStale = false, status = "UNLISTED" } }), "drawer")
+      assert.equal("Markt 150", drawer.drawerFacts.text)
+      assert.equal("aktuell · vor 3s", drawer.drawerQuote.text)
+    end)
+
+    it("says the empty foot in the panel's language", function()
+      local GC = load(620, { calls = {} })
+      local german = { ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",
+        ["no live quote yet — pricing…"] = "noch kein Live-Kurs — Preis wird ermittelt…" }
+      GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      local empty = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+        bagQty = 0, listedQty = 0, sources = {} } }), "drawer")
+      assert.equal("kein Preis — nichts zum Verkaufen vorrätig", empty.drawerFacts.text)
+      local pricing = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "PARTIAL", exposureQty = 5, knownQty = 3, knownCost = 10, listedValue = 0,
+        bagQty = 3, listedQty = 0, sources = {} } }), "drawer")
+      assert.equal("noch kein Live-Kurs — Preis wird ermittelt…", pricing.drawerFacts.text)
+    end)
+
     it("says a price past the levels read has at least that many ahead, and no time", function()
       local GC = load(620, { calls = {} })
       local past = {}

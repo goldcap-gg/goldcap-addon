@@ -526,6 +526,7 @@ GC.Locales.deDE = {
     "über dem Günstigsten, innerhalb der Tagesreichweite · %s Einheiten vor dir",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "gegen den Regionspreis dieses Gegenstands, nach 5% Gebühr — falls er sich verkauft",
+  ["age %ss"] = "vor %ss",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
   ["at or under your price -- click Buy to purchase"] =
@@ -565,6 +566,7 @@ GC.Locales.deDE = {
   ["far below market"] = "weit unter Markt",
   ["finish the pending buy first"] = "zuerst den laufenden Kauf abschließen",
   ["first in line"] = "als Erster dran",
+  ["fresh"] = "aktuell",
   ["full scan already in progress"] = "vollständiger Scan läuft bereits",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "vollständiger Scan fertig: %d Angebot%s aus %d Gegenstandsgruppe%s%s",
@@ -612,12 +614,14 @@ GC.Locales.deDE = {
   ["low"] = "niedrig",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "manueller Import -- Companion hält das aktuell: /goldcap companion",
+  ["market %s"] = "Markt %s",
   ["needs a fresh price -- press Refresh"] = "braucht einen neuen Preis -- Refresh drücken",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "keine Bestätigung vom Server -- der Kauf kann trotzdem durchgegangen sein, prüfe deine Post. Dieses Fenster zu schließen macht ihn nicht rückgängig.",
   ["no cost"] = "kein Einstand",
   ["no cost for %d"] = "kein Einstand für %d",
   ["no live price yet"] = "noch kein Live-Preis",
+  ["no live quote yet — pricing…"] = "noch kein Live-Kurs — Preis wird ermittelt…",
   ["no market figure for this item level"] = "keine Marktdaten für diese Gegenstandsstufe",
   ["no market figure for this pet"] = "keine Marktdaten für dieses Haustier",
   ["no price"] = "kein Preis",
@@ -634,6 +638,7 @@ GC.Locales.deDE = {
   ["not enough gold for this quote -- Cancel"] = "nicht genug Gold für diesen Kurs -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "nicht genug Einheiten für diese Menge übrig -- prüfe erneut, was noch da ist...",
+  ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",
   ["not ready to cancel"] = "noch nicht bereit zum Abbrechen",
   ["not ready to post"] = "noch nicht bereit zum Einstellen",
   ["nothing listed"] = "nichts eingestellt",
@@ -699,6 +704,7 @@ GC.Locales.deDE = {
   ["sniped (listing changed on rescan)"] = "weggeschnappt (Angebot beim erneuten Scan geändert)",
   ["sniped for "] = "geschnappt für ",
   ["stack not identified"] = "Stapel nicht zugeordnet",
+  ["stale"] = "veraltet",
   ["starting full scan..."] = "vollständiger Scan startet...",
   ["stopped watching %s"] = "%s wird nicht mehr beobachtet",
   ["the Companion wrote prices this addon could not read --"] =
@@ -710,6 +716,7 @@ GC.Locales.deDE = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "um %d Stück bei %s Verkäufen pro Tag abzustoßen, mit %s die ganze Zeit gebunden",
+  ["unavailable"] = "nicht verfügbar",
   ["under GoldCap's own floor of %s"] = "unter GoldCaps eigener Untergrenze von %s",
   ["unknown evidence"] = "unbekannter Nachweis",
   ["waiting for previous commodity purchase to settle"] =

@@ -538,6 +538,7 @@ GC.Locales.ukUA = {
     "вище найдешевшого, у межах денного розмаху · попереду %s шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
+  ["age %ss"] = "%sс тому",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["at or under your price -- click Buy to purchase"] =
@@ -576,6 +577,7 @@ GC.Locales.ukUA = {
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
+  ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "повне сканування завершено: %d угод%s з %d груп предметів%s%s",
@@ -622,12 +624,14 @@ GC.Locales.ukUA = {
   ["low"] = "низька",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
+  ["market %s"] = "ринок %s",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
   ["no cost"] = "немає собівартості",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
+  ["no live quote yet — pricing…"] = "живого котирування ще немає — оцінюємо ціну…",
   ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
   ["no market figure for this pet"] = "немає ринкових даних для цього вихованця",
   ["no price"] = "немає ціни",
@@ -644,6 +648,7 @@ GC.Locales.ukUA = {
   ["not enough gold for this quote -- Cancel"] = "недостатньо золота за цією ціною -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такої кількості одиниць уже не вистачає -- перевіряємо ще раз, що лишилося...",
+  ["not priced — nothing on hand to sell"] = "без ціни — продавати нічого",
   ["not ready to cancel"] = "не готово до скасування",
   ["not ready to post"] = "не готово до виставлення",
   ["nothing in your bags to price"] = "у сумках немає чого оцінювати",
@@ -710,6 +715,7 @@ GC.Locales.ukUA = {
   ["sniped (listing changed on rescan)"] = "перехоплено (лот змінився при перескануванні)",
   ["sniped for "] = "снайпнуто за ",
   ["stack not identified"] = "стак не розпізнано",
+  ["stale"] = "застаріле",
   ["starting full scan..."] = "починаємо повне сканування...",
   ["stopped watching %s"] = "перестали стежити за %s",
   ["the Companion wrote prices this addon could not read --"] =
@@ -722,6 +728,7 @@ GC.Locales.ukUA = {
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "щоб розпродати %d шт. за %s продажів на день, і весь цей час %s заморожено",
+  ["unavailable"] = "недоступне",
   ["under GoldCap's own floor of %s"] = "нижче власного порога GoldCap — %s",
   ["unknown evidence"] = "невідоме підтвердження",
   ["waiting for previous commodity purchase to settle"] =

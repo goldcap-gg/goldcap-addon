@@ -5,13 +5,15 @@ local helper = require("spec.spec_helper")
 -- stands for one item level or one pet, whose panel says "no market figure for this item level",
 -- the block says the same instead of the merged figure (review N7).
 describe("Tooltip under a Sell variant row", function()
-  local GC, postCall, lines
+  local GC, postCall, lines, owner
 
   before_each(function()
     postCall, lines = nil, {}
     _G.TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) postCall = fn end }
     _G.Enum = { TooltipDataType = { Item = 0 } }
+    owner = nil
     _G.GameTooltip = {
+      GetOwner = function() return owner end,
       AddLine = function(_, text) lines[#lines + 1] = text end,
       AddDoubleLine = function(_, left) lines[#lines + 1] = left end,
     }
@@ -30,7 +32,7 @@ describe("Tooltip under a Sell variant row", function()
   end)
 
   it("says there is no market figure for this item level instead of the merged one", function()
-    GC.Sell._hoverVariant = "level"
+    owner = { goldcapVariant = "level" } -- the Sell row that opened this tooltip
     postCall(_G.GameTooltip, { id = 222 })
     local text = table.concat(lines, " | ")
     assert.matches("no market figure for this item level", text, 1, true)
@@ -38,12 +40,27 @@ describe("Tooltip under a Sell variant row", function()
   end)
 
   it("says so for a pet too", function()
-    GC.Sell._hoverVariant = "pet"
+    owner = { goldcapVariant = "pet" }
     postCall(_G.GameTooltip, { id = 82800 })
     assert.matches("no market figure for this pet", table.concat(lines, " | "), 1, true)
   end)
 
   it("keeps the block everywhere else", function()
+    owner = {} -- a bag slot's button
+    postCall(_G.GameTooltip, { id = 222 })
+    assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
+  end)
+
+  -- Read off the tooltip's own owner, never a flag of the Sell tab's: a flag outlived a row hidden
+  -- under a stationary cursor, and every item tooltip in the game lost its value (review NI-B).
+  it("reads the variant off the tooltip's owner, never off anything the Sell tab left behind", function()
+    GC.Sell._hoverVariant = "level"
+    owner = {}
+    postCall(_G.GameTooltip, { id = 222 })
+    assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
+  end)
+
+  it("keeps the block on a tooltip with no owner", function()
     postCall(_G.GameTooltip, { id = 222 })
     assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
   end)

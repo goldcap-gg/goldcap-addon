@@ -2830,12 +2830,14 @@ GC.Sniper._bookPass = GC.BookPass.New({
     if tab then tab.addonBrowse = true end
     C_AuctionHouse.SendBrowseQuery(query)
     if tab then tab.addonBrowse = false end
+    GC.Sniper._browseOutAt = time()
     if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
     armScanWatchdog(fullScanToken)
   end,
   requestMoreBrowseResults = function()
     trace("pass: RequestMoreBrowseResults")
     C_AuctionHouse.RequestMoreBrowseResults()
+    GC.Sniper._browseOutAt = time()
     armScanWatchdog(fullScanToken)
   end,
   hasFullBrowseResults = function() return C_AuctionHouse.HasFullBrowseResults() end,
@@ -5948,7 +5950,23 @@ function GC.Sniper.OnThrottledMessageDropped()
   end
 end
 
+-- When the pass's last browse send went out and no browse answer has come since, or nil. It
+-- outlives the pass: Abort (the switch to Sell, a dialog, the player's own search) stops the pass
+-- paging at once, while the page it sent just before is still on the wire -- and until that page
+-- is answered, an auction-house error the Sell tab hears may be its answer (GC.Sell's
+-- _OtherRequestOut; review NM-C). Any browse answer ends it: the client answers browse sends in
+-- order, one buffer.
+GC.Sniper._browseOutAt = nil
+
+-- A browse page of ours still out: sent, unanswered, and not older than the scan's own stall
+-- watchdog -- a page that has had that long without a word is not coming.
+function GC.Sniper.BrowseOut()
+  local at = GC.Sniper._browseOutAt
+  return at ~= nil and time() - at <= LIM.SCAN_WATCHDOG_SECONDS
+end
+
 function GC.Sniper.OnBrowseResults()
+  GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   -- A pass that has not sent its query yet has no page to receive: whatever this event
@@ -5962,6 +5980,7 @@ function GC.Sniper.OnBrowseResults()
 end
 
 function GC.Sniper.OnBrowseResultsAdded()
+  GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
@@ -10630,6 +10649,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- resetAllPurchases/anything else runs so no code below it could observe a stale "AH still
   -- open" read.
   ahOpen = false
+  GC.Sniper._browseOutAt = nil -- nothing is answered once the auction house has closed
 
   -- Undock the window from the auction house before anything else tears down: the dock host
   -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)
