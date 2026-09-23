@@ -47,6 +47,7 @@ GC.Locales.ptBR = {
   ["%s under you"] = "%s abaixo de você",
   ["%s units across %d prices"] = "%s unidades em %d preços",
   ["%s — %d unit%s without a cost"] = "%s — %d unidade%s sem custo",
+  ["%s+ ahead"] = "%s+ à frente",
   [", %d hidden as unsellable"] = ", %d ocultos por não serem vendáveis",
   ["1 lot, %s asked"] = "1 lote, pedindo %s",
   ["24h trend"] = "Tendência 24h",
@@ -577,6 +578,7 @@ GC.Locales.ptBR = {
     "identidade não resolvida (item com variantes -- sem preço de propósito)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "se você comprar todas as %d e revendê-las pelo preço que está ali agora",
+  ["ilvl %d"] = "nv. %d",
   ["import %dh old"] = "importação de %dh atrás",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "importação velha -- /goldcap import ou /goldcap companion",
@@ -595,6 +597,7 @@ GC.Locales.ptBR = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "últimas 24 h — %d vendas, %s bruto, %s de taxa, %d compras, %s gastos",
   ["leave these alone"] = "deixe estes como estão",
+  ["level %d"] = "nível %d",
   ["listing gone -- already bought out or price changed"] =
     "o anúncio sumiu -- já foi comprado ou o preço mudou",
   ["listing gone -- bought out or repriced"] = "o leilão sumiu: comprado ou reprecificado",
@@ -610,6 +613,8 @@ GC.Locales.ptBR = {
   ["no cost"] = "sem custo",
   ["no cost for %d"] = "sem custo para %d",
   ["no live price yet"] = "ainda sem preço ao vivo",
+  ["no market figure for this item level"] = "sem dado de mercado para este nível de item",
+  ["no market figure for this pet"] = "sem dado de mercado para este mascote",
   ["no price"] = "sem preço",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "ainda sem preços -- /goldcap companion ou /goldcap import",
@@ -691,6 +696,7 @@ GC.Locales.ptBR = {
   ["stopped watching %s"] = "parei de acompanhar %s",
   ["the Companion wrote prices this addon could not read --"] =
     "o Companion escreveu preços que este addon não conseguiu ler --",
+  ["the auction house has not described these yet"] = "a casa de leilões ainda não os descreveu",
   ["the import failed (%s)"] = "a importação falhou (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -717,9 +723,6 @@ GC.Locales.ptBR = {
     "seu cliente do jogo não tem fonte para este idioma — o texto aparecerá como quadrados vazios",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "sua importação tem %d horas -- os preços podem estar errados. Cole uma string nova do goldcap.gg (/goldcap import).",
-  ["your price · %s units ahead of you"] = "seu preço · %s unidades à frente",
-  ["your price · at least %s units ahead of you"] = "seu preço · pelo menos %s unidades à frente",
-  ["your price · first in line"] = "seu preço · primeiro da fila",
   ["yours"] = "seu",
   ["~%dd to reach you at today's pace"] = "~%d d até a sua vez no ritmo de hoje",
   ["~%dh to reach you at today's pace"] = "~%d h até a sua vez no ritmo de hoje",

@@ -50,6 +50,7 @@ GC.Locales.zhTW = {
   ["%s under you"] = "%s 低於你的價格",
   ["%s units across %d prices"] = "%s 件，分佈在 %d 個價位",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",
+  ["%s+ ahead"] = "前面有 %s+",
   [", %d hidden as unsellable"] = "，%d 件因無法出售已隱藏",
   ["1 lot, %s asked"] = "1 批，要價 %s",
   ["24h trend"] = "24小時走勢",
@@ -522,6 +523,7 @@ GC.Locales.zhTW = {
     "無法辨識（變體道具 -- 設計上不計價）",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "如果買下全部 %d 件，再按現在掛著的價格賣回去",
+  ["ilvl %d"] = "物品等級 %d",
   ["import %dh old"] = "匯入資料已過 %d 小時",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "匯入資料已過期 -- /goldcap import 或 /goldcap companion",
@@ -540,6 +542,7 @@ GC.Locales.zhTW = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "最近 24 小時 — %d 筆販售、總額 %s、手續費 %s、%d 筆購買、支出 %s",
   ["leave these alone"] = "這些不用動",
+  ["level %d"] = "等級 %d",
   ["listing gone -- already bought out or price changed"] = "上架已消失 -- 已被買走或價格已變",
   ["listing gone -- bought out or repriced"] = "該拍賣已消失 — 被買走或改價",
   ["live safety confirmed -- click Buy to purchase"] = "已即時確認安全 -- 按 Buy 購買",
@@ -553,6 +556,8 @@ GC.Locales.zhTW = {
   ["no cost"] = "無成本",
   ["no cost for %d"] = "%d 件無成本",
   ["no live price yet"] = "還沒有即時價格",
+  ["no market figure for this item level"] = "此物品等級沒有市場資料",
+  ["no market figure for this pet"] = "此寵物沒有市場資料",
   ["no price"] = "無價格",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "還沒有價格 -- /goldcap companion 或 /goldcap import",
@@ -627,6 +632,7 @@ GC.Locales.zhTW = {
   ["stopped watching %s"] = "已停止關注 %s",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion 寫入的價格，這個插件讀不懂 --",
+  ["the auction house has not described these yet"] = "拍賣場尚未提供這些物品的資訊",
   ["the import failed (%s)"] = "匯入失敗（%s）",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -650,9 +656,6 @@ GC.Locales.zhTW = {
     "你的遊戲客戶端沒有這種語言的字型 — 文字會顯示為空白方塊",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的匯入資料已過 %d 小時 -- 價格可能有偏差。請從 goldcap.gg 貼上新的字串（/goldcap import）。",
-  ["your price · %s units ahead of you"] = "你的價格 · 前面有 %s 件",
-  ["your price · at least %s units ahead of you"] = "你的價格 · 前面至少有 %s 件",
-  ["your price · first in line"] = "你的價格 · 排在第一位",
   ["yours"] = "你的",
   ["~%dd to reach you at today's pace"] = "按今天的速度，約 %d 天輪到你",
   ["~%dh to reach you at today's pace"] = "按今天的速度，約 %d 小時輪到你",

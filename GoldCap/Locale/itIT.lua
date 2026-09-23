@@ -46,6 +46,7 @@ GC.Locales.itIT = {
   ["%s under you"] = "%s sotto di te",
   ["%s units across %d prices"] = "%s unità su %d prezzi",
   ["%s — %d unit%s without a cost"] = "%s — %d unità%s senza costo",
+  ["%s+ ahead"] = "%s+ davanti",
   [", %d hidden as unsellable"] = ", %d nascosti perché invendibili",
   ["1 lot, %s asked"] = "1 lotto, richiesti %s",
   ["24h trend"] = "Andamento 24h",
@@ -577,6 +578,7 @@ GC.Locales.itIT = {
     "identità non risolta (oggetto con varianti -- senza prezzo per scelta)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "se compri tutte e %d e le rivendi al prezzo esposto adesso",
+  ["ilvl %d"] = "liv. %d",
   ["import %dh old"] = "importazione vecchia di %dh",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "importazione scaduta -- /goldcap import o /goldcap companion",
@@ -595,6 +597,7 @@ GC.Locales.itIT = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "ultime 24 h — %d vendite, %s lordo, %s di commissione, %d acquisti, %s spesi",
   ["leave these alone"] = "lasciali stare",
+  ["level %d"] = "livello %d",
   ["listing gone -- already bought out or price changed"] =
     "vendita sparita -- già comprata o prezzo cambiato",
   ["listing gone -- bought out or repriced"] = "l'asta non c'è più: comprata o riprezzata",
@@ -610,6 +613,8 @@ GC.Locales.itIT = {
   ["no cost"] = "nessun costo",
   ["no cost for %d"] = "nessun costo per %d",
   ["no live price yet"] = "ancora nessun prezzo dal vivo",
+  ["no market figure for this item level"] = "nessun dato di mercato per questo livello oggetto",
+  ["no market figure for this pet"] = "nessun dato di mercato per questa mascotte",
   ["no price"] = "nessun prezzo",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "ancora nessun prezzo -- /goldcap companion o /goldcap import",
@@ -691,6 +696,7 @@ GC.Locales.itIT = {
   ["stopped watching %s"] = "ho smesso di sorvegliare %s",
   ["the Companion wrote prices this addon could not read --"] =
     "il Companion ha scritto prezzi che questo addon non è riuscito a leggere --",
+  ["the auction house has not described these yet"] = "la casa d'aste non li ha ancora descritti",
   ["the import failed (%s)"] = "l'importazione è fallita (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -718,9 +724,6 @@ GC.Locales.itIT = {
     "il tuo client di gioco non ha un font per questa lingua — il testo apparirà come quadrati vuoti",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "la tua importazione ha %d ore -- i prezzi possono essere sbagliati. Incolla una stringa fresca da goldcap.gg (/goldcap import).",
-  ["your price · %s units ahead of you"] = "il tuo prezzo · %s unità davanti",
-  ["your price · at least %s units ahead of you"] = "il tuo prezzo · almeno %s unità davanti",
-  ["your price · first in line"] = "il tuo prezzo · primo della fila",
   ["yours"] = "il tuo",
   ["~%dd to reach you at today's pace"] = "~%d g al tuo turno al ritmo di oggi",
   ["~%dh to reach you at today's pace"] = "~%d h al tuo turno al ritmo di oggi",

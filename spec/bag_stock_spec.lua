@@ -154,4 +154,17 @@ describe("BagStock", function()
     assert.equal("item:7:619:0:0", stock[1].quoteKey)
     assert.same({ { itemID = 8, itemName = "Jeb's Underwear", quantity = 2 } }, waiting)
   end)
+
+  -- Every caged pet is item 82800: two waiting pets are two lines, not one named after the first.
+  it("keeps two different waiting pets apart", function()
+    local _, waiting = GC.BagStock.Scan({
+      numSlots = function(bag) return bag == 0 and 2 or 0 end,
+      itemInfo = function(_, slot)
+        return ({ { itemID = 82800, stackCount = 1, itemName = "Mechanical Squirrel" },
+          { itemID = 82800, stackCount = 1, itemName = "Tiny Snowman" } })[slot]
+      end,
+      classify = function() return nil, nil end,
+    }, { 0 })
+    assert.equal(2, #waiting)
+  end)
 end)

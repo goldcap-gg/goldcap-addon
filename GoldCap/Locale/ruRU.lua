@@ -45,6 +45,7 @@ GC.Locales.ruRU = {
   ["%s under you"] = "%s дешевле вас",
   ["%s units across %d prices"] = "%s шт. по %d ценам",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
+  ["%s+ ahead"] = "%s+ впереди",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
   ["1 lot, %s asked"] = "1 лот, просят %s",
   ["24h trend"] = "Тренд за 24ч",
@@ -574,6 +575,7 @@ GC.Locales.ruRU = {
     "не удалось определить (вариативный предмет -- цена не считается намеренно)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "если купить все %d и продать обратно по цене, которая стоит там сейчас",
+  ["ilvl %d"] = "ур. %d",
   ["import %dh old"] = "импорту %dч",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "импорт устарел -- /goldcap import или /goldcap companion",
@@ -592,6 +594,7 @@ GC.Locales.ruRU = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "за 24 ч — %d продаж, %s валовая, %s комиссия аукциона, %d покупок, %s потрачено",
   ["leave these alone"] = "эти не трогать",
+  ["level %d"] = "уровень %d",
   ["listing gone -- already bought out or price changed"] =
     "лот исчез -- уже выкуплен или цена изменилась",
   ["listing gone -- bought out or repriced"] = "лот пропал — выкуплен или переставлен по цене",
@@ -607,6 +610,8 @@ GC.Locales.ruRU = {
   ["no cost"] = "нет себестоимости",
   ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
+  ["no market figure for this item level"] = "нет рыночных данных для этого уровня предмета",
+  ["no market figure for this pet"] = "нет рыночных данных для этого питомца",
   ["no price"] = "нет цены",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цен пока нет -- /goldcap companion или /goldcap import",
@@ -689,6 +694,7 @@ GC.Locales.ruRU = {
   ["stopped watching %s"] = "перестали следить за %s",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion записал цены, которые аддон не смог прочитать --",
+  ["the auction house has not described these yet"] = "аукцион ещё не описал эти предметы",
   ["the import failed (%s)"] = "импорт не удался (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -715,9 +721,6 @@ GC.Locales.ruRU = {
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
-  ["your price · %s units ahead of you"] = "ваша цена · впереди %s шт.",
-  ["your price · at least %s units ahead of you"] = "ваша цена · впереди не меньше %s шт.",
-  ["your price · first in line"] = "ваша цена · первый в очереди",
   ["yours"] = "ваша",
   ["~%dd to reach you at today's pace"] = "~%d дн. до вас при сегодняшнем темпе",
   ["~%dh to reach you at today's pace"] = "~%d ч до вас при сегодняшнем темпе",

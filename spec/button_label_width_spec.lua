@@ -86,4 +86,22 @@ describe("row button labels fit the button", function()
       end
     end)
   end
+
+  -- THE BOOK's marker note runs from the bar's start to the count's right edge: ~210px at mono-10,
+  -- 7.8px a character at Theme.Scale() 1.3 -- 26 characters, the number included. The words
+  -- "your price · … units ahead of you" were 36 in English and cut the NUMBER in Russian and
+  -- Ukrainian (review M1). Measured formatted, with a four-character count.
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps every %s marker note inside THE BOOK's line, the number first"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      for _, key in ipairs({ "%s ahead", "%s+ ahead", "first in line" }) do
+        local label = translations[key]
+        assert.is_truthy(label, code .. " is missing " .. key)
+        local shown = label:gsub("%%s", "5.6k")
+        assert.is_true(displayWidth(shown) <= 26, ("%s: %q is %d wide"):format(code, shown, displayWidth(shown)))
+      end
+    end)
+  end
 end)

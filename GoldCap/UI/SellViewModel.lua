@@ -312,6 +312,9 @@ GC.SellViewModel.BOOK_READ_MAX = 100
 -- A level holding this share of a day's sales or more is a wall: priced under it, a post sells
 -- first; at or over it, the post waits for the whole wall to clear.
 local WALL_SHARE = 0.25
+-- ...and never fewer units than this. At 4 sold a day a quarter of the day is one unit, and
+-- every 2-unit level of a slow book was a red "wall" (review M3).
+local WALL_MIN_UNITS = 20
 
 -- How much of one price level is the player's own stock. Shared by the book below and by
 -- Standing: both have to agree on what "not mine" means, or the row says one queue depth and
@@ -411,28 +414,56 @@ local function book(position)
   local commodity = isCommodity(position)
   local sold = type(position.soldPerDay) == "number" and position.soldPerDay > 0 and position.soldPerDay or nil
 
-  local rows, yourRow, ahead, pastRead, wallBelow, wallAbove, hoursToReach
+  local rows, yourRow, ahead, pastRead, wallBelow, wallAbove, hoursToReach, clearsHours
   if commodity and yours then
     rows, yourRow = ladder(valid, yours)
     ahead = GC.SellViewModel.UnitsAhead(levels, yours)
     -- Past the last level read, and the read may have been cut: at least everything read is
     -- ahead, and nobody knows how much more. A book that ended before the cut is all of it.
-    pastRead = yours > valid[#valid].unit and #levels >= GC.SellViewModel.BOOK_READ_MAX
+    -- Only when the read actually stopped short (the quote driver's `cut`: the client held more
+    -- rows than were read, or not its full answer) -- a book that happens to have exactly the
+    -- cap's number of levels is the whole book (review M5).
+    pastRead = yours > valid[#valid].unit and levels.cut == true
     rows[yourRow].ahead, rows[yourRow].pastRead = ahead, pastRead
     -- Walls, on the stock that is not the player's own. With the day's sales unknown, the
     -- biggest level read is the one to name.
-    local biggest = 0
-    for i = 1, #valid do biggest = math.max(biggest, valid[i].units - valid[i].ownerUnits) end
+    -- With sales unknown, only a single biggest level is named -- a tie is a flat book, and a
+    -- flat book has no wall.
+    local biggest, biggestAt, tied = 0, nil, false
     for i = 1, #valid do
       local competing = valid[i].units - valid[i].ownerUnits
-      valid[i].wall = competing > 0 and (sold and competing >= sold * WALL_SHARE or (not sold and competing == biggest))
+      if competing > biggest then biggest, biggestAt, tied = competing, i, false
+      elseif competing == biggest and competing > 0 then tied = true end
+    end
+    for i = 1, #valid do
+      local competing = valid[i].units - valid[i].ownerUnits
+      if sold then
+        valid[i].wall = competing >= math.max(sold * WALL_SHARE, WALL_MIN_UNITS)
+      else
+        valid[i].wall = i == biggestAt and not tied
+      end
       if valid[i].wall then
         local wall = { unit = valid[i].unit, units = competing }
         if valid[i].unit <= yours then wallBelow = wall
         elseif not wallAbove then wallAbove = wall end
       end
     end
-    if sold and ahead and ahead > 0 and not pastRead then hoursToReach = ahead / sold * 24 end
+    -- Two times for one sale, from one pace: the queue ahead reaching the price, then the
+    -- player's own units clearing after it. Both through GC.Flips.SellOutlook -- the same
+    -- sells/day and the same trend rule -- so "clears in" can never read shorter than
+    -- "to reach you" (review I1: it said ~1h beside ~6h, from a figure that left the queue out).
+    local postable = type(position.postableQty) == "number" and position.postableQty > 0 and position.postableQty
+      or type(position.bagQty) == "number" and position.bagQty > 0 and position.bagQty or 0
+    local function hours(queued)
+      local outlook = GC.Flips and GC.Flips.SellOutlook
+        and GC.Flips.SellOutlook({ ahead = queued, qty = 0, sold = sold, trend = position.trendPct })
+      if outlook then return outlook.days * 24 end
+      return queued / sold * 24
+    end
+    if sold and ahead and not pastRead then
+      if ahead > 0 then hoursToReach = hours(ahead) end
+      if postable > 0 then clearsHours = hours(ahead + postable) end
+    end
   else
     rows = {}
     for i = 1, math.min(#valid, BOOK_ROWS) do rows[i] = valid[i] end
@@ -454,7 +485,7 @@ local function book(position)
     rows = rows, levels = #valid, totalUnits = totalUnits, widest = widest,
     truncated = #valid > shown, commodity = commodity,
     yourUnit = yours, yourRow = yourRow, ahead = ahead, pastRead = pastRead == true,
-    wallBelow = wallBelow, wallAbove = wallAbove, hoursToReach = hoursToReach,
+    wallBelow = wallBelow, wallAbove = wallAbove, hoursToReach = hoursToReach, clearsHours = clearsHours,
     cheapestCompeting = GC.SellPositions and GC.SellPositions.CheapestCompetingUnit
       and GC.SellPositions.CheapestCompetingUnit(levels) or nil,
   }
@@ -560,7 +591,11 @@ function GC.SellViewModel.Expansion(position)
   -- Computed before the plain "undercut" fact so overcut can suppress it: being above the
   -- cheapest is the state GoldCap chose, not a fact worth restating as "undercut" too.
   local rec = position.postRecommendation
-  if type(rec) ~= "table" or rec.mode ~= "overcut" then
+  -- Bag stock's reason is the reason for ITS price -- and only when that price is GoldCap's: a
+  -- price the seller chose has none, and falling back to the engine's own overcut put its count,
+  -- at a price not on screen, under the marker's (review I2). A head with nothing in the bags (a
+  -- live lot) reads its repost advice.
+  if type(rec) ~= "table" then
     rec = position.recommendation
     if type(rec) == "table" and type(rec.rec) == "table" then rec = rec.rec end
   end
@@ -575,7 +610,16 @@ function GC.SellViewModel.Expansion(position)
   -- the engine's `ahead` counts strictly below, so the line and the marker could say two
   -- numbers about one price. The engine's figure stands in only where there is no book to count.
   if isOvercut then
-    local ahead = GC.SellViewModel.UnitsAhead(position.levels, rec.unit) or rec.ahead
+    -- A realm item counts the way its row does: strictly under the price, less the player's own
+    -- (Standing, not joining) -- lots at an equal price are not a queue there (review M7).
+    local ahead
+    if isCommodity(position) then
+      ahead = GC.SellViewModel.UnitsAhead(position.levels, rec.unit)
+    else
+      local standing = GC.SellViewModel.Standing(position, rec.unit)
+      ahead = standing and standing.ahead
+    end
+    ahead = ahead or rec.ahead
     ahead = GC.Util and GC.Util.FormatCount and GC.Util.FormatCount(ahead) or tostring(ahead)
     if rec.capBy == "reach" then
       facts[#facts + 1] =
@@ -585,6 +629,10 @@ function GC.SellViewModel.Expansion(position)
         (GC.L["above the cheapest, inside the cheap quarter · %s units ahead of you"]):format(ahead)
     end
   end
+  -- A variant's market data is not its own (Core/SellPositions: the site merges item levels and
+  -- pet species), so there is none -- said, rather than left to look merely missing.
+  if position.variantKind == "pet" then facts[#facts + 1] = GC.L["no market figure for this pet"]
+  elseif position.variantKind == "level" then facts[#facts + 1] = GC.L["no market figure for this item level"] end
   if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
   if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = GC.L["paid sale unresolved"] end
   if position.unresolvedKind == "ambiguous_sale" then facts[#facts + 1] = GC.L["sale name ambiguous"] end

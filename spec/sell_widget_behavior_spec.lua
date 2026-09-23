@@ -1084,7 +1084,9 @@ describe("Sell widget geometry and manual cost", function()
       local GOLD = GC.Theme.color.gold
       assert.equal("11g55s", marker.price.text)
       assert.same({ GOLD[1], GOLD[2], GOLD[3], 1 }, marker.price.color)
-      assert.equal("your price · 2.3k units ahead of you", marker.note.text)
+      -- The gold price and the wash already say "your price": the words lead with the count, so a
+      -- narrow panel or a long language cuts words, never the number (review M1).
+      assert.equal("2.3k ahead", marker.note.text)
       assert.is_true(marker.note.shown)
       assert.is_false(marker.qty.shown)
       assert.is_false(marker.bar.shown)
@@ -1114,6 +1116,7 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_false(drawer.bookLines[4].tag.shown)
       assert.matches("wall 420 at 11g50s -- price under it to sell first", drawer.drawerFacts.text, 1, true)
       assert.matches("wall 400 at 11g70s above you", drawer.drawerFacts.text, 1, true)
+
     end)
 
     it("says how long the queue ahead of your price takes at today's pace", function()
@@ -1122,17 +1125,41 @@ describe("Sell widget geometry and manual cost", function()
       assert.matches("~6h to reach you at today's pace", drawer.drawerStand.text, 1, true)
     end)
 
+    -- "clears in" is your own units after the queue ahead, from the book's same pace -- never the
+    -- listed-lot outlook, which for bag stock left the queue out and said ~1h beside ~6h (I1).
+    it("says clears in from the book's own pace, after the queue ahead of you", function()
+      local GC = load(620, { calls = {} })
+      local book = {}
+      for k, v in pairs(LADDER) do book[k] = v end
+      book.clearsHours = 6.4
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book, sold = 9867, days = 0.03 }
+      end
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 10, listedValue = 0, bagQty = 5,
+        listedQty = 0, sources = {} } }), "drawer")
+      assert.matches("clears in ~6h", drawer.drawerFacts.text, 1, true)
+      assert.is_nil(drawer.drawerFacts.text:find("clears in ~1h", 1, true))
+      -- The walls come after the sales figure, never ahead of it: the two lines may cut a wall,
+      -- not the pace the time under the book is measured by (review M2).
+      local facts = drawer.drawerFacts.text
+      assert.is_true(facts:find("sells", 1, true) < facts:find("wall", 1, true), facts)
+    end)
+
     it("says a price past the levels read has at least that many ahead, and no time", function()
       local GC = load(620, { calls = {} })
       local past = {}
       for k, v in pairs(LADDER) do past[k] = v end
-      past.pastRead, past.levels, past.totalUnits, past.hoursToReach = true, 100, 5605, nil
+      past.pastRead, past.levels, past.totalUnits, past.hoursToReach, past.ahead = true, 100, 5605, nil, 5100
       past.rows = { { kind = "level", unit = 101000, units = 10, ownerUnits = 0, mine = false },
-        { kind = "yours", unit = 999999, ahead = 5605, pastRead = true } }
+        { kind = "yours", unit = 999999, ahead = 5100, pastRead = true } }
       past.yourRow = 2
       local drawer = nth(bookRows(GC, past), "drawer")
-      assert.equal("your price · at least 5.6k units ahead of you", drawer.bookLines[2].note.text)
-      assert.matches("past the first 100 prices read (5.6k units)", drawer.drawerStand.text, 1, true)
+      assert.equal("5.1k+ ahead", drawer.bookLines[2].note.text)
+      -- One number: the marker's, which leaves the player's own units out (review M4).
+      assert.matches("past the first 100 prices read (5.1k units)", drawer.drawerStand.text, 1, true)
       assert.is_nil(drawer.drawerStand.text:find("to reach you", 1, true))
     end)
 

@@ -779,7 +779,8 @@ local function quoteDriver()
     local _, itemKey = GC.Sell._QuoteItemKey(itemID)
     local levels, count = {}, commodity and C_AuctionHouse.GetNumCommoditySearchResults(itemID)
       or C_AuctionHouse.GetNumItemSearchResults(itemKey)
-    for i = 1, math.min(count or 0, GC.SellViewModel and GC.SellViewModel.BOOK_READ_MAX or 100) do
+    local cap = GC.SellViewModel and GC.SellViewModel.BOOK_READ_MAX or 100
+    for i = 1, math.min(count or 0, cap) do
       local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
         or C_AuctionHouse.GetItemSearchResultInfo(itemKey, i)
       local unit = info and (commodity and info.unitPrice
@@ -788,6 +789,18 @@ local function quoteDriver()
         levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0,
           ownerItem = info.containsOwnerItem == true, ownerQty = info.numOwnerItems }
       end
+    end
+    -- Whether the read stopped short of the whole book: more rows than it takes, or an answer
+    -- the client does not hold in full. THE BOOK's "past the read" is this flag, never a count
+    -- that happens to equal the cap (review M5).
+    if #levels > 0 then
+      local full = true
+      if commodity and C_AuctionHouse.HasFullCommoditySearchResults then
+        full = C_AuctionHouse.HasFullCommoditySearchResults(itemID) ~= false
+      elseif not commodity and C_AuctionHouse.HasFullItemSearchResults then
+        full = C_AuctionHouse.HasFullItemSearchResults(itemKey) ~= false
+      end
+      levels.cut = (count or 0) > cap or not full or nil
     end
     return #levels > 0 and levels or nil
   end
@@ -1100,7 +1113,8 @@ end
 function refresh.deckProgress()
   local shown = {}
   for _, position in ipairs(positions) do
-    if position.itemID and refresh.onDeck(position) then shown[position.itemID] = true end
+    -- By quote id, as the walk queues them: a variant's entry is its own key (_QuoteItemKey).
+    if position.itemID and refresh.onDeck(position) then shown[position.quoteKey or position.itemID] = true end
   end
   local done, total = 0, 0
   for index, itemID in ipairs(refresh.queue) do
@@ -1966,6 +1980,15 @@ local function classifyBagItem(itemID, link, bag, slot)
   if isCommodity == true then return ("commodity:%d"):format(itemID), true end
   if isCommodity == false then
     local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)
+    -- No key, and the auction house -- open, so its answer means something -- says it cannot
+    -- take this stack: not tradeable stock at all, so not "waiting" either (review M10).
+    if not positionKey and bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+        and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+      local ok, valid = pcall(function()
+        return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot))
+      end)
+      if ok and valid == false then return nil, false, nil, true end
+    end
     return positionKey, false, quoteKey
   end
   return nil, nil
@@ -1983,11 +2006,15 @@ scanBagStock = function()
       if not (C_Container and C_Container.GetContainerItemInfo) then return nil end
       local info = C_Container.GetContainerItemInfo(bag, slot)
       if type(info) ~= "table" then return nil end
+      local hyperlink = info.hyperlink
+        or (C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)) or nil
+      -- A caged pet's own name is in its battle-pet link; the item is "Pet Cage" for every one.
+      local petName = type(hyperlink) == "string" and hyperlink:find("battlepet:", 1, true)
+        and hyperlink:match("|h%[(.-)%]|h") or nil
       return {
         itemID = info.itemID, stackCount = info.stackCount, isBound = info.isBound,
-        hasNoValue = info.hasNoValue, itemName = info.itemName,
-        hyperlink = info.hyperlink
-          or (C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)) or nil,
+        hasNoValue = info.hasNoValue, itemName = petName or info.itemName,
+        hyperlink = hyperlink,
       }
     end,
     classify = classifyBagItem,
@@ -2021,7 +2048,9 @@ local function liveBagState(position, requiredQty)
     local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
     for slot = 1, slots do
       local info = C_Container.GetContainerItemInfo(bag, slot)
-      if info and info.itemID == position.itemID then
+      -- Never a soulbound copy: the auction house refuses it, and a bound twin sharing the
+      -- ItemKey kept the tradeable copy from ever being posted (review M8).
+      if info and info.itemID == position.itemID and info.isBound ~= true then
         local qty = info.stackCount or 1
         if exact(qty) and qty > 0 and commodity then
           total = safeAdd(total, qty)
@@ -3154,10 +3183,21 @@ do
     for _, entry in ipairs(shown) do entries[#entries + 1] = entry end
   end
 
+  -- Two copies of one piece at two item levels were two identical rows (review M9): a variant's
+  -- row names its level -- a pet's, its pet level -- from its own key.
+  function ROW.variantSuffix(position)
+    local level = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):"))
+    if not level or level <= 0 then return "" end
+    local words = position.variantKind == "pet" and (GC.L["level %d"]):format(level) or (GC.L["ilvl %d"]):format(level)
+    return "  " .. DIM_HEX .. words .. "|r"
+  end
+
   function ROW.waitText(entry)
     if entry.kind == "waitHead" then
+      local open = GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
       return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count) .. "  " .. DIM_HEX
-        .. GC.L["open the auction house once so GoldCap can tell how these sell"] .. "|r"
+        .. (open and GC.L["the auction house has not described these yet"]
+          or GC.L["open the auction house once so GoldCap can tell how these sell"]) .. "|r"
     end
     return ("%s ×%d"):format(entry.name, entry.quantity or 0)
   end
@@ -3682,7 +3722,13 @@ local function createRow(parent)
       -- Outside the window, never over it -- a row's own item tooltip used to cover the deck
       -- it is describing (Theme.ItemTooltipOutside; see UI/Theme.lua's own comment on it).
       Theme.ItemTooltipOutside(self, statusOwner)
-      if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
+      -- A variant is the stack itself -- its item level, its bonuses, its pet -- not the base item
+      -- (for every caged pet, "Pet Cage"): the bag slot, else the lot's own link (review M9).
+      local stack = self.position.quoteKey and self.position.bagStacks and self.position.bagStacks[1]
+      local lot = self.position.quoteKey and self.position.ownedLots and self.position.ownedLots[1]
+      if stack and GameTooltip.SetBagItem then GameTooltip:SetBagItem(stack.bag, stack.slot)
+      elseif lot and lot.itemLink and GameTooltip.SetHyperlink then GameTooltip:SetHyperlink(lot.itemLink)
+      elseif GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
       -- Flags painted onto the row at the same time as the cells they describe (MARKET/UNIT's
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
@@ -4164,9 +4210,12 @@ function INSP.paintLadder(row, book)
     if entry and entry.kind == "yours" then
       -- The player's own price at its sorted place, after the levels at an equal price: it
       -- would join their tail. What stands ahead of it is the one number this panel is for.
-      local words = entry.pastRead and (GC.L["your price · at least %s units ahead of you"]):format(count(entry.ahead))
-        or (entry.ahead or 0) == 0 and GC.L["your price · first in line"]
-        or (GC.L["your price · %s units ahead of you"]):format(count(entry.ahead))
+      -- The count first, and nothing the gold price and its wash already say: "your price · …
+      -- units ahead of you" ran past the line in English and cut the number itself in Russian
+      -- and Ukrainian (review M1). The same words as a row's own standing.
+      local words = entry.pastRead and (GC.L["%s+ ahead"]):format(count(entry.ahead))
+        or (entry.ahead or 0) == 0 and GC.L["first in line"]
+        or (GC.L["%s ahead"]):format(count(entry.ahead))
       line.price:SetText(formatCell(entry.unit)); setColor(line.price, Theme.color.gold)
       line.price:Show(); line.qty:Hide(); line.bar:Hide()
       INSP.stamp(line.note, words); setColor(line.note, Theme.color.goldHi or Theme.color.gold)
@@ -4222,8 +4271,10 @@ end
 -- is unknown or nothing is ahead.
 function INSP.standWords(book)
   if book.pastRead then
+    -- The marker's number, which leaves the player's own units out -- the book's total put a
+    -- second figure beside it (review M4).
     return (GC.L["past the first %d prices read (%s units)"]):format(book.levels or 0,
-      GC.Util.FormatCount(book.totalUnits or 0) or tostring(book.totalUnits or 0))
+      GC.Util.FormatCount(book.ahead or 0) or tostring(book.ahead or 0))
   end
   local hours = book.hoursToReach
   if type(hours) ~= "number" then return "" end
@@ -4417,17 +4468,24 @@ function INSP.paintHead(row, p, d)
   elseif d and type(d.quoteAge) == "number" then
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
-  -- The walls around the price lead: the nearest at or under it (priced under it, a post sells
-  -- first) and the first above it.
-  for _, words in ipairs(book and INSP.wallWords(book) or {}) do facts[#facts + 1] = words end
   if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
   if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
   -- In hours under a day: rounded to whole days, anything that sells through by this
-  -- evening read "clears in ~0d".
-  if d and type(d.days) == "number" then
-    facts[#facts + 1] = d.days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(d.days * 24 + 0.5)))
-      or ("clears in ~%dd"):format(math.floor(d.days + 0.5))
+  -- evening read "clears in ~0d". A commodity priced in THE BOOK clears on the book's own pace
+  -- -- the queue ahead of it, then its own units, the same figure "~Xh to reach you" is the first
+  -- half of (SellViewModel's clearsHours). The listed-lot outlook left the queue out for bag
+  -- stock and said ~1h beside ~6h (review I1).
+  local days = d and type(d.days) == "number" and d.days or nil
+  if book and book.commodity and book.yourUnit then
+    days = type(book.clearsHours) == "number" and book.clearsHours / 24 or nil
   end
+  if days then
+    facts[#facts + 1] = days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(days * 24 + 0.5)))
+      or ("clears in ~%dd"):format(math.floor(days + 0.5))
+  end
+  -- The walls around the price last: the two lines may cut a wall -- the ladder still shows it,
+  -- in red -- but not the pace every time on this panel is measured by (review M2).
+  for _, words in ipairs(book and INSP.wallWords(book) or {}) do facts[#facts + 1] = words end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
     or (quote and "" or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…")))
@@ -4771,7 +4829,7 @@ renderRows = function()
         -- `not p.unresolved` guard further down.
         local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
         row.notOnHand = notOnHand
-        row.cells.item:SetText(named)
+        row.cells.item:SetText(named .. ROW.variantSuffix(p))
         -- What is off about this row, if anything -- see rowTag.
         row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
           or GC.SellViewModel.SourceText(p))

@@ -210,6 +210,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
   -- An item the client has not classified yet is still on hand and still tradeable. It used to
   -- vanish: no row, no count, nothing to say it was there at all.
   it("shows an item it cannot key yet under its own heading, and files it once the client answers", function()
+    GC.Sniper.IsAHOpen = function() return false end -- away from the auction house
     stack(1, 333, 1, PLAIN, { itemName = "Jeb's Underwear" })
     compose()
     local head, item
@@ -308,5 +309,89 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     GC.Sell.OnAuctionCreated(702)
     assert.equal(2, #recorded)
     assert.equal("item:222:626:0:0", recorded[2][1])
+  end)
+
+  -- BagStock leaves a soulbound copy out, but the Post matcher could still pin one sharing the
+  -- ItemKey -- the auction house refuses it, and the tradeable copy could never be posted (M8).
+  it("never pins a soulbound copy for Post", function()
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { isBound = true })
+    stack(2, 222, 1, BONUSED)
+    slotKeys["0:1"] = key(222, 619)
+    slotKeys["0:2"] = key(222, 619)
+    compose()
+    local state = upvalue(upvalue(render, "onPostClick"), "liveBagState")(positionOf("item:222:619:0:0"), 1)
+    assert.equal(2, state.slot)
+  end)
+
+  -- Two copies of one piece at two item levels were two identical rows. The row names its level,
+  -- and its tooltip is the stack itself, not the base item (M9).
+  it("names a variant's item level on its row, and shows the stack itself on hover", function()
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { itemName = "Foo Helm" })
+    slotKeys["0:1"] = key(222, 619)
+    compose()
+    local row
+    for _, candidate in ipairs(upvalue(render, "rows")) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    assert.matches("ilvl 619", row.cells.item.text, 1, true)
+    local shown = {}
+    _G.GameTooltip = { SetOwner = function() end, Show = function() end, AddLine = function() end,
+      SetBagItem = function(_, bag, slot) shown.bag, shown.slot = bag, slot end,
+      SetItemByID = function(_, id) shown.itemID = id end }
+    GC.Theme.ItemTooltipOutside = function() end
+    row.scripts.OnEnter(row)
+    _G.GameTooltip = nil
+    assert.same({ bag = 0, slot = 1 }, shown)
+  end)
+
+  -- A read cut short -- more rows than the tab reads, or an answer the client does not hold in
+  -- full -- says so on the levels themselves, for THE BOOK's "past the read" (M5).
+  it("marks a read the client cut short", function()
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED)
+    slotKeys["0:1"] = key(222, 619)
+    local rows = {}
+    for i = 1, 101 do rows[i] = { buyoutAmount = 1000 + i, quantity = 1 } end
+    results["222:619:0:0"] = rows
+    compose()
+    GC.Sell.Refresh(true)
+    GC.Sell.OnItemSearchResults(222, key(222, 619))
+    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    assert.is_true(quotes["item:222:619:0:0"].levels.cut)
+  end)
+
+  -- "PRICING n/m" counts the deck's own rows; a variant's walk entry is its quote id (M10).
+  it("counts a variant's pricing in the deck's progress", function()
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED)
+    slotKeys["0:1"] = key(222, 619)
+    compose()
+    GC.Sell.Refresh(true)
+    local refresh = upvalue(GC.Sell.Refresh, "refresh")
+    local _, total = refresh.deckProgress()
+    assert.equal(1, total)
+  end)
+
+  -- At the auction house, a stack the client has classified but will not key: when the auction
+  -- house says it cannot take it, it is not tradeable stock at all; when it can, the heading
+  -- says what is actually missing rather than "open the auction house" (M10).
+  it("asks the auction house, while it is open, whether an unkeyable stack can ever be posted", function()
+    GC.Sniper.IsAHOpen = function() return true end
+    kinds[444] = false
+    kinds[555] = false
+    stack(1, 444, 1, BONUSED, { itemName = "Relic" })
+    stack(2, 555, 1, BONUSED, { itemName = "Oddity" })
+    _G.C_AuctionHouse.IsSellItemValid = function(location) return location.slot == 2 end
+    compose()
+    local head, items = nil, {}
+    for _, row in ipairs(upvalue(render, "rows")) do
+      if row:IsShown() and row.kind == "waitHead" then head = row end
+      if row:IsShown() and row.kind == "waitItem" then items[#items + 1] = row.sectionLabel.text end
+    end
+    assert.equal(1, #items)
+    assert.matches("Oddity", items[1], 1, true)
+    assert.matches("the auction house has not described these yet", head.sectionLabel.text, 1, true)
   end)
 end)

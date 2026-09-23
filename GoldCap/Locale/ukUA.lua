@@ -49,6 +49,7 @@ GC.Locales.ukUA = {
   ["%s under you"] = "%s дешевше за вас",
   ["%s units across %d prices"] = "%s шт. за %d цінами",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
+  ["%s+ ahead"] = "%s+ попереду",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
   ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
@@ -589,6 +590,7 @@ GC.Locales.ukUA = {
     "не вдалося визначити (варіативний предмет -- ціна не рахується навмисно)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "якщо купити всі %d і продати назад за ціною, що стоїть там зараз",
+  ["ilvl %d"] = "рів. %d",
   ["import %dh old"] = "імпорту %dг",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "імпорт застарів -- /goldcap import або /goldcap companion",
@@ -607,6 +609,7 @@ GC.Locales.ukUA = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "останні 24 год — %d продажів, %s валовий, %s комісія аукціону, %d купівель, %s витрачено",
   ["leave these alone"] = "ці не чіпати",
+  ["level %d"] = "рівень %d",
   ["listing gone -- already bought out or price changed"] =
     "лот зник -- уже викуплений або ціна змінилася",
   ["listing gone -- bought out or repriced"] = "лот зник — викуплений або переставлений за ціною",
@@ -622,6 +625,8 @@ GC.Locales.ukUA = {
   ["no cost"] = "немає собівартості",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
+  ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
+  ["no market figure for this pet"] = "немає ринкових даних для цього вихованця",
   ["no price"] = "немає ціни",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
@@ -707,6 +712,7 @@ GC.Locales.ukUA = {
   ["the Companion wrote prices this addon could not read --"] =
     "Companion записав ціни, які аддон не зміг прочитати --",
   ["the Auction House has not answered for this item yet"] = "аукціон ще не відповів по цьому предмету",
+  ["the auction house has not described these yet"] = "аукціон ще не описав ці предмети",
   ["the import failed (%s)"] = "імпорт не вдався (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -736,9 +742,6 @@ GC.Locales.ukUA = {
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
   ["your price stands %d of %d"] = "твоя ціна стане %d з %d",
-  ["your price · %s units ahead of you"] = "ваша ціна · попереду %s шт.",
-  ["your price · at least %s units ahead of you"] = "ваша ціна · попереду щонайменше %s шт.",
-  ["your price · first in line"] = "ваша ціна · перший у черзі",
   ["yours"] = "ваша",
   ["~%dd to reach you at today's pace"] = "~%d дн. до вас за сьогоднішнього темпу",
   ["~%dh to reach you at today's pace"] = "~%d год до вас за сьогоднішнього темпу",

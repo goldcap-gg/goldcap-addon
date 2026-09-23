@@ -44,8 +44,9 @@ GC.Locales.deDE = {
   ["%s after the AH cut"] = "%s nach der AH-Gebühr",
   ["%s ahead"] = "%s davor",
   ["%s under you"] = "%s unter dir",
-  ["%s units across %d prices"] = "%s Stück auf %d Preisen",
+  ["%s units across %d prices"] = "%s Stück auf %d Preise verteilt",
   ["%s — %d unit%s without a cost"] = "%s — %d Stück%s ohne Einkaufspreis",
+  ["%s+ ahead"] = "%s+ davor",
   [", %d hidden as unsellable"] = ", %d als unverkäuflich ausgeblendet",
   ["1 lot, %s asked"] = "1 Posten, %s verlangt",
   ["24h trend"] = "24h-Trend",
@@ -578,6 +579,7 @@ GC.Locales.deDE = {
     "nicht eindeutig (Variantengegenstand -- absichtlich ohne Preis)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "wenn du alle %d kaufst und zum aktuell dort stehenden Preis wieder verkaufst",
+  ["ilvl %d"] = "GS %d",
   ["import %dh old"] = "Import %dh alt",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "Import veraltet -- /goldcap import oder /goldcap companion",
@@ -597,6 +599,7 @@ GC.Locales.deDE = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "letzte 24h — %d Verkäufe, %s brutto, %s Auktionsgebühr, %d Käufe, %s ausgegeben",
   ["leave these alone"] = "diese in Ruhe lassen",
+  ["level %d"] = "Stufe %d",
   ["listing gone -- already bought out or price changed"] =
     "Angebot weg -- bereits aufgekauft oder Preis geändert",
   ["listing gone -- bought out or repriced"] = "Angebot weg -- gekauft oder neu bepreist",
@@ -612,6 +615,8 @@ GC.Locales.deDE = {
   ["no cost"] = "kein Einstand",
   ["no cost for %d"] = "kein Einstand für %d",
   ["no live price yet"] = "noch kein Live-Preis",
+  ["no market figure for this item level"] = "keine Marktzahl für diese Gegenstandsstufe",
+  ["no market figure for this pet"] = "keine Marktzahl für dieses Haustier",
   ["no price"] = "kein Preis",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "noch keine Preise -- /goldcap companion oder /goldcap import",
@@ -695,6 +700,8 @@ GC.Locales.deDE = {
   ["stopped watching %s"] = "%s wird nicht mehr beobachtet",
   ["the Companion wrote prices this addon could not read --"] =
     "der Companion hat Preise geschrieben, die dieses Addon nicht lesen konnte --",
+  ["the auction house has not described these yet"] =
+    "das Auktionshaus hat diese noch nicht beschrieben",
   ["the import failed (%s)"] = "der Import ist fehlgeschlagen (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -721,11 +728,8 @@ GC.Locales.deDE = {
     "dein Spielclient hat keine Schrift für diese Sprache — der Text erscheint als leere Kästchen",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "dein Import ist %d Stunden alt -- die Preise können abweichen. Füge eine frische Zeichenkette von goldcap.gg ein (/goldcap import).",
-  ["your price · %s units ahead of you"] = "dein Preis · %s Stück vor dir",
-  ["your price · at least %s units ahead of you"] = "dein Preis · mindestens %s Stück vor dir",
-  ["your price · first in line"] = "dein Preis · als Erster dran",
   ["yours"] = "deiner",
-  ["~%dd to reach you at today's pace"] = "~%d Tage bis du dran bist, beim heutigen Tempo",
+  ["~%dd to reach you at today's pace"] = "~%d Tag(e) bis du dran bist, beim heutigen Tempo",
   ["~%dh to reach you at today's pace"] = "~%d Std. bis du dran bist, beim heutigen Tempo",
   ["» needs price"] = "» braucht Preis",
   ["×%d in bags"] = "×%d in Taschen",

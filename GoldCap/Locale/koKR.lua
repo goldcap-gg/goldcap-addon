@@ -46,8 +46,9 @@ GC.Locales.koKR = {
   ["%s after the AH cut"] = "경매장 수수료 제외 %s",
   ["%s ahead"] = "앞에 %s",
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
-  ["%s units across %d prices"] = "%s개 · 가격 %d단",
+  ["%s units across %d prices"] = "%s개 · 가격대 %d개",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
+  ["%s+ ahead"] = "앞에 %s+",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
@@ -539,6 +540,7 @@ GC.Locales.koKR = {
     "식별 실패 (변형 아이템 -- 의도적으로 가격을 매기지 않음)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "%d개를 모두 사서 지금 걸려 있는 가격에 되판다면",
+  ["ilvl %d"] = "아이템 레벨 %d",
   ["import %dh old"] = "가져오기 %d시간 경과",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "가져온 자료가 오래됨 -- /goldcap import 또는 /goldcap companion",
@@ -557,6 +559,7 @@ GC.Locales.koKR = {
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "최근 24시간 — 판매 %d건, 총액 %s, 수수료 %s, 구매 %d건, 지출 %s",
   ["leave these alone"] = "그대로 두세요",
+  ["level %d"] = "레벨 %d",
   ["listing gone -- already bought out or price changed"] =
     "등록이 사라짐 -- 이미 팔렸거나 가격이 바뀌었습니다",
   ["listing gone -- bought out or repriced"] = "매물이 사라졌습니다 — 팔렸거나 가격이 바뀜",
@@ -571,6 +574,8 @@ GC.Locales.koKR = {
   ["no cost"] = "원가 없음",
   ["no cost for %d"] = "%d개 원가 없음",
   ["no live price yet"] = "아직 실시간 가격 없음",
+  ["no market figure for this item level"] = "이 아이템 레벨의 시장 수치 없음",
+  ["no market figure for this pet"] = "이 애완동물의 시장 수치 없음",
   ["no price"] = "가격 없음",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "아직 시세가 없습니다 -- /goldcap companion 또는 /goldcap import",
@@ -598,7 +603,7 @@ GC.Locales.koKR = {
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
   ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
-  ["past the first %d prices read (%s units)"] = "읽은 처음 %d단 가격보다 위 (%s개)",
+  ["past the first %d prices read (%s units)"] = "읽은 가격대 %d개 이후 (%s개)",
   ["placing bid..."] = "입찰 중...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "이전 상품 구매가 끝남 -- Refresh로 가격을 다시 확인하세요",
@@ -650,6 +655,7 @@ GC.Locales.koKR = {
   ["stopped watching %s"] = "%s 주시를 멈췄습니다",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion이 기록한 시세를 이 애드온이 읽지 못했습니다 --",
+  ["the auction house has not described these yet"] = "경매장이 아직 이 아이템들을 알려주지 않았습니다",
   ["the import failed (%s)"] = "가져오기에 실패했습니다 (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -674,9 +680,6 @@ GC.Locales.koKR = {
     "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
-  ["your price · %s units ahead of you"] = "내 가격 · 앞에 %s개",
-  ["your price · at least %s units ahead of you"] = "내 가격 · 앞에 최소 %s개",
-  ["your price · first in line"] = "내 가격 · 맨 앞 순서",
   ["yours"] = "내 가격",
   ["~%dd to reach you at today's pace"] = "오늘 속도로 내 차례까지 ~%d일",
   ["~%dh to reach you at today's pace"] = "오늘 속도로 내 차례까지 ~%d시간",

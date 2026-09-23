@@ -102,6 +102,24 @@ local function lotUnit(auction)
   return auction.buyoutAmount
 end
 
+-- Whether a lot is one variant of its item -- one item level, one pet species -- rather than
+-- the item as the tab has always keyed it: a caged pet (the key carries its species, or the link
+-- is a battle-pet link) or an item link carrying bonus IDs, whose level the link cannot state.
+-- Such a lot keeps being priced by its own key once nothing is left in the bags (Build).
+local function lotIsVariant(auction)
+  local key = auction.itemKey
+  if type(key) == "table" and positive(key.battlePetSpeciesID) then return true end
+  local link = auction.itemLink
+  if type(link) ~= "string" then return false end
+  if link:find("battlepet:", 1, true) then return true end
+  local payload = link:match("|H(item:[^|]+)|h") or link:match("^(item:.-)$")
+  if not payload then return false end
+  local fields = {}
+  for field in (payload .. ":"):gmatch("([^:]*):") do fields[#fields + 1] = field end
+  local bonusCount = tonumber(fields[14])
+  return bonusCount ~= nil and bonusCount > 0
+end
+
 function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
   local lots = {}
   for _, auction in ipairs(auctionInfos or {}) do
@@ -116,7 +134,9 @@ function GC.SellPositions.NormalizeOwnedLots(auctionInfos, seenAt)
       local expiresAt = positive(auction.timeLeftSeconds) and ((seenAt or 0) + auction.timeLeftSeconds) or nil
       lots[#lots + 1] = { positionKey = positionKey, itemID = itemID, quantity = quantity,
         unitPrice = unitPrice, auctionID = auction.auctionID, firstSeenAt = seenAt or 0,
-        isCommodity = isCommodity == true, expiresAt = expiresAt }
+        isCommodity = isCommodity == true, expiresAt = expiresAt,
+        variant = (isCommodity ~= true and lotIsVariant(auction)) or nil,
+        itemLink = type(auction.itemLink) == "string" and auction.itemLink or nil }
     end
   end
   return lots
@@ -318,7 +338,15 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- one thing the seller could never see was the book itself. The Sell tab shows a price it
   -- picked and, until now, nothing about what that price is standing on.
   position.levels = levels
-  local marketStats = statsByItemID and statsByItemID[position.itemID]
+  -- The imported market data is keyed by item ID, and the site merges every item level of a
+  -- piece of gear into one row -- and every caged pet into Pet Cage, across all species. A
+  -- variant (keyed by its own ItemKey, `quoteKey`) therefore has no market figure: no value, no
+  -- sales, no reach, no floor. Its price is its own live book's; a 15g pet was floored to 225g
+  -- off the Pet Cage median (review I4). Items keyed as they always were keep their data.
+  local petSpecies = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match(":(%d+)$")) or nil
+  position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or "level") or nil
+  local marketStats = not position.quoteKey and statsByItemID and statsByItemID[position.itemID] or nil
+  position.trendPct = marketStats and marketStats.trend or nil
   position.marketValue = marketStats and marketStats.mv or nil
   position.soldPerDay = marketStats and marketStats.sold or nil
   -- The imported market value. Fetched all along for its sold/day and trend, and
@@ -586,7 +614,11 @@ function GC.SellPositions.Build(args)
       lot.firstSeenAt = ownedLot.firstSeenAt or 0
       lotsByItem[itemID] = lotsByItem[itemID] or {}
       lotsByItem[itemID][#lotsByItem[itemID] + 1] = lot
-      addLot(positionFor(positions, positionKey, itemID, context), lot)
+      local position = positionFor(positions, positionKey, itemID, context)
+      addLot(position, lot)
+      -- A variant's lot keeps the position on its own market search once the bags are empty:
+      -- the bare key answers with the item's cheapest variant, another item's price (review I3).
+      if lot.variant then position.quoteKey = position.quoteKey or positionKey end
     end
   end
   -- Bag stock joins the same position table as purchases and listings, so an item that is

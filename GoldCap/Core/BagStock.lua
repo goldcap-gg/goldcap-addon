@@ -32,6 +32,7 @@ end
 --   numSlots(bag) -> number,
 --   itemInfo(bag, slot) -> { itemID, stackCount, isBound, hasNoValue, hyperlink, itemName } | nil,
 --   classify(itemID, link, bag, slot) -> positionKey | nil, isCommodity | nil, quoteKey | nil,
+--     refused | nil (true: the auction house says it cannot take this stack -- skipped outright),
 -- }
 --
 -- `bag`/`slot` are handed to `classify` because the exact auction identity of a non-commodity
@@ -76,12 +77,17 @@ function GC.BagStock.Scan(driver, bags)
       local quantity = info and info.stackCount or nil
       if info and exactPositive(info.itemID) and exactPositive(quantity)
           and info.isBound ~= true then
-        local positionKey, isCommodity, quoteKey = driver.classify(info.itemID, info.hyperlink, bag, slot)
-        if type(positionKey) ~= "string" or positionKey == "" then
-          local waiting = waitingByItem[info.itemID]
+        local positionKey, isCommodity, quoteKey, refused = driver.classify(info.itemID, info.hyperlink, bag, slot)
+        if refused then -- luacheck: ignore 542
+          -- The auction house says it cannot take this stack: not tradeable stock at all.
+        elseif type(positionKey) ~= "string" or positionKey == "" then
+          -- By item AND name: every caged pet is one item (Pet Cage), and two different pets
+          -- waiting were one line named after the first.
+          local waitKey = info.itemID .. "\1" .. tostring(info.itemName or "")
+          local waiting = waitingByItem[waitKey]
           if not waiting then
             waiting = { itemID = info.itemID, itemName = info.itemName, quantity = 0 }
-            waitingByItem[info.itemID], waitingOrder[#waitingOrder + 1] = waiting, info.itemID
+            waitingByItem[waitKey], waitingOrder[#waitingOrder + 1] = waiting, waitKey
           end
           waiting.quantity = add(waiting.quantity, quantity) or waiting.quantity
         else
@@ -113,7 +119,7 @@ function GC.BagStock.Scan(driver, bags)
   end
   local waiting = {}
   table.sort(waitingOrder)
-  for _, itemID in ipairs(waitingOrder) do waiting[#waiting + 1] = waitingByItem[itemID] end
+  for _, waitKey in ipairs(waitingOrder) do waiting[#waiting + 1] = waitingByItem[waitKey] end
   return result, waiting
 end
 
