@@ -130,7 +130,6 @@ GC.Locales.ukUA = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion сам оновлює ціни — /goldcap companion",
   ["Companion sync rejected:"] = "Синхронізацію Companion відхилено:",
-  ["Confidence"] = "Достовірність",
   ["Confirm"] = "Підтвердити",
   ["Confirm the cancel"] = "Підтвердити скасування",
   ["Confirm the removal"] = "Підтвердити видалення",
@@ -397,6 +396,7 @@ GC.Locales.ukUA = {
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Search"] = "Пошук",
+  ["Sales certainty"] = "Певність продажів",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",

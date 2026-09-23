@@ -128,7 +128,6 @@ GC.Locales.koKR = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion이 시세를 자동으로 갱신합니다 — /goldcap companion",
   ["Companion sync rejected:"] = "Companion 동기화가 거부됨:",
-  ["Confidence"] = "신뢰도",
   ["Confirm"] = "확인",
   ["Confirm the cancel"] = "취소 확인",
   ["Confirm the removal"] = "삭제 확인",
@@ -362,6 +361,7 @@ GC.Locales.koKR = {
   ["SHOW DETAILS ▸"] = "세부 정보 보기 ▸",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Search"] = "검색",
+  ["Sales certainty"] = "판매 신뢰도",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "매도 탭은 주문서가 같은 속도로 팔린다고 볼 때 최저가보다 한 단계 위에 등록합니다.",
   ["Sell-through"] = "판매 소진율",

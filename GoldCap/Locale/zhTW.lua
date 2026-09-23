@@ -128,7 +128,6 @@ GC.Locales.zhTW = {
   ["Close"] = "關閉",
   ["Companion keeps prices fresh — /goldcap companion"] = "Companion 會自動更新價格：/goldcap companion",
   ["Companion sync rejected:"] = "Companion 同步遭拒：",
-  ["Confidence"] = "信心度",
   ["Confirm"] = "確認",
   ["Confirm the cancel"] = "確認取消",
   ["Confirm the removal"] = "確認刪除",
@@ -358,6 +357,7 @@ GC.Locales.zhTW = {
   ["SHOW DETAILS ▸"] = "顯示細節 ▸",
   ["Sales are costed from your oldest units first"] = "販售成本自最舊的存貨先扣",
   ["Search"] = "搜尋",
+  ["Sales certainty"] = "銷售可信度",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "當掛單簿顯示賣得一樣快時，出售標籤會掛在最低價上方一級。",
   ["Sell-through"] = "售罄率",

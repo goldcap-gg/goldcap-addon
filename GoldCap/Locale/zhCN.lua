@@ -127,7 +127,6 @@ GC.Locales.zhCN = {
   ["Close"] = "关闭",
   ["Companion keeps prices fresh — /goldcap companion"] = "Companion 会自动更新价格：/goldcap companion",
   ["Companion sync rejected:"] = "Companion 同步被拒绝：",
-  ["Confidence"] = "置信度",
   ["Confirm"] = "确认",
   ["Confirm the cancel"] = "确认取消",
   ["Confirm the removal"] = "确认删除",
@@ -357,6 +356,7 @@ GC.Locales.zhCN = {
   ["SHOW DETAILS ▸"] = "显示详情 ▸",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Search"] = "搜索",
+  ["Sales certainty"] = "销售可信度",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "当挂单簿显示卖得一样快时，出售标签会挂在最低价上方一级。",
   ["Sell-through"] = "售罄率",

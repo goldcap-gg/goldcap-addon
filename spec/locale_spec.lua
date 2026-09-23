@@ -131,6 +131,18 @@ describe("locale layer", function()
     end
   end)
 
+  -- The check pane's "Confidence" was renamed to what it measures (Core/CheckVerdict.lua's
+  -- FACT_LABEL.confidence). Every language says it in its own words, and none keeps the old key
+  -- behind: a stale translation of a word nothing asks for any more is a trap for the next edit.
+  it("names the sales certainty fact in every language, and drops the old Confidence", function()
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      assert.is_string(loc.Locales[code]["Sales certainty"], code .. " is missing Sales certainty")
+      assert.is_nil(loc.Locales[code]["Confidence"], code .. " still carries Confidence")
+    end
+  end)
+
   it("resolves the client locale on auto and the chosen one otherwise", function()
     assert.equal("deDE", GC.ResolveLocale("auto", "deDE"))
     assert.equal("enUS", GC.ResolveLocale("auto", nil))

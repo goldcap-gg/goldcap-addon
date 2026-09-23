@@ -130,7 +130,6 @@ GC.Locales.ptBR = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "O Companion mantém os preços atualizados — /goldcap companion",
   ["Companion sync rejected:"] = "Sincronização do Companion recusada:",
-  ["Confidence"] = "Confiança",
   ["Confirm"] = "Confirmar",
   ["Confirm the cancel"] = "Confirmar o cancelamento",
   ["Confirm the removal"] = "Confirmar a remoção",
@@ -385,6 +384,7 @@ GC.Locales.ptBR = {
   ["Sales are costed from your oldest units first"] =
     "As vendas são custeadas a partir das suas unidades mais antigas",
   ["Search"] = "Buscar",
+  ["Sales certainty"] = "Certeza de vendas",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "A aba Vender anuncia um degrau acima da oferta mais barata quando o livro mostra que ela vende na mesma velocidade.",
   ["Sell-through"] = "Taxa de venda",

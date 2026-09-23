@@ -127,7 +127,6 @@ GC.Locales.ruRU = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion сам обновляет цены — /goldcap companion",
   ["Companion sync rejected:"] = "Синхронизация Companion отклонена:",
-  ["Confidence"] = "Достоверность",
   ["Confirm"] = "Подтвердить",
   ["Confirm the cancel"] = "Подтвердить отмену",
   ["Confirm the removal"] = "Подтвердить удаление",
@@ -383,6 +382,7 @@ GC.Locales.ruRU = {
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["Search"] = "Поиск",
+  ["Sales certainty"] = "Достоверность продаж",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продажа выставляет на одну ступень выше самой дешёвой заявки, если книга ордеров показывает такую же скорость продажи.",
   ["Sell-through"] = "Выкупаемость",
