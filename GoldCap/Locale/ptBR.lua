@@ -620,7 +620,7 @@ GC.Locales.ptBR = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "importação manual -- o Companion mantém isso atualizado: /goldcap companion",
   ["market %s"] = "mercado %s",
-  ["needs %s"] = "exige %s",
+  ["needs %s"] = "pede %s",
   ["needs a fresh price -- press Refresh"] = "precisa de um preço novo -- clique em Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sem confirmação do servidor -- a compra ainda pode ter passado, confira seu correio. Fechar isto não desfaz.",

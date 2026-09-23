@@ -257,4 +257,42 @@ describe("row button labels fit the button", function()
         code, line, displayWidth(line)))
     end)
   end
+
+  -- The needs-gold pane's caption: Theme.Label(10) across the hero (DG.WIDTH less its two margins,
+  -- 296px), two lines tall (DG.HERO_CAPTION_H = 26) and nothing drawn past them. Laid out word by
+  -- word as the client wraps it, with the widest figures a real buy carries -- a 9,999g buy at 20%,
+  -- and the 199,980g it takes at the default 5% -- every language stays on its two lines.
+  local function glyphs(text)
+    local out, i = {}, 1
+    while i <= #text do
+      local byte = text:byte(i)
+      local size = (byte < 0x80 and 1) or (byte < 0xE0 and 2) or (byte < 0xF0 and 3) or 4
+      out[#out + 1] = text:sub(i, i + size - 1)
+      i = i + size
+    end
+    return out
+  end
+  local function wrappedLines(text, width)
+    local lines, used = 1, 0
+    for word in text:gmatch("%S+") do
+      -- A word wider than the line (CJK has no spaces) breaks between its glyphs.
+      local pieces = displayWidth(word) > width and glyphs(word) or { word }
+      for i, piece in ipairs(pieces) do
+        local w = displayWidth(piece)
+        local need = used == 0 and w or used + ((#pieces > 1 and i > 1) and 0 or 1) + w
+        if need > width then lines, used = lines + 1, w else used = need end
+      end
+    end
+    return lines
+  end
+
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps the %s needs-gold caption on its two lines"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local key = "Costs %s. With your %d%% per-buy limit you need %s on this character."
+      local caption = assert(GC.Locales[code][key], code .. " is missing the caption"):format("9999g", 20, "199980g")
+      assert.is_true(wrappedLines(caption, holds(296, 10, 1.0)) <= 2, ("%s: %q"):format(code, caption))
+    end)
+  end
 end)

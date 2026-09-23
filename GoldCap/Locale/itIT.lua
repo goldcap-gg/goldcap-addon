@@ -276,7 +276,7 @@ GC.Locales.itIT = {
   ["No sales data for this item."] = "Nessun dato di vendita per questo oggetto.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Ancora nessuna vendita registrata -- apri la cassetta postale con GoldCap caricato",
-  ["Not enough gold on this character to buy what GoldCap finds"] = "Poco oro su questo personaggio per comprare le offerte",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Oro insufficiente per comprare le offerte trovate",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Non ci sono abbastanza unità alla casa d'aste per quella quantità.",
   ["Not in your bags or listed — mail or bank?"] =

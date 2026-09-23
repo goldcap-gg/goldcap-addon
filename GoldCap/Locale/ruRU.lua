@@ -21,7 +21,7 @@ GC.Locales.ruRU = {
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d сделок с последнего сканирования -- Full Scan, чтобы обновить",
-  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d отсеяно: трудно перепродать или ниже твоей минимальной прибыли с покупки",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d отсеяно: трудно перепродать или ниже вашей минимальной прибыли с покупки",
   ["%d held back"] = "%d придержано",
   ["%d held back from posting"] = "%d придержано от выставления",
   ["%d hidden -- the live check refused them"] = "%d скрыто -- живая проверка их отклонила",
@@ -48,7 +48,7 @@ GC.Locales.ruRU = {
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   ["%s+ ahead"] = "%s+ впереди",
   ["%s+, %d prices read"] = "%s+, прочитано %d цен",
-  [", %d hidden: hard to resell or under your min profit"] = ", скрыто %d: трудно перепродать или ниже твоей минимальной прибыли",
+  [", %d hidden: hard to resell or under your min profit"] = ", скрыто %d: трудно перепродать или ниже вашей минимальной прибыли",
   ["1 lot, %s asked"] = "1 лот, просят %s",
   ["24h trend"] = "Тренд за 24ч",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
