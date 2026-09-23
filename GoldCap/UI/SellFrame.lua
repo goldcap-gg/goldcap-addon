@@ -1696,6 +1696,8 @@ end
 
 function GC.Sell.OnOwnedAuctions()
   local auctions = C_AuctionHouse and C_AuctionHouse.GetOwnedAuctions and C_AuctionHouse.GetOwnedAuctions() or {}
+  -- First: a credit made on a guess is checked against what the list says the auction is.
+  GC.Sell._SettleCredits(auctions)
   do
     local live, returned = {}, false
     for _, auction in ipairs(auctions) do
@@ -2222,11 +2224,15 @@ local function onPostClick(row)
   -- passed SELL_QUOTE_ACTION_AGE, handing the row back as Post for the next press to post the
   -- same stack again.
   if postingRow == row and (row.postStage == "posting" or row.postStage == "confirming") then return end
+  -- With another post out, that post's answer is the one to wait for -- said at once, before any
+  -- hold or any search for a fresh price, and leaving the dock saying what that post is doing.
+  if postingRow and postingRow ~= row then
+    setStatus(GC.L["Finish the pending post first"])
+    return
+  end
   -- Nor is a new post of an item whose last post the auction house may still be answering (see
   -- GC.Sell._lateAnswers): the stack it would send is the one that post may be taking.
-  -- With another post out, that post's answer is the one to wait for: the press goes on to
-  -- "Finish the pending post first" below and leaves the dock saying what that post is doing.
-  if row.postStage ~= "confirm" and row.position and not (postingRow and postingRow ~= row)
+  if row.postStage ~= "confirm" and row.position
       and GC.Sell._LateFor(row.position.positionKey, row.position.scopeKey) then
     GC.Sell._NotePost(GC.L["This item's last post may still go up -- wait a minute"], "fg",
       GC.Sell.POST_NOTE_SECONDS.failed)
@@ -2244,10 +2250,6 @@ local function onPostClick(row)
     if row.action then row.action:SetLabel(GC.L["Pricing…"]) end
     setStatus(GC.L["Fetching a fresh price for this item — press Post again in a moment"])
     startQuoteRefreshFor(position); return
-  end
-  if postingRow and postingRow ~= row then
-    setStatus(GC.L["Finish the pending post first"])
-    return
   end
   if postingRow == row and row.postStage ~= "confirm" then return end
   if row.postStage == "confirm" then
@@ -2348,7 +2350,7 @@ local function onPostClick(row)
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration }
+    duration = duration, exactKey = position.quoteKey ~= nil }
   -- Busy the moment it is pressed, on the button that was: disabled, saying "Posting…", the
   -- client's spinner turning beside the words. The owner could not tell a pressed Post from a
   -- dead one when it only dimmed. The dock says it too, and holds it (GC.Sell._NotePost).
@@ -2573,6 +2575,10 @@ end
 -- Everything a completed post owes the rest of the addon, from the pin alone: shared by the
 -- ordinary path below and by the late one, where the row and its render entry are long gone.
 local function recordPostedPin(pin)
+  -- What the booking overwrites, for GC.Sell._SettleCredits to put back if the auction turns out
+  -- not to have been this post.
+  local snapshot = GC.Acquisitions and GC.Acquisitions.ActivitySnapshot
+    and GC.Acquisitions.ActivitySnapshot(pin.positionKey, pin.character, pin.region) or nil
   if GC.Acquisitions and GC.Acquisitions.RecordPost then
     -- Derived as total/quantity rather than read off the pin, deliberately: a sale invoice
     -- carries a total and a quantity and nothing else, so the price this remembers has to be
@@ -2581,6 +2587,7 @@ local function recordPostedPin(pin)
     GC.Acquisitions.RecordPost(pin.positionKey, pin.itemID, itemName(pin.itemID), pin.character,
       pin.region, pin.quantity, time(), postedUnit)
   end
+  return snapshot
 end
 
 -- The pin's own fields, with nothing said about the row it came from. Everything RecordPost
@@ -2628,15 +2635,30 @@ end
 -- It used to go to the post on the wire whenever the client named nothing: that freed a post
 -- still out (the next press sent its stack again), booked it as posted when it was refused, and
 -- took a pending Confirm for an answer (review I1).
-function GC.Sell._CreationOwner(named, wire)
+--
+-- `info` is what the client said besides the key: GetAuctionInfoByID's AuctionInfo at creation,
+-- or the owned-auctions entry at settlement. A quantity it names must be the post's; for gear, a
+-- buyout it names must be the post's total -- two posts of one item are told apart by it.
+function GC.Sell._CreationOwner(named, wire, info)
   local live = GC.Sell._LiveLate()
+  local function fits(pin)
+    if named and pin.itemID ~= named.itemID then return false end
+    if type(info) == "table" then
+      if type(info.quantity) == "number" and type(pin.quantity) == "number" and info.quantity ~= pin.quantity then
+        return false
+      end
+      if not pin.isCommodity and type(info.buyoutAmount) == "number" and type(pin.buyout) == "number"
+          and info.buyoutAmount ~= pin.buyout then
+        return false
+      end
+    end
+    return true
+  end
   local candidates = {}
   for index, late in ipairs(live) do
-    if not named or late.pin.itemID == named.itemID then
-      candidates[#candidates + 1] = { pin = late.pin, index = index }
-    end
+    if fits(late.pin) then candidates[#candidates + 1] = { pin = late.pin, index = index, at = late.at } end
   end
-  if wire and (not named or wire.itemID == named.itemID) then candidates[#candidates + 1] = { pin = wire } end
+  if wire and fits(wire) then candidates[#candidates + 1] = { pin = wire } end
   local chosen = candidates[1]
   if named and #candidates > 1 then
     for _, candidate in ipairs(candidates) do
@@ -2644,42 +2666,126 @@ function GC.Sell._CreationOwner(named, wire)
     end
   end
   if chosen and chosen.index then table.remove(live, chosen.index) end
-  return chosen and chosen.pin or nil
+  return chosen and chosen.pin or nil, chosen and chosen.at or nil
 end
 
-function GC.Sell.OnAuctionCreated(auctionID)
-  local named, info = GC.Sell._CreatedKey(auctionID)
-  -- What the client said, for the owner to read with /gc board and /gc sell: whether
-  -- GetAuctionInfoByID names a just-created auction at all decides how often the order rule
-  -- in _CreationOwner is the one doing the work.
-  local said = type(info) ~= "table" and "nil" or type(info.itemKey) ~= "table" and "no itemKey"
-    or table.concat({ tostring(info.itemKey.itemID), info.itemKey.itemLevel or 0, info.itemKey.itemSuffix or 0,
-      info.itemKey.battlePetSpeciesID or 0 }, ":")
-  GC.Sell._createdSeen = ("sell: created %s -> %s"):format(tostring(auctionID), said)
-  if GC.Util and GC.Util.Trace then GC.Util.Trace(GC.Sell._createdSeen) end
+-- Every credit an AUCTION_HOUSE_AUCTION_CREATED made, by auction ID, until the owned-auctions
+-- list names that auction: `{ pin, at, lateAt, snapshot, override }`. The client usually names
+-- nothing at creation (GetAuctionInfoByID is Nilable, and nothing in Blizzard's UI looks up an
+-- auction it has just created), so a credit is often the order rule's best guess. The list is
+-- definitive -- OwnedAuctionInfo carries the auction's itemKey and quantity -- and the refresh
+-- after every creation already asks for it.
+GC.Sell._credits = {}
+
+-- Whether an owned auction is the post a pin sent: the item, the quantity, and -- for a variant
+-- keyed from its own ItemKey -- that key's level, suffix and species.
+function GC.Sell._OwnedMatches(pin, owned)
+  local key = owned.itemKey
+  if type(key) ~= "table" or key.itemID ~= pin.itemID then return false end
+  if type(owned.quantity) == "number" and type(pin.quantity) == "number" and owned.quantity ~= pin.quantity then
+    return false
+  end
+  if pin.exactKey and not GC.Sell._SameVariant(pin, key) then return false end
+  return true
+end
+
+-- On every owned-auctions answer (GC.Sell.OnOwnedAuctions, before anything reads the list): a
+-- credit the list contradicts is taken back -- the booking restored as it was, a typed price it
+-- spent put back, and a post that was sent put back in the late window, since its answer may
+-- still come -- and the auction is credited again with what the list says it is: to the post it
+-- really is, or to nobody when it is none of ours (Blizzard's own Sell pane). A credit the list
+-- never names is let go after the late window.
+function GC.Sell._SettleCredits(auctions)
+  if next(GC.Sell._credits) == nil then return end
+  local byID = {}
+  for _, auction in ipairs(auctions or {}) do
+    if type(auction) == "table" and auction.auctionID ~= nil then byID[auction.auctionID] = auction end
+  end
+  for auctionID, credit in pairs(GC.Sell._credits) do
+    local owned = byID[auctionID]
+    if owned then
+      GC.Sell._credits[auctionID] = nil
+      if not GC.Sell._OwnedMatches(credit.pin, owned) then
+        if credit.snapshot and GC.Acquisitions and GC.Acquisitions.RestoreActivity then
+          GC.Acquisitions.RestoreActivity(credit.snapshot)
+        end
+        if credit.override ~= nil and type(credit.pin.positionKey) == "string" then
+          priceOverrides[credit.pin.positionKey] = credit.override
+        end
+        if credit.pin.sent then
+          local live, at = GC.Sell._LiveLate(), credit.lateAt or credit.at
+          local index = #live + 1
+          for i, late in ipairs(live) do
+            if late.at > at then index = i break end
+          end
+          table.insert(live, index, { pin = credit.pin, at = at })
+        end
+        GC.Sell.OnAuctionCreated(auctionID, owned)
+        GC.Sell._HoldLateInQueue()
+        paintQueueButton()
+      end
+    elseif time() - credit.at > GC.Sell.LATE_ANSWER_SECONDS then
+      GC.Sell._credits[auctionID] = nil
+    end
+  end
+end
+
+-- Refresh talks in the window's toolbar; off the tab the list is only composed again, and Show
+-- refreshes it when the tab comes back.
+function GC.Sell._RefreshAfterPost()
+  if container and container.IsShown and not container:IsShown() then composePositions() else GC.Sell.Refresh() end
+end
+
+--
+-- `settled`: the owned-auctions entry for this auction when GC.Sell._SettleCredits credits it
+-- again -- definitive, so it is not kept for settling a second time.
+function GC.Sell.OnAuctionCreated(auctionID, settled)
+  local named, info
+  if type(settled) == "table" then
+    named, info = type(settled.itemKey) == "table" and settled.itemKey or nil, settled
+  else
+    named, info = GC.Sell._CreatedKey(auctionID)
+    -- What the client said, for the owner to read with /gc board and /gc sell: whether
+    -- GetAuctionInfoByID names a just-created auction at all decides how often the order rule
+    -- in _CreationOwner is the one doing the work until the owned list settles it.
+    local said = type(info) ~= "table" and "nil" or type(info.itemKey) ~= "table" and "no itemKey"
+      or table.concat({ tostring(info.itemKey.itemID), info.itemKey.itemLevel or 0, info.itemKey.itemSuffix or 0,
+        info.itemKey.battlePetSpeciesID or 0 }, ":")
+    GC.Sell._createdSeen = ("sell: created %s -> %s"):format(tostring(auctionID), said)
+    if GC.Util and GC.Util.Trace then GC.Util.Trace(GC.Sell._createdSeen) end
+  end
   local pin, row = postingPin, postingRow
-  local wire = pin and row and (row.postStage == "posting" or row.postStage == "confirming") and pin or nil
-  local owner = GC.Sell._CreationOwner(named, wire)
+  -- Only a post that was SENT: a creation is a server answer, never the answer to a post call
+  -- that raised and sent nothing (review NM1).
+  local wire = pin and pin.sent and row and (row.postStage == "posting" or row.postStage == "confirming")
+    and pin or nil
+  local owner, lateAt = GC.Sell._CreationOwner(named, wire, info)
   if not owner then return end
+  local credit = type(settled) ~= "table" and type(auctionID) == "number" and { pin = owner, at = time(),
+    lateAt = lateAt, override = type(owner.positionKey) == "string" and priceOverrides[owner.positionKey] or nil }
+    or nil
   if owner ~= wire then
     -- A post we stopped waiting for, going up late (GC.Sell._lateAnswers). Recorded from the pin
     -- kept for exactly this -- as an on-time one is, less the render-entry check a row long gone
     -- cannot give. The post on the wire, if any, stays armed for its own answer.
     if not postPinSound(owner) then return end
-    recordPostedPin(owner)
+    local snapshot = recordPostedPin(owner)
+    if credit then credit.snapshot, GC.Sell._credits[auctionID] = snapshot, credit end
     if type(owner.positionKey) == "string" then priceOverrides[owner.positionKey] = nil end
     -- The dock said the auction house had not answered, or named an error that was not this
     -- post's. It did answer, late: say that instead.
     GC.Sell._NotePost(GC.Sell._PostedText(owner), "green", GC.Sell.POST_NOTE_SECONDS.posted)
-    -- Refresh talks in the window's toolbar; off the tab the list is only composed again, and
-    -- Show refreshes it when the tab comes back.
-    if container and container.IsShown and not container:IsShown() then composePositions() else GC.Sell.Refresh() end
+    GC.Sell._RefreshAfterPost()
     return
   end
   local valid = exactRenderEntry(row, pin) and (row.postStage == "posting" or row.postStage == "confirming")
     and pin.positionKey == row.position.positionKey and pin.scopeKey == row.position.scopeKey
     and pin.itemID == row.position.itemID and postPinSound(pin)
-  if valid then recordPostedPin(pin) end
+  if valid then
+    local snapshot = recordPostedPin(pin)
+    if credit then credit.snapshot = snapshot end
+  end
+  if credit then GC.Sell._credits[auctionID] = credit end
   -- The choice was for THIS listing. Keeping it would quietly price the next batch of the same
   -- item at a number chosen against a book that has since moved -- which is the one real risk
   -- of letting the price be typed at all.
@@ -2688,7 +2794,7 @@ function GC.Sell.OnAuctionCreated(auctionID)
   -- Said for a moment, then the list moves on as it always has: the stack leaves the bags, the
   -- row goes or shrinks, and the dock's POST names the next item.
   GC.Sell._NotePost(GC.Sell._PostedText(pin), "green", GC.Sell.POST_NOTE_SECONDS.posted)
-  GC.Sell.Refresh()
+  GC.Sell._RefreshAfterPost()
 end
 
 -- AUCTION_HOUSE_POST_ERROR carries nothing. It answers a post that needed confirming -- the
@@ -2706,7 +2812,7 @@ function GC.Sell.OnPostError()
   else
     setStatus(GC.L["Posting failed"])
   end
-  GC.Sell.Refresh()
+  GC.Sell._RefreshAfterPost()
 end
 
 -- AUCTION_HOUSE_SHOW_ERROR, the auction house's error channel (Core/Init.lua routes it here as
@@ -2720,9 +2826,10 @@ end
 -- The code says whose it can be (AuctionHouseUtil.GetErrorText's own table, by name): a bid or a
 -- purchase code is not the post's answer at all -- the post stays out; a code only a post can
 -- raise is the post's refusal, whole -- nothing listened for, nothing held, press again at once;
--- a code a post shares with other requests is the post's when nothing else of ours is out, and
+-- a code a post shares with other requests -- "The Auction House is busy." (IsBusy) is one -- is
+-- the post's when nothing else of ours is out, so busy can be pressed again at once, and
 -- otherwise may be somebody else's, so the post is let go of but listened for (review I2: every
--- refusal used to hold the item for a minute, "The Auction House is busy." included).
+-- refusal used to hold the item for a minute).
 GC.Sell.ERROR_CODES = {
   bid = { "HigherBid", "BidIncrement", "BidOwn", "MinBid", "DoubleBid", "ItemHasQuote" },
   post = { "NotEnoughItems", "RepairItem", "UsedCharges", "QuestItem", "BoundItem", "ConjuredItem",
@@ -2745,6 +2852,11 @@ end
 -- this tab's own search or cancel, a purchase (either window's), a keys batch.
 function GC.Sell._OtherRequestOut()
   if refresh.pending then return true end
+  -- This tab's own owned-auctions query (every Posted sends one) and a late post still open.
+  if refresh.phase == "owned" then return true end
+  if #GC.Sell._LiveLate() > 0 then return true end
+  -- A Sniper page still in flight: sent before the switch to this tab, it can still be answered.
+  if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then return true end
   if repostingRow and repostingRow.repostStage == "cancelling" then return true end
   if GC.PurchaseSlot and GC.PurchaseSlot.IsBusy and GC.PurchaseSlot.IsBusy() then return true end
   if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return true end
@@ -2756,12 +2868,29 @@ function GC.Sell.OnAuctionHouseError(errorCode)
   if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
   local kind = GC.Sell._ErrorKind(errorCode)
   if kind == "bid" then return end
+  local text = GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode)
+    or GC.L["Posting failed"]
+  -- The order rule, as for a creation: while a post we stopped waiting for is still unanswered
+  -- and this one has gone out, that older post's answer comes first. The refusal ends the OLDEST
+  -- late answer -- nothing booked, its item free again -- and this post stays armed for its own
+  -- answer. It used to free this one: the next press sent its stack twice, and its creation was
+  -- then booked as the late item (review NI1). An error while this post has not been sent yet
+  -- fired inside the post call itself, and is this post's.
+  local sent = postingPin and postingPin.sent
+  if sent then
+    local live = GC.Sell._LiveLate()
+    if #live > 0 then
+      table.remove(live, 1)
+      GC.Sell._NotePost(text, "red", GC.Sell.POST_NOTE_SECONDS.failed)
+      composePositions() -- the dock's queue offers that item again
+      return
+    end
+  end
   -- A shared code with something else of ours out may be that request's: this post can still go
   -- up, and the late answer corrects the line below to Posted.
-  if kind == "shared" and GC.Sell._OtherRequestOut() then GC.Sell._AwaitLate(postingPin) end
+  if kind == "shared" and sent and GC.Sell._OtherRequestOut() then GC.Sell._AwaitLate(postingPin) end
   disarmPost()
-  GC.Sell._NotePost(GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode)
-    or GC.L["Posting failed"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
+  GC.Sell._NotePost(text, "red", GC.Sell.POST_NOTE_SECONDS.failed)
 end
 
 -- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED: the client is holding a message back until the

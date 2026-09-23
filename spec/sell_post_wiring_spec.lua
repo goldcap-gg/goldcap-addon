@@ -171,7 +171,7 @@ describe("a price the seller chose reaches the post intact", function()
   -- of the same item at a number chosen for a market that is gone.
   it("spends the chosen price when the auction it was chosen for is created", function()
     local text = source()
-    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID%)(.-)\nend"))
+    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID, settled%)(.-)\nend"))
     assert.is_truthy(created:find("priceOverrides[pin.positionKey] = nil", 1, true))
   end)
 
@@ -183,9 +183,10 @@ describe("a price the seller chose reaches the post intact", function()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
     -- commitPrice (set), commitPrice (clear), OnTextChanged (set), OnTextChanged (clear),
-    -- the chip click, OnAuctionCreated's clear, and the same clear on the late path -- a
-    -- confirm the post watchdog gave up on that the auction house answered anyway.
-    assert.equal(7, writes)
+    -- the chip click, OnAuctionCreated's clear, the same clear on the late path -- a post the
+    -- watchdog gave up on that the auction house answered anyway -- and _SettleCredits putting
+    -- back a price the player typed, which a credit the owned list contradicts had spent.
+    assert.equal(8, writes)
   end)
 
   -- The live-preview handler is the newest way into that table and the easiest to get wrong:

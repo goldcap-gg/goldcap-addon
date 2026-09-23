@@ -619,6 +619,184 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.matches("sell: created 777 %-> nil", trace)
     end)
 
+    -- The order rule holds for an error as for a creation: while a late post is still unanswered
+    -- and the next post is on the wire, the late post's answer comes first -- so a refusal ends
+    -- the OLDEST late answer and leaves the wire armed. It used to free the wire: the re-press
+    -- sent its stack twice, and the wire's creation was booked as the late item (review NI1, PX).
+    it("reads a refusal that lands while a late post is open as that late post's", function()
+      local recorded = recordedPosts()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      local myco = pressRowPost(210796)
+      GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
+      assert.equal("posting", myco.postStage)
+      assert.is_true(myco.action.busy)
+      myco.action.scripts.OnClick(myco.action)
+      assert.equal(2, posts) -- never a second post of Mycobloom's pool
+      GC.Sell.OnAuctionCreated(605)
+      assert.equal(1, #recorded)
+      assert.equal(210796, recorded[1][2]) -- Mycobloom's own, never the ore
+      assert.is_nil(myco.postStage)
+      -- The ore's post is answered (refused): it may be posted again.
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      pressRowPost(23427)
+      assert.equal(3, posts)
+    end)
+
+    it("reads a post-only refusal the same way (PX2)", function()
+      local recorded = recordedPosts()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      local myco = pressRowPost(210796)
+      GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
+      assert.equal("posting", myco.postStage)
+      GC.Sell.OnAuctionCreated(606)
+      assert.equal(1, #recorded)
+      assert.equal(210796, recorded[1][2])
+    end)
+
+    -- An error raised inside the post call itself (nothing sent yet) is that call's answer.
+    it("reads an error from inside the post call as the wire's own", function()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      onPost = function() GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) end
+      local myco = pressRowPost(210796)
+      assert.is_nil(myco.postStage)
+      -- ...and the ore is still the one being listened for.
+      onPost = nil
+      pressRowPost(23427)
+      assert.equal(2, posts)
+    end)
+
+    -- A creation is a server answer: it can never be the answer to a post call that raised and
+    -- sent nothing (review NM1, PR).
+    it("never credits a creation to a post whose call raised", function()
+      local recorded = recordedPosts()
+      onPost = function() error("bad argument") end
+      ready()
+      assert.has_error(function() pressRowPost() end)
+      GC.Sell.OnAuctionCreated(607)
+      assert.equal(0, #recorded)
+      assert.equal("posting", oreRow().postStage)
+    end)
+
+    -- Our own requests that can draw a shared-code error: the tab's own owned-auctions query and
+    -- a Sniper page still in flight (review NM3). With one out, the error may be theirs.
+    it("listens late after a shared error while the owned-auctions query or a Sniper page is out", function()
+      ready()
+      pressRowPost()
+      upvalue(GC.Sell.Refresh, "refresh").phase = "owned"
+      GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
+      upvalue(GC.Sell.Refresh, "refresh").phase = "idle"
+      pressRowPost()
+      assert.equal(1, posts) -- held: that post may still go up
+      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+    end)
+
+    it("counts a Sniper page in flight as a request of ours", function()
+      ready()
+      pressRowPost()
+      GC.Sniper = { IsBusy = function() return true end }
+      GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
+      GC.Sniper = nil
+      pressRowPost()
+      assert.equal(1, posts)
+    end)
+
+    -- Off the tab, the on-time path does not write "Refreshing listings…" into the window's
+    -- toolbar either.
+    it("keeps an on-time Posted off another tab's toolbar", function()
+      ready()
+      pressRowPost()
+      container:Hide()
+      root.status:SetText("scanning auction house...")
+      GC.Sell.OnAuctionCreated()
+      assert.equal("scanning auction house...", root.status.text)
+    end)
+
+    -- With another post out, a press answers "Finish the pending post first" before it spends a
+    -- search on a stale quote.
+    it("answers another row's press with the pending post before any price fetch", function()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      _G.time = function() return 1100 end -- Mycobloom's quote has gone stale
+      pressRowPost(210796)
+      assert.equal("Finish the pending post first", root.status.text)
+      assert.equal(1, posts)
+    end)
+
+    -- Definitive attribution. A credit made by the order rule -- the client named nothing -- is
+    -- kept with its auction ID and settled against the owned list the refresh after every
+    -- creation asks for (C_AuctionHouse.GetOwnedAuctions: itemKey and quantity). A wrong credit
+    -- is moved to the post the auction really is, or undone when it is none of ours.
+    describe("settled by the owned list", function()
+      local function activityFor(positionKey)
+        for _, activity in ipairs(GC.Acquisitions.GetActivities({ char = "Owner-Dentarg", region = "eu" })) do
+          if activity.positionKey == positionKey then return activity end
+        end
+        return nil
+      end
+
+      it("moves a wrong credit to the post the auction really is", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        local myco = pressRowPost(210796)
+        GC.Sell.OnAuctionCreated(601) -- the client names nothing: credited to the ore, the oldest
+        assert.equal(23427, recorded[1][2])
+        assert.is_truthy(activityFor("commodity:23427"))
+        _G.C_AuctionHouse.GetOwnedAuctions = function()
+          return { { auctionID = 601, itemKey = { itemID = 210796 }, quantity = 80, buyoutAmount = 5000, status = 0 } }
+        end
+        GC.Sell.OnOwnedAuctions()
+        assert.is_nil(activityFor("commodity:23427")) -- the ore's booking undone
+        assert.equal(2, #recorded)
+        assert.equal(210796, recorded[2][2]) -- Mycobloom's, at last
+        assert.is_nil(myco.postStage)
+        -- The ore is listened for again: its post may still go up.
+        pressRowPost(23427)
+        assert.equal(2, posts)
+      end)
+
+      it("undoes a credit for an auction that is none of our posts", function()
+        local recorded = recordedPosts()
+        ready()
+        pressRowPost()
+        fire(8)
+        GC.Sell.OnAuctionCreated(604) -- Blizzard's own Sell pane, the client naming nothing
+        assert.equal(1, #recorded)
+        _G.C_AuctionHouse.GetOwnedAuctions = function()
+          return { { auctionID = 604, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 } }
+        end
+        GC.Sell.OnOwnedAuctions()
+        assert.is_nil(activityFor("commodity:23427"))
+        assert.equal(1, #recorded) -- nothing else booked
+        pressRowPost()
+        assert.equal(1, posts) -- and the ore is held again
+      end)
+
+      it("leaves a credit the owned list confirms", function()
+        ready()
+        pressRowPost()
+        fire(8)
+        GC.Sell.OnAuctionCreated(608)
+        _G.C_AuctionHouse.GetOwnedAuctions = function()
+          return { { auctionID = 608, itemKey = { itemID = 23427 }, quantity = 246, status = 0 } }
+        end
+        GC.Sell.OnOwnedAuctions()
+        assert.is_truthy(activityFor("commodity:23427"))
+      end)
+    end)
+
     it("stops listening, and lets the item post again, once its window has closed", function()
       local recorded = recordedPosts()
       ready()

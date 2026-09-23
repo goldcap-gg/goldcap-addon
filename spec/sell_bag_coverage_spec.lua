@@ -300,15 +300,49 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     for i = #timers, 1, -1 do if timers[i].seconds == 8 then table.remove(timers, i).fn() end end
     local wire = press("item:222:626:0:0")
     assert.equal(2, #posted)
-    created[701] = key(222, 619)
-    GC.Sell.OnAuctionCreated(701)
-    assert.equal(1, #recorded)
-    assert.equal("item:222:619:0:0", recorded[1][1])
-    assert.equal("posting", wire.postStage)
+    -- The WIRE's variant named first: by order alone the late 619 would take it (review NM2).
     created[702] = key(222, 626)
     GC.Sell.OnAuctionCreated(702)
+    assert.equal(1, #recorded)
+    assert.equal("item:222:626:0:0", recorded[1][1])
+    assert.is_nil(wire.postStage)
+    created[701] = key(222, 619)
+    GC.Sell.OnAuctionCreated(701)
     assert.equal(2, #recorded)
-    assert.equal("item:222:626:0:0", recorded[2][1])
+    assert.equal("item:222:619:0:0", recorded[2][1])
+  end)
+
+  -- For gear the client's AuctionInfo also carries the buyout, which a pin knows exactly: a
+  -- named creation whose buyout is another post's is not this one's.
+  it("tells two posts of one item apart by the buyout the client names", function()
+    local recorded, real = {}, GC.Acquisitions.RecordPost
+    GC.Acquisitions.RecordPost = function(...) recorded[#recorded + 1] = { ... }; return real(...) end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED)
+    stack(2, 222, 1, BONUSED)
+    slotKeys["0:1"] = key(222, 619)
+    slotKeys["0:2"] = key(222, 626)
+    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    GC.QuoteCache.Set(quotes, "item:222:619:0:0", 50000, 1000)
+    GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
+    compose()
+    local function press(positionKey)
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
+          row.action.scripts.OnClick(row.action)
+          return row
+        end
+      end
+      error("no row for " .. positionKey)
+    end
+    press("item:222:619:0:0")
+    for i = #timers, 1, -1 do if timers[i].seconds == 8 then table.remove(timers, i).fn() end end
+    press("item:222:626:0:0")
+    -- Named by item alone (level 0), with 626's buyout.
+    _G.C_AuctionHouse.GetAuctionInfoByID = function() return { itemKey = key(222), buyoutAmount = 60000 } end
+    GC.Sell.OnAuctionCreated(703)
+    assert.equal(1, #recorded)
+    assert.equal("item:222:626:0:0", recorded[1][1])
   end)
 
   -- BagStock leaves a soulbound copy out, but the Post matcher could still pin one sharing the
