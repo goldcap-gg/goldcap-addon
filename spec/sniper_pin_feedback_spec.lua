@@ -281,6 +281,11 @@ describe("Sniper pin feedback and empty state", function()
       GC.db.settings.sniper.minimumProfitCopper = 60000
       GC.Sniper._UpdateEmptyState(0)
       assert.equals(2, calls) -- the settings change invalidates the cache: exactly one recompute
+
+      ids = { 1 } -- a new list is new data (a fresh import or payload), even with the same ids
+      GC.Sniper._UpdateEmptyState(0)
+      GC.Sniper._UpdateEmptyState(0)
+      assert.equals(3, calls)
     end)
 
     it("says nothing while a scan is streaming -- the status line narrates that", function()
