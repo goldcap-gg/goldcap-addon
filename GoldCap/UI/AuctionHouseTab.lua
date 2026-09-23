@@ -55,6 +55,15 @@ local selectHooked = false
 -- The GoldCap display mode: identity is the contract (Blizzard compares modes with `==`),
 -- and empty is the content (their show loop iterates it and finds nothing to show).
 local DISPLAY_MODE = {}
+-- Final review S1 (b): whether a browse query that was not ours has gone out this visit -- the
+-- player's own search, a category click, a sort (Blizzard_AuctionHouseFrame.lua's
+-- SendBrowseQueryInternal is the one place all of them reach C_AuctionHouse.SendBrowseQuery), or
+-- another addon's. Read by PlayerOwnsBrowseList, cleared when the auction house closes.
+local playerBrowsed = false
+local browseHooked = false
+-- Set by our own sender for the length of its own SendBrowseQuery call (UI/SniperFrame.lua's book
+-- pass), so the hook below does not count it. A field, so that sender can reach it.
+GC.AuctionHouseTab.addonBrowse = false
 
 -- Blizzard's tabs are `AuctionHouseFrame.Tabs` on current builds and globals named
 -- AuctionHouseFrameTab1..N on older ones. Walk whichever exists; the last one is the anchor.
@@ -272,7 +281,38 @@ local function libAHTab()
   return lib
 end
 
+-- A post-hook on C_AuctionHouse.SendBrowseQuery, the same kind Core/PurchaseCapture.lua hangs on
+-- the purchase calls: it observes a query and cannot make or change one. Our own sends are told
+-- apart by GC.AuctionHouseTab.addonBrowse, which the hook consumes. Deliberately NOT on
+-- C_AuctionHouse.SearchForFavorites: the auction house lists the favourites itself every time it
+-- opens (Blizzard_AuctionHouseFrame.lua's OnShow -> QueryAll), and counting that as the player's
+-- search would hold every browse writer back for the whole of every visit.
+local function installBrowseHook()
+  if browseHooked then return end
+  local api = _G.C_AuctionHouse
+  if not (api and type(api.SendBrowseQuery) == "function" and type(hooksecurefunc) == "function") then
+    return
+  end
+  browseHooked = pcall(hooksecurefunc, api, "SendBrowseQuery", function()
+    if GC.AuctionHouseTab.addonBrowse then
+      GC.AuctionHouseTab.addonBrowse = false
+      return
+    end
+    GC.AuctionHouseTab.NotePlayerBrowse()
+  end) and true or false
+end
+
+-- The player (or another addon) just sent a browse query. The Sniper gives up a keys batch still
+-- out under it: that batch's answer went with it, and the answer coming is not the batch's.
+function GC.AuctionHouseTab.NotePlayerBrowse()
+  playerBrowsed = true
+  local sniper = GC.Sniper
+  if sniper and sniper._OnPlayerBrowse then pcall(sniper._OnPlayerBrowse) end
+end
+
 function GC.AuctionHouseTab.Install()
+  -- First, and on every visit until it takes: it needs no auction house frame, only the API.
+  installBrowseHook()
   local ah = _G.AuctionHouseFrame
   if not ah or not CreateFrame then return end
   if installed then
@@ -510,6 +550,20 @@ function GC.AuctionHouseTab.PlayerIsBrowsing()
   return not sniper.IsWindowShown()
 end
 
+-- Final review S1 (b): true while Blizzard's Buy pane is the visible panel -- not our dock --
+-- after a browse query that was not ours has gone out this visit: the pane is showing that
+-- query's results, and SearchForItemKeys and a pass page answer into the same buffer. Unlike
+-- PlayerIsBrowsing it holds with the GoldCap window open: a player who searched there is reading
+-- that list whether or not our window floats beside it. Not part of PlayerIsBusy -- it holds back
+-- only what writes that buffer (UI/SniperFrame.lua's GC.Sniper._BrowseOwned), never a per-item
+-- search, and a visit where the player never searched there is exactly as before. Fails open.
+function GC.AuctionHouseTab.PlayerOwnsBrowseList()
+  if not (playerBrowsed and currentMode) then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes or currentMode ~= modes.Buy then return false end
+  return not (dock and dock:IsShown())
+end
+
 function GC.AuctionHouseTab.PlayerIsBusy(now)
   return GC.AuctionHouseTab.PlayerIsPosting() or GC.AuctionHouseTab.PlayerIsBuying()
     or GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
@@ -548,6 +602,7 @@ end
 -- way; what must not linger is the WINDOW's docked state -- undock it back to a floating
 -- window with its saved geometry, hidden, so the next `/goldcap` opens it normally.
 function GC.AuctionHouseTab.OnAuctionHouseClosed()
+  playerBrowsed = false
   if dock and dock:IsShown() then dock:Hide() end
   if GC.Sniper and GC.Sniper.SetDocked then pcall(GC.Sniper.SetDocked, nil) end
   GC.AuctionHouseTab.Refresh()

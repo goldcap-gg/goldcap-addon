@@ -569,6 +569,83 @@ describe("Auction House tab", function()
     end)
   end)
 
+  -- Final review S1 (b). With the window floating over Blizzard's Buy pane nothing counts as the
+  -- player browsing (PlayerIsBrowsing above: the auction house opens that way, and reading it as
+  -- busy stood the whole addon down). But once the player has sent a browse query of their own,
+  -- that pane is showing THEIR results, and a keys batch or a pass page replaces them. Told apart
+  -- from ours by a post-hook on C_AuctionHouse.SendBrowseQuery and a flag our own sender sets.
+  describe("PlayerOwnsBrowseList", function()
+    local sent, told
+    before_each(function()
+      sent, told = 0, 0
+      _G.C_AuctionHouse = {
+        SendBrowseQuery = function() sent = sent + 1 end,
+        SearchForFavorites = function() end,
+      }
+      GC.Sniper._OnPlayerBrowse = function() told = told + 1 end
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true -- floating over the pane, the default visit
+    end)
+    after_each(function() _G.C_AuctionHouse = nil end)
+
+    it("is false on the Buy pane before the player has searched", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+    end)
+
+    -- The auction house lists the player's favourites as it opens (Blizzard_AuctionHouseFrame's
+    -- OnShow: QueryAll -> C_AuctionHouse.SearchForFavorites). That is not a search of theirs.
+    it("is not tripped by the favourites list the auction house opens with", function()
+      _G.C_AuctionHouse.SearchForFavorites({})
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is true once the player's own browse query has gone out, while the pane is shown", function()
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      assert.equal(1, sent)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(1, told) -- the Sniper gives up a keys batch out under it
+    end)
+
+    it("is not tripped by a browse query of ours", function()
+      GC.AuctionHouseTab.addonBrowse = true
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      GC.AuctionHouseTab.addonBrowse = false
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(0, told)
+      -- ...and the player's next one still is.
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is false while another pane, or our own dock, is up", function()
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is reset when the auction house closes", function()
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      GC.AuctionHouseTab.OnAuctionHouseClosed()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("hooks the query once however many times the auction house opens", function()
+      GC.AuctionHouseTab.Install()
+      GC.AuctionHouseTab.Install()
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      assert.equal(1, sent)
+      assert.equal(1, told)
+    end)
+  end)
+
   describe("PlayerIsBusy", function()
     -- Also the "nothing has been selected yet" case for PlayerIsUsingAnotherTab: an auction
     -- house that has chosen nothing has no display mode either, and reading THAT as "the player

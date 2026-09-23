@@ -1066,4 +1066,179 @@ describe("Caps polling", function()
       assert.equal(1, GC.Sniper._capPoll:Count()) -- the caps themselves are not session state
     end)
   end)
+
+  local function capDeal(itemID, isCommodity, unitPrice, cap)
+    return { itemID = itemID, isCommodity = isCommodity, unitPrice = unitPrice, qty = 1,
+      auctionID = (not isCommodity) and 999 or nil, discount = 0, profit = 1, estProfit = 1,
+      tier = "WATCH", cap = cap, stale = true }
+  end
+
+  -- Final review S1 (a). The answer names no sender, and the next browse event was taken as the
+  -- batch's whatever it carried: the player's own search on Blizzard's Buy pane, another addon's
+  -- browse, a late BUY or Sell answer sharing an item with it. Read as the batch's, it said every
+  -- item the batch asked about had no listing left: YOUR PRICE rows came down and a price
+  -- already announced rang again.
+  describe("a browse answer that is not the batch's", function()
+    local function armed(GC)
+      openAH(GC)
+      GC.db.commodityByItem[77] = true
+      adoptCaps(GC, { { i = 77, c = 50 }, { i = 42, c = 100 } })
+      GC.Sniper._PutCapRow(77, capDeal(77, true, 40, 50))
+      GC.Sniper._realmDeals[42] = capDeal(42, false, 80, 100)
+      GC.Caps.Announce({ itemID = 77, isCommodity = true, unitPrice = 40 })
+      GC.Caps.Announce({ itemID = 42, isCommodity = false, auctionID = 999 })
+    end
+
+    it("is not folded when it names an item the batch never asked for", function()
+      local GC = loadSniper()
+      armed(GC)
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+
+      answer(GC, { browseRow(123456, 5), browseRow(654321, 7) }) -- the player's own search
+
+      assert.is_table(GC.Sniper._BoardCapRow({ itemID = 77, isCommodity = true }))
+      assert.is_table(GC.Sniper._realmDeals[42])
+      assert.is_false(GC.Caps.IsNews({ itemID = 77, isCommodity = true, unitPrice = 40 }))
+      assert.is_nil(GC.Sniper._capPoll:Book()[123456])
+      -- ...and the batch it was mistaken for is given up: its own answer went with that search.
+      assert.is_false(GC.Sniper._KeysOutstanding())
+    end)
+
+    it("is not folded when a late answer of another batch shares an item with it", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 }, { i = 43, c = 100 } })
+      GC.Sniper._realmDeals[43] = capDeal(43, false, 80, 100)
+      -- A BUY batch asked about 42 and 99 and was written off at eight seconds.
+      GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, "buy", { 42, 99 }
+      GC.Sniper._WriteOffKeys("timeout")
+      now = now + 20
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+
+      answer(GC, { browseRow(42, 90), browseRow(99, 10) }) -- BUY's, late
+
+      assert.is_table(GC.Sniper._realmDeals[43])
+      assert.is_nil(GC.Sniper._capPoll:Book()[99])
+      assert.is_nil(GC.Sniper._capPoll:Book()[42])
+    end)
+
+    -- The batch the foreign answer was mistaken for may still answer. That late answer is its
+    -- orphan's, not the first page of the pass sent next.
+    it("leaves the batch's own late answer out of the next pass", function()
+      local GC = loadSniper()
+      armed(GC)
+      _G.C_AuctionHouse.HasFullBrowseResults = function() return true end
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      answer(GC, { browseRow(123456, 5) })
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper._bookPass:OnThrottleReady()
+
+      answer(GC, { browseRow(42, 90), browseRow(77, 40) }) -- the cap batch's own, late
+
+      assert.is_true(GC.Sniper._bookPass:IsPaging())
+      assert.is_nil(GC.Sniper._bookPass:Book()[77])
+    end)
+
+    -- Final review S1 (c), hardening: an answer with no row for an item is still read as "no
+    -- listing left" -- nothing else could say it -- but it is not proof the player has seen the
+    -- item's price go: the row comes down and the ratchets let go, the ring's memory stays.
+    it("takes a row down on no row at all, but keeps what was announced", function()
+      local GC = loadSniper()
+      armed(GC)
+      local book = { [77] = { floor = 40, qty = 5 } }
+      assert.equal(1, #GC.Caps.BookHits(book, GC.Sniper._IsCommodityId))
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+
+      answer(GC, {})
+
+      assert.is_nil(GC.Sniper._BoardCapRow({ itemID = 77, isCommodity = true }))
+      assert.is_nil(GC.Sniper._realmDeals[42])
+      assert.is_false(GC.Caps.IsNews({ itemID = 77, isCommodity = true, unitPrice = 40 }))
+      assert.equal(1, #GC.Caps.BookHits(book, GC.Sniper._IsCommodityId)) -- the ratchet let go
+    end)
+  end)
+
+  -- Final review S1 (b). With the Commodities board up, Auto off and the window floating over
+  -- Blizzard's Buy pane, nothing counted as the player busy once the search box's grace was over
+  -- -- and cap batches replaced the player's own search results every round, the symptom 0.14.1
+  -- fixed for a hidden window. Once the player's own browse query has gone out this visit, that
+  -- pane holds their results for as long as it is shown, and nothing of ours writes over them.
+  describe("the player's own search on Blizzard's Buy pane", function()
+    local function owning(GC, owns)
+      GC.AuctionHouseTab.PlayerOwnsBrowseList = function() return owns end
+    end
+
+    it("sends no keys batch, on any path, while the pane holds the player's results", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      GC.Sniper._keyPoll:SetTargets({ 5 })
+      owning(GC, true)
+      local buyPoll = { HasPending = function() return true end, NextBatch = function() return { 9 } end }
+
+      GC.Sniper.OnThrottleReady()
+      assert.is_false(GC.Sniper._TrySendCapBatch())
+      assert.is_false(GC.Sniper._TrySendKeysBatch())
+      assert.is_false(GC.Sniper._TrySendKeysBatchFor(buyPoll, "buy", function() return true end))
+      assert.same({}, keysSent)
+
+      owning(GC, false)
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+    end)
+
+    it("pages no pass over them either", function()
+      local GC = loadSniper()
+      openAH(GC)
+      local browsed = 0
+      _G.C_AuctionHouse.SendBrowseQuery = function() browsed = browsed + 1 end
+      owning(GC, true)
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper.OnThrottleReady()
+      assert.equal(0, browsed)
+      owning(GC, false)
+      GC.Sniper.OnThrottleReady()
+      assert.equal(1, browsed)
+    end)
+
+    it("gives a batch up the moment the player's own search goes out over it", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      GC.Sniper._realmDeals[42] = capDeal(42, false, 80, 100)
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+
+      GC.Sniper._OnPlayerBrowse()
+      assert.is_false(GC.Sniper._KeysOutstanding())
+      answer(GC, {}) -- the player's search, with nothing in it
+
+      assert.is_table(GC.Sniper._realmDeals[42])
+    end)
+
+    -- And any batch still out once the player is busy is given up on the ticker's next second,
+    -- rather than read as the answer to whatever the player does next.
+    it("gives a batch up once the player is busy", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      GC.Sniper._TickKeys()
+      assert.is_true(GC.Sniper._KeysOutstanding())
+      owning(GC, true)
+      GC.Sniper._TickKeys()
+      assert.is_false(GC.Sniper._KeysOutstanding())
+    end)
+
+    -- The flag the hook tells our own browse queries apart by (UI/AuctionHouseTab.lua): set for
+    -- the length of the book pass's own SendBrowseQuery, and only that long.
+    it("marks the pass's own browse query as ours", function()
+      local GC = loadSniper()
+      openAH(GC)
+      local during
+      _G.C_AuctionHouse.SendBrowseQuery = function() during = GC.AuctionHouseTab.addonBrowse end
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper.OnThrottleReady()
+      assert.is_true(during)
+      assert.is_false(GC.AuctionHouseTab.addonBrowse)
+    end)
+  end)
 end)

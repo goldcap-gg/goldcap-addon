@@ -2747,7 +2747,11 @@ GC.Sniper._bookPass = GC.BookPass.New({
   now = time,
   sendBrowseQuery = function(query)
     trace("pass: SendBrowseQuery")
+    -- Ours, for the player's-search hook (UI/AuctionHouseTab.lua's installBrowseHook).
+    local tab = GC.AuctionHouseTab
+    if tab then tab.addonBrowse = true end
     C_AuctionHouse.SendBrowseQuery(query)
+    if tab then tab.addonBrowse = false end
     if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
     armScanWatchdog(fullScanToken)
   end,
@@ -3117,7 +3121,10 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
           local held = GC.Sniper._realmDeals[itemID]
           if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
           GC.Sniper._DropCapRow(itemID)
-          GC.Caps.Forget(itemID)
+          -- Final review S1 (c): a price seen above the cap is forgotten -- its next dip is news.
+          -- No row at all only lets the ratchets go: an answer that was not really this batch's
+          -- says the same, and forgotten, a price the player had heard rang again.
+          if answered[itemID] then GC.Caps.Forget(itemID) else GC.Caps.Rearm(itemID) end
         end
       end
     end
@@ -3153,6 +3160,32 @@ function GC.Sniper.VariantKeyAtLeast(itemID, minIlvl)
   if not (variant and (variant.itemLevel or 0) >= minIlvl) then return nil end
   return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
     variant.battlePetSpeciesID)
+end
+
+-- The auction-house ticker's once-a-second ask for the keys batches that have no other sender to
+-- bring them a ready tick. A field, not a local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._TickKeys()
+  -- Final review S1 (b): a batch still out once the player is busy -- or reading their own search
+  -- on Blizzard's Buy pane -- is given up rather than left to be read as the answer to whatever
+  -- they send next. Nothing of ours sends another while they are.
+  if GC.Sniper._keysAwaiting and (GC.Sniper._BrowseOwned() or (GC.AuctionHouseTab
+      and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy())) then
+    GC.Sniper._WriteOffKeys("player busy")
+  end
+  if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
+    GC.Sniper._TrySendKeysBatch()
+  end
+  -- The caps' own poll (caps fixes 4a), on the Deals boards and the Sold tab -- which has no
+  -- other sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
+  GC.Sniper._TrySendCapBatch()
+  -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
+  -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
+  -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
+  -- helper owns the interval, the view gate and the claim.
+  if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
+  -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
+  -- slot taken: nothing else on that tab would carry the retry.
+  if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
 end
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
@@ -3264,6 +3297,8 @@ autoScan = GC.AutoScan.New({}, {
     -- -- reported from the game as an Auto that said it was scanning and never scanned. The
     -- machine now stays in WAITING and tries again a moment later.
     if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return false end
+    -- ...or reading their own search on Blizzard's Buy pane, which a pass page replaces.
+    if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then return false end
     -- A keys batch is out: its answer is the next browse event, and a page sent now would be
     -- read as that answer (see _FoldKeysBatch). Wait; _KeysOutstanding writes it off after
     -- LIM.KEYS_TIMEOUT_SECONDS at worst (the short allowance on the Sell and BUY tabs, where
@@ -5512,6 +5547,21 @@ function GC.Sniper._DeferTurn()
   end
 end
 
+-- Final review S1 (b): whether Blizzard's Buy pane is showing results of the player's own search
+-- (UI/AuctionHouseTab.lua's PlayerOwnsBrowseList). Asked by everything that writes the browse
+-- buffer -- every keys batch, the book pass, Auto's next pass -- beside PlayerIsBusy, and by
+-- nothing else. Fails open.
+function GC.Sniper._BrowseOwned()
+  local tab = GC.AuctionHouseTab
+  return (tab and tab.PlayerOwnsBrowseList and tab.PlayerOwnsBrowseList()) and true or false
+end
+
+-- The player's own browse query just went out (UI/AuctionHouseTab.lua's hook). A keys batch still
+-- out lost its answer to it, and the answer coming is the player's: given up now, not folded.
+function GC.Sniper._OnPlayerBrowse()
+  if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("player search") end
+end
+
 -- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"), the
 -- BUY tab's floor refresh ("buy"), the Sell tab's bulk fill ("sell") and the player's caps ("caps",
 -- on the Deals boards and the Sold tab -- caps fixes 4a). Only one batch is ever out, but the
@@ -5532,6 +5582,22 @@ function GC.Sniper._FoldKeysBatch()
   local current = {}
   for _, itemID in ipairs(GC.Sniper._keysBatch or {}) do current[itemID] = true end
   if GC.Sniper._IsOrphanAnswer(browsed, current) then return true end
+  -- Final review S1 (a): an answer naming an item this batch never asked about is not its answer
+  -- -- the player's own search, another addon's browse, a late BUY or Sell answer sharing an item
+  -- with it. Folded, it said every asked item had no listing left. The batch it was mistaken for
+  -- is written off (its answer went with that search, or is still coming, and the orphan check
+  -- knows it if it does), and this one is left alone. Only a batch that says what it asked can
+  -- tell (every sender records it); one that does not is taken at its word, as before.
+  if GC.Sniper._keysBatch then
+    for i = 1, #(browsed or {}) do
+      local key = browsed[i].itemKey
+      local itemID = key and key.itemID
+      if itemID and not current[itemID] then
+        GC.Sniper._WriteOffKeys("foreign answer")
+        return false
+      end
+    end
+  end
   trace("keys: answer landed after " .. (time() - GC.Sniper._keysAwaiting) .. "s")
   local owner, sentAt = GC.Sniper._keysOwner, GC.Sniper._keysAwaiting
   GC.Sniper._keysAwaiting = nil
@@ -5732,6 +5798,8 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
     playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
       and GC.AuctionHouseTab.PlayerIsBusy()) or false
   end
+  -- Final review S1 (b): a keys batch answers into the browse list the player's own search is on.
+  if not playerBusy and GC.Sniper._BrowseOwned() then playerBusy = true end
   -- "Buffer settled" is asked as "no pass fetching or about to" -- not as
   -- HasFullBrowseResults(): opening the auction house straight onto the Items board has sent
   -- no browse at all, so that answer is false until a pass runs, and with the pass paused for
@@ -5988,7 +6056,7 @@ function GC.Sniper.OnThrottleReady()
   -- own answer, deletes every realm row the batch had asked about. The batch is capped at
   -- LIM.KEYS_TIMEOUT_SECONDS, so this can never hold the pass for long.
   local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
-    and not GC.Sniper._KeysOutstanding()
+    and not GC.Sniper._KeysOutstanding() and not GC.Sniper._BrowseOwned()
   if passWants and GC.Sniper._slotTurn ~= "tail" then
     if GC.Sniper._bookPass:OnThrottleReady() then
       GC.Sniper._slotTurn = "tail"
@@ -10024,20 +10092,7 @@ function GC.Sniper.OnAuctionHouseShow()
     local now = GetTime()
     if now - (GC.Sniper._keysPokeAt or 0) >= 1 then
       GC.Sniper._keysPokeAt = now
-      if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
-        GC.Sniper._TrySendKeysBatch()
-      end
-      -- The caps' own poll (caps fixes 4a), on the Deals boards and the Sold tab -- which has no
-      -- other sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
-      GC.Sniper._TrySendCapBatch()
-      -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
-      -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
-      -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
-      -- helper owns the interval, the view gate and the claim.
-      if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
-      -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
-      -- slot taken: nothing else on that tab would carry the retry.
-      if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
+      GC.Sniper._TickKeys()
     end
     refreshVerifyButton()
     -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
@@ -10316,11 +10371,11 @@ function GC.Sniper.DebugBoard()
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
   local tab = GC.AuctionHouseTab or {}
-  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s"):format(
+  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s ownSearchShown=%s"):format(
     autoScan:State(), table.concat(reasons, ","), s(pass:PendingStart()),
     s(tab.PlayerIsPosting and tab.PlayerIsPosting()), s(tab.PlayerIsBuying and tab.PlayerIsBuying()),
     s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching()),
-    s(tab.PlayerIsBrowsing and tab.PlayerIsBrowsing())))
+    s(tab.PlayerIsBrowsing and tab.PlayerIsBrowsing()), s(GC.Sniper._BrowseOwned())))
   if GC.Util and GC.Util.TraceDump then
     local t = GC.Util.throttleStats
     GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))
