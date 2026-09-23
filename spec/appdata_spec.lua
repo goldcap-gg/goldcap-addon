@@ -336,7 +336,7 @@ describe("Data.AdoptAppData", function()
     assert.is_nil(GC.Data.RegionPayload())
     assert.equal("import", GC.Data.GetItemValue(190396).source)
     assert.equal(8888, GC.Data.GetItemValue(190396).mv)
-    assert.same({ reason = "older_than_import", ts = 2000 }, GC.Data.RegionPayloadStatus())
+    assert.same({ reason = "set_aside", ts = 2000 }, GC.Data.RegionPayloadStatus())
   end)
 
   -- Held, it would be megabytes kept all session for a region nothing is priced in -- and would
@@ -350,7 +350,8 @@ describe("Data.AdoptAppData", function()
       items = { [1] = { m = 1 } }, watchlist = {} })
     assert.is_nil(GC.Data.RegionPayload())
     assert.is_nil(GC.Data.GetItemValue(190396))
-    assert.same({ reason = "other_region", ts = 2000 }, GC.Data.RegionPayloadStatus())
+    -- Its region's prices are the ones loaded now: /reload is what brings it back.
+    assert.same({ reason = "set_aside", ts = 2000 }, GC.Data.RegionPayloadStatus())
   end)
 
   -- What /goldcap status says when there is no whole-market data: why the last payload offered

@@ -17,9 +17,12 @@ local PAYLOAD_FUTURE_SLACK_SECONDS = 3600
 -- (see inactiveReason). The Companion's own freshness window for the payload.
 local PAYLOAD_IMPORT_LAG_SECONDS = 3 * 3600
 -- { reason, ts } for the last payload offered that could not be used, or nil; read through
--- RegionPayloadStatus. In memory only, like the payload.
+-- RegionPayloadStatus. In memory only, like the payload. One set aside for the prices loaded at the
+-- time (inactiveReason) also keeps its region, so the reason can be judged again when asked.
 local payloadFailure
 local dropIdlePayload -- defined beside inactiveReason, called from SetImported
+-- FactItemIds' memo. It holds the payload it was built from, so it goes wherever the payload is let go.
+local factIds
 
 local function countItems(t)
   local n = 0
@@ -293,8 +296,8 @@ end
 function dropIdlePayload()
   local why = payload and inactiveReason(payload)
   if why then
-    payloadFailure = { reason = why, ts = payload.ts }
-    payload = nil
+    payloadFailure = { reason = why, ts = payload.ts, region = payload.region }
+    payload, factIds = nil, nil
   end
 end
 
@@ -305,19 +308,23 @@ end
 --- Why there is no whole-market data, for /goldcap status: { reason, ts } -- the reason the last
 -- payload offered could not be used (a parser code, "bad_ts", or one of inactiveReason's), and its
 -- date when it got as far as having one -- or nil when a payload is answering or none was offered.
+-- One set aside for the prices loaded at the time is judged again against the prices loaded now:
+-- the player may have pasted since, and a cause that no longer holds sends them after the wrong
+-- thing. When none does, it is "set_aside" -- only the next load reads the payload again.
 function GC.Data.RegionPayloadStatus()
   local reason, ts
   if payload then
     reason, ts = inactiveReason(payload), payload.ts
   elseif payloadFailure then
     reason, ts = payloadFailure.reason, payloadFailure.ts
+    if payloadFailure.region then reason = inactiveReason(payloadFailure) or "set_aside" end
   end
   if not reason then return nil end
   return { reason = reason, ts = ts }
 end
 
-local function refusePayload(reason, ts)
-  payloadFailure = { reason = reason, ts = ts }
+local function refusePayload(reason, ts, payloadRegion)
+  payloadFailure = { reason = reason, ts = ts, region = payloadRegion }
   return nil, reason
 end
 
@@ -326,7 +333,7 @@ end
 -- exactly as they did before the payload existed -- and its reason is kept for
 -- RegionPayloadStatus. Returns the payload, or nil and that reason.
 function GC.Data.AdoptRegionPayload(str)
-  payload, payloadFailure = nil, nil
+  payload, payloadFailure, factIds = nil, nil, nil
   if type(str) ~= "string" then return refusePayload("empty") end
   local parsed, reason = GC.ImportString.ParseRegion(str)
   if not parsed then return refusePayload(reason) end
@@ -341,7 +348,7 @@ function GC.Data.AdoptRegionPayload(str)
   -- prices by hand. The import string is adopted first (AdoptAppData), so this is judged against
   -- the region and the import this load settled on.
   local idle = inactiveReason(parsed)
-  if idle then return refusePayload(idle, parsed.ts) end
+  if idle then return refusePayload(idle, parsed.ts, parsed.region) end
   payload = parsed
   return parsed
 end
@@ -387,7 +394,6 @@ end
 -- -- the sniper's empty state asks four times a second, and each source is replaced wholesale, never
 -- edited in place -- so an unchanged answer is the SAME table, which is what the caller's own memo
 -- keys on. Shared, so a caller reads it and never edits it.
-local factIds
 function GC.Data.FactItemIds()
   local p = activePayload()
   local imp = db and db.imported
@@ -395,7 +401,11 @@ function GC.Data.FactItemIds()
   if factIds and factIds.payload == p and factIds.imported == imported then return factIds.ids end
   local ids = {}
   if p then
-    for id in pairs(p.verification) do ids[#ids + 1] = id end
+    -- Only for items it prices: a fact whose I token did not survive is not the one Facts answers
+    -- with, and the import's for that item would be listed a second time.
+    for id in pairs(p.verification) do
+      if p.items[id] then ids[#ids + 1] = id end
+    end
   end
   if imported then
     for id in pairs(imported) do
