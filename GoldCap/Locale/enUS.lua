@@ -790,7 +790,7 @@ GC.Locales.enUS = {
     "vs %s at the auction house · right-click to split",
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
-  ["waiting…"] = "waiting…",
+  ["waiting..."] = "waiting...",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
   ["window moved back to the middle of the screen at its default size"] =
     "window moved back to the middle of the screen at its default size",

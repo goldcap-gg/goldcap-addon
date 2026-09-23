@@ -699,7 +699,7 @@ GC.Locales.esMX = {
     "esperando a que se liquide la compra de mercancía anterior",
   ["waiting for previous search result to settle"] =
     "esperando el resultado de la búsqueda anterior",
-  ["waiting…"] = "esperando…",
+  ["waiting..."] = "esperando...",
   ["watching %s closely -- re-checked every few seconds"] =
     "vigilando %s de cerca -- se recomprueba cada pocos segundos",
   ["worst case, selling all %d back into the price standing there now"] =

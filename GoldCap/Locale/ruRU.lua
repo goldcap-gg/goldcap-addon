@@ -693,7 +693,7 @@ GC.Locales.ruRU = {
   ["waiting for previous commodity purchase to settle"] =
     "ждём завершения предыдущей покупки товара",
   ["waiting for previous search result to settle"] = "ждём завершения предыдущего поиска",
-  ["waiting…"] = "ожидание…",
+  ["waiting..."] = "ожидание...",
   ["watching %s closely -- re-checked every few seconds"] =
     "пристально следим за %s -- перепроверка каждые несколько секунд",
   ["worst case, selling all %d back into the price standing there now"] =

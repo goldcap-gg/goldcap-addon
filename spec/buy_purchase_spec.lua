@@ -465,7 +465,8 @@ describe("BUY purchase", function()
     it("says it is waiting on the button that would start, not BUY", function()
       GC.Buy.RefreshIfShown()
       local row = rowWithText("Alpha Herb")
-      assert.equal(GC.L["waiting…"], row.action.label)
+      -- ASCII, like its neighbours "buying...", "confirming..." and "..." (fix round 3, n3).
+      assert.equal("waiting...", row.action.label)
       assert.is_false(row.action:IsEnabled())
     end)
 

@@ -853,7 +853,7 @@ local function actionLabel(line)
       -- owed its answer (GC.PurchaseSlot.ConfirmOwed): the button waits, as the Sniper's own Buy
       -- does over it, and reads BUY again once that purchase has its answer (the Sniper repaints
       -- this tab when it settles).
-      if owedElsewhere() then return GC.L["waiting…"], false end
+      if owedElsewhere() then return GC.L["waiting..."], false end
       -- A partial fill: the cap stopped the ladder part-way, so what is on the button is real
       -- but it is not the whole line. The label stays short enough for the 72px badge and the
       -- button wears the over-cap look; how far over the rest sits is on the log line
