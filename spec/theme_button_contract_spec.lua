@@ -180,6 +180,15 @@ describe("Theme.Button real-widget label contract", function()
       _G.CreateFrame = function(_, _, parent, template)
         local frame = stubFrame()
         frame.parent, frame.template = parent, template
+        if template == "SpinnerTemplate" then
+          -- As the client makes it: a frame from Lua starts SHOWN, and SpinnerMixin plays its
+          -- ring only from OnShow -- which fires on a hidden-to-shown change and never else.
+          frame.shown, frame.restarts = true, 0
+          function frame:Show()
+            if not self.shown then self.restarts = self.restarts + 1 end
+            self.shown = true
+          end
+        end
         created[#created + 1] = frame
         return frame
       end
@@ -213,6 +222,17 @@ describe("Theme.Button real-widget label contract", function()
       assert.equal(spinner, left[2])
       assert.equal("RIGHT", left[3])
       assert.equal(btn, anchor(btn.text, "RIGHT")[2])
+    end)
+
+    -- Created shown, the spinner's first Show was no change at all: no OnShow, so the ring sat
+    -- still beside "Posting…" on every button's first post of a session (review I1).
+    it("turns from the very first post: the ring's first Show is a real one", function()
+      local btn = GC.Theme.Button(stubFrame(), "ghost")
+      btn:SetBusy(true)
+      assert.equal(1, spinnerOf(btn).restarts)
+      btn:SetBusy(false)
+      btn:SetBusy(true)
+      assert.equal(2, spinnerOf(btn).restarts)
     end)
 
     it("hides the spinner and gives the label the whole button back", function()

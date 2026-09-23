@@ -295,7 +295,7 @@ GC.Locales.itIT = {
   ["Open the deals board. /gc for commands."] = "Apre la lista delle occasioni. /gc per i comandi.",
   ["POST %d"] = "VENDI %d",
   ["POSTING"] = "PUBBLICAZIONE",
-  ["POSTING…"] = "VENDO…",
+  ["POSTING…"] = "INVIO…",
   ["PRICE"] = "PREZZO",
   ["PRICE ROSE %.1fx"] = "IL PREZZO È SALITO DI %.1fx",
   ["PRICED TOO LOW %d"] = "TROPPO BASSO %d",
@@ -320,7 +320,7 @@ GC.Locales.itIT = {
   ["Posted"] = "Messo in vendita",
   ["Posting failed"] = "Messa in vendita fallita",
   ["Posting unavailable"] = "Messa in vendita non disponibile",
-  ["Posting…"] = "Vendo…",
+  ["Posting…"] = "Invio…",
   ["Press Full Scan to find deals."] = "Premi Full Scan per trovare occasioni.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Premi Scan per percorrere tutta la casa d'aste una volta, o Auto per scansionare di continuo.",

@@ -294,7 +294,7 @@ GC.Locales.deDE = {
   ["Open the deals board. /gc for commands."] = "Öffnet die Angebotsliste. /gc für Befehle.",
   ["POST %d"] = "EINSTELLEN %d",
   ["POSTING"] = "EINSTELLEN",
-  ["POSTING…"] = "EINSTELLEN…",
+  ["POSTING…"] = "SENDEN…",
   ["PRICE"] = "PREIS",
   ["PRICE ROSE %.1fx"] = "PREIS STIEG UM %.1fx",
   ["PRICED TOO LOW %d"] = "ZU BILLIG %d",
@@ -319,7 +319,7 @@ GC.Locales.deDE = {
   ["Posted"] = "Eingestellt",
   ["Posting failed"] = "Einstellen fehlgeschlagen",
   ["Posting unavailable"] = "Einstellen nicht möglich",
-  ["Posting…"] = "Sende…",
+  ["Posting…"] = "Senden…",
   ["Press Full Scan to find deals."] = "Drücke Full Scan, um Angebote zu finden.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Drücke Scan, um das ganze Auktionshaus einmal zu durchsuchen, oder Auto für laufendes Scannen.",

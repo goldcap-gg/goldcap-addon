@@ -319,13 +319,7 @@ local function setStatus(text)
   -- every control on this tab, which is why REFRESH, POST and each row button had to grow a
   -- copy of the state. Said here, it is said beside the button that was just pressed -- unless
   -- the player's own post has something to say there (GC.Sell._NotePost below), in its colour.
-  local dock = container and container.dockStatus
-  if dock then
-    local note = GC.Sell._postNote
-    dock:SetText(note and note.text or text or "")
-    local c = Theme and Theme.color and Theme.color[note and note.tone or "fgMuted"]
-    if c then dock:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
-  end
+  GC.Sell._PaintDock(text)
   paintRefreshButton()
   paintQueueButton()
   -- The cancel control is driven from here for the same reason the queue control is: renderRows
@@ -345,6 +339,16 @@ end
 -- The toolbar line keeps the walk's words; when the note ends the dock goes back to them.
 -- `tone` is a Theme.color key. Fields rather than locals: this chunk is at Lua 5.1's limit.
 GC.Sell.POST_NOTE_SECONDS = { posted = 1.5, failed = 10 }
+
+-- The dock's line: the post's note while there is one, else `text`, the tab's ordinary line.
+function GC.Sell._PaintDock(text)
+  local dock = container and container.dockStatus
+  if not dock then return end
+  local note = GC.Sell._postNote
+  dock:SetText(note and note.text or text or "")
+  local c = Theme and Theme.color and Theme.color[note and note.tone or "fgMuted"]
+  if c then dock:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
+end
 
 function GC.Sell._NotePost(text, tone, seconds)
   local note = { text = text, tone = tone or "fg", timed = seconds ~= nil }
@@ -368,12 +372,20 @@ function GC.Sell._EndPostNote(heldOnly)
   -- An outcome that runs out while another post of ours is still out (a late answer said
   -- Posted over it) gives the dock back to that post, not to the walk.
   local stage = not heldOnly and postingRow and postingRow.postStage
-  if stage == "posting" or stage == "confirming" then
-    GC.Sell._NotePost(postingPin and postingPin.queued and GC.L["Waiting for the Auction House…"]
-      or GC.L["Posting…"])
+  local again = (stage == "posting" or stage == "confirming")
+    and (postingPin and postingPin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
+    or stage == "confirm" and GC.L["Click Confirm to post"] or nil
+  -- The toolbar line is the whole window's. With another tab on screen it is that tab's, and a
+  -- clock running out here wrote over it -- a Deals line erased ten seconds after a refusal
+  -- (review M1). Off the tab, only the dock, which is ours, is repainted.
+  if not (container and container.IsShown and container:IsShown()) then
+    if again then GC.Sell._postNote = { text = again, tone = "fg", timed = false } end
+    GC.Sell._PaintDock(GC.Sell._lastStatus)
+    paintQueueButton()
     return
-  elseif stage == "confirm" then
-    GC.Sell._NotePost(GC.L["Click Confirm to post"])
+  end
+  if again then
+    GC.Sell._NotePost(again)
     return
   end
   setStatus(GC.Sell._lastStatus or "")
@@ -2244,6 +2256,11 @@ local function onPostClick(row)
   row.postStage = "posting"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
   if row.action.SetBusy then row.action:SetBusy(true) end
   GC.Sell._NotePost(GC.L["Posting…"])
+  -- Armed BEFORE the call: a call that raises (a client "bad argument") aborts this handler,
+  -- and armed after it the row and the dock stayed on "Posting…" until the auction house
+  -- closed, with every other Post answering "Finish the pending post first" (review I2). An
+  -- answer that lands inside the call lets this go through disarmPost's token, like any other.
+  schedulePostTimeout(row)
   local needsConfirmation
   if info.isCommodity then
     needsConfirmation = C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)
@@ -2263,7 +2280,6 @@ local function onPostClick(row)
     -- answer the same way), and anything that gives up on it from here listens for it late.
     postingPin.sent = true
   end
-  schedulePostTimeout(row)
 end
 
 local function onRepostClick(row, auctionID)
@@ -5164,6 +5180,27 @@ function GC.Sell.Show()
   -- renderRows() pass now runs for real the instant containerShown() is true. An explicit
   -- flushDeferredRender() call here would render this same pass a second time.
   GC.Sell.Refresh()
+  -- Mid-post the render is held, so coming back to the tab re-sets the dock's line and the
+  -- busy labels with the text they already hold -- a no-op the client does not redraw on a
+  -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and
+  -- the dock could sit on a bare spinner until the answer (review M4). Clear, set, hide, show,
+  -- the cure SoldFrame's restampHeadings uses.
+  if container and (postingRow or GC.Sell._postNote) then
+    local function restamp(fs)
+      if not (fs and fs.IsShown and fs:IsShown()) then return end
+      local text = fs:GetText() or ""
+      fs:SetText(""); fs:SetText(text); fs:Hide(); fs:Show()
+    end
+    restamp(container.dockStatus)
+    restamp(container.queueLabel)
+    for _, button in ipairs({ container.queueButton or false, postingRow and postingRow.action or false }) do
+      if button and button.label and button.SetLabel then
+        local label = button.label
+        button:SetLabel(""); button:SetLabel(label)
+        if type(button.text) == "table" then restamp(button.text) end
+      end
+    end
+  end
 end
 function GC.Sell.Hide() if container then container:Hide() end end
 -- `automatic` marks the self-driven repeat below, which politely stands aside

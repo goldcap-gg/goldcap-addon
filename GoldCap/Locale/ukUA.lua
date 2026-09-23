@@ -330,7 +330,7 @@ GC.Locales.ukUA = {
   ["Posted"] = "Виставлено",
   ["Posting failed"] = "Виставлення не вдалося",
   ["Posting unavailable"] = "Виставлення недоступне",
-  ["Posting…"] = "Надсилаю…",
+  ["Posting…"] = "Ставимо…",
   ["Press Full Scan to find deals."] = "Натисніть Full Scan, щоб знайти угоди.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Натисніть Scan, щоб один раз обійти весь аукціон, або Auto, щоб сканувати постійно.",

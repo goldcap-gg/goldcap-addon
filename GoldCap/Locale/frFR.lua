@@ -319,7 +319,7 @@ GC.Locales.frFR = {
   ["Posted"] = "Mis en vente",
   ["Posting failed"] = "Échec de la mise en vente",
   ["Posting unavailable"] = "Mise en vente indisponible",
-  ["Posting…"] = "En vente…",
+  ["Posting…"] = "Envoi…",
   ["Press Full Scan to find deals."] = "Appuyez sur Full Scan pour trouver des affaires.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Appuyez sur Scan pour parcourir tout l'hôtel des ventes une fois, ou sur Auto pour scanner en continu.",

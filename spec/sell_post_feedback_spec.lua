@@ -412,6 +412,11 @@ describe("Sell tab, a Post says what it is doing", function()
       pressRowPost()
       GC.Sell.OnAuctionHouseError(0)
       assert.equal("You don't have enough money.", container.dockStatus.text)
+      -- Meanwhile the stack is not sent again: the post the error may not have been about can
+      -- still be taking it.
+      pressRowPost()
+      assert.equal(1, posts)
+      assert.equal("Still waiting for the auction house to answer the last post", container.dockStatus.text)
       GC.Sell.OnAuctionCreated()
       assert.equal(1, #recorded)
       assert.matches("^Posted", container.dockStatus.text)
@@ -490,6 +495,63 @@ describe("Sell tab, a Post says what it is doing", function()
     end)
   end)
 
+  -- A post call that raises (a client "bad argument") used to leave the row and the dock on
+  -- "Posting…" until the auction house closed: the watchdog was armed only after the call
+  -- returned, and every other Post answered "Finish the pending post first" (review I2).
+  it("never leaves a Post stuck when the post call itself raises", function()
+    onPost = function() error("bad argument #1 to 'PostCommodity'") end
+    ready()
+    local row
+    assert.has_error(function() row = pressRowPost() end)
+    row = oreRow()
+    assert.is_true(row.action.busy)
+    assert.equal(1, fire(8))
+    assert.is_nil(row.postStage)
+    assert.equal("Post", row.action.label)
+    assert.is_false(row.action.busy)
+    assert.is_false(container.queueButton.busy)
+    assert.equal("The auction house did not answer -- try again", container.dockStatus.text)
+  end)
+
+  -- The note's clock can run out after the player has gone to another tab. The toolbar line is
+  -- the whole window's, and Deals was writing its own there by then (review M1).
+  it("does not write into another tab's status line when a note runs out", function()
+    ready()
+    pressRowPost()
+    GC.Sell.OnAuctionHouseError(0)
+    container:Hide() -- the player went to Deals...
+    root.status:SetText("scanning auction house...") -- ...which says what it is doing
+    assert.equal(1, fire(10))
+    assert.equal("scanning auction house...", root.status.text)
+    assert.not_equal("You don't have enough money.", container.dockStatus.text)
+  end)
+
+  -- A one-line FontString whose frame was hidden and shown again can come back undrawn, and
+  -- SetText with the text it already holds does not redraw it (docs/addon/AGENTS.md, "Text").
+  -- Mid-post, renders are held, so coming back to the tab re-set the dock with identical text.
+  it("restamps the dock's post lines when the tab comes back mid-post", function()
+    ready()
+    pressRowPost()
+    local calls = {}
+    local function record(fs, name)
+      local setText, hide, show = fs.SetText, fs.Hide, fs.Show
+      function fs:SetText(t) calls[#calls + 1] = name .. ":text:" .. tostring(t); return setText(self, t) end
+      function fs:Hide() calls[#calls + 1] = name .. ":hide"; return hide(self) end
+      function fs:Show() calls[#calls + 1] = name .. ":show"; return show(self) end
+    end
+    record(container.dockStatus, "dock")
+    local button = container.queueButton
+    local setLabel = button.SetLabel
+    function button:SetLabel(t) calls[#calls + 1] = "button:" .. tostring(t); return setLabel(self, t) end
+    container:Hide()
+    GC.Sell.Show()
+    local joined = table.concat(calls, "|")
+    assert.is_truthy(joined:find("dock:text:|dock:text:Posting…|dock:hide|dock:show", 1, true), joined)
+    assert.is_truthy(joined:find("button:|button:POSTING…", 1, true), joined)
+    assert.equal("Posting…", container.dockStatus.text)
+    assert.equal("POSTING…", container.queueButton.label)
+  end)
+
   -- The client can answer inside the post call itself. The row that answer already gave back
   -- must not be turned into a Confirm, or a watchdog armed for it, by the code after the call.
   it("does not undo an answer that landed while the post call was still running", function()
@@ -500,6 +562,9 @@ describe("Sell tab, a Post says what it is doing", function()
     assert.is_nil(row.postStage)
     assert.equal("Post", row.action.label)
     assert.is_true(row.action.enabled)
-    assert.equal(0, fire(8))
+    -- The watchdog is armed before the call (see above); the answer already let it go.
+    fire(8)
+    assert.is_nil(row.postStage)
+    assert.not_equal("The auction house did not answer -- try again", container.dockStatus.text)
   end)
 end)

@@ -896,6 +896,11 @@ function T.Button(parent, variant, rounded)
       if b.spinner then
         b.spinner:SetSize(12, 12)
         b.spinner:SetPoint("LEFT", b, "LEFT", 2, 0)
+        -- A frame made from Lua starts SHOWN, and SpinnerMixin plays the ring only from OnShow,
+        -- which fires on a hidden-to-shown change. Hidden here, so the Show below is one: left
+        -- shown, every button's first post sat beside a ring that did not turn (review I1).
+        -- Blizzard never makes this template from Lua; its XML uses start hidden.
+        b.spinner:Hide()
       end
     end
     if not b.spinner then return end
