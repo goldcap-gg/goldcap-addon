@@ -790,6 +790,10 @@ local function actionLabel(line)
   -- auction house purchases are DELIVERED AS MAIL (Core/Ledger.lua reads them as "Auction won"
   -- invoices), so the mailbox, not the bags, is where the player finds out whether it happened.
   if strandedFor(line) then return GC.L["no answer — check your mail"], false end
+  -- A quote held back for an unanswered keys batch (quote): the ask is taken and will go the moment
+  -- the batch is gone. Said like a question already on the wire, not as a resting "BUY n" whose
+  -- click could do nothing yet (caps fixes 5i).
+  if GC.Buy._quoteOwed == line.itemID and not inFlight(attempt) then return GC.L["..."], false end
   if not attempt or attempt.itemID ~= line.itemID then
     -- Some other line is mid-purchase. A click here cannot start a second one (onBuyClick and
     -- quote both refuse while the client holds a purchase of ours), so the button says so
@@ -1225,6 +1229,7 @@ local function quote(line)
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
   if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
     GC.Buy._quoteOwed = line.itemID
+    GC.Buy.RefreshIfShown() -- the button says it is waiting (actionLabel)
     return
   end
   if not throttleReady() then return end
@@ -1508,6 +1513,9 @@ end
 -- job is to warn that a confirm may have taken gold -- before the player could read it.
 function GC.Buy.OnAuctionHouseClosed()
   GC.Buy._stranded = {}
+  -- A quote owed to this session is not the next one's to ask: the line it was for has long lost
+  -- the pointer by then, and the button would read "..." until something asked (caps fixes 5i).
+  GC.Buy._quoteOwed = nil
   local attempt = GC.Buy._attempt
   if not attempt then return end
   local stage = attempt.stage
@@ -2526,6 +2534,8 @@ function GC.Buy.Tick()
     GC.Buy._quoteOwed = nil
     local line = lineFor(owed)
     if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
+    -- The waiting look goes with the debt, whether or not the ask above went out.
+    GC.Buy.RefreshIfShown()
   end
   GC.Buy.TrySendRefresh()
 end

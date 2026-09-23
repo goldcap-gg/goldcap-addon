@@ -288,6 +288,61 @@ describe("Caps polling", function()
       assert.same({ 7 }, searched)
       assert.is_false(GC.Sniper._KeysOutstanding())
     end)
+
+    -- Caps fixes 5i. The hold's timer called the arbiter, and the arbiter re-read the clock: a
+    -- GetTime() cached for the frame reads a hair under the hold when the timer fires, the
+    -- arbiter said "not yet", no second timer came -- and with the batch lost the Check sat
+    -- parked to its eight-second timeout and came back "gone". The timer's word ends the hold.
+    it("ends the hold when its timer fires, however the frame's clock reads", function()
+      local GC, attempt, issue = setup()
+      local timers = {}
+      _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      issue(attempt)
+      now = now + timers[1].seconds - 0.001
+      timers[1].fn()
+      assert.same({ 7 }, searched)
+    end)
+
+    -- The batch's own answer brings the Check its turn (the fold's deferred arbiter call), and
+    -- that turn is not a readiness event. Sent while the throttle is not ready, the search is
+    -- dropped by the client without a word and the Check waits out its eight seconds.
+    it("stays parked while the throttle is not ready, and goes on the next ready turn", function()
+      local GC, attempt, issue = setup()
+      local ready = true
+      _G.C_AuctionHouse.IsThrottledMessageSystemReady = function() return ready end
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      issue(attempt)
+      answer(GC, {})
+      ready = false
+      GC.Sniper.OnThrottleReady()
+      assert.same({}, searched)
+      assert.equal(attempt, upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[7])
+      ready = true
+      GC.Sniper.OnThrottleReady()
+      assert.same({ 7 }, searched)
+    end)
+
+    -- A BUY refresh or a Sell bulk fill still out after the player switched to Deals: its answer
+    -- scheduled no turn (the two polls' folds do), so a Check held behind it waited the whole
+    -- hold for an answer that had already come.
+    for _, owner in ipairs({ "buy", "sell" }) do
+      it("goes on the turn a " .. owner .. " batch's answer brings", function()
+        local GC, attempt, issue = setup()
+        local timers = {}
+        _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+        GC.Buy = { FoldRefresh = function() end }
+        GC.Sell.FoldBulk = function() end
+        GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, owner, { 1 }
+        issue(attempt)
+        assert.equal(1, #timers) -- the hold's own
+        answer(GC, {})
+        assert.equal(2, #timers)
+        assert.equal(0, timers[2].seconds)
+        timers[2].fn()
+        assert.same({ 7 }, searched)
+      end)
+    end
   end)
 
   -- Round 2, the safety net: a Check that came back empty for any reason ("listing gone") on a

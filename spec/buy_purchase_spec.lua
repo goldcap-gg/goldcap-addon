@@ -323,6 +323,11 @@ describe("BUY purchase", function()
     GC.Sniper._KeysOutstanding = function() return out end
     hover(rowWithText("Alpha Herb"))
     assert.same({}, searches)
+    -- Caps fixes 5i: and says it is waiting. The button kept reading "BUY 4", clickable, while the
+    -- quote it needs was held back -- for as long as thirty seconds behind a lost batch.
+    local row = rowWithText("Alpha Herb")
+    assert.equal("...", row.action.label)
+    assert.is_false(row.action:IsEnabled())
     GC.Buy.Tick()
     assert.same({}, searches)
     out = false
@@ -1429,6 +1434,18 @@ describe("BUY purchase", function()
     hover(rowWithText("Echo Salt"))
     GC.Buy.OnCommodityResults(105)
     assert.equal("nothing on offer", rowWithText("Echo Salt").action.label)
+  end)
+
+  -- Caps fixes 5i: a quote owed across the end of the session was asked for in the next one, of
+  -- a line the player had long since stopped pointing at.
+  it("forgets a quote it owed when the auction house closes", function()
+    GC.Sniper._KeysOutstanding = function() return true end
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(101, GC.Buy._quoteOwed)
+    GC.Buy.OnAuctionHouseClosed()
+    assert.is_nil(GC.Buy._quoteOwed)
+    GC.Buy.RefreshIfShown()
+    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
   end)
 
   -- Caps fixes 5h (Task 10): an alert group's gear member reaches BUY with the item-level floor

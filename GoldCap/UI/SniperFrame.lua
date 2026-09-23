@@ -219,6 +219,9 @@ LIM.KEYS_TIMEOUT_SECONDS = 30
 -- board the player just left (a cap batch, the Items poll's, BUY's) is one the Sell walk now
 -- stands still for, and one a BUY hover quote may take the answer of: waited out for thirty
 -- seconds it held every keys consumer, and the walk, for half a minute. See _KeysOutstanding.
+-- Caps fixes 5i: and the BUY tab's own refresh batch, wherever the player is. The player's hover
+-- or click quote waits for it (UI/BuyFrame.lua's quote), so a lost answer held that quote for
+-- thirty seconds with nothing on screen.
 LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- The Items board's own loop: once a poll cycle has visited every target, the next one starts
 -- this many seconds later. The cycle used to restart only when a book pass began, and the
@@ -3057,9 +3060,7 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     -- sender to bring a ready tick, so the poll is its own clock (see _SetBoard). Through the
     -- arbiter, deferred a frame, not a direct send -- a queued drill-down for a specific lot
     -- still goes ahead of the next batch, exactly as it does on a real ready tick.
-    if C_Timer and C_Timer.After then
-      C_Timer.After(0, function() if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end end)
-    end
+    GC.Sniper._DeferTurn()
   end,
 })
 
@@ -3124,9 +3125,7 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
     -- The answer frees the interlock: the arbiter, deferred a frame, gives it to whoever was kept
     -- waiting (the cap poll itself stands aside for LIM.CAPS_BATCH_GAP_SECONDS -- see
     -- _TrySendCapBatch) and sends the drills this answer has just queued.
-    if C_Timer and C_Timer.After then
-      C_Timer.After(0, function() if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end end)
-    end
+    GC.Sniper._DeferTurn()
   end,
 })
 
@@ -4793,6 +4792,24 @@ end
 -- row deleted) and takes the batch's answer with it. The batch's own answer brings the next turn
 -- (its fold's deferred OnThrottleReady), where step 1 sends it; the hold is bounded by
 -- LIM.CHECK_HOLD_SECONDS, after which the batch is given up and the Check goes regardless.
+--
+-- The hold is the timer's to end, not a second reading of the clock (caps fixes 5i): GetTime() is
+-- cached for the frame, so the arbiter the timer calls could read a hair under the hold, say "not
+-- yet" -- and with no second timer and the batch lost, the Check sat parked to its eight-second
+-- timeout and came back "gone". The timer marks the hold expired and step 1 honours the mark.
+-- Armed once per attempt, from here or from step 1 -- whichever finds the batch out first.
+function GC.Sniper._HoldCheck(attempt)
+  if attempt.heldSince then return end
+  attempt.heldSince = GetTime()
+  if C_Timer and C_Timer.After then
+    C_Timer.After(LIM.CHECK_HOLD_SECONDS, function()
+      if pendingRequerySend[attempt.itemID] ~= attempt then return end
+      attempt.holdExpired = true
+      if driver.isReady() then GC.Sniper.OnThrottleReady() end
+    end)
+  end
+end
+
 local function issueRequerySearch(attempt)
   if not isCurrentRequeryAttempt(attempt) then return end
   local held = GC.Sniper._KeysOutstanding()
@@ -4802,16 +4819,7 @@ local function issueRequerySearch(attempt)
     return
   end
   pendingRequerySend[attempt.itemID] = attempt
-  if held and not attempt.heldSince then
-    attempt.heldSince = GetTime()
-    if C_Timer and C_Timer.After then
-      C_Timer.After(LIM.CHECK_HOLD_SECONDS, function()
-        if pendingRequerySend[attempt.itemID] == attempt and driver.isReady() then
-          GC.Sniper.OnThrottleReady()
-        end
-      end)
-    end
-  end
+  if held then GC.Sniper._HoldCheck(attempt) end
 end
 
 local function finishRequery(attempt, liveDeal)
@@ -5337,9 +5345,9 @@ function GC.Sniper._KeysOutstanding()
   local sentAt = GC.Sniper._keysAwaiting
   if not sentAt then return false end
   local owner = GC.Sniper._keysOwner
-  -- The short allowance: the Sell tab's own batch always, and any batch the tab on screen did not
-  -- send while that tab is Sell or BUY (see LIM.KEYS_SELL_TIMEOUT_SECONDS).
-  local short = owner == "sell" or ((view == "sell" or view == "buy") and owner ~= view)
+  -- The short allowance: the Sell and BUY tabs' own batches always, and every batch while one of
+  -- those two tabs is on screen (see LIM.KEYS_SELL_TIMEOUT_SECONDS).
+  local short = owner == "sell" or owner == "buy" or view == "sell" or view == "buy"
   local limit = short and LIM.KEYS_SELL_TIMEOUT_SECONDS or LIM.KEYS_TIMEOUT_SECONDS
   if (time() - sentAt) < limit then return true end
   GC.Sniper._WriteOffKeys("timeout")
@@ -5418,6 +5426,16 @@ function GC.Sniper._CapsReleased(sentAt)
   if not GC.Sniper._capPoll:HasPending() then GC.Sniper._capsRoundDoneAt = now end
 end
 
+-- One arbiter turn, a frame from now: what an answer that frees the keys interlock owes whoever it
+-- kept waiting -- a parked Check, a queued drill, the next batch. Nothing of ours sends while a
+-- batch is out, so no readiness event may come to bring that turn otherwise. Deferred rather than
+-- called: the answer's own fold finishes first, and the arbiter still decides who goes.
+function GC.Sniper._DeferTurn()
+  if C_Timer and C_Timer.After then
+    C_Timer.After(0, function() if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end end)
+  end
+end
+
 -- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"), the
 -- BUY tab's floor refresh ("buy"), the Sell tab's bulk fill ("sell") and the player's caps ("caps",
 -- on the Deals boards and the Sold tab -- caps fixes 4a). Only one batch is ever out, but the
@@ -5448,6 +5466,9 @@ function GC.Sniper._FoldKeysBatch()
     -- NEXT batch's "what we asked about".
     GC.Sniper._keysBatch = nil
     if GC.Buy and GC.Buy.FoldRefresh then GC.Buy.FoldRefresh(browsed) end
+    -- The turn the polls' own folds schedule, owed here too (caps fixes 5i): a batch still out
+    -- after the player went back to Deals held a Check there for the whole hold otherwise.
+    GC.Sniper._DeferTurn()
     return true
   end
   if owner == "sell" then
@@ -5455,6 +5476,7 @@ function GC.Sniper._FoldKeysBatch()
     -- list here -- the realm poll's fold would read it as its own.
     GC.Sniper._keysBatch = nil
     if GC.Sell and GC.Sell.FoldBulk then GC.Sell.FoldBulk(browsed) end
+    GC.Sniper._DeferTurn() -- as BUY's, above
     return true
   end
   if owner == "caps" then
@@ -5737,16 +5759,27 @@ function GC.Sniper.OnThrottleReady()
   --
   -- Unless a keys batch is still unanswered (round 2, see issueRequerySearch): then it stays parked
   -- -- nothing else of ours sends while one is out anyway -- until the batch's answer brings the
-  -- next turn, or until LIM.CHECK_HOLD_SECONDS have passed, when the batch is given up for it.
+  -- next turn, or until the hold is over (GC.Sniper._HoldCheck's timer, or LIM.CHECK_HOLD_SECONDS
+  -- read off the clock), when the batch is given up for it.
+  --
+  -- And parked while the throttle cannot take it (caps fixes 5i). This is not only reached from a
+  -- readiness event: a batch's answer brings its turn through a deferred call, which is now the
+  -- Check's usual way out -- and a search sent while the system is not ready is dropped by the
+  -- client without a word, leaving the Check to its eight-second timeout. The next ready turn
+  -- sends it; nothing else of ours goes ahead of it meanwhile.
   for itemID, attempt in pairs(pendingRequerySend) do
     if not isCurrentRequeryAttempt(attempt) then
       pendingRequerySend[itemID] = nil
     else
-      if GC.Sniper._KeysOutstanding() then
-        attempt.heldSince = attempt.heldSince or GetTime()
-        if (GetTime() - attempt.heldSince) < LIM.CHECK_HOLD_SECONDS then return end
-        GC.Sniper._WriteOffKeys("check")
+      local held = GC.Sniper._KeysOutstanding()
+      if held then
+        GC.Sniper._HoldCheck(attempt)
+        if not attempt.holdExpired and (GetTime() - attempt.heldSince) < LIM.CHECK_HOLD_SECONDS then
+          return
+        end
       end
+      if not driver.isReady() then return end
+      if held then GC.Sniper._WriteOffKeys("check") end
       pendingRequerySend[itemID] = nil
       attempt.sent = true
       driver.sendSearch(itemID)

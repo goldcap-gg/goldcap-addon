@@ -196,7 +196,8 @@ describe("Search slot arbiter", function()
   it("gives a parked Check the slot ahead of both", function()
     local GC = load()
     local searched = {}
-    set(GC.Sniper.OnThrottleReady, "driver", { sendSearch = function(id) searched[#searched + 1] = id end })
+    set(GC.Sniper.OnThrottleReady, "driver", { isReady = function() return true end,
+      sendSearch = function(id) searched[#searched + 1] = id end })
     local attempt = { itemID = 42, token = 1, row = {}, deal = { itemID = 42 } }
     upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[42] = attempt
     set(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
@@ -415,7 +416,8 @@ describe("Search slot arbiter", function()
   it("still lets a parked Check requery through while a purchase is in flight", function()
     local GC = load()
     local searched = {}
-    set(GC.Sniper.OnThrottleReady, "driver", { sendSearch = function(id) searched[#searched + 1] = id end })
+    set(GC.Sniper.OnThrottleReady, "driver", { isReady = function() return true end,
+      sendSearch = function(id) searched[#searched + 1] = id end })
     local attempt = { itemID = 42, token = 1, row = {}, deal = { itemID = 42 } }
     upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[42] = attempt
     set(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
@@ -599,10 +601,12 @@ describe("Search slot arbiter", function()
         assert.is_false((outstandingAfter("sniper", 30)))
       end)
 
-      it("still waits the full thirty for the BUY tab's batch", function()
-        assert.is_true((outstandingAfter("buy", 8)))
-        assert.is_true((outstandingAfter("buy", 29)))
-        assert.is_false((outstandingAfter("buy", 30)))
+      -- Caps fixes 5i: the BUY tab's own refresh batch got the thirty seconds, so a lost answer
+      -- held the player's hover or click quote -- which waits for it -- for half a minute with
+      -- nothing on screen. It is a tab's own batch like the Sell tab's, and waits as long.
+      it("writes the BUY tab's batch off after eight seconds too", function()
+        assert.is_true((outstandingAfter("buy", 7)))
+        assert.is_false((outstandingAfter("buy", 8)))
       end)
 
       -- Caps fixes 4a, round 1: a batch still out from the board the player just left, while the
@@ -625,7 +629,8 @@ describe("Search slot arbiter", function()
         for _, owner in ipairs({ "sniper", "caps" }) do
           assert.is_false(after(owner, "buy", 8))
         end
-        assert.is_true(after("buy", "buy", 29))
+        assert.is_true(after("buy", "buy", 7))
+        assert.is_false(after("buy", "buy", 8))
         assert.is_true(after("caps", "sold", 29))
       end)
     end)
