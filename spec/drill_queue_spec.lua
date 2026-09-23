@@ -423,6 +423,17 @@ describe("DrillQueue", function()
     assert.is_true(head.cap)
   end)
 
+  -- Round 1: and once upgraded it is ordered among the caps by the caps' own measure -- the
+  -- saving under the cap -- not by the market estimate it was first queued with.
+  it("orders an upgraded hit among the caps by the cap's own measure", function()
+    local q = GC.DrillQueue.New(fakeDriver())
+    q:Push({ itemID = 1, floor = 100, estProfit = 9999 })
+    q:Push({ itemID = 2, floor = 50, estProfit = 10, priority = 1, cap = true })
+    q:Push({ itemID = 1, floor = 100, estProfit = 5, priority = 1, cap = true })
+    assert.equal(2, q:Pop().itemID)
+    assert.equal(1, q:Pop().itemID)
+  end)
+
   describe("Clear", function()
     it("empties the queue", function()
       local q = GC.DrillQueue.New(fakeDriver())

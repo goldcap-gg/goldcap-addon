@@ -139,6 +139,19 @@ describe("KeyPoll", function()
       assert.equal(2, #hits)
     end)
 
+    -- Round 1: an item the batch asked for and got no row for has no listing left. The ratchet
+    -- still held its last floor, so the same price listed again was never news.
+    it("re-arms an item it asked for and got no row for", function()
+      local poll = newPoll()
+      triggers[7], triggers[8] = 1000, 1000
+      poll:Fold({ row(7, 900, 3), row(8, 900, 3) }, { 7, 8 })
+      poll:Fold({ row(8, 900, 3) }, { 7, 8 })  -- 7 is gone, 8 unchanged
+      assert.equal(2, #hits)
+      poll:Fold({ row(7, 900, 3), row(8, 900, 3) }, { 7, 8 })
+      assert.equal(3, #hits)                  -- 7 again; 8 still nothing new
+      assert.equal(7, hits[3].itemID)
+    end)
+
     it("does nothing on Rearm for an item it has never seen", function()
       local poll = newPoll()
       triggers[7] = 1000
@@ -321,6 +334,17 @@ describe("KeyPoll", function()
       poll:Fold(variantsOf(300, 590, 40, 620, 95))
       assert.equal(1, #hits)
       assert.equal(95, hits[1].floor)
+    end)
+
+    -- Round 1: a client answering with one collapsed row states no level at all; held to a level
+    -- nothing states, the cap never fired. The drill's own decision reads each lot's level.
+    it("judges the collapsed floor when no row states a level", function()
+      local poll = newPoll()
+      poll:Fold({ row(300, 50, 2) })
+      assert.equal(1, #hits)
+      assert.equal(50, hits[1].floor)
+      assert.equal(50, GC.KeyPoll.FloorFor(poll:Book()[300], 610))
+      assert.equal(0, GC.KeyPoll.VariantKeyFor(poll:Book()[300], 610).itemLevel)
     end)
 
     it("judges an item without a level by its collapsed floor, as ever", function()

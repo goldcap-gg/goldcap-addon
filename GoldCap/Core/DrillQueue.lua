@@ -131,11 +131,14 @@ function GC.DrillQueue.New(driver, opts)
     if queued[k] then
       -- The same item at the same floor, already queued -- but maybe reported by another source
       -- at a higher priority (the realm poll's ordinary hit, then the player's own cap). Still one
-      -- entry; it just may not stay queued at the lower of the two.
+      -- entry; it just may not stay queued at the lower of the two -- and among its new peers it
+      -- is ordered by their measure, not by the one it was queued under (a cap's is the saving
+      -- under the cap, an ordinary hit's the market's).
       for i = 1, #items do
         local entry = items[i]
         if entry.key == k and priority > entry.priority then
           entry.priority = priority
+          entry.estProfit = estProfit
           entry.cap = entry.cap or cap
         end
       end

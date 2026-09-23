@@ -39,10 +39,23 @@ local MAX_BATCH = 100
 -- nil when the entry carries no variants (an item this poll has never folded) and nil when no
 -- variant reaches `minIlvl`. Both mean "this module has no key to offer"; what the caller does
 -- with each is the caller's (UI/SniperFrame.lua's driver.variantKey).
+--
+-- Caps fixes 4c, round 1: a level is only a floor if the rows state levels at all. The client is
+-- free to answer a bare key with one collapsed row for the whole item (itemLevel 0); held to a
+-- level no row states, every item-level cap would stop firing without a word. When no variant
+-- carries a level the floor is not applied here, and the decision the drill feeds -- which reads
+-- each lot's own level -- is the one that applies it, exactly as before the poll judged levels.
 local function cheapestVariant(entry, minIlvl)
   local variants = type(entry) == "table" and entry.variants or nil
   if type(variants) ~= "table" then return nil end
   minIlvl = (type(minIlvl) == "number" and minIlvl > 0) and minIlvl or 0
+  if minIlvl > 0 then
+    local stated = false
+    for i = 1, #variants do
+      if (variants[i].itemLevel or 0) > 0 then stated = true; break end
+    end
+    if not stated then minIlvl = 0 end
+  end
   local best
   for i = 1, #variants do
     local variant = variants[i]
@@ -223,7 +236,12 @@ function GC.KeyPoll.New(driver, opts)
   -- carries that variant's own price and quantity; the entry keeps both (`judged`, `judgedQty`,
   -- nil while no variant reaches the level) beside the collapsed floor, which is still the
   -- cheapest thing on offer and still what `floor` means.
-  function obj:Fold(rows)
+  --
+  -- `asked` (optional) is the batch these rows answer, by item id. An asked item with no row at
+  -- all has no listing left, and its entry is re-armed (Rearm below): the ratchet still holds the
+  -- floor it last saw, so the same price listed again -- a new lot -- would otherwise never be
+  -- news (caps fixes 4a, round 1).
+  function obj:Fold(rows, asked)
     local variants
     rows, variants = collapse(rows or {})
     for i = 1, #rows do
@@ -252,6 +270,12 @@ function GC.KeyPoll.New(driver, opts)
         if hit then
           driver.onHit({ itemID = itemID, floor = judged, qty = judgedQty, prev = prev })
         end
+      end
+    end
+    if asked then
+      for i = 1, #asked do
+        local itemID = asked[i]
+        if not variants[itemID] and book[itemID] then book[itemID].rearm = true end
       end
     end
     if driver.onRows then driver.onRows(rows) end
