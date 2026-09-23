@@ -4360,12 +4360,17 @@ local function settleDetachedConfirmed(pending, terminal)
   -- caller has already let go of the attempt's slot.
   GC.Sniper._HandOffSettled()
   local deal = pending and pending.deal
+  -- "after AH close" only for an attempt the auction house actually closed on (resetAllPurchases
+  -- marks it), or when it is closed now. A purchase whose row the player took over -- Escape at
+  -- "confirming", then the same row opened again -- settles here too, with the auction house open
+  -- the whole time (fix round 1, minor 3).
+  local closed = pending and pending.acrossClose or not ahOpen
   if terminal == "success" then
     local purchase = deal and purchaseFacts(deal, pending.quote)
     if purchase then
       recordPurchaseFacts(deal, purchase)
-      reportDetachedCommodity(pending, (GC.L["bought %d x item %d after AH close"]):format(
-        purchase.quantity, deal.itemID))
+      reportDetachedCommodity(pending, (closed and GC.L["bought %d x item %d after AH close"]
+        or GC.L["bought %d x item %d"]):format(purchase.quantity, deal.itemID))
       return
     end
     reportDetachedCommodity(pending, GC.L["purchase total unavailable — inspect mailbox"])
@@ -4374,7 +4379,8 @@ local function settleDetachedConfirmed(pending, terminal)
   if terminal == "unavailable" then
     reportDetachedCommodity(pending, GC.L["purchase total unavailable — inspect mailbox"])
   else
-    reportDetachedCommodity(pending, GC.L["confirmed commodity purchase failed after AH close"])
+    reportDetachedCommodity(pending, closed and GC.L["confirmed commodity purchase failed after AH close"]
+      or GC.L["commodity purchase failed"])
   end
 end
 
@@ -9090,6 +9096,7 @@ local function resetAllPurchases()
   if confirmed and confirmed.confirmed then
     commodityPurchase = nil
     commodityDraining = confirmed
+    confirmed.acrossClose = true -- what settleDetachedConfirmed tells the player it settled after
   end
   for i = 1, #rows do
     local row = rows[i]

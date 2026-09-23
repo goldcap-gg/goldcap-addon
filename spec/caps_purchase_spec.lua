@@ -1454,6 +1454,37 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.equal("expired", first.purchaseStage)
       end)
 
+      -- Fix round 1, minor 3: that first purchase lands after its row was taken over, so it is
+      -- settled detached -- and was reported "bought 400 x item 42 after AH close" with the
+      -- auction house open the whole time.
+      it("reports the first purchase as bought, not as bought after an AH close", function()
+        local GC, first, deal, d, click, abort = armed()
+        setUpvalue(GC.Sniper.IsAHOpen, "ahOpen", true)
+        confirmOn(GC, first, click)
+        d.row = nil
+        abort(first, "purchase canceled")
+        reopened(GC, first, deal)
+        getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(first, deal)
+        answer(GC)
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assert.equal(GC.L["bought %d x item %d"]:format(QTY, 42), GC.Sniper.detachedCommodityStatus[42].note)
+      end)
+
+      it("still says after AH close for a purchase the auction house closed on", function()
+        local GC, first, _, _, click = armed()
+        setUpvalue(GC.Sniper.IsAHOpen, "ahOpen", true)
+        confirmOn(GC, first, click)
+        getUpvalue(GC.Sniper.OnAuctionHouseClosed, "resetAllPurchases")() -- carried across the close
+        -- ...and the auction house opened again before the answer came.
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assert.equal(GC.L["bought %d x item %d after AH close"]:format(QTY, 42),
+          GC.Sniper.detachedCommodityStatus[42].note)
+      end)
+
       it("holds a realm lot's bid the same way, and its next click is a Check", function()
         local GC, first, _, d, click, abort = armed()
         confirmOn(GC, first, click)
