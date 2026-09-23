@@ -738,14 +738,72 @@ describe("Deals background verification", function()
     api.refreshRows()
     assert.equal("Check", api.rows[1].buy.label)
 
-    -- A refusal is not a claim that decays: it came from demand and velocity limits that do
-    -- not move in two minutes, and expiring it would flicker hidden rows back every so often.
+    -- A refusal does not decay on that clock: it came from demand and velocity limits that do
+    -- not move in two minutes, and expiring it there would flicker hidden rows back every so
+    -- often. It has a clock of its own, half an hour (the test below).
     local refused = loadSniper(avoid)
     board(refused, { deal(1, 100) })
     tickAt(refused, 101)
     refused.GC.Sniper.OnCommoditySearchResults(1)
     clock = 101 + 500
     assert.equal(0, #refused.renderList())
+  end)
+
+  -- A refusal that never lapsed kept its row hidden for the whole visit at that price, however
+  -- much the market moved underneath it. Half an hour on, the row comes back as a question
+  -- nobody has answered yet, and the walk gets to ask it again.
+  it("forgets a refusal after thirty minutes, and the walk looks at the row again", function()
+    local api = loadSniper(avoid)
+    board(api, { deal(1, 100) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.same({ 1 }, sent)
+
+    clock = 101 + 1799
+    assert.equal(0, #api.renderList())
+
+    clock = 101 + 1801
+    assert.equal(1, #api.renderList())
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    assert.is_nil(api.verdicts[1])
+
+    api.refreshRows()
+    tickAt(api, 101 + 1802)
+    assert.same({ 1, 1 }, sent)
+  end)
+
+  -- The half hour is also how long a refusal is remembered at all: the entry for an item that
+  -- has left the board is let go on the next verdict, not kept until the auction house closes.
+  it("lets go of a lapsed refusal for an item no longer on the board", function()
+    local api = loadSniper(avoid)
+    board(api, { deal(1, 100, 2000), deal(2, 200, 1000) })
+    tickAt(api, 101)
+    api.GC.Sniper.OnCommoditySearchResults(1)
+    assert.is_table(api.verdicts[1])
+
+    board(api, { deal(2, 200, 1000) })
+    tickAt(api, 101 + 1801)
+    api.GC.Sniper.OnCommoditySearchResults(2)
+    assert.is_nil(api.verdicts[1])
+    assert.is_table(api.verdicts[2])
+  end)
+
+  -- A SAFE verdict keeps its own two-minute rule, and a realm lot the check found is not a
+  -- refusal at all: neither is touched by the half hour.
+  it("lapses only refusals, not a realm lot the check found", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = false, decision = {
+      status = "WATCH", buyable = false, reasons = { "realm_item_unverified" },
+      candidate = { auctionID = 7, buyout = 90, itemLevel = 623, quantity = 1 },
+    } })
+
+    clock = clock + 1801
+    assert.equal(1, #api.renderList())
+    assert.is_true(api.verdicts[1].unverified)
   end)
 
   it("lets a real Check overrule the background verdict it disagrees with", function()
@@ -801,7 +859,7 @@ describe("Deals background verification", function()
 
   -- Answering "what about this one?" by making it vanish is not an answer. The background
   -- walk prunes rows nobody asked about; a row the player opened stays put and says what the
-  -- Check said, whatever the toggle is set to.
+  -- Check said, whatever the toggle is set to -- for as long as its pane is open (below).
   it("keeps a row the player checked themselves, even when it is refused", function()
     local api = loadSniper(safe)
     local d = deal(1, 100)
@@ -819,6 +877,93 @@ describe("Deals background verification", function()
     assert.equal(0, upvalue(api.renderList, "refusedCount"))
     api.refreshRows()
     assert.equal("AVOID", api.rows[1].buy.label)
+  end)
+
+  -- ...but only while the player is reading it. Kept for good, every refused Check left an AVOID
+  -- row behind, and in game 2026-09-23 half the board was them. Once the player leaves the pane --
+  -- closes it or opens another row -- the row goes where a background refusal goes: hidden,
+  -- counted, one toggle away.
+  it("hides a refused row the player checked once they leave its pane, and counts it", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d, deal(2, 200) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+    assert.equal(2, #api.renderList())
+
+    api.GC.Sniper._LeavePane(d)
+
+    local list = api.renderList()
+    assert.equal(1, #list)
+    assert.equal(2, list[1].itemID)
+    assert.equal(1, upvalue(api.renderList, "refusedCount"))
+    -- And a background re-check at the same price does not bring the keep back.
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } })
+    assert.equal(1, #api.renderList())
+  end)
+
+  it("keeps showing the verdict on a row the player watches, after its pane closes", function()
+    local api = loadSniper(safe)
+    api.GC.db.settings.sniper.watchPins = { 1 }
+    local d = deal(1, 100)
+    board(api, { d, deal(2, 200) })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+
+    api.GC.Sniper._LeavePane(d)
+
+    assert.equal(2, #api.renderList())
+    assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    api.refreshRows()
+    assert.equal("AVOID", api.rows[1].buy.label)
+  end)
+
+  it("leaves a Check that said Buy on the board when its pane closes", function()
+    local api = loadSniper(safe)
+    local d = deal(1, 100)
+    board(api, { d })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "SAFE", buyable = true, quantity = 5, reasons = {} } }, true)
+
+    api.GC.Sniper._LeavePane(d)
+
+    assert.equal(1, #api.renderList())
+    api.refreshRows()
+    assert.equal("Buy", api.rows[1].buy.label)
+  end)
+
+  -- Where the player leaves the pane. The window's own OnHide covers every way it closes --
+  -- Cancel, Escape, a purchase that resolved, and a Buy click on another row, whose
+  -- abortRowPurchase hides it first -- and openDialog covers the one way to another row that
+  -- leaves it up: a window still showing "Gone". The window is too wide to build headlessly;
+  -- these are the lines that wire the two together.
+  it("lets go of the Check's keep wherever the player leaves its pane", function()
+    local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+    local src = file:read("*a")
+    file:close()
+
+    local start = assert(src:find('d:SetScript("OnHide", function()', 1, true))
+    local body = src:sub(start, src:find("\n  end)\n", start, true))
+    local leave = body:find("GC.Sniper._LeavePane(dialog.deal)", 1, true)
+    local early = body:find("if not row then", 1, true)
+    assert.is_truthy(leave)
+    assert.is_truthy(early)
+    assert.is_true(leave < early)
+
+    local open = assert(src:find("local function openDialog(row, deal)", 1, true))
+    local openBody = src:sub(open, src:find("\nend\n", open, true))
+    local openLeave = openBody:find("GC.Sniper._LeavePane(dialog.deal)", 1, true)
+    local replace = openBody:find("dialog.deal = deal", 1, true)
+    assert.is_truthy(openLeave)
+    assert.is_truthy(replace)
+    assert.is_true(openLeave < replace)
   end)
 
   -- Sniper phase 2. A realm lot is never buyable and never will be, but a check that found one

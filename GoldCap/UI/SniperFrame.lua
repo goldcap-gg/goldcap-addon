@@ -191,6 +191,11 @@ LIM.VERIFY_TRUST_SECONDS = 120
 -- move on a 30-second clock -- so the walk's scarce one-query-per-tick budget belongs to rows
 -- nothing has looked at yet, not to reconfirming a refusal that hasn't had time to change.
 LIM.VERIFY_AVOID_INTERVAL_SECONDS = 120
+-- How long a refusal is remembered at all. It used to be for the whole visit: a row refused at
+-- one asking price stayed hidden until that price moved, however much the market under it did.
+-- Half an hour on it is a question again -- the row comes back and the walk asks it anew -- and
+-- the entry itself is let go (see verdictFor and stampVerdict).
+LIM.REFUSAL_TTL_SECONDS = 30 * 60
 -- The verify walk runs off the same 0.25s ticker as everything else, but the walk itself
 -- sorts and filters the whole deals list -- once a second is far more often than a 30s
 -- re-check cadence can consume, and four times a second is just wasted work.
@@ -885,13 +890,27 @@ end
 -- being advertised -- the row falls back to plain "Check" rather than keep a gold Buy button up
 -- on a claim nothing has re-tested. A REFUSAL does not expire that way: refusals come from
 -- demand and velocity limits that do not move in two minutes, and expiring them would flicker
--- hidden rows back into the list every couple of minutes for no new information.
+-- hidden rows back into the list every couple of minutes for no new information. It lapses on
+-- its own, longer clock (LIM.REFUSAL_TTL_SECONDS), and is let go of when it does, so the walk --
+-- which reads `verdicts` directly -- sees the same unasked question the board does.
 verdictFor = function(deal)
   local v = deal and deal.itemID and verdicts[deal.itemID]
   if not v then return nil end
   if v.unitPrice ~= deal.unitPrice then return nil end
   if v.buyable and (GetTime() - v.at) > LIM.VERIFY_TRUST_SECONDS then return nil end
+  if GC.Sniper._RefusalLapsed(v, GetTime()) then
+    verdicts[deal.itemID] = nil
+    return nil
+  end
   return v
+end
+
+-- A refusal past LIM.REFUSAL_TTL_SECONDS. A refusal is what the refused-rows filter below prunes:
+-- not buyable, not a realm lot the check found (`unverified`), not the player's own price
+-- (`cap`). A field, not a local: this chunk sits near its 200-local ceiling.
+function GC.Sniper._RefusalLapsed(v, now)
+  return not v.buyable and not v.unverified and not v.cap
+    and (now - v.at) > LIM.REFUSAL_TTL_SECONDS
 end
 
 -- The single entry point refreshRows() renders from: sortedDeals()'s own order, with the
@@ -915,8 +934,9 @@ local function renderList()
     -- items that made the poll set's CAPACITY cut, and a pin squeezed out by capacity is still
     -- a pin.
     local pinned = isPinned(deal.itemID)
-    -- `manual` rows are never pruned -- see stampVerdict. And they are not counted either:
-    -- this number exists to explain a list that got shorter, and they did not shorten it.
+    -- `manual` rows are not pruned while the player is reading their Check -- see stampVerdict
+    -- and GC.Sniper._LeavePane. And they are not counted either: this number exists to explain
+    -- a list that got shorter, and they did not shorten it.
     -- `unverified` rows are not pruned and not counted either, for the same reason `manual`
     -- ones are not: a realm lot the check found under its region reference did not shorten
     -- this list, it is one of the things ON it (see stampVerdict).
@@ -5730,14 +5750,21 @@ end
 -- It does not ring: the ping exists to say "something became buyable while you were not
 -- looking", and somebody reading the dialog they just opened is looking.
 --
--- And the row is never pruned from the list, however the Check turned out. Answering "what
--- about this one?" by making it disappear is not an answer -- the row stays, wearing the
--- engine's own word for the refusal, which is strictly more than it said before. Pruning is
--- for rows nobody asked about. It survives the background walk's own re-checks (a kept row is
--- still on screen, so it still gets re-checked) but not a price change: a new asking price is
--- a new question, and nobody has asked it yet.
+-- And the row is not pruned from the list while the player is reading the answer, however the
+-- Check turned out. Answering "what about this one?" by making it disappear is not an answer --
+-- the row stays, wearing the engine's own word for the refusal. It survives the background
+-- walk's own re-checks (a kept row is still on screen, so it still gets re-checked) but not a
+-- price change: a new asking price is a new question, and nobody has asked it yet. Nor does it
+-- survive the player leaving the pane (GC.Sniper._LeavePane): kept for good, every refused
+-- Check left an AVOID row behind, and in game 2026-09-23 half the board was them.
 stampVerdict = function(deal, data, manual)
   if not deal or not deal.itemID then return end
+  -- The one place the table grows, so the one place it is trimmed: a refusal past
+  -- LIM.REFUSAL_TTL_SECONDS is let go whether or not its item is still on the board to read it.
+  local now = GetTime()
+  for itemID, v in pairs(verdicts) do
+    if GC.Sniper._RefusalLapsed(v, now) then verdicts[itemID] = nil end
+  end
   local previous = verdicts[deal.itemID]
   local samePrice = previous and previous.unitPrice == deal.unitPrice
   local wasBuyable = samePrice and previous.buyable
@@ -5777,9 +5804,10 @@ stampVerdict = function(deal, data, manual)
   -- Reported here, at the one place a verdict is ever recorded, rather than from renderList --
   -- that runs on hover and on every repaint, and a status line that fires on hover would say
   -- this over and over about rows that left minutes ago. `manual` is excluded because a Check
-  -- the player ran themselves never removes its own row (see this function's own contract) and
-  -- announcing a removal that did not happen is its own lie. refreshRows above has already
-  -- recomputed refusedCount, so the number quoted is the one the toggle is about to show.
+  -- the player ran themselves does not remove its own row while they read it (see this
+  -- function's own contract) and announcing a removal that did not happen is its own lie; the
+  -- row leaves when the player leaves its pane, which is their own doing. refreshRows above has
+  -- already recomputed refusedCount, so the number quoted is the one the toggle is about to show.
   if not manual and not buyable and not unverified and not isPinned(deal.itemID) and refusedCount > 0 then
     setStatus((GC.L["%d hidden -- the live check refused them"]):format(refusedCount), 4)
   end
@@ -5817,6 +5845,21 @@ stampVerdict = function(deal, data, manual)
       return
     end
   end
+end
+
+-- The player has left the pane that showed `deal`'s Check -- closed it, or opened another row.
+-- The keep stampVerdict gave that Check ends here, so from now on its verdict is filed like any
+-- background one: a refusal hides with the rest and is counted in the toolbar's HIDDEN, a Buy
+-- keeps its own two-minute rule. The answer stayed readable for as long as the pane was open.
+-- A row the player watches (a pin) keeps showing its verdict all the same -- renderList exempts
+-- pins from the refused-rows filter outright. Returns whether there was a keep to let go of, so
+-- a caller with no render of its own ahead knows to ask for one. A field, not a local: this
+-- chunk sits near its 200-local ceiling.
+function GC.Sniper._LeavePane(deal)
+  local v = deal and deal.itemID and verdicts[deal.itemID]
+  if not (v and v.manual) then return false end
+  v.manual = nil
+  return true
 end
 
 -- The pre-warm result landing (or failing to materialize into a live deal): stamps
@@ -9159,8 +9202,18 @@ local function createDialog()
     dialog.stampedUnit = nil
     dialog.stampedTotal = nil
     dialog.bookLevels = nil -- Fix 2: the Quantity box's clamp ceiling must not survive past this dialog session either
+    -- The player is leaving this Check's pane, however it closed -- Cancel, Escape, a purchase
+    -- that resolved, or a Buy click on another row (abortRowPurchase hides the window first) --
+    -- so its refusal now hides like any other (GC.Sniper._LeavePane).
+    local left = GC.Sniper._LeavePane(dialog.deal)
     local row = dialog.row
-    if not row then return end -- normal close: resolvePurchase already cleared this before hiding
+    if not row then
+      -- Normal close: resolvePurchase already cleared this before hiding, and renders right
+      -- after. A "Gone" window the player closes has no render ahead of it, so ask for one
+      -- whenever a keep was let go.
+      if left then refreshRows() end
+      return
+    end
     dialog.row = nil
     -- Final review m8: the player said no to this lot; stop-and-open waits before offering the
     -- item again.
@@ -9230,6 +9283,11 @@ local function openDialog(row, deal)
     prewarmAttempt = nil
   end
 
+  -- The one way to another row that leaves the window up: one still showing "Gone" (its
+  -- dialog.row is already clear, so nothing hides it on the way). The player has left that
+  -- Check's pane all the same. No render here -- the row being opened is not frozen yet, and
+  -- the next render (its own Check's) files the change.
+  if dialog then GC.Sniper._LeavePane(dialog.deal) end
   dialog = dialog or createDialog()
   dialog.row = row
   -- Final review m3: opened by stop-and-open (drainCapPings), not by the player -- its first arm
