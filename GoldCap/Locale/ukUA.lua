@@ -573,8 +573,8 @@ GC.Locales.ukUA = {
   ["full scan stalled -- press Full Scan to retry"] =
     "повне сканування зупинилося -- натисніть Full Scan ще раз",
   ["full scan stalled -- retrying shortly"] = "повне сканування зупинилося -- скоро повторимо",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "повне сканування зупинено -- натисніть Full Scan, щоб запустити його знову",
+  ["full scan stopped -- press %s to run it again"] =
+    "повне сканування зупинено -- натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
   ["high"] = "висока",
   ["hold"] = "тримати",
@@ -643,8 +643,8 @@ GC.Locales.ukUA = {
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
   ["placing bid..."] = "робимо ставку...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "попередню купівлю товару завершено -- Refresh, щоб перевірити ціну ще раз",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "попередню купівлю товару завершено -- %s, щоб перевірити ціну ще раз",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "ціна змінилася після закриття вікна купівлі -- нічого не куплено",
   ["price checked, sale speed unknown -- this one is your call"] =

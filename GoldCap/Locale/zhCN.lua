@@ -508,7 +508,7 @@ GC.Locales.zhCN = {
   ["full scan interrupted -- confirm your purchase"] = "完整扫描被中断 -- 请确认你的购买",
   ["full scan stalled -- press Full Scan to retry"] = "完整扫描卡住了 -- 按 Full Scan 重试",
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
-  ["full scan stopped -- press Full Scan to run it again"] = "完整扫描已停止 -- 按 Full Scan 重新运行",
+  ["full scan stopped -- press %s to run it again"] = "完整扫描已停止 -- 按 %s 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
   ["high"] = "高",
   ["hold"] = "持有",
@@ -571,8 +571,7 @@ GC.Locales.zhCN = {
   ["over %d position%s"] = "共 %d 个持仓%s",
   ["paid sale unresolved"] = "已到账的销售未匹配",
   ["placing bid..."] = "正在出价...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "上一笔商品购买已结算 -- 按 Refresh 重新检查价格",
+  ["previous commodity purchase settled -- %s to re-check the price"] = "上一笔商品购买已结算 -- 按 %s 重新检查价格",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "关闭购买窗口后价格变了 -- 没有买到任何东西",
   ["price checked, sale speed unknown -- this one is your call"] = "价格已核对，售出速度未知 -- 这一笔由你决定",

@@ -561,8 +561,8 @@ GC.Locales.esES = {
     "el escaneo completo se ha atascado -- pulsa Full Scan para reintentar",
   ["full scan stalled -- retrying shortly"] =
     "el escaneo completo se ha atascado -- se reintentará en breve",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "escaneo completo detenido -- pulsa Full Scan para volver a lanzarlo",
+  ["full scan stopped -- press %s to run it again"] =
+    "escaneo completo detenido -- pulsa %s para volver a lanzarlo",
   ["gone / price changed"] = "desaparecido / precio cambiado",
   ["high"] = "alta",
   ["hold"] = "mantener",
@@ -630,8 +630,8 @@ GC.Locales.esES = {
   ["over %d position%s"] = "en %d posiciones%s",
   ["paid sale unresolved"] = "venta cobrada sin resolver",
   ["placing bid..."] = "pujando...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "compra de mercancía anterior liquidada -- pulsa Refresh para volver a comprobar el precio",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "compra de mercancía anterior liquidada -- pulsa %s para volver a comprobar el precio",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "el precio cambió después de cerrar la ventana de compra -- no se ha comprado nada",
   ["price checked, sale speed unknown -- this one is your call"] =

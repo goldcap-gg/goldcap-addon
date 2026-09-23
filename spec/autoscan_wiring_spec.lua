@@ -251,7 +251,7 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
 
     local function saysStopped(GC, f)
       assert.is_false(GC.Sniper._bookPass:IsPaging())
-      assert.equal(GC.L["full scan stopped -- press Full Scan to run it again"], f.status.text)
+      assert.equal(GC.L["full scan stopped -- press %s to run it again"]:format(GC.L["SCAN"]), f.status.text)
     end
 
     it("says so when the player leaves the Deals tab", function()
@@ -279,7 +279,18 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
       local GC, f = scanning()
       upvalue(GC.Sniper.OnAuctionHouseShow, "feedAuto")("toggleOn")
       GC.Sniper._OnPlayerBrowse()
-      assert.not_equal(GC.L["full scan stopped -- press Full Scan to run it again"], f.status.text)
+      assert.not_equal(GC.L["full scan stopped -- press %s to run it again"]:format(GC.L["SCAN"]), f.status.text)
+    end)
+
+    -- Fix round 1, nit 2: the button is named as it reads -- SCAN, СКАН -- not "Full Scan".
+    it("names the Scan button the way it reads, in the player's language", function()
+      local GC, f, setView = scanning()
+      helper.loadModule("Locale/ruRU.lua", GC)
+      GC.ActivateLocale("ruRU")
+      setView("sell")
+      assert.is_truthy(f.status.text:find(GC.L["SCAN"], 1, true), f.status.text)
+      assert.not_equal("SCAN", GC.L["SCAN"])
+      GC.ActivateLocale(nil)
     end)
   end)
 

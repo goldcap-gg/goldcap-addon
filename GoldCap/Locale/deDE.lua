@@ -561,8 +561,8 @@ GC.Locales.deDE = {
   ["full scan stalled -- press Full Scan to retry"] =
     "vollständiger Scan hängt -- Full Scan drücken, um es erneut zu versuchen",
   ["full scan stalled -- retrying shortly"] = "vollständiger Scan hängt -- gleich neuer Versuch",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "vollständiger Scan angehalten -- Full Scan drücken, um ihn erneut zu starten",
+  ["full scan stopped -- press %s to run it again"] =
+    "vollständiger Scan angehalten -- %s drücken, um ihn erneut zu starten",
   ["gone / price changed"] = "weg / Preis geändert",
   ["high"] = "hoch",
   ["hold"] = "halten",
@@ -630,8 +630,8 @@ GC.Locales.deDE = {
   ["over %d position%s"] = "über %d Positionen%s",
   ["paid sale unresolved"] = "bezahlter Verkauf ungeklärt",
   ["placing bid..."] = "Gebot wird abgegeben...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "vorheriger Warenkauf abgeschlossen -- Refresh, um den Preis erneut zu prüfen",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "vorheriger Warenkauf abgeschlossen -- %s, um den Preis erneut zu prüfen",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "Preis hat sich geändert, nachdem du das Kauffenster geschlossen hast -- nichts wurde gekauft",
   ["price checked, sale speed unknown -- this one is your call"] =

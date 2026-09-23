@@ -644,8 +644,8 @@ GC.Locales.enUS = {
   ["full scan interrupted -- confirm your purchase"] = "full scan interrupted -- confirm your purchase",
   ["full scan stalled -- press Full Scan to retry"] = "full scan stalled -- press Full Scan to retry",
   ["full scan stalled -- retrying shortly"] = "full scan stalled -- retrying shortly",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "full scan stopped -- press Full Scan to run it again",
+  ["full scan stopped -- press %s to run it again"] =
+    "full scan stopped -- press %s to run it again",
   ["gone / price changed"] = "gone / price changed",
   ["high"] = "high",
   ["identity unresolved (variant item -- not priced by design)"] = "identity unresolved (variant item -- not priced by design)",
@@ -707,8 +707,8 @@ GC.Locales.enUS = {
   ["placing bid..."] = "placing bid...",
   ["plan updated on goldcap.gg"] = "plan updated on goldcap.gg",
   ["plan updated on goldcap.gg · +%d −%d lines"] = "plan updated on goldcap.gg · +%d −%d lines",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "previous commodity purchase settled -- Refresh to re-check the price",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "previous commodity purchase settled -- %s to re-check the price",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "price changed after you closed the buy window -- nothing was bought",
   ["price checked, sale speed unknown -- this one is your call"] =

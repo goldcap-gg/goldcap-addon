@@ -560,8 +560,8 @@ GC.Locales.ptBR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "a varredura completa travou -- clique em Full Scan para tentar de novo",
   ["full scan stalled -- retrying shortly"] = "a varredura completa travou -- nova tentativa em breve",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "varredura completa interrompida -- clique em Full Scan para rodá-la de novo",
+  ["full scan stopped -- press %s to run it again"] =
+    "varredura completa interrompida -- clique em %s para rodá-la de novo",
   ["gone / price changed"] = "sumiu / preço mudou",
   ["high"] = "alta",
   ["hold"] = "segurar",
@@ -628,8 +628,8 @@ GC.Locales.ptBR = {
   ["over %d position%s"] = "em %d posições%s",
   ["paid sale unresolved"] = "venda paga não resolvida",
   ["placing bid..."] = "dando o lance...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "compra de mercadoria anterior liquidada -- clique em Refresh para conferir o preço de novo",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "compra de mercadoria anterior liquidada -- clique em %s para conferir o preço de novo",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "o preço mudou depois que você fechou a janela de compra -- nada foi comprado",
   ["price checked, sale speed unknown -- this one is your call"] =

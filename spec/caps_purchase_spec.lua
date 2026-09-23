@@ -1360,8 +1360,8 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.equal("expired", row.purchaseStage)
         assert.is_true(d.enabled)
         assert.equal(GC.L["Refresh"], d.label)
-        assert.equal(GC.L["previous commodity purchase settled -- Refresh to re-check the price"],
-          d.written[#d.written])
+        assert.equal(GC.L["previous commodity purchase settled -- %s to re-check the price"]
+          :format(GC.L["Refresh"]:upper()), d.written[#d.written])
         local before = sends
         click() -- Refresh
         assert.equal(0, starts)
@@ -1370,6 +1370,22 @@ describe("Live price caps -- buying at the player's own price", function()
         answer(GC)
         click() -- Buy, on the Check the player just ran
         assert.equal(1, starts)
+      end)
+
+      -- Fix round 1, nit 2: the line names the button by what it reads -- REFRESH in English,
+      -- AKTUALISIEREN in German -- not by an English word no translated button shows.
+      it("names the button the way the button itself reads, in the player's language", function()
+        local GC, _, _, d, click = armed()
+        helper.loadModule("Locale/deDE.lua", GC)
+        GC.ActivateLocale("deDE")
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+          { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+        click()
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assert.is_truthy(d.written[#d.written]:find("AKTUALISIEREN", 1, true), d.written[#d.written])
+        GC.ActivateLocale(nil)
       end)
 
       it("does the same when the purchase fails", function()

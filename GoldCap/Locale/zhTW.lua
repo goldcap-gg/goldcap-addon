@@ -509,7 +509,7 @@ GC.Locales.zhTW = {
   ["full scan interrupted -- confirm your purchase"] = "完整掃描被中斷 -- 請確認你的購買",
   ["full scan stalled -- press Full Scan to retry"] = "完整掃描停住了 -- 按 Full Scan 重試",
   ["full scan stalled -- retrying shortly"] = "完整掃描停住了 -- 稍後重試",
-  ["full scan stopped -- press Full Scan to run it again"] = "完整掃描已停止 -- 按 Full Scan 重新執行",
+  ["full scan stopped -- press %s to run it again"] = "完整掃描已停止 -- 按 %s 重新執行",
   ["gone / price changed"] = "已消失 / 價格已變",
   ["high"] = "高",
   ["hold"] = "持有",
@@ -572,8 +572,7 @@ GC.Locales.zhTW = {
   ["over %d position%s"] = "共 %d 個持倉%s",
   ["paid sale unresolved"] = "已入帳的銷售未匹配",
   ["placing bid..."] = "正在出價...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "前一筆商品購買已結算 -- 按 Refresh 重新檢查價格",
+  ["previous commodity purchase settled -- %s to re-check the price"] = "前一筆商品購買已結算 -- 按 %s 重新檢查價格",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "關閉購買視窗後價格變了 -- 沒有買到任何東西",
   ["price checked, sale speed unknown -- this one is your call"] = "價格已核對，售出速度未知 -- 這一筆由你決定",

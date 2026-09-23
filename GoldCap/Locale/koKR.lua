@@ -523,8 +523,7 @@ GC.Locales.koKR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "전체 검색이 멈췄습니다 -- Full Scan을 눌러 다시 시도하세요",
   ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "전체 검색이 중단됐습니다 -- Full Scan을 눌러 다시 실행하세요",
+  ["full scan stopped -- press %s to run it again"] = "전체 검색이 중단됐습니다 -- %s 버튼을 눌러 다시 실행하세요",
   ["gone / price changed"] = "사라짐 / 가격 변경",
   ["high"] = "높음",
   ["hold"] = "보류",
@@ -590,8 +589,8 @@ GC.Locales.koKR = {
   ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
   ["placing bid..."] = "입찰 중...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "이전 상품 구매가 끝남 -- Refresh로 가격을 다시 확인하세요",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "이전 상품 구매가 끝남 -- %s 버튼으로 가격을 다시 확인하세요",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "구매 창을 닫은 뒤 가격이 바뀌었습니다 -- 아무것도 구매하지 않았습니다",
   ["price checked, sale speed unknown -- this one is your call"] =

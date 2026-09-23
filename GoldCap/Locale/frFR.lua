@@ -559,8 +559,8 @@ GC.Locales.frFR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "scan complet bloqué -- appuyez sur Full Scan pour réessayer",
   ["full scan stalled -- retrying shortly"] = "scan complet bloqué -- nouvelle tentative bientôt",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "scan complet arrêté -- appuyez sur Full Scan pour le relancer",
+  ["full scan stopped -- press %s to run it again"] =
+    "scan complet arrêté -- appuyez sur %s pour le relancer",
   ["gone / price changed"] = "disparu / prix modifié",
   ["high"] = "élevée",
   ["hold"] = "garder",
@@ -628,8 +628,8 @@ GC.Locales.frFR = {
   ["over %d position%s"] = "sur %d positions%s",
   ["paid sale unresolved"] = "vente encaissée non résolue",
   ["placing bid..."] = "dépôt de l'enchère...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "achat de marchandise précédent réglé -- Refresh pour revérifier le prix",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "achat de marchandise précédent réglé -- %s pour revérifier le prix",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "le prix a changé après la fermeture de la fenêtre d'achat -- rien n'a été acheté",
   ["price checked, sale speed unknown -- this one is your call"] =

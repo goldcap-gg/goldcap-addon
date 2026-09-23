@@ -3256,7 +3256,8 @@ local function abortFullScan()
   if GC.Sniper._bookPass:IsPaging() then
     fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
     if not (autoScan and autoScan:State() ~= "OFF") then
-      setStatus(GC.L["full scan stopped -- press Full Scan to run it again"])
+      -- The Scan button named by its own label, in the player's language (fix round 1, nit 2).
+      setStatus(GC.L["full scan stopped -- press %s to run it again"]:format(GC.L["SCAN"]))
     end
   end
   GC.Sniper._bookPass:Abort()
@@ -4599,8 +4600,10 @@ function GC.Sniper._HandOffSettled()
   if GC.Sniper._ConfirmedOwed() then return end
   local row = dialog and dialog.row
   if not (row and row.purchaseStage == "ready") then return end
-  GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled -- Refresh to re-check the price"],
-    1, 0.82, 0)
+  -- The button named as it reads: the Refresh label, drawn upper-case (Theme.Button's
+  -- SetUppercase is `text:upper()`), in the player's language (fix round 1, nit 2).
+  GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled -- %s to re-check the price"]
+    :format(GC.L["Refresh"]:upper()), 1, 0.82, 0)
 end
 
 -- Fix round 1 (minor 2): a window armed while a confirmed purchase is still owed its answer says

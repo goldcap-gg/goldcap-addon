@@ -558,8 +558,8 @@ GC.Locales.ruRU = {
   ["full scan stalled -- press Full Scan to retry"] =
     "полное сканирование застряло -- нажмите Full Scan ещё раз",
   ["full scan stalled -- retrying shortly"] = "полное сканирование застряло -- скоро повторим",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "полное сканирование остановлено -- нажмите Full Scan, чтобы запустить его снова",
+  ["full scan stopped -- press %s to run it again"] =
+    "полное сканирование остановлено -- нажмите %s, чтобы запустить его снова",
   ["gone / price changed"] = "исчезло / цена изменилась",
   ["high"] = "высокая",
   ["hold"] = "держать",
@@ -626,8 +626,8 @@ GC.Locales.ruRU = {
   ["over %d position%s"] = "по %d позициям%s",
   ["paid sale unresolved"] = "оплаченная продажа не сопоставлена",
   ["placing bid..."] = "делаем ставку...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "предыдущая покупка товара завершена -- Refresh, чтобы перепроверить цену",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "предыдущая покупка товара завершена -- %s, чтобы перепроверить цену",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "цена изменилась после закрытия окна покупки -- ничего не куплено",
   ["price checked, sale speed unknown -- this one is your call"] =

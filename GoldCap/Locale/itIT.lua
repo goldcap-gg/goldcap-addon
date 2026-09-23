@@ -561,8 +561,8 @@ GC.Locales.itIT = {
     "la scansione completa si è bloccata -- premi Full Scan per riprovare",
   ["full scan stalled -- retrying shortly"] =
     "la scansione completa si è bloccata -- nuovo tentativo a breve",
-  ["full scan stopped -- press Full Scan to run it again"] =
-    "scansione completa interrotta -- premi Full Scan per rilanciarla",
+  ["full scan stopped -- press %s to run it again"] =
+    "scansione completa interrotta -- premi %s per rilanciarla",
   ["gone / price changed"] = "sparito / prezzo cambiato",
   ["high"] = "alta",
   ["hold"] = "tenere",
@@ -629,8 +629,8 @@ GC.Locales.itIT = {
   ["over %d position%s"] = "su %d posizioni%s",
   ["paid sale unresolved"] = "vendita incassata non risolta",
   ["placing bid..."] = "invio dell'offerta...",
-  ["previous commodity purchase settled -- Refresh to re-check the price"] =
-    "acquisto di merce precedente chiuso -- premi Refresh per ricontrollare il prezzo",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "acquisto di merce precedente chiuso -- premi %s per ricontrollare il prezzo",
   ["price changed after you closed the buy window -- nothing was bought"] =
     "il prezzo è cambiato dopo che hai chiuso la finestra di acquisto -- non è stato comprato nulla",
   ["price checked, sale speed unknown -- this one is your call"] =
