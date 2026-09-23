@@ -437,12 +437,12 @@ describe("Caps polling", function()
     local GC = loadSniper()
     openAH(GC)
     adoptCaps(GC, { { i = 42, c = 100 } })
-    setUpvalue(GC.Sniper._TrySendCapBatch, "dialog", { IsShown = function() return true end })
+    setUpvalue(GC.Sniper._CapPollPause, "dialog", { IsShown = function() return true end })
     assert.is_false(GC.Sniper._TrySendCapBatch())
-    setUpvalue(GC.Sniper._TrySendCapBatch, "dialog", { IsShown = function() return false end })
-    setUpvalue(GC.Sniper._TrySendCapBatch, "hoveredRow", {})
+    setUpvalue(GC.Sniper._CapPollPause, "dialog", { IsShown = function() return false end })
+    setUpvalue(GC.Sniper._CapPollPause, "hoveredRow", {})
     assert.is_false(GC.Sniper._TrySendCapBatch())
-    setUpvalue(GC.Sniper._TrySendCapBatch, "hoveredRow", nil)
+    setUpvalue(GC.Sniper._CapPollPause, "hoveredRow", nil)
     assert.is_true(GC.Sniper._TrySendCapBatch())
   end)
 
@@ -475,6 +475,40 @@ describe("Caps polling", function()
     assert.is_truthy(line:find("size=100", 1, true), line)
     assert.is_truthy(line:find("given up (dropped) x50", 1, true), line)
     assert.is_truthy(line:find("9s x100", 1, true), line)
+  end)
+
+  -- Follow-up 4: `/gc board` says why the caps' poll is standing still, when it is.
+  it("says on /gc board why the cap poll is paused", function()
+    local GC = loadSniper()
+    openAH(GC)
+    adoptCaps(GC, { { i = 42, c = 100 } })
+    local function paused()
+      local printed = {}
+      GC.Print = function(line) printed[#printed + 1] = line end
+      GC.Sniper.DebugBoard()
+      for _, text in ipairs(printed) do
+        local why = text:match("^caps: .* paused=(.*)$")
+        if why then return why end
+      end
+    end
+    assert.equal("no", paused())
+    setUpvalue(GC.Sniper._CapPollPause, "dialog", { IsShown = function() return true end })
+    assert.equal("buy window up", paused())
+    setUpvalue(GC.Sniper._CapPollPause, "dialog", nil)
+    setUpvalue(GC.Sniper._CapPollPause, "hoveredRow", {})
+    assert.equal("pointer on a row", paused())
+    setUpvalue(GC.Sniper._CapPollPause, "hoveredRow", nil)
+    GC.AuctionHouseTab.PlayerOwnsBrowseList = function() return true end
+    assert.equal("player's own search on Blizzard's Buy tab", paused())
+    GC.AuctionHouseTab.PlayerOwnsBrowseList = nil
+    GC.AuctionHouseTab.PlayerIsBusy = function() return true end
+    assert.equal("player busy on the auction house", paused())
+    GC.AuctionHouseTab.PlayerIsBusy = function() return false end
+    setUpvalue(GC.Sniper._CapPollPause, "view", "buy")
+    assert.equal("buy tab", paused())
+    setUpvalue(GC.Sniper._CapPollPause, "view", "deals")
+    assert.is_true(GC.Sniper._TrySendCapBatch())
+    assert.equal("a keys batch is out", paused())
   end)
 
   -- Caps fixes 5d: `/gc board` says how many of the player's prices the file carried that could
@@ -1442,6 +1476,28 @@ describe("Caps polling", function()
 
     -- The flag the hook tells our own browse queries apart by (UI/AuctionHouseTab.lua): set for
     -- the length of the book pass's own SendBrowseQuery, and only that long.
+    -- Follow-up 2: a pass already paging when the player's own browse query goes out would fold
+    -- the player's answer as its next page, and -- once they leave the pane -- page THEIR query
+    -- with RequestMoreBrowseResults. The pass is abandoned instead, and runs again later.
+    it("abandons a pass that is paging when the player's own search goes out", function()
+      local GC = loadSniper()
+      openAH(GC)
+      local more = 0
+      _G.C_AuctionHouse.RequestMoreBrowseResults = function() more = more + 1 end
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper.OnThrottleReady() -- the pass's query goes out
+      assert.is_true(GC.Sniper._bookPass:IsPaging())
+
+      GC.Sniper._OnPlayerBrowse()
+
+      assert.is_false(GC.Sniper._bookPass:IsPaging())
+      _G.C_AuctionHouse.HasFullBrowseResults = function() return false end
+      answer(GC, { browseRow(7, 500) }) -- the player's answer
+      assert.is_nil(GC.Sniper._bookPass:Book()[7])
+      GC.Sniper.OnThrottleReady()
+      assert.equal(0, more)
+    end)
+
     it("marks the pass's own browse query as ours", function()
       local GC = loadSniper()
       openAH(GC)

@@ -583,6 +583,9 @@ describe("Auction House tab", function()
         SearchForFavorites = function() end,
       }
       GC.Sniper._OnPlayerBrowse = function() told = told + 1 end
+      -- Blizzard's two player-only ways into SearchForFavorites (follow-up 1, below).
+      ah.SearchBar = { StartFavoritesSearch = function() _G.C_AuctionHouse.SearchForFavorites({}) end }
+      ah.SetBrowseSortOrder = function() end
       GC.AuctionHouseTab.Install()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       GC.Sniper.shown = true -- floating over the pane, the default visit
@@ -635,6 +638,26 @@ describe("Auction House tab", function()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Follow-up 1. The Favorites button and a sort on the list the pane shows reach the auction
+    -- house through SearchForFavorites (Blizzard_AuctionHouseSearchBar.lua's StartFavoritesSearch;
+    -- Blizzard_AuctionHouseFrame.lua's SetBrowseSortOrder -> SetSortOrder -> QueryAll), not
+    -- SendBrowseQuery: the player reading their favourites had them replaced all the same. Those
+    -- two player-only entries count; the list the auction house shows by itself as it opens
+    -- (OnShow -> QueryAll) does not.
+    it("counts the player's own Favorites search, and a sort on the list", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+
+      ah.SearchBar:StartFavoritesSearch()
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(1, told)
+
+      GC.AuctionHouseTab.OnAuctionHouseClosed()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      ah:SetBrowseSortOrder(1)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
     end)
 
     it("hooks the query once however many times the auction house opens", function()

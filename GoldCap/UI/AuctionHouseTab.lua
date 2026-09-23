@@ -57,10 +57,11 @@ local selectHooked = false
 local DISPLAY_MODE = {}
 -- Final review S1 (b): whether a browse query that was not ours has gone out this visit -- the
 -- player's own search, a category click, a sort (Blizzard_AuctionHouseFrame.lua's
--- SendBrowseQueryInternal is the one place all of them reach C_AuctionHouse.SendBrowseQuery), or
--- another addon's. Read by PlayerOwnsBrowseList, cleared when the auction house closes.
+-- SendBrowseQueryInternal is the one place all of them reach C_AuctionHouse.SendBrowseQuery),
+-- another addon's, or the player's own favourites search (installFavouritesHooks). Read by
+-- PlayerOwnsBrowseList, cleared when the auction house closes.
 local playerBrowsed = false
-local browseHooked = false
+local browseHooked, favouritesHooked = false, false
 -- Set by our own sender for the length of its own SendBrowseQuery call (UI/SniperFrame.lua's book
 -- pass), so the hook below does not count it. A field, so that sender can reach it.
 GC.AuctionHouseTab.addonBrowse = false
@@ -286,7 +287,8 @@ end
 -- apart by GC.AuctionHouseTab.addonBrowse, which the hook consumes. Deliberately NOT on
 -- C_AuctionHouse.SearchForFavorites: the auction house lists the favourites itself every time it
 -- opens (Blizzard_AuctionHouseFrame.lua's OnShow -> QueryAll), and counting that as the player's
--- search would hold every browse writer back for the whole of every visit.
+-- search would hold every browse writer back for the whole of every visit. The player's own
+-- favourites search is caught where only the player reaches it (installFavouritesHooks below).
 local function installBrowseHook()
   if browseHooked then return end
   local api = _G.C_AuctionHouse
@@ -302,6 +304,29 @@ local function installBrowseHook()
   end) and true or false
 end
 
+-- Follow-up 1: the player's own ways into C_AuctionHouse.SearchForFavorites, which the hook above
+-- does not see. Blizzard_AuctionHouseSearchBar.lua's Favorites button calls the search bar's
+-- StartFavoritesSearch, and a sort on the list the Buy pane shows goes through the frame's
+-- SetBrowseSortOrder (SetSortOrder -> QueryAll for the favourites list, SendBrowseQueryInternal
+-- otherwise) -- both read verbatim, and both reached only from the player's click. The favourites
+-- list the auction house shows by itself as it opens (OnShow -> QueryAll) passes through neither,
+-- so it still does not count. Post-hooks on the frames' own methods, like the SetDisplayMode one.
+local function installFavouritesHooks(ah)
+  if favouritesHooked or type(hooksecurefunc) ~= "function" then return end
+  local bar = ah.SearchBar
+  if not (bar and type(bar.StartFavoritesSearch) == "function"
+      and type(ah.SetBrowseSortOrder) == "function") then
+    return
+  end
+  local barHooked = pcall(hooksecurefunc, bar, "StartFavoritesSearch", function()
+    GC.AuctionHouseTab.NotePlayerBrowse()
+  end)
+  local sortHooked = pcall(hooksecurefunc, ah, "SetBrowseSortOrder", function()
+    GC.AuctionHouseTab.NotePlayerBrowse()
+  end)
+  favouritesHooked = barHooked or sortHooked
+end
+
 -- The player (or another addon) just sent a browse query. The Sniper gives up a keys batch still
 -- out under it: that batch's answer went with it, and the answer coming is not the batch's.
 function GC.AuctionHouseTab.NotePlayerBrowse()
@@ -315,6 +340,7 @@ function GC.AuctionHouseTab.Install()
   installBrowseHook()
   local ah = _G.AuctionHouseFrame
   if not ah or not CreateFrame then return end
+  installFavouritesHooks(ah)
   if installed then
     -- Every visit, not just the first: the bar can have grown since we were built. See
     -- anchorTab for the collision this exists to get out of. The library owns the position of

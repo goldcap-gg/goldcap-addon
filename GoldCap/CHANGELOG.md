@@ -20,8 +20,8 @@
   close it. The window it opens holds its Buy button for a moment, so a click meant for the
   board does not land on it, and after you close one it waits two minutes before opening the
   same item again.
-- Once you search on the auction house's own Buy tab, the sniper leaves your results alone for
-  as long as that tab shows them, with the GoldCap window open or closed.
+- Once you search, or open your favourites, on the auction house's own Buy tab, the sniper
+  leaves that list alone for as long as the tab shows it, with the GoldCap window open or closed.
 - The BUY tab shows the item level an alert group's gear price is set for ("item level 625+").
   When the sniper has already seen the item at that level or higher, the auction house search it
   opens shows the cheapest such version rather than whichever one the auction house picks.

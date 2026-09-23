@@ -5607,10 +5607,21 @@ function GC.Sniper._BrowseOwned()
   return (tab and tab.PlayerOwnsBrowseList and tab.PlayerOwnsBrowseList()) and true or false
 end
 
--- The player's own browse query just went out (UI/AuctionHouseTab.lua's hook). A keys batch still
+-- The player's own browse query just went out (UI/AuctionHouseTab.lua's hooks). A keys batch still
 -- out lost its answer to it, and the answer coming is the player's: given up now, not folded.
+--
+-- Follow-up 2: and a pass that is paging is abandoned. Its query was just replaced by the
+-- player's, so its next page would be the player's answer, and the RequestMoreBrowseResults after
+-- it would page the player's query. Auto hears the pass is over and starts a fresh one once it
+-- may (its start waits while the player's results are shown -- GC.Sniper._BrowseOwned); a manual
+-- scan keeps what it had already streamed in.
 function GC.Sniper._OnPlayerBrowse()
   if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("player search") end
+  if GC.Sniper._bookPass:IsPaging() then
+    trace("pass: abandoned for the player's own search")
+    abortFullScan()
+    feedAuto("scanFinished")
+  end
 end
 
 -- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"), the
@@ -5938,15 +5949,25 @@ end
 -- longer than any of those takes to ask again -- or for as long as that batch held the interlock
 -- if that was longer (GC.Sniper._CapsReleased), and rests LIM.CAPS_ROUND_BREATHER_SECONDS between
 -- two rounds.
-function GC.Sniper._TrySendCapBatch(playerBusy)
-  local poll = GC.Sniper._capPoll
-  if poll:Count() == 0 then return false end
-  if not (GC.Sniper.IsAHOpen() and GC.Sniper.IsWindowShown()) then return false end
-  if view == "sell" or view == "buy" then return false end
+-- Why the caps' poll stands still right now by its own rules, in a few words for `/gc board`
+-- (follow-up 4), or nil. _TrySendCapBatch refuses on exactly these; the addon-wide gates
+-- (_TrySendKeysBatchFor) and the pacing are the board's to add.
+function GC.Sniper._CapPollPause()
+  if GC.Sniper._capPoll:Count() == 0 then return "no caps" end
+  if not GC.Sniper.IsAHOpen() then return "auction house closed" end
+  if not GC.Sniper.IsWindowShown() then return "window hidden" end
+  if view == "sell" or view == "buy" then return view .. " tab" end
   -- Final review S2 (i): not when a Check is coming -- the buy window up (its Check, a Refresh,
   -- stop-and-open's own) or the pointer on a board row (its hover pre-warm, the click after it).
   -- A search sent over an unanswered batch comes back empty, and a batch answers in seconds.
-  if (dialog and dialog:IsShown()) or hoveredRow then return false end
+  if dialog and dialog:IsShown() then return "buy window up" end
+  if hoveredRow then return "pointer on a row" end
+  return nil
+end
+
+function GC.Sniper._TrySendCapBatch(playerBusy)
+  local poll = GC.Sniper._capPoll
+  if GC.Sniper._CapPollPause() then return false end
   local now = GetTime()
   local landed = GC.Sniper._capsLandedAt
   if landed and (now - landed) < (GC.Sniper._capsGap or LIM.CAPS_BATCH_GAP_SECONDS) then return false end
@@ -10475,10 +10496,19 @@ function GC.Sniper.DebugBoard()
   local held = GC.Caps and GC.Caps.Count() or 0
   local malformed, repeated = 0, 0
   if GC.Caps and GC.Caps.Dropped then malformed, repeated = GC.Caps.Dropped() end
-  GC.Print(("caps: held=%d dropped=%d repeated=%d unpolled=%d targets=%d pending=%s landed=%s roundDone=%s window=%s"):format(
+  -- Follow-up 4: and why it stands still, when it does -- its own rules first (_CapPollPause), then
+  -- the player (Blizzard's Buy tab showing their own search, or busy on the auction house), then a
+  -- batch already out.
+  local tab = GC.AuctionHouseTab or {}
+  local paused = GC.Sniper._CapPollPause()
+    or (GC.Sniper._BrowseOwned() and "player's own search on Blizzard's Buy tab")
+    or (tab.PlayerIsBusy and tab.PlayerIsBusy() and "player busy on the auction house")
+    or (GC.Sniper._KeysOutstanding() and "a keys batch is out")
+    or "no"
+  GC.Print(("caps: held=%d dropped=%d repeated=%d unpolled=%d targets=%d pending=%s landed=%s roundDone=%s window=%s paused=%s"):format(
     held, malformed, repeated, math.max(0, held - GC.Sniper._capPoll:Count()),
     GC.Sniper._capPoll:Count(), s(GC.Sniper._capPoll:HasPending()),
-    ago(GC.Sniper._capsLandedAt), ago(GC.Sniper._capsRoundDoneAt), s(GC.Sniper.IsWindowShown())))
+    ago(GC.Sniper._capsLandedAt), ago(GC.Sniper._capsRoundDoneAt), s(GC.Sniper.IsWindowShown()), paused))
   -- Final review S2 (iii): how long the last cap batches took to answer, or why each was given up.
   GC.Print(("cap batches: size=%d last=[%s]"):format(LIM.CAPS_BATCH_SIZE,
     table.concat(GC.Sniper._capBatchLog or {}, ", ")))
@@ -10490,7 +10520,6 @@ function GC.Sniper.DebugBoard()
     s(C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady())))
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
-  local tab = GC.AuctionHouseTab or {}
   GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s ownSearchShown=%s"):format(
     autoScan:State(), table.concat(reasons, ","), s(pass:PendingStart()),
     s(tab.PlayerIsPosting and tab.PlayerIsPosting()), s(tab.PlayerIsBuying and tab.PlayerIsBuying()),
