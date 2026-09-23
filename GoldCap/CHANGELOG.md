@@ -7,13 +7,21 @@
   Your prices are watched on both Deals boards and on the Sold tab while the GoldCap window is
   open at the auction house, and wait while you use the Sell and BUY tabs; each find shows up on
   its own board. Needs the current Companion release; the group's minimum item level is
-  honoured for gear.
-- A commodity at your price is bought cheapest first, never a unit above your price, and no more
-  than your "Max units per buy" and your wallet limit allow. Buys at your price count in your
-  session and your ledger like any other sniper buy.
+  honoured for gear. When you buy part of what is listed at your price, the rest comes back as
+  a row.
+- A commodity at your price is bought cheapest first and no more than your "Max units per buy"
+  and your wallet limit allow; gear at your price keeps to your wallet limit too. The sniper
+  never plans a unit above your price, and warns you loudly before any quote that could include
+  one. If the listing at your price has gone by the time you check it, the buy window says what
+  the next one misses — your price or your item level — and holds its Buy button for a moment.
+  Buys at your price count in your session and your ledger like any other sniper buy.
 - New option: stop scanning and open the buy window as soon as one of your prices is met (off
   by default). It never takes over a buy window you already have open: it waits until you
-  close it.
+  close it. The window it opens holds its Buy button for a moment, so a click meant for the
+  board does not land on it, and after you close one it waits two minutes before opening the
+  same item again.
+- Once you search on the auction house's own Buy tab, the sniper leaves your results alone for
+  as long as that tab shows them, with the GoldCap window open or closed.
 - The BUY tab shows the item level an alert group's gear price is set for ("item level 625+").
   When the sniper has already seen the item at that level or higher, the auction house search it
   opens shows the cheapest such version rather than whichever one the auction house picks.
