@@ -6642,6 +6642,15 @@ local function evaluateLiveItemDeal(itemID)
       stampVerdict(capDeal, capLive)
       return capLive
     end
+    -- Follow-up 2: these are the item's lots, read live, and not one of them is at or under the
+    -- player's price at its item level -- proof the YOUR PRICE row is wrong, however long the keys
+    -- batch's aggregate floor says otherwise. It used to stand until the next cap batch let it
+    -- go. It comes down now, the way a listing that has gone does (applyRequeryResult); only a cap
+    -- row, the realm poll keeps its own. No ratchet is let go: the lots are not gone, and the poll
+    -- re-reports the floor the moment it moves. A buy window this Check came from keeps its own row
+    -- and says what the lot it names misses (GC.Sniper._CapMiss).
+    local held = GC.Sniper._realmDeals[itemID]
+    if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
   end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured

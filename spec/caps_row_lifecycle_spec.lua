@@ -284,6 +284,55 @@ describe("Caps row lifecycle -- realm key poll (onRows)", function()
 
     assert.equal(held, GC.Sniper._realmDeals[42])
   end)
+
+  -- Follow-up 2 (P5a): a live Check (or drill) that reads the lots and finds none at or under the
+  -- player's price -- at the price's item level -- is proof the row is wrong, however long the
+  -- keys batch's aggregate floor goes on saying otherwise. The row used to keep claiming YOUR
+  -- PRICE until the next cap batch let it go; it leaves now, like a listing that has gone. The
+  -- buy window a Check came from keeps its own row and says what the lot misses (final review M1).
+  describe("once a live read finds no lot at the player's price", function()
+    local function drilled(GC, lots)
+      local evaluateLiveItemDeal = getUpvalue(GC.Sniper.OnItemSearchResults, "evaluateLiveItemDeal")
+      setUpvalue(evaluateLiveItemDeal, "driver", {
+        itemResult = function() return {} end,
+        itemLots = function() return lots end,
+      })
+      return evaluateLiveItemDeal(42)
+    end
+
+    it("takes the YOUR PRICE row down when every lot is above the price", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000, 0)
+      values[42] = { ts = 1, source = "import", kind = "realm_item", ref = 5000000, refIlvl = 610 }
+      GC.Sniper._realmDeals[42] = capDeal(42, 800000, 1000000)
+
+      local live = drilled(GC, { { auctionID = 10, buyout = 1200000, itemLevel = 615, quantity = 1 } })
+
+      assert.is_nil(live.decision.cap) -- the region verdict answers for it instead
+      assert.is_nil(GC.Sniper._realmDeals[42])
+    end)
+
+    it("takes it down when the only lot under the price is below its item level", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000, 610)
+      GC.Sniper._realmDeals[42] = capDeal(42, 800000, 1000000)
+
+      drilled(GC, { { auctionID = 10, buyout = 800000, itemLevel = 590, quantity = 1 } })
+
+      assert.is_nil(GC.Sniper._realmDeals[42])
+    end)
+
+    it("leaves an ordinary row for the item to the realm poll", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000, 0)
+      local ordinary = { itemID = 42, isCommodity = false, unitPrice = 1200000, qty = 1, stale = true }
+      GC.Sniper._realmDeals[42] = ordinary
+
+      drilled(GC, { { auctionID = 10, buyout = 1200000, itemLevel = 615, quantity = 1 } })
+
+      assert.equal(ordinary, GC.Sniper._realmDeals[42])
+    end)
+  end)
 end)
 
 describe("Caps row lifecycle -- commodity watch loop (onObservation)", function()
