@@ -367,6 +367,67 @@ describe("Live price caps -- buying at the player's own price", function()
     end)
   end)
 
+  -- Final review S3. A cap buy is clamped -- Max units per buy, the wallet limit -- and the buy
+  -- takes its row off the board, while the rest of the wall sits at the same floor with a smaller
+  -- quantity. Neither ratchet calls that news (the poll's wants a new floor or a larger quantity,
+  -- the book pass's a new floor), so the rest never got a row back. A purchase lets both go; the
+  -- ring's memory stays, so the row that comes back does not ring a second time.
+  describe("after a buy at the player's price", function()
+    local function wallRow(minPrice, quantity)
+      return { itemKey = { itemID = 42 }, minPrice = minPrice, totalQuantity = quantity }
+    end
+    local function isCommodity() return true end
+
+    it("lets the rest of a commodity wall come back", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      GC.Sniper._capPoll:Fold({ wallRow(900000, 5000) })
+      assert.equal(1, #GC.Caps.BookHits({ [42] = { floor = 900000, qty = 5000 } }, isCommodity))
+      GC.Sniper._drillQueue:Clear()
+      local live = capLive(GC, 42, { { unitPrice = 900000, quantity = 5000 } })
+      GC.Caps.Announce(boardDeal(GC, 42)) -- the ring played
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = live.decision }
+      local pending = { row = row, itemID = 42, token = 7 }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", fakeDialog(row, deal))
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
+      GC.Sniper.OnCommodityPriceUpdated(900000, 200 * 900000)
+      pending.confirmed, pending.deal, pending.quote = true, row.purchaseDeal, row.quoteSnapshot
+      row.purchaseStage = "confirming"
+
+      GC.Sniper.OnCommodityPurchaseSucceeded()
+
+      assert.is_nil(GC.Sniper._CurrentLiveDeal(42)) -- the bought row is gone...
+      GC.Sniper._capPoll:Fold({ wallRow(900000, 4800) })
+      assert.is_true(GC.Sniper._drillQueue:Has(42)) -- ...and the rest is looked at again
+      assert.equal(1, #GC.Caps.BookHits({ [42] = { floor = 900000, qty = 4800 } }, isCommodity))
+      assert.is_false(GC.Caps.IsNews({ itemID = 42, isCommodity = true, unitPrice = 900000 }))
+    end)
+
+    it("lets the next lot at the same price come back after a realm buy", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      GC.Sniper._capPoll:Fold({ wallRow(800000, 3) })
+      GC.Sniper._drillQueue:Clear()
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 800000, itemLevel = 615, quantity = 1 } })
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 1,
+        auctionID = 9, stale = true }
+      local purchaseDeal = { itemID = 42, isCommodity = false, cap = 1000000, boardDeal = deal,
+        auctionID = 9, qty = 1, unitPrice = 800000,
+        itemKey = { itemID = 42, itemLevel = 615, itemSuffix = 0, battlePetSpeciesID = 0 } }
+      local row = { deal = deal, purchaseDeal = purchaseDeal, purchaseStage = "buying",
+        purchaseToken = 7, decisionSnapshot = decision }
+      getUpvalue(GC.Sniper.OnPurchaseCompleted, "pendingAuction")[9] = row
+
+      GC.Sniper.OnPurchaseCompleted(9)
+
+      GC.Sniper._capPoll:Fold({ wallRow(800000, 2) })
+      assert.is_true(GC.Sniper._drillQueue:Has(42))
+    end)
+  end)
+
   describe("at the server's quote", function()
     -- Caps fixes 2e: the stamp wrote every unit under the cap into the quantity box while
     -- Confirm bought the two that were armed.

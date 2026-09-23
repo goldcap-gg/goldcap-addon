@@ -4280,6 +4280,14 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
     elseif deal.auctionID then
       pendingAuction[deal.auctionID] = nil
     end
+    if success and GC.Caps and GC.Caps.For(deal.itemID) then
+      -- Final review S3: a buy at the player's price is clamped (Max units per buy, the wallet
+      -- limit) and takes its row off the board, while the rest of the wall -- or the next lot at
+      -- the same price -- sits at the same floor with less behind it: news to neither ratchet. Both
+      -- let go, so the next look reports it; the ring's memory stays, so it does not ring again.
+      GC.Caps.Rearm(deal.itemID)
+      GC.Sniper._capPoll:Rearm(deal.itemID)
+    end
     if success then
       if not purchase and deal.isCommodity then
         -- There is no trustworthy cost basis without the final server quote. Keep the row
