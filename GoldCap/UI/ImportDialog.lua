@@ -152,6 +152,8 @@ GC.slashHandlers.status = function()
           GC.Util.FormatAge(payloadAge(now, idle.ts)))
       elseif idle.reason == "other_region" then
         why = GC.L["it is for another region than the prices loaded"]
+      elseif idle.reason == "set_aside" then
+        why = GC.L["it was set aside when other prices were loaded this session -- /reload to use it again"]
       elseif idle.reason == "bad_ts" then
         -- The date is what is wrong, so it is not shown: 0, far ahead of the clock, or inf.
         why = GC.L["its date cannot be right -- check this computer's clock"]

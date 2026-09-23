@@ -816,4 +816,6 @@ GC.Locales.ukUA = {
   ["it is for another region than the prices loaded"] = "вони для іншого регіону, ніж завантажені ціни",
   ["its date cannot be right -- check this computer's clock"] =
     "їхня дата не може бути правильною -- перевірте годинник цього комп'ютера",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "їх відклали, коли в цій сесії завантажили інші ціни -- /reload, щоб знову їх використати",
 }

@@ -725,4 +725,6 @@ GC.Locales.zhTW = {
   ["it is %s old, and the prices you imported are newer"] = "它是 %s 前的資料，你匯入的價格更新",
   ["it is for another region than the prices loaded"] = "它屬於與已載入價格不同的地區",
   ["its date cannot be right -- check this computer's clock"] = "其日期不可能正確 -- 請檢查這台電腦的時鐘",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "本次載入其他價格時已被擱置 -- 輸入 /reload 可重新使用",
 }

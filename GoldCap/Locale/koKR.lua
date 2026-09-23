@@ -749,4 +749,6 @@ GC.Locales.koKR = {
   ["it is %s old, and the prices you imported are newer"] = "%s 지난 자료이며, 가져온 시세가 더 최신입니다",
   ["it is for another region than the prices loaded"] = "불러온 시세와 다른 지역의 자료입니다",
   ["its date cannot be right -- check this computer's clock"] = "날짜가 올바를 수 없습니다 -- 이 컴퓨터의 시계를 확인하세요",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "이번 세션에서 다른 시세를 불러오면서 보류되었습니다 -- 다시 쓰려면 /reload",
 }

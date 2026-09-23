@@ -687,6 +687,8 @@ GC.Locales.enUS = {
     "is what this market absorbs — past that you are buying stock you will sit on",
   ["it is %s old, and the prices you imported are newer"] = "it is %s old, and the prices you imported are newer",
   ["it is for another region than the prices loaded"] = "it is for another region than the prices loaded",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "it was set aside when other prices were loaded this session -- /reload to use it again",
   ["item %d"] = "item %d",
   ["item %d: %s"] = "item %d: %s",
   ["item level %d+"] = "item level %d+",

@@ -724,4 +724,6 @@ GC.Locales.zhCN = {
   ["it is %s old, and the prices you imported are newer"] = "它是 %s 前的数据，你导入的价格更新",
   ["it is for another region than the prices loaded"] = "它属于与已载入价格不同的地区",
   ["its date cannot be right -- check this computer's clock"] = "其日期不可能正确 -- 请检查这台电脑的时钟",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "本次载入其他价格时已被搁置 -- 输入 /reload 可重新使用",
 }

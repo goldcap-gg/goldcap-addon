@@ -65,7 +65,8 @@
 - With the current Companion, GoldCap knows every commodity in your region, not only the few
   hundred that sell the most: tooltips show a fresh price for each of them, and the sniper can
   check thousands more against their own sales. It is kept in memory only, so your saved
-  variables do not grow.
+  variables do not grow. `/goldcap status` says how many commodities it covers and how old it
+  is, or why it is not in use.
 
 ## 0.14.1 (unreleased)
 

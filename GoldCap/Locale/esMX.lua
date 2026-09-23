@@ -806,4 +806,6 @@ GC.Locales.esMX = {
   ["it is for another region than the prices loaded"] = "son de otra región distinta a la de los precios cargados",
   ["its date cannot be right -- check this computer's clock"] =
     "su fecha no puede ser correcta -- revisa el reloj de esta computadora",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "se apartaron cuando se cargaron otros precios en esta sesión -- /reload para volver a usarlos",
 }

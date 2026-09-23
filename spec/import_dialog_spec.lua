@@ -189,6 +189,11 @@ describe("ImportDialog", function()
       end
     end)
 
+    it("says it was set aside this session, and how to get it back", function()
+      assert.equal("whole-market data not in use: it was set aside when other prices were loaded this session"
+        .. " -- /reload to use it again", reasonLine({ reason = "set_aside", ts = time() - 600 }))
+    end)
+
     it("gives a parser refusal the import error's own sentence", function()
       GC.Data.DescribeImportError = function(reason) return "sentence for " .. reason end
       assert.equal("whole-market data not in use: sentence for too_long", reasonLine({ reason = "too_long" }))

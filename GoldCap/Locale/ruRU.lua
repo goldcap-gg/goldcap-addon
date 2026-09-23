@@ -796,4 +796,6 @@ GC.Locales.ruRU = {
   ["it is for another region than the prices loaded"] = "они для другого региона, чем загруженные цены",
   ["its date cannot be right -- check this computer's clock"] =
     "их дата не может быть верной -- проверьте часы этого компьютера",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "они были отложены, когда в этой сессии загрузили другие цены -- /reload, чтобы снова их использовать",
 }
