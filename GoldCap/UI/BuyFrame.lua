@@ -1214,6 +1214,14 @@ local function quote(line)
   -- No auction house session, no question to ask -- and a SendSearchQuery nobody will answer
   -- leaves the board promising a quote that never lands. Same gate as TrySendRefresh's.
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
+  -- Not over an unanswered keys batch -- one still out from the Deals board the player just left,
+  -- or this tab's own refresh. A search sent on top of one takes its answer and comes back empty
+  -- itself (UI/SellFrame.lua's advanceQuote, seen in game): an empty quote. The line is asked for
+  -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
+  if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
+    GC.Buy._quoteOwed = line.itemID
+    return
+  end
   if not throttleReady() then return end
   -- Claimed as "buy-quote", not "buy": the NOW batch (TrySendRefresh) already claims "buy", and
   -- under a stuck throttle flag GC.Util paces one forced send per consumer -- sharing a name
@@ -2474,6 +2482,9 @@ function GC.Buy.TrySendRefresh(playerBusy)
   -- Same gate, same reason, as canDrillNow's first line in UI/SniperFrame.lua.
   if not GC.Sniper.IsAHOpen() then return false end
   if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
+  -- Not over a hover quote still waiting for its answer: a batch sent on top of it would take
+  -- that answer (the same collision quote() waits out in the other direction).
+  if quotePending(GC.Buy._attempt) then return false end
   -- refreshTargets is handed to the arbiter rather than called here: it walks the whole run
   -- asking the client about every line's item key, and this function runs once a second off
   -- the auction house ticker. Inside NextBatch it runs only on the tick that has already
@@ -2489,6 +2500,15 @@ end
 -- enough on its own: Auto is paused for as long as this tab is up, so on a quiet client
 -- nothing else sends anything and no readiness event ever fires.
 function GC.Buy.Tick()
+  -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
+  -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
+  -- of the refresh, which would otherwise take the moment with a batch of its own.
+  local owed = GC.Buy._quoteOwed
+  if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) then
+    GC.Buy._quoteOwed = nil
+    local line = lineFor(owed)
+    if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
+  end
   GC.Buy.TrySendRefresh()
 end
 

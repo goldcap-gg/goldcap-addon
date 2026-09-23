@@ -314,6 +314,37 @@ describe("BUY purchase", function()
     assert.same({ 101 }, searches)
   end)
 
+  -- Caps fixes 4a, round 2: a search sent on top of an unanswered keys batch takes its answer
+  -- and comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game) -- an empty quote
+  -- here. So a hover waits for the batch (one still out from the Deals board, or this tab's own
+  -- refresh) and is asked again once it is gone, while the line still has the focus.
+  it("waits for an unanswered keys batch, then asks for the line still in focus", function()
+    local out = true
+    GC.Sniper._KeysOutstanding = function() return out end
+    hover(rowWithText("Alpha Herb"))
+    assert.same({}, searches)
+    GC.Buy.Tick()
+    assert.same({}, searches)
+    out = false
+    GC.Buy.Tick()
+    assert.same({ 101 }, searches)
+  end)
+
+  -- ...and the other way round: this tab's own refresh batch does not go out over a hover quote
+  -- still waiting for its answer, which it would take.
+  it("sends no refresh batch over an unanswered quote", function()
+    local batches = 0
+    GC.Sniper._TrySendKeysBatchFor = function() batches = batches + 1; return true end
+    hover(rowWithText("Alpha Herb"))
+    assert.same({ 101 }, searches)
+    now = now + 1 -- the refresh is due (none has run yet), the quote still on the wire
+    GC.Buy.Tick()
+    assert.equal(0, batches)
+    GC.Buy.OnCommodityResults(101)
+    GC.Buy.Tick()
+    assert.equal(1, batches)
+  end)
+
   it("quotes the missing quantity and what it costs, off the live ladder", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
