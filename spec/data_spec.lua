@@ -626,8 +626,82 @@ describe("Data", function()
       GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3 * 3600,
         items = { [42] = { m = 9999, s = 5 } }, verification = { [42] = FACT }, watchlist = {} })
       assert.is_truthy(GC.Data.RegionPayload())
-      assert.equal("region", GC.Data.GetItemValue(42).source)
+      -- Everything the import has no fresher fact for (42 is the import's now -- see "one item at a
+      -- time" below).
+      assert.equal("region", GC.Data.GetItemValue(44).source)
+      assert.equal(720, GC.Data.GetItemValue(43).mv)
       assert.is_nil(GC.Data.RegionPayloadStatus())
+    end)
+
+    -- Final review M4 and e2e m4: which of the two answers is decided one item at a time. The import
+    -- answers for an item instead of the payload when it carries a fact for it and the payload
+    -- either carries none (V covers only what sold in 24 h; the import's busiest 400 all carry one)
+    -- or is older than the import. Every reader of facts agrees with GetItemValue item by item.
+    describe("one item at a time", function()
+      local function listed(id)
+        for _, fid in ipairs(GC.Data.FactItemIds()) do
+          if fid == id then return true end
+        end
+        return false
+      end
+      local function agrees(id)
+        local v, fact = GC.Data.GetItemValue(id), GC.Data.Facts(id)
+        assert.equal(fact and fact.stressUnit, v.stressUnit)
+        assert.equal(fact ~= nil, listed(id))
+      end
+
+      it("answers from the payload when both carry the fact from the same snapshot", function()
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+          items = { [42] = { m = 4000, s = 3 } }, verification = { [42] = FACT }, watchlist = {} })
+        local v = GC.Data.GetItemValue(42)
+        assert.equal("region", v.source)
+        assert.equal(3800, v.stressUnit)
+        agrees(42)
+      end)
+
+      it("answers from the import for an item it has a fact for and the payload has none", function()
+        local fact44 = { sourceAt = 2990, stressUnit = 850, sellThroughBps = 0, liquidityConfidence = 40,
+          currentQty = 25, listings = 3, observations = 12, madBps = 0, flags = 0 }
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+          items = { [44] = { m = 950, s = 0 } }, verification = { [44] = fact44 }, watchlist = {} })
+        local v = GC.Data.GetItemValue(44)
+        assert.equal("import", v.source)
+        assert.equal("region_commodity", v.kind)
+        assert.equal(950, v.mv)
+        assert.equal(25, v.currentQty)
+        agrees(44)
+        -- The tooltip's depth line, which the payload's fact-less answer could not give.
+        helper.loadModule("Locale/Core.lua", GC)
+        helper.loadModule("UI/Tooltip.lua", GC)
+        local depth
+        for _, line in ipairs(GC.Tooltip.BuildLines(v, 3000)) do
+          if line.left == "Listed" then depth = line end
+        end
+        assert.is_truthy(depth)
+        assert.equal("25", depth.right:match("^(%d+)"))
+      end)
+
+      it("answers from an import newer than the payload that carries the fact", function()
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3600,
+          items = { [42] = { m = 4200, s = 4 } }, verification = { [42] = FACT }, watchlist = {} })
+        local v = GC.Data.GetItemValue(42)
+        assert.equal("import", v.source)
+        assert.equal(4200, v.mv)
+        assert.equal(5000, v.stressUnit)
+        agrees(42)
+        assert.equal("region", GC.Data.GetItemValue(44).source)
+      end)
+
+      it("answers from the payload for an item a newer import has no fact for", function()
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3600,
+          items = { [42] = { m = 4200, s = 4 }, [7] = { m = 1 } }, verification = { [7] = FACT },
+          watchlist = {} })
+        local v = GC.Data.GetItemValue(42)
+        assert.equal("region", v.source)
+        assert.equal(4100, v.mv)
+        assert.equal(3800, v.stressUnit)
+        agrees(42)
+      end)
     end)
 
     -- A payload that stops answering mid-session is let go there and then, like one that could not
@@ -708,8 +782,8 @@ describe("Data", function()
       GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
         items = { [42] = { m = 1 }, [7] = { m = 1 } }, verification = { [42] = FACT, [7] = FACT }, watchlist = {} })
       GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:42=4100=6.0,50=900;V:50=2990=800=8000=85=40=4=12=90=0")
-      -- 42 is priced by the payload with no fact of its own: the import's fact for it is not used.
-      assert.same({ 7, 50 }, GC.Data.FactItemIds())
+      -- 42 is priced by the payload with no fact of its own, so the import's fact answers for it.
+      assert.same({ 7, 42, 50 }, GC.Data.FactItemIds())
     end)
 
     it("hands back the same table while nothing changed, and a new one when a source did", function()

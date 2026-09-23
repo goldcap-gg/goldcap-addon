@@ -379,41 +379,63 @@ function GC.Data.RegionPayloadMemoryKB()
   return p.memoryKB
 end
 
---- The one answer to "which facts does item X have". The payload's, for every item the payload
--- prices -- even when it has none for it (nothing sold in a day), since the import's would be the
--- same snapshot's -- and the import's for everything else.
-function GC.Data.Facts(itemID)
+-- Whether the import answers for an item the payload prices (final review M4, e2e m4): it carries a
+-- fact for the item, and the payload either carries none -- V covers only what sold in the last day,
+-- while the import's busiest items all carry one -- or is older than the import. Anything else about
+-- the item is the payload's, as the whole payload yields to the import only per inactiveReason.
+local function importOutranks(p, itemID)
+  local imp = db and db.imported
+  if not (imp and imp.items and imp.items[itemID] and imp.verification and imp.verification[itemID]) then
+    return false
+  end
+  return p.verification[itemID] == nil or (imp.ts or 0) > p.ts
+end
+
+-- The payload when it answers for this item, or nil: it prices the item and the import does not
+-- outrank it. The one precedence GetItemValue, Facts and FactItemIds all read.
+local function payloadFor(itemID)
   local p = activePayload()
-  if p and p.items[itemID] then return p.verification[itemID] end
+  if p and p.items[itemID] and not importOutranks(p, itemID) then return p end
+  return nil
+end
+
+--- The one answer to "which facts does item X have". The payload's, for every item the payload
+-- answers for (payloadFor) -- even when it has none for it (nothing sold in a day) -- and the
+-- import's for everything else.
+function GC.Data.Facts(itemID)
+  local p = payloadFor(itemID)
+  if p then return p.verification[itemID] end
   local imp = db and db.imported
   return imp and imp.verification and imp.verification[itemID] or nil
 end
 
--- The ids anything holds facts for, ascending -- exactly the items Facts answers for: the payload's,
--- plus the import's for items the payload does not price. Memoized on the identity of both sources
--- -- the sniper's empty state asks four times a second, and each source is replaced wholesale, never
--- edited in place -- so an unchanged answer is the SAME table, which is what the caller's own memo
--- keys on. Shared, so a caller reads it and never edits it.
+-- The ids anything holds facts for, ascending -- exactly the items Facts answers for: the payload's
+-- for items it answers for (payloadFor), plus the import's for every other item. Memoized on the
+-- identity of both sources -- the sniper's empty state asks four times a second, and each source is
+-- replaced wholesale, never edited in place -- so an unchanged answer is the SAME table, which is
+-- what the caller's own memo keys on. Shared, so a caller reads it and never edits it.
 function GC.Data.FactItemIds()
   local p = activePayload()
   local imp = db and db.imported
   local imported = imp and imp.verification or nil
-  if factIds and factIds.payload == p and factIds.imported == imported then return factIds.ids end
+  if factIds and factIds.payload == p and factIds.imp == imp and factIds.imported == imported then
+    return factIds.ids
+  end
   local ids = {}
   if p then
-    -- Only for items it prices: a fact whose I token did not survive is not the one Facts answers
-    -- with, and the import's for that item would be listed a second time.
+    -- Only for items it answers for: a fact whose I token did not survive, or one the import
+    -- outranks, is not the one Facts answers with, and the import's would be listed a second time.
     for id in pairs(p.verification) do
-      if p.items[id] then ids[#ids + 1] = id end
+      if payloadFor(id) then ids[#ids + 1] = id end
     end
   end
   if imported then
     for id in pairs(imported) do
-      if not (p and p.items[id]) then ids[#ids + 1] = id end
+      if not payloadFor(id) then ids[#ids + 1] = id end
     end
   end
   table.sort(ids)
-  factIds = { payload = p, imported = imported, ids = ids }
+  factIds = { payload = p, imp = imp, imported = imported, ids = ids }
   return ids
 end
 
@@ -494,8 +516,9 @@ end
 function GC.Data.GetItemValue(itemID)
   -- 1. The region payload (GCM1): every commodity of the region at its latest snapshot, facts
   -- where it sold in the last day, p25 and reach where it has them. Ahead of the import on
-  -- purpose: the same snapshot's figures, for every commodity instead of the busiest 400.
-  local p = activePayload()
+  -- purpose: the same snapshot's figures, for every commodity instead of the busiest 400 -- except
+  -- an item the import has a fact for that the payload lacks, or a fresher one (payloadFor).
+  local p = payloadFor(itemID)
   local pe = p and p.items[itemID]
   if pe then
     local value = { mv = pe.m, sold = pe.s, trend = pe.t, ts = p.ts, source = "region",
@@ -508,7 +531,7 @@ function GC.Data.GetItemValue(itemID)
     return value
   end
 
-  -- 2. The import, as before: realm items, and commodities whenever no payload prices them.
+  -- 2. The import, as before: realm items, and every commodity the payload does not answer for.
   local imp = db and db.imported
   local e = imp and imp.items and imp.items[itemID]
   -- Region reference for a realm item (import T section): what the item goes for across the
@@ -544,6 +567,7 @@ function GC.Data.GetItemValue(itemID)
   -- 4. The payload's realm-item reference (M): the region median the bundled table would have
   -- answered with, from this hour instead of release day. Tooltip role only -- a realm item with
   -- no `ref` is never a deal (Core/DealMath.lua), and _RealmValue reads imports alone.
+  p = activePayload()
   local ref = p and p.refs[itemID]
   if ref then
     return { mv = ref.m, listings = ref.l, ts = p.ts, source = "region", kind = "realm_item" }
