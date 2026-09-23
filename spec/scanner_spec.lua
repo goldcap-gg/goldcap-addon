@@ -35,6 +35,26 @@ describe("Scanner", function()
     end
   end)
 
+  -- Caps fixes 4a, round 2: whether a search of this loop's is on the wire and still worth
+  -- waiting for. UI/SniperFrame.lua sends no keys batch while it is: a batch sent on top of an
+  -- unanswered search takes the answer with it.
+  it("says it is awaiting an answer while its search is out, and not once it is answered or lost", function()
+    keyInfos[1] = { isCommodity = false }
+    keyInfos[2] = { isCommodity = false }
+    local s = GC.Scanner.New(drv, cfg)
+    assert.is_false(s:Awaiting())
+    s:Start({ 1, 2 })
+    assert.is_true(s:Awaiting())
+    ready = false
+    s:OnItemResults(1)            -- answered; the next search cannot go yet
+    assert.is_false(s:Awaiting())
+    ready = true
+    s:OnSystemReady()
+    assert.is_true(s:Awaiting())
+    clock = clock + 11            -- past STALE_SECONDS: a lost search is not awaited
+    assert.is_false(s:Awaiting())
+  end)
+
   it("sends one search at a time and cycles the list", function()
     keyInfos[1] = { isCommodity = false }
     keyInfos[2] = { isCommodity = true }

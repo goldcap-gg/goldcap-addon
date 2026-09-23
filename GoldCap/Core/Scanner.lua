@@ -95,6 +95,13 @@ function GC.Scanner.New(driver, dealCfg)
     return true
   end
 
+  -- Whether a search of this loop's is on the wire and still worth waiting for -- the same "not
+  -- lost yet" test Wants() makes. UI/SniperFrame.lua sends no keys batch while it is: a batch
+  -- sent on top of an unanswered search takes the answer with it (caps fixes 4a, round 2).
+  function obj:Awaiting()
+    return pending ~= nil and (driver.now() - pendingSince) <= STALE_SECONDS
+  end
+
   -- Hands the caller advance()'s own answer: the slot arbiter grants this loop a turn through
   -- here, and a turn that produced no send belongs to whoever is next in line.
   function obj:OnSystemReady()

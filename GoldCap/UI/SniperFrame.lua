@@ -226,16 +226,22 @@ LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- exactly once after a switch and then stood still for the rest of the visit (seen in game
 -- 2026-09-15: "sat on Commodities, switched to Items, nothing updated").
 LIM.KEYS_CYCLE_BREATHER_SECONDS = 5
--- Caps fixes 4a: the cap poll (GC.Sniper._capPoll) runs on every board and tab, so it shares the
--- one keys interlock with everyone who uses it -- the Items board's poll, the BUY refresh, the Sell
--- tab's bulk fill, and Auto's pass, which may not start over an outstanding batch. Each of those
--- asks again at least every 1.25 seconds (the arbiter's own answer-brings-the-next-turn, the
--- auction-house ticker's once-a-second nudge, Auto's one-second settle on a 0.25s tick), so after
--- every cap answer the poll stands aside for longer than that and whoever was kept waiting goes
--- first. It also bounds the poll's share of the throttle to one message per answer plus this.
+-- Caps fixes 4a: the cap poll (GC.Sniper._capPoll) runs on both Deals boards and the Sold tab, so
+-- it shares the one keys interlock with everyone who uses it -- the Items board's poll, the BUY
+-- refresh, the Sell tab's bulk fill, and Auto's pass, which may not start over an outstanding
+-- batch. Each of those asks again at least every 1.25 seconds (the arbiter's own
+-- answer-brings-the-next-turn, the auction-house ticker's once-a-second nudge, Auto's one-second
+-- settle on a 0.25s tick), so after every cap answer the poll stands aside for longer than that and
+-- whoever was kept waiting goes first. It also bounds the poll's share of the throttle to one
+-- message per answer plus this.
 LIM.CAPS_BATCH_GAP_SECONDS = 2
 -- And between two full rounds over the caps it rests longer, as the Items board's own loop does.
 LIM.CAPS_ROUND_BREATHER_SECONDS = 5
+-- Caps fixes 4a, round 2: the longest a player's Check waits for an unanswered keys batch before
+-- it goes anyway (issueRequerySearch). Sent on top of one, it comes back empty -- "listing gone".
+-- An answer normally lands well inside this; the Check's own timeout (REQUERY_TIMEOUT_SECONDS,
+-- counted from the click) is four times as long.
+LIM.CHECK_HOLD_SECONDS = 2
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
@@ -2721,12 +2727,13 @@ end
 
 GC.Sniper._drillQueue = GC.DrillQueue.New({
   now = time,
-  -- Caps fixes 4b: a cap hit the queue let go of without drilling it (aged out -- ninety seconds
-  -- on another tab, or behind a few hundred other caps -- or pushed out of a full queue). Both
+  -- Caps fixes 4b: a cap hit the queue let go of without drilling it (aged out -- ninety seconds on
+  -- another tab, or behind a few hundred other caps -- or pushed out of a full queue). Both
   -- ratchets that report cap hits (the book pass's, the caps' own poll's -- the realm poll no
-  -- longer reports any) are re-armed, so the next look at the same floor reports it again: they never repeat an unchanged floor, and without this the lot sat there at the
-  -- player's price for the rest of the visit, unlooked at. Only the ratchets -- the ring's memory
-  -- stays, since nothing has been announced.
+  -- longer reports any) are re-armed, so the next look at the same floor reports it again: they
+  -- never repeat an unchanged floor, and without this the lot sat there at the player's price for
+  -- the rest of the visit, unlooked at. Only the ratchets -- the ring's memory stays, since nothing
+  -- has been announced.
   onLost = function(hit)
     if GC.Caps then GC.Caps.Rearm(hit.itemID) end
     if GC.Sniper._capPoll then GC.Sniper._capPoll:Rearm(hit.itemID) end
@@ -2879,9 +2886,9 @@ end
 -- SetTargets sorts what it is handed. Exposed for the spec (spec/caps_targets_spec.lua).
 --
 -- Caps fixes 4a: the player's caps are not in it any more. They have a poll of their own
--- (GC.Sniper._capPoll below), which runs on every board and tab -- this one runs on the Items board
--- only, which is why half the caps slept at any moment. A capped item that is also on one of these
--- lists stays here for its realm reference, and is asked about by both.
+-- (GC.Sniper._capPoll below), which runs on both Deals boards and the Sold tab -- this one runs on
+-- the Items board only, which is why half the caps slept at any moment. A capped item that is also
+-- on one of these lists stays here for its realm reference, and is asked about by both.
 function GC.Sniper._KeyTargetIds(pins, watchlist, targets, isCommodity, hasRealmValue)
   local ids, seen = {}, {}
   local function add(itemID)
@@ -3070,7 +3077,8 @@ GC.Sniper._realmDeals = {}
 -- pass, which stands paused on that board -- so at any moment half the caps were not watched, and
 -- on the Sell, Sold and BUY tabs none were. This poll asks about every cap, realm and commodity
 -- alike (a commodity's item key answers with its cheapest unit as well: the Sell tab's bulk fill
--- and the BUY refresh already rely on it), whatever board or tab is on screen, for as long as the
+-- and the BUY refresh already rely on it), on both Deals boards and the Sold tab -- not on the Sell
+-- or BUY tab, which run searches of their own (see _TrySendCapBatch) -- for as long as the
 -- auction house is open, the window is up and the player is not using Blizzard's own panes --
 -- through the same arbiter, the same one-batch interlock and the same throttle claim as every
 -- other keys batch (GC.Sniper._TrySendCapBatch). A hit goes to the drill queue as the player's
@@ -4680,6 +4688,15 @@ local function applyRequeryResult(row, itemID, live)
     end
   else
     showGoneState(row, GC.L["listing gone -- already bought out or price changed"])
+    -- Caps fixes 4a, round 2, the safety net: a capped item's ratchets let go of it, so the next
+    -- cap round (or book pass) reports it again even at the price it showed. A Check that came
+    -- back empty for a reason of the client's own -- a search that met an unanswered keys batch --
+    -- otherwise deleted a YOUR PRICE row for good while the lot sat there. Only the ratchets: the
+    -- ring's memory stays, so a lot that was really there does not ring a second time.
+    if GC.Caps and GC.Caps.For(itemID) then
+      GC.Caps.Rearm(itemID)
+      GC.Sniper._capPoll:Rearm(itemID)
+    end
     if deals[itemID] then deals[itemID] = nil end
     if GC.Sniper._realmDeals then GC.Sniper._realmDeals[itemID] = nil end -- same reason as consumePurchasedDeal
     for i = #scanDeals, 1, -1 do
@@ -4739,13 +4756,30 @@ local function isCurrentRequeryAttempt(attempt)
     and attempt.row.deal == attempt.deal
 end
 
+--
+-- Caps fixes 4a, round 2: parked too while a keys batch is unanswered -- the caps poll the Deals
+-- boards, so one is out often. Sent on top of it the Check comes back empty ("listing gone", the
+-- row deleted) and takes the batch's answer with it. The batch's own answer brings the next turn
+-- (its fold's deferred OnThrottleReady), where step 1 sends it; the hold is bounded by
+-- LIM.CHECK_HOLD_SECONDS, after which the batch is given up and the Check goes regardless.
 local function issueRequerySearch(attempt)
   if not isCurrentRequeryAttempt(attempt) then return end
-  if driver.isReady() then
+  local held = GC.Sniper._KeysOutstanding()
+  if driver.isReady() and not held then
     attempt.sent = true
     driver.sendSearch(attempt.itemID)
-  else
-    pendingRequerySend[attempt.itemID] = attempt
+    return
+  end
+  pendingRequerySend[attempt.itemID] = attempt
+  if held and not attempt.heldSince then
+    attempt.heldSince = GetTime()
+    if C_Timer and C_Timer.After then
+      C_Timer.After(LIM.CHECK_HOLD_SECONDS, function()
+        if pendingRequerySend[attempt.itemID] == attempt and driver.isReady() then
+          GC.Sniper.OnThrottleReady()
+        end
+      end)
+    end
   end
 end
 
@@ -4925,6 +4959,27 @@ local function maybeStartPrewarm(deal, auto)
     end
   end)
   return true
+end
+
+-- A row's hover pre-warm (its OnEnter). Caps fixes 4a, round 2: one refused only because a keys
+-- batch was out is owed, and asked again on the first arbiter turn after the batch is gone
+-- (GC.Sniper.OnThrottleReady calls this with no row) -- if the pointer is still on that row.
+-- OnEnter fires once; without this the warm was simply lost, and the first click paid for it.
+-- Returns whether a query went out.
+function GC.Sniper._HoverPrewarm(row)
+  if row == nil then
+    row = GC.Sniper._hoverOwed
+    if not row or GC.Sniper._KeysOutstanding() then return false end
+    GC.Sniper._hoverOwed = nil
+    if hoveredRow ~= row or not row.deal or not (row.IsVisible and row:IsVisible()) then return false end
+  end
+  if not row.deal then return false end
+  if maybeStartPrewarm(row.deal) then
+    GC.Sniper._hoverOwed = nil
+    return true
+  end
+  if GC.Sniper._KeysOutstanding() then GC.Sniper._hoverOwed = row end
+  return false
 end
 
 -- Records what the live query just said about `deal`, re-renders the list around it, and rings
@@ -5332,13 +5387,14 @@ function GC.Sniper._CapsReleased(sentAt)
   if not GC.Sniper._capPoll:HasPending() then GC.Sniper._capsRoundDoneAt = now end
 end
 
--- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"),
--- the BUY tab's floor refresh ("buy"), the Sell tab's bulk fill ("sell") and the player's caps
--- ("caps", on every tab -- caps fixes 4a). Only one batch is ever out, but the ANSWER arrives as
--- an untagged browse event whoever sent it, so the batch has to say whose it was. _keysOwner is that record, written beside
--- _keysAwaiting by whichever sender spent the slot and cleared on every path that gives the
--- wait up. Without it a BUY refresh's rows would be folded into the realm poll, which reads a
--- silence about an item as "sold out" and would wipe the Items board on every BUY refresh.
+-- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"), the
+-- BUY tab's floor refresh ("buy"), the Sell tab's bulk fill ("sell") and the player's caps ("caps",
+-- on the Deals boards and the Sold tab -- caps fixes 4a). Only one batch is ever out, but the
+-- ANSWER arrives as an untagged browse event whoever sent it, so the batch has to say whose it was.
+-- _keysOwner is that record, written beside _keysAwaiting by whichever sender spent the slot and
+-- cleared on every path that gives the wait up. Without it a BUY refresh's rows would be folded
+-- into the realm poll, which reads a silence about an item as "sold out" and would wipe the Items
+-- board on every BUY refresh.
 function GC.Sniper._FoldKeysBatch()
   -- An expired wait is not a wait. _KeysOutstanding gives it up (and drops the list of items
   -- it asked about with it), so a browse page arriving long after the batch was written off is
@@ -5540,6 +5596,9 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   if GC.Sniper.IsPurchaseQuiet() or next(pendingRequerySend) ~= nil or prewarmAttempt then
     return false
   end
+  -- ...and the watch loop's search, the one search of ours the pre-warm slot does not cover.
+  local scanner = GC.Sniper.scanner
+  if scanner and scanner.Awaiting and scanner:Awaiting() then return false end
   if playerBusy == nil then
     playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
       and GC.AuctionHouseTab.PlayerIsBusy()) or false
@@ -5644,9 +5703,20 @@ end
 function GC.Sniper.OnThrottleReady()
   -- 1. A parked Check requery always wins outright: a player is waiting on it, and it has
   -- already stopped the loop as a courtesy besides.
+  --
+  -- Unless a keys batch is still unanswered (round 2, see issueRequerySearch): then it stays parked
+  -- -- nothing else of ours sends while one is out anyway -- until the batch's answer brings the
+  -- next turn, or until LIM.CHECK_HOLD_SECONDS have passed, when the batch is given up for it.
   for itemID, attempt in pairs(pendingRequerySend) do
-    pendingRequerySend[itemID] = nil
-    if isCurrentRequeryAttempt(attempt) then
+    if not isCurrentRequeryAttempt(attempt) then
+      pendingRequerySend[itemID] = nil
+    else
+      if GC.Sniper._KeysOutstanding() then
+        attempt.heldSince = attempt.heldSince or GetTime()
+        if (GetTime() - attempt.heldSince) < LIM.CHECK_HOLD_SECONDS then return end
+        GC.Sniper._WriteOffKeys("check")
+      end
+      pendingRequerySend[itemID] = nil
       attempt.sent = true
       driver.sendSearch(itemID)
       return
@@ -5662,6 +5732,10 @@ function GC.Sniper.OnThrottleReady()
   -- SLOT was busy. Asked as the zone, not as `next(activeItemID) ~= nil`: that read also
   -- counted a frozen row's permanent display pin, which stopped the board for good.
   if GC.Sniper.IsPurchaseQuiet() then return end
+
+  -- 1b. A hover pre-warm that was refused for a keys batch (round 2, GC.Sniper._HoverPrewarm):
+  -- the player's pointer outranks the background drills.
+  if GC.Sniper._hoverOwed and GC.Sniper._HoverPrewarm() then return end
 
   -- Steps 3 and 4 below both REPLACE the client's single browse buffer -- the same buffer
   -- Blizzard's own Browse pane is showing when the player is using it. Nothing stopped them:
@@ -5715,8 +5789,8 @@ function GC.Sniper.OnThrottleReady()
     end
   end
 
-  -- 2b. The player's caps (caps fixes 4a): one batch of their own poll, on whatever board or tab
-  -- is on screen. Ahead of the realm poll's batch, which would otherwise take every turn on the
+  -- 2b. The player's caps (caps fixes 4a): one batch of their own poll, on either Deals board or
+  -- the Sold tab. Ahead of the realm poll's batch, which would otherwise take every turn on the
   -- Items board -- its answer brings its next batch straight away -- while the caps' own breath
   -- after each answer (see _TrySendCapBatch) is what hands the turns back the other way.
   if GC.Sniper._TrySendCapBatch(playerBusy) then return end
@@ -8488,7 +8562,7 @@ createRow = function(parent, index)
     self.rail:Show()
     hoveredRow = self
     if not self.deal then return end
-    maybeStartPrewarm(self.deal)
+    GC.Sniper._HoverPrewarm(self)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
     Theme.ItemTooltipOutside(self, frame)
@@ -9782,8 +9856,8 @@ function GC.Sniper.OnAuctionHouseShow()
       if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
         GC.Sniper._TrySendKeysBatch()
       end
-      -- The caps' own poll (caps fixes 4a), on every board and tab -- the Sold tab has no other
-      -- sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
+      -- The caps' own poll (caps fixes 4a), on the Deals boards and the Sold tab -- which has no
+      -- other sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
       GC.Sniper._TrySendCapBatch()
       -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
       -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
@@ -9954,6 +10028,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._capsRoundDoneAt = nil
   GC.Sniper._capsGap = nil
   GC.Sniper._keysOrphan = nil
+  GC.Sniper._hoverOwed = nil
   -- The keys the drill searched with go with that book: they were chosen FROM it (see
   -- driver.variantKey), so keeping them past the close would have a read use one session's
   -- variant for a search the next session has not made yet.

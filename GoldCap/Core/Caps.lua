@@ -1,8 +1,8 @@
 -- Player price caps: the alert-group ceilings the site ships through the companion
--- (GoldCap_AppRuns.caps / .groups, see Core/AppRuns.lua for the file's contract). This
--- module only holds and judges them; polling is the caps' own key poll's (UI/SniperFrame.lua's
--- GC.Sniper._capPoll, on every board and tab) and the book pass's, verification the drill
--- queue's, buying onDialogPrimaryClick's. A cap is the player's own price, so a capped item
+-- (GoldCap_AppRuns.caps / .groups, see Core/AppRuns.lua for the file's contract). This module only
+-- holds and judges them; polling is the caps' own key poll's (UI/SniperFrame.lua's
+-- GC.Sniper._capPoll, on both Deals boards and the Sold tab) and the book pass's, verification the
+-- drill queue's, buying onDialogPrimaryClick's. A cap is the player's own price, so a capped item
 -- needs no realm reference to be watched.
 local _, GC = ...
 GC.Caps = {}

@@ -284,11 +284,11 @@ function GC.KeyPoll.New(driver, opts)
   function obj:Book() return book end
 
   -- Caps fixes 4b: the next fold of this item is news again even at the floor it already shows --
-  -- once. For a hit that was reported and then lost before anybody drilled it (Core/DrillQueue.lua's
-  -- driver.onLost): the ratchet above never repeats an unchanged floor, so without this the item
-  -- was not looked at again until its price moved. The fold that follows writes a fresh entry,
-  -- which carries no flag. Nothing to do for an item the book has never seen: its first sighting
-  -- is news anyway.
+  -- once. For a hit that was reported and then lost before anybody drilled it
+  -- (Core/DrillQueue.lua's driver.onLost): the ratchet above never repeats an unchanged floor, so
+  -- without this the item was not looked at again until its price moved. The fold that follows
+  -- writes a fresh entry, which carries no flag. Nothing to do for an item the book has never seen:
+  -- its first sighting is news anyway.
   function obj:Rearm(itemID)
     local entry = book[itemID]
     if entry then entry.rearm = true end

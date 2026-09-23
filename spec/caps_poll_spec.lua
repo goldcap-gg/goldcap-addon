@@ -207,16 +207,153 @@ describe("Caps polling", function()
       assert.is_true(anyPath())
     end)
 
-    -- The player's own Check is not held back -- it is the player -- but what it sends takes the
-    -- batch's answer with it, so the batch is written off at once instead of holding every keys
-    -- consumer for the rest of its thirty seconds.
-    it("writes a batch off when the player's own Check goes out over it", function()
+    -- Whatever still sends over a batch takes its answer with it, so the batch is written off at
+    -- once instead of holding every keys consumer for the rest of its thirty seconds.
+    it("writes a batch off when a search goes out over it anyway", function()
       local GC = loadSniper()
       _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = true } end
       _G.C_AuctionHouse.SendSearchQuery = function() end
       batchOut(GC, "caps")
       upvalue(GC.Sniper.OnItemKeyInfo, "driver").sendSearch(42)
       assert.is_false(GC.Sniper._KeysOutstanding())
+    end)
+
+    it("sends no keys batch, on any path, while the watch loop's search is unanswered", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      GC.Sniper._keyPoll:SetTargets({ 5 })
+      local awaiting = true
+      GC.Sniper.scanner = { Awaiting = function() return awaiting end, Wants = function() return false end }
+      local buyPoll = { HasPending = function() return true end, NextBatch = function() return { 9 } end }
+      assert.is_false(GC.Sniper._TrySendCapBatch())
+      assert.is_false(GC.Sniper._TrySendKeysBatch())
+      assert.is_false(GC.Sniper._TrySendKeysBatchFor(buyPoll, "buy", function() return true end))
+      assert.same({}, keysSent)
+      awaiting = false
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+    end)
+  end)
+
+  -- Round 2. The player's own Check is the player, but sent over an unanswered keys batch it
+  -- comes back empty -- "listing gone", the row deleted -- and a YOUR PRICE row did not come back
+  -- while the lot sat there at the same price. It is held for the batch's answer instead, which
+  -- normally lands in well under a second, and never for longer than LIM.CHECK_HOLD_SECONDS.
+  describe("a player's Check while a keys batch is out", function()
+    local searched
+
+    local function setup()
+      local GC = loadSniper()
+      openAH(GC)
+      searched = {}
+      _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = true } end
+      _G.C_AuctionHouse.SendSearchQuery = function(key) searched[#searched + 1] = key.itemID end
+      setUpvalue(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      local attempt = { itemID = 7, token = 1, row = {}, deal = { itemID = 7 } }
+      return GC, attempt, upvalue(GC.Sniper.OnItemKeyInfo, "issueRequerySearch")
+    end
+
+    it("goes at once when no batch is out", function()
+      local GC, attempt, issue = setup()
+      issue(attempt)
+      assert.same({ 7 }, searched)
+      assert.is_nil(next(upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")))
+    end)
+
+    it("waits for the batch's answer, and goes on the turn it brings", function()
+      local GC, attempt, issue = setup()
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      issue(attempt)
+      assert.same({}, searched)
+      GC.Sniper.OnThrottleReady()
+      assert.same({}, searched) -- nothing else sends meanwhile either
+      answer(GC, {})
+      GC.Sniper.OnThrottleReady()
+      assert.same({ 7 }, searched)
+      assert.is_true(attempt.sent)
+    end)
+
+    it("never waits longer than the hold, and then gives the batch up", function()
+      local GC, attempt, issue = setup()
+      local timers = {}
+      _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      issue(attempt)
+      assert.same({}, searched)
+      assert.equal(1, #timers)
+      assert.is_true(timers[1].seconds < 8) -- well inside the Check's own timeout
+      now = now + timers[1].seconds
+      timers[1].fn()
+      assert.same({ 7 }, searched)
+      assert.is_false(GC.Sniper._KeysOutstanding())
+    end)
+  end)
+
+  -- Round 2, the safety net: a Check that came back empty for any reason ("listing gone") on a
+  -- capped item re-arms the cap ratchets, so a false gone heals within the next round.
+  describe("a gone on a capped item", function()
+    local function gone(GC, itemID)
+      local apply = upvalue(upvalue(GC.Sniper.OnItemKeyInfo, "finishRequery"), "applyRequeryResult")
+      apply({ deal = { itemID = itemID, isCommodity = false, unitPrice = 90, cap = 100, auctionID = 9 } },
+        itemID, nil)
+    end
+
+    it("is looked at again by the next cap round at the same price", function()
+      local GC = loadSniper()
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      GC.Sniper._capPoll:Fold({ browseRow(42, 90) })
+      GC.Sniper._drillQueue:Clear()
+      GC.Sniper._capPoll:Fold({ browseRow(42, 90) })
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
+      gone(GC, 42)
+      GC.Sniper._capPoll:Fold({ browseRow(42, 90) })
+      assert.is_true(GC.Sniper._drillQueue:Has(42))
+    end)
+
+    it("is reported again by the next book pass at the same price", function()
+      local GC = loadSniper()
+      GC.db.commodityByItem[77] = true
+      adoptCaps(GC, { { i = 77, c = 100 } })
+      local book = { [77] = { floor = 90, qty = 5 } }
+      assert.equal(1, #GC.Caps.BookHits(book, GC.Sniper._IsCommodityId))
+      gone(GC, 77)
+      assert.equal(1, #GC.Caps.BookHits(book, GC.Sniper._IsCommodityId))
+    end)
+  end)
+
+  -- Round 2: a hover pre-warm refused because a keys batch was out is asked again once the batch
+  -- is gone -- if the pointer is still on that row. OnEnter fires once; nothing else would.
+  describe("a hover refused while a keys batch is out", function()
+    local function hoverSetup()
+      local GC = loadSniper()
+      local warmed = {}
+      local prewarm = upvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm")
+      setUpvalue(prewarm, "ahOpen", true)
+      _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = true } end
+      _G.C_AuctionHouse.SendSearchQuery = function(key) warmed[#warmed + 1] = key.itemID end
+      local row = { deal = { itemID = 42, unitPrice = 90, stale = true },
+        IsVisible = function() return true end }
+      setUpvalue(GC.Sniper._HoverPrewarm, "hoveredRow", row)
+      GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, "caps", { 1 }
+      GC.Sniper._HoverPrewarm(row)
+      return GC, row, warmed
+    end
+
+    it("is warmed on the first turn after the batch is gone", function()
+      local GC, _, warmed = hoverSetup()
+      assert.same({}, warmed)
+      GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = nil, nil, nil
+      GC.Sniper.OnThrottleReady()
+      assert.same({ 42 }, warmed)
+    end)
+
+    it("is not, once the pointer has moved on", function()
+      local GC, _, warmed = hoverSetup()
+      setUpvalue(GC.Sniper._HoverPrewarm, "hoveredRow", nil)
+      GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = nil, nil, nil
+      GC.Sniper.OnThrottleReady()
+      assert.same({}, warmed)
     end)
   end)
 
