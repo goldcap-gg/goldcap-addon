@@ -184,6 +184,36 @@ describe("Sell tab, a Sniper request still out after the switch", function()
     assert.is_false(GC.Sniper._bookPass:IsPaging())
   end
 
+  -- Final money review M2: a confirm either window stopped waiting on can still answer -- its
+  -- stranded record says so for as long as it is kept -- and a late shared error from it (no gold)
+  -- must not be read as the post's own refusal and free the row for a second press.
+  it("counts a confirm the Sniper stopped waiting on, for as long as it can still answer", function()
+    local _, GC = buildFrame()
+    assert.is_false(GC.Sell._OtherRequestOut())
+    GC.Sniper._strandedConfirmed[42] = { pending = { itemID = 42 }, at = GetTime() }
+    assert.is_true(GC.Sell._OtherRequestOut())
+    local at = GetTime()
+    _G.GetTime = function() return at + 601 end
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
+  it("counts a confirm the BUY tab stopped waiting on, for as long as it can still answer", function()
+    local _, GC = buildFrame()
+    local function up(fn, wanted)
+      for i = 1, math.huge do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then return value end
+      end
+      error("missing upvalue " .. wanted)
+    end
+    local session = up(up(GC.Buy.HasStranded, "liveStranded"), "sessionToken")
+    GC.Buy._stranded[101] = { qty = 1, total = 100, at = time(), session = session }
+    assert.is_true(GC.Sell._OtherRequestOut())
+    GC.Buy._stranded[101].session = session - 1 -- a session that can no longer answer
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
   it("counts the page as a request of ours until it lands", function()
     local frame, GC = buildFrame()
     pageOut(frame, GC)
