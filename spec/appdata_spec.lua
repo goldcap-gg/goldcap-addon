@@ -309,16 +309,48 @@ describe("Data.AdoptAppData", function()
     assert(ok, err)
   end)
 
-  -- /goldcap status prints it as what the payload costs this session. Measured on a clean heap
-  -- both sides, it is what the parsed tables keep -- not the garbage the parse left behind, which
-  -- is half as much again, and not a figure a collection already under way could shrink to 0.
-  it("reports what the parsed payload keeps in memory", function()
+  -- Counts every collectgarbage call `fn` makes, by option ("collect", "count", ...).
+  local function countingCollects(fn)
+    local real, calls = _G.collectgarbage, {}
+    _G.collectgarbage = function(opt, ...)
+      calls[opt or "collect"] = (calls[opt or "collect"] or 0) + 1
+      return real(opt, ...)
+    end
+    local ok, err = pcall(fn)
+    _G.collectgarbage = real
+    assert(ok, err)
+    return calls
+  end
+
+  -- A full collection walks every addon's heap, not just this one's: forced at load it is a hitch
+  -- on every login and /reload, paid for a figure nobody may ever ask for.
+  it("forces no garbage collection at load", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    local calls = countingCollects(function() GC.Data.AdoptAppData() end)
+    assert.is_truthy(GC.Data.RegionPayload())
+    assert.same({}, calls)
+  end)
+
+  -- /goldcap status prints it as what the payload costs this session. Measured when asked, on a
+  -- clean heap, by building the payload's tables again: what the parsed tables keep -- not the
+  -- garbage the parse left behind, which is half as much again, and not a figure a collection
+  -- already under way could shrink to 0.
+  it("measures what the payload keeps in memory when asked, and only once", function()
+    assert.is_nil(GC.Data.RegionPayloadMemoryKB())
+
     local tokens, refs = {}, {}
     for i = 1, 4000 do tokens[i] = (100000 + i) .. "=" .. (1000 + i) .. "=12.5" end
     for i = 1, 8000 do refs[i] = (300000 + i) .. "=20000=3" end
     local str = "GCM1;eu;2000;I:" .. table.concat(tokens, ",") .. ";M:" .. table.concat(refs, ",")
+    assert.is_truthy(GC.Data.AdoptRegionPayload(str))
 
-    local reported = GC.Data.AdoptRegionPayload(str).memoryKB
+    local reported
+    local calls = countingCollects(function()
+      reported = GC.Data.RegionPayloadMemoryKB()
+      assert.equal(reported, GC.Data.RegionPayloadMemoryKB())
+    end)
+    assert.equal(1, calls.collect)
+
     collectgarbage("collect")
     local withPayload = collectgarbage("count")
     GC.Data.AdoptRegionPayload(nil)
@@ -328,5 +360,6 @@ describe("Data.AdoptAppData", function()
     assert.is_true(kept > 0)
     assert.is_true(math.abs(reported - kept) <= kept * 0.1 + 16,
       ("reported %.0f KB for a payload that keeps %.0f KB"):format(reported, kept))
+    assert.is_nil(GC.Data.RegionPayloadMemoryKB())
   end)
 end)

@@ -272,22 +272,40 @@ end
 function GC.Data.AdoptRegionPayload(str)
   payload = nil
   if type(str) ~= "string" then return nil, "empty" end
-  -- memoryKB is what the parsed tables keep, so both readings are taken on a clean heap: without
-  -- the first collection, garbage already lying around would be subtracted from the figure (down
-  -- to 0); without the second, the parse's own garbage -- half as much again as what it keeps --
-  -- would be added to it. Two full collections, once a load: AdoptAppData is the only caller.
-  collectgarbage("collect")
-  local before = collectgarbage("count")
   local parsed, reason = GC.ImportString.ParseRegion(str)
   if not parsed then return nil, reason end
   -- An item the payload prices without a fact takes the payload's date as its own (GetItemValue),
   -- so a date of 0, or one ahead of the clock by more than skew, would make those items look fresh
   -- for as long as the payload stays loaded.
   if parsed.ts <= 0 or parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then return nil, "bad_ts" end
-  collectgarbage("collect")
-  parsed.memoryKB = math.max(0, math.floor(collectgarbage("count") - before))
   payload = parsed
   return parsed
+end
+
+local function copyTree(t)
+  local c = {}
+  for k, v in pairs(t) do c[k] = type(v) == "table" and copyTree(v) or v end
+  return c
+end
+
+--- What the active payload keeps in memory, in KB, or nil when there is none. Measured the first
+-- time the status command asks and never at load: a full collection walks every addon's heap, a
+-- hitch nobody should pay on each login for a figure they may never read. One collection, then
+-- the payload's tables are built again and the heap growth read off -- a copy allocates exactly
+-- the tables the payload holds and no garbage, so after the collection nothing else moves the
+-- count. A plain count around the parse would add the parse's garbage, half as much again.
+function GC.Data.RegionPayloadMemoryKB()
+  local p = activePayload()
+  if not p then return nil end
+  if not p.memoryKB then
+    collectgarbage("collect")
+    local before = collectgarbage("count")
+    -- The copy is dropped on return, but nothing allocates between that and the count, so no
+    -- collection step runs in between to take any of it back.
+    copyTree(p)
+    p.memoryKB = math.max(0, math.floor(collectgarbage("count") - before))
+  end
+  return p.memoryKB
 end
 
 --- The one answer to "which facts does item X have". The payload's, for every item the payload
