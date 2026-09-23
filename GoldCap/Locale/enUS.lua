@@ -399,8 +399,8 @@ GC.Locales.enUS = {
   ["Post above the cheapest"] = "Post above the cheapest",
   ["Post confirmation expired"] = "Post confirmation expired",
   ["Post the next queued item"] = "Post the next queued item",
+  ["Posted"] = "Posted",
   ["Posting failed"] = "Posting failed",
-  ["Posting timed out"] = "Posting timed out",
   ["Posting unavailable"] = "Posting unavailable",
   ["Posting…"] = "Posting…",
   ["Press Full Scan to find deals."] = "Press Full Scan to find deals.",
@@ -495,6 +495,8 @@ GC.Locales.enUS = {
   ["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."] =
     "The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] = "The Companion is syncing, but this addon could not read what it wrote:",
+  ["The auction house did not answer -- try again"] =
+    "The auction house did not answer -- try again",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "The board tiered this off the imported snapshot. The live book does not back it.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

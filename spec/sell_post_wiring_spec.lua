@@ -96,6 +96,23 @@ describe("Sell posting wiring", function()
       "the keybinding must call the same handler the queue button's OnClick calls")
   end)
 
+  -- A post the auction house refuses is refused on AUCTION_HOUSE_SHOW_ERROR (the error the
+  -- default UI prints for it), and a post the client holds back is announced by
+  -- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED. Both reached only the Sniper and the throttle's
+  -- counters, so the Sell tab sat on a disabled Post until its watchdog called a refusal a
+  -- timeout. Registered already (Core/Init.lua); what is pinned here is that each reaches Sell.
+  it("routes the auction house's error and the throttle's queued message to the Sell tab", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    local showError = assert(init:match('event == "AUCTION_HOUSE_SHOW_ERROR" then(.-)\n  elseif'))
+    assert.is_truthy(showError:find("GC.Sell.OnAuctionHouseError(errorCode)", 1, true))
+    assert.is_truthy(showError:find("GC.Sniper.OnAuctionHouseError(errorCode)", 1, true))
+    local queued = assert(init:match('event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == '
+      .. '"AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then(.-)\n  elseif'))
+    assert.is_truthy(queued:find("GC.Sell.OnThrottleQueued()", 1, true))
+  end)
+
   -- The addon-wide rule, restated at the module boundary this spec owns: no protected AH call
   -- anywhere in this file may sit inside a function whose own name suggests it runs off a
   -- timer or an event (helper.loadModule's own tests already cover the individual timers by

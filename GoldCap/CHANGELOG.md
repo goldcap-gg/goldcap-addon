@@ -42,6 +42,8 @@
 - A scan you started yourself that stops because you left the Deals tab, searched the auction
   house yourself or closed it now says so, instead of reading "scanning auction house..." until
   the next scan.
+- Sell: Post shows that it is posting -- the button spins and says so, and a second press does
+  nothing meanwhile -- then says Posted, or what went wrong in the auction house's own words.
 
 ## 0.14.1 (unreleased)
 

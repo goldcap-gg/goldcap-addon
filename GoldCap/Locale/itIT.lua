@@ -295,7 +295,7 @@ GC.Locales.itIT = {
   ["Open the deals board. /gc for commands."] = "Apre la lista delle occasioni. /gc per i comandi.",
   ["POST %d"] = "VENDI %d",
   ["POSTING"] = "PUBBLICAZIONE",
-  ["POSTING…"] = "MESSA IN VENDITA…",
+  ["POSTING…"] = "VENDO…",
   ["PRICE"] = "PREZZO",
   ["PRICE ROSE %.1fx"] = "IL PREZZO È SALITO DI %.1fx",
   ["PRICED TOO LOW %d"] = "TROPPO BASSO %d",
@@ -317,10 +317,10 @@ GC.Locales.itIT = {
   ["Post above the cheapest"] = "Pubblica sopra il più economico",
   ["Post confirmation expired"] = "La conferma della vendita è scaduta",
   ["Post the next queued item"] = "Metti in vendita il prossimo oggetto in coda",
+  ["Posted"] = "Messo in vendita",
   ["Posting failed"] = "Messa in vendita fallita",
-  ["Posting timed out"] = "Messa in vendita scaduta",
   ["Posting unavailable"] = "Messa in vendita non disponibile",
-  ["Posting…"] = "Messa in vendita…",
+  ["Posting…"] = "Vendo…",
   ["Press Full Scan to find deals."] = "Premi Full Scan per trovare occasioni.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Premi Scan per percorrere tutta la casa d'aste una volta, o Auto per scansionare di continuo.",
@@ -414,6 +414,7 @@ GC.Locales.itIT = {
     "La casa d'aste non ha indicato un deposito, quindi il costo è ignoto.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Il Companion sta sincronizzando, ma questo addon non è riuscito a leggere ciò che ha scritto:",
+  ["The auction house did not answer -- try again"] = "La casa d'aste non ha risposto -- riprova",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "La lista lo ha classificato sullo snapshot importato. Il book in tempo reale non lo conferma.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

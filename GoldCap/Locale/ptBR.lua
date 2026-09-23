@@ -317,10 +317,10 @@ GC.Locales.ptBR = {
   ["Post above the cheapest"] = "Anunciar acima do mais barato",
   ["Post confirmation expired"] = "A confirmação do anúncio expirou",
   ["Post the next queued item"] = "Anunciar o próximo item da fila",
+  ["Posted"] = "Anunciado",
   ["Posting failed"] = "Falha ao anunciar",
-  ["Posting timed out"] = "O anúncio expirou",
   ["Posting unavailable"] = "Anúncio indisponível",
-  ["Posting…"] = "Anunciando…",
+  ["Posting…"] = "Enviando…",
   ["Press Full Scan to find deals."] = "Clique em Full Scan para achar oportunidades.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Clique em Scan para varrer a casa de leilões inteira uma vez, ou em Auto para varrer sem parar.",
@@ -414,6 +414,8 @@ GC.Locales.ptBR = {
     "A casa de leilões não informou o depósito, então o custo é desconhecido.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "O Companion está sincronizando, mas este addon não conseguiu ler o que ele escreveu:",
+  ["The auction house did not answer -- try again"] =
+    "A casa de leilões não respondeu -- tente de novo",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "O painel classificou isto pelo snapshot importado. O livro ao vivo não confirma.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

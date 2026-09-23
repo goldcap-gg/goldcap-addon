@@ -296,8 +296,8 @@ GC.Locales.zhCN = {
   ["Post above the cheapest"] = "高于最低价上架",
   ["Post confirmation expired"] = "上架确认已过期",
   ["Post the next queued item"] = "上架队列中的下一个物品",
+  ["Posted"] = "已上架",
   ["Posting failed"] = "上架失败",
-  ["Posting timed out"] = "上架超时",
   ["Posting unavailable"] = "当前无法上架",
   ["Posting…"] = "上架中…",
   ["Press Full Scan to find deals."] = "按 Full Scan 查找交易。",
@@ -380,6 +380,7 @@ GC.Locales.zhCN = {
   ["The Auction House would not quote a deposit, so the cost is unknown."] = "拍卖行没有给出手续费，因此成本未知。",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion 正在同步，但该插件读不懂它写入的内容：",
+  ["The auction house did not answer -- try again"] = "拍卖行没有响应 -- 请重试",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "榜单是按导入的快照分级的，实时挂单簿并不支持这个结论。",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

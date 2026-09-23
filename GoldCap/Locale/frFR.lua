@@ -316,10 +316,10 @@ GC.Locales.frFR = {
   ["Post above the cheapest"] = "Poster au-dessus du moins cher",
   ["Post confirmation expired"] = "Confirmation de mise en vente expirée",
   ["Post the next queued item"] = "Mettre en vente l'objet suivant de la file",
+  ["Posted"] = "Mis en vente",
   ["Posting failed"] = "Échec de la mise en vente",
-  ["Posting timed out"] = "Délai dépassé pour la mise en vente",
   ["Posting unavailable"] = "Mise en vente indisponible",
-  ["Posting…"] = "Mise en vente…",
+  ["Posting…"] = "En vente…",
   ["Press Full Scan to find deals."] = "Appuyez sur Full Scan pour trouver des affaires.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Appuyez sur Scan pour parcourir tout l'hôtel des ventes une fois, ou sur Auto pour scanner en continu.",
@@ -413,6 +413,8 @@ GC.Locales.frFR = {
     "L'hôtel des ventes n'a pas indiqué de caution : le coût est donc inconnu.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Le Companion synchronise, mais cet addon n'a pas pu lire ce qu'il a écrit :",
+  ["The auction house did not answer -- try again"] =
+    "L'hôtel des ventes n'a pas répondu -- réessayez",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "Le tableau l'a classé d'après l'instantané importé. Le carnet en direct ne le confirme pas.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

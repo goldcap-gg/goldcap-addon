@@ -136,4 +136,40 @@ describe("Util", function()
       assert.is_nil(GC.Util.FormatCount("3"))
     end)
   end)
+
+  -- The client's own sentence for what went wrong, where it has one. Blizzard's strings break
+  -- paragraphs with |n, and the lines that show them here are one line tall.
+  describe("ClientLine", function()
+    it("flattens the client's paragraph breaks into one line", function()
+      assert.equal("Items can't be posted right now. The auction house is about to undergo a major update.",
+        GC.Util.ClientLine("Items can't be posted right now.|n|nThe auction house is about to undergo a major update."))
+    end)
+
+    it("answers nil for nothing to say", function()
+      assert.is_nil(GC.Util.ClientLine(nil))
+      assert.is_nil(GC.Util.ClientLine(""))
+      assert.is_nil(GC.Util.ClientLine(" |n "))
+      assert.is_nil(GC.Util.ClientLine(42))
+    end)
+  end)
+
+  -- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError; the default UI prints
+  -- AuctionHouseUtil.GetErrorText(error) for it, which answers "" for a code it cannot name.
+  describe("AuctionHouseErrorText", function()
+    after_each(function() _G.AuctionHouseUtil = nil end)
+
+    it("reads the client's own words for the error", function()
+      _G.AuctionHouseUtil = { GetErrorText = function(code) return code == 0 and "You don't have enough money." or "" end }
+      assert.equal("You don't have enough money.", GC.Util.AuctionHouseErrorText(0))
+    end)
+
+    it("answers nil where the client has no words, no table, or a broken one", function()
+      _G.AuctionHouseUtil = { GetErrorText = function() return "" end }
+      assert.is_nil(GC.Util.AuctionHouseErrorText(99))
+      _G.AuctionHouseUtil = nil
+      assert.is_nil(GC.Util.AuctionHouseErrorText(0))
+      _G.AuctionHouseUtil = { GetErrorText = function() error("boom") end }
+      assert.is_nil(GC.Util.AuctionHouseErrorText(0))
+    end)
+  end)
 end)

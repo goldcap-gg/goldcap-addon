@@ -327,10 +327,10 @@ GC.Locales.ukUA = {
   ["Post above the cheapest"] = "Виставляти вище найдешевшого",
   ["Post confirmation expired"] = "Підтвердження виставлення протерміновано",
   ["Post the next queued item"] = "Виставити наступний предмет із черги",
+  ["Posted"] = "Виставлено",
   ["Posting failed"] = "Виставлення не вдалося",
-  ["Posting timed out"] = "Час на виставлення вичерпано",
   ["Posting unavailable"] = "Виставлення недоступне",
-  ["Posting…"] = "Виставляємо…",
+  ["Posting…"] = "Надсилаю…",
   ["Press Full Scan to find deals."] = "Натисніть Full Scan, щоб знайти угоди.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Натисніть Scan, щоб один раз обійти весь аукціон, або Auto, щоб сканувати постійно.",
@@ -427,6 +427,7 @@ GC.Locales.ukUA = {
     "Аукціон не назвав заставу, тому вартість невідома.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронізується, але аддон не зміг прочитати те, що він записав:",
+  ["The auction house did not answer -- try again"] = "Аукціон не відповів -- спробуйте ще раз",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "Дошка оцінила лот за імпортованим знімком. Живий стакан цього не підтверджує.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

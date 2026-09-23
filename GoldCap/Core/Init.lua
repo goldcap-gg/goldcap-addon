@@ -672,6 +672,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.Sniper.OnThrottledMessageDropped then
       GC.Sniper.OnThrottledMessageDropped()
     end
+    -- A post the client holds back until the throttle frees a slot: the Sell tab says it is
+    -- waiting for the auction house instead of a bare "Posting…" (GC.Sell.OnThrottleQueued).
+    if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" and GC.Sell.OnThrottleQueued then
+      GC.Sell.OnThrottleQueued()
+    end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     GC.Util.NoteThrottleEvent(event)
     -- The scanner is NOT woken here any more. It is one of two background consumers of a
@@ -775,8 +780,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnBrowseResultsAdded()
     end
   elseif event == "AUCTION_HOUSE_SHOW_ERROR" then
+    local errorCode = ...
+    -- The Sell tab first: a post it has on the wire is what a refused post answers with, and its
+    -- handler is the smaller of the two -- nothing the Sniper's does can then keep it from running.
+    if GC.Sell.OnAuctionHouseError then
+      GC.Sell.OnAuctionHouseError(errorCode)
+    end
     if GC.Sniper.OnAuctionHouseError then
-      local errorCode = ...
       GC.Sniper.OnAuctionHouseError(errorCode)
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then

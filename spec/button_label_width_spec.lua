@@ -21,11 +21,21 @@ describe("row button labels fit the button", function()
   -- each budget derived the same way: width divided by ~7.8px per character.
   --   row.action:SetSize(86, 18)          -- UI/SellFrame.lua, showRowAction
   --   COLUMNS { key = "buy", w = 64 }     -- UI/SniperFrame.lua, setRowDeal
+  --
+  -- A button that is posting shares its width with the client's spinner (Theme.Button's
+  -- SetBusy: a 12px ring 2px in from the edge, the label 1px after it), so its label has 15px
+  -- less to live in:
+  --   row.action (86px)                    -- the row's Post while its post is out
+  --   queueButton:SetSize(136, 26)         -- the dock's POST while a post is out
   local BUTTONS = {
     { what = "the 86px Sell action button", budget = 11,
       keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?" } },
     { what = "the 64px Deals buy button", budget = 8,
       keys = { "Buy", "Check", "Avoid" } },
+    { what = "the 86px Sell action button beside its spinner", budget = 9,
+      keys = { "Posting…" } },
+    { what = "the 136px dock POST button beside its spinner", budget = 15,
+      keys = { "POSTING…" } },
   }
 
   -- Codepoints, not bytes: string.len on UTF-8 counts bytes, so "Витрати" would score 14 and

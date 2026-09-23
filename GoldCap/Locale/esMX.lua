@@ -322,10 +322,10 @@ GC.Locales.esMX = {
   ["Post above the cheapest"] = "Publicar arriba del más barato",
   ["Post confirmation expired"] = "La confirmación de publicación ha caducado",
   ["Post the next queued item"] = "Publicar el siguiente objeto de la cola",
+  ["Posted"] = "Publicado",
   ["Posting failed"] = "Fallo al publicar",
-  ["Posting timed out"] = "La publicación agotó el tiempo",
   ["Posting unavailable"] = "Publicación no disponible",
-  ["Posting…"] = "Publicando…",
+  ["Posting…"] = "Enviando…",
   ["Press Full Scan to find deals."] = "Pulsa Full Scan para buscar oportunidades.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Pulsa Scan para recorrer toda la casa de subastas una vez, o Auto para escanear sin parar.",
@@ -417,6 +417,8 @@ GC.Locales.esMX = {
     "La casa de subastas no dio un depósito, así que el costo es desconocido.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "El Companion está sincronizando, pero este addon no pudo leer lo que escribió:",
+  ["The auction house did not answer -- try again"] =
+    "La casa de subastas no respondió -- inténtalo otra vez",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "El tablero lo clasificó con el snapshot importado. El libro en vivo no lo respalda.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

@@ -875,6 +875,41 @@ function T.Button(parent, variant, rounded)
     b.ring:Show()
   end
 
+  -- "A request of yours is out": the client's own spinner turning inside the button, left of
+  -- the label. The owner pressed the Sell tab's Post and could not tell a post on its way from a
+  -- dead button -- a dimmed label says "not now", not "working". The ring is Blizzard_SharedXML's
+  -- SpinnerTemplate, the one its dialogs turn while a request is out (SpinnerMixin plays it on
+  -- show and stops it on hide), so nothing here draws or drives an animation. A child frame, so
+  -- OnDisable's dimming does not touch it: the one thing still moving on a disabled button is
+  -- the thing saying why it is disabled. Built on first use -- a list of pooled rows would
+  -- otherwise mint one per row -- and a client without the template keeps the label alone.
+  -- The label is re-bounded to start after the ring: 2px in, 12px wide, 1px gap (the budgets in
+  -- spec/button_label_width_spec.lua are that width less), and gets the whole button back after.
+  -- A no-op when nothing changes: the Sell dock repaints its POST on every status line.
+  function b:SetBusy(on)
+    on = on and true or false
+    if b.busy == on then return end
+    b.busy = on
+    if on and b.spinner == nil then
+      local ok, spinner = pcall(CreateFrame, "Frame", nil, b, "SpinnerTemplate")
+      b.spinner = ok and spinner or false -- false: asked once, and the client had none
+      if b.spinner then
+        b.spinner:SetSize(12, 12)
+        b.spinner:SetPoint("LEFT", b, "LEFT", 2, 0)
+      end
+    end
+    if not b.spinner then return end
+    b.text:ClearAllPoints()
+    if on then
+      b.spinner:Show()
+      b.text:SetPoint("LEFT", b.spinner, "RIGHT", 1, 0)
+    else
+      b.spinner:Hide()
+      b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
+    end
+    b.text:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+  end
+
   -- I3: Theme.Button has no template-driven disabled look (unlike UIPanelButtonTemplate) --
   -- without this, Disable() (loud-requote arm window, buy/requery timeouts, ...) left a
   -- button looking exactly as live/clickable as ever. Dims the background and switches text

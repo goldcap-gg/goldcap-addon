@@ -223,7 +223,10 @@ local function paintCancelButton() end
 local function restorePostRow(row)
   if not row then return end
   row.postStage = nil
-  if row.action then row.action:Enable(); row.action.helpKey = "Post"; row.action:SetLabel(GC.L["Post"]) end
+  if row.action then
+    row.action:Enable(); row.action.helpKey = "Post"; row.action:SetLabel(GC.L["Post"])
+    if row.action.SetBusy then row.action:SetBusy(false) end
+  end
 end
 
 local function restoreRepostRow(row)
@@ -248,6 +251,11 @@ local function disarmPost()
   postTimeoutToken = (postTimeoutToken or 0) + 1
   restorePostRow(row)
   flushDeferredRender()
+  -- "Posting…" and "Click Confirm to post" in the dock were about this post and go with it; an
+  -- outcome (Posted, the auction house's refusal) is noted by the caller after this and stays
+  -- its few seconds. The dock's POST lets go of its spinner here too, whatever else repaints.
+  GC.Sell._EndPostNote(true)
+  paintQueueButton()
 end
 
 local function disarmRepost()
@@ -306,10 +314,18 @@ end
 
 local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
+  GC.Sell._lastStatus = text
   -- And in the dock, under the bulk action: the toolbar line above is a window's width from
   -- every control on this tab, which is why REFRESH, POST and each row button had to grow a
-  -- copy of the state. Said here, it is said beside the button that was just pressed.
-  if container and container.dockStatus then container.dockStatus:SetText(text or "") end
+  -- copy of the state. Said here, it is said beside the button that was just pressed -- unless
+  -- the player's own post has something to say there (GC.Sell._NotePost below), in its colour.
+  local dock = container and container.dockStatus
+  if dock then
+    local note = GC.Sell._postNote
+    dock:SetText(note and note.text or text or "")
+    local c = Theme and Theme.color and Theme.color[note and note.tone or "fgMuted"]
+    if c then dock:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
+  end
   paintRefreshButton()
   paintQueueButton()
   -- The cancel control is driven from here for the same reason the queue control is: renderRows
@@ -318,6 +334,38 @@ local function setStatus(text)
   -- went unpainted -- the footer still read "CANCEL LOT?", still enabled, while the cancel it
   -- named was already on the wire.
   paintCancelButton()
+end
+
+-- The dock's line belongs to the player's own post while it has something to say about it.
+-- The owner pressed Post and could not tell whether anything was happening: the pricing walk
+-- writes this line every few seconds and wrote over "Posting…" within the second, the refresh
+-- after a refusal replaced "Posting failed" before it was ever drawn, and a post that went up
+-- said nothing at all. So a note holds the dock -- a post on its way until the post ends
+-- (disarmPost lets it go), an outcome for its few seconds -- whatever the walk says meanwhile.
+-- The toolbar line keeps the walk's words; when the note ends the dock goes back to them.
+-- `tone` is a Theme.color key. Fields rather than locals: this chunk is at Lua 5.1's limit.
+GC.Sell.POST_NOTE_SECONDS = { posted = 1.5, failed = 10 }
+
+function GC.Sell._NotePost(text, tone, seconds)
+  local note = { text = text, tone = tone or "fg", timed = seconds ~= nil }
+  local ordinary = GC.Sell._lastStatus
+  GC.Sell._postNote = note
+  setStatus(text)
+  -- The toolbar says it too, but it is not the tab's ordinary line: the dock returns to that.
+  GC.Sell._lastStatus = ordinary
+  if seconds and C_Timer and C_Timer.After then
+    C_Timer.After(seconds, function()
+      if GC.Sell._postNote == note then GC.Sell._EndPostNote() end
+    end)
+  end
+end
+
+-- `heldOnly`: end a note that lasts as long as its post, never an outcome still on its clock.
+function GC.Sell._EndPostNote(heldOnly)
+  local note = GC.Sell._postNote
+  if not note or (heldOnly and note.timed) then return end
+  GC.Sell._postNote = nil
+  setStatus(GC.Sell._lastStatus or "")
 end
 
 local function setColor(fontString, color)
@@ -465,6 +513,10 @@ paintQueueButton = function()
   -- looking at, and paints itself from that same head so what it says is never a guess about
   -- what a render would show if one ran right now.
   local head = queueEntries[1]
+  -- The spinner turns for as long as a post of ours is on the wire, whichever button sent it:
+  -- the dock's POST is disabled either way, and disabled alone reads as dead.
+  local sending = postingRow ~= nil and (postingRow.postStage == "posting" or postingRow.postStage == "confirming")
+  if button.SetBusy then button:SetBusy(sending) end
   if postingRow then
     -- Mirror the row postingRow itself pins to -- see onQueueClick/onPostClick -- only when
     -- that row genuinely IS the queue's own head. If some OTHER row's post is in flight (the
@@ -477,7 +529,9 @@ paintQueueButton = function()
     else
       button:SetLabel(GC.L["POSTING…"]); button:Disable()
     end
-    if label and head then label:SetText(head.itemName or "") end
+    -- The item going up, not the head: a row's own Post can be any row on the list.
+    local going = postingRow.position and postingRow.position.itemName or head and head.itemName
+    if label then label:SetText(going or "") end
   elseif not head then
     button:SetLabel(GC.L["NOTHING TO POST"])
     button:Disable()
@@ -1957,20 +2011,30 @@ local function schedulePostTimeout(row)
   postTimeoutToken = (postTimeoutToken or 0) + 1
   local token = postTimeoutToken
   C_Timer.After(POST_TIMEOUT_SECONDS, function()
+    local stage = row.postStage
     if token == postTimeoutToken and postingRow == row
-        and (row.postStage == "posting" or row.postStage == "confirm" or row.postStage == "confirming") then
+        and (stage == "posting" or stage == "confirm" or stage == "confirming") then
       -- Only when the confirm actually went to the server. A post still waiting for its own
       -- first answer has nothing on the wire to arrive late.
-      if row.postStage == "confirming" and postingPin then
+      if stage == "confirming" and postingPin then
         postedGrace = { pin = postingPin, at = time() }
       end
       disarmPost()
-      setStatus(GC.L["Posting timed out"])
+      -- A Confirm nobody pressed asked the auction house nothing: it is the player's
+      -- confirmation that lapsed, not a silence from the server.
+      GC.Sell._NotePost(stage == "confirm" and GC.L["Post confirmation expired"]
+        or GC.L["The auction house did not answer -- try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
     end
   end)
 end
 
 local function onPostClick(row)
+  -- A post already on its way answers every further press with nothing. Its buttons are
+  -- disabled, but the keybinding reaches here through onQueueClick whatever they look like --
+  -- and the stale-quote branch just below let go of a post in flight the moment its quote
+  -- passed SELL_QUOTE_ACTION_AGE, handing the row back as Post for the next press to post the
+  -- same stack again.
+  if postingRow == row and (row.postStage == "posting" or row.postStage == "confirming") then return end
   local position = row.position
   local quote = freshQuote(position)
   if not quote then
@@ -2014,7 +2078,10 @@ local function onPostClick(row)
       else setStatus(GC.L["Post confirmation expired"]) end
       return
     end
-    row.postStage = "confirming"; row.action:Disable(); setStatus(GC.L["Posting…"])
+    -- The same busy look the first click gave it: disabled, saying so, the spinner turning.
+    row.postStage = "confirming"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+    if row.action.SetBusy then row.action:SetBusy(true) end
+    GC.Sell._NotePost(GC.L["Posting…"])
     -- The confirming click gets its own full window. Sharing the first click's clock meant the
     -- time a player spent reading the confirmation came out of the time the server had to
     -- answer it -- see schedulePostTimeout.
@@ -2084,16 +2151,26 @@ local function onPostClick(row)
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
     duration = duration }
-  row.postStage = "posting"; row.action:Disable(); setStatus(GC.L["Posting…"])
+  -- Busy the moment it is pressed, on the button that was: disabled, saying "Posting…", the
+  -- client's spinner turning beside the words. The owner could not tell a pressed Post from a
+  -- dead one when it only dimmed. The dock says it too, and holds it (GC.Sell._NotePost).
+  row.postStage = "posting"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+  if row.action.SetBusy then row.action:SetBusy(true) end
+  GC.Sell._NotePost(GC.L["Posting…"])
   local needsConfirmation
   if info.isCommodity then
     needsConfirmation = C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)
   else
     needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
   end
+  -- The client can answer inside the call itself (an error it raises on the spot). That answer
+  -- has already given the row back; turning it into a Confirm, or arming a watchdog for it,
+  -- would undo it.
+  if postingRow ~= row then return end
   if needsConfirmation then
     row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel(GC.L["Confirm"])
-    setStatus(GC.L["Click Confirm to post"])
+    if row.action.SetBusy then row.action:SetBusy(false) end
+    GC.Sell._NotePost(GC.L["Click Confirm to post"])
   end
   schedulePostTimeout(row)
 end
@@ -2308,6 +2385,12 @@ local function postPinSound(pin)
     and type(pin.region) == "string" and pin.region ~= ""
 end
 
+-- "Posted · Eternium Ore ×246" -- which post went up, since the dock's label beside it has
+-- already moved on to the next item.
+function GC.Sell._PostedText(pin)
+  return GC.L["Posted"] .. " · " .. ("%s ×%d"):format(itemName(pin.itemID), pin.quantity or 0)
+end
+
 function GC.Sell.OnAuctionCreated()
   local pin, row = postingPin, postingRow
   if not pin or not row then
@@ -2320,6 +2403,8 @@ function GC.Sell.OnAuctionCreated()
     if not grace or time() - (grace.at or 0) > POST_TIMEOUT_SECONDS or not postPinSound(grace.pin) then return end
     recordPostedPin(grace.pin)
     if type(grace.pin.positionKey) == "string" then priceOverrides[grace.pin.positionKey] = nil end
+    -- The dock said the auction house did not answer. It did, late: say that instead.
+    GC.Sell._NotePost(GC.Sell._PostedText(grace.pin), "green", GC.Sell.POST_NOTE_SECONDS.posted)
     GC.Sell.Refresh()
     return
   end
@@ -2333,14 +2418,53 @@ function GC.Sell.OnAuctionCreated()
   if type(pin.positionKey) == "string" then priceOverrides[pin.positionKey] = nil end
   postedGrace = nil
   disarmPost()
+  -- Said for a moment, then the list moves on as it always has: the stack leaves the bags, the
+  -- row goes or shrinks, and the dock's POST names the next item.
+  GC.Sell._NotePost(GC.Sell._PostedText(pin), "green", GC.Sell.POST_NOTE_SECONDS.posted)
   GC.Sell.Refresh()
 end
 
+-- AUCTION_HOUSE_POST_ERROR carries nothing. It answers a post that needed confirming -- the
+-- auction house's warning before a maintenance-window update -- and the default UI shows
+-- AUCTION_POSTING_ERROR_TEXT for it ("Items can't be posted right now.|n|nThe auction house is
+-- about to undergo a major update."), so that is what the dock says, on one line. Blizzard's own
+-- Sell pane raises it too: with no post of ours out, it keeps the old generic line.
 function GC.Sell.OnPostError()
+  local ours = postingRow ~= nil
   disarmPost()
   disarmRepost()
-  setStatus(GC.L["Posting failed"])
+  if ours then
+    GC.Sell._NotePost(GC.Util and GC.Util.ClientLine and GC.Util.ClientLine(_G.AUCTION_POSTING_ERROR_TEXT)
+      or GC.L["Posting failed"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
+  else
+    setStatus(GC.L["Posting failed"])
+  end
   GC.Sell.Refresh()
+end
+
+-- AUCTION_HOUSE_SHOW_ERROR, the auction house's error channel (Core/Init.lua routes it here as
+-- well as to the Sniper). A refused post -- no gold for the deposit, an item the auction house
+-- will not take, "Internal auction error." -- is refused here and nowhere else, and this used to
+-- reach the Sniper only: the row sat disabled until the watchdog called the refusal a timeout.
+-- The event names no request, so it is read as the post's answer only while a post of ours is on
+-- the wire -- the same one-slot correlation OnAuctionCreated makes -- and in the client's own
+-- words where it has them (GC.Util.AuctionHouseErrorText).
+function GC.Sell.OnAuctionHouseError(errorCode)
+  local row = postingRow
+  if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
+  disarmPost()
+  GC.Sell._NotePost(GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode)
+    or GC.L["Posting failed"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
+end
+
+-- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED: the client is holding a message back until the
+-- throttle frees a slot. It fires as the post call queues the post, so while ours is on its way
+-- the dock says what the wait is rather than a bare "Posting…". The row keeps turning; the post
+-- goes out on its own when the slot frees, and the watchdog still bounds the wait.
+function GC.Sell.OnThrottleQueued()
+  local row = postingRow
+  if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
+  GC.Sell._NotePost(GC.L["Waiting for the Auction House…"])
 end
 
 local function setDialogError(dialog, text)

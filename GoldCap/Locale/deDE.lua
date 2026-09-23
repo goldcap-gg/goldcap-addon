@@ -294,7 +294,7 @@ GC.Locales.deDE = {
   ["Open the deals board. /gc for commands."] = "Öffnet die Angebotsliste. /gc für Befehle.",
   ["POST %d"] = "EINSTELLEN %d",
   ["POSTING"] = "EINSTELLEN",
-  ["POSTING…"] = "WIRD EINGESTELLT…",
+  ["POSTING…"] = "EINSTELLEN…",
   ["PRICE"] = "PREIS",
   ["PRICE ROSE %.1fx"] = "PREIS STIEG UM %.1fx",
   ["PRICED TOO LOW %d"] = "ZU BILLIG %d",
@@ -316,10 +316,10 @@ GC.Locales.deDE = {
   ["Post above the cheapest"] = "Über dem Günstigsten anbieten",
   ["Post confirmation expired"] = "Bestätigung zum Einstellen abgelaufen",
   ["Post the next queued item"] = "Nächsten Gegenstand aus der Warteschlange einstellen",
+  ["Posted"] = "Eingestellt",
   ["Posting failed"] = "Einstellen fehlgeschlagen",
-  ["Posting timed out"] = "Zeitüberschreitung beim Einstellen",
   ["Posting unavailable"] = "Einstellen nicht möglich",
-  ["Posting…"] = "Wird eingestellt…",
+  ["Posting…"] = "Sende…",
   ["Press Full Scan to find deals."] = "Drücke Full Scan, um Angebote zu finden.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Drücke Scan, um das ganze Auktionshaus einmal zu durchsuchen, oder Auto für laufendes Scannen.",
@@ -414,6 +414,8 @@ GC.Locales.deDE = {
     "Das Auktionshaus nannte keine Einstellgebühr, also sind die Kosten unbekannt.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Der Companion synchronisiert, aber dieses Addon konnte das Geschriebene nicht lesen:",
+  ["The auction house did not answer -- try again"] =
+    "Auktionshaus hat nicht geantwortet -- nochmal versuchen",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "Die Liste hat das aus dem importierten Snapshot eingestuft. Das laufende Orderbuch stützt es nicht.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

@@ -299,8 +299,8 @@ GC.Locales.koKR = {
   ["Post above the cheapest"] = "최저가보다 높게 등록",
   ["Post confirmation expired"] = "등록 확인이 만료되었습니다",
   ["Post the next queued item"] = "대기열의 다음 아이템 등록",
+  ["Posted"] = "등록됨",
   ["Posting failed"] = "등록에 실패했습니다",
-  ["Posting timed out"] = "등록 시간이 초과되었습니다",
   ["Posting unavailable"] = "등록할 수 없습니다",
   ["Posting…"] = "등록 중…",
   ["Press Full Scan to find deals."] = "거래를 찾으려면 Full Scan을 누르세요.",
@@ -388,6 +388,7 @@ GC.Locales.koKR = {
     "경매장이 등록비를 알려주지 않아 비용을 알 수 없습니다.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion은 동기화 중이지만, 이 애드온이 기록된 내용을 읽지 못했습니다:",
+  ["The auction house did not answer -- try again"] = "경매장이 응답하지 않았습니다 -- 다시 시도하세요",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "목록은 가져온 스냅숏으로 등급을 매겼습니다. 실시간 호가창은 이를 뒷받침하지 않습니다.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =

@@ -315,10 +315,10 @@ GC.Locales.ruRU = {
   ["Post above the cheapest"] = "Выставлять выше самого дешёвого",
   ["Post confirmation expired"] = "Подтверждение выставления просрочено",
   ["Post the next queued item"] = "Выставить следующий предмет из очереди",
+  ["Posted"] = "Выставлено",
   ["Posting failed"] = "Выставление не удалось",
-  ["Posting timed out"] = "Время на выставление истекло",
   ["Posting unavailable"] = "Выставление недоступно",
-  ["Posting…"] = "Выставляем…",
+  ["Posting…"] = "Отправка…",
   ["Press Full Scan to find deals."] = "Нажмите Full Scan, чтобы найти сделки.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Нажмите Scan, чтобы разово обойти весь аукцион, или Auto, чтобы сканировать постоянно.",
@@ -412,6 +412,7 @@ GC.Locales.ruRU = {
     "Аукцион не назвал залог, поэтому стоимость неизвестна.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронизируется, но аддон не смог прочитать то, что он записал:",
+  ["The auction house did not answer -- try again"] = "Аукцион не ответил -- попробуйте ещё раз",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "Доска оценила лот по импортированному снимку. Живой стакан этого не подтверждает.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
