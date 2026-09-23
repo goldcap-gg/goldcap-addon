@@ -809,12 +809,12 @@ GC.Locales.ptBR = {
   ["it could not be read (%s)"] = "não foi possível lê-los (%s)",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "eles são de uma região que esta versão do GoldCap não conhece -- atualize o addon",
-  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
     "eles estão num formato que esta versão do GoldCap não consegue ler -- atualize o addon",
-  ["it is larger than this build of GoldCap reads -- update the addon"] =
+  ["it is larger than this build of GoldCap can read -- update the addon"] =
     "eles são maiores do que esta versão do GoldCap consegue ler -- atualize o addon",
-  ["the Companion wrote it empty -- let it sync again"] =
-    "o Companion os escreveu vazios -- deixe-o sincronizar de novo",
-  ["the Companion wrote it with no prices -- let it sync again"] =
-    "o Companion os escreveu sem preços -- deixe-o sincronizar de novo",
+  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
+    "o Companion os gravou vazios -- deixe-o sincronizar e faça /reload",
+  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
+    "o Companion os gravou sem preços -- deixe-o sincronizar e faça /reload",
 }

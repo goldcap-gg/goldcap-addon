@@ -107,17 +107,18 @@ GC.slashHandlers.import = function() GC.UI.ShowImportDialog() end
 
 -- Why a whole-market payload the Companion wrote could not be read, by ParseRegion's refusal code.
 -- Not the manual import's sentences (GC.Data.DescribeImportError): those answer a player who pasted
--- a string, and nobody pasted this one.
+-- a string, and nobody pasted this one. The addon reads the Companion's file only at load, so the
+-- two that a new sync can fix end with the /reload that brings it in.
 --
 -- @localised-keys: the literals below ARE GC.L keys, looked up in the status handler where the table
 -- is read -- file scope runs before ApplyLocale picks the language. The table closes with a brace on
 -- its own line, where the locale contract spec stops reading.
 local PAYLOAD_REFUSALS = {
-  empty = "the Companion wrote it empty -- let it sync again",
-  no_items = "the Companion wrote it with no prices -- let it sync again",
-  bad_header = "it is in a form this build of GoldCap cannot read -- update the addon",
+  empty = "the Companion wrote an empty copy -- let it sync, then /reload",
+  no_items = "the Companion wrote it with no prices -- let it sync, then /reload",
+  bad_header = "it is in a format this build of GoldCap cannot read -- update the addon",
   bad_region = "it is for a region this build of GoldCap does not know -- update the addon",
-  too_long = "it is larger than this build of GoldCap reads -- update the addon",
+  too_long = "it is larger than this build of GoldCap can read -- update the addon",
 }
 
 -- How old a whole-market payload's date is, for a status line: never negative (a payload may be

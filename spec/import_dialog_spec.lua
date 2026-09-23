@@ -199,11 +199,13 @@ describe("ImportDialog", function()
     it("gives each parser refusal a sentence of its own, not the manual import's", function()
       GC.Data.DescribeImportError = function(reason) return "import sentence for " .. reason end
       local expected = {
-        empty = "the Companion wrote it empty -- let it sync again",
-        no_items = "the Companion wrote it with no prices -- let it sync again",
-        bad_header = "it is in a form this build of GoldCap cannot read -- update the addon",
+        -- The addon reads the Companion's file only at load: after the next sync, only a /reload
+        -- brings the new one in (final re-review N1).
+        empty = "the Companion wrote an empty copy -- let it sync, then /reload",
+        no_items = "the Companion wrote it with no prices -- let it sync, then /reload",
+        bad_header = "it is in a format this build of GoldCap cannot read -- update the addon",
         bad_region = "it is for a region this build of GoldCap does not know -- update the addon",
-        too_long = "it is larger than this build of GoldCap reads -- update the addon",
+        too_long = "it is larger than this build of GoldCap can read -- update the addon",
       }
       for reason, sentence in pairs(expected) do
         assert.equal("whole-market data not in use: " .. sentence, reasonLine({ reason = reason }))

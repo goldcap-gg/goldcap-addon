@@ -813,12 +813,12 @@ GC.Locales.esES = {
   ["it could not be read (%s)"] = "no se pudieron leer (%s)",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "son de una región que esta versión de GoldCap no conoce -- actualiza el addon",
-  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
     "tienen un formato que esta versión de GoldCap no puede leer -- actualiza el addon",
-  ["it is larger than this build of GoldCap reads -- update the addon"] =
+  ["it is larger than this build of GoldCap can read -- update the addon"] =
     "son más grandes de lo que esta versión de GoldCap puede leer -- actualiza el addon",
-  ["the Companion wrote it empty -- let it sync again"] =
-    "el Companion los escribió vacíos -- deja que vuelva a sincronizar",
-  ["the Companion wrote it with no prices -- let it sync again"] =
-    "el Companion los escribió sin precios -- deja que vuelva a sincronizar",
+  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
+    "el Companion los guardó vacíos -- deja que sincronice y haz /reload",
+  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
+    "el Companion los guardó sin precios -- deja que sincronice y haz /reload",
 }

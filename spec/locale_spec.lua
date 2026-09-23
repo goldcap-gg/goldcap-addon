@@ -106,12 +106,28 @@ describe("locale layer", function()
   -- The tooltip's live line (UI/Tooltip.lua): "En la casa de subastas ahora" ran 15-20 glyphs wider
   -- than any other GoldCap line, and a label with its own "now" said it twice beside "ahora mismo".
   -- The detail already says when (final review M2).
-  it("keeps the live line's label short in Spanish and Portuguese, with no 'now' of its own", function()
-    local expected = { esES = "En subasta", esMX = "En subasta", ptBR = "No leilão" }
+  it("keeps the live line's label short in Spanish, Portuguese and German, with no 'now' of its own", function()
+    -- German said "gerade" twice in the just-now case: "Gerade im AH: … · gerade eben".
+    local expected = { esES = "En subasta", esMX = "En subasta", ptBR = "No leilão", deDE = "Im AH" }
     for code, label in pairs(expected) do
       local loc = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", loc)
       assert.equal(label, loc.Locales[code]["On the AH now"], code)
+    end
+  end)
+
+  -- /goldcap status's two "sync again" reasons (UI/ImportDialog.lua): the addon reads the Companion's
+  -- file only at load, so the line does not change after a sync until the player reloads -- in every
+  -- language, or the player concludes the Companion is broken (final re-review N1).
+  it("tells a player whose Companion must sync again to /reload after it, in every language", function()
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      for _, key in ipairs({ "the Companion wrote an empty copy -- let it sync, then /reload",
+          "the Companion wrote it with no prices -- let it sync, then /reload" }) do
+        local text = assert(loc.Locales[code][key], code .. " is missing " .. key)
+        assert.is_truthy(text:find("/reload", 1, true), code .. ": " .. text)
+      end
     end
   end)
 

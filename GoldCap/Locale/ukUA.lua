@@ -824,12 +824,12 @@ GC.Locales.ukUA = {
   ["it could not be read (%s)"] = "їх не вдалося прочитати (%s)",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "вони для регіону, якого ця версія GoldCap не знає -- оновіть аддон",
-  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
     "вони у форматі, який ця версія GoldCap не вміє читати -- оновіть аддон",
-  ["it is larger than this build of GoldCap reads -- update the addon"] =
+  ["it is larger than this build of GoldCap can read -- update the addon"] =
     "вони більші, ніж може прочитати ця версія GoldCap -- оновіть аддон",
-  ["the Companion wrote it empty -- let it sync again"] =
-    "Companion записав їх порожніми -- дайте йому синхронізуватися ще раз",
-  ["the Companion wrote it with no prices -- let it sync again"] =
-    "Companion записав їх без цін -- дайте йому синхронізуватися ще раз",
+  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
+    "Companion записав їх порожніми -- дайте йому синхронізуватися і зробіть /reload",
+  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
+    "Companion записав їх без цін -- дайте йому синхронізуватися і зробіть /reload",
 }

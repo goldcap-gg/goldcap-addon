@@ -733,10 +733,13 @@ GC.Locales.zhTW = {
   ["%d listed · just now"] = "在售 %d · 剛剛",
   ["it could not be read (%s)"] = "無法讀取（%s）",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
-    "它屬於這個版本的 GoldCap 不認識的地區 -- 請更新插件",
-  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
-    "它的格式這個版本的 GoldCap 讀不懂 -- 請更新插件",
-  ["it is larger than this build of GoldCap reads -- update the addon"] = "它超出了這個版本的 GoldCap 能讀取的大小 -- 請更新插件",
-  ["the Companion wrote it empty -- let it sync again"] = "Companion 寫入的是空資料 -- 請讓它再同步一次",
-  ["the Companion wrote it with no prices -- let it sync again"] = "Companion 寫入時沒有任何價格 -- 請讓它再同步一次",
+    "它來自這個版本的 GoldCap 不支援的地區 -- 請更新插件",
+  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
+    "這個版本的 GoldCap 無法讀取它的格式 -- 請更新插件",
+  ["it is larger than this build of GoldCap can read -- update the addon"] =
+    "它超出了這個版本的 GoldCap 能讀取的大小 -- 請更新插件",
+  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
+    "Companion 寫入的是空資料 -- 請等它再次同步後執行 /reload",
+  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
+    "Companion 寫入的資料不含任何價格 -- 請等它再次同步後執行 /reload",
 }
