@@ -4,12 +4,18 @@
 
 - The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or
   under your price shows up as a "YOUR PRICE" row, rings, and buys through the usual window.
-  Your prices are watched on both Deals boards, Commodities and Items, while the GoldCap window is
-  open at the auction house; each find shows up on its own board. Needs the current Companion
-  release; the group's minimum item level is honoured for gear.
+  Your prices are watched on both Deals boards and on the Sold tab while the GoldCap window is
+  open at the auction house, and wait while you use the Sell and BUY tabs; each find shows up on
+  its own board. Needs the current Companion release; the group's minimum item level is
+  honoured for gear.
+- A commodity at your price is bought cheapest first, never a unit above your price, and no more
+  than your "Max units per buy" and your wallet limit allow. Buys at your price count in your
+  session and your ledger like any other sniper buy.
 - New option: stop scanning and open the buy window as soon as one of your prices is met (off
   by default). It never takes over a buy window you already have open: it waits until you
   close it.
+- The BUY tab shows the item level an alert group's gear price is set for ("item level 625+"),
+  and the auction house search it opens starts at that level when the sniper has seen it there.
 - A realm item listed in several item-level variants is now checked and bought at its cheapest
   variant, not whichever one the auction house answered first.
 
