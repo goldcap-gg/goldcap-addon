@@ -558,6 +558,8 @@ GC.Locales.ruRU = {
   ["full scan stalled -- press Full Scan to retry"] =
     "полное сканирование застряло -- нажмите Full Scan ещё раз",
   ["full scan stalled -- retrying shortly"] = "полное сканирование застряло -- скоро повторим",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "полное сканирование остановлено -- нажмите Full Scan, чтобы запустить его снова",
   ["gone / price changed"] = "исчезло / цена изменилась",
   ["high"] = "высокая",
   ["hold"] = "держать",

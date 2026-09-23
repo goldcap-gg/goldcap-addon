@@ -39,6 +39,9 @@
   straight to the auctioneer no longer keeps Auto paused.
 - Rows you watch show their discount, total and estimated profit against the market when the
   addon knows a market value for the item, dimmed, until a live Check confirms them.
+- A scan you started yourself that stops because you left the Deals tab, searched the auction
+  house yourself or closed it now says so, instead of reading "scanning auction house..." until
+  the next scan.
 
 ## 0.14.1 (unreleased)
 

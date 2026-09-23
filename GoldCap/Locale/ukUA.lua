@@ -573,6 +573,8 @@ GC.Locales.ukUA = {
   ["full scan stalled -- press Full Scan to retry"] =
     "повне сканування зупинилося -- натисніть Full Scan ще раз",
   ["full scan stalled -- retrying shortly"] = "повне сканування зупинилося -- скоро повторимо",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "повне сканування зупинено -- натисніть Full Scan, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
   ["high"] = "висока",
   ["hold"] = "тримати",

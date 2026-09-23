@@ -560,6 +560,8 @@ GC.Locales.ptBR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "a varredura completa travou -- clique em Full Scan para tentar de novo",
   ["full scan stalled -- retrying shortly"] = "a varredura completa travou -- nova tentativa em breve",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "varredura completa interrompida -- clique em Full Scan para rodá-la de novo",
   ["gone / price changed"] = "sumiu / preço mudou",
   ["high"] = "alta",
   ["hold"] = "segurar",

@@ -559,6 +559,8 @@ GC.Locales.frFR = {
   ["full scan stalled -- press Full Scan to retry"] =
     "scan complet bloqué -- appuyez sur Full Scan pour réessayer",
   ["full scan stalled -- retrying shortly"] = "scan complet bloqué -- nouvelle tentative bientôt",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "scan complet arrêté -- appuyez sur Full Scan pour le relancer",
   ["gone / price changed"] = "disparu / prix modifié",
   ["high"] = "élevée",
   ["hold"] = "garder",

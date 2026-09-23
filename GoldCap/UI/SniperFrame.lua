@@ -3243,9 +3243,21 @@ end
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
 -- the player has left the Auction House -- browse results die with the AH session anyway.
+--
+-- Follow-up 2: a pass the player started with the Scan button (Auto off) that is given up here --
+-- the Deals tab left, a search of the player's own, the auction house closed -- used to leave
+-- the status line on "scanning auction house..." for good: nothing else writes it once the pass
+-- stops paging. Everything that gives a pass up comes through here -- all but the stall
+-- watchdog, which says so in its own words -- so this is where the line is put right. An Auto
+-- pass is Auto's to describe (cancelFullScan, the Auto button) and resumes by itself, where
+-- "press Full Scan" would be dead advice; callers that say something more exact (a buy window
+-- opening) write it afterwards.
 local function abortFullScan()
   if GC.Sniper._bookPass:IsPaging() then
     fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
+    if not (autoScan and autoScan:State() ~= "OFF") then
+      setStatus(GC.L["full scan stopped -- press Full Scan to run it again"])
+    end
   end
   GC.Sniper._bookPass:Abort()
 end

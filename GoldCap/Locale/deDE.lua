@@ -561,6 +561,8 @@ GC.Locales.deDE = {
   ["full scan stalled -- press Full Scan to retry"] =
     "vollständiger Scan hängt -- Full Scan drücken, um es erneut zu versuchen",
   ["full scan stalled -- retrying shortly"] = "vollständiger Scan hängt -- gleich neuer Versuch",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "vollständiger Scan angehalten -- Full Scan drücken, um ihn erneut zu starten",
   ["gone / price changed"] = "weg / Preis geändert",
   ["high"] = "hoch",
   ["hold"] = "halten",

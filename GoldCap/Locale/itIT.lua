@@ -561,6 +561,8 @@ GC.Locales.itIT = {
     "la scansione completa si è bloccata -- premi Full Scan per riprovare",
   ["full scan stalled -- retrying shortly"] =
     "la scansione completa si è bloccata -- nuovo tentativo a breve",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "scansione completa interrotta -- premi Full Scan per rilanciarla",
   ["gone / price changed"] = "sparito / prezzo cambiato",
   ["high"] = "alta",
   ["hold"] = "tenere",

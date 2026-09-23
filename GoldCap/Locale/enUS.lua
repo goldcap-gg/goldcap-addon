@@ -644,6 +644,8 @@ GC.Locales.enUS = {
   ["full scan interrupted -- confirm your purchase"] = "full scan interrupted -- confirm your purchase",
   ["full scan stalled -- press Full Scan to retry"] = "full scan stalled -- press Full Scan to retry",
   ["full scan stalled -- retrying shortly"] = "full scan stalled -- retrying shortly",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "full scan stopped -- press Full Scan to run it again",
   ["gone / price changed"] = "gone / price changed",
   ["high"] = "high",
   ["identity unresolved (variant item -- not priced by design)"] = "identity unresolved (variant item -- not priced by design)",

@@ -223,6 +223,66 @@ describe("Auto-scan tick, wired to the real AutoScan machine", function()
     assert.not_equal("OFF", autoScan:State())
   end)
 
+  -- Follow-up 2 (P3): a manual pass (Auto off) that is given up on -- the player left the Deals
+  -- tab, sent a search of their own, or closed the auction house -- left the status line on
+  -- "scanning auction house..." for good: nothing that stops a pass wrote anything else.
+  describe("a manual pass that is given up", function()
+    local SCANNING = "scanning auction house..."
+
+    -- The toolbar, with a status line that keeps what it was last told.
+    local function statusFrame()
+      local f = fakeToolbarFrame()
+      function f.status:SetText(text) self.text = text end
+      return f
+    end
+
+    -- A manual pass that has sent its first page, through the pass's own driver.
+    local function scanning()
+      local GC = loadSniper()
+      local show = GC.Sniper.OnAuctionHouseShow
+      local setView = upvalue(upvalue(show, "createFrame"), "setView")
+      local f = statusFrame()
+      set(setView, "frame", f)
+      GC.Sniper._bookPass:Start("classes")
+      assert.is_true(GC.Sniper._bookPass:OnThrottleReady())
+      assert.equal(SCANNING, f.status.text)
+      return GC, f, setView
+    end
+
+    local function saysStopped(GC, f)
+      assert.is_false(GC.Sniper._bookPass:IsPaging())
+      assert.equal(GC.L["full scan stopped -- press Full Scan to run it again"], f.status.text)
+    end
+
+    it("says so when the player leaves the Deals tab", function()
+      local GC, f, setView = scanning()
+      setView("sell")
+      saysStopped(GC, f)
+    end)
+
+    it("says so when the player sends a search of their own", function()
+      local GC, f = scanning()
+      GC.Sniper._OnPlayerBrowse()
+      saysStopped(GC, f)
+    end)
+
+    it("says so when the auction house closes", function()
+      local GC, f = scanning()
+      set(GC.Sniper.OnAuctionHouseClosed, "clearDeals", function() end) -- the board has no rows here
+      GC.Sniper.OnAuctionHouseClosed()
+      saysStopped(GC, f)
+    end)
+
+    -- Auto's own pass has its own words (cancelFullScan, the Auto button) and retries by itself:
+    -- "press Full Scan" would be dead advice there.
+    it("leaves an Auto pass's status to Auto", function()
+      local GC, f = scanning()
+      upvalue(GC.Sniper.OnAuctionHouseShow, "feedAuto")("toggleOn")
+      GC.Sniper._OnPlayerBrowse()
+      assert.not_equal(GC.L["full scan stopped -- press Full Scan to run it again"], f.status.text)
+    end)
+  end)
+
   it("re-seeds the sell pause on an AUTO off->on cycle reached via OnAuctionHouseShow while Sell is showing", function()
     local GC = loadSniper()
     local show = GC.Sniper.OnAuctionHouseShow

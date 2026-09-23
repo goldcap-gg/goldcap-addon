@@ -563,6 +563,8 @@ GC.Locales.esMX = {
     "el escaneo completo se ha atascado -- pulsa Full Scan para reintentar",
   ["full scan stalled -- retrying shortly"] =
     "el escaneo completo se ha atascado -- se reintentará en breve",
+  ["full scan stopped -- press Full Scan to run it again"] =
+    "escaneo completo detenido -- pulsa Full Scan para volver a lanzarlo",
   ["gone / price changed"] = "desaparecido / precio cambiado",
   ["high"] = "alta",
   ["hold"] = "mantener",

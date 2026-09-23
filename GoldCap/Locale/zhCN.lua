@@ -508,6 +508,7 @@ GC.Locales.zhCN = {
   ["full scan interrupted -- confirm your purchase"] = "完整扫描被中断 -- 请确认你的购买",
   ["full scan stalled -- press Full Scan to retry"] = "完整扫描卡住了 -- 按 Full Scan 重试",
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
+  ["full scan stopped -- press Full Scan to run it again"] = "完整扫描已停止 -- 按 Full Scan 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
   ["high"] = "高",
   ["hold"] = "持有",
