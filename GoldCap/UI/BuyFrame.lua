@@ -62,6 +62,10 @@ local BD = {
   -- click at t+19 would be watched until t+39 against a claim stamped at t. armStall re-stamps
   -- the claim on every arming, which is what actually holds the two together.
   CONFIRM_SECONDS = 20,
+  -- How long a Start cancelled before the server answered it keeps the shared slot, waiting for
+  -- that answer to arrive and be swallowed (final money review I1): the Sniper's own bound for the
+  -- same wait, LIM.DRAIN_TIMEOUT_SECONDS, and like every hold here inside the claim's life.
+  DRAIN_SECONDS = 20,
   -- The last seconds of a quote the CONFIRM button counts down (fix round 4): Blizzard's own buy
   -- dialog shows them from ten (REMAINING_QUOTE_DURATION_THRESHOLD).
   COUNTDOWN_SECONDS = 10,
@@ -807,9 +811,19 @@ end
 
 -- A purchase the OTHER window confirmed is still owed its answer: nothing here may start one (the
 -- click refuses, and the line's button waits).
+--
+-- Final money review: and two more that a Start here would land on. The Sniper holding the slot --
+-- a purchase it started and has not confirmed, or the drain of one it cancelled unanswered -- the
+-- mirror of the Sniper waiting over a live BUY claim (n1). And this tab's own drain (I1,
+-- GC.Buy._StartDrain): the answer to the Start it cancelled is still coming, and a Start now
+-- would read it as its own.
 local function owedElsewhere()
-  local owed = GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed and GC.PurchaseSlot.ConfirmOwed()
-  return owed ~= nil and owed ~= "buy"
+  if GC.Buy._drain then return true end
+  local slot = GC.PurchaseSlot
+  if not slot then return false end
+  local owed = slot.ConfirmOwed and slot.ConfirmOwed()
+  if owed ~= nil and owed ~= "buy" then return true end
+  return (slot.Owner and slot.Owner() == "sniper" and slot.IsBusy and slot.IsBusy()) and true or false
 end
 
 -- What the line's own button says right now, whether it is clickable, and -- for the one state
@@ -949,9 +963,43 @@ function GC.Buy.HasStranded() return (liveStranded()) > 0 end
 -- Whether a purchase this tab confirmed is still owed its answer: Confirm reached the server and
 -- neither a terminal event, a re-quote nor the confirming timeout (retireStalled) has spoken since.
 -- Half of GC.PurchaseSlot.ConfirmOwed, the rule both windows start by.
+--
+-- Final money review M3: and a confirm the auction house closed on, until the moment this tab would
+-- have stopped waiting for it anyway (its confirming stall, `_owedUntil`) -- across the reopen, as a
+-- Sniper confirm carried across a close holds this tab. It went to "unknown" and stopped counting
+-- at once, and the Sniper could start while this purchase might still take the gold its own
+-- checks were counting.
 function GC.Buy.ConfirmOwed()
   local attempt = GC.Buy._attempt
-  return attempt ~= nil and attempt.stage == "confirming"
+  if attempt ~= nil and attempt.stage == "confirming" then return true end
+  local untilAt = GC.Buy._owedUntil
+  if untilAt and (GetTime and GetTime() or time()) < untilAt then return true end
+  GC.Buy._owedUntil = nil
+  return false
+end
+
+-- Final money review I1: a Start cancelled before the server answered it -- the watchdog's -- still
+-- has that answer coming, and commodity events name no attempt. With the slot released at once, the
+-- Sniper could start in the gap and this Start's late quote reached it (and, the other way round,
+-- the Sniper's lit this tab's CONFIRM at a total nobody here quoted). So the slot stays this tab's,
+-- the claim re-stamped, until the drain is over: the late quote or failure arrives and is swallowed
+-- here (the terminal handlers below), or BD.DRAIN_SECONDS pass. Nothing here starts meanwhile
+-- (owedElsewhere).
+function GC.Buy._StartDrain()
+  local drain = {}
+  GC.Buy._drain = drain
+  if GC.PurchaseSlot then GC.PurchaseSlot.Claim("buy") end
+  if C_Timer and C_Timer.After then
+    C_Timer.After(BD.DRAIN_SECONDS, function()
+      if GC.Buy._drain == drain then GC.Buy._EndDrain() end
+    end)
+  end
+end
+
+function GC.Buy._EndDrain()
+  GC.Buy._drain = nil
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  GC.Buy.RefreshIfShown()
 end
 
 -- The auction house ticker's call (UI/SniperFrame.lua, four times a second): repaints the tab once
@@ -1408,6 +1456,13 @@ end
 -- reach a total nothing has checked: an update that leaves the cap requotes the line instead.
 function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if not mayOwnTerminal() then return false end
+  -- The late quote of a Start this tab cancelled unanswered (I1): swallowed, never read as the
+  -- answer to anything, the Cancel sent again, and the drain -- and the slot -- over.
+  if GC.Buy._drain then
+    cancelStartedPurchase()
+    GC.Buy._EndDrain()
+    return true
+  end
   local attempt = GC.Buy._attempt
   if not attempt or not inFlight(attempt) then return false end
   local qty = attempt.qty or 0
@@ -1507,6 +1562,7 @@ end
 -- The stage check is the same guard the success path carries, for the same reason.
 function GC.Buy.OnCommodityPurchaseFailed()
   if not mayOwnTerminal() then return false end
+  if GC.Buy._drain then GC.Buy._EndDrain() return true end -- the drained Start's answer (I1)
   local attempt = GC.Buy._attempt
   if attempt and (inFlight(attempt) or attempt.stage == "requote") then
     failAttempt(attempt)
@@ -1517,6 +1573,7 @@ end
 
 function GC.Buy.OnCommodityPriceUnavailable()
   if not mayOwnTerminal() then return false end
+  if GC.Buy._drain then GC.Buy._EndDrain() return true end -- the drained Start's answer (I1)
   local attempt = GC.Buy._attempt
   if attempt and (inFlight(attempt) or attempt.stage == "requote") then
     failAttempt(attempt)
@@ -1565,7 +1622,13 @@ retireStalled = function(token, stall)
   local line = lineFor(attempt.itemID)
   if attempt.stage ~= "confirming" then
     cancelStartedPurchase()
-    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+    -- Unanswered, its answer is still coming: the slot is held for it (GC.Buy._StartDrain). A
+    -- quote that did come leaves nothing in flight, and the slot goes back as before.
+    if attempt.stage == "started" then
+      GC.Buy._StartDrain()
+    elseif GC.PurchaseSlot then
+      GC.PurchaseSlot.Release("buy")
+    end
     attempt.stage = "expired"
     logAttempt(line)
     GC.Buy.RefreshIfShown()
@@ -1596,6 +1659,11 @@ end
 -- job is to warn that a confirm may have taken gold -- before the player could read it.
 function GC.Buy.OnAuctionHouseClosed()
   GC.Buy._stranded = {}
+  -- A drain belongs to the session that sent the Start (I1).
+  if GC.Buy._drain then
+    GC.Buy._drain = nil
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  end
   -- A quote owed to this session is not the next one's to ask: the line it was for has long lost
   -- the pointer by then, and the button would read "..." until something asked (caps fixes 5i).
   GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
@@ -1618,6 +1686,9 @@ function GC.Buy.OnAuctionHouseClosed()
   else
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
     attempt.stage = "unknown"
+    -- Still owed its answer across the reopen, until this tab's own wait for it would have ended
+    -- (GC.Buy.ConfirmOwed, final money review M3).
+    GC.Buy._owedUntil = attempt.stallEnds
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -1677,7 +1748,9 @@ local function onBuyClick(line)
 
   -- The one rule (GC.PurchaseSlot.ConfirmOwed): never start over a purchase the Sniper confirmed
   -- that is still owed its answer, whatever the claim below says -- that claim goes stale long
-  -- before such a purchase has to have answered. Said the way the Sniper says it.
+  -- before such a purchase has to have answered. Nor over a purchase the Sniper holds the slot
+  -- for, nor while this tab drains a Start it cancelled (owedElsewhere). Said the way the Sniper
+  -- says it.
   if owedElsewhere() then
     logAttempt(line, GC.L["waiting for previous commodity purchase to settle"])
     if GC.Print then GC.Print(GC.L["waiting for previous commodity purchase to settle"]) end

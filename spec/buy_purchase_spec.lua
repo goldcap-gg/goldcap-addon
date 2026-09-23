@@ -442,6 +442,40 @@ describe("BUY purchase", function()
     assert.equal("sniper", GC.PurchaseSlot.Owner())
   end)
 
+  -- Final money review n1: and says so on the button, dark, as the Sniper's Buy waits over a BUY
+  -- purchase in flight -- not a lit "BUY n" whose click only prints a refusal.
+  it("waits, dark, while the sniper holds a purchase it started", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    GC.PurchaseSlot.Claim("sniper", now)
+    GC.Buy.RefreshIfShown()
+    local row = rowWithText("Alpha Herb")
+    assert.equal("waiting...", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+  end)
+
+  -- Final money review M3: a confirm the auction house closed on is owed its answer across the
+  -- reopen, for as long as BUY would have waited for it -- as a Sniper confirm carried across a close
+  -- holds BUY. It went to "unknown" and stopped counting at once, and the Sniper could start while
+  -- BUY's purchase might still take the gold its checks were counting.
+  it("still owes a confirm the auction house closed on, until its own wait would have ended", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb")) -- confirm at 2000: waited for until 2020
+    now = now + 5
+    GC.Buy.OnAuctionHouseClosed()
+    GC.Buy.OnAuctionHouseShow()
+    now = now + 1
+
+    assert.is_true(GC.Buy.ConfirmOwed())
+    assert.equal("buy", GC.PurchaseSlot.ConfirmOwed())
+    now = 2020
+    assert.is_false(GC.Buy.ConfirmOwed())
+    assert.is_nil(GC.PurchaseSlot.ConfirmOwed())
+  end)
+
   -- Fix round 2: a slot claim goes stale after GC.PurchaseSlot.MAX_SECONDS, but a purchase the
   -- Sniper confirmed can stay owed its answer longer than that (its stranded release waits 35 s,
   -- and one carried across an auction house close keeps the claim it had). BUY took the stale
@@ -504,15 +538,66 @@ describe("BUY purchase", function()
     assert.equal("started", GC.Buy._attempt.stage)
   end)
 
-  it("gives the slot back when the purchase never answers", function()
+  it("gives the slot back when the purchase never answers, once its drain is over", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
     click(rowWithText("Alpha Herb"))
     local watchdog = timers[#timers]
     assert.equal(10, watchdog.seconds)
     watchdog.fn()
-    assert.is_nil(GC.PurchaseSlot.Owner())
     assert.equal("expired", GC.Buy._attempt.stage)
+    assert.equal("buy", GC.PurchaseSlot.Owner()) -- held for the drain (below)
+    local drain = timers[#timers]
+    assert.equal(20, drain.seconds)
+    drain.fn()
+    assert.is_nil(GC.PurchaseSlot.Owner())
+  end)
+
+  -- Final money review I1: a Start cancelled before the server answered it still has that answer
+  -- coming, and commodity events name no attempt. BUY released the slot at once; the Sniper could
+  -- start in the gap and BUY's late quote reached it (the reverse way round: the Sniper's late quote
+  -- lit BUY's CONFIRM at a total BUY never quoted). The slot stays BUY's until that Start's drain
+  -- is over: its late quote consumed here, or the drain's own bound -- and BUY starts nothing of its
+  -- own meanwhile, which that quote would otherwise be read as the answer to.
+  describe("a Start it cancelled before the server answered it", function()
+    local function cancelledUnanswered()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      click(rowWithText("Alpha Herb"))
+      timers[#timers].fn() -- the watchdog: no answer in ten seconds
+      assert.equal("expired", GC.Buy._attempt.stage)
+      assert.equal(1, cancels)
+    end
+
+    it("keeps the slot until its late quote has been drained, and never lights CONFIRM on it", function()
+      cancelledUnanswered()
+      assert.equal("buy", GC.PurchaseSlot.Owner())
+      assert.is_false(GC.PurchaseSlot.Claim("sniper", now)) -- the Sniper cannot start under it
+
+      assert.is_true(GC.Buy.OnCommodityPriceUpdated(1020, 10200)) -- the late quote: BUY's to drain
+
+      assert.equal("expired", GC.Buy._attempt.stage)
+      assert.is_nil(GC.Buy._attempt.serverTotal)
+      assert.equal(2, cancels) -- the Cancel sent again
+      assert.are_not.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.is_true(GC.PurchaseSlot.Claim("sniper", now))
+    end)
+
+    it("drains a late failure the same way", function()
+      cancelledUnanswered()
+      assert.is_true(GC.Buy.OnCommodityPurchaseFailed())
+      assert.is_nil(GC.PurchaseSlot.Owner())
+    end)
+
+    it("starts nothing of its own while it drains", function()
+      cancelledUnanswered()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101) -- a fresh quote
+      click(rowWithText("Alpha Herb"))
+      assert.equal(1, #started)
+      assert.equal("waiting...", rowWithText("Alpha Herb").action.label)
+    end)
   end)
 
   -- Step 3: the server's price, and the click that confirms it.
@@ -1341,6 +1426,38 @@ describe("BUY purchase", function()
     local batches = GC.Acquisitions.GetAll()
     assert.equal(1, #batches)
     assert.equal(10200, batches[1].originalTotal)
+  end)
+
+  -- Final money review I1, through Core/Init.lua's own routing: a late quote goes to the window
+  -- whose cancelled Start it answers, and never lights anything in the other.
+  it("routes the late quote of a Start it cancelled unanswered to itself, and swallows it", function()
+    local onEvent = loadRouter()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn() -- the watchdog: no answer, cancelled, drained
+
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 1020, 10200)
+
+    assert.same({}, sniperCalls)
+    assert.equal("expired", GC.Buy._attempt.stage)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+  end)
+
+  it("leaves the late quote of the Sniper's cancelled Start to the Sniper, starting nothing under it", function()
+    local onEvent = loadRouter()
+    GC.PurchaseSlot.Claim("sniper", now) -- the Sniper holds the slot for its drain
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    assert.same({}, started)
+
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 50, 150)
+
+    assert.same({ "priceUpdated" }, sniperCalls)
+    assert.equal("quoted", GC.Buy._attempt.stage)
+    assert.is_nil(GC.Buy._attempt.serverTotal)
+    assert.are_not.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
   end)
 
   it("hands a commodity event the tab has no claim on straight to the sniper", function()
