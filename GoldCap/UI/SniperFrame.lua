@@ -2086,6 +2086,14 @@ driver = {
     if not unitPrice then return nil end
     return { unitPrice = unitPrice, qty = qty, avail = avail }
   end,
+  -- The cheapest unit price the client's commodity buffer holds for this item, the player's own
+  -- units included -- which commodityBook below leaves out. Only for telling "nothing at or under
+  -- the cap" from "nothing the player may buy there" (final review m6); never a price to act on.
+  commodityFloor = function(itemID)
+    local read = C_AuctionHouse and C_AuctionHouse.GetCommoditySearchResultInfo
+    local info = read and read(itemID, 1)
+    return info and info.unitPrice or nil
+  end,
   -- Reads ALREADY-FETCHED search results only -- never issues a query, so this cannot
   -- compete with a Full Scan or the Sell tab's quote walker on the throttled message
   -- system. Capped because a deep commodity book can run to thousands of levels and the
@@ -3169,32 +3177,6 @@ function GC.Sniper.VariantKeyAtLeast(itemID, minIlvl)
   if not (variant and (variant.itemLevel or 0) >= minIlvl) then return nil end
   return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
     variant.battlePetSpeciesID)
-end
-
--- The auction-house ticker's once-a-second ask for the keys batches that have no other sender to
--- bring them a ready tick. A field, not a local: this chunk sits near Lua's 200-local ceiling.
-function GC.Sniper._TickKeys()
-  -- Final review S1 (b): a batch still out once the player is busy -- or reading their own search
-  -- on Blizzard's Buy pane -- is given up rather than left to be read as the answer to whatever
-  -- they send next. Nothing of ours sends another while they are.
-  if GC.Sniper._keysAwaiting and (GC.Sniper._BrowseOwned() or (GC.AuctionHouseTab
-      and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy())) then
-    GC.Sniper._WriteOffKeys("player busy")
-  end
-  if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
-    GC.Sniper._TrySendKeysBatch()
-  end
-  -- The caps' own poll (caps fixes 4a), on the Deals boards and the Sold tab -- which has no
-  -- other sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
-  GC.Sniper._TrySendCapBatch()
-  -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
-  -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
-  -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
-  -- helper owns the interval, the view gate and the claim.
-  if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
-  -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
-  -- slot taken: nothing else on that tab would carry the retry.
-  if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
 end
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
@@ -4737,7 +4719,17 @@ evaluateLiveCommodityDeal = function(itemID, levels)
     -- price so the NEXT time this item dips under the cap, even at the same price as before,
     -- it rings again as the new opportunity it is, instead of staying silenced by a price the
     -- board hasn't shown in a while.
-    GC.Caps.Forget(itemID)
+    --
+    -- Final review m6: only then. Units at or under the cap that the wallet limit will not pay
+    -- for, or that are the player's own (the book above leaves those out; the client's own first
+    -- level does not -- driver.commodityFloor), are the same floor the book pass reported:
+    -- forgotten, it was reported and drilled again on every pass.
+    local under = false
+    for _, level in ipairs(levels) do
+      if level.unitPrice and level.unitPrice <= cap.c then under = true; break end
+    end
+    local first = not under and driver.commodityFloor and driver.commodityFloor(itemID) or nil
+    if not under and not (first and first <= cap.c) then GC.Caps.Forget(itemID) end
     GC.Sniper._DropCapRow(itemID)
   end
   return {
@@ -5954,6 +5946,39 @@ function GC.Sniper._TrySendCapBatch(playerBusy)
     poll:BeginCycle()
   end
   return GC.Sniper._TrySendKeysBatchFor(poll, "caps", function() return true end, playerBusy)
+end
+
+-- The auction-house ticker's once-a-second ask for the keys batches that have no other sender to
+-- bring them a ready tick. A field, not a local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._TickKeys()
+  -- Final review S1 (b): a batch still out once the player is busy -- or reading their own search
+  -- on Blizzard's Buy pane -- is given up rather than left to be read as the answer to whatever
+  -- they send next. Nothing of ours sends another while they are.
+  if GC.Sniper._keysAwaiting and (GC.Sniper._BrowseOwned() or (GC.AuctionHouseTab
+      and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy())) then
+    GC.Sniper._WriteOffKeys("player busy")
+  end
+  if GC.Sniper._drillQueue:Depth() > 0 and canDrillNow() then
+    -- Final review m7: a drill that could go now goes first, as the arbiter orders it -- sent
+    -- straight from here, a batch went ahead of it, and a batch out holds every drill back. The
+    -- arbiter reaches the caps' batch and the Items board's after the drills, as on a ready tick.
+    GC.Sniper.OnThrottleReady()
+  else
+    if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
+      GC.Sniper._TrySendKeysBatch()
+    end
+    -- The caps' own poll (caps fixes 4a), on the Deals boards and the Sold tab -- which has no
+    -- other sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
+    GC.Sniper._TrySendCapBatch()
+  end
+  -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
+  -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
+  -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
+  -- helper owns the interval, the view gate and the claim.
+  if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
+  -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
+  -- slot taken: nothing else on that tab would carry the retry.
+  if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
 end
 
 function GC.Sniper.OnThrottleReady()

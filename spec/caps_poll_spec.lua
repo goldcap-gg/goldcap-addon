@@ -1267,6 +1267,86 @@ describe("Caps polling", function()
     end)
   end)
 
+  -- Final review m6. A drilled commodity cap that decides nothing -- the wallet limit will not pay
+  -- for one unit, or the only units under the cap are the player's own -- used to forget the item,
+  -- ratchet and all, so the book pass reported the same floor again on every pass: a priority
+  -- drill each time, for a price nothing had happened to. Forgotten only when the fetched book has
+  -- nothing at or under the cap at all.
+  describe("a drilled cap that decides nothing", function()
+    local function drill(GC)
+      local driverTbl = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+      driverTbl.commodityResult = function() return nil end
+      return upvalue(driverTbl.onObservation, "evaluateLiveCommodityDeal")
+    end
+
+    local function passes(GC, evaluate, levels, n)
+      local book = { [77] = { floor = 40, qty = 5 } }
+      local reported = 0
+      for _ = 1, n do
+        reported = reported + #GC.Caps.BookHits(book, GC.Sniper._IsCommodityId)
+        evaluate(77, levels)
+      end
+      return reported
+    end
+
+    it("is not drilled again every pass when the wallet limit refuses it", function()
+      local GC = loadSniper()
+      GC.db.commodityByItem[77] = true
+      adoptCaps(GC, { { i = 77, c = 50 } })
+      local evaluate = drill(GC)
+      _G.GetMoney = function() return 1 end
+      assert.equal(1, passes(GC, evaluate, { { unitPrice = 40, quantity = 5 } }, 3))
+    end)
+
+    it("is not drilled again every pass when only the player's own units are under the cap", function()
+      local GC = loadSniper()
+      GC.db.commodityByItem[77] = true
+      adoptCaps(GC, { { i = 77, c = 50 } })
+      local evaluate = drill(GC)
+      -- The client's own book: the player's five at 40 first; the drill's book leaves them out.
+      _G.C_AuctionHouse.GetCommoditySearchResultInfo = function(_, index)
+        if index == 1 then return { unitPrice = 40, quantity = 5, numOwnerItems = 5 } end
+        return { unitPrice = 60, quantity = 5, numOwnerItems = 0 }
+      end
+      assert.equal(1, passes(GC, evaluate, { { unitPrice = 60, quantity = 5 } }, 3))
+    end)
+
+    it("is forgotten when the book has nothing at or under the cap", function()
+      local GC = loadSniper()
+      GC.db.commodityByItem[77] = true
+      adoptCaps(GC, { { i = 77, c = 50 } })
+      local evaluate = drill(GC)
+      _G.C_AuctionHouse.GetCommoditySearchResultInfo = function()
+        return { unitPrice = 60, quantity = 5, numOwnerItems = 0 }
+      end
+      GC.Caps.Announce({ itemID = 77, isCommodity = true, unitPrice = 40 })
+      evaluate(77, { { unitPrice = 60, quantity = 5 } })
+      assert.is_true(GC.Caps.IsNews({ itemID = 77, isCommodity = true, unitPrice = 40 }))
+    end)
+  end)
+
+  -- Final review m7: the auction-house ticker sent a cap batch every second the pacing allowed,
+  -- ahead of drills the arbiter would have sent first -- and a batch out holds every drill back.
+  it("lets a queued drill go before the ticker's cap batch", function()
+    local GC = loadSniper()
+    openAH(GC)
+    adoptCaps(GC, { { i = 42, c = 100 } })
+    GC.Sniper._capPoll:Fold({ browseRow(42, 90) })
+    setUpvalue(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+    local drilled = {}
+    setUpvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function(deal)
+      drilled[#drilled + 1] = deal.itemID
+      return true
+    end)
+
+    GC.Sniper._TickKeys()
+
+    assert.same({ 42 }, drilled)
+    assert.same({}, keysSent)
+    GC.Sniper._TickKeys() -- nothing left to drill: the caps' turn
+    assert.equal(1, #keysSent)
+  end)
+
   -- Final review S1 (b). With the Commodities board up, Auto off and the window floating over
   -- Blizzard's Buy pane, nothing counted as the player busy once the search box's grace was over
   -- -- and cap batches replaced the player's own search results every round, the symptom 0.14.1

@@ -28,6 +28,12 @@ local ENTRY_TTL_SECONDS = 90
 -- round after opening the auction house) are a stream long enough to hold the ordinary drills back
 -- for minutes; with this they still get one drill in five.
 local PRIORITY_RUN = 4
+-- Final review m7: and room. Ordering only helps a hit that is queued at all, and with two hundred
+-- cap hits queued every ordinary one was refused at Push -- the worst entry of a full queue was
+-- always a cap it could not outrank. Priority entries may hold this many places; the rest of the
+-- queue is kept for ordinary hits, which can still fill all of it while no cap waits.
+local PRIORITY_SLOTS = 150
+GC.DrillQueue.PRIORITY_SLOTS = PRIORITY_SLOTS
 
 function GC.DrillQueue.New(driver, opts)
   opts = opts or {}
@@ -143,6 +149,24 @@ function GC.DrillQueue.New(driver, opts)
         end
       end
       return false
+    end
+    if priority > 0 then
+      -- The caps' share is full: a new one competes with the worst priority entry, never with an
+      -- ordinary hit (PRIORITY_SLOTS above).
+      local held, worst = 0, nil
+      for i = 1, #items do
+        if items[i].priority > 0 then
+          held = held + 1
+          if not worst or ranksBelow(items[i], items[worst]) then worst = i end
+        end
+      end
+      if held >= PRIORITY_SLOTS then
+        if not ranksBelow(items[worst], { priority = priority, estProfit = estProfit }) then
+          lose({ itemID = hit.itemID, floor = hit.floor, priority = priority, cap = cap })
+          return false
+        end
+        lose(forget(worst))
+      end
     end
     if #items >= MAX_ENTRIES then
       -- Full: the queue keeps the best MAX_ENTRIES hits it has been offered, so a new hit

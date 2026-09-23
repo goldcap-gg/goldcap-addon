@@ -341,6 +341,50 @@ describe("DrillQueue", function()
   -- GC.Caps.BookHits) that never repeats an unchanged floor, so a cap hit the queue let go of
   -- without drilling it was gone for good -- until the floor happened to move. The queue now says
   -- so (driver.onLost) and the caller re-arms the ratchet; ordinary hits are not reported.
+  -- Final review m7. With two hundred cap hits queued -- the first round after opening the auction
+  -- house with a few hundred caps -- every ordinary hit was refused at Push: the fairness rule
+  -- below only orders what is queued, and nothing ordinary was. Caps may fill the queue up to their
+  -- share; the rest is kept for ordinary hits.
+  describe("room for ordinary hits", function()
+    local function pushCaps(q, n, profit)
+      for i = 1, n do
+        q:Push({ itemID = i, floor = 10, estProfit = profit and profit(i) or 5, priority = 1, cap = true })
+      end
+    end
+
+    it("keeps a share of the queue that caps cannot fill", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      pushCaps(q, 200)
+      assert.is_true(GC.DrillQueue.PRIORITY_SLOTS < 200)
+      assert.equal(GC.DrillQueue.PRIORITY_SLOTS, q:Depth())
+      assert.is_true(q:Push({ itemID = 9999, floor = 10, estProfit = 1 }))
+      assert.is_true(q:Has(9999))
+    end)
+
+    it("still lets ordinary hits fill the whole queue while no caps wait", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      for i = 1, 200 do q:Push({ itemID = i, floor = 1, estProfit = i }) end
+      assert.equal(200, q:Depth())
+    end)
+
+    it("still lets a cap displace an ordinary hit from a full queue", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      for i = 1, 200 do q:Push({ itemID = i, floor = 1, estProfit = 1000 + i }) end
+      assert.is_true(q:Push({ itemID = 9001, floor = 1, estProfit = 1, priority = 1, cap = true }))
+      assert.is_true(q:Has(9001))
+      assert.equal(200, q:Depth())
+    end)
+
+    it("gives a cap beyond the share the place of the worst cap, never an ordinary hit's", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      pushCaps(q, GC.DrillQueue.PRIORITY_SLOTS, function(i) return i end)
+      q:Push({ itemID = 5000, floor = 1, estProfit = 1 })
+      assert.is_true(q:Push({ itemID = 9001, floor = 1, estProfit = 500, priority = 1, cap = true }))
+      assert.is_false(q:Has(1))    -- the worst cap made room
+      assert.is_true(q:Has(5000))  -- the ordinary hit kept its place
+    end)
+  end)
+
   describe("a cap hit lost un-drilled", function()
     local lost
 
@@ -362,9 +406,9 @@ describe("DrillQueue", function()
       assert.is_true(lost[1].cap)
     end)
 
-    it("is reported when a better hit evicts it from a full queue", function()
+    it("is reported when a better hit evicts it from the caps' full share", function()
       local q = GC.DrillQueue.New(losingDriver())
-      for i = 1, 200 do
+      for i = 1, GC.DrillQueue.PRIORITY_SLOTS do
         q:Push({ itemID = i, floor = 1, estProfit = i, priority = 1, cap = true })
       end
       assert.is_true(q:Push({ itemID = 9001, floor = 1, estProfit = 500, priority = 1, cap = true }))
@@ -372,9 +416,9 @@ describe("DrillQueue", function()
       assert.equal(1, lost[1].itemID)
     end)
 
-    it("is reported when a full queue refuses it", function()
+    it("is reported when the caps' full share refuses it", function()
       local q = GC.DrillQueue.New(losingDriver())
-      for i = 1, 200 do
+      for i = 1, GC.DrillQueue.PRIORITY_SLOTS do
         q:Push({ itemID = i, floor = 1, estProfit = 1000 + i, priority = 1, cap = true })
       end
       assert.is_false(q:Push({ itemID = 9001, floor = 7, estProfit = 1, priority = 1, cap = true }))
