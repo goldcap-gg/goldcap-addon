@@ -4665,7 +4665,13 @@ local function buildCapDeal(itemID, isCommodity, decision, cap)
   local unit = decision.unit
   local value = GC.Data.GetItemValue(itemID)
   local mv = value and value.mv or nil
-  local estProfit = (mv and math.floor(mv * 0.95) or 0) - unit
+  -- What reselling the units this row buys at the market would make after the cut, against what
+  -- they cost -- the whole buy, as every other row's PROFIT is. It was one unit's resale against
+  -- the cheapest level: "-5s 37c" beside a x400 row's 400g total (in game 2026-09-23), and the
+  -- wrong sign outright for a buy that spans dearer levels. Kept on the row, not dropped: it is
+  -- the one place the board says what the player's own price is worth to the market. The row
+  -- shows a dash when there is no market at all (setRowDeal).
+  local estProfit = (mv and math.floor(mv * 0.95) or 0) * decision.quantity - decision.entryTotal
   return {
     itemID = itemID,
     isCommodity = isCommodity,

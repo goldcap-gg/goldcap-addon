@@ -920,6 +920,23 @@ describe("Live price caps -- buying at the player's own price", function()
       end)
     end)
 
+    -- In game 2026-09-23 a x400 YOUR PRICE row read "-5s 37c" under PROFIT beside a 400g PRICE:
+    -- one unit's resale against the cheapest level, on a row whose every other figure is the
+    -- whole buy. It is figured the way every row's is now -- reselling the units the row buys
+    -- at the market, after the cut, against what they cost.
+    it("figures PROFIT over the whole buy against the market, like every other row", function()
+      local GC = loadSniper()
+      GC.Data.GetItemValue = function() return { mv = 1100000 } end
+      adoptCap(GC, 42, 2000000)
+      capLive(GC, 42, TWO_LEVELS)
+      local row = fakeRow()
+
+      getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+
+      -- 20 units: 20 x floor(110g x 0.95) = 2090g back, against the 2900g they cost.
+      assert.equal(GC.Util.FormatMoney(20 * 1045000 - 29000000), row.profitText.text)
+    end)
+
     it("sorts by that same total", function()
       local GC = loadSniper()
       adoptCap(GC, 42, 2000000)
