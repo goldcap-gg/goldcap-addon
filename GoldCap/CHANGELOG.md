@@ -63,17 +63,17 @@
   levels or other pets. An item the auction house has not told GoldCap about yet is listed under
   its own heading instead of being left out.
 - With the current Companion, GoldCap knows every commodity in your region, not only the few
-  hundred that sell the most: tooltips show a fresh price for each of them, and the sniper can
-  check thousands more against their own sales. It is kept in memory only, so your saved
-  variables do not grow. `/goldcap status` says how many commodities it covers and how old it
+  hundred that sell the most: tooltips show a fresh price for each of them, the Sell tab prices
+  every commodity in your bags from fresh market figures, and the sniper can check thousands more
+  against their own sales. `/goldcap status` says how many commodities it covers and how old it
   is, or why it is not in use.
 - The sniper scans Miscellaneous items on every pass, alongside trade goods, consumables, gems
   and enhancements. It checks first the deals most likely to sell, keeps paging the auction
   house while it checks, and comes back to a deal it had no time to check two minutes later
   instead of dropping it.
-- Hovering an item you have seen at the auction house in the last 15 minutes says what it was
-  going for there: "On the AH now", its cheapest price, how many were listed and how long ago,
-  even after you close the auction house. Gear and caged pets are left out.
+- Hovering an item the sniper's scan saw in the last 15 minutes says what it was going for at the
+  auction house: "On the AH now", its cheapest price, how many were listed and how long ago, even
+  after you close the auction house. Gear and caged pets are left out.
 
 ## 0.14.1 (unreleased)
 
