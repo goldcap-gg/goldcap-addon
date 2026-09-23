@@ -7222,6 +7222,14 @@ local function applyChosenQty(row, n)
   local decision
   if cap then
     decision = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels, n) or nil
+    -- Nothing allowed at all, while the book does hold a unit at or under the price: the only
+    -- limit left that can refuse one unit is the wallet's. Said as that, not as the generic
+    -- "needs a live price check" -- the ceiling qtyMaxAvailable offers falls back to one here, and
+    -- the player would otherwise click 100% and be told nothing true (caps fixes 5, review 1).
+    if not decision and dialog.bookLevels and not GC.Sniper._DecideCap(cap, dialog.bookLevels)
+        and GC.Caps.DecideCommodity(cap, dialog.bookLevels, { maxQuantity = 1, budget = math.huge }) then
+      decision = { status = "WATCH", reasons = { "capital_limit" } }
+    end
   else
     decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
   end

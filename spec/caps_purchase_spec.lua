@@ -708,6 +708,21 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.is_true(d.enabled)
       end)
 
+      -- Review round 1: with the wallet unable to pay for even one unit at the player's price the
+      -- rule allows nothing, the ceiling fell back to one, and the one was refused with the generic
+      -- "live verification required". The honest reason is the wallet limit.
+      it("says the wallet limit is what refuses even one unit", function()
+        local GC = loadSniper()
+        local row, d, applyQuickFillQty = armTenThenDrop(GC)
+        money = 10000000 -- 1,000g: 5% of it is 50g, under one unit at 100g
+
+        applyQuickFillQty(100)
+
+        assert.equal("check", row.purchaseStage)
+        assert.equal("Costs more than your per-buy wallet limit allows.", d.written[#d.written])
+        assert.same({ "capital_limit" }, row.decisionSnapshot.reasons)
+      end)
+
       -- The typed box clamps to the same ceiling (qtyBox.onCommit, built by createDialog) -- the
       -- one number both controls read, while "of N" keeps its own floor at the box.
       it("gives the typed box the same ceiling, and keeps 'of N' at the box", function()
