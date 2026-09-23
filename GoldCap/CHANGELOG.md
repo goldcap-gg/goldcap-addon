@@ -44,7 +44,8 @@
   the next scan.
 - Post on the Sell tab shows that it is posting — the button spins and says so, and pressing it
   again does nothing meanwhile — then says Posted, or what went wrong in the auction house's own
-  words. A post the auction house answers late still counts as posted.
+  words. A post the auction house answers late still counts as posted; while GoldCap waits for
+  that answer, up to a minute, the same item cannot be posted again.
 - The Deals tab names an auction house error in the game's own words instead of a generic one.
 - THE BOOK on the Sell tab is drawn around your price: the cheapest prices, the ones just under
   yours, your price with how many units are ahead of you — the ones already at your exact price

@@ -241,6 +241,8 @@ GC.Locales.koKR = {
   ["NOTHING TO POST"] = "등록할 것 없음",
   ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
   ["Never spend more than this share of your gold on one purchase."] = "한 번의 구매에 소지금의 이 비율을 넘게 쓰지 않습니다.",
+  ["No answer from the auction house yet -- still listening for a minute"] =
+    "경매장이 아직 응답하지 않았습니다 -- 1분 동안 계속 기다립니다",
   ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
   ["No deals to show -- and no realm prices yet."] = "표시할 거래가 없습니다 -- 서버 시세도 아직 없습니다.",
   ["No deals yet."] = "아직 거래가 없습니다.",
@@ -378,7 +380,6 @@ GC.Locales.koKR = {
   ["Spike-trend threshold %"] = "급등 추세 기준 %",
   ["Start scanning as soon as the auction house opens."] = "경매장을 열자마자 바로 검색을 시작합니다.",
   ["Status"] = "상태",
-  ["Still waiting for the auction house to answer the last post"] = "경매장이 지난 등록에 아직 응답하지 않았습니다",
   ["Stop and open the buy window on your price"] = "내 가격에 도달하면 중지 후 구매 창 열기",
   ["Stress exit unit"] = "스트레스 청산 단가",
   ["Stress profit"] = "스트레스 수익",
@@ -423,6 +424,8 @@ GC.Locales.koKR = {
     "되돌릴 수 없습니다. 한 번 누르면 확인을 위해 한 번 더 눌러야 합니다.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "서버 전용 아이템이며, GoldCap은 상품(commodity) 시세만 검증합니다.",
+  ["This item's last post may still go up -- wait a minute"] =
+    "이 아이템의 마지막 등록이 아직 올라갈 수 있습니다 -- 1분만 기다리세요",
   ["Too few sellers to read a real price."] = "판매자가 너무 적어 실제 시세를 읽을 수 없습니다.",
   ["Too little of what is listed actually sells."] = "등록된 물량 중 실제로 팔리는 비율이 너무 낮습니다.",
   ["Too little price history to trust the value."] = "가격 기록이 너무 적어 이 값을 믿을 수 없습니다.",

@@ -9,7 +9,7 @@ local helper = require("spec.spec_helper")
 --   * an item whose kind (commodity or not) the client had not answered yet was left out with no
 --     row and no count.
 describe("Sell tab, every tradeable bag item gets a row", function()
-  local GC, root, render, container, bags, kinds, slotKeys, searches, results, posted
+  local GC, root, render, container, bags, kinds, slotKeys, searches, results, posted, timers, created
 
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -63,6 +63,8 @@ describe("Sell tab, every tradeable bag item gets a row", function()
 
   before_each(function()
     bags, kinds, slotKeys, searches, results, posted = { [0] = {} }, {}, {}, {}, {}, {}
+    timers, created = {}, {}
+    _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
     _G.time = function() return 1000 end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
@@ -92,6 +94,8 @@ describe("Sell tab, every tradeable bag item gets a row", function()
       GetItemSearchResultInfo = function(k, i) return (results[keyName(k)] or {})[i] end,
       HasFullItemSearchResults = function() return true end,
       PostItem = function(location, _, quantity) posted[#posted + 1] = { slot = location.slot, quantity = quantity }; return false end,
+      -- What AUCTION_HOUSE_AUCTION_CREATED's auctionID names, when the client knows it.
+      GetAuctionInfoByID = function(auctionID) return created[auctionID] and { itemKey = created[auctionID] } or nil end,
     }
 
     GC = {
@@ -136,7 +140,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
 
   after_each(function()
     _G.time, _G.CreateFrame, _G.GetCoinTextureString, _G.Enum = os.time, nil, nil, nil
-    _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation = nil, nil, nil, nil
+    _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation, _G.C_Timer = nil, nil, nil, nil, nil
   end)
 
   local function compose()
@@ -265,5 +269,44 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     f:close()
     local handler = assert(init:match('event == "ITEM_SEARCH_RESULTS_UPDATED" then(.-)\n  elseif'))
     assert.is_truthy(handler:find("GC.Sell.OnItemSearchResults(itemKey.itemID, itemKey)", 1, true), handler)
+  end)
+
+  -- Two variants of one item are two positions, and one can be late while the other posts. A
+  -- creation the client names must go to the variant it names -- item level and suffix, not the
+  -- itemID alone, which both share (review M2).
+  it("tells a late variant from the one on the wire by the item level the client names", function()
+    local recorded, real = {}, GC.Acquisitions.RecordPost
+    GC.Acquisitions.RecordPost = function(...) recorded[#recorded + 1] = { ... }; return real(...) end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED)
+    stack(2, 222, 1, BONUSED)
+    slotKeys["0:1"] = key(222, 619)
+    slotKeys["0:2"] = key(222, 626)
+    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    GC.QuoteCache.Set(quotes, "item:222:619:0:0", 50000, 1000)
+    GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
+    compose()
+    local function press(positionKey)
+      for _, row in ipairs(upvalue(render, "rows")) do
+        if row:IsShown() and row.kind == "position" and row.position.positionKey == positionKey then
+          row.action.scripts.OnClick(row.action)
+          return row
+        end
+      end
+      error("no row for " .. positionKey)
+    end
+    press("item:222:619:0:0")
+    for i = #timers, 1, -1 do if timers[i].seconds == 8 then table.remove(timers, i).fn() end end
+    local wire = press("item:222:626:0:0")
+    assert.equal(2, #posted)
+    created[701] = key(222, 619)
+    GC.Sell.OnAuctionCreated(701)
+    assert.equal(1, #recorded)
+    assert.equal("item:222:619:0:0", recorded[1][1])
+    assert.equal("posting", wire.postStage)
+    created[702] = key(222, 626)
+    GC.Sell.OnAuctionCreated(702)
+    assert.equal(2, #recorded)
+    assert.equal("item:222:626:0:0", recorded[2][1])
   end)
 end)

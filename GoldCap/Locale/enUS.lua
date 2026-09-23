@@ -122,6 +122,8 @@ GC.Locales.enUS = {
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
+  ["No answer from the auction house yet -- still listening for a minute"] =
+    "No answer from the auction house yet -- still listening for a minute",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
@@ -140,11 +142,11 @@ GC.Locales.enUS = {
   ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
-  ["Still waiting for the auction house to answer the last post"] =
-    "Still waiting for the auction house to answer the last post",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
+  ["This item's last post may still go up -- wait a minute"] =
+    "This item's last post may still go up -- wait a minute",
   ["UNDERCUT %d"] = "UNDERCUT %d",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =

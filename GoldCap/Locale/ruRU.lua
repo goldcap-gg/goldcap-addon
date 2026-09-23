@@ -251,6 +251,8 @@ GC.Locales.ruRU = {
     "Перед покупкой нужна живая проверка цены.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Никогда не тратить на одну покупку больше этой доли вашего золота.",
+  ["No answer from the auction house yet -- still listening for a minute"] =
+    "Аукцион пока не ответил -- ждём ещё минуту",
   ["No deals passed the safety checks right now."] =
     "Сейчас ни одна сделка не прошла проверок безопасности.",
   ["No deals to show -- and no realm prices yet."] = "Сделок нет -- и цен реалма пока тоже.",
@@ -401,8 +403,6 @@ GC.Locales.ruRU = {
   ["Start scanning as soon as the auction house opens."] =
     "Начинать сканирование сразу при открытии аукционного дома.",
   ["Status"] = "Статус",
-  ["Still waiting for the auction house to answer the last post"] =
-    "Ждём, пока аукцион ответит на прошлое выставление",
   ["Stop and open the buy window on your price"] = "Остановить и открыть окно покупки по вашей цене",
   ["Stress exit unit"] = "Цена стресс-выхода",
   ["Stress profit"] = "Стресс-прибыль",
@@ -451,6 +451,8 @@ GC.Locales.ruRU = {
     "Отменить нельзя. Первый клик просит второй для подтверждения.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Это предмет реалма, а GoldCap проверяет только цены товаров.",
+  ["This item's last post may still go up -- wait a minute"] =
+    "Прошлое выставление этого предмета ещё может пройти -- подождите минуту",
   ["Too few sellers to read a real price."] =
     "Слишком мало продавцов, чтобы прочитать настоящую цену.",
   ["Too little of what is listed actually sells."] =

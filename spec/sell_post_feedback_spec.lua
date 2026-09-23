@@ -68,7 +68,12 @@ describe("Sell tab, a Post says what it is doing", function()
   local ITEM_NAMES = { [23427] = "Eternium Ore", [210796] = "Mycobloom" }
   -- Enum.AuctionHouseError values the stub client has words for; anything else answers "",
   -- which is what Blizzard's own AuctionHouseUtil.GetErrorText does for a code it cannot name.
-  local CLIENT_ERRORS = { [0] = "You don't have enough money." }
+  local CLIENT_ERRORS = { [0] = "You don't have enough money.", [7] = "The Auction House is busy.",
+    [1] = "There is already a higher bid on that item.", [12] = "You don't have enough of that item." }
+  -- The client's own Enum.AuctionHouseError, as far as these specs name it.
+  local AH_ERROR = { NotEnoughMoney = 0, HigherBid = 1, BidIncrement = 2, BidOwn = 3, ItemNotFound = 4,
+    IsBusy = 7, Unavailable = 8, ItemHasQuote = 9, DatabaseError = 10, MinBid = 11, NotEnoughItems = 12,
+    RepairItem = 13, BoundItem = 16, DoubleBid = 23 }
 
   local GREEN, RED, MUTED = { 0, 1, 0 }, { 1, 0, 0 }, { .72, .71, .69 }
 
@@ -100,6 +105,7 @@ describe("Sell tab, a Post says what it is doing", function()
       end,
     }
     _G.AuctionHouseUtil = { GetErrorText = function(code) return CLIENT_ERRORS[code] or "" end }
+    _G.Enum = { AuctionHouseError = AH_ERROR }
     _G.C_Item = { GetItemNameByID = function(id) return ITEM_NAMES[id] end }
     _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
 
@@ -145,7 +151,7 @@ describe("Sell tab, a Post says what it is doing", function()
   after_each(function()
     _G.time, _G.CreateFrame, _G.GetCoinTextureString, _G.C_Timer = os.time, nil, nil, nil
     _G.C_Container, _G.C_AuctionHouse, _G.C_Item, _G.ItemLocation = nil, nil, nil, nil
-    _G.AuctionHouseUtil, _G.AUCTION_POSTING_ERROR_TEXT = nil, nil
+    _G.AuctionHouseUtil, _G.AUCTION_POSTING_ERROR_TEXT, _G.Enum = nil, nil, nil
   end)
 
   local function quotes()
@@ -313,11 +319,13 @@ describe("Sell tab, a Post says what it is doing", function()
   end)
 
   describe("when nothing answers", function()
-    it("gives the row back and says the auction house did not answer", function()
+    -- A post that was SENT can still go up; the line says so rather than "try again", which the
+    -- hold on that item would contradict a moment later (review I3).
+    it("gives the row back and says the auction house has not answered yet", function()
       ready()
       local row = pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("The auction house did not answer -- try again", container.dockStatus.text)
+      assert.equal("No answer from the auction house yet -- still listening for a minute", container.dockStatus.text)
       assert.same(RED, { unpack(container.dockStatus.color, 1, 3) })
       assert.equal("Post", row.action.label)
       assert.is_true(row.action.enabled)
@@ -391,7 +399,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("The auction house did not answer -- try again", container.dockStatus.text)
+      assert.equal("No answer from the auction house yet -- still listening for a minute", container.dockStatus.text)
       assert.equal(0, #recorded)
       _G.time = function() return 1030 end
       GC.Sell.OnAuctionCreated()
@@ -406,17 +414,21 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.equal(1, #recorded)
     end)
 
-    it("corrects an unrelated auction house error that freed the row", function()
+    -- An error both a post and a purchase can raise, while a purchase of ours is out too: it may
+    -- not have been the post's. The post is let go of but listened for.
+    it("corrects a shared-code error that may have been somebody else's", function()
       local recorded = recordedPosts()
       ready()
       pressRowPost()
-      GC.Sell.OnAuctionHouseError(0)
+      GC.PurchaseSlot = { IsBusy = function() return true end }
+      GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughMoney)
+      GC.PurchaseSlot = nil
       assert.equal("You don't have enough money.", container.dockStatus.text)
       -- Meanwhile the stack is not sent again: the post the error may not have been about can
       -- still be taking it.
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Still waiting for the auction house to answer the last post", container.dockStatus.text)
+      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
       GC.Sell.OnAuctionCreated()
       assert.equal(1, #recorded)
       assert.matches("^Posted", container.dockStatus.text)
@@ -428,7 +440,7 @@ describe("Sell tab, a Post says what it is doing", function()
       fire(8)
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("Still waiting for the auction house to answer the last post", container.dockStatus.text)
+      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
       -- The dock's POST does not offer it either: held back, with the reason in words.
       assert.equal("NOTHING TO POST", container.queueButton.label)
       assert.matches("1", container.queueHeldBack.text, 1, true)
@@ -479,6 +491,132 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionCreated(777)
       assert.equal(0, #recorded)
       assert.equal("posting", row.postStage)
+    end)
+
+    -- The client names nothing (GetAuctionInfoByID is nilable, and nothing in Blizzard's UI looks
+    -- up an auction it just created -- the likely path in game). Answers come in the order the
+    -- posts went out, so the OLDEST post still out owns a creation; the one on the wire stays
+    -- armed for its own answer (review P1).
+    it("credits an unnamed creation to the oldest post out and keeps the one on the wire", function()
+      local recorded = recordedPosts()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      local myco = pressRowPost(210796)
+      GC.Sell.OnAuctionCreated(601) -- the client knows nothing of 601
+      assert.equal(1, #recorded)
+      assert.equal(23427, recorded[1][2])
+      assert.equal("posting", myco.postStage)
+      assert.is_true(myco.action.busy)
+      myco.action.scripts.OnClick(myco.action)
+      assert.equal(2, posts) -- never a second post of Mycobloom's pool
+      GC.Sell.OnAuctionCreated(602)
+      assert.equal(2, #recorded)
+      assert.equal(210796, recorded[2][2])
+      assert.is_nil(myco.postStage)
+    end)
+
+    -- ...and once every post of ours is answered, a creation is somebody else's -- Blizzard's
+    -- own Sell pane, another addon's -- and books nothing (review P1b).
+    it("books nothing for a creation once no sent post of ours is out", function()
+      local recorded = recordedPosts()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      local myco = pressRowPost(210796)
+      GC.Sell.OnAuctionCreated(601)
+      GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) -- Mycobloom refused: a post's own code
+      assert.is_nil(myco.postStage)
+      GC.Sell.OnAuctionCreated(603)
+      assert.equal(1, #recorded)
+      assert.equal(23427, recorded[1][2])
+    end)
+
+    -- A post waiting for its Confirm has sent nothing and can own no creation (review P9).
+    it("never lets a post still waiting for its Confirm claim a creation", function()
+      local recorded = recordedPosts()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      postReturn = true
+      local myco = pressRowPost(210796)
+      assert.equal("confirm", myco.postStage)
+      GC.Sell.OnAuctionCreated(601)
+      assert.equal(1, #recorded)
+      assert.equal(23427, recorded[1][2])
+      assert.equal("confirm", myco.postStage)
+      assert.equal("Confirm", myco.action.label)
+    end)
+
+    -- An error only a post can raise is the post's refusal, whole: nothing is listened for and
+    -- nothing held, so the next press posts again at once (review P2, P2b).
+    it("takes a post-only error as the post's refusal: no hold, and a later creation is nobody's", function()
+      local recorded = recordedPosts()
+      ready()
+      pressRowPost()
+      GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
+      GC.Sell.OnAuctionCreated(604) -- Blizzard's own Sell pane
+      assert.equal(0, #recorded)
+      pressRowPost()
+      assert.equal(2, posts)
+    end)
+
+    it("takes a shared-code error as the post's own when nothing else of ours is out", function()
+      ready()
+      pressRowPost()
+      GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
+      assert.equal("The Auction House is busy.", container.dockStatus.text)
+      pressRowPost()
+      assert.equal(2, posts) -- "busy": press again at once
+    end)
+
+    it("keeps waiting through an error only a bid or a purchase can raise", function()
+      ready()
+      local row = pressRowPost()
+      GC.Sell.OnAuctionHouseError(AH_ERROR.HigherBid)
+      assert.equal("posting", row.postStage)
+      assert.is_true(row.action.busy)
+      assert.equal("Posting…", container.dockStatus.text)
+    end)
+
+    -- A late answer can land a minute on, with the player on another tab. The toolbar is the
+    -- whole window's; only the dock, which is ours, is told (review M1).
+    it("writes a late answer into the dock only while another tab is on screen", function()
+      ready()
+      pressRowPost()
+      fire(8)
+      container:Hide()
+      root.status:SetText("scanning auction house...")
+      GC.Sell.OnAuctionCreated()
+      assert.equal("scanning auction house...", root.status.text)
+      assert.matches("^Posted", container.dockStatus.text)
+    end)
+
+    -- Pressing a held item while another post is out answers "Finish the pending post first",
+    -- and leaves the dock saying what that post is doing (review M3).
+    it("leaves the post on the wire its dock line when a held item is pressed", function()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      pressRowPost(210796)
+      pressRowPost(23427)
+      assert.equal("Posting…", container.dockStatus.text)
+      assert.equal(2, posts)
+    end)
+
+    -- For the owner to settle in game what the client says about an auction it just created.
+    it("traces what the client names for every created auction", function()
+      ready()
+      auctions[501] = 23427
+      GC.Sell.OnAuctionCreated(501)
+      GC.Sell.OnAuctionCreated(777)
+      local trace = table.concat(GC.Util.TraceDump(10), "\n")
+      assert.matches("sell: created 501 %-> 23427:0:0:0", trace)
+      assert.matches("sell: created 777 %-> nil", trace)
     end)
 
     it("stops listening, and lets the item post again, once its window has closed", function()

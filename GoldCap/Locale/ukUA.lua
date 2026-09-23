@@ -260,6 +260,8 @@ GC.Locales.ukUA = {
     "Перед покупкою потрібна жива перевірка ціни.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Ніколи не витрачати на одну покупку більше цієї частки вашого золота.",
+  ["No answer from the auction house yet -- still listening for a minute"] =
+    "Аукціон ще не відповів -- чекаємо ще хвилину",
   ["No deals passed the safety checks right now."] =
     "Зараз жодна угода не пройшла перевірок безпеки.",
   ["No deals to show -- and no realm prices yet."] =
@@ -415,8 +417,6 @@ GC.Locales.ukUA = {
   ["Start scanning as soon as the auction house opens."] =
     "Починати сканування одразу після відкриття аукціонного дому.",
   ["Status"] = "Статус",
-  ["Still waiting for the auction house to answer the last post"] =
-    "Чекаємо, поки аукціон відповість на попереднє виставлення",
   ["Stop and open the buy window on your price"] = "Зупинити й відкрити вікно купівлі за вашою ціною",
   ["Stress exit unit"] = "Ціна стрес-виходу",
   ["Stress profit"] = "Стрес-прибуток",
@@ -466,6 +466,8 @@ GC.Locales.ukUA = {
     "Скасувати не можна. Перший клік просить другий для підтвердження.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Це предмет реалму, а GoldCap перевіряє лише ціни товарів.",
+  ["This item's last post may still go up -- wait a minute"] =
+    "Попереднє виставлення цього предмета ще може пройти -- зачекайте хвилину",
   ["Too few sellers to read a real price."] = "Замало продавців, щоб прочитати справжню ціну.",
   ["Too little of what is listed actually sells."] =
     "Із виставленого реально продається надто мало.",

@@ -252,6 +252,8 @@ GC.Locales.itIT = {
     "Serve un controllo del prezzo dal vivo prima di poterlo comprare.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Non spendere mai più di questa quota del tuo oro in un solo acquisto.",
+  ["No answer from the auction house yet -- still listening for a minute"] =
+    "Ancora nessuna risposta dalla casa d'aste -- ascoltiamo ancora per un minuto",
   ["No deals passed the safety checks right now."] =
     "Al momento nessuna occasione ha superato i controlli di sicurezza.",
   ["No deals to show -- and no realm prices yet."] =
@@ -403,8 +405,6 @@ GC.Locales.itIT = {
   ["Start scanning as soon as the auction house opens."] =
     "Inizia la scansione non appena si apre la casa d'aste.",
   ["Status"] = "Stato",
-  ["Still waiting for the auction house to answer the last post"] =
-    "Ancora in attesa che la casa d'aste risponda all'ultima messa in vendita",
   ["Stop and open the buy window on your price"] = "Ferma e apri la finestra d'acquisto al tuo prezzo",
   ["Stress exit unit"] = "Prezzo d'uscita sotto stress",
   ["Stress profit"] = "Profitto sotto stress",
@@ -453,6 +453,8 @@ GC.Locales.itIT = {
     "Non si può annullare. Il primo clic ne chiede un secondo per confermare.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "È un oggetto di reame, e GoldCap verifica solo i prezzi delle merci.",
+  ["This item's last post may still go up -- wait a minute"] =
+    "L'ultima messa in vendita di questo oggetto può ancora andare a buon fine -- aspetta un minuto",
   ["Too few sellers to read a real price."] = "Troppo pochi venditori per leggere un prezzo reale.",
   ["Too little of what is listed actually sells."] =
     "Troppo poco di ciò che è in vendita viene davvero venduto.",
