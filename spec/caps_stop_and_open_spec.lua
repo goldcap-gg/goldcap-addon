@@ -149,6 +149,102 @@ describe("Caps stop-and-open", function()
     assert.equal(GC.Sniper._rangAt[42], 100)
   end)
 
+  -- Final review m3: openDialog is told the open is this drain's, and only for that call -- the
+  -- window's first arm then waits (spec/caps_purchase_spec.lua).
+  it("marks its own open for the window, and only that open", function()
+    local GC, drain = load(true)
+    local deal = hit(GC, 42, 1)
+    local row = fakeRow(deal)
+    set(drain, "rows", { row })
+    local marked
+    set(drain, "onBuyClick", function() marked = GC.Sniper._capOpening end)
+
+    drain(true)
+
+    assert.is_true(marked)
+    assert.is_nil(GC.Sniper._capOpening)
+  end)
+
+  -- Final review m8. In an undercut war under the player's price every repost is a new lot or a
+  -- better price -- news -- and stop-and-open opened the window again after every cancel. An item
+  -- is opened at most once per LIM.RING_FLOOR_SECONDS, and not for a longer while after the
+  -- player cancelled its window.
+  describe("the floor between two opens of one item", function()
+    local function repost(GC, drain, auctionID, unitPrice)
+      local row = fakeRow(hit(GC, 42, auctionID, unitPrice))
+      set(drain, "rows", { row })
+      return row
+    end
+
+    it("does not open the same item again inside the ring floor", function()
+      local GC, drain = load(true)
+      local first = repost(GC, drain, 1, 80)
+      drain(true)
+      assert.same({ first }, clicked)
+
+      now = now + 10
+      local second = repost(GC, drain, 2, 70)
+      drain(true)
+      assert.same({ first }, clicked)
+
+      now = now + 25
+      drain(true)
+      assert.same({ first, second }, clicked)
+    end)
+
+    it("waits longer after the player cancelled its window", function()
+      local GC, drain = load(true)
+      local LIM = upvalue(drain, "LIM")
+      local first = repost(GC, drain, 1, 80)
+      drain(true)
+      GC.Sniper._HoldCapOpen(first.deal, LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS)
+
+      now = now + LIM.RING_FLOOR_SECONDS + 1
+      local second = repost(GC, drain, 2, 70)
+      drain(true)
+      assert.same({ first }, clicked)
+      assert.is_true(LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS > LIM.RING_FLOOR_SECONDS)
+
+      now = 100 + LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS
+      drain(true)
+      assert.same({ first, second }, clicked)
+    end)
+
+    it("leaves another item's open alone", function()
+      local GC, drain = load(true)
+      local first = repost(GC, drain, 1, 80)
+      drain(true)
+      local other = fakeRow(hit(GC, 43, 5, 80))
+      set(drain, "rows", { other })
+      drain(true)
+      assert.same({ first, other }, clicked)
+    end)
+
+    it("is held by the window's own cancel", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local src = f:read("*a")
+      f:close()
+      local start = assert(src:find('d:SetScript("OnHide", function()', 1, true))
+      local body = src:sub(start, src:find("\n  end)\n", start, true))
+      local hold = body:find("GC.Sniper._HoldCapOpen(row.deal, LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS)", 1, true)
+      local abort = body:find('abortRowPurchase(row, GC.L["purchase canceled"])', 1, true)
+      assert.is_truthy(hold)
+      assert.is_truthy(abort)
+      assert.is_true(hold < abort)
+    end)
+
+    -- The hold is a claim about one visit, like the ring's own memory (checked against the
+    -- source: the close path repaints a board this fixture does not build).
+    it("is forgotten when the auction house closes", function()
+      local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local src = f:read("*a")
+      f:close()
+      local start = assert(src:find("function GC.Sniper.OnAuctionHouseClosed()", 1, true))
+      local body = src:sub(start, src:find("\nend\n", start, true))
+      assert.is_truthy(body:find("GC.Sniper._capOpenHold = {}", 1, true))
+    end)
+  end)
+
   it("rings from a render but leaves the opening to the ticker", function()
     local GC, drain = load(true)
     local deal = hit(GC, 42, 1)

@@ -194,6 +194,11 @@ LIM.RING_FLOOR_SECONDS = 30
 -- on, the row -- still on the board if the cap still holds -- is what says it, and a later
 -- sighting of a lot that was never announced queues a fresh ring anyway.
 LIM.CAP_PING_WAIT_SECONDS = 600
+-- Final review m8: after the player cancels a buy window on a YOUR PRICE item, stop-and-open does
+-- not open that item again for this long (every open already waits LIM.RING_FLOOR_SECONDS). In an
+-- undercut war under the player's price every repost is news, and each one reopened the window
+-- they had just closed. The bell still rings; only the window waits.
+LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS = 120
 
 -- Sniper fast loop, phase 1: the book-pass wide-pass cadence and the drill-down queue's
 -- per-minute SendSearchQuery budget. See Core/BookPass.lua / Core/DrillQueue.lua.
@@ -8336,6 +8341,9 @@ local function createDialog()
     local row = dialog.row
     if not row then return end -- normal close: resolvePurchase already cleared this before hiding
     dialog.row = nil
+    -- Final review m8: the player said no to this lot; stop-and-open waits before offering the
+    -- item again.
+    GC.Sniper._HoldCapOpen(row.deal, LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS)
     abortRowPurchase(row, GC.L["purchase canceled"])
   end)
 
@@ -8607,10 +8615,14 @@ drainCapPings = function(allowOpen)
     -- DIFFERENT row -- or for none, a listing that has gone -- owns the screen; this waits.
     -- One window per drain: a pass that finds three cap rows at once must not open three
     -- dialogs in a row, each replacing the last before it can be read.
+    -- Final review m8: and not while this item's own floor between opens holds
+    -- (GC.Sniper._HoldCapOpen: the ring floor after an open, longer after a cancel).
     if row and allowOpen and stopAndOpen and not ping.opened and not openRow and not busy
-        and not (dialog and dialog:IsShown() and dialog.row ~= row) then
+        and not (dialog and dialog:IsShown() and dialog.row ~= row)
+        and (GC.Sniper._capOpenHold[deal.itemID] or 0) <= now then
       ping.opened = true
       openRow = row
+      GC.Sniper._HoldCapOpen(deal, LIM.RING_FLOOR_SECONDS)
       -- Round 2: the open IS the announcement. A ring the floor was holding back is settled here,
       -- silently -- the window in front of the player says more than a bell would. Left news, the
       -- lot was queued again by every re-decision of it (the watch loop, the dialog's own Check)
@@ -8641,6 +8653,19 @@ end
 -- chunk sits near Lua's 200-local ceiling.
 function GC.Sniper._TickCapPings()
   if #pendingCapPings > 0 then drainCapPings(true) end
+end
+
+-- Final review m8: itemID -> GetTime() before which stop-and-open does not open that item again.
+-- Pushed out, never pulled in, by an open (LIM.RING_FLOOR_SECONDS) and by the player cancelling
+-- the window of a YOUR PRICE row (LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS, the dialog's OnHide).
+-- Emptied when the auction house closes.
+GC.Sniper._capOpenHold = {}
+function GC.Sniper._HoldCapOpen(deal, seconds)
+  if not (deal and deal.cap and deal.itemID) then return end
+  local untilAt = GetTime() + seconds
+  if (GC.Sniper._capOpenHold[deal.itemID] or 0) < untilAt then
+    GC.Sniper._capOpenHold[deal.itemID] = untilAt
+  end
 end
 
 -- Cancels/resets non-confirmed work and clears tracking tables on AH close. A confirmed
@@ -10304,6 +10329,7 @@ function GC.Sniper.OnAuctionHouseClosed()
     if scanDeals[i].cap then table.remove(scanDeals, i) end
   end
   pendingCapPings = {}
+  GC.Sniper._capOpenHold = {}
   clearDeals()
   -- Sniper v3 §3 ping: a HOT listing that pinged this session should be able to ping again
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
