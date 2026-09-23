@@ -486,7 +486,7 @@ describe("BookPass", function()
   -- per item level, and every caged pet as item 82800 with its own species. The book row is
   -- whichever of them was folded last, so it is marked, and the tooltip does not print it as the
   -- item's price (UI/SniperFrame.lua's LiveFloor).
-  it("marks an item that came back as more than one variant, and keeps the mark", function()
+  it("marks an item that came back as more than one variant, and keeps the mark for the visit", function()
     local function variantRow(itemID, minPrice, qty, itemLevel)
       return { itemKey = { itemID = itemID, itemLevel = itemLevel }, minPrice = minPrice, totalQuantity = qty }
     end
@@ -503,9 +503,113 @@ describe("BookPass", function()
     browseResults = { variantRow(5, 900, 1, 606) }
     bp:OnResultsUpdated()
     assert.is_true(bp:Seen(5).variants)
+    -- Final review M1: nothing would print a variant's row, so it is not carried over the close.
     now = 1100
     bp:Reset()
-    assert.is_true(bp:Seen(5).variants)
+    assert.is_nil(bp:Seen(5))
+    assert.equal(300, bp:Seen(6).floor)
+  end)
+
+  -- Every caged pet is item 82800 with its own species: a pet row is one species of the cage, never
+  -- the cage's floor, even when it is the only one the pass has met so far.
+  it("marks a caged pet as one of its variants from its first row", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { { itemKey = { itemID = 82800, battlePetSpeciesID = 1234 }, minPrice = 5000,
+      totalQuantity = 1 } }
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Seen(82800).variants)
+  end)
+
+  -- Final review M1: Reset used to carry every row of the last book, tens of thousands on a big realm,
+  -- for the rest of the session. Only a row the tooltip could print is worth the memory.
+  it("carries over Reset only the rows the driver would tell", function()
+    local driver = fakeDriver()
+    driver.keepSeen = function(itemID, kept)
+      assert.equal("number", type(kept.floor))
+      return itemID ~= 2
+    end
+    local bp = GC.BookPass.New(driver, { seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7), row(2, 600, 8) }
+    bp:OnResultsUpdated()
+    now = 1100
+    bp:Reset()
+    assert.equal(500, bp:Seen(1).floor)
+    assert.is_nil(bp:Seen(2))
+  end)
+
+  -- What Reset carried over, read off Seen's own upvalue.
+  local function recentOf(bp)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(bp.Seen, i)
+      if not name then break end
+      if name == "recent" then return value end
+    end
+    error("missing upvalue recent")
+  end
+
+  -- ... and it goes once it can no longer answer: a Start lets go of every carried row past the
+  -- window, and of every one this visit's book has seen again (Seen answers from the book first).
+  it("lets go at Start of carried rows past the window, and of rows the book has seen again", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7), row(2, 600, 8) }
+    bp:OnResultsUpdated()                 -- seenAt 1000
+    now = 1200
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7), row(2, 600, 8), row(3, 700, 9) }
+    bp:OnResultsUpdated()
+    bp:Reset()                            -- carries 1, 2 and 3, all seen at 1200
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(2, 650, 8) }
+    bp:OnResultsUpdated()                 -- the new visit's book sees 2 again
+    local recent = recentOf(bp)
+    assert.equal(600, recent[2].floor)    -- not yet: let go at the NEXT Start
+    now = 1200 + 899
+    bp:Start("classes")
+    recent = recentOf(bp)
+    assert.is_nil(recent[2])
+    assert.equal(500, recent[1].floor)
+    now = 1200 + 900
+    bp:Start("classes")
+    recent = recentOf(bp)
+    assert.is_nil(next(recent))
+    assert.equal(650, bp:Seen(2).floor)   -- the book's row is untouched
+  end)
+
+  -- The close path schedules this for LIVE_TOOLTIP_SECONDS after the close (UI/SniperFrame.lua): by
+  -- then every row that close carried is past the window. A later close's rows are not, and the book
+  -- of a visit open when it fires is never touched.
+  it("Prune lets go of what the window no longer covers, and never touches the book", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()                 -- seenAt 1000
+    bp:Reset()                            -- first close, at 1000
+    now = 1300
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(2, 600, 8) }
+    bp:OnResultsUpdated()                 -- seenAt 1300
+    bp:Reset()                            -- second close, at 1300
+    now = 1400
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(3, 700, 9) }
+    bp:OnResultsUpdated()                 -- a third visit, open when the first close's timer fires
+    now = 1000 + 900
+    bp:Prune()
+    assert.is_nil(bp:Seen(1))
+    assert.equal(600, bp:Seen(2).floor)
+    assert.equal(700, bp:Seen(3).floor)
+    assert.equal(700, bp:Book()[3].floor)
   end)
 
   -- Gear the auction house lists at ONE item level is never marked above, so the row keeps the level

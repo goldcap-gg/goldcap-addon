@@ -2940,6 +2940,8 @@ end
 -- GC.Sniper.OnThrottleReady, where readiness is the event's own premise.
 GC.Sniper._bookPass = GC.BookPass.New({
   now = time,
+  -- What the close carries over for the tooltip: only rows it could print (final review M1).
+  keepSeen = function(itemID, row) return GC.Sniper._LiveRow(itemID, row) end,
   sendBrowseQuery = function(query)
     trace("pass: SendBrowseQuery")
     -- Ours, for the player's-search hook (UI/AuctionHouseTab.lua's installBrowseHook).
@@ -11226,6 +11228,13 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- prices nobody has seen for hours. The wide-pass clock is left alone on purpose (see
   -- Core/BookPass.lua's Reset).
   GC.Sniper._bookPass:Reset()
+  -- What the reset carried for the tooltip answers for at most LIM.LIVE_TOOLTIP_SECONDS after the
+  -- close: let it go then, rather than at the next close, which may be hours away (final review
+  -- M1). Prune drops only rows past the window, so a timer from an earlier close cannot take
+  -- a later close's rows, and never the book of a visit open when it fires.
+  if C_Timer and C_Timer.After then
+    C_Timer.After(LIM.LIVE_TOOLTIP_SECONDS, function() GC.Sniper._bookPass:Prune() end)
+  end
   -- The key poll's book is the same kind of claim about the same session (Core/KeyPoll.lua's
   -- own Reset), and a batch that was in flight when the session ended has nothing left to
   -- answer it -- the counters go with it so the next visit's readout counts its own traffic.

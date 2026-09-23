@@ -24,16 +24,21 @@ function GC.BookPass.New(driver, opts)
   -- (UI/SniperFrame.lua's LiveFloor). 0 keeps nothing, as before.
   local seenSeconds = opts.seenSeconds or 0
   local classFilters = opts.itemClassFilters or {}
+  -- Which rows are worth carrying over Reset(): driver.keepSeen(itemID, row) when the caller has one
+  -- (the tooltip's own test, UI/SniperFrame.lua's _LiveRow), else any row that is not one of its
+  -- item's variants. A row nothing would print is a row kept for nothing.
+  local keepSeen = driver.keepSeen or function(_, row) return not row.variants end
 
   local obj = {}
-  local book = {}          -- itemID -> { floor, qty, seenAt, kind, variants }; SURVIVES Abort() and
-                            -- every Start(). `variants` (true or nil): see foldRow.
+  local book = {}          -- itemID -> { floor, qty, seenAt, kind, variants, itemLevel }; SURVIVES
+                            -- Abort() and every Start(). `variants` (true or nil): see foldRow.
   local classesSeen = {}   -- itemID -> true, for any item EVER folded by a classes pass this
                             -- session (survives Abort()/Start(), cleared only by Reset())
   local lost = {}          -- itemID -> true: its last hit left the drill queue undrilled (obj:Lost)
   local reportedAt = {}    -- itemID -> driver.now() of its last hit
   local rehits = 0         -- hits reported again after a loss, since /reload (/gc board; Reset leaves it)
-  local recent = {}        -- itemID -> book row carried over Reset() while younger than seenSeconds
+  local recent = {}        -- itemID -> a row the tooltip could print (keepSeen), carried over Reset()
+                            -- while younger than seenSeconds; see prune
   local passKeys = {}      -- itemID -> the variant key of its first row THIS pass (see foldRow)
   local kind = nil         -- nil | "classes" | "wide"
   local paging = false
@@ -46,6 +51,23 @@ function GC.BookPass.New(driver, opts)
   -- not force the very first pass (right after the AH opens, when speed matters most) to be
   -- the slow unfiltered one.
   local lastWideAt = driver.now()
+
+  -- Lets go of every carried row Seen() can no longer answer with: past seenSeconds, or shadowed by
+  -- this visit's book (Seen answers from the book first). An emptied table keeps the slots it grew
+  -- to, so an empty one is replaced -- a big realm's close carries tens of thousands of rows.
+  local function prune()
+    if next(recent) == nil then return end
+    local now = driver.now()
+    local left = false
+    for itemID, row in pairs(recent) do
+      if book[itemID] or now - (row.seenAt or 0) >= seenSeconds then
+        recent[itemID] = nil
+      else
+        left = true
+      end
+    end
+    if not left then recent = {} end
+  end
 
   local function queryFor(k)
     if k == "wide" then
@@ -76,12 +98,12 @@ function GC.BookPass.New(driver, opts)
     -- The book is keyed by item, the browse list by item KEY: gear comes back as one row per item
     -- level, and every caged pet as item 82800 with its own species. The row kept is the last one
     -- folded, which says nothing about the item as a whole -- so an item seen as two variants in one
-    -- pass is marked, for the rest of the session and past Reset() with it, and Seen()'s reader
-    -- (UI/SniperFrame.lua's LiveFloor) does not print it as the item's price.
+    -- pass is marked, for the rest of this visit, and Seen()'s reader (UI/SniperFrame.lua's
+    -- LiveFloor) does not print it as the item's price. A caged pet is marked from its first row:
+    -- whatever else is listed, its row is one species of the cage, never the cage's floor.
     local variantKey = (itemKey.itemLevel or 0) .. ":" .. (itemKey.itemSuffix or 0) .. ":"
       .. (itemKey.battlePetSpeciesID or 0)
-    local carried = recent[itemID]
-    local variants = (prev and prev.variants) or (carried and carried.variants)
+    local variants = (prev and prev.variants) or (itemKey.battlePetSpeciesID or 0) > 0
       or (passKeys[itemID] ~= nil and passKeys[itemID] ~= variantKey) or nil
     passKeys[itemID] = passKeys[itemID] or variantKey
     -- The level is kept too: gear the auction house lists at ONE level is never marked above, and
@@ -139,6 +161,7 @@ function GC.BookPass.New(driver, opts)
     pagesThisPass = 0
     passStartedAt = driver.now()
     for itemID in pairs(passKeys) do passKeys[itemID] = nil end
+    prune()
   end
 
   function obj:OnResultsUpdated() handleResults() end
@@ -183,14 +206,16 @@ function GC.BookPass.New(driver, opts)
   -- reset: it paces an expensive unfiltered pass against wall time, and reopening the AH does
   -- not make one more urgent.
   function obj:Reset()
-    -- The book itself must not survive (see above), but what it saw may still be told: the
-    -- rows younger than seenSeconds move to `recent`, and anything older there is let go.
+    -- The book itself must not survive (see above), but what it saw may still be told: each row
+    -- younger than seenSeconds that the tooltip could print (keepSeen) moves to `recent`, in place
+    -- of whatever an earlier close left there for its item, and anything older there is let go.
+    -- Only those: every other row of the last book would be kept for nothing until the next close.
     local now = driver.now()
-    for itemID, row in pairs(book) do recent[itemID] = row end
-    for itemID, row in pairs(recent) do
-      if now - (row.seenAt or 0) >= seenSeconds then recent[itemID] = nil end
+    for itemID, row in pairs(book) do
+      recent[itemID] = (now - (row.seenAt or 0) < seenSeconds and keepSeen(itemID, row)) and row or nil
     end
     for itemID in pairs(book) do book[itemID] = nil end
+    prune()
     for itemID in pairs(passKeys) do passKeys[itemID] = nil end
     for itemID in pairs(classesSeen) do classesSeen[itemID] = nil end
     for itemID in pairs(lost) do lost[itemID] = nil end
@@ -215,6 +240,12 @@ function GC.BookPass.New(driver, opts)
   -- What the book last saw of an item: this session's row, or the one carried over the last
   -- Reset() while it is younger than seenSeconds. The caller applies its own window.
   function obj:Seen(itemID) return book[itemID] or recent[itemID] end
+
+  -- Lets go of what the last closes carried that is past seenSeconds now. The caller schedules it
+  -- seenSeconds after a close (UI/SniperFrame.lua's OnAuctionHouseClosed), when every row that close
+  -- carried has aged out; a later close's rows are younger and stay, and the book is never touched,
+  -- so a visit open when it runs keeps everything it has seen.
+  function obj:Prune() prune() end
 
   -- True once an itemID has ever been folded by a CLASSES pass this session (i.e. it is
   -- in-class), regardless of what pass folded it most recently. Distinct from "does the book

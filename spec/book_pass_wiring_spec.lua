@@ -24,6 +24,8 @@ describe("Book pass wiring", function()
   end
 
   local browseSent, browseQueries, browseResults
+  -- What time() answers; the book pass reads its clock through it (driver.now).
+  local clock
 
   -- One browse row in the shape C_AuctionHouse.GetBrowseResults() returns.
   local function browseRow(itemID, minPrice, totalQuantity)
@@ -43,8 +45,9 @@ describe("Book pass wiring", function()
 
   local function loadSniper(enum)
     browseSent, browseQueries, browseResults = 0, {}, {}
+    clock = 1000
     _G.GetTime = function() return 100 end
-    _G.time = function() return 1000 end
+    _G.time = function() return clock end
     _G.GetMoney = function() return 10 * 1000 * 10000 end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
     _G.ITEM_QUALITY_COLORS = {}
@@ -469,5 +472,48 @@ describe("Book pass wiring", function()
     GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 60 }
     GC.Sniper._bookPass:Reset()
     assert.same({ floor = 12345, qty = 40, age = 60 }, GC.Sniper.LiveFloor(777, 1000))
+  end)
+
+  -- Final review M1: the close carries over only what the tooltip could print -- by the tooltip's
+  -- own test, so gear the auction house listed at one level stays behind with the rest of the book.
+  it("carries over the close only the rows the tooltip could print", function()
+    local GC = loadSniper()
+    browseResults = {
+      { itemKey = { itemID = 6, itemLevel = 600 }, minPrice = 70000, totalQuantity = 1 },
+      browseRow(7, 500, 40),
+    }
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    GC.Sniper.OnAuctionHouseClosed()
+    assert.is_nil(GC.Sniper._bookPass:Seen(6))
+    assert.same({ floor = 500, qty = 40, age = 0 }, GC.Sniper.LiveFloor(7, 1000))
+  end)
+
+  -- ... and lets it go once the window has passed since the close: nothing it kept can answer then.
+  -- A later close's rows are younger and stay; a visit open when the timer fires keeps its book.
+  it("lets go of what a close kept once the tooltip's window has passed since it", function()
+    local GC = loadSniper()
+    local timers = {}
+    _G.C_Timer.After = function(seconds, fn)
+      if seconds == 900 then timers[#timers + 1] = fn end
+    end
+    GC.Sniper._bookPass:Book()[7] = { floor = 500, qty = 40, seenAt = 1000 }
+    GC.Sniper.OnAuctionHouseClosed()                 -- first close, at 1000
+    assert.equal(1, #timers)
+    clock = 1300
+    GC.Sniper._bookPass:Book()[8] = { floor = 600, qty = 5, seenAt = 1300 }
+    GC.Sniper.OnAuctionHouseClosed()                 -- second close, at 1300
+    clock = 1500
+    GC.Sniper._bookPass:Book()[9] = { floor = 700, qty = 3, seenAt = 1500 } -- a visit open now
+    clock = 1000 + 900
+    assert.same({ floor = 500, qty = 40, age = 900 }, GC.Sniper.LiveFloor(7, clock))
+    timers[1]()
+    assert.is_nil(GC.Sniper.LiveFloor(7, clock))
+    assert.same({ floor = 600, qty = 5, age = 600 }, GC.Sniper.LiveFloor(8, clock))
+    assert.same({ floor = 700, qty = 3, age = 400 }, GC.Sniper.LiveFloor(9, clock))
+    clock = 1300 + 900
+    timers[#timers]()
+    assert.is_nil(GC.Sniper._bookPass:Seen(8))
+    assert.equal(700, GC.Sniper._bookPass:Book()[9].floor)
   end)
 end)
