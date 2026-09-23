@@ -1566,6 +1566,26 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.equal(2, starts)
         end)
 
+        -- Fix round 2: the other side of the rule, and the path it must never take. With the window
+        -- still open at "confirming", a re-quote is that window's to show: nothing is cancelled,
+        -- Confirm is offered again at the new price, and a second Confirm books the purchase.
+        it("leaves a purchase its own open window is confirming to that window", function()
+          local GC, row, _, d, click = armed()
+          confirmOn(GC, row, click)
+
+          GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY)
+
+          assert.equal(0, cancels)
+          assert.equal("confirm", row.purchaseStage)
+          assert.is_true(d.row == row)
+          assert.is_true(d.enabled)
+          click() -- Confirm, again
+          assert.equal(2, confirms)
+          assert.equal("confirming", row.purchaseStage)
+          GC.Sniper.OnCommodityPurchaseSucceeded()
+          assertRecordedCapBuy(GC, 42, QTY, (UNIT - 10) * QTY)
+        end)
+
         it("does not leave the same row, opened again, behind a purchase that never happened", function()
           local GC, first, deal, d, click, abort = armed()
           confirmOn(GC, first, click)

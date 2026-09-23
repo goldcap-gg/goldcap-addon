@@ -2427,7 +2427,19 @@ describe("Sniper purchase wiring", function()
     }
     local pending = { row = row, itemID = 42, token = 7, confirmed = true, deal = deal, quote = quote }
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
-    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    -- The window that confirmed it is still open on this row: the re-quote is its to judge. With
+    -- no window it would be dropped instead (GC.Sniper._DropRequotedConfirm, caps_purchase_spec).
+    local written = {}
+    local stub = function() end
+    local window = {
+      row = row, baseHeight = 400, SetHeight = stub,
+      primaryBtn = { Enable = stub, Disable = stub, SetLabel = stub, IsEnabled = function() return false end,
+        text = { SetTextColor = stub } },
+      cancelBtn = { Enable = stub, Disable = stub },
+      banner = { Hide = stub, Show = stub },
+      status = { SetText = function(_, text) written[#written + 1] = text end, SetTextColor = stub },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", window)
 
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery", function() end)
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- server re-quote, 4% above the confirmed quote
@@ -2437,8 +2449,11 @@ describe("Sniper purchase wiring", function()
     assert.is_falsy(pending.confirmed)
     assert.is_nil(pending.quote)
     assert.are_not.equal("confirming", row.purchaseStage)
-    -- ...and the ordinary requote path judged the new price: it broke safety, so the attempt
-    -- was cancelled and drained into a tombstone that retires on its own timer.
+    -- ...and the ordinary requote path judged the new price in the open window: it broke
+    -- safety, so the attempt was cancelled and drained into a tombstone that retires on its own
+    -- timer, and the window stays on the row to re-check what remains.
+    assert.is_true(window.row == row)
+    assert.is_truthy(written[#written]:find("re-checking what remains at a safe price", 1, true))
     assert.equal(1, cancelCalls)
     assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
     local draining = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
