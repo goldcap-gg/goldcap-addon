@@ -384,7 +384,7 @@ GC.Locales.itIT = {
   ["Sales are costed from your oldest units first"] =
     "Le vendite vengono imputate prima alle tue unità più vecchie",
   ["Search"] = "Cerca",
-  ["Sales certainty"] = "Certezza vendite",
+  ["Sales certainty"] = "Affid. vendite",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La scheda Vendi pubblica un gradino sopra l'offerta più economica quando il libro ordini indica che si vende altrettanto in fretta.",
   ["Sell-through"] = "Tasso di vendita",

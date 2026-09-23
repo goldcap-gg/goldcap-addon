@@ -387,7 +387,7 @@ GC.Locales.esMX = {
   ["Sales are costed from your oldest units first"] =
     "Las ventas se imputan primero a tus unidades más antiguas",
   ["Search"] = "Buscar",
-  ["Sales certainty"] = "Certeza de ventas",
+  ["Sales certainty"] = "Certeza ventas",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "La pestaña Vender publica un escalón por encima de la oferta más barata cuando el libro indica que se vende igual de rápido.",
   ["Sell-through"] = "Tasa de venta",

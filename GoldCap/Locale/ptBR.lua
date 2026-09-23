@@ -384,7 +384,7 @@ GC.Locales.ptBR = {
   ["Sales are costed from your oldest units first"] =
     "As vendas são custeadas a partir das suas unidades mais antigas",
   ["Search"] = "Buscar",
-  ["Sales certainty"] = "Certeza de vendas",
+  ["Sales certainty"] = "Certeza vendas",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "A aba Vender anuncia um degrau acima da oferta mais barata quando o livro mostra que ela vende na mesma velocidade.",
   ["Sell-through"] = "Taxa de venda",

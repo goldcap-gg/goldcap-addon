@@ -382,7 +382,7 @@ GC.Locales.ruRU = {
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["Search"] = "Поиск",
-  ["Sales certainty"] = "Достоверность продаж",
+  ["Sales certainty"] = "Надёжн. продаж",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продажа выставляет на одну ступень выше самой дешёвой заявки, если книга ордеров показывает такую же скорость продажи.",
   ["Sell-through"] = "Выкупаемость",
