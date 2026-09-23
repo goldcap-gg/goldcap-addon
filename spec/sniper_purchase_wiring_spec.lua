@@ -228,6 +228,101 @@ describe("Sniper purchase wiring", function()
       table.sort(seen)
       assert.same({ "ConfirmCommoditiesPurchase", "PlaceBid", "StartCommoditiesPurchase" }, seen)
     end)
+
+    -- Final review m5. The audit above keeps every purchase call inside the two click handlers;
+    -- this keeps the handlers themselves behind the player's own input. Each is named only where
+    -- it is defined and where the engine's hardware wiring hands it the click or the key -- never
+    -- called from anywhere else -- and nothing in the addon clicks a button, or runs a button's
+    -- script, from code.
+    local PROGRAMMATIC = { "[:%.]Click%s*%(", "GetScript%s*%(%s*[\"']OnClick", "GetScript%s*%(%s*[\"']OnKeyDown",
+      "ExecuteFrameScript" }
+
+    -- Every line of `text` (comments blanked) naming `name`, trimmed, with the position of the name.
+    local function namedAt(text, name)
+      local found, from = {}, 1
+      while true do
+        local s, e = text:find("%f[%w_]" .. name .. "%f[^%w_]", from)
+        if not s then break end
+        local lineStart = (text:sub(1, s):match(".*()\n") or 0) + 1
+        local lineEnd = (text:find("\n", s, true) or (#text + 1)) - 1
+        found[#found + 1] = { pos = s, line = text:sub(lineStart, lineEnd):match("^%s*(.-)%s*$") }
+        from = e + 1
+      end
+      return found
+    end
+
+    -- What breaks the rule in `path`'s `text` (comments already blanked): a mention of a click
+    -- handler that is not one of its allowed sites, or a programmatic click anywhere.
+    local function handlerViolations(path, text)
+      local bad = {}
+      for _, pattern in ipairs(PROGRAMMATIC) do
+        if text:find(pattern) then bad[#bad + 1] = path .. " " .. pattern end
+      end
+      if path == "GoldCap/UI/SniperFrame.lua" or path == "test/sniper" then
+        for _, m in ipairs(namedAt(text, "onDialogPrimaryClick")) do
+          if m.line ~= "local function onDialogPrimaryClick()"
+              and m.line ~= 'primaryBtn:SetScript("OnClick", onDialogPrimaryClick)' then
+            bad[#bad + 1] = path .. " " .. m.line
+          end
+        end
+      elseif path == "GoldCap/UI/BuyFrame.lua" or path == "test/buy" then
+        local function inside(pos, opener)
+          local from = text:find(opener, 1, true)
+          local to = from and text:find("\n  end)\n", from, true)
+          return from ~= nil and to ~= nil and pos > from and pos < to
+        end
+        for _, m in ipairs(namedAt(text, "onBuyClick")) do
+          local ok = m.line == "local function onBuyClick(line)"
+            or (m.line == "onBuyClick(lineFor(row.lineItemID))"
+              and inside(m.pos, 'row.action:SetScript("OnClick", function()'))
+            or (m.line == "onBuyClick(line)"
+              and inside(m.pos, 'container:SetScript("OnKeyDown", function(self, key)'))
+          if not ok then bad[#bad + 1] = path .. " " .. m.line end
+        end
+      else
+        for _, name in ipairs({ "onDialogPrimaryClick" }) do
+          if #namedAt(text, name) > 0 then bad[#bad + 1] = path .. " " .. name end
+        end
+      end
+      return bad
+    end
+
+    it("reaches the two purchase click handlers only through the player's own input", function()
+      local violations = {}
+      for _, path in ipairs(luaFiles()) do
+        for _, v in ipairs(handlerViolations(path, blankComments(read(path)))) do
+          violations[#violations + 1] = v
+        end
+      end
+      assert.same({}, violations)
+      -- A scan that found nothing would pass the line above in silence.
+      assert.equal(2, #namedAt(blankComments(read("GoldCap/UI/SniperFrame.lua")), "onDialogPrimaryClick"))
+      assert.equal(3, #namedAt(blankComments(read("GoldCap/UI/BuyFrame.lua")), "onBuyClick"))
+    end)
+
+    it("sees a direct call, a stray reference and a programmatic click, and not a comment", function()
+      local sniper = blankComments(table.concat({
+        "local function onDialogPrimaryClick()",
+        "end",
+        '  primaryBtn:SetScript("OnClick", onDialogPrimaryClick)',
+        "-- onDialogPrimaryClick() in a comment",
+        "C_Timer.After(1, onDialogPrimaryClick)",
+        "  dialog.primaryBtn:Click()",
+      }, "\n"))
+      assert.same({ "test/sniper [:%.]Click%s*%(", "test/sniper C_Timer.After(1, onDialogPrimaryClick)" },
+        handlerViolations("test/sniper", sniper))
+      local buy = blankComments(table.concat({
+        "local function onBuyClick(line)",
+        "end",
+        '  row.action:SetScript("OnClick", function()',
+        "    onBuyClick(lineFor(row.lineItemID))",
+        "  end)",
+        "  onBuyClick(lineFor(row.lineItemID))",
+        'local handler = row.action:GetScript("OnClick")',
+      }, "\n"))
+      assert.same({ "test/buy GetScript%s*%(%s*[\"']OnClick", "test/buy onBuyClick(lineFor(row.lineItemID))" },
+        handlerViolations("test/buy", buy))
+    end)
   end)
 
   it("the dialog claims the slot before it starts a purchase", function()
