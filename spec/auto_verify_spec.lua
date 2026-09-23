@@ -1227,6 +1227,107 @@ describe("Deals background verification", function()
       assert.equal("not enough gold on this character -- you need 1330g", status.text)
     end)
 
+    -- Gold arriving is the one thing that turns such a row into a buy, and it used to wait for
+    -- the walk's two-minute re-check of a refusal. PLAYER_MONEY now puts every row whose gold is
+    -- covered at the front of the check queue, and the walk runs on the next tick.
+    describe("when the gold arrives", function()
+      local wallet
+
+      local function heldRow(api)
+        board(api, { deal(1, 100, 3000), deal(2, 200, 2000), deal(3, 300, 1000) })
+        local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+        local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+        stamp(deal(1, 100, 3000), { isCommodity = true, levels = {}, decision = {
+          status = "AVOID", buyable = false, reasons = { "capital_limit" }, needsGold = 20000000 } })
+      end
+
+      local function load()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        heldRow(api)
+        -- The walk has just spent its turn on a row nobody had checked.
+        tickAt(api, 101)
+        assert.same({ 2 }, sent)
+        api.GC.Sniper.OnCommoditySearchResults(2)
+        return api
+      end
+
+      it("checks a row it covers first, and without waiting out the walk's second", function()
+        local api = load()
+        clock = 101.25
+        wallet = 20000000
+        api.GC.Sniper.OnPlayerMoney()
+        tickAt(api, 101.5)
+        -- Row 3 has never been checked and would otherwise have had the turn.
+        assert.same({ 2, 1 }, sent)
+      end)
+
+      it("leaves a row it does not cover yet where it was", function()
+        local api = load()
+        clock = 101.25
+        wallet = 19999999
+        api.GC.Sniper.OnPlayerMoney()
+        tickAt(api, 101.5)
+        assert.same({ 2 }, sent) -- nothing to hurry for: the walk keeps its second
+        tickAt(api, 102.1)
+        assert.same({ 2, 3 }, sent)
+      end)
+
+      -- The pane showing that row: its held Buy is asked again the way its own Check button asks
+      -- -- a live Check, never a purchase; Buy comes back only if that Check approves it.
+      local function openPane(api)
+        local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+        local apply = upvalue(finish, "applyRequeryResult")
+        local armCheck = upvalue(apply, "armCheck")
+        set(armCheck, "setDialogHeader", function() end)
+        set(armCheck, "stampDialogFromDecision", function() end)
+        local primary = { enabled = true, text = { SetTextColor = function() end } }
+        function primary:Enable() self.enabled = true end
+        function primary:Disable() self.enabled = false end
+        function primary:IsEnabled() return self.enabled end
+        function primary:SetLabel(t) self.label = t end
+        local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
+        local d = deal(1, 100)
+        local row = { deal = d }
+        set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
+          banner = { Hide = function() end }, SetHeight = function() end })
+        apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+          reasons = { "capital_limit" }, needsGold = 13300000, walletShare = 0.20, quantity = 5,
+          entryTotal = 2660000 } })
+        assert.equal("check", row.purchaseStage)
+        assert.is_false(primary.enabled)
+        return row, primary, status
+      end
+
+      it("asks the open pane's held Buy again through its own Check", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local row, primary, status = openPane(api)
+
+        wallet = 13300000
+        api.GC.Sniper.OnPlayerMoney()
+
+        assert.equal("requerying", row.purchaseStage)
+        assert.is_false(primary.enabled)
+        assert.equal("checking live safety...", status.text)
+      end)
+
+      it("leaves the pane's Buy held while the gold is still short", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local row, primary = openPane(api)
+
+        wallet = 13299999
+        api.GC.Sniper.OnPlayerMoney()
+
+        assert.equal("check", row.purchaseStage)
+        assert.is_false(primary.enabled)
+      end)
+    end)
+
     -- One line at the top of the board, for as long as the wallet cannot pay for one unit of the
     -- cheapest row on it at the player's own wallet limit -- driven by PLAYER_MONEY as well as by
     -- the board, so gold arriving takes it down without waiting for a scan.

@@ -1877,12 +1877,6 @@ function GC.Sniper._PaintGoldLine(list)
   end
 end
 
--- PLAYER_MONEY (Core/Init.lua). A render, not only the line: the line describes the render's own
--- rows, and a render is how the rest of the window hears of anything.
-function GC.Sniper.OnPlayerMoney()
-  if frame then refreshRows() end
-end
-
 -- The board's empty state. An empty list used to be exactly that -- rows silently absent,
 -- with the only explanations living in a toolbar counter and a scan-completion status line
 -- that the next write erased. That is the TSM failure mode this addon exists to avoid: the
@@ -6050,6 +6044,22 @@ local function stepVerifyWalk()
   local list = GC.Sniper._verifySlice or GC.Sniper._VerifySlice(renderList())
   local limit = #list
 
+  -- First of all, a row the wallet limit ALONE held back whose gold the character now holds
+  -- (its verdict's needsGold). Gold arriving is the one change that turns it into a buy, so it
+  -- goes to the front of the queue -- ahead of rows nothing has checked -- rather than waiting
+  -- out a refusal's re-check interval. GC.Sniper.OnPlayerMoney also brings the walk forward.
+  for i = 1, limit do
+    local deal = list[i]
+    local v = verdicts[deal.itemID]
+    if v and v.needsGold and v.unitPrice == deal.unitPrice and not deal.pinPlaceholder
+        and not GC.Sniper._IsWatched(deal.itemID) and v.needsGold <= GetMoney() then
+      if maybeStartPrewarm(deal, true) then
+        verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
+        return true
+      end
+    end
+  end
+
   -- Two passes over the SAME top-`limit` slice, in renderList()'s own order (best-first as of
   -- Commit 1's estProfit ranking). Pass 1 gives first claim on the walk's one query per tick to
   -- rows with no verdict at their current asking price -- never checked at all, or checked at a
@@ -6125,6 +6135,36 @@ local function tickAutoVerify()
   -- been asked above, so what is being spent here is a turn the walk genuinely wanted.
   verifyWalkAt = now + LIM.VERIFY_WALK_SECONDS
   stepVerifyWalk()
+end
+
+-- PLAYER_MONEY (Core/Init.lua). Gold arriving is news for three things, and each hears it at once
+-- rather than on its own clock:
+--   * the "not enough gold" line, which a render repaints (refreshRows -> _PaintGoldLine);
+--   * every row the wallet limit alone held back whose gold is now covered: the walk takes those
+--     first (stepVerifyWalk), and runs on the next tick instead of waiting out its second;
+--   * that row's pane, when it is open on the held Buy: it is asked again through its own Check
+--     (startRequery), exactly what the pane's Check does. A Check, never a purchase -- Buy comes
+--     back only if that Check approves it (applyRequeryResult -> armReady), and the purchase
+--     stays in onDialogPrimaryClick.
+-- A field, not a local: this chunk sits near its 200-local ceiling.
+function GC.Sniper.OnPlayerMoney()
+  if not frame then return end
+  local wallet = GetMoney()
+  local row = dialog and dialog.row
+  local held = row and row.purchaseStage == "check" and row.decisionSnapshot or nil
+  if held and held.needsGold and held.needsGold <= wallet then
+    dialog.primaryBtn:Disable()
+    setPrimaryLabel("Buy")
+    setDialogStatus(GC.L["checking live safety..."])
+    startRequery(row, row.deal)
+  end
+  for _, v in pairs(verdicts) do
+    if v.needsGold and v.needsGold <= wallet then
+      verifyWalkAt = 0
+      break
+    end
+  end
+  refreshRows()
 end
 
 -- Router functions the Init.lua event frame dispatches into.
