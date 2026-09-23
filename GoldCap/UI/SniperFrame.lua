@@ -5006,15 +5006,14 @@ local function applyRequeryResult(row, itemID, live)
       dialog.bookLevels = live.levels
     end
     if live.isCommodity and decision.buyable then
-      armReady(row, deal, decision, live.levels, hold)
-      -- A cap decision is the player's own price, not the engine's safety verdict.
+      -- A cap decision is the player's own price, not the engine's safety verdict. Written before
+      -- armReady, whose affordance check has the last word on both lines: a Buy held behind a
+      -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
       if frame then
         frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
           or GC.L["live safety confirmed -- click Buy to purchase"])
       end
-      -- ...unless a confirmed purchase is still owed its answer: armReady already holds the
-      -- window, and the window's own line must not be the only one telling the truth.
-      GC.Sniper._HoldWhileOwed(row)
+      armReady(row, deal, decision, live.levels, hold)
     elseif not live.isCommodity and decision.status == "WATCH" and decision.candidate then
       -- Sniper phase 2: a realm lot, checked live and found under its region reference. The
       -- decision is deliberately not `buyable` -- nothing here measured how fast this item
@@ -5063,23 +5062,27 @@ local function applyRequeryResult(row, itemID, live)
         elseif capLot and not (limits and total <= limits.budget) then
           dialog.primaryBtn:Disable()
           setDialogStatus(GC.L["Costs more than your per-buy wallet limit allows."], 1, 0.3, 0.3)
-        elseif capMiss then
-          armLoudConfirm(row, label)
-          setDialogStatus(capMiss, 1, 0.3, 0.3)
-        elseif hold then
-          armLoudConfirm(row, label, true)
-          setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
-            or GC.L["price checked, sale speed unknown -- this one is your call"])
-        elseif capLot then
-          dialog.primaryBtn:Enable()
-          setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
         else
-          dialog.primaryBtn:Enable()
-          setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
+          if capMiss then
+            armLoudConfirm(row, label)
+            setDialogStatus(capMiss, 1, 0.3, 0.3)
+          elseif hold then
+            armLoudConfirm(row, label, true)
+            setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
+              or GC.L["price checked, sale speed unknown -- this one is your call"])
+          elseif capLot then
+            dialog.primaryBtn:Enable()
+            setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
+          else
+            dialog.primaryBtn:Enable()
+            setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
+          end
+          -- Last word on a bid that would be lit, now or after its hold: it waits over a confirmed
+          -- commodity purchase still owed its answer (the Buy gate, review M2), and says so now
+          -- rather than on the click (fix round 1). A bid the gold or the wallet limit refuses
+          -- keeps saying that instead (fix round 2).
+          GC.Sniper._HoldWhileOwed(row)
         end
-        -- Last word: a bid waits over a confirmed commodity purchase still owed its answer (the
-        -- Buy gate, review M2), and says so now rather than on the click (fix round 1).
-        GC.Sniper._HoldWhileOwed(row)
       end
       scheduleArmTimeout(row, deal, decision)
     else
@@ -7787,15 +7790,16 @@ updateBuyAffordance = function()
   if not dialog or not dialog.row then return end
   local row = dialog.row
   if row.purchaseStage ~= "ready" then return end
-  -- A confirmed purchase still owed its answer holds Buy whatever the gold says (fix round 1).
-  if GC.Sniper._HoldWhileOwed(row) then return end
   local total = dialog.stampedTotal
-  if not total then return end
+  -- No figure on screen to refuse on: the Buy armReady lit stays lit -- unless it has to wait.
+  if not total then GC.Sniper._HoldWhileOwed(row) return end
   if total > GetMoney() then
     dialog.primaryBtn:Disable()
     setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
       :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
-  else
+  elseif not GC.Sniper._HoldWhileOwed(row) then
+    -- A Buy that would be lit waits while a confirmed purchase is still owed its answer (fix
+    -- round 1, GC.Sniper._HoldWhileOwed); one the gold refuses anyway says so instead (round 2).
     -- Not inside a hold (armLoudConfirm): its own timer comes back here when it is over.
     if dialog.armHold ~= requoteArmToken then dialog.primaryBtn:Enable() end
     setDialogStatus(GC.L["price confirmed -- click Buy to purchase"], 0.25, 0.85, 0.25)

@@ -1681,6 +1681,59 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.equal(WAITING, d.written[#d.written])
         end)
 
+        -- Fix round 2 (nit): only a Buy that would otherwise be lit waits. A window that cannot be
+        -- bought whatever happens to the other purchase says why -- not enough gold, the wallet
+        -- limit -- instead of "waiting", which would only hand it a Refresh to find out.
+        describe("that could not be bought anyway", function()
+          local function realmArmed(GC, buyout)
+            local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+              { { auctionID = 9, buyout = buyout, itemLevel = 615, quantity = 1 } })
+            local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = buyout, qty = 1, auctionID = 9 }
+            local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+            local d = fakeDialog(realmRow, lot)
+            setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+            local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+            getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+            return d
+          end
+
+          it("says a commodity costs more gold than the player has", function()
+            local GC = loadSniper({ maxQuantity = QTY })
+            adoptCap(GC, 42, CAP)
+            owed(GC)
+            local book = freshBook()
+            local live = capLive(GC, 42, book)
+            local deal = boardDeal(GC, 42)
+            money = 1000 -- the gold went on something else since the Check
+            local d = armOnDialog(GC, { deal = deal, purchaseToken = 1 }, deal, live.decision, book)
+
+            assert.is_false(d.enabled)
+            assert.is_truthy(d.written[#d.written]:find("not enough gold", 1, true), d.written[#d.written])
+          end)
+
+          it("says a realm lot costs more gold than the player has", function()
+            local GC = loadSniper()
+            adoptCap(GC, 42, CAP)
+            owed(GC)
+            money = 5000
+            local d = realmArmed(GC, 8000)
+
+            assert.is_false(d.enabled)
+            assert.is_truthy(d.written[#d.written]:find("not enough gold", 1, true), d.written[#d.written])
+          end)
+
+          it("says a realm lot costs more than the player's wallet limit", function()
+            local GC = loadSniper()
+            adoptCap(GC, 42, 1000000)
+            owed(GC)
+            money = 10000000 -- 1,000g: the 5% limit is 50g, under an 80g lot
+            local d = realmArmed(GC, 800000)
+
+            assert.is_false(d.enabled)
+            assert.equal("Costs more than your per-buy wallet limit allows.", d.written[#d.written])
+          end)
+        end)
+
         it("does not light a held Buy when its hold ends", function()
           local GC = loadSniper()
           adoptCap(GC, 42, CAP)
