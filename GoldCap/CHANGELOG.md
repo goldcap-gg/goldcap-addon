@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.15.0 (unreleased)
+## 0.15.0 (2026-09-24)
 
 - The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or
   under your price shows up as a "YOUR PRICE" row, rings, and buys through the usual window.
@@ -52,6 +52,8 @@
   words. A post the auction house answers late still counts as posted; while GoldCap waits for
   that answer, up to a minute, the same item cannot be posted again.
 - The Deals tab names an auction house error in the game's own words instead of a generic one.
+- The Deals column headings no longer go blank after you visit another tab or reopen the
+  window.
 - THE BOOK on the Sell tab is drawn around your price: the cheapest prices, the ones just under
   yours, your price with how many units are ahead of you — the ones already at your exact price
   count, they sell first — and the ones above it. Walls, the big stacks worth pricing under, are
@@ -74,13 +76,8 @@
 - Hovering an item the sniper's scan saw in the last 15 minutes says what it was going for at the
   auction house: "On the AH now", its cheapest price, how many were listed and how long ago, even
   after you close the auction house. Gear and caged pets are left out.
-
-## 0.14.1 (unreleased)
-
-- The sniper no longer replaces your own search results while you are on the auction house's
-  Buy tab with the GoldCap window closed.
-- The Deals column headings no longer go blank after you visit another tab or reopen the
-  window.
+- Big numbers in tooltips are easier to read: "Sold per day" shows 29,728 instead of 29728.0,
+  and the listed counts are grouped the same way.
 
 ## 0.14.0 (2026-09-21)
 
