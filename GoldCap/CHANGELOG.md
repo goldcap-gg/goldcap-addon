@@ -3,7 +3,11 @@
 ## 0.15.1 (unreleased)
 
 - The Deals board no longer lists finds whose buy would make less than your "Min profit per
-  buy". Rows you watch and rows at your own price always show.
+  buy". Rows you watch and rows at your own price always show. The count of hidden finds says
+  it includes these.
+- A deal held back only by your "Max wallet per buy %" now stays on the board and says how much
+  gold the buy needs, instead of going to Hidden. When the character has too little gold to buy
+  anything on the board, a line at the top of the board says so.
 - A row you checked yourself and the check refused now leaves the board once you close its buy
   window or open another row, like the refusals found in the background; a row you watch keeps
   its verdict. Refused rows come back for a fresh check after 30 minutes.
