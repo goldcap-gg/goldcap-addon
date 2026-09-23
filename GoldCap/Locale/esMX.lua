@@ -517,6 +517,8 @@ GC.Locales.esMX = {
     "arriba del más barato, dentro del alcance del día · %d unidades en fila por debajo",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "frente al precio de la región para este objeto, tras la comisión del 5% — si se vende",
+  ["another purchase took over -- nothing was confirmed"] =
+    "otra compra tomó el relevo -- no se confirmó nada",
   ["any figure here would be invented out of the very number being refused"] =
     "cualquier cifra aquí saldría inventada del mismo número que se está rechazando",
   ["at or under your price -- click Buy to purchase"] =

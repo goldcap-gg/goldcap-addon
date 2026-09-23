@@ -470,6 +470,7 @@ GC.Locales.zhCN = {
     "高于最低价，处于当日可达价内 · 下方排队 %d 件",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "对比该物品的区域价格，扣除 5% 手续费后 — 前提是能卖掉",
+  ["another purchase took over -- nothing was confirmed"] = "另一笔购买已接手 -- 没有确认任何购买",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
   ["at or under your price -- click Buy to purchase"] = "不高于你的价格 -- 点击 Buy 购买",

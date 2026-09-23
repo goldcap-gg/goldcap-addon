@@ -1583,6 +1583,89 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.is_true(GC.PurchaseSlot.IsBusy(150)) -- 25 s after Confirm, 50 s after Start
         end)
 
+        -- Fix round 3 (review M1): the Sniper's "buying", "confirm" and "requote" stages had no stall.
+        -- A window left at Confirm kept the purchase open while the claim stamped at Start went
+        -- stale after 30 s; BUY took the slot over and started a purchase of its own, and the lit
+        -- Confirm then confirmed a purchase the client no longer held for the Sniper. Two things now
+        -- make that impossible. Every one of those stages re-stamps the claim when it is entered and
+        -- is retired by its own timer well inside the claim's life, exactly as BUY's armStall does;
+        -- and Confirm is refused, without a cancel, whenever the Sniper does not own the slot.
+        describe("a purchase it started and has not confirmed", function()
+          local clock, timers
+
+          local function onTheClock(GC)
+            helper.loadModule("Core/PurchaseSlot.lua", GC)
+            clock, timers = 100, {}
+            _G.GetTime = function() return clock end
+            _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { at = clock + seconds, fn = fn } end
+          end
+
+          local function runTimers()
+            for _, timer in ipairs(timers) do
+              if timer.at <= clock and not timer.ran then timer.ran = true; timer.fn() end
+            end
+          end
+
+          it("keeps the claim fresh at Confirm and retires the quote before the claim can go stale", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            click() -- Buy: Start, claimed at 100
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            assert.equal("confirm", row.purchaseStage)
+            clock = 121
+            runTimers()
+            assert.is_false(GC.PurchaseSlot.Claim("buy")) -- still the Sniper's, 21 s after Start
+            assert.equal("confirm", row.purchaseStage)
+
+            clock = 122
+            runTimers()
+
+            assert.equal(1, cancels) -- its own purchase, while the slot was still its own
+            assert.is_nil(GC.PurchaseSlot.Owner())
+            assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+            assert.equal("expired", row.purchaseStage)
+            assert.is_true(d.enabled)
+            assert.equal(GC.L["Refresh"], d.label)
+            click() -- Refresh: a Check, never a Confirm
+            assert.equal(0, confirms)
+            assert.equal("requerying", row.purchaseStage)
+          end)
+
+          it("retires a Start the server never quoted", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            click() -- Buy: Start at 100, and nothing comes back
+            clock = 115
+            runTimers()
+
+            assert.equal(1, cancels)
+            assert.is_nil(GC.PurchaseSlot.Owner())
+            assert.equal("expired", row.purchaseStage)
+            assert.is_true(d.enabled)
+          end)
+
+          it("never confirms a purchase whose slot another window has taken", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            _G.C_Timer.After = function() end -- the stalls never run: the state probe Q1 reached
+            click() -- Buy
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 131
+            assert.is_true(GC.PurchaseSlot.Claim("buy")) -- stale: BUY took it and started its own
+
+            click() -- Confirm
+
+            assert.equal(0, confirms)
+            assert.equal(0, cancels) -- BUY's purchase is not the Sniper's to cancel
+            assert.equal("buy", GC.PurchaseSlot.Owner())
+            assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+            assert.is_false(GC.Sniper.HasStrandedConfirmed())
+            assert.equal("expired", row.purchaseStage)
+            assert.equal(GC.L["another purchase took over -- nothing was confirmed"], d.written[#d.written])
+          end)
+        end)
+
         it("repaints the BUY tab when its confirmed purchase is answered", function()
           local GC, row, _, _, click = armed()
           local refreshed = 0

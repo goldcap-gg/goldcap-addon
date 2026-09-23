@@ -529,6 +529,8 @@ GC.Locales.ukUA = {
     "вище найдешевшого, у межах денного розмаху · у черзі нижче %d шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
+  ["another purchase took over -- nothing was confirmed"] =
+    "інша купівля зайняла її місце -- нічого не підтверджено",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
   ["at or under your price -- click Buy to purchase"] =

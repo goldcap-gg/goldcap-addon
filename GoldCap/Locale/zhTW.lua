@@ -471,6 +471,7 @@ GC.Locales.zhTW = {
     "高於最低價，處於當日可達價內 · 下方排隊 %d 件",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "對比該物品的區域價格，扣除 5% 手續費後 — 前提是能賣掉",
+  ["another purchase took over -- nothing was confirmed"] = "另一筆購買已接手 -- 沒有確認任何購買",
   ["any figure here would be invented out of the very number being refused"] =
     "這裡的任何數字都只能憑那個被否決的數值編出來",
   ["at or under your price -- click Buy to purchase"] = "不高於你的價格 -- 按 Buy 購買",

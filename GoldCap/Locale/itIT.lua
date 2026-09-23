@@ -515,6 +515,8 @@ GC.Locales.itIT = {
     "sopra il più economico, entro la portata del giorno · %d unità in coda sotto",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "rispetto al prezzo regionale di questo oggetto, al netto del 5% — se si vende",
+  ["another purchase took over -- nothing was confirmed"] =
+    "un altro acquisto è subentrato -- non è stato confermato nulla",
   ["any figure here would be invented out of the very number being refused"] =
     "qualsiasi cifra qui sarebbe inventata proprio dal numero che viene rifiutato",
   ["at or under your price -- click Buy to purchase"] =

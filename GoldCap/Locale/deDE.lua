@@ -516,6 +516,8 @@ GC.Locales.deDE = {
     "über dem Günstigsten, innerhalb der Tagesreichweite · %d Einheiten davor in der Schlange",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "gegen den Regionspreis dieses Gegenstands, nach 5% Gebühr — falls er sich verkauft",
+  ["another purchase took over -- nothing was confirmed"] =
+    "ein anderer Kauf hat übernommen -- nichts wurde bestätigt",
   ["any figure here would be invented out of the very number being refused"] =
     "jede Zahl hier wäre aus genau dem Wert erfunden, der gerade abgelehnt wird",
   ["at or under your price -- click Buy to purchase"] =

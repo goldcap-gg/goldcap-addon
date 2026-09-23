@@ -515,6 +515,8 @@ GC.Locales.ptBR = {
     "acima do mais barato, dentro do alcance do dia · %d unidades na fila abaixo",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "em relação ao preço da região para este item, após a taxa de 5% — se vender",
+  ["another purchase took over -- nothing was confirmed"] =
+    "outra compra assumiu -- nada foi confirmado",
   ["any figure here would be invented out of the very number being refused"] =
     "qualquer valor aqui seria inventado a partir do mesmo número que está sendo recusado",
   ["at or under your price -- click Buy to purchase"] =

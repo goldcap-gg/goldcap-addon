@@ -483,6 +483,7 @@ GC.Locales.koKR = {
     "최저가보다 높게, 하루 도달 범위 안 · 아래에 %d개 대기 중",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "이 아이템의 지역 기준가 대비, 수수료 5% 제외 — 팔린다면",
+  ["another purchase took over -- nothing was confirmed"] = "다른 구매가 대신 진행 중입니다 -- 아무것도 확정하지 않았습니다",
   ["any figure here would be invented out of the very number being refused"] =
     "여기 어떤 숫자든 지금 거부당한 바로 그 값에서 지어낸 것이 됩니다",
   ["at or under your price -- click Buy to purchase"] = "내 가격 이하 -- Buy를 눌러 구매하세요",

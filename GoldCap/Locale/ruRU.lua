@@ -514,6 +514,8 @@ GC.Locales.ruRU = {
     "выше самого дешёвого, в пределах дневного размаха · в очереди ниже %d шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "против региональной цены этого предмета, за вычетом 5% — если он продастся",
+  ["another purchase took over -- nothing was confirmed"] =
+    "другая покупка заняла её место -- ничего не подтверждено",
   ["any figure here would be invented out of the very number being refused"] =
     "любая цифра здесь была бы выдумана из того самого числа, которому не доверяют",
   ["at or under your price -- click Buy to purchase"] =

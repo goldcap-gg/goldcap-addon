@@ -514,6 +514,8 @@ GC.Locales.frFR = {
     "au-dessus du moins cher, dans la portée du jour · %d unités en file en dessous",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "face au prix régional de cet objet, après la commission de 5% — s'il se vend",
+  ["another purchase took over -- nothing was confirmed"] =
+    "un autre achat a pris la main -- rien n'a été confirmé",
   ["any figure here would be invented out of the very number being refused"] =
     "tout chiffre ici serait inventé à partir du nombre même qui est refusé",
   ["at or under your price -- click Buy to purchase"] =

@@ -599,6 +599,8 @@ GC.Locales.enUS = {
     "against the region's own price for this item, after the 5% cut — if it sells",
   ["alert group · %d hits"] = "alert group · %d hits",
   ["another purchase is in flight"] = "another purchase is in flight",
+  ["another purchase took over -- nothing was confirmed"] =
+    "another purchase took over -- nothing was confirmed",
   ["any figure here would be invented out of the very number being refused"] =
     "any figure here would be invented out of the very number being refused",
   ["at or under your price -- click Buy to purchase"] =

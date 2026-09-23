@@ -127,6 +127,10 @@ LIM.MAX_BOOK_LEVELS = 100
 -- before the separate Confirm click (with the >5% requote re-prompt on top).
 LIM.ARM_TIMEOUT_SECONDS = 30
 LIM.BUY_TIMEOUT_SECONDS = 8
+-- How long a server quote waits at Confirm before the purchase is handed back (review M1, fix
+-- round 3): the BUY tab's CONFIRM_SECONDS, and like it well inside GC.PurchaseSlot.MAX_SECONDS --
+-- the claim is re-stamped when the quote lands, and the stage has to be over before it goes stale.
+LIM.CONFIRM_STALL_SECONDS = 20
 LIM.REQUERY_TIMEOUT_SECONDS = 8
 -- How long the quiet zone (GC.Sniper.IsPurchaseQuiet) may veto every search sender before it
 -- is released. The zone is what stops a scan page or a watch poll from replacing the client's
@@ -4595,6 +4599,68 @@ function GC.Sniper._ExpireArm(row, text, r, g, b)
   if refreshQtyRow then refreshQtyRow() end -- Fix 2: "expired" is not "ready" -- box/quick-fill grey out until Refresh re-arms
 end
 
+-- Review M1, fix round 3: a commodity purchase this window has started and not confirmed -- the
+-- "buying", "confirm" and "requote" stages -- holds the client's one purchase and the shared slot,
+-- and nothing bounded it: a window left at Confirm kept it open while the claim stamped at Start
+-- went stale after GC.PurchaseSlot.MAX_SECONDS, the BUY tab took the slot over and started a
+-- purchase of its own, and the lit Confirm then confirmed a purchase the client no longer held for
+-- this window. Two tabs each believed they owned one purchase.
+--
+-- The design is BUY's own (its armStall/retireStalled), chosen over re-stamping the claim for as
+-- long as a dialog holds the purchase: with a stall on every started stage, a claim can only ever
+-- go stale after the purchase it stood for has been handed back, so the slot's staleness rule --
+-- the fail-safe for a claim somebody leaked -- can never hand over a purchase that is still live.
+-- Re-stamping indefinitely would have made that fail-safe dead for this window, tied the claim to a
+-- ticker and a visible drawer, and let one forgotten quote shut the BUY tab out for the session.
+-- So: every started stage re-stamps the claim when it is entered and arms a timer well inside the
+-- claim's life; a timer that finds its stage still current hands the purchase back (Cancel, which
+-- is only ever ours to send here, because the slot is still ours) and offers Refresh -- a Check,
+-- never the old quote. A confirmed attempt is not this timer's: it is owed its answer.
+function GC.Sniper._ArmStall(pending, seconds)
+  if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
+  pending.stall = (pending.stall or 0) + 1
+  local stall = pending.stall
+  if not (C_Timer and C_Timer.After) then return end
+  C_Timer.After(seconds, function() GC.Sniper._RetireStall(pending, stall) end)
+end
+
+function GC.Sniper._RetireStall(pending, stall)
+  if commodityPurchase ~= pending or pending.confirmed or pending.stall ~= stall then return end
+  local row = pending.row
+  if dialog and dialog.row == row then
+    if not pending.cancelRequested then
+      C_AuctionHouse.CancelCommoditiesPurchase()
+      pending.cancelRequested = true
+    end
+    drainCommodityPurchase(row)
+    row.purchaseDeal = nil
+    row.quoteSnapshot = nil
+    requoteArmToken = requoteArmToken + 1 -- a loud hold still counting belonged to this quote
+    hideRequoteBanner()
+    GC.Sniper._ExpireArm(row, GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
+    if frame then frame.status:SetText(GC.L["quote expired -- Refresh to re-check the price"]) end
+  else
+    -- No window shows it (its OnHide would already have aborted it): let the row go the way a
+    -- Cancel does.
+    abortRowPurchase(row, GC.L["quote expired -- Refresh to re-check the price"])
+  end
+end
+
+-- The other half (review M1): Confirm finds the shared slot is not this window's. However it
+-- happened, the client's one purchase is somebody else's now, so nothing may be confirmed -- and
+-- nothing cancelled either: CancelCommoditiesPurchase would hand back THEIR purchase. The attempt
+-- is dropped as bookkeeping only (no tombstone, whose Cancel on the next price update would reach
+-- theirs just the same), and the window offers Refresh: a Check, which the gate then holds while
+-- the other window's purchase is in flight.
+function GC.Sniper._LostSlot(row, pending)
+  if commodityPurchase == pending then commodityPurchase = nil end
+  row.purchaseDeal = nil
+  row.quoteSnapshot = nil
+  hideRequoteBanner()
+  GC.Sniper._ExpireArm(row, GC.L["another purchase took over -- nothing was confirmed"], 1, 0.3, 0.3)
+  if frame then frame.status:SetText(GC.L["another purchase took over -- nothing was confirmed"]) end
+end
+
 -- Follow-up P1: a confirmed purchase has just settled -- succeeded, failed, answered unavailable,
 -- or been given up on by the stranded release. Buy on the window in front of the player was
 -- held behind it (dark, "waiting for previous commodity purchase to settle") and stayed dark until
@@ -5153,7 +5219,18 @@ end
 -- explanatory status instead of auto-resolving the purchase as failed: PlaceBid's completion
 -- event is UNVERIFIED to always fire, so silently unpinning here could let the player
 -- re-attempt a buy whose bid may in fact still land. The row stays pinned until Cancel.
+--
+-- A commodity no longer freezes (review M1, fix round 3): Start went out and no quote came back,
+-- and the purchase and the slot claim are this window's until somebody hands them back. The
+-- stage is under the same stall as "confirm" and "requote" (GC.Sniper._ArmStall): handed back,
+-- Refresh offered, inside the claim's life. A realm bid keeps the freeze -- PlaceBid claims no slot,
+-- and its completion may still land.
 local function scheduleBuyTimeout(row, deal, token)
+  local pending = commodityPurchase
+  if deal.isCommodity and pending and pending.row == row and pending.token == token then
+    GC.Sniper._ArmStall(pending, LIM.BUY_TIMEOUT_SECONDS)
+    return
+  end
   C_Timer.After(LIM.BUY_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "buying" and row.purchaseDeal == deal and row.purchaseToken == token
         and (not deal.isCommodity or (commodityPurchase and commodityPurchase.row == row
@@ -7030,6 +7107,9 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     decision = finalDecision,
     market = { sourceAt = market.sourceAt },
   }
+  -- The quote waits at Confirm (or a loud requote) for the player, and the purchase with it: the
+  -- claim is re-stamped now and the wait bounded well inside the claim's life (review M1).
+  GC.Sniper._ArmStall(pending, LIM.CONFIRM_STALL_SECONDS)
   if dialog and dialog.row == row then
     dialog.bookLevels = levels
     stampDialogFromDecision(deal, finalDecision)
@@ -7495,6 +7575,13 @@ local function onDialogPrimaryClick()
         or quoteSnapshot.itemID ~= pending.itemID
         or not quoteSnapshot.decision or quoteSnapshot.decision.status ~= "SAFE"
         or not quoteSnapshot.decision.buyable then
+      return
+    end
+    -- Review M1, fix round 3: only while the shared slot is still this window's. If it is not,
+    -- the client's one purchase is somebody else's -- a Confirm would confirm theirs, and a
+    -- Cancel would hand it back -- so neither is sent (GC.Sniper._LostSlot).
+    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() ~= "sniper" then
+      GC.Sniper._LostSlot(row, pending)
       return
     end
     -- Hardware click only: the event prepares a quote; it never confirms one. The token and
