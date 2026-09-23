@@ -741,6 +741,7 @@ GC.Locales.ptBR = {
     "seu cliente do jogo não tem fonte para este idioma — o texto aparecerá como quadrados vazios",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "sua importação tem %d horas -- os preços podem estar errados. Cole uma string nova do goldcap.gg (/goldcap import).",
+  ["your price is above every level shown"] = "seu preço supera todos os níveis",
   ["yours"] = "seu",
   ["yours ×%s"] = "seus ×%s",
   ["~%dd to reach you"] = "~%d d até a sua vez",

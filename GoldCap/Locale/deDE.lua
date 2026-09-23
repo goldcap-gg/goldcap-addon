@@ -48,7 +48,7 @@ GC.Locales.deDE = {
   ["%s units in %d prices"] = "%s Stück · %d Preise",
   ["%s — %d unit%s without a cost"] = "%s — %d Stück%s ohne Einkaufspreis",
   ["%s+ ahead"] = "%s+ davor",
-  ["%s+, %d prices read"] = "%s+, %d Preise gelesen",
+  ["%s+, %d prices read"] = "%s+ in %d Preisen",
   [", %d hidden as unsellable"] = ", %d als unverkäuflich ausgeblendet",
   ["1 lot, %s asked"] = "1 Posten, %s verlangt",
   ["24h trend"] = "24h-Trend",
@@ -744,6 +744,7 @@ GC.Locales.deDE = {
     "dein Spielclient hat keine Schrift für diese Sprache — der Text erscheint als leere Kästchen",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "dein Import ist %d Stunden alt -- die Preise können abweichen. Füge eine frische Zeichenkette von goldcap.gg ein (/goldcap import).",
+  ["your price is above every level shown"] = "dein Preis liegt über allen Stufen",
   ["yours"] = "deiner",
   ["yours ×%s"] = "deins ×%s",
   ["~%dd to reach you"] = "~%d Tg. bis zu dir",

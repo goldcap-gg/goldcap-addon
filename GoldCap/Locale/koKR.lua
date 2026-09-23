@@ -50,7 +50,7 @@ GC.Locales.koKR = {
   ["%s units in %d prices"] = "%s개 · 가격대 %d개",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   ["%s+ ahead"] = "앞에 %s+",
-  ["%s+, %d prices read"] = "%s+, 가격대 %d개 읽음",
+  ["%s+, %d prices read"] = "%s+, 가격 %d개 읽음",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
@@ -694,6 +694,7 @@ GC.Locales.koKR = {
     "이 게임 클라이언트에는 해당 언어의 글꼴이 없습니다 — 글자가 빈 네모로 보입니다",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
+  ["your price is above every level shown"] = "내 가격이 표시된 모든 단계보다 높음",
   ["yours"] = "내 가격",
   ["yours ×%s"] = "내 것 ×%s",
   ["~%dd to reach you"] = "내 차례까지 ~%d일",

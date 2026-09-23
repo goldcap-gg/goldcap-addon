@@ -2854,11 +2854,14 @@ describe("Sniper purchase wiring", function()
       assert.is_truthy(init:find("GC.Sniper.OnAuctionHouseError(errorCode)", 1, true))
     end)
 
+    -- A quoted, unconfirmed purchase: nothing of it is still coming. (One at "buying" whose quote
+    -- has not come is cancelled and drained instead -- load-bearing round M-2, caps_purchase_spec.)
     it("settles an unconfirmed commodity purchase and clears the tombstones", function()
       local GC = loadSniper()
-      local row = { purchaseStage = "buying", purchaseToken = 7,
+      local row = { purchaseStage = "confirm", purchaseToken = 7,
         purchaseDeal = { itemID = 42, isCommodity = true } }
-      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7, priceReceived = true })
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 9, token = 1 })
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
 

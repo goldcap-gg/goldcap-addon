@@ -671,6 +671,7 @@ GC.Locales.zhCN = {
     "你的游戏客户端没有这种语言的字体 — 文字会显示为空白方块",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的导入数据已过 %d 小时 -- 价格可能有偏差。请从 goldcap.gg 粘贴新的字符串（/goldcap import）。",
+  ["your price is above every level shown"] = "你的价格高于所有显示的价位",
   ["yours"] = "你的",
   ["yours ×%s"] = "你的 ×%s",
   ["~%dd to reach you"] = "约 %d 天轮到你",

@@ -739,6 +739,7 @@ GC.Locales.ruRU = {
     "в вашем клиенте игры нет шрифта для этого языка — текст будет отображаться пустыми квадратами",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
+  ["your price is above every level shown"] = "твоя цена выше всех уровней",
   ["yours"] = "ваша",
   ["yours ×%s"] = "ваши ×%s",
   ["~%dd to reach you"] = "~%d дн. до вас",

@@ -146,9 +146,11 @@ describe("row button labels fit the button", function()
       local translations = GC.Locales[code]
       local words = {
         { "~%dh to reach you", "23" }, { "~%dd to reach you", "99" },
-        { "%s+, %d prices read", "5.6k", "100" }, { "price stands %d of %d", "8", "100" },
+        { "%s+, %d prices read", "12.3k", "100" }, { "price stands %d of %d", "8", "100" },
       }
-      local own = assert(translations["yours ×%s"], code .. " is missing yours ×%s"):gsub("%%s", "5.6k")
+      -- Five-character counts (load-bearing round M-4): a deep book reads "12.3k+", and a wall of
+      -- your own "×12.3k". "5.6k" measured one character short of both.
+      local own = assert(translations["yours ×%s"], code .. " is missing yours ×%s"):gsub("%%s", "12.3k")
       for _, entry in ipairs(words) do
         local label = assert(translations[entry[1]], code .. " is missing " .. entry[1])
         local i = 1
