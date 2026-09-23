@@ -237,8 +237,9 @@ describe("Caps polling", function()
 
   -- Round 2. The player's own Check is the player, but sent over an unanswered keys batch it
   -- comes back empty -- "listing gone", the row deleted -- and a YOUR PRICE row did not come back
-  -- while the lot sat there at the same price. It is held for the batch's answer instead, which
-  -- normally lands in well under a second, and never for longer than LIM.CHECK_HOLD_SECONDS.
+  -- while the lot sat there at the same price. It is held for the batch's answer instead, never
+  -- for longer than LIM.CHECK_HOLD_SECONDS -- which a batch of a hundred often outlasts (it can
+  -- take more than eight seconds), so an empty answer after that is asked once more (below).
   describe("a player's Check while a keys batch is out", function()
     local searched
 
@@ -343,6 +344,114 @@ describe("Caps polling", function()
         assert.same({ 7 }, searched)
       end)
     end
+
+    -- Final review S2 (ii). The hold's premise -- the answer lands in well under a second -- is
+    -- not what the auction house does: a batch of a hundred routinely answers after more than
+    -- eight. So a Check still goes over an unanswered batch, and comes back empty: "listing gone",
+    -- the row deleted, a stop-and-open window's lot never reopened. An empty answer to a Check
+    -- that went over a batch given up is asked once more before it says so.
+    describe("that comes back empty after going over a batch", function()
+      local function finishWith(GC)
+        local finish = upvalue(GC.Sniper.OnItemKeyInfo, "finishRequery")
+        local applied = {}
+        setUpvalue(finish, "applyRequeryResult", function(_, _, live) applied[#applied + 1] = live or false end)
+        return finish, applied
+      end
+
+      it("is asked once more before it says the listing is gone", function()
+        local GC, attempt, issue = setup()
+        local timers = {}
+        _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+        local finish, applied = finishWith(GC)
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+        issue(attempt)
+        timers[1].fn() -- the hold is over: the batch is given up and the Check goes
+        assert.same({ 7 }, searched)
+
+        finish(attempt, nil)
+        assert.same({ 7, 7 }, searched)
+        assert.same({}, applied)
+
+        finish(attempt, nil)
+        assert.same({ false }, applied)
+      end)
+
+      it("says so at once when no batch was out", function()
+        local GC, attempt, issue = setup()
+        local finish, applied = finishWith(GC)
+        issue(attempt)
+        finish(attempt, nil)
+        assert.same({ 7 }, searched)
+        assert.same({ false }, applied)
+      end)
+
+      -- The Check's own timeout counts from the ask that is out, not from the first one: the
+      -- first ask's timer would otherwise say "gone" over the second while it is still coming.
+      it("gives the second ask a timeout of its own", function()
+        local GC, attempt, issue = setup()
+        local timers = {}
+        _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+        local scheduleTimeout = upvalue(upvalue(GC.Sniper.OnItemKeyInfo, "finishRequery"),
+          "scheduleRequeryTimeout")
+        local finish, applied = finishWith(GC)
+        setUpvalue(scheduleTimeout, "applyRequeryResult", function(_, _, live) applied[#applied + 1] = live or false end)
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+        scheduleTimeout(attempt) -- startRequery's own
+        issue(attempt)
+        timers[2].fn() -- the hold
+        finish(attempt, nil)
+        timers[1].fn() -- the first ask's timeout
+        assert.same({}, applied)
+        timers[#timers].fn() -- the second's
+        assert.same({ false }, applied)
+      end)
+    end)
+  end)
+
+  -- Final review S2 (i). And the batch that would take the Check's answer is not started at the
+  -- moments a Check is coming: while the buy window is up, or the pointer is on a board row.
+  it("starts no cap batch while the buy window is up or the pointer is on a row", function()
+    local GC = loadSniper()
+    openAH(GC)
+    adoptCaps(GC, { { i = 42, c = 100 } })
+    setUpvalue(GC.Sniper._TrySendCapBatch, "dialog", { IsShown = function() return true end })
+    assert.is_false(GC.Sniper._TrySendCapBatch())
+    setUpvalue(GC.Sniper._TrySendCapBatch, "dialog", { IsShown = function() return false end })
+    setUpvalue(GC.Sniper._TrySendCapBatch, "hoveredRow", {})
+    assert.is_false(GC.Sniper._TrySendCapBatch())
+    setUpvalue(GC.Sniper._TrySendCapBatch, "hoveredRow", nil)
+    assert.is_true(GC.Sniper._TrySendCapBatch())
+  end)
+
+  -- Final review S2 (iii): the batch size is a LIM value to tune in game, and `/gc board` says how
+  -- long each cap batch took to answer -- or that it was given up -- so it can be tuned on evidence.
+  it("asks LIM.CAPS_BATCH_SIZE caps a batch and logs each answer on /gc board", function()
+    local GC = loadSniper()
+    local LIM = upvalue(GC.Sniper._TrySendCapBatch, "LIM")
+    assert.equal(100, LIM.CAPS_BATCH_SIZE)
+    openAH(GC)
+    local caps = {}
+    for i = 1, 150 do caps[i] = { i = 1000 + i, c = 100 } end
+    adoptCaps(GC, caps)
+    assert.is_true(GC.Sniper._TrySendCapBatch())
+    assert.equal(LIM.CAPS_BATCH_SIZE, #keysSent[1])
+    clock = clock + 9
+    answer(GC, {})
+    now = now + 10
+    assert.is_true(GC.Sniper._TrySendCapBatch())
+    GC.Sniper.OnThrottledMessageDropped()
+
+    local printed = {}
+    GC.Print = function(line) printed[#printed + 1] = line end
+    GC.Sniper.DebugBoard()
+    local line
+    for _, text in ipairs(printed) do
+      if text:find("^cap batches:") then line = text end
+    end
+    assert.is_truthy(line)
+    assert.is_truthy(line:find("size=100", 1, true), line)
+    assert.is_truthy(line:find("given up (dropped) x50", 1, true), line)
+    assert.is_truthy(line:find("9s x100", 1, true), line)
   end)
 
   -- Caps fixes 5d: `/gc board` says how many of the player's prices the file carried that could

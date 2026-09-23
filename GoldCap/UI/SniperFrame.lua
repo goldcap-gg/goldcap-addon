@@ -242,9 +242,18 @@ LIM.CAPS_BATCH_GAP_SECONDS = 2
 LIM.CAPS_ROUND_BREATHER_SECONDS = 5
 -- Caps fixes 4a, round 2: the longest a player's Check waits for an unanswered keys batch before
 -- it goes anyway (issueRequerySearch). Sent on top of one, it comes back empty -- "listing gone".
--- An answer normally lands well inside this; the Check's own timeout (REQUERY_TIMEOUT_SECONDS,
--- counted from the click) is four times as long.
+-- Final review S2: a batch of a hundred routinely answers after more than eight seconds (see
+-- KEYS_TIMEOUT_SECONDS above), so a Check held this long still often goes over one. What stands
+-- behind the hold instead: no cap batch starts while the buy window is up or the pointer is on a
+-- row (_TrySendCapBatch), and an empty answer to a Check that went over a batch given up is asked
+-- once more before it says "gone" (finishRequery). The Check's own timeout (REQUERY_TIMEOUT_SECONDS)
+-- is four times this.
 LIM.CHECK_HOLD_SECONDS = 2
+-- Final review S2 (iii): how many caps one batch of the caps' poll asks about. Blizzard's own
+-- ceiling (Core/KeyPoll.lua's MAX_BATCH) and no lower: nothing measured yet says a smaller batch
+-- answers faster. `/gc board` logs each cap batch's answer time (GC.Sniper._NoteCapBatch) so this
+-- can be tuned on evidence from the client.
+LIM.CAPS_BATCH_SIZE = 100
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
@@ -3134,7 +3143,7 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
     -- _TrySendCapBatch) and sends the drills this answer has just queued.
     GC.Sniper._DeferTurn()
   end,
-})
+}, { maxBatch = LIM.CAPS_BATCH_SIZE })
 
 -- What the key polls last saw of `itemID`, variants included, or nil. Two polls see realm items
 -- (caps fixes 4a): the realm poll, and the caps' own, which is the only one to see a capped item
@@ -4926,6 +4935,7 @@ local function issueRequerySearch(attempt)
   local held = GC.Sniper._KeysOutstanding()
   if driver.isReady() and not held then
     attempt.sent = true
+    attempt.overBatch = GC.Sniper._OrphanLive()
     driver.sendSearch(attempt.itemID)
     return
   end
@@ -4933,21 +4943,13 @@ local function issueRequerySearch(attempt)
   if held then GC.Sniper._HoldCheck(attempt) end
 end
 
-local function finishRequery(attempt, liveDeal)
-  if not isCurrentRequeryAttempt(attempt) then return end
-  local itemID = attempt.itemID
-  awaitingRequery[itemID] = nil
-  awaitingKeyInfo[itemID] = nil
-  pendingRequerySend[itemID] = nil
-  -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
-  -- (row + token) is retired here rather than by its 20s timer; see _RetireFencedTombstone.
-  GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
-  applyRequeryResult(attempt.row, itemID, liveDeal)
-  GC.Sniper._ResumePausedLiveRequery(attempt)
-end
-
+-- Final review S2 (ii): the deadline belongs to the ask that is out. A Check asked a second time
+-- (finishRequery) gets a timeout of its own, and the first ask's lapses unheard.
 local function scheduleRequeryTimeout(attempt)
+  attempt.deadline = (attempt.deadline or 0) + 1
+  local deadline = attempt.deadline
   C_Timer.After(LIM.REQUERY_TIMEOUT_SECONDS, function()
+    if attempt.deadline ~= deadline then return end
     if isCurrentRequeryAttempt(attempt) then
       -- The server might still send an untagged result after this timeout. Fence it before
       -- returning the row to Check, so it cannot become a quote for a subsequent same-item
@@ -4961,6 +4963,29 @@ local function scheduleRequeryTimeout(attempt)
       GC.Sniper._ResumePausedLiveRequery(attempt)
     end
   end)
+end
+
+local function finishRequery(attempt, liveDeal)
+  if not isCurrentRequeryAttempt(attempt) then return end
+  -- Final review S2 (ii): nothing came back for a Check that went out over a keys batch given up
+  -- (attempt.overBatch) -- and a search sent over an unanswered batch comes back empty whatever
+  -- is listed (UI/SellFrame.lua's advanceQuote, seen in game). Asked once more before the window
+  -- says "gone" and the row comes down; the first answer has landed, so nothing is left to drain.
+  if liveDeal == nil and attempt.overBatch and not attempt.retried then
+    attempt.retried, attempt.overBatch, attempt.sent = true, nil, false
+    scheduleRequeryTimeout(attempt)
+    issueRequerySearch(attempt)
+    return
+  end
+  local itemID = attempt.itemID
+  awaitingRequery[itemID] = nil
+  awaitingKeyInfo[itemID] = nil
+  pendingRequerySend[itemID] = nil
+  -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
+  -- (row + token) is retired here rather than by its 20s timer; see _RetireFencedTombstone.
+  GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
+  applyRequeryResult(attempt.row, itemID, liveDeal)
+  GC.Sniper._ResumePausedLiveRequery(attempt)
 end
 
 -- Returns the attempt it registered, or nil when no query could be started (an older sent
@@ -5483,7 +5508,10 @@ end
 function GC.Sniper._WriteOffKeys(why)
   local owner, asked = GC.Sniper._keysOwner, GC.Sniper._keysBatch
   trace("keys: written off (" .. tostring(why) .. ", " .. tostring(owner) .. ")")
-  if owner == "caps" then GC.Sniper._CapsReleased(GC.Sniper._keysAwaiting) end
+  if owner == "caps" then
+    GC.Sniper._CapsReleased(GC.Sniper._keysAwaiting)
+    GC.Sniper._NoteCapBatch("given up (" .. tostring(why) .. ")", asked)
+  end
   if type(asked) == "table" and #asked > 0 then
     local set = {}
     for i = 1, #asked do set[asked[i]] = true end
@@ -5492,6 +5520,24 @@ function GC.Sniper._WriteOffKeys(why)
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
+end
+
+-- Whether a batch given up may still be answering: its orphan is kept (above) until its answer
+-- has been recognised or LIM.KEYS_TIMEOUT_SECONDS have passed. A search sent meanwhile may meet
+-- it at the auction house and come back empty (final review S2, finishRequery).
+function GC.Sniper._OrphanLive()
+  local orphan = GC.Sniper._keysOrphan
+  return (orphan ~= nil and GetTime() < orphan.untilAt) or nil
+end
+
+-- Final review S2 (iii): the last few cap batches, newest first -- how long each took to answer,
+-- or why it was given up -- for `/gc board`, so LIM.CAPS_BATCH_SIZE can be tuned on what the
+-- client actually does. `asked` is the batch's own list.
+function GC.Sniper._NoteCapBatch(outcome, asked)
+  local log = GC.Sniper._capBatchLog or {}
+  table.insert(log, 1, ("%s x%d"):format(outcome, type(asked) == "table" and #asked or 0))
+  while #log > 8 do table.remove(log) end
+  GC.Sniper._capBatchLog = log
 end
 
 -- Whether `browsed` is the late answer of the batch last written off: something came back, and
@@ -5626,6 +5672,7 @@ function GC.Sniper._FoldKeysBatch()
     -- and is handed it too: an item the batch asked for and got no row for has no listing left,
     -- and the poll re-arms it so the same price listed again is news (Core/KeyPoll.lua's Fold).
     GC.Sniper._CapsReleased(sentAt)
+    GC.Sniper._NoteCapBatch((time() - sentAt) .. "s", GC.Sniper._keysBatch)
     GC.Sniper._capPoll:Fold(browsed, GC.Sniper._keysBatch)
     return true
   end
@@ -5885,6 +5932,10 @@ function GC.Sniper._TrySendCapBatch(playerBusy)
   if poll:Count() == 0 then return false end
   if not (GC.Sniper.IsAHOpen() and GC.Sniper.IsWindowShown()) then return false end
   if view == "sell" or view == "buy" then return false end
+  -- Final review S2 (i): not when a Check is coming -- the buy window up (its Check, a Refresh,
+  -- stop-and-open's own) or the pointer on a board row (its hover pre-warm, the click after it).
+  -- A search sent over an unanswered batch comes back empty, and a batch answers in seconds.
+  if (dialog and dialog:IsShown()) or hoveredRow then return false end
   local now = GetTime()
   local landed = GC.Sniper._capsLandedAt
   if landed and (now - landed) < (GC.Sniper._capsGap or LIM.CAPS_BATCH_GAP_SECONDS) then return false end
@@ -5926,6 +5977,7 @@ function GC.Sniper.OnThrottleReady()
       if held then GC.Sniper._WriteOffKeys("check") end
       pendingRequerySend[itemID] = nil
       attempt.sent = true
+      attempt.overBatch = GC.Sniper._OrphanLive()
       driver.sendSearch(itemID)
       return
     end
@@ -10362,6 +10414,9 @@ function GC.Sniper.DebugBoard()
     held, malformed, repeated, math.max(0, held - GC.Sniper._capPoll:Count()),
     GC.Sniper._capPoll:Count(), s(GC.Sniper._capPoll:HasPending()),
     ago(GC.Sniper._capsLandedAt), ago(GC.Sniper._capsRoundDoneAt), s(GC.Sniper.IsWindowShown())))
+  -- Final review S2 (iii): how long the last cap batches took to answer, or why each was given up.
+  GC.Print(("cap batches: size=%d last=[%s]"):format(LIM.CAPS_BATCH_SIZE,
+    table.concat(GC.Sniper._capBatchLog or {}, ", ")))
   GC.Print(("gates: paging=%s passWants=%s fullBrowse=%s playerBusy=%s prewarm=%s quiet=%s apiReady=%s"):format(
     s(pass:IsPaging()), s(pass:Wants()),
     s(C_AuctionHouse and C_AuctionHouse.HasFullBrowseResults and C_AuctionHouse.HasFullBrowseResults()),
