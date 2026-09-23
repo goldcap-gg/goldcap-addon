@@ -1547,6 +1547,8 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.equal(0, starts)
           assert.is_false(d.enabled)
 
+          GC.Sniper._TickOwedHold() -- the ticker, while BUY's purchase is owed
+          assert.equal("ready", row.purchaseStage)
           buyOwed = false -- BUY's purchase has its answer
           GC.PurchaseSlot.Release("buy")
           GC.Sniper._TickOwedHold()
@@ -1581,6 +1583,78 @@ describe("Live price caps -- buying at the player's own price", function()
           click() -- Confirm
           assert.equal("confirming", row.purchaseStage)
           assert.is_true(GC.PurchaseSlot.IsBusy(150)) -- 25 s after Confirm, 50 s after Start
+        end)
+
+        -- Fix round 3 (review M2): the hand-off reached only a window the hold had touched. A window
+        -- armed lit before BUY spent -- here an 80s realm lot inside a 1g wallet limit on 20g (the
+        -- review's 80g, 100g and 2,000g, scaled to this suite's cap) -- was clicked after BUY's
+        -- purchase landed and bid on a decision the spend had overtaken: the limit is 50s now.
+        -- Every armed window is handed Refresh the moment BUY lets go, clicked or not, exactly as
+        -- the Sniper's own settle does.
+        it("hands every armed window Refresh once a BUY purchase lands, not only a held one", function()
+          local GC, _, _, _, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          local buyOwed = false
+          GC.Buy = { ConfirmOwed = function() return buyOwed end, RefreshIfShown = function() end }
+          money = 200000 -- 20g: the 5% wallet limit is 1g
+          local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+            { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = reopened(GC, realmRow, lot)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+          assert.is_true(d.enabled) -- an 80s lot inside a 1g limit: armed, lit
+
+          -- On the BUY tab, a 10g line: started, confirmed, landed. Nothing touches the window.
+          GC.PurchaseSlot.Claim("buy")
+          GC.Sniper._TickOwedHold()
+          buyOwed = true
+          GC.Sniper._TickOwedHold()
+          money = 100000 -- 10g left: the limit is 50s, under the 80s lot
+          buyOwed = false
+          GC.PurchaseSlot.Release("buy")
+          GC.Sniper._TickOwedHold()
+
+          assert.equal("expired", realmRow.purchaseStage)
+          local bids = 0
+          _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+          click() -- Refresh: a Check, which judges the lot against the 50s limit
+          assert.equal(0, bids)
+          assert.equal("requerying", realmRow.purchaseStage)
+        end)
+
+        -- Fix round 3 (review n2): a BUY purchase started and not yet confirmed holds the shared slot.
+        -- The Sniper's Buy met it lit and refusing ("finish the pending buy first"); it waits, dark.
+        it("waits, dark, while the BUY tab holds a purchase it started", function()
+          local GC, row, deal, d, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          GC.Buy = { ConfirmOwed = function() return false end, RefreshIfShown = function() end }
+          GC.PurchaseSlot.Claim("buy")
+          local book = freshBook()
+          armReadyFn(GC)(row, deal, capLive(GC, 42, book).decision, book)
+
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+          click()
+          assert.equal(0, starts)
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+        end)
+
+        -- Fix round 3 (review n1): a re-quote in the open window un-confirms the purchase BUY was
+        -- waiting behind; BUY is told at once rather than on its next repaint.
+        it("repaints the BUY tab when a re-quote in the open window un-confirms its purchase", function()
+          local GC, row, _, _, click = armed()
+          local refreshed = 0
+          GC.Buy = { RefreshIfShown = function() refreshed = refreshed + 1 end }
+          confirmOn(GC, row, click)
+          refreshed = 0
+
+          GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY)
+
+          assert.equal("confirm", row.purchaseStage)
+          assert.is_true(refreshed > 0)
         end)
 
         -- Fix round 3 (review M1): the Sniper's "buying", "confirm" and "requote" stages had no stall.

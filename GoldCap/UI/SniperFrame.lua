@@ -435,11 +435,22 @@ end
 
 -- Fix round 2: the rule this window starts by is the addon's, not its own --
 -- GC.PurchaseSlot.ConfirmOwed: nothing starts while a purchase EITHER window confirmed (this one,
--- or the BUY tab) is still owed its answer. Returns which window owes it, or nil. Without the
--- shared slot loaded (a spec that leaves it out) only this window's own confirm is asked.
+-- or the BUY tab) is still owed its answer. Returns which window this one waits for, or nil.
+-- Without the shared slot loaded (a spec that leaves it out) only this window's own confirm is
+-- asked.
+--
+-- Fix round 3 (review n2): and while the BUY tab holds the slot for a purchase it has started but
+-- not confirmed. Its claim is live for exactly as long as that purchase is (BUY's armStall
+-- re-stamps it and retires the stage inside the claim's life), and the Buy used to meet it lit and
+-- refusing ("finish the pending buy first"); now it waits, dark, like any other purchase in flight,
+-- and is handed Refresh when BUY lets go (GC.Sniper._TickOwedHold).
 function GC.Sniper._PurchaseOwed()
-  if GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed then return GC.PurchaseSlot.ConfirmOwed() end
-  return GC.Sniper._ConfirmedOwed() and "sniper" or nil
+  local slot = GC.PurchaseSlot
+  if not (slot and slot.ConfirmOwed) then return GC.Sniper._ConfirmedOwed() and "sniper" or nil end
+  local owed = slot.ConfirmOwed()
+  if owed then return owed end
+  if slot.Owner and slot.Owner() == "buy" and slot.IsBusy and slot.IsBusy() then return "buy" end
+  return nil
 end
 
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
@@ -4676,7 +4687,6 @@ function GC.Sniper._HandOffSettled()
   -- Fix round 2: the BUY tab's button waits over a confirm of this window's too (its
   -- owedElsewhere); it reads BUY again now rather than on its next repaint.
   if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
-  if dialog then dialog.owedHeldRow = nil end
   local row = dialog and dialog.row
   if not (row and row.purchaseStage == "ready") then return end
   -- The button named as it reads: the Refresh label, drawn upper-case (Theme.Button's
@@ -4697,27 +4707,26 @@ function GC.Sniper._HoldWhileOwed(row)
       and row.purchaseStage == "ready") then
     return false
   end
-  -- Remembered for GC.Sniper._TickOwedHold: a confirm the BUY tab owes settles in BUY's own code,
-  -- which hands nothing here, so the ticker notices it instead (fix round 2).
-  dialog.owedHeldRow = row
   dialog.primaryBtn:Disable()
   setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
   if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
   return true
 end
 
--- The auction house ticker's half of the hand-off (fix round 2). A window held behind a purchase
--- the BUY tab confirmed is handed Refresh once that purchase has its answer: BUY's own terminal
--- paths hand nothing to this window, so the ticker notices within a quarter of a second. Only the
--- window that was held -- one the player has since moved on from is left as it is.
+-- The auction house ticker's half of the hand-off (fix round 2). BUY's own terminal paths hand
+-- nothing to this window, so the ticker watches what this window waits for (GC.Sniper._PurchaseOwed)
+-- and acts on the edge where the BUY tab lets go -- its confirm answered, its purchase landed,
+-- failed or given up, the slot released. That is the Sniper's own settle, seen from the other
+-- side, and it gets the same answer: ANY armed window is handed Refresh, clicked or not (review M2,
+-- fix round 3). A window armed lit before BUY spent carries a decision the spend has overtaken --
+-- the gold, and with it the wallet limit, went down -- and it used to be reachable only if the hold
+-- had marked it: a realm lot armed on a 100g limit bid its 80g after BUY had left a 50g one. Only
+-- BUY's edge: the Sniper's own settle already hands off from its events.
 function GC.Sniper._TickOwedHold()
-  local held = dialog and dialog.owedHeldRow
-  if not held or GC.Sniper._PurchaseOwed() then return end
-  if dialog.row == held then
-    GC.Sniper._HandOffSettled()
-  else
-    dialog.owedHeldRow = nil
-  end
+  local owed = GC.Sniper._PurchaseOwed()
+  local was = GC.Sniper._lastOwed
+  GC.Sniper._lastOwed = owed
+  if was == "buy" and owed == nil then GC.Sniper._HandOffSettled() end
 end
 
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
@@ -7001,6 +7010,9 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     row.quoteSnapshot = nil
     row.purchaseStage = "buying"
     if dialog and dialog.row == row then dialog.cancelBtn:Enable() end
+    -- The BUY tab's button was waiting behind this confirm (its owedElsewhere) and nothing is owed
+    -- now: it says so at once rather than on its next repaint (review n1, fix round 3).
+    if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
   end
   local deal = row.purchaseDeal
   local decision = row.decisionSnapshot
@@ -8937,7 +8949,6 @@ local function openDialog(row, deal)
 
   dialog = dialog or createDialog()
   dialog.row = row
-  dialog.owedHeldRow = nil -- a hold belongs to the window it was put on (GC.Sniper._TickOwedHold)
   -- Final review m3: opened by stop-and-open (drainCapPings), not by the player -- its first arm
   -- waits (applyRequeryResult). Every other open starts without the mark.
   dialog.holdFirstArm = GC.Sniper._capOpening and true or nil
@@ -9238,6 +9249,7 @@ local function resetAllPurchases()
   for k in pairs(requeryDraining) do requeryDraining[k] = nil end
   for k in pairs(GC.Sniper._drainWaitRequery) do GC.Sniper._drainWaitRequery[k] = nil end
   GC.Sniper._pausedLiveRequery = nil -- AH close must never revive a prior Live session
+  GC.Sniper._lastOwed = nil -- the ticker that watched it stops with the session (_TickOwedHold)
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
   -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the
   -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
