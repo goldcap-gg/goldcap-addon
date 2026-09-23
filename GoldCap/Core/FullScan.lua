@@ -93,7 +93,9 @@ local function evaluateFrom(rows, first, getValue, cfg)
         { itemID = row.itemID, isCommodity = false, auctionID = nil,
           unitPrice = unitPrice, qty = row.count, avail = row.avail },
         value, cfg)
-      if deal then
+      -- And the player's own "Min profit per buy", which Check holds every buy to: a row whose
+      -- planned buy projects less than that is one no Check will pass (DealMath.BoardAdmits).
+      if deal and GC.DealMath.BoardAdmits(deal, cfg) then
         -- Browse aggregates are discovery evidence, never a resolved lot or a live
         -- commodity book. Keep their legacy tier for discovery/sorting, but make the only
         -- actionable state explicit: the UI must perform a fresh live verification first.
@@ -110,7 +112,8 @@ local function evaluateFrom(rows, first, getValue, cfg)
         -- here used to drop the row with no counter at all, so the "N hidden" banner undercounted
         -- what the scan actually removed. Folded into the same `screened` count the PreScreen
         -- drops above use: from the player's perspective both are "the scan looked at this and
-        -- decided it wasn't worth showing you", one number either way.
+        -- decided it wasn't worth showing you", one number either way. A row under the player's
+        -- minimum profit is counted here for the same reason.
         screened = screened + 1
       end
       end

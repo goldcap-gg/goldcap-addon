@@ -282,6 +282,43 @@ describe("DealMath", function()
     end)
   end)
 
+  -- The player's "Min profit per buy" on the board, not only on Check and the fast loop's
+  -- trigger. In game 2026-09-23 a Coastal Rejuvenation Potion sat on the Deals board at 97% off
+  -- and +92s: its planned buy projected 2s 61c against a 5g floor, and half the board wore AVOID.
+  describe("BoardAdmits", function()
+    local floor = { minimumProfitCopper = 50000, watchPins = {} }
+
+    it("turns away a row whose projected profit is under the player's minimum", function()
+      -- The potion: 3s asking against a 1g market value, stress exit 5s 91c, one unit.
+      local d = GC.DealMath.Evaluate(live(300, 1), { mv = 10000, stressUnit = 591 }, cfg)
+      assert.equal(261, d.estProfit)
+      assert.is_false(GC.DealMath.BoardAdmits(d, floor))
+    end)
+
+    it("measures the buy the row plans, the figure Evaluate already projects", function()
+      -- 2 units at 50g against a stress exit of 80g: 1520000 - 1000000 = 52g. Its mv-based
+      -- `profit` (90g) is not the yardstick; estProfit is.
+      local d = GC.DealMath.Evaluate(live(500000, 2), { mv = 1000000, stressUnit = 800000 }, cfg)
+      assert.is_true(GC.DealMath.BoardAdmits(d, { minimumProfitCopper = 520000 }))
+      assert.is_false(GC.DealMath.BoardAdmits(d, { minimumProfitCopper = 520001 }))
+    end)
+
+    it("keeps a pinned item whatever it projects: the player asked to watch it", function()
+      local d = GC.DealMath.Evaluate(live(300, 1), { mv = 10000, stressUnit = 591 }, cfg)
+      assert.is_true(GC.DealMath.BoardAdmits(d, { minimumProfitCopper = 50000, watchPins = { 7, 42 } }))
+    end)
+
+    it("keeps a YOUR PRICE row whatever it projects: the price is the player's", function()
+      assert.is_true(GC.DealMath.BoardAdmits({ itemID = 42, cap = 1000, estProfit = -5000 }, floor))
+    end)
+
+    it("admits everything when no minimum is set", function()
+      local d = GC.DealMath.Evaluate(live(300, 1), { mv = 10000, stressUnit = 591 }, cfg)
+      assert.is_true(GC.DealMath.BoardAdmits(d, {}))
+      assert.is_true(GC.DealMath.BoardAdmits(d, nil))
+    end)
+  end)
+
   describe("PriceIncreaseExceeds", function()
     it("is false at or under the tolerance", function()
       assert.is_false(GC.DealMath.PriceIncreaseExceeds(1000, 1050, 0.05))
