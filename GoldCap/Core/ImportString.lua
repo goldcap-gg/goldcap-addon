@@ -1,6 +1,6 @@
 local _, GC = ...
 
-GC.ImportString = { MAX_LEN = 60000 }
+GC.ImportString = { MAX_LEN = 60000, REGION_MAX_LEN = 6000000 }
 
 -- The one list of regions this addon understands, shared with Core/Data.lua's region
 -- detection. Mirrors regionSchema in packages/schema (us/eu/kr/tw): the server has
@@ -8,6 +8,110 @@ GC.ImportString = { MAX_LEN = 60000 }
 -- the companion app has known them for as long -- this list refusing them was the
 -- only reason those two regions never worked.
 GC.ImportString.REGIONS = { us = true, eu = true, kr = true, tw = true }
+
+-- Section readers, shared by Parse (GCS1) and ParseRegion (GCM1): one grammar per section
+-- letter, whichever wire carries it. Each fills `into` and returns how many entries it read.
+
+-- I: the 4th field (trend) is a signed 24h market-value momentum percent; it only ever rides
+-- alongside a sold figure (see itemToken's comment in packages/tsm), so a bare "id=mv" or
+-- "id=mv=sold" token still parses identically to before this field existed.
+local function readItems(body, into)
+  local n = 0
+  for id, mv, sold, trend in body:gmatch("(%d+)=(%d+)=?([%d%.]*)=?(%-?%d*)") do
+    local entry = { m = tonumber(mv) }
+    if sold ~= "" then entry.s = tonumber(sold) end
+    if trend ~= "" then entry.t = tonumber(trend) end
+    into[tonumber(id)] = entry
+    n = n + 1
+  end
+  return n
+end
+
+-- V: verification tokens are deliberately independent from I tokens. A malformed safety record
+-- must not hide its matching market value: it simply leaves that item unverified.
+local function readFacts(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, sourceAt, stressUnit, sellThroughBps, liquidityConfidence, currentQty,
+        listings, observations, madBps, flags = token:match(
+          "^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
+    if id then
+      into[tonumber(id)] = {
+        sourceAt = tonumber(sourceAt),
+        stressUnit = tonumber(stressUnit),
+        sellThroughBps = tonumber(sellThroughBps),
+        liquidityConfidence = tonumber(liquidityConfidence),
+        currentQty = tonumber(currentQty),
+        listings = tonumber(listings),
+        observations = tonumber(observations),
+        madBps = tonumber(madBps),
+        flags = tonumber(flags),
+      }
+      n = n + 1
+    end
+  end
+  return n
+end
+
+-- Q (p25 over listings) and R (reach24), copper per commodity: the Sell tab's ceilings for
+-- posting above the cheapest ask (Flips.RecommendPost) -- R first, Q the fallback. Anchored per
+-- token, a malformed token dropping itself and nothing else; sections of their own because the
+-- I parser above is not anchored, and builds that predate them skip unknown sections cleanly.
+-- Optional in both directions: a site build that predates R emits none and the Sell tab falls
+-- back to Q.
+local function readPrices(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, copper = token:match("^(%d+)=(%d+)$")
+    if id then
+      into[tonumber(id)] = tonumber(copper)
+      n = n + 1
+    end
+  end
+  return n
+end
+
+-- T: region reference price per REALM item (copper), plus the item level of the variant it was
+-- measured on (0 when unknown or when the item has no item level at all). Realm items only: a
+-- commodity carries a V fact instead, and the server excludes commodities here. What lets the
+-- key poll (Core/KeyPoll.lua) judge gear, pets and recipes against something other than this
+-- one realm's own median -- see Core/Trigger.lua's ForRealm. Anchored per token exactly like Q
+-- and R.
+local function readTargets(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, ref, ilvl = token:match("^(%d+)=(%d+)=(%d+)$")
+    if id then
+      into[tonumber(id)] = { ref = tonumber(ref), ilvl = tonumber(ilvl) }
+      n = n + 1
+    end
+  end
+  return n
+end
+
+-- M (GCM1 only): a realm item's region median and the listings it was measured over -- the
+-- tooltip role the bundled table's realm entries play (`m`, `l`), from this hour instead of
+-- release day. Anchored per token like Q, R and T.
+local function readRefs(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, median, listings = token:match("^(%d+)=(%d+)=(%d+)$")
+    if id then
+      into[tonumber(id)] = { m = tonumber(median), l = tonumber(listings) }
+      n = n + 1
+    end
+  end
+  return n
+end
+
+-- W (site watchlist) and N (item ids the site has no name for -- Blizzard's API 404s them;
+-- Core/ItemNames.lua resolves them from the client and the Companion reports the names back):
+-- plain id lists, in order.
+local function readIds(body, into)
+  for id in body:gmatch("%d+") do
+    into[#into + 1] = tonumber(id)
+  end
+end
 
 function GC.ImportString.Parse(str)
   if type(str) ~= "string" then return nil, "empty" end
@@ -50,87 +154,58 @@ function GC.ImportString.Parse(str)
   for section in rest:gmatch("[^;]+") do
     local kind, body = section:match("^(%u):(.+)$")
     if kind == "I" then
-      -- 4th field (trend) is a signed 24h market-value momentum percent; it
-      -- only ever rides alongside a sold figure (see itemToken's comment in
-      -- packages/tsm), so a bare "id=mv" or "id=mv=sold" token still parses
-      -- identically to before this field existed.
-      for id, mv, sold, trend in body:gmatch("(%d+)=(%d+)=?([%d%.]*)=?(%-?%d*)") do
-        local entry = { m = tonumber(mv) }
-        if sold ~= "" then entry.s = tonumber(sold) end
-        if trend ~= "" then entry.t = tonumber(trend) end
-        result.items[tonumber(id)] = entry
-        count = count + 1
-      end
+      count = count + readItems(body, result.items)
     elseif kind == "V" then
-      -- Verification tokens are deliberately independent from I tokens. A malformed safety
-      -- record must not hide its matching market value: it simply leaves that item unverified.
-      for token in body:gmatch("[^,]+") do
-        local id, sourceAt, stressUnit, sellThroughBps, liquidityConfidence, currentQty,
-            listings, observations, madBps, flags = token:match(
-              "^(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)=(%d+)$")
-        if id then
-          result.verification[tonumber(id)] = {
-            sourceAt = tonumber(sourceAt),
-            stressUnit = tonumber(stressUnit),
-            sellThroughBps = tonumber(sellThroughBps),
-            liquidityConfidence = tonumber(liquidityConfidence),
-            currentQty = tonumber(currentQty),
-            listings = tonumber(listings),
-            observations = tonumber(observations),
-            madBps = tonumber(madBps),
-            flags = tonumber(flags),
-          }
-        end
-      end
+      readFacts(body, result.verification)
     elseif kind == "Q" then
-      -- Top of the cheap quarter (p25 over listings, copper), commodities only -- the
-      -- FALLBACK ceiling for posting above the cheapest ask, used only when the R section
-      -- below carries no reach figure for the item (Flips.RecommendPost, overcut). Anchored
-      -- per token like V: a malformed token drops itself and nothing else. It is a section
-      -- rather than a fifth I field because the I parser above is not anchored, and builds
-      -- that predate this one skip unknown sections cleanly.
-      for token in body:gmatch("[^,]+") do
-        local id, p25 = token:match("^(%d+)=(%d+)$")
-        if id then result.quarter[tonumber(id)] = tonumber(p25) end
-      end
+      readPrices(body, result.quarter)
     elseif kind == "R" then
-      -- reach24 (copper), commodities only: the price this item's floor actually rose to
-      -- within a day, measured from its own hourly history. It replaces Q as the ceiling for
-      -- posting above the cheapest ask (Flips.RecommendPost) -- see that file's own header for
-      -- why a rank in today's book was the wrong ceiling. Anchored per token exactly like Q, a
-      -- malformed token dropping itself and nothing else, and optional in both directions: a
-      -- site build that predates it emits no R section and the Sell tab falls back to Q, while
-      -- an addon build that predates it skips the section as an unknown one.
-      for token in body:gmatch("[^,]+") do
-        local id, reach = token:match("^(%d+)=(%d+)$")
-        if id then result.reach[tonumber(id)] = tonumber(reach) end
-      end
+      readPrices(body, result.reach)
     elseif kind == "T" then
-      -- Region reference price per REALM item (copper), plus the item level of the variant it
-      -- was measured on (0 when unknown or when the item has no item level at all). Realm
-      -- items only: a commodity carries a V section instead, and the server excludes them
-      -- here. This is what lets the key poll (Core/KeyPoll.lua) judge gear, pets and recipes
-      -- against something other than this one realm's own median -- see Core/Trigger.lua's
-      -- ForRealm. Anchored per token exactly like Q and R, so a malformed token drops itself
-      -- and nothing else, and optional in both directions: a site build that predates the
-      -- section emits none, and a build that predates this parser skips it as unknown.
-      for token in body:gmatch("[^,]+") do
-        local id, ref, ilvl = token:match("^(%d+)=(%d+)=(%d+)$")
-        if id then result.targets[tonumber(id)] = { ref = tonumber(ref), ilvl = tonumber(ilvl) } end
-      end
+      readTargets(body, result.targets)
     elseif kind == "W" then
-      for id in body:gmatch("%d+") do
-        result.watchlist[#result.watchlist + 1] = tonumber(id)
-      end
+      readIds(body, result.watchlist)
     elseif kind == "N" then
-      -- Item ids the site has no name for (Blizzard's API 404s them). Core/ItemNames.lua
-      -- resolves them from the client and the Companion reports the names back.
-      for id in body:gmatch("%d+") do
-        result.namesWanted[#result.namesWanted + 1] = tonumber(id)
-      end
+      readIds(body, result.namesWanted)
     end
   end
 
   if count == 0 then return nil, "no_items" end
+  return result
+end
+
+-- GCM1: the whole commodity market of one region, which the Companion writes beside the import
+-- string as GoldCap_AppData.regionString (GET /v1/addon/region-data). Never pasted, so none of
+-- Parse's paste repairs apply; its own limit, a hundred times the import string's, because it
+-- carries every commodity instead of the busiest 400. `counts` is what /goldcap status prints
+-- without walking the tables again.
+function GC.ImportString.ParseRegion(str)
+  if type(str) ~= "string" or #str == 0 then return nil, "empty" end
+  if #str > GC.ImportString.REGION_MAX_LEN then return nil, "too_long" end
+  local region, ts, rest = str:match("^GCM1;(%l%l);(%d+);(.*)$")
+  if not region then return nil, "bad_header" end
+  if not GC.ImportString.REGIONS[region] then return nil, "bad_region" end
+
+  local result = {
+    region = region, ts = tonumber(ts),
+    items = {}, verification = {}, quarter = {}, reach = {}, refs = {},
+    counts = { items = 0, facts = 0, refs = 0 },
+  }
+  for section in rest:gmatch("[^;]+") do
+    local kind, body = section:match("^(%u):(.+)$")
+    if kind == "I" then
+      result.counts.items = result.counts.items + readItems(body, result.items)
+    elseif kind == "V" then
+      result.counts.facts = result.counts.facts + readFacts(body, result.verification)
+    elseif kind == "Q" then
+      readPrices(body, result.quarter)
+    elseif kind == "R" then
+      readPrices(body, result.reach)
+    elseif kind == "M" then
+      result.counts.refs = result.counts.refs + readRefs(body, result.refs)
+    end
+  end
+
+  if result.counts.items == 0 then return nil, "no_items" end
   return result
 end
