@@ -4987,6 +4987,15 @@ function GC.Sell.BulkOutstanding()
   return (time() - sniper._keysAwaiting) < 8
 end
 
+-- Whether the pricing walk's own search is still waiting for its answer (refresh.pending, until it
+-- lands or is older than a quote can be). Final review m9: UI/SniperFrame.lua's
+-- _TrySendKeysBatchFor asks it before any keys batch goes, this tab's own bulk fill included -- a
+-- batch sent on top of the search takes its answer.
+function GC.Sell.SearchPending()
+  local pending = refresh.pending
+  return pending ~= nil and (time() - (pending.at or 0)) <= QUOTE_STALE_SECONDS
+end
+
 function GC.Sell.TrySendBulk(playerBusy)
   if not refresh.bulkWanted or not tabIsLive() then return false end
   if not (GC.Sniper and GC.Sniper._TrySendKeysBatchFor and GC.Sniper.CurrentView

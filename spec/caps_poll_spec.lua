@@ -218,6 +218,29 @@ describe("Caps polling", function()
       assert.is_false(GC.Sniper._KeysOutstanding())
     end)
 
+    -- Final review m9: and not over a search another tab left on the wire -- a BUY hover quote or
+    -- a Sell walk search still waiting for its answer when the player switched to Deals.
+    it("sends no keys batch, on any path, over a BUY quote or a Sell search still out", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      GC.Sniper._keyPoll:SetTargets({ 5 })
+      local waiting = "buy"
+      GC.Buy = { QuotePending = function() return waiting == "buy" end }
+      GC.Sell.SearchPending = function() return waiting == "sell" end
+      local buyPoll = { HasPending = function() return true end, NextBatch = function() return { 9 } end }
+      local function anyPath()
+        return GC.Sniper._TrySendCapBatch() or GC.Sniper._TrySendKeysBatch()
+          or GC.Sniper._TrySendKeysBatchFor(buyPoll, "buy", function() return true end)
+      end
+      assert.is_false(anyPath())
+      waiting = "sell"
+      assert.is_false(anyPath())
+      assert.same({}, keysSent)
+      waiting = nil
+      assert.is_true(anyPath())
+    end)
+
     it("sends no keys batch, on any path, while the watch loop's search is unanswered", function()
       local GC = loadSniper()
       openAH(GC)

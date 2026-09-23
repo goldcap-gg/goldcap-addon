@@ -1452,6 +1452,16 @@ describe("BUY purchase", function()
     assert.is_true(row.action:IsEnabled())
   end)
 
+  -- Final review m9: the Sniper asks this before it sends any keys batch -- a hover quote left on
+  -- the wire by a switch to Deals is one a cap batch would take the answer of.
+  it("says a quote is waiting for its answer until it lands", function()
+    assert.is_false(GC.Buy.QuotePending())
+    hover(rowWithText("Alpha Herb"))
+    assert.is_true(GC.Buy.QuotePending())
+    GC.Buy.OnCommodityResults(101)
+    assert.is_false(GC.Buy.QuotePending())
+  end)
+
   -- Caps fixes 5i: a quote owed across the end of the session was asked for in the next one, of
   -- a line the player had long since stopped pointing at.
   it("forgets a quote it owed when the auction house closes", function()

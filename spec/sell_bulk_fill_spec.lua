@@ -163,6 +163,21 @@ describe("Sell bulk price fill", function()
     assert.is_truthy(asked.searches and #asked.searches > 0)
   end)
 
+  -- Final review m9: the other direction, across tabs. A walk search still out when the player
+  -- switches to Deals is one a cap batch sent on top of it would take the answer of; the arbiter
+  -- asks this before any keys batch goes (UI/SniperFrame.lua's _TrySendKeysBatchFor).
+  it("says its walk's search is waiting for an answer, until it lands or goes stale", function()
+    local now, asked = { value = 100 }, {}
+    local GC = load(now, STOCK, asked, { value = false })
+    assert.is_false(GC.Sell.SearchPending())
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnThrottleReady()
+    assert.is_truthy(asked.searches and #asked.searches > 0)
+    assert.is_true(GC.Sell.SearchPending())
+    now.value = now.value + 11
+    assert.is_false(GC.Sell.SearchPending())
+  end)
+
   it("gives up on a batch that has not answered in eight seconds, from the ticker", function()
     local now, asked = { value = 100 }, {}
     local GC = load(now, STOCK, asked, { value = true })

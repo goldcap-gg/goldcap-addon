@@ -5846,6 +5846,12 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   -- ...and the watch loop's search, the one search of ours the pre-warm slot does not cover.
   local scanner = GC.Sniper.scanner
   if scanner and scanner.Awaiting and scanner:Awaiting() then return false end
+  -- Final review m9: ...and a search another tab left on the wire -- a BUY hover quote or the Sell
+  -- walk's own, still waiting for its answer after a switch to Deals.
+  if (GC.Buy and GC.Buy.QuotePending and GC.Buy.QuotePending())
+      or (GC.Sell and GC.Sell.SearchPending and GC.Sell.SearchPending()) then
+    return false
+  end
   if playerBusy == nil then
     playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
       and GC.AuctionHouseTab.PlayerIsBusy()) or false

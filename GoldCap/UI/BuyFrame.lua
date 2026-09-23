@@ -2506,6 +2506,13 @@ local function hasPendingLine()
   return false
 end
 
+-- Whether a quote this tab asked for is still waiting for its answer (quotePending). Final review
+-- m9: UI/SniperFrame.lua's _TrySendKeysBatchFor asks it before any keys batch goes -- a hover quote
+-- left on the wire by a switch to Deals is one a cap batch sent on top would take the answer of.
+function GC.Buy.QuotePending()
+  return quotePending(GC.Buy._attempt)
+end
+
 -- Asks UI/SniperFrame.lua's arbiter for the one outstanding keys batch this addon allows, on
 -- this tab's behalf. Every addon-wide rule (no second batch, not across a book pass's browse
 -- buffer, not while the player is on Blizzard's own panes, and the throttle claim) lives
