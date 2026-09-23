@@ -1232,6 +1232,29 @@ describe("Deals background verification", function()
       assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip
     end)
 
+    -- A row the wallet limit alone held back ranks high on the board, and the walk reaches only
+    -- the top rows. A low-gold character's board filled those seats with rows it could not buy,
+    -- re-checked them every two minutes, and never gave the affordable deal beneath them its first
+    -- look (review I-2). While the gold does not cover it, such a row keeps its place on the board
+    -- but not a seat in the walk; gold arriving gives it one back (the tests below).
+    it("keeps rows it cannot pay for out of the walk, so the deal beneath them gets checked", function()
+      local api = loadSniper(safe)
+      _G.GetMoney = function() return 0 end
+      local deals = {}
+      for i = 1, 25 do deals[i] = deal(i, i * 100, (26 - i) * 10) end
+      board(api, deals)
+      local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+      local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+      for i = 1, 24 do
+        stamp(deals[i], { isCommodity = true, levels = {}, decision = { status = "AVOID",
+          buyable = false, reasons = { "capital_limit" }, needsGold = 20000000 + i } })
+      end
+      assert.equal(25, #api.renderList()) -- all still on the board
+
+      tickAt(api, 101)
+      assert.same({ 25 }, sent)
+    end)
+
     -- Gold arriving is the one thing that turns such a row into a buy, and it used to wait for
     -- the walk's two-minute re-check of a refusal. PLAYER_MONEY now puts every row whose gold is
     -- covered at the front of the check queue, and the walk runs on the next tick.

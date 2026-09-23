@@ -6014,22 +6014,36 @@ end
 -- of the two: nothing here has to know which store the caller read.
 function GC.Sniper._VerifySlice(list)
   local slice, realmRows = {}, {}
+  local wallet
   for i = 1, #list do
     local deal = list[i]
-    -- `deal.isCommodity` is not an answer to "is this a commodity". Every row the scan puts on
-    -- the board is built with isCommodity = false -- Core/FullScan.lua fills that field in as a
-    -- constant, and so does the realm poll -- so reading it put EVERY row in the realm half and
-    -- the split this function exists for never happened in the game at all. Only a live
-    -- commodity check ever sets it TRUE (applyRequeryResult); anything else is unknown, and the
-    -- client is asked instead. An item key the client has not cached yet answers nil, which
-    -- counts as commodity-capable: a row must never be parked behind the gear on a fact nobody
-    -- has yet.
-    local info = deal.isCommodity ~= true and driver.getKeyInfo(deal.itemID) or nil
-    local realm = info ~= nil and not info.isCommodity
-    if realm then
-      if #realmRows < LIM.VERIFY_TOP_ROWS then realmRows[#realmRows + 1] = deal end
-    elseif #slice < LIM.VERIFY_TOP_ROWS then
-      slice[#slice + 1] = deal
+    -- A row the wallet limit alone held back (its verdict's needsGold) takes no seat while the
+    -- character's gold does not cover it: it ranks high on the board, and a low-gold character's
+    -- top rows filled with buys it could not make, re-checked every two minutes, while the
+    -- affordable deal beneath them never got its first look (review I-2). Gold arriving gives
+    -- it a seat back -- and the walk's first claim (stepVerifyWalk, GC.Sniper.OnPlayerMoney).
+    local v = verdicts[deal.itemID]
+    local seated = true
+    if v and v.needsGold and v.unitPrice == deal.unitPrice then
+      wallet = wallet or GetMoney()
+      seated = v.needsGold <= wallet
+    end
+    if seated then
+      -- `deal.isCommodity` is not an answer to "is this a commodity". Every row the scan puts on
+      -- the board is built with isCommodity = false -- Core/FullScan.lua fills that field in as a
+      -- constant, and so does the realm poll -- so reading it put EVERY row in the realm half and
+      -- the split this function exists for never happened in the game at all. Only a live
+      -- commodity check ever sets it TRUE (applyRequeryResult); anything else is unknown, and the
+      -- client is asked instead. An item key the client has not cached yet answers nil, which
+      -- counts as commodity-capable: a row must never be parked behind the gear on a fact nobody
+      -- has yet.
+      local info = deal.isCommodity ~= true and driver.getKeyInfo(deal.itemID) or nil
+      local realm = info ~= nil and not info.isCommodity
+      if realm then
+        if #realmRows < LIM.VERIFY_TOP_ROWS then realmRows[#realmRows + 1] = deal end
+      elseif #slice < LIM.VERIFY_TOP_ROWS then
+        slice[#slice + 1] = deal
+      end
     end
   end
   for i = 1, #realmRows do slice[#slice + 1] = realmRows[i] end
