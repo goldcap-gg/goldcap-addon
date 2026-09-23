@@ -1057,6 +1057,17 @@ describe("BUY purchase", function()
 
   -- 5: a line whose confirm may have taken gold is not handed back for another click until
   -- something says what happened.
+  -- The quote search is a request of ours the Sell tab has to know is out: a "busy" it draws is
+  -- not a post's refusal (review sell-fix4 M3). Noted with the key it went out with.
+  it("notes its quote search as out, by the key it sent", function()
+    local noted = {}
+    GC.Sniper._NoteSearchSent = function(key) noted[#noted + 1] = key end
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(1, #searches)
+    assert.equal(1, #noted)
+    assert.equal(101, noted[1].itemID)
+  end)
+
   it("does not re-quote a line whose purchase never answered", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)

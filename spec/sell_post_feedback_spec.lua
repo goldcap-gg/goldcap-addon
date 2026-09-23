@@ -10,7 +10,7 @@ local helper = require("spec.spec_helper")
 -- End to end through the real modules, the same shape spec/sell_post_queue_control_spec.lua
 -- uses: bags -> positions -> the row and the dock -> onPostClick -> the events that answer it.
 describe("Sell tab, a Post says what it is doing", function()
-  local GC, root, render, container, timers, posts, postReturn, onPost, bags, postedSlots, auctions
+  local GC, root, render, container, timers, posts, postReturn, onPost, bags, postedSlots, auctions, sentUnits
 
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -79,6 +79,7 @@ describe("Sell tab, a Post says what it is doing", function()
 
   before_each(function()
     timers, posts, postReturn, onPost, bags, postedSlots, auctions = {}, 0, false, nil, BAGS, {}, {}
+    sentUnits = {}
     _G.time = function() return 1000 end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
@@ -91,9 +92,10 @@ describe("Sell tab, a Post says what it is doing", function()
     _G.C_AuctionHouse = {
       MakeItemKey = function(itemID) return { itemID = itemID } end,
       GetItemKeyInfo = function() return { isCommodity = true } end,
-      PostCommodity = function(location)
+      PostCommodity = function(location, _, _, unitPrice)
         posts = posts + 1
         postedSlots[#postedSlots + 1] = location.slot
+        sentUnits[#sentUnits + 1] = unitPrice
         if onPost then onPost() end
         return postReturn
       end,
@@ -839,6 +841,111 @@ describe("Sell tab, a Post says what it is doing", function()
         assert.equal(0, #recorded)
       end)
 
+      -- A late answer ended by a guess -- a creation the client names nothing about, a "busy"
+      -- that may be somebody else's -- may still be owed its real answer for the rest of its
+      -- minute. A post sent meanwhile is not certain of the next creation either (review sell-fix4
+      -- M1, probe B): the ore's real creation lands in Mycobloom's flight and must not be booked
+      -- as Mycobloom, which the auction house then refuses.
+      it("does not book a post sent while a guess may still owe an answer (probe B)", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        GC.Sell.OnAuctionCreated(901) -- Blizzard's own pane, unnamed: ends the ore's wait
+        assert.equal(0, #GC.Sell._LiveLate())
+        pressRowPost(210796)
+        GC.Sell.OnAuctionCreated(902) -- the ore's real creation, in Mycobloom's flight
+        GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) -- Mycobloom refused
+        assert.equal(0, #recorded)
+        assert.is_nil(activityFor("commodity:210796"))
+      end)
+
+      it("does not book a post sent while a busy that ended a late answer may be someone else's (probe C)", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        local myco = pressRowPost(210796)
+        GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy) -- ends the ore's wait: maybe not its answer
+        auctions[903] = 210796
+        GC.Sell.OnAuctionCreated(903)
+        assert.is_nil(myco.postStage)
+        pressRowPost(23427) -- the ore again, into an empty window
+        GC.Sell.OnAuctionCreated(904) -- the first ore post's real creation
+        assert.equal(0, #recorded)
+      end)
+
+      -- ...and once the minute that answer was owed in is over, posts are certain again.
+      it("books again once the owed answer's minute is over", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        GC.Sell.OnAuctionCreated(905)
+        _G.time = function() return 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1 end
+        GC.QuoteCache.Set(quotes(), 210796, 5000, 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1)
+        upvalue(GC.Sell.SellableCount, "composePositions")()
+        render()
+        pressRowPost(210796)
+        GC.Sell.OnAuctionCreated(906)
+        assert.equal(1, #recorded)
+        assert.equal(210796, recorded[1][2])
+      end)
+
+      -- The Confirm path decides `clean` as it sends, too (review N4, probe F).
+      it("does not book a confirmed post that went out while a late answer was open", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        postReturn = true
+        local myco = pressRowPost(210796)
+        myco.action.scripts.OnClick(myco.action) -- Confirm
+        auctions[907] = 210796
+        GC.Sell.OnAuctionCreated(907) -- named: Mycobloom's own, but not certain
+        assert.is_nil(myco.postStage)
+        assert.equal(0, #recorded)
+        assert.equal(1, #GC.Sell._LiveLate()) -- the ore still listened for
+      end)
+
+      -- The error order rule's own belt (review N4): a wire it takes a late answer from is not
+      -- certain any more, even if nothing else had said so.
+      it("stops counting the wire as certain once the error order rule takes a late answer", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        pressRowPost(210796)
+        upvalue(GC.Sell.OnAuctionCreated, "postingPin").clean = true -- as if nothing had been open
+        GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
+        auctions[908] = 210796
+        GC.Sell.OnAuctionCreated(908)
+        assert.equal(0, #recorded)
+      end)
+
+      -- Off the tab, a credited late creation still asks for the owned list at once -- a query
+      -- only, no walk -- so the auction is on record before the player closes the auction house
+      -- from Deals or BUY (review sell-fix4 M2).
+      it("asks for the owned list after a late credit while the tab is hidden", function()
+        local queried = 0
+        _G.C_AuctionHouse.QueryOwnedAuctions = function() queried = queried + 1 end
+        _G.C_AuctionHouse.IsThrottledMessageSystemReady = function() return true end
+        GC.Sniper = { IsAHOpen = function() return true end }
+        ready()
+        pressRowPost()
+        fire(8)
+        container:Hide()
+        GC.Sell.OnAuctionCreated(909)
+        GC.Sniper = nil
+        assert.equal(1, queried)
+        assert.are_not.equal("owned", upvalue(GC.Sell.Refresh, "refresh").phase)
+      end)
+
       -- S1: a commodity lot sells from the front of the queue. However much of it has gone by the
       -- time the list names it, the booking stands and the typed price stays spent.
       it("keeps the booking and the spent price when the lot has partly sold (S1)", function()
@@ -893,10 +1000,11 @@ describe("Sell tab, a Post says what it is doing", function()
         assert.equal(0, #GC.Sell._LiveLate())
       end)
 
-      -- S4: a guess frees the ore, the ore goes out again with nothing open, and the first post's
-      -- auction lands on it -- the same item, the same stack. The booking is right either way, and
-      -- nothing later takes it back.
-      it("keeps a certain booking whatever the list says of an earlier guess (S4)", function()
+      -- S4: a guess frees the ore, the ore goes out again, and the first post's auction lands on
+      -- it. The second post went out while that guess could still be owed its real answer, so the
+      -- creation books nothing (M1); the owned list records the ore, and nothing takes it back.
+      it("records the ore from the list when its second post went out while a guess was owed (S4)", function()
+        local recorded = recordedPosts()
         ready()
         pressRowPost()
         fire(8)
@@ -904,12 +1012,15 @@ describe("Sell tab, a Post says what it is doing", function()
         pressRowPost()
         assert.equal(2, posts)
         GC.Sell.OnAuctionCreated(912)
+        assert.equal(0, #recorded)
         ownedList({
           { auctionID = 911, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 },
           { auctionID = 912, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 0 },
         })
         GC.Sell.OnOwnedAuctions()
-        assert.equal(246, activityFor("commodity:23427").lastPostedQty)
+        local activity = activityFor("commodity:23427")
+        assert.is_truthy(activity)
+        assert.equal(1000, activity.firstSeenAt)
       end)
 
       -- S8: a lot that sold whole before the list is on it as Sold: the booking stands.
@@ -949,14 +1060,96 @@ describe("Sell tab, a Post says what it is doing", function()
           assert.is_nil(overrides()["commodity:23427"])
         end)
 
-        it("is dropped when the late window closes unanswered", function()
+        -- An unanswered post is treated like a refused one: its price stays, on the row, for the
+        -- retry. Dropped behind the row's back, it was still shown while GoldCap's price went out
+        -- (review sell-fix4 I1).
+        it("stays for the retry when the late window closes unanswered", function()
           ready()
           overrides()["commodity:23427"] = 190000
           pressRowPost()
           fire(8)
           _G.time = function() return 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1 end
           assert.equal(0, #GC.Sell._LiveLate())
+          assert.equal(190000, overrides()["commodity:23427"])
+        end)
+
+        -- The price on the row is the price that goes out: whatever the row says when Post is
+        -- pressed is the unit the post call is given.
+        local function shownCopper(row)
+          local gold, silver = row.cells.price.text:match("^(%d+)g(%d*)s?$")
+          return gold and (tonumber(gold) * 10000 + (tonumber(silver) or 0) * 100) or nil
+        end
+
+        it("is what the post call sends, at GoldCap's price and at a typed one", function()
+          ready()
+          local row = oreRow()
+          local shown = shownCopper(row)
+          pressRowPost()
+          assert.equal(shown, sentUnits[1])
+          GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) -- refused: free again
+          overrides()["commodity:23427"] = 190000
+          upvalue(GC.Sell.SellableCount, "composePositions")()
+          render()
+          row = oreRow()
+          assert.equal(190000, shownCopper(row))
+          pressRowPost()
+          assert.equal(190000, sentUnits[2])
+        end)
+
+        -- The reviewer's probe A: the price set, the post late, a walk re-quoting and drawing the
+        -- row, the minute running out, Post pressed as the hold lifts with no compose between.
+        it("is shown and sent alike when Post is pressed as the hold lifts (probe A)", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          fire(8)
+          _G.time = function() return 1040 end
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1040)
+          upvalue(GC.Sell.SellableCount, "composePositions")()
+          render()
+          _G.time = function() return 1061 end
+          local row = oreRow()
+          assert.equal(190000, shownCopper(row))
+          pressRowPost()
+          assert.equal(2, posts)
+          assert.equal(190000, sentUnits[2])
+        end)
+
+        -- Probe H: the same, with the compose that notices the minute is over running first.
+        it("is shown and sent alike after the compose that closes the window (probe H)", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          fire(8)
+          _G.time = function() return 1061 end
+          GC.QuoteCache.Set(quotes(), 23427, 184719, 1061)
+          upvalue(GC.Sell.SellableCount, "composePositions")()
+          render()
+          local row = oreRow()
+          assert.equal(190000, shownCopper(row))
+          pressRowPost()
+          assert.equal(190000, sentUnits[2])
+        end)
+
+        -- One rule at a close: every post that went out and was never answered drops its price,
+        -- the one on the wire as well as the late ones (review N3). A post still waiting for its
+        -- Confirm sent nothing, and keeps it.
+        it("is dropped for the post on the wire when the auction house closes over it", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          GC.Sell.Reset()
           assert.is_nil(overrides()["commodity:23427"])
+        end)
+
+        it("stays for a post still waiting for its Confirm when the auction house closes", function()
+          postReturn = true
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          assert.equal("confirm", oreRow().postStage)
+          GC.Sell.Reset()
+          assert.equal(190000, overrides()["commodity:23427"])
         end)
 
         it("is dropped when the auction house closes over the late window", function()

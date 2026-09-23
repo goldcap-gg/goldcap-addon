@@ -2066,7 +2066,7 @@ driver = {
     -- Out until its answer lands (GC.Sniper.RequestOut): a pre-warm, a Check re-query or a drill
     -- sent just before the switch to Sell can still draw an error the Sell tab would otherwise read
     -- as its post's own (review NM-F).
-    GC.Sniper._searchOut = { itemID = itemID, at = time() }
+    GC.Sniper._NoteSearchSent(key)
   end,
 
   -- Whether an ITEM_SEARCH_RESULTS_UPDATED carrying `itemKey` answers the search sendSearch last
@@ -5961,22 +5961,41 @@ end
 -- stays out whatever became of the pre-warm, Check or drill that sent it (NM-F).
 --   _browseOutAt: when the pass's last browse send went out, until any browse answer -- the
 --     client answers browse sends in order, one buffer.
---   _searchOut: `{ itemID, at }` for the last search driver.sendSearch sent, until the answer for
---     that item (and, for an item search, that key) lands.
+--   _searchesOut: every search still out -- this window's (driver.sendSearch) and the BUY tab's
+--     quote (UI/BuyFrame.lua) -- by the key it went out with: `{ itemID, at }`. Each is answered
+--     by its own item's commodity answer, or its own key's item answer; a newer search's answer
+--     does not answer an older one (review sell-fix4 N5).
 GC.Sniper._browseOutAt = nil
-GC.Sniper._searchOut = nil
+GC.Sniper._searchesOut = {}
+
+function GC.Sniper._SearchKey(key)
+  return table.concat({ key.itemID or 0, key.itemLevel or 0, key.itemSuffix or 0, key.battlePetSpeciesID or 0 }, ":")
+end
+
+function GC.Sniper._NoteSearchSent(key)
+  if type(key) ~= "table" or type(key.itemID) ~= "number" then return end
+  GC.Sniper._searchesOut[GC.Sniper._SearchKey(key)] = { itemID = key.itemID, at = time() }
+end
+
+-- `key` nil: a commodity answer, which names the item alone.
+function GC.Sniper._SearchAnswered(itemID, key)
+  local answered = type(key) == "table" and GC.Sniper._SearchKey(key) or nil
+  for id, out in pairs(GC.Sniper._searchesOut) do
+    if out.itemID == itemID and (answered == nil or answered == id) then GC.Sniper._searchesOut[id] = nil end
+  end
+end
 
 -- Whether one is still out: sent, unanswered, and not older than its own timeout -- the scan's
 -- stall watchdog for a page, the Check's for a search. One that has had that long without a word
 -- is not coming.
 function GC.Sniper.RequestOut()
-  local now, search = time(), GC.Sniper._searchOut
+  local now = time()
   if GC.Sniper._browseOutAt and now - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then return true end
-  return search ~= nil and now - search.at <= LIM.REQUERY_TIMEOUT_SECONDS
-end
-
-function GC.Sniper._SearchAnswered(itemID)
-  if GC.Sniper._searchOut and GC.Sniper._searchOut.itemID == itemID then GC.Sniper._searchOut = nil end
+  for id, out in pairs(GC.Sniper._searchesOut) do
+    if now - out.at <= LIM.REQUERY_TIMEOUT_SECONDS then return true end
+    GC.Sniper._searchesOut[id] = nil
+  end
+  return false
 end
 
 function GC.Sniper.OnBrowseResults()
@@ -6726,8 +6745,8 @@ end
 -- an answer to another key of the same item is none of theirs (driver.answersSearch, caps fixes
 -- 5b): not even a drain's, whose own answer is still on its way.
 function GC.Sniper.OnItemSearchResults(itemID, itemKey)
+  GC.Sniper._SearchAnswered(itemID, itemKey or { itemID = itemID })
   if not driver.answersSearch(itemID, itemKey) then return end
-  GC.Sniper._SearchAnswered(itemID)
   if requeryDraining[itemID] then
     local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
@@ -10665,7 +10684,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- resetAllPurchases/anything else runs so no code below it could observe a stale "AH still
   -- open" read.
   ahOpen = false
-  GC.Sniper._browseOutAt, GC.Sniper._searchOut = nil, nil -- nothing is answered once the auction house has closed
+  GC.Sniper._browseOutAt, GC.Sniper._searchesOut = nil, {} -- nothing is answered once the auction house has closed
 
   -- Undock the window from the auction house before anything else tears down: the dock host
   -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)

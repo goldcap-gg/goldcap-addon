@@ -249,6 +249,36 @@ describe("Sell tab, a Sniper request still out after the switch", function()
     assert.is_false(GC.Sell._OtherRequestOut())
   end)
 
+  it("forgets a search when the auction house closes", function()
+    local frame, GC = buildFrame()
+    searchOut(frame, GC, true)
+    GC.Sniper.OnAuctionHouseClosed()
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
+  -- Every search out is its own entry, by the key it went out with: a newer search's answer
+  -- does not answer an older one still out (review sell-fix4 N5).
+  it("keeps an older search counted while a newer one is answered", function()
+    local frame, GC = buildFrame()
+    searchOut(frame, GC, false)
+    GC.Sniper._NoteSearchSent({ itemID = 77, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 })
+    GC.Sniper.OnItemSearchResults(77, { itemID = 77, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 })
+    assert.is_true(GC.Sell._OtherRequestOut()) -- item 42's search is still out
+    GC.Sniper.OnItemSearchResults(42, searches[1])
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
+  -- The BUY tab's own quote search goes in the same book (review sell-fix4 M3); its sending side
+  -- is pinned in spec/buy_purchase_spec.lua. Answered through the router like any search.
+  it("counts a search the BUY tab noted until its commodity answer lands", function()
+    local frame, GC = buildFrame()
+    frame.sellTab.scripts.OnClick()
+    GC.Sniper._NoteSearchSent({ itemID = 101 })
+    assert.is_true(GC.Sell._OtherRequestOut())
+    GC.Sniper.OnCommoditySearchResults(101)
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
   it("forgets it when the auction house closes", function()
     local frame, GC = buildFrame()
     pageOut(frame, GC)

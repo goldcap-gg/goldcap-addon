@@ -2155,25 +2155,45 @@ end
 GC.Sell.LATE_ANSWER_SECONDS = 60
 GC.Sell._lateAnswers = {}
 
--- The late answers still in their window, oldest first. The rest are forgotten here, each with
--- the price typed for it (GC.Sell._SpendPrice): nobody saw what became of that post.
+-- The late answers still in their window, oldest first; the rest are forgotten here. A window
+-- that closes unanswered keeps its typed price, like a refused post: it stays on the row for the
+-- retry (GC.Sell._SpendPrice).
 function GC.Sell._LiveLate()
   local live, now = {}, time()
   for _, late in ipairs(GC.Sell._lateAnswers) do
-    if now - late.at <= GC.Sell.LATE_ANSWER_SECONDS then live[#live + 1] = late else GC.Sell._SpendPrice(late.pin) end
+    if now - late.at <= GC.Sell.LATE_ANSWER_SECONDS then live[#live + 1] = late end
   end
   GC.Sell._lateAnswers = live
   return live
 end
 
+-- A late answer ended by a guess -- a creation the client names nothing about, or a shared error
+-- the order rule gives it -- may still be owed its real answer until its minute is over: the guess
+-- can have been somebody else's (Blizzard's own Sell pane, another request's "busy"). Until then
+-- a post that goes out is not certain of the next creation either -- it can be that late post's --
+-- so `clean` waits for it (review sell-fix4 M1). `GC.Sell._owedUntil`: when the last such minute
+-- ends.
+function GC.Sell._OweAnswer(late)
+  local untilAt = late.at + GC.Sell.LATE_ANSWER_SECONDS
+  if untilAt > (GC.Sell._owedUntil or 0) then GC.Sell._owedUntil = untilAt end
+end
+
+-- Whether a post going out now is certain to be what the next creation answers: no late answer
+-- open, and none owed (GC.Sell._OweAnswer).
+function GC.Sell._Certain()
+  return #GC.Sell._LiveLate() == 0 and time() > (GC.Sell._owedUntil or 0)
+end
+
 -- The one rule for a typed price (the price column's own choice, priceOverrides): it was chosen
 -- for ONE listing, against a book that will move. The post that carried it spends it when a
--- creation is credited to that post, and it is dropped the same way when that post's late window
--- closes unanswered or the auction house closes over it -- carried silently into the next listing
--- of the item after an outcome nobody saw, it would price that listing at a number chosen for a
--- market that is gone. Only the price that post carried: one the player has typed since is their
--- next choice and stays. Nothing ever puts a spent price back; a wrong spend costs one retype,
--- and the row shows it.
+-- creation is credited to that post, and it is dropped when the auction house closes over a post
+-- that went out and was never answered -- carried into the next visit after an outcome nobody
+-- saw, it would price that listing at a number chosen for a market that is gone. Only then: a
+-- post whose minute ran out unanswered keeps it, on the row, for the retry, as a refused one
+-- does. Dropping it there, behind the row, left the row showing it while the next Post sent
+-- GoldCap's price (review sell-fix4 I1); at a close the next visit composes before anything can
+-- be pressed. Only the price that post carried: one the player has typed since is their next
+-- choice and stays. Nothing ever puts a spent price back.
 function GC.Sell._SpendPrice(pin)
   local key = type(pin) == "table" and pin.positionKey or nil
   if type(key) == "string" and pin.override ~= nil and pin.override == priceOverrides[key] then
@@ -2315,7 +2335,7 @@ local function onPostClick(row)
     -- call is this post's own refusal (OnAuctionHouseError reads an unsent post's error as its
     -- own), not an older late post's answer -- which left this one "confirming", then held it a
     -- minute for a post refused on the spot (review NM-B).
-    if postingPin == pin then pin.sent, pin.clean = true, #GC.Sell._LiveLate() == 0 end
+    if postingPin == pin then pin.sent, pin.clean = true, GC.Sell._Certain() end
     return
   end
   local bagState = liveBagState(position)
@@ -2375,7 +2395,7 @@ local function onPostClick(row)
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration, exactKey = position.quoteKey ~= nil, override = chosenKey and priceOverrides[chosenKey] or nil }
+    duration = duration, override = chosenKey and priceOverrides[chosenKey] or nil }
   -- Busy the moment it is pressed, on the button that was: disabled, saying "Posting…", the
   -- client's spinner turning beside the words. The owner could not tell a pressed Post from a
   -- dead one when it only dimmed. The dock says it too, and holds it (GC.Sell._NotePost).
@@ -2404,9 +2424,9 @@ local function onPostClick(row)
   else
     -- No confirmation asked for: the post is on its way (Blizzard's own sell frame reads the
     -- answer the same way), and anything that gives up on it from here listens for it late.
-    -- `clean`: no late answer was open as it went out, so the next creation can only be its own
+    -- `clean`: no late answer open or owed as it went out, so the next creation can only be its own
     -- (GC.Sell.OnAuctionCreated books it then, and only then).
-    postingPin.sent, postingPin.clean = true, #GC.Sell._LiveLate() == 0
+    postingPin.sent, postingPin.clean = true, GC.Sell._Certain()
   end
 end
 
@@ -2689,16 +2709,27 @@ function GC.Sell._CreationOwner(named, wire, info)
     end
   end
   if chosen and chosen.index then
-    table.remove(live, chosen.index)
+    local late = table.remove(live, chosen.index)
     if wire then wire.clean = false end
+    -- Unnamed, it is the order rule's guess: the real answer may still come (_OweAnswer).
+    if not named then GC.Sell._OweAnswer(late) end
   end
   return chosen and chosen.pin or nil
 end
 
 -- Refresh talks in the window's toolbar; off the tab the list is only composed again, and Show
--- refreshes it when the tab comes back.
+-- refreshes it when the tab comes back. The owned list is asked for either way -- off the tab a
+-- query alone, no walk -- so an auction credited there is on record (OnOwnedAuctions) before the
+-- player can close the auction house from Deals or BUY (review sell-fix4 M2). Not while a post of
+-- ours is on the wire: a "busy" the query drew would be read as that post's; its own creation
+-- asks next.
 function GC.Sell._RefreshAfterPost()
-  if container and container.IsShown and not container:IsShown() then composePositions() else GC.Sell.Refresh() end
+  if container and container.IsShown and not container:IsShown() then
+    composePositions()
+    if not postingRow then requestOwnedAuctions() end
+  else
+    GC.Sell.Refresh()
+  end
 end
 
 --
@@ -2836,7 +2867,7 @@ function GC.Sell.OnAuctionHouseError(errorCode)
   if sent then
     local live = GC.Sell._LiveLate()
     if #live > 0 then
-      table.remove(live, 1)
+      GC.Sell._OweAnswer(table.remove(live, 1))
       postingPin.clean = false
       GC.Sell._NotePost(text, "red", GC.Sell.POST_NOTE_SECONDS.failed)
       composePositions() -- the dock's queue offers that item again
@@ -5844,10 +5875,13 @@ function GC.Sell.Reset()
   refresh.waitingNoted = false
   for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
   for key in pairs(ownedAwaitingKind) do ownedAwaitingKind[key] = nil end
-  -- Nothing is answered once the auction house has closed: every late window closes unanswered,
-  -- and the price typed for each goes with it (GC.Sell._SpendPrice).
+  -- Nothing is answered once the auction house has closed: every post that went out and was never
+  -- answered -- the late ones and the one on the wire -- drops the price typed for it
+  -- (GC.Sell._SpendPrice). A Confirm nobody pressed sent nothing, and keeps it.
   for _, late in ipairs(GC.Sell._lateAnswers) do GC.Sell._SpendPrice(late.pin) end
+  if postingPin and postingPin.sent then GC.Sell._SpendPrice(postingPin) end
   GC.Sell._lateAnswers = {}
+  GC.Sell._owedUntil = nil
   GC.QuoteCache.Clear(quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --
