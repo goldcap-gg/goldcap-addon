@@ -1,5 +1,15 @@
 # GoldCap
 
+## 0.15.1 (unreleased)
+
+- The Deals board no longer lists finds whose buy would make less than your "Min profit per
+  buy". Rows you watch and rows at your own price always show.
+- A row you checked yourself and the check refused now leaves the board once you close its buy
+  window or open another row, like the refusals found in the background; a row you watch keeps
+  its verdict. Refused rows come back for a fresh check after 30 minutes.
+- In the buy window, "Confidence" is now "Sales certainty": how sure GoldCap is that listings
+  which disappeared were really sold. It says nothing about the price.
+
 ## 0.15.0 (2026-09-24)
 
 - The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or
