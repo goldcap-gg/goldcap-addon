@@ -571,6 +571,16 @@ describe("Settings controls", function()
     assert.has_no.errors(function() GC.SettingsUI.Hide() end)
   end)
 
+  -- The sheet lies over every deal row while it is up, so the sniper asks this before it spends
+  -- a "your price" ring on a row (UI/SniperFrame.lua's GC.Sniper._RowOnScreen).
+  it("IsShown() says whether the sheet is up, and is false before it is ever built", function()
+    assert.is_false(GC.SettingsUI.IsShown())
+    GC.SettingsUI.Toggle()
+    assert.is_true(GC.SettingsUI.IsShown())
+    GC.SettingsUI.Hide()
+    assert.is_false(GC.SettingsUI.IsShown())
+  end)
+
   it("enables all three rail tab buttons while open, so a rail click can still land (T7)", function()
     local buttons = _G.GoldCapSniperFrame.rail.buttons
     GC.SettingsUI.Toggle() -- opens

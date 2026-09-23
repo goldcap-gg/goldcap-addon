@@ -22,7 +22,7 @@ describe("Tooltip.BuildLines", function()
     assert.equal("GoldCap value", lines[1].label)
     assert.equal(123400, lines[1].copper)
     assert.equal("Sold per day", lines[2].left)
-    assert.equal("52.3", lines[2].right)
+    assert.equal("52", lines[2].right) -- a whole number from 10 up: see "counts" below
   end)
 
   it("falls back to listings for item data", function()
@@ -40,14 +40,14 @@ describe("Tooltip.BuildLines", function()
       { mv = 12400, sold = 86, currentQty = 4210, listings = 68, ts = 1000, source = "import" }, 2000)
     assert.equal("Sold per day", lines[2].left)
     assert.equal("Listed", lines[3].left)
-    assert.equal("4210 · 48d", lines[3].right)
+    assert.equal("4,210 · 48d", lines[3].right)
   end)
 
   it("shows the shelf alone when nothing is selling to divide by", function()
     local lines = GC.Tooltip.BuildLines(
       { mv = 12400, currentQty = 4210, listings = 68, ts = 1000, source = "import" }, 2000)
     assert.equal("Listed", lines[2].left)
-    assert.equal("4210", lines[2].right)
+    assert.equal("4,210", lines[2].right)
     for _, ln in ipairs(lines) do
       assert.not_equal("Listings", ln.left) -- the shelf count replaces the auction count
     end
@@ -275,6 +275,162 @@ describe("Tooltip.BuildLines", function()
     local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
     assert.is_truthy(text:find("data.id", 1, true))
     assert.is_truthy(text:find("tooltip:GetItem()", 1, true))
+  end)
+
+  describe("the live line", function()
+    local LIVE = { floor = 11500, qty = 40, age = 150 }
+
+    it("says what the auction house showed this session, before what you paid", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 12400, sold = 86, ts = 1000, source = "region" }, 2000,
+        { live = LIVE, unitCost = 640 })
+      local live, paid
+      for i, ln in ipairs(lines) do
+        if ln.kind == "live" then live = i end
+        if ln.label == "You paid" then paid = i end
+      end
+      assert.is_truthy(live)
+      assert.equal("On the AH now", lines[live].left)
+      assert.equal(11500, lines[live].copper)
+      assert.equal("40 listed · 2 min ago", lines[live].detail)
+      assert.is_true(live < paid)
+    end)
+
+    it("says just now under a minute", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 12400, ts = 1000 }, 2000,
+        { live = { floor = 11500, qty = 3, age = 59 } })
+      assert.equal("3 listed · just now", lines[#lines].detail)
+    end)
+
+    it("stands alone for an item nothing else prices", function()
+      local lines = GC.Tooltip.BuildLines(nil, 2000, { live = LIVE })
+      assert.equal(1, #lines)
+      assert.equal("live", lines[1].kind)
+      assert.is_nil(GC.Tooltip.BuildLines(nil, 2000))
+    end)
+
+    it("stands alone beside a realm figure too thin to print", function()
+      local lines = GC.Tooltip.BuildLines({ source = "import", kind = "realm_item", ts = 1000 }, 2000,
+        { live = LIVE })
+      assert.equal(1, #lines)
+      assert.equal("live", lines[1].kind)
+    end)
+
+    it("never prints an age below zero", function()
+      local lines = GC.Tooltip.BuildLines(nil, 2000, { live = { floor = 11500, qty = 3, age = -600 } })
+      assert.equal("3 listed · just now", lines[1].detail)
+    end)
+
+    it("is drawn with the coin string, from what the Sniper's book saw", function()
+      local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
+      assert.is_truthy(text:find("GC.Sniper.LiveFloor(itemID, now)", 1, true))
+      assert.is_truthy(text:find('ln.kind == "live"', 1, true))
+      assert.is_truthy(text:find('GetCoinTextureString(ln.copper) .. " · " .. ln.detail', 1, true))
+    end)
+  end)
+
+  describe("a region-payload price", function()
+    it("prints as the GoldCap value with its sales and depth", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 12400, sold = 86, currentQty = 4210, listings = 68,
+        ts = 1000, source = "region", kind = "region_commodity" }, 2000)
+      assert.equal("GoldCap value", lines[1].label)
+      assert.equal("Sold per day", lines[2].left)
+      assert.equal("Listed", lines[3].left)
+    end)
+
+    it("is dated by the payload once it is six hours old, and not before", function()
+      local fresh = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "region" }, 6 * 3600 - 1)
+      for _, ln in ipairs(fresh) do assert.not_equal("GoldCap data age", ln.left) end
+      local old = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "region" }, 7 * 3600)
+      assert.equal("GoldCap data age", old[#old].left)
+      assert.equal("7h", old[#old].right)
+    end)
+
+    it("prints a realm item's region reference like the bundled one, fresh", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 720, listings = 11, ts = 1000, source = "region",
+        kind = "realm_item" }, 2000)
+      assert.equal("GoldCap value", lines[1].label)
+      assert.equal(720, lines[1].copper)
+      assert.equal("Listings", lines[2].left)
+      assert.equal(2, #lines)
+    end)
+  end)
+
+  -- Counts. A region's staple commodity sells tens of thousands a day and lists a hundred
+  -- thousand, and the tooltip printed them as "29728.0" and "98470": a trailing .0 that says
+  -- nothing and five digits the eye has to count. A slow seller keeps its decimal, because
+  -- there 3.5 against 3 a day is the decision.
+  describe("counts", function()
+    local function right(lines, left)
+      for _, ln in ipairs(lines) do
+        if ln.left == left then return ln.right end
+      end
+    end
+
+    it("keeps one decimal on a seller under ten a day", function()
+      assert.equal("3.5", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 3.5, ts = 1000 }, 2000), "Sold per day"))
+      assert.equal("9.9", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 9.94, ts = 1000 }, 2000), "Sold per day"))
+    end)
+
+    it("prints a faster seller as a whole number, grouped in thousands", function()
+      assert.equal("29,728", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 29728, ts = 1000 }, 2000), "Sold per day"))
+      assert.equal("1,234,568", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 1234567.6, ts = 1000 }, 2000), "Sold per day"))
+      assert.equal("10", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 10, ts = 1000 }, 2000), "Sold per day"))
+    end)
+
+    -- 9.96 rounds to "10.0" at one decimal, which is the very figure this rule exists to drop.
+    it("never prints 10.0 for a rate that rounds up to ten", function()
+      assert.equal("10", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 9.96, ts = 1000 }, 2000), "Sold per day"))
+    end)
+
+    it("groups the shelf, with its days of supply after it", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 1000, sold = 29728, currentQty = 98470, ts = 1000,
+        source = "import" }, 2000)
+      assert.equal("98,470 · 3d", right(lines, "Listed"))
+    end)
+
+    it("groups the auction count", function()
+      assert.equal("1,234", right(GC.Tooltip.BuildLines({ mv = 1000, listings = 1234, ts = 1000 }, 2000), "Listings"))
+      assert.equal("12,345", right(GC.Tooltip.BuildLines({ mv = 720, listings = 12345, ts = 1000,
+        source = "region", kind = "realm_item" }, 2000), "Listings"))
+    end)
+
+    it("groups what the auction house showed this session", function()
+      local now = GC.Tooltip.BuildLines(nil, 2000, { live = { floor = 11500, qty = 98470, age = 10 } })
+      assert.equal("98,470 listed · just now", now[1].detail)
+      local ago = GC.Tooltip.BuildLines(nil, 2000, { live = { floor = 11500, qty = 98470, age = 150 } })
+      assert.equal("98,470 listed · 2 min ago", ago[1].detail)
+    end)
+
+    it("leaves a count under a thousand as it is", function()
+      assert.equal("999", right(GC.Tooltip.BuildLines({ mv = 1000, listings = 999, ts = 1000 }, 2000), "Listings"))
+    end)
+
+    -- The client's own grouping follows the player's locale (a German client writes 29.728);
+    -- the fallback above is only for a runtime without it, which is this spec suite. The stub
+    -- keeps the client's quirk of handing a whole number under a thousand back as a number.
+    describe("in the client", function()
+      before_each(function()
+        _G.BreakUpLargeNumbers = function(n)
+          if n < 1000 then return n end
+          return (tostring(n):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", ""))
+        end
+      end)
+      after_each(function() _G.BreakUpLargeNumbers = nil end)
+
+      it("groups with the client's separator", function()
+        local lines = GC.Tooltip.BuildLines({ mv = 1000, sold = 29728, currentQty = 98470, ts = 1000,
+          source = "import" }, 2000)
+        assert.equal("29.728", right(lines, "Sold per day"))
+        assert.equal("98.470 · 3d", right(lines, "Listed"))
+        local live = GC.Tooltip.BuildLines(nil, 2000, { live = { floor = 11500, qty = 1500, age = 10 } })
+        assert.equal("1.500 listed · just now", live[1].detail)
+      end)
+
+      it("still hands the tooltip a string for a small count", function()
+        assert.equal("14", right(GC.Tooltip.BuildLines({ mv = 1000, listings = 14, ts = 1000 }, 2000), "Listings"))
+        assert.equal("12", right(GC.Tooltip.BuildLines({ mv = 1000, sold = 12, ts = 1000 }, 2000), "Sold per day"))
+      end)
+    end)
   end)
 
 end)

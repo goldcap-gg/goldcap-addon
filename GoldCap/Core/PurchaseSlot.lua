@@ -42,6 +42,33 @@ function GC.PurchaseSlot.Owner()
   return owner
 end
 
+-- How long a quote may wait at Confirm: `seconds`, each window's own bound inside MAX_SECONDS, or
+-- less when the client says its quote runs out sooner -- C_AuctionHouse.GetQuoteDurationRemaining,
+-- the figure Blizzard's own buy dialog counts down. A missing, failing or empty answer changes
+-- nothing. Both windows ask it when a quote lands (fix round 4, m2).
+function GC.PurchaseSlot.QuoteSeconds(seconds)
+  local api = C_AuctionHouse and C_AuctionHouse.GetQuoteDurationRemaining
+  if type(api) ~= "function" then return seconds end
+  local ok, left = pcall(api)
+  if ok and type(left) == "number" and left > 0 and left < seconds then return left end
+  return seconds
+end
+
+-- The one rule both Start sites keep (the Sniper's onDialogPrimaryClick, the BUY tab's
+-- onBuyClick): no commodity purchase starts while a purchase either window CONFIRMED is still owed
+-- its answer -- the claim above is not enough on its own. It goes stale after MAX_SECONDS, and a
+-- confirmed purchase can be owed longer than that (the Sniper's stranded release waits 35 s, a
+-- Sniper confirm carried across an auction house close keeps the claim it had, and a BUY confirm
+-- the close hit stays owed until BUY's own wait for it would have ended), so the other window took
+-- the stale claim over and started a purchase on top of one that may already have taken gold.
+-- Returns the window whose confirm is owed ("sniper" or "buy"), or nil. Each window answers for
+-- itself: GC.Sniper._ConfirmedOwed and GC.Buy.ConfirmOwed; a window not loaded owes nothing.
+function GC.PurchaseSlot.ConfirmOwed()
+  if GC.Sniper and GC.Sniper._ConfirmedOwed and GC.Sniper._ConfirmedOwed() then return "sniper" end
+  if GC.Buy and GC.Buy.ConfirmOwed and GC.Buy.ConfirmOwed() then return "buy" end
+  return nil
+end
+
 -- Same staleness bound as Claim: a claim nobody released within MAX_SECONDS is no longer
 -- reported busy, exactly as it is no longer protected from being taken over.
 function GC.PurchaseSlot.IsBusy(now)

@@ -32,6 +32,36 @@ local function truncate(list, cap)
   end
 end
 
+-- Live price caps, final review M7: which rows survive a board that is over its row cap.
+-- compareDeals above ranks by estProfit against the MARKET, and a cap row needs no market at
+-- all (Core/Caps.lua's own contract: the cap IS the player's price) -- a cap set ABOVE the
+-- region reference, which the design wants shown in red, therefore carries a NEGATIVE
+-- estProfit by construction and sorts dead last. The board's own cap was cutting exactly the
+-- row the player asked for, before they ever saw it. A cap row is a standing instruction, not
+-- a lead this addon found: it is kept whatever its rank, and the ordinary rows share whatever
+-- budget is left over. Returns the kept rows in the order given (the caller has already
+-- sorted), and hands every dropped row to `onDrop` so a keyed store can be trimmed with it.
+local function keepUnderCap(list, cap, onDrop)
+  if not cap or #list <= cap then return list end
+  local budget = cap
+  for i = 1, #list do
+    if list[i].cap then budget = budget - 1 end
+  end
+  local kept = {}
+  for i = 1, #list do
+    local deal = list[i]
+    if deal.cap then
+      kept[#kept + 1] = deal
+    elseif budget > 0 then
+      budget = budget - 1
+      kept[#kept + 1] = deal
+    elseif onDrop then
+      onDrop(deal)
+    end
+  end
+  return kept
+end
+
 -- Dedupe by itemID, keeping the single BEST (highest-profit) deal per item. A full scan
 -- can list the same item from several sellers; downstream (SniperFrame's awaitingRequery /
 -- awaitingKeyInfo) is keyed by itemID, so two .stale rows sharing an itemID would collide
@@ -132,13 +162,32 @@ end
 -- cheaper row would advertise a lot that's already gone (bought out, requoted, or expired
 -- since the earlier pass saw it). Re-sorts with the same comparator Evaluate uses and
 -- truncates to cap.
+--
+-- Caps fixes 3a: except over a player's price-cap row (UI/SniperFrame.lua's buildCapDeal, whose
+-- `cap` is that price in copper). A cap row is not a browse aggregate -- it was built from a
+-- live book against the player's own rule -- and the pass's market row for the same item says
+-- nothing new about it while that row's own price is still at or under the cap: the lot the cap
+-- row names may well still be there, and the rule it answers to certainly is. So it stands until
+-- the incoming price climbs above the cap, or a fresher cap row replaces it. And it is never cut
+-- to fit the board -- keepUnderCap, the rule CapDeals and ApplyLiveObservation already apply --
+-- because the cut ranks by estProfit against the market, which a cap set above the market loses
+-- by construction.
+--
+-- "The cap" is the player's price as Core/Caps.lua holds it NOW (GC.Caps.For), not the copy
+-- stamped on the row when it was built -- the same price the end-of-pass reconcile judges by
+-- (UI/SniperFrame.lua's GC.Sniper._CapRowsHeld). A cap lowered or removed since keeps no row
+-- alive. Read at call time, so Core/Caps.lua loading after this file changes nothing.
 function GC.FullScan.MergeDeals(existing, incoming, cap)
   local byItem = {}
   for _, deal in ipairs(existing) do
     byItem[deal.itemID] = deal
   end
   for _, deal in ipairs(incoming) do
-    byItem[deal.itemID] = deal
+    local held = byItem[deal.itemID]
+    local live = held and held.cap and not deal.cap and GC.Caps and GC.Caps.For(deal.itemID)
+    if not (live and deal.unitPrice <= live.c) then
+      byItem[deal.itemID] = deal
+    end
   end
 
   local merged = {}
@@ -146,8 +195,7 @@ function GC.FullScan.MergeDeals(existing, incoming, cap)
     merged[#merged + 1] = deal
   end
   table.sort(merged, compareDeals)
-  truncate(merged, cap)
-  return merged
+  return keepUnderCap(merged, cap)
 end
 
 -- Bounds a deal store that is not an array. The Items board (UI/SniperFrame.lua's
@@ -173,11 +221,7 @@ function GC.FullScan.CapDeals(deals, cap)
     keyOf[deal] = key
   end
   table.sort(list, compareDeals)
-  if cap and #list > cap then
-    for i = cap + 1, #list do deals[keyOf[list[i]]] = nil end
-    truncate(list, cap)
-  end
-  return list
+  return keepUnderCap(list, cap, function(deal) deals[keyOf[deal]] = nil end)
 end
 
 function GC.FullScan.ApplyLiveObservation(existingDeals, itemID, liveDeal, cap)
@@ -191,8 +235,11 @@ function GC.FullScan.ApplyLiveObservation(existingDeals, itemID, liveDeal, cap)
     updated[#updated + 1] = liveDeal
   end
   table.sort(updated, compareDeals)
-  truncate(updated, cap)
-  return updated
+  -- Same exemption as CapDeals above, and for the same reason: this is the commodity board's
+  -- own path into the store (UI/SniperFrame.lua's evaluateLiveCommodityDeal writes a cap deal
+  -- through here), so a plain truncate would have dropped an above-reference cap row here
+  -- exactly as it did on the Items board.
+  return keepUnderCap(updated, cap)
 end
 
 -- Auctionator-style incremental browse scan: C_AuctionHouse.GetBrowseResults() returns one

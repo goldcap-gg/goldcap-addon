@@ -17,12 +17,29 @@ GC.BookPass = {}
 function GC.BookPass.New(driver, opts)
   opts = opts or {}
   local widePassSeconds = opts.widePassSeconds or 300
+  -- Whole-market coverage: how soon an unchanged floor whose hit the drill queue let go of
+  -- undrilled (obj:Lost) may be reported again. A moved floor is reported at once, as always.
+  local rehitSeconds = opts.rehitSeconds or 120
+  -- How long a row stays readable through Seen() after Reset() -- the tooltip's live line
+  -- (UI/SniperFrame.lua's LiveFloor). 0 keeps nothing, as before.
+  local seenSeconds = opts.seenSeconds or 0
   local classFilters = opts.itemClassFilters or {}
+  -- Which rows are worth carrying over Reset(): driver.keepSeen(itemID, row) when the caller has one
+  -- (the tooltip's own test, UI/SniperFrame.lua's _LiveRow), else any row that is not one of its
+  -- item's variants. A row nothing would print is a row kept for nothing.
+  local keepSeen = driver.keepSeen or function(_, row) return not row.variants end
 
   local obj = {}
-  local book = {}          -- itemID -> { floor, qty, seenAt, kind }; SURVIVES Abort() and every Start()
+  local book = {}          -- itemID -> { floor, qty, seenAt, kind, variants, itemLevel }; SURVIVES
+                            -- Abort() and every Start(). `variants` (true or nil): see foldRow.
   local classesSeen = {}   -- itemID -> true, for any item EVER folded by a classes pass this
                             -- session (survives Abort()/Start(), cleared only by Reset())
+  local lost = {}          -- itemID -> true: its last hit left the drill queue undrilled (obj:Lost)
+  local reportedAt = {}    -- itemID -> driver.now() of its last hit
+  local rehits = 0         -- hits reported again after a loss, since /reload (/gc board; Reset leaves it)
+  local recent = {}        -- itemID -> a row the tooltip could print (keepSeen), carried over Reset()
+                            -- while younger than seenSeconds; see prune
+  local passKeys = {}      -- itemID -> the variant key of its first row THIS pass (see foldRow)
   local kind = nil         -- nil | "classes" | "wide"
   local paging = false
   local pendingStart = false
@@ -35,6 +52,24 @@ function GC.BookPass.New(driver, opts)
   -- the slow unfiltered one.
   local lastWideAt = driver.now()
 
+  -- Lets go of every carried row Seen() can no longer answer with: past seenSeconds, or shadowed by
+  -- this visit's book (Seen answers from the book first). An emptied table keeps the slots it grew
+  -- to, so an empty one is replaced -- a big realm's close carries tens of thousands of rows -- also
+  -- when Reset's own writes emptied it.
+  local function prune()
+    if next(recent) == nil then recent = {} return end
+    local now = driver.now()
+    local left = false
+    for itemID, row in pairs(recent) do
+      if book[itemID] or now - (row.seenAt or 0) >= seenSeconds then
+        recent[itemID] = nil
+      else
+        left = true
+      end
+    end
+    if not left then recent = {} end
+  end
+
   local function queryFor(k)
     if k == "wide" then
       return { searchString = "", sorts = {}, filters = {}, itemClassFilters = {} }
@@ -45,6 +80,9 @@ function GC.BookPass.New(driver, opts)
   -- Hit = floor < trigger AND (floor changed since the previous pass OR qty grew). The first
   -- sighting of an item ever (prev == nil) counts as "changed": it seeds the book AND hits,
   -- per the design doc's "the first pass ... emits hits for everything below trigger".
+  -- Whole-market coverage: an unchanged floor is news again once the drill queue has let its last
+  -- hit go undrilled (obj:Lost) -- at most once per rehitSeconds, so a queue that keeps refusing an
+  -- item is not handed it on every 7-14 s pass.
   local function foldRow(row)
     local itemKey = row.itemKey
     local itemID = itemKey and itemKey.itemID
@@ -52,13 +90,34 @@ function GC.BookPass.New(driver, opts)
     if not itemID or not floor or floor <= 0 then return end
     local qty = row.totalQuantity
     local prev = book[itemID]
+    local now = driver.now()
     local trigger = driver.triggerFor(itemID)
-    local hit = trigger and floor < trigger
-      and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
-    book[itemID] = { floor = floor, qty = qty, seenAt = driver.now(), kind = kind }
+    local changed = not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0)
+    local again = not changed and lost[itemID] == true
+      and (now - (reportedAt[itemID] or 0)) >= rehitSeconds
+    local hit = trigger and floor < trigger and (changed or again)
+    -- The book is keyed by item, the browse list by item KEY: gear comes back as one row per item
+    -- level, and every caged pet as item 82800 with its own species. The row kept is the last one
+    -- folded, which says nothing about the item as a whole -- so an item seen as two variants in one
+    -- pass is marked, for the rest of this visit, and Seen()'s reader (UI/SniperFrame.lua's
+    -- LiveFloor) does not print it as the item's price. A caged pet is marked from its first row:
+    -- whatever else is listed, its row is one species of the cage, never the cage's floor.
+    local variantKey = (itemKey.itemLevel or 0) .. ":" .. (itemKey.itemSuffix or 0) .. ":"
+      .. (itemKey.battlePetSpeciesID or 0)
+    local variants = (prev and prev.variants) or (itemKey.battlePetSpeciesID or 0) > 0
+      or (passKeys[itemID] ~= nil and passKeys[itemID] ~= variantKey) or nil
+    passKeys[itemID] = passKeys[itemID] or variantKey
+    -- The level is kept too: gear the auction house lists at ONE level is never marked above, and
+    -- its row is that level's floor, not the item's -- the reader refuses a leveled row of anything
+    -- that is not a commodity.
+    book[itemID] = { floor = floor, qty = qty, seenAt = now, kind = kind, variants = variants,
+      itemLevel = itemKey.itemLevel }
     if kind == "classes" then classesSeen[itemID] = true end
     if hit then
-      driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
+      lost[itemID] = nil
+      reportedAt[itemID] = now
+      if again then rehits = rehits + 1 end
+      driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev, rehit = again or nil })
     end
   end
 
@@ -102,6 +161,8 @@ function GC.BookPass.New(driver, opts)
     rawWatermark = 0
     pagesThisPass = 0
     passStartedAt = driver.now()
+    for itemID in pairs(passKeys) do passKeys[itemID] = nil end
+    prune()
   end
 
   function obj:OnResultsUpdated() handleResults() end
@@ -146,8 +207,20 @@ function GC.BookPass.New(driver, opts)
   -- reset: it paces an expensive unfiltered pass against wall time, and reopening the AH does
   -- not make one more urgent.
   function obj:Reset()
+    -- The book itself must not survive (see above), but what it saw may still be told: each row
+    -- younger than seenSeconds that the tooltip could print (keepSeen) moves to `recent`, in place
+    -- of whatever an earlier close left there for its item, and anything older there is let go.
+    -- Only those: every other row of the last book would be kept for nothing until the next close.
+    local now = driver.now()
+    for itemID, row in pairs(book) do
+      recent[itemID] = (now - (row.seenAt or 0) < seenSeconds and keepSeen(itemID, row)) and row or nil
+    end
     for itemID in pairs(book) do book[itemID] = nil end
+    prune()
+    for itemID in pairs(passKeys) do passKeys[itemID] = nil end
     for itemID in pairs(classesSeen) do classesSeen[itemID] = nil end
+    for itemID in pairs(lost) do lost[itemID] = nil end
+    for itemID in pairs(reportedAt) do reportedAt[itemID] = nil end
     kind = nil
     paging = false
     pendingStart = false
@@ -165,11 +238,33 @@ function GC.BookPass.New(driver, opts)
 
   function obj:Book() return book end
 
+  -- What the book last saw of an item: this session's row, or the one carried over the last
+  -- Reset() while it is younger than seenSeconds. The caller applies its own window.
+  function obj:Seen(itemID) return book[itemID] or recent[itemID] end
+
+  -- Lets go of what the last closes carried that is past seenSeconds now. The caller schedules it
+  -- seenSeconds after a close (UI/SniperFrame.lua's OnAuctionHouseClosed), when every row that close
+  -- carried has aged out; a later close's rows are younger and stay, and the book is never touched,
+  -- so a visit open when it runs keeps everything it has seen.
+  function obj:Prune() prune() end
+
   -- True once an itemID has ever been folded by a CLASSES pass this session (i.e. it is
   -- in-class), regardless of what pass folded it most recently. Distinct from "does the book
   -- have a row for it right now" -- an item can leave the book (Reset) but classesSeen only
   -- clears with it.
   function obj:SeenByClasses(itemID) return classesSeen[itemID] == true end
+
+  -- The drill queue let this item's hit at `floor` go undrilled (UI/SniperFrame.lua's
+  -- _OnDrillLost): its unchanged floor may be reported again, rehitSeconds after the last report.
+  -- Only while the book still shows that floor. An entry for a floor the book has since moved off
+  -- can age out after the new floor's own hit was drilled, and says nothing about the floor on
+  -- offer now; an item the book has never seen is news at its first sighting anyway.
+  function obj:Lost(itemID, floor)
+    local entry = book[itemID]
+    if entry and entry.floor == floor then lost[itemID] = true end
+  end
+
+  function obj:Rehits() return rehits end
 
   return obj
 end

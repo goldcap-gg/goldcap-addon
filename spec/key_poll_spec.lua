@@ -2,16 +2,27 @@ local helper = require("spec.spec_helper")
 
 describe("KeyPoll", function()
   local GC
-  local now, triggers, hits, rowsEmitted
+  local now, triggers, hits, rowsEmitted, minIlvls
 
   local function row(itemID, minPrice, totalQuantity)
     return { itemKey = { itemID = itemID }, minPrice = minPrice, totalQuantity = totalQuantity }
+  end
+
+  -- The other shape the client is allowed to answer with: one row per item-level variant, each
+  -- carrying the full item key that variant answers to.
+  local function variantRow(itemID, itemLevel, minPrice, totalQuantity)
+    return {
+      itemKey = { itemID = itemID, itemLevel = itemLevel, itemSuffix = 0, battlePetSpeciesID = 0 },
+      minPrice = minPrice,
+      totalQuantity = totalQuantity,
+    }
   end
 
   local function fakeDriver()
     return {
       now = function() return now end,
       triggerFor = function(itemID) return triggers[itemID] end,
+      minIlvlFor = function(itemID) return minIlvls[itemID] end,
       onHit = function(hit) hits[#hits + 1] = hit end,
       onRows = function(rows) rowsEmitted[#rowsEmitted + 1] = rows end,
     }
@@ -20,7 +31,7 @@ describe("KeyPoll", function()
   before_each(function()
     GC = helper.loadModule("Core/KeyPoll.lua")
     now = 1000
-    triggers, hits, rowsEmitted = {}, {}, {}
+    triggers, hits, rowsEmitted, minIlvls = {}, {}, {}, {}
   end)
 
   local function newPoll(opts)
@@ -111,6 +122,89 @@ describe("KeyPoll", function()
       assert.equal(1000, poll:Book()[7].seenAt)
     end)
 
+    -- Caps fixes 4b: the ratchet's one way back for a hit that was reported and then lost
+    -- before anybody drilled it (Core/DrillQueue.lua's onLost). The next fold of the same floor
+    -- is news again -- once.
+    it("reports an unchanged floor again after Rearm, and only once", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)
+      poll:Rearm(7)
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)
+      assert.equal(900, hits[2].floor)
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)
+    end)
+
+    -- Whole-market coverage, fix round 1 (m3): an ordinary realm hit the drill queue lost is
+    -- re-armed with the book pass's re-hit hold -- news again no sooner than holdSeconds after it
+    -- was last reported, however often the poll comes round, and the flag waits for it.
+    it("holds a re-armed floor until holdSeconds after its last report", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)
+      poll:Rearm(7, 120)
+      now = 1000 + 60
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)            -- re-armed, but only 60 s since it was reported
+      now = 1000 + 120
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)            -- the hold is over: reported again
+      now = 1000 + 400
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(2, #hits)            -- once
+    end)
+
+    it("lets a moved floor through a hold at once, and ends the hold", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      poll:Rearm(7, 120)
+      now = 1000 + 5
+      poll:Fold({ row(7, 890, 3) })
+      assert.equal(2, #hits)
+      now = 1000 + 300
+      poll:Fold({ row(7, 890, 3) })
+      assert.equal(2, #hits)
+    end)
+
+    it("re-arms at once for a listing that is gone, even under a hold", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) }, { 7 })
+      poll:Rearm(7, 120)
+      now = 1000 + 5
+      poll:Fold({}, { 7 })              -- 7 has no listing left
+      poll:Fold({ row(7, 900, 3) }, { 7 })
+      assert.equal(2, #hits)
+    end)
+
+    -- Round 1: an item the batch asked for and got no row for has no listing left. The ratchet
+    -- still held its last floor, so the same price listed again was never news.
+    it("re-arms an item it asked for and got no row for", function()
+      local poll = newPoll()
+      triggers[7], triggers[8] = 1000, 1000
+      poll:Fold({ row(7, 900, 3), row(8, 900, 3) }, { 7, 8 })
+      poll:Fold({ row(8, 900, 3) }, { 7, 8 })  -- 7 is gone, 8 unchanged
+      assert.equal(2, #hits)
+      poll:Fold({ row(7, 900, 3), row(8, 900, 3) }, { 7, 8 })
+      assert.equal(3, #hits)                  -- 7 again; 8 still nothing new
+      assert.equal(7, hits[3].itemID)
+    end)
+
+    it("does nothing on Rearm for an item it has never seen", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Rearm(7)
+      assert.is_nil(poll:Book()[7])
+      poll:Fold({ row(7, 900, 3) })
+      assert.equal(1, #hits)
+    end)
+
     it("says nothing about a floor at or above the trigger", function()
       local poll = newPoll()
       triggers[7] = 1000
@@ -150,6 +244,232 @@ describe("KeyPoll", function()
       local rows = { row(7, 900, 3), row(8, 5, 1) }
       poll:Fold(rows)
       assert.same({ rows }, rowsEmitted)
+    end)
+
+    -- Final review: SearchForItemKeys may answer with one row per item-level variant of the
+    -- same item, and it may answer with one row for the whole item group -- both shapes are
+    -- legal and the client is contractually neither. Folded row by row, the variant shape made
+    -- the book flip between variants on every batch, so the ratchet above read noise as news,
+    -- the arbiter's own `booked.floor == hit.floor` re-check then dropped the drill it had just
+    -- queued, and the caller's floor-per-item map took whichever variant came last. Collapsing
+    -- first makes all three right whichever way the client answers.
+    it("collapses several rows for one item into the cheapest floor and the whole stack", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 950, 2), row(7, 900, 3), row(7, 980, 1) })
+
+      assert.equal(1, #hits)
+      assert.equal(900, hits[1].floor)
+      assert.equal(6, hits[1].qty)
+      assert.equal(900, poll:Book()[7].floor)
+      assert.equal(6, poll:Book()[7].qty)
+      -- The caller sees the same one row per item the book does.
+      assert.equal(1, #rowsEmitted[1])
+      assert.equal(900, rowsEmitted[1][1].minPrice)
+      assert.equal(6, rowsEmitted[1][1].totalQuantity)
+    end)
+
+    it("never writes the collapsed figures back into the client's own result rows", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      local first, second = row(7, 950, 2), row(7, 900, 3)
+      poll:Fold({ first, second })
+      assert.equal(950, first.minPrice)
+      assert.equal(2, first.totalQuantity)
+      assert.equal(3, second.totalQuantity)
+    end)
+
+    -- The variant drill (Teebu's Scorching Straight Sword, 159840, 2026-09-22). Collapsing to
+    -- one floor is right for the ratchet and not enough for the DRILL, which has to name a key
+    -- to search with: a bare key resolves to ONE variant server-side, so the board priced the
+    -- 250,000 (19) lot and never saw the 211,111 (66) one sitting beside it in Blizzard's own
+    -- browse. The rows the fold throws away are the only place the addon ever sees both, so
+    -- they are kept on the book entry for UI/SniperFrame.lua to aim at.
+    it("keeps every variant's own row on the book entry, cheapest first", function()
+      local poll = newPoll()
+      triggers[159840] = 300000
+      poll:Fold({ variantRow(159840, 19, 250000, 2), variantRow(159840, 66, 211111, 1) })
+
+      local entry = poll:Book()[159840]
+      assert.equal(159840, entry.itemID)
+      assert.equal(211111, entry.floor) -- the collapsed floor is still the cheapest on offer
+      assert.equal(3, entry.qty)
+      assert.equal(2, #entry.variants)
+      assert.same({ itemLevel = 66, itemSuffix = 0, battlePetSpeciesID = 0, floor = 211111, qty = 1 },
+        entry.variants[1])
+      assert.same({ itemLevel = 19, itemSuffix = 0, battlePetSpeciesID = 0, floor = 250000, qty = 2 },
+        entry.variants[2])
+    end)
+
+    -- The group shape: one row for the whole item, no item level in the key. There is exactly
+    -- one variant to name and its key IS the bare key, which is what keeps the drill on its
+    -- old behaviour for every item the client answers about this way.
+    it("records the group row as the one variant it is", function()
+      local poll = newPoll()
+      triggers[7] = 1000
+      poll:Fold({ row(7, 900, 3) })
+      assert.same({ { itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0, floor = 900, qty = 3 } },
+        poll:Book()[7].variants)
+    end)
+
+    it("keeps two different items apart while collapsing", function()
+      local poll = newPoll()
+      triggers[7], triggers[8] = 1000, 1000
+      poll:Fold({ row(7, 950, 2), row(8, 300, 1), row(7, 900, 3) })
+      assert.equal(2, #hits)
+      assert.equal(900, poll:Book()[7].floor)
+      assert.equal(5, poll:Book()[7].qty)
+      assert.equal(300, poll:Book()[8].floor)
+      assert.equal(1, poll:Book()[8].qty)
+    end)
+  end)
+
+  -- Caps fixes 4c. A cap with an item-level floor ("610 or better, at 100") was judged on the
+  -- collapsed floor -- the cheapest variant of ANY level. So a price drop on the 615 already
+  -- listed was never news while a 590 sat under it, and every move of the 590 woke the poll for a
+  -- drill the cap then refused. driver.minIlvlFor names the level; the hit test and the ratchet
+  -- then read the cheapest variant at or above it, and the hit carries that variant's price.
+  describe("an item-level floor", function()
+    local function variantsOf(itemID, ...)
+      local rows, spec = {}, { ... }
+      for i = 1, #spec, 2 do rows[#rows + 1] = variantRow(itemID, spec[i], spec[i + 1], 1) end
+      return rows
+    end
+
+    before_each(function()
+      triggers[300] = 101 -- a cap of 100: at or under it
+      minIlvls[300] = 610
+    end)
+
+    it("does not wake for a variant below the level", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 50, 615, 150))
+      poll:Fold(variantsOf(300, 590, 40, 615, 150)) -- the junk moved, nothing at the level did
+      assert.same({}, hits)
+      assert.equal(40, poll:Book()[300].floor) -- the collapsed floor is still the cheapest on offer
+      assert.equal(150, poll:Book()[300].judged)
+    end)
+
+    it("wakes for the variant at the level, at its own price, while junk sits under it", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 40, 615, 150))
+      poll:Fold(variantsOf(300, 590, 40, 615, 90))
+      assert.equal(1, #hits)
+      assert.equal(90, hits[1].floor)
+      assert.equal(1, hits[1].qty)
+      assert.equal(90, poll:Book()[300].judged)
+    end)
+
+    it("ratchets on the variant at the level, not on the junk", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 40, 615, 90))
+      poll:Fold(variantsOf(300, 590, 30, 615, 90)) -- junk moved: not news
+      assert.equal(1, #hits)
+      poll:Fold(variantsOf(300, 590, 30, 615, 80)) -- the 615 dropped: news
+      assert.equal(2, #hits)
+      assert.equal(80, hits[2].floor)
+    end)
+
+    it("says nothing while no variant reaches the level, and wakes for the first one that does", function()
+      local poll = newPoll()
+      poll:Fold(variantsOf(300, 590, 40))
+      assert.same({}, hits)
+      assert.is_nil(poll:Book()[300].judged)
+      poll:Fold(variantsOf(300, 590, 40, 620, 95))
+      assert.equal(1, #hits)
+      assert.equal(95, hits[1].floor)
+    end)
+
+    -- Round 1: a client answering with one collapsed row states no level at all; held to a level
+    -- nothing states, the cap never fired. The drill's own decision reads each lot's level.
+    it("judges the collapsed floor when no row states a level", function()
+      local poll = newPoll()
+      poll:Fold({ row(300, 50, 2) })
+      assert.equal(1, #hits)
+      assert.equal(50, hits[1].floor)
+      assert.equal(50, GC.KeyPoll.FloorFor(poll:Book()[300], 610))
+      assert.equal(0, GC.KeyPoll.VariantKeyFor(poll:Book()[300], 610).itemLevel)
+    end)
+
+    it("judges an item without a level by its collapsed floor, as ever", function()
+      local poll = newPoll()
+      minIlvls[300] = nil
+      poll:Fold(variantsOf(300, 590, 50, 615, 150))
+      assert.equal(1, #hits)
+      assert.equal(50, hits[1].floor)
+      assert.equal(50, poll:Book()[300].judged)
+    end)
+  end)
+
+  -- Which key the drill sends. Pure, and deliberately not a method on a poll: the arbiter reads
+  -- a book entry (Book()[itemID]) and needs the key for it, nothing more.
+  describe("VariantKeyFor", function()
+    local function teebus()
+      local poll = newPoll()
+      poll:Fold({ variantRow(159840, 19, 250000, 2), variantRow(159840, 66, 211111, 1) })
+      return poll:Book()[159840]
+    end
+
+    it("names the cheapest variant when any item level will do", function()
+      assert.same({ itemID = 159840, itemLevel = 66, itemSuffix = 0, battlePetSpeciesID = 0 },
+        GC.KeyPoll.VariantKeyFor(teebus(), 0))
+    end)
+
+    -- The floor is what the decision about to be made compares against -- a cap's own `l`
+    -- (Core/Caps.lua's DecideRealm) or the realm reference's refIlvl
+    -- (GC.SniperDecision.EvaluateRealm). Drilling under it buys facts about lots neither one
+    -- can approve.
+    it("names the cheapest variant at or above the item-level floor", function()
+      -- A ladder whose CHEAPEST variant is also its junk one, which is the case the floor
+      -- exists for: bought on price alone it is a bargain on an item nobody asked for.
+      local poll = newPoll()
+      poll:Fold({ variantRow(300, 19, 100000, 1), variantRow(300, 66, 211111, 1),
+        variantRow(300, 610, 900000, 1) })
+      local entry = poll:Book()[300]
+
+      assert.equal(19, GC.KeyPoll.VariantKeyFor(entry, 0).itemLevel)
+      assert.equal(66, GC.KeyPoll.VariantKeyFor(entry, 20).itemLevel)
+      assert.equal(610, GC.KeyPoll.VariantKeyFor(entry, 610).itemLevel)
+      assert.is_nil(GC.KeyPoll.VariantKeyFor(entry, 611))
+    end)
+
+    it("has no answer when no variant reaches the floor", function()
+      assert.is_nil(GC.KeyPoll.VariantKeyFor(teebus(), 610))
+    end)
+
+    it("has no answer for an entry that carries no variants at all", function()
+      assert.is_nil(GC.KeyPoll.VariantKeyFor(nil, 0))
+      assert.is_nil(GC.KeyPoll.VariantKeyFor({ itemID = 7, floor = 900 }, 0))
+      assert.is_nil(GC.KeyPoll.VariantKeyFor({ itemID = 7, variants = {} }, 0))
+    end)
+  end)
+
+  -- Caps fixes 3d: what an item costs at or above an item-level floor, off the same book entry.
+  -- The entry's own `floor` is the cheapest variant of ANY level, so a cap with a level floor
+  -- judged by it was kept alive by the junk variant after the one it wanted had sold.
+  describe("FloorFor", function()
+    local function ladder()
+      local poll = newPoll()
+      poll:Fold({ variantRow(300, 19, 100000, 1), variantRow(300, 66, 211111, 1),
+        variantRow(300, 610, 900000, 1), variantRow(300, 615, 950000, 1) })
+      return poll:Book()[300]
+    end
+
+    it("is the entry's own floor when any item level will do", function()
+      assert.equal(100000, GC.KeyPoll.FloorFor(ladder(), 0))
+      assert.equal(100000, GC.KeyPoll.FloorFor(ladder(), nil))
+    end)
+
+    it("is the cheapest variant at or above the item-level floor", function()
+      assert.equal(211111, GC.KeyPoll.FloorFor(ladder(), 20))
+      assert.equal(900000, GC.KeyPoll.FloorFor(ladder(), 610))
+      assert.equal(950000, GC.KeyPoll.FloorFor(ladder(), 611))
+    end)
+
+    it("has no answer when no variant reaches the floor, or there is no entry", function()
+      assert.is_nil(GC.KeyPoll.FloorFor(ladder(), 616))
+      assert.is_nil(GC.KeyPoll.FloorFor(nil, 0))
+      assert.is_nil(GC.KeyPoll.FloorFor({ itemID = 7, floor = 900 }, 610))
     end)
   end)
 

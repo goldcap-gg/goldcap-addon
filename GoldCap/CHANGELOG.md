@@ -1,5 +1,84 @@
 # GoldCap
 
+## 0.15.0 (2026-09-24)
+
+- The sniper now watches the prices you set in your alert groups on goldcap.gg. A listing at or
+  under your price shows up as a "YOUR PRICE" row, rings, and buys through the usual window.
+  Your prices are watched on both Deals boards and on the Sold tab while the GoldCap window is
+  open at the auction house, and wait while you use the Sell and BUY tabs; each find shows up on
+  its own board. Needs the current Companion release; the group's minimum item level is
+  honoured for gear. When you buy part of what is listed at your price, the rest comes back as
+  a row. The row names its alert group when there is room for it; hover it for the group and
+  what YOUR PRICE means. Its PROFIT is what reselling the whole buy at the market would make
+  after the cut, like every other row's.
+- A commodity at your price is bought cheapest first and no more than your "Max units per buy"
+  and your wallet limit allow; gear at your price keeps to your wallet limit too. The sniper
+  never plans a unit above your price, and warns you loudly before any quote that could include
+  one. If the listing at your price has gone by the time you check it, the buy window says what
+  the next one misses — your price or your item level — and holds its Buy button for a moment.
+  Buys at your price count in your session and your ledger like any other sniper buy.
+- New option: stop scanning and open the buy window as soon as one of your prices is met (off
+  by default). It never takes over a buy window you already have open: it waits until you
+  close it. The window it opens holds its Buy button for a moment, so a click meant for the
+  board does not land on it, and after you close one it waits two minutes before opening the
+  same item again.
+- Once you search, or open your favourites, on the auction house's own Buy tab, the sniper
+  leaves that list alone for as long as the tab shows it, with the GoldCap window open or closed.
+- The BUY tab shows the item level an alert group's gear price is set for ("item level 625+").
+  When the sniper has already seen the item at that level or higher, the auction house search it
+  opens shows the cheapest such version rather than whichever one the auction house picks.
+- A realm item listed in several item-level variants is now checked and bought at its cheapest
+  variant, not whichever one the auction house answered first.
+- The buy window's Reason line shows its whole sentence instead of cutting it off.
+- Clicking Buy right after a purchase was cancelled or sent back to a Check no longer sits on
+  "waiting for previous commodity purchase to settle": the click checks the price again, and
+  the next Buy goes through. While a purchase you confirmed is still going through, the next
+  buy window waits for it and offers Refresh as soon as it is done, and the BUY tab waits for
+  it too — in either direction, one purchase never starts on top of another you confirmed.
+- A price the auction house quotes in the buy window, left unconfirmed for 20 seconds — or
+  until the auction house's own quote runs out, if that is sooner — turns into Refresh, the way
+  an unclicked Buy already does. The last ten seconds count down, in the buy window and at the
+  start of the line waiting for its CONFIRM on the BUY tab.
+- The Auto button says what is holding it — "AUTO · PAUSED: MAILBOX OPEN", "BUY TAB", "WAITING
+  FOR YOU" and so on — and its tooltip says what to do about it. A mailbox you left by walking
+  straight to the auctioneer no longer keeps Auto paused.
+- Rows you watch show their discount, total and estimated profit against the market when the
+  addon knows a market value for the item, dimmed, until a live Check confirms them.
+- A scan you started yourself that stops because you left the Deals tab, searched the auction
+  house yourself or closed it now says so, instead of reading "scanning auction house..." until
+  the next scan.
+- Post on the Sell tab shows that it is posting — the button spins and says so, and pressing it
+  again does nothing meanwhile — then says Posted, or what went wrong in the auction house's own
+  words. A post the auction house answers late still counts as posted; while GoldCap waits for
+  that answer, up to a minute, the same item cannot be posted again.
+- The Deals tab names an auction house error in the game's own words instead of a generic one.
+- The Deals column headings no longer go blank after you visit another tab or reopen the
+  window.
+- THE BOOK on the Sell tab is drawn around your price: the cheapest prices, the ones just under
+  yours, your price with how many units are ahead of you — the ones already at your exact price
+  count, they sell first — and the ones above it. Walls, the big stacks worth pricing under, are
+  marked and named, with how long the queue ahead of you takes at today's pace. A row's
+  "N ahead" counts the same way.
+- The Sell tab lists gear and caged battle pets from your bags: a gear row names its item level,
+  a pet row the pet's level. Gear is priced from the live auction house for its exact item level
+  and a caged pet from the live listings of its kind — never from a market figure for other item
+  levels or other pets. An item the auction house has not told GoldCap about yet is listed under
+  its own heading instead of being left out.
+- With the current Companion, GoldCap knows every commodity in your region, not only the few
+  hundred that sell the most: tooltips show a fresh price for each of them, the Sell tab prices
+  every commodity in your bags from fresh market figures, and the sniper can check thousands more
+  against their own sales. `/goldcap status` says how many commodities it covers and how old it
+  is, or why it is not in use.
+- The sniper scans Miscellaneous items on every pass, alongside trade goods, consumables, gems
+  and enhancements. It checks first the deals most likely to sell, keeps paging the auction
+  house while it checks, and comes back to a deal it had no time to check two minutes later
+  instead of dropping it.
+- Hovering an item the sniper's scan saw in the last 15 minutes says what it was going for at the
+  auction house: "On the AH now", its cheapest price, how many were listed and how long ago, even
+  after you close the auction house. Gear and caged pets are left out.
+- Big numbers in tooltips are easier to read: "Sold per day" shows 29,728 instead of 29728.0,
+  and the listed counts are grouped the same way.
+
 ## 0.14.0 (2026-09-21)
 
 - **My lots tells you what to do with them.** The tab is split into three: lots that have
@@ -139,7 +218,6 @@
   left to the vendor. Free accounts can buy the first five lines of a run; Pro buys them all.
   A list synced by companion 1.9 reaches the game the way market data does — after a /reload or
   relog — or paste a run string from the site into Import.
-||||||| 7395efeb
 - **The ITEMS board keeps looking.** After a switch to ITEMS the board checked its items
   once and then stood still for the rest of the visit; it now goes round its list again every
   few seconds for as long as the board is on screen.

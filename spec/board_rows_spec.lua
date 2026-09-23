@@ -17,6 +17,14 @@ describe("BoardRows", function()
   after_each(function() _G.GetCoinTextureString = nil end)
 
   describe("Bucket", function()
+    -- Live price caps, addon task 6: a cap decision outranks every other bucket, including a
+    -- buyable commodity cap (DecideCommodity sets BOTH `cap` and `buyable` -- `cap` must win
+    -- first, or it would fall into the plain SAFE bucket it also qualifies for).
+    it("is CAP when the verdict carries a cap, buyable or not", function()
+      assert.equal("CAP", GC.BoardRows.Bucket({ cap = true, buyable = true }))
+      assert.equal("CAP", GC.BoardRows.Bucket({ cap = true, buyable = false, status = "WATCH" }))
+    end)
+
     it("is SAFE only when the verdict is buyable", function()
       assert.equal("SAFE", GC.BoardRows.Bucket({ buyable = true }))
     end)
@@ -36,6 +44,11 @@ describe("BoardRows", function()
   end)
 
   describe("Label", function()
+    it("reads YOUR PRICE for a cap verdict, ahead of SAFE's own money label", function()
+      assert.equal("YOUR PRICE", GC.BoardRows.Label({ cap = true, buyable = true, stressProfit = 50000 }))
+      assert.equal("YOUR PRICE", GC.BoardRows.Label({ cap = true, buyable = false, status = "WATCH" }))
+    end)
+
     it("reads SAFE +<money> from the verdict's stressProfit", function()
       local label = GC.BoardRows.Label({ buyable = true, stressProfit = 50000 })
       assert.equal("SAFE +5g", label)
@@ -89,6 +102,12 @@ describe("BoardRows", function()
   end)
 
   describe("Compare", function()
+    it("ranks CAP over SAFE, regardless of profit", function()
+      local rich = { estProfit = 999999 }
+      local poor = { estProfit = 1 }
+      assert.is_true(GC.BoardRows.Compare(poor, { cap = true, buyable = true }, false, rich, { buyable = true }, false))
+    end)
+
     it("ranks SAFE over WATCH over pending over the rest, regardless of profit", function()
       local rich = { estProfit = 999999 }
       local poor = { estProfit = 1 }

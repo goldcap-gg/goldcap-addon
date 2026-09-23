@@ -289,6 +289,60 @@ describe("Ledger store", function()
       assert.is_nil(entry.unverified)
     end)
 
+    -- Live price caps: a buy made on the player's own price. Its cost is exact -- the quote a
+    -- commodity Confirm paid, the buyout PlaceBid paid -- and it is a sniper purchase like any
+    -- other, so it is recorded. What it has none of is the engine's decision evidence: no
+    -- stress exit, no region reference, no decision version. None is invented; the row goes up
+    -- without the evidence group, which the upload treats as all-or-nothing and optional.
+    describe("a buy on the player's own price", function()
+      local EVIDENCE = { "decisionVersion", "decisionStatus", "decisionReasons", "stressUnit",
+        "expectedProfit", "recommendedQuantity", "sourceAt" }
+
+      local function capFacts(overrides)
+        local facts = { itemID = 210930, quantity = 20, total = 29000000, unitDisplay = 1450000,
+          cap = true, expectedProfit = 0 }
+        for k, v in pairs(overrides or {}) do facts[k] = v end
+        return facts
+      end
+
+      it("records what it cost, as a sniper buy, with no decision evidence", function()
+        local entry = GC.Ledger.RecordSniperBuy(
+          { itemID = 210930, qty = 20, unitPrice = 1000000, cap = 2000000 }, capFacts(), context, 5000)
+
+        assert.equal("buy", entry.kind)
+        assert.equal("goldcap_sniper", entry.source)
+        assert.equal(20, entry.qty)
+        assert.equal(29000000, entry.total)
+        assert.equal(5000, entry.at)
+        assert.equal("Belarsa-Dentarg", entry.char)
+        assert.is_true(entry.cap)
+        for _, field in ipairs(EVIDENCE) do
+          assert.is_nil(entry[field], field .. " is evidence a cap buy does not have")
+        end
+      end)
+
+      it("never writes part of an evidence group, even when handed one", function()
+        local entry = GC.Ledger.RecordSniperBuy({ itemID = 210930 }, capFacts({
+          decisionVersion = 1, decisionStatus = "SAFE", decisionReasons = {}, stressUnit = 5,
+        }), context, 5000)
+        for _, field in ipairs(EVIDENCE) do assert.is_nil(entry[field]) end
+      end)
+
+      it("still refuses a cap buy whose cost is not sound", function()
+        assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930 }, capFacts({ total = 0 }), context, 1))
+        assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930 }, capFacts({ quantity = 1.5 }), context, 1))
+        assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930 }, capFacts({ unitDisplay = 1 }), context, 1))
+        assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 7 }, capFacts(), context, 1))
+        assert.equal(0, #GC.Ledger.GetEntries())
+      end)
+
+      it("does not let an ordinary buy skip its evidence by claiming nothing", function()
+        assert.is_nil(GC.Ledger.RecordSniperBuy({ itemID = 210930 },
+          capFacts({ cap = "yes" }), context, 1))
+        assert.equal(0, #GC.Ledger.GetEntries())
+      end)
+    end)
+
     it("rejects non-finite and unsafe direct purchase facts without recording a ledger row", function()
       local MAX_EXACT = 9007199254740991
       local cases = {

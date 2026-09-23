@@ -12,8 +12,9 @@ describe("Sell quote and action wiring", function()
     -- A Sell quote is judged against the tab's own window, not the Sniper's 10s:
     -- a purchase commits gold against one price point, a listing competes over
     -- hours, and a 10s window made Post unclickable.
+    -- By the position's quote id: an item-level variant is priced from its own key.
     assert.is_truthy(text:find(
-      "GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
+      "GC.QuoteCache.Fresh(quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)", 1, true))
     -- Dated from the ASK, not from the moment the reply was processed: the results events carry
     -- no request identifier, so a late reply can still be credited to a re-ask of the same item
     -- once the drain fence has lifted. Stamping with pending.at can only make a quote look older
@@ -37,7 +38,9 @@ describe("Sell quote and action wiring", function()
 
   it("uses exact live bag identity and leaves ambiguous normal variants without an action", function()
     local text = source()
-    assert.is_truthy(text:find("normalizedPositionKey(position.itemID, link) == position.positionKey", 1, true))
+    -- Keyed exactly as the bag scan keyed it: the link where it can say, else the slot's own
+    -- ItemKey (GC.Sell._SlotKey), so Post pins the very stack the row stands for.
+    assert.is_truthy(text:find("GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey", 1, true))
     assert.is_truthy(text:find("exactQty = total", 1, true))
     assert.is_truthy(text:find("reason == \"ambiguous_variant\"", 1, true))
   end)

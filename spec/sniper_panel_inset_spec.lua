@@ -79,6 +79,8 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       GetVerticalScrollRange = function() return 0 end,
       SetWordWrap = function() end,
       SetMaxLines = function() end,
+      -- The dialog's Reason row wraps, and layoutBlocks sizes the transcript off its height.
+      GetStringHeight = function() return 0 end,
       SetSpacing = function() end,
       Enable = function() end,
       Disable = function() end,
@@ -450,6 +452,111 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       assert.equal(rec.reconcile.top - rec.reconcile.height, rec.facts.top)
       -- A refusal is the SHORTER shape, which is what let the toggle open in the docked drawer.
       assert.is_true(d.fixedHeightOpen < 550)
+    end)
+
+    -- In game 2026-09-23 the Reason ended in "...": it wraps now, and whatever its sentence
+    -- takes past its own row is the transcript's -- and the fit guard's -- to pay for.
+    it("grows the transcript by what the wrapped Reason needs past its own row", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+      local oneLine, openOneLine = rec.grid.height, d.fixedHeightOpen
+
+      d.reasonText.GetStringHeight = function() return 43.5 end -- three lines' worth
+      d.layoutBlocks({ reconcile = false, actionable = true })
+
+      local DG = getUpvalue(getUpvalue(d.applyDetailsState, "layoutBlocks"), "DG")
+      assert.equal(DG.GRID_H, oneLine) -- one line fits its own row: nothing added
+      assert.equal(DG.GRID_H + 44 - DG.GRID_ROW_H, rec.grid.height)
+      assert.equal(openOneLine + 44 - DG.GRID_ROW_H, d.fixedHeightOpen)
+      assert.equal(d.fixedHeightOpen, d.fixedHeight)
+    end)
+
+    -- Review M1: the fit guard ran on a toggle, a resize and the dialog's creation -- not when a
+    -- longer Reason was stamped, so a three- or four-line one pushed the open transcript down
+    -- into the status line and the Buy button of a docked drawer that has no room to grow.
+    it("closes the transcript quietly when a longer Reason stops it fitting the window", function()
+      local d = realDialog(true)
+      local rec = watchAll(d)
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+      local fits = d.fixedHeightOpen
+      d.GetHeight = function() return fits + 5 end -- the docked drawer: five pixels to spare
+
+      d.reasonText.GetStringHeight = function() return 60 end
+      d.layoutBlocks({ reconcile = false, actionable = true })
+
+      assert.is_false(d.detailsOpen)
+      assert.is_false(rec.grid.shown)
+      assert.is_true(rec.facts.shown)
+      assert.equal(d.fixedHeightClosed, d.fixedHeight)
+    end)
+
+    -- Follow-up 2 (P4): that quiet close is this window's alone. It keeps the saved preference
+    -- (open) but left the window's own flag shut, and nothing set it again: the next window --
+    -- a one-line Reason with room to spare -- opened with Details closed until SHOW DETAILS.
+    it("opens the next window's transcript again, as the player saved it", function()
+      local _, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = true } } }
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local d = getUpvalue(openDialog, "createDialog")()
+      setUpvalue(openDialog, "dialog", d) -- the one window every open reuses
+      _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+      finally(function() _G.Item = nil end)
+      -- The Check the open starts waits for an item key nothing here will ever send.
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+        getKeyInfo = function() return nil end, isReady = function() return false end,
+        sendSearch = function() end, onStatus = function() end,
+      })
+      local rec = watchAll(d)
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+      local fits = d.fixedHeightOpen
+      d.GetHeight = function() return fits + 5 end
+      d.reasonText.GetStringHeight = function() return 60 end
+      d.layoutBlocks({ reconcile = false, actionable = true })
+      assert.is_false(d.detailsOpen) -- the long Reason closed it, quietly
+      assert.is_true(GC.db.settings.sniper.dialogDetailsOpen) -- the player's choice stands
+
+      d.row = nil -- that window was closed
+      d.reasonText.GetStringHeight = function() return 0 end -- the next one's Reason is one line
+      local deal = { itemID = 42, isCommodity = true, unitPrice = 100, qty = 1, stale = true }
+      openDialog({ deal = deal, purchaseToken = 1 }, deal)
+
+      assert.is_true(d.detailsOpen)
+      assert.is_true(rec.grid.shown)
+      assert.is_false(rec.facts.shown)
+    end)
+
+    it("leaves the next window's transcript closed when the player closed it", function()
+      local _, GC = buildFrame()
+      GC.db = { settings = { sniper = { dialogDetailsOpen = false } } }
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local d = getUpvalue(openDialog, "createDialog")()
+      setUpvalue(openDialog, "dialog", d)
+      _G.Item = { CreateFromItemID = function() return { ContinueOnItemLoad = function() end } end }
+      finally(function() _G.Item = nil end)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+        getKeyInfo = function() return nil end, isReady = function() return false end,
+        sendSearch = function() end, onStatus = function() end,
+      })
+      d.GetHeight = function() return 10000 end
+
+      local deal = { itemID = 42, isCommodity = true, unitPrice = 100, qty = 1, stale = true }
+      openDialog({ deal = deal, purchaseToken = 1 }, deal)
+
+      assert.is_false(d.detailsOpen)
     end)
 
     it("swaps the facts for the transcript rather than stacking both", function()

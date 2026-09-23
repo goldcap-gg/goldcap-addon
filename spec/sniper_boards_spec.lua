@@ -100,7 +100,8 @@ describe("Deals boards: commodities and items", function()
           PauseReasons = function() return {} end, Tick = function() end }
       end },
       Data = { GetItemValue = function() return nil end, GetWatchlist = function() return {} end,
-        OriginState = function() return "manual" end },
+        OriginState = function() return "manual" end,
+        FactItemIds = function() return { 10 } end },
       Scanner = { New = function() return { Start = function() end, Stop = function() end } end },
       Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end },
       SniperDecision = { Evaluate = function() return {} end, MarketFromValue = function() return {} end,
@@ -118,7 +119,7 @@ describe("Deals boards: commodities and items", function()
       Trigger = { AnyArmed = function() return true end,
         RealmReference = function(value) return value and value.ref end },
       Print = function() end,
-      db = { imported = { verification = { [10] = {} } },
+      db = {
         settings = { sniper = { sound = false, showRefused = false, watchPins = {} } } },
     }
     helper.loadModule("Core/BookPass.lua", GC)
@@ -312,6 +313,23 @@ describe("Deals boards: commodities and items", function()
 
       local text = emptyText(api)
       assert.is_truthy(text:find("No gear, pets or recipes under their region price", 1, true))
+    end)
+
+    -- Caps fixes 4a: the player's caps left the realm poll for a poll of their own, so an empty
+    -- realm poll no longer means nothing on this board is being watched.
+    it("does not call a board with a capped realm item on it unwatched", function()
+      local api = loadSniper()
+      api.GC.Sniper._SetBoard("items")
+      api.GC.Sniper._keyPoll:SetTargets({})
+      api.GC.Caps = { Count = function() return 2 end, Targets = function() return { 10, 900 } end }
+      api.GC.db.commodityByItem = { [10] = true }
+
+      local text = emptyText(api)
+      assert.is_nil(text:find("Nothing to watch on this board yet.", 1, true))
+
+      -- Commodity caps alone do not count: they are the other board's.
+      api.GC.Caps.Targets = function() return { 10 } end
+      assert.is_truthy(emptyText(api):find("Nothing to watch on this board yet.", 1, true))
     end)
 
     it("says the import carries nothing to watch when the poll set is empty", function()

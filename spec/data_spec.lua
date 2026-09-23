@@ -532,4 +532,312 @@ describe("Data", function()
     assert.is_nil(GC.Data.GetItemValue(42).reach)
     assert.equal(6500, GC.Data.GetItemValue(42).p25)
   end)
+
+  describe("with a region payload", function()
+    local FACT = { sourceAt = 1, stressUnit = 5000, sellThroughBps = 7000, liquidityConfidence = 70,
+      currentQty = 1, listings = 3, observations = 12, madBps = 0, flags = 0 }
+    -- 42: a commodity with facts in both the payload and the import. 44: a commodity only the
+    -- payload prices, with no sale in 24 h. 43: a realm item the payload references (bundled has it
+    -- too). 45: a realm item with both a T reference and an M reference. 46: an imported realm item.
+    local PAYLOAD = "GCM1;eu;3000;I:42=4100=6.0,44=900"
+      .. ";V:42=2990=3800=8000=85=40=4=12=90=0;Q:42=4000;R:42=4300;M:43=720=11,45=2000=3"
+
+    before_each(function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [42] = { m = 4000, s = 3 }, [46] = { m = 1234 } },
+        verification = { [42] = FACT },
+        targets = { [45] = { ref = 1900, ilvl = 0 } },
+        watchlist = {} })
+      assert.is_truthy(GC.Data.AdoptRegionPayload(PAYLOAD))
+    end)
+
+    it("answers a commodity from the payload ahead of the import", function()
+      local v = GC.Data.GetItemValue(42)
+      assert.equal("region", v.source)
+      assert.equal("region_commodity", v.kind)
+      assert.equal(4100, v.mv)
+      assert.equal(6, v.sold)
+      assert.equal(3000, v.ts)
+      assert.equal(2990, v.sourceAt)
+      assert.equal(3800, v.stressUnit)
+      assert.equal(4000, v.p25)
+      assert.equal(4300, v.reach)
+    end)
+
+    it("prices a commodity with no fact, dated by the payload and never armable", function()
+      local v = GC.Data.GetItemValue(44)
+      assert.equal("region_commodity", v.kind)
+      assert.equal(900, v.mv)
+      assert.equal(3000, v.sourceAt)
+      assert.is_nil(v.stressUnit)
+    end)
+
+    it("still answers an imported realm item from the import", function()
+      local v = GC.Data.GetItemValue(46)
+      assert.equal("import", v.source)
+      assert.equal(1234, v.mv)
+    end)
+
+    it("takes the import's T reference ahead of the payload's M reference", function()
+      local v = GC.Data.GetItemValue(45)
+      assert.equal("import", v.source)
+      assert.equal(1900, v.ref)
+    end)
+
+    it("takes the payload's M reference ahead of the bundled table", function()
+      local v = GC.Data.GetItemValue(43)
+      assert.same({ mv = 720, listings = 11, ts = 3000, source = "region", kind = "realm_item" }, v)
+    end)
+
+    it("hands out the payload's fact for an item it prices, even one with no fact of its own", function()
+      assert.equal(3800, GC.Data.Facts(42).stressUnit)
+      assert.is_nil(GC.Data.Facts(44))
+      assert.is_nil(GC.Data.Facts(46))
+    end)
+
+    it("stops answering from the payload the moment prices from another region are loaded", function()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      assert.equal("import", GC.Data.GetItemValue(42).source)
+      assert.equal(9, GC.Data.GetItemValue(42).mv)
+      assert.same({ reason = "other_region", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    -- A Companion that stopped syncing leaves its last payload on disk, adopted again on every
+    -- load; a fresher import of the same region -- a manual paste -- has to win over it, facts and
+    -- all, or every tooltip and Check reads days-old prices until the AppData folder is deleted.
+    -- One second past the window: the rule is "more than 3 h", and nothing wider.
+    it("yields to an import of its region more than 3 h newer than it", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3 * 3600 + 1,
+        items = { [42] = { m = 9999, s = 5 } }, verification = { [42] = FACT }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      local v = GC.Data.GetItemValue(42)
+      assert.equal("import", v.source)
+      assert.equal(9999, v.mv)
+      assert.equal(5000, GC.Data.Facts(42).stressUnit)
+      assert.equal(700, GC.Data.GetItemValue(43).mv) -- bundled again, not the payload's M
+      assert.same({ reason = "older_than_import", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    -- The site dates an import string by its newest snapshot, commodity or realm, and the payload
+    -- by its commodity snapshot, so within one sync the import is legitimately up to an hour newer.
+    it("keeps answering while an import of its region is at most 3 h newer", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3 * 3600,
+        items = { [42] = { m = 9999, s = 5 } }, verification = { [42] = FACT }, watchlist = {} })
+      assert.is_truthy(GC.Data.RegionPayload())
+      -- Everything the import has no fresher fact for (42 is the import's now -- see "one item at a
+      -- time" below).
+      assert.equal("region", GC.Data.GetItemValue(44).source)
+      assert.equal(720, GC.Data.GetItemValue(43).mv)
+      assert.is_nil(GC.Data.RegionPayloadStatus())
+    end)
+
+    -- Final review M4 and e2e m4: which of the two answers is decided one item at a time. The import
+    -- answers for an item instead of the payload when it carries a fact for it and the payload
+    -- either carries none (V covers only what sold in 24 h; the import's busiest 400 all carry one)
+    -- or is older than the import. Every reader of facts agrees with GetItemValue item by item.
+    describe("one item at a time", function()
+      local function listed(id)
+        for _, fid in ipairs(GC.Data.FactItemIds()) do
+          if fid == id then return true end
+        end
+        return false
+      end
+      local function agrees(id)
+        local v, fact = GC.Data.GetItemValue(id), GC.Data.Facts(id)
+        assert.equal(fact and fact.stressUnit, v.stressUnit)
+        assert.equal(fact ~= nil, listed(id))
+      end
+
+      it("answers from the payload when both carry the fact from the same snapshot", function()
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+          items = { [42] = { m = 4000, s = 3 } }, verification = { [42] = FACT }, watchlist = {} })
+        local v = GC.Data.GetItemValue(42)
+        assert.equal("region", v.source)
+        assert.equal(3800, v.stressUnit)
+        agrees(42)
+      end)
+
+      it("answers from the import for an item it has a fact for and the payload has none", function()
+        local fact44 = { sourceAt = 2990, stressUnit = 850, sellThroughBps = 0, liquidityConfidence = 40,
+          currentQty = 25, listings = 3, observations = 12, madBps = 0, flags = 0 }
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+          items = { [44] = { m = 950, s = 0 } }, verification = { [44] = fact44 }, watchlist = {} })
+        local v = GC.Data.GetItemValue(44)
+        assert.equal("import", v.source)
+        assert.equal("region_commodity", v.kind)
+        assert.equal(950, v.mv)
+        assert.equal(25, v.currentQty)
+        agrees(44)
+        -- The tooltip's depth line, which the payload's fact-less answer could not give.
+        helper.loadModule("Locale/Core.lua", GC)
+        helper.loadModule("UI/Tooltip.lua", GC)
+        local depth
+        for _, line in ipairs(GC.Tooltip.BuildLines(v, 3000)) do
+          if line.left == "Listed" then depth = line end
+        end
+        assert.is_truthy(depth)
+        assert.equal("25", depth.right:match("^(%d+)"))
+      end)
+
+      it("answers from an import newer than the payload that carries the fact", function()
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3600,
+          items = { [42] = { m = 4200, s = 4 } }, verification = { [42] = FACT }, watchlist = {} })
+        local v = GC.Data.GetItemValue(42)
+        assert.equal("import", v.source)
+        assert.equal(4200, v.mv)
+        assert.equal(5000, v.stressUnit)
+        agrees(42)
+        assert.equal("region", GC.Data.GetItemValue(44).source)
+      end)
+
+      it("answers from the payload for an item a newer import has no fact for", function()
+        GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3600,
+          items = { [42] = { m = 4200, s = 4 }, [7] = { m = 1 } }, verification = { [7] = FACT },
+          watchlist = {} })
+        local v = GC.Data.GetItemValue(42)
+        assert.equal("region", v.source)
+        assert.equal(4100, v.mv)
+        assert.equal(3800, v.stressUnit)
+        agrees(42)
+      end)
+    end)
+
+    -- A payload that stops answering mid-session is let go there and then, like one that could not
+    -- answer at load: held, it would come back into play the moment the loaded import changed back.
+    it("does not come back when a newer import of its region is replaced by an older one", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 4 * 3600,
+        items = { [42] = { m = 9999 } }, watchlist = {} })
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2500,
+        items = { [42] = { m = 8888 } }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      assert.equal("import", GC.Data.GetItemValue(42).source)
+      assert.equal(8888, GC.Data.GetItemValue(42).mv)
+      assert.is_nil(GC.Data.RegionPayloadMemoryKB())
+      -- Not "older than the import" any more: that was true of the import it was dropped for.
+      assert.same({ reason = "set_aside", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    it("does not come back when another region's prices are replaced by its own region's", function()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3600,
+        items = { [42] = { m = 8888 } }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      assert.equal("import", GC.Data.GetItemValue(42).source)
+      assert.equal(8888, GC.Data.GetItemValue(42).mv)
+      -- Its own region's prices are loaded again, so "another region" would send the player after
+      -- the wrong cause.
+      assert.same({ reason = "set_aside", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    it("keeps the reason it was set aside for while that reason still holds", function()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 6000,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      assert.same({ reason = "other_region", ts = 3000 }, GC.Data.RegionPayloadStatus())
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 5 * 3600,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      assert.same({ reason = "older_than_import", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    -- The sniper's empty board is the one caller, and it only asks while that board is on screen and
+    -- empty: a memo holding the payload would keep megabytes alive for the rest of the session.
+    it("lets go of a dropped payload even when the facts list was read while it answered", function()
+      local held = setmetatable({}, { __mode = "v" })
+      GC.Data.AdoptRegionPayload(nil)
+      held.payload = GC.Data.AdoptRegionPayload(PAYLOAD)
+      GC.Data.FactItemIds()
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [42] = { m = 9 } }, watchlist = {} })
+      collectgarbage("collect")
+      collectgarbage("collect")
+      assert.is_nil(held.payload)
+    end)
+
+    it("lets go of a replaced payload even when the facts list was read while it answered", function()
+      local held = setmetatable({}, { __mode = "v" })
+      GC.Data.AdoptRegionPayload(nil)
+      held.payload = GC.Data.AdoptRegionPayload(PAYLOAD)
+      GC.Data.FactItemIds()
+      GC.Data.AdoptRegionPayload("GCM1;eu;3100;I:50=900")
+      collectgarbage("collect")
+      collectgarbage("collect")
+      assert.is_nil(held.payload)
+    end)
+  end)
+  describe("FactItemIds", function()
+    local FACT = { sourceAt = 1, stressUnit = 5000, sellThroughBps = 7000, liquidityConfidence = 70,
+      currentQty = 1, listings = 3, observations = 12, madBps = 0, flags = 0 }
+
+    it("lists the import's facts when there is no payload", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [42] = { m = 1 }, [7] = { m = 1 } }, verification = { [42] = FACT, [7] = FACT }, watchlist = {} })
+      assert.same({ 7, 42 }, GC.Data.FactItemIds())
+    end)
+
+    it("lists the payload's facts, plus the import's for items the payload does not price", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [42] = { m = 1 }, [7] = { m = 1 } }, verification = { [42] = FACT, [7] = FACT }, watchlist = {} })
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:42=4100=6.0,50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      -- 42 is priced by the payload with no fact of its own, so the import's fact answers for it.
+      assert.same({ 7, 42, 50 }, GC.Data.FactItemIds())
+    end)
+
+    it("hands back the same table while nothing changed, and a new one when a source did", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [7] = { m = 1 } }, verification = { [7] = FACT }, watchlist = {} })
+      local first = GC.Data.FactItemIds()
+      assert.equal(first, GC.Data.FactItemIds())
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      assert.not_equal(first, GC.Data.FactItemIds())
+    end)
+
+    -- A fact the payload carries for an item it does not price is not the one Facts answers with:
+    -- the import's is, or none. The parser keeps V tokens whatever became of their I token.
+    it("lists an item the payload has a fact for but does not price only by the import, once", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [60] = { m = 1 } }, verification = { [60] = FACT }, watchlist = {} })
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900;V:50=2990=800=8000=85=40=4=12=90=0,"
+        .. "60=2990=800=8000=85=40=4=12=90=0,61=2990=800=8000=85=40=4=12=90=0")
+      assert.same({ 50, 60 }, GC.Data.FactItemIds())
+    end)
+
+    it("lists a new import's facts while a payload answers", function()
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+        items = { [7] = { m = 1 } }, verification = { [7] = FACT }, watchlist = {} })
+      assert.same({ 7, 50 }, GC.Data.FactItemIds())
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+        items = { [8] = { m = 1 } }, verification = { [8] = FACT }, watchlist = {} })
+      assert.same({ 8, 50 }, GC.Data.FactItemIds())
+    end)
+
+    -- The payload stops answering the moment another region's prices load: its facts go with it.
+    it("drops the payload's facts once the payload no longer answers", function()
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      assert.same({ 50 }, GC.Data.FactItemIds())
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [7] = { m = 1 } }, verification = { [7] = FACT }, watchlist = {} })
+      assert.same({ 7 }, GC.Data.FactItemIds())
+    end)
+
+    -- GetStatus never measures memory -- that is a full collection, and the ledger falls back to
+    -- GetStatus -- so the figure is there only once the status command has asked for it.
+    it("reports the active payload on GetStatus", function()
+      assert.is_nil(GC.Data.GetStatus().payload)
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900,51=1;V:50=2990=800=8000=85=40=4=12=90=0;M:9=20000=2")
+      local status = GC.Data.GetStatus().payload
+      assert.equal(2, status.items)
+      assert.equal(1, status.facts)
+      assert.equal(1, status.refs)
+      assert.equal(3000, status.ts)
+      assert.is_nil(status.memoryKB)
+      local kb = GC.Data.RegionPayloadMemoryKB()
+      assert.is_true(kb >= 0)
+      assert.equal(kb, GC.Data.GetStatus().payload.memoryKB)
+    end)
+  end)
 end)

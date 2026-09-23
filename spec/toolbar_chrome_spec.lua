@@ -223,7 +223,8 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     assert.same({ "pause:buy", "resume:buy" }, calls)
   end)
 
-  it("renders 'AUTO · PAUSED: selling' when the sell pause reason is the one set", function()
+  -- Plain words since in game 2026-09-23 (spec/auto_pause_reasons_spec.lua has the rest).
+  it("renders 'AUTO · PAUSED: SELL TAB' when the sell pause reason is the one set", function()
     local GC = loadSniper()
     local createFrame = upvalue(GC.Sniper.OnAuctionHouseShow, "createFrame")
     local setView = upvalue(createFrame, "setView")
@@ -231,7 +232,7 @@ describe("Toolbar chrome: shared status channel + honest session block", functio
     local refreshAutoButton = upvalue(feedAuto, "refreshAutoButton")
     local autoButtonText = upvalue(refreshAutoButton, "autoButtonText")
 
-    assert.equal("AUTO · PAUSED: selling", autoButtonText("PAUSED", { sell = true }))
+    assert.equal("AUTO · PAUSED: SELL TAB", autoButtonText("PAUSED", { sell = true }))
   end)
 end)
 

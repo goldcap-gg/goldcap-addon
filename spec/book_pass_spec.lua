@@ -332,4 +332,321 @@ describe("BookPass", function()
     now = 1000 + 600
     assert.is_true(bp:IsWidePassDue()) -- due again after another 300s
   end)
+
+  describe("re-hits (whole-market coverage)", function()
+    local function passOf(rows, bp)
+      browseResults = rows
+      bp:Start("classes")
+      bp:OnThrottleReady()
+      bp:OnResultsUpdated()
+    end
+
+    it("reports an unchanged floor again once the queue lost it, no sooner than rehitSeconds after the last report", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(1, #hits)
+      bp:Lost(1, 500)
+      now = 1000 + 60
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(1, #hits)            -- lost, but only 60 s since it was reported
+      now = 1000 + 120
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(2, #hits)            -- lost, and 120 s on: reported again
+      assert.is_true(hits[2].rehit)
+      assert.equal(1, bp:Rehits())
+      now = 1000 + 400
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(2, #hits)            -- not lost again since: silent, as before
+    end)
+
+    it("still reports a floor that moved at once, lost or not", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      bp:Lost(1, 500)
+      now = 1000 + 5
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(2, #hits)
+      assert.is_nil(hits[2].rehit)
+      assert.equal(0, bp:Rehits())
+    end)
+
+    it("never re-reports an unchanged floor nobody lost", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      now = 1000 + 600
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(1, #hits)
+    end)
+
+    -- Fix round 1 (m2): an entry for a floor the book has moved off can age out in the queue after
+    -- the new floor's hit was drilled. That loss says nothing about the floor on offer now.
+    it("ignores a loss of a floor the book no longer shows", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      now = 1000 + 10
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(2, #hits)
+      bp:Lost(1, 500)                   -- the 500 entry aged out; 490 is what the book shows
+      now = 1000 + 400
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(2, #hits)
+      bp:Lost(1, 490)
+      now = 1000 + 401
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(3, #hits)
+      assert.is_true(hits[3].rehit)
+    end)
+
+    it("forgets what it lost when the auction house closes", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      bp:Lost(1, 500)
+      bp:Reset()
+      now = 1000 + 5
+      passOf({ row(1, 500, 10) }, bp)  -- the first sighting after a reset reports, as always
+      assert.equal(2, #hits)
+      assert.is_nil(hits[2].rehit)
+    end)
+
+    -- Fix round 1 (m5): Reset also empties the book, so the next sighting is a first one whatever
+    -- `lost` still holds -- the test above cannot tell. Read the two tables Reset must empty.
+    it("empties its loss and report memory on Reset", function()
+      local function upvalue(fn, wanted)
+        for i = 1, math.huge do
+          local name, value = debug.getupvalue(fn, i)
+          if not name then break end
+          if name == wanted then return value end
+        end
+        error("missing upvalue " .. wanted)
+      end
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      bp:Lost(1, 500)
+      -- From the closures that use them, not from Reset's own: a Reset that stopped touching them
+      -- must fail the assertions below, not the lookup.
+      local lost = upvalue(bp.Lost, "lost")
+      local foldRow = upvalue(upvalue(bp.OnResultsUpdated, "handleResults"), "foldRow")
+      local reportedAt = upvalue(foldRow, "reportedAt")
+      assert.is_true(lost[1])
+      assert.equal(1000, reportedAt[1])
+      bp:Reset()
+      assert.is_nil(next(lost))
+      assert.is_nil(next(reportedAt))
+    end)
+  end)
+
+  it("keeps what it saw in the last seenSeconds readable across Reset, for the tooltip", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()            -- folded at now = 1000
+    now = 1500
+    bp:Reset()
+    assert.is_nil(bp:Book()[1])
+    assert.same({ floor = 500, qty = 7, seenAt = 1000, kind = "classes" }, bp:Seen(1))
+    now = 1000 + 900
+    bp:Reset()
+    assert.is_nil(bp:Seen(1))
+  end)
+
+  it("keeps nothing across Reset by default", function()
+    local bp = newPass()
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()
+    assert.equal(500, bp:Seen(1).floor)
+    bp:Reset()
+    assert.is_nil(bp:Seen(1))
+  end)
+
+  it("answers Seen from this session's book before anything carried over Reset", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()
+    now = 1100
+    bp:Reset()
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 450, 9) }
+    bp:OnResultsUpdated()
+    assert.same({ floor = 450, qty = 9, seenAt = 1100, kind = "classes" }, bp:Seen(1))
+  end)
+
+  -- The book is keyed by item, the browse list by item KEY: a piece of gear comes back as one row
+  -- per item level, and every caged pet as item 82800 with its own species. The book row is
+  -- whichever of them was folded last, so it is marked, and the tooltip does not print it as the
+  -- item's price (UI/SniperFrame.lua's LiveFloor).
+  it("marks an item that came back as more than one variant, and keeps the mark for the visit", function()
+    local function variantRow(itemID, minPrice, qty, itemLevel)
+      return { itemKey = { itemID = itemID, itemLevel = itemLevel }, minPrice = minPrice, totalQuantity = qty }
+    end
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { variantRow(5, 900, 1, 606), variantRow(6, 300, 2, 600), variantRow(5, 70000, 1, 623) }
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Seen(5).variants)
+    assert.is_nil(bp:Seen(6).variants)
+    -- The next pass's first row of the item does not make it a single-variant item again.
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { variantRow(5, 900, 1, 606) }
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Seen(5).variants)
+    -- Final review M1: nothing would print a variant's row, so it is not carried over the close.
+    now = 1100
+    bp:Reset()
+    assert.is_nil(bp:Seen(5))
+    assert.equal(300, bp:Seen(6).floor)
+  end)
+
+  -- Every caged pet is item 82800 with its own species: a pet row is one species of the cage, never
+  -- the cage's floor, even when it is the only one the pass has met so far.
+  it("marks a caged pet as one of its variants from its first row", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { { itemKey = { itemID = 82800, battlePetSpeciesID = 1234 }, minPrice = 5000,
+      totalQuantity = 1 } }
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Seen(82800).variants)
+  end)
+
+  -- Final review M1: Reset used to carry every row of the last book, tens of thousands on a big realm,
+  -- for the rest of the session. Only a row the tooltip could print is worth the memory.
+  it("carries over Reset only the rows the driver would tell", function()
+    local driver = fakeDriver()
+    driver.keepSeen = function(itemID, kept)
+      assert.equal("number", type(kept.floor))
+      return itemID ~= 2
+    end
+    local bp = GC.BookPass.New(driver, { seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7), row(2, 600, 8) }
+    bp:OnResultsUpdated()
+    now = 1100
+    bp:Reset()
+    assert.equal(500, bp:Seen(1).floor)
+    assert.is_nil(bp:Seen(2))
+  end)
+
+  -- What Reset carried over, read off Seen's own upvalue.
+  local function recentOf(bp)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(bp.Seen, i)
+      if not name then break end
+      if name == "recent" then return value end
+    end
+    error("missing upvalue recent")
+  end
+
+  -- ... and it goes once it can no longer answer: a Start lets go of every carried row past the
+  -- window, and of every one this visit's book has seen again (Seen answers from the book first).
+  it("lets go at Start of carried rows past the window, and of rows the book has seen again", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7), row(2, 600, 8) }
+    bp:OnResultsUpdated()                 -- seenAt 1000
+    now = 1200
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7), row(2, 600, 8), row(3, 700, 9) }
+    bp:OnResultsUpdated()
+    bp:Reset()                            -- carries 1, 2 and 3, all seen at 1200
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(2, 650, 8) }
+    bp:OnResultsUpdated()                 -- the new visit's book sees 2 again
+    local recent = recentOf(bp)
+    assert.equal(600, recent[2].floor)    -- not yet: let go at the NEXT Start
+    now = 1200 + 899
+    bp:Start("classes")
+    recent = recentOf(bp)
+    assert.is_nil(recent[2])
+    assert.equal(500, recent[1].floor)
+    now = 1200 + 900
+    bp:Start("classes")
+    recent = recentOf(bp)
+    assert.is_nil(next(recent))
+    assert.equal(650, bp:Seen(2).floor)   -- the book's row is untouched
+  end)
+
+  -- An emptied table keeps the slots it grew to. Emptied by Reset's own writes -- every carried row
+  -- seen again this visit, and the visit longer than the window -- it is replaced all the same
+  -- (final re-review N3).
+  it("replaces the carried-over table once Reset has emptied it", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()                 -- seenAt 1000
+    bp:Reset()                            -- carries 1
+    local carried = recentOf(bp)
+    assert.equal(500, carried[1].floor)
+    now = 1100
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()                 -- seen again, at 1100
+    now = 1100 + 900
+    bp:Reset()                            -- too old to carry: Reset's own write empties the table
+    assert.is_nil(next(recentOf(bp)))
+    assert.is_false(rawequal(carried, recentOf(bp)))
+  end)
+
+  -- The close path schedules this for LIVE_TOOLTIP_SECONDS after the close (UI/SniperFrame.lua): by
+  -- then every row that close carried is past the window. A later close's rows are not, and the book
+  -- of a visit open when it fires is never touched.
+  it("Prune lets go of what the window no longer covers, and never touches the book", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()                 -- seenAt 1000
+    bp:Reset()                            -- first close, at 1000
+    now = 1300
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(2, 600, 8) }
+    bp:OnResultsUpdated()                 -- seenAt 1300
+    bp:Reset()                            -- second close, at 1300
+    now = 1400
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(3, 700, 9) }
+    bp:OnResultsUpdated()                 -- a third visit, open when the first close's timer fires
+    now = 1000 + 900
+    bp:Prune()
+    assert.is_nil(bp:Seen(1))
+    assert.equal(600, bp:Seen(2).floor)
+    assert.equal(700, bp:Seen(3).floor)
+    assert.equal(700, bp:Book()[3].floor)
+  end)
+
+  -- Gear the auction house lists at ONE item level is never marked above, so the row keeps the level
+  -- it was listed at: the reader (UI/SniperFrame.lua's LiveFloor) refuses a leveled row of anything
+  -- that is not a commodity, whatever level the player's own copy is.
+  it("keeps the item level of the row it kept, for gear listed at one level", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { { itemKey = { itemID = 6, itemLevel = 600 }, minPrice = 300, totalQuantity = 2 },
+      row(7, 500, 9) }
+    bp:OnResultsUpdated()
+    assert.is_nil(bp:Seen(6).variants)
+    assert.equal(600, bp:Seen(6).itemLevel)
+    assert.is_nil(bp:Seen(7).itemLevel)
+  end)
 end)

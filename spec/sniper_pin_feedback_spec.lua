@@ -203,7 +203,9 @@ describe("Sniper pin feedback and empty state", function()
 
     it("names the hidden and refused counts when the filters emptied the board", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 990, verification = { [1] = true } }
+      GC.db.imported = { ts = 990 }
+      local ids = { 1 }
+      GC.Data.FactItemIds = function() return ids end
       GC.db.settings.sniper.minimumProfitCopper = 50000
       GC.db.settings.sniper.minimumRoi = 0.10
       GC.Data.GetItemValue = function() return { mv = 250000, stressUnit = 200000 } end
@@ -218,7 +220,9 @@ describe("Sniper pin feedback and empty state", function()
 
     it("suggests scanning when there is simply nothing yet", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 990, verification = { [1] = true } }
+      GC.db.imported = { ts = 990 }
+      local ids = { 1 }
+      GC.Data.FactItemIds = function() return ids end
       GC.db.settings.sniper.minimumProfitCopper = 50000
       GC.db.settings.sniper.minimumRoi = 0.10
       GC.Data.GetItemValue = function() return { mv = 250000, stressUnit = 200000 } end
@@ -230,7 +234,9 @@ describe("Sniper pin feedback and empty state", function()
 
     it("names the missing import when an import exists but nothing in it can ever arm", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 1000, verification = { [1] = true } } -- present, but no usable V fact
+      GC.db.imported = { ts = 1000 } -- present, but no usable V fact
+      local ids = { 1 }
+      GC.Data.FactItemIds = function() return ids end
       GC.db.settings.sniper.minimumProfitCopper = 50000
       GC.db.settings.sniper.minimumRoi = 0.10
       GC.Data.GetItemValue = function() return { mv = 100000 } end -- mv only, no stressUnit
@@ -241,7 +247,9 @@ describe("Sniper pin feedback and empty state", function()
 
     it("still shows the refused/screened message once at least one item can arm", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 1000, verification = { [1] = true } }
+      GC.db.imported = { ts = 1000 }
+      local ids = { 1 }
+      GC.Data.FactItemIds = function() return ids end
       GC.db.settings.sniper.minimumProfitCopper = 50000
       GC.db.settings.sniper.minimumRoi = 0.10
       GC.Data.GetItemValue = function() return { mv = 250000, stressUnit = 200000 } end
@@ -252,7 +260,9 @@ describe("Sniper pin feedback and empty state", function()
 
     it("memoizes the armed check -- an unchanged import only walks GetItemValue once, a settings change forces one recompute", function()
       local GC, _, emptyText = loadSniper()
-      GC.db.imported = { ts = 1000, verification = { [1] = true } }
+      GC.db.imported = { ts = 1000 }
+      local ids = { 1 }
+      GC.Data.FactItemIds = function() return ids end
       GC.db.settings.sniper.minimumProfitCopper = 50000
       GC.db.settings.sniper.minimumRoi = 0.10
       local calls = 0
@@ -271,6 +281,11 @@ describe("Sniper pin feedback and empty state", function()
       GC.db.settings.sniper.minimumProfitCopper = 60000
       GC.Sniper._UpdateEmptyState(0)
       assert.equals(2, calls) -- the settings change invalidates the cache: exactly one recompute
+
+      ids = { 1 } -- a new list is new data (a fresh import or payload), even with the same ids
+      GC.Sniper._UpdateEmptyState(0)
+      GC.Sniper._UpdateEmptyState(0)
+      assert.equals(3, calls)
     end)
 
     it("says nothing while a scan is streaming -- the status line narrates that", function()

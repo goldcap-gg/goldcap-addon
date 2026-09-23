@@ -24,6 +24,8 @@ describe("Book pass wiring", function()
   end
 
   local browseSent, browseQueries, browseResults
+  -- What time() answers; the book pass reads its clock through it (driver.now).
+  local clock
 
   -- One browse row in the shape C_AuctionHouse.GetBrowseResults() returns.
   local function browseRow(itemID, minPrice, totalQuantity)
@@ -41,10 +43,11 @@ describe("Book pass wiring", function()
     return value
   end
 
-  local function loadSniper()
+  local function loadSniper(enum)
     browseSent, browseQueries, browseResults = 0, {}, {}
+    clock = 1000
     _G.GetTime = function() return 100 end
-    _G.time = function() return 1000 end
+    _G.time = function() return clock end
     _G.GetMoney = function() return 10 * 1000 * 10000 end
     _G.GetCoinTextureString = function(c) return tostring(c) .. "c" end
     _G.ITEM_QUALITY_COLORS = {}
@@ -52,7 +55,8 @@ describe("Book pass wiring", function()
     _G.PlaySound = function() end
     _G.SOUNDKIT = { READY_CHECK = 8960, MAP_PING = 3175, RAID_WARNING = 1 }
     _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
-    _G.Enum = { ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8 } }
+    _G.Enum = enum or { ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8,
+      Miscellaneous = 15 } }
     _G.C_AuctionHouse = {
       IsThrottledMessageSystemReady = function() return true end,
       SendBrowseQuery = function(query)
@@ -114,7 +118,9 @@ describe("Book pass wiring", function()
     autoScan:Input("toggleOn", 1000)
     autoScan:Tick(1000)
     assert.equal(1, browseSent)
-    assert.equal(4, #browseQueries[1].itemClassFilters)
+    local classes = {}
+    for i, filter in ipairs(browseQueries[1].itemClassFilters) do classes[i] = filter.classID end
+    assert.same({ 7, 0, 3, 8, 15 }, classes)
   end)
 
   it("grants a drill-down before a page even while a book pass is mid-paging", function()
@@ -358,5 +364,156 @@ describe("Book pass wiring", function()
     local refolded = dealFor(100)
     assert.equal(276100, refolded.unitPrice)  -- the board carries the new floor
     assert.is_nil(verdictFor(refolded))       -- and the old SAFE verdict no longer applies to it
+  end)
+
+  it("scans Miscellaneous even on a client whose Enum does not name it", function()
+    local GC = loadSniper({ ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8 } })
+    local feedAuto = upvalue(GC.Sniper.OnAuctionHouseShow, "feedAuto")
+    local autoScan = upvalue(feedAuto, "autoScan")
+    autoScan:Input("toggleOn", 1000)
+    autoScan:Tick(1000)
+    local classes = {}
+    for i, filter in ipairs(browseQueries[1].itemClassFilters) do classes[i] = filter.classID end
+    assert.same({ 7, 0, 3, 8, 15 }, classes)
+  end)
+
+  it("queues a hit with how likely it is to sell", function()
+    local GC = loadSniper()
+    browseResults = { browseRow(500, 100000) }
+    GC.Data.GetItemValue = function() return dealValue({ sellThroughBps = 8000, liquidityConfidence = 90 }) end
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    local head = GC.Sniper._drillQueue:Peek()
+    assert.equal(500, head.itemID)
+    assert.equal(0.8, head.confidence)
+  end)
+
+  it("hands an ordinary hit the drill queue lost back to the book pass, and a cap's to the caps", function()
+    local GC = loadSniper()
+    local lostToPass, rearmed = {}, {}
+    GC.Sniper._bookPass = { Lost = function(_, itemID, floor) lostToPass[#lostToPass + 1] = { itemID, floor } end }
+    GC.Caps = { Rearm = function(itemID) rearmed[#rearmed + 1] = itemID end }
+    GC.Sniper._OnDrillLost({ itemID = 5, floor = 100, priority = 0, cap = false })
+    GC.Sniper._OnDrillLost({ itemID = 6, floor = 100, priority = 1, cap = true })
+    assert.same({ { 5, 100 } }, lostToPass)
+    assert.same({ 6 }, rearmed)
+  end)
+
+  -- Fix round 1 (m3): a realm item's hit comes from the key poll, whose ratchet never repeats an
+  -- unchanged floor. Lost, it is re-armed there too -- under the same hold as the book pass's
+  -- re-hit, and only while the poll still shows the floor that was lost.
+  it("re-arms the realm poll for an ordinary hit it lost, at the floor the poll still shows", function()
+    local GC = loadSniper()
+    local rearmedPoll = {}
+    GC.Sniper._bookPass = { Lost = function() end }
+    GC.Sniper._keyPoll = {
+      Book = function() return { [5] = { judged = 100 }, [6] = { judged = 90 } } end,
+      Rearm = function(_, itemID, holdSeconds) rearmedPoll[#rearmedPoll + 1] = { itemID, holdSeconds } end,
+    }
+    GC.Sniper._OnDrillLost({ itemID = 5, floor = 100, priority = 0, cap = false })
+    GC.Sniper._OnDrillLost({ itemID = 6, floor = 100, priority = 0, cap = false }) -- the poll moved on
+    GC.Sniper._OnDrillLost({ itemID = 7, floor = 100, priority = 0, cap = false }) -- never polled
+    assert.same({ { 5, 120 } }, rearmedPoll)
+  end)
+
+  it("prints the sniper's supply counters on /gc board", function()
+    local GC = loadSniper()
+    GC.Data.FactItemIds = function() return { 1, 2, 3 } end
+    GC.Sniper._drillQueue:Push({ itemID = 9, floor = 100, estProfit = 1 })
+    GC.Sniper._drillShare.drills, GC.Sniper._drillShare.pages = 4, 2
+    GC.Sniper._lastPass = { kind = "classes", seconds = 12, pages = 9, items = 900 }
+    local printed = {}
+    GC.Print = function(line) printed[#printed + 1] = line end
+    GC.Sniper.DebugBoard()
+    local line
+    for _, text in ipairs(printed) do
+      if text:find("^sniper:") then line = text end
+    end
+    assert.is_truthy(line)
+    assert.equal("sniper: facts=3 queue=1 lost=0 rehits=0 lastPass=classes 12s/9 pages drillShare=4/6", line)
+  end)
+
+  it("tells the tooltip what the book saw, for fifteen minutes", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 120 }
+    assert.same({ floor = 12345, qty = 40, age = 120 }, GC.Sniper.LiveFloor(777, 1000))
+    assert.same({ floor = 12345, qty = 40, age = 900 }, GC.Sniper.LiveFloor(777, 1000 + 780))
+    assert.is_nil(GC.Sniper.LiveFloor(777, 1000 + 781))
+    assert.is_nil(GC.Sniper.LiveFloor(778, 1000))
+  end)
+
+  it("tells the tooltip nothing for an item whose book row is one of its variants", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 120, variants = true }
+    assert.is_nil(GC.Sniper.LiveFloor(777, 1000))
+  end)
+
+  -- Final review I1: gear the auction house lists at a single item level is never marked as
+  -- variants, and its one row is that level's floor -- not the price of the copy under the cursor.
+  -- Refused for anything that is not a commodity; a commodity's row is the item's floor, whatever
+  -- level its key states.
+  it("tells the tooltip nothing for gear listed at one item level, and still tells a commodity", function()
+    local GC = loadSniper()
+    GC.db.commodityByItem = { [9] = true }
+    browseResults = {
+      { itemKey = { itemID = 6, itemLevel = 600 }, minPrice = 70000, totalQuantity = 1 },
+      browseRow(7, 500, 40),
+      { itemKey = { itemID = 9, itemLevel = 1 }, minPrice = 800, totalQuantity = 12 },
+    }
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    assert.is_nil(GC.Sniper.LiveFloor(6, 1000))
+    assert.same({ floor = 500, qty = 40, age = 0 }, GC.Sniper.LiveFloor(7, 1000))
+    assert.same({ floor = 800, qty = 12, age = 0 }, GC.Sniper.LiveFloor(9, 1000))
+  end)
+
+  it("hands the book pass the tooltip's window, so the line outlives closing the auction house", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 60 }
+    GC.Sniper._bookPass:Reset()
+    assert.same({ floor = 12345, qty = 40, age = 60 }, GC.Sniper.LiveFloor(777, 1000))
+  end)
+
+  -- Final review M1: the close carries over only what the tooltip could print -- by the tooltip's
+  -- own test, so gear the auction house listed at one level stays behind with the rest of the book.
+  it("carries over the close only the rows the tooltip could print", function()
+    local GC = loadSniper()
+    browseResults = {
+      { itemKey = { itemID = 6, itemLevel = 600 }, minPrice = 70000, totalQuantity = 1 },
+      browseRow(7, 500, 40),
+    }
+    GC.Sniper._bookPass:Start("wide")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    GC.Sniper.OnAuctionHouseClosed()
+    assert.is_nil(GC.Sniper._bookPass:Seen(6))
+    assert.same({ floor = 500, qty = 40, age = 0 }, GC.Sniper.LiveFloor(7, 1000))
+  end)
+
+  -- ... and lets it go once the window has passed since the close: nothing it kept can answer then.
+  -- A later close's rows are younger and stay; a visit open when the timer fires keeps its book.
+  it("lets go of what a close kept once the tooltip's window has passed since it", function()
+    local GC = loadSniper()
+    local timers = {}
+    _G.C_Timer.After = function(seconds, fn)
+      if seconds == 900 then timers[#timers + 1] = fn end
+    end
+    GC.Sniper._bookPass:Book()[7] = { floor = 500, qty = 40, seenAt = 1000 }
+    GC.Sniper.OnAuctionHouseClosed()                 -- first close, at 1000
+    assert.equal(1, #timers)
+    clock = 1300
+    GC.Sniper._bookPass:Book()[8] = { floor = 600, qty = 5, seenAt = 1300 }
+    GC.Sniper.OnAuctionHouseClosed()                 -- second close, at 1300
+    clock = 1500
+    GC.Sniper._bookPass:Book()[9] = { floor = 700, qty = 3, seenAt = 1500 } -- a visit open now
+    clock = 1000 + 900
+    assert.same({ floor = 500, qty = 40, age = 900 }, GC.Sniper.LiveFloor(7, clock))
+    timers[1]()
+    assert.is_nil(GC.Sniper.LiveFloor(7, clock))
+    assert.same({ floor = 600, qty = 5, age = 600 }, GC.Sniper.LiveFloor(8, clock))
+    assert.same({ floor = 700, qty = 3, age = 400 }, GC.Sniper.LiveFloor(9, clock))
+    clock = 1300 + 900
+    timers[#timers]()
+    assert.is_nil(GC.Sniper._bookPass:Seen(8))
+    assert.equal(700, GC.Sniper._bookPass:Book()[9].floor)
   end)
 end)

@@ -20,6 +20,8 @@ GC.Locales.ukUA = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — команди: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (або коротко /gc)",
   ["%d (whole lot)"] = "%d (увесь лот)",
+  ["%d ahead of you"] = "%d попереду вас",
+  ["%d caps · %s"] = "%d стель · %s",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d угод з останнього сканування -- Full Scan, щоб оновити",
@@ -46,7 +48,10 @@ GC.Locales.ukUA = {
   ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
   ["%s under you"] = "%s дешевше за вас",
+  ["%s units in %d prices"] = "%s шт. за %d цінами",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
+  ["%s+ ahead"] = "%s+ попереду",
+  ["%s+, %d prices read"] = "%s+, прочитано %d цін",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
   ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
@@ -60,13 +65,14 @@ GC.Locales.ukUA = {
   ["ASKING"] = "ЗАПИТ",
   ["AT MARKET"] = "ЗА РИНКОМ",
   ["AUTO"] = "АВТО",
-  ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА ТА СПОВІЩЕННЯ",
   ["AVOID"] = "УНИКАТИ",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "Вище цього зростання за 24 години ринкова вартість вважається стрибком і занижується.",
+  ["Above your price -- quoted %s, your price %s"] = "Вище за вашу ціну -- котирування %s, ваша ціна %s",
   ["Asks for a second click to confirm."] = "Потребує другого кліку для підтвердження.",
+  ["At your price"] = "За вашою ціною",
   ["Auction House did not answer — press Refresh"] = "Аукціон не відповів — натисніть Refresh",
   ["Auction House is not open"] = "Аукціон не відкрито",
   ["Auto-scan on next AH visit"] = "Автосканування при наступному візиті на АД",
@@ -212,6 +218,8 @@ GC.Locales.ukUA = {
     "Собівартість не вигадується з ринкової ціни — доки ви її не введете, прибуток лишиться невідомим.",
   ["Item"] = "Предмет",
   ["Item %d"] = "Предмет %d",
+  ["Item level %d, below the %d your price is for"] =
+    "Рів. предмета %d, нижче за %d, на який розрахована ваша ціна",
   ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
     "Items: спорядження, вихованці та рецепти, оцінені за еталоном регіону з вашого імпорту. Швидкість продажу ніколи не вимірюється, тож вони ніколи не отримують статус БЕЗПЕЧНО -- купувати чи ні, вирішувати вам, а GoldCap перевіряє їх лише поки ця дошка відкрита.",
   ["LISTED"] = "ВИСТАВЛЕНО",
@@ -220,11 +228,14 @@ GC.Locales.ukUA = {
   ["Language"] = "Мова",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
+  ["Last post may still go up -- wait a minute"] = "Ще може виставитися -- зачекайте хвилину",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",
   ["Last result: none yet this visit"] = "Останній результат: ще не було цього візиту",
   ["Listed"] = "Виставлено",
   ["Listed at %s — far below market. Repost."] =
     "Виставлено за %s — значно нижче ринку. Перевиставте.",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше. Чи перепродасться — судити вам.",
   ["Listed value"] = "Виставлено на суму",
   ["Listings"] = "Лотів",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -253,6 +264,7 @@ GC.Locales.ukUA = {
     "Перед покупкою потрібна жива перевірка ціни.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Ніколи не витрачати на одну покупку більше цієї частки вашого золота.",
+  ["No answer yet -- listening for a minute"] = "Аукціон ще не відповів -- чекаємо ще хвилину",
   ["No deals passed the safety checks right now."] =
     "Зараз жодна угода не пройшла перевірок безпеки.",
   ["No deals to show -- and no realm prices yet."] =
@@ -321,10 +333,10 @@ GC.Locales.ukUA = {
   ["Post above the cheapest"] = "Виставляти вище найдешевшого",
   ["Post confirmation expired"] = "Підтвердження виставлення протерміновано",
   ["Post the next queued item"] = "Виставити наступний предмет із черги",
+  ["Posted"] = "Виставлено",
   ["Posting failed"] = "Виставлення не вдалося",
-  ["Posting timed out"] = "Час на виставлення вичерпано",
   ["Posting unavailable"] = "Виставлення недоступне",
-  ["Posting…"] = "Виставляємо…",
+  ["Posting…"] = "Ставимо…",
   ["Press Full Scan to find deals."] = "Натисніть Full Scan, щоб знайти угоди.",
   ["Press Scan to search the whole auction house once, or Auto to keep scanning."] =
     "Натисніть Scan, щоб один раз обійти весь аукціон, або Auto, щоб сканувати постійно.",
@@ -408,6 +420,7 @@ GC.Locales.ukUA = {
   ["Start scanning as soon as the auction house opens."] =
     "Починати сканування одразу після відкриття аукціонного дому.",
   ["Status"] = "Статус",
+  ["Stop and open the buy window on your price"] = "Зупинити й відкрити вікно купівлі за вашою ціною",
   ["Stress exit unit"] = "Ціна стрес-виходу",
   ["Stress profit"] = "Стрес-прибуток",
   ["THE BOOK"] = "СТАКАН ЗАЯВОК",
@@ -420,6 +433,7 @@ GC.Locales.ukUA = {
     "Аукціон не назвав заставу, тому вартість невідома.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion синхронізується, але аддон не зміг прочитати те, що він записав:",
+  ["The auction house did not answer -- try again"] = "Аукціон не відповів -- спробуйте ще раз",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "Дошка оцінила лот за імпортованим знімком. Живий стакан цього не підтверджує.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
@@ -445,6 +459,8 @@ GC.Locales.ukUA = {
     "Ціна падає; заходити в неї — це і є спосіб застрягти.",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "Ціна — остання отримана, не старша за 45 секунд. Якщо вона зміниться до підтвердження, виставлення скасовується, а не йде за старою ціною.",
+  ["The price moved -- part of this quote may be above your price"] =
+    "Ціна зрушила -- частина цього котирування може бути вищою за вашу ціну",
   ["The price moved and the trade is no longer safe."] =
     "Ціна зрушила, і угода більше не безпечна.",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
@@ -471,6 +487,7 @@ GC.Locales.ukUA = {
     "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
   ["VERDICT"] = "ВЕРДИКТ",
   ["Verdict"] = "Вердикт",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "ЧЕКАЄМО НА АУКЦІОН %d",
   ["WATCH"] = "СТЕЖИТИ",
   ["WATCH (computed SAFE)"] = "WATCH (розраховано БЕЗПЕЧНО)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -494,6 +511,8 @@ GC.Locales.ukUA = {
     "Скільки лишається з однієї штуки при продажу за ринком: ціна продажу мінус 5% комісії аукціону мінус ваша собівартість.",
   ["What your live auctions for this item add up to at their current asking price."] =
     "У скільки складаються ваші активні лоти цього предмета за поточною ціною.",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "Коли лот досягає ціни, яку ви встановили на сайті, сканування зупиняється і відкривається вікно купівлі.",
   ["Window position & size"] = "Позиція та розмір вікна",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "З ним ціни вашого реалму оновлюються самі, а продажі та прибуток потрапляють на goldcap.gg.",
@@ -510,14 +529,21 @@ GC.Locales.ukUA = {
   ["You would pay"] = "Ви заплатите",
   ["Your call"] = "Вирішувати вам",
   ["Your minimum"] = "Твій мінімум",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "вище найдешевшого, у дешевій чверті · у черзі нижче %d шт.",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "вище найдешевшого, у межах денного розмаху · у черзі нижче %d шт.",
+  ["Your price"] = "Ваша ціна",
+  ["a unit, at or under your price of %s"] = "за штуку, за вашою ціною %s або нижче",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "вище найдешевшого, у дешевій чверті · попереду %s шт.",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "вище найдешевшого, у межах денного розмаху · попереду %s шт.",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "проти регіональної ціни цього предмета, за вирахуванням 5% — якщо він продасться",
+  ["age %ss"] = "%sс тому",
+  ["another purchase took over -- nothing was confirmed"] =
+    "інша купівля зайняла її місце -- нічого не підтверджено",
   ["any figure here would be invented out of the very number being refused"] =
     "будь-яка цифра тут була б вигадана з того самого числа, якому не довіряють",
+  ["at or under your price -- click Buy to purchase"] =
+    "за вашою ціною або дешевше -- натисніть Buy, щоб купити",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "за ціною, за якою GoldCap очікує продаж, за вирахуванням 5% — а не за вашою запитаною ціною",
   ["auto off"] = "авто вимкнено",
@@ -533,8 +559,11 @@ GC.Locales.ukUA = {
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
   ["cheapest not yours %s"] = "найдешевший не ваш %s",
+  ["check the item level — buy by hand"] = "перевірте рівень предмета — купіть вручну",
   ["checking live price..."] = "перевіряємо живу ціну...",
   ["checking live safety..."] = "перевіряємо безпеку наживо...",
+  ["clears in ~%dd"] = "розійдеться за ~%d дн.",
+  ["clears in ~%dh"] = "розійдеться за ~%d год",
   ["commodity purchase failed"] = "купівля товару не вдалася",
   ["confirmed commodity purchase failed after AH close"] =
     "підтверджена купівля товару не вдалася після закриття аукціону",
@@ -545,10 +574,12 @@ GC.Locales.ukUA = {
   ["crafted %s"] = "скрафчено %s",
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
+  ["expires in %d s"] = "спливає за %d с",
   ["fair"] = "середня",
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
+  ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "повне сканування завершено: %d угод%s з %d груп предметів%s%s",
@@ -557,6 +588,8 @@ GC.Locales.ukUA = {
   ["full scan stalled -- press Full Scan to retry"] =
     "повне сканування зупинилося -- натисніть Full Scan ще раз",
   ["full scan stalled -- retrying shortly"] = "повне сканування зупинилося -- скоро повторимо",
+  ["full scan stopped -- press %s to run it again"] =
+    "повне сканування зупинено -- натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
   ["high"] = "висока",
   ["hold"] = "тримати",
@@ -564,6 +597,7 @@ GC.Locales.ukUA = {
     "не вдалося визначити (варіативний предмет -- ціна не рахується навмисно)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "якщо купити всі %d і продати назад за ціною, що стоїть там зараз",
+  ["ilvl %d"] = "рів. %d",
   ["import %dh old"] = "імпорту %dг",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "імпорт застарів -- /goldcap import або /goldcap companion",
@@ -575,12 +609,14 @@ GC.Locales.ukUA = {
     "стільки цей ринок перетравлює — понад те ви купуєте товар, що зависне",
   ["item %d"] = "предмет %d",
   ["item %d: %s"] = "предмет %d: %s",
+  ["item level %d+"] = "рів. предмета %d+",
   ["item variant unresolved"] = "варіант предмета не визначено",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "останні 24 год — %d продажів, %s валовий, %s комісія аукціону, %d купівель, %s витрачено",
   ["leave these alone"] = "ці не чіпати",
+  ["level %d"] = "рівень %d",
   ["listing gone -- already bought out or price changed"] =
     "лот зник -- уже викуплений або ціна змінилася",
   ["listing gone -- bought out or repriced"] = "лот зник — викуплений або переставлений за ціною",
@@ -590,12 +626,16 @@ GC.Locales.ukUA = {
   ["low"] = "низька",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
+  ["market %s"] = "ринок %s",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
   ["no cost"] = "немає собівартості",
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
+  ["no live quote yet — pricing…"] = "живого котирування ще немає — оцінюємо ціну…",
+  ["no market figure for caged pets"] = "немає ринкових даних для вихованців у клітці",
+  ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
   ["no price"] = "немає ціни",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
@@ -610,6 +650,7 @@ GC.Locales.ukUA = {
   ["not enough gold for this quote -- Cancel"] = "недостатньо золота за цією ціною -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такої кількості одиниць уже не вистачає -- перевіряємо ще раз, що лишилося...",
+  ["not priced — nothing on hand to sell"] = "без ціни — продавати нічого",
   ["not ready to cancel"] = "не готово до скасування",
   ["not ready to post"] = "не готово до виставлення",
   ["nothing in your bags to price"] = "у сумках немає чого оцінювати",
@@ -618,17 +659,24 @@ GC.Locales.ukUA = {
   ["off"] = "вимк",
   ["oldest units sell first"] = "спершу продаються старші",
   ["on"] = "увімк",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "відкрийте аукціон один раз, щоб GoldCap дізнався, як вони продаються",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "або вставте рядок з goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позиціях%s",
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
   ["placing bid..."] = "робимо ставку...",
+  ["previous commodity purchase settled -- %s to re-check the price"] =
+    "попередню купівлю товару завершено -- %s, щоб перевірити ціну ще раз",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "ціна змінилася після закриття вікна купівлі -- нічого не куплено",
   ["price checked, sale speed unknown -- this one is your call"] =
     "ціну перевірено, швидкість продажу невідома -- вирішувати вам",
   ["price confirmed -- click Buy to purchase"] =
     "ціну підтверджено -- натисніть Buy, щоб купити",
   ["price rose %.1fx — still safe, confirm"] = "ціна зросла в %.1fx — усе ще безпечно, підтвердіть",
+  ["price stands %d of %d"] = "ваша ціна: %d з %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "завантажено ціни %s (%s), а граєте ви в %s — усі знижки й прибуток рахуються за чужим ринком",
   ["purchase canceled"] = "купівлю скасовано",
@@ -641,6 +689,8 @@ GC.Locales.ukUA = {
   ["quote %ss ago"] = "котирування %sс тому",
   ["quote expired -- Refresh to re-check the price"] =
     "котирування протерміновано -- Refresh, щоб перевірити ціну ще раз",
+  ["quote expires in %d s -- click Confirm to buy"] =
+    "котирування спливає за %d с -- натисніть Confirm, щоб купити",
   ["re-checking what remains at a safe price..."] =
     "перевіряємо ще раз, що лишилося за безпечною ціною...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
@@ -671,22 +721,31 @@ GC.Locales.ukUA = {
   ["sniped (listing changed on rescan)"] = "перехоплено (лот змінився при перескануванні)",
   ["sniped for "] = "снайпнуто за ",
   ["stack not identified"] = "стак не розпізнано",
+  ["stale"] = "застаріле",
   ["starting full scan..."] = "починаємо повне сканування...",
   ["stopped watching %s"] = "перестали стежити за %s",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion записав ціни, які аддон не зміг прочитати --",
   ["the Auction House has not answered for this item yet"] = "аукціон ще не відповів по цьому предмету",
+  ["the auction house has not sent details for these yet"] =
+    "аукціон ще не надіслав відомостей про ці предмети",
   ["the import failed (%s)"] = "імпорт не вдався (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "щоб розпродати %d шт. за %s продажів на день, і весь цей час %s заморожено",
+  ["unavailable"] = "недоступне",
   ["under GoldCap's own floor of %s"] = "нижче власного порога GoldCap — %s",
   ["unknown evidence"] = "невідоме підтвердження",
   ["waiting for previous commodity purchase to settle"] =
     "чекаємо, поки завершиться попередня купівля товару",
   ["waiting for previous search result to settle"] =
     "чекаємо, поки завершиться попередній пошук",
+  ["waiting..."] = "очікування…",
+  ["wall"] = "стіна",
+  ["wall %s at %s -- price under it to sell first"] =
+    "стіна %s шт. по %s -- ставте нижче, щоб продати раніше",
+  ["wall %s at %s above you"] = "стіна %s шт. по %s вище за вас",
   ["watching %s closely -- re-checked every few seconds"] =
     "пильно стежимо за %s -- перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =
@@ -700,8 +759,10 @@ GC.Locales.ukUA = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
-  ["your price stands %d of %d"] = "твоя ціна стане %d з %d",
   ["yours"] = "ваша",
+  ["yours ×%s"] = "ваші ×%s",
+  ["~%dd to reach you"] = "~%d дн. до вас",
+  ["~%dh to reach you"] = "~%d год до вас",
   ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
@@ -719,4 +780,56 @@ GC.Locales.ukUA = {
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ ринкова вартість goldcap.gg — живого котирування ще немає",
   ["no answer %ds ago -- resting"] = "немає відповіді %dс тому -- пауза",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "попередня спроба ще не завершилася -- перевіряємо ціну знову...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше (група: %s)",
+  ["AUTO · PAUSED: BUY WINDOW"] = "АВТО · ПАУЗА: ВІКНО КУПІВЛІ",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "Пауза, поки відкрите вікно купівлі. Купіть або закрийте його — і Авто продовжить.",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "АВТО · ПАУЗА: ВАШ ПОШУК",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "Пауза, поки ви друкуєте в пошуку аукціону. Продовжить за кілька секунд після того, як ви з нього вийдете.",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "АВТО · ПАУЗА: ВІДКРИТА ПОШТА",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] =
+    "Пауза, поки відкрита поштова скринька. Закрийте її — і Авто продовжить.",
+  ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖ",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "Пауза, поки відкрита вкладка Продаж: вона оцінює ваші сумки через той самий пошук. Поверніться до угод — і Авто продовжить.",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "АВТО · ПАУЗА: ДОШКА ПРЕДМЕТІВ",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "Пауза, поки показана дошка предметів: вона запитує аукціон через той самий пошук. Перемкніться на товари — і Авто продовжить.",
+  ["AUTO · PAUSED: BUY TAB"] = "АВТО · ПАУЗА: ВКЛАДКА BUY",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "Пауза, поки відкрита вкладка BUY: вона дізнається ціни через той самий пошук. Поверніться до угод — і Авто продовжить.",
+  ["AUTO · WAITING FOR YOU"] = "АВТО · ЧЕКАЄ НА ВАС",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "Чекає, поки ви виставляєте, купуєте чи переглядаєте у вікнах самого аукціону. Почне, щойно ви закінчите.",
+  ["AUTO · WAITING: YOUR LIST"] = "АВТО · ЧЕКАЄ: ВАШ СПИСОК",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "Чекає: у списку купівлі аукціону ваш власний пошук, і скан замінив би його. Відкрийте вкладку GoldCap на аукціоні або закрийте аукціон — і Авто почне.",
+  ["Market %s · unverified until a live Check"] = "Ринок %s · не перевірено до живої перевірки",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "дані всього ринку: товарів %d, з даними про продажі %d, предметів світу %d (вік %s, %d КБ)",
+  ["whole-market data not in use: %s"] = "дані всього ринку не використовуються: %s",
+  ["it is %s old, and the prices you imported are newer"] = "їхній вік %s, а імпортовані вами ціни новіші",
+  ["it is for another region than the prices loaded"] = "вони для іншого регіону, ніж завантажені ціни",
+  ["its date cannot be right -- check this computer's clock"] =
+    "їхня дата не може бути правильною -- перевірте годинник цього комп'ютера",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "їх відклали, коли в цій сесії завантажили інші ціни -- /reload, щоб знову їх використати",
+  ["On the AH now"] = "На аукціоні зараз",
+  ["%s listed · %d min ago"] = "виставлено %s · %d хв тому",
+  ["%s listed · just now"] = "виставлено %s · щойно",
+  ["it could not be read (%s)"] = "їх не вдалося прочитати (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "вони для регіону, якого ця версія GoldCap не знає -- оновіть аддон",
+  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
+    "вони у форматі, який ця версія GoldCap не вміє читати -- оновіть аддон",
+  ["it is larger than this build of GoldCap can read -- update the addon"] =
+    "вони більші, ніж може прочитати ця версія GoldCap -- оновіть аддон",
+  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
+    "Companion записав їх порожніми -- дайте йому синхронізуватися і зробіть /reload",
+  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
+    "Companion записав їх без цін -- дайте йому синхронізуватися і зробіть /reload",
 }

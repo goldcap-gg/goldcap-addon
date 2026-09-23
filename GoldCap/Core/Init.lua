@@ -200,6 +200,12 @@ GC.DEFAULTS = {
       -- = up to 30% over). Filed under `sniper` for the same reason postDuration is above --
       -- one settings table UI/SettingsFrame.lua already reads, not a second branch for one field.
       buyCapPct = 130,
+      -- Live price caps, addon task 6: when a cap row (a listing at or under the player's own
+      -- price, Core/Caps.lua) is announced for the first time, also stop the scan and open its
+      -- buy window -- the same reaction a manual click on the row would trigger. Off by
+      -- default: a cap firing while the player is away must not open a purchase dialog nobody
+      -- asked for.
+      capStopAndOpen = false,
       -- buyRun: undeclared here on purpose (a nil-valued table field is never actually stored,
       -- so ApplyDefaults' pairs() walk would just skip it either way). The run code last shown
       -- in the Buy Runs panel, so reopening it returns to where the player left off; written by
@@ -435,6 +441,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- time the Auction House opens, rather than waiting for the next full login.
       GC.AppRuns.Adopt()
     end
+    -- Live price caps: adopt alongside AppRuns above (same GoldCap_AppRuns file, see
+    -- Core/Caps.lua). Guarded on the Sniper frame existing because it is built lazily
+    -- (first Toggle()/AH visit) -- at ADDON_LOADED there may be nothing to rebuild yet.
+    if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
+      GC.Sniper._RebuildKeyTargets()
+    end
     if GC.Ledger then GC.Ledger.Init(GC.db) end
     -- Craft capture's view of the client. Installed here because everything it reads -- the
     -- acquisition store, the remembered commodity answers, the ledger's own scope -- is only
@@ -631,6 +643,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       -- full contract) so a /reload the player did mid-session picks up a run the companion
       -- wrote in between, by the next time the board that shows it actually matters.
       if GC.AppRuns then GC.AppRuns.Adopt() end
+      -- Live price caps: re-adopt here too, same reasoning as AppRuns.Adopt above.
+      if GC.Caps and GC.Caps.Adopt() and GC.Sniper and GC.Sniper._RebuildKeyTargets then
+        GC.Sniper._RebuildKeyTargets()
+      end
       -- The BUY tab too: a new session cannot answer for the last one, so what the last one left
       -- half-finished is cleared here rather than carried into a book that has since moved.
       if GC.Buy and GC.Buy.OnAuctionHouseShow then GC.Buy.OnAuctionHouseShow() end
@@ -655,6 +671,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- search slot, and a fence behind it -- when the answer was already known.
     if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" and GC.Sniper.OnThrottledMessageDropped then
       GC.Sniper.OnThrottledMessageDropped()
+    end
+    -- A post the client holds back until the throttle frees a slot: the Sell tab says it is
+    -- waiting for the auction house instead of a bare "Posting…" (GC.Sell.OnThrottleQueued).
+    if event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" and GC.Sell.OnThrottleQueued then
+      GC.Sell.OnThrottleQueued()
     end
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     GC.Util.NoteThrottleEvent(event)
@@ -683,17 +704,22 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- down with an index-a-nil error -- taking mail scanning, the ledger and the auction
     -- house tab with it, because they all share this one handler.
     if type(itemKey) ~= "table" or not itemKey.itemID then return end
+    -- The whole key goes on to the Sniper's waiters, not only its item: a drill of one item-level
+    -- variant is answered for that variant's key alone, and an answer to another key of the same
+    -- item (the Sell tab's bare key, BUY's search) is not the drill's (caps fixes 5b).
     if GC.Sniper.scanner then
-      GC.Sniper.scanner:OnItemResults(itemKey.itemID)
+      GC.Sniper.scanner:OnItemResults(itemKey.itemID, itemKey)
     end
     if GC.Sniper.OnItemSearchResults then
-      GC.Sniper.OnItemSearchResults(itemKey.itemID)
+      GC.Sniper.OnItemSearchResults(itemKey.itemID, itemKey)
     end
     -- D: GC.Sell's own handler only reacts when itemKey.itemID matches its own pending quote
     -- slot -- see SellFrame.lua's OnItemSearchResults -- so this adds zero crosstalk with the
     -- scanner's or the buy-requery's unrelated in-flight searches.
     if GC.Sell.OnItemSearchResults then
-      GC.Sell.OnItemSearchResults(itemKey.itemID)
+      -- With the key: an item-level variant the Sell tab priced by its own key reads its answer
+      -- from that key (GC.Sell._QuoteItemKey).
+      GC.Sell.OnItemSearchResults(itemKey.itemID, itemKey)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnItemSearchResults(itemKey) end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
@@ -756,8 +782,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
       GC.Sniper.OnBrowseResultsAdded()
     end
   elseif event == "AUCTION_HOUSE_SHOW_ERROR" then
+    local errorCode = ...
+    -- The Sell tab first: a post it has on the wire is what a refused post answers with, and its
+    -- handler is the smaller of the two -- nothing the Sniper's does can then keep it from running.
+    if GC.Sell.OnAuctionHouseError then
+      GC.Sell.OnAuctionHouseError(errorCode)
+    end
     if GC.Sniper.OnAuctionHouseError then
-      local errorCode = ...
       GC.Sniper.OnAuctionHouseError(errorCode)
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
@@ -767,8 +798,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
+    -- The new auction's id: the Sell tab asks the client which item it is, so a post that went
+    -- up late is not credited to the one on the wire (GC.Sell.OnAuctionCreated).
     if GC.Sell.OnAuctionCreated then
-      GC.Sell.OnAuctionCreated()
+      GC.Sell.OnAuctionCreated((...))
     end
   elseif event == "AUCTION_HOUSE_POST_ERROR" then
     if GC.Sell.OnPostError then

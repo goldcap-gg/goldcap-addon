@@ -508,11 +508,220 @@ describe("Auction House tab", function()
     end)
   end)
 
+  -- The player's own browse results (a plain search like "Teebu") are theirs. The book pass
+  -- and the key polls (SearchForItemKeys, both the Items board's and the BUY tab's floor
+  -- refresh) all answer through the same GetBrowseResults() buffer Blizzard's Buy pane reads
+  -- from, so while that pane is on screen and GoldCap's own window is not, nothing of ours may
+  -- touch it. Reported in-game 2026-09-22: with GoldCap closed, a player's own "Teebu" search
+  -- on Blizzard's Buy tab turned into the alphabetical "everything" list after ~10s and kept
+  -- jumping, because none of the other predicates fire merely from Buy being the visible pane.
+  describe("PlayerIsBrowsing", function()
+    it("fails open before Install has ever run", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is true on the Buy display mode with our dock and our window both hidden", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false on the Buy display mode when our own dock is shown", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    -- The auction house opens on Buy, and autoOpen (on by default) shows the GoldCap window
+    -- floating beside it. Reading that as "the player is browsing" switched the whole addon
+    -- off for the entire visit (confirmed in game 2026-09-22): the window was open and nothing
+    -- in it ever moved.
+    it("is false on the Buy display mode while the GoldCap window is shown floating", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("fails open when the window cannot be asked whether it is shown", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.IsWindowShown = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false on the ItemSell display mode", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.ItemSell)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false on the CommoditiesSell display mode", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+
+    it("is false when there is no auction house frame at all", function()
+      _G.AuctionHouseFrame = nil
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBrowsing())
+    end)
+  end)
+
+  -- Final review S1 (b). With the window floating over Blizzard's Buy pane nothing counts as the
+  -- player browsing (PlayerIsBrowsing above: the auction house opens that way, and reading it as
+  -- busy stood the whole addon down). But once the player has sent a browse query of their own,
+  -- that pane is showing THEIR results, and a keys batch or a pass page replaces them. Told apart
+  -- from ours by a post-hook on C_AuctionHouse.SendBrowseQuery and a flag our own sender sets.
+  describe("PlayerOwnsBrowseList", function()
+    local sent, told
+    before_each(function()
+      sent, told = 0, 0
+      _G.C_AuctionHouse = {
+        SendBrowseQuery = function() sent = sent + 1 end,
+        SearchForFavorites = function() end,
+      }
+      GC.Sniper._OnPlayerBrowse = function() told = told + 1 end
+      -- Blizzard's two player-only ways into SearchForFavorites (follow-up 1, below).
+      ah.SearchBar = { StartFavoritesSearch = function() _G.C_AuctionHouse.SearchForFavorites({}) end }
+      -- A sort, as far as it reaches the list (Blizzard_AuctionHouseFrame.lua's SetBrowseSortOrder
+      -- -> GetBrowseSearchContext -> SetSortOrder, read verbatim): it re-sends the search the list
+      -- holds for its context -- SearchForFavorites for the favourites, SendBrowseQuery for a
+      -- category or a text search -- and sends nothing at all when the list holds none.
+      -- Blizzard never clears activeSearches; the favourites one is written by the open itself.
+      ah.activeSearches = {}
+      ah.isDisplayingFavorites = false
+      ah.GetBrowseSearchContext = function(self)
+        return self.isDisplayingFavorites and "favourites" or "category"
+      end
+      ah.SetBrowseSortOrder = function(self)
+        local context = self.isDisplayingFavorites and "favourites" or "category"
+        if not self.activeSearches[context] then return end
+        if context == "favourites" then
+          _G.C_AuctionHouse.SearchForFavorites({})
+        else
+          _G.C_AuctionHouse.SendBrowseQuery({})
+        end
+      end
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true -- floating over the pane, the default visit
+    end)
+    after_each(function() _G.C_AuctionHouse = nil end)
+
+    it("is false on the Buy pane before the player has searched", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+    end)
+
+    -- The auction house lists the player's favourites as it opens (Blizzard_AuctionHouseFrame's
+    -- OnShow: QueryAll -> C_AuctionHouse.SearchForFavorites). That is not a search of theirs.
+    it("is not tripped by the favourites list the auction house opens with", function()
+      _G.C_AuctionHouse.SearchForFavorites({})
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is true once the player's own browse query has gone out, while the pane is shown", function()
+      _G.C_AuctionHouse.SendBrowseQuery({ searchString = "ore" })
+      assert.equal(1, sent)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(1, told) -- the Sniper gives up a keys batch out under it
+    end)
+
+    it("is not tripped by a browse query of ours", function()
+      GC.AuctionHouseTab.addonBrowse = true
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      GC.AuctionHouseTab.addonBrowse = false
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(0, told)
+      -- ...and the player's next one still is.
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is false while another pane, or our own dock, is up", function()
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      dockPanel():Show()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("is reset when the auction house closes", function()
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      GC.AuctionHouseTab.OnAuctionHouseClosed()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Follow-up 1. The Favorites button and a sort on the list the pane shows reach the auction
+    -- house through SearchForFavorites (Blizzard_AuctionHouseSearchBar.lua's StartFavoritesSearch;
+    -- Blizzard_AuctionHouseFrame.lua's SetBrowseSortOrder -> SetSortOrder -> QueryAll), not
+    -- SendBrowseQuery: the player reading their favourites had them replaced all the same. Those
+    -- two player-only entries count; the list the auction house shows by itself as it opens
+    -- (OnShow -> QueryAll) does not.
+    it("counts the player's own Favorites search, and a sort on the list", function()
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+
+      ah.SearchBar:StartFavoritesSearch()
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(1, told)
+
+      GC.AuctionHouseTab.OnAuctionHouseClosed()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      -- The auction house opens on the favourites (OnShow -> QueryAll): not the player's...
+      ah.activeSearches.favourites, ah.isDisplayingFavorites = { "favourites" }, true
+      _G.C_AuctionHouse.SearchForFavorites({})
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      -- ...but a sort they click on that list re-sends it.
+      ah:SetBrowseSortOrder(1)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Follow-up 2 (P2): a column click on a list with no search behind it -- nothing searched, no
+    -- favourites -- sends no query at all (SetSortOrder returns first), yet it counted as the
+    -- player's browse, and Auto stood down behind the Buy tab for nothing.
+    it("does not count a sort that sends nothing", function()
+      ah:SetBrowseSortOrder(1)
+      assert.equal(0, sent)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(0, told)
+    end)
+
+    it("counts a sort that re-sends the search on the list", function()
+      ah.activeSearches.category = { "category", "ore" }
+      ah:SetBrowseSortOrder(1)
+      assert.equal(1, sent)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Every detector fails open: a sort on a list this cannot read never stands the addon down.
+    it("does not count a sort on a list it cannot read", function()
+      ah.activeSearches.favourites, ah.isDisplayingFavorites = { "favourites" }, true
+      ah.GetBrowseSearchContext = nil -- a client that no longer answers the question
+      ah:SetBrowseSortOrder(1)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    it("hooks the query once however many times the auction house opens", function()
+      GC.AuctionHouseTab.Install()
+      GC.AuctionHouseTab.Install()
+      _G.C_AuctionHouse.SendBrowseQuery({})
+      assert.equal(1, sent)
+      assert.equal(1, told)
+    end)
+  end)
+
   describe("PlayerIsBusy", function()
     -- Also the "nothing has been selected yet" case for PlayerIsUsingAnotherTab: an auction
     -- house that has chosen nothing has no display mode either, and reading THAT as "the player
     -- is busy" would silence the sniper for a whole session.
-    it("is false when none of the four are true", function()
+    it("is false when none of the five are true", function()
       assert.is_false(GC.AuctionHouseTab.PlayerIsBusy())
     end)
 
@@ -531,6 +740,39 @@ describe("Auction House tab", function()
     it("is true while searching", function()
       GC.AuctionHouseTab.NoteSearchFocus(true)
       assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    it("is true while browsing Blizzard's own Buy pane with our window closed", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      assert.is_true(GC.AuctionHouseTab.PlayerIsBusy())
+    end)
+
+    -- The default visit: the auction house opens on Buy and the window opens floating with it.
+    -- Every background sender reads this predicate, so a true here is the whole addon idle.
+    it("is false on Blizzard's Buy pane while the GoldCap window is shown floating", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+    end)
+
+    it("stays false as time passes with the window up over the Buy pane", function()
+      GC.AuctionHouseTab.Install()
+      ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      GC.Sniper.shown = true
+      for _ = 1, 3 do
+        clock = clock + 60
+        assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
+      end
+    end)
+
+    it("is false while the window is docked in our own tab", function()
+      GC.AuctionHouseTab.Install()
+      local tab = tabButton()
+      tab.scripts.OnClick(tab)
+      assert.is_true(GC.Sniper.IsWindowShown())
+      assert.is_false(GC.AuctionHouseTab.PlayerIsBusy(clock))
     end)
   end)
 

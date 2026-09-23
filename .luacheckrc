@@ -49,4 +49,6 @@ read_globals = {
   -- P2 ledger: player identity, gold, and the mailbox invoice API.
   "UnitName", "GetMoney",
   "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem",
+  -- The tooltip's counts: grouped in thousands with the player's locale's separator.
+  "BreakUpLargeNumbers",
 }

@@ -55,7 +55,7 @@ describe("Sell posting wiring", function()
   it("keeps CancelAuction inside onRepostClick and routes the cancel control through it", function()
     local text = source()
     local repostStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
-    local repostEnd = assert(text:find("function GC.Sell.OnAuctionCreated()", repostStart, true))
+    local repostEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", repostStart, true))
     local before = text:sub(1, repostStart - 1)
     local body = text:sub(repostStart, repostEnd - 1)
     local after = text:sub(repostEnd)
@@ -94,6 +94,35 @@ describe("Sell posting wiring", function()
     assert.is_nil(xml:find(":Click(", 1, true), "the keybinding must not call Button:Click()")
     assert.is_truthy(xml:find("GoldCapPostNext", 1, true),
       "the keybinding must call the same handler the queue button's OnClick calls")
+  end)
+
+  -- A post the auction house refuses is refused on AUCTION_HOUSE_SHOW_ERROR (the error the
+  -- default UI prints for it), and a post the client holds back is announced by
+  -- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED. Both reached only the Sniper and the throttle's
+  -- counters, so the Sell tab sat on a disabled Post until its watchdog called a refusal a
+  -- timeout. Registered already (Core/Init.lua); what is pinned here is that each reaches Sell.
+  it("routes the auction house's error and the throttle's queued message to the Sell tab", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    local showError = assert(init:match('event == "AUCTION_HOUSE_SHOW_ERROR" then(.-)\n  elseif'))
+    assert.is_truthy(showError:find("GC.Sell.OnAuctionHouseError(errorCode)", 1, true))
+    assert.is_truthy(showError:find("GC.Sniper.OnAuctionHouseError(errorCode)", 1, true))
+    local queued = assert(init:match('event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED" or event == '
+      .. '"AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then(.-)\n  elseif'))
+    assert.is_truthy(queued:find("GC.Sell.OnThrottleQueued()", 1, true))
+  end)
+
+  -- AUCTION_HOUSE_AUCTION_CREATED carries the new auction's id. With a post that timed out still
+  -- able to go up late while the next one is on the wire, the id is how the tab asks the client
+  -- WHICH item went up (C_AuctionHouse.GetAuctionInfoByID), instead of crediting whichever post
+  -- happens to be pinned.
+  it("hands the created auction's id to the Sell tab", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    local created = assert(init:match('event == "AUCTION_HOUSE_AUCTION_CREATED" then(.-)\n  elseif'))
+    assert.is_truthy(created:find("GC.Sell.OnAuctionCreated((...))", 1, true))
   end)
 
   -- The addon-wide rule, restated at the module boundary this spec owns: no protected AH call
@@ -142,8 +171,10 @@ describe("a price the seller chose reaches the post intact", function()
   -- of the same item at a number chosen for a market that is gone.
   it("spends the chosen price when the auction it was chosen for is created", function()
     local text = source()
-    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(%)(.-)\nend"))
-    assert.is_truthy(created:find("priceOverrides[pin.positionKey] = nil", 1, true))
+    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID%)(.-)\nend"))
+    assert.is_truthy(created:find("GC.Sell._SpendPrice(owner)", 1, true))
+    local spend = assert(text:match("function GC%.Sell%._SpendPrice%(pin%)(.-)\nend"))
+    assert.is_truthy(spend:find("priceOverrides[key] = nil", 1, true))
   end)
 
   -- Nothing writes a post price outside the paths a PLAYER drives: a render must never decide
@@ -154,9 +185,10 @@ describe("a price the seller chose reaches the post intact", function()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
     -- commitPrice (set), commitPrice (clear), OnTextChanged (set), OnTextChanged (clear),
-    -- the chip click, OnAuctionCreated's clear, and the same clear on the late path -- a
-    -- confirm the post watchdog gave up on that the auction house answered anyway.
-    assert.equal(7, writes)
+    -- the chip click, and GC.Sell._SpendPrice -- the one rule that spends a typed price when its
+    -- post's creation is credited, or drops it when that post's late window closes unanswered.
+    -- Nothing puts a spent price back.
+    assert.equal(6, writes)
   end)
 
   -- The live-preview handler is the newest way into that table and the easiest to get wrong:

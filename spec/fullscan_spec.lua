@@ -502,6 +502,78 @@ describe("EvaluateDelta/MergeDeals", function()
     local singleCapped = GC.FullScan.Evaluate(rows, getValue, settings, 2)
     assert.same(singleCapped, mergedCapped)
   end)
+
+  -- Caps fixes 3a: a "your price" row (UI/SniperFrame.lua's buildCapDeal, `cap` = the player's
+  -- price in copper) is not a browse aggregate. The pass's own row for the same item is, and it
+  -- used to replace the cap row outright -- incoming wins -- and then the hundred-row cut ranked
+  -- it by estProfit against the market, which a cap set above the market loses by construction.
+  -- The cap row stands for as long as the pass's own price says the cap still holds, and it is
+  -- never cut to make room.
+  describe("a cap row", function()
+    local function mkCapDeal(itemID, unitPrice, cap)
+      return mkDeal(itemID, unitPrice, { cap = cap, profit = -5000, estProfit = -5000 })
+    end
+
+    -- The player's caps as Core/Caps.lua holds them: the merge judges a held cap row by the
+    -- CURRENT price, not the copy stamped on the row when it was built.
+    local function adopt(list)
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, groups = {}, caps = list }
+      GC.Caps.Adopt()
+    end
+
+    before_each(function()
+      helper.loadModule("Core/Caps.lua", GC)
+      adopt({ { i = 5, c = 100 }, { i = 6, c = 100 }, { i = 9, c = 100 } })
+    end)
+
+    after_each(function() _G.GoldCap_AppRuns = nil end)
+
+    it("is judged by the player's current price, not the one stamped on it", function()
+      adopt({ { i = 5, c = 70 } }) -- lowered since the row was built at a 100 cap
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 60, 100) }, { mkDeal(5, 90) }, 100)
+      assert.is_nil(findDeal(m, 5).cap)
+      assert.equals(90, findDeal(m, 5).unitPrice)
+    end)
+
+    it("gives way to the market row once the player's cap for the item is gone", function()
+      adopt({ { i = 6, c = 100 } })
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 80, 100) }, { mkDeal(5, 90) }, 100)
+      assert.is_nil(findDeal(m, 5).cap)
+    end)
+
+    it("outlives an incoming market row for its item while that row is at or under the cap", function()
+      local held = mkCapDeal(5, 80, 100)
+      local m = GC.FullScan.MergeDeals({ held }, { mkDeal(5, 100) }, 100)
+      assert.equals(1, #m)
+      assert.equals(held, findDeal(m, 5))
+    end)
+
+    it("gives way to the market row once the pass prices the item above the cap", function()
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 80, 100) }, { mkDeal(5, 120) }, 100)
+      assert.equals(1, #m)
+      assert.is_nil(findDeal(m, 5).cap)
+      assert.equals(120, findDeal(m, 5).unitPrice)
+    end)
+
+    it("is replaced by a fresher cap row, and replaces a market row itself", function()
+      local fresher = mkCapDeal(5, 70, 100)
+      local m = GC.FullScan.MergeDeals({ mkCapDeal(5, 80, 100) }, { fresher }, 100)
+      assert.equals(fresher, findDeal(m, 5))
+      local capRow = mkCapDeal(6, 80, 100)
+      m = GC.FullScan.MergeDeals({ mkDeal(6, 90) }, { capRow }, 100)
+      assert.equals(capRow, findDeal(m, 6))
+    end)
+
+    it("is never cut off a full board, however badly it ranks", function()
+      local existing = { mkCapDeal(9, 80, 100) }
+      for id = 1, 3 do existing[#existing + 1] = mkDeal(id, 100, { profit = id * 1000 }) end
+      local m = GC.FullScan.MergeDeals(existing, { mkDeal(4, 100, { profit = 9000 }) }, 3)
+      assert.equals(3, #m)
+      assert.is_table(findDeal(m, 9))
+      assert.is_table(findDeal(m, 4))
+      assert.is_table(findDeal(m, 3))
+    end)
+  end)
 end)
 
 -- Sniper v3 §3 ping (fix round 1, I2/I6): pulled out of SniperFrame.lua so both of its call
@@ -663,5 +735,44 @@ describe("FullScan.CapDeals", function()
     assert.is_nil(store[1])
     assert.is_table(store[2])
     assert.is_table(store[3])
+  end)
+
+  -- Final review M7: the comparator ranks by estProfit against the MARKET, and a cap deal
+  -- needs no market at all (Core/Caps.lua's own contract) -- so a cap set ABOVE the region
+  -- reference, which the design wants shown in red, carries a NEGATIVE estProfit and sorts
+  -- last. On a full board it was then the first thing truncated away, and the one row the
+  -- player themselves asked for never reached the screen. A cap row is the player's standing
+  -- instruction, not a lead this addon found: it is never dropped to make room.
+  local function capDeal(itemID, profit)
+    local d = deal(itemID, profit)
+    d.cap = 1000
+    return d
+  end
+
+  it("never truncates a cap row off a full board, however badly it ranks", function()
+    local store = {}
+    for id = 1, 10 do store[id] = deal(id, id * 1000) end
+    store[99] = capDeal(99, -5000) -- a cap above the reference: worst possible estProfit
+
+    local kept = GC.FullScan.CapDeals(store, 5)
+
+    assert.equal(5, #kept)
+    assert.is_table(store[99])
+    assert.equal(99, kept[#kept].itemID) -- still last in the board's own order
+    -- The cap row costs an ordinary one its place; the board does not grow past its own cap.
+    assert.same({ 10, 9, 8, 7 }, { kept[1].itemID, kept[2].itemID, kept[3].itemID, kept[4].itemID })
+    assert.is_nil(store[6])
+  end)
+
+  it("keeps every cap row even when the caps alone exceed the board", function()
+    local store = {}
+    for id = 1, 8 do store[id] = capDeal(id, -id) end
+    store[50] = deal(50, 9000)
+
+    local kept = GC.FullScan.CapDeals(store, 3)
+
+    assert.equal(8, #kept) -- every cap, and no budget left for the ordinary lead
+    assert.is_nil(store[50])
+    for id = 1, 8 do assert.is_table(store[id]) end
   end)
 end)

@@ -223,7 +223,10 @@ local function paintCancelButton() end
 local function restorePostRow(row)
   if not row then return end
   row.postStage = nil
-  if row.action then row.action:Enable(); row.action.helpKey = "Post"; row.action:SetLabel(GC.L["Post"]) end
+  if row.action then
+    row.action:Enable(); row.action.helpKey = "Post"; row.action:SetLabel(GC.L["Post"])
+    if row.action.SetBusy then row.action:SetBusy(false) end
+  end
 end
 
 local function restoreRepostRow(row)
@@ -248,6 +251,11 @@ local function disarmPost()
   postTimeoutToken = (postTimeoutToken or 0) + 1
   restorePostRow(row)
   flushDeferredRender()
+  -- "Posting…" and "Click Confirm to post" in the dock were about this post and go with it; an
+  -- outcome (Posted, the auction house's refusal) is noted by the caller after this and stays
+  -- its few seconds. The dock's POST lets go of its spinner here too, whatever else repaints.
+  GC.Sell._EndPostNote(true)
+  paintQueueButton()
 end
 
 local function disarmRepost()
@@ -306,10 +314,12 @@ end
 
 local function setStatus(text)
   if statusOwner and statusOwner.status then statusOwner.status:SetText(text) end
+  GC.Sell._lastStatus = text
   -- And in the dock, under the bulk action: the toolbar line above is a window's width from
   -- every control on this tab, which is why REFRESH, POST and each row button had to grow a
-  -- copy of the state. Said here, it is said beside the button that was just pressed.
-  if container and container.dockStatus then container.dockStatus:SetText(text or "") end
+  -- copy of the state. Said here, it is said beside the button that was just pressed -- unless
+  -- the player's own post has something to say there (GC.Sell._NotePost below), in its colour.
+  GC.Sell._PaintDock(text)
   paintRefreshButton()
   paintQueueButton()
   -- The cancel control is driven from here for the same reason the queue control is: renderRows
@@ -318,6 +328,74 @@ local function setStatus(text)
   -- went unpainted -- the footer still read "CANCEL LOT?", still enabled, while the cancel it
   -- named was already on the wire.
   paintCancelButton()
+end
+
+-- The dock's line belongs to the player's own post while it has something to say about it.
+-- The owner pressed Post and could not tell whether anything was happening: the pricing walk
+-- writes this line every few seconds and wrote over "Posting…" within the second, the refresh
+-- after a refusal replaced "Posting failed" before it was ever drawn, and a post that went up
+-- said nothing at all. So a note holds the dock -- a post on its way until the post ends
+-- (disarmPost lets it go), an outcome for its few seconds -- whatever the walk says meanwhile.
+-- The toolbar line keeps the walk's words; when the note ends the dock goes back to them.
+-- `tone` is a Theme.color key. Fields rather than locals: this chunk is at Lua 5.1's limit.
+GC.Sell.POST_NOTE_SECONDS = { posted = 1.5, failed = 10 }
+
+-- The dock's line: the post's note while there is one, else `text`, the tab's ordinary line.
+function GC.Sell._PaintDock(text)
+  local dock = container and container.dockStatus
+  if not dock then return end
+  local note = GC.Sell._postNote
+  dock:SetText(note and note.text or text or "")
+  local c = Theme and Theme.color and Theme.color[note and note.tone or "fgMuted"]
+  if c then dock:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
+end
+
+function GC.Sell._NotePost(text, tone, seconds)
+  local note = { text = text, tone = tone or "fg", timed = seconds ~= nil }
+  GC.Sell._postNote = note
+  if container and container.IsShown and container:IsShown() then
+    local ordinary = GC.Sell._lastStatus
+    setStatus(text)
+    -- The toolbar says it too, but it is not the tab's ordinary line: the dock returns to that.
+    GC.Sell._lastStatus = ordinary
+  else
+    -- The toolbar line is the whole window's, and another tab has it now: a late answer a minute
+    -- on wrote "Posted" over Deals' own line (review M1). Only the dock, which is ours.
+    GC.Sell._PaintDock(GC.Sell._lastStatus)
+    paintQueueButton()
+  end
+  if seconds and C_Timer and C_Timer.After then
+    C_Timer.After(seconds, function()
+      if GC.Sell._postNote == note then GC.Sell._EndPostNote() end
+    end)
+  end
+end
+
+-- `heldOnly`: end a note that lasts as long as its post, never an outcome still on its clock.
+function GC.Sell._EndPostNote(heldOnly)
+  local note = GC.Sell._postNote
+  if not note or (heldOnly and note.timed) then return end
+  GC.Sell._postNote = nil
+  -- An outcome that runs out while another post of ours is still out (a late answer said
+  -- Posted over it) gives the dock back to that post, not to the walk.
+  local stage = not heldOnly and postingRow and postingRow.postStage
+  local again = (stage == "posting" or stage == "confirming")
+    and (postingPin and postingPin.queued and GC.L["Waiting for the Auction House…"] or GC.L["Posting…"])
+    or stage == "confirm" and GC.L["Click Confirm to post"] or nil
+  -- The toolbar line is the whole window's. With another tab on screen it is that tab's, and a
+  -- clock running out here wrote over it -- a Deals line erased ten seconds after a refusal
+  -- (review M1). Off the tab, only the dock, which is ours, is repainted.
+  if not (container and container.IsShown and container:IsShown()) then
+    if again then GC.Sell._postNote = { text = again, tone = "fg", timed = false } end
+    GC.Sell._PaintDock(GC.Sell._lastStatus)
+    paintQueueButton()
+    return
+  end
+  if again then
+    GC.Sell._NotePost(again)
+    return
+  end
+  setStatus(GC.Sell._lastStatus or "")
 end
 
 local function setColor(fontString, color)
@@ -423,6 +501,9 @@ local QUEUE_SKIP_TEXT = {
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall -- hold",
+  -- Held by this tab, not by the queue module: the item's last post may still go up
+  -- (GC.Sell._lateAnswers).
+  awaiting_answer = "Last post may still go up -- wait a minute",
   no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
@@ -465,6 +546,10 @@ paintQueueButton = function()
   -- looking at, and paints itself from that same head so what it says is never a guess about
   -- what a render would show if one ran right now.
   local head = queueEntries[1]
+  -- The spinner turns for as long as a post of ours is on the wire, whichever button sent it:
+  -- the dock's POST is disabled either way, and disabled alone reads as dead.
+  local sending = postingRow ~= nil and (postingRow.postStage == "posting" or postingRow.postStage == "confirming")
+  if button.SetBusy then button:SetBusy(sending) end
   if postingRow then
     -- Mirror the row postingRow itself pins to -- see onQueueClick/onPostClick -- only when
     -- that row genuinely IS the queue's own head. If some OTHER row's post is in flight (the
@@ -477,7 +562,9 @@ paintQueueButton = function()
     else
       button:SetLabel(GC.L["POSTING…"]); button:Disable()
     end
-    if label and head then label:SetText(head.itemName or "") end
+    -- The item going up, not the head: a row's own Post can be any row on the list.
+    local going = postingRow.position and postingRow.position.itemName or head and head.itemName
+    if label then label:SetText(going or "") end
   elseif not head then
     button:SetLabel(GC.L["NOTHING TO POST"])
     button:Disable()
@@ -674,19 +761,46 @@ local function itemName(itemID)
   return (GC.L["Item %d"]):format(itemID or 0)
 end
 
+-- What the pricing walk searches for. A quote id is an itemID -- a commodity, or an item priced
+-- by its bare key as the tab always has -- or, for an item-level variant keyed from its bag
+-- slot's own ItemKey (GC.Sell._SlotKey), that variant's position key "item:id:level:suffix:pet":
+-- its market is its own, and the bare key answers with the item's cheapest variant, which is
+-- another item's price. Returns the itemID and the ItemKey to search and read by.
+function GC.Sell._QuoteItemKey(id)
+  if type(id) == "number" then return id, C_AuctionHouse.MakeItemKey(id) end
+  local itemID, level, suffix, pet = tostring(id):match("^item:(%d+):(%d+):(%d+):(%d+)$")
+  itemID = tonumber(itemID)
+  if not itemID then return nil, nil end
+  return itemID, C_AuctionHouse.MakeItemKey(itemID, tonumber(level), tonumber(suffix), tonumber(pet))
+end
+
 local function quoteDriver()
   local function boundedLevels(itemID, commodity)
+    local _, itemKey = GC.Sell._QuoteItemKey(itemID)
     local levels, count = {}, commodity and C_AuctionHouse.GetNumCommoditySearchResults(itemID)
-      or C_AuctionHouse.GetNumItemSearchResults(C_AuctionHouse.MakeItemKey(itemID))
-    for i = 1, math.min(count or 0, 100) do
+      or C_AuctionHouse.GetNumItemSearchResults(itemKey)
+    local cap = GC.SellViewModel and GC.SellViewModel.BOOK_READ_MAX or 100
+    for i = 1, math.min(count or 0, cap) do
       local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
-        or C_AuctionHouse.GetItemSearchResultInfo(C_AuctionHouse.MakeItemKey(itemID), i)
+        or C_AuctionHouse.GetItemSearchResultInfo(itemKey, i)
       local unit = info and (commodity and info.unitPrice
         or (info.buyoutAmount and info.quantity and info.quantity > 0 and math.floor(info.buyoutAmount / info.quantity)))
       if unit and unit > 0 then
         levels[#levels + 1] = { unitPrice = unit, quantity = info.quantity or 0,
           ownerItem = info.containsOwnerItem == true, ownerQty = info.numOwnerItems }
       end
+    end
+    -- Whether the read stopped short of the whole book: more rows than it takes, or an answer
+    -- the client does not hold in full. THE BOOK's "past the read" is this flag, never a count
+    -- that happens to equal the cap (review M5).
+    if #levels > 0 then
+      local full = true
+      if commodity and C_AuctionHouse.HasFullCommoditySearchResults then
+        full = C_AuctionHouse.HasFullCommoditySearchResults(itemID) ~= false
+      elseif not commodity and C_AuctionHouse.HasFullItemSearchResults then
+        full = C_AuctionHouse.HasFullItemSearchResults(itemKey) ~= false
+      end
+      levels.cut = (count or 0) > cap or not full or nil
     end
     return #levels > 0 and levels or nil
   end
@@ -717,10 +831,12 @@ local function quoteDriver()
       return true
     end,
     keyInfo = function(itemID)
-      return C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+      if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return nil end
+      local _, itemKey = GC.Sell._QuoteItemKey(itemID)
+      return itemKey and C_AuctionHouse.GetItemKeyInfo(itemKey)
     end,
     send = function(itemID)
-      local key = C_AuctionHouse.MakeItemKey(itemID)
+      local _, key = GC.Sell._QuoteItemKey(itemID)
       local info = C_AuctionHouse.GetItemKeyInfo(key)
       -- Blizzard's pane may open this item's buy page in answer; that page is ours, not a buy.
       if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
@@ -761,7 +877,8 @@ local function quoteDriver()
         return C_AuctionHouse.HasFullCommoditySearchResults(itemID) == true
       end
       if not (C_AuctionHouse.HasFullItemSearchResults and C_AuctionHouse.MakeItemKey) then return true end
-      return C_AuctionHouse.HasFullItemSearchResults(C_AuctionHouse.MakeItemKey(itemID)) == true
+      local _, itemKey = GC.Sell._QuoteItemKey(itemID)
+      return C_AuctionHouse.HasFullItemSearchResults(itemKey) == true
     end,
   }
 end
@@ -911,6 +1028,7 @@ local function composePositions()
   else
     queueEntries, queueSkipped = {}, {}
   end
+  GC.Sell._HoldLateInQueue()
   paintQueueButton()
   -- The cancel twin, same degradation contract for fixtures loaded without the module.
   if GC.CancelQueue and GC.CancelQueue.Build then
@@ -995,7 +1113,8 @@ end
 function refresh.deckProgress()
   local shown = {}
   for _, position in ipairs(positions) do
-    if position.itemID and refresh.onDeck(position) then shown[position.itemID] = true end
+    -- By quote id, as the walk queues them: a variant's entry is its own key (_QuoteItemKey).
+    if position.itemID and refresh.onDeck(position) then shown[position.quoteKey or position.itemID] = true end
   end
   local done, total = 0, 0
   for index, itemID in ipairs(refresh.queue) do
@@ -1018,7 +1137,8 @@ local function uniqueQuoteItemIDs()
     -- listed" answer counts as fresh too (EMPTY_ANSWER_AGE above).
     -- Resting, whether the rest was earned by an answer or by silence: both cost the same
     -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
-    local restingSince = restedAt(position.itemID)
+    local quoteID = position.quoteKey or position.itemID
+    local restingSince = restedAt(quoteID)
     local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
     -- A PRESS of Refresh is served by the bulk fill (GC.Sell.TrySendBulk): one message
     -- re-prices every commodity on the tab, which is what a press asks for. The walk does not
@@ -1027,7 +1147,7 @@ local function uniqueQuoteItemIDs()
     -- still owed a real quote: rows never priced, rows gone stale, rows holding a bulk price.
     -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
     -- it and may not back a post (see freshQuote), however young it is.
-    local held = quotes[position.itemID]
+    local held = quotes[quoteID]
     local due = (type(held) == "table" and (held.bulk == true or held.bookless == true))
       or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
@@ -1077,8 +1197,9 @@ local function uniqueQuoteItemIDs()
   end)
   local seen, result = {}, {}
   for _, position in ipairs(actionable) do
-    if not seen[position.itemID] then
-      seen[position.itemID], result[#result + 1] = true, position.itemID
+    local quoteID = position.quoteKey or position.itemID
+    if not seen[quoteID] then
+      seen[quoteID], result[#result + 1] = true, quoteID
       if #result >= QUOTE_WALK_CAP then break end
     end
   end
@@ -1333,6 +1454,17 @@ advanceQuote = function()
     -- not read it as an unanswered request.
     markProgress()
     setStatus(GC.L["Waiting for the purchase to finish…"])
+    retryLater()
+    return
+  end
+  -- ...and so, just as much, while a keys batch this tab did not send is still out: one still in
+  -- flight from the board the player just left (the Sniper's price caps, its Items poll, BUY's).
+  -- Same evidence as the wait for this tab's own batch above -- a search sent on top of it takes
+  -- its answer and comes back empty. It is written off after eight seconds while this tab is on
+  -- screen (UI/SniperFrame.lua's _KeysOutstanding), so the wait is short, and nothing announces
+  -- its end: the walk comes back by itself, like the yields around it.
+  if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
+    markProgress()
     retryLater()
     return
   end
@@ -1673,7 +1805,17 @@ function GC.Sell.OnItemKeyInfo(itemID)
       renderRows()
     end
   end
-  if refresh.phase == "waiting_key" and refresh.awaiting == itemID then advanceQuote() end
+  -- Stock the tab could not key without this answer is scanned again: it can be filed now.
+  for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
+    if waiting.itemID == itemID then
+      composePositions()
+      renderRows()
+      break
+    end
+  end
+  local awaiting = refresh.awaiting
+  if type(awaiting) == "string" then awaiting = GC.Sell._QuoteItemKey(awaiting) end
+  if refresh.phase == "waiting_key" and awaiting == itemID then advanceQuote() end
 end
 
 local function quoteResolved(kind, itemID, unit, levels)
@@ -1731,7 +1873,8 @@ local function quoteResolved(kind, itemID, unit, levels)
   -- price and must not masquerade as the book minimum. Guarded like every
   -- other cross-module call in this file: specs load only the modules a
   -- given test needs, so GC.Book/GC.Data may be absent outside the client.
-  local summary = GC.Book and GC.Book.Summarize(levels)
+  -- An item's own floor only: a variant's answer is one variant's, not the item's.
+  local summary = type(itemID) == "number" and GC.Book and GC.Book.Summarize(levels)
   if summary and GC.Data and GC.Data.RecordLiveObservation then
     local scope = context()
     GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
@@ -1744,11 +1887,22 @@ local function quoteResolved(kind, itemID, unit, levels)
   advanceQuote()
 end
 
-function GC.Sell.OnItemSearchResults(itemID) quoteResolved("item", itemID, driver.item(itemID), driver.itemLevels(itemID)) end
+-- `itemKey` is the key the answer is for (Core/Init.lua hands it on). An answer for an item-level
+-- variant this walk asked about -- or is still draining -- is that variant's, filed under its
+-- quote id; anything else goes by itemID, exactly as before.
+function GC.Sell.OnItemSearchResults(itemID, itemKey)
+  local id = itemID
+  local variant = type(itemKey) == "table" and GC.Acquisitions and GC.Acquisitions.PositionKey
+    and GC.Acquisitions.PositionKey(itemID, itemKey, false) or nil
+  if variant and ((refresh.pending and refresh.pending.itemID == variant) or refresh.drain["item:" .. variant]) then
+    id = variant
+  end
+  quoteResolved("item", id, driver.item(id), driver.itemLevels(id))
+end
 function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
 
 local function freshQuote(position)
-  local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)
+  local quote = GC.QuoteCache.Fresh(quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)
   if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
   -- A price from the bulk fill (GC.Sell.FoldBulk) is the realm's cheapest unit with nobody
   -- subtracted from it -- good enough to show, never good enough to spend on. Post and Repost
@@ -1777,6 +1931,32 @@ local function normalizedPositionKey(itemID, link)
   return ("item:%d:%d:%d:%d"):format(itemID, math.floor(level), suffix, 0)
 end
 
+-- The auction identity of a non-commodity bag stack, and the quote id it is priced by (nil for
+-- the itemID). A link the parse above can read keeps exactly the key it always had: ledgers,
+-- typed prices and listings are filed under it. The rest -- bonus IDs, which is nearly all modern
+-- gear, and caged battle pets -- the parse gives up on, and used to be left out of the tab
+-- altogether (in game: a bag of gear, none of it on TO POST). The client knows them exactly:
+-- C_AuctionHouse.GetItemKeyFromItem answers, for this one bag slot, the ItemKey the auction house
+-- itself files the stack under (item level, suffix, pet species), and PostItem posts by this
+-- same slot. Nothing is guessed: no answer, no key.
+function GC.Sell._SlotKey(itemID, link, bag, slot)
+  local parsed = normalizedPositionKey(itemID, link)
+  if parsed then return parsed, nil end
+  if not (bag and slot and C_AuctionHouse and C_AuctionHouse.GetItemKeyFromItem
+      and ItemLocation and ItemLocation.CreateFromBagAndSlot) then return nil, nil end
+  local ok, itemKey = pcall(function()
+    return C_AuctionHouse.GetItemKeyFromItem(ItemLocation:CreateFromBagAndSlot(bag, slot))
+  end)
+  if not ok or type(itemKey) ~= "table" or itemKey.itemID ~= itemID then return nil, nil end
+  local positionKey = GC.Acquisitions and GC.Acquisitions.PositionKey
+    and GC.Acquisitions.PositionKey(itemID, itemKey, false) or nil
+  -- An ItemKey with no level, suffix or species (bonus IDs on a non-gear item) is the bare key:
+  -- no variant, priced and valued as the item always was (review N8).
+  local plain = (itemKey.itemLevel or 0) == 0 and (itemKey.itemSuffix or 0) == 0
+    and (itemKey.battlePetSpeciesID or 0) == 0
+  return positionKey, not plain and positionKey or nil
+end
+
 -- Whether an item sells as a commodity decides its whole auction identity, and
 -- GetItemKeyInfo is the only authority on it -- but it is only reachable while
 -- the auction house is open, and the Sell tab is useful standing anywhere. So
@@ -1791,7 +1971,7 @@ commodityKindCache = function()
   return sessionCommodityKind
 end
 
-local function classifyBagItem(itemID, link)
+local function classifyBagItem(itemID, link, bag, slot)
   local cache = commodityKindCache()
   local isCommodity = cache[itemID]
   if isCommodity == nil and C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey then
@@ -1802,13 +1982,31 @@ local function classifyBagItem(itemID, link)
     end
   end
   if isCommodity == true then return ("commodity:%d"):format(itemID), true end
-  if isCommodity == false then return normalizedPositionKey(itemID, link), false end
+  if isCommodity == false then
+    local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)
+    -- The auction house -- open, so its answer means something -- says it cannot take this
+    -- stack: not tradeable stock at all, so neither a row nor "waiting" (review M10). Asked of a
+    -- keyed stack too: gear that is not bound yet cannot be auctioned -- Warbound until equipped
+    -- -- keys like any other and would take a row and a search every pass (final review I3).
+    if bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+        and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
+      local ok, valid = pcall(function()
+        -- displayError false, as Auctionator's own bag scan asks: with it on, every compose at the
+        -- auction house put the red "can't auction" error and its sound on screen (review N1).
+        return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot), false)
+      end)
+      if ok and valid == false then return nil, false, nil, true end
+    end
+    return positionKey, false, quoteKey
+  end
   return nil, nil
 end
 
 scanBagStock = function()
-  if not GC.BagStock then bagStock = {} return end
-  bagStock = GC.BagStock.Scan({
+  if not GC.BagStock then bagStock, GC.Sell._waitingStock = {}, {} return end
+  -- The second list is the stock nothing could key yet (the client has not said whether the item
+  -- is a commodity, or cannot give its ItemKey): shown under its own heading, never dropped.
+  bagStock, GC.Sell._waitingStock = GC.BagStock.Scan({
     numSlots = function(bag)
       return C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
     end,
@@ -1816,11 +2014,15 @@ scanBagStock = function()
       if not (C_Container and C_Container.GetContainerItemInfo) then return nil end
       local info = C_Container.GetContainerItemInfo(bag, slot)
       if type(info) ~= "table" then return nil end
+      local hyperlink = info.hyperlink
+        or (C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)) or nil
+      -- A caged pet's own name is in its battle-pet link; the item is "Pet Cage" for every one.
+      local petName = type(hyperlink) == "string" and hyperlink:find("battlepet:", 1, true)
+        and hyperlink:match("|h%[(.-)%]|h") or nil
       return {
         itemID = info.itemID, stackCount = info.stackCount, isBound = info.isBound,
-        hasNoValue = info.hasNoValue, itemName = info.itemName,
-        hyperlink = info.hyperlink
-          or (C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)) or nil,
+        hasNoValue = info.hasNoValue, itemName = petName or info.itemName,
+        hyperlink = hyperlink,
       }
     end,
     classify = classifyBagItem,
@@ -1854,7 +2056,9 @@ local function liveBagState(position, requiredQty)
     local slots = C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
     for slot = 1, slots do
       local info = C_Container.GetContainerItemInfo(bag, slot)
-      if info and info.itemID == position.itemID then
+      -- Never a soulbound copy: the auction house refuses it, and a bound twin sharing the
+      -- ItemKey kept the tradeable copy from ever being posted (review M8).
+      if info and info.itemID == position.itemID and info.isBound ~= true then
         local qty = info.stackCount or 1
         if exact(qty) and qty > 0 and commodity then
           total = safeAdd(total, qty)
@@ -1862,7 +2066,9 @@ local function liveBagState(position, requiredQty)
           if not matchedBag then matchedBag, matchedSlot, matchedStack = bag, slot, qty end
         else
           local link = C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)
-          if exact(qty) and qty > 0 and normalizedPositionKey(position.itemID, link) == position.positionKey then
+          -- Keyed exactly as the scan keyed it (GC.Sell._SlotKey), so Post pins the very stack
+          -- the row stands for: for a variant, the slot whose own ItemKey is that variant's.
+          if exact(qty) and qty > 0 and GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey then
             if qty > total then total = qty end
             if (requiredQty and qty >= requiredQty and not matchedBag) or (not requiredQty and qty >= (matchedStack or 0)) then
               matchedBag, matchedSlot, matchedStack = bag, slot, qty
@@ -1886,7 +2092,7 @@ end
 -- One item, one query. If a walk is already running the item is spliced in as
 -- its next step rather than restarting anything.
 local function startQuoteRefreshFor(position)
-  local itemID = type(position) == "table" and position.itemID or nil
+  local itemID = type(position) == "table" and (position.quoteKey or position.itemID) or nil
   if not itemID then return GC.Sell.Refresh() end
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then
     setStatus(GC.L["Auction House is not open"])
@@ -1930,36 +2136,151 @@ local function currentPosition(positionKey)
   return nil
 end
 
--- The pin of a post whose CONFIRM was sent and then timed out, kept for one more timeout window
--- so a slow server's AUCTION_HOUSE_AUCTION_CREATED still lands on its own bookkeeping.
+-- Posts we stopped waiting for that the auction house may still answer: the watchdog gave up on
+-- one that was SENT, or an AUCTION_HOUSE_SHOW_ERROR -- which names no request, so it can be
+-- somebody else's -- freed its row. Each keeps its pin for LATE_ANSWER_SECONDS, so an
+-- AUCTION_HOUSE_AUCTION_CREATED that comes after is still credited to it (GC.Sell.OnAuctionCreated):
+-- the dock says Posted over "did not answer", the hold is released and its typed price spent. The
+-- owned-auctions list writes the durable record, as for any auction on it. While one is open, that
+-- item is not posted again (onPostClick holds it, the dock's queue skips it): a second post of a
+-- stack the first may still be taking is the double post.
 --
--- The timeout used to be armed once, on the first click, and never re-armed for the confirming
--- one -- so a player who read the deposit line for nine seconds got "Posting timed out" over a
--- post that had gone through, and because the pin was gone with it, GC.Sell.OnAuctionCreated
--- found nothing: the post was never recorded against the batch and the price the seller had
--- typed was never cleared, so the NEXT stack of that item quietly inherited it. Re-arming (see
--- the confirm branch below) closes the ordinary case; this closes the one where the auction
--- house really is slower than the watchdog.
-local postedGrace
+-- The window is 60 s. The watchdog is 8 s; the slowest round trip this tab already waits for
+-- is a cancel, given 30 s (REPOST_CANCEL_TIMEOUT_SECONDS) after one was seen to take more than
+-- ten; a post the client queued behind the throttle goes out only when a slot frees. Twice the
+-- cancel's budget covers those without keeping an item from posting for long when its post
+-- really was lost -- and a post after the window needs a fresh quote anyway (45 s).
+--
+-- It used to be one slot, kept for 8 s and only for a timed-out CONFIRM: a first-click post the
+-- watchdog gave up on was thrown away when it went up late -- never recorded against its batch,
+-- the typed price never spent, so the next stack of the item quietly inherited it.
+GC.Sell.LATE_ANSWER_SECONDS = 60
+GC.Sell._lateAnswers = {}
+
+-- The late answers still in their window, oldest first; the rest are forgotten here. A window
+-- that closes unanswered keeps its typed price, like a refused post: it stays on the row for the
+-- retry (GC.Sell._SpendPrice).
+function GC.Sell._LiveLate()
+  local live, now = {}, time()
+  for _, late in ipairs(GC.Sell._lateAnswers) do
+    if now - late.at <= GC.Sell.LATE_ANSWER_SECONDS then live[#live + 1] = late end
+  end
+  GC.Sell._lateAnswers = live
+  return live
+end
+
+-- A late answer ended by a guess -- a creation the client names nothing about, or a shared error
+-- the order rule gives it -- may still be owed its real answer until its minute is over: the guess
+-- can have been somebody else's (Blizzard's own Sell pane, another request's "busy"). Until then
+-- a post that goes out is not certain of the next creation either -- it can be that late post's --
+-- so `clean` waits for it (review sell-fix4 M1). `GC.Sell._owedUntil`: when the last such minute
+-- ends.
+function GC.Sell._OweAnswer(late)
+  local untilAt = late.at + GC.Sell.LATE_ANSWER_SECONDS
+  if untilAt > (GC.Sell._owedUntil or 0) then GC.Sell._owedUntil = untilAt end
+end
+
+-- Whether a post going out now is certain to be what the next creation answers: no late answer
+-- open, and none owed (GC.Sell._OweAnswer).
+function GC.Sell._Certain()
+  return #GC.Sell._LiveLate() == 0 and time() > (GC.Sell._owedUntil or 0)
+end
+
+-- The one rule for a typed price (the price column's own choice, priceOverrides): it was chosen
+-- for ONE listing, against a book that will move. The post that carried it spends it when a
+-- creation is credited to that post, and it is dropped when the auction house closes over a post
+-- that went out and was never answered -- carried into the next visit after an outcome nobody
+-- saw, it would price that listing at a number chosen for a market that is gone. Only then: a
+-- post whose minute ran out unanswered keeps it, on the row, for the retry, as a refused one
+-- does. Dropping it there, behind the row, left the row showing it while the next Post sent
+-- GoldCap's price (review sell-fix4 I1); at a close the next visit composes before anything can
+-- be pressed. Only the price that post carried: one the player has typed since is their next
+-- choice and stays. Nothing ever puts a spent price back.
+function GC.Sell._SpendPrice(pin)
+  local key = type(pin) == "table" and pin.positionKey or nil
+  if type(key) == "string" and pin.override ~= nil and pin.override == priceOverrides[key] then
+    priceOverrides[key] = nil
+  end
+end
+
+function GC.Sell._LateFor(positionKey, scopeKey)
+  for _, late in ipairs(GC.Sell._LiveLate()) do
+    if late.pin.positionKey == positionKey and late.pin.scopeKey == scopeKey then return late end
+  end
+  return nil
+end
+
+-- The dock's queue leaves out an item whose last post may still be answered, and counts it held
+-- back with the reason: its head is what the dock's POST posts, and held there it would stand
+-- in front of every other item for the whole window.
+function GC.Sell._HoldLateInQueue()
+  if #GC.Sell._LiveLate() == 0 then return end
+  local kept = {}
+  for _, entry in ipairs(queueEntries) do
+    if GC.Sell._LateFor(entry.positionKey, entry.scopeKey) then
+      queueSkipped[#queueSkipped + 1] = { positionKey = entry.positionKey, itemID = entry.itemID,
+        itemName = entry.itemName, reason = "awaiting_answer" }
+    else
+      kept[#kept + 1] = entry
+    end
+  end
+  queueEntries = kept
+end
+
+-- Called while `pin` is still the post on the wire, before it is let go. Only a post that was
+-- sent: a Confirm nobody pressed asked the auction house nothing.
+function GC.Sell._AwaitLate(pin)
+  if not (type(pin) == "table" and pin.sent) then return end
+  local live = GC.Sell._LiveLate()
+  live[#live + 1] = { pin = pin, at = time() }
+  GC.Sell._HoldLateInQueue()
+  paintQueueButton()
+end
+
 local function schedulePostTimeout(row)
   if not (C_Timer and C_Timer.After) then return end
   postTimeoutToken = (postTimeoutToken or 0) + 1
   local token = postTimeoutToken
   C_Timer.After(POST_TIMEOUT_SECONDS, function()
+    local stage = row.postStage
     if token == postTimeoutToken and postingRow == row
-        and (row.postStage == "posting" or row.postStage == "confirm" or row.postStage == "confirming") then
-      -- Only when the confirm actually went to the server. A post still waiting for its own
-      -- first answer has nothing on the wire to arrive late.
-      if row.postStage == "confirming" and postingPin then
-        postedGrace = { pin = postingPin, at = time() }
-      end
+        and (stage == "posting" or stage == "confirm" or stage == "confirming") then
+      -- A post that was sent can still go up after this; keep listening for it.
+      local sent = postingPin and postingPin.sent
+      GC.Sell._AwaitLate(postingPin)
       disarmPost()
-      setStatus(GC.L["Posting timed out"])
+      -- Said by what is actually true. A Confirm nobody pressed asked the auction house nothing:
+      -- the player's confirmation lapsed. A post that went out is still listened for and the
+      -- item held meanwhile, so "try again" there would be contradicted by the very next press
+      -- (review I3). Only a post that never left -- its call raised -- is free to try again.
+      GC.Sell._NotePost(stage == "confirm" and GC.L["Post confirmation expired"]
+        or sent and GC.L["No answer yet -- listening for a minute"]
+        or GC.L["The auction house did not answer -- try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
     end
   end)
 end
 
 local function onPostClick(row)
+  -- A post already on its way answers every further press with nothing. Its buttons are
+  -- disabled, but the keybinding reaches here through onQueueClick whatever they look like --
+  -- and the stale-quote branch just below let go of a post in flight the moment its quote
+  -- passed SELL_QUOTE_ACTION_AGE, handing the row back as Post for the next press to post the
+  -- same stack again.
+  if postingRow == row and (row.postStage == "posting" or row.postStage == "confirming") then return end
+  -- With another post out, that post's answer is the one to wait for -- said at once, before any
+  -- hold or any search for a fresh price, and leaving the dock saying what that post is doing.
+  if postingRow and postingRow ~= row then
+    setStatus(GC.L["Finish the pending post first"])
+    return
+  end
+  -- Nor is a new post of an item whose last post the auction house may still be answering (see
+  -- GC.Sell._lateAnswers): the stack it would send is the one that post may be taking.
+  if row.postStage ~= "confirm" and row.position
+      and GC.Sell._LateFor(row.position.positionKey, row.position.scopeKey) then
+    GC.Sell._NotePost(GC.L["Last post may still go up -- wait a minute"], "fg",
+      GC.Sell.POST_NOTE_SECONDS.failed)
+    return
+  end
   local position = row.position
   local quote = freshQuote(position)
   if not quote then
@@ -1972,10 +2293,6 @@ local function onPostClick(row)
     if row.action then row.action:SetLabel(GC.L["Pricing…"]) end
     setStatus(GC.L["Fetching a fresh price for this item — press Post again in a moment"])
     startQuoteRefreshFor(position); return
-  end
-  if postingRow and postingRow ~= row then
-    setStatus(GC.L["Finish the pending post first"])
-    return
   end
   if postingRow == row and row.postStage ~= "confirm" then return end
   if row.postStage == "confirm" then
@@ -2003,7 +2320,10 @@ local function onPostClick(row)
       else setStatus(GC.L["Post confirmation expired"]) end
       return
     end
-    row.postStage = "confirming"; row.action:Disable(); setStatus(GC.L["Posting…"])
+    -- The same busy look the first click gave it: disabled, saying so, the spinner turning.
+    row.postStage = "confirming"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+    if row.action.SetBusy then row.action:SetBusy(true) end
+    GC.Sell._NotePost(GC.L["Posting…"])
     -- The confirming click gets its own full window. Sharing the first click's clock meant the
     -- time a player spent reading the confirmation came out of the time the server had to
     -- answer it -- see schedulePostTimeout.
@@ -2013,6 +2333,11 @@ local function onPostClick(row)
     else
       C_AuctionHouse.ConfirmPostItem(pin.location, pin.duration, pin.quantity, nil, pin.buyout)
     end
+    -- Sent once the call returns, as on the first click: an error the client raises inside the
+    -- call is this post's own refusal (OnAuctionHouseError reads an unsent post's error as its
+    -- own), not an older late post's answer -- which left this one "confirming", then held it a
+    -- minute for a post refused on the spot (review NM-B).
+    if postingPin == pin then pin.sent, pin.clean = true, GC.Sell._Certain() end
     return
   end
   local bagState = liveBagState(position)
@@ -2072,19 +2397,39 @@ local function onPostClick(row)
     quoteAt = quote.at, quoteUnit = quote.unit, quote = quote, location = location, isCommodity = info.isCommodity,
     unitPrice = plan.unitPrice, buyout = buyout, total = commodityTotal or buyout, row = row, action = row.action,
     position = position, renderEntryID = row.renderEntryID, character = scope.char, region = scope.region,
-    duration = duration }
-  row.postStage = "posting"; row.action:Disable(); setStatus(GC.L["Posting…"])
+    duration = duration, override = chosenKey and priceOverrides[chosenKey] or nil }
+  -- Busy the moment it is pressed, on the button that was: disabled, saying "Posting…", the
+  -- client's spinner turning beside the words. The owner could not tell a pressed Post from a
+  -- dead one when it only dimmed. The dock says it too, and holds it (GC.Sell._NotePost).
+  row.postStage = "posting"; row.action:Disable(); row.action:SetLabel(GC.L["Posting…"])
+  if row.action.SetBusy then row.action:SetBusy(true) end
+  GC.Sell._NotePost(GC.L["Posting…"])
+  -- Armed BEFORE the call: a call that raises (a client "bad argument") aborts this handler,
+  -- and armed after it the row and the dock stayed on "Posting…" until the auction house
+  -- closed, with every other Post answering "Finish the pending post first" (review I2). An
+  -- answer that lands inside the call lets this go through disarmPost's token, like any other.
+  schedulePostTimeout(row)
   local needsConfirmation
   if info.isCommodity then
     needsConfirmation = C_AuctionHouse.PostCommodity(location, duration, plan.quantity, plan.unitPrice)
   else
     needsConfirmation = C_AuctionHouse.PostItem(location, duration, plan.quantity, nil, buyout)
   end
+  -- The client can answer inside the call itself (an error it raises on the spot). That answer
+  -- has already given the row back; turning it into a Confirm, or arming a watchdog for it,
+  -- would undo it.
+  if postingRow ~= row then return end
   if needsConfirmation then
     row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel(GC.L["Confirm"])
-    setStatus(GC.L["Click Confirm to post"])
+    if row.action.SetBusy then row.action:SetBusy(false) end
+    GC.Sell._NotePost(GC.L["Click Confirm to post"])
+  else
+    -- No confirmation asked for: the post is on its way (Blizzard's own sell frame reads the
+    -- answer the same way), and anything that gives up on it from here listens for it late.
+    -- `clean`: no late answer open or owed as it went out, so the next creation can only be its own
+    -- (GC.Sell.OnAuctionCreated books it then, and only then).
+    postingPin.sent, postingPin.clean = true, GC.Sell._Certain()
   end
-  schedulePostTimeout(row)
 end
 
 local function onRepostClick(row, auctionID)
@@ -2276,8 +2621,8 @@ local function onRemoveClick(row)
   end
 end
 
--- Everything a completed post owes the rest of the addon, from the pin alone: shared by the
--- ordinary path below and by the late one, where the row and its render entry are long gone.
+-- What a completed post owes the rest of the addon, from the pin alone -- written only for a post
+-- that is CERTAINLY the one the auction house answered (GC.Sell.OnAuctionCreated).
 local function recordPostedPin(pin)
   if GC.Acquisitions and GC.Acquisitions.RecordPost then
     -- Derived as total/quantity rather than read off the pin, deliberately: a sale invoice
@@ -2297,39 +2642,266 @@ local function postPinSound(pin)
     and type(pin.region) == "string" and pin.region ~= ""
 end
 
-function GC.Sell.OnAuctionCreated()
-  local pin, row = postingPin, postingRow
-  if not pin or not row then
-    -- Nothing armed -- but a confirm the watchdog gave up on can still be answered a moment
-    -- later, and the auction it announces is a real one. Record it from the pin that was kept
-    -- for exactly this window and then forget it, so a second, unrelated creation cannot be
-    -- credited to it. No render-entry check is possible here: the row is gone.
-    local grace = postedGrace
-    postedGrace = nil
-    if not grace or time() - (grace.at or 0) > POST_TIMEOUT_SECONDS or not postPinSound(grace.pin) then return end
-    recordPostedPin(grace.pin)
-    if type(grace.pin.positionKey) == "string" then priceOverrides[grace.pin.positionKey] = nil end
-    GC.Sell.Refresh()
-    return
-  end
-  local valid = exactRenderEntry(row, pin) and (row.postStage == "posting" or row.postStage == "confirming")
-    and pin.positionKey == row.position.positionKey and pin.scopeKey == row.position.scopeKey
-    and pin.itemID == row.position.itemID and postPinSound(pin)
-  if valid then recordPostedPin(pin) end
-  -- The choice was for THIS listing. Keeping it would quietly price the next batch of the same
-  -- item at a number chosen against a book that has since moved -- which is the one real risk
-  -- of letting the price be typed at all.
-  if type(pin.positionKey) == "string" then priceOverrides[pin.positionKey] = nil end
-  postedGrace = nil
-  disarmPost()
-  GC.Sell.Refresh()
+-- "Posted · Eternium Ore ×246" -- which post went up, since the dock's label beside it has
+-- already moved on to the next item.
+function GC.Sell._PostedText(pin)
+  -- The position's own name: a caged pet's is the pet's, where the item's is "Pet Cage" for every
+  -- one of them (final review M4).
+  local name = type(pin.position) == "table" and pin.position.itemName or itemName(pin.itemID)
+  return GC.L["Posted"] .. " · " .. ("%s ×%d"):format(name, pin.quantity or 0)
 end
 
+-- The ItemKey an AUCTION_HOUSE_AUCTION_CREATED is about, when the client can say: the event
+-- carries the new auction's id, and C_AuctionHouse.GetAuctionInfoByID answers with it. That
+-- answer is Nilable, and nothing in Blizzard's own UI looks up an auction it has just created,
+-- so nil is to be expected in game. Also returns what the client said, for the trace.
+function GC.Sell._CreatedKey(auctionID)
+  if type(auctionID) ~= "number" or not (C_AuctionHouse and C_AuctionHouse.GetAuctionInfoByID) then return nil, nil end
+  local ok, info = pcall(C_AuctionHouse.GetAuctionInfoByID, auctionID)
+  if not ok then return nil, nil end
+  local key = type(info) == "table" and info.itemKey or nil
+  return type(key) == "table" and type(key.itemID) == "number" and key or nil, info
+end
+
+-- Whether a pin's variant is the one an ItemKey names: item level, suffix and pet species, which
+-- two variants of one item -- two positions -- differ in. A commodity has one variant.
+function GC.Sell._SameVariant(pin, key)
+  local level, suffix, pet = tostring(pin.positionKey):match("^item:%d+:(%d+):(%d+):(%d+)$")
+  if not level then return true end
+  return tonumber(level) == (key.itemLevel or 0) and tonumber(suffix) == (key.itemSuffix or 0)
+    and tonumber(pet) == (key.battlePetSpeciesID or 0)
+end
+
+-- Which of our SENT posts a creation belongs to, or nil for one that is none of ours. The
+-- candidates are the late answers (sent, and older) and `wire`, the post still on the wire --
+-- never a post waiting for its Confirm, which has sent nothing. Answers come in the order the
+-- posts went out, so the oldest candidate owns it; where the client names the item, only posts
+-- of that item are candidates, and between two of them the named variant decides. A late
+-- answer that is chosen is taken out of the window: one creation is one post -- and the post on
+-- the wire, if any, is no longer certain of the next creation (`clean`).
+--
+-- It used to go to the post on the wire whenever the client named nothing: that freed a post
+-- still out (the next press sent its stack again), booked it as posted when it was refused, and
+-- took a pending Confirm for an answer (review I1).
+--
+-- `info` is what the client said besides the key, GetAuctionInfoByID's AuctionInfo: a quantity
+-- it names must be the post's; for gear, a buyout it names must be the post's total -- two posts
+-- of one item are told apart by it.
+function GC.Sell._CreationOwner(named, wire, info)
+  local live = GC.Sell._LiveLate()
+  local function fits(pin)
+    if named and pin.itemID ~= named.itemID then return false end
+    if type(info) == "table" then
+      if type(info.quantity) == "number" and type(pin.quantity) == "number" and info.quantity ~= pin.quantity then
+        return false
+      end
+      if not pin.isCommodity and type(info.buyoutAmount) == "number" and type(pin.buyout) == "number"
+          and info.buyoutAmount ~= pin.buyout then
+        return false
+      end
+    end
+    return true
+  end
+  local candidates = {}
+  for index, late in ipairs(live) do
+    if fits(late.pin) then candidates[#candidates + 1] = { pin = late.pin, index = index } end
+  end
+  if wire and fits(wire) then candidates[#candidates + 1] = { pin = wire } end
+  local chosen = candidates[1]
+  if named and #candidates > 1 then
+    for _, candidate in ipairs(candidates) do
+      if GC.Sell._SameVariant(candidate.pin, named) then chosen = candidate break end
+    end
+  end
+  if chosen and chosen.index then
+    local late = table.remove(live, chosen.index)
+    if wire then wire.clean = false end
+    -- Unnamed, it is the order rule's guess: the real answer may still come (_OweAnswer).
+    if not named then GC.Sell._OweAnswer(late) end
+  end
+  return chosen and chosen.pin or nil
+end
+
+-- Refresh talks in the window's toolbar; off the tab the list is only composed again, and Show
+-- refreshes it when the tab comes back. The owned list is asked for either way -- off the tab a
+-- query alone, no walk -- so an auction credited there is on record (OnOwnedAuctions) before the
+-- player can close the auction house from Deals or BUY (review sell-fix4 M2). Not while a post of
+-- ours is on the wire: a "busy" the query drew would be read as that post's; its own creation
+-- asks next.
+function GC.Sell._RefreshAfterPost()
+  if container and container.IsShown and not container:IsShown() then
+    composePositions()
+    if not postingRow then requestOwnedAuctions() end
+  else
+    GC.Sell.Refresh()
+  end
+end
+
+--
+-- What it writes down depends on how sure it is. The owned-auctions list the refresh asks for
+-- next is the durable record for every auction on it, ours or not (OnOwnedAuctions ->
+-- ObserveOwnedPosition, with the auction's own key and price). A creation adds a booking of its
+-- own only when it is CERTAINLY the post on the wire's -- no late answer open when that post went
+-- out or taken since (`clean`) -- so a post the player closes the auction house straight after is
+-- still on record. Everything the order rule decides while a late answer is open is a guess, and
+-- a guess only moves the screen: the Posted line, the hold released, the typed price spent. It
+-- used to be booked and then settled against the owned list -- corrected, restored, replayed --
+-- to reach what that list writes seconds later anyway; every round found a new edge in it.
+function GC.Sell.OnAuctionCreated(auctionID)
+  local named, info = GC.Sell._CreatedKey(auctionID)
+  -- What the client said, for the owner to read with /gc board and /gc sell: whether
+  -- GetAuctionInfoByID names a just-created auction at all decides how often the order rule
+  -- in _CreationOwner is the one doing the work.
+  local said = type(info) ~= "table" and "nil" or type(info.itemKey) ~= "table" and "no itemKey"
+    or table.concat({ tostring(info.itemKey.itemID), info.itemKey.itemLevel or 0, info.itemKey.itemSuffix or 0,
+      info.itemKey.battlePetSpeciesID or 0 }, ":")
+  GC.Sell._createdSeen = ("sell: created %s -> %s"):format(tostring(auctionID), said)
+  if GC.Util and GC.Util.Trace then GC.Util.Trace(GC.Sell._createdSeen) end
+  local pin, row = postingPin, postingRow
+  -- Only a post that was SENT: a creation is a server answer, never the answer to a post call
+  -- that raised and sent nothing (review NM1).
+  local wire = pin and pin.sent and row and (row.postStage == "posting" or row.postStage == "confirming")
+    and pin or nil
+  local owner = GC.Sell._CreationOwner(named, wire, info)
+  if not owner then return end
+  GC.Sell._SpendPrice(owner)
+  if owner ~= wire then
+    -- A post we stopped waiting for, going up late (GC.Sell._lateAnswers): the dock said the
+    -- auction house had not answered, or named an error that was not this post's. It did answer,
+    -- late -- say that instead, and let the item post again. The post on the wire, if any, stays
+    -- armed for its own answer.
+    GC.Sell._NotePost(GC.Sell._PostedText(owner), "green", GC.Sell.POST_NOTE_SECONDS.posted)
+    GC.Sell._RefreshAfterPost()
+    return
+  end
+  if pin.clean and exactRenderEntry(row, pin) and (row.postStage == "posting" or row.postStage == "confirming")
+      and pin.positionKey == row.position.positionKey and pin.scopeKey == row.position.scopeKey
+      and pin.itemID == row.position.itemID and postPinSound(pin) then
+    recordPostedPin(pin)
+  end
+  disarmPost()
+  -- Said for a moment, then the list moves on as it always has: the stack leaves the bags, the
+  -- row goes or shrinks, and the dock's POST names the next item.
+  GC.Sell._NotePost(GC.Sell._PostedText(pin), "green", GC.Sell.POST_NOTE_SECONDS.posted)
+  GC.Sell._RefreshAfterPost()
+end
+
+-- AUCTION_HOUSE_POST_ERROR carries nothing. It answers a post that needed confirming -- the
+-- auction house's warning before a maintenance-window update -- and the default UI shows
+-- AUCTION_POSTING_ERROR_TEXT for it ("Items can't be posted right now.|n|nThe auction house is
+-- about to undergo a major update."), so that is what the dock says, on one line. Blizzard's own
+-- Sell pane raises it too: with no post of ours out, it keeps the old generic line.
 function GC.Sell.OnPostError()
+  local ours = postingRow ~= nil
   disarmPost()
   disarmRepost()
-  setStatus(GC.L["Posting failed"])
-  GC.Sell.Refresh()
+  if ours then
+    GC.Sell._NotePost(GC.Util and GC.Util.ClientLine and GC.Util.ClientLine(_G.AUCTION_POSTING_ERROR_TEXT)
+      or GC.L["Posting failed"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
+  else
+    setStatus(GC.L["Posting failed"])
+  end
+  GC.Sell._RefreshAfterPost()
+end
+
+-- AUCTION_HOUSE_SHOW_ERROR, the auction house's error channel (Core/Init.lua routes it here as
+-- well as to the Sniper). A refused post -- no gold for the deposit, an item the auction house
+-- will not take, "Internal auction error." -- is refused here and nowhere else, and this used to
+-- reach the Sniper only: the row sat disabled until the watchdog called the refusal a timeout.
+-- The event names no request, so it is read as the post's answer only while a post of ours is on
+-- the wire -- the same one-slot correlation OnAuctionCreated makes -- and in the client's own
+-- words where it has them (GC.Util.AuctionHouseErrorText).
+--
+-- The code says whose it can be (AuctionHouseUtil.GetErrorText's own table, by name): a bid or a
+-- purchase code is not the post's answer at all -- the post stays out; a code only a post can
+-- raise is the post's refusal, whole -- nothing listened for, nothing held, press again at once;
+-- a code a post shares with other requests -- "The Auction House is busy." (IsBusy) is one -- is
+-- the post's when nothing else of ours is out, so busy can be pressed again at once, and
+-- otherwise may be somebody else's, so the post is let go of but listened for (review I2: every
+-- refusal used to hold the item for a minute).
+GC.Sell.ERROR_CODES = {
+  bid = { "HigherBid", "BidIncrement", "BidOwn", "MinBid", "DoubleBid", "ItemHasQuote" },
+  post = { "NotEnoughItems", "RepairItem", "UsedCharges", "QuestItem", "BoundItem", "ConjuredItem",
+    "LimitedDurationItem", "IsBag", "EquippedBag", "WrappedItem", "LootItem" },
+}
+
+function GC.Sell._ErrorKind(code)
+  local enum = Enum and Enum.AuctionHouseError
+  if type(enum) == "table" then
+    for kind, names in pairs(GC.Sell.ERROR_CODES) do
+      for _, name in ipairs(names) do
+        if enum[name] ~= nil and enum[name] == code then return kind end
+      end
+    end
+  end
+  return "shared"
+end
+
+-- Whether a request of ours other than the post is out and could be what an error answers:
+-- this tab's own search or cancel, a purchase (either window's), a keys batch. (A late post still
+-- open is not asked here: OnAuctionHouseError's order rule has already answered that case.)
+function GC.Sell._OtherRequestOut()
+  if refresh.pending then return true end
+  -- This tab's own owned-auctions query: every Posted sends one.
+  if refresh.phase == "owned" then return true end
+  -- A Deals page or a Sniper search still in flight. Showing this tab aborts the Sniper's pass at
+  -- once, so it no longer reads as paging (GC.Sniper.IsBusy) -- but what it sent just before is
+  -- still out and can still be answered, "busy" included (review NM-C, NM-F).
+  if GC.Sniper and GC.Sniper.RequestOut and GC.Sniper.RequestOut() then return true end
+  if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then return true end
+  if repostingRow and repostingRow.repostStage == "cancelling" then return true end
+  if GC.PurchaseSlot and GC.PurchaseSlot.IsBusy and GC.PurchaseSlot.IsBusy() then return true end
+  -- A purchase either window confirmed is out until it is answered, which can be after its claim
+  -- has gone stale and IsBusy has stopped saying so (GC.PurchaseSlot.ConfirmOwed).
+  if GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed and GC.PurchaseSlot.ConfirmOwed() then return true end
+  -- Final money review M2: and one either window stopped waiting on -- BUY's "unknown", the
+  -- Sniper's released confirm -- which can still answer for as long as its record is kept.
+  if GC.Buy and GC.Buy.HasStranded and GC.Buy.HasStranded() then return true end
+  if GC.Sniper and GC.Sniper.HasStrandedConfirmed and GC.Sniper.HasStrandedConfirmed() then return true end
+  if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return true end
+  return false
+end
+
+function GC.Sell.OnAuctionHouseError(errorCode)
+  local row = postingRow
+  if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
+  local kind = GC.Sell._ErrorKind(errorCode)
+  if kind == "bid" then return end
+  local text = GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode)
+    or GC.L["Posting failed"]
+  -- The order rule, as for a creation: while a post we stopped waiting for is still unanswered
+  -- and this one has gone out, that older post's answer comes first. The refusal ends the OLDEST
+  -- late answer -- nothing booked, its item free again -- and this post stays armed for its own
+  -- answer. It used to free this one: the next press sent its stack twice, and its creation was
+  -- then booked as the late item (review NI1). An error while this post has not been sent yet
+  -- fired inside the post call itself, and is this post's.
+  local sent = postingPin and postingPin.sent
+  if sent then
+    local live = GC.Sell._LiveLate()
+    if #live > 0 then
+      GC.Sell._OweAnswer(table.remove(live, 1))
+      postingPin.clean = false
+      GC.Sell._NotePost(text, "red", GC.Sell.POST_NOTE_SECONDS.failed)
+      composePositions() -- the dock's queue offers that item again
+      return
+    end
+  end
+  -- A shared code with something else of ours out may be that request's: this post can still go
+  -- up, and the late answer corrects the line below to Posted.
+  if kind == "shared" and sent and GC.Sell._OtherRequestOut() then GC.Sell._AwaitLate(postingPin) end
+  disarmPost()
+  GC.Sell._NotePost(text, "red", GC.Sell.POST_NOTE_SECONDS.failed)
+end
+
+-- AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED: the client is holding a message back until the
+-- throttle frees a slot. It fires as the post call queues the post, so while ours is on its way
+-- the dock says what the wait is rather than a bare "Posting…". The row keeps turning; the post
+-- goes out on its own when the slot frees, and the watchdog still bounds the wait.
+function GC.Sell.OnThrottleQueued()
+  local row = postingRow
+  if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
+  if postingPin then postingPin.queued = true end
+  GC.Sell._NotePost(GC.L["Waiting for the Auction House…"])
 end
 
 local function setDialogError(dialog, text)
@@ -2720,6 +3292,55 @@ do
     return (GC.L["%d lots, %s asked"]):format(lots, asked)
   end
 
+  -- The TO POST deck's last section: stock in the bags the tab cannot key yet (the client has
+  -- not said whether it is a commodity, or cannot give its ItemKey -- GC.Sell._waitingStock).
+  -- It used to be left out without a word. A heading and a line per item; nothing to post from
+  -- until the client answers, and then the rescan files it (GC.Sell.OnItemKeyInfo). The search
+  -- narrows it like every other row.
+  function ROW.pushWaiting(entries)
+    local shown = {}
+    for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
+      local name = type(waiting.itemName) == "string" and waiting.itemName ~= "" and waiting.itemName
+        or itemName(waiting.itemID)
+      if not chips.search or name:lower():find(chips.search, 1, true) then
+        shown[#shown + 1] = { kind = "waitItem", name = name, quantity = waiting.quantity,
+          position = { itemID = waiting.itemID, itemName = name } }
+      end
+    end
+    if #shown == 0 then return end
+    entries[#entries + 1] = { kind = "waitHead", count = #shown, position = { itemID = 0 } }
+    for _, entry in ipairs(shown) do entries[#entries + 1] = entry end
+  end
+
+  -- Two copies of one piece at two item levels were two identical rows (review M9): a variant's
+  -- row names its level -- a pet's, its pet level -- from its own key.
+  function ROW.variantSuffix(position)
+    local level = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):"))
+    if position.variantKind == "pet" then
+      -- A pet's level is the one its battle-pet link states. What the client's ItemKey carries in
+      -- its level field for a caged pet is not confirmed off the client (final review M5).
+      local stack = position.bagStacks and position.bagStacks[1]
+      local lot = position.ownedLots and position.ownedLots[1]
+      local link = stack and stack.link or lot and lot.itemLink
+      level = type(link) == "string" and tonumber(link:match("battlepet:%d+:(%d+)")) or nil
+    end
+    if not level or level <= 0 then return "" end
+    local words = position.variantKind == "pet" and (GC.L["level %d"]):format(level) or (GC.L["ilvl %d"]):format(level)
+    return "  " .. DIM_HEX .. words .. "|r"
+  end
+
+  -- The heading's title, and its aside for the heading's own hint cell (renderRows): run on in
+  -- the label, the aside went past the list's edge and was cut mid-word (final review M1).
+  function ROW.waitText(entry)
+    if entry.kind == "waitHead" then
+      local open = GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+      return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count),
+        open and GC.L["the auction house has not sent details for these yet"]
+          or GC.L["open the auction house once so GoldCap can tell how these sell"]
+    end
+    return ("%s ×%d"):format(entry.name, entry.quantity or 0)
+  end
+
   -- The first of this position's lots the cancel queue holds, or nil: the queue is the one
   -- judge of what is worth cancelling, for the row's button as for the dock's.
   function ROW.queuedLot(position)
@@ -2823,6 +3444,10 @@ local DR = {
   BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
   BAR_MIN = 5,             -- the narrowest fill that still holds both caps
   PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
+  -- "wall", at the start of its own level's bar: the bar starts after it. Measured where the client
+  -- can (INSP.paintLadder); this is the fallback, the widest language's word ("стена") in mono-9 at
+  -- Theme.Scale() 1.3 with air -- 28 cut it to "ст…" (final review I2).
+  WALL_TAG_W = 38,
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
@@ -2913,15 +3538,21 @@ local function layoutDrawer(row)
     -- The word sits at the LEFT of its level, in the room a right-aligned price leaves in its
     -- own column. It had a column to itself at the right edge, empty on every level but one or
     -- two, so the bars and the unit counts stopped 46px short of the panel they sit in.
-    line.tag:ClearAllPoints()
-    line.tag:SetWidth(DR.TAG_W)
-    line.tag:SetPoint("TOPLEFT", row, "TOPLEFT", left, y - 1)
     line.qty:ClearAllPoints()
     line.qty:SetWidth(DR.UNITS_W)
     line.qty:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, y)
     line.bar:ClearAllPoints()
     line.bar:SetPoint("LEFT", line.price, "RIGHT", Theme.pad.s, 0)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
+    -- "wall" at the start of its own level's bar, which then starts after the word: a column of
+    -- its own for one level in eight cost the book its width twice before (see the paint).
+    -- Its width is the word's own, set where the word is (INSP.paintLadder).
+    line.tag:ClearAllPoints()
+    line.tag:SetPoint("LEFT", line.bar, "LEFT", 0, 0)
+    -- The marker's and the gap's words, where a level has its bar and its count.
+    line.note:ClearAllPoints()
+    line.note:SetPoint("LEFT", line.bar, "LEFT", 0, 0)
+    line.note:SetPoint("RIGHT", line.qty, "RIGHT", 0, 0)
     line.wash:ClearAllPoints()
     line.wash:SetPoint("TOPLEFT", row, "TOPLEFT", left - 4, y + 4)
     line.wash:SetPoint("BOTTOMRIGHT", row, "TOPRIGHT", right + 4, y - DR.LINE_H + 4)
@@ -2936,7 +3567,14 @@ local function layoutDrawer(row)
   -- ever cut to "stands 1 o...": where the price stands; how deep the book is, with the quote's
   -- state at the right; how fast it sells and how long the queue is.
   row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
-  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  -- "yours ×N" at the right end of the same line, the words ending where it begins.
+  row.drawerOwn:ClearAllPoints()
+  row.drawerOwn:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot)
+  if hasBook and row.drawerOwn:IsShown() then
+    row.drawerStand:SetPoint("RIGHT", row.drawerOwn, "LEFT", -8, 0)
+  else
+    row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  end
   row.drawerStand:SetWordWrap(not hasBook)
   row.drawerStand:SetMaxLines(hasBook and 1 or 2)
   if not hasBook then
@@ -3224,6 +3862,7 @@ local function createRow(parent)
   row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- trim the stock icon border
   row.icon:Hide()
   row:SetScript("OnEnter", function(self)
+    self.goldcapVariant = nil
     -- The list's rows are what a hover picks between; a wash over the panel's twelve-slot
     -- head, or over a heading inside it, points at nothing.
     if not self.inPanel then self.highlight:Show() end
@@ -3233,7 +3872,18 @@ local function createRow(parent)
       -- Outside the window, never over it -- a row's own item tooltip used to cover the deck
       -- it is describing (Theme.ItemTooltipOutside; see UI/Theme.lua's own comment on it).
       Theme.ItemTooltipOutside(self, statusOwner)
-      if GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
+      -- A variant is the stack itself -- its item level, its bonuses, its pet -- not the base item
+      -- (for every caged pet, "Pet Cage"): the bag slot, else the lot's own link (review M9).
+      -- GoldCap's own block under this tooltip (UI/Tooltip.lua) reads the site's figure for the
+      -- item -- every item level at once, every pet at once. Under a variant row it says there is
+      -- none for this one instead (review N7), reading which variant off the tooltip's owner --
+      -- this row -- so it can never outlive the row onto some other item's tooltip (NI-B).
+      self.goldcapVariant = self.position.variantKind
+      local stack = self.position.quoteKey and self.position.bagStacks and self.position.bagStacks[1]
+      local lot = self.position.quoteKey and self.position.ownedLots and self.position.ownedLots[1]
+      if stack and GameTooltip.SetBagItem then GameTooltip:SetBagItem(stack.bag, stack.slot)
+      elseif lot and lot.itemLink and GameTooltip.SetHyperlink then GameTooltip:SetHyperlink(lot.itemLink)
+      elseif GameTooltip.SetItemByID then GameTooltip:SetItemByID(self.position.itemID) end
       -- Flags painted onto the row at the same time as the cells they describe (MARKET/UNIT's
       -- fallback, the item cell's "· not on hand" suffix) -- read here rather than re-derived,
       -- so the tooltip can never disagree with what the row is actually showing.
@@ -3258,9 +3908,16 @@ local function createRow(parent)
       GameTooltip:Show()
     end
   end)
+  -- Belt and braces: a row hidden under a stationary cursor (Escape, the auction house closing,
+  -- a re-render) never gets its OnLeave.
+  row:SetScript("OnHide", function(self) self.goldcapVariant = nil end)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
-    if GameTooltip then GameTooltip:Hide() end
+    self.goldcapVariant = nil
+    -- GameTooltip_Hide closes Blizzard's battle-pet card too, which a caged pet's bag slot or
+    -- link may open beside GameTooltip (review N5).
+    if _G.GameTooltip_Hide then _G.GameTooltip_Hide()
+    elseif GameTooltip then GameTooltip:Hide() end
   end)
 
   row.cells = {}
@@ -3341,9 +3998,13 @@ local function createRow(parent)
     -- a wash behind it. Colour alone carried that, explained once in a hint long enough to be
     -- cut off at the panel's width -- a colour nobody explained is a colour nobody reads.
     line.tag = Theme.Num(row, 9)
-    line.tag:SetJustifyH("LEFT"); line.tag:SetWordWrap(false)
+    line.tag:SetJustifyH("LEFT"); line.tag:SetWordWrap(false); line.tag:SetMaxLines(1)
+    -- The line's words when it is not a level: "your price · 2.3k units ahead of you", or the
+    -- stretch of the book the ladder skips.
+    line.note = Theme.Num(row, 10)
+    line.note:SetJustifyH("LEFT"); line.note:SetWordWrap(false); line.note:SetMaxLines(1)
     line.wash = row:CreateTexture(nil, "BACKGROUND", nil, 2)
-    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+    line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
     row.bookLines[i] = line
   end
   -- Column headings and the bottom line. Separate FontStrings rather than reusing subItem and
@@ -3353,8 +4014,15 @@ local function createRow(parent)
   row.drawerBookHead = Theme.Num(row, 10, true)
   row.drawerHint = Theme.Num(row, 9)
   row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerStand = Theme.Num(row, 11)
+  -- Mono-10, as the rest of the foot: the line and "yours ×N" beside it are budgeted in that face
+  -- (spec/button_label_width_spec.lua).
+  row.drawerStand = Theme.Num(row, 10)
   row.drawerStand:SetJustifyH("LEFT")
+  row.drawerOwn = Theme.Num(row, 10)
+  row.drawerOwn:SetJustifyH("RIGHT")
+  row.drawerOwn:SetWordWrap(false)
+  row.drawerOwn:SetMaxLines(1)
+  row.drawerOwn:Hide()
   row.drawerFacts = Theme.Num(row, 10)
   row.drawerFacts:SetJustifyH("LEFT")
   -- The right-hand ends of the two lines under the book: how deep it is, how old the quote is.
@@ -3692,6 +4360,118 @@ local function updateSummary(filtered)
     and (text.profit < 0 and Theme.color.red or Theme.color.green) or Theme.color.fgDim)
 end
 
+-- Clear, set, hide, show: a one-line FontString on a pooled row that was hidden and shown again
+-- can keep its text undrawn, and SetText with the text it already holds does not redraw it (the
+-- engineering notes' "Text"). Ends shown.
+function INSP.stamp(fs, text)
+  fs:SetText(""); fs:SetText(text or ""); fs:Hide(); fs:Show()
+end
+
+-- THE BOOK's eight lines. A commodity's book is chosen around the player's price (SellViewModel's
+-- ladder): levels, a gap line for the stretch it skips, and a marker for the price itself. A
+-- function of its own: paintHead sits near Lua 5.1's cap on upvalues.
+function INSP.paintLadder(row, book)
+  local widest = book.widest or 0
+  local count = function(n) return GC.Util.FormatCount(n or 0) or tostring(n or 0) end
+  for lineIndex = 1, DR.LINES do
+    local line, entry = row.bookLines[lineIndex], book.rows[lineIndex]
+    line.tag:Hide(); line.note:Hide()
+    if entry and entry.kind == "yours" then
+      -- The player's own price at its sorted place, after the levels at an equal price: it
+      -- would join their tail. What stands ahead of it is the one number this panel is for.
+      -- The count first, and nothing the gold price and its wash already say: "your price · …
+      -- units ahead of you" ran past the line in English and cut the number itself in Russian
+      -- and Ukrainian (review M1). The same words as a row's own standing.
+      local words = entry.pastRead and (GC.L["%s+ ahead"]):format(count(entry.ahead))
+        or (entry.ahead or 0) == 0 and GC.L["first in line"]
+        or (GC.L["%s ahead"]):format(count(entry.ahead))
+      line.price:SetText(formatCell(entry.unit)); setColor(line.price, Theme.color.gold)
+      line.price:Show(); line.qty:Hide(); line.bar:Hide()
+      INSP.stamp(line.note, words); setColor(line.note, Theme.color.goldHi or Theme.color.gold)
+      line.wash:SetColorTexture(Theme.color.gold[1], Theme.color.gold[2], Theme.color.gold[3], 0.10)
+      line.wash:Show()
+    elseif entry and entry.kind == "gap" then
+      line.price:SetText("…"); setColor(line.price, Theme.color.fgDim)
+      line.price:Show(); line.qty:Hide(); line.bar:Hide(); line.wash:Hide()
+      INSP.stamp(line.note, (GC.L["%s units in %d prices"]):format(count(entry.units), entry.prices or 0))
+      setColor(line.note, Theme.color.fgDim)
+    elseif entry then
+      -- Colour carries the facts a single number cannot: gold is where GoldCap's price would
+      -- put you (a realm item's book, which has no marker), blue is stock already yours, red is
+      -- a wall -- a level holding a big share of the day, that sells before anything priced
+      -- over it.
+      local colour, tint, wash = Theme.color.fg, nil, nil
+      if book.yourRow == lineIndex then colour, tint, wash = Theme.color.gold, Theme.color.gold, Theme.color.gold
+      elseif entry.mine then colour, tint, wash = Theme.color.watch, Theme.color.watch, Theme.color.watch end
+      if entry.wall then tint = Theme.color.red end
+      line.price:SetText(formatCell(entry.unit)); setColor(line.price, colour)
+      line.qty:SetText(GC.Util.FormatCount(entry.units) or "—")
+      setColor(line.qty, entry.wall and Theme.color.red or Theme.color.fgDim)
+      -- A wall says so in a word at the start of its own bar, which then starts after it. A
+      -- column for the word on every level held the bars and the figures off an edge of the
+      -- panel for one level in eight (seen in game, twice); this costs only the wall's own bar.
+      -- The word first, then the bar after it: measured, so it holds in every language and scale.
+      local offset = 0
+      if entry.wall then
+        INSP.stamp(line.tag, GC.L["wall"]); setColor(line.tag, Theme.color.red)
+        local measured = line.tag.GetUnboundedStringWidth and line.tag:GetUnboundedStringWidth()
+        offset = type(measured) == "number" and measured > 0 and math.ceil(measured) + 3 or DR.WALL_TAG_W
+        line.tag:SetWidth(offset)
+      end
+      local span = widest > 0 and (entry.units / widest) or 0
+      line.bar.fill:ClearAllPoints()
+      line.bar.fill:SetPoint("TOPLEFT", line.bar, "TOPLEFT", offset, 0)
+      line.bar.fill:SetPoint("BOTTOMLEFT", line.bar, "BOTTOMLEFT", offset, 0)
+      line.bar.fill:SetWidth(math.max(DR.BAR_MIN, math.floor((DR.BAR_MAX - offset) * span + 0.5)))
+      if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
+      else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
+      line.price:Show(); line.qty:Show(); line.bar:Show()
+      if wash then
+        line.wash:SetColorTexture(wash[1], wash[2], wash[3], 0.10)
+        line.wash:Show()
+      else
+        line.wash:Hide()
+      end
+    else
+      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.wash:Hide()
+    end
+  end
+end
+
+-- The line under a commodity's ladder: past the levels read, that the marker's count is a floor
+-- (the read stopped there; nothing past it is counted or guessed); otherwise how long the queue
+-- ahead of the price takes at today's pace -- the sells/day the panel shows, nothing when that
+-- is unknown or nothing is ahead. Count first and short, in its own cell beside "yours ×N": the
+-- long wording cut the count itself, and the key after it, in most languages (final review I1).
+function INSP.standWords(book)
+  if book.pastRead then
+    -- The marker's number, which leaves the player's own units out -- the book's total put a
+    -- second figure beside it (review M4).
+    return (GC.L["%s+, %d prices read"]):format(GC.Util.FormatCount(book.ahead or 0) or tostring(book.ahead or 0),
+      book.levels or 0)
+  end
+  local hours = book.hoursToReach
+  if type(hours) ~= "number" then return "" end
+  if hours < 24 then return (GC.L["~%dh to reach you"]):format(math.max(1, math.floor(hours + 0.5))) end
+  return (GC.L["~%dd to reach you"]):format(math.floor(hours / 24 + 0.5))
+end
+
+-- The walls around a commodity's price, for the facts line: the nearest at or under it and the
+-- first above it. Empty for a book with no price of the player's, or no walls.
+function INSP.wallWords(book)
+  local words = {}
+  local function amount(wall)
+    return GC.Util.FormatCount(wall.units) or tostring(wall.units), formatCell(wall.unit)
+  end
+  if book.commodity and book.wallBelow then
+    words[#words + 1] = (GC.L["wall %s at %s -- price under it to sell first"]):format(amount(book.wallBelow))
+  end
+  if book.commodity and book.wallAbove then
+    words[#words + 1] = (GC.L["wall %s at %s above you"]):format(amount(book.wallAbove))
+  end
+  return words
+end
+
 -- The detail panel's head: the price control, the book it lands in, and the line of facts.
 -- A function of its own rather than a branch of renderRows, which is where it was written:
 -- that function sits two short of Lua 5.1's 60-upvalue cap, and everything this reads -- the
@@ -3813,51 +4593,31 @@ function INSP.paintHead(row, p, d)
     row.headRules[1]:Show()
     row.drawerHint:SetText(bookHint(book)); row.drawerHint:Show()
     setColor(row.drawerHint, Theme.color.fgDim)
-    local widest = book.widest or 0
-    for lineIndex = 1, DR.LINES do
-      local line, level = row.bookLines[lineIndex], book.rows[lineIndex]
-      if level then
-        -- Colour carries the two facts a single number cannot: gold is where GoldCap's
-        -- price would put you, blue is stock already yours. Same code as the level row.
-        local colour, tint = Theme.color.fg, nil
-        if book.yourRow == lineIndex then colour, tint = Theme.color.gold, Theme.color.gold
-        elseif level.mine then colour, tint = Theme.color.watch, Theme.color.watch end
-        line.price:SetText(formatCell(level.unit)); setColor(line.price, colour)
-        line.qty:SetText(GC.Util.FormatCount(level.units) or "—")
-        setColor(line.qty, Theme.color.fgDim)
-        local span = widest > 0 and (level.units / widest) or 0
-        line.bar.fill:SetWidth(math.max(DR.BAR_MIN, math.floor(DR.BAR_MAX * span + 0.5)))
-        if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
-        else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
-        line.price:Show(); line.qty:Show(); line.bar:Show()
-        -- The same two facts in a word and a wash: where the price lands, what is already
-        -- the seller's. Where they coincide the landing wins -- it is the one being decided.
-        -- A wash and the colour, no word: a word needs a column, and wherever that column was
-        -- put -- right of the counts, left of the prices -- it held the bars and the figures off
-        -- one edge of the panel for the sake of one level in eight (seen in game, twice). The
-        -- line under the book is the key: it is written in the same gold, and names the blue.
-        line.tag:Hide()
-        if tint then
-          line.wash:SetColorTexture(tint[1], tint[2], tint[3], 0.10)
-          line.wash:Show()
-        else
-          line.wash:Hide()
-        end
-      else
-        line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
-      end
-    end
+    INSP.paintLadder(row, book)
     -- How deep the book is rides here, after where the price stands in it: the hint beside the
     -- heading has room for the price to beat and nothing else.
     row.drawerDepth:SetText((GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0))
     row.drawerDepth:Show()
-    -- What is already the seller's, in the blue its levels are drawn in -- the colour's key.
-    local ownUnits = 0
-    for i = 1, #(book.rows or {}) do ownUnits = ownUnits + (book.rows[i].ownerUnits or 0) end
-    local own = ownUnits > 0 and ("  " .. inlineColor(Theme.color.watch, GC.L["yours"] .. " ×" .. ownUnits)) or ""
-    if book.yourRow then
-      row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
-        book.yourRow, book.levels or 0) .. own)
+    -- What is already the seller's, in the blue its levels are drawn in -- the colour's key: every
+    -- unit of theirs the book read, drawn or not (final review M6). A cell of its own at the right
+    -- of the line, so the words beside it can never push it off (I1).
+    local ownUnits = type(book.ownUnits) == "number" and book.ownUnits or 0
+    local own = ownUnits > 0 and (book.yourRow or (book.commodity and book.yourUnit))
+    if own then
+      row.drawerOwn:SetText((GC.L["yours ×%s"]):format(GC.Util.FormatCount(ownUnits) or tostring(ownUnits)))
+      setColor(row.drawerOwn, Theme.color.watch)
+      row.drawerOwn:Show()
+    else
+      row.drawerOwn:SetText(""); row.drawerOwn:Hide()
+    end
+    if book.commodity and book.yourUnit then
+      -- Where the price stands is the marker's, in the ladder; this line says what it means:
+      -- how long the queue ahead takes at today's pace, or -- past the levels read -- that the
+      -- count is a floor, never a number made up for the rest.
+      row.drawerStand:SetText(INSP.standWords(book))
+      setColor(row.drawerStand, Theme.color.goldHi)
+    elseif book.yourRow then
+      row.drawerStand:SetText((GC.L["price stands %d of %d"]):format(book.yourRow, book.levels or 0))
       setColor(row.drawerStand, Theme.color.goldHi)
     else
       row.drawerStand:SetText(GC.L["your price is above every level shown"])
@@ -3867,9 +4627,9 @@ function INSP.paintHead(row, p, d)
     row.drawerHint:Hide()
     row.headRules[1]:Show()
     for _, line in ipairs(row.bookLines) do
-      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+      line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
     end
-    row.drawerDepth:Hide()
+    row.drawerDepth:Hide(); row.drawerOwn:Hide()
     row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
     setColor(row.drawerStand, Theme.color.fgDim)
   end
@@ -3883,23 +4643,37 @@ function INSP.paintHead(row, p, d)
   if d and d.displayMarketUnit ~= nil then
     -- The market price is said in words only when there is no book to read it off: with one,
     -- it is the first level and the hint beside the heading.
-    if not book then facts[#facts + 1] = ("market %s"):format(formatCell(d.displayMarketUnit)) end
-    quote = d.marketState or "unavailable"
-    if type(d.quoteAge) == "number" then quote = quote .. (" · age %ss"):format(d.quoteAge) end
+    if not book then facts[#facts + 1] = (GC.L["market %s"]):format(formatCell(d.displayMarketUnit)) end
+    quote = d.marketState == "fresh" and GC.L["fresh"] or d.marketState == "stale" and GC.L["stale"]
+      or GC.L["unavailable"]
+    if type(d.quoteAge) == "number" then quote = quote .. " · " .. (GC.L["age %ss"]):format(d.quoteAge) end
   elseif d and type(d.quoteAge) == "number" then
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
-  if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
+  -- A listed lot's own queue -- but not beside THE BOOK's marker, whose count and times are
+  -- about the post price: one count on the panel, not two (review N2).
+  local marker = book and book.commodity and book.yourUnit
+  if d and type(d.ahead) == "number" and not marker then facts[#facts + 1] = (GC.L["%d ahead of you"]):format(d.ahead) end
   if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
   -- In hours under a day: rounded to whole days, anything that sells through by this
-  -- evening read "clears in ~0d".
-  if d and type(d.days) == "number" then
-    facts[#facts + 1] = d.days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(d.days * 24 + 0.5)))
-      or ("clears in ~%dd"):format(math.floor(d.days + 0.5))
+  -- evening read "clears in ~0d". A commodity priced in THE BOOK clears on the book's own pace
+  -- -- the queue ahead of it, then its own units, the same figure "~Xh to reach you" is the first
+  -- half of (SellViewModel's clearsHours). The listed-lot outlook left the queue out for bag
+  -- stock and said ~1h beside ~6h (review I1).
+  local days = d and type(d.days) == "number" and d.days or nil
+  if marker then
+    days = type(book.clearsHours) == "number" and book.clearsHours / 24 or nil
   end
+  if days then
+    facts[#facts + 1] = days < 1 and (GC.L["clears in ~%dh"]):format(math.max(1, math.floor(days * 24 + 0.5)))
+      or (GC.L["clears in ~%dd"]):format(math.floor(days + 0.5))
+  end
+  -- The walls around the price last: the two lines may cut a wall -- the ladder still shows it,
+  -- in red -- but not the pace every time on this panel is measured by (review M2).
+  for _, words in ipairs(book and INSP.wallWords(book) or {}) do facts[#facts + 1] = words end
   local notPriced = (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0 and not p.unresolved
   row.drawerFacts:SetText(#facts > 0 and table.concat(facts, " · ")
-    or (quote and "" or (notPriced and "not priced — nothing on hand to sell" or "no live quote yet — pricing…")))
+    or (quote and "" or (notPriced and GC.L["not priced — nothing on hand to sell"] or GC.L["no live quote yet — pricing…"])))
   setColor(row.drawerFacts, Theme.color.fgDim)
   row.drawerFacts:Show()
   -- A stale quote is the one thing down here worth a second look, so it alone is not dim.
@@ -4132,6 +4906,7 @@ renderRows = function()
       for _, position in ipairs(folded) do pushPosition(position) end
     end
   end
+  if filterMode == "post" then ROW.pushWaiting(entries) end
   if #entries == 0 then
     -- M7: sentence case, not shouted -- this is a native-font (Theme.Label) empty state, like
     -- Deals', and reads like the rest of that font's copy rather than a toolbar label.
@@ -4239,7 +5014,7 @@ renderRows = function()
         -- `not p.unresolved` guard further down.
         local notOnHand = not p.unresolved and (p.bagQty or 0) == 0 and (p.listedQty or 0) == 0
         row.notOnHand = notOnHand
-        row.cells.item:SetText(named)
+        row.cells.item:SetText(named .. ROW.variantSuffix(p))
         -- What is off about this row, if anything -- see rowTag.
         row.itemStock:SetText((#stockParts > 0 and table.concat(stockParts, " · ")
           or GC.SellViewModel.SourceText(p))
@@ -4279,9 +5054,11 @@ renderRows = function()
         -- back to the dash and "Waiting for a live price", which is what it is. The re-query
         -- guard keeps its job -- holding the last KNOWN-EMPTY answer on screen while the walk
         -- re-asks -- but it cannot invent one for an item that has never answered.
-        local answeredEmpty = restedEmptyFresh(p.itemID, time())
-        local requeryingThis = refresh.pending and refresh.pending.itemID == p.itemID
-        local rest = emptyAnswers[p.itemID]
+        -- By quote id: an item-level variant's answers are its own (GC.Sell._QuoteItemKey).
+        local quoteID = p.quoteKey or p.itemID
+        local answeredEmpty = restedEmptyFresh(quoteID, time())
+        local requeryingThis = refresh.pending and refresh.pending.itemID == quoteID
+        local rest = emptyAnswers[quoteID]
         local emptyKnown = answeredEmpty
           or (requeryingThis and type(rest) == "table" and rest.answered == true) or false
         local marketFallback = p.displayMarketUnit == nil and type(p.marketValue) == "number"
@@ -4427,7 +5204,10 @@ renderRows = function()
         -- cheapest; the lit one is where this price lands -- gold for a price about to be
         -- posted, the watch blue for a lot already standing there, the same two colours the
         -- book itself uses for the same two facts.
-        local standing = rowUnit and GC.SellViewModel.Standing and GC.SellViewModel.Standing(p, rowUnit) or nil
+        -- On TO POST the price is about to be posted and joins any level at the same price, so
+        -- that level counts as ahead -- what THE BOOK's marker says (SellViewModel.UnitsAhead).
+        local standing = rowUnit and GC.SellViewModel.Standing
+          and GC.SellViewModel.Standing(p, rowUnit, not onListedDeck) or nil
         local lit = onListedDeck and Theme.color.watch or Theme.color.gold
         for slot, mark in ipairs(row.standMarks) do
           if not standing then
@@ -4482,6 +5262,11 @@ renderRows = function()
         row.action:Hide()
       elseif entry.kind == "section" then
         row.sectionLabel:SetText(ROW.sectionText(entry.section))
+        row.action:Hide()
+      elseif entry.kind == "waitHead" or entry.kind == "waitItem" then
+        local title, aside = ROW.waitText(entry)
+        row.sectionLabel:SetText(title)
+        row.sectionHint:SetText(aside or "")
         row.action:Hide()
       elseif entry.kind == "group" then
         -- The hint rides IN the heading, not in the status cell. That cell is the first thing
@@ -4744,11 +5529,11 @@ renderRows = function()
       -- on top of whatever line it becomes next.
       if entry.kind ~= "drawer" then
         row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
-        row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
+        row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide(); row.drawerOwn:Hide()
         row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
         row.drawerDepth:Hide(); row.drawerQuote:Hide()
         for _, line in ipairs(row.bookLines) do
-          line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.wash:Hide()
+          line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
         end
       end
       -- The second lines belong to a position alone; a pooled row that was one last render
@@ -4779,7 +5564,8 @@ renderRows = function()
         -- resolvable icon.
         row.itemInset = icon and (ROW.ICON + 10) or 0
         if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
-      elseif entry.kind == "fold" or entry.kind == "section" then
+      elseif entry.kind == "fold" or entry.kind == "section" or entry.kind == "waitHead"
+          or entry.kind == "waitItem" then
         -- A heading in the list's own column, not a child of the row above it: no spine, no
         -- well, and the label starts where the item names do.
         row.itemInset = 2
@@ -4794,6 +5580,19 @@ renderRows = function()
         local fgc = entry.kind == "fold" and Theme.color.gold or Theme.color.fgMuted
         row.sectionRule:SetColorTexture(fgc[1], fgc[2], fgc[3], entry.kind == "fold" and 0.25 or 0.12)
         setColor(row.sectionLabel, fgc)
+        -- An item waiting for its key is a line under that heading, not a heading of its own.
+        if entry.kind == "waitItem" then row.sectionRule:Hide() end
+        -- The waiting heading's aside, one line from its title to the list's edge, where the
+        -- rule would run.
+        if entry.kind == "waitHead" then
+          row.sectionRule:Hide()
+          row.sectionHint:ClearAllPoints()
+          row.sectionHint:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.m, 0)
+          row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
+          row.sectionHint:SetWordWrap(false)
+          row.sectionHint:SetMaxLines(1)
+          row.sectionHint:Show()
+        end
       else
         row.itemInset = 34
         row.icon:Hide()
@@ -4923,6 +5722,27 @@ function GC.Sell.Show()
   -- renderRows() pass now runs for real the instant containerShown() is true. An explicit
   -- flushDeferredRender() call here would render this same pass a second time.
   GC.Sell.Refresh()
+  -- Mid-post the render is held, so coming back to the tab re-sets the dock's line and the
+  -- busy labels with the text they already hold -- a no-op the client does not redraw on a
+  -- one-line FontString that was hidden and shown (the engineering notes' "Text"): the row and
+  -- the dock could sit on a bare spinner until the answer (review M4). Clear, set, hide, show,
+  -- the cure SoldFrame's restampHeadings uses.
+  if container and (postingRow or GC.Sell._postNote) then
+    local function restamp(fs)
+      if not (fs and fs.IsShown and fs:IsShown()) then return end
+      local text = fs:GetText() or ""
+      fs:SetText(""); fs:SetText(text); fs:Hide(); fs:Show()
+    end
+    restamp(container.dockStatus)
+    restamp(container.queueLabel)
+    for _, button in ipairs({ container.queueButton or false, postingRow and postingRow.action or false }) do
+      if button and button.label and button.SetLabel then
+        local label = button.label
+        button:SetLabel(""); button:SetLabel(label)
+        if type(button.text) == "table" then restamp(button.text) end
+      end
+    end
+  end
 end
 function GC.Sell.Hide() if container then container:Hide() end end
 -- `automatic` marks the self-driven repeat below, which politely stands aside
@@ -4974,6 +5794,15 @@ function GC.Sell.BulkOutstanding()
   local sniper = GC.Sniper
   if not (sniper and sniper._keysOwner == "sell" and sniper._keysAwaiting) then return false end
   return (time() - sniper._keysAwaiting) < 8
+end
+
+-- Whether the pricing walk's own search is still waiting for its answer (refresh.pending, until it
+-- lands or is older than a quote can be). Final review m9: UI/SniperFrame.lua's
+-- _TrySendKeysBatchFor asks it before any keys batch goes, this tab's own bulk fill included -- a
+-- batch sent on top of the search takes its answer.
+function GC.Sell.SearchPending()
+  local pending = refresh.pending
+  return pending ~= nil and (time() - (pending.at or 0)) <= QUOTE_STALE_SECONDS
 end
 
 function GC.Sell.TrySendBulk(playerBusy)
@@ -5110,7 +5939,13 @@ function GC.Sell.Reset()
   refresh.waitingNoted = false
   for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
   for key in pairs(ownedAwaitingKind) do ownedAwaitingKind[key] = nil end
-  postedGrace = nil
+  -- Nothing is answered once the auction house has closed: every post that went out and was never
+  -- answered -- the late ones and the one on the wire -- drops the price typed for it
+  -- (GC.Sell._SpendPrice). A Confirm nobody pressed sent nothing, and keeps it.
+  for _, late in ipairs(GC.Sell._lateAnswers) do GC.Sell._SpendPrice(late.pin) end
+  if postingPin and postingPin.sent then GC.Sell._SpendPrice(postingPin) end
+  GC.Sell._lateAnswers = {}
+  GC.Sell._owedUntil = nil
   GC.QuoteCache.Clear(quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --
@@ -5898,14 +6733,14 @@ GC.slashHandlers.sellstate = function()
       local listed = type(position.listedQty) == "number" and position.listedQty > 0
       local commodity = type(position.positionKey) == "string"
         and position.positionKey:find("commodity:", 1, true) == 1
-      local restingAt = restedAt(position.itemID)
+      local restingAt = restedAt(position.quoteKey or position.itemID)
       local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
       local why
       if position.unresolved and not commodity then
         why = GC.L["identity unresolved (variant item -- not priced by design)"]
       elseif not (inBags or listed) then
         why = GC.L["no stock in bags or listed -- nothing to price for"]
-      elseif resting and restedEmptyFresh(position.itemID, time()) then
+      elseif resting and restedEmptyFresh(position.quoteKey or position.itemID, time()) then
         why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
       elseif resting then
         -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk
@@ -5915,7 +6750,9 @@ GC.slashHandlers.sellstate = function()
         why = GC.L["due -- will be asked next pass"]
       end
       shown = shown + 1
-      GC.Print(("  %s (%d): %s"):format(tostring(position.itemName or "?"), position.itemID, why))
+      -- A variant by its exact key: two item levels of one piece read as one line by item ID.
+      GC.Print(("  %s (%s): %s"):format(tostring(position.itemName or "?"),
+        tostring(position.quoteKey or position.itemID), why))
     end
   end
 end
@@ -5925,7 +6762,22 @@ end
 -- slot and there is otherwise nothing on screen that says which gate it is waiting on.
 function GC.Sell.DebugPrint()
   local sniper = GC.Sniper or {}
+  -- What C_AuctionHouse.GetAuctionInfoByID said about the last auction created (GC.Sell.
+  -- OnAuctionCreated): whether the client names a just-created auction at all.
+  GC.Print(GC.Sell._createdSeen or "sell: created -- none this session")
   local function call(fn, ...) if type(fn) == "function" then return tostring(fn(...)) end return "n/a" end
+  -- Why an item will not post, or a post was not booked (final review M7): the items a late
+  -- answer holds and for how long, how long an answer a guess ended may still be owed, whether a
+  -- post now would be certain, the stock waiting for the auction house, and the requests out.
+  local held, now = {}, time()
+  for _, late in ipairs(GC.Sell._LiveLate()) do
+    held[#held + 1] = ("%s %ds"):format(itemName(late.pin.itemID) or tostring(late.pin.itemID),
+      GC.Sell.LATE_ANSWER_SECONDS - (now - late.at))
+  end
+  GC.Print(("post: late=%d [%s] owed=%ds certain=%s waiting=%d requestOut=%s confirmOwed=%s"):format(
+    #held, table.concat(held, ", "), math.max(0, (GC.Sell._owedUntil or 0) - now), tostring(GC.Sell._Certain()),
+    #(GC.Sell._waitingStock or {}), call(sniper.RequestOut),
+    GC.PurchaseSlot and call(GC.PurchaseSlot.ConfirmOwed) or "n/a"))
   GC.Print(("sell walk: phase=%s index=%d/%d pending=%s awaiting=%s gen=%d progress=%ds ago waitingNoted=%s"):format(
     tostring(refresh.phase), refresh.index or 0, #(refresh.queue or {}),
     tostring(refresh.pending and refresh.pending.itemID), tostring(refresh.awaiting),

@@ -54,6 +54,7 @@ Core/KeyPoll.lua
 Core/BuyRun.lua
 Core/PurchaseSlot.lua
 Core/AppRuns.lua
+Core/Caps.lua
 Core/BoardRows.lua
 Core/WatchSet.lua
 Core/AutoScan.lua

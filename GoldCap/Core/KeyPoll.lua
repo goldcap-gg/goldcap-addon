@@ -9,7 +9,7 @@ local _, GC = ...
 -- Pure and driver-injected like every module in this batch: no WoW API call lives here. The
 -- caller (UI/SniperFrame.lua) owns the item keys, the throttle slot and what a hit means;
 -- this module owns "which 100 ids go out next" and "is this row news or the same thing we
--- already knew". driver = { now, triggerFor, onHit, onRows }.
+-- already knew". driver = { now, triggerFor, onHit, onRows, minIlvlFor? }.
 --
 -- One cycle = one visit to every target. HasPending() stays true until the whole set has been
 -- handed out once since BeginCycle(), which the arbiter calls when a fresh book pass starts,
@@ -20,6 +20,75 @@ GC.KeyPoll = {}
 -- the client -- it is a hard cap, not a tuning knob, so opts.maxBatch may lower it and never
 -- raise it (the specs use a small batch to exercise the round-robin without 100 ids).
 local MAX_BATCH = 100
+
+-- Which of an item's item-level variants a drill should actually search for: the cheapest one
+-- at or above `minIlvl` (0 -- or absent -- meaning any), as an item key
+-- (C_AuctionHouse.MakeItemKey's own four fields). `entry` is a book entry as Book() returns
+-- them.
+--
+-- The floor matters because a bare item key -- MakeItemKey(itemID), item level 0 -- resolves to
+-- ONE variant server-side, and the client answers GetItemSearchResultInfo for the key the query
+-- was sent with and no other (API_C_AuctionHouse.SendSearchQuery). So a drill on a bare key
+-- both asks about and reads back whichever variant the server picked: Teebu's Scorching
+-- Straight Sword was boarded at 250,000 for its (19) while its (66) sat at 211,111 in
+-- Blizzard's own browse, unseen. `minIlvl` is the level the decision the drill is feeding
+-- compares against -- a cap's `l` (Core/Caps.lua's DecideRealm) or the realm reference's
+-- refIlvl (GC.SniperDecision.EvaluateRealm) -- so what comes back is the cheapest lot that
+-- decision can actually approve.
+--
+-- nil when the entry carries no variants (an item this poll has never folded) and nil when no
+-- variant reaches `minIlvl`. Both mean "this module has no key to offer"; what the caller does
+-- with each is the caller's (UI/SniperFrame.lua's driver.variantKey).
+--
+-- Caps fixes 4c, round 1: a level is only a floor if the rows state levels at all. The client is
+-- free to answer a bare key with one collapsed row for the whole item (itemLevel 0); held to a
+-- level no row states, every item-level cap would stop firing without a word. When no variant
+-- carries a level the floor is not applied here, and the decision the drill feeds -- which reads
+-- each lot's own level -- is the one that applies it, exactly as before the poll judged levels.
+local function cheapestVariant(entry, minIlvl)
+  local variants = type(entry) == "table" and entry.variants or nil
+  if type(variants) ~= "table" then return nil end
+  minIlvl = (type(minIlvl) == "number" and minIlvl > 0) and minIlvl or 0
+  if minIlvl > 0 then
+    local stated = false
+    for i = 1, #variants do
+      if (variants[i].itemLevel or 0) > 0 then stated = true; break end
+    end
+    if not stated then minIlvl = 0 end
+  end
+  local best
+  for i = 1, #variants do
+    local variant = variants[i]
+    if (variant.itemLevel or 0) >= minIlvl and (not best or variant.floor < best.floor) then
+      best = variant
+    end
+  end
+  return best
+end
+
+function GC.KeyPoll.VariantKeyFor(entry, minIlvl)
+  local best = type(entry) == "table" and entry.itemID and cheapestVariant(entry, minIlvl) or nil
+  if not best then return nil end
+  return {
+    itemID = entry.itemID,
+    itemLevel = best.itemLevel or 0,
+    itemSuffix = best.itemSuffix or 0,
+    battlePetSpeciesID = best.battlePetSpeciesID or 0,
+  }
+end
+
+-- What the item costs at or above `minIlvl`, off the same book entry: the entry's own floor when
+-- any level will do (0 or absent -- the collapse already keeps the cheapest variant there), else
+-- the cheapest variant that reaches the level. nil when no variant does, or there is no entry.
+-- The entry's own `floor` alone is the wrong answer for a level floor: it is the cheapest variant
+-- of ANY level, so a cap asking for 610 at 100 read a 590 at 50 as "still under the cap" (caps
+-- fixes 3d, UI/SniperFrame.lua's keys-batch keep-alive).
+function GC.KeyPoll.FloorFor(entry, minIlvl)
+  if type(entry) ~= "table" then return nil end
+  if not (type(minIlvl) == "number" and minIlvl > 0) then return entry.floor end
+  local best = cheapestVariant(entry, minIlvl)
+  return best and best.floor or nil
+end
 
 function GC.KeyPoll.New(driver, opts)
   opts = opts or {}
@@ -83,13 +152,98 @@ function GC.KeyPoll.New(driver, opts)
     return batch
   end
 
+  -- Final review: SearchForItemKeys may answer with ONE row per item-level variant of an item,
+  -- and it may answer with one row for the whole item group. Both shapes are legal and the
+  -- client is contractually neither, so this module refuses to depend on the answer: several
+  -- rows for one itemID become one row carrying the cheapest floor on offer and the whole
+  -- quantity behind it, before anything downstream looks at them.
+  --
+  -- Folded row by row instead, the variant shape made the book flip between variants on every
+  -- batch, so the ratchet below read noise as news; the arbiter's own `booked.floor ==
+  -- hit.floor` re-check then dropped the drill that very hit had just queued; and the caller's
+  -- own floor-per-item map (UI/SniperFrame.lua's onRows) took whichever variant came last.
+  --
+  -- The client's result rows are never written into: the first duplicate turns the kept entry
+  -- into a copy of our own, and rows with no itemID at all are passed through untouched for the
+  -- fold below to ignore exactly as it always has.
+  --
+  -- What is folded away here is also the ONLY place the addon ever sees the variants: the fold
+  -- below keeps one floor per item, and a drill has to name an item key to search with. So each
+  -- variant's own row is kept beside the collapsed one (second return value, itemID -> list) and
+  -- goes onto the book entry, for GC.KeyPoll.VariantKeyFor and UI/SniperFrame.lua's drill.
+  local function collapse(rows)
+    local out, index, owned, variants = {}, {}, {}, {}
+    for i = 1, #rows do
+      local row = rows[i]
+      local itemID = row.itemKey and row.itemKey.itemID
+      if itemID and row.minPrice and row.minPrice > 0 then
+        local list = variants[itemID]
+        if not list then list = {}; variants[itemID] = list end
+        -- Copied field by field, never a reference into the client's own key: the three that
+        -- rebuild a full item key (C_AuctionHouse.MakeItemKey takes exactly these, after the
+        -- item id) plus what this variant is asking and how much of it there is.
+        list[#list + 1] = {
+          itemLevel = row.itemKey.itemLevel or 0,
+          itemSuffix = row.itemKey.itemSuffix or 0,
+          battlePetSpeciesID = row.itemKey.battlePetSpeciesID or 0,
+          floor = row.minPrice,
+          qty = row.totalQuantity,
+        }
+      end
+      local at = itemID and index[itemID]
+      if not at then
+        if itemID then index[itemID] = #out + 1 end
+        out[#out + 1] = row
+      else
+        local kept = out[at]
+        if not owned[at] then
+          local copy = {}
+          for k, v in pairs(kept) do copy[k] = v end
+          kept, out[at], owned[at] = copy, copy, true
+        end
+        if row.minPrice and (not kept.minPrice or row.minPrice < kept.minPrice) then
+          kept.minPrice = row.minPrice
+        end
+        kept.totalQuantity = (kept.totalQuantity or 0) + (row.totalQuantity or 0)
+      end
+    end
+    -- Cheapest first, which is the order the drill asks in. Sorted by price alone the order of
+    -- two variants asking the same price would be whatever table.sort happened to leave (it is
+    -- not stable), so item level and suffix settle the tie -- a book that reshuffles itself
+    -- between identical batches is the kind of noise this whole module exists to remove.
+    for _, list in pairs(variants) do
+      table.sort(list, function(a, b)
+        if a.floor ~= b.floor then return a.floor < b.floor end
+        if a.itemLevel ~= b.itemLevel then return a.itemLevel < b.itemLevel end
+        return a.itemSuffix < b.itemSuffix
+      end)
+    end
+    return out, variants
+  end
+
   -- Folds one keys result into the book. Same ratchet as BookPass.foldRow, deliberately: a
   -- hit is a floor UNDER the item's trigger that is also news -- a price that moved, a stack
   -- that grew, or an item nobody has seen this session. Without it every batch would re-report
   -- the same unsold lot every cycle, and the drill queue would spend its whole budget
   -- re-confirming listings nothing has happened to.
-  function obj:Fold(rows)
-    rows = rows or {}
+  --
+  -- Caps fixes 4c: WHICH floor is judged. Ordinarily the collapsed one -- the cheapest variant on
+  -- offer. But an item the caller names an item-level floor for (driver.minIlvlFor: a cap's `l`)
+  -- is judged by the cheapest variant at or above that level, off the rows collapse() has just
+  -- kept, and so is its ratchet. Judged on the collapsed floor, "610 or better, at 100" woke for
+  -- every move of a 590 sitting under it -- a drill each time, which the cap then refused -- and a
+  -- drop on the 615 it was waiting for was never news while the 590 stayed cheaper. The hit
+  -- carries that variant's own price and quantity; the entry keeps both (`judged`, `judgedQty`,
+  -- nil while no variant reaches the level) beside the collapsed floor, which is still the
+  -- cheapest thing on offer and still what `floor` means.
+  --
+  -- `asked` (optional) is the batch these rows answer, by item id. An asked item with no row at
+  -- all has no listing left, and its entry is re-armed (Rearm below): the ratchet still holds the
+  -- floor it last saw, so the same price listed again -- a new lot -- would otherwise never be
+  -- news (caps fixes 4a, round 1).
+  function obj:Fold(rows, asked)
+    local variants
+    rows, variants = collapse(rows or {})
     for i = 1, #rows do
       local row = rows[i]
       local itemKey = row.itemKey
@@ -97,13 +251,41 @@ function GC.KeyPoll.New(driver, opts)
       local floor = row.minPrice
       if itemID and floor and floor > 0 then
         local qty = row.totalQuantity
+        local judged, judgedQty = floor, qty
+        local minIlvl = driver.minIlvlFor and driver.minIlvlFor(itemID)
+        if type(minIlvl) == "number" and minIlvl > 0 then
+          local best = cheapestVariant({ variants = variants[itemID] }, minIlvl)
+          judged, judgedQty = best and best.floor or nil, best and best.qty or nil
+        end
         local prev = book[itemID]
+        local now = driver.now()
+        -- A re-armed entry (Rearm below) is news again once its hold, if any, has run out since
+        -- the item was last reported; until then the flag rides along from fold to fold.
+        local rearmDue = prev ~= nil and prev.rearm == true
+          and (now - (prev.reportedAt or 0)) >= (prev.rearmHold or 0)
         local trigger = driver.triggerFor(itemID)
-        local hit = trigger and floor < trigger
-          and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
-        book[itemID] = { floor = floor, qty = qty, seenAt = driver.now() }
+        local hit = trigger and judged and judged < trigger
+          and (not prev or rearmDue or prev.judged ~= judged
+            or (judgedQty or 0) > (prev.judgedQty or 0))
+        local held = not hit and prev ~= nil and prev.rearm == true and not rearmDue
+        -- `itemID` and `variants` make the entry self-describing: the drill is handed the entry
+        -- alone (the book is keyed by item id, which a lone entry cannot know) and asks it which
+        -- key to search with. See GC.KeyPoll.VariantKeyFor below.
+        book[itemID] = { itemID = itemID, floor = floor, qty = qty, seenAt = now,
+          variants = variants[itemID], judged = judged, judgedQty = judgedQty,
+          reportedAt = hit and now or (prev and prev.reportedAt) or nil,
+          rearm = held or nil, rearmHold = held and prev.rearmHold or nil }
         if hit then
-          driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
+          driver.onHit({ itemID = itemID, floor = judged, qty = judgedQty, prev = prev })
+        end
+      end
+    end
+    if asked then
+      for i = 1, #asked do
+        local itemID = asked[i]
+        if not variants[itemID] and book[itemID] then
+          book[itemID].rearm = true
+          book[itemID].rearmHold = nil -- a listing that is gone owes no hold: the next one is news
         end
       end
     end
@@ -111,6 +293,26 @@ function GC.KeyPoll.New(driver, opts)
   end
 
   function obj:Book() return book end
+
+  -- Caps fixes 4b: the next fold of this item is news again even at the floor it already shows --
+  -- once. For a hit that was reported and then lost before anybody drilled it
+  -- (Core/DrillQueue.lua's driver.onLost): the ratchet above never repeats an unchanged floor, so
+  -- without this the item was not looked at again until its price moved. The fold that follows
+  -- writes a fresh entry, which carries no flag. Nothing to do for an item the book has never seen:
+  -- its first sighting is news anyway.
+  --
+  -- Whole-market coverage: `holdSeconds` (optional) is for a lost ORDINARY hit -- the realm poll's
+  -- (UI/SniperFrame.lua's _OnDrillLost, with LIM.REHIT_SECONDS). Its unchanged floor is news again
+  -- no sooner than holdSeconds after it was last reported, however often the poll comes round, so a
+  -- queue that keeps refusing it is not handed it on every visit. Without it (a cap) the very next
+  -- fold reports it, as before.
+  function obj:Rearm(itemID, holdSeconds)
+    local entry = book[itemID]
+    if entry then
+      entry.rearm = true
+      entry.rearmHold = holdSeconds
+    end
+  end
 
   -- The book is a claim about one Auction House session's listings and does not outlive it,
   -- exactly as in BookPass: kept across the close, the first batch of the next session would

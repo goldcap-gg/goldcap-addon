@@ -131,4 +131,40 @@ describe("BagStock", function()
     assert.same({}, GC.BagStock.Scan(nil, { 0 }))
     assert.same({}, GC.BagStock.Scan({ numSlots = function() return 1 end }, { 0 }))
   end)
+
+  -- The stack's exact identity is a property of the stack (its own ItemLocation), so classify is
+  -- told where it is; and what nothing could key is handed back, never dropped.
+  it("hands classify the slot, carries its quote key, and returns what it could not key", function()
+    local asked = {}
+    local stock, waiting = GC.BagStock.Scan({
+      numSlots = function(bag) return bag == 0 and 3 or 0 end,
+      itemInfo = function(_, slot)
+        return ({ { itemID = 7, stackCount = 1, itemName = "Helm" },
+          { itemID = 8, stackCount = 2, itemName = "Jeb's Underwear" },
+          { itemID = 8, stackCount = 1, itemName = "Jeb's Underwear", isBound = true } })[slot]
+      end,
+      classify = function(itemID, _, bag, slot)
+        asked[#asked + 1] = bag .. ":" .. slot
+        if itemID == 7 then return "item:7:619:0:0", false, "item:7:619:0:0" end
+        return nil, nil
+      end,
+    }, { 0 })
+    assert.same({ "0:1", "0:2" }, asked) -- the bound stack is never classified
+    assert.equal(1, #stock)
+    assert.equal("item:7:619:0:0", stock[1].quoteKey)
+    assert.same({ { itemID = 8, itemName = "Jeb's Underwear", quantity = 2 } }, waiting)
+  end)
+
+  -- Every caged pet is item 82800: two waiting pets are two lines, not one named after the first.
+  it("keeps two different waiting pets apart", function()
+    local _, waiting = GC.BagStock.Scan({
+      numSlots = function(bag) return bag == 0 and 2 or 0 end,
+      itemInfo = function(_, slot)
+        return ({ { itemID = 82800, stackCount = 1, itemName = "Mechanical Squirrel" },
+          { itemID = 82800, stackCount = 1, itemName = "Tiny Snowman" } })[slot]
+      end,
+      classify = function() return nil, nil end,
+    }, { 0 })
+    assert.equal(2, #waiting)
+  end)
 end)

@@ -145,7 +145,8 @@ describe("Sniper buy dialog verdict block", function()
         -- ever reads fg/fgDim off this table) for stampDialogFromDecision's new guarded
         -- verdictLabel/verdictAmount tint calls.
         color = { fg = { 0.9, 0.9, 0.9 }, fgDim = { 0.5, 0.5, 0.5 }, fgMuted = { 0.72, 0.71, 0.69 },
-          green = { 0.25, 0.85, 0.25 }, red = { 0.898, 0.283, 0.302 } } },
+          green = { 0.25, 0.85, 0.25 }, red = { 0.898, 0.283, 0.302 },
+          gold = { 0.83, 0.64, 0.22 } } },
       AutoScan = { New = function()
         return { Input = function() end, State = function() return "OFF" end, PauseReasons = function() return {} end }
       end },
@@ -337,6 +338,81 @@ describe("Sniper buy dialog verdict block", function()
     assert.same({ GC.Theme.color.fgDim[1], GC.Theme.color.fgDim[2], GC.Theme.color.fgDim[3] },
       d.verdictAmount.colors[#d.verdictAmount.colors])
     _G.GetTime = nil
+  end)
+
+  -- Caps fixes 2b. A cap decision reached this panel with no entryTotal, so UNIT and TOTAL
+  -- read "—" on a buy about to spend real gold; a commodity cap then led with its saving under
+  -- the cap as a green "+" over the "worst case, selling all back" caption, and a realm cap said
+  -- "Can't price this" over a lot priced to the copper. The panel now says what the player
+  -- pays, per unit and in total, beside the price they set -- and invents no profit.
+  local function recorder()
+    local w = { text = "", shown = nil }
+    function w:SetText(t) self.text = t end
+    function w:SetTextColor() end
+    function w:Show() self.shown = true end
+    function w:Hide() self.shown = false end
+    return w
+  end
+
+  local function factLabels(d)
+    local labels = {}
+    for i = 1, #d.factRows do labels[#labels + 1] = d.factRows[i].label.text end
+    return labels
+  end
+
+  local function capDialog()
+    return fakeDialog({
+      verdictLabel = fakeVerdictLabel(), verdictAmount = fakeVerdictAmount(),
+      verdictAmountNote = recorder(), heroText = fakeHeroText(),
+      factRows = fakeFactRows(), unitPriceText = recorder(), totalCostText = recorder(),
+      profitText = recorder(),
+    })
+  end
+
+  it("prices a commodity cap buy in the player's own terms", function()
+    local GC, stamp = load()
+    local d = capDialog()
+    setUpvalue(stamp, "dialog", d)
+
+    -- 10 x 100g + 10 x 190g under a 200g cap: 2900g for 20.
+    stamp({ itemID = 42, isCommodity = true, cap = 2000000 }, {
+      status = "SAFE", buyable = true, cap = true, quantity = 20, entryTotal = 29000000,
+      entryUnitDisplay = 1450000, unit = 1000000, capUnit = 2000000,
+    })
+
+    assert.equal(GC.Util.FormatMoney(1450000), d.unitPriceText.text)
+    assert.equal(GC.Util.FormatMoney(29000000), d.totalCostText.text)
+    assert.equal("At your price", d.verdictLabel.text)
+    assert.equal(GC.Util.FormatMoney(1450000), d.verdictAmount.text) -- no "+", no saving-as-profit
+    assert.is_true(d.verdictAmount.shown)
+    assert.is_false(d.heroText.shown)
+    assert.equal("—", d.profitText.text)
+    local labels = factLabels(d)
+    assert.equal("You pay", labels[1])
+    assert.equal("Your price", labels[2])
+    assert.equal(GC.Util.FormatMoney(2000000), d.factRows[2].value.text)
+    -- The caption names the player's price; it says nothing about selling anything back.
+    assert.is_truthy(d.verdictAmountNote.text:find(GC.Util.FormatMoney(2000000), 1, true))
+    assert.is_nil(d.verdictAmountNote.text:find("sell", 1, true))
+  end)
+
+  it("prices a realm cap lot instead of saying it cannot", function()
+    local GC, stamp = load()
+    local d = capDialog()
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42, isCommodity = false, cap = 1000000 }, {
+      status = "WATCH", cap = true, quantity = 1, entryTotal = 800000, entryUnitDisplay = 800000,
+      unit = 800000, capUnit = 1000000,
+      candidate = { auctionID = 9, buyout = 800000, quantity = 1, itemLevel = 615 },
+    })
+
+    assert.equal(GC.Util.FormatMoney(800000), d.unitPriceText.text)
+    assert.equal(GC.Util.FormatMoney(800000), d.totalCostText.text)
+    assert.equal("At your price", d.verdictLabel.text)
+    assert.is_false(d.heroText.shown)
+    assert.equal(GC.Util.FormatMoney(800000), d.verdictAmount.text)
+    assert.equal("Your price", factLabels(d)[2])
   end)
 
   -- Check panel v3 replaced the ENTRY AVG / STRESS EXIT plaques (two numbers the evidence grid
@@ -564,6 +640,25 @@ describe("Sniper buy dialog verdict block", function()
 
     -- The dialog exposes applyDetailsState so createFrame's OnSizeChanged can drive it directly
     -- (the only handle the rest of the file gets on this closure), same idiom as f.applyPanelInset.
+    -- In game 2026-09-23: "The profit does not clear your...", "Needs a live price check
+    -- befor..." -- the Reason row was one line wide and the sentence ended in dots. It wraps
+    -- now, and the rulebook's text trap applies: a wrapping FontString held to a fixed height
+    -- draws nothing, so it is anchored on its top edge only and never given a height, and the
+    -- transcript grows by what it measures -- the fit guard included.
+    it("wraps the Reason under itself and grows the transcript to fit it", function()
+      local text = source()
+      local build = section(text, "local reasonLabel = Theme.Label(gridBlock", "local function layoutBlocks(shape)")
+      assert.is_truthy(build:find("reasonText:SetWordWrap(true)", 1, true))
+      assert.is_nil(build:find("reasonText:SetMaxLines(1)", 1, true))
+      assert.is_nil(build:find("reasonText:SetHeight(", 1, true))
+      assert.is_truthy(build:find('reasonText:SetPoint("TOPLEFT", reasonLabel, "TOPRIGHT"', 1, true))
+      assert.is_truthy(build:find('reasonText:SetPoint("TOPRIGHT"', 1, true))
+      local layout = section(text, "local function layoutBlocks(shape)", "d.layoutBlocks = layoutBlocks")
+      assert.is_truthy(layout:find("d.reasonText:GetStringHeight()", 1, true))
+      assert.is_truthy(layout:find("place(gridBlock, gridH,", 1, true))
+      assert.is_truthy(layout:find("d.fixedHeightOpen = above + gridH", 1, true))
+    end)
+
     it("exposes applyDetailsState on the dialog table for the resize hook to call", function()
       local text = source()
       assert.is_truthy(text:find("d.applyDetailsState = applyDetailsState", 1, true))

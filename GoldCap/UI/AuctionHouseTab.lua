@@ -55,6 +55,16 @@ local selectHooked = false
 -- The GoldCap display mode: identity is the contract (Blizzard compares modes with `==`),
 -- and empty is the content (their show loop iterates it and finds nothing to show).
 local DISPLAY_MODE = {}
+-- Final review S1 (b): whether a browse query that was not ours has gone out this visit -- the
+-- player's own search, a category click, a sort (Blizzard_AuctionHouseFrame.lua's
+-- SendBrowseQueryInternal is the one place all of them reach C_AuctionHouse.SendBrowseQuery),
+-- another addon's, or the player's own favourites search (installFavouritesHooks). Read by
+-- PlayerOwnsBrowseList, cleared when the auction house closes.
+local playerBrowsed = false
+local browseHooked, favouritesHooked = false, false
+-- Set by our own sender for the length of its own SendBrowseQuery call (UI/SniperFrame.lua's book
+-- pass), so the hook below does not count it. A field, so that sender can reach it.
+GC.AuctionHouseTab.addonBrowse = false
 
 -- Blizzard's tabs are `AuctionHouseFrame.Tabs` on current builds and globals named
 -- AuctionHouseFrameTab1..N on older ones. Walk whichever exists; the last one is the anchor.
@@ -272,9 +282,78 @@ local function libAHTab()
   return lib
 end
 
+-- A post-hook on C_AuctionHouse.SendBrowseQuery, the same kind Core/PurchaseCapture.lua hangs on
+-- the purchase calls: it observes a query and cannot make or change one. Our own sends are told
+-- apart by GC.AuctionHouseTab.addonBrowse, which the hook consumes. Deliberately NOT on
+-- C_AuctionHouse.SearchForFavorites: the auction house lists the favourites itself every time it
+-- opens (Blizzard_AuctionHouseFrame.lua's OnShow -> QueryAll), and counting that as the player's
+-- search would hold every browse writer back for the whole of every visit. The player's own
+-- favourites search is caught where only the player reaches it (installFavouritesHooks below).
+local function installBrowseHook()
+  if browseHooked then return end
+  local api = _G.C_AuctionHouse
+  if not (api and type(api.SendBrowseQuery) == "function" and type(hooksecurefunc) == "function") then
+    return
+  end
+  browseHooked = pcall(hooksecurefunc, api, "SendBrowseQuery", function()
+    if GC.AuctionHouseTab.addonBrowse then
+      GC.AuctionHouseTab.addonBrowse = false
+      return
+    end
+    GC.AuctionHouseTab.NotePlayerBrowse()
+  end) and true or false
+end
+
+-- Follow-up 1: the player's own ways into C_AuctionHouse.SearchForFavorites, which the hook above
+-- does not see. Blizzard_AuctionHouseSearchBar.lua's Favorites button calls the search bar's
+-- StartFavoritesSearch, and a sort on the list the Buy pane shows goes through the frame's
+-- SetBrowseSortOrder (SetSortOrder -> QueryAll for the favourites list, SendBrowseQueryInternal
+-- otherwise) -- both read verbatim, and both reached only from the player's click. The favourites
+-- list the auction house shows by itself as it opens (OnShow -> QueryAll) passes through neither,
+-- so it still does not count. Post-hooks on the frames' own methods, like the SetDisplayMode one.
+local function installFavouritesHooks(ah)
+  if favouritesHooked or type(hooksecurefunc) ~= "function" then return end
+  local bar = ah.SearchBar
+  if not (bar and type(bar.StartFavoritesSearch) == "function"
+      and type(ah.SetBrowseSortOrder) == "function") then
+    return
+  end
+  local barHooked = pcall(hooksecurefunc, bar, "StartFavoritesSearch", function()
+    GC.AuctionHouseTab.NotePlayerBrowse()
+  end)
+  -- Follow-up 2: only a sort that sent something counts. SetSortOrder re-sends the search the list
+  -- holds for its context (`activeSearches[GetBrowseSearchContext()]`) and returns without any
+  -- query when it holds none -- a column click on a list nothing was ever searched into. That click
+  -- counted as the player's browse, and Auto stood down behind the Buy tab for nothing. A flag for
+  -- the SendBrowseQuery hook to consume cannot tell the two apart: this is a post-hook, so any query
+  -- the click made has already gone out when it runs, and a favourites re-sort goes through
+  -- SearchForFavorites, which that hook does not see. So the list is asked, after the fact -- a sort
+  -- neither adds nor removes the entry read here. A read that fails does not count: every detector
+  -- fails open.
+  local sortHooked = pcall(hooksecurefunc, ah, "SetBrowseSortOrder", function(frame)
+    local ok, sent = pcall(function()
+      local searches = frame.activeSearches
+      return type(searches) == "table" and searches[frame:GetBrowseSearchContext()] ~= nil
+    end)
+    if ok and sent then GC.AuctionHouseTab.NotePlayerBrowse() end
+  end)
+  favouritesHooked = barHooked or sortHooked
+end
+
+-- The player (or another addon) just sent a browse query. The Sniper gives up a keys batch still
+-- out under it: that batch's answer went with it, and the answer coming is not the batch's.
+function GC.AuctionHouseTab.NotePlayerBrowse()
+  playerBrowsed = true
+  local sniper = GC.Sniper
+  if sniper and sniper._OnPlayerBrowse then pcall(sniper._OnPlayerBrowse) end
+end
+
 function GC.AuctionHouseTab.Install()
+  -- First, and on every visit until it takes: it needs no auction house frame, only the API.
+  installBrowseHook()
   local ah = _G.AuctionHouseFrame
   if not ah or not CreateFrame then return end
+  installFavouritesHooks(ah)
   if installed then
     -- Every visit, not just the first: the bar can have grown since we were built. See
     -- anchorTab for the collision this exists to get out of. The library owns the position of
@@ -479,10 +558,56 @@ function GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
   return not (dock and dock:IsShown())
 end
 
+-- True while Blizzard's own Buy/Browse pane -- the browse list itself, .Buy, distinct from the
+-- .ItemBuy/.CommoditiesBuy purchase form PlayerIsBuying reads -- is the visible panel and our
+-- own window is not. The player's own browse results are theirs: the book pass
+-- (SendBrowseQuery/RequestMoreBrowseResults) and the key polls (SearchForItemKeys, both the
+-- Items board's and the BUY tab's floor refresh, all in UI/SniperFrame.lua) answer through the
+-- same GetBrowseResults() buffer Blizzard's list reads from, so while that pane is on screen and
+-- GoldCap's window is not, nothing of ours may send a browse or keys query. None of the other
+-- predicates catch this alone: PlayerIsBuying reads a different display mode, PlayerIsUsingAnotherTab
+-- is false here because Blizzard's own tab leaves ah.displayMode non-nil, and PlayerIsSearching
+-- only covers focus plus a 10s grace, not simply having Buy on screen. Same dock read as
+-- PlayerIsUsingAnotherTab: our own tab showing the dock is not "using another tab", but it is
+-- also not "the player's browse results, undisturbed" once GoldCap's own board is what the dock
+-- holds -- so the dock hides this window the same way it exempts that predicate.
+--
+-- The window open floating is the other half of "our own window is not" on screen. The auction
+-- house opens on Buy and autoOpen (on by default) shows the window floating beside it, so a
+-- predicate that read only the dock was true from the moment the auction house opened, and
+-- every sender PlayerIsBusy gates stood down for the whole visit -- the window open, nothing in
+-- it moving (confirmed in game 2026-09-22). A window that cannot be asked fails open, like
+-- every detector here: a broken read must never silence the addon.
+function GC.AuctionHouseTab.PlayerIsBrowsing()
+  if not currentMode then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes then return false end
+  if currentMode ~= modes.Buy then return false end
+  if dock and dock:IsShown() then return false end
+  local sniper = GC.Sniper
+  if not (sniper and sniper.IsWindowShown) then return false end
+  return not sniper.IsWindowShown()
+end
+
+-- Final review S1 (b): true while Blizzard's Buy pane is the visible panel -- not our dock --
+-- after a browse query that was not ours has gone out this visit: the pane is showing that
+-- query's results, and SearchForItemKeys and a pass page answer into the same buffer. Unlike
+-- PlayerIsBrowsing it holds with the GoldCap window open: a player who searched there is reading
+-- that list whether or not our window floats beside it. Not part of PlayerIsBusy -- it holds back
+-- only what writes that buffer (UI/SniperFrame.lua's GC.Sniper._BrowseOwned), never a per-item
+-- search, and a visit where the player never searched there is exactly as before. Fails open.
+function GC.AuctionHouseTab.PlayerOwnsBrowseList()
+  if not (playerBrowsed and currentMode) then return false end
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not modes or currentMode ~= modes.Buy then return false end
+  return not (dock and dock:IsShown())
+end
+
 function GC.AuctionHouseTab.PlayerIsBusy(now)
   return GC.AuctionHouseTab.PlayerIsPosting() or GC.AuctionHouseTab.PlayerIsBuying()
     or GC.AuctionHouseTab.PlayerIsUsingAnotherTab()
     or GC.AuctionHouseTab.PlayerIsSearching(now)
+    or GC.AuctionHouseTab.PlayerIsBrowsing()
 end
 
 -- Called from the window's own OnHide (see UI/SniperFrame.lua): the player closed the docked
@@ -516,6 +641,7 @@ end
 -- way; what must not linger is the WINDOW's docked state -- undock it back to a floating
 -- window with its saved geometry, hidden, so the next `/goldcap` opens it normally.
 function GC.AuctionHouseTab.OnAuctionHouseClosed()
+  playerBrowsed = false
   if dock and dock:IsShown() then dock:Hide() end
   if GC.Sniper and GC.Sniper.SetDocked then pcall(GC.Sniper.SetDocked, nil) end
   GC.AuctionHouseTab.Refresh()

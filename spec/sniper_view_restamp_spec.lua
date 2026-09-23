@@ -9,9 +9,15 @@ require("spec.spec_helper")
 -- exactly that way and got their own re-stamp (updateHeaderSortIndicators); the rows under
 -- them, and the three toolbar buttons that cache the label they last stamped, did not.
 --
--- What this can prove is the stamp, not the pixels: busted has no font engine. So it blanks
--- what the doubles recorded -- standing in for the client dropping the draw -- and asserts
--- that coming back to Deals tells the client every string again.
+-- What this can prove is the stamp, not the pixels: busted has no font engine. So for the rows
+-- it blanks what the doubles recorded -- standing in for the client dropping the draw -- and
+-- asserts that coming back to Deals tells the client every string again.
+--
+-- The headings need more than that. Blanking a double's text and checking it came back
+-- passes a restamp that sets the very text the string already holds -- and that is a no-op
+-- to the client, which is exactly how the headings stayed blank after the first fix. So the
+-- headings record every call made on them and must see the whole cure, in order: cleared,
+-- set, hidden, shown (the same sequence spec/soldframe_spec.lua pins for the Sold tab).
 describe("Deals board re-stamps itself on the way back", function()
   -- A recording double that tracks its own shown flag and dispatches OnShow/OnHide, which is
   -- the whole point here: the real engine hides a child visually with its parent without
@@ -233,19 +239,45 @@ describe("Deals board re-stamps itself on the way back", function()
     return row
   end
 
-  local function blankEverything(ctx, row)
+  local function blankEverything(row)
     row.nameText.text, row.unitText.text, row.priceText.text = nil, nil, nil
-    ctx.frame.headerRow.itemCell.label.text = nil
-    for _, cell in pairs(ctx.frame.headerRow.cells) do cell.label.text = nil end
   end
 
-  local function assertStamped(ctx, row)
+  local function assertStamped(row)
     assert.is_not_nil(row.nameText.text, "the row name was never stamped again")
     assert.is_not_nil(row.unitText.text, "the unit price was never stamped again")
     assert.is_not_nil(row.priceText.text, "the total price was never stamped again")
-    assert.is_not_nil(ctx.frame.headerRow.itemCell.label.text, "the ITEM heading was never stamped again")
-    for key, cell in pairs(ctx.frame.headerRow.cells) do
-      assert.is_not_nil(cell.label.text, key .. " heading was never stamped again")
+  end
+
+  -- Every call made on each heading label from here on, per heading: "set:<text>", "hide",
+  -- "show". Wraps the doubles' own methods, so the text they hold stays real.
+  local function recordHeadings(ctx)
+    local header = ctx.frame.headerRow
+    local seen = {}
+    local function record(key, label)
+      local calls = {}
+      seen[key] = calls
+      local set, hide, show = label.SetText, label.Hide, label.Show
+      label.SetText = function(self, text) calls[#calls + 1] = "set:" .. tostring(text); return set(self, text) end
+      label.Hide = function(self) calls[#calls + 1] = "hide"; return hide(self) end
+      label.Show = function(self) calls[#calls + 1] = "show"; return show(self) end
+    end
+    for key, cell in pairs(header.cells) do record(key, cell.label) end
+    record("item", header.itemCell.label)
+    return seen
+  end
+
+  -- The heading's text is what the cells were built with; `sorted` (a key into header.cells)
+  -- is the one heading that carries the active sort arrow.
+  local function assertHeadingsRestamped(ctx, seen, sorted, arrow)
+    local header = ctx.frame.headerRow
+    local expected = { item = "ITEM" }
+    for key, cell in pairs(header.cells) do
+      expected[key] = key == sorted and (cell.baseText .. arrow) or cell.baseText
+    end
+    for key, text in pairs(expected) do
+      assert.same({ "set:", "set:" .. text, "hide", "show" }, seen[key],
+        key .. ": the heading was not cleared, stamped, hidden and shown again")
     end
   end
 
@@ -258,11 +290,13 @@ describe("Deals board re-stamps itself on the way back", function()
     ctx.frame.scroll:Hide()
     setUpvalue(ctx.setView, "view", "sell")
     assert.is_true(row:IsShown())
-    blankEverything(ctx, row)
+    blankEverything(row)
+    local seen = recordHeadings(ctx)
 
     ctx.setView("deals")
 
-    assertStamped(ctx, row)
+    assertStamped(row)
+    assertHeadingsRestamped(ctx, seen)
   end)
 
   it("re-stamps them when the window itself is shown again", function()
@@ -270,10 +304,30 @@ describe("Deals board re-stamps itself on the way back", function()
     local row = renderOneDeal(ctx)
 
     ctx.frame:Hide()
-    blankEverything(ctx, row)
+    blankEverything(row)
+    local seen = recordHeadings(ctx)
     ctx.frame:Show()
 
-    assertStamped(ctx, row)
+    assertStamped(row)
+    assertHeadingsRestamped(ctx, seen)
+  end)
+
+  -- The sorted column is stamped once, with its arrow -- not first plain and then again with
+  -- the arrow, and not left holding the plain text either. Both directions: the first click
+  -- sorts descending, a second click on the same heading flips it to ascending.
+  it("keeps the active sort arrow on its heading through the restamp", function()
+    local ctx = buildFrame()
+    local profit = ctx.frame.headerRow.cells.profit
+    for _, arrow in ipairs({ " ▼", " ▲" }) do
+      profit.scripts.OnMouseDown(profit) -- the player's own click on PROFIT
+      assert.equal(profit.baseText .. arrow, profit.label.text)
+      setUpvalue(ctx.setView, "view", "sell")
+      local seen = recordHeadings(ctx)
+
+      ctx.setView("deals")
+
+      assertHeadingsRestamped(ctx, seen, "profit", arrow)
+    end
   end)
 
   -- AUTO, SCAN and HIDDEN each skip a restamp identical to the one they last made -- right

@@ -572,13 +572,25 @@ end
 -- `deal` is the discovery context; `purchase` is the immutable successful-purchase fact. Its
 -- exact total is the ledger cost basis, and decision fields are saved under stable camelCase
 -- names for later companion/API persistence.
+--
+-- A buy on the player's own live price cap (`purchase.cap == true`, see UI/SniperFrame.lua's
+-- purchaseFacts) is a sniper purchase like any other and is recorded, but it was never made on
+-- a decision the engine can give evidence for: no stress exit, no region reference, no decision
+-- version. Its row therefore carries none of the seven evidence fields. That is a shape both
+-- readers downstream already take: the Companion keeps a row whose evidence group is absent or
+-- incomplete and drops only the group (savedvars.rs, decision_evidence), and the site's upload
+-- schema treats the group as optional, all-or-nothing (apps/api ledger entrySchema). `cap` on
+-- the row says why it has none; nothing downstream carries that field today.
 function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
   if not db then return nil end
   if type(deal) ~= "table" or type(purchase) ~= "table"
       or not isPositiveInteger(deal.itemID) or purchase.itemID ~= deal.itemID
       or not isPositiveInteger(purchase.quantity) or not isPositiveInteger(purchase.total)
-      or not isNonNegativeInteger(purchase.unitDisplay) or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity)
-      or not isPositiveInteger(purchase.decisionVersion)
+      or not isNonNegativeInteger(purchase.unitDisplay) or purchase.unitDisplay ~= math.floor(purchase.total / purchase.quantity) then
+    return nil
+  end
+  local capBuy = purchase.cap == true
+  if not capBuy and (not isPositiveInteger(purchase.decisionVersion)
       -- SAFE, or the one other thing a sniper purchase can be: a realm lot bought on a
       -- candidate (Core/SniperDecision.lua's EvaluateRealm), which is never SAFE because
       -- nothing measures how fast a realm item sells. `unverified` is what has to be present
@@ -590,7 +602,7 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
       or not isPositiveInteger(purchase.stressUnit)
       or not isNonNegativeInteger(purchase.expectedProfit)
       or not isPositiveInteger(purchase.recommendedQuantity)
-      or not isNonNegativeInteger(purchase.sourceAt) then
+      or not isNonNegativeInteger(purchase.sourceAt)) then
     return nil
   end
   now = now or time()
@@ -606,7 +618,7 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
     if ok and type(name) == "string" then itemName = name end
   end
 
-  return (GC.Ledger.Append({
+  local entry = {
     key = table.concat({ "snipe", tostring(deal.itemID), tostring(now), tostring(sniperSeq) }, "\1"),
     kind = "buy",
     source = "goldcap_sniper",
@@ -619,21 +631,27 @@ function GC.Ledger.RecordSniperBuy(deal, purchase, context, now)
     pending = false,
     mv = deal.mv,
     discount = deal.discount,
-    decisionVersion = purchase.decisionVersion,
-    decisionStatus = purchase.decisionStatus,
-    -- Persisted only when true, so every row written before realm buys existed keeps its exact
-    -- shape. The companion and the site read it to tell a checked buy from one the player made
-    -- on a price comparison alone.
-    unverified = purchase.unverified == true or nil,
-    decisionReasons = copyReasons(purchase.decisionReasons),
-    stressUnit = purchase.stressUnit,
-    expectedProfit = purchase.expectedProfit,
-    recommendedQuantity = purchase.recommendedQuantity,
-    sourceAt = purchase.sourceAt,
     at = now,
     char = context and context.char or nil,
     region = context and context.region or nil,
-  }))
+  }
+  if capBuy then
+    -- Persisted only on a cap buy, so every other row keeps its exact shape.
+    entry.cap = true
+  else
+    entry.decisionVersion = purchase.decisionVersion
+    entry.decisionStatus = purchase.decisionStatus
+    -- Persisted only when true, so every row written before realm buys existed keeps its exact
+    -- shape. It stays in the saved ledger: the Companion's reader builds its upload row field by
+    -- field and does not carry it (savedvars.rs), so the site cannot tell this buy apart by it.
+    entry.unverified = purchase.unverified == true or nil
+    entry.decisionReasons = copyReasons(purchase.decisionReasons)
+    entry.stressUnit = purchase.stressUnit
+    entry.expectedProfit = purchase.expectedProfit
+    entry.recommendedQuantity = purchase.recommendedQuantity
+    entry.sourceAt = purchase.sourceAt
+  end
+  return (GC.Ledger.Append(entry))
 end
 
 --- "Name-Realm" plus region, for stamping entries. Every lookup is guarded

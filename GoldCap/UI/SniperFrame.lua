@@ -15,6 +15,9 @@ GC.Sniper._rangAt = {}
 -- (renderList) can show a real number instead of a dash. Same "field, not a local" reasoning
 -- as _churn above.
 GC.Sniper._lastPrice = {}
+-- itemID -> how many units that observation saw at that price: the quantity a watched row's
+-- PRICE and PROFIT are figured on, the same one the watch loop hands DealMath for a deal.
+GC.Sniper._lastQty = {}
 
 local Theme = GC.Theme
 
@@ -124,6 +127,17 @@ LIM.MAX_BOOK_LEVELS = 100
 -- before the separate Confirm click (with the >5% requote re-prompt on top).
 LIM.ARM_TIMEOUT_SECONDS = 30
 LIM.BUY_TIMEOUT_SECONDS = 8
+-- How long a server quote waits at Confirm before the purchase is handed back (review M1, fix
+-- round 3): the BUY tab's CONFIRM_SECONDS, and like it well inside GC.PurchaseSlot.MAX_SECONDS --
+-- the claim is re-stamped when the quote lands, and the stage has to be over before it goes stale.
+LIM.CONFIRM_STALL_SECONDS = 20
+-- How long a Start waits for the server's quote before the purchase is handed back (fix round 4,
+-- n3): BUY's WATCHDOG_SECONDS. The old eight froze the window; handing back at eight cancelled a
+-- quote a slow auction house was still going to deliver.
+LIM.START_STALL_SECONDS = 10
+-- The last seconds of a quote the buy window counts down on its status line (fix round 4, m2):
+-- Blizzard's own buy dialog shows them from ten (REMAINING_QUOTE_DURATION_THRESHOLD).
+LIM.CONFIRM_COUNTDOWN_SECONDS = 10
 LIM.REQUERY_TIMEOUT_SECONDS = 8
 -- How long the quiet zone (GC.Sniper.IsPurchaseQuiet) may veto every search sender before it
 -- is released. The zone is what stops a scan page or a watch poll from replacing the client's
@@ -136,7 +150,7 @@ LIM.QUIET_ZONE_MAX_SECONDS = 30
 -- next Buy. Commodity events carry no attempt identifier, so a cancelled or errored attempt
 -- owns a tombstone until a terminal event consumes it -- and CancelCommoditiesPurchase fires
 -- none of the three, an auction house error fires none of the three, so "until" can be never.
--- Longer than LIM.BUY_TIMEOUT_SECONDS so a real terminal event always lands first. Only ever
+-- Longer than LIM.START_STALL_SECONDS so a real terminal event always lands first. Only ever
 -- applied to an UNCONFIRMED attempt: no gold moved there, and the worst a misattributed late
 -- event can then do is cancel a fresh attempt, which is the fail-safe direction.
 LIM.DRAIN_TIMEOUT_SECONDS = 20
@@ -189,11 +203,29 @@ LIM.WATCH_SET_SIZE = 10
 -- buyable several times a minute, and every one of those is worth SHOWING, but not worth a
 -- separate bell each time. See stampVerdict's own comment for why this is per item, not global.
 LIM.RING_FLOOR_SECONDS = 30
+-- Caps fixes 3e: how long a "your price" ring waits for its row to come on screen (the player
+-- on another board or tab, the window closed) before it is dropped. A ring is news; ten minutes
+-- on, the row -- still on the board if the cap still holds -- is what says it, and a later
+-- sighting of a lot that was never announced queues a fresh ring anyway.
+LIM.CAP_PING_WAIT_SECONDS = 600
+-- Final review m8: after the player cancels a buy window on a YOUR PRICE item, stop-and-open does
+-- not open that item again for this long (every open already waits LIM.RING_FLOOR_SECONDS). In an
+-- undercut war under the player's price every repost is news, and each one reopened the window
+-- they had just closed. The bell still rings; only the window waits.
+LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS = 120
 
 -- Sniper fast loop, phase 1: the book-pass wide-pass cadence and the drill-down queue's
 -- per-minute SendSearchQuery budget. See Core/BookPass.lua / Core/DrillQueue.lua.
 LIM.WIDE_PASS_SECONDS = 300
 LIM.DRILL_PER_MINUTE = 60
+-- Whole-market coverage (2026-09-23). How soon the book pass may report again an unchanged floor
+-- whose hit the drill queue let go of undrilled (Core/BookPass.lua's Lost), and how many arbiter
+-- slots in a row drills may take while a book-pass page waits for one (the pass gets the next).
+LIM.REHIT_SECONDS = 120
+LIM.DRILL_SHARE = 2
+-- How long an item's floor from this session's own browsing is worth telling in its tooltip
+-- (GC.Sniper.LiveFloor -> UI/Tooltip.lua's "On the AH now" line).
+LIM.LIVE_TOOLTIP_SECONDS = 900
 
 -- Sniper phase 2: how long a sent keys batch may go unanswered before the arbiter stops
 -- waiting for it. A batch answers in 200-400ms when it answers at all; this only exists so a
@@ -209,6 +241,14 @@ LIM.KEYS_TIMEOUT_SECONDS = 30
 -- equal) and then searches on, and a search sent over an unanswered keys call cancels its
 -- answer. Held for the full thirty, a REFRESH on Sell followed by a switch to Deals kept the
 -- board waiting half a minute for rows nobody was going to read.
+-- Caps fixes 4a, round 1: the same allowance for ANY batch the tab on screen did not send, while
+-- that tab is Sell or BUY -- the two that run searches of their own. A batch still out from the
+-- board the player just left (a cap batch, the Items poll's, BUY's) is one the Sell walk now
+-- stands still for, and one a BUY hover quote may take the answer of: waited out for thirty
+-- seconds it held every keys consumer, and the walk, for half a minute. See _KeysOutstanding.
+-- Caps fixes 5i: and the BUY tab's own refresh batch, wherever the player is. The player's hover
+-- or click quote waits for it (UI/BuyFrame.lua's quote), so a lost answer held that quote for
+-- thirty seconds with nothing on screen.
 LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- The Items board's own loop: once a poll cycle has visited every target, the next one starts
 -- this many seconds later. The cycle used to restart only when a book pass began, and the
@@ -216,6 +256,31 @@ LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- exactly once after a switch and then stood still for the rest of the visit (seen in game
 -- 2026-09-15: "sat on Commodities, switched to Items, nothing updated").
 LIM.KEYS_CYCLE_BREATHER_SECONDS = 5
+-- Caps fixes 4a: the cap poll (GC.Sniper._capPoll) runs on both Deals boards and the Sold tab, so
+-- it shares the one keys interlock with everyone who uses it -- the Items board's poll, the BUY
+-- refresh, the Sell tab's bulk fill, and Auto's pass, which may not start over an outstanding
+-- batch. Each of those asks again at least every 1.25 seconds (the arbiter's own
+-- answer-brings-the-next-turn, the auction-house ticker's once-a-second nudge, Auto's one-second
+-- settle on a 0.25s tick), so after every cap answer the poll stands aside for longer than that and
+-- whoever was kept waiting goes first. It also bounds the poll's share of the throttle to one
+-- message per answer plus this.
+LIM.CAPS_BATCH_GAP_SECONDS = 2
+-- And between two full rounds over the caps it rests longer, as the Items board's own loop does.
+LIM.CAPS_ROUND_BREATHER_SECONDS = 5
+-- Caps fixes 4a, round 2: the longest a player's Check waits for an unanswered keys batch before
+-- it goes anyway (issueRequerySearch). Sent on top of one, it comes back empty -- "listing gone".
+-- Final review S2: a batch of a hundred routinely answers after more than eight seconds (see
+-- KEYS_TIMEOUT_SECONDS above), so a Check held this long still often goes over one. What stands
+-- behind the hold instead: no cap batch starts while the buy window is up or the pointer is on a
+-- row (_TrySendCapBatch), and an empty answer to a Check that went over a batch given up is asked
+-- once more before it says "gone" (finishRequery). The Check's own timeout (REQUERY_TIMEOUT_SECONDS)
+-- is four times this.
+LIM.CHECK_HOLD_SECONDS = 2
+-- Final review S2 (iii): how many caps one batch of the caps' poll asks about. Blizzard's own
+-- ceiling (Core/KeyPoll.lua's MAX_BATCH) and no lower: nothing measured yet says a smaller batch
+-- answers faster. `/gc board` logs each cap batch's answer time (GC.Sniper._NoteCapBatch) so this
+-- can be tuned on evidence from the client.
+LIM.CAPS_BATCH_SIZE = 100
 
 local frame           -- lazily created (see createFrame)
 local content          -- scroll child frame; module-level so refreshRows() can grow the row pool into it
@@ -313,7 +378,20 @@ local function drainCommodityPurchase(row)
   local pending = commodityPurchase
   if pending and pending.row == row then
     commodityPurchase = nil
-    if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+    -- Final money review I1: a Start cancelled before the server answered it still has that
+    -- answer coming, and it names no attempt. Released here, the slot let the BUY tab start in the
+    -- gap, Core/Init.lua offered the late quote to BUY first, and BUY's CONFIRM lit at a total it
+    -- never quoted. So the slot stays this window's -- claim re-stamped, well past the drain's
+    -- bound -- until that drain is over (GC.Sniper._EndDrainHold): the late quote consumed here,
+    -- a terminal event, a Check of our own that proves nothing more is coming
+    -- (GC.Sniper._RetireFencedTombstone), or the timer below. A purchase whose quote had come --
+    -- confirmed or not -- has nothing left in flight, and lets go at once as before.
+    if pending.priceReceived or pending.confirmed or pending.wasConfirmed then
+      if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+    else
+      pending.holdsSlot = true
+      if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
+    end
     commodityDraining = pending
     -- No event token can prove a terminal belongs to this attempt. Stay fail-closed until a
     -- terminal event arrives or the Auction House session resets, even after a price update.
@@ -336,17 +414,23 @@ local function drainCommodityPurchase(row)
         if commodityDraining == pending and not pending.confirmed then
           commodityDraining = nil
         end
+        GC.Sniper._EndDrainHold(pending) -- the drain's own bound (I1); a no-op once let go
       end)
     end
     return pending
   end
 end
 
--- Retires an unconfirmed tombstone that OnCommodityPriceUpdated fenced on the requery (row +
--- token) whose result has now landed. The search that result answers was sent after the Cancel,
--- so any late quote for the cancelled attempt was delivered ahead of it; the tombstone has
--- nothing left to guard against. Confirmed tombstones are never touched -- their late success
--- still has to land on the attempt that paid.
+-- Retires an unconfirmed tombstone once `attempt` -- a Check whose answer has now landed -- is
+-- proof it has nothing left to guard against: the search that answer replies to was sent after
+-- the Cancel, so any late quote for the cancelled attempt was delivered ahead of it. Two kinds
+-- of attempt are that proof. One OnCommodityPriceUpdated fenced the tombstone on (row + token:
+-- the re-check it started, or the drain wait standing in for it). And any Check started while
+-- the tombstone was already down (`attempt.afterTombstone`, stamped by startRequery), whatever
+-- its token -- in game 2026-09-23 the fence was the only way out, every Check the player started
+-- afterwards carried a new token, and the Buy those Checks re-armed was refused with "waiting
+-- for previous commodity purchase to settle" and a lit button. Confirmed tombstones are never
+-- touched -- their late success still has to land on the attempt that paid.
 --
 -- One helper for the three places a fenced requery can end: finishRequery (the ordinary case),
 -- GC.Sniper._FinishDrainWait (the requery that had to wait for an older search to drain) and
@@ -357,12 +441,55 @@ end
 -- nothing (observed live 2026-09-15, `/gc sniper`: tombstone fenced on token 2, no requery
 -- waiting). A field on GC.Sniper rather than a file local: this chunk sits near Lua's 200-local
 -- ceiling (see the addon's engineering notes).
-function GC.Sniper._RetireFencedTombstone(row, token)
+function GC.Sniper._RetireFencedTombstone(attempt)
   local tombstone = commodityDraining
-  if tombstone and not tombstone.confirmed and tombstone.fenceRow == row
-      and tombstone.fenceToken == token then
+  if not (tombstone and attempt) or tombstone.confirmed then return end
+  if (tombstone.fenceRow == attempt.row and tombstone.fenceToken == attempt.token)
+      or attempt.afterTombstone == tombstone then
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(tombstone)
   end
+end
+
+-- The end of a drain that held the shared slot (final money review I1, drainCommodityPurchase):
+-- the slot goes back, unless a purchase of this window's own has claimed it since -- the claim is
+-- that purchase's then, and not the drain's to give away.
+function GC.Sniper._EndDrainHold(tombstone)
+  if not (tombstone and tombstone.holdsSlot) then return end
+  tombstone.holdsSlot = nil
+  if GC.PurchaseSlot and not commodityPurchase then GC.PurchaseSlot.Release("sniper") end
+end
+
+-- The confirmed commodity purchase still owed its terminal event, or nil -- in flight
+-- (commodityPurchase: the window that confirmed it may have been closed with Escape, which a
+-- confirmed attempt survives) or carried across an auction house close as a tombstone
+-- (commodityDraining). Either way it may already have taken gold, and nothing else may be bought
+-- until it has answered (onDialogPrimaryClick). A field, not a local: this chunk sits near Lua's
+-- 200-local ceiling.
+function GC.Sniper._ConfirmedOwed()
+  if commodityDraining and commodityDraining.confirmed then return commodityDraining end
+  if commodityPurchase and commodityPurchase.confirmed then return commodityPurchase end
+  return nil
+end
+
+-- Fix round 2: the rule this window starts by is the addon's, not its own --
+-- GC.PurchaseSlot.ConfirmOwed: nothing starts while a purchase EITHER window confirmed (this one,
+-- or the BUY tab) is still owed its answer. Returns which window this one waits for, or nil.
+-- Without the shared slot loaded (a spec that leaves it out) only this window's own confirm is
+-- asked.
+--
+-- Fix round 3 (review n2): and while the BUY tab holds the slot for a purchase it has started but
+-- not confirmed. Its claim is live for exactly as long as that purchase is (BUY's armStall
+-- re-stamps it and retires the stage inside the claim's life), and the Buy used to meet it lit and
+-- refusing ("finish the pending buy first"); now it waits, dark, like any other purchase in flight,
+-- and is handed Refresh when BUY lets go (GC.Sniper._TickOwedHold).
+function GC.Sniper._PurchaseOwed()
+  local slot = GC.PurchaseSlot
+  if not (slot and slot.ConfirmOwed) then return GC.Sniper._ConfirmedOwed() and "sniper" or nil end
+  local owed = slot.ConfirmOwed()
+  if owed then return owed end
+  if slot.Owner and slot.Owner() == "buy" and slot.IsBusy and slot.IsBusy() then return "buy" end
+  return nil
 end
 
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
@@ -503,6 +630,14 @@ local evaluateLiveCommodityDeal
 -- Forward-declared for the same reason again: applySortOverride (below) now reads the live
 -- verdict through GC.BoardRows.Compare, and it is defined above verdictFor's own body.
 local verdictFor
+-- Live price caps, addon task 6: forward-declared for the same reason as stampVerdict above --
+-- refreshRows() (below) drains pendingCapPings through this at the end of every render, but its
+-- real body (built on flashRow) is defined far below refreshRows.
+local pingNewHotDeals
+-- Forward-declared for the same reason again: refreshRows() drains pendingCapPings through this
+-- too, and its real body reuses onBuyClick -- the row's own click path -- which is defined far
+-- below refreshRows.
+local drainCapPings
 
 -- Background verification. itemID -> { unitPrice, at, buyable, status, reason }: what a live
 -- Check said about this item the last time one was run for it in the background.
@@ -517,6 +652,18 @@ local verdictFor
 -- -- clicking a row still runs the same live Check it always did (openDialog -> startRequery),
 -- and the purchase calls themselves are protected and reachable only from a hardware click.
 local verdicts = {}
+-- Live price caps, addon task 6: cap rows waiting to ring, queued by evaluateLiveCommodityDeal/
+-- evaluateLiveItemDeal (wherever buildCapDeal puts one on the board) through
+-- GC.Sniper._QueueCapPing, and drained by refreshRows() at the end of its own render -- by then
+-- the row painting loop has stamped `row.deal` for this pass, so the drain can find the row the
+-- deal landed on by table identity -- and by the Auction House ticker.
+--
+-- Caps fixes 3e: an entry is { deal, at, rung, opened }, at most one per item, and it WAITS:
+-- until its row is on screen (the player may be on the other board, another tab, or have the
+-- window closed), for no longer than LIM.CAP_PING_WAIT_SECONDS, and only while the row is still
+-- on the board. It used to be drained -- announced, floored, rung at nothing -- in the very
+-- render that found it.
+local pendingCapPings = {}
 -- How many of the rows the current render WOULD have shown carry a refusal. Recomputed by
 -- renderList on every render and displayed by the toolbar toggle, so a shorter list always
 -- comes with the number that explains it.
@@ -639,7 +786,8 @@ local SORT_VALUE = {
   tier = function(deal, pending) return GC.BoardRows.Rank(verdictFor(deal), pending) end,
   pct = function(deal) return deal.discount end,
   unit = function(deal) return deal.unitPrice end,
-  price = function(deal) return deal.unitPrice * deal.qty end,
+  -- A cap row's total is what its decision's units cost (buildCapDeal's capTotal).
+  price = function(deal) return deal.capTotal or deal.unitPrice * deal.qty end,
   profit = function(deal) return deal.profit end,
 }
 
@@ -772,8 +920,13 @@ local function renderList()
     -- `unverified` rows are not pruned and not counted either, for the same reason `manual`
     -- ones are not: a realm lot the check found under its region reference did not shorten
     -- this list, it is one of the things ON it (see stampVerdict).
+    -- Final review: a CAP row is kept explicitly, not by luck. Today a cap verdict happens to
+    -- carry `unverified` (a realm cap) or `buyable` (a commodity cap), so it survived the
+    -- filter as a side effect of two unrelated flags -- and a cap decision that ever stops
+    -- setting either would silently vanish from the board. A cap is the player's own standing
+    -- instruction: whatever its status, it is never one of the rows the live check refused.
     if verdict and not verdict.buyable and not verdict.manual and not verdict.unverified
-        and not pinned then
+        and not verdict.cap and not pinned then
       refusedCount = refusedCount + 1
       if show then kept[#kept + 1] = deal end
     else
@@ -813,8 +966,21 @@ local function renderList()
       -- has no observation for a pin nothing has polled yet. `unitPrice = 0` stays the sentinel
       -- in the table -- `priceUnknown` is what setRowDeal checks before it will render that as
       -- a real number, so a session-old pin never shows a fabricated 0-copper price.
+      --
+      -- What the market says about it is figured the way every other row's is
+      -- (GC.DealMath.Measure), off the price and quantity the watch loop last saw -- against the
+      -- region reference on the Items board, the imported value on Commodities. `measured` nil
+      -- (no market, or nothing seen) leaves the cells to say nothing, as before; `qtyKnown`
+      -- likewise for the total. In game 2026-09-23 every pinned row showed its unit and dashes.
+      local lastQty = lastPrice and GC.Sniper._lastQty[itemID] or nil
+      local value = realmPin and GC.Sniper._RealmValue(itemID)
+        or (GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID))
+      local measured = lastPrice and lastQty and GC.DealMath and GC.DealMath.Measure(lastPrice, lastQty, value) or nil
       kept[#kept + 1] = { itemID = itemID, pinPlaceholder = true, unitPrice = lastPrice or 0,
-        qty = 1, profit = 0, discount = 0, tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
+        qty = lastQty or 1, qtyKnown = lastQty ~= nil, mv = measured and value.mv or nil,
+        profit = measured and measured.profit or 0, discount = measured and measured.discount or 0,
+        marketKnown = measured ~= nil,
+        tier = "WATCH", action = "Check", priceUnknown = lastPrice == nil }
     end
   end
 
@@ -1074,6 +1240,12 @@ local function setRowDeal(row, deal)
     pinned and 1 or 0, (verdict and verdict.status) or "", (verdict and verdict.buyable) and 1 or 0,
     (verdict and verdict.reason) or "", (verdict and verdict.stressProfit) or "",
     tostring(trend),
+    -- Live price caps, addon task 6: a cap-bucket transition or a changed group/price at the
+    -- SAME unitPrice+profit (a re-Adopt from the site swapping which group owns this item)
+    -- moves the CAP tier chip and the row subtitle -- neither is covered by anything above.
+    (verdict and verdict.cap) and 1 or 0, tostring(deal.capGroup),
+    -- A cap row's total can move while its cheapest level and quantity do not.
+    tostring(deal.capTotal),
   }, "|")
   if row._dealSig == sig and row:IsShown() then
     return
@@ -1149,9 +1321,14 @@ local function setRowDeal(row, deal)
   -- A pin placeholder is not a deal -- there is nothing to discount against, so this cell says
   -- nothing rather than the "0%" renderList's placeholder table (discount = 0, kept for callers
   -- that need a number) would otherwise print.
-  if deal.pinPlaceholder then
+  -- A watched row's figures are estimates off the last price seen, never a verdict, so they
+  -- keep the row's dim look (fgMuted); a dash is only for what is genuinely unknown.
+  if deal.pinPlaceholder and not deal.marketKnown then
     row.discountText:SetText("—")
     row.discountText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  elseif deal.pinPlaceholder then
+    row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
+    row.discountText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   else
     row.discountText:SetText(("%d%%"):format(math.floor(deal.discount * 100 + 0.5)))
     row.discountText:SetTextColor(verdictColor[1], verdictColor[2], verdictColor[3])
@@ -1173,20 +1350,37 @@ local function setRowDeal(row, deal)
     -- unit right now) and nothing where a total was never actually quoted.
     row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    row.priceText:SetText("—")
-    row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    if deal.qtyKnown then
+      -- The quantity the watch loop saw at that price is known: the total is a real one.
+      row.priceText:SetText(GC.Util.FormatMoney(deal.unitPrice * deal.qty))
+      row.priceText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
+    else
+      row.priceText:SetText("—")
+      row.priceText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+    end
   else
     row.unitText:SetText(GC.Util.FormatMoney(deal.unitPrice))
     row.unitText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
-    row.priceText:SetText(GC.Util.FormatMoney(deal.unitPrice * deal.qty)) -- total cost, not per-unit
+    -- Total cost, not per-unit -- and for a cap row the real sum over the levels it buys.
+    row.priceText:SetText(GC.Util.FormatMoney(deal.capTotal or deal.unitPrice * deal.qty))
     row.priceText:SetTextColor(Theme.color.fg[1], Theme.color.fg[2], Theme.color.fg[3])
   end
 
   -- A pin placeholder has no deal to have made a profit on -- this cell says nothing rather
   -- than a formatted 0-copper coin string (profit = 0, the same placeholder sentinel).
-  if deal.pinPlaceholder then
+  --
+  -- Live price caps, addon task 6: a cap deal with nothing to compare against (no market value
+  -- at all for this item -- the cap needs none, Core/Caps.lua's own contract) has the same
+  -- "nothing to show" problem. buildCapDeal's estProfit degrades to `-unit` in that case, which
+  -- would read as a real loss instead of "we don't know" -- deal.profit already equals
+  -- deal.estProfit for a cap deal (buildCapDeal sets both from the same number), so this is the
+  -- one case that needs its own branch rather than a field swap.
+  if (deal.pinPlaceholder and not deal.marketKnown) or (deal.cap and deal.mv == nil) then
     row.profitText:SetText("—")
     row.profitText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+  elseif deal.pinPlaceholder then
+    row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
+    row.profitText:SetTextColor(Theme.color.fgMuted[1], Theme.color.fgMuted[2], Theme.color.fgMuted[3])
   else
     row.profitText:SetText((deal.profit > 0 and "+" or "") .. GC.Util.FormatMoney(deal.profit))
     if deal.profit >= 0 then
@@ -1221,12 +1415,23 @@ local function setRowDeal(row, deal)
   -- well after this call returns.
   local watchSuffix = deal.pinPlaceholder
     and ("|cff8c8a85%s|r"):format(GC.L[" · watching"]) or ""
+  -- Live price caps, addon task 6: a cap row belongs to an alert group -- say so, in the same dim
+  -- suffix pattern watchSuffix uses (own color code, so it never inherits the quality-colored
+  -- name). Only the group: the VERDICT column already says YOUR PRICE, and "· your price 1g10s"
+  -- beside it ran the cell out of room -- "x400 Test caps · yo..." (in game 2026-09-23). Only
+  -- when the cell has room for it, too: a name the client had to cut drops the group, which the
+  -- row's tooltip names either way (GC.Sniper._CapNote).
+  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
+  local function stampName(named)
+    row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix }
+    GC.Sniper._FitRowName(row)
+  end
   local cached = nameIconCache[deal.itemID]
   if cached then
     row.icon:SetTexture(cached.icon)
-    row.nameText:SetText(cached.named .. qtySuffix(deal) .. watchSuffix)
+    stampName(cached.named)
   else
-    row.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. qtySuffix(deal) .. watchSuffix)
+    stampName((GC.L["item %d"]):format(deal.itemID))
     row.icon:SetTexture(nil)
 
     local item = Item:CreateFromItemID(deal.itemID)
@@ -1247,7 +1452,7 @@ local function setRowDeal(row, deal)
       end
       nameIconCache[deal.itemID] = { icon = icon, named = named }
       row.icon:SetTexture(icon)
-      row.nameText:SetText(named .. qtySuffix(deal) .. watchSuffix)
+      stampName(named)
     end)
   end
 
@@ -1343,6 +1548,13 @@ local function refreshRows()
   -- read (the player is on Commodities most of the time), so it is re-derived here rather
   -- than at each of the half-dozen places a realm row can appear or leave.
   GC.Sniper._PaintBoardChips()
+
+  -- Live price caps, addon task 6: the row-painting loop above has just stamped `row.deal` for
+  -- this render, so a cap row queued earlier this call chain (GC.Sniper._QueueCapPing, from
+  -- evaluateLiveCommodityDeal/evaluateLiveItemDeal) can now be matched to the row it landed on,
+  -- the same way CollectNewHot's own HOT deals are. Rings only (caps fixes 3e): an open waits
+  -- for the ticker, because a render runs inside a closing dialog's own OnHide too.
+  if #pendingCapPings > 0 then drainCapPings(false) end
 end
 
 -- E.2: re-stamps every sortable header's label with a " ▼"/" ▲" suffix on whichever one is
@@ -1351,24 +1563,30 @@ end
 -- (not \xXX escapes -- WoW's client Lua is 5.1, which has no hex string escape) in a file
 -- saved as UTF-8; Lua strings are just byte arrays so this needs no special handling.
 --
--- It also re-stamps EVERY heading label, sortable or not, from its base text. A one-line
--- (SetMaxLines(1)) FontString that lives inside a frame which was hidden and shown again --
--- the header row behind the Sell/Sold tabs -- can come back with its text simply not drawn
--- (the PROFIT/TREND labels went blank in-game after a tab switch, and reappeared only when a
--- header was clicked, i.e. when this function next ran). SetText is what the client needs to
--- draw it again, so every caller that re-shows the row goes through here.
+-- It also re-stamps EVERY heading label, sortable or not, and every caller that re-shows the
+-- row goes through here: a one-line (SetMaxLines(1)) FontString inside a frame that was
+-- hidden and shown again -- the header row behind the Sell/Sold/BUY tabs, or the whole window
+-- -- can come back with its text simply not drawn, tooltips still working over empty cells.
+-- Setting the text it already holds is a no-op to the client and does not make it draw, so
+-- each label is cleared, set, hidden and shown -- the cure UI/SoldFrame.lua's and
+-- UI/BuyFrame.lua's restampHeadings measured in game. A sortable heading is in header.cells
+-- and sortHeaders both, so the text is settled first and every label is stamped once, arrow
+-- included.
 local function updateHeaderSortIndicators()
+  local texts = {} -- label -> the text it draws
   local header = frame and frame.headerRow
   if header and header.cells then -- specs fake headerRow as a bare Show/Hide stub
-    for _, cell in pairs(header.cells) do cell.label:SetText(cell.baseText) end
-    if header.itemCell then header.itemCell.label:SetText(GC.L["ITEM"]) end
+    for _, cell in pairs(header.cells) do texts[cell.label] = cell.baseText end
+    if header.itemCell then texts[header.itemCell.label] = GC.L["ITEM"] end
   end
   for key, h in pairs(sortHeaders) do
-    if sortOverride and sortOverride.key == key then
-      h.label:SetText(h.base .. (sortOverride.desc and " ▼" or " ▲"))
-    else
-      h.label:SetText(h.base)
-    end
+    local active = sortOverride and sortOverride.key == key
+    texts[h.label] = active and (h.base .. (sortOverride.desc and " ▼" or " ▲")) or h.base
+  end
+  for label, text in pairs(texts) do
+    label:SetText("")
+    label:SetText(text)
+    if label.Hide and label.Show then label:Hide(); label:Show() end
   end
 end
 
@@ -1495,71 +1713,99 @@ local function refreshStaleText()
   if origin ~= "none" and not age then origin = "none" end
   frame.staleHit:EnableMouse(origin ~= "app")
 
+  -- Live price caps, addon task 6: text/color/shown are decided here and applied once at the
+  -- end, rather than each branch calling SetText/SetTextColor/Show/Hide directly as before --
+  -- the caps freshness note below needs to APPEND to (or stand in for) whatever this decided,
+  -- including the "hide the banner entirely" case, without reading the widget back
+  -- (frame.staleText is a bare fake in several specs, with no GetText/IsShown of its own).
+  local text, color, shown
+
   if origin == "none" then
     -- Kept short deliberately: staleText is SetWordWrap(false) and right-justified against the
     -- title bar, so it overflows leftward rather than truncating -- the longer "install GoldCap
     -- Companion" phrasing risked overlapping the window title at RESIZE_MIN_WIDTH (640).
-    frame.staleText:SetText(GC.L["no prices yet -- /goldcap companion or /goldcap import"])
-    frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-    frame.staleText:Show()
+    text = GC.L["no prices yet -- /goldcap companion or /goldcap import"]
+    color, shown = Theme.color.red, true
   elseif origin == "app" then
     if age < LIM.STALE_YELLOW_SECONDS then
-      frame.staleText:Hide()
+      shown = false
     elseif age < LIM.STALE_RED_SECONDS then
-      frame.staleText:SetText((GC.L["auto-synced %dh ago"]):format(math.floor(age / 3600)))
-      frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
-      frame.staleText:Show()
+      text = (GC.L["auto-synced %dh ago"]):format(math.floor(age / 3600))
+      color, shown = Theme.tier.SUSPECT, true
     else
-      frame.staleText:SetText(GC.L["auto-synced data stale -- /goldcap import"])
-      frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-      frame.staleText:Show()
+      text = GC.L["auto-synced data stale -- /goldcap import"]
+      color, shown = Theme.color.red, true
     end
   else -- manual
     if age < LIM.STALE_YELLOW_SECONDS then
       -- Fresh manual data used to hide the banner entirely; it now stays up, dim, as the
       -- nudge toward the Companion -- the whole point is that "fresh" here still means
       -- "will go stale on its own", unlike auto-synced data.
-      frame.staleText:SetText(GC.L["manual import -- Companion keeps this fresh: /goldcap companion"])
-      frame.staleText:SetTextColor(Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
-      frame.staleText:Show()
+      text = GC.L["manual import -- Companion keeps this fresh: /goldcap companion"]
+      color, shown = Theme.color.fgDim, true
     elseif age < LIM.STALE_RED_SECONDS then
-      frame.staleText:SetText((GC.L["import %dh old"]):format(math.floor(age / 3600)))
-      frame.staleText:SetTextColor(Theme.tier.SUSPECT[1], Theme.tier.SUSPECT[2], Theme.tier.SUSPECT[3])
-      frame.staleText:Show()
+      text = (GC.L["import %dh old"]):format(math.floor(age / 3600))
+      color, shown = Theme.tier.SUSPECT, true
     else
-      frame.staleText:SetText(GC.L["import stale -- /goldcap import or /goldcap companion"])
-      frame.staleText:SetTextColor(Theme.color.red[1], Theme.color.red[2], Theme.color.red[3])
-      frame.staleText:Show()
+      text = GC.L["import stale -- /goldcap import or /goldcap companion"]
+      color, shown = Theme.color.red, true
     end
+  end
+
+  -- Caps freshness is independent of the import-origin banner above: a companion-synced cap
+  -- list is on its own clock, so a player running an all-caps alert group with fresh (or no)
+  -- imports still needs to know how current the price ceilings they're being shown are.
+  -- _G.date is a WoW-injected global, absent under busted (see UI/SoldFrame.lua's own guard
+  -- for the same fact) -- this degrades to nothing where it isn't stubbed, rather than erroring.
+  --
+  -- Final review M4: date() was handed GeneratedAt() straight, and a caps file carrying no
+  -- generatedAt (or a malformed one) answers nil -- date(fmt, nil) is date(fmt), i.e. NOW, so
+  -- the banner would have claimed ceilings of unknown age were minted this minute. Say nothing
+  -- rather than say that. M5: shortened, and shown only while the window has room for it --
+  -- staleText does not wrap and is right-justified against the close button, so it overflows
+  -- LEFTWARD into the window title, and appending to an already-long origin banner at
+  -- RESIZE_MIN_WIDTH (640) is exactly where the two meet.
+  local generatedAt = GC.Caps and GC.Caps.GeneratedAt() or nil
+  local width = (frame.GetWidth and frame:GetWidth()) or 0
+  if GC.Caps and GC.Caps.Count() > 0 and type(generatedAt) == "number" and _G.date
+      and width > WIN.RESIZE_MIN_WIDTH then
+    local capsNote = (GC.L["%d caps · %s"]):format(GC.Caps.Count(), _G.date("%H:%M", generatedAt))
+    text = shown and (text .. "  " .. capsNote) or capsNote
+    color = color or Theme.color.fgDim
+    shown = true
+  end
+
+  if shown then
+    frame.staleText:SetText(text)
+    frame.staleText:SetTextColor(color[1], color[2], color[3])
+    frame.staleText:Show()
+  else
+    frame.staleText:Hide()
   end
 end
 
--- Whether the loaded import can ever arm the sniper at all -- see Core/Trigger.lua's own
--- comment. Only the verification-fact candidates matter: GC.Trigger.For needs a stressUnit,
--- and only those entries carry one (GC.Data.GetItemValue's own branching).
--- _UpdateEmptyState is driven by renderList()/refreshRows() and the 0.25s ticker, so a naive
--- rebuild-and-walk here re-walks the whole verification table ~4x/second for as long as a
--- large import's board stays empty. Memoized instead, keyed on the verification table's own
--- identity (the import is replaced wholesale on a fresh import, never mutated in place) and
--- the two settings GC.Trigger.For reads. Cached on GC.Sniper._armedCache -- a table field, not
--- a new top-level local, so this costs no headroom (see the addon's engineering notes' local-ceiling note).
+-- Whether the loaded data can ever arm the sniper at all -- see Core/Trigger.lua's own comment.
+-- Only fact-bearing items matter (GC.Trigger.For needs a stressUnit), and GC.Data.FactItemIds is
+-- the one list of them, the region payload's and the import's together. _UpdateEmptyState is
+-- driven by renderList()/refreshRows() and the 0.25s ticker, so a naive re-walk here would walk
+-- thousands of items ~4x/second while a large import's board stays empty. Memoized instead, on the
+-- list's own identity (FactItemIds hands back the same table while nothing changed) and the two
+-- settings GC.Trigger.For reads. Cached on GC.Sniper._armedCache -- a table field, not a new
+-- top-level local, so this costs no headroom (see the addon's engineering notes' local-ceiling note).
 local function anyItemArmed()
-  local imp = GC.db and GC.db.imported
-  local verification = imp and imp.verification
-  if not verification then return false end
-  local sniperSettings = GC.db.settings and GC.db.settings.sniper
+  local ids = GC.Data.FactItemIds and GC.Data.FactItemIds()
+  if not ids or #ids == 0 then return false end
+  local sniperSettings = GC.db and GC.db.settings and GC.db.settings.sniper
   if not sniperSettings then return false end
   local minimumProfitCopper = sniperSettings.minimumProfitCopper
   local minimumRoi = sniperSettings.minimumRoi
   local cache = GC.Sniper._armedCache
-  if cache and cache.verification == verification
+  if cache and cache.ids == ids
       and cache.minimumProfitCopper == minimumProfitCopper and cache.minimumRoi == minimumRoi then
     return cache.result
   end
-  local ids = {}
-  for itemID in pairs(verification) do ids[#ids + 1] = itemID end
   local result = GC.Trigger.AnyArmed(ids, GC.Data.GetItemValue, sniperSettings)
-  GC.Sniper._armedCache = { verification = verification, minimumProfitCopper = minimumProfitCopper,
+  GC.Sniper._armedCache = { ids = ids, minimumProfitCopper = minimumProfitCopper,
     minimumRoi = minimumRoi, result = result }
   return result
 end
@@ -1594,8 +1840,16 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   if board == "items" and GC.Data.OriginState() ~= "none" then
     -- Count(), not the store: an empty poll set means the import carries no region reference
     -- for anything this board could watch, which is a different problem from a full poll set
-    -- finding nothing cheap, and needs a different answer.
-    if GC.Sniper._keyPoll:Count() == 0 then
+    -- finding nothing cheap, and needs a different answer. The player's caps on realm items are
+    -- watched for this board too, by their own poll (caps fixes 4a) -- a commodity cap is the
+    -- other board's.
+    local watching = GC.Sniper._keyPoll:Count() > 0
+    if not watching and GC.Caps and GC.Caps.Count() > 0 then
+      for _, itemID in ipairs(GC.Caps.Targets()) do
+        if not GC.Sniper._IsCommodityId(itemID) then watching = true; break end
+      end
+    end
+    if not watching then
       text = GC.L["Nothing to watch on this board yet."] .. "\n"
         .. GC.L["Gear, pets and recipes need an import that carries the region's prices for them -- paste a fresh string from goldcap.gg."]
     else
@@ -1769,6 +2023,9 @@ driver = {
     -- arbiter's own call stack. Checked here too so the veto holds even if that tail ever runs
     -- with a stale watchGrant.
     if GC.Sniper.IsPurchaseQuiet() then return false end
+    -- Caps fixes 4a, round 1: and never over an unanswered keys batch (see canDrillNow) -- this is
+    -- the choke point the loop's result-tail sends pass through too.
+    if GC.Sniper._KeysOutstanding() then return false end
     return watchGrant
   end,
 
@@ -1777,13 +2034,86 @@ driver = {
     -- specs that render a board without the AH API stub nothing here. Unknown is nil, the
     -- same answer an uncached key gives in the client.
     if not C_AuctionHouse then return nil end
-    return C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+    local info = C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+    -- Final review M6: an answer the client HAS given is remembered, so GC.Sniper._IsCommodityId
+    -- can read the classification without ever asking for it -- GetItemKeyInfo on an uncached
+    -- key is a server request, and the cap hits used to make one per cap on every pass. Only
+    -- the paths that genuinely need the key info (a search, a pre-warm, the verify slice) pay
+    -- for it; everybody else reads what they left behind.
+    if info ~= nil then GC.Sniper._keyInfoCommodity[itemID] = info.isCommodity == true end
+    return info
+  end,
+
+  -- The key the LAST search for this item went out with, so every read below asks the client
+  -- about the same key the query was made with -- which is the only key it will answer for
+  -- (API_C_AuctionHouse.SendSearchQuery). A table field, not a top-level local: this file sits
+  -- at its 200-local ceiling (docs/addon/AGENTS.md, "Hard limits").
+  lastSearchKey = {},
+
+  -- Which item key a drill for this item should actually send. nil means "nothing is known
+  -- about this item's variants" and the caller keeps the bare key.
+  --
+  -- A BARE key -- MakeItemKey(itemID), item level 0 -- resolves to ONE item-level variant
+  -- server-side. Teebu's Scorching Straight Sword (159840) is listed as a (66) asking 211,111
+  -- and a (19) asking 250,000; the drill sent the bare key, read the results back with it, and
+  -- so priced the board row off whichever variant the server picked -- 250,000g for a sword the
+  -- same browse was offering at 211,111. The key poll is the one place both variants are ever
+  -- seen (Core/KeyPoll.lua's collapse keeps their rows on the book entry), so the drill aims at
+  -- the cheapest one the decision it feeds can actually approve: the cap's own item-level floor
+  -- (Core/Caps.lua's DecideRealm) when the player has a cap on this item, otherwise the realm
+  -- reference's refIlvl, which is the same floor GC.SniperDecision.EvaluateRealm applies to the
+  -- lots it is handed (0 -- any variant -- for a reference that carries no item level).
+  --
+  -- An item this poll has never folded keeps the bare key, deliberately: nothing here knows its
+  -- variants, and one variant of an unknown item is still better than no drill at all. In
+  -- practice that is a commodity -- the book pass's own items, which have no item-level variants
+  -- for a key to name, so the bare key is the only key they have -- and a realm item Checked
+  -- before its first poll batch has landed. The WIDE browse pass is not a third case: its hits
+  -- run GC.SniperDecision.PreScreen first (the book pass's onHit below), and a realm item has
+  -- none of the sell-through, velocity or liquidity facts that screen demands, so a pass hit
+  -- never queues a drill for one. Both Items-board writers are this poll and this drill.
+  variantKey = function(itemID)
+    if not (GC.KeyPoll and GC.KeyPoll.VariantKeyFor and GC.Sniper._keyPoll) then return nil end
+    local entry = GC.Sniper._PolledEntry(itemID)
+    if not entry then return nil end
+    -- A commodity has one key -- the bare one -- whatever its browse row carried: the caps' poll
+    -- folds commodities too, and nothing here is gained by naming anything else.
+    if GC.Sniper._IsCommodityId(itemID) then return nil end
+    local cap = GC.Caps and GC.Caps.For(itemID)
+    local floor = cap and cap.l
+    if not floor then
+      local value = GC.Sniper._RealmValue(itemID)
+      floor = (value and value.refIlvl) or 0
+    end
+    local variant = GC.KeyPoll.VariantKeyFor(entry, floor)
+    -- No variant reaches that floor. Both decisions already say so on their own -- DecideRealm
+    -- finds no lot at cap.l, EvaluateRealm answers no_comparable_lot -- so this search cannot
+    -- produce a deal. It still goes out, on the cheapest variant: a Check the player asked for
+    -- is waiting on this very query, and an answer naming the lots that DO exist is the honest
+    -- one. What it must NOT fall back to is the bare key, which is the bug this exists to fix.
+    if not variant and floor > 0 then variant = GC.KeyPoll.VariantKeyFor(entry, 0) end
+    if not variant then return nil end
+    return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
+      variant.battlePetSpeciesID)
   end,
 
   sendSearch = function(itemID)
     trace("search: item " .. tostring(itemID))
-    local key = C_AuctionHouse.MakeItemKey(itemID)
-    local info = C_AuctionHouse.GetItemKeyInfo(key)
+    -- Every background search of ours waits for an unanswered keys batch (canDrillNow,
+    -- maybeStartPrewarm, the verify walk, mayScan); the player's own Check does not -- it is the
+    -- player. What it sends takes that batch's answer with it (UI/SellFrame.lua's advanceQuote),
+    -- so the wait is written off now rather than holding every keys consumer, the pass and the
+    -- background searches for the rest of its timeout. A late answer is still recognised for
+    -- what it is (see _WriteOffKeys).
+    if GC.Sniper._KeysOutstanding() then GC.Sniper._WriteOffKeys("search") end
+    local key = driver.variantKey(itemID) or C_AuctionHouse.MakeItemKey(itemID)
+    driver.lastSearchKey[itemID] = key
+    -- Classification is asked of the BARE key through driver.getKeyInfo on purpose: isCommodity
+    -- is a fact about the ITEM, not about one of its item-level variants, and the bare key is
+    -- the one the client has already cached for it (the pre-warm asks for exactly that, and
+    -- getKeyInfo remembers the answer) -- asking about a variant key nothing has warmed is a
+    -- fresh server round-trip for something already known.
+    local info = driver.getKeyInfo(itemID)
     -- Blizzard's pane may open this item's buy page in answer; that page is ours, not a buy.
     if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
     if info and info.isCommodity then
@@ -1792,10 +2122,33 @@ driver = {
       C_AuctionHouse.SendSearchQuery(
         key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
     end
+    -- Out until its answer lands (GC.Sniper.RequestOut): a pre-warm, a Check re-query or a drill
+    -- sent just before the switch to Sell can still draw an error the Sell tab would otherwise read
+    -- as its post's own (review NM-F).
+    GC.Sniper._NoteSearchSent(key)
   end,
 
+  -- Whether an ITEM_SEARCH_RESULTS_UPDATED carrying `itemKey` answers the search sendSearch last
+  -- sent for this item. The event names the key it answers, all four fields of it -- the key the
+  -- query went out with, which is the only key the client then answers reads for -- and another
+  -- key of the same item is somebody else's search: the Sell tab's bare key while a drill asked
+  -- for the (66), or the other way round. Taken as ours, the reads below looked in our key's slot
+  -- before its answer had landed, and a Check came back "gone" for a lot that was there (caps
+  -- fixes 5b). An event with no key to compare, or an item nothing of ours has searched, is
+  -- let through as before.
+  answersSearch = function(itemID, itemKey)
+    local sent = driver.lastSearchKey[itemID]
+    if not (sent and type(itemKey) == "table") then return true end
+    return (sent.itemLevel or 0) == (itemKey.itemLevel or 0)
+      and (sent.itemSuffix or 0) == (itemKey.itemSuffix or 0)
+      and (sent.battlePetSpeciesID or 0) == (itemKey.battlePetSpeciesID or 0)
+  end,
+
+  -- The probe evaluateLiveItemDeal gates on, so it reads with the key sendSearch actually sent
+  -- for this item -- a read on any other key is the client's silence about a query nobody made,
+  -- which this path would report as "no results" for an item that has plenty.
   itemResult = function(itemID)
-    local key = C_AuctionHouse.MakeItemKey(itemID)
+    local key = driver.lastSearchKey[itemID] or C_AuctionHouse.MakeItemKey(itemID)
     local info = C_AuctionHouse.GetItemSearchResultInfo(key, 1)
     if not info or not info.buyoutAmount or info.buyoutAmount == 0 then return nil end
     if not info.quantity or info.quantity <= 0 then return nil end
@@ -1852,6 +2205,14 @@ driver = {
     if not unitPrice then return nil end
     return { unitPrice = unitPrice, qty = qty, avail = avail }
   end,
+  -- The cheapest unit price the client's commodity buffer holds for this item, the player's own
+  -- units included -- which commodityBook below leaves out. Only for telling "nothing at or under
+  -- the cap" from "nothing the player may buy there" (final review m6); never a price to act on.
+  commodityFloor = function(itemID)
+    local read = C_AuctionHouse and C_AuctionHouse.GetCommoditySearchResultInfo
+    local info = read and read(itemID, 1)
+    return info and info.unitPrice or nil
+  end,
   -- Reads ALREADY-FETCHED search results only -- never issues a query, so this cannot
   -- compete with a Full Scan or the Sell tab's quote walker on the throttled message
   -- system. Capped because a deep commodity book can run to thousands of levels and the
@@ -1879,27 +2240,6 @@ driver = {
     return levels
   end,
 
-  -- Items are one lot per purchase, so there is nothing to walk: the only thing worth
-  -- knowing is the cheapest OTHER lot, which is what a reseller has to undercut.
-  -- buyoutAmount is the lot TOTAL (see itemResult above), so divide down per unit.
-  itemCompetingUnit = function(itemID, excludeAuctionID)
-    local key = C_AuctionHouse.MakeItemKey(itemID)
-    local n = C_AuctionHouse.GetNumItemSearchResults(key)
-    if not n or n <= 0 then return nil end
-    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
-    local best
-    for i = 1, n do
-      local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
-      if info and info.auctionID ~= excludeAuctionID
-          and info.buyoutAmount and info.buyoutAmount > 0
-          and info.quantity and info.quantity > 0 then
-        local unit = math.floor(info.buyoutAmount / info.quantity)
-        if not best or unit < best then best = unit end
-      end
-    end
-    return best
-  end,
-
   -- Every lot currently listed for a realm item, from results the drill's own SendSearchQuery
   -- has already landed -- this never issues a query of its own, exactly like commodityBook.
   -- buyoutAmount is the whole lot's price (see itemResult above), and it is left that way:
@@ -1909,7 +2249,11 @@ driver = {
   -- The player's own listings are skipped. Buying one is impossible, and letting one become
   -- the "cheapest comparable lot" would have the addon offer the player their own auction.
   itemLots = function(itemID)
-    local key = C_AuctionHouse.MakeItemKey(itemID)
+    -- The key the drill SENT, never a freshly-made bare one (driver.lastSearchKey above): the
+    -- client answers about the key a query was made with, so reading a different one is either
+    -- another variant's lots or nothing at all. This is the read half of the same bug
+    -- driver.variantKey fixes in the send half -- one without the other fixes nothing.
+    local key = driver.lastSearchKey[itemID] or C_AuctionHouse.MakeItemKey(itemID)
     local n = C_AuctionHouse.GetNumItemSearchResults(key)
     if not n or n <= 0 then return {} end
     if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
@@ -1971,23 +2315,46 @@ driver = {
     -- The observation is not wasted: the verdict below still lands, and lastSeenPrice still
     -- records what the item costs right now, which is what a pin placeholder shows.
     local realmItem = GC.Sniper._RealmValue and GC.Sniper._RealmValue(itemID) ~= nil
-    if not realmItem then
-      if GC.Sniper._liveTracksScanDeals then
-        scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, WIN.ROW_CAP)
-      else
-        deals[itemID] = deal
-      end
-    end
     -- Built once and threaded through below (to evaluateLiveCommodityDeal and to the
     -- observation recorder) instead of letting each ask driver.commodityBook for its own copy
     -- of the same already-fetched poll.
     local book = driver.commodityBook(itemID)
+    -- Live price caps, addon task 5 fix: the plain `deal` parameter is whatever the watch loop
+    -- already measured against the MARKET (GC.DealMath.Evaluate) -- nil for exactly the item a
+    -- cap exists to rescue, since GC.Caps.For needs no market reference to fire (Core/Caps.lua's
+    -- own contract). Writing that nil straight into the board, unconditionally, deleted a
+    -- capped commodity's row every single cycle it had no market-side deal of its own. Run the
+    -- cap-aware evaluation FIRST when a cap exists, regardless of `deal` -- it already
+    -- merges/refreshes the board deal itself when the cap decision is non-nil (see
+    -- evaluateLiveCommodityDeal above) -- and only fall back to the plain write/removal below
+    -- when this cycle's cap decision came back nil (no cap, the book emptied, or the floor
+    -- climbed back above it), exactly as before.
+    local capLive
+    if not realmItem then
+      local cap = GC.Caps and GC.Caps.For(itemID)
+      if cap then
+        capLive = evaluateLiveCommodityDeal(itemID, book)
+      end
+      if not (capLive and capLive.decision and capLive.decision.cap) then
+        if GC.Sniper._liveTracksScanDeals then
+          scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, deal, WIN.ROW_CAP)
+        else
+          deals[itemID] = deal
+        end
+      end
+    end
     -- The poll has just pulled this item's live book, which is exactly what a verdict is
     -- computed from -- so compute it here, for nothing. A watched item therefore never costs
     -- tickAutoVerify a query, and the ring it may produce goes through the one shared
-    -- transition path rather than a second notion of "buyable".
-    if deal and GC.Sniper._IsWatched(itemID) then
-      stampVerdict(deal, evaluateLiveCommodityDeal(itemID, book))
+    -- transition path rather than a second notion of "buyable". Reuses `capLive` when the cap
+    -- branch above already computed it, rather than asking the decision engine twice.
+    -- Final review I1: not when the cap branch above already filed one. That stamp is against
+    -- the deal the cap decision BUILT, at the price its row is asking; `deal` here is the plain
+    -- market deal, and re-stamping with it would refile the same item under a different asking
+    -- price -- which verdictFor reads as "no verdict for this row" (it matches item AND price).
+    if deal and GC.Sniper._IsWatched(itemID)
+        and not (capLive and capLive.decision and capLive.decision.cap) then
+      stampVerdict(deal, capLive or evaluateLiveCommodityDeal(itemID, book))
     end
     -- The live price this observation just fetched, independent of whether it qualified as a
     -- deal (DealMath.Evaluate above returns nil `deal` for a price that isn't cheap enough --
@@ -1997,11 +2364,16 @@ driver = {
     -- actually queried for such an item (see driver.getKeyInfo/sendSearch above).
     local live = driver.commodityResult(itemID)
     local unitPrice = live and live.unitPrice
+    local seenQty = live and live.qty
     if not unitPrice then
       local itemLive = driver.itemResult(itemID)
       unitPrice = itemLive and itemLive.unitPrice
+      seenQty = itemLive and itemLive.qty
     end
-    if unitPrice then GC.Sniper._lastPrice[itemID] = unitPrice end
+    if unitPrice then
+      GC.Sniper._lastPrice[itemID] = unitPrice
+      GC.Sniper._lastQty[itemID] = seenQty
+    end
     -- Live observation for the export pipeline. Commodities get the real
     -- book (driver.commodityBook reads already-fetched results, no query);
     -- item searches only ever read the top listing here, so the observation
@@ -2100,7 +2472,7 @@ function GC.Sniper._FinishDrainWait(itemID, draining)
   GC.Sniper._drainWaitRequery[itemID] = nil
   -- The same retirement finishRequery performs for a requery that DID start: a cancelled,
   -- unconfirmed purchase left a tombstone fenced on this wait, and the wait is now over.
-  GC.Sniper._RetireFencedTombstone(wait.row, wait.token)
+  GC.Sniper._RetireFencedTombstone(wait)
   GC.Sniper._ResumePausedLiveRequery(wait)
 end
 
@@ -2140,7 +2512,7 @@ end
 -- MergeDeals splices deal tables by reference (see FullScan.lua's MergeDeals), so the exact
 -- same table handed to pingNewHotDeals is what refreshRows() (already called by the caller,
 -- just before this) stamped onto whichever pooled row rendered it, if any.
-local function pingNewHotDeals(newHotDeals)
+pingNewHotDeals = function(newHotDeals)
   local matched = false
   for _, deal in ipairs(newHotDeals) do
     for i = 1, #rows do
@@ -2164,12 +2536,45 @@ local function pingNewHotDeals(newHotDeals)
   end
 end
 
+-- Caps fixes 3a: which of the "your price" rows the commodity board held before this pass
+-- (`previous`) the pass leaves standing. The reconcile below rebuilds the board from the pass's
+-- own rows, and those only ever make market deals -- a capped commodity with no market deal of
+-- its own was deleted at the end of every pass, and GC.Caps.BookHits' ratchet then never
+-- re-drilled it while its floor stood still. A cap row stands while the pass says the cap
+-- holds: the pass saw the item at or under the player's price, or the pass never looked for it
+-- at all (a classes pass and an out-of-class item -- the same "not looked at is not gone" rule
+-- the wide-pass extras below follow). A pass that looked and found the item above the cap, or
+-- not at all, has disproved it. `seen` is the set of items the pass has a row for. A table
+-- field, not a new top-level local: this file sits near its 200-local ceiling.
+function GC.Sniper._CapRowsHeld(previous, seen, kind)
+  local held = {}
+  if not GC.Caps then return held end
+  local book = GC.Sniper._bookPass:Book()
+  for _, deal in ipairs(previous) do
+    local cap = deal.cap and GC.Caps.For(deal.itemID)
+    if cap then
+      local holds
+      if seen[deal.itemID] then
+        local booked = book[deal.itemID]
+        holds = booked ~= nil and booked.floor <= cap.c
+      else
+        holds = kind ~= "wide" and not GC.Sniper._bookPass:SeenByClasses(deal.itemID)
+      end
+      if holds then held[#held + 1] = deal end
+    end
+  end
+  return held
+end
+
 -- `kind` is the book pass's own "wide" or "classes" (Core/BookPass.lua's onPassDone) -- the
 -- difference matters twice below: what the status line may honestly claim to have looked at,
 -- and whether a deal this pass did not report is a deal that is GONE or merely one this pass
 -- could not see.
 local function applyFullScanResults(rowsList, groupCount, kind)
   local screened
+  local previous = scanDeals
+  local seen = {}
+  for _, row in ipairs(rowsList) do seen[row.itemID] = true end
   scanDeals, screened = GC.FullScan.Evaluate(rowsList, GC.Data.GetItemValue, GC.db.settings.sniper, 100)
   GC.Sniper._screenedCount = screened or 0
   -- A classes pass browses four item classes; the wide pass browses everything. Replacing the
@@ -2191,8 +2596,6 @@ local function applyFullScanResults(rowsList, groupCount, kind)
     end
     GC.Sniper._wideExtras = extras
   elseif GC.Sniper._wideExtras then
-    local seen = {}
-    for _, row in ipairs(rowsList) do seen[row.itemID] = true end
     local carried = {}
     for itemID, deal in pairs(GC.Sniper._wideExtras) do
       -- "This pass did not see it" is not enough to keep an extra alive: an item this pass
@@ -2216,6 +2619,11 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   GC.Sniper._churnSeq = GC.Sniper._churnSeq + 1
   GC.WatchSet.Observe(GC.Sniper._churn, scanDeals, GC.Sniper._churnSeq)
   GC.Sniper._RefreshWatchSet()
+  -- Folded in after the churn count on purpose: that count is about the prices the market
+  -- showed this pass, and a cap row's price is the drill's. The list it reads never held a cap
+  -- row before, and keeping them past the pass must not start feeding it.
+  local held = GC.Sniper._CapRowsHeld(previous, seen, kind)
+  if #held > 0 then scanDeals = GC.FullScan.MergeDeals(scanDeals, held, 100) end
   -- A browse result is a per-itemKey aggregate across every seller of that item group, not a
   -- single resolved auction: isCommodity is unknown here and auctionID is always nil. Mark
   -- every deal `.stale` so onBuyClick knows to requery live before it will let one arm for
@@ -2264,13 +2672,31 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   -- already walked is moot. Reset here (the scan's one completion point) rather than in
   -- every caller.
   streamRows, streamRowsCount = {}, 0
+  -- Live price caps, addon task 4: a capped commodity whose floor THIS pass's own book shows
+  -- at or under the player's cap goes straight to the drill queue, same priority = 1, cap =
+  -- true the key poll's onHit already gives a capped realm item below -- the book pass is the
+  -- only place a commodity floor is ever seen (commodities are excluded from the key poll's
+  -- own target set, see _KeyTargetIds's isCommodity guard). Final review I3 + M6: the SAME
+  -- classification the poll set uses, and it asks the client nothing -- this used to call
+  -- GetItemKeyInfo once per cap per completed pass, which on an uncached key is a server
+  -- request. An item nothing has classified yet is "not a commodity (yet)"; a later pass, once
+  -- something has had to resolve the key anyway, picks it up. GC.Caps.BookHits ratchets on its
+  -- own side too, so an unchanged floor is not reported again at all.
+  if GC.Caps then
+    local hits = GC.Caps.BookHits(GC.Sniper._bookPass:Book(), GC.Sniper._IsCommodityId)
+    for _, hit in ipairs(hits) do
+      GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
+        estProfit = hit.estProfit, priority = 1, cap = true })
+    end
+  end
   -- Sniper v3 §3: tells AutoScan the scan it started (if it was the one that started this
   -- one) is done, so it can start its breather countdown toward the next pass. A no-op
   -- whenever the machine's own state isn't SCANNING -- e.g. a manual "Scan" click while Auto
   -- is off/paused -- see AutoScan.lua's onScanFinished.
   feedAuto("scanFinished")
-  -- The settled buffer the Items board's keys batch needs -- see _TrySendKeysBatch.
-  GC.Sniper._TrySendKeysBatch()
+  -- The settled buffer the Items board's keys batch needs -- see _TrySendKeysBatch. The caps'
+  -- batch needs the same, and this is the moment on a board where Auto pages back to back.
+  if not GC.Sniper._TrySendKeysBatch() then GC.Sniper._TrySendCapBatch() end
 end
 
 function GC.Sniper._WatchPins()
@@ -2440,22 +2866,97 @@ local function armScanWatchdog(token)
   end)
 end
 
-GC.Sniper._drillQueue = GC.DrillQueue.New({ now = time }, { perMinute = LIM.DRILL_PER_MINUTE })
+-- A hit the drill queue let go of without drilling it (aged out -- ninety seconds on another tab,
+-- or behind a few hundred others -- pushed out of a full queue, or refused by one). A cap's (caps
+-- fixes 4b): both ratchets that report cap hits (the book pass's, the caps' own poll's -- the realm
+-- poll no longer reports any) are re-armed, so the next look at the same floor reports it again:
+-- they never repeat an unchanged floor, and without this the lot sat there at the player's price
+-- for the rest of the visit, unlooked at. Only the ratchets -- the ring's memory stays, since
+-- nothing has been announced. An ordinary hit's (whole-market coverage): the book (a commodity)
+-- or the realm poll (a realm item) that reported it may report its unchanged floor again after
+-- LIM.REHIT_SECONDS, where it used to stay silent until the floor happened to move -- each only
+-- while it still shows the floor that was lost (BookPass's Lost checks its own; the realm poll's
+-- is its `judged`, the floor its hits carry).
+function GC.Sniper._OnDrillLost(hit)
+  if hit.cap then
+    if GC.Caps then GC.Caps.Rearm(hit.itemID) end
+    if GC.Sniper._capPoll then GC.Sniper._capPoll:Rearm(hit.itemID) end
+    return
+  end
+  if GC.Sniper._bookPass then GC.Sniper._bookPass:Lost(hit.itemID, hit.floor) end
+  local polled = GC.Sniper._keyPoll and GC.Sniper._keyPoll:Book()[hit.itemID]
+  if polled and polled.judged == hit.floor then
+    GC.Sniper._keyPoll:Rearm(hit.itemID, LIM.REHIT_SECONDS)
+  end
+end
+
+GC.Sniper._drillQueue = GC.DrillQueue.New({
+  now = time,
+  onLost = function(hit) GC.Sniper._OnDrillLost(hit) end,
+}, { perMinute = LIM.DRILL_PER_MINUTE })
+
+-- The arbiter's fair share (GC.Sniper.OnThrottleReady): drills served in a row while a page
+-- waited (`run`), and since /reload how the contended slots went (`drills`: a drill sent while a
+-- page waited; `pages`: a page a sendable drill stood aside for), for /gc board.
+GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0 }
+
+-- A book-pass page the arbiter just granted: the drills' run is over, and when a drill that could
+-- have gone stood aside for it (`drillStoodAside`) it counts toward /gc board's drillShare.
+function GC.Sniper._NotePassSlot(drillStoodAside)
+  local share = GC.Sniper._drillShare
+  share.run = 0
+  if drillStoodAside then share.pages = share.pages + 1 end
+end
+
+-- Whether a book row can be told as its item's floor. Not a row of an item the browse list returned
+-- as more than one variant (gear by item level, caged pets by species): it is one of them. Not a
+-- leveled row of anything but a commodity either (final review I1): gear the auction house lists at
+-- a single level is never marked, and its row is that level's floor -- 70,000g for the 623 on offer
+-- said nothing about the 606 in the bags. Gear never gets the line, as the Sell tab never prices it
+-- from a figure for other item levels.
+function GC.Sniper._LiveRow(itemID, row)
+  if type(row) ~= "table" or row.variants or type(row.floor) ~= "number"
+      or type(row.seenAt) ~= "number" then
+    return false
+  end
+  if (tonumber(row.itemLevel) or 0) > 0 and not GC.Sniper._IsCommodityId(itemID) then return false end
+  return true
+end
+
+-- What this session's own browsing last saw of an item, for its tooltip: the book pass's floor and
+-- quantity and how many seconds ago, while that is within LIM.LIVE_TOOLTIP_SECONDS -- including the
+-- minutes after the auction house closed (Core/BookPass.lua's Seen). nil otherwise, and nil for a
+-- row that is not the item's floor (GC.Sniper._LiveRow).
+function GC.Sniper.LiveFloor(itemID, now)
+  local row = GC.Sniper._bookPass and GC.Sniper._bookPass:Seen(itemID)
+  if not GC.Sniper._LiveRow(itemID, row) then return nil end
+  local age = (now or time()) - row.seenAt
+  if age < 0 or age > LIM.LIVE_TOOLTIP_SECONDS then return nil end
+  return { floor = row.floor, qty = row.qty, age = age }
+end
 
 -- No isReady in this driver: the pass never decides for itself whether the throttled system
 -- is ready, because it never sends on its own initiative. Both of its sends happen inside
 -- GC.Sniper.OnThrottleReady, where readiness is the event's own premise.
 GC.Sniper._bookPass = GC.BookPass.New({
   now = time,
+  -- What the close carries over for the tooltip: only rows it could print (final review M1).
+  keepSeen = function(itemID, row) return GC.Sniper._LiveRow(itemID, row) end,
   sendBrowseQuery = function(query)
     trace("pass: SendBrowseQuery")
+    -- Ours, for the player's-search hook (UI/AuctionHouseTab.lua's installBrowseHook).
+    local tab = GC.AuctionHouseTab
+    if tab then tab.addonBrowse = true end
     C_AuctionHouse.SendBrowseQuery(query)
+    if tab then tab.addonBrowse = false end
+    GC.Sniper._browseOutAt = time()
     if frame then frame.status:SetText(GC.L["scanning auction house..."]) end
     armScanWatchdog(fullScanToken)
   end,
   requestMoreBrowseResults = function()
     trace("pass: RequestMoreBrowseResults")
     C_AuctionHouse.RequestMoreBrowseResults()
+    GC.Sniper._browseOutAt = time()
     armScanWatchdog(fullScanToken)
   end,
   hasFullBrowseResults = function() return C_AuctionHouse.HasFullBrowseResults() end,
@@ -2486,7 +2987,8 @@ GC.Sniper._bookPass = GC.BookPass.New({
         GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
       if deal then estProfit = deal.estProfit end
     end
-    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit })
+    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
+      confidence = GC.DrillQueue.Confidence(value) })
   end,
   -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping, status),
   -- just triggered from BookPass's own tail instead of from a raw browse event handler.
@@ -2511,18 +3013,22 @@ GC.Sniper._bookPass = GC.BookPass.New({
       totalRawSeen, #scanDeals, screenedNote))
   end,
   onPassDone = function(info)
+    GC.Sniper._lastPass = info -- /gc board's lastPass
     applyFullScanResults(streamRows, info.items, info.kind)
   end,
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
-  -- Same Enum-with-numeric-fallback trick as the (unshipped) Spike.lua measurement spike:
-  -- an inline IIFE, not a named local -- this file is at its 200-local ceiling.
+  rehitSeconds = LIM.REHIT_SECONDS,
+  seenSeconds = LIM.LIVE_TOOLTIP_SECONDS,
+  -- The classes pass: trade goods, consumables, gems, enhancements -- and Miscellaneous
+  -- (whole-market coverage: ~1,500 commodities a region, most of them reached before only by the
+  -- five-minute wide pass). Every other class stays on the wide pass. Each class falls back to its
+  -- own number where the client's Enum does not name it; an inline IIFE, not a named local --
+  -- this file is at its local ceiling.
   itemClassFilters = (function()
-    local ok, ids = pcall(function()
-      return { Enum.ItemClass.Tradegoods, Enum.ItemClass.Consumable,
-        Enum.ItemClass.Gem, Enum.ItemClass.ItemEnhancement }
-    end)
-    if not (ok and ids[1] and ids[2] and ids[3] and ids[4]) then ids = { 7, 0, 3, 8 } end
+    local E = (Enum and Enum.ItemClass) or {}
+    local ids = { E.Tradegoods or 7, E.Consumable or 0, E.Gem or 3, E.ItemEnhancement or 8,
+      E.Miscellaneous or 15 }
     local filters = {}
     for i = 1, #ids do filters[i] = { classID = ids[i] } end
     return filters
@@ -2559,31 +3065,109 @@ function GC.Sniper._RealmNeedsReference(itemID)
   return (value and value.kind == "realm_item" and not value.ref) and true or false
 end
 
--- The poll set: the player's pins, the site watchlist the import carried (W section) and the
--- region's own list of realm items worth watching (T section), realm items only. GetWatchlist(0)
--- is deliberate -- with a zero fallback it answers with the W section or nothing, never the
--- top-N-by-value list it otherwise invents, which is not a watchlist and has no business being
--- polled. A commodity the Sell tab has already classified is left out (the book pass sweeps
--- those); an item nobody has classified is polled and answers for itself.
---
--- Called when the set can actually have changed -- AH open, a pin toggle, a fresh import --
--- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that finds nothing
--- new leaves a half-finished cycle exactly where it was.
-function GC.Sniper._RebuildKeyTargets()
-  local ids, seen = {}, {}
+-- Final review I3 + M6: the ONE answer this file gives to "is this a commodity", shared by the
+-- poll's target set below and by the book pass's cap hits (applyFullScanResults). There used to
+-- be two. The poll asked GC.db.commodityByItem alone -- a cache the SELL tab fills, so an item
+-- nobody has priced is simply absent from it, and a capped commodity therefore went into
+-- SearchForItemKeys, which answers about item keys and never about a commodity book. The book
+-- pass asked the client's GetItemKeyInfo instead, once per cap per completed pass, and on an
+-- uncached key that call is a SERVER REQUEST -- a cap list of a few hundred was a request storm
+-- every pass. Order is deliberate: the Sell tab's own observation, then the import's
+-- classification (which knows the whole catalogue, priced or not), and the client's key info
+-- only where it has ALREADY answered -- `_keyInfoCommodity` is a memo filled by driver.getKeyInfo
+-- for whoever had to ask anyway, and nothing here ever asks on its own.
+-- (Caps fixes 4a: the cap poll, GC.Sniper._capPoll, does put capped commodities into
+-- SearchForItemKeys, on purpose. All it wants from the answer is the cheapest unit, which a
+-- commodity's key answers with -- the Sell tab's bulk fill and the BUY refresh rely on the same --
+-- and the book itself comes from the drill that follows a hit.)
+GC.Sniper._keyInfoCommodity = {}
+function GC.Sniper._IsCommodityId(itemID)
   local commodities = GC.db and GC.db.commodityByItem or {}
+  if commodities[itemID] == true then return true end
+  local value = GC.Data and GC.Data.GetItemValue and GC.Data.GetItemValue(itemID) or nil
+  if value and value.kind == "region_commodity" then return true end
+  return GC.Sniper._keyInfoCommodity[itemID] == true
+end
+
+-- Pure: which realm item ids the key poll watches -- items this realm can price, each with a
+-- realm reference. Final review M1: the ORDER here is not a priority. Core/KeyPoll.lua's
+-- SetTargets sorts what it is handed. Exposed for the spec (spec/caps_targets_spec.lua).
+--
+-- Caps fixes 4a: the player's caps are not in it any more. They have a poll of their own
+-- (GC.Sniper._capPoll below), which runs on both Deals boards and the Sold tab -- this one runs on
+-- the Items board only, which is why half the caps slept at any moment. A capped item that is also
+-- on one of these lists stays here for its realm reference, and is asked about by both.
+function GC.Sniper._KeyTargetIds(pins, watchlist, targets, isCommodity, hasRealmValue)
+  local ids, seen = {}, {}
   local function add(itemID)
     if type(itemID) ~= "number" or seen[itemID] then return end
-    if commodities[itemID] == true then return end
-    if not GC.Sniper._RealmValue(itemID) then return end
+    if isCommodity(itemID) then return end
+    if not hasRealmValue(itemID) then return end
     seen[itemID] = true
     ids[#ids + 1] = itemID
   end
+  for _, itemID in ipairs(pins) do add(itemID) end
+  for _, itemID in ipairs(watchlist) do add(itemID) end
+  for _, itemID in ipairs(targets) do add(itemID) end
+  return ids
+end
+
+-- The poll sets. The realm poll's: the player's pins, the site watchlist the import carried (W
+-- section) and the region's own list of realm items worth watching (T section), realm items with a
+-- realm reference only. GetWatchlist(0) is deliberate -- with a zero fallback it answers with the
+-- W section or nothing, never the top-N-by-value list it otherwise invents, which is not a
+-- watchlist and has no business being polled. A commodity the Sell tab has already classified is
+-- left out (the book pass sweeps those); an item nobody has classified is polled and answers for
+-- itself. The cap poll's: every cap the player has, as GC.Caps.Targets() hands them over -- realm
+-- or commodity, with or without any price of GoldCap's own (a cap IS the player's price).
+--
+-- Called when the sets can actually have changed -- AH open, a pin toggle, a fresh import, a
+-- caps adoption -- and never per page: SetTargets no-ops on an unchanged set, so a rebuild that
+-- finds nothing new leaves a half-finished cycle exactly where it was.
+function GC.Sniper._RebuildKeyTargets()
   local data = GC.Data or {}
-  for _, itemID in ipairs(GC.Sniper._WatchPins()) do add(itemID) end
-  for _, itemID in ipairs(data.GetWatchlist and data.GetWatchlist(0) or {}) do add(itemID) end
-  for _, itemID in ipairs(data.TargetIds and data.TargetIds() or {}) do add(itemID) end
-  GC.Sniper._keyPoll:SetTargets(ids)
+  GC.Sniper._keyPoll:SetTargets(GC.Sniper._KeyTargetIds(
+    GC.Sniper._WatchPins(),
+    data.GetWatchlist and data.GetWatchlist(0) or {},
+    data.TargetIds and data.TargetIds() or {},
+    GC.Sniper._IsCommodityId,
+    function(id) return GC.Sniper._RealmValue(id) ~= nil end))
+  GC.Sniper._capPoll:SetTargets(GC.Caps and GC.Caps.Targets() or {})
+end
+
+-- Which items a keys answer speaks for: the same test Core/KeyPoll.lua's Fold writes a book entry
+-- under, so an entry read for one of these is this answer's. An item a batch asked about by name
+-- and is not in here has no listing left at all.
+function GC.Sniper._KeysAnswered(results)
+  local answered = {}
+  for i = 1, #results do
+    local result = results[i]
+    local itemID = result.itemKey and result.itemKey.itemID
+    if itemID and result.minPrice and result.minPrice > 0 then answered[itemID] = true end
+  end
+  return answered
+end
+
+-- The item level a cap is judged at: its own `l` for a realm item, none for a commodity. A
+-- commodity has no item-level variants -- GC.Caps.DecideCommodity never reads `l`, and its browse
+-- row states no level -- so held to one, a commodity cap carrying an `l` (a file from before the
+-- site stopped sending one) could never fire and its row would never survive a poll.
+function GC.Sniper._CapIlvl(itemID, cap)
+  if not cap or GC.Sniper._IsCommodityId(itemID) then return 0 end
+  return cap.l or 0
+end
+
+-- Whether the player's cap on `itemID` still holds by what `poll`'s latest answer says: the answer
+-- spoke for the item (`answered`, above) and the poll's own book entry, read at the cap's own item
+-- level (caps fixes 3d: GC.KeyPoll.FloorFor -- the entry's plain floor is the cheapest variant of
+-- ANY level), is at or under the cap. Shared by both polls' folds: the realm poll's keeps a cap
+-- row from being overwritten or dropped by its ordinary path (3c), the cap poll's takes a row down
+-- once the cap no longer holds (4a).
+function GC.Sniper._CapHoldsIn(poll, itemID, answered)
+  local cap = GC.Caps and GC.Caps.For(itemID)
+  if not (cap and answered[itemID]) then return false end
+  local floor = GC.KeyPoll.FloorFor(poll:Book()[itemID], GC.Sniper._CapIlvl(itemID, cap))
+  return floor ~= nil and floor <= cap.c
 end
 
 -- The realm-item poll (Core/KeyPoll.lua), built beside the book pass above and driven from the
@@ -2591,6 +3175,9 @@ end
 -- see GC.Sniper.OnThrottleReady.
 GC.Sniper._keyPoll = GC.KeyPoll.New({
   now = time,
+  -- The realm reference's own trigger, and nothing else: a cap is the cap poll's to judge
+  -- (GC.Sniper._capPoll below), at the cap's own item level. Judged here as well, on this poll's
+  -- aggregate floor, a cap woke to every price of a variant below its level (caps fixes 4c).
   triggerFor = function(itemID)
     local value = GC.Sniper._RealmValue(itemID)
     return value and GC.Trigger.ForRealm(value.mv, GC.db.settings.sniper) or nil
@@ -2614,10 +3201,11 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     local fresh, qualified = {}, {}
     for i = 1, #realmRows do
       local row = realmRows[i]
+      local unitPrice = math.floor(row.buyoutStack / row.count)
       local value = GC.Sniper._RealmValue(row.itemID)
       local deal = value and GC.DealMath.Evaluate(
         { itemID = row.itemID, isCommodity = false,
-          unitPrice = math.floor(row.buyoutStack / row.count), qty = row.count, avail = row.avail },
+          unitPrice = unitPrice, qty = row.count, avail = row.avail },
         value, GC.db.settings.sniper) or nil
       if deal then
         -- An aggregate across every seller, exactly like a browse row: no auctionID, no
@@ -2630,6 +3218,24 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
         fresh[#fresh + 1] = deal
         qualified[row.itemID] = true
       end
+    end
+    -- A CAP row answers to the cap, not to the ordinary deal this batch may or may not have made
+    -- for the item: it needs no realm value to exist (GC.Caps.For's own contract, Core/Caps.lua),
+    -- so an ordinary deal's absence says nothing about it -- and, caps fixes 3c, neither does an
+    -- ordinary deal's PRESENCE: for an item with a region reference the batch's aggregate floor
+    -- qualifies off the same row, and writing that deal over the cap row threw away its label,
+    -- its CAP bucket and the lot the drill resolved. So a cap row stands for as long as the cap
+    -- holds, and the batch's ordinary deal only takes the item over once it does not.
+    --
+    -- Caps fixes 3d: "holds" is read off the poll's own book entry, which Fold has just written
+    -- for every item this batch answered -- not off the rows the ordinary path above turned into
+    -- deals -- and at the cap's own item level (GC.Sniper._CapHoldsIn). An item the batch did not
+    -- answer for at all has sold out.
+    local answered = GC.Sniper._KeysAnswered(results)
+    local function capHolds(itemID)
+      local existing = GC.Sniper._realmDeals[itemID]
+      return (existing and existing.cap and GC.Sniper._CapHoldsIn(GC.Sniper._keyPoll, itemID, answered))
+        and true or false
     end
     -- GC.Sniper._realmDeals IS the Items board (0.9.2) -- not a copy kept beside the
     -- commodity one to survive a pass, which is what it was while the two shared a list.
@@ -2644,10 +3250,15 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
       -- disprove it.
       for i = 1, #asked do
         local itemID = asked[i]
-        if not qualified[itemID] then GC.Sniper._realmDeals[itemID] = nil end
+        if not qualified[itemID] and not capHolds(itemID) then
+          GC.Sniper._realmDeals[itemID] = nil
+        end
       end
     end
-    for i = 1, #fresh do GC.Sniper._realmDeals[fresh[i].itemID] = fresh[i] end
+    for i = 1, #fresh do
+      local itemID = fresh[i].itemID
+      if not capHolds(itemID) then GC.Sniper._realmDeals[itemID] = fresh[i] end
+    end
     -- A map grows for as long as the poll keeps finding things; the board under it renders a
     -- hundred rows. Same cap, same order (Core/FullScan.lua's own comparator) the commodity
     -- side has always had -- see GC.FullScan.CapDeals.
@@ -2657,9 +3268,7 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
     -- sender to bring a ready tick, so the poll is its own clock (see _SetBoard). Through the
     -- arbiter, deferred a frame, not a direct send -- a queued drill-down for a specific lot
     -- still goes ahead of the next batch, exactly as it does on a real ready tick.
-    if C_Timer and C_Timer.After then
-      C_Timer.After(0, function() if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end end)
-    end
+    GC.Sniper._DeferTurn()
   end,
 })
 
@@ -2669,12 +3278,113 @@ GC.Sniper._keyPoll = GC.KeyPoll.New({
 -- comparator the commodity board uses, in onRows.
 GC.Sniper._realmDeals = {}
 
+-- Caps fixes 4a: the player's caps, polled on their own. Realm-item caps used to ride the realm
+-- poll above, which runs on the Items board only, and commodity caps were seen only by Auto's book
+-- pass, which stands paused on that board -- so at any moment half the caps were not watched, and
+-- on the Sell, Sold and BUY tabs none were. This poll asks about every cap, realm and commodity
+-- alike (a commodity's item key answers with its cheapest unit as well: the Sell tab's bulk fill
+-- and the BUY refresh already rely on it), on both Deals boards and the Sold tab -- not on the Sell
+-- or BUY tab, which run searches of their own (see _TrySendCapBatch) -- for as long as the
+-- auction house is open, the window is up and the player is not using Blizzard's own panes --
+-- through the same arbiter, the same one-batch interlock and the same throttle claim as every
+-- other keys batch (GC.Sniper._TrySendCapBatch). A hit goes to the drill queue as the player's
+-- own price, first in line; the drill that follows is the one that decides, exactly as before.
+GC.Sniper._capPoll = GC.KeyPoll.New({
+  now = time,
+  -- At or under the cap: Core/KeyPoll.lua fires on floor < trigger, and TriggerFor is cap + 1.
+  triggerFor = function(itemID) return GC.Caps and GC.Caps.TriggerFor(itemID) or nil end,
+  -- Caps fixes 4c: at the cap's own item level. The poll then judges -- and ratchets -- the
+  -- cheapest variant at or above it, not the cheapest of any level, and a hit carries that
+  -- variant's price: a junk variant under the cap no longer spends a priority drill the cap then
+  -- refuses, and a drop on the variant the player asked for is news even while junk sits under it.
+  minIlvlFor = function(itemID)
+    return GC.Sniper._CapIlvl(itemID, GC.Caps and GC.Caps.For(itemID))
+  end,
+  onHit = function(hit)
+    local cap = GC.Caps and GC.Caps.For(hit.itemID)
+    if not (cap and hit.floor <= cap.c) then return end
+    -- The player's own price: verified first in line (Core/DrillQueue.lua's priority), the saving
+    -- under the cap is the profit estimate that orders the caps among themselves.
+    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor,
+      estProfit = cap.c - hit.floor, priority = 1, cap = true })
+  end,
+  -- The batch asked about these items by name, so what it says is the standing word on every
+  -- "your price" row for them, wherever the row lives (the Items store for a realm lot, the
+  -- commodity board _PutCapRow wrote to for a commodity): a floor above the cap -- at the cap's own
+  -- item level -- or no answer at all takes the row down. Only a cap row: an ordinary realm row is
+  -- the realm poll's to keep or drop. And the memory goes with it, the book pass's rule (caps fixes
+  -- 3f): a price that climbed above the cap and comes back down is a new opportunity.
+  onRows = function(results)
+    local asked = GC.Sniper._keysBatch
+    GC.Sniper._keysBatch = nil
+    if asked and GC.Caps then
+      local answered = GC.Sniper._KeysAnswered(results)
+      for i = 1, #asked do
+        local itemID = asked[i]
+        if not GC.Sniper._CapHoldsIn(GC.Sniper._capPoll, itemID, answered) then
+          local held = GC.Sniper._realmDeals[itemID]
+          if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
+          GC.Sniper._DropCapRow(itemID)
+          -- Final review S1 (c): a price seen above the cap is forgotten -- its next dip is news.
+          -- No row at all only lets the ratchets go: an answer that was not really this batch's
+          -- says the same, and forgotten, a price the player had heard rang again.
+          if answered[itemID] then GC.Caps.Forget(itemID) else GC.Caps.Rearm(itemID) end
+        end
+      end
+    end
+    refreshRows()
+    -- The answer frees the interlock: the arbiter, deferred a frame, gives it to whoever was kept
+    -- waiting (the cap poll itself stands aside for LIM.CAPS_BATCH_GAP_SECONDS -- see
+    -- _TrySendCapBatch) and sends the drills this answer has just queued.
+    GC.Sniper._DeferTurn()
+  end,
+}, { maxBatch = LIM.CAPS_BATCH_SIZE })
+
+-- What the key polls last saw of `itemID`, variants included, or nil. Two polls see realm items
+-- (caps fixes 4a): the realm poll, and the caps' own, which is the only one to see a capped item
+-- nothing else lists. Whichever looked last knows best.
+function GC.Sniper._PolledEntry(itemID)
+  local entry = GC.Sniper._keyPoll and GC.Sniper._keyPoll:Book()[itemID]
+  local capped = GC.Sniper._capPoll and GC.Sniper._capPoll:Book()[itemID]
+  if capped and (not entry or (capped.seenAt or 0) >= (entry.seenAt or 0)) then entry = capped end
+  return entry
+end
+
+-- The item key of the cheapest variant of `itemID` at or above `minIlvl` that a poll has seen, or
+-- nil. For the BUY tab's gear line with an item-level floor (caps fixes 5h): its search opens
+-- Blizzard's own page, where the player buys by hand, and an item key names exactly one
+-- item-level variant -- so this is as narrow as that search can be made. Unlike driver.variantKey
+-- there is no fallback below the floor, and a poll whose rows state no level at all offers
+-- nothing: either way the caller searches the bare key and says the level is not checked.
+function GC.Sniper.VariantKeyAtLeast(itemID, minIlvl)
+  if not (type(minIlvl) == "number" and minIlvl > 0 and GC.KeyPoll and GC.KeyPoll.VariantKeyFor) then
+    return nil
+  end
+  local variant = GC.KeyPoll.VariantKeyFor(GC.Sniper._PolledEntry(itemID), minIlvl)
+  if not (variant and (variant.itemLevel or 0) >= minIlvl) then return nil end
+  return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
+    variant.battlePetSpeciesID)
+end
+
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once
 -- the player has left the Auction House -- browse results die with the AH session anyway.
+--
+-- Follow-up 2: a pass the player started with the Scan button (Auto off) that is given up here --
+-- the Deals tab left, a search of the player's own, the auction house closed -- used to leave
+-- the status line on "scanning auction house..." for good: nothing else writes it once the pass
+-- stops paging. Everything that gives a pass up comes through here -- all but the stall
+-- watchdog, which says so in its own words -- so this is where the line is put right. An Auto
+-- pass is Auto's to describe (cancelFullScan, the Auto button) and resumes by itself, where
+-- "press Full Scan" would be dead advice; callers that say something more exact (a buy window
+-- opening) write it afterwards.
 local function abortFullScan()
   if GC.Sniper._bookPass:IsPaging() then
     fullScanToken = fullScanToken + 1 -- invalidates any in-flight watchdog closures
+    if not (autoScan and autoScan:State() ~= "OFF") then
+      -- The Scan button named by its own label, in the player's language (fix round 1, nit 2).
+      setStatus(GC.L["full scan stopped -- press %s to run it again"]:format(GC.L["SCAN"]))
+    end
   end
   GC.Sniper._bookPass:Abort()
 end
@@ -2724,6 +3434,16 @@ local function startFullScan()
   streamRows, streamRowsCount = {}, 0
   GC.Sniper._screenedCount = 0
   mode = "fullscan"
+  -- Caps fixes 3b, round 1: the Commodities board has just switched stores. A cap row put on
+  -- the watchlist map while that map was the board on screen (GC.Sniper._PutCapRow) comes along
+  -- -- left behind it would sit off screen until something re-decided the item. Ordinary
+  -- watchlist rows keep their old behaviour.
+  for itemID, deal in pairs(deals) do
+    if deal.cap then
+      deals[itemID] = nil
+      GC.Sniper._PutCapRow(itemID, deal)
+    end
+  end
   refreshRows()
   -- Sniper phase 2: one loop cycle is one pass plus one visit to every key-poll target, so a
   -- fresh pass is what re-arms the poll. The count from the cycle that just ended is carried
@@ -2759,7 +3479,7 @@ end
 autoScan = GC.AutoScan.New({}, {
   startScan = function()
     -- A scan is already running and Auto is adopting it: SCANNING is the truth.
-    if GC.Sniper._bookPass:IsPaging() then return true end
+    if GC.Sniper._bookPass:IsPaging() then GC.Sniper._autoHeld = nil return true end
     -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
     -- buying a browse result, or reading their own search -- their click outranks a fresh
     -- background scan. Returning false is what keeps the machine honest about it: it used to
@@ -2767,9 +3487,24 @@ autoScan = GC.AutoScan.New({}, {
     -- reading "AUTO · SCANNING" with nothing in flight and no event that could ever move it on
     -- -- reported from the game as an Auto that said it was scanning and never scanned. The
     -- machine now stays in WAITING and tries again a moment later.
-    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return false end
+    --
+    -- Withheld for the player is said on the button (GC.Sniper._autoHeld, autoButtonText): it
+    -- used to read a bare "AUTO" through all of it, and Auto looked broken.
+    GC.Sniper._autoHeld = nil
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then
+      GC.Sniper._autoHeld = "busy"
+      return false
+    end
+    -- ...or reading their own search on Blizzard's Buy pane, which a pass page replaces.
+    if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then
+      GC.Sniper._autoHeld = "browse"
+      return false
+    end
     -- A keys batch is out: its answer is the next browse event, and a page sent now would be
-    -- read as that answer (see _FoldKeysBatch). Wait; the batch times out in 8s at worst.
+    -- read as that answer (see _FoldKeysBatch). Wait; _KeysOutstanding writes it off after
+    -- LIM.KEYS_TIMEOUT_SECONDS at worst (the short allowance on the Sell and BUY tabs, where
+    -- Auto does not run). A cap batch, the one keys batch that can be out on this board while
+    -- Auto runs, stands aside after every answer for longer than this settle takes to retry.
     if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return false end
     startFullScan()
     return true
@@ -2787,8 +3522,31 @@ feedAuto = function(event)
   if refreshAutoButton then refreshAutoButton() end
 end
 
-local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail", sell = "selling",
-  items = "items", buy = "buying" }
+-- What holds Auto, in plain words: the button's label, then the tooltip's sentence saying what
+-- the player can do about it. In game 2026-09-23 `/gc board` printed `reasons=[mail,buy]` while
+-- the button said little more than "AUTO", and the owner could not tell why nothing ran. `busy`
+-- and `browse` are not pause reasons but the start the machine asked for being withheld
+-- (startScan below, GC.Sniper._autoHeld).
+-- @localised-keys: literals in this table ARE GC.L keys, looked up where they are read (a file
+-- scope GC.L lookup would resolve before the player's language is applied).
+local AUTO_PAUSE_LABEL = {
+  dialog = { "AUTO · PAUSED: BUY WINDOW",
+    "Paused while a buy window is open. Buy or close it and Auto carries on." },
+  search = { "AUTO · PAUSED: YOUR SEARCH",
+    "Paused while you type in the auction house search box. It carries on a few seconds after you leave it." },
+  mail = { "AUTO · PAUSED: MAILBOX OPEN",
+    "Paused while the mailbox is open. Close it and Auto carries on." },
+  sell = { "AUTO · PAUSED: SELL TAB",
+    "Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on." },
+  items = { "AUTO · PAUSED: ITEMS BOARD",
+    "Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on." },
+  buy = { "AUTO · PAUSED: BUY TAB",
+    "Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on." },
+  busy = { "AUTO · WAITING FOR YOU",
+    "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop." },
+  browse = { "AUTO · WAITING: YOUR LIST",
+    "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts." },
+}
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
 -- decisive of the four: the player is one click from spending gold. `ah`/`tab` are
@@ -2800,10 +3558,29 @@ local function autoButtonText(state, reasons)
   if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
-      if reasons[reason] then return GC.L["AUTO · PAUSED: "] .. AUTO_PAUSE_LABEL[reason] end
+      if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]] end
     end
   end
-  return "AUTO" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+  local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
+  if held then return GC.L[held[1]] end
+  return GC.L["AUTO"] -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+end
+
+-- The tooltip's lines under the Auto button's own description: one sentence per thing holding
+-- Auto right now, in the order the button names them, each saying what the player can do.
+function GC.Sniper._AutoHelp()
+  local lines = {}
+  local state = autoScan:State()
+  if state == "PAUSED" then
+    local reasons = autoScan:PauseReasons()
+    for _, reason in ipairs(AUTO_PAUSE_ORDER) do
+      if reasons[reason] then lines[#lines + 1] = GC.L[AUTO_PAUSE_LABEL[reason][2]] end
+    end
+  elseif state == "WAITING" or state == "IDLE" then
+    local held = AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
+    if held then lines[1] = GC.L[held[2]] end
+  end
+  return lines
 end
 
 -- Re-derives the Auto control's label and look from the machine's own State()/PauseReasons()
@@ -2838,10 +3615,20 @@ refreshAutoButton = function(targetFrame)
     -- button. `active` carries the on-state in gold text, which cannot become unreadable.
     f.autoBtn:SetVariant(on and "active" or "ghost")
   end
-  local text = on and autoButtonText(state, autoScan:PauseReasons()) or "AUTO"
+  local text = on and autoButtonText(state, autoScan:PauseReasons()) or GC.L["AUTO"]
   if f.autoBtn.lastText ~= text then
     f.autoBtn:SetLabel(text)
     f.autoBtn.lastText = text
+    -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
+    -- rather than cutting it, and the status line anchored to its right edge moves with it.
+    -- Unbounded: Theme.Button pins its label to the button's edges, one line, so GetStringWidth
+    -- answers with the width the button has already cut it to (review I1).
+    local label = f.autoBtn.text
+    local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
+      or label.GetStringWidth and label:GetStringWidth())
+    if type(width) == "number" and f.autoBtn.SetWidth then
+      f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
+    end
   end
 end
 
@@ -2959,6 +3746,12 @@ local function showRequoteBanner(head, detail)
   dialog.banner:Show()
 end
 
+-- Forward declarations for the quantity controls. Their definitions are intentionally below
+-- the purchase state machine, but every authoritative decision stamp must refresh them -- and
+-- armLoudConfirm below releases a held Buy through updateBuyAffordance.
+local refreshQtyRow
+local updateBuyAffordance
+
 -- Refuses the confirming click for LIM.REQUOTE_ARM_SECONDS so a click already on its way when the
 -- alarm fired can't land on it. Red-and-disabled reads as deliberate on its own; there is no
 -- countdown number in the label (a dropped earlier version ticked on a 0.5s interval over a
@@ -2971,19 +3764,35 @@ end
 -- at "requote" -- the stage alone can't tell them apart); every OTHER path that moves the row
 -- off "requote" entirely (armReady back to "ready", a resolved purchase, an abort) is instead
 -- caught by the timer's own `row.purchaseStage ~= "requote"` check, no token bump required.
+--
+-- Final review M1/m3: the same hold for a Buy. The timer checks the stage the row was armed in
+-- when this was called ("requote" for Confirm, "ready" for Buy). `label` defaults to "Confirm";
+-- `calm` keeps the button's own colours -- a window stop-and-open opened is no alarm, it only must
+-- not take a click meant for the board. dialog.armHold marks the hold, so updateBuyAffordance
+-- does not enable the button inside it, and a held commodity Buy is released through
+-- updateBuyAffordance, which asks whether the gold is still there.
 local requoteArmToken = 0
-local function armLoudConfirm(row)
+local function armLoudConfirm(row, label, calm)
   requoteArmToken = requoteArmToken + 1
-  local token = requoteArmToken
+  local token, stage = requoteArmToken, row.purchaseStage
+  label = label or "Confirm"
+  local r, g, b = 1, 0.35, 0.35
+  if calm then r, g, b = nil, nil, nil end
 
+  dialog.armHold = token
   dialog.primaryBtn:Disable()
-  setPrimaryLabel("Confirm", 1, 0.35, 0.35)
+  setPrimaryLabel(label, r, g, b)
 
   C_Timer.After(LIM.REQUOTE_ARM_SECONDS, function()
     if token ~= requoteArmToken then return end
-    if not dialog or dialog.row ~= row or row.purchaseStage ~= "requote" then return end
-    dialog.primaryBtn:Enable()
-    setPrimaryLabel("Confirm", 1, 0.35, 0.35)
+    if not dialog or dialog.row ~= row or row.purchaseStage ~= stage then return end
+    dialog.armHold = nil
+    if stage == "ready" and row.deal and row.deal.isCommodity and updateBuyAffordance then
+      updateBuyAffordance()
+    elseif not (stage == "ready" and GC.Sniper._HoldWhileOwed(row)) then
+      dialog.primaryBtn:Enable()
+    end
+    setPrimaryLabel(label, r, g, b)
   end)
 end
 
@@ -3228,11 +4037,6 @@ local function resizeDialogDiagnostics()
   dialog:SetHeight(dialog.baseHeight + (bannerVisible and LIM.REQUOTE_BANNER_HEIGHT or 0))
 end
 
--- Forward declarations for the quantity controls. Their definitions are intentionally below
--- the purchase state machine, but every authoritative decision stamp must refresh them.
-local refreshQtyRow
-local updateBuyAffordance
-
 -- Draws what Core/CheckVerdict.lua decided (check panel v3). Named drawVerdict, not
 -- stampVerdict: that name is already taken by the row-level recorder forward-declared far
 -- above, and shadowing it left the recorder permanently nil. Nothing here decides anything:
@@ -3249,7 +4053,7 @@ local function drawVerdict(deal, decision, market)
   local tone = verdict.tone
   local accent = Theme.color.green
   if tone == "refuse" then accent = Theme.color.red
-  elseif tone == "adjust" or tone == "unverified" then accent = Theme.color.gold end
+  elseif tone == "adjust" or tone == "unverified" or tone == "cap" then accent = Theme.color.gold end
 
   if dialog.setHeroTone then dialog.setHeroTone(accent) end
   if dialog.verdictLabel then
@@ -3287,6 +4091,12 @@ local function drawVerdict(deal, decision, market)
     figure = (GC.L["%d units"]):format(hero.quantity)
     figureColor = Theme.color.gold
     caption = GC.L[CV.HERO_CAPTION.units]
+  elseif hero.kind == "cap" then
+    -- Live price caps: what one unit costs, unsigned -- a price, not a gain -- under the price
+    -- the player set.
+    figure = displayDecisionAmount(hero.copper)
+    figureColor = Theme.color.gold
+    caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
   else
     caption = GC.L[CV.HERO_CAPTION.unpriceable]
   end
@@ -3413,6 +4223,13 @@ local function stampDialogFromDecision(deal, decision)
     end
   end
   firstReason = firstReason or (decision.reasons and decision.reasons[1]) or "live_verification_required"
+  -- Written before drawVerdict, whose layoutBlocks sizes the transcript off this row: it wraps
+  -- (createDialog), and a sentence stamped after the layout was measured at the old one's size.
+  -- A cap decision carries no reasons -- nothing refused it -- and the fallback token read "Needs
+  -- a live price check" over a Buy the live check had just armed (in game 2026-09-23).
+  dialog.reasonText:SetText(decision.cap
+    and GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+    or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
   -- own name is not repeated here -- the header carries it, and "Buy 3 × Argentleaf for 453g"
@@ -3422,7 +4239,12 @@ local function stampDialogFromDecision(deal, decision)
   local publicStatus = decision.status or "WATCH"
   local computedStatus = decision.computedStatus or publicStatus
   local diagnosticReasons = table.concat(decision.reasons or {}, ", ")
-  if decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
+  if decision.cap then
+    -- The player's own price decided this, not the market engine: a realm lot is carried as
+    -- WATCH plus a candidate (the shape onDialogPrimaryClick buys a lot on) and a commodity as
+    -- SAFE, and neither word says why the Buy is offered. The board's chip says YOUR PRICE.
+    dialog.decisionStatusText:SetText(GC.L["YOUR PRICE"])
+  elseif decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
     dialog.decisionStatusText:SetText(GC.L["WATCH (computed SAFE)"])
   else
     dialog.decisionStatusText:SetText(publicStatus)
@@ -3452,7 +4274,6 @@ local function stampDialogFromDecision(deal, decision)
   dialog.sellThroughText:SetText(market.sellThroughBps
     and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "—")
   dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "—")
-  dialog.reasonText:SetText(GC.SniperDecision.ReasonText(firstReason))
   if decision.status == "SAFE" then
     dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
   else
@@ -3475,6 +4296,34 @@ local function purchaseFacts(deal, quote)
     return nil
   end
   local market = quote.market or {}
+  -- Live price caps: a buy on the player's own price, realm lot or commodity. What it cost is
+  -- exact -- the buyout PlaceBid paid, the quote a commodity Confirm paid -- and it is recorded
+  -- wherever a sniper buy is: the session, the ledger, the acquisition batch the Sell tab's
+  -- cost basis comes from. What it never had is the engine's decision evidence: no stress exit,
+  -- no region reference, no decision version. None is invented. `cap` stands in its place, and
+  -- each store takes what it honestly can: the ledger row goes up with no evidence group at all
+  -- (GC.Ledger.RecordSniperBuy), the acquisition batch has no resale target, and the old flip
+  -- queue, which cannot hold a buy without one, records nothing. It claims no profit either.
+  if decision.cap then
+    local candidate = type(decision.candidate) == "table" and decision.candidate or nil
+    local quantity
+    if candidate then
+      quantity = (type(candidate.quantity) == "number" and candidate.quantity >= 1)
+        and math.floor(candidate.quantity) or 1
+    elseif decision.status == "SAFE" and decision.buyable and quote.quantity == decision.quantity then
+      quantity = quote.quantity
+    else
+      return nil
+    end
+    return {
+      itemID = deal.itemID,
+      quantity = quantity,
+      total = quote.total,
+      unitDisplay = math.floor(quote.total / quantity),
+      cap = true,
+      expectedProfit = 0,
+    }
+  end
   -- Sniper phase 2: a realm lot has no SAFE decision to anchor a cost basis to -- it is bought
   -- on a candidate, one named auction at one named price -- but a purchase is a purchase and
   -- gold that left the player's bags has to be recorded. `unverified` is the fact that carries
@@ -3575,8 +4424,7 @@ end
 -- retired on a timer -- refused every later commodity Buy with "waiting for previous commodity
 -- purchase to settle" until /reload.
 function GC.Sniper.HasStrandedConfirmed()
-  if commodityDraining and commodityDraining.confirmed then return true end
-  if commodityPurchase and commodityPurchase.confirmed then return true end
+  if GC.Sniper._ConfirmedOwed() then return true end
   local now = GetTime()
   for _, record in pairs(GC.Sniper._strandedConfirmed) do
     if now - (record.at or 0) <= 600 then return true end
@@ -3634,13 +4482,22 @@ local function reportDetachedCommodity(pending, note)
 end
 
 local function settleDetachedConfirmed(pending, terminal)
+  -- A confirmed purchase has answered, or been given up on: whatever window was held behind it
+  -- gets its next step now (GC.Sniper._HandOffSettled), not at its own quote's expiry. Every
+  -- caller has already let go of the attempt's slot.
+  GC.Sniper._HandOffSettled()
   local deal = pending and pending.deal
+  -- "after AH close" only for an attempt the auction house actually closed on (resetAllPurchases
+  -- marks it), or when it is closed now. A purchase whose row the player took over -- Escape at
+  -- "confirming", then the same row opened again -- settles here too, with the auction house open
+  -- the whole time (fix round 1, minor 3).
+  local closed = pending and pending.acrossClose or not ahOpen
   if terminal == "success" then
     local purchase = deal and purchaseFacts(deal, pending.quote)
     if purchase then
       recordPurchaseFacts(deal, purchase)
-      reportDetachedCommodity(pending, (GC.L["bought %d x item %d after AH close"]):format(
-        purchase.quantity, deal.itemID))
+      reportDetachedCommodity(pending, (closed and GC.L["bought %d x item %d after AH close"]
+        or GC.L["bought %d x item %d"]):format(purchase.quantity, deal.itemID))
       return
     end
     reportDetachedCommodity(pending, GC.L["purchase total unavailable — inspect mailbox"])
@@ -3649,7 +4506,8 @@ local function settleDetachedConfirmed(pending, terminal)
   if terminal == "unavailable" then
     reportDetachedCommodity(pending, GC.L["purchase total unavailable — inspect mailbox"])
   else
-    reportDetachedCommodity(pending, GC.L["confirmed commodity purchase failed after AH close"])
+    reportDetachedCommodity(pending, closed and GC.L["confirmed commodity purchase failed after AH close"]
+      or GC.L["commodity purchase failed"])
   end
 end
 
@@ -3665,6 +4523,12 @@ local function confirmedAttemptOwnsRow(pending)
 end
 
 resolvePurchase = function(row, success, note, purchase, purchaseDeal)
+  -- A row still "confirming" is resolved only by its confirmed purchase's own terminal event
+  -- (nothing else may: abortRowPurchase, the quiet-zone release and the error path all leave a
+  -- confirmed attempt alone), so this is that purchase settling -- and a window held behind it
+  -- (the player closed this one with Escape and opened the next) gets its next step once the
+  -- row is resolved (GC.Sniper._HandOffSettled).
+  local settled = row.purchaseStage == "confirming"
   -- A confirmed commodity attempt can outlive its visible row across an AH close. Its deal is
   -- captured at the hardware Confirm click and must win over a row that was reset/repooled.
   local deal = purchaseDeal or row.purchaseDeal or row.deal
@@ -3677,9 +4541,23 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
       -- themselves before calling in here, so this attempt's own claim would otherwise survive
       -- past its terminal event. Release() is a no-op unless "sniper" is still the owner, so
       -- calling it here for every commodity resolution is always safe.
-      if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+      -- ...unless a drain holds it for a Start cancelled before its answer came (load-bearing
+      -- round, I-1): abortRowPurchase drains, then resolves here, and releasing it anyway gave the
+      -- slot back at once -- the late quote then lit the BUY tab's CONFIRM. GC.Sniper._EndDrainHold
+      -- ends that hold.
+      if GC.PurchaseSlot and not (commodityDraining and commodityDraining.holdsSlot) then
+        GC.PurchaseSlot.Release("sniper")
+      end
     elseif deal.auctionID then
       pendingAuction[deal.auctionID] = nil
+    end
+    if success and GC.Caps and GC.Caps.For(deal.itemID) then
+      -- Final review S3: a buy at the player's price is clamped (Max units per buy, the wallet
+      -- limit) and takes its row off the board, while the rest of the wall -- or the next lot at
+      -- the same price -- sits at the same floor with less behind it: news to neither ratchet. Both
+      -- let go, so the next look reports it; the ring's memory stays, so it does not ring again.
+      GC.Caps.Rearm(deal.itemID)
+      GC.Sniper._capPoll:Rearm(deal.itemID)
     end
     if success then
       if not purchase and deal.isCommodity then
@@ -3701,17 +4579,21 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         end
         if frame then frame.status:SetText(GC.L["purchase total unavailable — inspect mailbox"]) end
         refreshRows()
+        if settled then GC.Sniper._HandOffSettled() end
         return
       end
       if purchase then
         recordPurchaseFacts(deal, purchase)
       else
-        -- A realm lot, bought at its buyout. An item auction has no server quote step at all
-        -- -- PlaceBid pays exactly the price the dialog showed -- so there is nothing unknown
-        -- to freeze the row over. It is not written to the ledger either: a sniper buy's cost
-        -- basis there is anchored to the SAFE decision that permitted it, and this purchase
-        -- deliberately never had one. What it must still do is stop the board advertising a
-        -- listing that is now gone.
+        -- A realm lot, bought at its buyout, that arrived with no purchase facts. An item auction
+        -- has no server quote step at all -- PlaceBid pays exactly the price the dialog showed
+        -- -- so there is nothing unknown to freeze the row over. A buy on the player's own price
+        -- and an unverified realm buy both come with facts (OnPurchaseCompleted builds them off
+        -- the candidate, purchaseFacts) and are recorded like any sniper buy in the branch
+        -- above; only a lot whose facts could not be built lands here -- no candidate with a
+        -- buyout, or a realm verdict with no reference to anchor a cost basis to -- and nothing
+        -- trustworthy is left to record it from. What it must still do is stop the board
+        -- advertising a listing that is now gone.
         consumePurchasedDeal(deal)
       end
     end
@@ -3729,6 +4611,7 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
   end
   if frame and note then frame.status:SetText(note) end
   refreshRows()
+  if settled then GC.Sniper._HandOffSettled() end
 end
 
 -- Cancel button / Esc / a Buy click on a different row all fund into this: reset every bit of
@@ -3823,6 +4706,204 @@ local function showGoneState(row, message)
   end
 end
 
+-- The dialog's armed `row` ("ready") no longer holds the quote it was armed on: the button offers
+-- Refresh (stage "expired"), and its click is a Check -- a new decision from a new read, never a
+-- purchase on the old one. `text` says why on the status line, in r/g/b. Fields, not locals:
+-- this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._ExpireArm(row, text, r, g, b)
+  row.purchaseStage = "expired"
+  dialog.primaryBtn:Enable()
+  setPrimaryLabel(GC.L["Refresh"])
+  setDialogStatus(text, r, g, b)
+  if refreshQtyRow then refreshQtyRow() end -- Fix 2: "expired" is not "ready" -- box/quick-fill grey out until Refresh re-arms
+end
+
+-- Review M1, fix round 3: a commodity purchase this window has started and not confirmed -- the
+-- "buying", "confirm" and "requote" stages -- holds the client's one purchase and the shared slot,
+-- and nothing bounded it: a window left at Confirm kept it open while the claim stamped at Start
+-- went stale after GC.PurchaseSlot.MAX_SECONDS, the BUY tab took the slot over and started a
+-- purchase of its own, and the lit Confirm then confirmed a purchase the client no longer held for
+-- this window. Two tabs each believed they owned one purchase.
+--
+-- The design is BUY's own (its armStall/retireStalled), chosen over re-stamping the claim for as
+-- long as a dialog holds the purchase: with a stall on every started stage, a claim can only ever
+-- go stale after the purchase it stood for has been handed back, so the slot's staleness rule --
+-- the fail-safe for a claim somebody leaked -- can never hand over a purchase that is still live.
+-- Re-stamping indefinitely would have made that fail-safe dead for this window, tied the claim to a
+-- ticker and a visible drawer, and let one forgotten quote shut the BUY tab out for the session.
+-- So: every started stage re-stamps the claim when it is entered and arms a timer well inside the
+-- claim's life; a timer that finds its stage still current hands the purchase back (Cancel, which
+-- is only ever ours to send here, because the slot is still ours) and offers Refresh -- a Check,
+-- never the old quote. A confirmed attempt is not this timer's: it is owed its answer.
+--
+-- Returns false, with the attempt dropped (GC.Sniper._LostSlot), when the claim cannot be
+-- re-stamped -- the slot is somebody else's -- so a caller never arms a wait for a purchase that is
+-- no longer its own (fix round 4, n1). `pending.stallEnds` is when this wait runs out, for the
+-- countdown (GC.Sniper._TickConfirmCountdown).
+function GC.Sniper._ArmStall(pending, seconds)
+  if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("sniper") then
+    GC.Sniper._LostSlot(pending.row, pending)
+    return false
+  end
+  pending.stall = (pending.stall or 0) + 1
+  pending.stallEnds = GetTime() + seconds
+  pending.countdownShown = nil
+  local stall = pending.stall
+  if C_Timer and C_Timer.After then
+    C_Timer.After(seconds, function() GC.Sniper._RetireStall(pending, stall) end)
+  end
+  return true
+end
+
+function GC.Sniper._RetireStall(pending, stall)
+  -- Three guards, each pinned by a spec (fix round 4, m1): another attempt's timer never touches
+  -- this one; a confirmed purchase is owed its answer and never cancelled; and a re-armed wait
+  -- (a new quote) has its own timer, so this one is spent.
+  if commodityPurchase ~= pending or pending.confirmed or pending.stall ~= stall then return end
+  local row = pending.row
+  -- And the Cancel only ever goes into a slot that is this window's (fix round 4, n1): otherwise
+  -- the client's one purchase is somebody else's, and it would be theirs that went back.
+  if GC.PurchaseSlot and GC.PurchaseSlot.Owner() ~= "sniper" then
+    GC.Sniper._LostSlot(row, pending)
+    return
+  end
+  -- A Start the server never answered is not a quote that expired (fix round 4, n3).
+  local text = pending.priceReceived and GC.L["quote expired -- Refresh to re-check the price"]
+    or GC.L["no answer from the auction house"]
+  if dialog and dialog.row == row then
+    if not pending.cancelRequested then
+      C_AuctionHouse.CancelCommoditiesPurchase()
+      pending.cancelRequested = true
+    end
+    drainCommodityPurchase(row)
+    row.purchaseDeal = nil
+    row.quoteSnapshot = nil
+    requoteArmToken = requoteArmToken + 1 -- a loud hold still counting belonged to this quote
+    hideRequoteBanner()
+    GC.Sniper._ExpireArm(row, text, 0.898, 0.283, 0.302)
+    if frame then frame.status:SetText(text) end
+  else
+    -- No window shows it (its OnHide would already have aborted it): let the row go the way a
+    -- Cancel does.
+    abortRowPurchase(row, text)
+  end
+end
+
+-- The seconds a quote has left, on the buy window's status line once LIM.CONFIRM_COUNTDOWN_SECONDS
+-- remain, rewritten once a second by the auction house ticker (fix round 4, m2) -- as Blizzard's
+-- own buy dialog shows them, so a Confirm aimed at the last second is not a surprise Refresh. Only
+-- while Confirm can be clicked: a line that says why it cannot (not enough gold, a loud hold) stays.
+function GC.Sniper._TickConfirmCountdown()
+  -- A requote's countdown is on the Confirm button (below). Once the row has left "requote" -- the
+  -- player clicked Confirm, and the button is dark on "confirming" -- the digit goes with it; every
+  -- other way out of "requote" labels the button itself.
+  if dialog and dialog.countdownOnButton
+      and not (dialog.row and dialog.row.purchaseStage == "requote") then
+    dialog.countdownOnButton = nil
+    if dialog.row and dialog.row.purchaseStage == "confirming" then setPrimaryLabel("Confirm") end
+  end
+  local pending = commodityPurchase
+  local row = pending and pending.row
+  if not (row and not pending.confirmed and pending.stallEnds and dialog and dialog.row == row
+      and (row.purchaseStage == "confirm" or row.purchaseStage == "requote")
+      and dialog.primaryBtn:IsEnabled()) then
+    return
+  end
+  local left = math.ceil(pending.stallEnds - GetTime())
+  if left < 1 or left > LIM.CONFIRM_COUNTDOWN_SECONDS or left == pending.countdownShown then return end
+  -- A warn requote hides the banner, so its red "old -> new per unit" line is the only thing in the
+  -- dialog that says the price moved: it is never written over (fix round 5, m2). Nor added to:
+  -- that line is two lines of figures already, and at scale 1.3 the seconds after it wrapped to a
+  -- third that rose into the Details toggle (final micro round). The seconds go on the full-width
+  -- Confirm button instead, red like the rest of the requote, which has room for "Confirm (9)" at
+  -- every scale.
+  if row.purchaseStage == "requote" then
+    pending.countdownShown = left
+    dialog.countdownOnButton = true
+    setPrimaryLabel(("%s (%d)"):format("Confirm", left), 1, 0.35, 0.35)
+    return
+  end
+  pending.countdownShown = left
+  setDialogStatus((GC.L["quote expires in %d s -- click Confirm to buy"]):format(left), 1, 0.82, 0)
+end
+
+-- The other half (review M1): Confirm finds the shared slot is not this window's. However it
+-- happened, the client's one purchase is somebody else's now, so nothing may be confirmed -- and
+-- nothing cancelled either: CancelCommoditiesPurchase would hand back THEIR purchase. The attempt
+-- is dropped as bookkeeping only (no tombstone, whose Cancel on the next price update would reach
+-- theirs just the same), and the window offers Refresh: a Check, which the gate then holds while
+-- the other window's purchase is in flight.
+function GC.Sniper._LostSlot(row, pending)
+  if commodityPurchase == pending then commodityPurchase = nil end
+  if not (dialog and dialog.row == row) then
+    -- No window on it: the row goes back to the board, still without a Cancel.
+    resolvePurchase(row, false, GC.L["another purchase took over -- nothing was confirmed"])
+    return
+  end
+  row.purchaseDeal = nil
+  row.quoteSnapshot = nil
+  hideRequoteBanner()
+  GC.Sniper._ExpireArm(row, GC.L["another purchase took over -- nothing was confirmed"], 1, 0.3, 0.3)
+  if frame then frame.status:SetText(GC.L["another purchase took over -- nothing was confirmed"]) end
+end
+
+-- Follow-up P1: a confirmed purchase has just settled -- succeeded, failed, answered unavailable,
+-- or been given up on by the stranded release. Buy on the window in front of the player was
+-- held behind it (dark, "waiting for previous commodity purchase to settle") and stayed dark until
+-- its own quote expired, thirty seconds on, although the purchase settled within a second: the
+-- owner called that a hang. The window gets its next step now. And that step is a Check, not Buy:
+-- the window was armed before the purchase landed, and the gold that purchase took -- or, for the
+-- same item, the units -- may be exactly what its decision counted on. That holds for a window the
+-- player had not clicked yet too, so any armed window is handed Refresh, clicked or not. Nothing
+-- is touched while another confirmed purchase is still owed, or on a window not armed: a Check in
+-- flight decides afresh when it lands.
+function GC.Sniper._HandOffSettled()
+  if GC.Sniper._PurchaseOwed() then return end
+  -- Fix round 2: the BUY tab's button waits over a confirm of this window's too (its
+  -- owedElsewhere); it reads BUY again now rather than on its next repaint.
+  if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
+  local row = dialog and dialog.row
+  if not (row and row.purchaseStage == "ready") then return end
+  -- The button named as it reads: the Refresh label, drawn upper-case (Theme.Button's
+  -- SetUppercase is `text:upper()`), in the player's language (fix round 1, nit 2).
+  GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled -- %s to re-check the price"]
+    :format(GC.L["Refresh"]:upper()), 1, 0.82, 0)
+end
+
+-- Fix round 1 (minor 2): a window armed while a confirmed purchase is still owed its answer says
+-- so from the moment it arms -- Buy dark, the waiting line on both status lines -- the same state
+-- the Buy gate in onDialogPrimaryClick shows on a click. Armed lit and green instead ("price
+-- confirmed -- click Buy to purchase"), it told the player "ready" twice -- at the arm and after
+-- every quantity change -- over a Buy the click then refused. Returns true when it held the
+-- window, so an arm path writes nothing after it. Only the armed window ("ready") the dialog is
+-- showing; the settle hands it Refresh (GC.Sniper._HandOffSettled).
+function GC.Sniper._HoldWhileOwed(row)
+  if not (GC.Sniper._PurchaseOwed() and dialog and row and dialog.row == row
+      and row.purchaseStage == "ready") then
+    return false
+  end
+  dialog.primaryBtn:Disable()
+  setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
+  if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
+  return true
+end
+
+-- The auction house ticker's half of the hand-off (fix round 2). BUY's own terminal paths hand
+-- nothing to this window, so the ticker watches what this window waits for (GC.Sniper._PurchaseOwed)
+-- and acts on the edge where the BUY tab lets go -- its confirm answered, its purchase landed,
+-- failed or given up, the slot released. That is the Sniper's own settle, seen from the other
+-- side, and it gets the same answer: ANY armed window is handed Refresh, clicked or not (review M2,
+-- fix round 3). A window armed lit before BUY spent carries a decision the spend has overtaken --
+-- the gold, and with it the wallet limit, went down -- and it used to be reachable only if the hold
+-- had marked it: a realm lot armed on a 100g limit bid its 80g after BUY had left a 50g one. Only
+-- BUY's edge: the Sniper's own settle already hands off from its events.
+function GC.Sniper._TickOwedHold()
+  local owed = GC.Sniper._PurchaseOwed()
+  local was = GC.Sniper._lastOwed
+  GC.Sniper._lastOwed = owed
+  if was == "buy" and owed == nil then GC.Sniper._HandOffSettled() end
+end
+
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
@@ -3831,15 +4912,11 @@ local function scheduleArmTimeout(row, deal, decision)
   C_Timer.After(LIM.ARM_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "ready" and row.deal == deal and row.decisionSnapshot == decision
         and dialog and dialog.row == row then
-      row.purchaseStage = "expired"
-      dialog.primaryBtn:Enable()
-      setPrimaryLabel(GC.L["Refresh"])
       -- Task 2 restyle: red, not amber (Theme.color.red's own literal values -- see
       -- setDialogStatus's own comment for why this file hardcodes rather than reads the live
       -- table). The Kit's status color rule is green on armReady's own Buy confirmation, red on
       -- refusal OR expiry, fgDim (setDialogStatus's own default) everywhere else.
-      setDialogStatus(GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
-      if refreshQtyRow then refreshQtyRow() end -- Fix 2: "expired" is not "ready" -- box/quick-fill grey out until Refresh re-arms
+      GC.Sniper._ExpireArm(row, GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
     end
   end)
 end
@@ -3849,7 +4926,9 @@ end
 -- button reads "Buy" and is enabled, and the ARM_TIMEOUT clock starts. Shared by openDialog
 -- (non-stale deals arm immediately) and finishRequery (stale deals arm once the live requery
 -- resolves) so there is exactly one place that flips this stage on.
-local function armReady(row, deal, decision, levels)
+-- `hold` (final review m3): the first arm of a window stop-and-open opened waits
+-- LIM.REQUOTE_ARM_SECONDS before Buy takes a click (armLoudConfirm, calm).
+local function armReady(row, deal, decision, levels, hold)
   if not decision or not decision.buyable or decision.status ~= "SAFE" or not deal.isCommodity then
     return
   end
@@ -3875,9 +4954,15 @@ local function armReady(row, deal, decision, levels)
   -- deal's numbers -- over the row the player is actually looking at. The row's own arming
   -- above is unconditional; only the screen has to belong to it.
   if dialog and dialog.row == row then
-    dialog.primaryBtn:Enable()
     hideRequoteBanner()
-    setPrimaryLabel("Buy")
+    if hold then
+      armLoudConfirm(row, "Buy", true)
+    else
+      -- A hold still counting belongs to an arm this one replaces.
+      requoteArmToken = requoteArmToken + 1
+      dialog.primaryBtn:Enable()
+      setPrimaryLabel("Buy")
+    end
     dialog.bookLevels = levels
     setDialogHeader(deal, decision)
     stampDialogFromDecision(deal, decision)
@@ -3928,17 +5013,256 @@ local function availableFromLevels(levels)
   return total > 0 and total or nil
 end
 
+-- Live price caps, addon task 5: the deal a capped item's own drilled result builds, once
+-- GC.Caps.DecideRealm/DecideCommodity finds a lot/book at or under the player's price. Same
+-- shape a GC.DealMath.Evaluate deal carries (the renderer reads either one identically) --
+-- `mv`/`estProfit` degrade to no-reference/`-unit` gracefully since a capped item needs no
+-- market value to qualify (GC.Caps.For's own contract: the cap IS the player's own price).
+-- `discount`/`profit`/`tier` are given the same values an ordinary deal falls back to; nothing
+-- reads a "CAP" tier, so there is no reason to invent one.
+--
+-- A value table is not proof of an mv: GC.Data.GetItemValue answers gear the import lists only
+-- in `T:` with its region reference and no mv at all (Core/Data.lua's target-only branch), and
+-- that is exactly the gear a cap exists for. It degrades like no value at all.
+--
+-- `capTotal` is what the decision's units really cost (its entryTotal). An ordinary row's total
+-- is its unit price times its quantity, but a commodity cap buys up a ladder of levels, and
+-- "cheapest level x quantity" put 2000g on a row whose buy costs 2900g. The row's total cell and
+-- the total sort (SORT_VALUE.price) read this first.
+local function buildCapDeal(itemID, isCommodity, decision, cap)
+  local unit = decision.unit
+  local value = GC.Data.GetItemValue(itemID)
+  -- What reselling the units this row buys at the market would make after the cut, against what
+  -- they cost -- the whole buy, as every other row's PROFIT is. It was one unit's resale against
+  -- the cheapest level: "-5s 37c" beside a x400 row's 400g total (in game 2026-09-23), and the
+  -- wrong sign outright for a buy that spans dearer levels. Kept on the row, not dropped: it is
+  -- the one place the board says what the player's own price is worth to the market. Measured
+  -- by the yardstick every row uses (GC.DealMath.Measure, review M5): no market, or a realm item
+  -- with no region reference, is no yardstick -- `mv` stays nil and the row shows a dash
+  -- (setRowDeal).
+  local measured = GC.DealMath and GC.DealMath.Measure(unit, decision.quantity, value, decision.entryTotal)
+  local mv = measured and value.mv or nil
+  local estProfit = measured and measured.profit or -decision.entryTotal
+  return {
+    itemID = itemID,
+    isCommodity = isCommodity,
+    unitPrice = unit,
+    qty = decision.quantity,
+    capTotal = decision.entryTotal,
+    auctionID = decision.candidate and decision.candidate.auctionID or nil,
+    mv = mv,
+    discount = 0,
+    profit = estProfit,
+    estProfit = estProfit,
+    tier = "WATCH",
+    cap = cap.c,
+    capGroup = cap.group,
+    capManual = cap.manual,
+    -- Same flag every full-scan-derived deal carries: this snapshot is not itself the last
+    -- word, and openDialog's first click on it is a live re-Check, exactly like any other
+    -- `.stale` row -- never an arm straight off a background read.
+    stale = true,
+  }
+end
+
+-- Live price caps: a commodity cap decided on `levels` within the player's own per-buy limits --
+-- Max units per buy and the wallet limit, as GC.SniperDecision.BuyLimits works them out from
+-- the settings and the gold in the bags right now. `quantity` asks for exactly that many units
+-- (a quantity the player chose, or the one a quote was armed on); nil asks for the most the rule
+-- allows. Every place that decides a cap on a book comes through here, so no two of them can
+-- apply a different limit. Table fields, not locals: this chunk sits near Lua's 200-local
+-- ceiling.
+function GC.Sniper._DecideCap(cap, levels, quantity)
+  return GC.Caps.DecideCommodity(cap, levels,
+    GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()), quantity)
+end
+
+-- The cap that governs the quantity controls of `row`, or nil when the market engine does: a
+-- commodity row armed on a cap decision (GC.Caps.DecideCommodity) takes every quantity from the
+-- cap rule -- units at or under the player's own price, inside their own limits. Keyed on the
+-- ARMED decision, not on the deal: a cap row the market approved instead (nothing left under
+-- the cap) is the market's to size, and its quote is still held to the cap on the way in.
+function GC.Sniper._RowCap(row, deal)
+  local armed = row and row.decisionSnapshot
+  if not (armed and armed.cap and deal and deal.isCommodity) then return nil end
+  return GC.Caps and GC.Caps.For(deal.itemID) or nil
+end
+
+-- Final review M1: what the player's own price says about the lot a realm verdict named for a
+-- YOUR PRICE row (`deal.cap`) -- nil when the item has no cap or the lot keeps to it. The unit is
+-- the lot's own (buyout over its size, the unit DecideRealm compares), and the item level the
+-- lot's own against the cap's `l`. Either or both, in the words the loud requote uses.
+function GC.Sniper._CapMiss(deal, decision)
+  local cap = deal and deal.cap and GC.Caps and GC.Caps.For(deal.itemID)
+  local candidate = decision and decision.candidate
+  if not (cap and candidate and candidate.buyout) then return nil end
+  local unit = math.floor(candidate.buyout / math.max(1, candidate.quantity or 1))
+  local level = candidate.itemLevel or 0
+  local parts = {}
+  if unit > cap.c then
+    parts[#parts + 1] = (GC.L["Above your price -- quoted %s, your price %s"]):format(
+      GC.Util.FormatMoney(unit), GC.Util.FormatMoney(cap.c))
+  end
+  if (cap.l or 0) > 0 and level < cap.l then
+    parts[#parts + 1] = (GC.L["Item level %d, below the %d your price is for"]):format(level, cap.l)
+  end
+  if #parts == 0 then return nil end
+  return table.concat(parts, " · ")
+end
+
+-- What YOUR PRICE means on a cap row, for its tooltip (the row's OnEnter, which the verdict chip
+-- sits inside): the player's own price decided it, and the alert group that price came from --
+-- the name the item cell leaves out when it has no room for it. nil for a row that is not a cap.
+function GC.Sniper._CapNote(deal)
+  if not (deal and deal.cap) then return nil end
+  if deal.capGroup then
+    return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
+  end
+  return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+end
+
+-- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
+-- quantity, the cap row's group suffix, the watching suffix), leaving the group out when the cell
+-- has no room for it. Asked again by the row's own OnSizeChanged (createRow): decided once at
+-- the stamp, the group stayed cut after the window narrowed and never came back after it
+-- widened, because a row whose deal did not move skips its repaint (review M6).
+function GC.Sniper._FitRowName(row)
+  local parts = row and row._nameParts
+  if not parts then return end
+  local text = row.nameText
+  text:SetText(parts[1] .. parts[2] .. parts[3])
+  if parts[2] ~= "" and text.IsTruncated and text:IsTruncated() then
+    text:SetText(parts[1] .. parts[3])
+  end
+end
+
+-- A watched row's market reference, for its tooltip: the figures on the row are measured
+-- against it and nothing has checked them live. nil when the row had no market to measure by.
+function GC.Sniper._WatchNote(deal)
+  if not (deal and deal.pinPlaceholder and deal.marketKnown and deal.mv) then return nil end
+  return (GC.L["Market %s · unverified until a live Check"]):format(GC.Util.FormatMoney(deal.mv))
+end
+
+-- Caps fixes 3b: a commodity cap row goes on the board the player is looking at -- the store
+-- sortedDeals renders for Commodities, which `mode` picks: scanDeals once a full scan has run,
+-- the watchlist map before. It used to follow _liveTracksScanDeals instead, which only turns
+-- true once the watch set has members (three distinct prices churned, or a pin) -- so at the
+-- start of every visit a cap hit landed in the watchlist map, under a board reading scanDeals.
+-- The ring and the ratchet were spent on a row nobody could see.
+function GC.Sniper._PutCapRow(itemID, capDeal)
+  if mode == "fullscan" then
+    scanDeals = GC.FullScan.ApplyLiveObservation(scanDeals, itemID, capDeal, WIN.ROW_CAP)
+  else
+    deals[itemID] = capDeal
+  end
+end
+
+-- The other half: once the cap no longer holds for this item, its row leaves whichever store it
+-- was put on. The watch loop's own plain write (driver.onObservation) goes to the store
+-- _liveTracksScanDeals names, which is not always the one above; a drill has no plain write at
+-- all. Only a CAP row is touched -- a market row for the item is the market's to keep or drop.
+function GC.Sniper._DropCapRow(itemID)
+  local held = deals[itemID]
+  if held and held.cap then deals[itemID] = nil end
+  for i = #scanDeals, 1, -1 do
+    if scanDeals[i].itemID == itemID and scanDeals[i].cap then table.remove(scanDeals, i) end
+  end
+end
+
+-- Caps fixes 3e: the board's current cap row for the opportunity `deal` stands for, or nil once
+-- it has left. Tables are rebuilt all the time -- a re-drill of the same lot, a watch-loop pass
+-- over the same book -- so a waiting ring follows the CURRENT row: for a realm item the same
+-- auction (a different lot is a different opportunity, with a ring of its own if it is news),
+-- for a commodity the item's cap row on the board _PutCapRow writes to.
+function GC.Sniper._BoardCapRow(deal)
+  local itemID = deal.itemID
+  if not deal.isCommodity then
+    local held = GC.Sniper._realmDeals[itemID]
+    return (held and held.cap and held.auctionID == deal.auctionID) and held or nil
+  end
+  if mode ~= "fullscan" then
+    local held = deals[itemID]
+    return (held and held.cap) and held or nil
+  end
+  for _, held in ipairs(scanDeals) do
+    if held.itemID == itemID then return held.cap and held or nil end
+  end
+  return nil
+end
+
+-- Queues the board-ring for a cap row just put on the board -- if it is news (GC.Caps.IsNews:
+-- a lot not yet announced, or a commodity price better than the last one announced). Nothing is
+-- remembered here; drainCapPings commits the announcement when the ring plays. One entry per
+-- item: a newer row for the item replaces whatever was still waiting for it.
+function GC.Sniper._QueueCapPing(capDeal)
+  if not (GC.Caps and GC.Caps.IsNews(capDeal)) then return end
+  for i = #pendingCapPings, 1, -1 do
+    if pendingCapPings[i].deal.itemID == capDeal.itemID then table.remove(pendingCapPings, i) end
+  end
+  pendingCapPings[#pendingCapPings + 1] = { deal = capDeal, at = GetTime() }
+end
+
 -- `levels` is an optional pre-built book (from driver.commodityBook) the caller already has --
 -- onObservation below passes its own so the same poll's book is not fetched twice. Every other
 -- call site omits it and gets the old behaviour of building its own.
+--
+-- M8: this is not only a reader. On the cap path it WRITES the commodity board (the cap deal
+-- goes into scanDeals/deals), files that deal's verdict, and queues its board-ring into
+-- pendingCapPings -- see the cap branch below.
 evaluateLiveCommodityDeal = function(itemID, levels)
   levels = levels or driver.commodityBook(itemID)
   if not levels then return nil end
   local result = driver.commodityResult(itemID)
+  local avail = (result and result.avail) or availableFromLevels(levels)
+  -- Task 5: a capped commodity is judged against the player's OWN price first -- the whole
+  -- reason GC.Caps.For needs no market reference to fire (Core/Caps.lua's own contract). Only
+  -- when there is nothing to buy under the cap (or not one unit fits the player's wallet limit)
+  -- does this fall through to the ordinary region/market-value Evaluate below, exactly like any
+  -- other item: a capped item that is not currently a deal by its own price can still be one
+  -- by the market's.
+  local cap = GC.Caps and GC.Caps.For(itemID)
+  if cap then
+    local capDecision = GC.Sniper._DecideCap(cap, levels)
+    if capDecision then
+      local capDeal = buildCapDeal(itemID, true, capDecision, cap)
+      GC.Sniper._PutCapRow(itemID, capDeal)
+      -- Addon task 6: queued for the board-ring (drained by refreshRows(), see pendingCapPings)
+      -- only while it is news by GC.Caps' own dedup -- an unchanged or worse floor on a re-poll
+      -- stays silent. Queued BEFORE the stamp below, whose refreshRows() is what drains it:
+      -- by then the cap deal is already on the board, so the ring has a row to land on.
+      GC.Sniper._QueueCapPing(capDeal)
+      local capLive = { isCommodity = true, levels = levels, avail = avail, decision = capDecision }
+      -- Final review I1: the verdict is filed against the deal the CAP DECISION built, at the
+      -- price that row is asking. A background drill is started from { itemID, unitPrice =
+      -- hit.floor } -- the browse floor -- so resolvePrewarm's own stamp landed under a price
+      -- no row on the board was showing, and verdictFor (which matches item AND asking price)
+      -- then answered nil for the very row this just built: no CAP bucket, no label, no rank,
+      -- until the player ran a manual Check. resolvePrewarm skips its stamp when the result
+      -- carries a cap decision, so this is the only one.
+      stampVerdict(capDeal, capLive)
+      return capLive
+    end
+    -- The floor rose back above the cap (or the book emptied) -- forget the last announced
+    -- price so the NEXT time this item dips under the cap, even at the same price as before,
+    -- it rings again as the new opportunity it is, instead of staying silenced by a price the
+    -- board hasn't shown in a while.
+    --
+    -- Final review m6: only then. Units at or under the cap that the wallet limit will not pay
+    -- for, or that are the player's own (the book above leaves those out; the client's own first
+    -- level does not -- driver.commodityFloor), are the same floor the book pass reported:
+    -- forgotten, it was reported and drilled again on every pass.
+    local under = false
+    for _, level in ipairs(levels) do
+      if level.unitPrice and level.unitPrice <= cap.c then under = true; break end
+    end
+    local first = not under and driver.commodityFloor and driver.commodityFloor(itemID) or nil
+    if not under and not (first and first <= cap.c) then GC.Caps.Forget(itemID) end
+    GC.Sniper._DropCapRow(itemID)
+  end
   return {
     isCommodity = true,
     levels = levels,
-    avail = (result and result.avail) or availableFromLevels(levels),
+    avail = avail,
     decision = evaluateLive(itemID, levels),
   }
 end
@@ -3948,6 +5272,11 @@ end
 local function applyRequeryResult(row, itemID, live)
   local deal = row.deal
   if not deal or deal.itemID ~= itemID then return end
+  -- Final review m3: the first answer a window stop-and-open opened gets (openDialog marks it) is
+  -- the one whose arm waits. Taken here, whatever the answer is: a later arm follows a click of
+  -- the player's own.
+  local hold = dialog and dialog.row == row and dialog.holdFirstArm or nil
+  if dialog and dialog.row == row then dialog.holdFirstArm = nil end
   local decision = live and live.decision
   if decision then
     deal.isCommodity = live.isCommodity and true or false
@@ -3957,13 +5286,34 @@ local function applyRequeryResult(row, itemID, live)
       dialog.bookLevels = live.levels
     end
     if live.isCommodity and decision.buyable then
-      armReady(row, deal, decision, live.levels)
-      if frame then frame.status:SetText(GC.L["live safety confirmed -- click Buy to purchase"]) end
+      -- A cap decision is the player's own price, not the engine's safety verdict. Written before
+      -- armReady, whose affordance check has the last word on both lines: a Buy held behind a
+      -- confirmed purchase still owed its answer says "waiting" there too (GC.Sniper._HoldWhileOwed).
+      if frame then
+        frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
+          or GC.L["live safety confirmed -- click Buy to purchase"])
+      end
+      armReady(row, deal, decision, live.levels, hold)
     elseif not live.isCommodity and decision.status == "WATCH" and decision.candidate then
       -- Sniper phase 2: a realm lot, checked live and found under its region reference. The
       -- decision is deliberately not `buyable` -- nothing here measured how fast this item
       -- sells -- so this arms its own way rather than through armReady, and the button says
       -- what it is: a buy the player is making on their own judgement, not on a verdict.
+      --
+      -- A live price cap arms here too (GC.Caps.DecideRealm names a candidate the same way),
+      -- and its judgement is also the player's -- but a judgement already made, as a price, on
+      -- goldcap.gg. "Unverified" and "sale speed unknown" describe a lot measured against a
+      -- region reference; a cap lot says what it is instead: at or under your price.
+      --
+      -- Final review M1: and a YOUR PRICE row can land here WITHOUT a cap decision -- the Check
+      -- found no lot at the player's price (bought between the ring and the click) and the region
+      -- verdict named another. Nothing then said that lot is above the player's price, or below
+      -- the item level it is for, and the next click placed the bid: a realm lot has no quote
+      -- step to catch it. So the window says so (GC.Sniper._CapMiss) and holds Buy the way a
+      -- loud requote holds Confirm.
+      local capLot = decision.cap == true
+      local capMiss = not capLot and GC.Sniper._CapMiss(deal, decision) or nil
+      local label = capLot and "Buy" or GC.L["BUY — unverified"]
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
@@ -3971,20 +5321,47 @@ local function applyRequeryResult(row, itemID, live)
       activeItemID[deal.itemID] = true
       if dialog and dialog.row == row then
         hideRequoteBanner()
-        setPrimaryLabel(GC.L["BUY — unverified"])
+        -- A hold still counting belongs to an arm this one replaces (armLoudConfirm).
+        requoteArmToken = requoteArmToken + 1
+        -- The same bare "Buy" armReady puts on a commodity, which is the word every "click Buy"
+        -- status line in every locale names.
+        setPrimaryLabel(label)
         setDialogHeader(deal, decision)
         stampDialogFromDecision(deal, decision)
         -- Affordability, checked here rather than through updateBuyAffordance: that helper
         -- ends by writing "price confirmed -- click Buy to purchase" in green, which is a
-        -- promise this path is not allowed to make.
+        -- promise this path is not allowed to make. Final review m2: and, at the player's own
+        -- price, their own per-buy wallet limit -- the one a commodity at it already keeps to
+        -- (GC.Caps.DecideCommodity).
         local total = decision.candidate.buyout
+        local limits = capLot and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()) or nil
         if total > GetMoney() then
           dialog.primaryBtn:Disable()
           setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
             :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
+        elseif capLot and not (limits and total <= limits.budget) then
+          dialog.primaryBtn:Disable()
+          setDialogStatus(GC.L["Costs more than your per-buy wallet limit allows."], 1, 0.3, 0.3)
         else
-          dialog.primaryBtn:Enable()
-          setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
+          if capMiss then
+            armLoudConfirm(row, label)
+            setDialogStatus(capMiss, 1, 0.3, 0.3)
+          elseif hold then
+            armLoudConfirm(row, label, true)
+            setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
+              or GC.L["price checked, sale speed unknown -- this one is your call"])
+          elseif capLot then
+            dialog.primaryBtn:Enable()
+            setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
+          else
+            dialog.primaryBtn:Enable()
+            setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
+          end
+          -- Last word on a bid that would be lit, now or after its hold: it waits over a confirmed
+          -- commodity purchase still owed its answer (the Buy gate, review M2), and says so now
+          -- rather than on the click (fix round 1). A bid the gold or the wallet limit refuses
+          -- keeps saying that instead (fix round 2).
+          GC.Sniper._HoldWhileOwed(row)
         end
       end
       scheduleArmTimeout(row, deal, decision)
@@ -3997,6 +5374,15 @@ local function applyRequeryResult(row, itemID, live)
     end
   else
     showGoneState(row, GC.L["listing gone -- already bought out or price changed"])
+    -- Caps fixes 4a, round 2, the safety net: a capped item's ratchets let go of it, so the next
+    -- cap round (or book pass) reports it again even at the price it showed. A Check that came
+    -- back empty for a reason of the client's own -- a search that met an unanswered keys batch --
+    -- otherwise deleted a YOUR PRICE row for good while the lot sat there. Only the ratchets: the
+    -- ring's memory stays, so a lot that was really there does not ring a second time.
+    if GC.Caps and GC.Caps.For(itemID) then
+      GC.Caps.Rearm(itemID)
+      GC.Sniper._capPoll:Rearm(itemID)
+    end
     if deals[itemID] then deals[itemID] = nil end
     if GC.Sniper._realmDeals then GC.Sniper._realmDeals[itemID] = nil end -- same reason as consumePurchasedDeal
     for i = #scanDeals, 1, -1 do
@@ -4017,7 +5403,19 @@ end
 -- explanatory status instead of auto-resolving the purchase as failed: PlaceBid's completion
 -- event is UNVERIFIED to always fire, so silently unpinning here could let the player
 -- re-attempt a buy whose bid may in fact still land. The row stays pinned until Cancel.
+--
+-- A commodity no longer freezes (review M1, fix round 3): Start went out and no quote came back,
+-- and the purchase and the slot claim are this window's until somebody hands them back. The
+-- stage is under the same stall as "confirm" and "requote" (GC.Sniper._ArmStall), for
+-- LIM.START_STALL_SECONDS rather than this timeout's eight (fix round 4): handed back, Refresh
+-- offered, inside the claim's life. A realm bid keeps the freeze -- PlaceBid claims no slot, and
+-- its completion may still land.
 local function scheduleBuyTimeout(row, deal, token)
+  local pending = commodityPurchase
+  if deal.isCommodity and pending and pending.row == row and pending.token == token then
+    GC.Sniper._ArmStall(pending, LIM.START_STALL_SECONDS)
+    return
+  end
   C_Timer.After(LIM.BUY_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "buying" and row.purchaseDeal == deal and row.purchaseToken == token
         and (not deal.isCommodity or (commodityPurchase and commodityPurchase.row == row
@@ -4056,31 +5454,50 @@ local function isCurrentRequeryAttempt(attempt)
     and attempt.row.deal == attempt.deal
 end
 
-local function issueRequerySearch(attempt)
-  if not isCurrentRequeryAttempt(attempt) then return end
-  if driver.isReady() then
-    attempt.sent = true
-    driver.sendSearch(attempt.itemID)
-  else
-    pendingRequerySend[attempt.itemID] = attempt
+--
+-- Caps fixes 4a, round 2: parked too while a keys batch is unanswered -- the caps poll the Deals
+-- boards, so one is out often. Sent on top of it the Check comes back empty ("listing gone", the
+-- row deleted) and takes the batch's answer with it. The batch's own answer brings the next turn
+-- (its fold's deferred OnThrottleReady), where step 1 sends it; the hold is bounded by
+-- LIM.CHECK_HOLD_SECONDS, after which the batch is given up and the Check goes regardless.
+--
+-- The hold is the timer's to end, not a second reading of the clock (caps fixes 5i): GetTime() is
+-- cached for the frame, so the arbiter the timer calls could read a hair under the hold, say "not
+-- yet" -- and with no second timer and the batch lost, the Check sat parked to its eight-second
+-- timeout and came back "gone". The timer marks the hold expired and step 1 honours the mark.
+-- Armed once per attempt, from here or from step 1 -- whichever finds the batch out first.
+function GC.Sniper._HoldCheck(attempt)
+  if attempt.heldSince then return end
+  attempt.heldSince = GetTime()
+  if C_Timer and C_Timer.After then
+    C_Timer.After(LIM.CHECK_HOLD_SECONDS, function()
+      if pendingRequerySend[attempt.itemID] ~= attempt then return end
+      attempt.holdExpired = true
+      if driver.isReady() then GC.Sniper.OnThrottleReady() end
+    end)
   end
 end
 
-local function finishRequery(attempt, liveDeal)
+local function issueRequerySearch(attempt)
   if not isCurrentRequeryAttempt(attempt) then return end
-  local itemID = attempt.itemID
-  awaitingRequery[itemID] = nil
-  awaitingKeyInfo[itemID] = nil
-  pendingRequerySend[itemID] = nil
-  -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
-  -- (row + token) is retired here rather than by its 20s timer; see _RetireFencedTombstone.
-  GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
-  applyRequeryResult(attempt.row, itemID, liveDeal)
-  GC.Sniper._ResumePausedLiveRequery(attempt)
+  local held = GC.Sniper._KeysOutstanding()
+  if driver.isReady() and not held then
+    attempt.sent = true
+    attempt.overBatch = GC.Sniper._OrphanLive()
+    driver.sendSearch(attempt.itemID)
+    return
+  end
+  pendingRequerySend[attempt.itemID] = attempt
+  if held then GC.Sniper._HoldCheck(attempt) end
 end
 
+-- Final review S2 (ii): the deadline belongs to the ask that is out. A Check asked a second time
+-- (finishRequery) gets a timeout of its own, and the first ask's lapses unheard.
 local function scheduleRequeryTimeout(attempt)
+  attempt.deadline = (attempt.deadline or 0) + 1
+  local deadline = attempt.deadline
   C_Timer.After(LIM.REQUERY_TIMEOUT_SECONDS, function()
+    if attempt.deadline ~= deadline then return end
     if isCurrentRequeryAttempt(attempt) then
       -- The server might still send an untagged result after this timeout. Fence it before
       -- returning the row to Check, so it cannot become a quote for a subsequent same-item
@@ -4094,6 +5511,30 @@ local function scheduleRequeryTimeout(attempt)
       GC.Sniper._ResumePausedLiveRequery(attempt)
     end
   end)
+end
+
+local function finishRequery(attempt, liveDeal)
+  if not isCurrentRequeryAttempt(attempt) then return end
+  -- Final review S2 (ii): nothing came back for a Check that went out over a keys batch given up
+  -- (attempt.overBatch) -- and a search sent over an unanswered batch comes back empty whatever
+  -- is listed (UI/SellFrame.lua's advanceQuote, seen in game). Asked once more before the window
+  -- says "gone" and the row comes down; the first answer has landed, so nothing is left to drain.
+  if liveDeal == nil and attempt.overBatch and not attempt.retried then
+    attempt.retried, attempt.overBatch, attempt.sent = true, nil, false
+    scheduleRequeryTimeout(attempt)
+    issueRequerySearch(attempt)
+    return
+  end
+  local itemID = attempt.itemID
+  awaitingRequery[itemID] = nil
+  awaitingKeyInfo[itemID] = nil
+  pendingRequerySend[itemID] = nil
+  -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
+  -- (row + token), or one laid before this Check started, is retired here rather than by its 20s
+  -- timer; see _RetireFencedTombstone.
+  GC.Sniper._RetireFencedTombstone(attempt)
+  applyRequeryResult(attempt.row, itemID, liveDeal)
+  GC.Sniper._ResumePausedLiveRequery(attempt)
 end
 
 -- Returns the attempt it registered, or nil when no query could be started (an older sent
@@ -4116,7 +5557,14 @@ local function startRequery(row, deal)
     end
     row.purchaseStage = "check"
     row.purchaseDeal = nil
-    activeItemID[itemID] = nil
+    -- Pinned while the window shows the row, as the branch below pins it (follow-up 2): the
+    -- window still owns the item -- the player's Check is the next thing to happen to it, once
+    -- the old answer drains -- so a cap ping for it is settled there, not rung over the window
+    -- after the bell floor. Released here left the ring the floor was holding for the same lot to
+    -- play late over the very window the player was reading (drainCapPings). Closing the window
+    -- (abortRowPurchase -> resolvePurchase) or the Check that follows moves the pin on. No window
+    -- on the row, nothing to own it: released, as before.
+    activeItemID[itemID] = (dialog and dialog.row == row) or nil
     if dialog and dialog.row == row then
       dialog.primaryBtn:Enable()
       setPrimaryLabel("Check")
@@ -4126,7 +5574,10 @@ local function startRequery(row, deal)
     return nil
   end
   row.purchaseToken = (row.purchaseToken or 0) + 1
-  local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false }
+  -- `afterTombstone`: the unconfirmed tombstone already down when this Check started, if any --
+  -- this Check's answer is proof enough to retire it (GC.Sniper._RetireFencedTombstone).
+  local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false,
+    afterTombstone = commodityDraining }
   -- Stop Live before registering or sending the authoritative Check. This comment used to claim
   -- Init.lua dispatches the scanner's throttle-ready hook first, which stopped being true once
   -- the slot arbiter (GC.Sniper.OnThrottleReady/_GrantWatchSlot) took over allocation: a parked
@@ -4210,6 +5661,9 @@ local function maybeStartPrewarm(deal, auto)
   -- throttle slot for one cycle -- a one-cycle pagination delay, not starvation.
   if GC.Sniper.IsPurchaseQuiet() then return end
   if prewarmAttempt then return end -- one pre-warm in flight globally
+  -- Caps fixes 4a, round 1: never over an unanswered keys batch -- see canDrillNow. Here as well
+  -- as there because this is the one sender the drill, the verify walk and a hover all reach.
+  if GC.Sniper._KeysOutstanding() then return end
   if not driver.isReady() then return end -- never parks -- see comment above
 
   local itemID = deal.itemID
@@ -4239,6 +5693,27 @@ local function maybeStartPrewarm(deal, auto)
     end
   end)
   return true
+end
+
+-- A row's hover pre-warm (its OnEnter). Caps fixes 4a, round 2: one refused only because a keys
+-- batch was out is owed, and asked again on the first arbiter turn after the batch is gone
+-- (GC.Sniper.OnThrottleReady calls this with no row) -- if the pointer is still on that row.
+-- OnEnter fires once; without this the warm was simply lost, and the first click paid for it.
+-- Returns whether a query went out.
+function GC.Sniper._HoverPrewarm(row)
+  if row == nil then
+    row = GC.Sniper._hoverOwed
+    if not row or GC.Sniper._KeysOutstanding() then return false end
+    GC.Sniper._hoverOwed = nil
+    if hoveredRow ~= row or not row.deal or not (row.IsVisible and row:IsVisible()) then return false end
+  end
+  if not row.deal then return false end
+  if maybeStartPrewarm(row.deal) then
+    GC.Sniper._hoverOwed = nil
+    return true
+  end
+  if GC.Sniper._KeysOutstanding() then GC.Sniper._hoverOwed = row end
+  return false
 end
 
 -- Records what the live query just said about `deal`, re-renders the list around it, and rings
@@ -4288,6 +5763,10 @@ stampVerdict = function(deal, data, manual)
     unitPrice = deal.unitPrice, at = GetTime(), manual = kept,
     buyable = buyable, unverified = unverified, status = status, reason = reason,
     stressProfit = data and data.decision and data.decision.stressProfit,
+    -- Live price caps, addon task 6: carried through so GC.BoardRows.Bucket/Label (read off
+    -- THIS table, not off `decision` directly -- see verdictFor) can rank/label a cap row ahead
+    -- of an ordinary SAFE/WATCH one. GC.Caps.DecideRealm/DecideCommodity both set it.
+    cap = decision and decision.cap or nil,
   }
   refreshRows()
 
@@ -4306,6 +5785,12 @@ stampVerdict = function(deal, data, manual)
   end
 
   if manual or not buyable or wasBuyable then return end -- ping the transition only, never every re-check
+  -- Final review I6: a cap decision rings through drainCapPings instead (the cap branch of
+  -- evaluateLiveCommodityDeal/evaluateLiveItemDeal queues the deal into pendingCapPings, and it
+  -- rings once its row is on screen). A commodity cap decision is SAFE and buyable, so without
+  -- this the same opportunity rang twice -- two different bells for one price. The cap ring
+  -- observes the same per-item floor this one does; see drainCapPings.
+  if decision and decision.cap then return end
   -- Per ITEM, never a global mute. A watched item whose floor is reset every few seconds is a
   -- real sequence of opportunities and every one of them still SHOWS -- but a bell every five
   -- seconds stops carrying information, and two different items must never silence each other.
@@ -4350,6 +5835,13 @@ local function resolvePrewarm(itemID, data)
   prewarmAttempt = nil
   if not deal then return end
   deal.prewarm = { data = data, at = GetTime(), token = attempt.token }
+  -- Final review I1: a cap decision has already filed its own verdict, against the deal the cap
+  -- BUILT (evaluateLiveItemDeal/evaluateLiveCommodityDeal). `deal` here is whatever the drill
+  -- was started from -- for a queued cap hit, a bare { itemID, unitPrice = hit.floor } stand-in
+  -- at the browse floor -- so stamping it again would overwrite the row's verdict with one
+  -- filed under a price nothing on the board is asking. The pre-warm cache above is still set:
+  -- that is keyed by the attempt, not by price.
+  if data and data.decision and data.decision.cap then return end
   stampVerdict(deal, data)
 end
 
@@ -4386,6 +5878,7 @@ local function verifyWalkStandsDown()
   if not frame or not frame:IsShown() then return true end
   if prewarmAttempt then return true end -- one query in flight globally, shared with the hover pre-warm
   if GC.Sniper.IsSearchCritical() then return true end -- a Check or a purchase owns the search slot
+  if GC.Sniper._KeysOutstanding() then return true end -- see canDrillNow: never over a keys batch
   return false
 end
 
@@ -4546,39 +6039,194 @@ end
 function GC.Sniper._KeysOutstanding()
   local sentAt = GC.Sniper._keysAwaiting
   if not sentAt then return false end
-  local limit = GC.Sniper._keysOwner == "sell" and LIM.KEYS_SELL_TIMEOUT_SECONDS
-    or LIM.KEYS_TIMEOUT_SECONDS
+  local owner = GC.Sniper._keysOwner
+  -- The short allowance: the Sell and BUY tabs' own batches always, and every batch while one of
+  -- those two tabs is on screen (see LIM.KEYS_SELL_TIMEOUT_SECONDS).
+  local short = owner == "sell" or owner == "buy" or view == "sell" or view == "buy"
+  local limit = short and LIM.KEYS_SELL_TIMEOUT_SECONDS or LIM.KEYS_TIMEOUT_SECONDS
   if (time() - sentAt) < limit then return true end
-  GC.Sniper._keysAwaiting = nil
-  GC.Sniper._keysBatch = nil
-  GC.Sniper._keysOwner = nil
+  GC.Sniper._WriteOffKeys("timeout")
   return false
 end
 
--- Two consumers share the one outstanding batch: the Items board's realm poll ("sniper") and
--- the BUY tab's floor refresh ("buy"). They can never both want it -- each is gated on its own
--- tab being the one on screen -- but the ANSWER arrives as an untagged browse event either
--- way, so the batch has to say whose it was. _keysOwner is that record, written beside
--- _keysAwaiting by whichever sender spent the slot and cleared on every path that gives the
--- wait up. Without it a BUY refresh's rows would be folded into the realm poll, which reads a
--- silence about an item as "sold out" and would wipe the Items board on every BUY refresh.
+-- Gives up on the keys batch that is out, whatever the reason -- its wait ran out, the client
+-- said it dropped a message (OnThrottledMessageDropped), or a search of the player's own went out
+-- on top of it (driver.sendSearch). Caps fixes 4a, round 1: one place, so all three do the same
+-- two things beside clearing the wait.
+--
+-- A cap batch stamps the caps' pacing exactly as an answer does (GC.Sniper._CapsReleased): the
+-- breath after it is owed to whoever sat through the wait, and a written-off LAST batch of a round
+-- still starts the rest between rounds.
+--
+-- And what it asked about is remembered for a while as an ORPHAN. Written off is not proven gone:
+-- the event carries no identity, so the answer may still come. Before the caps' poll no keys batch
+-- was ever out on a board where Auto pages, but a cap batch is -- so a late answer, arriving after
+-- the next pass has sent its query, was read as that pass's first page: a Commodities board
+-- rebuilt from a hundred capped items. An answer that speaks only of the orphan's items is
+-- recognised as the orphan's and swallowed (GC.Sniper._IsOrphanAnswer).
+function GC.Sniper._WriteOffKeys(why)
+  local owner, asked = GC.Sniper._keysOwner, GC.Sniper._keysBatch
+  trace("keys: written off (" .. tostring(why) .. ", " .. tostring(owner) .. ")")
+  if owner == "caps" then
+    GC.Sniper._CapsReleased(GC.Sniper._keysAwaiting)
+    GC.Sniper._NoteCapBatch("given up (" .. tostring(why) .. ")", asked)
+  end
+  if type(asked) == "table" and #asked > 0 then
+    local set = {}
+    for i = 1, #asked do set[asked[i]] = true end
+    GC.Sniper._keysOrphan = { asked = set, untilAt = GetTime() + LIM.KEYS_TIMEOUT_SECONDS }
+  end
+  GC.Sniper._keysAwaiting = nil
+  GC.Sniper._keysBatch = nil
+  GC.Sniper._keysOwner = nil
+end
+
+-- Whether a batch given up may still be answering: its orphan is kept (above) until its answer
+-- has been recognised or LIM.KEYS_TIMEOUT_SECONDS have passed. A search sent meanwhile may meet
+-- it at the auction house and come back empty (final review S2, finishRequery).
+function GC.Sniper._OrphanLive()
+  local orphan = GC.Sniper._keysOrphan
+  return (orphan ~= nil and GetTime() < orphan.untilAt) or nil
+end
+
+-- Final review S2 (iii): the last few cap batches, newest first -- how long each took to answer,
+-- or why it was given up -- for `/gc board`, so LIM.CAPS_BATCH_SIZE can be tuned on what the
+-- client actually does. `asked` is the batch's own list.
+function GC.Sniper._NoteCapBatch(outcome, asked)
+  local log = GC.Sniper._capBatchLog or {}
+  table.insert(log, 1, ("%s x%d"):format(outcome, type(asked) == "table" and #asked or 0))
+  while #log > 8 do table.remove(log) end
+  GC.Sniper._capBatchLog = log
+end
+
+-- Whether `browsed` is the late answer of the batch last written off: something came back, and
+-- every row is about an item that batch asked for and `current` (the batch out now, if any, as a
+-- set) did not. Consumes the orphan when it says yes. A pass's page is never mistaken for one: it
+-- names items of four whole classes (or of everything), not a hundred the player picked.
+function GC.Sniper._IsOrphanAnswer(browsed, current)
+  local orphan = GC.Sniper._keysOrphan
+  if not orphan then return false end
+  if GetTime() >= orphan.untilAt then
+    GC.Sniper._keysOrphan = nil
+    return false
+  end
+  local any = false
+  for i = 1, #(browsed or {}) do
+    local key = browsed[i].itemKey
+    local itemID = key and key.itemID
+    if not (itemID and orphan.asked[itemID]) then return false end
+    if current and current[itemID] then return false end
+    any = true
+  end
+  if not any then return false end
+  GC.Sniper._keysOrphan = nil
+  trace("keys: late answer of a written-off batch, dropped")
+  return true
+end
+
+-- The caps' poll has let go of the interlock -- an answer landed, or the batch was written off;
+-- `sentAt` is when it went out (time()). Starts the breath it stands aside for, and after the
+-- round's last batch the rest between rounds (see _TrySendCapBatch).
+--
+-- The breath is at least as long as the batch held the interlock, up to the Sell tab's eight
+-- seconds. While a batch is out no background search of ours goes (canDrillNow, the verify walk,
+-- the watch loop), so this is their time: a flat two seconds after an eight-second answer left
+-- them a fifth of the round; this leaves them half of it or better, however slowly the auction
+-- house answers.
+function GC.Sniper._CapsReleased(sentAt)
+  local now = GetTime()
+  local held = type(sentAt) == "number" and (time() - sentAt) or 0
+  GC.Sniper._capsLandedAt = now
+  GC.Sniper._capsGap = math.min(LIM.KEYS_SELL_TIMEOUT_SECONDS,
+    math.max(LIM.CAPS_BATCH_GAP_SECONDS, held))
+  if not GC.Sniper._capPoll:HasPending() then GC.Sniper._capsRoundDoneAt = now end
+end
+
+-- One arbiter turn, a frame from now: what an answer that frees the keys interlock owes whoever it
+-- kept waiting -- a parked Check, a queued drill, the next batch. Nothing of ours sends while a
+-- batch is out, so no readiness event may come to bring that turn otherwise. Deferred rather than
+-- called: the answer's own fold finishes first, and the arbiter still decides who goes.
+function GC.Sniper._DeferTurn()
+  if C_Timer and C_Timer.After then
+    C_Timer.After(0, function() if GC.Sniper.OnThrottleReady then GC.Sniper.OnThrottleReady() end end)
+  end
+end
+
+-- Final review S1 (b): whether Blizzard's Buy pane is showing results of the player's own search
+-- (UI/AuctionHouseTab.lua's PlayerOwnsBrowseList). Asked by everything that writes the browse
+-- buffer -- every keys batch, the book pass, Auto's next pass -- beside PlayerIsBusy, and by
+-- nothing else. Fails open.
+function GC.Sniper._BrowseOwned()
+  local tab = GC.AuctionHouseTab
+  return (tab and tab.PlayerOwnsBrowseList and tab.PlayerOwnsBrowseList()) and true or false
+end
+
+-- The player's own browse query just went out (UI/AuctionHouseTab.lua's hooks). A keys batch still
+-- out lost its answer to it, and the answer coming is the player's: given up now, not folded.
+--
+-- Follow-up 2: and a pass that is paging is abandoned. Its query was just replaced by the
+-- player's, so its next page would be the player's answer, and the RequestMoreBrowseResults after
+-- it would page the player's query. Auto hears the pass is over and starts a fresh one once it
+-- may (its start waits while the player's results are shown -- GC.Sniper._BrowseOwned); a manual
+-- scan keeps what it had already streamed in.
+function GC.Sniper._OnPlayerBrowse()
+  if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("player search") end
+  if GC.Sniper._bookPass:IsPaging() then
+    trace("pass: abandoned for the player's own search")
+    abortFullScan()
+    feedAuto("scanFinished")
+  end
+end
+
+-- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"), the
+-- BUY tab's floor refresh ("buy"), the Sell tab's bulk fill ("sell") and the player's caps ("caps",
+-- on the Deals boards and the Sold tab -- caps fixes 4a). Only one batch is ever out, but the
+-- ANSWER arrives as an untagged browse event whoever sent it, so the batch has to say whose it was.
+-- _keysOwner is that record, written beside _keysAwaiting by whichever sender spent the slot and
+-- cleared on every path that gives the wait up. Without it a BUY refresh's rows would be folded
+-- into the realm poll, which reads a silence about an item as "sold out" and would wipe the Items
+-- board on every BUY refresh.
 function GC.Sniper._FoldKeysBatch()
   -- An expired wait is not a wait. _KeysOutstanding gives it up (and drops the list of items
   -- it asked about with it), so a browse page arriving long after the batch was written off is
   -- the PASS's page and is folded as one -- rather than being read as the batch's answer and
   -- deleting every realm row that answer does not mention.
   if not GC.Sniper._KeysOutstanding() then return false end
+  local browsed = C_AuctionHouse.GetBrowseResults()
+  -- A written-off batch answering late, while a newer one is out: not the newer one's answer,
+  -- which is still coming (see _WriteOffKeys). Swallowed, and the wait goes on.
+  local current = {}
+  for _, itemID in ipairs(GC.Sniper._keysBatch or {}) do current[itemID] = true end
+  if GC.Sniper._IsOrphanAnswer(browsed, current) then return true end
+  -- Final review S1 (a): an answer naming an item this batch never asked about is not its answer
+  -- -- the player's own search, another addon's browse, a late BUY or Sell answer sharing an item
+  -- with it. Folded, it said every asked item had no listing left. The batch it was mistaken for
+  -- is written off (its answer went with that search, or is still coming, and the orphan check
+  -- knows it if it does), and this one is left alone. Only a batch that says what it asked can
+  -- tell (every sender records it); one that does not is taken at its word, as before.
+  if GC.Sniper._keysBatch then
+    for i = 1, #(browsed or {}) do
+      local key = browsed[i].itemKey
+      local itemID = key and key.itemID
+      if itemID and not current[itemID] then
+        GC.Sniper._WriteOffKeys("foreign answer")
+        return false
+      end
+    end
+  end
   trace("keys: answer landed after " .. (time() - GC.Sniper._keysAwaiting) .. "s")
-  local owner = GC.Sniper._keysOwner
+  local owner, sentAt = GC.Sniper._keysOwner, GC.Sniper._keysAwaiting
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysOwner = nil
-  local browsed = C_AuctionHouse.GetBrowseResults()
   if owner == "buy" then
     -- The realm poll's own fold is what normally consumes _keysBatch (see its onRows driver);
     -- BUY's does not need the list, so it is dropped here rather than left to be read as the
     -- NEXT batch's "what we asked about".
     GC.Sniper._keysBatch = nil
     if GC.Buy and GC.Buy.FoldRefresh then GC.Buy.FoldRefresh(browsed) end
+    -- The turn the polls' own folds schedule, owed here too (caps fixes 5i): a batch still out
+    -- after the player went back to Deals held a Check there for the whole hold otherwise.
+    GC.Sniper._DeferTurn()
     return true
   end
   if owner == "sell" then
@@ -4586,9 +6234,19 @@ function GC.Sniper._FoldKeysBatch()
     -- list here -- the realm poll's fold would read it as its own.
     GC.Sniper._keysBatch = nil
     if GC.Sell and GC.Sell.FoldBulk then GC.Sell.FoldBulk(browsed) end
+    GC.Sniper._DeferTurn() -- as BUY's, above
     return true
   end
-  GC.Sniper._keyPoll:Fold(browsed)
+  if owner == "caps" then
+    -- The caps' own poll (caps fixes 4a). Its fold consumes _keysBatch, like the realm poll's,
+    -- and is handed it too: an item the batch asked for and got no row for has no listing left,
+    -- and the poll re-arms it so the same price listed again is news (Core/KeyPoll.lua's Fold).
+    GC.Sniper._CapsReleased(sentAt)
+    GC.Sniper._NoteCapBatch((time() - sentAt) .. "s", GC.Sniper._keysBatch)
+    GC.Sniper._capPoll:Fold(browsed, GC.Sniper._keysBatch)
+    return true
+  end
+  GC.Sniper._keyPoll:Fold(browsed, GC.Sniper._keysBatch)
   -- The cycle is over once nothing is left to hand out; the Items board's own loop starts
   -- the next one after a breather (see _TrySendKeysBatch).
   if not GC.Sniper._keyPoll:HasPending() then GC.Sniper._keysCycleDoneAt = time() end
@@ -4607,9 +6265,7 @@ end
 -- NOT fenced into requeryDraining either: a message that never reached the server cannot
 -- produce the late untagged result that fence exists for.
 function GC.Sniper.OnThrottledMessageDropped()
-  GC.Sniper._keysAwaiting = nil
-  GC.Sniper._keysBatch = nil
-  GC.Sniper._keysOwner = nil
+  if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("dropped") end
   prewarmAttempt = nil
   -- Re-arm whoever is next rather than waiting for a readiness event that may not come: the
   -- arbiter sends at most one message and refuses on its own if the system is genuinely busy.
@@ -4620,21 +6276,70 @@ function GC.Sniper.OnThrottledMessageDropped()
   end
 end
 
+-- The Sniper's requests still out, for the Sell tab to read (GC.Sell's _OtherRequestOut): until
+-- one is answered, an auction-house error the Sell tab hears may be its answer. They outlive what
+-- sent them -- Abort (the switch to Sell, a dialog, the player's own search) stops a pass paging
+-- at once while the page it sent just before is still on the wire (review NM-C), and a search
+-- stays out whatever became of the pre-warm, Check or drill that sent it (NM-F).
+--   _browseOutAt: when the pass's last browse send went out, until any browse answer -- the
+--     client answers browse sends in order, one buffer.
+--   _searchesOut: every search still out -- this window's (driver.sendSearch) and the BUY tab's
+--     quote (UI/BuyFrame.lua) -- by the key it went out with: `{ itemID, at }`. Each is answered
+--     by its own item's commodity answer, or its own key's item answer; a newer search's answer
+--     does not answer an older one (review sell-fix4 N5).
+GC.Sniper._browseOutAt = nil
+GC.Sniper._searchesOut = {}
+
+function GC.Sniper._SearchKey(key)
+  return table.concat({ key.itemID or 0, key.itemLevel or 0, key.itemSuffix or 0, key.battlePetSpeciesID or 0 }, ":")
+end
+
+function GC.Sniper._NoteSearchSent(key)
+  if type(key) ~= "table" or type(key.itemID) ~= "number" then return end
+  GC.Sniper._searchesOut[GC.Sniper._SearchKey(key)] = { itemID = key.itemID, at = time() }
+end
+
+-- `key` nil: a commodity answer, which names the item alone.
+function GC.Sniper._SearchAnswered(itemID, key)
+  local answered = type(key) == "table" and GC.Sniper._SearchKey(key) or nil
+  for id, out in pairs(GC.Sniper._searchesOut) do
+    if out.itemID == itemID and (answered == nil or answered == id) then GC.Sniper._searchesOut[id] = nil end
+  end
+end
+
+-- Whether one is still out: sent, unanswered, and not older than its own timeout -- the scan's
+-- stall watchdog for a page, the Check's for a search. One that has had that long without a word
+-- is not coming.
+function GC.Sniper.RequestOut()
+  local now = time()
+  if GC.Sniper._browseOutAt and now - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then return true end
+  for id, out in pairs(GC.Sniper._searchesOut) do
+    if now - out.at <= LIM.REQUERY_TIMEOUT_SECONDS then return true end
+    GC.Sniper._searchesOut[id] = nil
+  end
+  return false
+end
+
 function GC.Sniper.OnBrowseResults()
+  GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end -- not our scan; ignore a manual Blizzard AH browse
   -- A pass that has not sent its query yet has no page to receive: whatever this event
   -- carries (a keys answer written off as lost, the player's own browse) is not ours.
   if GC.Sniper._bookPass:PendingStart() then return end
+  -- ...and one that has may still be handed a written-off batch's late answer (_WriteOffKeys).
+  if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
   lastBrowseEventAt = time()
   trace("pass: page landed")
   GC.Sniper._bookPass:OnResultsUpdated()
 end
 
 function GC.Sniper.OnBrowseResultsAdded()
+  GC.Sniper._browseOutAt = nil
   if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
+  if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
   lastBrowseEventAt = time()
   GC.Sniper._bookPass:OnResultsAdded()
 end
@@ -4702,6 +6407,10 @@ local function canDrillNow()
   if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return false end
   if prewarmAttempt then return false end
   if GC.Sniper.IsPurchaseQuiet() then return false end
+  -- Caps fixes 4a, round 1: never over an unanswered keys batch, whoever sent it. A search sent on
+  -- top of one takes its answer with it, and comes back empty itself (UI/SellFrame.lua's
+  -- advanceQuote, seen in game). The batch's own answer brings the next ready tick.
+  if GC.Sniper._KeysOutstanding() then return false end
   return driver.isReady() and true or false
 end
 
@@ -4734,11 +6443,32 @@ end
 -- predicate, and `who` is the name the answer comes back under. Everything below `wants()` is
 -- addon-wide law and is deliberately NOT the caller's to override: one batch outstanding, never
 -- across a pass's browse buffer, never while the player is using Blizzard's own panes.
+--
+-- Caps fixes 4a, round 1: and every veto the arbiter holds its own sends to lives here too, so
+-- that no path to a keys batch -- the arbiter, the auction-house ticker's nudges, the end of a
+-- pass, a board switch, BUY's and the Sell tab's own calls -- can skip one: a purchase in flight
+-- (the quiet zone), a parked Check waiting for the slot, and a search of ours still unanswered (a
+-- pre-warm, which is also every drill and verify check), which a batch sent on top of it would
+-- take the answer of -- the same collision canDrillNow refuses in the other direction.
 function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
+  if GC.Sniper.IsPurchaseQuiet() or next(pendingRequerySend) ~= nil or prewarmAttempt then
+    return false
+  end
+  -- ...and the watch loop's search, the one search of ours the pre-warm slot does not cover.
+  local scanner = GC.Sniper.scanner
+  if scanner and scanner.Awaiting and scanner:Awaiting() then return false end
+  -- Final review m9: ...and a search another tab left on the wire -- a BUY hover quote or the Sell
+  -- walk's own, still waiting for its answer after a switch to Deals.
+  if (GC.Buy and GC.Buy.QuotePending and GC.Buy.QuotePending())
+      or (GC.Sell and GC.Sell.SearchPending and GC.Sell.SearchPending()) then
+    return false
+  end
   if playerBusy == nil then
     playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
       and GC.AuctionHouseTab.PlayerIsBusy()) or false
   end
+  -- Final review S1 (b): a keys batch answers into the browse list the player's own search is on.
+  if not playerBusy and GC.Sniper._BrowseOwned() then playerBusy = true end
   -- "Buffer settled" is asked as "no pass fetching or about to" -- not as
   -- HasFullBrowseResults(): opening the auction house straight onto the Items board has sent
   -- no browse at all, so that answer is false until a pass runs, and with the pass paused for
@@ -4754,7 +6484,7 @@ function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
   -- consumer per stuck window, so BUY's refresh and the Items poll do not spend each other's.
   -- driver.claimSend is the Sniper's own spelling of that call and stays the path for "sniper",
   -- since specs that load this file without Core/Util.lua rely on its "no pacing" fallback.
-  if who == "sniper" then
+  if who == "sniper" or who == "caps" then
     if driver.claimSend and not driver.claimSend() then return false end
   elseif GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend(who) then
     return false
@@ -4797,13 +6527,122 @@ function GC.Sniper._TrySendKeysBatch(playerBusy)
   end, playerBusy)
 end
 
+-- Caps fixes 4a: one batch of the caps' own poll (GC.Sniper._capPoll), if this is a moment one
+-- may go. Unlike the realm poll's it does not ask which board is on screen: the player's caps are
+-- watched on both Deals boards -- and on the Sold tab, which sends nothing of its own -- for as
+-- long as the auction house is open and the window is up. Everything else is the same addon-wide
+-- law _TrySendKeysBatchFor holds every keys batch to -- one outstanding, never across a pass's
+-- browse buffer, never while the player is on Blizzard's own panes, never over a purchase, a
+-- parked Check or an unanswered search of ours, the throttle claimed under the Sniper's own name.
+-- No second throttle, no bypass.
+--
+-- Round 1: not on the Sell or BUY tab. Those run searches of their own -- the Sell tab's pricing
+-- walk, BUY's quotes -- and a search sent on top of an unanswered keys batch takes its answer and
+-- comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game): cap batches under the
+-- walk cost the player their prices. The player's own tab wins; the caps resume on Deals or Sold.
+--
+-- Fairness. The batch holds the one keys interlock until it answers, and a round is one batch per
+-- hundred caps; sent back to back they would keep the Items board's poll, the BUY refresh, the Sell
+-- tab's bulk fill and Auto's next pass waiting for the whole round -- and, since no background
+-- search of ours goes over an unanswered batch, the drills and the verify walk as well. So after
+-- every answer (or a batch written off) the poll stands aside for LIM.CAPS_BATCH_GAP_SECONDS --
+-- longer than any of those takes to ask again -- or for as long as that batch held the interlock
+-- if that was longer (GC.Sniper._CapsReleased), and rests LIM.CAPS_ROUND_BREATHER_SECONDS between
+-- two rounds.
+-- Why the caps' poll stands still right now by its own rules, in a few words for `/gc board`
+-- (follow-up 4), or nil. _TrySendCapBatch refuses on exactly these; the addon-wide gates
+-- (_TrySendKeysBatchFor) and the pacing are the board's to add.
+function GC.Sniper._CapPollPause()
+  if GC.Sniper._capPoll:Count() == 0 then return "no caps" end
+  if not GC.Sniper.IsAHOpen() then return "auction house closed" end
+  if not GC.Sniper.IsWindowShown() then return "window hidden" end
+  if view == "sell" or view == "buy" then return view .. " tab" end
+  -- Final review S2 (i): not when a Check is coming -- the buy window up (its Check, a Refresh,
+  -- stop-and-open's own) or the pointer on a board row (its hover pre-warm, the click after it).
+  -- A search sent over an unanswered batch comes back empty, and a batch answers in seconds.
+  if dialog and dialog:IsShown() then return "buy window up" end
+  if hoveredRow then return "pointer on a row" end
+  return nil
+end
+
+function GC.Sniper._TrySendCapBatch(playerBusy)
+  local poll = GC.Sniper._capPoll
+  if GC.Sniper._CapPollPause() then return false end
+  local now = GetTime()
+  local landed = GC.Sniper._capsLandedAt
+  if landed and (now - landed) < (GC.Sniper._capsGap or LIM.CAPS_BATCH_GAP_SECONDS) then return false end
+  if not poll:HasPending() then
+    local done = GC.Sniper._capsRoundDoneAt
+    if GC.Sniper._KeysOutstanding() then return false end
+    if done and (now - done) < LIM.CAPS_ROUND_BREATHER_SECONDS then return false end
+    poll:BeginCycle()
+  end
+  return GC.Sniper._TrySendKeysBatchFor(poll, "caps", function() return true end, playerBusy)
+end
+
+-- The auction-house ticker's once-a-second ask for the keys batches that have no other sender to
+-- bring them a ready tick. A field, not a local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._TickKeys()
+  -- Final review S1 (b): a batch still out once the player is busy -- or reading their own search
+  -- on Blizzard's Buy pane -- is given up rather than left to be read as the answer to whatever
+  -- they send next. Nothing of ours sends another while they are.
+  if GC.Sniper._keysAwaiting and (GC.Sniper._BrowseOwned() or (GC.AuctionHouseTab
+      and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy())) then
+    GC.Sniper._WriteOffKeys("player busy")
+  end
+  if GC.Sniper._drillQueue:Depth() > 0 and canDrillNow() then
+    -- Final review m7: a drill that could go now goes first, as the arbiter orders it -- sent
+    -- straight from here, a batch went ahead of it, and a batch out holds every drill back. The
+    -- arbiter reaches the caps' batch and the Items board's after the drills, as on a ready tick.
+    GC.Sniper.OnThrottleReady()
+  else
+    if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
+      GC.Sniper._TrySendKeysBatch()
+    end
+    -- The caps' own poll (caps fixes 4a), on the Deals boards and the Sold tab -- which has no
+    -- other sender at all to bring it a ready tick. It owns its own pacing, gates and claim.
+    GC.Sniper._TrySendCapBatch()
+  end
+  -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
+  -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
+  -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
+  -- helper owns the interval, the view gate and the claim.
+  if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
+  -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
+  -- slot taken: nothing else on that tab would carry the retry.
+  if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
+end
+
 function GC.Sniper.OnThrottleReady()
   -- 1. A parked Check requery always wins outright: a player is waiting on it, and it has
   -- already stopped the loop as a courtesy besides.
+  --
+  -- Unless a keys batch is still unanswered (round 2, see issueRequerySearch): then it stays parked
+  -- -- nothing else of ours sends while one is out anyway -- until the batch's answer brings the
+  -- next turn, or until the hold is over (GC.Sniper._HoldCheck's timer, or LIM.CHECK_HOLD_SECONDS
+  -- read off the clock), when the batch is given up for it.
+  --
+  -- And parked while the throttle cannot take it (caps fixes 5i). This is not only reached from a
+  -- readiness event: a batch's answer brings its turn through a deferred call, which is now the
+  -- Check's usual way out -- and a search sent while the system is not ready is dropped by the
+  -- client without a word, leaving the Check to its eight-second timeout. The next ready turn
+  -- sends it; nothing else of ours goes ahead of it meanwhile.
   for itemID, attempt in pairs(pendingRequerySend) do
-    pendingRequerySend[itemID] = nil
-    if isCurrentRequeryAttempt(attempt) then
+    if not isCurrentRequeryAttempt(attempt) then
+      pendingRequerySend[itemID] = nil
+    else
+      local held = GC.Sniper._KeysOutstanding()
+      if held then
+        GC.Sniper._HoldCheck(attempt)
+        if not attempt.holdExpired and (GetTime() - attempt.heldSince) < LIM.CHECK_HOLD_SECONDS then
+          return
+        end
+      end
+      if not driver.isReady() then return end
+      if held then GC.Sniper._WriteOffKeys("check") end
+      pendingRequerySend[itemID] = nil
       attempt.sent = true
+      attempt.overBatch = GC.Sniper._OrphanLive()
       driver.sendSearch(itemID)
       return
     end
@@ -4818,6 +6657,10 @@ function GC.Sniper.OnThrottleReady()
   -- SLOT was busy. Asked as the zone, not as `next(activeItemID) ~= nil`: that read also
   -- counted a frozen row's permanent display pin, which stopped the board for good.
   if GC.Sniper.IsPurchaseQuiet() then return end
+
+  -- 1b. A hover pre-warm that was refused for a keys batch (round 2, GC.Sniper._HoverPrewarm):
+  -- the player's pointer outranks the background drills.
+  if GC.Sniper._hoverOwed and GC.Sniper._HoverPrewarm() then return end
 
   -- Steps 3 and 4 below both REPLACE the client's single browse buffer -- the same buffer
   -- Blizzard's own Browse pane is showing when the player is using it. Nothing stopped them:
@@ -4838,32 +6681,70 @@ function GC.Sniper.OnThrottleReady()
   -- cannot be walked in one tick); or it is live and sendable, in which case Pop charges and a
   -- per-item decline inside maybeStartPrewarm (uncached item key, the drain fence, a fresh
   -- cached pre-warm) re-queues it for the next ready tick.
+  --
+  -- Fair share (whole-market coverage): with thousands of fact-bearing commodities the queue is
+  -- never empty, and drills going first every slot stretched a 7-14 s pass to minutes. While the
+  -- pass has a page waiting too, drills take at most LIM.DRILL_SHARE slots in a row; the pass
+  -- gets the next one (steps 4 and 5 below grant it and end the run through _NotePassSlot).
+  -- passWants is the same question step 4 asks; nothing between here and there sends and falls
+  -- through, so it cannot change on the way down. drillStoodAside is what /gc board's drillShare
+  -- counts the pass's page by: a live head that could have been sent -- the throttle, the gates
+  -- and the per-minute budget all allowing it -- stood aside, not merely "something is queued".
+  local share = GC.Sniper._drillShare
+  local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
+    and not GC.Sniper._KeysOutstanding() and not GC.Sniper._BrowseOwned()
+  local drillsYield = passWants and share.run >= LIM.DRILL_SHARE
+  local drillStoodAside = false
   for _ = 1, 2 do
     local hit = GC.Sniper._drillQueue:Peek()
     if not hit or not canDrillNow() then break end
-    -- Either book may be the one that saw this floor: commodities come from the book pass,
-    -- realm items from the key poll, and neither knows about the other's items. The hit is
-    -- still worth a query as long as ONE of them still shows the price it was queued for.
+    -- Any book may be the one that saw this floor: commodities come from the book pass, realm
+    -- items from the key poll, caps from their own poll (caps fixes 4a -- the only one that ever
+    -- sees a capped item nothing else lists), and none knows about the others' items. The hit is
+    -- still worth a query as long as ONE of them still shows the price it was queued for. A
+    -- poll's entry is read by the floor its hit test judged (Core/KeyPoll.lua's `judged`): the
+    -- collapsed floor as a rule, but for a cap with an item level the cheapest variant at that
+    -- level (caps fixes 4c) -- the price that hit was queued at, not the aggregate under it.
     local booked = GC.Sniper._bookPass:Book()[hit.itemID]
-    if not booked or booked.floor ~= hit.floor then
-      booked = GC.Sniper._keyPoll:Book()[hit.itemID]
-    end
-    if not booked or booked.floor ~= hit.floor then
+    local polled = GC.Sniper._keyPoll:Book()[hit.itemID]
+    local capped = GC.Sniper._capPoll:Book()[hit.itemID]
+    local live = (booked ~= nil and booked.floor == hit.floor)
+      or (polled ~= nil and polled.judged == hit.floor)
+      or (capped ~= nil and capped.judged == hit.floor)
+    if not live then
       GC.Sniper._drillQueue:Drop(hit)
+    elseif drillsYield then
+      drillStoodAside = GC.Sniper._drillQueue:HasBudget()
+      break
     else
       -- Pop is what charges the per-minute budget, and it REFUSES once that budget is spent.
       -- Its answer was thrown away: the drill went out anyway, past the budget, and the entry
       -- it never removed stayed at the head of the queue to do the same again on the next
       -- ready tick. No answer means no send.
       if not GC.Sniper._drillQueue:Pop() then break end
-      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then return end
+      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then
+        if passWants then
+          share.run = share.run + 1
+          share.drills = share.drills + 1
+        else
+          share.run = 0
+        end
+        return
+      end
       -- Declined (an uncached item key, the drain fence, a fresh cached warm). Back in the
-      -- queue carrying its ORIGINAL age, so a hit that can never be sent still ages out
-      -- instead of sitting at the head for the rest of the session -- see Core/DrillQueue.lua.
+      -- queue carrying its ORIGINAL age and confidence, so a hit that can never be sent still
+      -- ages out instead of sitting at the head for the rest of the session -- see
+      -- Core/DrillQueue.lua.
       GC.Sniper._drillQueue:Push(hit)
       break
     end
   end
+
+  -- 2b. The player's caps (caps fixes 4a): one batch of their own poll, on either Deals board or
+  -- the Sold tab. Ahead of the realm poll's batch, which would otherwise take every turn on the
+  -- Items board -- its answer brings its next batch straight away -- while the caps' own breath
+  -- after each answer (see _TrySendCapBatch) is what hands the turns back the other way.
+  if GC.Sniper._TrySendCapBatch(playerBusy) then return end
 
   -- 3. One batch of item keys (Core/KeyPoll.lua), and only between book-pass pages. A keys
   -- call REPLACES the browse buffer, so one granted mid-pass would delete the page the pass is
@@ -4916,11 +6797,11 @@ function GC.Sniper.OnThrottleReady()
   -- folded into the poll instead of into the pass (_FoldKeysBatch runs first and returns) --
   -- the pass loses the page it was waiting for, and the fold, believing the page is the batch's
   -- own answer, deletes every realm row the batch had asked about. The batch is capped at
-  -- LIM.KEYS_TIMEOUT_SECONDS, so this can never hold the pass for long.
-  local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
-    and not GC.Sniper._KeysOutstanding()
+  -- LIM.KEYS_TIMEOUT_SECONDS, so this can never hold the pass for long. (passWants itself is
+  -- asked above the drill step, which needs the same answer for its fair share.)
   if passWants and GC.Sniper._slotTurn ~= "tail" then
     if GC.Sniper._bookPass:OnThrottleReady() then
+      GC.Sniper._NotePassSlot(drillStoodAside)
       GC.Sniper._slotTurn = "tail"
       return
     end
@@ -4971,6 +6852,7 @@ function GC.Sniper.OnThrottleReady()
   -- This is what keeps "alternate" from manufacturing idle slots: a tail with nothing to do
   -- never costs the scan a page.
   if passWants and GC.Sniper._bookPass:OnThrottleReady() then
+    GC.Sniper._NotePassSlot(drillStoodAside)
     GC.Sniper._slotTurn = "tail"
     return
   end
@@ -5069,7 +6951,10 @@ function GC.Sniper._ReleaseQuietZone()
     end
     commodityPurchase = nil
   end
-  if commodityDraining and not commodityDraining.confirmed then commodityDraining = nil end
+  if commodityDraining and not commodityDraining.confirmed then
+    GC.Sniper._EndDrainHold(commodityDraining)
+    commodityDraining = nil
+  end
   refreshRows()
 end
 
@@ -5141,8 +7026,43 @@ end
 -- the two paths always shape a search result into a "liveDeal" the exact same way -- a
 -- deal.prewarm cache and a live finishRequery landing are indistinguishable to
 -- applyRequeryResult by construction, not by coincidence.
+--
+-- M8: this is not only a reader. On the cap path it WRITES the Items board (the cap deal goes
+-- into GC.Sniper._realmDeals), files that deal's verdict, and queues its board-ring into
+-- pendingCapPings -- see the cap branch below.
 local function evaluateLiveItemDeal(itemID)
   if not driver.itemResult(itemID) then return nil end
+  -- Live price caps, addon task 5: judged against the player's own price FIRST -- see the
+  -- matching branch in evaluateLiveCommodityDeal above for why GC.Caps.For needs no market
+  -- reference to fire, and Core/Caps.lua for the contract. Falls through to the ordinary
+  -- realm/region verdict below when no lot qualifies under the cap.
+  local cap = GC.Caps and GC.Caps.For(itemID)
+  if cap then
+    local capDecision = GC.Caps.DecideRealm(cap, driver.itemLots(itemID))
+    if capDecision then
+      local capDeal = buildCapDeal(itemID, false, capDecision, cap)
+      GC.Sniper._realmDeals[itemID] = capDeal
+      GC.FullScan.CapDeals(GC.Sniper._realmDeals, WIN.ROW_CAP)
+      -- Addon task 6: queued for the board-ring while it is news by GC.Caps' own dedup -- a
+      -- realm lot rings once per resolved auctionID, however many drills/polls see it again.
+      GC.Sniper._QueueCapPing(capDeal)
+      local capLive = { isCommodity = false, decision = capDecision }
+      -- Final review I1, exactly as on the commodity side above: the verdict belongs to the row
+      -- the cap decision built, at the qualifying lot's own unit price -- not to the browse
+      -- floor the drill was queued at. See evaluateLiveCommodityDeal for the whole account.
+      stampVerdict(capDeal, capLive)
+      return capLive
+    end
+    -- Follow-up 2: these are the item's lots, read live, and not one of them is at or under the
+    -- player's price at its item level -- proof the YOUR PRICE row is wrong, however long the keys
+    -- batch's aggregate floor says otherwise. It used to stand until the next cap batch let it
+    -- go. It comes down now, the way a listing that has gone does (applyRequeryResult); only a cap
+    -- row, the realm poll keeps its own. No ratchet is let go: the lots are not gone, and the poll
+    -- re-reports the floor the moment it moves. A buy window this Check came from keeps its own row
+    -- and says what the lot it names misses (GC.Sniper._CapMiss).
+    local held = GC.Sniper._realmDeals[itemID]
+    if held and held.cap then GC.Sniper._realmDeals[itemID] = nil end
+  end
   -- Sniper phase 2: a realm item the import carries a region reference for gets the realm
   -- verdict -- a real comparison of the cheapest COMPARABLE lot against a price measured
   -- across the region, naming that exact auction as a candidate. It is still never SAFE and
@@ -5171,7 +7091,14 @@ end
 -- starts a real purchase flow for it (see openDialog below), so in practice the two rarely
 -- overlap -- but nothing here depends on that; each branch is a no-op when its own slot
 -- doesn't match, regardless of what the other one does.
-function GC.Sniper.OnItemSearchResults(itemID)
+--
+-- `itemKey` is the key the event says it answers (Core/Init.lua passes it on). Every waiter here
+-- -- a drain, a Check, a pre-warm or drill -- is waiting for the search driver.sendSearch sent, so
+-- an answer to another key of the same item is none of theirs (driver.answersSearch, caps fixes
+-- 5b): not even a drain's, whose own answer is still on its way.
+function GC.Sniper.OnItemSearchResults(itemID, itemKey)
+  GC.Sniper._SearchAnswered(itemID, itemKey or { itemID = itemID })
+  if not driver.answersSearch(itemID, itemKey) then return end
   if requeryDraining[itemID] then
     local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
@@ -5196,6 +7123,7 @@ function GC.Sniper.OnItemSearchResults(itemID)
 end
 
 function GC.Sniper.OnCommoditySearchResults(itemID)
+  GC.Sniper._SearchAnswered(itemID)
   if requeryDraining[itemID] then
     local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
@@ -5214,7 +7142,7 @@ function GC.Sniper.OnCommoditySearchResults(itemID)
     -- attempt's late quote has been delivered, which is all the tombstone fenced on this
     -- requery was waiting for. Dropping the requery without this left the Buy refused for the
     -- tombstone's full 20 seconds.
-    GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
+    GC.Sniper._RetireFencedTombstone(attempt)
     if not isPrewarm then return end
     attempt = nil
   end
@@ -5260,15 +7188,56 @@ function GC.Sniper.OwnsAuctionPurchase(auctionID)
   return pendingAuction[auctionID] ~= nil
 end
 
+-- Fix round 1 (minor 1): a confirmed attempt the server has just re-quoted (see the "confirming"
+-- branch of OnCommodityPriceUpdated below: the price moved, nothing was bought, and the purchase
+-- waits for another Confirm), with no window left to confirm it from -- the player closed it with
+-- Escape, which works at "confirming", and is looking at another row or at the same row opened
+-- again. Left there, the attempt was un-confirmed and re-armed with no window: the next window
+-- stayed dark to its own expiry and then answered "finish the pending buy first" on a lit Buy;
+-- on the same row opened again (whose new Check moved the token on, so the re-quote was ignored)
+-- it stayed "confirmed" until the stranded release reported, for a purchase that never happened,
+-- "purchase total unavailable -- inspect mailbox". Nobody can click Confirm, so it is cancelled:
+-- drained into an unconfirmed tombstone that remembers it was once confirmed (a late success
+-- still lands on "inspect mailbox"), its own row let go if it still holds it, the player told in
+-- chat and on the status line, and whoever waited on it handed Refresh. A field, not a local: this
+-- chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._DropRequotedConfirm(pending)
+  local row = pending.row
+  local holdsRow = row.purchaseToken == pending.token and row.purchaseStage == "confirming"
+  local deal = pending.deal
+  pending.confirmed = nil
+  pending.wasConfirmed = true
+  pending.lastDeal = deal
+  pending.deal, pending.quote = nil, nil
+  C_AuctionHouse.CancelCommoditiesPurchase()
+  pending.cancelRequested = true
+  drainCommodityPurchase(row)
+  -- A row the same row's new Check has taken over is that Check's, and is not touched.
+  if holdsRow then resolvePurchase(row, false) end
+  reportDetachedCommodity({ token = pending.token, itemID = pending.itemID, deal = deal },
+    GC.L["price changed after you closed the buy window -- nothing was bought"])
+  GC.Sniper._HandOffSettled()
+end
+
 function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if commodityDraining then
     -- Price updates are non-terminal. Keep draining through every one, and re-send Cancel for
     -- a cancelled server session. A confirmed tombstone must never be cancelled after Confirm.
     if not commodityDraining.confirmed then C_AuctionHouse.CancelCommoditiesPurchase() end
+    -- A Start cancelled unanswered has had its answer now: its drain is over, and the slot it
+    -- held for it goes back (final money review I1).
+    GC.Sniper._EndDrainHold(commodityDraining)
     return
   end
   local pending = commodityPurchase
   local row = pending and pending.row
+  -- The one purchase in flight is confirmed, so this update is its re-quote, whatever the row's
+  -- token now says -- and no window is showing that row at "confirming" to take it.
+  if pending and pending.confirmed and row and not (dialog and dialog.row == row
+      and row.purchaseStage == "confirming" and row.purchaseToken == pending.token) then
+    GC.Sniper._DropRequotedConfirm(pending)
+    return
+  end
   if not row or pending.itemID == nil or pending.token == nil
       or row.purchaseToken ~= pending.token then
     return -- a late event cannot take ownership of a newer row/token
@@ -5298,6 +7267,9 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     row.quoteSnapshot = nil
     row.purchaseStage = "buying"
     if dialog and dialog.row == row then dialog.cancelBtn:Enable() end
+    -- The BUY tab's button was waiting behind this confirm (its owedElsewhere) and nothing is owed
+    -- now: it says so at once rather than on its next repaint (review n1, fix round 3).
+    if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
   end
   local deal = row.purchaseDeal
   local decision = row.decisionSnapshot
@@ -5317,7 +7289,35 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   local levels = driver.commodityResult(deal.itemID) and driver.commodityBook(deal.itemID) or nil
   if not levels and row.armedItemID == deal.itemID then levels = row.armedLevels end
   if not levels and dialog and dialog.row == row then levels = dialog.bookLevels end
-  local finalDecision = evaluateLive(deal.itemID, levels, decision.quantity, totalPrice)
+  -- Live price caps, final review C1: a capped commodity is re-judged HERE against the player's
+  -- own price too, not against the market. Running the market engine over a cap decision asks
+  -- it about an item a cap exists precisely BECAUSE the market has nothing to say: it answered
+  -- invalid/demand_limit/thin-market, the quote was cancelled, the row requeried, the cap
+  -- decided it again, the server quoted again -- a loop no amount of clicking could break, and
+  -- a capped commodity simply could not be bought.
+  --
+  -- Caps fixes 2e/2f: judged for EXACTLY the armed quantity -- the one Confirm will buy
+  -- (quoteSnapshot.quantity below) -- not for every unit the book has under the cap. The stamp
+  -- below used to write that larger number into the quantity box while Confirm bought the armed
+  -- one. `capFresh` is the cap decision for that quantity on this book, or `false` when the book
+  -- cannot fill it at or under the cap (or there is no book to judge by), and GC.Caps.QuoteOk
+  -- holds the server's quote to it: an average at or under the cap is not enough, the quote may
+  -- cost no more than those units do (Core/Caps.lua says why). Anything it refuses falls through
+  -- to the branch below, which is already the "re-check what remains" path a book that shrank
+  -- under the plan takes -- and whatever that approves is then loud, never a quiet Confirm.
+  local finalDecision
+  local cap = deal.cap and GC.Caps and GC.Caps.For(deal.itemID) or nil
+  local capFresh
+  if cap then capFresh = levels and GC.Sniper._DecideCap(cap, levels, decision.quantity) or false end
+  local capOk = not GC.Caps or GC.Caps.QuoteOk(deal, unitPrice, totalPrice, capFresh)
+  if capFresh and capOk then
+    -- What Confirm pays is the server's quote, which QuoteOk has just held to the book's own
+    -- cost of these units: the same, or less. The stamp and the purchase record read this.
+    capFresh.entryTotal = totalPrice
+    capFresh.entryUnitDisplay = math.floor(totalPrice / capFresh.quantity)
+    finalDecision = capFresh
+  end
+  finalDecision = finalDecision or evaluateLive(deal.itemID, levels, decision.quantity, totalPrice)
   if not finalDecision.buyable or finalDecision.status ~= "SAFE" then
     -- Visual price-change thresholds are never economic approval. A 1-copper or sub-5%
     -- repriced order that breaks the fixed safety decision cancels immediately.
@@ -5376,6 +7376,13 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     decision = finalDecision,
     market = { sourceAt = market.sourceAt },
   }
+  -- The quote waits at Confirm (or a loud requote) for the player, and the purchase with it: the
+  -- claim is re-stamped now and the wait bounded well inside the claim's life (review M1) -- and
+  -- never past the server's own quote, when the client can say when that runs out (fix round 4,
+  -- m2). A slot that is no longer this window's ends it here (GC.Sniper._LostSlot).
+  local window = GC.PurchaseSlot and GC.PurchaseSlot.QuoteSeconds
+    and GC.PurchaseSlot.QuoteSeconds(LIM.CONFIRM_STALL_SECONDS) or LIM.CONFIRM_STALL_SECONDS
+  if not GC.Sniper._ArmStall(pending, window) then return end
   if dialog and dialog.row == row then
     dialog.bookLevels = levels
     stampDialogFromDecision(deal, finalDecision)
@@ -5390,8 +7397,20 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   -- the affordability gate did not run.
   local affordable = totalPrice <= GetMoney()
 
+  -- What this row was going to cost, which every armed decision now carries -- a cap decision
+  -- included (Core/Caps.lua: the sum over exactly the units it chose). The old stand-in for a
+  -- cap, cheapest level x quantity, called a cap spanning two levels a 1.45x "PRICE ROSE" on its
+  -- own honest quote. The fallback only keeps the arithmetic safe: no plan, no ratio.
+  local entryTotal = decision.entryTotal or totalPrice
   local severity, ratio = GC.DealMath.RequoteSeverity(
-    decision.entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
+    entryTotal, totalPrice, LIM.REQUOTE_WARN_RATIO, LIM.REQUOTE_LOUD_RATIO)
+  -- Task 7: a cap is the player's own price, not a market read -- a quote above it is always
+  -- loud, however small the rise from the entry total looked (the entry total may already have
+  -- been at or near the cap, so an ordinary "warn"-sized move can still cross it). The same
+  -- verdict the cap branch above reached (`capOk`, true whenever Core/Caps.lua is not loaded), so
+  -- a quote that may hold units above the cap is loud too, whatever else approved it.
+  local capBreach = not capOk
+  if capBreach then severity = "loud" end
   if severity == "none" then
     row.purchaseStage = "confirm"
     if dialog and dialog.row == row then
@@ -5419,11 +7438,31 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
 
   row.purchaseStage = "requote"
   local detail = (GC.L["%s -> %s per unit    total %s -> %s"]):format(
-    GC.Util.FormatMoney(math.floor(decision.entryTotal / decision.quantity)), GC.Util.FormatMoney(unitPrice),
-    GC.Util.FormatMoney(decision.entryTotal), GC.Util.FormatMoney(totalPrice))
+    GC.Util.FormatMoney(math.floor(entryTotal / decision.quantity)), GC.Util.FormatMoney(unitPrice),
+    GC.Util.FormatMoney(entryTotal), GC.Util.FormatMoney(totalPrice))
+  -- Final review M2: a breached cap is not a price MOVE, and reporting it as one put "PRICE
+  -- ROSE 1.0x" on screen over a quote that had simply crossed the player's own ceiling -- the
+  -- entry it is measured against was already AT the cap, so the multiple is about 1 by
+  -- construction and says nothing. Name the two numbers that actually decide it instead: what
+  -- the server is asking, and what the player said they would pay. The arming is unchanged --
+  -- this is still the loud requote, with its countdown and its explicit second click.
+  --
+  -- Caps fixes 2f: a breach whose AVERAGE is still at or under the cap -- the quote costs more
+  -- than the book's own units under the cap, or the book cannot fill the quantity under it -- is
+  -- not "above your price" by that number, and saying so would print a quote under the price it
+  -- claims to break. It says what is actually known: some of it may be.
+  local loudHead
+  if capBreach and unitPrice > deal.cap then
+    loudHead = (GC.L["Above your price -- quoted %s, your price %s"]):format(
+      GC.Util.FormatMoney(unitPrice), GC.Util.FormatMoney(deal.cap))
+  elseif capBreach then
+    loudHead = GC.L["The price moved -- part of this quote may be above your price"]
+  else
+    loudHead = (GC.L["PRICE ROSE %.1fx"]):format(ratio)
+  end
   if dialog and dialog.row == row then
     if severity == "loud" then
-      showRequoteBanner((GC.L["PRICE ROSE %.1fx"]):format(ratio), detail)
+      showRequoteBanner(loudHead, detail)
       -- armLoudConfirm re-enables Confirm once its countdown is up; a quote the player cannot
       -- pay for never gets that far, so the countdown is not started at all.
       if affordable then
@@ -5456,13 +7495,19 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     return
   end
   setDialogStatus(detail, 1, 0.3, 0.3)
-  if frame then frame.status:SetText((GC.L["price rose %.1fx — still safe, confirm"]):format(ratio)) end
+  -- "still safe" is a claim the cap has just contradicted, so a breach says on the status line
+  -- exactly what the banner says (M2).
+  if frame then
+    frame.status:SetText(capBreach and loudHead
+      or (GC.L["price rose %.1fx — still safe, confirm"]):format(ratio))
+  end
 end
 
 function GC.Sniper.OnCommodityPriceUnavailable()
   if commodityDraining then
     local pending = commodityDraining
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(pending) -- a terminal event: the drain is over (I1)
     if pending.confirmed then
       -- This tombstone survived AH close. Its row may already be repooled, so freeze/report
       -- only detached item facts; never estimate a total or mutate an unrelated new Check.
@@ -5528,6 +7573,7 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
   if commodityDraining then
     local pending = commodityDraining
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(pending) -- a terminal event: the drain is over (I1)
     if not pending.confirmed then
       -- An attempt the server re-quoted after Confirm is unconfirmed again (no gold moves on a
       -- re-quote) and this one was then cancelled -- but Confirm HAD reached Blizzard once, so
@@ -5584,6 +7630,7 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   if commodityDraining then
     local pending = commodityDraining
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(pending) -- a terminal event: the drain is over (I1)
     if pending.confirmed then settleDetachedConfirmed(pending, "failed") end
     return -- terminal event for the cancelled/closed attempt, never the next one
   end
@@ -5630,13 +7677,18 @@ end
 -- resolved its row and cleared the slot, so there is nothing here for this to swallow.
 -- The wiki documents one payload argument, `error` (Enum.AuctionHouseError), and no public
 -- mapping to text. Blizzard_AuctionHouseUI carries its own table, so ask the client for the
--- sentence and fall back to our own rather than reimplementing 27 error strings.
+-- sentence and fall back to our own rather than reimplementing 27 error strings. The asking is
+-- Core/Util.lua's AuctionHouseErrorText -- AuctionHouseUtil.GetErrorText, the lookup the default
+-- UI prints with. This read `_G.AuctionHouseErrorMessages`, a table the client does not have,
+-- so every error said the generic sentence.
 function GC.Sniper.OnAuctionHouseError(errorCode)
-  local text = GC.L["the auction house reported an error"]
-  local messages = _G.AuctionHouseErrorMessages
-  if type(messages) == "table" and type(messages[errorCode]) == "string" then
-    text = messages[errorCode]
-  end
+  -- Final money review M1: an error only a Sell post can raise is that post's answer, and none of
+  -- this window's -- a Buy window can stay open over the Sell tab. Read as the purchase's own, it
+  -- settled an unconfirmed purchase and let the slot go with the Start's answer still coming. The
+  -- mirror of the Sell tab ignoring the codes only a bid can raise (GC.Sell._ErrorKind).
+  if GC.Sell and GC.Sell._ErrorKind and GC.Sell._ErrorKind(errorCode) == "post" then return end
+  local text = (GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode))
+    or GC.L["the auction house reported an error"]
 
   local pending = commodityPurchase
   local row = pending and pending.row
@@ -5646,9 +7698,18 @@ function GC.Sniper.OnAuctionHouseError(errorCode)
         dialog.cancelBtn:Enable()
         setDialogStatus(text, 1, 0.3, 0.3)
       end
+    elseif row.purchaseStage == "buying" and not pending.priceReceived then
+      -- Load-bearing round (M-2): a code a purchase shares with a post or a search, landing while
+      -- the Start has had no answer, may be somebody else's -- and the Start's own answer is then
+      -- still coming. Cancelled and drained, the slot held for it (drainCommodityPurchase), never
+      -- settled with the slot let go: the late quote would reach whichever window started next.
+      abortRowPurchase(row, text)
     else
       commodityPurchase = nil
-      if commodityDraining and not commodityDraining.confirmed then commodityDraining = nil end
+      if commodityDraining and not commodityDraining.confirmed then
+        GC.Sniper._EndDrainHold(commodityDraining)
+        commodityDraining = nil
+      end
       resolvePurchase(row, false, text)
     end
   end
@@ -5737,6 +7798,23 @@ function GC.Sniper.OnMailClosed()
   feedAuto("resume:mail")
 end
 
+-- At an auction house open the mailbox is shut: the client runs one of these interactions at a
+-- time, and opening this one closed the other. In game 2026-09-23 `/gc board` showed Auto paused
+-- on "mail" at the auction house -- a MAIL_SHOW with no MAIL_CLOSED after it, which is how the
+-- mailbox left by walking straight to an auctioneer can look, and nothing but an auction house
+-- CLOSE let go of it, so it held Auto for the whole visit. Asked of the client first, and open
+-- only when it says so (a missing or failing call reads as shut): a broken read must never
+-- hold Auto.
+function GC.Sniper._ClearStaleMailPause()
+  local open = false
+  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
+  if manager and manager.IsInteractingWithNpcOfType and kinds and kinds.MailInfo then
+    local ok, answer = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
+    open = ok and answer == true
+  end
+  if not open then feedAuto("resume:mail") end
+end
+
 -- AutoScan pause hooks for the buy-confirmation dialog (spec §3's throttle-priority rule).
 -- Called from openDialog / the dialog's own OnHide below -- future dialog work must keep both
 -- call sites intact. Clearing pendingBrowsePage/pendingFullScanStart on open (regardless of
@@ -5789,6 +7867,13 @@ local function onDialogPrimaryClick()
         or not quoteSnapshot.decision.buyable then
       return
     end
+    -- Review M1, fix round 3: only while the shared slot is still this window's. If it is not,
+    -- the client's one purchase is somebody else's -- a Confirm would confirm theirs, and a
+    -- Cancel would hand it back -- so neither is sent (GC.Sniper._LostSlot).
+    if GC.PurchaseSlot and GC.PurchaseSlot.Owner() ~= "sniper" then
+      GC.Sniper._LostSlot(row, pending)
+      return
+    end
     -- Hardware click only: the event prepares a quote; it never confirms one. The token and
     -- immutable final decision must still be current at this exact click.
     C_AuctionHouse.ConfirmCommoditiesPurchase(quoteSnapshot.itemID, quoteSnapshot.quantity)
@@ -5797,6 +7882,11 @@ local function onDialogPrimaryClick()
     pending.confirmed = true
     pending.deal = row.purchaseDeal
     pending.quote = quoteSnapshot
+    -- Re-stamped at Confirm, not only taken at Start (fix round 2): a claim goes stale
+    -- GC.PurchaseSlot.MAX_SECONDS after it was stamped, and a player who read the quote for half a
+    -- minute left a claim the BUY tab could take over while this purchase was owed its answer. The
+    -- same owner re-claiming always succeeds (Core/PurchaseSlot.lua), as BUY's armStall relies on.
+    if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
     row.purchaseStage = "confirming"
     dialog.primaryBtn:Disable()
     dialog.cancelBtn:Disable()
@@ -5885,16 +7975,33 @@ local function onDialogPrimaryClick()
       GC.L["live verification required"], false)
     return
   end
-  if commodityDraining then
+  -- A confirmed commodity purchase has not answered yet -- this window's (a tombstone carried
+  -- across an auction house close, or one still in flight whose window the player closed with
+  -- Escape) or the BUY tab's (fix round 2: GC.PurchaseSlot.ConfirmOwed, the one rule both windows
+  -- start by). It may already have taken gold this buy's own checks still see, so nothing is bought
+  -- over it, commodity or realm lot (review M2). Dark, not lit and refusing (review M3): a Check
+  -- cannot retire it, only its answer or the stranded release can -- and the moment one does, this
+  -- window is handed Refresh (GC.Sniper._HandOffSettled, follow-up P1; GC.Sniper._TickOwedHold for
+  -- the BUY tab's).
+  -- The ticker's hand-off, asked now rather than up to a quarter of a second from now (fix round 4,
+  -- n2): a click that lands just after the BUY tab let go of a purchase must not buy on a decision
+  -- that purchase has overtaken. The hand-off turns this window into Refresh; the click is spent.
+  GC.Sniper._TickOwedHold()
+  if row.purchaseStage ~= "ready" then return end
+  if GC.Sniper._HoldWhileOwed(row) then return end
+  if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
     -- later commodity Buy until the player reloaded -- with the Buy button sitting enabled,
-    -- saying the purchase was possible. A CONFIRMED tombstone is never retired here; its late
-    -- success still has to land on the attempt that paid for it.
-    if commodityDraining.confirmed
-        or (GetTime() - (commodityDraining.drainingAt or 0)) <= LIM.DRAIN_TIMEOUT_SECONDS then
-      setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
-      if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
+    -- saying the purchase was possible. Only an unconfirmed tombstone reaches here, and only
+    -- for a commodity: PlaceBid answers on its own event.
+    if (GetTime() - (commodityDraining.drainingAt or 0)) <= LIM.DRAIN_TIMEOUT_SECONDS then
+      -- Young and unconfirmed: this click becomes a Check (not a purchase call). Refusing it
+      -- left a lit Buy that did nothing (in game 2026-09-23); the Check's answer is the proof
+      -- that retires the tombstone (GC.Sniper._RetireFencedTombstone) and re-arms Buy.
+      dialog.primaryBtn:Disable()
+      setDialogStatus(GC.L["the last attempt is still settling -- checking the price again..."], 1, 0.82, 0)
+      startRequery(row, deal)
       return
     end
     commodityDraining = nil
@@ -6006,6 +8113,18 @@ end
 -- deal.qty as a last resort (never less than what's already being proposed) -- floored at 1 so
 -- a degenerate 0 can never make the controls unusable.
 local function qtyMaxAvailable(deal)
+  -- Live price caps (caps fixes 2f): on a row armed by the player's own price the ceiling is what
+  -- that price allows on this book NOW, inside the player's own limits -- never the whole book,
+  -- whose dearer units the cap rule would refuse. Now, not at the Check: after the wallet drops
+  -- the rule allows fewer, and a ceiling held at the armed quantity had 100% ask the rule for
+  -- units it refuses, disarming the dialog with no reason worth reading (caps fixes 5g). "of N"
+  -- keeps its own floor at the box -- see refreshQtyRow -- and the armed quantity itself is
+  -- judged again at the quote, against the gold in the bags then (GC.Caps.QuoteOk).
+  local cap = dialog and GC.Sniper._RowCap(dialog.row, deal)
+  if cap then
+    local most = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels)
+    return most and most.quantity or 1
+  end
   local maxQty
   if dialog and dialog.bookLevels then
     maxQty = sumLevelQty(dialog.bookLevels)
@@ -6037,6 +8156,13 @@ refreshQtyRow = function()
       local bookTotal = sumLevelQty(dialog.bookLevels)
       if bookTotal > 0 then known = bookTotal end
     end
+    -- A cap row's "of N" is the ceiling its box clamps to (qtyMaxAvailable), not the whole book --
+    -- but never below the quantity the box is showing, which is exactly what Buy starts: after
+    -- the wallet drops the rule's ceiling can sit under the armed number until the player picks
+    -- a new one.
+    if GC.Sniper._RowCap(dialog.row, deal) then
+      known = math.max(qtyMaxAvailable(deal), dialog.row.decisionSnapshot.quantity or 1)
+    end
     if known then
       dialog.qtyOfLabel:SetText((GC.L["of %d"]):format(known))
       dialog.qtyOfLabel:Show()
@@ -6049,7 +8175,9 @@ refreshQtyRow = function()
     dialog.qtyBox:Hide()
     dialog.qtyOfLabel:Hide()
     dialog.qtyLotText:Show()
-    dialog.qtyLotText:SetText((GC.L["%d (whole lot)"]):format(deal.qty))
+    -- The lot the Check found and Buy bids on (final review m4), not the board row's own lot.
+    local armed = dialog.row and dialog.row.decisionSnapshot
+    dialog.qtyLotText:SetText((GC.L["%d (whole lot)"]):format(armed and armed.quantity or deal.qty))
     for _, btn in pairs(dialog.quickFillBtns) do btn:Hide() end
   end
 
@@ -6077,13 +8205,17 @@ updateBuyAffordance = function()
   local row = dialog.row
   if row.purchaseStage ~= "ready" then return end
   local total = dialog.stampedTotal
-  if not total then return end
+  -- No figure on screen to refuse on: the Buy armReady lit stays lit -- unless it has to wait.
+  if not total then GC.Sniper._HoldWhileOwed(row) return end
   if total > GetMoney() then
     dialog.primaryBtn:Disable()
     setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
       :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
-  else
-    dialog.primaryBtn:Enable()
+  elseif not GC.Sniper._HoldWhileOwed(row) then
+    -- A Buy that would be lit waits while a confirmed purchase is still owed its answer (fix
+    -- round 1, GC.Sniper._HoldWhileOwed); one the gold refuses anyway says so instead (round 2).
+    -- Not inside a hold (armLoudConfirm): its own timer comes back here when it is over.
+    if dialog.armHold ~= requoteArmToken then dialog.primaryBtn:Enable() end
     setDialogStatus(GC.L["price confirmed -- click Buy to purchase"], 0.25, 0.85, 0.25)
   end
 end
@@ -6103,7 +8235,26 @@ local function applyChosenQty(row, n)
   -- A player-selected quantity is a new safety decision, not a legacy UI price recomputation.
   -- It reuses the exact live book captured by the authoritative requery; missing depth fails
   -- closed rather than falling back to a discovery quote or an estimated total.
-  local decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
+  --
+  -- Live price caps (caps fixes 2f): on a row armed by the player's own price that decision is
+  -- the cap rule's -- exactly n units at or under the cap, inside their own limits. The market
+  -- engine knows nothing about an item a cap exists for (any number disarmed the dialog), and
+  -- where it does know the item it would arm units above the cap whenever the average held.
+  local cap = GC.Sniper._RowCap(row, deal)
+  local decision
+  if cap then
+    decision = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels, n) or nil
+    -- Nothing allowed at all, while the book does hold a unit at or under the price: the only
+    -- limit left that can refuse one unit is the wallet's. Said as that, not as the generic
+    -- "needs a live price check" -- the ceiling qtyMaxAvailable offers falls back to one here, and
+    -- the player would otherwise click 100% and be told nothing true (caps fixes 5, review 1).
+    if not decision and dialog.bookLevels and not GC.Sniper._DecideCap(cap, dialog.bookLevels)
+        and GC.Caps.DecideCommodity(cap, dialog.bookLevels, { maxQuantity = 1, budget = math.huge }) then
+      decision = { status = "WATCH", reasons = { "capital_limit" } }
+    end
+  else
+    decision = evaluateLive(deal.itemID, dialog.bookLevels, n)
+  end
   if not decision or not decision.buyable or decision.status ~= "SAFE" then
     armCheck(row, deal, decision or { status = "WATCH", reasons = { "live_verification_required" } },
       GC.SniperDecision.ReasonText((decision and decision.reasons and decision.reasons[1])
@@ -6639,6 +8790,10 @@ local function createDialog()
   -- underneath it.
   local gridBlock = CreateFrame("Frame", nil, d)
   d.gridBlock = gridBlock
+  -- Anchored from the start, not only once layoutBlocks first places it: the wrapped Reason
+  -- below is measured off the grid's width, and a grid closed at construction had none.
+  gridBlock:SetPoint("TOPLEFT", d, "TOPLEFT", 0, -DG.HEADER_H)
+  gridBlock:SetPoint("TOPRIGHT", d, "TOPRIGHT", 0, -DG.HEADER_H)
   local function gridRow(index, label)
     local y = -(Theme.pad.s + (index - 1) * DG.GRID_ROW_H)
     local labelFS = Theme.Label(gridBlock, 11)
@@ -6677,7 +8832,22 @@ local function createDialog()
   local soldText = evidenceRow(7, GC.L["Sold/day"])
   local sellThroughText = evidenceRow(8, GC.L["Sell-through"])
   local sourceAgeText = evidenceRow(9, GC.L["Source age"])
-  local reasonText = evidenceRow(10, GC.L["Reason"])
+  -- The Reason is a sentence, and one line of this grid cut it to "The profit does not clear
+  -- your..." (in game 2026-09-23). So it wraps under itself, left-justified, in the label face.
+  -- The rulebook's text trap applies: a wrapping FontString held to a fixed height draws
+  -- nothing, and gridRow's LEFT anchor (vertically centred on the label) plus a TOPRIGHT would
+  -- fix one. Both anchors sit on its top edge and it is never given a height -- the client sizes
+  -- it to its lines, and layoutBlocks grows the transcript by what it measures.
+  local reasonY = -(Theme.pad.s + (DG.GRID_ROWS - 1) * DG.GRID_ROW_H)
+  local reasonLabel = Theme.Label(gridBlock, 11)
+  reasonLabel:SetPoint("TOPLEFT", Theme.pad.m, reasonY)
+  reasonLabel:SetText(GC.L["Reason"])
+  local reasonText = Theme.Label(gridBlock, 12)
+  reasonText:SetPoint("TOPLEFT", reasonLabel, "TOPRIGHT", Theme.pad.s, 0)
+  reasonText:SetPoint("TOPRIGHT", -Theme.pad.m, reasonY)
+  reasonText:SetJustifyH("LEFT")
+  reasonText:SetWordWrap(true)
+  d.evidenceRows[#d.evidenceRows + 1] = { label = reasonLabel, value = reasonText }
   d.decisionStatusText = decisionStatusText
   d.unitPriceText, d.totalCostText, d.exitUnitText = unitPriceText, totalCostText, exitUnitText
   d.profitText, d.mvText, d.soldText = profitText, mvText, soldText
@@ -6713,7 +8883,11 @@ local function createDialog()
     place(reconcileBlock, DG.RECONCILE_H, reconcile)
     place(qtyBlock, DG.QTY_BLOCK_H, actionable)
     place(factsBlock, DG.FACTS_H, not d.detailsOpen)
-    place(gridBlock, DG.GRID_H, d.detailsOpen and true or false)
+    -- The wrapped Reason (above) runs past its own row by whatever its sentence needs; the
+    -- transcript takes that much more, and so does every budget measured below.
+    local reasonH = d.reasonText:GetStringHeight()
+    local gridH = DG.GRID_H + math.max(0, math.ceil((type(reasonH) == "number" and reasonH or 0) - DG.GRID_ROW_H))
+    place(gridBlock, gridH, d.detailsOpen and true or false)
 
     y = y - Theme.pad.xs
     detailsToggle:ClearAllPoints()
@@ -6729,12 +8903,25 @@ local function createDialog()
 
     local above = DG.HEADER_H + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
       + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
+    local openBefore = d.fixedHeightOpen
     d.fixedHeightClosed = above + DG.FACTS_H
-    d.fixedHeightOpen = above + DG.GRID_H
+    d.fixedHeightOpen = above + gridH
     -- Kept in step here too, not only in applyDetailsState: a verdict can drop the quantity
     -- block without the Details state changing at all, and resizeDialogDiagnostics measures
     -- the flowing block below off this number.
     d.fixedHeight = d.detailsOpen and d.fixedHeightOpen or d.fixedHeightClosed
+    -- A longer Reason grows the open transcript, and the fit guard ran only on a toggle, a
+    -- resize and construction (review M1): a three- or four-line Reason pushed an open grid into
+    -- the status line and Buy of a docked drawer that cannot grow. Re-run the same guard,
+    -- quietly, whenever this layout needs more than the last one did. The preference it
+    -- persists is the one already standing (open), and the guard closes only this session's
+    -- view; the layout it ends in is not a growth, so this does not recurse.
+    if d.detailsOpen and openBefore and d.fixedHeightOpen > openBefore and d.applyDetailsState then
+      local quiet = d.detailsQuiet
+      d.detailsQuiet = true
+      d.applyDetailsState(true)
+      d.detailsQuiet = quiet
+    end
   end
   d.layoutBlocks = layoutBlocks
 
@@ -6975,6 +9162,9 @@ local function createDialog()
     local row = dialog.row
     if not row then return end -- normal close: resolvePurchase already cleared this before hiding
     dialog.row = nil
+    -- Final review m8: the player said no to this lot; stop-and-open waits before offering the
+    -- item again.
+    GC.Sniper._HoldCapOpen(row.deal, LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS)
     abortRowPurchase(row, GC.L["purchase canceled"])
   end)
 
@@ -7009,6 +9199,18 @@ local function createDialog()
   return d
 end
 
+-- Re-applies the player's SAVED Details preference to the window `d`, quietly: the fit guard may
+-- still close it for this window (applyDetailsState), but says nothing while it does. Run on
+-- every resize (createFrame's OnSizeChanged) and on every open (openDialog). A field, not a
+-- local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._ApplySavedDetails(d)
+  if not (d and d.applyDetailsState) then return end
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  d.detailsQuiet = true
+  d.applyDetailsState(cfg and cfg.dialogDetailsOpen)
+  d.detailsQuiet = nil
+end
+
 -- Opens the dialog for `row`/`deal`: this is the row Buy button's entire OnClick job now, for
 -- BOTH item and commodity deals, stale or not. Numbers are populated from the snapshot deal
 -- immediately; a `.stale` full-scan deal then either consumes a fresh Task 8 pre-warm cache
@@ -7030,6 +9232,9 @@ local function openDialog(row, deal)
 
   dialog = dialog or createDialog()
   dialog.row = row
+  -- Final review m3: opened by stop-and-open (drainCapPings), not by the player -- its first arm
+  -- waits (applyRequeryResult). Every other open starts without the mark.
+  dialog.holdFirstArm = GC.Sniper._capOpening and true or nil
   dialog.cancelBtn:Enable()
   -- Fix 3: a prior visit may have left this relabeled "Close" (showGoneState) -- every fresh
   -- open is a normal purchase attempt again, never a "the thing you were looking at is gone"
@@ -7042,6 +9247,12 @@ local function openDialog(row, deal)
   setDialogHeader(deal, discovery)
   stampDialogFromDecision(deal, discovery)
   dialog:Show()
+  -- Follow-up 2: a quiet close is the window's own, not the next one's. A long Reason that stopped
+  -- the transcript fitting closed it for that window (layoutBlocks' fit guard) and kept the saved
+  -- preference -- but left the flag every later layout reads shut, so the next window opened with
+  -- Details closed however short its Reason, until SHOW DETAILS or a resize. Every open starts
+  -- from what the player chose, measured against this window's own Reason, stamped just above.
+  GC.Sniper._ApplySavedDetails(dialog)
   GC.Sniper.NotifyDialogOpened()
 
   local prewarm = deal.prewarm
@@ -7129,6 +9340,173 @@ local function onBuyClick(row)
   openDialog(row, deal)
 end
 
+-- Whether the player can actually see `row` on the board. IsVisible alone says only that the row
+-- and every parent up to the screen are shown -- and the board is a real ScrollFrame
+-- (createFrame's UIPanelScrollFrameTemplate) over a row pool that is not virtualised: every
+-- stamped row is shown, anchored at its slot down the scroll child (createRow), and one scrolled
+-- out of view is clipped, not hidden, so it stays IsVisible. So the row's middle must also lie
+-- inside the ScrollFrame's own edges. Both are read off the engine (Region:GetTop/GetBottom);
+-- the rows are descendants of the ScrollFrame at the same scale, so the numbers compare
+-- directly. Before its first layout a row has no edges yet, and that is a "not yet": the drain
+-- asks again on the next render or tick.
+--
+-- Two sheets can lie over the list, and only one of them hides a row. The settings sheet
+-- (UI/SettingsFrame.lua) covers the whole content area, every row entire, at every width, so
+-- while it is up no row is on screen; the ticker picks the ring up once it closes. The check
+-- drawer does not count: below WIN.PANEL_SHIFT_MIN it lies over the list rather than pushing it
+-- aside, but it covers exactly the rightmost 288 px of a row (320 wide, flush with the window's
+-- right edge, where the row stops 32 px short), so the item stays in view, and its verdict chip
+-- with it -- only just clipped at the narrowest width a window can be resized to
+-- (WIN.RESIZE_MIN_WIDTH). A field, not a local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._RowOnScreen(row)
+  if not row:IsVisible() then return false end
+  if GC.SettingsUI and GC.SettingsUI.IsShown and GC.SettingsUI.IsShown() then return false end
+  local scroll = frame and frame.scroll
+  if not scroll then return false end
+  local top, bottom = row:GetTop(), row:GetBottom()
+  local viewTop, viewBottom = scroll:GetTop(), scroll:GetBottom()
+  if not (top and bottom and viewTop and viewBottom) then return false end
+  local middle = (top + bottom) / 2
+  return middle <= viewTop and middle >= viewBottom
+end
+
+-- Live price caps, addon task 6: drains pendingCapPings (see refreshRows()'s own comment).
+-- pingNewHotDeals is reused verbatim -- the SAME flash + PlaySound(MAP_PING) + FlashClientIcon
+-- a full-scan HOT deal gets, never a second PlaySound for this bell. When the player has opted
+-- in (settings.sniper.capStopAndOpen), onBuyClick is reused verbatim too: it is the row's own
+-- click-path function, and openDialog inside it already calls GC.Sniper.NotifyDialogOpened
+-- (the stop) before showing the dialog (the open) -- the exact reaction a manual click on the
+-- row would trigger. Neither call reaches a protected purchase function: those stay behind
+-- onDialogPrimaryClick's own hardware click, untouched (spec/sniper_purchase_wiring_spec.lua).
+--
+-- Caps fixes 3e: nothing here is spent on a row the player cannot see. Each entry waits in
+-- pendingCapPings (see its declaration) until the row carrying its deal is on screen
+-- (GC.Sniper._RowOnScreen above) -- IsShown is true of a row on a hidden board, tab or window,
+-- which is where the ring and the open used to go -- and until the item's bell floor has
+-- passed. Only then is the lot announced (GC.Caps.Announce) and the floor stamped again.
+--
+-- The open is a second obligation on the same entry and waits on its own: for `allowOpen` (the
+-- ticker's drain; a render's drain rings only, since a render also runs inside a closing
+-- dialog's OnHide, and a window opened from there would open under the one closing), for a
+-- player not busy on Blizzard's own panes, and for the screen to hold no other dialog -- then it
+-- is retried on the next drain, which is how it follows the other dialog closing. An open
+-- announces the lot too, bell or no bell, and so does the buy window already being on screen for
+-- the item: that ping is settled on the spot.
+drainCapPings = function(allowOpen)
+  local pings = pendingCapPings
+  pendingCapPings = {}
+  local now = GetTime()
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  local stopAndOpen = (cfg and cfg.capStopAndOpen) and true or false
+  local busy = GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
+    and GC.AuctionHouseTab.PlayerIsBusy() or false
+  local ring, openRow = {}, nil
+  for _, ping in ipairs(pings) do
+    -- The board's current row for this opportunity, or nil: expired, or the row has left.
+    local deal = (now - ping.at) <= LIM.CAP_PING_WAIT_SECONDS and GC.Sniper._BoardCapRow(ping.deal) or nil
+    -- Round 3: the buy window is on screen for this very item and owns its live state -- armed or
+    -- re-checking, the item pinned in activeItemID -- so the player is already looking at what
+    -- this ping is about. The ping -- queued by that window's own Check when it saw a better price
+    -- or a cheaper lot, or still pending from before the player opened the window by hand -- is
+    -- settled here: announced, with no bell and no open, and it leaves the queue. Left queued, it
+    -- rang the moment the player cancelled, and the next tick reopened the window on what they had
+    -- just declined.
+    --
+    -- Round 4: only while pinned. A window that has let go of the item -- a Check that came back
+    -- not buyable (armCheck releases the pin), or the "listing gone" notice left up with no row
+    -- (showGoneState) -- shows nothing a background drill finds afterwards: the lot it found is
+    -- on the board, not in that window. That ping takes the ordinary road, a bell where it lands
+    -- and an open once the window is out of the way -- which is exactly when stop-and-open
+    -- matters: the window it opened found its lot sniped, and a repost lands a minute later.
+    if deal and activeItemID[deal.itemID] and dialog and dialog:IsShown() and dialog.deal
+        and dialog.deal.itemID == deal.itemID then
+      GC.Caps.Announce(deal)
+      deal = nil
+    end
+    local row
+    if deal then
+      ping.deal = deal
+      for i = 1, #rows do
+        if rows[i].deal == deal and GC.Sniper._RowOnScreen(rows[i]) then row = rows[i]; break end
+      end
+    end
+    -- Final review I6: the cap bell is floored per item exactly like the verdict bell is
+    -- (stampVerdict's own GC.Sniper._rangAt / LIM.RING_FLOOR_SECONDS, and its comment for why
+    -- this is per item and not a global mute). A capped commodity whose book churns under the
+    -- cap re-announces on every improvement, and every one of those SHOWS -- but a bell every
+    -- few seconds stops carrying information. Caps fixes 3e, round 1: a ring the floor holds back
+    -- is HELD, unannounced, and plays once the floor has passed -- never spent in silence. The
+    -- floor is not only this bell's (stampVerdict stamps it for an ordinary verdict too), so a
+    -- silent spend lost the cap row's only ring to a bell rung for something else.
+    local rang = row and GC.Sniper._rangAt[deal.itemID]
+    if row and not ping.rung and not (rang and (now - rang) < LIM.RING_FLOOR_SECONDS) then
+      ping.rung = true
+      if GC.Caps.Announce(deal) then
+        GC.Sniper._rangAt[deal.itemID] = now
+        ring[#ring + 1] = deal
+      end
+    end
+    -- Final review I5: never out of the player's hands. onBuyClick refuses to replace a dialog
+    -- whose row has a purchase call in flight, but a dialog merely "ready" or "requerying" it
+    -- aborts and replaces -- fine for a click the player made, wrong for a background poll: a
+    -- cap hit landing while they were reading a Check swapped the window under their cursor,
+    -- and the next click went to a row they had not chosen. Any dialog on screen for a
+    -- DIFFERENT row -- or for none, a listing that has gone -- owns the screen; this waits.
+    -- One window per drain: a pass that finds three cap rows at once must not open three
+    -- dialogs in a row, each replacing the last before it can be read.
+    -- Final review m8: and not while this item's own floor between opens holds
+    -- (GC.Sniper._HoldCapOpen: the ring floor after an open, longer after a cancel).
+    if row and allowOpen and stopAndOpen and not ping.opened and not openRow and not busy
+        and not (dialog and dialog:IsShown() and dialog.row ~= row)
+        and (GC.Sniper._capOpenHold[deal.itemID] or 0) <= now then
+      ping.opened = true
+      openRow = row
+      GC.Sniper._HoldCapOpen(deal, LIM.RING_FLOOR_SECONDS)
+      -- Round 2: the open IS the announcement. A ring the floor was holding back is settled here,
+      -- silently -- the window in front of the player says more than a bell would. Left news, the
+      -- lot was queued again by every re-decision of it (the watch loop, the dialog's own Check)
+      -- as a fresh entry that had never opened, and the next tick reopened the window the player
+      -- had just cancelled -- until the floor passed and a late bell rang over it.
+      if not ping.rung then
+        ping.rung = true
+        GC.Caps.Announce(deal)
+      end
+    end
+    if deal and (not ping.rung or (stopAndOpen and not ping.opened)) then
+      pendingCapPings[#pendingCapPings + 1] = ping
+    end
+  end
+  pingNewHotDeals(ring)
+  -- Last, once the queue is whole again: opening renders, and that render drains the queue too.
+  -- Marked as this drain's open for openDialog (final review m3): its first arm waits.
+  if openRow then
+    GC.Sniper._capOpening = true
+    local ok, err = pcall(onBuyClick, openRow)
+    GC.Sniper._capOpening = nil
+    if not ok then error(err, 0) end
+  end
+end
+
+-- The Auction House ticker's half of the drain: rings for rows that came on screen without a
+-- render (the window shown, the tab switched back), and every open. A field, not a local: this
+-- chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._TickCapPings()
+  if #pendingCapPings > 0 then drainCapPings(true) end
+end
+
+-- Final review m8: itemID -> GetTime() before which stop-and-open does not open that item again.
+-- Pushed out, never pulled in, by an open (LIM.RING_FLOOR_SECONDS) and by the player cancelling
+-- the window of a YOUR PRICE row (LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS, the dialog's OnHide).
+-- Emptied when the auction house closes.
+GC.Sniper._capOpenHold = {}
+function GC.Sniper._HoldCapOpen(deal, seconds)
+  if not (deal and deal.cap and deal.itemID) then return end
+  local untilAt = GetTime() + seconds
+  if (GC.Sniper._capOpenHold[deal.itemID] or 0) < untilAt then
+    GC.Sniper._capOpenHold[deal.itemID] = untilAt
+  end
+end
+
 -- Cancels/resets non-confirmed work and clears tracking tables on AH close. A confirmed
 -- commodity purchase becomes a retained tombstone instead: its exact quote may still receive
 -- a late success and must not be silently lost.
@@ -7139,6 +9517,7 @@ local function resetAllPurchases()
   if confirmed and confirmed.confirmed then
     commodityPurchase = nil
     commodityDraining = confirmed
+    confirmed.acrossClose = true -- what settleDetachedConfirmed tells the player it settled after
   end
   for i = 1, #rows do
     local row = rows[i]
@@ -7153,6 +9532,7 @@ local function resetAllPurchases()
   for k in pairs(requeryDraining) do requeryDraining[k] = nil end
   for k in pairs(GC.Sniper._drainWaitRequery) do GC.Sniper._drainWaitRequery[k] = nil end
   GC.Sniper._pausedLiveRequery = nil -- AH close must never revive a prior Live session
+  GC.Sniper._lastOwed = nil -- the ticker that watched it stops with the session (_TickOwedHold)
   -- Task 8: an AH close mid-pre-warm must release the "one in flight globally" slot too --
   -- otherwise a leftover prewarm attempt could block every hover pre-warm for the rest of the
   -- session (its own C_Timer.After fallback would eventually clear it, but there is no reason
@@ -7161,6 +9541,9 @@ local function resetAllPurchases()
   if not (commodityDraining and commodityDraining.confirmed) then
     commodityPurchase = nil
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+    -- The slot is given back here with the session; the drain that held it (final money review
+    -- I1) is over, and its timer must not later free a slot a drain of the next visit holds.
+    if commodityDraining then commodityDraining.holdsSlot = nil end
     commodityDraining = nil
   end
   -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own
@@ -7367,12 +9750,14 @@ createRow = function(parent, index)
   -- anything, the result is still cached on the deal for whichever row/dialog eventually reads
   -- it.
   row:EnableMouse(true)
+  -- The item cell's room follows the row's width; a cap row's group is re-decided with it.
+  row:SetScript("OnSizeChanged", function(self) GC.Sniper._FitRowName(self) end)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
     self.rail:Show()
     hoveredRow = self
     if not self.deal then return end
-    maybeStartPrewarm(self.deal)
+    GC.Sniper._HoverPrewarm(self)
     -- Outside the window, never over it -- a row's own item tooltip used to cover the board
     -- it is describing (Theme.ItemTooltipOutside; see its own comment for the geometry).
     Theme.ItemTooltipOutside(self, frame)
@@ -7380,7 +9765,15 @@ createRow = function(parent, index)
     -- What the background check found, in words. A refused row that the toolbar toggle has
     -- brought back into view is otherwise a status code and nothing else.
     local verdict = verdictFor(self.deal)
-    if verdict then
+    -- A cap row says what YOUR PRICE means and which group it came from, fresh verdict or not
+    -- (review M6: it waited on a cap verdict, and a verdict goes stale in two minutes). In place
+    -- of the verdict lines: "checked live -- safe to buy" is the market engine's word, and no
+    -- safety was judged here -- the player's own price was.
+    local capNote = GC.Sniper._CapNote(self.deal)
+    if capNote then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
+    elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
@@ -7420,6 +9813,10 @@ createRow = function(parent, index)
     if self.deal.pinPlaceholder then
       GameTooltip:AddLine(GC.L["Watching — pinned, but not a deal right now"],
         Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      local watchNote = GC.Sniper._WatchNote(self.deal)
+      if watchNote then
+        GameTooltip:AddLine(watchNote, Theme.color.fgDim[1], Theme.color.fgDim[2], Theme.color.fgDim[3])
+      end
     end
     GameTooltip:AddLine(isPinned(self.deal.itemID)
       and GC.L["Right-click to stop watching this item"]
@@ -7991,7 +10388,17 @@ local function createFrame()
   -- One key for the whole sentence, never a line-break's worth of fragments concatenated:
   -- word order is not a constant across languages, so a sentence assembled here can only ever
   -- come out in English order however well each piece is translated.
-  setPlainTooltip(autoBtn, GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."])
+  -- Built when hovered, not once: under the description, a sentence for whatever holds Auto
+  -- right now and what to do about it (GC.Sniper._AutoHelp). HookScript, as setPlainTooltip
+  -- does, so Theme.Button's own hover stays.
+  autoBtn:HookScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."],
+      1, 1, 1, 1, true)
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
+    GameTooltip:Show()
+  end)
+  autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
   -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
@@ -8280,12 +10687,7 @@ local function createFrame()
     -- downsize closes the grid without eating the player's "open" and an upsize reopens it.
     -- detailsQuiet silences applyDetailsState's own F5 refusal status write (see that
     -- function's guard) so a drag-resize doesn't spam "Enlarge the window..." on every pixel.
-    if dialog and dialog.applyDetailsState then
-      local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
-      dialog.detailsQuiet = true
-      dialog.applyDetailsState(cfg and cfg.dialogDetailsOpen)
-      dialog.detailsQuiet = nil
-    end
+    GC.Sniper._ApplySavedDetails(dialog)
   end)
 
   -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar
@@ -8663,24 +11065,26 @@ function GC.Sniper.OnAuctionHouseShow()
     local now = GetTime()
     if now - (GC.Sniper._keysPokeAt or 0) >= 1 then
       GC.Sniper._keysPokeAt = now
-      if GC.Sniper._Board() == "items" and view == "deals" and not GC.Sniper._KeysOutstanding() then
-        GC.Sniper._TrySendKeysBatch()
-      end
-      -- The BUY tab has exactly the same problem and no clock of its own at all: with Auto
-      -- paused for it (setView's "pause:buy") nothing on that tab sends anything, so no ready
-      -- tick ever arrives to carry its twenty-second refresh. Same once-a-second ask; the
-      -- helper owns the interval, the view gate and the claim.
-      if GC.Buy and GC.Buy.Tick then GC.Buy.Tick() end
-      -- And the Sell tab's bulk price fill, asked for by a press of Refresh that found the
-      -- slot taken: nothing else on that tab would carry the retry.
-      if GC.Sell and GC.Sell.Tick then GC.Sell.Tick() end
+      GC.Sniper._TickKeys()
     end
     refreshVerifyButton()
     -- Same clock, same reason: the session readout cannot be forgotten by a path that changes
     -- GC.Sniper.session either.
     refreshSessionText()
+    -- And a "your price" ring or open still waiting for its row (caps fixes 3e): a row can come
+    -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
+    -- notice, and every stop-and-open comes from here.
+    GC.Sniper._TickCapPings()
+    -- And the edge where the BUY tab lets go of a purchase -- its confirm answered, its purchase
+    -- landed, failed or given up (fix rounds 2-3): BUY's terminal paths hand nothing to this
+    -- window, so every armed window is handed Refresh from here.
+    GC.Sniper._TickOwedHold()
+    -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2).
+    GC.Sniper._TickConfirmCountdown()
+    if GC.Buy and GC.Buy.TickCountdown then GC.Buy.TickCountdown() end
   end)
   feedAuto("ahOpened")
+  GC.Sniper._ClearStaleMailPause()
   if GC.db.settings.sniper.auto then
     feedAuto("toggleOn") -- re-arms Auto across a /reload or the first AH visit of the session; a no-op once already armed
     -- toggleOn always arms with a clean reason set (AutoScan.lua wipes `reasons`), so
@@ -8729,6 +11133,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- resetAllPurchases/anything else runs so no code below it could observe a stale "AH still
   -- open" read.
   ahOpen = false
+  GC.Sniper._browseOutAt, GC.Sniper._searchesOut = nil, {} -- nothing is answered once the auction house has closed
 
   -- Undock the window from the auction house before anything else tears down: the dock host
   -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)
@@ -8785,11 +11190,29 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- own comment for why (a browse scan has no cooldown, and every buy re-quotes live anyway).
   -- So this is not "a clean slate": what a closed AH guarantees is that no purchase or Sell
   -- state survives (resetAllPurchases above, GC.Sell.Reset below), not that the board is empty.
+  --
+  -- Except for a player's price-cap row (caps fixes 3g). An ordinary scan row is an aggregate
+  -- that any Check re-verifies; a cap row names a lot, drilled live and labelled "your price",
+  -- that only this visit vouched for -- carried over, the next visit showed it before its first
+  -- pass had looked at anything. Removed before clearDeals renders, with the rings still waiting
+  -- for their rows: the announcement memory they would have spent is itself wiped below
+  -- (GC.Caps.ForgetAll), so a lot still there next visit is found, and told, afresh.
+  for i = #scanDeals, 1, -1 do
+    if scanDeals[i].cap then table.remove(scanDeals, i) end
+  end
+  pendingCapPings = {}
+  GC.Sniper._capOpenHold = {}
   clearDeals()
   -- Sniper v3 §3 ping: a HOT listing that pinged this session should be able to ping again
   -- next session even at the exact same price (a fresh AH visit is a fresh judgment of
   -- what's worth flagging) -- see seenHotDeals' own declaration.
   for key in pairs(seenHotDeals) do seenHotDeals[key] = nil end
+  -- Final review I4: the cap board-ring's own memory is exactly the same claim about exactly
+  -- the same session ("the player has already been told about this lot"), so it ends with the
+  -- session too. Kept, a lot announced hours ago stayed silenced for the rest of the login,
+  -- and the auction STILL sitting there at the player's own price was the one thing the next
+  -- visit never mentioned. Guarded like every other GC.Caps read in this file.
+  if GC.Caps then GC.Caps.ForgetAll() end
   -- What the addon worked out for itself is a claim about a live market and does not survive
   -- the session, exactly like a verdict. Pins do: they are a standing instruction, and they
   -- live in SavedVariables.
@@ -8797,6 +11220,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._churnSeq = 0
   for itemID in pairs(GC.Sniper._rangAt) do GC.Sniper._rangAt[itemID] = nil end
   for itemID in pairs(GC.Sniper._lastPrice) do GC.Sniper._lastPrice[itemID] = nil end
+  for itemID in pairs(GC.Sniper._lastQty) do GC.Sniper._lastQty[itemID] = nil end
   -- Same reasoning, and the same session boundary: the book is what each item's floor was the
   -- last time we looked, and the drill queue is a list of prices worth a live look. Kept
   -- across the close, the first pass of the next session says nothing about every item whose
@@ -8804,10 +11228,30 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- prices nobody has seen for hours. The wide-pass clock is left alone on purpose (see
   -- Core/BookPass.lua's Reset).
   GC.Sniper._bookPass:Reset()
+  -- What the reset carried for the tooltip answers for at most LIM.LIVE_TOOLTIP_SECONDS after the
+  -- close: let it go then, rather than at the next close, which may be hours away (final review
+  -- M1). Prune drops only rows past the window, so a timer from an earlier close cannot take
+  -- a later close's rows, and never the book of a visit open when it fires.
+  if C_Timer and C_Timer.After then
+    C_Timer.After(LIM.LIVE_TOOLTIP_SECONDS, function() GC.Sniper._bookPass:Prune() end)
+  end
   -- The key poll's book is the same kind of claim about the same session (Core/KeyPoll.lua's
   -- own Reset), and a batch that was in flight when the session ended has nothing left to
   -- answer it -- the counters go with it so the next visit's readout counts its own traffic.
   GC.Sniper._keyPoll:Reset()
+  -- The caps' own poll too (caps fixes 4a), and its pacing: a new visit's first round goes at once.
+  GC.Sniper._capPoll:Reset()
+  GC.Sniper._capsLandedAt = nil
+  GC.Sniper._capsRoundDoneAt = nil
+  GC.Sniper._capsGap = nil
+  GC.Sniper._keysOrphan = nil
+  GC.Sniper._hoverOwed = nil
+  -- The keys the drill searched with go with that book: they were chosen FROM it (see
+  -- driver.variantKey), so keeping them past the close would have a read use one session's
+  -- variant for a search the next session has not made yet.
+  -- Replaced rather than emptied in place: nothing holds a reference to the table itself, every
+  -- reader goes through `driver.lastSearchKey[itemID]` at call time.
+  driver.lastSearchKey = {}
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
@@ -8896,19 +11340,55 @@ function GC.Sniper.DebugBoard()
     s(GC.Sniper._keysOwner),
     GC.Sniper._keysBatch and #GC.Sniper._keysBatch or "nil",
     s(GC.Sniper._keysThisCycle), s(GC.Sniper._keysLastCycle)))
+  -- The caps' own poll (caps fixes 4a): what it asks about, and where it is in its pacing. Ahead of
+  -- that, what became of the prices the file carried (caps fixes 5d): the ones held, the ones the
+  -- last sync dropped as unreadable or as a repeat of an item already held, and any held price the
+  -- poll is not asking about -- none since every cap is polled, and the first thing to look at if
+  -- a price never fires.
+  local function ago(at) return at and ("%.1fs ago"):format(GetTime() - at) or "nil" end
+  local held = GC.Caps and GC.Caps.Count() or 0
+  local malformed, repeated = 0, 0
+  if GC.Caps and GC.Caps.Dropped then malformed, repeated = GC.Caps.Dropped() end
+  -- Follow-up 4: and why it stands still, when it does -- its own rules first (_CapPollPause), then
+  -- the player (Blizzard's Buy tab showing their own search, or busy on the auction house), then a
+  -- batch already out.
+  local tab = GC.AuctionHouseTab or {}
+  local paused = GC.Sniper._CapPollPause()
+    or (GC.Sniper._BrowseOwned() and "player's own search on Blizzard's Buy tab")
+    or (tab.PlayerIsBusy and tab.PlayerIsBusy() and "player busy on the auction house")
+    or (GC.Sniper._KeysOutstanding() and "a keys batch is out")
+    or "no"
+  GC.Print(("caps: held=%d dropped=%d repeated=%d unpolled=%d targets=%d pending=%s landed=%s roundDone=%s window=%s paused=%s"):format(
+    held, malformed, repeated, math.max(0, held - GC.Sniper._capPoll:Count()),
+    GC.Sniper._capPoll:Count(), s(GC.Sniper._capPoll:HasPending()),
+    ago(GC.Sniper._capsLandedAt), ago(GC.Sniper._capsRoundDoneAt), s(GC.Sniper.IsWindowShown()), paused))
+  -- Final review S2 (iii): how long the last cap batches took to answer, or why each was given up.
+  GC.Print(("cap batches: size=%d last=[%s]"):format(LIM.CAPS_BATCH_SIZE,
+    table.concat(GC.Sniper._capBatchLog or {}, ", ")))
   GC.Print(("gates: paging=%s passWants=%s fullBrowse=%s playerBusy=%s prewarm=%s quiet=%s apiReady=%s"):format(
     s(pass:IsPaging()), s(pass:Wants()),
     s(C_AuctionHouse and C_AuctionHouse.HasFullBrowseResults and C_AuctionHouse.HasFullBrowseResults()),
     s(GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy()),
     s(prewarmAttempt ~= nil), s(GC.Sniper.IsPurchaseQuiet()),
     s(C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady())))
+  -- Whole-market coverage: the sniper's supply chain -- how many items carry facts at all, how deep
+  -- the drill queue is, how many hits it let go undrilled and how many of those the book pass
+  -- reported again, how long the last pass took, and how the contended slots split. lost, rehits
+  -- and drillShare count since /reload: closing the auction house does not reset them.
+  local share, lastPass = GC.Sniper._drillShare, GC.Sniper._lastPass
+  GC.Print(("sniper: facts=%d queue=%d lost=%d rehits=%d lastPass=%s drillShare=%d/%d"):format(
+    data.FactItemIds and #data.FactItemIds() or 0,
+    GC.Sniper._drillQueue:Depth(), GC.Sniper._drillQueue:LostCount(), pass:Rehits(),
+    lastPass and ("%s %ds/%d pages"):format(tostring(lastPass.kind), math.floor(lastPass.seconds or 0),
+      lastPass.pages or 0) or "none",
+    share.drills, share.drills + share.pages))
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
-  local tab = GC.AuctionHouseTab or {}
-  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s"):format(
+  GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s ownSearchShown=%s"):format(
     autoScan:State(), table.concat(reasons, ","), s(pass:PendingStart()),
     s(tab.PlayerIsPosting and tab.PlayerIsPosting()), s(tab.PlayerIsBuying and tab.PlayerIsBuying()),
-    s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching())))
+    s(tab.PlayerIsUsingAnotherTab and tab.PlayerIsUsingAnotherTab()), s(tab.PlayerIsSearching and tab.PlayerIsSearching()),
+    s(tab.PlayerIsBrowsing and tab.PlayerIsBrowsing()), s(GC.Sniper._BrowseOwned())))
   if GC.Util and GC.Util.TraceDump then
     local t = GC.Util.throttleStats
     GC.Print(("throttle events: queued=%d dropped=%d ready=%d forcedSends=%d"):format(t.queued, t.dropped, t.ready, t.forced))

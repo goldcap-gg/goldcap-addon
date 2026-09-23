@@ -105,6 +105,31 @@ end
 
 GC.slashHandlers.import = function() GC.UI.ShowImportDialog() end
 
+-- Why a whole-market payload the Companion wrote could not be read, by ParseRegion's refusal code.
+-- Not the manual import's sentences (GC.Data.DescribeImportError): those answer a player who pasted
+-- a string, and nobody pasted this one. The addon reads the Companion's file only at load, so the
+-- two that a new sync can fix end with the /reload that brings it in.
+--
+-- @localised-keys: the literals below ARE GC.L keys, looked up in the status handler where the table
+-- is read -- file scope runs before ApplyLocale picks the language. The table closes with a brace on
+-- its own line, where the locale contract spec stops reading.
+local PAYLOAD_REFUSALS = {
+  empty = "the Companion wrote an empty copy -- let it sync, then /reload",
+  no_items = "the Companion wrote it with no prices -- let it sync, then /reload",
+  bad_header = "it is in a format this build of GoldCap cannot read -- update the addon",
+  bad_region = "it is for a region this build of GoldCap does not know -- update the addon",
+  too_long = "it is larger than this build of GoldCap can read -- update the addon",
+}
+
+-- How old a whole-market payload's date is, for a status line: never negative (a payload may be
+-- dated up to an hour ahead of this clock) and never past the clock's own epoch, however absurd the
+-- date -- a refused one can be 0, or a digit run so long that tonumber reads it as inf.
+local function payloadAge(now, ts)
+  local age = type(ts) == "number" and now - ts or 0
+  if age <= 0 then return 0 end -- ahead of this clock, or inf
+  return math.min(age, now)
+end
+
 GC.slashHandlers.status = function()
   local st = GC.Data.GetStatus()
   local now = time()
@@ -125,6 +150,37 @@ GC.slashHandlers.status = function()
         st.importedCount, st.importedRealm, GC.Util.FormatAge(now - st.importedTs), originLabel)
       or GC.L["none"]
   ))
+  -- The whole-market payload, when one is loaded: what it carried, how old its snapshot is, and
+  -- what it keeps in memory -- measured here, when asked, never at load (RegionPayloadMemoryKB).
+  local payload = st.payload
+  if payload then
+    GC.Print(GC.L["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"]:format(
+      payload.items, payload.facts, payload.refs, GC.Util.FormatAge(payloadAge(now, payload.ts)),
+      GC.Data.RegionPayloadMemoryKB() or 0))
+  else
+    -- One the Companion wrote that this session is not using, and why. Nothing when none was
+    -- offered: an older Companion writes none, and that is nothing to report.
+    local idle = GC.Data.RegionPayloadStatus and GC.Data.RegionPayloadStatus()
+    if idle then
+      local why
+      if idle.reason == "older_than_import" then
+        why = GC.L["it is %s old, and the prices you imported are newer"]:format(
+          GC.Util.FormatAge(payloadAge(now, idle.ts)))
+      elseif idle.reason == "other_region" then
+        why = GC.L["it is for another region than the prices loaded"]
+      elseif idle.reason == "set_aside" then
+        why = GC.L["it was set aside when other prices were loaded this session -- /reload to use it again"]
+      elseif idle.reason == "bad_ts" then
+        -- The date is what is wrong, so it is not shown: 0, far ahead of the clock, or inf.
+        why = GC.L["its date cannot be right -- check this computer's clock"]
+      elseif PAYLOAD_REFUSALS[idle.reason] then
+        why = GC.L[PAYLOAD_REFUSALS[idle.reason]]
+      else
+        why = GC.L["it could not be read (%s)"]:format(tostring(idle.reason))
+      end
+      GC.Print(GC.L["whole-market data not in use: %s"]:format(why))
+    end
+  end
   -- Only when there is something to report: the normal case stays a single line.
   local appErr = GC.Data.AppDataError()
   if appErr then

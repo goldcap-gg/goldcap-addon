@@ -62,6 +62,13 @@ local BD = {
   -- click at t+19 would be watched until t+39 against a claim stamped at t. armStall re-stamps
   -- the claim on every arming, which is what actually holds the two together.
   CONFIRM_SECONDS = 20,
+  -- How long a Start cancelled before the server answered it keeps the shared slot, waiting for
+  -- that answer to arrive and be swallowed (final money review I1): the Sniper's own bound for the
+  -- same wait, LIM.DRAIN_TIMEOUT_SECONDS, and like every hold here inside the claim's life.
+  DRAIN_SECONDS = 20,
+  -- The last seconds of a quote the CONFIRM button counts down (fix round 4): Blizzard's own buy
+  -- dialog shows them from ten (REMAINING_QUOTE_DURATION_THRESHOLD).
+  COUNTDOWN_SECONDS = 10,
   -- Deep commodity books run to thousands of price levels and a purchase only ever walks as far
   -- as the cap lets it; the same bound UI/SniperFrame.lua's commodityBook uses.
   MAX_LEVELS = 60,
@@ -778,6 +785,50 @@ local function quotePending(attempt)
     and (time() - (attempt.askedAt or 0)) < BD.QUOTE_SECONDS
 end
 
+-- The last quote this line got, for the line's whole remaining quantity, while it is inside
+-- BD.QUOTE_SECONDS -- or nil. A quote outlives the hover that asked for it: the COST cell keeps its
+-- sum, and the button keeps its "BUY n". It is what the line SHOWS, not what a click spends: a
+-- click buys only on the line's own attempt holding a fresh quote (onBuyClick), and otherwise asks
+-- the auction house again -- which waits while a keys batch is out (quote, GC.Buy._owedByClick).
+local function recentQuote(line)
+  local recent = quotes[line.itemID]
+  if recent and recent.qty == line.buy and recent.qty > 0
+      and (time() - (recent.at or 0)) <= BD.QUOTE_SECONDS then
+    return recent
+  end
+  return nil
+end
+
+-- The whole seconds the quote at CONFIRM has left, while BD.COUNTDOWN_SECONDS or fewer remain, or
+-- nil (fix round 4, m2). Shown beside the line's name (paintLine), not on the 72px button: in seven
+-- languages "CONFIRM (9)" lost its digit to the button's edge (fix round 5).
+local function quoteSecondsLeft(attempt)
+  if not (attempt and attempt.stage == "confirm" and attempt.stallEnds) then return nil end
+  local left = math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
+  if left < 1 or left > BD.COUNTDOWN_SECONDS then return nil end
+  return left
+end
+
+-- A purchase the OTHER window confirmed is still owed its answer: nothing here may start one (the
+-- click refuses, and the line's button waits).
+--
+-- Final money review: and two more that a Start here would land on. The Sniper holding the slot --
+-- a purchase it started and has not confirmed, or the drain of one it cancelled unanswered -- the
+-- mirror of the Sniper waiting over a live BUY claim (n1). And this tab's own drain (I1,
+-- GC.Buy._StartDrain): the answer to the Start it cancelled is still coming, and a Start now
+-- would read it as its own.
+local function owedElsewhere()
+  if GC.Buy._drain then return true end
+  -- Load-bearing round (M-3): this tab's own confirm the auction house closed on, still owed its
+  -- answer (GC.Buy._owedUntil): nothing else starts here over it, as nothing starts in the Sniper.
+  if GC.Buy._owedUntil and GC.Buy.ConfirmOwed() then return true end
+  local slot = GC.PurchaseSlot
+  if not slot then return false end
+  local owed = slot.ConfirmOwed and slot.ConfirmOwed()
+  if owed ~= nil and owed ~= "buy" then return true end
+  return (slot.Owner and slot.Owner() == "sniper" and slot.IsBusy and slot.IsBusy()) and true or false
+end
+
 -- What the line's own button says right now, whether it is clickable, and -- for the one state
 -- that needs a look of its own -- which Theme variant to wear. One function so the render, the
 -- Enter key and the attempt log can never disagree about what state a line is in.
@@ -790,6 +841,19 @@ local function actionLabel(line)
   -- auction house purchases are DELIVERED AS MAIL (Core/Ledger.lua reads them as "Auction won"
   -- invoices), so the mailbox, not the bags, is where the player finds out whether it happened.
   if strandedFor(line) then return GC.L["no answer — check your mail"], false end
+  -- A quote held back for an unanswered keys batch (quote): the ask is taken and will go the moment
+  -- the batch is gone. Said like a question already on the wire, not as a resting "BUY n" whose
+  -- click could do nothing yet (caps fixes 5i) -- for a line with no fresh quote only: one that has
+  -- one keeps its own label, as it did before the batch went out.
+  --
+  -- Final review m10: and a line that has one, after a click on it: the click asked again (a quote
+  -- shown is not one a click spends -- recentQuote) and the ask is waiting too, so the button says
+  -- so instead of reading "BUY n", enabled, as if the click had done nothing.
+  if GC.Buy._quoteOwed == line.itemID and not inFlight(attempt)
+      and not (attempt and attempt.itemID == line.itemID and quoteFresh(attempt))
+      and (not recentQuote(line) or GC.Buy._owedByClick == line.itemID) then
+    return GC.L["..."], false
+  end
   if not attempt or attempt.itemID ~= line.itemID then
     -- Some other line is mid-purchase. A click here cannot start a second one (onBuyClick and
     -- quote both refuse while the client holds a purchase of ours), so the button says so
@@ -808,8 +872,18 @@ local function actionLabel(line)
     -- The client will not sell this item as a commodity, so there is no book to quote and no
     -- quantity this tab could buy in one click. Saying "nothing on offer" about a lot list that
     -- is full is the one thing worse than saying nothing: it is a false claim about the market.
-    if attempt.byHand then return GC.L["not a commodity — buy by hand"], false end
+    if attempt.byHand then
+      -- The line's item-level floor could not be put into the search (quote), so the page it
+      -- opened lists whatever level the auction house picked: the level is the player's to check.
+      if attempt.levelUnchecked then return GC.L["check the item level — buy by hand"], false end
+      return GC.L["not a commodity — buy by hand"], false
+    end
     if (attempt.qty or 0) > 0 then
+      -- Fix round 2: a click here would start a purchase, and one the Sniper confirmed is still
+      -- owed its answer (GC.PurchaseSlot.ConfirmOwed): the button waits, as the Sniper's own Buy
+      -- does over it, and reads BUY again once that purchase has its answer (the Sniper repaints
+      -- this tab when it settles).
+      if owedElsewhere() then return GC.L["waiting..."], false end
       -- A partial fill: the cap stopped the ladder part-way, so what is on the button is real
       -- but it is not the whole line. The label stays short enough for the 72px badge and the
       -- button wears the over-cap look; how far over the rest sits is on the log line
@@ -827,9 +901,9 @@ local function actionLabel(line)
     return GC.L["nothing on offer"], false
   end
   if stage == "started" then return GC.L["buying..."], false end
-  if stage == "confirm" then
-    return GC.L["CONFIRM"], true
-  end
+  -- The seconds the quote has left are counted beside the line's name (paintLine), not here: the
+  -- 72px button holds "CONFIRM" in every language at the default scale, and nothing longer.
+  if stage == "confirm" then return GC.L["CONFIRM"], true end
   if stage == "confirming" then return GC.L["confirming..."], false end
   if stage == "requote" then
     return (GC.L["price moved to %s"]):format(formatAmount(attempt.movedTotal)), true
@@ -889,6 +963,64 @@ end
 -- belong to an earlier session, which is the same ageing the Sniper's mirror applies.
 function GC.Buy.HasStranded() return (liveStranded()) > 0 end
 
+-- Whether a purchase this tab confirmed is still owed its answer: Confirm reached the server and
+-- neither a terminal event, a re-quote nor the confirming timeout (retireStalled) has spoken since.
+-- Half of GC.PurchaseSlot.ConfirmOwed, the rule both windows start by.
+--
+-- Final money review M3: and a confirm the auction house closed on, until the moment this tab would
+-- have stopped waiting for it anyway (its confirming stall, `_owedUntil`) -- across the reopen, as a
+-- Sniper confirm carried across a close holds this tab. It went to "unknown" and stopped counting
+-- at once, and the Sniper could start while this purchase might still take the gold its own
+-- checks were counting.
+function GC.Buy.ConfirmOwed()
+  local attempt = GC.Buy._attempt
+  if attempt ~= nil and attempt.stage == "confirming" then return true end
+  local untilAt = GC.Buy._owedUntil
+  if untilAt and (GetTime and GetTime() or time()) < untilAt then return true end
+  GC.Buy._owedUntil = nil
+  return false
+end
+
+-- Final money review I1: a Start cancelled before the server answered it -- the watchdog's -- still
+-- has that answer coming, and commodity events name no attempt. With the slot released at once, the
+-- Sniper could start in the gap and this Start's late quote reached it (and, the other way round,
+-- the Sniper's lit this tab's CONFIRM at a total nobody here quoted). So the slot stays this tab's,
+-- the claim re-stamped, until the drain is over: the late quote or failure arrives and is swallowed
+-- here (the terminal handlers below), or BD.DRAIN_SECONDS pass. Nothing here starts meanwhile
+-- (owedElsewhere).
+function GC.Buy._StartDrain()
+  local drain = {}
+  GC.Buy._drain = drain
+  if GC.PurchaseSlot then GC.PurchaseSlot.Claim("buy") end
+  if C_Timer and C_Timer.After then
+    C_Timer.After(BD.DRAIN_SECONDS, function()
+      if GC.Buy._drain == drain then GC.Buy._EndDrain() end
+    end)
+  end
+end
+
+function GC.Buy._EndDrain()
+  GC.Buy._drain = nil
+  if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  GC.Buy.RefreshIfShown()
+end
+
+-- The auction house ticker's call (UI/SniperFrame.lua, four times a second): repaints the tab once
+-- a second while a CONFIRM counts down its last BD.COUNTDOWN_SECONDS (fix round 4, m2).
+function GC.Buy.TickCountdown()
+  -- Load-bearing round (M-1): the moment whatever this tab waited on lets go -- the Sniper's slot,
+  -- a confirm owed its answer, its own drain -- the lines read BUY again, not on the next refresh up
+  -- to twenty seconds later. The mirror of the Sniper's own edge (GC.Sniper._TickOwedHold).
+  local waiting = owedElsewhere()
+  if GC.Buy._lastWaiting and not waiting then GC.Buy.RefreshIfShown() end
+  GC.Buy._lastWaiting = waiting
+  local attempt = GC.Buy._attempt
+  local left = quoteSecondsLeft(attempt)
+  if not left or left == attempt.countdownShown then return end
+  attempt.countdownShown = left
+  GC.Buy.RefreshIfShown()
+end
+
 -- The one record a terminal event can honestly be attributed to, consumed. A commodity event
 -- carries no attempt id, so with two of them live attribution is a guess: they are ALL dropped and
 -- nothing is recorded -- the same fail-closed answer the Sniper gives, and a better one than an
@@ -916,9 +1048,10 @@ end
 -- left it RELEASED the slot on its way out, so an event gated on ownership alone could never
 -- reach the branch that books it. What a stranded record may never do is take an event from
 -- somebody who is holding the slot -- that purchase owns its own terminals. ANY claim of theirs,
--- not only one IsBusy still reports: the Sniper claims once at its buy click and never re-stamps,
--- so its own success can land past GC.PurchaseSlot.MAX_SECONDS with the claim still in place, and
--- a stranded record here would have taken it.
+-- not only one IsBusy still reports: the Sniper re-stamps its claim at every stage it holds a
+-- purchase in and at Confirm (GC.Sniper._ArmStall), but a confirmed purchase's success can still
+-- land past GC.PurchaseSlot.MAX_SECONDS after the last stamp, with the claim still in place, and a
+-- stranded record here would have taken it.
 --
 -- Nor may it take one when the Sniper holds a stranded confirm of its own. A commodity event
 -- carries nothing that could say which window's it is, so with a record on both sides the answer
@@ -1060,6 +1193,9 @@ armStall = function(attempt, seconds)
   -- the slot out from under a purchase this tab is still holding. Re-claiming by the current
   -- owner always succeeds and re-stamps (Core/PurchaseSlot.lua).
   if GC.PurchaseSlot then GC.PurchaseSlot.Claim("buy") end
+  -- When this wait runs out, for the CONFIRM countdown (actionLabel, GC.Buy.TickCountdown).
+  attempt.stallEnds = (GetTime and GetTime() or time()) + seconds
+  attempt.countdownShown = nil
   if not (C_Timer and C_Timer.After) then return end
   attempt.stall = (attempt.stall or 0) + 1
   local token, stall = attempt.token, attempt.stall
@@ -1199,7 +1335,8 @@ end
 -- throttle claim, and only when there is nothing better already in hand: a quote younger than
 -- BD.QUOTE_SECONDS for this same line is what the next click will spend, and a purchase in
 -- flight owns the buffer until it is done.
-local function quote(line)
+-- `clicked`: the ask is the player's click, not a hover (final review m10, actionLabel).
+local function quote(line, clicked)
   if not buyable(line) then return end
   local attempt = GC.Buy._attempt
   if inFlight(attempt) then return end
@@ -1214,13 +1351,38 @@ local function quote(line)
   -- No auction house session, no question to ask -- and a SendSearchQuery nobody will answer
   -- leaves the board promising a quote that never lands. Same gate as TrySendRefresh's.
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then return end
+  -- Not over an unanswered keys batch -- one still out from the Deals board the player just left,
+  -- or this tab's own refresh. A search sent on top of one takes its answer and comes back empty
+  -- itself (UI/SellFrame.lua's advanceQuote, seen in game): an empty quote. The line is asked for
+  -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
+  if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
+    GC.Buy._quoteOwed = line.itemID
+    -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
+    if clicked then
+      GC.Buy._owedByClick = line.itemID
+    elseif GC.Buy._owedByClick ~= line.itemID then
+      GC.Buy._owedByClick = nil
+    end
+    GC.Buy.RefreshIfShown() -- the button says it is waiting (actionLabel)
+    return
+  end
   if not throttleReady() then return end
   -- Claimed as "buy-quote", not "buy": the NOW batch (TrySendRefresh) already claims "buy", and
   -- under a stuck throttle flag GC.Util paces one forced send per consumer -- sharing a name
   -- would have the board's refresh and the player's own hover taking turns in one window.
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-quote") then return end
 
-  C_AuctionHouse.SendSearchQuery(C_AuctionHouse.MakeItemKey(line.itemID), {}, false)
+  -- A gear line with an item-level floor (an alert group's own minimum, caps fixes 5h) searches the
+  -- cheapest variant at or above it that a poll has seen: the page this opens is where the player
+  -- buys by hand, and an item key names one item-level variant -- as narrow as the client lets a
+  -- search be. With none known it is the bare key, and the button says the level is unchecked.
+  local variant = line.minIlvl and GC.Sniper and GC.Sniper.VariantKeyAtLeast
+    and GC.Sniper.VariantKeyAtLeast(line.itemID, line.minIlvl) or nil
+  local key = variant or C_AuctionHouse.MakeItemKey(line.itemID)
+  C_AuctionHouse.SendSearchQuery(key, {}, false)
+  -- Out until its answer lands, in the book the Sell tab reads: a "busy" it draws must not be
+  -- taken for a post's refusal there (GC.Sniper.RequestOut; review sell-fix4 M3).
+  if GC.Sniper and GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
   -- Blizzard's own pane may open this item's buy page in answer; that page is ours, not a buy.
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   attemptSeq = attemptSeq + 1
@@ -1236,6 +1398,7 @@ local function quote(line)
     local asked = GC.Buy._attempt
     asked.stage, asked.byHand, asked.quotedAt = "quoted", true, time()
     asked.qty, asked.total = 0, 0
+    asked.levelUnchecked = (line.minIlvl ~= nil and variant == nil) or nil
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -1302,6 +1465,13 @@ end
 -- reach a total nothing has checked: an update that leaves the cap requotes the line instead.
 function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if not mayOwnTerminal() then return false end
+  -- The late quote of a Start this tab cancelled unanswered (I1): swallowed, never read as the
+  -- answer to anything, the Cancel sent again, and the drain -- and the slot -- over.
+  if GC.Buy._drain then
+    cancelStartedPurchase()
+    GC.Buy._EndDrain()
+    return true
+  end
   local attempt = GC.Buy._attempt
   if not attempt or not inFlight(attempt) then return false end
   local qty = attempt.qty or 0
@@ -1332,7 +1502,9 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
     -- Back to `confirm` even from `confirming`: no gold moved, and the price on the button is a
     -- new one, so it needs the player's agreement again exactly as the first one did.
     attempt.stage = "confirm"
-    armStall(attempt, BD.CONFIRM_SECONDS)
+    -- Never past the server's own quote, when the client can say when it runs out (fix round 4).
+    armStall(attempt, GC.PurchaseSlot and GC.PurchaseSlot.QuoteSeconds
+      and GC.PurchaseSlot.QuoteSeconds(BD.CONFIRM_SECONDS) or BD.CONFIRM_SECONDS)
   else
     attempt.movedTotal = total
     attempt.stage = "requote"
@@ -1399,6 +1571,7 @@ end
 -- The stage check is the same guard the success path carries, for the same reason.
 function GC.Buy.OnCommodityPurchaseFailed()
   if not mayOwnTerminal() then return false end
+  if GC.Buy._drain then GC.Buy._EndDrain() return true end -- the drained Start's answer (I1)
   local attempt = GC.Buy._attempt
   if attempt and (inFlight(attempt) or attempt.stage == "requote") then
     failAttempt(attempt)
@@ -1409,6 +1582,7 @@ end
 
 function GC.Buy.OnCommodityPriceUnavailable()
   if not mayOwnTerminal() then return false end
+  if GC.Buy._drain then GC.Buy._EndDrain() return true end -- the drained Start's answer (I1)
   local attempt = GC.Buy._attempt
   if attempt and (inFlight(attempt) or attempt.stage == "requote") then
     failAttempt(attempt)
@@ -1457,7 +1631,13 @@ retireStalled = function(token, stall)
   local line = lineFor(attempt.itemID)
   if attempt.stage ~= "confirming" then
     cancelStartedPurchase()
-    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+    -- Unanswered, its answer is still coming: the slot is held for it (GC.Buy._StartDrain). A
+    -- quote that did come leaves nothing in flight, and the slot goes back as before.
+    if attempt.stage == "started" then
+      GC.Buy._StartDrain()
+    elseif GC.PurchaseSlot then
+      GC.PurchaseSlot.Release("buy")
+    end
     attempt.stage = "expired"
     logAttempt(line)
     GC.Buy.RefreshIfShown()
@@ -1488,6 +1668,14 @@ end
 -- job is to warn that a confirm may have taken gold -- before the player could read it.
 function GC.Buy.OnAuctionHouseClosed()
   GC.Buy._stranded = {}
+  -- A drain belongs to the session that sent the Start (I1).
+  if GC.Buy._drain then
+    GC.Buy._drain = nil
+    if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
+  end
+  -- A quote owed to this session is not the next one's to ask: the line it was for has long lost
+  -- the pointer by then, and the button would read "..." until something asked (caps fixes 5i).
+  GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
   local attempt = GC.Buy._attempt
   if not attempt then return end
   local stage = attempt.stage
@@ -1507,6 +1695,9 @@ function GC.Buy.OnAuctionHouseClosed()
   else
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("buy") end
     attempt.stage = "unknown"
+    -- Still owed its answer across the reopen, until this tab's own wait for it would have ended
+    -- (GC.Buy.ConfirmOwed, final money review M3).
+    GC.Buy._owedUntil = attempt.stallEnds
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -1519,6 +1710,9 @@ function GC.Buy.OnAuctionHouseShow()
   sessionToken = sessionToken + 1
   GC.Buy._stranded = {}
   local attempt = GC.Buy._attempt
+  -- ...except a confirm the close hit while it is still owed its answer (load-bearing round, M-3):
+  -- its units may still come by mail, and the line keeps saying so instead of offering BUY again.
+  if attempt and attempt.stage == "unknown" and GC.Buy.ConfirmOwed() then return end
   if attempt and not inFlight(attempt) then GC.Buy._attempt = nil end
 end
 
@@ -1560,10 +1754,21 @@ local function onBuyClick(line)
     -- Focus does not move onto a line a click cannot act on while another line's purchase is in
     -- the client's hands: Enter has to keep pointing at the line waiting for its confirm.
     if not inFlight(attempt) then GC.Buy._focus = line.itemID end
-    quote(line)
+    quote(line, true)
     return
   end
 
+  -- The one rule (GC.PurchaseSlot.ConfirmOwed): never start over a purchase the Sniper confirmed
+  -- that is still owed its answer, whatever the claim below says -- that claim goes stale long
+  -- before such a purchase has to have answered. Nor over a purchase the Sniper holds the slot
+  -- for, nor while this tab drains a Start it cancelled (owedElsewhere). Said the way the Sniper
+  -- says it.
+  if owedElsewhere() then
+    logAttempt(line, GC.L["waiting for previous commodity purchase to settle"])
+    if GC.Print then GC.Print(GC.L["waiting for previous commodity purchase to settle"]) end
+    GC.Buy.RefreshIfShown()
+    return
+  end
   if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("buy") then
     if GC.Print then GC.Print(GC.L["another purchase is in flight"]) end
     return
@@ -1682,10 +1887,25 @@ local function paintLine(row, line)
   elseif line.parent then
     decorated = (GC.L["↳ %s"]):format(decorated)
   end
+  -- An alert group's gear member names the item level its price was set for (caps fixes 5h). The
+  -- line is bought by hand on Blizzard's own page, and without this a cheaper copy below that
+  -- level was the obvious one to take.
+  if line.minIlvl then
+    decorated = ("%s · %s"):format(decorated, (GC.L["item level %d+"]):format(line.minIlvl))
+  end
   -- An alert hit can be bound to one realm; the auction house search finds nothing for it on
   -- any other, so the row says which rather than leaving the player to wonder why it is empty.
   if line.realmName then
     decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
+  end
+  -- The last seconds of this line's quote at CONFIRM (fix rounds 4-5): the name cell is the flex
+  -- column, the one with room; GC.Buy.TickCountdown repaints it once a second while they run. They
+  -- LEAD the name: the cell is one line cut at its right edge, and trailing a normal reagent name
+  -- at the default window width the digit was the part cut off (Russian and Ukrainian: always).
+  local quoted = GC.Buy._attempt
+  local left = quoted and quoted.itemID == line.itemID and quoteSecondsLeft(quoted)
+  if left then
+    decorated = ("%s · %s"):format((GC.L["expires in %d s"]):format(left), decorated)
   end
   row.reagent:SetText(decorated)
   -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
@@ -1745,17 +1965,15 @@ local function paintLine(row, line)
     local attempt = GC.Buy._attempt
     -- Once this line has a quote (or a purchase under way) the cell shows THAT total -- what the
     -- next click spends, and after the server's price update, what the confirm click spends.
-    -- The button stays "BUY n" / "CONFIRM": a badge 80px wide has no room for a sum, and the
-    -- sum has a column of its own right beside it.
+    -- The button stays "BUY n" / "CONFIRM": a 72px badge has no room for a sum, and the sum has a
+    -- column of its own right beside it. (Nor for the quote's last seconds, which go beside the
+    -- line's name -- see paintLine.)
     local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.byHand
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
     -- A quote outlives the hover that asked for it: the cell keeps the real sum for as long as
     -- the quote is one the next click would spend, and only then falls back to the estimate.
-    local recent = quotes[line.itemID]
-    if not quotedTotal and recent and recent.qty == line.buy and recent.qty > 0
-        and (time() - (recent.at or 0)) <= BD.QUOTE_SECONDS then
-      quotedTotal = recent.total
-    end
+    local recent = recentQuote(line)
+    if not quotedTotal and recent then quotedTotal = recent.total end
     if quotedTotal and quotedTotal > 0 then
       row.cells.cost:SetText(formatAmount(quotedTotal))
       setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
@@ -2002,8 +2220,9 @@ createRow = function(parent)
   end
 
   -- One control with one look, shown only on a line that can actually be bought (paintLine).
-  -- 72 inside an 80px column, the same "sized to the longest English label" rule SellFrame's
-  -- 86px action button follows.
+  -- 72 inside an 80px column: it holds "CONFIRM" and "waiting..." in every language at the default
+  -- scale (spec/button_label_width_spec.lua). Anything longer -- the quote's countdown included --
+  -- goes in the line's name cell instead.
   row.action = Theme.Button(row, "ghost", "badge")
   row.action:SetSize(72, 18)
   row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)
@@ -2458,6 +2677,13 @@ local function hasPendingLine()
   return false
 end
 
+-- Whether a quote this tab asked for is still waiting for its answer (quotePending). Final review
+-- m9: UI/SniperFrame.lua's _TrySendKeysBatchFor asks it before any keys batch goes -- a hover quote
+-- left on the wire by a switch to Deals is one a cap batch sent on top would take the answer of.
+function GC.Buy.QuotePending()
+  return quotePending(GC.Buy._attempt)
+end
+
 -- Asks UI/SniperFrame.lua's arbiter for the one outstanding keys batch this addon allows, on
 -- this tab's behalf. Every addon-wide rule (no second batch, not across a book pass's browse
 -- buffer, not while the player is on Blizzard's own panes, and the throttle claim) lives
@@ -2474,6 +2700,9 @@ function GC.Buy.TrySendRefresh(playerBusy)
   -- Same gate, same reason, as canDrillNow's first line in UI/SniperFrame.lua.
   if not GC.Sniper.IsAHOpen() then return false end
   if (time() - lastRefreshAt) < BD.REFRESH_SECONDS then return false end
+  -- Not over a hover quote still waiting for its answer: a batch sent on top of it would take
+  -- that answer (the same collision quote() waits out in the other direction).
+  if quotePending(GC.Buy._attempt) then return false end
   -- refreshTargets is handed to the arbiter rather than called here: it walks the whole run
   -- asking the client about every line's item key, and this function runs once a second off
   -- the auction house ticker. Inside NextBatch it runs only on the tick that has already
@@ -2489,6 +2718,17 @@ end
 -- enough on its own: Auto is paused for as long as this tab is up, so on a quiet client
 -- nothing else sends anything and no readiness event ever fires.
 function GC.Buy.Tick()
+  -- A quote held back for an unanswered keys batch (see quote): asked for once the batch is gone,
+  -- and only for the line that still has the focus -- the player has moved on otherwise. Ahead
+  -- of the refresh, which would otherwise take the moment with a batch of its own.
+  local owed = GC.Buy._quoteOwed
+  if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) then
+    GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
+    local line = lineFor(owed)
+    if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
+    -- The waiting look goes with the debt, whether or not the ask above went out.
+    GC.Buy.RefreshIfShown()
+  end
   GC.Buy.TrySendRefresh()
 end
 

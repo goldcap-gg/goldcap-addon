@@ -143,6 +143,41 @@ describe("Sell bulk price fill", function()
     assert.equal(1, asked.owned)
   end)
 
+  -- Caps fixes 4a, round 1: the same collision with a batch this tab did not send -- one still
+  -- in flight from the Deals board the player just left (the Sniper's price caps). The walk stands
+  -- still for it and comes back by itself once it is gone: nothing announces that.
+  it("sends no search over another tab's unanswered batch, and carries on once it is gone", function()
+    local now, asked = { value = 100 }, {}
+    local timers = {}
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    local GC = load(now, STOCK, asked, { value = false })
+    local out = true
+    GC.Sniper._KeysOutstanding = function() return out end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnThrottleReady()
+    assert.is_nil(asked.searches)
+    out = false
+    local pending = timers
+    timers = {}
+    for _, fn in ipairs(pending) do fn() end
+    assert.is_truthy(asked.searches and #asked.searches > 0)
+  end)
+
+  -- Final review m9: the other direction, across tabs. A walk search still out when the player
+  -- switches to Deals is one a cap batch sent on top of it would take the answer of; the arbiter
+  -- asks this before any keys batch goes (UI/SniperFrame.lua's _TrySendKeysBatchFor).
+  it("says its walk's search is waiting for an answer, until it lands or goes stale", function()
+    local now, asked = { value = 100 }, {}
+    local GC = load(now, STOCK, asked, { value = false })
+    assert.is_false(GC.Sell.SearchPending())
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnThrottleReady()
+    assert.is_truthy(asked.searches and #asked.searches > 0)
+    assert.is_true(GC.Sell.SearchPending())
+    now.value = now.value + 11
+    assert.is_false(GC.Sell.SearchPending())
+  end)
+
   it("gives up on a batch that has not answered in eight seconds, from the ticker", function()
     local now, asked = { value = 100 }, {}
     local GC = load(now, STOCK, asked, { value = true })

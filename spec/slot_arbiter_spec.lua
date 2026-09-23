@@ -196,7 +196,8 @@ describe("Search slot arbiter", function()
   it("gives a parked Check the slot ahead of both", function()
     local GC = load()
     local searched = {}
-    set(GC.Sniper.OnThrottleReady, "driver", { sendSearch = function(id) searched[#searched + 1] = id end })
+    set(GC.Sniper.OnThrottleReady, "driver", { isReady = function() return true end,
+      sendSearch = function(id) searched[#searched + 1] = id end })
     local attempt = { itemID = 42, token = 1, row = {}, deal = { itemID = 42 } }
     upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[42] = attempt
     set(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
@@ -415,7 +416,8 @@ describe("Search slot arbiter", function()
   it("still lets a parked Check requery through while a purchase is in flight", function()
     local GC = load()
     local searched = {}
-    set(GC.Sniper.OnThrottleReady, "driver", { sendSearch = function(id) searched[#searched + 1] = id end })
+    set(GC.Sniper.OnThrottleReady, "driver", { isReady = function() return true end,
+      sendSearch = function(id) searched[#searched + 1] = id end })
     local attempt = { itemID = 42, token = 1, row = {}, deal = { itemID = 42 } }
     upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")[42] = attempt
     set(GC.Sniper.OnThrottleReady, "isCurrentRequeryAttempt", function() return true end)
@@ -599,10 +601,37 @@ describe("Search slot arbiter", function()
         assert.is_false((outstandingAfter("sniper", 30)))
       end)
 
-      it("still waits the full thirty for the BUY tab's batch", function()
-        assert.is_true((outstandingAfter("buy", 8)))
-        assert.is_true((outstandingAfter("buy", 29)))
-        assert.is_false((outstandingAfter("buy", 30)))
+      -- Caps fixes 5i: the BUY tab's own refresh batch got the thirty seconds, so a lost answer
+      -- held the player's hover or click quote -- which waits for it -- for half a minute with
+      -- nothing on screen. It is a tab's own batch like the Sell tab's, and waits as long.
+      it("writes the BUY tab's batch off after eight seconds too", function()
+        assert.is_true((outstandingAfter("buy", 7)))
+        assert.is_false((outstandingAfter("buy", 8)))
+      end)
+
+      -- Caps fixes 4a, round 1: a batch still out from the board the player just left, while the
+      -- Sell or BUY tab is on screen. Those tabs' own searches take its answer (UI/SellFrame.lua's
+      -- advanceQuote, seen in game) and the Sell walk now stands still for it -- thirty seconds of
+      -- that held every keys consumer and the walk. The tab's own batch keeps its own allowance.
+      it("gives a batch the tab on screen did not send eight seconds on the Sell and BUY tabs", function()
+        local function after(owner, onView, seconds)
+          local GC = load()
+          set(GC.Sniper.OnThrottleReady, "view", onView)
+          local clock = 1000
+          _G.time = function() return clock end
+          GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, owner, { 1 }
+          clock = clock + seconds
+          return GC.Sniper._KeysOutstanding()
+        end
+        for _, owner in ipairs({ "sniper", "caps", "buy" }) do
+          assert.is_false(after(owner, "sell", 8))
+        end
+        for _, owner in ipairs({ "sniper", "caps" }) do
+          assert.is_false(after(owner, "buy", 8))
+        end
+        assert.is_true(after("buy", "buy", 7))
+        assert.is_false(after("buy", "buy", 8))
+        assert.is_true(after("caps", "sold", 29))
       end)
     end)
 
@@ -675,6 +704,84 @@ describe("Search slot arbiter", function()
     GC.Sniper.OnThrottleReady()
     assert.same({ "drill" }, sent)
     assert.equal(1, GC.Sniper._drillQueue:Depth())
+  end)
+
+  -- Whole-market coverage: with thousands of fact-bearing commodities the drill queue is never
+  -- empty, and drills went before pages every slot -- a 7-14 s pass stretched to minutes. While a
+  -- page waits too, drills take at most LIM.DRILL_SHARE slots in a row.
+  it("gives the book pass every third slot while drills and pages both wait", function()
+    local GC, watch = load()
+    watch.hungry = false
+    for i = 1, 9 do
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 40 + i }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 40 + i, floor = 900, estProfit = 100 - i })
+    end
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+    for _ = 1, 6 do
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+    end
+    assert.same({ "drill", "drill", "page", "drill", "drill", "page" }, sent)
+    assert.equal(4, GC.Sniper._drillShare.drills)
+    assert.equal(2, GC.Sniper._drillShare.pages)
+  end)
+
+  -- Fix round 1 (m1): /gc board's drillShare counts a page as contended only when a drill that
+  -- could have gone stood aside for it -- not when the drills were out of budget, or could not
+  -- send at all this slot (canDrillNow false: a drill in flight, the player busy, another tab).
+  it("counts a page against the drills only when a sendable drill stood aside for it", function()
+    local GC, watch = load()
+    watch.hungry = false
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time }, { perMinute = 2 })
+    for i = 1, 9 do
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 40 + i }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 40 + i, floor = 900, estProfit = 100 - i })
+    end
+    local drillable = true
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return drillable end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+    for _ = 1, 5 do
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+    end
+    -- The budget of two is gone after two drills: every page after them went to a pass nobody
+    -- was waiting behind.
+    assert.same({ "drill", "drill", "page", "page", "page" }, sent)
+    assert.equal(2, GC.Sniper._drillShare.drills)
+    assert.equal(0, GC.Sniper._drillShare.pages)
+
+    GC.Sniper._drillQueue = GC.DrillQueue.New({ now = _G.time })
+    GC.Sniper._drillQueue:Push({ itemID = 41, floor = 900, estProfit = 99 })
+    GC.Sniper._drillShare.run = 2
+    drillable = false
+    armPage(GC)
+    GC.Sniper.OnThrottleReady()
+    assert.same("page", sent[#sent])
+    assert.equal(0, GC.Sniper._drillShare.pages)
+  end)
+
+  it("lets drills take every slot when no page is waiting", function()
+    local GC, watch = load()
+    watch.hungry = false
+    GC.Sniper._bookPass:Abort()
+    for i = 1, 4 do
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 40 + i }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 40 + i, floor = 900, estProfit = 100 - i })
+    end
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+    for _ = 1, 4 do GC.Sniper.OnThrottleReady() end
+    assert.same({ "drill", "drill", "drill", "drill" }, sent)
   end)
 
   -- Same two gates the verify walk stands down for: with the Sell tab up nobody is reading

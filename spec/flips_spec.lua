@@ -86,6 +86,16 @@ describe("Data.Flips (Sniper v2 §D)", function()
       assert.same({}, GC.Data.GetFlips(100))
     end)
 
+    -- Live price caps: a buy on the player's own price has no resale target -- no stress exit,
+    -- no region reference -- and a flip is a cost paired with a target. It is recorded in the
+    -- ledger and as an acquisition batch (UI/SniperFrame.lua's purchaseFacts); here, nothing.
+    it("records no flip for a buy on the player's own price, which has no target to give it", function()
+      assert.is_nil(GC.Data.RecordFlip({ itemID = 7 }, {
+        itemID = 7, quantity = 2, total = 201, unitDisplay = 100, cap = true, expectedProfit = 0,
+      }, 100))
+      assert.same({}, GC.Data.GetFlips(100))
+    end)
+
     it("returns nil for a direct call without immutable purchase facts", function()
       assert.is_nil(GC.Data.RecordFlip({ itemID = 999, qty = 1, unitPrice = 5000 }, nil, 100))
     end)

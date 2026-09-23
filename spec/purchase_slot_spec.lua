@@ -44,6 +44,23 @@ describe("GC.PurchaseSlot: one commodity purchase in flight, two owners", functi
     assert.is_false(GC.PurchaseSlot.IsBusy(131))
   end)
 
+  -- Fix round 2: the one rule both Start sites keep -- nothing starts a commodity purchase while
+  -- a purchase either window confirmed is still owed its answer, whoever holds the claim.
+  it("names the window whose confirmed purchase is still owed its answer", function()
+    local sniperOwed, buyOwed = nil, false
+    GC.Sniper = { _ConfirmedOwed = function() return sniperOwed end }
+    GC.Buy = { ConfirmOwed = function() return buyOwed end }
+    assert.is_nil(GC.PurchaseSlot.ConfirmOwed())
+    sniperOwed = { confirmed = true }
+    assert.equal("sniper", GC.PurchaseSlot.ConfirmOwed())
+    sniperOwed, buyOwed = nil, true
+    assert.equal("buy", GC.PurchaseSlot.ConfirmOwed())
+  end)
+
+  it("owes nothing for a window that is not loaded", function()
+    assert.is_nil(GC.PurchaseSlot.ConfirmOwed())
+  end)
+
   it("defaults `now` to GetTime when omitted", function()
     _G.GetTime = function() return 500 end
     assert.is_true(GC.PurchaseSlot.Claim("sniper"))

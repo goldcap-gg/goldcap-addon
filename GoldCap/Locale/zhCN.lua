@@ -20,6 +20,8 @@ GC.Locales.zhCN = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可简写 /gc）",
   ["%d (whole lot)"] = "%d（整批）",
+  ["%d ahead of you"] = "你前面有 %d 件",
+  ["%d caps · %s"] = "%d 个价格上限 · %s",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "上次扫描的 %d 笔交易 -- 按 Full Scan 刷新",
@@ -46,7 +48,10 @@ GC.Locales.zhCN = {
   ["%s after the AH cut"] = "扣除拍卖行手续费后 %s",
   ["%s ahead"] = "前面有 %s",
   ["%s under you"] = "%s 低于你的价格",
+  ["%s units in %d prices"] = "%s 件 · %d 个价位",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s没有成本",
+  ["%s+ ahead"] = "前面有 %s+",
+  ["%s+, %d prices read"] = "%s+，已读 %d 个价位",
   [", %d hidden as unsellable"] = "，%d 件因无法出售已隐藏",
   ["1 lot, %s asked"] = "1 批，要价 %s",
   ["24h trend"] = "24小时走势",
@@ -60,13 +65,14 @@ GC.Locales.zhCN = {
   ["ASKING"] = "要价",
   ["AT MARKET"] = "按市价",
   ["AUTO"] = "自动",
-  ["AUTO · PAUSED: "] = "自动 · 已暂停：",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
   ["AUTOMATION & ALERTS"] = "自动化与提醒",
   ["AVOID"] = "避开",
   ["Above this 24-hour rise the market value is treated as a spike and deflated."] =
     "24 小时涨幅超过这个数值时，市场价会被视为暴涨并被压低。",
+  ["Above your price -- quoted %s, your price %s"] = "高于你的价格 -- 报价 %s，你的价格 %s",
   ["Asks for a second click to confirm."] = "需要再点一次确认。",
+  ["At your price"] = "达到你的价格",
   ["Auction House did not answer — press Refresh"] = "拍卖行没有响应 — 请按 Refresh",
   ["Auction House is not open"] = "拍卖行未打开",
   ["Auto-scan on next AH visit"] = "下次进入拍卖行时自动扫描",
@@ -200,16 +206,20 @@ GC.Locales.zhCN = {
     "它不会拿市场价当成本，所以在你填写之前利润始终显示为未知。",
   ["Item"] = "物品",
   ["Item %d"] = "物品 %d",
+  ["Item level %d, below the %d your price is for"] = "物品等级 %d，低于你的价格所要求的 %d",
   ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
     "物品：装备、宠物和配方按你导入的区域参考价定价。售出速度从未被测量，因此它们永远无法判定为安全 -- 是否购买由你决定，GoldCap 只在此面板打开时才会检查它们。",
   ["LISTED"] = "已上架",
   ["Language"] = "语言",
   ["Language changed. Type /reload to apply it everywhere."] =
     "语言已更改。输入 /reload 使其在所有界面生效。",
+  ["Last post may still go up -- wait a minute"] = "上次上架可能仍会成功 -- 请等一分钟",
   ["Last result: %ds ago"] = "上次结果：%d 秒前",
   ["Last result: none yet this visit"] = "上次结果：本次还没有",
   ["Listed"] = "在售数量",
   ["Listed at %s — far below market. Repost."] = "以 %s 上架 — 远低于市场价。请重新上架。",
+  ["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."] =
+    "挂单价不高于你在 goldcap.gg 设定的价格。能否转手卖出，要你自己判断。",
   ["Listed value"] = "在售金额",
   ["Listings"] = "挂单数",
   ["Lists what is in your bags at the WHAT TO DO price: the whole bag for a commodity, one stack for a regular item."] =
@@ -233,6 +243,7 @@ GC.Locales.zhCN = {
   ["NOTHING TO POST"] = "没有可上架的",
   ["Needs a live price check before it can be bought."] = "需要先做一次实时价格检查才能购买。",
   ["Never spend more than this share of your gold on one purchase."] = "单次购买花费的金币，永远不超过你金币总量的这个比例。",
+  ["No answer yet -- listening for a minute"] = "拍卖行尚未回应 -- 再等待一分钟",
   ["No deals passed the safety checks right now."] = "目前没有交易通过安全检查。",
   ["No deals to show -- and no realm prices yet."] = "没有可显示的交易 -- 也还没有服务器价格。",
   ["No deals yet."] = "暂时没有交易。",
@@ -291,8 +302,8 @@ GC.Locales.zhCN = {
   ["Post above the cheapest"] = "高于最低价上架",
   ["Post confirmation expired"] = "上架确认已过期",
   ["Post the next queued item"] = "上架队列中的下一个物品",
+  ["Posted"] = "已上架",
   ["Posting failed"] = "上架失败",
-  ["Posting timed out"] = "上架超时",
   ["Posting unavailable"] = "当前无法上架",
   ["Posting…"] = "上架中…",
   ["Press Full Scan to find deals."] = "按 Full Scan 查找交易。",
@@ -365,6 +376,7 @@ GC.Locales.zhCN = {
   ["Spike-trend threshold %"] = "暴涨阈值 %",
   ["Start scanning as soon as the auction house opens."] = "一进入拍卖行就立即开始扫描。",
   ["Status"] = "状态",
+  ["Stop and open the buy window on your price"] = "达到你的价格时停止并打开购买窗口",
   ["Stress exit unit"] = "压力退出单价",
   ["Stress profit"] = "压力利润",
   ["THE BOOK"] = "挂单簿",
@@ -374,6 +386,7 @@ GC.Locales.zhCN = {
   ["The Auction House would not quote a deposit, so the cost is unknown."] = "拍卖行没有给出手续费，因此成本未知。",
   ["The Companion is syncing, but this addon could not read what it wrote:"] =
     "Companion 正在同步，但该插件读不懂它写入的内容：",
+  ["The auction house did not answer -- try again"] = "拍卖行没有响应 -- 请重试",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "榜单是按导入的快照分级的，实时挂单簿并不支持这个结论。",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
@@ -395,6 +408,7 @@ GC.Locales.zhCN = {
   ["The price is falling; buying into it is how you get stuck."] = "价格正在下跌，此时接手正是被套的方式。",
   ["The price is the last quote, up to 45 seconds old. If it moves before you confirm, the post is dropped rather than sent at the old price."] =
     "价格是最后一次取得的报价，最多 45 秒前。若在确认前发生变化，会放弃本次上架，而不是按旧价发出。",
+  ["The price moved -- part of this quote may be above your price"] = "价格变了 -- 这次报价可能有一部分高于你的价格",
   ["The price moved and the trade is no longer safe."] = "价格变动了，这笔交易不再安全。",
   ["The profit does not clear your minimum once the 5% cut and deposit are paid."] =
     "扣掉 5% 手续费和上架费后，利润达不到你设定的下限。",
@@ -416,6 +430,7 @@ GC.Locales.zhCN = {
     "显示为未知说明成本侧不完整 — 用“填写成本”补上。",
   ["VERDICT"] = "判定",
   ["Verdict"] = "判定",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍卖行 %d",
   ["WATCH"] = "观察",
   ["WATCH (computed SAFE)"] = "WATCH（计算结果为安全）",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -438,6 +453,8 @@ GC.Locales.zhCN = {
     "若按市场价卖出，一件能净落多少：售价减去 5% 拍卖行抽成，再减去你的成本。",
   ["What your live auctions for this item add up to at their current asking price."] =
     "你这件物品在售拍卖按当前要价的合计金额。",
+  ["When a listing meets a price you set on the site, stop scanning and open its buy window."] =
+    "当某个拍卖达到你在网站上设置的价格时，停止扫描并打开其购买窗口。",
   ["Window position & size"] = "窗口位置和大小",
   ["With it, your realm's prices refresh automatically and your sales feed your ledger on goldcap.gg."] =
     "有了它，你所在服务器的价格会自动更新，销售记录和利润会同步到 goldcap.gg。",
@@ -453,14 +470,19 @@ GC.Locales.zhCN = {
   ["You would pay"] = "你会支付",
   ["Your call"] = "由你决定",
   ["Your minimum"] = "你的最低要求",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "高于最低价，处于低价四分位内 · 下方排队 %d 件",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "高于最低价，处于当日可达价内 · 下方排队 %d 件",
+  ["Your price"] = "你的价格",
+  ["a unit, at or under your price of %s"] = "单价，不高于你的价格 %s",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "高于最低价，处于低价四分位内 · 前面有 %s 件",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "高于最低价，处于当日可达价内 · 前面有 %s 件",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "对比该物品的区域价格，扣除 5% 手续费后 — 前提是能卖掉",
+  ["age %ss"] = "%s 秒前",
+  ["another purchase took over -- nothing was confirmed"] = "另一笔购买已接手 -- 没有确认任何购买",
   ["any figure here would be invented out of the very number being refused"] =
     "这里的任何数字都只能凭那个被否决的数值编出来",
+  ["at or under your price -- click Buy to purchase"] = "不高于你的价格 -- 点击 Buy 购买",
   ["at the price GoldCap expects these to sell for, after the 5% cut — not your asking price"] =
     "按 GoldCap 预计这些会卖出的价格计算，已扣除 5% 手续费 — 不是你的要价",
   ["auto off"] = "自动已关闭",
@@ -474,8 +496,11 @@ GC.Locales.zhCN = {
   ["bought %d x item %d after AH close"] = "拍卖行关闭后购买 %d 件 · 物品 %d",
   ["buying commodity..."] = "正在购买商品...",
   ["cheapest not yours %s"] = "非你的最低价 %s",
+  ["check the item level — buy by hand"] = "请核对物品等级 — 手动购买",
   ["checking live price..."] = "正在检查实时价格...",
   ["checking live safety..."] = "正在实时检查安全性...",
+  ["clears in ~%dd"] = "约 %d 天售罄",
+  ["clears in ~%dh"] = "约 %d 小时售罄",
   ["commodity purchase failed"] = "商品购买失败",
   ["confirmed commodity purchase failed after AH close"] = "拍卖行关闭后已确认的商品购买失败",
   ["confirming purchase..."] = "正在确认购买...",
@@ -485,16 +510,19 @@ GC.Locales.zhCN = {
   ["crafted %s"] = "制造 %s",
   ["data from goldcap.gg · synced %s ago"] = "数据来自 goldcap.gg · %s 前同步",
   ["due -- will be asked next pass"] = "到期 -- 下一轮会查询",
+  ["expires in %d s"] = "%d 秒后过期",
   ["fair"] = "一般",
   ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",
   ["first in line"] = "排在第一位",
+  ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
     "完整扫描结束：%d 笔交易%s，来自 %d 个物品组%s%s",
   ["full scan interrupted -- confirm your purchase"] = "完整扫描被中断 -- 请确认你的购买",
   ["full scan stalled -- press Full Scan to retry"] = "完整扫描卡住了 -- 按 Full Scan 重试",
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
+  ["full scan stopped -- press %s to run it again"] = "完整扫描已停止 -- 按 %s 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
   ["high"] = "高",
   ["hold"] = "持有",
@@ -502,6 +530,7 @@ GC.Locales.zhCN = {
     "无法识别（变体物品 -- 按设计不计价）",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "如果买下全部 %d 件，再按现在挂着的价格卖回去",
+  ["ilvl %d"] = "物品等级 %d",
   ["import %dh old"] = "导入数据已过 %d 小时",
   ["import stale -- /goldcap import or /goldcap companion"] =
     "导入数据已过期 -- /goldcap import 或 /goldcap companion",
@@ -513,12 +542,14 @@ GC.Locales.zhCN = {
     "是这个市场能消化的量 — 再多就是压在手里的库存",
   ["item %d"] = "物品 %d",
   ["item %d: %s"] = "物品 %d：%s",
+  ["item level %d+"] = "物品等级 %d+",
   ["item variant unresolved"] = "物品变体未确定",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] =
     "最近 24 小时 — %d 笔销售、总额 %s、手续费 %s、%d 笔购买、支出 %s",
   ["leave these alone"] = "这些不用动",
+  ["level %d"] = "等级 %d",
   ["listing gone -- already bought out or price changed"] = "挂单已消失 -- 已被买走或价格已变",
   ["listing gone -- bought out or repriced"] = "该拍卖已消失 — 被买走或改价",
   ["live safety confirmed -- click Buy to purchase"] = "已实时确认安全 -- 点击 Buy 购买",
@@ -526,12 +557,16 @@ GC.Locales.zhCN = {
   ["low"] = "低",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "手动导入 -- Companion 会自动更新：/goldcap companion",
+  ["market %s"] = "市场 %s",
   ["needs a fresh price -- press Refresh"] = "需要最新价格 -- 请按 Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "服务器没有返回确认 -- 购买仍可能已完成，请检查邮件。关闭此窗口不会撤销它。",
   ["no cost"] = "无成本",
   ["no cost for %d"] = "%d 件无成本",
   ["no live price yet"] = "还没有实时价格",
+  ["no live quote yet — pricing…"] = "尚无实时报价 — 正在定价…",
+  ["no market figure for caged pets"] = "笼中宠物没有市场数据",
+  ["no market figure for this item level"] = "此物品等级没有市场数据",
   ["no price"] = "无价格",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "还没有价格 -- /goldcap companion 或 /goldcap import",
@@ -544,6 +579,7 @@ GC.Locales.zhCN = {
   ["not enough gold for this quote -- Cancel"] = "该报价所需金币不足 -- Cancel",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "剩余数量不足以买这么多 -- 正在重新检查还剩多少...",
+  ["not priced — nothing on hand to sell"] = "未定价 — 手头没有可卖的物品",
   ["not ready to cancel"] = "尚未可取消",
   ["not ready to post"] = "尚未可上架",
   ["nothing listed"] = "没有挂单",
@@ -551,14 +587,20 @@ GC.Locales.zhCN = {
   ["off"] = "关",
   ["oldest units sell first"] = "最早的货先卖出",
   ["on"] = "开",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "打开一次拍卖行，GoldCap 才能知道这些物品的出售方式",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "或用 /goldcap import 粘贴 goldcap.gg 的字符串。",
   ["over %d position%s"] = "共 %d 个持仓%s",
   ["paid sale unresolved"] = "已到账的销售未匹配",
   ["placing bid..."] = "正在出价...",
+  ["previous commodity purchase settled -- %s to re-check the price"] = "上一笔商品购买已结算 -- 按 %s 重新检查价格",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "关闭购买窗口后价格变了 -- 没有买到任何东西",
   ["price checked, sale speed unknown -- this one is your call"] = "价格已核对，售出速度未知 -- 这一笔由你决定",
   ["price confirmed -- click Buy to purchase"] = "价格已确认 -- 点击 Buy 购买",
   ["price rose %.1fx — still safe, confirm"] = "价格上涨 %.1f 倍 — 仍然安全，请确认",
+  ["price stands %d of %d"] = "价格排第 %d / %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "已载入的价格来自 %s（%s），但你所在的区域是 %s — 所有折扣与利润都是按另一个市场计算的",
   ["purchase canceled"] = "购买已取消",
@@ -569,6 +611,7 @@ GC.Locales.zhCN = {
   ["quote %s -- click Confirm to buy"] = "报价 %s -- 点击 Confirm 购买",
   ["quote %ss ago"] = "报价 %s 秒前",
   ["quote expired -- Refresh to re-check the price"] = "报价已过期 -- 按 Refresh 重新检查价格",
+  ["quote expires in %d s -- click Confirm to buy"] = "报价将在 %d 秒后过期 -- 按 Confirm 购买",
   ["re-checking what remains at a safe price..."] = "正在重新检查安全价位还剩多少...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "服务器物品 — 售出速度未验证 · 区域参考价 %s（物品等级 %d）",
@@ -597,19 +640,26 @@ GC.Locales.zhCN = {
   ["sniped (listing changed on rescan)"] = "被抢先（重新扫描时挂单已变）",
   ["sniped for "] = "抢到，花费 ",
   ["stack not identified"] = "未识别的堆叠",
+  ["stale"] = "已过时",
   ["starting full scan..."] = "开始完整扫描...",
   ["stopped watching %s"] = "已停止关注 %s",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion 写入的价格，该插件读不懂 --",
+  ["the auction house has not sent details for these yet"] = "拍卖行尚未发送这些物品的信息",
   ["the import failed (%s)"] = "导入失败（%s）",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "要卖完 %d 件，按每天 %s 件的速度，期间 %s 一直占用着",
+  ["unavailable"] = "不可用",
   ["under GoldCap's own floor of %s"] = "低于 GoldCap 自己的下限 %s",
   ["unknown evidence"] = "未知的依据",
   ["waiting for previous commodity purchase to settle"] = "等待上一笔商品购买结算",
   ["waiting for previous search result to settle"] = "等待上一次搜索结果",
+  ["waiting..."] = "等待中...",
+  ["wall"] = "墙",
+  ["wall %s at %s -- price under it to sell first"] = "%s 件的墙在 %s -- 定价低于它才能先卖出",
+  ["wall %s at %s above you"] = "%s 件的墙在 %s，高于你的价格",
   ["watching %s closely -- re-checked every few seconds"] = "密切关注 %s -- 每几秒重新检查一次",
   ["worst case, selling all %d back into the price standing there now"] =
     "最坏情况下，把全部 %d 件按现在挂着的价格卖回去",
@@ -621,7 +671,11 @@ GC.Locales.zhCN = {
     "你的游戏客户端没有这种语言的字体 — 文字会显示为空白方块",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "你的导入数据已过 %d 小时 -- 价格可能有偏差。请从 goldcap.gg 粘贴新的字符串（/goldcap import）。",
+  ["your price is above every level shown"] = "你的价格高于所有显示的价位",
   ["yours"] = "你的",
+  ["yours ×%s"] = "你的 ×%s",
+  ["~%dd to reach you"] = "约 %d 天轮到你",
+  ["~%dh to reach you"] = "约 %d 小时轮到你",
   ["» needs price"] = "» 需要价格",
   ["×%d in bags"] = "背包 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =
@@ -637,4 +691,54 @@ GC.Locales.zhCN = {
   ["… = a live check is queued for this row"] = "… = 该行的实时检查已排队",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市场价 — 尚无实时报价",
   ["no answer %ds ago -- resting"] = "%d 秒前无应答 -- 暂歇",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "上一次尝试仍在结算 -- 正在重新核对价格...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "挂单价不高于你在 goldcap.gg 设定的价格（分组：%s）",
+  ["AUTO · PAUSED: BUY WINDOW"] = "自动 · 已暂停：购买窗口",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "购买窗口打开时暂停。完成购买或关闭窗口后，自动会继续。",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "自动 · 已暂停：你的搜索",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "你在拍卖行搜索框里输入时暂停。离开搜索框几秒后继续。",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "自动 · 已暂停：邮箱已打开",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] = "邮箱打开时暂停。关闭邮箱后，自动会继续。",
+  ["AUTO · PAUSED: SELL TAB"] = "自动 · 已暂停：出售标签页",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "出售标签页打开时暂停：它用同一个搜索为你的背包定价。回到交易页，自动会继续。",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "自动 · 已暂停：物品面板",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "显示物品面板时暂停：它用同一个搜索向拍卖行查询。切换到商品，自动会继续。",
+  ["AUTO · PAUSED: BUY TAB"] = "自动 · 已暂停：BUY 标签页",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "BUY 标签页打开时暂停：它用同一个搜索查询价格。回到交易页，自动会继续。",
+  ["AUTO · WAITING FOR YOU"] = "自动 · 等你操作完",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "你在拍卖行自带的面板里上架、购买或浏览时会等待。你一停下就开始。",
+  ["AUTO · WAITING: YOUR LIST"] = "自动 · 等待：你的列表",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "等待：拍卖行的购买列表里是你自己的搜索，扫描会把它替换掉。打开拍卖行里的 GoldCap 标签页，或关闭拍卖行，自动就会开始。",
+  ["Market %s · unverified until a live Check"] = "市场 %s · 实时核对前未经验证",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "全市场数据：%d 种商品，%d 种有销售数据，%d 件服务器物品（%s 前，%d KB）",
+  ["whole-market data not in use: %s"] = "未使用全市场数据：%s",
+  ["it is %s old, and the prices you imported are newer"] = "它是 %s 前的数据，你导入的价格更新",
+  ["it is for another region than the prices loaded"] = "它属于与已载入价格不同的地区",
+  ["its date cannot be right -- check this computer's clock"] = "其日期不可能正确 -- 请检查这台电脑的时钟",
+  ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
+    "本次载入其他价格时已被搁置 -- 输入 /reload 可重新使用",
+  ["On the AH now"] = "拍卖行当前",
+  ["%s listed · %d min ago"] = "在售 %s · %d 分钟前",
+  ["%s listed · just now"] = "在售 %s · 刚刚",
+  ["it could not be read (%s)"] = "无法读取（%s）",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "它来自这个版本的 GoldCap 不支持的地区 -- 请更新插件",
+  ["it is in a format this build of GoldCap cannot read -- update the addon"] =
+    "这个版本的 GoldCap 无法读取它的格式 -- 请更新插件",
+  ["it is larger than this build of GoldCap can read -- update the addon"] =
+    "它超出了这个版本的 GoldCap 能读取的大小 -- 请更新插件",
+  ["the Companion wrote an empty copy -- let it sync, then /reload"] =
+    "Companion 写入的是空数据 -- 请等它再次同步后执行 /reload",
+  ["the Companion wrote it with no prices -- let it sync, then /reload"] =
+    "Companion 写入的数据不含任何价格 -- 请等它再次同步后执行 /reload",
 }

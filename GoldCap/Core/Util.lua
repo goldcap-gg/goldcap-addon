@@ -226,3 +226,29 @@ function GC.Util._ResetThrottleClock()
   notReadySince, lastClaimAt = nil, nil
   for who in pairs(claimedAt) do claimedAt[who] = nil end
 end
+
+-- ---------------------------------------------------------------------------
+-- The client's own words for what went wrong.
+--
+-- Blizzard's strings break paragraphs with |n, and every line that shows them here is one line
+-- tall: word wrap off, so the second paragraph would draw over the first or not at all. Nil for
+-- nothing worth saying, so a caller can fall back to its own sentence with `or`.
+-- ---------------------------------------------------------------------------
+function GC.Util.ClientLine(text)
+  if type(text) ~= "string" then return nil end
+  text = text:gsub("|n", " "):gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+  if text == "" then return nil end
+  return text
+end
+
+-- AUCTION_HOUSE_SHOW_ERROR carries an Enum.AuctionHouseError. The default UI prints
+-- AuctionHouseUtil.GetErrorText(error) for it (Blizzard_AuctionHouseFrame.lua's OnEvent), and
+-- that lookup answers "" for a code it has no text for. The table lives in the auction house's
+-- own load-on-demand addon, which is loaded whenever the auction house is open -- the only time
+-- this event fires -- but a missing or broken one reads as "no words", never an error.
+function GC.Util.AuctionHouseErrorText(code)
+  local util = _G.AuctionHouseUtil
+  if type(util) ~= "table" or type(util.GetErrorText) ~= "function" then return nil end
+  local ok, text = pcall(util.GetErrorText, code)
+  return ok and GC.Util.ClientLine(text) or nil
+end

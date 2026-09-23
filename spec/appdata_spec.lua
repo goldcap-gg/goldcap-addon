@@ -6,6 +6,8 @@ describe("Data.AdoptAppData", function()
   -- Real GCS1 fixture (same shape as importstring_spec.lua's) so this exercises the actual
   -- ImportString.Parse path, not a stub.
   local FIXTURE_TS2000 = "GCS1;eu;silvermoon;2000;I:190396=123400=52.3;W:190396"
+  local REGION_2000 = "GCM1;eu;2000;I:190396=123000=50.0"
+    .. ";V:190396=1990=110000=8000=85=400=6=12=90=0;M:201234=990000=4"
 
   before_each(function()
     _G.GetCVar = function(k) if k == "portal" then return "EU" end end
@@ -211,5 +213,211 @@ describe("Data.AdoptAppData", function()
     assert.is_not_nil(GC.Data.AppDataError())
     GC.Data.SetImported(GC.ImportString.Parse(FIXTURE_TS2000))
     assert.is_nil(GC.Data.AppDataError())
+  end)
+
+  it("keeps the region payload in memory and out of the saved variables", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+
+    local payload = GC.Data.RegionPayload()
+    assert.is_truthy(payload)
+    assert.equal(123000, GC.Data.GetItemValue(190396).mv)
+
+    local held = {}
+    local function mark(t)
+      held[t] = true
+      for _, v in pairs(t) do
+        if type(v) == "table" and not held[v] then mark(v) end
+      end
+    end
+    mark(payload)
+    local seen = {}
+    local function walk(t, path)
+      if seen[t] then return end
+      seen[t] = true
+      for k, v in pairs(t) do
+        assert.is_nil(held[v], "GoldCapDB reaches the region payload at " .. path .. "." .. tostring(k))
+        if type(v) == "table" then walk(v, path .. "." .. tostring(k)) end
+      end
+    end
+    walk(db, "db")
+
+    local keys = {}
+    for k in pairs(db.imported) do keys[#keys + 1] = k end
+    table.sort(keys)
+    assert.same({ "items", "namesWanted", "origin", "realm", "region", "ts", "watchlist" }, keys)
+  end)
+
+  it("lets go of the raw payload string once it is parsed", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+    assert.is_nil(_G.GoldCap_AppData.regionString)
+    assert.equal(FIXTURE_TS2000, _G.GoldCap_AppData.importString)
+  end)
+
+  -- It is never saved, so every load has to read it again -- even when the import string is not
+  -- newer than the one already stored and is (rightly) not adopted.
+  it("adopts the payload on a load whose import string is not newer", function()
+    GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000,
+      items = { [1] = { m = 1 } }, watchlist = {} })
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+    assert.equal(3000, db.imported.ts)
+    assert.is_truthy(GC.Data.RegionPayload())
+  end)
+
+  it("ignores another region's payload", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000,
+      regionString = "GCM1;us;2000;I:190396=5=1.0" }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.RegionPayload())
+    assert.equal("import", GC.Data.GetItemValue(190396).source)
+  end)
+
+  it("behaves exactly as before when the payload does not parse", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = "garbage" }
+    GC.Data.AdoptAppData()
+    assert.is_nil(GC.Data.RegionPayload())
+    assert.is_nil(db.appDataError)
+    assert.equal("app", db.imported.origin)
+    assert.equal(123400, GC.Data.GetItemValue(190396).mv)
+  end)
+
+  -- A payload dated 0 or ahead of the clock would make every fact-less item it prices look fresh
+  -- for as long as it stays loaded (such an item's age is the payload's). An hour of slack is
+  -- clock skew between the player's machine and the site, not a date to believe.
+  it("refuses a payload dated 0 or more than an hour ahead", function()
+    local realTime = _G.time
+    _G.time = function() return 100000 end
+    local ok, err = pcall(function()
+      _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000,
+        regionString = "GCM1;eu;0;I:190396=5=1.0" }
+      GC.Data.AdoptAppData()
+      assert.is_nil(GC.Data.RegionPayload())
+      assert.is_nil(_G.GoldCap_AppData.regionString)
+      assert.equal(123400, GC.Data.GetItemValue(190396).mv)
+
+      local payload, reason = GC.Data.AdoptRegionPayload("GCM1;eu;103601;I:190396=5=1.0")
+      assert.is_nil(payload)
+      assert.equal("bad_ts", reason)
+      assert.is_nil(GC.Data.RegionPayload())
+
+      assert.is_truthy(GC.Data.AdoptRegionPayload("GCM1;eu;103600;I:190396=5=1.0"))
+      assert.equal(5, GC.Data.GetItemValue(190396).mv)
+    end)
+    _G.time = realTime
+    assert(ok, err)
+  end)
+
+  it("lets a newer import answer over a payload a Companion that stopped syncing left behind", function()
+    local fresh = 2000 + 3 * 86400
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;silvermoon;" .. fresh
+      .. ";I:190396=9999=5.0;V:190396=" .. fresh .. "=9000=8000=85=400=6=12=90=0"))
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+    assert.equal(fresh, db.imported.ts)
+    assert.is_nil(GC.Data.RegionPayload())
+    local v = GC.Data.GetItemValue(190396)
+    assert.equal("import", v.source)
+    assert.equal(9999, v.mv)
+    assert.equal(9000, v.stressUnit)
+    assert.same({ reason = "older_than_import", ts = 2000 }, GC.Data.RegionPayloadStatus())
+    assert.is_nil(_G.GoldCap_AppData.regionString)
+  end)
+
+  -- Not held either: an import of its region later in the session, dated within 3 h of it, would
+  -- otherwise bring it back into play.
+  it("drops a payload older than the import at load, so a later older import does not revive it", function()
+    local fresh = 2000 + 3 * 86400
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;silvermoon;" .. fresh .. ";I:190396=9999=5.0"))
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;silvermoon;5600;I:190396=8888=5.0"))
+    assert.is_nil(GC.Data.RegionPayload())
+    assert.equal("import", GC.Data.GetItemValue(190396).source)
+    assert.equal(8888, GC.Data.GetItemValue(190396).mv)
+    assert.same({ reason = "set_aside", ts = 2000 }, GC.Data.RegionPayloadStatus())
+  end)
+
+  -- Held, it would be megabytes kept all session for a region nothing is priced in -- and would
+  -- quietly come back into play if the player later pasted that region's prices by hand.
+  it("drops another region's payload at load, so a later import of that region does not revive it", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000,
+      regionString = "GCM1;us;2000;I:190396=5=1.0" }
+    GC.Data.AdoptAppData()
+    assert.same({ reason = "other_region", ts = 2000 }, GC.Data.RegionPayloadStatus())
+    GC.Data.SetImported({ region = "us", realm = "area-52", ts = 2500,
+      items = { [1] = { m = 1 } }, watchlist = {} })
+    assert.is_nil(GC.Data.RegionPayload())
+    assert.is_nil(GC.Data.GetItemValue(190396))
+    -- Its region's prices are the ones loaded now: /reload is what brings it back.
+    assert.same({ reason = "set_aside", ts = 2000 }, GC.Data.RegionPayloadStatus())
+  end)
+
+  -- What /goldcap status says when there is no whole-market data: why the last payload offered
+  -- could not be used, and its date when it got as far as having one.
+  it("keeps why the last payload could not be used, until one can", function()
+    assert.is_nil(GC.Data.RegionPayloadStatus())
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = "garbage" }
+    GC.Data.AdoptAppData()
+    assert.same({ reason = "bad_header" }, GC.Data.RegionPayloadStatus())
+    GC.Data.AdoptRegionPayload("GCM1;eu;0;I:190396=5=1.0")
+    assert.same({ reason = "bad_ts", ts = 0 }, GC.Data.RegionPayloadStatus())
+    assert.is_truthy(GC.Data.AdoptRegionPayload(REGION_2000))
+    assert.is_nil(GC.Data.RegionPayloadStatus())
+  end)
+
+  -- Counts every collectgarbage call `fn` makes, by option ("collect", "count", ...).
+  local function countingCollects(fn)
+    local real, calls = _G.collectgarbage, {}
+    _G.collectgarbage = function(opt, ...)
+      calls[opt or "collect"] = (calls[opt or "collect"] or 0) + 1
+      return real(opt, ...)
+    end
+    local ok, err = pcall(fn)
+    _G.collectgarbage = real
+    assert(ok, err)
+    return calls
+  end
+
+  -- A full collection walks every addon's heap, not just this one's: forced at load it is a hitch
+  -- on every login and /reload, paid for a figure nobody may ever ask for.
+  it("forces no garbage collection at load", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    local calls = countingCollects(function() GC.Data.AdoptAppData() end)
+    assert.is_truthy(GC.Data.RegionPayload())
+    assert.same({}, calls)
+  end)
+
+  -- /goldcap status prints it as what the payload costs this session. Measured when asked, on a
+  -- clean heap, by building the payload's tables again: what the parsed tables keep -- not the
+  -- garbage the parse left behind, which is half as much again, and not a figure a collection
+  -- already under way could shrink to 0.
+  it("measures what the payload keeps in memory when asked, and only once", function()
+    assert.is_nil(GC.Data.RegionPayloadMemoryKB())
+
+    local tokens, refs = {}, {}
+    for i = 1, 4000 do tokens[i] = (100000 + i) .. "=" .. (1000 + i) .. "=12.5" end
+    for i = 1, 8000 do refs[i] = (300000 + i) .. "=20000=3" end
+    local str = "GCM1;eu;2000;I:" .. table.concat(tokens, ",") .. ";M:" .. table.concat(refs, ",")
+    assert.is_truthy(GC.Data.AdoptRegionPayload(str))
+
+    local reported
+    local calls = countingCollects(function()
+      reported = GC.Data.RegionPayloadMemoryKB()
+      assert.equal(reported, GC.Data.RegionPayloadMemoryKB())
+    end)
+    assert.equal(1, calls.collect)
+
+    collectgarbage("collect")
+    local withPayload = collectgarbage("count")
+    GC.Data.AdoptRegionPayload(nil)
+    collectgarbage("collect")
+    local kept = withPayload - collectgarbage("count")
+
+    assert.is_true(kept > 0)
+    assert.is_true(math.abs(reported - kept) <= kept * 0.1 + 16,
+      ("reported %.0f KB for a payload that keeps %.0f KB"):format(reported, kept))
+    assert.is_nil(GC.Data.RegionPayloadMemoryKB())
   end)
 end)

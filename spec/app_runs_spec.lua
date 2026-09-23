@@ -98,6 +98,43 @@ describe("AppRuns", function()
       assert.equal(150, line.cr.i[2].vu)
     end)
 
+    -- Caps fixes 5h: an alert group's gear member carries its item-level floor, written by the
+    -- companion as `minIlvl` on the run line only when there is one. Only a positive whole
+    -- number is a floor; anything else drops the floor and keeps the line.
+    it("keeps a gear line's item-level floor, and drops only the floor when it is not one", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines = {
+        { i = 5, q = 1, minIlvl = 625 },
+        { i = 6, q = 1 },
+        { i = 7, q = 1, minIlvl = "625" },
+        { i = 8, q = 1, minIlvl = 0 },
+        { i = 9, q = 1, minIlvl = -3 },
+        { i = 10, q = 1, minIlvl = 612.5 },
+        { i = 11, q = 1, minIlvl = math.huge },
+      }
+      _G.GoldCap_AppRuns = f
+      assert.is_true(GC.AppRuns.Adopt())
+      local lines = GC.AppRuns.Get("abcd2345").lines
+      assert.equal(7, #lines)
+      assert.equal(625, lines[1].minIlvl)
+      for n = 2, 7 do assert.is_nil(lines[n].minIlvl, lines[n].i) end
+    end)
+
+    -- Two lines of one item merge into one; the floor they carry is the higher of the two, so a
+    -- merge can never quietly lower the level the player asked for.
+    it("keeps the higher floor when two lines of one item merge", function()
+      local f = fixture()
+      f.v = 3
+      f.runs[1].lines = { { i = 5, q = 1 }, { i = 5, q = 2, minIlvl = 610 }, { i = 5, q = 1, minIlvl = 600 } }
+      _G.GoldCap_AppRuns = f
+      GC.AppRuns.Adopt()
+      local lines = GC.AppRuns.Get("abcd2345").lines
+      assert.equal(1, #lines)
+      assert.equal(4, lines[1].q)
+      assert.equal(610, lines[1].minIlvl)
+    end)
+
     -- The companion's global is rewritten wholesale on every sync, and a run kept in
     -- SavedVariables outlives it. A reference into that table would have the stored run change
     -- under the player -- or, worse, be written back out through it.

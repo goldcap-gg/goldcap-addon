@@ -314,6 +314,42 @@ describe("BUY purchase", function()
     assert.same({ 101 }, searches)
   end)
 
+  -- Caps fixes 4a, round 2: a search sent on top of an unanswered keys batch takes its answer
+  -- and comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game) -- an empty quote
+  -- here. So a hover waits for the batch (one still out from the Deals board, or this tab's own
+  -- refresh) and is asked again once it is gone, while the line still has the focus.
+  it("waits for an unanswered keys batch, then asks for the line still in focus", function()
+    local out = true
+    GC.Sniper._KeysOutstanding = function() return out end
+    hover(rowWithText("Alpha Herb"))
+    assert.same({}, searches)
+    -- Caps fixes 5i: and says it is waiting. The button kept reading "BUY 4", clickable, while the
+    -- quote it needs was held back -- for as long as thirty seconds behind a lost batch.
+    local row = rowWithText("Alpha Herb")
+    assert.equal("...", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+    GC.Buy.Tick()
+    assert.same({}, searches)
+    out = false
+    GC.Buy.Tick()
+    assert.same({ 101 }, searches)
+  end)
+
+  -- ...and the other way round: this tab's own refresh batch does not go out over a hover quote
+  -- still waiting for its answer, which it would take.
+  it("sends no refresh batch over an unanswered quote", function()
+    local batches = 0
+    GC.Sniper._TrySendKeysBatchFor = function() batches = batches + 1; return true end
+    hover(rowWithText("Alpha Herb"))
+    assert.same({ 101 }, searches)
+    now = now + 1 -- the refresh is due (none has run yet), the quote still on the wire
+    GC.Buy.Tick()
+    assert.equal(0, batches)
+    GC.Buy.OnCommodityResults(101)
+    GC.Buy.Tick()
+    assert.equal(1, batches)
+  end)
+
   it("quotes the missing quantity and what it costs, off the live ladder", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
@@ -406,6 +442,130 @@ describe("BUY purchase", function()
     assert.equal("sniper", GC.PurchaseSlot.Owner())
   end)
 
+  -- Final money review n1: and says so on the button, dark, as the Sniper's Buy waits over a BUY
+  -- purchase in flight -- not a lit "BUY n" whose click only prints a refusal.
+  it("waits, dark, while the sniper holds a purchase it started", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    GC.PurchaseSlot.Claim("sniper", now)
+    GC.Buy.RefreshIfShown()
+    local row = rowWithText("Alpha Herb")
+    assert.equal("waiting...", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+  end)
+
+  -- Load-bearing round (M-1): and reads BUY again the moment the Sniper lets go, from the auction
+  -- house ticker -- not on this tab's next refresh, up to twenty seconds later.
+  it("reads BUY again as soon as the sniper lets go of the slot", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    GC.PurchaseSlot.Claim("sniper", now)
+    GC.Buy.RefreshIfShown()
+    GC.Buy.TickCountdown() -- the ticker sees the wait
+    assert.equal("waiting...", rowWithText("Alpha Herb").action.label)
+
+    GC.PurchaseSlot.Release("sniper")
+    GC.Buy.TickCountdown()
+
+    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+  end)
+
+  -- Load-bearing round (M-3): its own confirm the close hit holds this tab too, and the line keeps
+  -- saying what it said, while the units may still come by mail -- not a fresh BUY at reopen.
+  it("holds its own Starts, and the line's warning, on a confirm the auction house closed on", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb")) -- confirm at 2000: owed until 2020
+    now = now + 5
+    GC.Buy.OnAuctionHouseClosed()
+    GC.Buy.OnAuctionHouseShow()
+    GC.Buy.RefreshIfShown()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+    assert.equal(GC.L["no answer — check your mail"], rowWithText("Alpha Herb").action.label)
+
+    local before = #started
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    assert.equal(before, #started)
+  end)
+
+  -- Final money review M3: a confirm the auction house closed on is owed its answer across the
+  -- reopen, for as long as BUY would have waited for it -- as a Sniper confirm carried across a close
+  -- holds BUY. It went to "unknown" and stopped counting at once, and the Sniper could start while
+  -- BUY's purchase might still take the gold its checks were counting.
+  it("still owes a confirm the auction house closed on, until its own wait would have ended", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb")) -- confirm at 2000: waited for until 2020
+    now = now + 5
+    GC.Buy.OnAuctionHouseClosed()
+    GC.Buy.OnAuctionHouseShow()
+    now = now + 1
+
+    assert.is_true(GC.Buy.ConfirmOwed())
+    assert.equal("buy", GC.PurchaseSlot.ConfirmOwed())
+    now = 2020
+    assert.is_false(GC.Buy.ConfirmOwed())
+    assert.is_nil(GC.PurchaseSlot.ConfirmOwed())
+  end)
+
+  -- Fix round 2: a slot claim goes stale after GC.PurchaseSlot.MAX_SECONDS, but a purchase the
+  -- Sniper confirmed can stay owed its answer longer than that (its stranded release waits 35 s,
+  -- and one carried across an auction house close keeps the claim it had). BUY took the stale
+  -- claim over and started a purchase of its own on top of one that may already have taken gold.
+  describe("while a purchase the sniper confirmed is still owed its answer", function()
+    local owed
+    before_each(function()
+      owed = { confirmed = true }
+      GC.Sniper._ConfirmedOwed = function() return owed end
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      GC.PurchaseSlot.Claim("sniper", now - 31) -- claimed at its Start, 31 s ago: stale
+    end)
+
+    it("does not start, even over the sniper's stale claim", function()
+      click(rowWithText("Alpha Herb"))
+      assert.same({}, started)
+      assert.equal("sniper", GC.PurchaseSlot.Owner())
+    end)
+
+    it("says it is waiting on the button that would start, not BUY", function()
+      GC.Buy.RefreshIfShown()
+      local row = rowWithText("Alpha Herb")
+      -- ASCII, like its neighbours "buying...", "confirming..." and "..." (fix round 3, n3).
+      assert.equal("waiting...", row.action.label)
+      assert.is_false(row.action:IsEnabled())
+    end)
+
+    it("starts once that purchase has its answer", function()
+      owed = nil
+      GC.Buy.RefreshIfShown()
+      local row = rowWithText("Alpha Herb")
+      assert.equal("BUY 10", row.action.label)
+      click(row)
+      assert.same({ { itemID = 101, quantity = 10 } }, started)
+    end)
+  end)
+
+  -- The other direction of the same rule: the sniper asks too (GC.PurchaseSlot.ConfirmOwed).
+  it("says its own confirmed purchase is owed its answer, and only while it is", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    assert.is_false(GC.Buy.ConfirmOwed()) -- started, not confirmed
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb")) -- confirm
+    assert.is_true(GC.Buy.ConfirmOwed())
+    assert.equal("buy", GC.PurchaseSlot.ConfirmOwed())
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.is_false(GC.Buy.ConfirmOwed())
+  end)
+
   it("ignores a second click while a purchase is already started", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
@@ -416,15 +576,66 @@ describe("BUY purchase", function()
     assert.equal("started", GC.Buy._attempt.stage)
   end)
 
-  it("gives the slot back when the purchase never answers", function()
+  it("gives the slot back when the purchase never answers, once its drain is over", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
     click(rowWithText("Alpha Herb"))
     local watchdog = timers[#timers]
     assert.equal(10, watchdog.seconds)
     watchdog.fn()
-    assert.is_nil(GC.PurchaseSlot.Owner())
     assert.equal("expired", GC.Buy._attempt.stage)
+    assert.equal("buy", GC.PurchaseSlot.Owner()) -- held for the drain (below)
+    local drain = timers[#timers]
+    assert.equal(20, drain.seconds)
+    drain.fn()
+    assert.is_nil(GC.PurchaseSlot.Owner())
+  end)
+
+  -- Final money review I1: a Start cancelled before the server answered it still has that answer
+  -- coming, and commodity events name no attempt. BUY released the slot at once; the Sniper could
+  -- start in the gap and BUY's late quote reached it (the reverse way round: the Sniper's late quote
+  -- lit BUY's CONFIRM at a total BUY never quoted). The slot stays BUY's until that Start's drain
+  -- is over: its late quote consumed here, or the drain's own bound -- and BUY starts nothing of its
+  -- own meanwhile, which that quote would otherwise be read as the answer to.
+  describe("a Start it cancelled before the server answered it", function()
+    local function cancelledUnanswered()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      click(rowWithText("Alpha Herb"))
+      timers[#timers].fn() -- the watchdog: no answer in ten seconds
+      assert.equal("expired", GC.Buy._attempt.stage)
+      assert.equal(1, cancels)
+    end
+
+    it("keeps the slot until its late quote has been drained, and never lights CONFIRM on it", function()
+      cancelledUnanswered()
+      assert.equal("buy", GC.PurchaseSlot.Owner())
+      assert.is_false(GC.PurchaseSlot.Claim("sniper", now)) -- the Sniper cannot start under it
+
+      assert.is_true(GC.Buy.OnCommodityPriceUpdated(1020, 10200)) -- the late quote: BUY's to drain
+
+      assert.equal("expired", GC.Buy._attempt.stage)
+      assert.is_nil(GC.Buy._attempt.serverTotal)
+      assert.equal(2, cancels) -- the Cancel sent again
+      assert.are_not.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+      assert.is_nil(GC.PurchaseSlot.Owner())
+      assert.is_true(GC.PurchaseSlot.Claim("sniper", now))
+    end)
+
+    it("drains a late failure the same way", function()
+      cancelledUnanswered()
+      assert.is_true(GC.Buy.OnCommodityPurchaseFailed())
+      assert.is_nil(GC.PurchaseSlot.Owner())
+    end)
+
+    it("starts nothing of its own while it drains", function()
+      cancelledUnanswered()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101) -- a fresh quote
+      click(rowWithText("Alpha Herb"))
+      assert.equal(1, #started)
+      assert.equal("waiting...", rowWithText("Alpha Herb").action.label)
+    end)
   end)
 
   -- Step 3: the server's price, and the click that confirms it.
@@ -442,6 +653,92 @@ describe("BUY purchase", function()
     click(rowWithText("Alpha Herb"))
     assert.same({ { itemID = 101, quantity = 10 } }, confirmed)
     assert.equal("confirming", GC.Buy._attempt.stage)
+  end)
+
+  -- Fix round 4 (m2): the CONFIRM a quote leaves waits twenty seconds -- no longer than the
+  -- server's own quote when the client can say how long that is -- and shows the seconds left once
+  -- ten remain, as Blizzard's own buy dialog does, from the auction house ticker.
+  describe("the CONFIRM a quote leaves", function()
+    local function atConfirm()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      click(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+      assert.equal("confirm", GC.Buy._attempt.stage)
+    end
+    after_each(function() if _G.C_AuctionHouse then _G.C_AuctionHouse.GetQuoteDurationRemaining = nil end end)
+
+    -- Fix round 5 (m1): in the line's name cell, not on the button. The 72 px button holds
+    -- "CONFIRM" in every locale, and "CONFIRM (9)" clipped the digit in seven of them. Final micro
+    -- round: AHEAD of the name -- the cell is one line cut at its right edge, and trailing the
+    -- name the digit was the part a normal reagent name pushed out of it.
+    it("counts down its last ten seconds ahead of the line's name, leaving CONFIRM as it is", function()
+      atConfirm()
+      now = now + 8 -- 12 s left: nothing yet
+      GC.Buy.TickCountdown()
+      GC.Buy.RefreshIfShown()
+      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("expires in", 1, true))
+
+      now = now + 3 -- 11 s after the quote: 9 left
+      GC.Buy.TickCountdown()
+      local row = rowWithText("Alpha Herb")
+      assert.equal(1, row.reagent:GetText():find(GC.L["expires in %d s"]:format(9), 1, true))
+      assert.equal("CONFIRM", row.action.label)
+      assert.is_true(row.action:IsEnabled())
+    end)
+
+    -- Final micro round (nit 2): only the line whose quote it is, and only while it waits at
+    -- CONFIRM -- after the click the wait is the server's, and no seconds are the player's to beat.
+    it("counts on the quoted line only", function()
+      atConfirm()
+      now = now + 11
+      GC.Buy.TickCountdown()
+      assert.is_nil(rowWithText("Charlie Dust").reagent:GetText():find("expires in", 1, true))
+    end)
+
+    it("stops counting once CONFIRM has been clicked", function()
+      atConfirm()
+      click(rowWithText("Alpha Herb")) -- confirm: the stage is the server's now
+      assert.equal("confirming", GC.Buy._attempt.stage)
+      now = now + 11
+      GC.Buy.TickCountdown()
+      GC.Buy.RefreshIfShown()
+      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("expires in", 1, true))
+    end)
+
+    it("repaints once a second while it counts, not on every tick", function()
+      atConfirm()
+      local repaints, repaint = 0, GC.Buy.RefreshIfShown
+      GC.Buy.RefreshIfShown = function(...) repaints = repaints + 1; return repaint(...) end
+      now = now + 11
+      GC.Buy.TickCountdown()
+      now = now + 0.25
+      GC.Buy.TickCountdown()
+      now = now + 0.25
+      GC.Buy.TickCountdown()
+      now = now + 0.25
+      GC.Buy.TickCountdown()
+      GC.Buy.RefreshIfShown = repaint
+      assert.equal(1, repaints)
+    end)
+
+    it("waits no longer than twenty seconds, whatever the client says", function()
+      _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 45 end
+      atConfirm()
+      assert.equal(20, timers[#timers].seconds)
+    end)
+
+    it("waits no longer than the server's own quote", function()
+      _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 12 end
+      atConfirm()
+      assert.equal(12, timers[#timers].seconds)
+    end)
+
+    it("waits its twenty seconds when the client cannot say", function()
+      _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return nil end
+      atConfirm()
+      assert.equal(20, timers[#timers].seconds)
+    end)
   end)
 
   it("confirms a price above the quote as long as the unit is under the cap", function()
@@ -1021,6 +1318,17 @@ describe("BUY purchase", function()
 
   -- 5: a line whose confirm may have taken gold is not handed back for another click until
   -- something says what happened.
+  -- The quote search is a request of ours the Sell tab has to know is out: a "busy" it draws is
+  -- not a post's refusal (review sell-fix4 M3). Noted with the key it went out with.
+  it("notes its quote search as out, by the key it sent", function()
+    local noted = {}
+    GC.Sniper._NoteSearchSent = function(key) noted[#noted + 1] = key end
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(1, #searches)
+    assert.equal(1, #noted)
+    assert.equal(101, noted[1].itemID)
+  end)
+
   it("does not re-quote a line whose purchase never answered", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)
@@ -1156,6 +1464,38 @@ describe("BUY purchase", function()
     local batches = GC.Acquisitions.GetAll()
     assert.equal(1, #batches)
     assert.equal(10200, batches[1].originalTotal)
+  end)
+
+  -- Final money review I1, through Core/Init.lua's own routing: a late quote goes to the window
+  -- whose cancelled Start it answers, and never lights anything in the other.
+  it("routes the late quote of a Start it cancelled unanswered to itself, and swallows it", function()
+    local onEvent = loadRouter()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    timers[#timers].fn() -- the watchdog: no answer, cancelled, drained
+
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 1020, 10200)
+
+    assert.same({}, sniperCalls)
+    assert.equal("expired", GC.Buy._attempt.stage)
+    assert.is_nil(GC.PurchaseSlot.Owner())
+  end)
+
+  it("leaves the late quote of the Sniper's cancelled Start to the Sniper, starting nothing under it", function()
+    local onEvent = loadRouter()
+    GC.PurchaseSlot.Claim("sniper", now) -- the Sniper holds the slot for its drain
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    assert.same({}, started)
+
+    onEvent(nil, "COMMODITY_PRICE_UPDATED", 50, 150)
+
+    assert.same({ "priceUpdated" }, sniperCalls)
+    assert.equal("quoted", GC.Buy._attempt.stage)
+    assert.is_nil(GC.Buy._attempt.serverTotal)
+    assert.are_not.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
   end)
 
   it("hands a commodity event the tab has no claim on straight to the sniper", function()
@@ -1398,6 +1738,150 @@ describe("BUY purchase", function()
     hover(rowWithText("Echo Salt"))
     GC.Buy.OnCommodityResults(105)
     assert.equal("nothing on offer", rowWithText("Echo Salt").action.label)
+  end)
+
+  -- Review round 1: a line whose quote is still fresh keeps its clickable "BUY n" while a batch is
+  -- out -- only a line with no fresh quote is waiting on one.
+  it("keeps a freshly quoted line's own label while a keys batch is out", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    GC.Sniper._KeysOutstanding = function() return true end
+
+    hover(rowWithText("Alpha Herb"))
+
+    local row = rowWithText("Alpha Herb")
+    assert.equal("BUY 10", row.action.label)
+    assert.is_true(row.action:IsEnabled())
+  end)
+
+  -- Final review m10: a click on that line then asks again -- the quote it shows is not the
+  -- attempt a click spends -- and the ask is held for the batch. The button stayed "BUY 10",
+  -- enabled, as if the click had done nothing. It says it is waiting until the ask goes.
+  it("says it is waiting after a click that has to wait for a keys batch", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    local out = true
+    GC.Sniper._KeysOutstanding = function() return out end
+    hover(rowWithText("Alpha Herb"))
+    local asked = #searches
+
+    click(rowWithText("Alpha Herb"))
+
+    local row = rowWithText("Alpha Herb")
+    assert.equal("...", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+    out = false
+    GC.Buy.Tick()
+    assert.equal(asked + 1, #searches)
+    assert.equal(101, searches[#searches])
+  end)
+
+  -- Final review m9: the Sniper asks this before it sends any keys batch -- a hover quote left on
+  -- the wire by a switch to Deals is one a cap batch would take the answer of.
+  it("says a quote is waiting for its answer until it lands", function()
+    assert.is_false(GC.Buy.QuotePending())
+    hover(rowWithText("Alpha Herb"))
+    assert.is_true(GC.Buy.QuotePending())
+    GC.Buy.OnCommodityResults(101)
+    assert.is_false(GC.Buy.QuotePending())
+  end)
+
+  -- Caps fixes 5i: a quote owed across the end of the session was asked for in the next one, of
+  -- a line the player had long since stopped pointing at.
+  it("forgets a quote it owed when the auction house closes", function()
+    GC.Sniper._KeysOutstanding = function() return true end
+    hover(rowWithText("Alpha Herb"))
+    assert.equal(101, GC.Buy._quoteOwed)
+    GC.Buy.OnAuctionHouseClosed()
+    assert.is_nil(GC.Buy._quoteOwed)
+    GC.Buy.RefreshIfShown()
+    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+  end)
+
+  -- Caps fixes 5h (Task 10): an alert group's gear member reaches BUY with the item-level floor
+  -- the player set on it -- the companion writes it as `minIlvl` on the run line. The line never
+  -- said it, so a player buying by hand could take a cheaper copy below the level the price was
+  -- set for. The line says the floor, and the search it opens on Blizzard's own page is as narrow
+  -- as the client allows: an item key names one item-level variant, so the cheapest variant at or
+  -- above the floor a poll has seen; with none known, the bare key -- and the hint says so.
+  describe("a gear line with an item-level floor", function()
+    local keys
+
+    local function adoptGearRun(line)
+      local real = helper.loadModule("Core/Util.lua")
+      helper.loadModule("Core/AppRuns.lua", real)
+      real.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
+                  runsMeta = { generatedAt = 0 } }
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 5, groups = {}, caps = {},
+        runs = { { code = "alert-1", name = "Gear hits", updatedAt = 100, k = "alert",
+                   lines = { line } } } }
+      assert.is_true(real.AppRuns.Adopt())
+      _G.GoldCap_AppRuns = nil
+      GC.AppRuns._set({ real.AppRuns.Get("alert-1") })
+      GC.Buy.SelectRun("alert-1")
+      GC.Buy.RefreshIfShown()
+    end
+
+    before_each(function()
+      keys = {}
+      _G.C_AuctionHouse.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 106 } end
+      _G.C_AuctionHouse.MakeItemKey = function(itemID, itemLevel, itemSuffix, species)
+        return { itemID = itemID, itemLevel = itemLevel or 0, itemSuffix = itemSuffix or 0,
+                 battlePetSpeciesID = species or 0 }
+      end
+      _G.C_AuctionHouse.SendSearchQuery = function(key)
+        searches[#searches + 1] = key.itemID
+        keys[#keys + 1] = key
+      end
+    end)
+
+    it("says the floor on the line, read from the companion's run line", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
+      assert.equal(625, runLine(106).minIlvl)
+      local row = rowWithText("Foxtrot Blade")
+      assert.is_truthy(row.reagent:GetText():find("item level 625+", 1, true))
+    end)
+
+    it("opens the variant at the floor when a poll has seen one", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
+      GC.Sniper.VariantKeyAtLeast = function(itemID, minIlvl)
+        assert.equal(625, minIlvl)
+        return _G.C_AuctionHouse.MakeItemKey(itemID, 626)
+      end
+
+      hover(rowWithText("Foxtrot Blade"))
+
+      assert.same({ itemID = 106, itemLevel = 626, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
+      assert.equal("not a commodity — buy by hand", rowWithText("Foxtrot Blade").action.label)
+    end)
+
+    it("says to check the level when the search cannot be narrowed to it", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
+      GC.Sniper.VariantKeyAtLeast = function() return nil end
+
+      hover(rowWithText("Foxtrot Blade"))
+
+      assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
+      local row = rowWithText("Foxtrot Blade")
+      assert.equal("check the item level — buy by hand", row.action.label)
+      assert.is_false(row.action:IsEnabled())
+    end)
+
+    it("leaves a gear line with no floor as it was", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000 })
+      GC.Sniper.VariantKeyAtLeast = function() error("no floor, nothing to narrow") end
+
+      hover(rowWithText("Foxtrot Blade"))
+
+      local row = rowWithText("Foxtrot Blade")
+      assert.is_nil(row.reagent:GetText():find("item level", 1, true))
+      assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
+      assert.equal("not a commodity — buy by hand", row.action.label)
+    end)
   end)
 
   -- Review item 5: the cap stopping the ladder PART-WAY was silent -- a plain "BUY 6 · ..." and

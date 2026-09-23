@@ -58,6 +58,8 @@ describe("Sniper window layering", function()
       GetVerticalScrollRange = function() return 0 end,
       SetWordWrap = function() end,
       SetMaxLines = function() end,
+      -- The dialog's Reason row wraps, and layoutBlocks sizes the transcript off its height.
+      GetStringHeight = function() return 0 end,
       SetSpacing = function() end,
       Enable = function() end,
       Disable = function() end,

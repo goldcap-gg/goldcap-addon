@@ -8,7 +8,7 @@ local _, GC = ...
 -- on a row again once a verdict exists.
 GC.BoardRows = {}
 
-local BUCKET_RANK = { SAFE = 1, WATCH = 2, PENDING = 3, UNVERIFIED = 4 }
+local BUCKET_RANK = { CAP = 0, SAFE = 1, WATCH = 2, PENDING = 3, UNVERIFIED = 4 }
 
 -- SAFE only once the live Check actually approved it; anything else WITH a verdict is a
 -- refusal. Without a verdict there are two different states, and conflating them was a lie:
@@ -16,7 +16,14 @@ local BUCKET_RANK = { SAFE = 1, WATCH = 2, PENDING = 3, UNVERIFIED = 4 }
 -- verify walk's own window, and UNVERIFIED means nothing is looking at it right now. The board
 -- used to promise "checking…" on every unverified row, including the ones far below the window
 -- that no pass would reach for minutes.
+--
+-- Live price caps, addon task 6: CAP outranks every other bucket, including SAFE -- a listing
+-- at or under the PLAYER'S OWN price is not merely a good market deal, it is exactly what they
+-- asked to be told about, so it leads the board regardless of how a commodity cap deal's own
+-- `buyable` field reads (GC.Caps.DecideCommodity sets both `cap` and `buyable`; checking `cap`
+-- first keeps it out of the plain SAFE bucket it would otherwise also qualify for).
 function GC.BoardRows.Bucket(verdict, pending)
+  if verdict and verdict.cap then return "CAP" end
   if verdict and verdict.buyable then return "SAFE" end
   if verdict then return "WATCH" end
   if pending then return "PENDING" end
@@ -39,7 +46,9 @@ end
 -- second copy of that fact in a cell this narrow cost more than it said.
 function GC.BoardRows.Label(verdict, pending)
   local bucket = GC.BoardRows.Bucket(verdict, pending)
-  if bucket == "SAFE" then
+  if bucket == "CAP" then
+    return GC.L["YOUR PRICE"]
+  elseif bucket == "SAFE" then
     -- GC.Util.FormatGoldFloor, not FormatMoney: this cell is a fixed width and FormatMoney's
     -- gold+silver form ("61g35s") is two units, wide enough to clip. Gold only, floored.
     return (GC.L["SAFE +%s"]):format(GC.Util.FormatGoldFloor(verdict.stressProfit or 0))

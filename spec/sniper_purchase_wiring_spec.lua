@@ -17,9 +17,29 @@ describe("Sniper purchase wiring", function()
     return text:sub(from, to - 1)
   end
 
+  -- onDialogPrimaryClick and nothing else: from its header to its own closing `end`, the first
+  -- line-start `end` after it (every line of its body is indented). The next section marker in the
+  -- file sits two hundred lines further on, past the quantity helpers the dialog's Quantity row
+  -- uses -- a slice that ran to it let a protected call in applyChosenQty or refreshQtyRow pass as
+  -- the click handler's own (caps fixes 5, review round 1). Returns the slice, where it starts and
+  -- the first position after it.
+  local CLICK = "local function onDialogPrimaryClick()"
+  local function clickHandler(text)
+    local from = assert(text:find(CLICK, 1, true), CLICK)
+    local _, stop = assert(text:find("\nend\n", from, true))
+    return text:sub(from, stop), from, stop + 1
+  end
+
+  it("slices the click handler alone", function()
+    local click = clickHandler(source())
+    assert.is_nil(click:find("\nlocal function ", 1, true))
+    assert.is_nil(click:find("\nfunction ", 1, true))
+    assert.is_truthy(click:find("C_AuctionHouse.PlaceBid", 1, true)) -- and all of it
+  end)
+
   it("keeps purchase calls in the hardware-click handler and starts exact decision quantity", function()
     local text = source()
-    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(text)
 
     assert.is_truthy(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
     assert.is_truthy(click:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
@@ -31,8 +51,8 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(click:find("quoteSnapshot.decision.status ~= \"SAFE\"", 1, true))
     assert.is_truthy(click:find("commodityDraining", 1, true))
 
-    local before = text:sub(1, assert(text:find("local function onDialogPrimaryClick()", 1, true)) - 1)
-    local after = text:sub(assert(text:find("-- Sniper v3 dialog layout constants", 1, true)))
+    local _, from, to = clickHandler(text)
+    local before, after = text:sub(1, from - 1), text:sub(to)
     assert.is_nil(before:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
     assert.is_nil(before:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
     assert.is_nil(before:find("C_AuctionHouse.PlaceBid", 1, true))
@@ -41,9 +61,277 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(after:find("C_AuctionHouse.PlaceBid", 1, true))
   end)
 
+  -- Caps fixes 5e. The test above reads one file for three exact call strings, so a protected
+  -- call written anywhere else passed it: in another file, under an alias
+  -- (`local buy = C_AuctionHouse.PlaceBid`), or indexed by a string (`C_AuctionHouse["PlaceBid"]`).
+  -- So every Lua file under GoldCap/ is read with its comments blanked out, and every mention of
+  -- the three names -- a call, a field, a string, whatever -- has to be one of the allowed sites:
+  -- the Sniper dialog's hardware click (all three), the BUY tab's own button handler (the two
+  -- commodity calls), and Core/PurchaseCapture.lua's passive post-hooks, which observe a call and
+  -- cannot make one.
+  describe("across every file", function()
+    local PROTECTED = { "PlaceBid", "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase" }
+
+    local function read(path)
+      local f = assert(io.open(path, "r"))
+      local text = f:read("*a")
+      f:close()
+      return text
+    end
+
+    -- Comments become spaces (newlines kept), so every offset and line number still matches the
+    -- file; strings are kept, because a name inside a string is exactly how an indexed call is
+    -- spelled.
+    local function blankComments(text)
+      local out, i, n = {}, 1, #text
+      while i <= n do
+        local s = text:find("[%-%[\"']", i)
+        if not s then out[#out + 1] = text:sub(i); break end
+        out[#out + 1] = text:sub(i, s - 1)
+        local c = text:sub(s, s)
+        if c == "-" and text:sub(s, s + 1) == "--" then
+          local eq = text:match("^%[(=*)%[", s + 2)
+          local stop
+          if eq then
+            local _, e = text:find("]" .. eq .. "]", s + 2, true)
+            stop = e or n
+          else
+            stop = (text:find("\n", s, true) or (n + 1)) - 1
+          end
+          out[#out + 1] = (text:sub(s, stop):gsub("[^\n]", " "))
+          i = stop + 1
+        elseif c == "[" and text:match("^%[=*%[", s) then
+          local eq = text:match("^%[(=*)%[", s)
+          local _, e = text:find("]" .. eq .. "]", s, true)
+          e = e or n
+          out[#out + 1] = text:sub(s, e)
+          i = e + 1
+        elseif c == "\"" or c == "'" then
+          local j = s + 1
+          while j <= n do
+            local ch = text:sub(j, j)
+            if ch == "\\" then j = j + 2
+            elseif ch == c or ch == "\n" then break
+            else j = j + 1 end
+          end
+          out[#out + 1] = text:sub(s, j)
+          i = j + 1
+        else
+          out[#out + 1] = c
+          i = s + 1
+        end
+      end
+      return table.concat(out)
+    end
+
+    local function span(text, first, last)
+      local from = assert(text:find(first, 1, true), first)
+      local to = assert(text:find(last, from + #first, true), last)
+      return from, to
+    end
+
+    -- path -> function(text, pos, name) -> whether this mention is an allowed site.
+    local function allowedSites()
+      local sniper = read("GoldCap/UI/SniperFrame.lua")
+      local _, dialogFrom, dialogTo = clickHandler(sniper)
+      local buy = read("GoldCap/UI/BuyFrame.lua")
+      local buyFrom, buyTo = span(buy, "local function onBuyClick",
+        "-- ---------------------------------------------------------------------------\n-- Rows")
+      local function calledAt(text, pos, name, from, to)
+        local prefix = "C_AuctionHouse."
+        return pos > from and pos < to
+          and text:sub(pos - #prefix, pos + #name) == prefix .. name .. "("
+      end
+      return {
+        ["GoldCap/UI/SniperFrame.lua"] = function(text, pos, name)
+          return calledAt(text, pos, name, dialogFrom, dialogTo)
+        end,
+        ["GoldCap/UI/BuyFrame.lua"] = function(text, pos, name)
+          return name ~= "PlaceBid" and calledAt(text, pos, name, buyFrom, buyTo)
+        end,
+        ["GoldCap/Core/PurchaseCapture.lua"] = function(text, pos, name)
+          local hook = 'hooksecurefunc(C_AuctionHouse, "'
+          return text:sub(pos - #hook, pos + #name + 1) == hook .. name .. '",'
+        end,
+      }
+    end
+
+    local function mentions(path)
+      local text = blankComments(read(path))
+      local found = {}
+      for _, name in ipairs(PROTECTED) do
+        local from = 1
+        while true do
+          local s, e = text:find("%f[%w_]" .. name .. "%f[^%w_]", from)
+          if not s then break end
+          local _, newlines = text:sub(1, s):gsub("\n", "")
+          found[#found + 1] = { pos = s, name = name, line = newlines + 1, text = text }
+          from = e + 1
+        end
+      end
+      return found
+    end
+
+    local function luaFiles()
+      local files = {}
+      local listing = assert(io.popen('find GoldCap -name "*.lua"'))
+      for path in listing:lines() do files[#files + 1] = path end
+      listing:close()
+      table.sort(files)
+      return files
+    end
+
+    local function audit()
+      local allowed, violations, sites = allowedSites(), {}, {}
+      for _, path in ipairs(luaFiles()) do
+        for _, m in ipairs(mentions(path)) do
+          local ok = allowed[path]
+          if ok and ok(m.text, m.pos, m.name) then
+            sites[#sites + 1] = path .. " " .. m.name
+          else
+            violations[#violations + 1] = ("%s:%d %s"):format(path, m.line, m.name)
+          end
+        end
+      end
+      table.sort(sites)
+      return violations, sites
+    end
+
+    it("finds every protected name only at an allowed site", function()
+      local violations, sites = audit()
+      assert.same({}, violations)
+      -- A scan that found nothing would pass the line above in silence.
+      assert.same({
+        "GoldCap/Core/PurchaseCapture.lua ConfirmCommoditiesPurchase",
+        "GoldCap/Core/PurchaseCapture.lua PlaceBid",
+        "GoldCap/Core/PurchaseCapture.lua StartCommoditiesPurchase",
+        "GoldCap/UI/BuyFrame.lua ConfirmCommoditiesPurchase",
+        "GoldCap/UI/BuyFrame.lua StartCommoditiesPurchase",
+        "GoldCap/UI/SniperFrame.lua ConfirmCommoditiesPurchase",
+        "GoldCap/UI/SniperFrame.lua PlaceBid",
+        "GoldCap/UI/SniperFrame.lua StartCommoditiesPurchase",
+      }, sites)
+    end)
+
+    it("sees an alias, a string index and a call in another file, and not a comment", function()
+      local text = blankComments(table.concat({
+        "-- C_AuctionHouse.PlaceBid(1, 2) is only a comment",
+        "--[[ C_AuctionHouse.StartCommoditiesPurchase(1, 2) ]]",
+        "local buy = C_AuctionHouse.PlaceBid",
+        'local confirm = C_AuctionHouse["ConfirmCommoditiesPurchase"]',
+        "local s = '-- not a comment'; C_AuctionHouse.StartCommoditiesPurchase(1, 2)",
+      }, "\n"))
+      local seen = {}
+      for _, name in ipairs(PROTECTED) do
+        for _ in text:gmatch("%f[%w_]" .. name .. "%f[^%w_]") do seen[#seen + 1] = name end
+      end
+      table.sort(seen)
+      assert.same({ "ConfirmCommoditiesPurchase", "PlaceBid", "StartCommoditiesPurchase" }, seen)
+    end)
+
+    -- Final review m5. The audit above keeps every purchase call inside the two click handlers;
+    -- this keeps the handlers themselves behind the player's own input. Each is named only where
+    -- it is defined and where the engine's hardware wiring hands it the click or the key -- never
+    -- called from anywhere else -- and nothing in the addon clicks a button, or runs a button's
+    -- script, from code.
+    -- Follow-up 3: the bracket spelling too -- `btn["Click"](btn)`, `btn['Click'](btn)`.
+    local PROGRAMMATIC = { "[:%.]Click%s*%(", "%[%s*[\"']Click[\"']%s*%]",
+      "GetScript%s*%(%s*[\"']OnClick", "GetScript%s*%(%s*[\"']OnKeyDown", "ExecuteFrameScript" }
+
+    -- Every line of `text` (comments blanked) naming `name`, trimmed, with the position of the name.
+    local function namedAt(text, name)
+      local found, from = {}, 1
+      while true do
+        local s, e = text:find("%f[%w_]" .. name .. "%f[^%w_]", from)
+        if not s then break end
+        local lineStart = (text:sub(1, s):match(".*()\n") or 0) + 1
+        local lineEnd = (text:find("\n", s, true) or (#text + 1)) - 1
+        found[#found + 1] = { pos = s, line = text:sub(lineStart, lineEnd):match("^%s*(.-)%s*$") }
+        from = e + 1
+      end
+      return found
+    end
+
+    -- What breaks the rule in `path`'s `text` (comments already blanked): a mention of a click
+    -- handler that is not one of its allowed sites, or a programmatic click anywhere.
+    local function handlerViolations(path, text)
+      local bad = {}
+      for _, pattern in ipairs(PROGRAMMATIC) do
+        if text:find(pattern) then bad[#bad + 1] = path .. " " .. pattern end
+      end
+      if path == "GoldCap/UI/SniperFrame.lua" or path == "test/sniper" then
+        for _, m in ipairs(namedAt(text, "onDialogPrimaryClick")) do
+          if m.line ~= "local function onDialogPrimaryClick()"
+              and m.line ~= 'primaryBtn:SetScript("OnClick", onDialogPrimaryClick)' then
+            bad[#bad + 1] = path .. " " .. m.line
+          end
+        end
+      elseif path == "GoldCap/UI/BuyFrame.lua" or path == "test/buy" then
+        local function inside(pos, opener)
+          local from = text:find(opener, 1, true)
+          local to = from and text:find("\n  end)\n", from, true)
+          return from ~= nil and to ~= nil and pos > from and pos < to
+        end
+        for _, m in ipairs(namedAt(text, "onBuyClick")) do
+          local ok = m.line == "local function onBuyClick(line)"
+            or (m.line == "onBuyClick(lineFor(row.lineItemID))"
+              and inside(m.pos, 'row.action:SetScript("OnClick", function()'))
+            or (m.line == "onBuyClick(line)"
+              and inside(m.pos, 'container:SetScript("OnKeyDown", function(self, key)'))
+          if not ok then bad[#bad + 1] = path .. " " .. m.line end
+        end
+      else
+        for _, name in ipairs({ "onDialogPrimaryClick" }) do
+          if #namedAt(text, name) > 0 then bad[#bad + 1] = path .. " " .. name end
+        end
+      end
+      return bad
+    end
+
+    it("reaches the two purchase click handlers only through the player's own input", function()
+      local violations = {}
+      for _, path in ipairs(luaFiles()) do
+        for _, v in ipairs(handlerViolations(path, blankComments(read(path)))) do
+          violations[#violations + 1] = v
+        end
+      end
+      assert.same({}, violations)
+      -- A scan that found nothing would pass the line above in silence.
+      assert.equal(2, #namedAt(blankComments(read("GoldCap/UI/SniperFrame.lua")), "onDialogPrimaryClick"))
+      assert.equal(3, #namedAt(blankComments(read("GoldCap/UI/BuyFrame.lua")), "onBuyClick"))
+    end)
+
+    it("sees a direct call, a stray reference and a programmatic click, and not a comment", function()
+      local sniper = blankComments(table.concat({
+        "local function onDialogPrimaryClick()",
+        "end",
+        '  primaryBtn:SetScript("OnClick", onDialogPrimaryClick)',
+        "-- onDialogPrimaryClick() in a comment",
+        "C_Timer.After(1, onDialogPrimaryClick)",
+        "  dialog.primaryBtn:Click()",
+        "  dialog.primaryBtn['Click'](dialog.primaryBtn)",
+      }, "\n"))
+      assert.same({ "test/sniper [:%.]Click%s*%(", "test/sniper %[%s*[\"']Click[\"']%s*%]",
+        "test/sniper C_Timer.After(1, onDialogPrimaryClick)" }, handlerViolations("test/sniper", sniper))
+      assert.same({ "test/other %[%s*[\"']Click[\"']%s*%]" },
+        handlerViolations("test/other", blankComments('local b = f; b["Click"](b)\n-- b["Click"](b)')))
+      local buy = blankComments(table.concat({
+        "local function onBuyClick(line)",
+        "end",
+        '  row.action:SetScript("OnClick", function()',
+        "    onBuyClick(lineFor(row.lineItemID))",
+        "  end)",
+        "  onBuyClick(lineFor(row.lineItemID))",
+        'local handler = row.action:GetScript("OnClick")',
+      }, "\n"))
+      assert.same({ "test/buy GetScript%s*%(%s*[\"']OnClick", "test/buy onBuyClick(lineFor(row.lineItemID))" },
+        handlerViolations("test/buy", buy))
+    end)
+  end)
+
   it("the dialog claims the slot before it starts a purchase", function()
     local text = source()
-    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(text)
 
     local claim = assert(click:find("GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
     local start = assert(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
@@ -54,7 +342,7 @@ describe("Sniper purchase wiring", function()
   it("keeps a shadowed SAFE decision on the Check path", function()
     local text = source()
     local arm = section(text, "local function armReady", "local function armCheck")
-    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(text)
 
     -- A shadow result is public WATCH/buyable=false; only that public contract can arm or
     -- reach a protected WoW call. `computedStatus` is display evidence, never an arm key.
@@ -329,8 +617,10 @@ describe("Sniper purchase wiring", function()
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000)
     assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == draining)
 
-    -- A search reply for a DIFFERENT requery is not the fence: the tombstone stays.
+    -- A search reply for a DIFFERENT requery -- neither fenced on the tombstone nor started after
+    -- it went down, so its search may predate the cancel -- is no proof: the tombstone stays.
     draining.fenceToken = draining.fenceToken + 100
+    getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42].afterTombstone = nil
     -- The result is judged WATCH so the row lands on Check without a dialog to arm.
     GC.SniperDecision.Evaluate = function()
       return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
@@ -343,6 +633,210 @@ describe("Sniper purchase wiring", function()
 
     _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
     _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+  end)
+
+  -- Live price caps, final review C1. A cap is the player's own price and needs no market read
+  -- (Core/Caps.lua's own contract), so the items a cap exists for are exactly the ones the
+  -- market engine refuses: no value, no sell-through, no velocity. Re-judging the server's
+  -- quote with that engine cancelled every capped commodity purchase -- cancel, requery, the
+  -- cap decides it again, quote again, cancel again -- a loop no click could break. The quote
+  -- is judged by the cap that armed it, and the one thing that may never be waved through is a
+  -- quote ABOVE the cap. No protected call is issued from this event either way.
+  it("arms Confirm on a capped commodity the market engine would refuse", function()
+    local cancelCalls, confirmCalls = 0, 0
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end,
+      GetNumCommoditySearchResults = function() return 1 end,
+      GetCommoditySearchResultInfo = function() return { unitPrice = 900000, quantity = 5 } end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+    -- No import value at all for item 42: every market gate refuses it, which is the whole
+    -- premise of the bug.
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = {},
+      caps = { { i = 42, c = 1000000 } } }
+
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+        PauseReasons = function() return {} end, Tick = function() end } end },
+      Data = { GetItemValue = function() return nil end },
+      db = { settings = { sniper = {
+        maxCapitalShare = 0.05, maxDailyDemandShare = 0.02, maxQuantity = 200,
+        minimumProfitCopper = 1000, minimumRoi = 0.10,
+      } } },
+    }
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("Core/Caps.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+    GC.Caps.Adopt()
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    -- The board's own cap deal (buildCapDeal's shape) and the decision GC.Caps.DecideCommodity
+    -- armed it with: five units at 9g against a 10g cap, no market figures anywhere.
+    local deal = { itemID = 42, isCommodity = true, cap = 1000000, unitPrice = 900000, qty = 5 }
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7, deal = deal, purchaseDeal = deal,
+      decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+        unit = 900000, stressProfit = 200000 },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() end,
+      commodityBook = function() return { { unitPrice = 900000, quantity = 5 } } end,
+      commodityResult = function() return { avail = 5 } end,
+    })
+
+    GC.Sniper.OnCommodityPriceUpdated(900000, 1800000)
+
+    assert.equal(0, cancelCalls)
+    assert.equal(0, confirmCalls) -- the event never confirms; the player's next click does
+    assert.equal("confirm", row.purchaseStage)
+    assert.is_table(row.quoteSnapshot)
+    assert.is_true(row.quoteSnapshot.decision.buyable)
+    assert.equal("SAFE", row.quoteSnapshot.decision.status)
+    assert.is_true(row.quoteSnapshot.decision.cap)
+
+    -- And the one case that must still refuse: the same book, quoted ABOVE the player's price.
+    row.purchaseStage, row.quoteSnapshot = "buying", nil
+    row.decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+      unit = 900000, stressProfit = 200000 }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    GC.Sniper.OnCommodityPriceUpdated(1100000, 2200000)
+
+    assert.equal(1, cancelCalls)
+    assert.equal(0, confirmCalls)
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+    _G.GoldCap_AppRuns = nil
+  end)
+
+  -- Final review M2. A quote that crosses the player's own ceiling is always loud (task 7), but
+  -- the banner was built from a ratio against `entryTotal` -- which a cap decision does not
+  -- have, because it is the player's price and not a quote the market made. So the loud path
+  -- read a nil: at best it announced "PRICE ROSE 1.0x" over a breach that was not a rise at
+  -- all, at worst it divided by nothing. It now says which two numbers disagree.
+  it("names the cap on a breached quote instead of a price-rise multiple", function()
+    local cancelCalls, confirmCalls, status = 0, 0, {}
+    _G.time = function() return 100000 end
+    _G.GetMoney = function() return 10000000000 end
+    _G.C_AuctionHouse = {
+      CalculateCommodityDeposit = function() return 0 end,
+      CancelCommoditiesPurchase = function() cancelCalls = cancelCalls + 1 end,
+      ConfirmCommoditiesPurchase = function() confirmCalls = confirmCalls + 1 end,
+      GetNumCommoditySearchResults = function() return 1 end,
+      GetCommoditySearchResultInfo = function() return { unitPrice = 1050000, quantity = 5 } end,
+    }
+    _G.C_Timer = { After = function() end }
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    _G.GetTime = function() return 0 end
+    _G.SOUNDKIT = { RAID_WARNING = 1 }
+    _G.PlaySound = function() end
+    _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = {},
+      caps = { { i = 42, c = 1000000 } } }
+
+    local GC = {
+      Theme = { ROW_H = 20, RAIL_W = 76, pad = { m = 8, s = 4, xs = 2 }, tier = { WATCH = { 1, 1, 1 } },
+        color = { fg = { 0.92, 0.91, 0.89 }, fgMuted = { 0.72, 0.71, 0.69 },
+          fgDim = { 0.55, 0.54, 0.52 }, red = { 0.9, 0.28, 0.3 },
+          green = { 0.25, 0.85, 0.25 }, gold = { 0.83, 0.64, 0.22 } } },
+      AutoScan = { New = function() return { Input = function() end, State = function() return "OFF" end,
+        PauseReasons = function() return {} end, Tick = function() end } end },
+      Data = { GetItemValue = function() return { mv = 3000000, kind = "region_commodity" } end },
+      db = { settings = { sniper = { sound = false, maxCapitalShare = 0.05,
+        maxDailyDemandShare = 0.02, maxQuantity = 200, minimumProfitCopper = 1,
+        minimumRoi = 0.01 } } },
+    }
+    helper.loadModule("Core/Util.lua", GC)
+    helper.loadModule("Core/Book.lua", GC)
+    helper.loadModule("Core/SniperDecision.lua", GC)
+    helper.loadModule("Core/CheckVerdict.lua", GC)
+    helper.loadModule("Core/DealMath.lua", GC)
+    helper.loadModule("Core/AutoScan.lua", GC)
+    helper.loadModule("Core/BookPass.lua", GC)
+    helper.loadModule("Core/DrillQueue.lua", GC)
+    helper.loadModule("Core/KeyPoll.lua", GC)
+    helper.loadModule("Core/Caps.lua", GC)
+    helper.loadModule("UI/SniperFrame.lua", GC)
+    GC.Caps.Adopt()
+    -- The MARKET still approves this quote; only the player's own ceiling refuses it, which is
+    -- the one arrangement that reaches the loud banner at all.
+    GC.SniperDecision.Evaluate = function()
+      return { status = "SAFE", buyable = true, quantity = 2, entryTotal = 2100000,
+        stressProfit = 1, reasons = {} }
+    end
+
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, math.huge do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local deal = { itemID = 42, isCommodity = true, cap = 1000000, unitPrice = 1050000, qty = 2 }
+    local row = {
+      purchaseStage = "buying", purchaseToken = 7, deal = deal, purchaseDeal = deal,
+      -- Armed by the cap: no entryTotal anywhere on it, and priced a hair under the quote, so
+      -- the ratio alone would have called this "none" and printed 1.0x if it printed anything.
+      decisionSnapshot = { status = "SAFE", buyable = true, cap = true, quantity = 2,
+        unit = 1050000, stressProfit = 1 },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "frame",
+      { status = { SetText = function(_, text) status[#status + 1] = text end } })
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver", {
+      isReady = function() return true end,
+      getKeyInfo = function() return { isCommodity = true } end,
+      sendSearch = function() end,
+      commodityBook = function() return { { unitPrice = 1050000, quantity = 5 } } end,
+      commodityResult = function() return { avail = 5 } end,
+    })
+
+    GC.Sniper.OnCommodityPriceUpdated(1050000, 2100001)
+
+    assert.equal(0, cancelCalls)
+    assert.equal(0, confirmCalls)
+    assert.equal("requote", row.purchaseStage)
+    local last = status[#status]
+    assert.is_truthy(last:find("Above your price", 1, true))
+    assert.is_nil(last:find("PRICE ROSE", 1, true))
+    assert.is_nil(last:find("still safe", 1, true))
+
+    _G.time, _G.GetMoney, _G.C_AuctionHouse, _G.C_Timer = nil, nil, nil, nil
+    _G.GetCoinTextureString, _G.GetTime, _G.SOUNDKIT, _G.PlaySound = nil, nil, nil, nil
+    _G.GoldCap_AppRuns = nil
   end)
 
   it("retires the cancel's tombstone when the requery it started answers", function()
@@ -1346,11 +1840,16 @@ describe("Sniper purchase wiring", function()
       status = { SetText = function() end, SetTextColor = function() end },
     })
     setUpvalue(primary, "commodityDraining", { itemID = 42, token = 4 })
+    local requeried
+    setUpvalue(primary, "startRequery", function(r) requeried = r end)
 
     primary()
 
     assert.equal(0, starts)
-    assert.equal("ready", row.purchaseStage)
+    -- Not a dead click either (in game 2026-09-23): the click is a Check, and that Check's answer
+    -- is what retires the tombstone (spec/caps_purchase_spec.lua, "after a purchase attempt was
+    -- cancelled").
+    assert.is_true(requeried == row)
 
     -- ...and stops refusing once it has outlived the answer it was waiting for. Nothing else
     -- ever consumes an unconfirmed tombstone: CancelCommoditiesPurchase fires none of the
@@ -1928,7 +2427,19 @@ describe("Sniper purchase wiring", function()
     }
     local pending = { row = row, itemID = 42, token = 7, confirmed = true, deal = deal, quote = quote }
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", pending)
-    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
+    -- The window that confirmed it is still open on this row: the re-quote is its to judge. With
+    -- no window it would be dropped instead (GC.Sniper._DropRequotedConfirm, caps_purchase_spec).
+    local written = {}
+    local stub = function() end
+    local window = {
+      row = row, baseHeight = 400, SetHeight = stub,
+      primaryBtn = { Enable = stub, Disable = stub, SetLabel = stub, IsEnabled = function() return false end,
+        text = { SetTextColor = stub } },
+      cancelBtn = { Enable = stub, Disable = stub },
+      banner = { Hide = stub, Show = stub },
+      status = { SetText = function(_, text) written[#written + 1] = text end, SetTextColor = stub },
+    }
+    setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", window)
 
     setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery", function() end)
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000) -- server re-quote, 4% above the confirmed quote
@@ -1938,8 +2449,11 @@ describe("Sniper purchase wiring", function()
     assert.is_falsy(pending.confirmed)
     assert.is_nil(pending.quote)
     assert.are_not.equal("confirming", row.purchaseStage)
-    -- ...and the ordinary requote path judged the new price: it broke safety, so the attempt
-    -- was cancelled and drained into a tombstone that retires on its own timer.
+    -- ...and the ordinary requote path judged the new price in the open window: it broke
+    -- safety, so the attempt was cancelled and drained into a tombstone that retires on its own
+    -- timer, and the window stays on the row to re-check what remains.
+    assert.is_true(window.row == row)
+    assert.is_truthy(written[#written]:find("re-checking what remains at a safe price", 1, true))
     assert.equal(1, cancelCalls)
     assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
     local draining = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining")
@@ -2028,7 +2542,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(2, #printed)
 
     -- Armed by the hardware Confirm click itself, right where the attempt becomes confirmed.
-    local click = section(source(), "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(source())
     local confirmAt = assert(click:find("pending.confirmed = true", 1, true))
     local releaseAt = assert(click:find("_ReleaseStrandedConfirmed", 1, true))
     assert.is_true(confirmAt < releaseAt)
@@ -2147,7 +2661,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(1, #bids)
 
     -- And the bid is placed from the candidate itself, inside the click handler, nowhere else.
-    local click = section(source(), "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(source())
     assert.is_truthy(click:find("C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)", 1, true))
     local _, placeBidCount = source():gsub("C_AuctionHouse%.PlaceBid", "")
     assert.equal(1, placeBidCount)
@@ -2329,7 +2843,7 @@ describe("Sniper purchase wiring", function()
 
     after_each(function()
       _G.time, _G.GetTime, _G.GetMoney, _G.C_Timer = os.time, nil, nil, nil
-      _G.C_AuctionHouse, _G.GetCoinTextureString = nil, nil
+      _G.C_AuctionHouse, _G.GetCoinTextureString, _G.AuctionHouseUtil = nil, nil, nil
     end)
 
     it("is registered and routed to the Sniper", function()
@@ -2340,11 +2854,14 @@ describe("Sniper purchase wiring", function()
       assert.is_truthy(init:find("GC.Sniper.OnAuctionHouseError(errorCode)", 1, true))
     end)
 
+    -- A quoted, unconfirmed purchase: nothing of it is still coming. (One at "buying" whose quote
+    -- has not come is cancelled and drained instead -- load-bearing round M-2, caps_purchase_spec.)
     it("settles an unconfirmed commodity purchase and clears the tombstones", function()
       local GC = loadSniper()
-      local row = { purchaseStage = "buying", purchaseToken = 7,
+      local row = { purchaseStage = "confirm", purchaseToken = 7,
         purchaseDeal = { itemID = 42, isCommodity = true } }
-      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase", { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7, priceReceived = true })
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", { itemID = 9, token = 1 })
       setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", nil)
 
@@ -2386,6 +2903,22 @@ describe("Sniper purchase wiring", function()
       -- authoritative Check can exist.
       assert.is_true(getUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining")[42] == attempt)
       assert.is_false(GC.Sniper.IsPurchaseQuiet())
+    end)
+
+    -- The words came from `_G.AuctionHouseErrorMessages`, a table the client does not have: the
+    -- default UI's own lookup is AuctionHouseUtil.GetErrorText (Blizzard_AuctionHouseUtil.lua),
+    -- so every error read "the auction house reported an error" whatever it was.
+    it("says the error in the client's own words", function()
+      local GC = loadSniper()
+      helper.loadModule("Core/Util.lua", GC)
+      _G.AuctionHouseUtil = { GetErrorText = function(code) return code == 3 and "The Auction House is busy." or "" end }
+      local said
+      setUpvalue(GC.Sniper.OnAuctionHouseError, "setStatus", function(text) said = text end)
+
+      GC.Sniper.OnAuctionHouseError(3)
+      assert.equal("The Auction House is busy.", said)
+      GC.Sniper.OnAuctionHouseError(99)
+      assert.equal("the auction house reported an error", said)
     end)
   end)
 
@@ -2459,6 +2992,7 @@ describe("Sniper purchase wiring", function()
       helper.loadModule("Core/BookPass.lua", GC)
       helper.loadModule("Core/DrillQueue.lua", GC)
       helper.loadModule("Core/KeyPoll.lua", GC)
+      helper.loadModule("Core/Caps.lua", GC)
       helper.loadModule("UI/SniperFrame.lua", GC)
       -- The board repaint is another spec's subject and needs the whole frame to exist.
       setUpvalue(GC.Sniper._ReleaseStrandedConfirmed, "refreshRows", function() end)
@@ -2762,6 +3296,78 @@ describe("Sniper purchase wiring", function()
       money = 10000000000
       row.purchaseStage, row.quoteSnapshot = "buying", nil
       GC.Sniper.OnCommodityPriceUpdated(1200, 1200)
+      assert.is_true(dialog.enabled)
+    end)
+
+    -- Fix round 5 (m3): the countdown speaks only over a Confirm that can be clicked. A dark one
+    -- says why -- not enough gold -- and "click Confirm to buy" over it would be a lie.
+    it("never counts a dark Confirm down as one to click", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1000 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+      money = 900 -- under the quote: Confirm stays dark
+      GC.Sniper.OnCommodityPriceUpdated(1000, 1000) -- quoted at 100 s, 20 s to run
+      assert.equal("confirm", row.purchaseStage)
+      assert.is_false(dialog.enabled)
+      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+
+      _G.GetTime = function() return 111 end -- nine seconds left
+      GC.Sniper._TickConfirmCountdown()
+
+      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+    end)
+
+    -- Task 7: a cap is the player's own price, not a market read. A quote that breaks it must
+    -- never slip through as a quiet "confirm" just because the rise from the entry total was
+    -- too small to trip RequoteSeverity on its own.
+    it("forces the loud requote path when the quote breaks the player's own price cap", function()
+      local GC = loadSniper()
+      -- 1290 is only a 0.78% rise over the 1280 entry -- well under REQUOTE_WARN_RATIO (5%) on
+      -- its own -- but 5 copper over the player's own 1285 cap.
+      local deal = { itemID = 42, isCommodity = true, cap = 1285 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1280 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+
+      GC.Sniper.OnCommodityPriceUpdated(1290, 1290)
+      assert.equal("requote", row.purchaseStage) -- not "confirm": the cap breach forces the banner
+      assert.is_true(dialog.banner.shown)
+    end)
+
+    -- The other side of the same guard: a quote that stays at or under the cap is judged
+    -- exactly as it would be with no cap at all -- the guard narrows nothing else.
+    it("leaves an ordinary requote alone when the quote stays at or under the player's cap", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true, cap = 1300 }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1280 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+
+      GC.Sniper.OnCommodityPriceUpdated(1290, 1290) -- rose, but stayed under the 1300 cap
+      assert.equal("confirm", row.purchaseStage)
       assert.is_true(dialog.enabled)
     end)
 
