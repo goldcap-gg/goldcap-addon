@@ -807,7 +807,7 @@ GC.Locales.esES = {
     "su fecha no puede ser correcta -- revisa el reloj de este ordenador",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "se apartaron cuando se cargaron otros precios en esta sesión -- /reload para volver a usarlos",
-  ["On the AH now"] = "En la casa de subastas ahora",
+  ["On the AH now"] = "En subasta",
   ["%d listed · %d min ago"] = "%d publicados · hace %d min",
   ["%d listed · just now"] = "%d publicados · ahora mismo",
 }

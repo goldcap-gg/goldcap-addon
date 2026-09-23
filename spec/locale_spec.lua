@@ -103,6 +103,18 @@ describe("locale layer", function()
     assert.is_true(checked > 100)
   end)
 
+  -- The tooltip's live line (UI/Tooltip.lua): "En la casa de subastas ahora" ran 15-20 glyphs wider
+  -- than any other GoldCap line, and a label with its own "now" said it twice beside "ahora mismo".
+  -- The detail already says when (final review M2).
+  it("keeps the live line's label short in Spanish and Portuguese, with no 'now' of its own", function()
+    local expected = { esES = "En subasta", esMX = "En subasta", ptBR = "No leilão" }
+    for code, label in pairs(expected) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      assert.equal(label, loc.Locales[code]["On the AH now"], code)
+    end
+  end)
+
   it("resolves the client locale on auto and the chosen one otherwise", function()
     assert.equal("deDE", GC.ResolveLocale("auto", "deDE"))
     assert.equal("enUS", GC.ResolveLocale("auto", nil))
