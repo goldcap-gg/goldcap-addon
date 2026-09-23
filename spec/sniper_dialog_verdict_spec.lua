@@ -439,6 +439,27 @@ describe("Sniper buy dialog verdict block", function()
     assert.equal("You would pay", factLabels(d)[1])
   end)
 
+  -- Almost no real figure is whole gold. The pane rounds the gold to hold UP, like the board's
+  -- cell, so holding exactly the figure it prints is enough for the wallet limit to let it through.
+  it("rounds the gold to hold up, never down, and holding that much is enough", function()
+    local GC, stamp = load()
+    local d = capDialog()
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42, isCommodity = true }, {
+      status = "AVOID", buyable = false, reasons = { "capital_limit" }, needsGold = 53224680,
+      walletShare = 0.05, quantity = 5, entryTotal = 2661234, entryUnitDisplay = 532246,
+      stressProfit = 370000,
+    })
+
+    assert.equal("5323g", d.verdictAmount.text)
+    assert.equal("Costs 267g. With your 5% per-buy limit you need 5323g on this character.",
+      d.verdictAmountNote.text)
+    local limits = GC.SniperDecision.BuyLimits({ maxCapitalShare = 0.05, maxDailyDemandShare = 0.02,
+      maxQuantity = 200, minimumProfitCopper = 50000, minimumRoi = 0.10 }, 5323 * 10000)
+    assert.is_true(limits.budget >= 2661234)
+  end)
+
   -- Check panel v3 replaced the ENTRY AVG / STRESS EXIT plaques (two numbers the evidence grid
   -- already carried, in a slot that went blank on every SUSPECT deal) with four facts chosen to
   -- explain THIS verdict. A meter is drawn only where CheckVerdict handed one out -- a bar with

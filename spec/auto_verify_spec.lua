@@ -1219,12 +1219,17 @@ describe("Deals background verification", function()
         banner = { Hide = function() end }, SetHeight = function() end })
 
       apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
-        reasons = { "capital_limit" }, needsGold = 13300000, walletShare = 0.20, quantity = 5,
-        entryTotal = 2660000 } })
+        reasons = { "capital_limit" }, needsGold = 53224680, walletShare = 0.05, quantity = 5,
+        entryTotal = 2661234 } })
 
       assert.equal("Buy", primary.label)
       assert.is_false(primary.enabled)
-      assert.equal("not enough gold on this character -- you need 1330g", status.text)
+      -- 5,322g 46s 80c: rounded up, the same figure the board's cell and the tooltip show.
+      assert.equal("not enough gold on this character -- you need 5323g", status.text)
+      local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+      local src = file:read("*a")
+      file:close()
+      assert.is_truthy(src:find("GC.Util.FormatGoldCeil(verdict.needsGold)", 1, true)) -- the tooltip
     end)
 
     -- Gold arriving is the one thing that turns such a row into a buy, and it used to wait for

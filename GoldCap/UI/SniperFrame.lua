@@ -4169,11 +4169,12 @@ local function drawVerdict(deal, decision, market)
     caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
   elseif hero.kind == "needs" then
     -- A buy only the wallet limit refused: the gold the character must hold for it, unsigned --
-    -- a sum to have, not a gain -- and the caption says both that and what the buy costs.
-    figure = displayDecisionAmount(hero.copper)
+    -- a sum to have, not a gain -- and the caption says both that and what the buy costs. Both
+    -- rounded up (GC.Util.FormatGoldCeil), the same figure the board's cell prints.
+    figure = GC.Util.FormatGoldCeil(hero.copper)
     figureColor = Theme.color.gold
-    caption = (GC.L[CV.HERO_CAPTION.needs]):format(displayDecisionAmount(hero.cost),
-      math.floor((hero.share or 0) * 100 + 0.5), displayDecisionAmount(hero.copper))
+    caption = (GC.L[CV.HERO_CAPTION.needs]):format(GC.Util.FormatGoldCeil(hero.cost or 0),
+      math.floor((hero.share or 0) * 100 + 0.5), GC.Util.FormatGoldCeil(hero.copper))
   else
     caption = GC.L[CV.HERO_CAPTION.unpriceable]
   end
@@ -5453,7 +5454,7 @@ local function applyRequeryResult(row, itemID, live)
       -- GC.Sniper.OnPlayerMoney asks it again.
       local needs = decision.needsGold
       armCheck(row, deal, decision, needs
-        and (GC.L["not enough gold on this character -- you need %s"]):format(displayDecisionAmount(needs))
+        and (GC.L["not enough gold on this character -- you need %s"]):format(GC.Util.FormatGoldCeil(needs))
         or GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
       if needs and dialog and dialog.row == row then
         setPrimaryLabel("Buy")
@@ -9955,7 +9956,7 @@ createRow = function(parent, index)
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
       elseif verdict.needsGold then
         GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
-          :format(GC.Util.FormatMoney(verdict.needsGold)), 0.83, 0.64, 0.22, true)
+          :format(GC.Util.FormatGoldCeil(verdict.needsGold)), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.
         GameTooltip:AddLine((GC.L["GoldCap: %s -- %s"]):format(verdict.status or "refused",

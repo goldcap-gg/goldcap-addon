@@ -59,21 +59,10 @@ function GC.BoardRows.Label(verdict, pending)
     -- gold+silver form ("61g35s") is two units, wide enough to clip. Gold only, floored.
     return (GC.L["SAFE +%s"]):format(GC.Util.FormatGoldFloor(verdict.stressProfit or 0))
   elseif bucket == "GOLD" then
-    -- The gold the character must hold. One unit, same as SAFE's, but rounded UP: a figure that
-    -- rounds down promises the buy for less gold than it takes. From 10,000g it counts in
-    -- thousands, the way players write gold -- the cell holds eleven characters ("SAFE +9999g"),
-    -- and at a 5% wallet share a 600g buy already needs 12,000g.
-    local copper = verdict.needsGold
-    local gold = math.ceil(copper / 10000)
-    local amount
-    if gold >= 10000 then
-      amount = ("%dk"):format(math.ceil(copper / 10000000))
-    elseif copper >= 10000 then
-      amount = ("%dg"):format(gold)
-    else
-      amount = ("%ds"):format(math.ceil(copper / 100))
-    end
-    return (GC.L["needs %s"]):format(amount)
+    -- The gold the character must hold, rounded up (GC.Util.FormatGoldCeil -- the same figure the
+    -- pane and the tooltip print). The short form: the cell holds eleven characters ("SAFE
+    -- +9999g"), and at a 5% wallet share a 600g buy already needs 12,000g.
+    return (GC.L["needs %s"]):format(GC.Util.FormatGoldCeil(verdict.needsGold, true))
   elseif bucket == "WATCH" then
     -- AVOID gets its own word when the live verdict actually said AVOID -- everything else
     -- non-buyable (WATCH itself, Gone, any other refusal status) keeps the WATCH label. Bucket
