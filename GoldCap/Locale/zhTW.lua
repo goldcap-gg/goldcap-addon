@@ -654,4 +654,6 @@ GC.Locales.zhTW = {
   ["… = a live check is queued for this row"] = "… = 該列的即時檢查已排隊",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市價 — 尚無即時報價",
   ["no answer %ds ago -- resting"] = "%d 秒前無回應 -- 暫歇",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "上一次嘗試仍在結算 -- 正在重新核對價格...",
 }

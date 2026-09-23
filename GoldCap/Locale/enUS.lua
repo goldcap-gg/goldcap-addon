@@ -736,6 +736,8 @@ GC.Locales.enUS = {
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the auction house reported an error"] = "the auction house reported an error",
   ["the import failed (%s)"] = "the import failed (%s)",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "the last attempt is still settling -- checking the price again...",
   ["the run changed — start again"] = "the run changed — start again",
   ["the run string is not valid"] = "the run string is not valid",
   ["there was nothing to import"] = "there was nothing to import",

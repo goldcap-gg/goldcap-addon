@@ -1046,4 +1046,145 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.not_equal("ready", row.purchaseStage)
     end)
   end)
+
+  -- In game 2026-09-23 (Void-Tempered Scales x400 at 1g10s): Buy, the quote came back and was
+  -- sent to a re-check, the window went back to Check, and the next Buy on the same 400 units
+  -- said "waiting for previous commodity purchase to settle" with the button lit and nothing
+  -- happening. The cancelled attempt leaves a tombstone (commodity events carry no attempt id)
+  -- that only an answer to a search sent after the cancel may retire -- but it was retired only
+  -- by the one requery token stamped on it at the cancel, and every Check the player started
+  -- afterwards carried a new token.
+  describe("after a purchase attempt was cancelled", function()
+    local CAP, UNIT, QTY = 11000, 9938, 400
+    local starts, sends
+
+    local function clickHandlers(GC)
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local refreshRows = getUpvalue(clearDeals, "refreshRows")
+      local createRow = getUpvalue(refreshRows, "createRow")
+      local buildRowCell = getUpvalue(createRow, "buildRowCell")
+      local onBuyClick = getUpvalue(buildRowCell, "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local createDialog = getUpvalue(openDialog, "createDialog")
+      return getUpvalue(createDialog, "onDialogPrimaryClick"), getUpvalue(createDialog, "abortRowPurchase")
+    end
+
+    local function freshBook() return { { unitPrice = UNIT, quantity = QTY } } end
+
+    -- A cap row armed on the dialog for QTY units at UNIT, the way the owner's was.
+    local function armed()
+      local GC = loadSniper({ maxQuantity = QTY })
+      starts, sends = 0, 0
+      _G.C_AuctionHouse.StartCommoditiesPurchase = function() starts = starts + 1 end
+      getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "driver").sendSearch = function() sends = sends + 1 end
+      adoptCap(GC, 42, CAP)
+      local book = freshBook()
+      local live = capLive(GC, 42, book)
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal, purchaseToken = 1 }
+      local d = armOnDialog(GC, row, deal, live.decision, book)
+      local click, abort = clickHandlers(GC)
+      return GC, row, deal, d, click, abort
+    end
+
+    -- The window the player opens again on the same row, before anything arms it.
+    local function reopened(GC, row, deal)
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      return d
+    end
+
+    -- The search a Check sent is answered with the book as it now stands.
+    local function answer(GC)
+      books[42] = freshBook()
+      GC.Sniper.OnCommoditySearchResults(42)
+    end
+
+    it("buys on the next Buy once a Check the player started has answered", function()
+      local GC, row, _, d, click = armed()
+      -- An older search for this item is still unanswered (a pre-warm the open fenced), so the
+      -- re-check the quote sends has to wait for it: the window goes back to Check.
+      GC.Sniper._FenceDrain(42, { itemID = 42, token = 0, sent = true })
+      click() -- Buy
+      assert.equal(1, starts)
+      -- The server quotes above what the book showed (somebody bought the cheapest units
+      -- between the Check and the click): cancelled and sent to a re-check, as it should be.
+      GC.Sniper.OnCommodityPriceUpdated(UNIT + 500, (UNIT + 500) * QTY)
+      assert.equal(1, cancels)
+      assert.equal("check", row.purchaseStage)
+      assert.equal("Check", d.label)
+
+      click() -- Check, while the old answer is still out: waits again
+      answer(GC) -- the old answer lands and is drained
+      click() -- Check
+      assert.equal("requerying", row.purchaseStage)
+      answer(GC) -- its own answer: armed again on the same 400 units
+      assert.equal("ready", row.purchaseStage)
+      assert.equal(QTY, row.decisionSnapshot.quantity)
+
+      click() -- Buy
+      assert.equal(2, starts)
+      assert.equal("buying", row.purchaseStage)
+    end)
+
+    it("buys on the next Buy after the player cancelled the window and opened it again", function()
+      local GC, row, deal, _, click, abort = armed()
+      click() -- Buy
+      assert.equal(1, starts)
+      abort(row, "purchase canceled") -- Cancel before the quote came back
+      assert.equal(1, cancels)
+
+      reopened(GC, row, deal)
+      getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(row, deal) -- the open's Check
+      answer(GC)
+      assert.equal("ready", row.purchaseStage)
+
+      click() -- Buy
+      assert.equal(2, starts)
+    end)
+
+    it("never leaves a lit Buy that does nothing while the last attempt settles", function()
+      local GC, row, deal, _, click, abort = armed()
+      click() -- Buy
+      abort(row, "purchase canceled")
+      -- Opened again and armed straight off a pre-warm the hover had already fetched: no Check
+      -- of the window's own has been answered since the cancel.
+      local d = reopened(GC, row, deal)
+      local book = freshBook()
+      armReadyFn(GC)(row, deal, capLive(GC, 42, book).decision, book)
+      assert.equal("ready", row.purchaseStage)
+      local before = sends
+
+      click() -- Buy over the young tombstone: no purchase, and not a dead click either
+      assert.equal(1, starts)
+      assert.is_false(d.enabled)
+      assert.equal("requerying", row.purchaseStage)
+      assert.equal(before + 1, sends)
+
+      answer(GC) -- that Check's answer is the proof the tombstone was waiting for
+      assert.equal("ready", row.purchaseStage)
+      assert.is_true(d.enabled)
+      click() -- Buy
+      assert.equal(2, starts)
+    end)
+
+    -- The tombstone guards the commodity events; a realm lot's bid answers on its own.
+    it("does not hold a realm lot's bid behind a commodity attempt still settling", function()
+      local GC, row, _, _, click, abort = armed()
+      click()
+      abort(row, "purchase canceled")
+      local bids = 0
+      _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+      local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+      local realmRow = { deal = lot, purchaseStage = "ready", purchaseToken = 3, decisionSnapshot = decision }
+      reopened(GC, realmRow, lot)
+
+      click()
+
+      assert.equal(1, bids)
+      assert.equal("buying", realmRow.purchaseStage)
+    end)
+  end)
 end)

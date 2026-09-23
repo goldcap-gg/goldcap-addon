@@ -653,4 +653,6 @@ GC.Locales.zhCN = {
   ["… = a live check is queued for this row"] = "… = 该行的实时检查已排队",
   ["≈ goldcap.gg market value — no live quote yet"] = "≈ goldcap.gg 市场价 — 尚无实时报价",
   ["no answer %ds ago -- resting"] = "%d 秒前无应答 -- 暂歇",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "上一次尝试仍在结算 -- 正在重新核对价格...",
 }

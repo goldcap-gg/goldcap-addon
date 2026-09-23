@@ -717,4 +717,6 @@ GC.Locales.ruRU = {
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ рыночная стоимость goldcap.gg — живой котировки пока нет",
   ["no answer %ds ago -- resting"] = "нет ответа %dс назад -- пауза",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "предыдущая попытка ещё не завершилась -- проверяем цену заново...",
 }

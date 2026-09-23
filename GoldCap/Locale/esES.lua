@@ -722,4 +722,6 @@ GC.Locales.esES = {
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ valor de mercado de goldcap.gg — aún sin cotización en vivo",
   ["no answer %ds ago -- resting"] = "sin respuesta hace %ds -- en pausa",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "el último intento aún se está cerrando -- comprobando el precio de nuevo...",
 }

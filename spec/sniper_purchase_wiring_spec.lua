@@ -617,8 +617,10 @@ describe("Sniper purchase wiring", function()
     GC.Sniper.OnCommodityPriceUpdated(1040000, 1040000)
     assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == draining)
 
-    -- A search reply for a DIFFERENT requery is not the fence: the tombstone stays.
+    -- A search reply for a DIFFERENT requery -- neither fenced on the tombstone nor started after
+    -- it went down, so its search may predate the cancel -- is no proof: the tombstone stays.
     draining.fenceToken = draining.fenceToken + 100
+    getUpvalue(GC.Sniper.OnCommoditySearchResults, "awaitingRequery")[42].afterTombstone = nil
     -- The result is judged WATCH so the row lands on Check without a dialog to arm.
     GC.SniperDecision.Evaluate = function()
       return { status = "WATCH", buyable = false, reasons = { "shadow_mode" } }
@@ -1838,11 +1840,16 @@ describe("Sniper purchase wiring", function()
       status = { SetText = function() end, SetTextColor = function() end },
     })
     setUpvalue(primary, "commodityDraining", { itemID = 42, token = 4 })
+    local requeried
+    setUpvalue(primary, "startRequery", function(r) requeried = r end)
 
     primary()
 
     assert.equal(0, starts)
-    assert.equal("ready", row.purchaseStage)
+    -- Not a dead click either (in game 2026-09-23): the click is a Check, and that Check's answer
+    -- is what retires the tombstone (spec/caps_purchase_spec.lua, "after a purchase attempt was
+    -- cancelled").
+    assert.is_true(requeried == row)
 
     -- ...and stops refusing once it has outlived the answer it was waiting for. Nothing else
     -- ever consumes an unconfirmed tombstone: CancelCommoditiesPurchase fires none of the

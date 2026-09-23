@@ -676,4 +676,6 @@ GC.Locales.koKR = {
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ goldcap.gg 시세 — 아직 실시간 시세가 없습니다",
   ["no answer %ds ago -- resting"] = "%d초 전 응답 없음 -- 대기 중",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "이전 시도가 아직 정리되는 중 -- 가격을 다시 확인하는 중...",
 }

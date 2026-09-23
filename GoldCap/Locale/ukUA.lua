@@ -738,4 +738,6 @@ GC.Locales.ukUA = {
   ["≈ goldcap.gg market value — no live quote yet"] =
     "≈ ринкова вартість goldcap.gg — живого котирування ще немає",
   ["no answer %ds ago -- resting"] = "немає відповіді %dс тому -- пауза",
+  ["the last attempt is still settling -- checking the price again..."] =
+    "попередня спроба ще не завершилася -- перевіряємо ціну знову...",
 }

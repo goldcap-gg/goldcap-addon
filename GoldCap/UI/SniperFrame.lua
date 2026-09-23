@@ -385,11 +385,16 @@ local function drainCommodityPurchase(row)
   end
 end
 
--- Retires an unconfirmed tombstone that OnCommodityPriceUpdated fenced on the requery (row +
--- token) whose result has now landed. The search that result answers was sent after the Cancel,
--- so any late quote for the cancelled attempt was delivered ahead of it; the tombstone has
--- nothing left to guard against. Confirmed tombstones are never touched -- their late success
--- still has to land on the attempt that paid.
+-- Retires an unconfirmed tombstone once `attempt` -- a Check whose answer has now landed -- is
+-- proof it has nothing left to guard against: the search that answer replies to was sent after
+-- the Cancel, so any late quote for the cancelled attempt was delivered ahead of it. Two kinds
+-- of attempt are that proof. One OnCommodityPriceUpdated fenced the tombstone on (row + token:
+-- the re-check it started, or the drain wait standing in for it). And any Check started while
+-- the tombstone was already down (`attempt.afterTombstone`, stamped by startRequery), whatever
+-- its token -- in game 2026-09-23 the fence was the only way out, every Check the player started
+-- afterwards carried a new token, and the Buy those Checks re-armed was refused with "waiting
+-- for previous commodity purchase to settle" and a lit button. Confirmed tombstones are never
+-- touched -- their late success still has to land on the attempt that paid.
 --
 -- One helper for the three places a fenced requery can end: finishRequery (the ordinary case),
 -- GC.Sniper._FinishDrainWait (the requery that had to wait for an older search to drain) and
@@ -400,10 +405,11 @@ end
 -- nothing (observed live 2026-09-15, `/gc sniper`: tombstone fenced on token 2, no requery
 -- waiting). A field on GC.Sniper rather than a file local: this chunk sits near Lua's 200-local
 -- ceiling (see the addon's engineering notes).
-function GC.Sniper._RetireFencedTombstone(row, token)
+function GC.Sniper._RetireFencedTombstone(attempt)
   local tombstone = commodityDraining
-  if tombstone and not tombstone.confirmed and tombstone.fenceRow == row
-      and tombstone.fenceToken == token then
+  if not (tombstone and attempt) or tombstone.confirmed then return end
+  if (tombstone.fenceRow == attempt.row and tombstone.fenceToken == attempt.token)
+      or attempt.afterTombstone == tombstone then
     commodityDraining = nil
   end
 end
@@ -2353,7 +2359,7 @@ function GC.Sniper._FinishDrainWait(itemID, draining)
   GC.Sniper._drainWaitRequery[itemID] = nil
   -- The same retirement finishRequery performs for a requery that DID start: a cancelled,
   -- unconfirmed purchase left a tombstone fenced on this wait, and the wait is now over.
-  GC.Sniper._RetireFencedTombstone(wait.row, wait.token)
+  GC.Sniper._RetireFencedTombstone(wait)
   GC.Sniper._ResumePausedLiveRequery(wait)
 end
 
@@ -4987,8 +4993,9 @@ local function finishRequery(attempt, liveDeal)
   awaitingKeyInfo[itemID] = nil
   pendingRequerySend[itemID] = nil
   -- An unconfirmed tombstone that OnCommodityPriceUpdated stamped with this exact requery
-  -- (row + token) is retired here rather than by its 20s timer; see _RetireFencedTombstone.
-  GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
+  -- (row + token), or one laid before this Check started, is retired here rather than by its 20s
+  -- timer; see _RetireFencedTombstone.
+  GC.Sniper._RetireFencedTombstone(attempt)
   applyRequeryResult(attempt.row, itemID, liveDeal)
   GC.Sniper._ResumePausedLiveRequery(attempt)
 end
@@ -5023,7 +5030,10 @@ local function startRequery(row, deal)
     return nil
   end
   row.purchaseToken = (row.purchaseToken or 0) + 1
-  local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false }
+  -- `afterTombstone`: the unconfirmed tombstone already down when this Check started, if any --
+  -- this Check's answer is proof enough to retire it (GC.Sniper._RetireFencedTombstone).
+  local attempt = { row = row, itemID = itemID, token = row.purchaseToken, deal = deal, sent = false,
+    afterTombstone = commodityDraining }
   -- Stop Live before registering or sending the authoritative Check. This comment used to claim
   -- Init.lua dispatches the scanner's throttle-ready hook first, which stopped being true once
   -- the slot arbiter (GC.Sniper.OnThrottleReady/_GrantWatchSlot) took over allocation: a parked
@@ -6501,7 +6511,7 @@ function GC.Sniper.OnCommoditySearchResults(itemID)
     -- attempt's late quote has been delivered, which is all the tombstone fenced on this
     -- requery was waiting for. Dropping the requery without this left the Buy refused for the
     -- tombstone's full 20 seconds.
-    GC.Sniper._RetireFencedTombstone(attempt.row, attempt.token)
+    GC.Sniper._RetireFencedTombstone(attempt)
     if not isPrewarm then return end
     attempt = nil
   end
@@ -7237,16 +7247,25 @@ local function onDialogPrimaryClick()
       GC.L["live verification required"], false)
     return
   end
-  if commodityDraining then
+  if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
     -- later commodity Buy until the player reloaded -- with the Buy button sitting enabled,
     -- saying the purchase was possible. A CONFIRMED tombstone is never retired here; its late
-    -- success still has to land on the attempt that paid for it.
-    if commodityDraining.confirmed
-        or (GetTime() - (commodityDraining.drainingAt or 0)) <= LIM.DRAIN_TIMEOUT_SECONDS then
+    -- success still has to land on the attempt that paid for it. A realm lot is not gated:
+    -- PlaceBid answers on its own event, never on the commodity ones the tombstone guards.
+    if commodityDraining.confirmed then
       setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
       if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
+      return
+    end
+    if (GetTime() - (commodityDraining.drainingAt or 0)) <= LIM.DRAIN_TIMEOUT_SECONDS then
+      -- Young and unconfirmed: this click becomes a Check (not a purchase call). Refusing it
+      -- left a lit Buy that did nothing (in game 2026-09-23); the Check's answer is the proof
+      -- that retires the tombstone (GC.Sniper._RetireFencedTombstone) and re-arms Buy.
+      dialog.primaryBtn:Disable()
+      setDialogStatus(GC.L["the last attempt is still settling -- checking the price again..."], 1, 0.82, 0)
+      startRequery(row, deal)
       return
     end
     commodityDraining = nil
