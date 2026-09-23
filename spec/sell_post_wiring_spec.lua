@@ -171,8 +171,10 @@ describe("a price the seller chose reaches the post intact", function()
   -- of the same item at a number chosen for a market that is gone.
   it("spends the chosen price when the auction it was chosen for is created", function()
     local text = source()
-    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID, settled%)(.-)\nend"))
-    assert.is_truthy(created:find("priceOverrides[pin.positionKey] = nil", 1, true))
+    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID%)(.-)\nend"))
+    assert.is_truthy(created:find("GC.Sell._SpendPrice(owner)", 1, true))
+    local spend = assert(text:match("function GC%.Sell%._SpendPrice%(pin%)(.-)\nend"))
+    assert.is_truthy(spend:find("priceOverrides[key] = nil", 1, true))
   end)
 
   -- Nothing writes a post price outside the paths a PLAYER drives: a render must never decide
@@ -183,10 +185,10 @@ describe("a price the seller chose reaches the post intact", function()
     local writes = 0
     for _ in text:gmatch("priceOverrides%[[%w%.]-%]%s*=") do writes = writes + 1 end
     -- commitPrice (set), commitPrice (clear), OnTextChanged (set), OnTextChanged (clear),
-    -- the chip click, OnAuctionCreated's clear, the same clear on the late path -- a post the
-    -- watchdog gave up on that the auction house answered anyway -- and _SettleCredits putting
-    -- back a price the player typed, which a credit the owned list contradicts had spent.
-    assert.equal(8, writes)
+    -- the chip click, and GC.Sell._SpendPrice -- the one rule that spends a typed price when its
+    -- post's creation is credited, or drops it when that post's late window closes unanswered.
+    -- Nothing puts a spent price back.
+    assert.equal(6, writes)
   end)
 
   -- The live-preview handler is the newest way into that table and the easiest to get wrong:

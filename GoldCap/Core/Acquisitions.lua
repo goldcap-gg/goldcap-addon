@@ -1124,30 +1124,6 @@ function GC.Acquisitions.RecordPost(positionKey, itemID, itemName, character, re
   return recordActivity(positionKey, itemID, itemName, character, region, at, quantity, unitPrice)
 end
 
-local function copyActivity(value)
-  if type(value) ~= "table" then return value end
-  local copy = {}
-  for key, field in pairs(value) do copy[key] = copyActivity(field) end
-  return copy
-end
-
--- What a scoped position's activity is before a post is recorded into it, so a post booked to
--- the wrong position can be taken back exactly (GC.Acquisitions.RestoreActivity). The Sell tab
--- credits an auction by the order its posts went out when the client does not name the item,
--- and settles that credit against the owned-auctions list once it lands (UI/SellFrame.lua).
-function GC.Acquisitions.ActivitySnapshot(positionKey, character, region)
-  if not db then return nil end
-  local scopeKey = GC.Acquisitions.ScopeKey(positionKey, { char = character, region = region })
-  if not scopeKey then return nil end
-  return { scopeKey = scopeKey, activity = copyActivity(db.acquisitionActivity[scopeKey]) or false }
-end
-
-function GC.Acquisitions.RestoreActivity(snapshot)
-  if not db or type(snapshot) ~= "table" or type(snapshot.scopeKey) ~= "string" then return false end
-  db.acquisitionActivity[snapshot.scopeKey] = snapshot.activity and copyActivity(snapshot.activity) or nil
-  return true
-end
-
 local function validSaleEntry(entry)
   return type(entry) == "table" and entry.kind == "sale" and entry.source == "mail"
     and isNonEmptyString(entry.key) and isNonEmptyString(entry.itemName)

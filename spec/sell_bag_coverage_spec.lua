@@ -303,13 +303,16 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     -- The WIRE's variant named first: by order alone the late 619 would take it (review NM2).
     created[702] = key(222, 626)
     GC.Sell.OnAuctionCreated(702)
-    assert.equal(1, #recorded)
-    assert.equal("item:222:626:0:0", recorded[1][1])
     assert.is_nil(wire.postStage)
+    local live = GC.Sell._LiveLate()
+    assert.equal(1, #live)
+    assert.equal("item:222:619:0:0", live[1].pin.positionKey) -- still listening for 619
     created[701] = key(222, 619)
     GC.Sell.OnAuctionCreated(701)
-    assert.equal(2, #recorded)
-    assert.equal("item:222:619:0:0", recorded[2][1])
+    assert.equal(0, #GC.Sell._LiveLate())
+    -- 626 went out while 619's answer was open: neither creation is certain, so neither is
+    -- written down here -- the owned list records both for what they are.
+    assert.equal(0, #recorded)
   end)
 
   -- For gear the client's AuctionInfo also carries the buyout, which a pin knows exactly: a
@@ -341,8 +344,41 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     -- Named by item alone (level 0), with 626's buyout.
     _G.C_AuctionHouse.GetAuctionInfoByID = function() return { itemKey = key(222), buyoutAmount = 60000 } end
     GC.Sell.OnAuctionCreated(703)
-    assert.equal(1, #recorded)
-    assert.equal("item:222:626:0:0", recorded[1][1])
+    local live = GC.Sell._LiveLate()
+    assert.equal(1, #live)
+    assert.equal("item:222:619:0:0", live[1].pin.positionKey) -- 626's, not the late 619's
+    assert.equal(0, #recorded)
+  end)
+
+  -- A guessed variant is never written down (review NM-E). A late 626 takes an unnamed creation by
+  -- the order rule; the auction is a 619 of the same item. Nothing records 626 from the guess,
+  -- and the owned list records the 619 for what it is.
+  it("never writes down a guessed variant", function()
+    local recorded, real = {}, GC.Acquisitions.RecordPost
+    GC.Acquisitions.RecordPost = function(...) recorded[#recorded + 1] = { ... }; return real(...) end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED)
+    slotKeys["0:1"] = key(222, 626)
+    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    GC.QuoteCache.Set(quotes, "item:222:626:0:0", 60000, 1000)
+    compose()
+    for _, row in ipairs(upvalue(render, "rows")) do
+      if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
+    end
+    assert.equal(1, #posted)
+    for i = #timers, 1, -1 do if timers[i].seconds == 8 then table.remove(timers, i).fn() end end
+    GC.Sell.OnAuctionCreated(801) -- the client names nothing
+    assert.equal(0, #recorded)
+    _G.C_AuctionHouse.GetOwnedAuctions = function()
+      return { { auctionID = 801, itemKey = key(222, 619), quantity = 1, buyoutAmount = 60000, status = 0,
+        itemLink = BONUSED:format(222) } }
+    end
+    GC.Sell.OnOwnedAuctions()
+    local keys = {}
+    for _, activity in ipairs(GC.Acquisitions.GetActivities({ char = "Owner-Dentarg", region = "eu" })) do
+      keys[#keys + 1] = activity.positionKey
+    end
+    assert.same({ "item:222:619:0:0" }, keys)
   end)
 
   -- BagStock leaves a soulbound copy out, but the Post matcher could still pin one sharing the

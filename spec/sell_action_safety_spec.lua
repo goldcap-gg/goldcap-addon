@@ -766,9 +766,11 @@ describe("Sell protected action state", function()
   -- The watchdog gives up on the wire, not on the post. PostCommodity answering false means the
   -- post was SENT (Blizzard's own sell frame reads it the same way), so an
   -- AUCTION_HOUSE_AUCTION_CREATED after the timeout is that post going up late. This test used to
-  -- pin the opposite ("prevents later activity"): the late auction was thrown away, never recorded
-  -- against its batch, and the price chosen for it never spent. It is now recorded once, exactly
-  -- as an on-time one would be; the row the timeout handed back stays handed back.
+  -- pin the opposite ("prevents later activity"): the late auction was thrown away and the price
+  -- chosen for it never spent. It is now credited once -- the Posted line, the typed price spent,
+  -- the item free to post again -- and the row the timeout handed back stays handed back. Which
+  -- post a late creation answers is the order rule's guess, so it writes nothing durable: the
+  -- owned-auctions list the refresh asks for records the auction for what it is.
   it("[C6] post timeout restores the exact row, and a late answer is still that post's", function()
     local calls, records, timers = 0, 0, {}
     _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
@@ -804,15 +806,19 @@ describe("Sell protected action state", function()
     assert.is_nil(row.postStage)
     assert.equal("Post", row.action.label)
     assert.is_true(row.action.enabled)
-    GC.Sell.Refresh = function() end
+    local refreshes = 0
+    GC.Sell.Refresh = function() refreshes = refreshes + 1 end
+    assert.equal(1, #GC.Sell._LiveLate())
     GC.Sell.OnAuctionCreated()
     assert.equal(1, calls)
-    assert.equal(1, records)
+    assert.equal(0, #GC.Sell._LiveLate())
+    assert.equal(1, refreshes)
+    assert.equal(0, records)
     assert.is_nil(row.postStage)
     assert.equal("Post", row.action.label)
     -- Once: a second creation is not the same post again.
     GC.Sell.OnAuctionCreated()
-    assert.equal(1, records)
+    assert.equal(1, refreshes)
   end)
 
   it("[C6] OnPostError restores Post and invalidates its timer and activity pin", function()
@@ -1209,10 +1215,10 @@ describe("Sell protected action state", function()
   end)
 
   -- And when the auction house really is slower than the watchdog, the post it announces is
-  -- still a real post: it used to be lost entirely -- never recorded against the batch, and the
-  -- price the seller had typed never cleared, so the next stack of that item quietly inherited
-  -- a number chosen against a book that had moved.
-  it("[S4] records a post the auction house confirmed after the watchdog gave up", function()
+  -- still a real post: it used to be lost entirely -- the price the seller had typed never
+  -- cleared, so the next stack of that item quietly inherited a number chosen against a book that
+  -- had moved. It is credited now; the owned list, not the guess, records it.
+  it("[S4] credits a post the auction house confirmed after the watchdog gave up", function()
     local timers, records, refreshes = {}, {}, 0
     _G.C_Timer = { After = function(seconds, callback)
       timers[#timers + 1] = { seconds = seconds, callback = callback }
@@ -1239,11 +1245,12 @@ describe("Sell protected action state", function()
     armed[#armed]()
     assert.is_nil(row.postStage)
     GC.Sell.OnAuctionCreated()
-    assert.same({ "commodity:42", 42, "Item 42", "A-R", "eu", 1, 100, 200 }, records[1])
+    assert.equal(0, #GC.Sell._LiveLate())
     assert.equal(1, refreshes)
+    assert.equal(0, #records)
     -- Consumed once. A second, unrelated creation must not be credited to the same pin.
     GC.Sell.OnAuctionCreated()
-    assert.equal(1, #records)
+    assert.equal(1, refreshes)
   end)
 
   -- A cancel is a server round trip. While it was in flight the row's own button was disabled,

@@ -60,6 +60,16 @@ describe("Tooltip under a Sell variant row", function()
     assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
   end)
 
+  -- Only the game's own item tooltip is ever a Sell row's: a linked item's window keeps its block.
+  it("reads the note only under GameTooltip", function()
+    _G.ItemRefTooltip = { GetOwner = function() return { goldcapVariant = "level" } end,
+      AddLine = function(_, text) lines[#lines + 1] = text end,
+      AddDoubleLine = function(_, left) lines[#lines + 1] = left end }
+    postCall(_G.ItemRefTooltip, { id = 222 })
+    _G.ItemRefTooltip = nil
+    assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)
+  end)
+
   it("keeps the block on a tooltip with no owner", function()
     postCall(_G.GameTooltip, { id = 222 })
     assert.matches("GoldCap value", table.concat(lines, " | "), 1, true)

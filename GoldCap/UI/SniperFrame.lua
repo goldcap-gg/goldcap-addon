@@ -2063,6 +2063,10 @@ driver = {
       C_AuctionHouse.SendSearchQuery(
         key, { { sortOrder = Enum.AuctionHouseSortOrder.Buyout, reverseSort = false } }, false)
     end
+    -- Out until its answer lands (GC.Sniper.RequestOut): a pre-warm, a Check re-query or a drill
+    -- sent just before the switch to Sell can still draw an error the Sell tab would otherwise read
+    -- as its post's own (review NM-F).
+    GC.Sniper._searchOut = { itemID = itemID, at = time() }
   end,
 
   -- Whether an ITEM_SEARCH_RESULTS_UPDATED carrying `itemKey` answers the search sendSearch last
@@ -5950,19 +5954,29 @@ function GC.Sniper.OnThrottledMessageDropped()
   end
 end
 
--- When the pass's last browse send went out and no browse answer has come since, or nil. It
--- outlives the pass: Abort (the switch to Sell, a dialog, the player's own search) stops the pass
--- paging at once, while the page it sent just before is still on the wire -- and until that page
--- is answered, an auction-house error the Sell tab hears may be its answer (GC.Sell's
--- _OtherRequestOut; review NM-C). Any browse answer ends it: the client answers browse sends in
--- order, one buffer.
+-- The Sniper's requests still out, for the Sell tab to read (GC.Sell's _OtherRequestOut): until
+-- one is answered, an auction-house error the Sell tab hears may be its answer. They outlive what
+-- sent them -- Abort (the switch to Sell, a dialog, the player's own search) stops a pass paging
+-- at once while the page it sent just before is still on the wire (review NM-C), and a search
+-- stays out whatever became of the pre-warm, Check or drill that sent it (NM-F).
+--   _browseOutAt: when the pass's last browse send went out, until any browse answer -- the
+--     client answers browse sends in order, one buffer.
+--   _searchOut: `{ itemID, at }` for the last search driver.sendSearch sent, until the answer for
+--     that item (and, for an item search, that key) lands.
 GC.Sniper._browseOutAt = nil
+GC.Sniper._searchOut = nil
 
--- A browse page of ours still out: sent, unanswered, and not older than the scan's own stall
--- watchdog -- a page that has had that long without a word is not coming.
-function GC.Sniper.BrowseOut()
-  local at = GC.Sniper._browseOutAt
-  return at ~= nil and time() - at <= LIM.SCAN_WATCHDOG_SECONDS
+-- Whether one is still out: sent, unanswered, and not older than its own timeout -- the scan's
+-- stall watchdog for a page, the Check's for a search. One that has had that long without a word
+-- is not coming.
+function GC.Sniper.RequestOut()
+  local now, search = time(), GC.Sniper._searchOut
+  if GC.Sniper._browseOutAt and now - GC.Sniper._browseOutAt <= LIM.SCAN_WATCHDOG_SECONDS then return true end
+  return search ~= nil and now - search.at <= LIM.REQUERY_TIMEOUT_SECONDS
+end
+
+function GC.Sniper._SearchAnswered(itemID)
+  if GC.Sniper._searchOut and GC.Sniper._searchOut.itemID == itemID then GC.Sniper._searchOut = nil end
 end
 
 function GC.Sniper.OnBrowseResults()
@@ -6713,6 +6727,7 @@ end
 -- 5b): not even a drain's, whose own answer is still on its way.
 function GC.Sniper.OnItemSearchResults(itemID, itemKey)
   if not driver.answersSearch(itemID, itemKey) then return end
+  GC.Sniper._SearchAnswered(itemID)
   if requeryDraining[itemID] then
     local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
@@ -6737,6 +6752,7 @@ function GC.Sniper.OnItemSearchResults(itemID, itemKey)
 end
 
 function GC.Sniper.OnCommoditySearchResults(itemID)
+  GC.Sniper._SearchAnswered(itemID)
   if requeryDraining[itemID] then
     local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil
@@ -10649,7 +10665,7 @@ function GC.Sniper.OnAuctionHouseClosed()
   -- resetAllPurchases/anything else runs so no code below it could observe a stale "AH still
   -- open" read.
   ahOpen = false
-  GC.Sniper._browseOutAt = nil -- nothing is answered once the auction house has closed
+  GC.Sniper._browseOutAt, GC.Sniper._searchOut = nil, nil -- nothing is answered once the auction house has closed
 
   -- Undock the window from the auction house before anything else tears down: the dock host
   -- is a child of the AH frame and is about to vanish with it. Idempotent (SetDocked(nil)

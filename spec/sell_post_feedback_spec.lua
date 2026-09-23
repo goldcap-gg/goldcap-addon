@@ -394,24 +394,22 @@ describe("Sell tab, a Post says what it is doing", function()
       render()
     end
 
-    it("is still the post's: recorded like one on time, and the dock says Posted over the timeout", function()
+    -- The dock says Posted over the timeout and the item is free again. Nothing durable is written
+    -- from the creation: which post it answers is the order rule's guess. The owned list the
+    -- refresh asks for next names the auction, and OnOwnedAuctions records it from there.
+    it("is still the post's: the dock says Posted over the timeout, and the item is free again", function()
       local recorded = recordedPosts()
       ready()
       pressRowPost()
       assert.equal(1, fire(8))
       assert.equal("No answer from the auction house yet -- still listening for a minute", container.dockStatus.text)
-      assert.equal(0, #recorded)
       _G.time = function() return 1030 end
       GC.Sell.OnAuctionCreated()
-      assert.equal(1, #recorded)
-      assert.equal(23427, recorded[1][2])
-      assert.equal(246, recorded[1][6])
       assert.matches("^Posted", container.dockStatus.text)
       assert.matches("Eternium Ore ×246", container.dockStatus.text, 1, true)
       assert.same(GREEN, { unpack(container.dockStatus.color, 1, 3) })
-      -- Once: a second creation is not the same post over again.
-      GC.Sell.OnAuctionCreated()
-      assert.equal(1, #recorded)
+      assert.equal(0, #GC.Sell._LiveLate())
+      assert.equal(0, #recorded)
     end)
 
     -- An error both a post and a purchase can raise, while a purchase of ours is out too: it may
@@ -430,8 +428,8 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.equal(1, posts)
       assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
       GC.Sell.OnAuctionCreated()
-      assert.equal(1, #recorded)
       assert.matches("^Posted", container.dockStatus.text)
+      assert.equal(0, #recorded) -- a guess: the owned list records it
     end)
 
     it("holds another Post of the same item while its last post may still be answered", function()
@@ -468,19 +466,18 @@ describe("Sell tab, a Post says what it is doing", function()
       local myco = pressRowPost(210796)
       auctions[501] = 23427
       GC.Sell.OnAuctionCreated(501)
-      assert.equal(1, #recorded)
-      assert.equal(23427, recorded[1][2])
+      assert.matches("Posted · Eternium Ore ×246", container.dockStatus.text, 1, true)
       assert.equal("posting", myco.postStage) -- still waiting for its own answer
       assert.is_true(myco.action.busy)
-      assert.matches("^Posted", container.dockStatus.text)
       -- Its moment over, the dock is back on the post still out, not on the walk.
       assert.equal(1, fire(1.5))
       assert.equal("Posting…", container.dockStatus.text)
       auctions[502] = 210796
       GC.Sell.OnAuctionCreated(502)
-      assert.equal(2, #recorded)
-      assert.equal(210796, recorded[2][2])
+      assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true)
       assert.is_nil(myco.postStage)
+      -- Mycobloom went out while the ore's answer was still open: neither is certain.
+      assert.equal(0, #recorded)
     end)
 
     it("credits nobody with an auction the client names as some other item", function()
@@ -505,16 +502,15 @@ describe("Sell tab, a Post says what it is doing", function()
       fire(8)
       local myco = pressRowPost(210796)
       GC.Sell.OnAuctionCreated(601) -- the client knows nothing of 601
-      assert.equal(1, #recorded)
-      assert.equal(23427, recorded[1][2])
+      assert.matches("Posted · Eternium Ore ×246", container.dockStatus.text, 1, true)
       assert.equal("posting", myco.postStage)
       assert.is_true(myco.action.busy)
       myco.action.scripts.OnClick(myco.action)
       assert.equal(2, posts) -- never a second post of Mycobloom's pool
       GC.Sell.OnAuctionCreated(602)
-      assert.equal(2, #recorded)
-      assert.equal(210796, recorded[2][2])
+      assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true)
       assert.is_nil(myco.postStage)
+      assert.equal(0, #recorded)
     end)
 
     -- ...and once every post of ours is answered, a creation is somebody else's -- Blizzard's
@@ -530,8 +526,8 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems) -- Mycobloom refused: a post's own code
       assert.is_nil(myco.postStage)
       GC.Sell.OnAuctionCreated(603)
-      assert.equal(1, #recorded)
-      assert.equal(23427, recorded[1][2])
+      assert.equal("You don't have enough of that item.", container.dockStatus.text) -- nobody's Posted
+      assert.equal(0, #recorded)
     end)
 
     -- A post waiting for its Confirm has sent nothing and can own no creation (review P9).
@@ -545,10 +541,10 @@ describe("Sell tab, a Post says what it is doing", function()
       local myco = pressRowPost(210796)
       assert.equal("confirm", myco.postStage)
       GC.Sell.OnAuctionCreated(601)
-      assert.equal(1, #recorded)
-      assert.equal(23427, recorded[1][2])
+      assert.matches("Posted · Eternium Ore ×246", container.dockStatus.text, 1, true)
       assert.equal("confirm", myco.postStage)
       assert.equal("Confirm", myco.action.label)
+      assert.equal(0, #recorded)
     end)
 
     -- An error only a post can raise is the post's refusal, whole: nothing is listened for and
@@ -636,9 +632,9 @@ describe("Sell tab, a Post says what it is doing", function()
       myco.action.scripts.OnClick(myco.action)
       assert.equal(2, posts) -- never a second post of Mycobloom's pool
       GC.Sell.OnAuctionCreated(605)
-      assert.equal(1, #recorded)
-      assert.equal(210796, recorded[1][2]) -- Mycobloom's own, never the ore
+      assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true) -- never the ore
       assert.is_nil(myco.postStage)
+      assert.equal(0, #recorded)
       -- The ore's post is answered (refused): it may be posted again.
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
       pressRowPost(23427)
@@ -655,8 +651,8 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
       assert.equal("posting", myco.postStage)
       GC.Sell.OnAuctionCreated(606)
-      assert.equal(1, #recorded)
-      assert.equal(210796, recorded[1][2])
+      assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true)
+      assert.equal(0, #recorded)
     end)
 
     -- An error raised inside the post call itself (nothing sent yet) is that call's answer.
@@ -756,125 +752,127 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.equal(1, posts)
     end)
 
-    -- Definitive attribution. A credit made by the order rule -- the client named nothing -- is
-    -- kept with its auction ID and settled against the owned list the refresh after every
-    -- creation asks for (C_AuctionHouse.GetOwnedAuctions: itemKey and quantity). A wrong credit
-    -- is moved to the post the auction really is, or undone when it is none of ours.
-    describe("settled by the owned list", function()
+    -- What is written down, and when (review sell-fix3, design). The owned-auctions list is the
+    -- durable record of every auction on it (OnOwnedAuctions -> ObserveOwnedPosition). A creation
+    -- adds a booking of its own only when it is CERTAINLY the post on the wire's: no late answer
+    -- open when that post went out, or taken while it was out. Every other credit moves the
+    -- screen only. It replaced a settlement that booked guesses and corrected them against the
+    -- list -- which wrote what the list writes anyway, and found a new edge every round.
+    describe("the durable record", function()
       local function activityFor(positionKey)
         for _, activity in ipairs(GC.Acquisitions.GetActivities({ char = "Owner-Dentarg", region = "eu" })) do
           if activity.positionKey == positionKey then return activity end
         end
         return nil
       end
+      local function ownedList(list) _G.C_AuctionHouse.GetOwnedAuctions = function() return list end end
+      local function overrides() return upvalue(GC.Sell._SpendPrice, "priceOverrides") end
 
-      it("moves a wrong credit to the post the auction really is", function()
+      it("books the post on the wire at its creation when no late answer shared its flight", function()
+        local recorded = recordedPosts()
+        ready()
+        pressRowPost()
+        GC.Sell.OnAuctionCreated(700)
+        assert.equal(1, #recorded)
+        assert.equal(23427, recorded[1][2])
+        assert.equal(246, recorded[1][6])
+        -- ...so a post the player closes the auction house straight after is still on record.
+        GC.Sell.Reset()
+        assert.equal(246, activityFor("commodity:23427").lastPostedQty)
+      end)
+
+      it("writes nothing from a guess; the owned list records the auction for what it is", function()
+        local recorded = recordedPosts()
+        ready()
+        pressRowPost()
+        fire(8)
+        GC.Sell.OnAuctionCreated(608)
+        assert.equal(0, #recorded)
+        assert.is_nil(activityFor("commodity:23427"))
+        ownedList({ { auctionID = 608, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 0 } })
+        GC.Sell.OnOwnedAuctions()
+        local activity = activityFor("commodity:23427")
+        assert.is_truthy(activity)
+        assert.equal(1000, activity.firstSeenAt)
+      end)
+
+      -- A guess that was wrong is never on record: an auction the list names as another item
+      -- leaves the ore unrecorded, and records the other item only if it is ours to name.
+      it("never records a guess the owned list contradicts", function()
+        ready()
+        pressRowPost()
+        fire(8)
+        GC.Sell.OnAuctionCreated(604) -- Blizzard's own Sell pane, the client naming nothing
+        ownedList({ { auctionID = 604, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 } })
+        GC.Sell.OnOwnedAuctions()
+        assert.is_nil(activityFor("commodity:23427"))
+      end)
+
+      -- A post that went out while an older one's answer was still open is not certain of the next
+      -- creation, even as the post on the wire.
+      it("does not book the wire's creation while an older post's answer was open as it went out", function()
+        local recorded = recordedPosts()
+        bags = TWO_ITEMS
+        readyTwo()
+        pressRowPost(23427)
+        fire(8)
+        pressRowPost(210796)
+        auctions[610] = 210796
+        GC.Sell.OnAuctionCreated(610)
+        assert.matches("Posted · Mycobloom ×80", container.dockStatus.text, 1, true)
+        assert.equal(0, #recorded)
+      end)
+
+      -- ...nor once an older answer is taken while it is out (the late window only shrinks during a
+      -- post's flight, so this is the belt to the check at send).
+      it("stops counting the wire as certain once a late answer is taken while it is out", function()
         local recorded = recordedPosts()
         bags = TWO_ITEMS
         readyTwo()
         pressRowPost(23427)
         fire(8)
         local myco = pressRowPost(210796)
-        GC.Sell.OnAuctionCreated(601) -- the client names nothing: credited to the ore, the oldest
-        assert.equal(23427, recorded[1][2])
-        assert.is_truthy(activityFor("commodity:23427"))
-        _G.C_AuctionHouse.GetOwnedAuctions = function()
-          return { { auctionID = 601, itemKey = { itemID = 210796 }, quantity = 80, buyoutAmount = 5000, status = 0 } }
-        end
-        GC.Sell.OnOwnedAuctions()
-        assert.is_nil(activityFor("commodity:23427")) -- the ore's booking undone
-        assert.equal(2, #recorded)
-        assert.equal(210796, recorded[2][2]) -- Mycobloom's, at last
+        upvalue(GC.Sell.OnAuctionCreated, "postingPin").clean = true -- as if nothing had been open
+        GC.Sell.OnAuctionCreated(611) -- unnamed: the ore's, the oldest
+        GC.Sell.OnAuctionCreated(612) -- Mycobloom's
         assert.is_nil(myco.postStage)
-        -- The ore is listened for again: its post may still go up.
-        pressRowPost(23427)
-        assert.equal(2, posts)
+        assert.equal(0, #recorded)
       end)
 
-      it("undoes a credit for an auction that is none of our posts", function()
-        local recorded = recordedPosts()
+      -- S1: a commodity lot sells from the front of the queue. However much of it has gone by the
+      -- time the list names it, the booking stands and the typed price stays spent.
+      it("keeps the booking and the spent price when the lot has partly sold (S1)", function()
         ready()
+        overrides()["commodity:23427"] = 184719
         pressRowPost()
-        fire(8)
-        GC.Sell.OnAuctionCreated(604) -- Blizzard's own Sell pane, the client naming nothing
-        assert.equal(1, #recorded)
-        _G.C_AuctionHouse.GetOwnedAuctions = function()
-          return { { auctionID = 604, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 } }
-        end
+        GC.Sell.OnAuctionCreated(701)
+        assert.is_nil(overrides()["commodity:23427"])
+        ownedList({ { auctionID = 701, itemKey = { itemID = 23427 }, quantity = 200, buyoutAmount = 184719, status = 0 } })
         GC.Sell.OnOwnedAuctions()
-        assert.is_nil(activityFor("commodity:23427"))
-        assert.equal(1, #recorded) -- nothing else booked
-        pressRowPost()
-        assert.equal(1, posts) -- and the ore is held again
+        assert.equal(246, activityFor("commodity:23427").lastPostedQty)
+        assert.is_nil(overrides()["commodity:23427"])
+        assert.equal(0, #GC.Sell._LiveLate())
       end)
 
-      it("leaves a credit the owned list confirms", function()
+      -- S2 / S2b: nothing reads a list against an old post, whether the auction house closed in
+      -- between or not.
+      it("never undoes a booking over a later list (S2)", function()
         ready()
-        pressRowPost()
-        fire(8)
-        GC.Sell.OnAuctionCreated(608)
-        _G.C_AuctionHouse.GetOwnedAuctions = function()
-          return { { auctionID = 608, itemKey = { itemID = 23427 }, quantity = 246, status = 0 } }
-        end
-        GC.Sell.OnOwnedAuctions()
-        assert.is_truthy(activityFor("commodity:23427"))
-      end)
-
-      local function ownedList(list) _G.C_AuctionHouse.GetOwnedAuctions = function() return list end end
-
-      -- A commodity lot sells from the front of the queue: by the time the list names the
-      -- auction, part of it may be gone. Fewer units of the right item is a partial sale, never a
-      -- contradiction -- undoing it put back a typed price the post had spent and held the item
-      -- for a post that was listed (review NI-A, S1).
-      it("keeps a booking whose lot has partly sold before the list names it (S1)", function()
-        local overrides = upvalue(GC.Sell._TakeBack, "priceOverrides")
-        ready()
-        overrides["commodity:23427"] = 190000
-        pressRowPost()
-        GC.Sell.OnAuctionCreated(701) -- on time
-        assert.is_nil(overrides["commodity:23427"])
-        ownedList({ { auctionID = 701, itemKey = { itemID = 23427 }, quantity = 200, status = 0 } })
-        GC.Sell.OnOwnedAuctions()
-        local activity = activityFor("commodity:23427")
-        assert.equal(246, activity and activity.lastPostedQty)
-        assert.is_nil(overrides["commodity:23427"]) -- the typed price stays spent
-        assert.equal(0, #GC.Sell._LiveLate()) -- and nothing is held
-      end)
-
-      -- A credit is settled inside its own window or never: a list from the next auction-house
-      -- visit, hours later, undid a booking and brought back an hours-old typed price (S2).
-      it("forgets its credits when the auction house closes (S2)", function()
-        local overrides = upvalue(GC.Sell._TakeBack, "priceOverrides")
-        ready()
-        overrides["commodity:23427"] = 190000
         pressRowPost()
         GC.Sell.OnAuctionCreated(702)
-        GC.Sell.Reset() -- closed before the owned list landed
-        _G.time = function() return 1030 end -- the next visit's first list, even inside the minute
-        ownedList({ { auctionID = 702, itemKey = { itemID = 555 }, quantity = 1, status = 0 } })
+        GC.Sell.Reset()
+        _G.time = function() return 11800 end
+        ownedList({ { auctionID = 702, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 } })
         GC.Sell.OnOwnedAuctions()
         local activity = activityFor("commodity:23427")
-        assert.equal(246, activity and activity.lastPostedQty)
-        assert.equal(1000, activity.firstSeenAt)
-        assert.is_nil(overrides["commodity:23427"])
-      end)
-
-      it("lets a credit go once its window has passed, whatever a later list says", function()
-        ready()
-        pressRowPost()
-        GC.Sell.OnAuctionCreated(703)
-        _G.time = function() return 11800 end -- hours on, the auction house never closed in between
-        ownedList({ { auctionID = 703, itemKey = { itemID = 555 }, quantity = 1, status = 0 } })
-        GC.Sell.OnOwnedAuctions()
-        local activity = activityFor("commodity:23427")
-        assert.equal(246, activity and activity.lastPostedQty)
+        assert.equal(246, activity.lastPostedQty)
         assert.equal(1000, activity.firstSeenAt)
       end)
 
-      -- A Blizzard-pane post lands while the ore is late and Mycobloom is on the wire: each
-      -- creation is credited one post too early, and Mycobloom's own finds no post left. The list
-      -- that names all three books both, whatever order the credits sit in (review NM-A, S3).
-      it("settles a cascade in creation order, booking a creation that got no credit (S3)", function()
+      -- S3: a Blizzard-pane post lands while the ore is late and Mycobloom is on the wire. The
+      -- guesses record nothing; the list records the ore and Mycobloom for what they are.
+      it("records a cascade from the owned list alone, never from the guesses (S3)", function()
+        local recorded = recordedPosts()
         bags = TWO_ITEMS
         readyTwo()
         pressRowPost(23427)
@@ -883,39 +881,153 @@ describe("Sell tab, a Post says what it is doing", function()
         GC.Sell.OnAuctionCreated(901) -- Blizzard's own pane: credited to the ore
         GC.Sell.OnAuctionCreated(902) -- the ore's own: credited to Mycobloom
         GC.Sell.OnAuctionCreated(903) -- Mycobloom's own: no post of ours left
+        assert.equal(0, #recorded)
         ownedList({
-          { auctionID = 901, itemKey = { itemID = 555 }, quantity = 1, status = 0 },
-          { auctionID = 902, itemKey = { itemID = 23427 }, quantity = 246, status = 0 },
-          { auctionID = 903, itemKey = { itemID = 210796 }, quantity = 80, status = 0 },
+          { auctionID = 903, itemKey = { itemID = 210796 }, quantity = 80, buyoutAmount = 5000, status = 0 },
+          { auctionID = 902, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 0 },
+          { auctionID = 901, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 },
         })
         GC.Sell.OnOwnedAuctions()
-        local ore, myco = activityFor("commodity:23427"), activityFor("commodity:210796")
-        assert.equal(246, ore and ore.lastPostedQty)
-        assert.equal(80, myco and myco.lastPostedQty)
-        assert.equal(0, #GC.Sell._LiveLate()) -- neither is held for a post that went up
+        assert.is_truthy(activityFor("commodity:23427"))
+        assert.is_truthy(activityFor("commodity:210796"))
+        assert.equal(0, #GC.Sell._LiveLate())
       end)
 
-      -- Taking back a credit restores what its booking overwrote -- never a later, genuine
-      -- booking of the same item made on top of it (S4).
-      it("never lets taking one credit back wipe a later booking of the same item (S4)", function()
+      -- S4: a guess frees the ore, the ore goes out again with nothing open, and the first post's
+      -- auction lands on it -- the same item, the same stack. The booking is right either way, and
+      -- nothing later takes it back.
+      it("keeps a certain booking whatever the list says of an earlier guess (S4)", function()
         ready()
         pressRowPost()
-        fire(8) -- the ore's first post is late
-        GC.Sell.OnAuctionCreated(911) -- Blizzard's own pane: credited to the ore, free again
-        pressRowPost() -- the ore again, on the wire
+        fire(8)
+        GC.Sell.OnAuctionCreated(911)
+        pressRowPost()
         assert.equal(2, posts)
-        GC.Sell.OnAuctionCreated(912) -- the first post's auction: credited to the wire
+        GC.Sell.OnAuctionCreated(912)
         ownedList({
-          { auctionID = 911, itemKey = { itemID = 555 }, quantity = 1, status = 0 },
-          { auctionID = 912, itemKey = { itemID = 23427 }, quantity = 246, status = 0 },
+          { auctionID = 911, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 },
+          { auctionID = 912, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 0 },
         })
         GC.Sell.OnOwnedAuctions()
-        local activity = activityFor("commodity:23427")
-        assert.equal(246, activity and activity.lastPostedQty)
-        assert.equal(1000, activity.lastPostedAt)
-        -- One of the two posts is still unanswered: listened for again.
-        assert.equal(1, #GC.Sell._LiveLate())
+        assert.equal(246, activityFor("commodity:23427").lastPostedQty)
       end)
+
+      -- S8: a lot that sold whole before the list is on it as Sold: the booking stands.
+      it("keeps the booking when the list shows the lot sold (S8)", function()
+        ready()
+        pressRowPost()
+        GC.Sell.OnAuctionCreated(708)
+        ownedList({ { auctionID = 708, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 1 } })
+        GC.Sell.OnOwnedAuctions()
+        assert.equal(246, activityFor("commodity:23427").lastPostedQty)
+      end)
+
+      -- S7: the owned list answers no post. A list landing while a post is on the wire leaves it
+      -- armed for its own creation.
+      it("leaves the post on the wire armed when the owned list lands (S7)", function()
+        local row
+        ready()
+        row = pressRowPost()
+        ownedList({ { auctionID = 709, itemKey = { itemID = 23427 }, quantity = 246, buyoutAmount = 184719, status = 0 } })
+        GC.Sell.OnOwnedAuctions()
+        assert.equal("posting", row.postStage)
+      end)
+
+      -- One rule for a typed price: spent by the credit, dropped when the window closes
+      -- unanswered or the auction house closes over it, never put back.
+      describe("a typed price", function()
+        it("is spent when a late creation is credited, and never put back", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          fire(8)
+          assert.equal(190000, overrides()["commodity:23427"]) -- the post may still go up
+          GC.Sell.OnAuctionCreated(801)
+          assert.is_nil(overrides()["commodity:23427"])
+          ownedList({ { auctionID = 801, itemKey = { itemID = 555 }, quantity = 1, buyoutAmount = 99, status = 0 } })
+          GC.Sell.OnOwnedAuctions()
+          assert.is_nil(overrides()["commodity:23427"])
+        end)
+
+        it("is dropped when the late window closes unanswered", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          fire(8)
+          _G.time = function() return 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1 end
+          assert.equal(0, #GC.Sell._LiveLate())
+          assert.is_nil(overrides()["commodity:23427"])
+        end)
+
+        it("is dropped when the auction house closes over the late window", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          fire(8)
+          GC.Sell.Reset()
+          assert.is_nil(overrides()["commodity:23427"])
+        end)
+
+        it("leaves a price typed since alone", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          fire(8)
+          overrides()["commodity:23427"] = 175000 -- the player's next choice
+          GC.Sell.OnAuctionCreated(802)
+          assert.equal(175000, overrides()["commodity:23427"])
+        end)
+
+        it("stays for the retry when the post is refused", function()
+          ready()
+          overrides()["commodity:23427"] = 190000
+          pressRowPost()
+          GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughMoney)
+          assert.equal(190000, overrides()["commodity:23427"])
+        end)
+      end)
+    end)
+
+    -- S5: a shared code while the ore is late, Mycobloom is on the wire and a walk search is out.
+    -- The order rule reads it as the ore's (a note in the review, unchanged): the ore is free
+    -- again, and Mycobloom stays armed.
+    it("reads a shared error as the late post's even with a walk search out (S5)", function()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      local myco = pressRowPost(210796)
+      upvalue(GC.Sell.Refresh, "refresh").pending = true
+      GC.Sell.OnAuctionHouseError(AH_ERROR.IsBusy)
+      upvalue(GC.Sell.Refresh, "refresh").pending = nil
+      assert.equal("posting", myco.postStage)
+      assert.equal(0, #GC.Sell._LiveLate())
+    end)
+
+    -- S6: with no post on the wire, an error is nobody's this tab can name: the late item stays
+    -- held for the rest of its minute.
+    it("keeps a late item held through an error while nothing of ours is on the wire (S6)", function()
+      ready()
+      pressRowPost()
+      fire(8)
+      GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
+      pressRowPost()
+      assert.equal(1, posts)
+      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+    end)
+
+    -- S9b: a plain Confirm, then its creation -- booked, and the row freed.
+    it("books a confirmed post at its creation and frees the row (S9b)", function()
+      local recorded = recordedPosts()
+      postReturn = true
+      ready()
+      local row = pressRowPost()
+      assert.equal("confirm", row.postStage)
+      row.action.scripts.OnClick(row.action)
+      assert.equal("confirming", row.postStage)
+      GC.Sell.OnAuctionCreated(710)
+      assert.is_nil(row.postStage)
+      assert.equal(1, #recorded)
     end)
 
     it("stops listening, and lets the item post again, once its window has closed", function()

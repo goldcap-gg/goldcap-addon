@@ -7,7 +7,7 @@ local helper = require("spec.spec_helper") -- luacheck: ignore helper
 -- GC.Sell._OtherRequestOut must count it (review NM-C: it asked GC.Sniper.IsBusy, which reads
 -- the pass's paging, so it could never fire in play). Driven through the real addon: the whole
 -- GoldCap.toc against a rigged CreateFrame, a real Sniper window, its real Sell rail button.
-describe("Sell tab, a Deals page still out after the switch", function()
+describe("Sell tab, a Sniper request still out after the switch", function()
   local function stubFrame()
     local f
     f = {
@@ -110,10 +110,10 @@ describe("Sell tab, a Deals page still out after the switch", function()
   end
 
 
-  local browseSent
+  local browseSent, searches, madeEnum
 
   local function buildFrame()
-    browseSent = 0
+    browseSent, searches = 0, {}
     _G.CreateFrame = function(_, name)
       local f = stubFrame()
       if name and name ~= "" then _G[name] = f end
@@ -135,6 +135,16 @@ describe("Sell tab, a Deals page still out after the switch", function()
       RequestMoreBrowseResults = function() browseSent = browseSent + 1 end,
       HasFullBrowseResults = function() return false end,
       GetBrowseResults = function() return {} end,
+      MakeItemKey = function(itemID) return { itemID = itemID, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 } end,
+      GetItemKeyInfo = function() return { isCommodity = true } end,
+      SendSearchQuery = function(key) searches[#searches + 1] = key end,
+      -- The answers, empty: nothing listed.
+      GetNumCommoditySearchResults = function() return 0 end,
+      GetCommoditySearchResultInfo = function() return nil end,
+      HasFullCommoditySearchResults = function() return true end,
+      GetNumItemSearchResults = function() return 0 end,
+      GetItemSearchResultInfo = function() return nil end,
+      HasFullItemSearchResults = function() return true end,
     }
 
     local GC = {}
@@ -161,6 +171,7 @@ describe("Sell tab, a Deals page still out after the switch", function()
     _G.C_AddOns, _G.GoldCap_MarketData, _G.SLASH_GOLDCAP1, _G.hooksecurefunc = nil, nil, nil, nil
     _G.GetTime, _G.PlaySound, _G.SOUNDKIT, _G.C_Timer = nil, nil, nil, nil
     _G.GetCoinTextureString, _G.C_AuctionHouse, _G.time = nil, nil, os.time
+    if madeEnum then _G.Enum, madeEnum = nil, nil elseif _G.Enum then _G.Enum.AuctionHouseSortOrder = nil end
   end)
 
   -- A manual scan's first page, sent by the real arbiter through the real book pass.
@@ -185,6 +196,56 @@ describe("Sell tab, a Deals page still out after the switch", function()
     local frame, GC = buildFrame()
     pageOut(frame, GC)
     _G.time = function() return 1000 + 16 end
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
+  local function upvalue(fn, wanted)
+    for i = 1, math.huge do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == wanted then return value, i end
+    end
+    error("missing upvalue " .. wanted)
+  end
+
+  -- A hover pre-warm on the Deals board, sent through the real maybeStartPrewarm and the real
+  -- search driver, then the switch (review NM-F: an item search out was invisible to the Sell
+  -- tab once the Sniper's quiet zone closed).
+  local function searchOut(frame, GC, isCommodity)
+    frame.dealsTab.scripts.OnClick()
+    _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = isCommodity } end
+    if not _G.Enum then _G.Enum, madeEnum = {}, true end
+    _G.Enum.AuctionHouseSortOrder = { Buyout = 4 }
+    local prewarm = upvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm")
+    local _, index = upvalue(prewarm, "ahOpen")
+    debug.setupvalue(prewarm, index, true)
+    assert.is_true(GC.Sniper._HoverPrewarm({ deal = { itemID = 42, unitPrice = 90, stale = true } }))
+    assert.equal(1, #searches)
+    frame.sellTab.scripts.OnClick()
+  end
+
+  it("counts a commodity search as a request of ours until its answer lands", function()
+    local frame, GC = buildFrame()
+    searchOut(frame, GC, true)
+    assert.is_true(GC.Sell._OtherRequestOut())
+    GC.Sniper.OnCommoditySearchResults(42)
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
+  it("counts an item search until the answer for its own key lands", function()
+    local frame, GC = buildFrame()
+    searchOut(frame, GC, false)
+    assert.is_true(GC.Sell._OtherRequestOut())
+    GC.Sniper.OnItemSearchResults(42, { itemID = 42, itemLevel = 619, itemSuffix = 0, battlePetSpeciesID = 0 })
+    assert.is_true(GC.Sell._OtherRequestOut()) -- another key's answer: somebody else's search
+    GC.Sniper.OnItemSearchResults(42, searches[1])
+    assert.is_false(GC.Sell._OtherRequestOut())
+  end)
+
+  it("stops counting a search nothing answered, after the Check's own timeout", function()
+    local frame, GC = buildFrame()
+    searchOut(frame, GC, true)
+    _G.time = function() return 1000 + 9 end
     assert.is_false(GC.Sell._OtherRequestOut())
   end)
 
