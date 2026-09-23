@@ -61,7 +61,6 @@ GC.Locales.ukUA = {
   ["ASKING"] = "ЗАПИТ",
   ["AT MARKET"] = "ЗА РИНКОМ",
   ["AUTO"] = "АВТО",
-  ["AUTO · PAUSED: "] = "АВТО · ПАУЗА: ",
   ["AUTO · SCANNING"] = "АВТО · СКАН",
   ["AUTOMATION & ALERTS"] = "АВТОМАТИКА ТА СПОВІЩЕННЯ",
   ["AVOID"] = "УНИКАТИ",
@@ -741,4 +740,28 @@ GC.Locales.ukUA = {
     "попередня спроба ще не завершилася -- перевіряємо ціну знову...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше (група: %s)",
+  ["AUTO · PAUSED: BUY WINDOW"] = "АВТО · ПАУЗА: ВІКНО КУПІВЛІ",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "Пауза, поки відкрите вікно купівлі. Купіть або закрийте його — і Авто продовжить.",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "АВТО · ПАУЗА: ВАШ ПОШУК",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "Пауза, поки ви друкуєте в пошуку аукціону. Продовжить за кілька секунд після того, як ви з нього вийдете.",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "АВТО · ПАУЗА: ВІДКРИТА ПОШТА",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] =
+    "Пауза, поки відкрита поштова скринька. Закрийте її — і Авто продовжить.",
+  ["AUTO · PAUSED: SELL TAB"] = "АВТО · ПАУЗА: ВКЛАДКА ПРОДАЖ",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "Пауза, поки відкрита вкладка Продаж: вона оцінює ваші сумки через той самий пошук. Поверніться до угод — і Авто продовжить.",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "АВТО · ПАУЗА: ДОШКА ПРЕДМЕТІВ",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "Пауза, поки показана дошка предметів: вона запитує аукціон через той самий пошук. Перемкніться на товари — і Авто продовжить.",
+  ["AUTO · PAUSED: BUY TAB"] = "АВТО · ПАУЗА: ВКЛАДКА BUY",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "Пауза, поки відкрита вкладка BUY: вона дізнається ціни через той самий пошук. Поверніться до угод — і Авто продовжить.",
+  ["AUTO · WAITING FOR YOU"] = "АВТО · ЧЕКАЄ НА ВАС",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "Чекає, поки ви виставляєте, купуєте чи переглядаєте у вікнах самого аукціону. Почне, щойно ви закінчите.",
+  ["AUTO · WAITING: YOUR LIST"] = "АВТО · ЧЕКАЄ: ВАШ СПИСОК",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "Чекає: у списку купівлі аукціону ваш власний пошук, і скан замінив би його. Відкрийте вкладку GoldCap на аукціоні або закрийте аукціон — і Авто почне.",
 }

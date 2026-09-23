@@ -61,7 +61,6 @@ GC.Locales.zhCN = {
   ["ASKING"] = "要价",
   ["AT MARKET"] = "按市价",
   ["AUTO"] = "自动",
-  ["AUTO · PAUSED: "] = "自动 · 已暂停：",
   ["AUTO · SCANNING"] = "自动 · 扫描中",
   ["AUTOMATION & ALERTS"] = "自动化与提醒",
   ["AVOID"] = "避开",
@@ -656,4 +655,27 @@ GC.Locales.zhCN = {
     "上一次尝试仍在结算 -- 正在重新核对价格...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "挂单价不高于你在 goldcap.gg 设定的价格（分组：%s）",
+  ["AUTO · PAUSED: BUY WINDOW"] = "自动 · 已暂停：购买窗口",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "购买窗口打开时暂停。完成购买或关闭窗口后，自动会继续。",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "自动 · 已暂停：你的搜索",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "你在拍卖行搜索框里输入时暂停。离开搜索框几秒后继续。",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "自动 · 已暂停：邮箱已打开",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] = "邮箱打开时暂停。关闭邮箱后，自动会继续。",
+  ["AUTO · PAUSED: SELL TAB"] = "自动 · 已暂停：出售标签页",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "出售标签页打开时暂停：它用同一个搜索为你的背包定价。回到交易页，自动会继续。",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "自动 · 已暂停：物品面板",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "显示物品面板时暂停：它用同一个搜索向拍卖行查询。切换到商品，自动会继续。",
+  ["AUTO · PAUSED: BUY TAB"] = "自动 · 已暂停：BUY 标签页",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "BUY 标签页打开时暂停：它用同一个搜索查询价格。回到交易页，自动会继续。",
+  ["AUTO · WAITING FOR YOU"] = "自动 · 等你操作完",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "你在拍卖行自带的面板里上架、购买或浏览时会等待。你一停下就开始。",
+  ["AUTO · WAITING: YOUR LIST"] = "自动 · 等待：你的列表",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "等待：拍卖行的购买列表里是你自己的搜索，扫描会把它替换掉。打开拍卖行里的 GoldCap 标签页，或关闭拍卖行，自动就会开始。",
 }

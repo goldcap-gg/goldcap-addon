@@ -62,7 +62,6 @@ GC.Locales.zhTW = {
   ["ASKING"] = "開價",
   ["AT MARKET"] = "依市價",
   ["AUTO"] = "自動",
-  ["AUTO · PAUSED: "] = "自動 · 已暫停：",
   ["AUTO · SCANNING"] = "自動 · 掃描中",
   ["AUTOMATION & ALERTS"] = "自動化與提醒",
   ["AVOID"] = "避開",
@@ -657,4 +656,27 @@ GC.Locales.zhTW = {
     "上一次嘗試仍在結算 -- 正在重新核對價格...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "掛單價不高於你在 goldcap.gg 設定的價格（分組：%s）",
+  ["AUTO · PAUSED: BUY WINDOW"] = "自動 · 已暫停：購買視窗",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "購買視窗開啟時暫停。完成購買或關閉視窗後，自動會繼續。",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "自動 · 已暫停：你的搜尋",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "你在拍賣場搜尋框輸入時暫停。離開搜尋框幾秒後繼續。",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "自動 · 已暫停：郵箱已開啟",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] = "郵箱開啟時暫停。關閉郵箱後，自動會繼續。",
+  ["AUTO · PAUSED: SELL TAB"] = "自動 · 已暫停：出售分頁",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "出售分頁開啟時暫停：它用同一個搜尋為你的背包定價。回到交易頁，自動會繼續。",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "自動 · 已暫停：物品面板",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "顯示物品面板時暫停：它用同一個搜尋向拍賣場查詢。切換到商品，自動會繼續。",
+  ["AUTO · PAUSED: BUY TAB"] = "自動 · 已暫停：BUY 分頁",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "BUY 分頁開啟時暫停：它用同一個搜尋查詢價格。回到交易頁，自動會繼續。",
+  ["AUTO · WAITING FOR YOU"] = "自動 · 等你操作完",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "你在拍賣場內建面板上架、購買或瀏覽時會等待。你一停下就開始。",
+  ["AUTO · WAITING: YOUR LIST"] = "自動 · 等待：你的列表",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "等待：拍賣場的購買列表裡是你自己的搜尋，掃描會把它替換掉。打開拍賣場裡的 GoldCap 分頁，或關閉拍賣場，自動就會開始。",
 }

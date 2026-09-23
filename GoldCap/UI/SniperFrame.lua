@@ -3296,7 +3296,7 @@ end
 autoScan = GC.AutoScan.New({}, {
   startScan = function()
     -- A scan is already running and Auto is adopting it: SCANNING is the truth.
-    if GC.Sniper._bookPass:IsPaging() then return true end
+    if GC.Sniper._bookPass:IsPaging() then GC.Sniper._autoHeld = nil return true end
     -- Shared throttle budget: while the player is busy on Blizzard's own AH panes -- posting,
     -- buying a browse result, or reading their own search -- their click outranks a fresh
     -- background scan. Returning false is what keeps the machine honest about it: it used to
@@ -3304,9 +3304,19 @@ autoScan = GC.AutoScan.New({}, {
     -- reading "AUTO · SCANNING" with nothing in flight and no event that could ever move it on
     -- -- reported from the game as an Auto that said it was scanning and never scanned. The
     -- machine now stays in WAITING and tries again a moment later.
-    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return false end
+    --
+    -- Withheld for the player is said on the button (GC.Sniper._autoHeld, autoButtonText): it
+    -- used to read a bare "AUTO" through all of it, and Auto looked broken.
+    GC.Sniper._autoHeld = nil
+    if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then
+      GC.Sniper._autoHeld = "busy"
+      return false
+    end
     -- ...or reading their own search on Blizzard's Buy pane, which a pass page replaces.
-    if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then return false end
+    if GC.Sniper._BrowseOwned and GC.Sniper._BrowseOwned() then
+      GC.Sniper._autoHeld = "browse"
+      return false
+    end
     -- A keys batch is out: its answer is the next browse event, and a page sent now would be
     -- read as that answer (see _FoldKeysBatch). Wait; _KeysOutstanding writes it off after
     -- LIM.KEYS_TIMEOUT_SECONDS at worst (the short allowance on the Sell and BUY tabs, where
@@ -3329,8 +3339,31 @@ feedAuto = function(event)
   if refreshAutoButton then refreshAutoButton() end
 end
 
-local AUTO_PAUSE_LABEL = { dialog = "buying", search = "searching", mail = "mail", sell = "selling",
-  items = "items", buy = "buying" }
+-- What holds Auto, in plain words: the button's label, then the tooltip's sentence saying what
+-- the player can do about it. In game 2026-09-23 `/gc board` printed `reasons=[mail,buy]` while
+-- the button said little more than "AUTO", and the owner could not tell why nothing ran. `busy`
+-- and `browse` are not pause reasons but the start the machine asked for being withheld
+-- (startScan below, GC.Sniper._autoHeld).
+-- @localised-keys: literals in this table ARE GC.L keys, looked up where they are read (a file
+-- scope GC.L lookup would resolve before the player's language is applied).
+local AUTO_PAUSE_LABEL = {
+  dialog = { "AUTO · PAUSED: BUY WINDOW",
+    "Paused while a buy window is open. Buy or close it and Auto carries on." },
+  search = { "AUTO · PAUSED: YOUR SEARCH",
+    "Paused while you type in the auction house search box. It carries on a few seconds after you leave it." },
+  mail = { "AUTO · PAUSED: MAILBOX OPEN",
+    "Paused while the mailbox is open. Close it and Auto carries on." },
+  sell = { "AUTO · PAUSED: SELL TAB",
+    "Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on." },
+  items = { "AUTO · PAUSED: ITEMS BOARD",
+    "Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on." },
+  buy = { "AUTO · PAUSED: BUY TAB",
+    "Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on." },
+  busy = { "AUTO · WAITING FOR YOU",
+    "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop." },
+  browse = { "AUTO · WAITING: YOUR LIST",
+    "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts." },
+}
 -- Display priority when more than one pause reason is set at once (e.g. a buy dialog opened
 -- while the player's own search was already live) -- "buying" wins because it's the most
 -- decisive of the four: the player is one click from spending gold. `ah`/`tab` are
@@ -3342,10 +3375,29 @@ local function autoButtonText(state, reasons)
   if state == "SCANNING" then return GC.L["AUTO · SCANNING"] end
   if state == "PAUSED" then
     for _, reason in ipairs(AUTO_PAUSE_ORDER) do
-      if reasons[reason] then return GC.L["AUTO · PAUSED: "] .. AUTO_PAUSE_LABEL[reason] end
+      if reasons[reason] then return GC.L[AUTO_PAUSE_LABEL[reason][1]] end
     end
   end
-  return "AUTO" -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+  local held = (state == "WAITING" or state == "IDLE") and AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
+  if held then return GC.L[held[1]] end
+  return GC.L["AUTO"] -- OFF, IDLE, WAITING, or PAUSED with only ah/tab reasons
+end
+
+-- The tooltip's lines under the Auto button's own description: one sentence per thing holding
+-- Auto right now, in the order the button names them, each saying what the player can do.
+function GC.Sniper._AutoHelp()
+  local lines = {}
+  local state = autoScan:State()
+  if state == "PAUSED" then
+    local reasons = autoScan:PauseReasons()
+    for _, reason in ipairs(AUTO_PAUSE_ORDER) do
+      if reasons[reason] then lines[#lines + 1] = GC.L[AUTO_PAUSE_LABEL[reason][2]] end
+    end
+  elseif state == "WAITING" or state == "IDLE" then
+    local held = AUTO_PAUSE_LABEL[GC.Sniper._autoHeld or ""]
+    if held then lines[1] = GC.L[held[2]] end
+  end
+  return lines
 end
 
 -- Re-derives the Auto control's label and look from the machine's own State()/PauseReasons()
@@ -3380,10 +3432,17 @@ refreshAutoButton = function(targetFrame)
     -- button. `active` carries the on-state in gold text, which cannot become unreadable.
     f.autoBtn:SetVariant(on and "active" or "ghost")
   end
-  local text = on and autoButtonText(state, autoScan:PauseReasons()) or "AUTO"
+  local text = on and autoButtonText(state, autoScan:PauseReasons()) or GC.L["AUTO"]
   if f.autoBtn.lastText ~= text then
     f.autoBtn:SetLabel(text)
     f.autoBtn.lastText = text
+    -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
+    -- rather than cutting it, and the status line anchored to its right edge moves with it.
+    local label = f.autoBtn.text
+    local width = label and label.GetStringWidth and label:GetStringWidth()
+    if type(width) == "number" and f.autoBtn.SetWidth then
+      f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
+    end
   end
 end
 
@@ -7122,6 +7181,23 @@ function GC.Sniper.OnMailClosed()
   feedAuto("resume:mail")
 end
 
+-- At an auction house open the mailbox is shut: the client runs one of these interactions at a
+-- time, and opening this one closed the other. In game 2026-09-23 `/gc board` showed Auto paused
+-- on "mail" at the auction house -- a MAIL_SHOW with no MAIL_CLOSED after it, which is how the
+-- mailbox left by walking straight to an auctioneer can look, and nothing but an auction house
+-- CLOSE let go of it, so it held Auto for the whole visit. Asked of the client first, and open
+-- only when it says so (a missing or failing call reads as shut): a broken read must never
+-- hold Auto.
+function GC.Sniper._ClearStaleMailPause()
+  local open = false
+  local manager, kinds = _G.C_PlayerInteractionManager, _G.Enum and _G.Enum.PlayerInteractionType
+  if manager and manager.IsInteractingWithNpcOfType and kinds and kinds.MailInfo then
+    local ok, answer = pcall(manager.IsInteractingWithNpcOfType, kinds.MailInfo)
+    open = ok and answer == true
+  end
+  if not open then feedAuto("resume:mail") end
+end
+
 -- AutoScan pause hooks for the buy-confirmation dialog (spec §3's throttle-priority rule).
 -- Called from openDialog / the dialog's own OnHide below -- future dialog work must keep both
 -- call sites intact. Clearing pendingBrowsePage/pendingFullScanStart on open (regardless of
@@ -9628,7 +9704,17 @@ local function createFrame()
   -- One key for the whole sentence, never a line-break's worth of fragments concatenated:
   -- word order is not a constant across languages, so a sentence assembled here can only ever
   -- come out in English order however well each piece is translated.
-  setPlainTooltip(autoBtn, GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."])
+  -- Built when hovered, not once: under the description, a sentence for whatever holds Auto
+  -- right now and what to do about it (GC.Sniper._AutoHelp). HookScript, as setPlainTooltip
+  -- does, so Theme.Button's own hover stays.
+  autoBtn:HookScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(GC.L["Auto: keeps Full Scan running continuously, yielding instantly whenever you buy, search the Auction House yourself, or check your mail. Click to toggle."],
+      1, 1, 1, 1, true)
+    for _, line in ipairs(GC.Sniper._AutoHelp()) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
+    GameTooltip:Show()
+  end)
+  autoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- The refused-rows toggle, in the slot the Live button vacated (see below). Background
   -- verification (tickAutoVerify) hides rows a live Check has refused, and a shorter list with
@@ -10312,6 +10398,7 @@ function GC.Sniper.OnAuctionHouseShow()
     GC.Sniper._TickCapPings()
   end)
   feedAuto("ahOpened")
+  GC.Sniper._ClearStaleMailPause()
   if GC.db.settings.sniper.auto then
     feedAuto("toggleOn") -- re-arms Auto across a /reload or the first AH visit of the session; a no-op once already armed
     -- toggleOn always arms with a clean reason set (AutoScan.lua wipes `reasons`), so

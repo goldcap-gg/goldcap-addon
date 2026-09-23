@@ -60,7 +60,6 @@ GC.Locales.koKR = {
   ["ASKING"] = "호가",
   ["AT MARKET"] = "시장가",
   ["AUTO"] = "자동",
-  ["AUTO · PAUSED: "] = "자동 · 일시중지: ",
   ["AUTO · SCANNING"] = "자동 · 검색 중",
   ["AUTOMATION & ALERTS"] = "자동화 및 알림",
   ["AVOID"] = "회피",
@@ -679,4 +678,28 @@ GC.Locales.koKR = {
     "이전 시도가 아직 정리되는 중 -- 가격을 다시 확인하는 중...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "goldcap.gg에서 정한 내 가격 이하로 등록됨 (그룹: %s)",
+  ["AUTO · PAUSED: BUY WINDOW"] = "자동 · 일시중지: 구매 창",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "구매 창이 열려 있는 동안 일시중지됩니다. 구매하거나 창을 닫으면 자동이 이어집니다.",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "자동 · 일시중지: 내 검색",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "경매장 검색창에 입력하는 동안 일시중지됩니다. 검색창을 벗어나고 몇 초 뒤에 이어집니다.",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "자동 · 일시중지: 우편함 열림",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] =
+    "우편함이 열려 있는 동안 일시중지됩니다. 닫으면 자동이 이어집니다.",
+  ["AUTO · PAUSED: SELL TAB"] = "자동 · 일시중지: 판매 탭",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "판매 탭이 열려 있는 동안 일시중지됩니다. 같은 검색으로 가방 시세를 매기기 때문입니다. 딜로 돌아가면 자동이 이어집니다.",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "자동 · 일시중지: 아이템 목록",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "아이템 목록이 표시되는 동안 일시중지됩니다. 같은 검색으로 경매장에 묻기 때문입니다. 재료로 전환하면 자동이 이어집니다.",
+  ["AUTO · PAUSED: BUY TAB"] = "자동 · 일시중지: BUY 탭",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "BUY 탭이 열려 있는 동안 일시중지됩니다. 같은 검색으로 가격을 조회하기 때문입니다. 딜로 돌아가면 자동이 이어집니다.",
+  ["AUTO · WAITING FOR YOU"] = "자동 · 사용자 대기 중",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "경매장 자체 창에서 등록, 구매, 둘러보기를 하는 동안 기다립니다. 멈추는 즉시 시작합니다.",
+  ["AUTO · WAITING: YOUR LIST"] = "자동 · 대기: 내 목록",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "대기 중: 경매장 구매 목록에 내 검색 결과가 있고, 검색하면 그것을 덮어씁니다. 경매장의 GoldCap 탭을 열거나 경매장을 닫으면 자동이 시작합니다.",
 }

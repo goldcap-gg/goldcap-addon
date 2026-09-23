@@ -59,7 +59,6 @@ GC.Locales.ptBR = {
   ["ASKING"] = "PEDIDO",
   ["AT MARKET"] = "A MERCADO",
   ["AUTO"] = "AUTO",
-  ["AUTO · PAUSED: "] = "AUTO · PAUSADO: ",
   ["AUTO · SCANNING"] = "AUTO · ESCANEANDO",
   ["AUTOMATION & ALERTS"] = "AUTOMAÇÃO E ALERTAS",
   ["AVOID"] = "EVITAR",
@@ -721,4 +720,28 @@ GC.Locales.ptBR = {
     "a última tentativa ainda está sendo concluída -- verificando o preço de novo...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Anunciado no preço que você definiu no goldcap.gg ou abaixo (grupo: %s)",
+  ["AUTO · PAUSED: BUY WINDOW"] = "AUTO · PAUSADO: JANELA DE COMPRA",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "Pausado enquanto uma janela de compra está aberta. Compre ou feche-a e o Auto continua.",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "AUTO · PAUSADO: SUA BUSCA",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "Pausado enquanto você digita na busca da casa de leilões. Continua alguns segundos depois que você sai dela.",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · PAUSADO: CORREIO ABERTO",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] =
+    "Pausado enquanto a caixa de correio está aberta. Feche-a e o Auto continua.",
+  ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSADO: ABA VENDER",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "Pausado enquanto a aba Vender está aberta: ela precifica suas bolsas pela mesma busca. Volte às ofertas e o Auto continua.",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · PAUSADO: LISTA DE ITENS",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "Pausado enquanto a lista de itens está à mostra: ela consulta a casa de leilões pela mesma busca. Mude para Mercadorias e o Auto continua.",
+  ["AUTO · PAUSED: BUY TAB"] = "AUTO · PAUSADO: ABA BUY",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "Pausado enquanto a aba BUY está aberta: ela consulta preços pela mesma busca. Volte às ofertas e o Auto continua.",
+  ["AUTO · WAITING FOR YOU"] = "AUTO · ESPERANDO VOCÊ",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "Espera enquanto você anuncia, compra ou navega nos painéis da casa de leilões. Começa assim que você parar.",
+  ["AUTO · WAITING: YOUR LIST"] = "AUTO · ESPERA: SUA LISTA",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "Espera: sua própria busca está na lista de compra da casa de leilões, e uma varredura a substituiria. Abra a aba do GoldCap na casa de leilões, ou feche a casa de leilões, e o Auto começa.",
 }

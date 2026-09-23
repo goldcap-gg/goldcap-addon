@@ -68,8 +68,15 @@ GC.Locales.enUS = {
   ["ASKING"] = "ASKING",
   ["AT MARKET"] = "AT MARKET",
   ["AUTO"] = "AUTO",
-  ["AUTO · PAUSED: "] = "AUTO · PAUSED: ",
+  ["AUTO · PAUSED: BUY TAB"] = "AUTO · PAUSED: BUY TAB",
+  ["AUTO · PAUSED: BUY WINDOW"] = "AUTO · PAUSED: BUY WINDOW",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · PAUSED: ITEMS BOARD",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · PAUSED: MAILBOX OPEN",
+  ["AUTO · PAUSED: SELL TAB"] = "AUTO · PAUSED: SELL TAB",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "AUTO · PAUSED: YOUR SEARCH",
   ["AUTO · SCANNING"] = "AUTO · SCANNING",
+  ["AUTO · WAITING FOR YOU"] = "AUTO · WAITING FOR YOU",
+  ["AUTO · WAITING: YOUR LIST"] = "AUTO · WAITING: YOUR LIST",
   ["AUTOMATION & ALERTS"] = "AUTOMATION & ALERTS",
   ["AVOID"] = "AVOID",
   ["Above this 24-hour rise the resale exit price is treated as spike-inflated and priced down."] =
@@ -115,6 +122,18 @@ GC.Locales.enUS = {
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "Paused while a buy window is open. Buy or close it and Auto carries on.",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on.",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on.",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on.",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] =
+    "Paused while the mailbox is open. Close it and Auto carries on.",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "Paused while you type in the auction house search box. It carries on a few seconds after you leave it.",
   ["Runs"] = "Runs",
   ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
@@ -123,6 +142,10 @@ GC.Locales.enUS = {
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
   ["UNDERCUT %d"] = "UNDERCUT %d",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
   ["YOUR LOTS"] = "YOUR LOTS",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",

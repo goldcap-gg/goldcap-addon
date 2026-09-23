@@ -58,7 +58,6 @@ GC.Locales.frFR = {
   ["ASKING"] = "DEMANDÉ",
   ["AT MARKET"] = "AU MARCHÉ",
   ["AUTO"] = "AUTO",
-  ["AUTO · PAUSED: "] = "AUTO · EN PAUSE : ",
   ["AUTO · SCANNING"] = "AUTO · SCAN",
   ["AUTOMATION & ALERTS"] = "AUTOMATISATION & ALERTES",
   ["AVOID"] = "ÉVITER",
@@ -723,4 +722,28 @@ GC.Locales.frFR = {
     "la dernière tentative n'est pas encore réglée -- nouvelle vérification du prix...",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Mis en vente à ton prix fixé sur goldcap.gg ou en dessous (groupe : %s)",
+  ["AUTO · PAUSED: BUY WINDOW"] = "AUTO · EN PAUSE : FENÊTRE D'ACHAT",
+  ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
+    "En pause tant qu'une fenêtre d'achat est ouverte. Achète ou ferme-la et Auto reprend.",
+  ["AUTO · PAUSED: YOUR SEARCH"] = "AUTO · EN PAUSE : TA RECHERCHE",
+  ["Paused while you type in the auction house search box. It carries on a few seconds after you leave it."] =
+    "En pause pendant que tu tapes dans la recherche de l'hôtel des ventes. Reprend quelques secondes après que tu l'as quittée.",
+  ["AUTO · PAUSED: MAILBOX OPEN"] = "AUTO · EN PAUSE : COURRIER OUVERT",
+  ["Paused while the mailbox is open. Close it and Auto carries on."] =
+    "En pause tant que la boîte aux lettres est ouverte. Ferme-la et Auto reprend.",
+  ["AUTO · PAUSED: SELL TAB"] = "AUTO · EN PAUSE : ONGLET VENTE",
+  ["Paused while the Sell tab is open: it prices your bags through the same search. Go back to Deals and Auto carries on."] =
+    "En pause tant que l'onglet Vente est ouvert : il estime tes sacs par la même recherche. Reviens aux affaires et Auto reprend.",
+  ["AUTO · PAUSED: ITEMS BOARD"] = "AUTO · EN PAUSE : TABLEAU OBJETS",
+  ["Paused while the Items board is shown: it asks the auction house through the same search. Switch to Commodities and Auto carries on."] =
+    "En pause tant que le tableau Objets est affiché : il interroge l'hôtel des ventes par la même recherche. Passe aux Marchandises et Auto reprend.",
+  ["AUTO · PAUSED: BUY TAB"] = "AUTO · EN PAUSE : ONGLET BUY",
+  ["Paused while the BUY tab is open: it looks up prices through the same search. Go back to Deals and Auto carries on."] =
+    "En pause tant que l'onglet BUY est ouvert : il cherche les prix par la même recherche. Reviens aux affaires et Auto reprend.",
+  ["AUTO · WAITING FOR YOU"] = "AUTO · T'ATTEND",
+  ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
+    "Attend pendant que tu mets en vente, achètes ou parcours les panneaux de l'hôtel des ventes. Démarre dès que tu t'arrêtes.",
+  ["AUTO · WAITING: YOUR LIST"] = "AUTO · ATTEND : TA LISTE",
+  ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
+    "Attend : ta propre recherche est dans la liste d'achat de l'hôtel des ventes, et un scan la remplacerait. Ouvre l'onglet GoldCap de l'hôtel des ventes, ou ferme l'hôtel des ventes, et Auto démarre.",
 }
