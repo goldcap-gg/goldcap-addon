@@ -377,6 +377,40 @@ describe("CheckVerdict", function()
     end)
   end)
 
+  -- A Check the wallet limit alone refused (SniperDecision.Evaluate's `needsGold`): every other
+  -- gate passed, and the plan it would make with the gold rides along. Its own answer -- not
+  -- "Won't buy", which a character with no gold read on every row of a market full of deals.
+  describe("a deal that needs gold", function()
+    local function needsGold()
+      return decision({ reasons = { "capital_limit" }, needsGold = 6220000,
+        stressProfit = 1540000, requiredProfit = 622000 })
+    end
+
+    it("gets its own tone, with nothing to act on until there is gold", function()
+      local v = GC.CheckVerdict.Build(needsGold(), market())
+      assert.equal("gold", v.tone)
+      assert.is_false(v.actionable)
+      assert.is_false(v.reconcile)
+    end)
+
+    it("leads with what the buy needs", function()
+      local v = GC.CheckVerdict.Build(needsGold(), market())
+      assert.same({ kind = "needs", copper = 6220000 }, v.hero)
+    end)
+
+    it("shows what the buy would cost and bring back", function()
+      local v = GC.CheckVerdict.Build(needsGold(), market())
+      assert.equal(6220000, factById(v, "youPay").copper)
+      assert.equal(6220000 + 1540000, factById(v, "youGet").copper)
+    end)
+
+    it("has its words in every table the panel reads", function()
+      assert.is_string(GC.CheckVerdict.TONE_WORD.gold)
+      assert.is_string(GC.CheckVerdict.TONE_SENTENCE.gold)
+      assert.is_string(GC.CheckVerdict.HERO_CAPTION.needs)
+    end)
+  end)
+
   -- The fact is the sales tape's own certainty that listings which vanished were sold rather
   -- than left to expire. Labelled "Confidence", it read "Confidence: high" beside "Won't buy --
   -- can't price this" (in game 2026-09-23), as if it were about the verdict or the price. Its

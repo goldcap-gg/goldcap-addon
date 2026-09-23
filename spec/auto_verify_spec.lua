@@ -1123,6 +1123,133 @@ describe("Deals background verification", function()
     assert.is_truthy(branch:find("elseif not self.deal.pinPlaceholder then", 1, true))
   end)
 
+  -- Owner report 2026-09-24: a character with no gold watched the board for an hour. Every
+  -- background Check came back capital_limit ("Costs more than your per-buy wallet limit
+  -- allows"), every row went to Hidden, and the market read as having no deals. The real engine
+  -- here, not the stub: a market that passes every gate, a book it would buy 200 of, no gold.
+  describe("with no gold on the character", function()
+    local PASSING = { kind = "region_commodity", source = "import", sourceAt = 1000,
+      mv = 3000000, stressUnit = 3000000, sold = 100000, sellThroughBps = 7000,
+      liquidityConfidence = 70, currentQty = 0, listings = 3, observations = 12, madBps = 0,
+      trend = -9 }
+    local BOOK = { { unitPrice = 1000000, quantity = 200 }, { unitPrice = 3000001, quantity = 1 } }
+
+    local function realEngine(value, wallet)
+      local api = loadSniper(safe)
+      local GC = api.GC
+      helper.loadModule("Core/Book.lua", GC)
+      helper.loadModule("Core/SniperDecision.lua", GC)
+      _G.GetMoney = function() return wallet() end
+      _G.C_AuctionHouse.CalculateCommodityDeposit = function() return 0 end
+      GC.Data.GetItemValue = function() return value end
+      local sniper = GC.db.settings.sniper
+      sniper.maxCapitalShare, sniper.maxDailyDemandShare, sniper.maxQuantity = 0.05, 0.02, 200
+      sniper.minimumProfitCopper, sniper.minimumRoi = 1000000, 0.10
+      local driver = upvalue(GC.Sniper.OnItemKeyInfo, "driver")
+      driver.commodityBook = function() return BOOK end
+      driver.commodityResult = function() return { unitPrice = 1000000, qty = 200, avail = 201 } end
+      return api
+    end
+
+    local function checkInBackground(api)
+      board(api, { deal(1, 1000000) })
+      tickAt(api, 101)
+      api.GC.Sniper.OnCommoditySearchResults(1)
+    end
+
+    it("keeps a deal that passes everything else on the board, saying what it needs", function()
+      local api = realEngine(PASSING, function() return 0 end)
+      checkInBackground(api)
+
+      assert.equal(200000000, api.verdicts[1].needsGold)
+      assert.equal(1, #api.renderList())
+      assert.equal(0, upvalue(api.renderList, "refusedCount"))
+      api.refreshRows()
+      assert.equal("needs 20000g", api.rows[1].tierChip.label)
+      -- A deal it cannot buy is not news: no bell.
+      assert.equal(0, #sounds)
+    end)
+
+    it("still hides a deal that another gate refuses as well", function()
+      local falling = {}
+      for k, v in pairs(PASSING) do falling[k] = v end
+      falling.trend = -10 -- market_falling, beside capital_limit
+      local api = realEngine(falling, function() return 0 end)
+      checkInBackground(api)
+
+      assert.is_nil(api.verdicts[1].needsGold)
+      assert.equal(0, #api.renderList())
+      assert.equal(1, upvalue(api.renderList, "refusedCount"))
+    end)
+
+    it("keeps it on the board after the player's own Check too, once they leave the pane", function()
+      local api = loadSniper(safe)
+      local d = deal(1, 100)
+      board(api, { d })
+      local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+      local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+      stamp(d, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+        reasons = { "capital_limit" }, needsGold = 5000000 } }, true)
+
+      api.GC.Sniper._LeavePane(d)
+      assert.equal(1, #api.renderList())
+      assert.equal(0, upvalue(api.renderList, "refusedCount"))
+    end)
+
+    -- The pane's Buy is held with the reason beside it, rather than turning into a Check that
+    -- would only come back with the same answer.
+    it("holds the pane's Buy and says what the buy needs", function()
+      local api = loadSniper(safe)
+      local d = deal(1, 100)
+      board(api, { d })
+      local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+      local apply = upvalue(finish, "applyRequeryResult")
+      local armCheck = upvalue(apply, "armCheck")
+      set(armCheck, "setDialogHeader", function() end)
+      set(armCheck, "stampDialogFromDecision", function() end)
+      local row = { deal = d }
+      local primary = { enabled = true, text = { SetTextColor = function() end } }
+      function primary:Enable() self.enabled = true end
+      function primary:Disable() self.enabled = false end
+      function primary:IsEnabled() return self.enabled end
+      function primary:SetLabel(t) self.label = t end
+      local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
+      set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
+        banner = { Hide = function() end }, SetHeight = function() end })
+
+      apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+        reasons = { "capital_limit" }, needsGold = 200000000, quantity = 200, entryTotal = 200000000 } })
+
+      assert.equal("Buy", primary.label)
+      assert.is_false(primary.enabled)
+      assert.is_truthy(status.text:find(api.GC.Util.FormatMoney(200000000), 1, true))
+    end)
+
+    -- One line at the top of the board, for as long as the wallet cannot pay for one unit of the
+    -- cheapest row on it at the player's own wallet limit -- driven by PLAYER_MONEY as well as by
+    -- the board, so gold arriving takes it down without waiting for a scan.
+    it("says so at the top of the board while the gold cannot pay for anything on it", function()
+      local wallet = 0
+      local api = realEngine(PASSING, function() return wallet end)
+      local line = { shown = false }
+      function line:SetText(t) self.text = t end
+      function line:Show() self.shown = true end
+      function line:Hide() self.shown = false end
+      upvalue(api.GC.Sniper.OnAuctionHouseShow, "frame").goldLine = line
+      board(api, { deal(1, 1000000) })
+      assert.is_true(line.shown)
+      assert.is_truthy(line.text:find("gold", 1, true))
+
+      wallet = 20000000 -- five percent of 2,000g pays for one unit at 100g
+      api.GC.Sniper.OnPlayerMoney()
+      assert.is_false(line.shown)
+
+      wallet = 19999999
+      api.GC.Sniper.OnPlayerMoney()
+      assert.is_true(line.shown)
+    end)
+  end)
+
   it("buys nothing: the verify path holds no purchase call and no click handler", function()
     local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
     local text = file:read("*a")

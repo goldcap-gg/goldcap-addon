@@ -130,6 +130,25 @@ describe("BoardRows", function()
       assert.is_true(GC.BoardRows.Rank(nil, true) < GC.BoardRows.Rank(nil, false))
     end)
   end)
+
+  -- A Check the wallet limit alone refused: a deal that needs gold, not a bad one (owner report
+  -- 2026-09-24 -- a character with no gold saw every row go to Hidden).
+  describe("a deal that needs gold", function()
+    local needs = { buyable = false, status = "AVOID", needsGold = 12345678, reason = "wallet" }
+
+    it("is its own bucket, between a buy and a refusal", function()
+      assert.equal("GOLD", GC.BoardRows.Bucket(needs))
+      assert.is_true(GC.BoardRows.Rank({ buyable = true }) < GC.BoardRows.Rank(needs))
+      assert.is_true(GC.BoardRows.Rank(needs) < GC.BoardRows.Rank({ buyable = false, status = "AVOID" }))
+    end)
+
+    -- Rounded up, never down: 1,234g 56s 78c of buy is not covered by 1,234g.
+    it("says how much gold the buy needs, whole gold rounded up", function()
+      assert.equal("needs 1235g", GC.BoardRows.Label(needs))
+      assert.equal("needs 5g", GC.BoardRows.Label({ needsGold = 50000 }))
+      assert.equal("needs 13s", GC.BoardRows.Label({ needsGold = 1201 }))
+    end)
+  end)
 end)
 
 describe("GC.Util.FormatMoney", function()

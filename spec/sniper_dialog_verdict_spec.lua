@@ -415,6 +415,26 @@ describe("Sniper buy dialog verdict block", function()
     assert.equal("Your price", factLabels(d)[2])
   end)
 
+  -- A Check only the wallet limit refused (owner report 2026-09-24): the pane says the buy needs
+  -- gold and how much, not "Won't buy", and never "can't price this" over a buy it priced.
+  it("says how much gold a buy only the wallet limit refused needs", function()
+    local GC, stamp = load()
+    local d = capDialog()
+    setUpvalue(stamp, "dialog", d)
+
+    stamp({ itemID = 42, isCommodity = true }, {
+      status = "AVOID", buyable = false, reasons = { "capital_limit" }, needsGold = 200000000,
+      quantity = 200, entryTotal = 200000000, entryUnitDisplay = 1000000, stressProfit = 370000000,
+    })
+
+    assert.equal("Needs gold", d.verdictLabel.text)
+    assert.equal(GC.Util.FormatMoney(200000000), d.verdictAmount.text)
+    assert.is_true(d.verdictAmount.shown)
+    assert.is_false(d.heroText.shown)
+    assert.equal(GC.CheckVerdict.TONE_SENTENCE.gold, d.verdictHead.text)
+    assert.equal("You would pay", factLabels(d)[1])
+  end)
+
   -- Check panel v3 replaced the ENTRY AVG / STRESS EXIT plaques (two numbers the evidence grid
   -- already carried, in a slot that went blank on every SUSPECT deal) with four facts chosen to
   -- explain THIS verdict. A meter is drawn only where CheckVerdict handed one out -- a bar with
