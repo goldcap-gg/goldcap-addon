@@ -1336,6 +1336,17 @@ advanceQuote = function()
     retryLater()
     return
   end
+  -- ...and so, just as much, while a keys batch this tab did not send is still out: one still in
+  -- flight from the board the player just left (the Sniper's price caps, its Items poll, BUY's).
+  -- Same evidence as the wait for this tab's own batch above -- a search sent on top of it takes
+  -- its answer and comes back empty. It is written off after eight seconds while this tab is on
+  -- screen (UI/SniperFrame.lua's _KeysOutstanding), so the wait is short, and nothing announces
+  -- its end: the walk comes back by itself, like the yields around it.
+  if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
+    markProgress()
+    retryLater()
+    return
+  end
   if not driver.isReady() then
     -- The throttle window is closed -- IsThrottledMessageSystemReady() is false -- so the walk
     -- is stalled on purpose, not stuck, and this must feed the watchdog exactly like the

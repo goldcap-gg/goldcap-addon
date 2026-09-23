@@ -604,6 +604,30 @@ describe("Search slot arbiter", function()
         assert.is_true((outstandingAfter("buy", 29)))
         assert.is_false((outstandingAfter("buy", 30)))
       end)
+
+      -- Caps fixes 4a, round 1: a batch still out from the board the player just left, while the
+      -- Sell or BUY tab is on screen. Those tabs' own searches take its answer (UI/SellFrame.lua's
+      -- advanceQuote, seen in game) and the Sell walk now stands still for it -- thirty seconds of
+      -- that held every keys consumer and the walk. The tab's own batch keeps its own allowance.
+      it("gives a batch the tab on screen did not send eight seconds on the Sell and BUY tabs", function()
+        local function after(owner, onView, seconds)
+          local GC = load()
+          set(GC.Sniper.OnThrottleReady, "view", onView)
+          local clock = 1000
+          _G.time = function() return clock end
+          GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, owner, { 1 }
+          clock = clock + seconds
+          return GC.Sniper._KeysOutstanding()
+        end
+        for _, owner in ipairs({ "sniper", "caps", "buy" }) do
+          assert.is_false(after(owner, "sell", 8))
+        end
+        for _, owner in ipairs({ "sniper", "caps" }) do
+          assert.is_false(after(owner, "buy", 8))
+        end
+        assert.is_true(after("buy", "buy", 29))
+        assert.is_true(after("caps", "sold", 29))
+      end)
     end)
 
     -- Observed in game as the player's own Browse pane jumping to an item page with a spinner

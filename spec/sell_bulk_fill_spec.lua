@@ -143,6 +143,26 @@ describe("Sell bulk price fill", function()
     assert.equal(1, asked.owned)
   end)
 
+  -- Caps fixes 4a, round 1: the same collision with a batch this tab did not send -- one still
+  -- in flight from the Deals board the player just left (the Sniper's price caps). The walk stands
+  -- still for it and comes back by itself once it is gone: nothing announces that.
+  it("sends no search over another tab's unanswered batch, and carries on once it is gone", function()
+    local now, asked = { value = 100 }, {}
+    local timers = {}
+    _G.C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    local GC = load(now, STOCK, asked, { value = false })
+    local out = true
+    GC.Sniper._KeysOutstanding = function() return out end
+    GC.Sell.Refresh(); GC.Sell.OnOwnedAuctions()
+    GC.Sell.OnThrottleReady()
+    assert.is_nil(asked.searches)
+    out = false
+    local pending = timers
+    timers = {}
+    for _, fn in ipairs(pending) do fn() end
+    assert.is_truthy(asked.searches and #asked.searches > 0)
+  end)
+
   it("gives up on a batch that has not answered in eight seconds, from the ticker", function()
     local now, asked = { value = 100 }, {}
     local GC = load(now, STOCK, asked, { value = true })

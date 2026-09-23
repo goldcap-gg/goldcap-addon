@@ -116,6 +116,154 @@ describe("Caps polling", function()
     _G.C_AuctionHouse, _G.Enum, _G.GoldCap_AppRuns = nil, nil, nil
   end)
 
+  -- Round 1. A search sent on top of an unanswered SearchForItemKeys takes its answer with it and
+  -- comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game). With the caps polling
+  -- on the Deals boards, a keys batch is out there most of the time -- so no background search of
+  -- ours goes out over one, whoever sent it, and no keys batch goes out over a search of ours.
+  describe("never one search over another", function()
+    local function batchOut(GC, owner)
+      GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = clock, owner, { 1 }
+    end
+
+    for _, owner in ipairs({ "caps", "sniper" }) do
+      it("holds a drill back while a " .. owner .. " batch is unanswered", function()
+        local GC = loadSniper()
+        adoptCaps(GC, { { i = 42, c = 100 } })
+        GC.Sniper._capPoll:Fold({ browseRow(42, 90) })
+        setUpvalue(upvalue(GC.Sniper.OnThrottleReady, "canDrillNow"), "ahOpen", true)
+        local drilled = {}
+        setUpvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function(deal)
+          drilled[#drilled + 1] = deal.itemID
+          return true
+        end)
+        batchOut(GC, owner)
+        GC.Sniper.OnThrottleReady()
+        assert.same({}, drilled)
+        GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = nil, nil, nil
+        GC.Sniper.OnThrottleReady()
+        assert.same({ 42 }, drilled)
+      end)
+    end
+
+    it("stands the verify walk down while a keys batch is unanswered", function()
+      local GC = loadSniper()
+      local standsDown = upvalue(upvalue(GC.Sniper.OnThrottleReady, "stepVerifyWalk"), "verifyWalkStandsDown")
+      setUpvalue(standsDown, "ahOpen", true)
+      setUpvalue(standsDown, "frame", { IsShown = function() return true end })
+      assert.is_false(standsDown())
+      batchOut(GC, "caps")
+      assert.is_true(standsDown())
+    end)
+
+    it("keeps the watch loop from sending while a keys batch is unanswered", function()
+      local GC = loadSniper()
+      local mayScan = upvalue(GC.Sniper.OnItemKeyInfo, "driver").mayScan
+      setUpvalue(mayScan, "watchGrant", true)
+      assert.is_true(mayScan())
+      batchOut(GC, "caps")
+      assert.is_false(mayScan())
+    end)
+
+    it("sends no hover pre-warm while a keys batch is unanswered", function()
+      local GC = loadSniper()
+      local searched = 0
+      _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = true } end
+      _G.C_AuctionHouse.SendSearchQuery = function() searched = searched + 1 end
+      local prewarm = upvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm")
+      setUpvalue(prewarm, "ahOpen", true)
+      batchOut(GC, "caps")
+      assert.is_nil(prewarm({ itemID = 42, unitPrice = 90, stale = true }))
+      assert.equal(0, searched)
+      GC.Sniper._keysAwaiting, GC.Sniper._keysOwner, GC.Sniper._keysBatch = nil, nil, nil
+      assert.is_true(prewarm({ itemID = 42, unitPrice = 90, stale = true }))
+      assert.equal(1, searched)
+    end)
+
+    -- The other direction, and on every path to a batch -- the arbiter, the ticker's nudges, a
+    -- board switch, BUY's and the Sell tab's own calls all go through _TrySendKeysBatchFor.
+    it("sends no keys batch, on any path, over a search of ours, a purchase or a parked Check", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      GC.Sniper._keyPoll:SetTargets({ 5 })
+      local buyPoll = { HasPending = function() return true end, NextBatch = function() return { 9 } end }
+      local function anyPath()
+        return GC.Sniper._TrySendCapBatch() or GC.Sniper._TrySendKeysBatch()
+          or GC.Sniper._TrySendKeysBatchFor(buyPoll, "buy", function() return true end)
+      end
+      local prewarm = upvalue(GC.Sniper.OnThrottleReady, "maybeStartPrewarm")
+      setUpvalue(prewarm, "prewarmAttempt", { itemID = 7 })
+      assert.is_false(anyPath())
+      setUpvalue(prewarm, "prewarmAttempt", nil)
+      local parked = upvalue(GC.Sniper.OnThrottleReady, "pendingRequerySend")
+      parked[7] = { itemID = 7 }
+      assert.is_false(anyPath())
+      parked[7] = nil
+      local row = { purchaseStage = "confirming" }
+      setUpvalue(GC.Sniper._QuietZoneOpen, "rows", { row })
+      assert.is_false(anyPath())
+      row.purchaseStage = nil
+      assert.same({}, keysSent)
+      assert.is_true(anyPath())
+    end)
+
+    -- The player's own Check is not held back -- it is the player -- but what it sends takes the
+    -- batch's answer with it, so the batch is written off at once instead of holding every keys
+    -- consumer for the rest of its thirty seconds.
+    it("writes a batch off when the player's own Check goes out over it", function()
+      local GC = loadSniper()
+      _G.C_AuctionHouse.GetItemKeyInfo = function() return { isCommodity = true } end
+      _G.C_AuctionHouse.SendSearchQuery = function() end
+      batchOut(GC, "caps")
+      upvalue(GC.Sniper.OnItemKeyInfo, "driver").sendSearch(42)
+      assert.is_false(GC.Sniper._KeysOutstanding())
+    end)
+  end)
+
+  -- Round 1 (4a): a batch given up on is not proven gone -- the client's events carry no identity
+  -- -- and before the caps' poll no keys batch was ever out on a board where Auto pages. A late
+  -- answer read as the next pass's first page rebuilt the Commodities board from a hundred capped
+  -- items.
+  describe("a written-off batch that answers after all", function()
+    local function arm(GC)
+      openAH(GC)
+      GC.db.settings.sniper.board = "commodities"
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      assert.is_true(GC.Sniper._TrySendCapBatch())
+      GC.Sniper.OnThrottledMessageDropped()
+      assert.is_false(GC.Sniper._KeysOutstanding())
+    end
+
+    it("is not taken for the next pass's first page", function()
+      local GC = loadSniper()
+      _G.C_AuctionHouse.HasFullBrowseResults = function() return true end
+      arm(GC)
+      GC.Sniper._bookPass:Start("classes")
+      GC.Sniper._bookPass:OnThrottleReady()
+      answer(GC, { browseRow(42, 90) })   -- the cap batch's answer, late
+      assert.is_true(GC.Sniper._bookPass:IsPaging())
+      assert.is_nil(GC.Sniper._bookPass:Book()[42])
+      answer(GC, { browseRow(7, 500) })   -- the pass's own page
+      assert.is_false(GC.Sniper._bookPass:IsPaging())
+      assert.equal(500, GC.Sniper._bookPass:Book()[7].floor)
+    end)
+
+    it("is not taken for the answer of the batch sent after it", function()
+      local GC = loadSniper()
+      arm(GC)
+      GC.Sniper._keyPoll:SetTargets({ 5 })
+      GC.db.settings.sniper.board = "items"
+      now = now + 2
+      assert.is_true(GC.Sniper._TrySendKeysBatch())
+      answer(GC, { browseRow(42, 90) })   -- late: not the realm poll's
+      assert.is_true(GC.Sniper._KeysOutstanding())
+      assert.equal("sniper", GC.Sniper._keysOwner)
+      answer(GC, { browseRow(5, 120) })   -- the realm poll's own
+      assert.is_false(GC.Sniper._KeysOutstanding())
+      assert.equal(120, GC.Sniper._keyPoll:Book()[5].floor)
+    end)
+  end)
+
   -- Caps fixes 4b. Both cap ratchets -- the poll's (Core/KeyPoll.lua's Fold) and the book pass's
   -- (GC.Caps.BookHits) -- report a floor once and stay quiet while it stands. A hit the drill queue
   -- then let go of without drilling it (ninety seconds in the queue on another tab, or pushed out
@@ -151,6 +299,22 @@ describe("Caps polling", function()
       clock = clock + 91
       assert.is_false(GC.Sniper._drillQueue:Has(77))
       assert.equal(1, #GC.Caps.BookHits(book, GC.Sniper._IsCommodityId))
+    end)
+
+    -- Round 1: only the ratchets that report cap hits. The realm poll reports none any more, and
+    -- re-arming it queued an ordinary drill nobody had lost.
+    it("does not re-arm the realm poll", function()
+      local GC = loadSniper()
+      values[42] = { kind = "realm_item", source = "import", mv = 250000, ref = 200000, refIlvl = 0 }
+      GC.Data.TargetIds = function() return { 42 } end
+      GC.Sniper._RebuildKeyTargets()
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 120000) })
+      GC.Sniper._drillQueue:Clear()
+      GC.Sniper._drillQueue:Push({ itemID = 42, floor = 90, estProfit = 10, priority = 1, cap = true })
+      clock = clock + 91
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
+      GC.Sniper._keyPoll:Fold({ browseRow(42, 120000) })
+      assert.is_false(GC.Sniper._drillQueue:Has(42))
     end)
 
     it("does not re-arm an ordinary hit that ages out", function()
@@ -202,9 +366,7 @@ describe("Caps polling", function()
         GC.db.settings.sniper.board = board or "commodities"
       end
 
-      for _, where in ipairs({
-        { "deals", "commodities" }, { "deals", "items" }, { "sell" }, { "sold" }, { "buy" },
-      }) do
+      for _, where in ipairs({ { "deals", "commodities" }, { "deals", "items" }, { "sold" } }) do
         it("asks on " .. where[1] .. (where[2] and (" / " .. where[2]) or ""), function()
           local GC = loadSniper()
           openAH(GC)
@@ -213,6 +375,23 @@ describe("Caps polling", function()
           GC.Sniper.OnThrottleReady()
           assert.same({ { 42, 77 } }, keysSent)
           assert.equal("caps", GC.Sniper._keysOwner)
+        end)
+      end
+
+      -- Round 1: the Sell and BUY tabs run searches of their own (the pricing walk, BUY's quotes),
+      -- and a search sent on top of an unanswered keys batch takes its answer and comes back empty
+      -- itself (UI/SellFrame.lua's advanceQuote, seen in game). The player's own tab wins.
+      for _, v in ipairs({ "sell", "buy" }) do
+        it("stays quiet on the " .. v .. " tab, and asks again back on Deals", function()
+          local GC = loadSniper()
+          openAH(GC)
+          adoptCaps(GC, { { i = 42, c = 100 } })
+          onView(GC, v)
+          GC.Sniper.OnThrottleReady()
+          assert.is_false(GC.Sniper._TrySendCapBatch())
+          assert.same({}, keysSent)
+          onView(GC, "deals")
+          assert.is_true(GC.Sniper._TrySendCapBatch())
         end)
       end
 
@@ -373,6 +552,51 @@ describe("Caps polling", function()
         assert.is_true(GC.Sniper._TrySendCapBatch())
       end)
 
+      it("rests between rounds after a last batch the client dropped", function()
+        local GC = loadSniper()
+        openAH(GC)
+        adoptCaps(GC, { { i = 42, c = 100 } })
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+        GC.Sniper.OnThrottledMessageDropped()
+        now = now + 2
+        assert.is_false(GC.Sniper._TrySendCapBatch())
+        now = now + 3
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+      end)
+
+      -- Round 1: a batch still out when the player opens the Sell or BUY tab is one their searches
+      -- may take the answer of -- and the Sell walk now waits for it. It gets the Sell tab's own
+      -- eight seconds there, not thirty.
+      it("gets eight seconds, not thirty, while the Sell or BUY tab is on screen", function()
+        local GC = loadSniper()
+        openAH(GC)
+        adoptCaps(GC, { { i = 42, c = 100 } })
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+        clock = clock + 8
+        assert.is_true(GC.Sniper._KeysOutstanding()) -- on Deals: the full thirty
+        setUpvalue(GC.Sniper.OnThrottleReady, "view", "sell")
+        assert.is_false(GC.Sniper._KeysOutstanding())
+      end)
+
+      -- Round 1: while a batch is out no background search of ours goes (drills, the verify walk,
+      -- the watch loop), so the breath after it is what they get. It is at least as long as the
+      -- batch held the interlock -- they get half the time or better however slowly the auction
+      -- house answers -- up to the eight seconds the Sell tab waits.
+      it("stands aside at least as long as its last batch took to answer", function()
+        local GC = loadSniper()
+        openAH(GC)
+        local caps = {}
+        for i = 1, 150 do caps[i] = { i = 1000 + i, c = 100 } end
+        adoptCaps(GC, caps)
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+        clock, now = clock + 6, now + 6
+        answer(GC, {})
+        now = now + 5
+        assert.is_false(GC.Sniper._TrySendCapBatch())
+        now = now + 1
+        assert.is_true(GC.Sniper._TrySendCapBatch())
+      end)
+
       it("takes a breath after a batch that never answered, too", function()
         local GC = loadSniper()
         openAH(GC)
@@ -384,7 +608,9 @@ describe("Caps polling", function()
         now = now + 31
         assert.is_false(GC.Sniper._KeysOutstanding())
         assert.is_false(GC.Sniper._TrySendCapBatch())
-        now = now + 2
+        now = now + 7
+        assert.is_false(GC.Sniper._TrySendCapBatch())
+        now = now + 1 -- the breath tops out at the Sell tab's eight seconds
         assert.is_true(GC.Sniper._TrySendCapBatch())
       end)
     end)
@@ -589,6 +815,35 @@ describe("Caps polling", function()
         assert.is_true(GC.Sniper._drillQueue:Has(77))
         assert.is_table(GC.Sniper._BoardCapRow({ itemID = 77, isCommodity = true }))
       end)
+    end)
+
+    -- Round 1 (4a): an item a batch asked about and got no row for has no listing left. The row
+    -- goes (above) -- and the poll's own ratchet has to let go of it too, or the same price listed
+    -- again is not news: the book still says 90, and 90 is not a change.
+    it("reports a relisting at the same price after the item was gone", function()
+      local GC = loadSniper()
+      openAH(GC)
+      adoptCaps(GC, { { i = 42, c = 100 } })
+      local function round(rows)
+        GC.Sniper._TrySendCapBatch()
+        answer(GC, rows)
+        GC.Sniper._drillQueue:Clear()
+        now = now + 5
+      end
+      round({ browseRow(42, 90) })
+      round({})                      -- sold
+      GC.Sniper._TrySendCapBatch()
+      answer(GC, { browseRow(42, 90) }) -- listed again, at the same price
+      assert.is_true(GC.Sniper._drillQueue:Has(42))
+    end)
+
+    -- Round 1 (4c): a client that answers gear with one collapsed row (itemLevel 0) states no
+    -- level at all. Held to a level nothing states, every item-level cap stopped firing silently.
+    it("falls back to the item's own floor when no row states an item level", function()
+      local GC = loadSniper()
+      adoptCaps(GC, { { i = 42, c = 100, l = 610 } })
+      GC.Sniper._capPoll:Fold({ browseRow(42, 90) })
+      assert.is_true(GC.Sniper._drillQueue:Has(42))
     end)
 
     it("forgets its book when the auction house closes", function()

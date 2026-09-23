@@ -214,6 +214,11 @@ LIM.KEYS_TIMEOUT_SECONDS = 30
 -- equal) and then searches on, and a search sent over an unanswered keys call cancels its
 -- answer. Held for the full thirty, a REFRESH on Sell followed by a switch to Deals kept the
 -- board waiting half a minute for rows nobody was going to read.
+-- Caps fixes 4a, round 1: the same allowance for ANY batch the tab on screen did not send, while
+-- that tab is Sell or BUY -- the two that run searches of their own. A batch still out from the
+-- board the player just left (a cap batch, the Items poll's, BUY's) is one the Sell walk now
+-- stands still for, and one a BUY hover quote may take the answer of: waited out for thirty
+-- seconds it held every keys consumer, and the walk, for half a minute. See _KeysOutstanding.
 LIM.KEYS_SELL_TIMEOUT_SECONDS = 8
 -- The Items board's own loop: once a poll cycle has visited every target, the next one starts
 -- this many seconds later. The cycle used to restart only when a book pass began, and the
@@ -1879,6 +1884,9 @@ driver = {
     -- arbiter's own call stack. Checked here too so the veto holds even if that tail ever runs
     -- with a stale watchGrant.
     if GC.Sniper.IsPurchaseQuiet() then return false end
+    -- Caps fixes 4a, round 1: and never over an unanswered keys batch (see canDrillNow) -- this is
+    -- the choke point the loop's result-tail sends pass through too.
+    if GC.Sniper._KeysOutstanding() then return false end
     return watchGrant
   end,
 
@@ -1956,6 +1964,13 @@ driver = {
 
   sendSearch = function(itemID)
     trace("search: item " .. tostring(itemID))
+    -- Every background search of ours waits for an unanswered keys batch (canDrillNow,
+    -- maybeStartPrewarm, the verify walk, mayScan); the player's own Check does not -- it is the
+    -- player. What it sends takes that batch's answer with it (UI/SellFrame.lua's advanceQuote),
+    -- so the wait is written off now rather than holding every keys consumer, the pass and the
+    -- background searches for the rest of its timeout. A late answer is still recognised for
+    -- what it is (see _WriteOffKeys).
+    if GC.Sniper._KeysOutstanding() then GC.Sniper._WriteOffKeys("search") end
     local key = driver.variantKey(itemID) or C_AuctionHouse.MakeItemKey(itemID)
     driver.lastSearchKey[itemID] = key
     -- Classification is asked of the BARE key through driver.getKeyInfo on purpose: isCommodity
@@ -2707,14 +2722,13 @@ end
 GC.Sniper._drillQueue = GC.DrillQueue.New({
   now = time,
   -- Caps fixes 4b: a cap hit the queue let go of without drilling it (aged out -- ninety seconds
-  -- on another tab, or behind a few hundred other caps -- or pushed out of a full queue). Every
-  -- ratchet that can have reported it is re-armed, so the next look at the same floor reports it
-  -- again: they never repeat an unchanged floor, and without this the lot sat there at the
+  -- on another tab, or behind a few hundred other caps -- or pushed out of a full queue). Both
+  -- ratchets that report cap hits (the book pass's, the caps' own poll's -- the realm poll no
+  -- longer reports any) are re-armed, so the next look at the same floor reports it again: they never repeat an unchanged floor, and without this the lot sat there at the
   -- player's price for the rest of the visit, unlooked at. Only the ratchets -- the ring's memory
   -- stays, since nothing has been announced.
   onLost = function(hit)
     if GC.Caps then GC.Caps.Rearm(hit.itemID) end
-    if GC.Sniper._keyPoll then GC.Sniper._keyPoll:Rearm(hit.itemID) end
     if GC.Sniper._capPoll then GC.Sniper._capPoll:Rearm(hit.itemID) end
   end,
 }, { perMinute = LIM.DRILL_PER_MINUTE })
@@ -3221,7 +3235,10 @@ autoScan = GC.AutoScan.New({}, {
     -- machine now stays in WAITING and tries again a moment later.
     if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return false end
     -- A keys batch is out: its answer is the next browse event, and a page sent now would be
-    -- read as that answer (see _FoldKeysBatch). Wait; the batch times out in 8s at worst.
+    -- read as that answer (see _FoldKeysBatch). Wait; _KeysOutstanding writes it off after
+    -- LIM.KEYS_TIMEOUT_SECONDS at worst (the short allowance on the Sell and BUY tabs, where
+    -- Auto does not run). A cap batch, the one keys batch that can be out on this board while
+    -- Auto runs, stands aside after every answer for longer than this settle takes to retry.
     if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return false end
     startFullScan()
     return true
@@ -4876,6 +4893,9 @@ local function maybeStartPrewarm(deal, auto)
   -- throttle slot for one cycle -- a one-cycle pagination delay, not starvation.
   if GC.Sniper.IsPurchaseQuiet() then return end
   if prewarmAttempt then return end -- one pre-warm in flight globally
+  -- Caps fixes 4a, round 1: never over an unanswered keys batch -- see canDrillNow. Here as well
+  -- as there because this is the one sender the drill, the verify walk and a hover all reach.
+  if GC.Sniper._KeysOutstanding() then return end
   if not driver.isReady() then return end -- never parks -- see comment above
 
   local itemID = deal.itemID
@@ -5069,6 +5089,7 @@ local function verifyWalkStandsDown()
   if not frame or not frame:IsShown() then return true end
   if prewarmAttempt then return true end -- one query in flight globally, shared with the hover pre-warm
   if GC.Sniper.IsSearchCritical() then return true end -- a Check or a purchase owns the search slot
+  if GC.Sniper._KeysOutstanding() then return true end -- see canDrillNow: never over a keys batch
   return false
 end
 
@@ -5229,16 +5250,86 @@ end
 function GC.Sniper._KeysOutstanding()
   local sentAt = GC.Sniper._keysAwaiting
   if not sentAt then return false end
-  local limit = GC.Sniper._keysOwner == "sell" and LIM.KEYS_SELL_TIMEOUT_SECONDS
-    or LIM.KEYS_TIMEOUT_SECONDS
+  local owner = GC.Sniper._keysOwner
+  -- The short allowance: the Sell tab's own batch always, and any batch the tab on screen did not
+  -- send while that tab is Sell or BUY (see LIM.KEYS_SELL_TIMEOUT_SECONDS).
+  local short = owner == "sell" or ((view == "sell" or view == "buy") and owner ~= view)
+  local limit = short and LIM.KEYS_SELL_TIMEOUT_SECONDS or LIM.KEYS_TIMEOUT_SECONDS
   if (time() - sentAt) < limit then return true end
-  -- A cap batch written off held the interlock for its whole wait: the breath after it is owed to
-  -- whoever sat through that, exactly as after an answer (see _TrySendCapBatch).
-  if GC.Sniper._keysOwner == "caps" then GC.Sniper._capsLandedAt = GetTime() end
+  GC.Sniper._WriteOffKeys("timeout")
+  return false
+end
+
+-- Gives up on the keys batch that is out, whatever the reason -- its wait ran out, the client
+-- said it dropped a message (OnThrottledMessageDropped), or a search of the player's own went out
+-- on top of it (driver.sendSearch). Caps fixes 4a, round 1: one place, so all three do the same
+-- two things beside clearing the wait.
+--
+-- A cap batch stamps the caps' pacing exactly as an answer does (GC.Sniper._CapsReleased): the
+-- breath after it is owed to whoever sat through the wait, and a written-off LAST batch of a round
+-- still starts the rest between rounds.
+--
+-- And what it asked about is remembered for a while as an ORPHAN. Written off is not proven gone:
+-- the event carries no identity, so the answer may still come. Before the caps' poll no keys batch
+-- was ever out on a board where Auto pages, but a cap batch is -- so a late answer, arriving after
+-- the next pass has sent its query, was read as that pass's first page: a Commodities board
+-- rebuilt from a hundred capped items. An answer that speaks only of the orphan's items is
+-- recognised as the orphan's and swallowed (GC.Sniper._IsOrphanAnswer).
+function GC.Sniper._WriteOffKeys(why)
+  local owner, asked = GC.Sniper._keysOwner, GC.Sniper._keysBatch
+  trace("keys: written off (" .. tostring(why) .. ", " .. tostring(owner) .. ")")
+  if owner == "caps" then GC.Sniper._CapsReleased(GC.Sniper._keysAwaiting) end
+  if type(asked) == "table" and #asked > 0 then
+    local set = {}
+    for i = 1, #asked do set[asked[i]] = true end
+    GC.Sniper._keysOrphan = { asked = set, untilAt = GetTime() + LIM.KEYS_TIMEOUT_SECONDS }
+  end
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysBatch = nil
   GC.Sniper._keysOwner = nil
-  return false
+end
+
+-- Whether `browsed` is the late answer of the batch last written off: something came back, and
+-- every row is about an item that batch asked for and `current` (the batch out now, if any, as a
+-- set) did not. Consumes the orphan when it says yes. A pass's page is never mistaken for one: it
+-- names items of four whole classes (or of everything), not a hundred the player picked.
+function GC.Sniper._IsOrphanAnswer(browsed, current)
+  local orphan = GC.Sniper._keysOrphan
+  if not orphan then return false end
+  if GetTime() >= orphan.untilAt then
+    GC.Sniper._keysOrphan = nil
+    return false
+  end
+  local any = false
+  for i = 1, #(browsed or {}) do
+    local key = browsed[i].itemKey
+    local itemID = key and key.itemID
+    if not (itemID and orphan.asked[itemID]) then return false end
+    if current and current[itemID] then return false end
+    any = true
+  end
+  if not any then return false end
+  GC.Sniper._keysOrphan = nil
+  trace("keys: late answer of a written-off batch, dropped")
+  return true
+end
+
+-- The caps' poll has let go of the interlock -- an answer landed, or the batch was written off;
+-- `sentAt` is when it went out (time()). Starts the breath it stands aside for, and after the
+-- round's last batch the rest between rounds (see _TrySendCapBatch).
+--
+-- The breath is at least as long as the batch held the interlock, up to the Sell tab's eight
+-- seconds. While a batch is out no background search of ours goes (canDrillNow, the verify walk,
+-- the watch loop), so this is their time: a flat two seconds after an eight-second answer left
+-- them a fifth of the round; this leaves them half of it or better, however slowly the auction
+-- house answers.
+function GC.Sniper._CapsReleased(sentAt)
+  local now = GetTime()
+  local held = type(sentAt) == "number" and (time() - sentAt) or 0
+  GC.Sniper._capsLandedAt = now
+  GC.Sniper._capsGap = math.min(LIM.KEYS_SELL_TIMEOUT_SECONDS,
+    math.max(LIM.CAPS_BATCH_GAP_SECONDS, held))
+  if not GC.Sniper._capPoll:HasPending() then GC.Sniper._capsRoundDoneAt = now end
 end
 
 -- Several consumers share the one outstanding batch: the Items board's realm poll ("sniper"),
@@ -5254,11 +5345,16 @@ function GC.Sniper._FoldKeysBatch()
   -- the PASS's page and is folded as one -- rather than being read as the batch's answer and
   -- deleting every realm row that answer does not mention.
   if not GC.Sniper._KeysOutstanding() then return false end
+  local browsed = C_AuctionHouse.GetBrowseResults()
+  -- A written-off batch answering late, while a newer one is out: not the newer one's answer,
+  -- which is still coming (see _WriteOffKeys). Swallowed, and the wait goes on.
+  local current = {}
+  for _, itemID in ipairs(GC.Sniper._keysBatch or {}) do current[itemID] = true end
+  if GC.Sniper._IsOrphanAnswer(browsed, current) then return true end
   trace("keys: answer landed after " .. (time() - GC.Sniper._keysAwaiting) .. "s")
-  local owner = GC.Sniper._keysOwner
+  local owner, sentAt = GC.Sniper._keysOwner, GC.Sniper._keysAwaiting
   GC.Sniper._keysAwaiting = nil
   GC.Sniper._keysOwner = nil
-  local browsed = C_AuctionHouse.GetBrowseResults()
   if owner == "buy" then
     -- The realm poll's own fold is what normally consumes _keysBatch (see its onRows driver);
     -- BUY's does not need the list, so it is dropped here rather than left to be read as the
@@ -5275,15 +5371,14 @@ function GC.Sniper._FoldKeysBatch()
     return true
   end
   if owner == "caps" then
-    -- The caps' own poll (caps fixes 4a). Its fold consumes _keysBatch, like the realm poll's.
-    -- The landing starts the breath it stands aside for, and the last batch of a round starts the
-    -- rest between rounds -- see _TrySendCapBatch.
-    GC.Sniper._capsLandedAt = GetTime()
-    if not GC.Sniper._capPoll:HasPending() then GC.Sniper._capsRoundDoneAt = GetTime() end
-    GC.Sniper._capPoll:Fold(browsed)
+    -- The caps' own poll (caps fixes 4a). Its fold consumes _keysBatch, like the realm poll's,
+    -- and is handed it too: an item the batch asked for and got no row for has no listing left,
+    -- and the poll re-arms it so the same price listed again is news (Core/KeyPoll.lua's Fold).
+    GC.Sniper._CapsReleased(sentAt)
+    GC.Sniper._capPoll:Fold(browsed, GC.Sniper._keysBatch)
     return true
   end
-  GC.Sniper._keyPoll:Fold(browsed)
+  GC.Sniper._keyPoll:Fold(browsed, GC.Sniper._keysBatch)
   -- The cycle is over once nothing is left to hand out; the Items board's own loop starts
   -- the next one after a breather (see _TrySendKeysBatch).
   if not GC.Sniper._keyPoll:HasPending() then GC.Sniper._keysCycleDoneAt = time() end
@@ -5302,10 +5397,7 @@ end
 -- NOT fenced into requeryDraining either: a message that never reached the server cannot
 -- produce the late untagged result that fence exists for.
 function GC.Sniper.OnThrottledMessageDropped()
-  if GC.Sniper._keysOwner == "caps" then GC.Sniper._capsLandedAt = GetTime() end
-  GC.Sniper._keysAwaiting = nil
-  GC.Sniper._keysBatch = nil
-  GC.Sniper._keysOwner = nil
+  if GC.Sniper._keysAwaiting then GC.Sniper._WriteOffKeys("dropped") end
   prewarmAttempt = nil
   -- Re-arm whoever is next rather than waiting for a readiness event that may not come: the
   -- arbiter sends at most one message and refuses on its own if the system is genuinely busy.
@@ -5322,6 +5414,8 @@ function GC.Sniper.OnBrowseResults()
   -- A pass that has not sent its query yet has no page to receive: whatever this event
   -- carries (a keys answer written off as lost, the player's own browse) is not ours.
   if GC.Sniper._bookPass:PendingStart() then return end
+  -- ...and one that has may still be handed a written-off batch's late answer (_WriteOffKeys).
+  if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
   lastBrowseEventAt = time()
   trace("pass: page landed")
   GC.Sniper._bookPass:OnResultsUpdated()
@@ -5331,6 +5425,7 @@ function GC.Sniper.OnBrowseResultsAdded()
   if GC.Sniper._FoldKeysBatch() then return end
   if not GC.Sniper._bookPass:IsPaging() then return end
   if GC.Sniper._bookPass:PendingStart() then return end -- see OnBrowseResults
+  if GC.Sniper._IsOrphanAnswer(C_AuctionHouse.GetBrowseResults()) then return end
   lastBrowseEventAt = time()
   GC.Sniper._bookPass:OnResultsAdded()
 end
@@ -5398,6 +5493,10 @@ local function canDrillNow()
   if GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy() then return false end
   if prewarmAttempt then return false end
   if GC.Sniper.IsPurchaseQuiet() then return false end
+  -- Caps fixes 4a, round 1: never over an unanswered keys batch, whoever sent it. A search sent on
+  -- top of one takes its answer with it, and comes back empty itself (UI/SellFrame.lua's
+  -- advanceQuote, seen in game). The batch's own answer brings the next ready tick.
+  if GC.Sniper._KeysOutstanding() then return false end
   return driver.isReady() and true or false
 end
 
@@ -5430,7 +5529,17 @@ end
 -- predicate, and `who` is the name the answer comes back under. Everything below `wants()` is
 -- addon-wide law and is deliberately NOT the caller's to override: one batch outstanding, never
 -- across a pass's browse buffer, never while the player is using Blizzard's own panes.
+--
+-- Caps fixes 4a, round 1: and every veto the arbiter holds its own sends to lives here too, so
+-- that no path to a keys batch -- the arbiter, the auction-house ticker's nudges, the end of a
+-- pass, a board switch, BUY's and the Sell tab's own calls -- can skip one: a purchase in flight
+-- (the quiet zone), a parked Check waiting for the slot, and a search of ours still unanswered (a
+-- pre-warm, which is also every drill and verify check), which a batch sent on top of it would
+-- take the answer of -- the same collision canDrillNow refuses in the other direction.
 function GC.Sniper._TrySendKeysBatchFor(poll, who, wants, playerBusy)
+  if GC.Sniper.IsPurchaseQuiet() or next(pendingRequerySend) ~= nil or prewarmAttempt then
+    return false
+  end
   if playerBusy == nil then
     playerBusy = (GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy
       and GC.AuctionHouseTab.PlayerIsBusy()) or false
@@ -5494,27 +5603,35 @@ function GC.Sniper._TrySendKeysBatch(playerBusy)
 end
 
 -- Caps fixes 4a: one batch of the caps' own poll (GC.Sniper._capPoll), if this is a moment one
--- may go. Unlike the realm poll's it does not ask which board or tab is on screen: the player's
--- caps are watched whatever they are looking at, for as long as the auction house is open and the
--- window is up. Everything else is the same addon-wide law _TrySendKeysBatchFor holds every keys
--- batch to -- one outstanding, never across a pass's browse buffer, never while the player is on
--- Blizzard's own panes, the throttle claimed under the Sniper's own name -- plus the arbiter's
--- two vetoes, since the auction-house ticker calls this directly: a purchase in flight and a
--- parked Check both go first. No second throttle, no bypass.
+-- may go. Unlike the realm poll's it does not ask which board is on screen: the player's caps are
+-- watched on both Deals boards -- and on the Sold tab, which sends nothing of its own -- for as
+-- long as the auction house is open and the window is up. Everything else is the same addon-wide
+-- law _TrySendKeysBatchFor holds every keys batch to -- one outstanding, never across a pass's
+-- browse buffer, never while the player is on Blizzard's own panes, never over a purchase, a
+-- parked Check or an unanswered search of ours, the throttle claimed under the Sniper's own name.
+-- No second throttle, no bypass.
+--
+-- Round 1: not on the Sell or BUY tab. Those run searches of their own -- the Sell tab's pricing
+-- walk, BUY's quotes -- and a search sent on top of an unanswered keys batch takes its answer and
+-- comes back empty itself (UI/SellFrame.lua's advanceQuote, seen in game): cap batches under the
+-- walk cost the player their prices. The player's own tab wins; the caps resume on Deals or Sold.
 --
 -- Fairness. The batch holds the one keys interlock until it answers, and a round is one batch per
 -- hundred caps; sent back to back they would keep the Items board's poll, the BUY refresh, the Sell
--- tab's bulk fill and Auto's next pass waiting for the whole round. So after every answer (or a
--- batch written off) the poll stands aside for LIM.CAPS_BATCH_GAP_SECONDS -- longer than any of
--- those takes to ask again -- and rests LIM.CAPS_ROUND_BREATHER_SECONDS between two rounds.
+-- tab's bulk fill and Auto's next pass waiting for the whole round -- and, since no background
+-- search of ours goes over an unanswered batch, the drills and the verify walk as well. So after
+-- every answer (or a batch written off) the poll stands aside for LIM.CAPS_BATCH_GAP_SECONDS --
+-- longer than any of those takes to ask again -- or for as long as that batch held the interlock
+-- if that was longer (GC.Sniper._CapsReleased), and rests LIM.CAPS_ROUND_BREATHER_SECONDS between
+-- two rounds.
 function GC.Sniper._TrySendCapBatch(playerBusy)
   local poll = GC.Sniper._capPoll
   if poll:Count() == 0 then return false end
   if not (GC.Sniper.IsAHOpen() and GC.Sniper.IsWindowShown()) then return false end
-  if GC.Sniper.IsPurchaseQuiet() or next(pendingRequerySend) ~= nil then return false end
+  if view == "sell" or view == "buy" then return false end
   local now = GetTime()
   local landed = GC.Sniper._capsLandedAt
-  if landed and (now - landed) < LIM.CAPS_BATCH_GAP_SECONDS then return false end
+  if landed and (now - landed) < (GC.Sniper._capsGap or LIM.CAPS_BATCH_GAP_SECONDS) then return false end
   if not poll:HasPending() then
     local done = GC.Sniper._capsRoundDoneAt
     if GC.Sniper._KeysOutstanding() then return false end
@@ -9835,6 +9952,8 @@ function GC.Sniper.OnAuctionHouseClosed()
   GC.Sniper._capPoll:Reset()
   GC.Sniper._capsLandedAt = nil
   GC.Sniper._capsRoundDoneAt = nil
+  GC.Sniper._capsGap = nil
+  GC.Sniper._keysOrphan = nil
   -- The keys the drill searched with go with that book: they were chosen FROM it (see
   -- driver.variantKey), so keeping them past the close would have a read use one session's
   -- variant for a search the next session has not made yet.
