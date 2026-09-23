@@ -5229,7 +5229,14 @@ local function startRequery(row, deal)
     end
     row.purchaseStage = "check"
     row.purchaseDeal = nil
-    activeItemID[itemID] = nil
+    -- Pinned while the window shows the row, as the branch below pins it (follow-up 2): the
+    -- window still owns the item -- the player's Check is the next thing to happen to it, once
+    -- the old answer drains -- so a cap ping for it is settled there, not rung over the window
+    -- after the bell floor. Released here left the ring the floor was holding for the same lot to
+    -- play late over the very window the player was reading (drainCapPings). Closing the window
+    -- (abortRowPurchase -> resolvePurchase) or the Check that follows moves the pin on. No window
+    -- on the row, nothing to own it: released, as before.
+    activeItemID[itemID] = (dialog and dialog.row == row) or nil
     if dialog and dialog.row == row then
       dialog.primaryBtn:Enable()
       setPrimaryLabel("Check")

@@ -373,6 +373,40 @@ describe("Caps stop-and-open", function()
     for i = 1, #rung do assert.same({}, rung[i]) end
   end)
 
+  -- Follow-up 2 (P5b): the same when the window's Check has to wait for an older search of the
+  -- item to drain first (startRequery's draining branch: the window goes back to Check, "waiting
+  -- for previous search result to settle"). The window still owns the item -- the player's Check
+  -- is the next thing to happen to it -- but that branch let go of the pin, so a ring the floor
+  -- held back for the same lot played late, over the window the player was reading.
+  it("settles a ring for the item whose window waits for an older search to drain", function()
+    local GC, drain = load(false)
+    GC.Sniper._rangAt[42] = now
+    local deal = hit(GC, 42, 1)
+    local row = fakeRow(deal)
+    set(drain, "rows", { row })
+    drain(true) -- held by the floor
+    -- The player clicks the row: its window, and the Check it starts.
+    local window = fakeDialog(row)
+    window.primaryBtn = { Enable = function() end, Disable = function() end,
+      SetLabel = function() end, IsEnabled = function() return true end,
+      text = { SetTextColor = function() end } }
+    window.status = { SetText = function() end, SetTextColor = function() end }
+    set(drain, "dialog", window)
+    set(GC.Sniper.OnAuctionHouseShow, "frame", {
+      scroll = { GetTop = function() return 500 end, GetBottom = function() return 100 end },
+      status = { SetText = function() end } })
+    GC.Sniper._FenceDrain(42, { itemID = 42, token = 0, sent = true }) -- an older search, still out
+    upvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(row, deal)
+    assert.equal("check", row.purchaseStage) -- waiting for it to drain
+    drain(false)
+
+    now = now + 31
+    drain(true)
+
+    for i = 1, #rung do assert.same({}, rung[i]) end
+    assert.is_false(GC.Caps.IsNews(deal))
+  end)
+
   -- Fix round 4: but a window that does NOT own the item's live state shows nothing new. After a
   -- Check that came back not buyable (armCheck releases the pin) or once the listing has gone
   -- (showGoneState: the notice stays up, with no row and no pin), a background drill can still
