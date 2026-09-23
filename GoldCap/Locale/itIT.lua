@@ -535,6 +535,7 @@ GC.Locales.itIT = {
     "comprati %d x oggetto %d dopo la chiusura della casa d'aste",
   ["buying commodity..."] = "acquisto della merce...",
   ["cheapest not yours %s"] = "il più basso che non è tuo %s",
+  ["check the item level — buy by hand"] = "controlla il livello oggetto — compra a mano",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
   ["checking live safety..."] = "controllo della sicurezza dal vivo...",
   ["commodity purchase failed"] = "acquisto della merce fallito",
@@ -578,6 +579,7 @@ GC.Locales.itIT = {
     "è quanto assorbe questo mercato — oltre compri merce che ti resterà in mano",
   ["item %d"] = "oggetto %d",
   ["item %d: %s"] = "oggetto %d: %s",
+  ["item level %d+"] = "livello oggetto %d+",
   ["item variant unresolved"] = "variante dell'oggetto non risolta",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

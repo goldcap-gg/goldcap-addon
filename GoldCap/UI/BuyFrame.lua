@@ -808,7 +808,12 @@ local function actionLabel(line)
     -- The client will not sell this item as a commodity, so there is no book to quote and no
     -- quantity this tab could buy in one click. Saying "nothing on offer" about a lot list that
     -- is full is the one thing worse than saying nothing: it is a false claim about the market.
-    if attempt.byHand then return GC.L["not a commodity — buy by hand"], false end
+    if attempt.byHand then
+      -- The line's item-level floor could not be put into the search (quote), so the page it
+      -- opened lists whatever level the auction house picked: the level is the player's to check.
+      if attempt.levelUnchecked then return GC.L["check the item level — buy by hand"], false end
+      return GC.L["not a commodity — buy by hand"], false
+    end
     if (attempt.qty or 0) > 0 then
       -- A partial fill: the cap stopped the ladder part-way, so what is on the button is real
       -- but it is not the whole line. The label stays short enough for the 72px badge and the
@@ -1228,7 +1233,13 @@ local function quote(line)
   -- would have the board's refresh and the player's own hover taking turns in one window.
   if GC.Util and GC.Util.ClaimThrottleSend and not GC.Util.ClaimThrottleSend("buy-quote") then return end
 
-  C_AuctionHouse.SendSearchQuery(C_AuctionHouse.MakeItemKey(line.itemID), {}, false)
+  -- A gear line with an item-level floor (an alert group's own minimum, caps fixes 5h) searches the
+  -- cheapest variant at or above it that a poll has seen: the page this opens is where the player
+  -- buys by hand, and an item key names one item-level variant -- as narrow as the client lets a
+  -- search be. With none known it is the bare key, and the button says the level is unchecked.
+  local variant = line.minIlvl and GC.Sniper and GC.Sniper.VariantKeyAtLeast
+    and GC.Sniper.VariantKeyAtLeast(line.itemID, line.minIlvl) or nil
+  C_AuctionHouse.SendSearchQuery(variant or C_AuctionHouse.MakeItemKey(line.itemID), {}, false)
   -- Blizzard's own pane may open this item's buy page in answer; that page is ours, not a buy.
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   attemptSeq = attemptSeq + 1
@@ -1244,6 +1255,7 @@ local function quote(line)
     local asked = GC.Buy._attempt
     asked.stage, asked.byHand, asked.quotedAt = "quoted", true, time()
     asked.qty, asked.total = 0, 0
+    asked.levelUnchecked = (line.minIlvl ~= nil and variant == nil) or nil
   end
   logAttempt(line)
   GC.Buy.RefreshIfShown()
@@ -1689,6 +1701,12 @@ local function paintLine(row, line)
       decorated, line.crafts or 0, (line.craft and line.craft.craftedQty) or 0)
   elseif line.parent then
     decorated = (GC.L["↳ %s"]):format(decorated)
+  end
+  -- An alert group's gear member names the item level its price was set for (caps fixes 5h). The
+  -- line is bought by hand on Blizzard's own page, and without this a cheaper copy below that
+  -- level was the obvious one to take.
+  if line.minIlvl then
+    decorated = ("%s · %s"):format(decorated, (GC.L["item level %d+"]):format(line.minIlvl))
   end
   -- An alert hit can be bound to one realm; the auction house search finds nothing for it on
   -- any other, so the row says which rather than leaving the player to wonder why it is empty.

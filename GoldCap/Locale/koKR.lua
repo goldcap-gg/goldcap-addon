@@ -500,6 +500,7 @@ GC.Locales.koKR = {
   ["bought %d x item %d after AH close"] = "경매장 종료 후 %d개 구매 · 아이템 %d",
   ["buying commodity..."] = "상품 구매 중...",
   ["cheapest not yours %s"] = "내 것이 아닌 최저가 %s",
+  ["check the item level — buy by hand"] = "아이템 레벨 확인 — 직접 구매",
   ["checking live price..."] = "실시간 가격 확인 중...",
   ["checking live safety..."] = "실시간 안전성 확인 중...",
   ["commodity purchase failed"] = "상품 구매에 실패했습니다",
@@ -541,6 +542,7 @@ GC.Locales.koKR = {
     "가 이 시장이 소화하는 양입니다 — 그 이상은 떠안게 될 재고입니다",
   ["item %d"] = "아이템 %d",
   ["item %d: %s"] = "아이템 %d: %s",
+  ["item level %d+"] = "아이템 레벨 %d+",
   ["item variant unresolved"] = "아이템 변형 미확정",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

@@ -1947,11 +1947,7 @@ driver = {
   -- never queues a drill for one. Both Items-board writers are this poll and this drill.
   variantKey = function(itemID)
     if not (GC.KeyPoll and GC.KeyPoll.VariantKeyFor and GC.Sniper._keyPoll) then return nil end
-    -- Two polls see realm items now (caps fixes 4a): the realm poll, and the caps' own, which is
-    -- the only one to see a capped item nothing else lists. Whichever looked last knows best.
-    local entry = GC.Sniper._keyPoll:Book()[itemID]
-    local capped = GC.Sniper._capPoll and GC.Sniper._capPoll:Book()[itemID]
-    if capped and (not entry or (capped.seenAt or 0) >= (entry.seenAt or 0)) then entry = capped end
+    local entry = GC.Sniper._PolledEntry(itemID)
     if not entry then return nil end
     -- A commodity has one key -- the bare one -- whatever its browse row carried: the caps' poll
     -- folds commodities too, and nothing here is gained by naming anything else.
@@ -3133,6 +3129,32 @@ GC.Sniper._capPoll = GC.KeyPoll.New({
     end
   end,
 })
+
+-- What the key polls last saw of `itemID`, variants included, or nil. Two polls see realm items
+-- (caps fixes 4a): the realm poll, and the caps' own, which is the only one to see a capped item
+-- nothing else lists. Whichever looked last knows best.
+function GC.Sniper._PolledEntry(itemID)
+  local entry = GC.Sniper._keyPoll and GC.Sniper._keyPoll:Book()[itemID]
+  local capped = GC.Sniper._capPoll and GC.Sniper._capPoll:Book()[itemID]
+  if capped and (not entry or (capped.seenAt or 0) >= (entry.seenAt or 0)) then entry = capped end
+  return entry
+end
+
+-- The item key of the cheapest variant of `itemID` at or above `minIlvl` that a poll has seen, or
+-- nil. For the BUY tab's gear line with an item-level floor (caps fixes 5h): its search opens
+-- Blizzard's own page, where the player buys by hand, and an item key names exactly one
+-- item-level variant -- so this is as narrow as that search can be made. Unlike driver.variantKey
+-- there is no fallback below the floor, and a poll whose rows state no level at all offers
+-- nothing: either way the caller searches the bare key and says the level is not checked.
+function GC.Sniper.VariantKeyAtLeast(itemID, minIlvl)
+  if not (type(minIlvl) == "number" and minIlvl > 0 and GC.KeyPoll and GC.KeyPoll.VariantKeyFor) then
+    return nil
+  end
+  local variant = GC.KeyPoll.VariantKeyFor(GC.Sniper._PolledEntry(itemID), minIlvl)
+  if not (variant and (variant.itemLevel or 0) >= minIlvl) then return nil end
+  return C_AuctionHouse.MakeItemKey(variant.itemID, variant.itemLevel, variant.itemSuffix,
+    variant.battlePetSpeciesID)
+end
 
 -- Cancels any full scan in flight (waiting on the throttle system, or mid-paging). Called on
 -- AUCTION_HOUSE_CLOSED per the verified API note that a scan should not keep running once

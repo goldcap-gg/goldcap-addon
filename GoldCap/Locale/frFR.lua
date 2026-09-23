@@ -534,6 +534,7 @@ GC.Locales.frFR = {
     "acheté %d x objet %d après la fermeture de l'hôtel des ventes",
   ["buying commodity..."] = "achat de la marchandise...",
   ["cheapest not yours %s"] = "le moins cher qui n'est pas à toi %s",
+  ["check the item level — buy by hand"] = "vérifiez le niveau d'objet — achat manuel",
   ["checking live price..."] = "vérification du prix en direct...",
   ["checking live safety..."] = "vérification de la sécurité en direct...",
   ["commodity purchase failed"] = "échec de l'achat de la marchandise",
@@ -577,6 +578,7 @@ GC.Locales.frFR = {
     "c'est ce que ce marché absorbe — au-delà, tu achètes du stock qui te restera sur les bras",
   ["item %d"] = "objet %d",
   ["item %d: %s"] = "objet %d : %s",
+  ["item level %d+"] = "niveau d'objet %d+",
   ["item variant unresolved"] = "variante de l'objet non résolue",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

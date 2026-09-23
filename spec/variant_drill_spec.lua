@@ -217,6 +217,29 @@ describe("Variant drill", function()
     assert.equal(66, searched[1].itemLevel)
     assert.is_nil(GC.Caps.DecideRealm(GC.Caps.For(159840), driver.itemLots(159840)))
   end)
+  -- Caps fixes 5h: the BUY tab's gear line with an item-level floor opens Blizzard's own page on
+  -- the cheapest variant at or above it. Unlike the drill, no fallback below the floor -- that
+  -- page is where the player buys by hand -- and no key at all when no variant states a level.
+  describe("VariantKeyAtLeast", function()
+    it("names the cheapest variant at or above the floor", function()
+      local GC = loadSniper()
+      foldTeebus(GC)
+      assert.same({ itemID = 159840, itemLevel = 66, itemSuffix = 0, battlePetSpeciesID = 0 },
+        GC.Sniper.VariantKeyAtLeast(159840, 20))
+      assert.same({ itemID = 159840, itemLevel = 66, itemSuffix = 0, battlePetSpeciesID = 0 },
+        GC.Sniper.VariantKeyAtLeast(159840, 66))
+    end)
+
+    it("names none when no variant reaches the floor, none is known, or none states a level", function()
+      local GC = loadSniper()
+      foldTeebus(GC)
+      assert.is_nil(GC.Sniper.VariantKeyAtLeast(159840, 67))
+      assert.is_nil(GC.Sniper.VariantKeyAtLeast(4242, 10))
+      GC.Sniper._keyPoll:Fold({ variantRow(300, 0, 100000, 1) })
+      assert.is_nil(GC.Sniper.VariantKeyAtLeast(300, 10))
+    end)
+  end)
+
   -- Caps fixes 5b. ITEM_SEARCH_RESULTS_UPDATED names the key it answers, and Core/Init.lua
   -- handed it on by itemID alone -- so the Sell tab's bare-key search of an item answered the
   -- drill of one of its variants: the drill read its own key's slot, still empty, and a Check

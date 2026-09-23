@@ -535,6 +535,7 @@ GC.Locales.ptBR = {
     "comprados %d x item %d depois que a casa de leilões fechou",
   ["buying commodity..."] = "comprando mercadoria...",
   ["cheapest not yours %s"] = "o mais barato que não é seu %s",
+  ["check the item level — buy by hand"] = "confira o nível do item — compre manualmente",
   ["checking live price..."] = "verificando o preço ao vivo...",
   ["checking live safety..."] = "verificando a segurança ao vivo...",
   ["commodity purchase failed"] = "a compra da mercadoria falhou",
@@ -577,6 +578,7 @@ GC.Locales.ptBR = {
     "é o que este mercado absorve — além disso você compra estoque que vai ficar parado",
   ["item %d"] = "item %d",
   ["item %d: %s"] = "item %d: %s",
+  ["item level %d+"] = "nível de item %d+",
   ["item variant unresolved"] = "variante do item não resolvida",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

@@ -19,6 +19,10 @@ local _, GC = ...
 GC.AppRuns = {}
 
 local function num(v) return type(v) == "number" and v or nil end
+local function itemLevel(v)
+  local n = num(v)
+  return (n and n > 0 and n < math.huge and n == math.floor(n)) and n or nil
+end
 
 -- The realm a hit was seen on (v3). A line bound to another realm is still a line -- the auction
 -- house search simply finds nothing for it there -- so the pair is carried and the caller decides
@@ -70,6 +74,10 @@ local function copyLine(raw)
     -- price, which is not a percentage of anything), `rl` the realm a hit is bound to, `cr` the
     -- recipe that crafts this item. Optional, like every price field above them.
     cc = num(raw.cc), rl = copyRealm(raw.rl), cr = copyCraft(raw.cr),
+    -- The item-level floor of an alert group's gear member (caps fixes 5h): the companion writes
+    -- `minIlvl` only when the member has one, so absent is no floor. Only a positive whole number
+    -- is a level; anything else drops the floor, never the line.
+    minIlvl = itemLevel(raw.minIlvl),
   }
 end
 
@@ -88,6 +96,10 @@ local function mergeLines(rawLines)
       local seen = byItem[line.i]
       if seen then
         seen.q = seen.q + line.q
+        -- The higher floor of the two: a merge must never lower the level the player asked for.
+        if line.minIlvl and (not seen.minIlvl or line.minIlvl > seen.minIlvl) then
+          seen.minIlvl = line.minIlvl
+        end
       else
         byItem[line.i] = line
         lines[#lines + 1] = line

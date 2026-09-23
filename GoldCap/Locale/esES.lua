@@ -535,6 +535,7 @@ GC.Locales.esES = {
     "comprados %d x objeto %d tras cerrar la casa de subastas",
   ["buying commodity..."] = "comprando mercancía...",
   ["cheapest not yours %s"] = "el más barato que no es tuyo %s",
+  ["check the item level — buy by hand"] = "comprueba el nivel de objeto — compra a mano",
   ["checking live price..."] = "comprobando el precio en vivo...",
   ["checking live safety..."] = "comprobando la seguridad en vivo...",
   ["commodity purchase failed"] = "falló la compra de la mercancía",
@@ -578,6 +579,7 @@ GC.Locales.esES = {
     "es lo que absorbe este mercado — más allá compras existencias que se te quedarán",
   ["item %d"] = "objeto %d",
   ["item %d: %s"] = "objeto %d: %s",
+  ["item level %d+"] = "nivel de objeto %d+",
   ["item variant unresolved"] = "variante del objeto sin resolver",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

@@ -533,6 +533,7 @@ GC.Locales.ruRU = {
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d после закрытия аукциона",
   ["buying commodity..."] = "покупаем товар...",
   ["cheapest not yours %s"] = "дешевле всех не ваш %s",
+  ["check the item level — buy by hand"] = "проверьте уровень предмета — купите вручную",
   ["checking live price..."] = "проверяем живую цену...",
   ["checking live safety..."] = "проверяем безопасность вживую...",
   ["commodity purchase failed"] = "покупка товара не удалась",
@@ -575,6 +576,7 @@ GC.Locales.ruRU = {
     "столько этот рынок переваривает — сверх того вы покупаете товар, который зависнет",
   ["item %d"] = "предмет %d",
   ["item %d: %s"] = "предмет %d: %s",
+  ["item level %d+"] = "ур. предмета %d+",
   ["item variant unresolved"] = "вариант предмета не определён",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

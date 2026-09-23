@@ -548,6 +548,7 @@ GC.Locales.ukUA = {
   ["bought %d x item %d after AH close"] = "куплено %d x предмет %d після закриття аукціону",
   ["buying commodity..."] = "купуємо товар...",
   ["cheapest not yours %s"] = "найдешевший не ваш %s",
+  ["check the item level — buy by hand"] = "перевірте рівень предмета — купіть вручну",
   ["checking live price..."] = "перевіряємо живу ціну...",
   ["checking live safety..."] = "перевіряємо безпеку наживо...",
   ["commodity purchase failed"] = "купівля товару не вдалася",
@@ -590,6 +591,7 @@ GC.Locales.ukUA = {
     "стільки цей ринок перетравлює — понад те ви купуєте товар, що зависне",
   ["item %d"] = "предмет %d",
   ["item %d: %s"] = "предмет %d: %s",
+  ["item level %d+"] = "рів. предмета %d+",
   ["item variant unresolved"] = "варіант предмета не визначено",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

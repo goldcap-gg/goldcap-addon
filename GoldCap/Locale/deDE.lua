@@ -536,6 +536,7 @@ GC.Locales.deDE = {
     "%d x Gegenstand %d nach Schließen des Auktionshauses gekauft",
   ["buying commodity..."] = "Ware wird gekauft...",
   ["cheapest not yours %s"] = "günstigster fremder %s",
+  ["check the item level — buy by hand"] = "Gegenstandsstufe prüfen — von Hand kaufen",
   ["checking live price..."] = "Live-Preis wird geprüft...",
   ["checking live safety..."] = "Live-Sicherheit wird geprüft...",
   ["commodity purchase failed"] = "Warenkauf fehlgeschlagen",
@@ -579,6 +580,7 @@ GC.Locales.deDE = {
     "nimmt dieser Markt auf — darüber hinaus kaufst du Ware, auf der du sitzen bleibst",
   ["item %d"] = "Gegenstand %d",
   ["item %d: %s"] = "Gegenstand %d: %s",
+  ["item level %d+"] = "Gegenstandsstufe %d+",
   ["item variant unresolved"] = "Gegenstandsvariante ungeklärt",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",

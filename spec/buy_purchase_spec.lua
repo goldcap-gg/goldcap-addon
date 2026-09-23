@@ -1431,6 +1431,88 @@ describe("BUY purchase", function()
     assert.equal("nothing on offer", rowWithText("Echo Salt").action.label)
   end)
 
+  -- Caps fixes 5h (Task 10): an alert group's gear member reaches BUY with the item-level floor
+  -- the player set on it -- the companion writes it as `minIlvl` on the run line. The line never
+  -- said it, so a player buying by hand could take a cheaper copy below the level the price was
+  -- set for. The line says the floor, and the search it opens on Blizzard's own page is as narrow
+  -- as the client allows: an item key names one item-level variant, so the cheapest variant at or
+  -- above the floor a poll has seen; with none known, the bare key -- and the hint says so.
+  describe("a gear line with an item-level floor", function()
+    local keys
+
+    local function adoptGearRun(line)
+      local real = helper.loadModule("Core/Util.lua")
+      helper.loadModule("Core/AppRuns.lua", real)
+      real.db = { runs = {}, runsArchived = {}, runSplits = {}, runNotices = {},
+                  runsMeta = { generatedAt = 0 } }
+      _G.GoldCap_AppRuns = { v = 3, generatedAt = 5, groups = {}, caps = {},
+        runs = { { code = "alert-1", name = "Gear hits", updatedAt = 100, k = "alert",
+                   lines = { line } } } }
+      assert.is_true(real.AppRuns.Adopt())
+      _G.GoldCap_AppRuns = nil
+      GC.AppRuns._set({ real.AppRuns.Get("alert-1") })
+      GC.Buy.SelectRun("alert-1")
+      GC.Buy.RefreshIfShown()
+    end
+
+    before_each(function()
+      keys = {}
+      _G.C_AuctionHouse.GetItemKeyInfo = function(key) return { isCommodity = key.itemID ~= 106 } end
+      _G.C_AuctionHouse.MakeItemKey = function(itemID, itemLevel, itemSuffix, species)
+        return { itemID = itemID, itemLevel = itemLevel or 0, itemSuffix = itemSuffix or 0,
+                 battlePetSpeciesID = species or 0 }
+      end
+      _G.C_AuctionHouse.SendSearchQuery = function(key)
+        searches[#searches + 1] = key.itemID
+        keys[#keys + 1] = key
+      end
+    end)
+
+    it("says the floor on the line, read from the companion's run line", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
+      assert.equal(625, runLine(106).minIlvl)
+      local row = rowWithText("Foxtrot Blade")
+      assert.is_truthy(row.reagent:GetText():find("item level 625+", 1, true))
+    end)
+
+    it("opens the variant at the floor when a poll has seen one", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
+      GC.Sniper.VariantKeyAtLeast = function(itemID, minIlvl)
+        assert.equal(625, minIlvl)
+        return _G.C_AuctionHouse.MakeItemKey(itemID, 626)
+      end
+
+      hover(rowWithText("Foxtrot Blade"))
+
+      assert.same({ itemID = 106, itemLevel = 626, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
+      assert.equal("not a commodity — buy by hand", rowWithText("Foxtrot Blade").action.label)
+    end)
+
+    it("says to check the level when the search cannot be narrowed to it", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000, minIlvl = 625 })
+      GC.Sniper.VariantKeyAtLeast = function() return nil end
+
+      hover(rowWithText("Foxtrot Blade"))
+
+      assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
+      local row = rowWithText("Foxtrot Blade")
+      assert.equal("check the item level — buy by hand", row.action.label)
+      assert.is_false(row.action:IsEnabled())
+    end)
+
+    it("leaves a gear line with no floor as it was", function()
+      adoptGearRun({ i = 106, q = 1, n = "Foxtrot Blade", cc = 5000000 })
+      GC.Sniper.VariantKeyAtLeast = function() error("no floor, nothing to narrow") end
+
+      hover(rowWithText("Foxtrot Blade"))
+
+      local row = rowWithText("Foxtrot Blade")
+      assert.is_nil(row.reagent:GetText():find("item level", 1, true))
+      assert.same({ itemID = 106, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }, keys[1])
+      assert.equal("not a commodity — buy by hand", row.action.label)
+    end)
+  end)
+
   -- Review item 5: the cap stopping the ladder PART-WAY was silent -- a plain "BUY 6 · ..." and
   -- nothing about the four units it refused. The label stays inside the 72px badge, so the
   -- percentage rides on the log line `/gc buy` prints and the button wears the over-cap look.

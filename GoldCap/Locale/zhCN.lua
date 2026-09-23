@@ -487,6 +487,7 @@ GC.Locales.zhCN = {
   ["bought %d x item %d after AH close"] = "拍卖行关闭后购买 %d 件 · 物品 %d",
   ["buying commodity..."] = "正在购买商品...",
   ["cheapest not yours %s"] = "非你的最低价 %s",
+  ["check the item level — buy by hand"] = "请核对物品等级 — 手动购买",
   ["checking live price..."] = "正在检查实时价格...",
   ["checking live safety..."] = "正在实时检查安全性...",
   ["commodity purchase failed"] = "商品购买失败",
@@ -526,6 +527,7 @@ GC.Locales.zhCN = {
     "是这个市场能消化的量 — 再多就是压在手里的库存",
   ["item %d"] = "物品 %d",
   ["item %d: %s"] = "物品 %d：%s",
+  ["item level %d+"] = "物品等级 %d+",
   ["item variant unresolved"] = "物品变体未确定",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] =
     "item=%d computed=%s public=%s buyable=%s reasons=%s",
