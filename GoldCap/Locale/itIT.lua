@@ -806,8 +806,8 @@ GC.Locales.itIT = {
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "sono stati messi da parte quando in questa sessione sono stati caricati altri prezzi -- /reload per usarli di nuovo",
   ["On the AH now"] = "All'asta adesso",
-  ["%d listed · %d min ago"] = "%d in vendita · %d min fa",
-  ["%d listed · just now"] = "%d in vendita · proprio ora",
+  ["%s listed · %d min ago"] = "%s in vendita · %d min fa",
+  ["%s listed · just now"] = "%s in vendita · proprio ora",
   ["it could not be read (%s)"] = "non è stato possibile leggerli (%s)",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "sono di una regione che questa versione di GoldCap non conosce -- aggiorna l'addon",

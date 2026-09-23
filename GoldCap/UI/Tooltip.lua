@@ -10,16 +10,38 @@ GC.Tooltip = {}
 local STALE_YELLOW_SECONDS = 6 * 3600
 local STALE_RED_SECONDS = 24 * 3600
 
+-- A count as a whole number grouped in thousands: "98,470", not "98470". The client's own
+-- BreakUpLargeNumbers groups with the player's locale's separator (a German client writes
+-- 98.470), so it is used wherever it exists; the plain comma grouping below is for a runtime
+-- without it, which is the spec suite. The client hands a whole number under a thousand back
+-- as a number, hence the tostring.
+local function wholeCount(n)
+  n = math.floor(n + 0.5)
+  if BreakUpLargeNumbers then return tostring(BreakUpLargeNumbers(n)) end
+  local text, found = tostring(n), 1
+  while found > 0 do text, found = text:gsub("^(-?%d+)(%d%d%d)", "%1,%2") end
+  return text
+end
+
+-- Sales a day. Under ten the decimal carries the decision -- 3.5 a day against 3 -- so it
+-- stays; from ten up it is noise, and "29728.0" is the figure this replaced. Decided on the
+-- rounded figure, so 9.96 prints "10" rather than "10.0".
+local function perDay(n)
+  local tenths = ("%.1f"):format(n)
+  if tonumber(tenths) < 10 then return tenths end
+  return wholeCount(n)
+end
+
 -- opts.live (optional): { floor, qty, age } -- what this session's own auction house browsing last
 -- saw of the item (GC.Sniper.LiveFloor), inside LIM.LIVE_TOOLTIP_SECONDS. Its own line kind: the
 -- floor is drawn as coins by onTooltip, which owns GetCoinTextureString, and the rest is text.
 -- The age is clamped at zero: a clock that stepped back says "just now", never a negative minute.
 local function liveLine(live)
   if type(live) ~= "table" or type(live.floor) ~= "number" or live.floor <= 0 then return nil end
-  local qty = type(live.qty) == "number" and live.qty or 0
+  local qty = wholeCount(type(live.qty) == "number" and live.qty or 0)
   local minutes = math.floor(math.max(0, tonumber(live.age) or 0) / 60)
-  local detail = minutes < 1 and (GC.L["%d listed · just now"]):format(qty)
-    or (GC.L["%d listed · %d min ago"]):format(qty, minutes)
+  local detail = minutes < 1 and (GC.L["%s listed · just now"]):format(qty)
+    or (GC.L["%s listed · %d min ago"]):format(qty, minutes)
   return { kind = "live", left = GC.L["On the AH now"], copper = live.floor, detail = detail }
 end
 
@@ -82,7 +104,7 @@ function GC.Tooltip.BuildLines(v, now, opts)
       lines[#lines + 1] = { kind = "text", left = GC.L["24h trend"], right = string.format("%+d%%", v.trend) }
     end
     if v.sold then
-      lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = string.format("%.1f", v.sold) }
+      lines[#lines + 1] = { kind = "text", left = GC.L["Sold per day"], right = perDay(v.sold) }
     end
     -- Depth. `currentQty` (units on the region's shelf) and `listings` (auctions holding them)
     -- ride the import string's verification token -- so this is an imported-commodity line by
@@ -90,14 +112,14 @@ function GC.Tooltip.BuildLines(v, now, opts)
     -- the better answer to the same question the auction count was answering, so it takes
     -- that slot rather than adding a fourth number.
     if v.currentQty and v.currentQty > 0 then
-      local right = tostring(v.currentQty)
+      local right = wholeCount(v.currentQty)
       local supply = GC.Util.FormatSupplyDays(v.currentQty, v.sold)
       if supply then right = right .. " · " .. supply end
       lines[#lines + 1] = { kind = "text", left = GC.L["Listed"], right = right }
     elseif v.listings and not v.sold then
       -- `not v.sold` keeps the exclusivity these two lines had when they were one if/elseif:
       -- no item has ever shown a sales rate and an auction count together.
-      lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = tostring(v.listings) }
+      lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = wholeCount(v.listings) }
     end
   end
   if live then lines[#lines + 1] = live end

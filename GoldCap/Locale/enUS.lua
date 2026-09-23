@@ -35,8 +35,6 @@ GC.Locales.enUS = {
   ["%d lines · %d to buy · %d at the vendor"] = "%d lines · %d to buy · %d at the vendor",
   ["%d lines · %d to buy · %d to craft · %d at the vendor"] =
     "%d lines · %d to buy · %d to craft · %d at the vendor",
-  ["%d listed · %d min ago"] = "%d listed · %d min ago",
-  ["%d listed · just now"] = "%d listed · just now",
   ["%d lots, %s asked"] = "%d lots, %s asked",
   ["%d missing"] = "%d missing",
   ["%d partial"] = "%d partial",
@@ -54,6 +52,8 @@ GC.Locales.enUS = {
   ["%s -> %s per unit    total %s -> %s"] = "%s -> %s per unit    total %s -> %s",
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
+  ["%s listed · %d min ago"] = "%s listed · %d min ago",
+  ["%s listed · just now"] = "%s listed · just now",
   ["%s under you"] = "%s under you",
   ["%s units in %d prices"] = "%s units in %d prices",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",

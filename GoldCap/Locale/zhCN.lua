@@ -728,8 +728,8 @@ GC.Locales.zhCN = {
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "本次载入其他价格时已被搁置 -- 输入 /reload 可重新使用",
   ["On the AH now"] = "拍卖行当前",
-  ["%d listed · %d min ago"] = "在售 %d · %d 分钟前",
-  ["%d listed · just now"] = "在售 %d · 刚刚",
+  ["%s listed · %d min ago"] = "在售 %s · %d 分钟前",
+  ["%s listed · just now"] = "在售 %s · 刚刚",
   ["it could not be read (%s)"] = "无法读取（%s）",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "它来自这个版本的 GoldCap 不支持的地区 -- 请更新插件",

@@ -819,8 +819,8 @@ GC.Locales.ukUA = {
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "їх відклали, коли в цій сесії завантажили інші ціни -- /reload, щоб знову їх використати",
   ["On the AH now"] = "На аукціоні зараз",
-  ["%d listed · %d min ago"] = "виставлено %d · %d хв тому",
-  ["%d listed · just now"] = "виставлено %d · щойно",
+  ["%s listed · %d min ago"] = "виставлено %s · %d хв тому",
+  ["%s listed · just now"] = "виставлено %s · щойно",
   ["it could not be read (%s)"] = "їх не вдалося прочитати (%s)",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "вони для регіону, якого ця версія GoldCap не знає -- оновіть аддон",

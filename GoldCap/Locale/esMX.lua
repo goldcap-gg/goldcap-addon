@@ -810,8 +810,8 @@ GC.Locales.esMX = {
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "se apartaron cuando se cargaron otros precios en esta sesión -- /reload para volver a usarlos",
   ["On the AH now"] = "En subasta",
-  ["%d listed · %d min ago"] = "%d publicados · hace %d min",
-  ["%d listed · just now"] = "%d publicados · justo ahora",
+  ["%s listed · %d min ago"] = "%s publicados · hace %d min",
+  ["%s listed · just now"] = "%s publicados · justo ahora",
   ["it could not be read (%s)"] = "no se pudieron leer (%s)",
   ["it is for a region this build of GoldCap does not know -- update the addon"] =
     "son de una región que esta versión de GoldCap no conoce -- actualiza el addon",
