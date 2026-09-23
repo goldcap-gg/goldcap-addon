@@ -796,8 +796,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Buy and GC.Buy.OnAuctionHouseClosed then GC.Buy.OnAuctionHouseClosed() end
     if GC.PurchaseCapture then GC.PurchaseCapture.Reset() end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
+    -- The new auction's id: the Sell tab asks the client which item it is, so a post that went
+    -- up late is not credited to the one on the wire (GC.Sell.OnAuctionCreated).
     if GC.Sell.OnAuctionCreated then
-      GC.Sell.OnAuctionCreated()
+      GC.Sell.OnAuctionCreated((...))
     end
   elseif event == "AUCTION_HOUSE_POST_ERROR" then
     if GC.Sell.OnPostError then

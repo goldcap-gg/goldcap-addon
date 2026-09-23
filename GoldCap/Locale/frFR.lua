@@ -401,6 +401,8 @@ GC.Locales.frFR = {
   ["Start scanning as soon as the auction house opens."] =
     "Démarrer le scan dès l'ouverture de l'hôtel des ventes.",
   ["Status"] = "Statut",
+  ["Still waiting for the auction house to answer the last post"] =
+    "L'hôtel des ventes n'a pas encore répondu à la dernière mise en vente",
   ["Stop and open the buy window on your price"] = "Arrêter et ouvrir la fenêtre d'achat à ton prix",
   ["Stress exit unit"] = "Prix de sortie sous stress",
   ["Stress profit"] = "Bénéfice sous stress",

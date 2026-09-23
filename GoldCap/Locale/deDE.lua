@@ -402,6 +402,8 @@ GC.Locales.deDE = {
   ["Start scanning as soon as the auction house opens."] =
     "Sofort mit dem Scannen beginnen, sobald das Auktionshaus öffnet.",
   ["Status"] = "Status",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Warte noch auf die Antwort des Auktionshauses zum letzten Einstellen",
   ["Stop and open the buy window on your price"] = "Bei deinem Preis stoppen und Kauffenster öffnen",
   ["Stress exit unit"] = "Stress-Ausstiegspreis",
   ["Stress profit"] = "Stress-Gewinn",

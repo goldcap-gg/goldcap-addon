@@ -400,6 +400,8 @@ GC.Locales.ruRU = {
   ["Start scanning as soon as the auction house opens."] =
     "Начинать сканирование сразу при открытии аукционного дома.",
   ["Status"] = "Статус",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Ждём, пока аукцион ответит на прошлое выставление",
   ["Stop and open the buy window on your price"] = "Остановить и открыть окно покупки по вашей цене",
   ["Stress exit unit"] = "Цена стресс-выхода",
   ["Stress profit"] = "Стресс-прибыль",

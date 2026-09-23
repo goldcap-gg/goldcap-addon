@@ -371,6 +371,7 @@ GC.Locales.zhTW = {
   ["Spike-trend threshold %"] = "暴漲門檻 %",
   ["Start scanning as soon as the auction house opens."] = "一進入拍賣場就立即開始掃描。",
   ["Status"] = "狀態",
+  ["Still waiting for the auction house to answer the last post"] = "仍在等待拍賣場回應上一次上架",
   ["Stop and open the buy window on your price"] = "達到你的價格時停止並開啟購買視窗",
   ["Stress exit unit"] = "壓力出場單價",
   ["Stress profit"] = "壓力利潤",

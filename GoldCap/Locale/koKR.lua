@@ -377,6 +377,7 @@ GC.Locales.koKR = {
   ["Spike-trend threshold %"] = "급등 추세 기준 %",
   ["Start scanning as soon as the auction house opens."] = "경매장을 열자마자 바로 검색을 시작합니다.",
   ["Status"] = "상태",
+  ["Still waiting for the auction house to answer the last post"] = "경매장이 지난 등록에 아직 응답하지 않았습니다",
   ["Stop and open the buy window on your price"] = "내 가격에 도달하면 중지 후 구매 창 열기",
   ["Stress exit unit"] = "스트레스 청산 단가",
   ["Stress profit"] = "스트레스 수익",

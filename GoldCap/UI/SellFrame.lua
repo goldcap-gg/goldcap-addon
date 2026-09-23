@@ -365,6 +365,17 @@ function GC.Sell._EndPostNote(heldOnly)
   local note = GC.Sell._postNote
   if not note or (heldOnly and note.timed) then return end
   GC.Sell._postNote = nil
+  -- An outcome that runs out while another post of ours is still out (a late answer said
+  -- Posted over it) gives the dock back to that post, not to the walk.
+  local stage = not heldOnly and postingRow and postingRow.postStage
+  if stage == "posting" or stage == "confirming" then
+    GC.Sell._NotePost(postingPin and postingPin.queued and GC.L["Waiting for the Auction House…"]
+      or GC.L["Posting…"])
+    return
+  elseif stage == "confirm" then
+    GC.Sell._NotePost(GC.L["Click Confirm to post"])
+    return
+  end
   setStatus(GC.Sell._lastStatus or "")
 end
 
@@ -471,6 +482,9 @@ local QUEUE_SKIP_TEXT = {
   -- The cancel queue's own reasons (GC.CancelQueue.Build): a cancel burns a deposit, so a
   -- held-back listing needs its why stated even more than a held-back post does.
   advised_hold = "relisting now would lock in a loss or a stall -- hold",
+  -- Held by this tab, not by the queue module: the item's last post may still go up
+  -- (GC.Sell._lateAnswers).
+  awaiting_answer = "Still waiting for the auction house to answer the last post",
   no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
@@ -965,6 +979,7 @@ local function composePositions()
   else
     queueEntries, queueSkipped = {}, {}
   end
+  GC.Sell._HoldLateInQueue()
   paintQueueButton()
   -- The cancel twin, same degradation contract for fixtures loaded without the module.
   if GC.CancelQueue and GC.CancelQueue.Build then
@@ -1995,17 +2010,83 @@ local function currentPosition(positionKey)
   return nil
 end
 
--- The pin of a post whose CONFIRM was sent and then timed out, kept for one more timeout window
--- so a slow server's AUCTION_HOUSE_AUCTION_CREATED still lands on its own bookkeeping.
+-- Posts we stopped waiting for that the auction house may still answer: the watchdog gave up on
+-- one that was SENT, or an AUCTION_HOUSE_SHOW_ERROR -- which names no request, so it can be
+-- somebody else's -- freed its row. Each keeps its pin for LATE_ANSWER_SECONDS, so an
+-- AUCTION_HOUSE_AUCTION_CREATED that comes after still lands on its own bookkeeping, exactly as
+-- an on-time one would (GC.Sell.OnAuctionCreated), and the dock says Posted over "did not
+-- answer". While one is open, that item is not posted again (onPostClick holds it, the dock's
+-- queue skips it): a second post of a stack the first may still be taking is the double post.
 --
--- The timeout used to be armed once, on the first click, and never re-armed for the confirming
--- one -- so a player who read the deposit line for nine seconds got "Posting timed out" over a
--- post that had gone through, and because the pin was gone with it, GC.Sell.OnAuctionCreated
--- found nothing: the post was never recorded against the batch and the price the seller had
--- typed was never cleared, so the NEXT stack of that item quietly inherited it. Re-arming (see
--- the confirm branch below) closes the ordinary case; this closes the one where the auction
--- house really is slower than the watchdog.
-local postedGrace
+-- The window is 60 s. The watchdog is 8 s; the slowest round trip this tab already waits for
+-- is a cancel, given 30 s (REPOST_CANCEL_TIMEOUT_SECONDS) after one was seen to take more than
+-- ten; a post the client queued behind the throttle goes out only when a slot frees. Twice the
+-- cancel's budget covers those without keeping an item from posting for long when its post
+-- really was lost -- and a post after the window needs a fresh quote anyway (45 s).
+--
+-- It used to be one slot, kept for 8 s and only for a timed-out CONFIRM: a first-click post the
+-- watchdog gave up on was thrown away when it went up late -- never recorded against its batch,
+-- the typed price never spent, so the next stack of the item quietly inherited it.
+GC.Sell.LATE_ANSWER_SECONDS = 60
+GC.Sell._lateAnswers = {}
+
+-- The late answers still in their window, oldest first; the rest are forgotten here.
+function GC.Sell._LiveLate()
+  local live, now = {}, time()
+  for _, late in ipairs(GC.Sell._lateAnswers) do
+    if now - late.at <= GC.Sell.LATE_ANSWER_SECONDS then live[#live + 1] = late end
+  end
+  GC.Sell._lateAnswers = live
+  return live
+end
+
+function GC.Sell._LateFor(positionKey, scopeKey)
+  for _, late in ipairs(GC.Sell._LiveLate()) do
+    if late.pin.positionKey == positionKey and late.pin.scopeKey == scopeKey then return late end
+  end
+  return nil
+end
+
+-- The dock's queue leaves out an item whose last post may still be answered, and counts it held
+-- back with the reason: its head is what the dock's POST posts, and held there it would stand
+-- in front of every other item for the whole window.
+function GC.Sell._HoldLateInQueue()
+  if #GC.Sell._LiveLate() == 0 then return end
+  local kept = {}
+  for _, entry in ipairs(queueEntries) do
+    if GC.Sell._LateFor(entry.positionKey, entry.scopeKey) then
+      queueSkipped[#queueSkipped + 1] = { positionKey = entry.positionKey, itemID = entry.itemID,
+        itemName = entry.itemName, reason = "awaiting_answer" }
+    else
+      kept[#kept + 1] = entry
+    end
+  end
+  queueEntries = kept
+end
+
+-- Called while `pin` is still the post on the wire, before it is let go. Only a post that was
+-- sent: a Confirm nobody pressed asked the auction house nothing.
+function GC.Sell._AwaitLate(pin)
+  if not (type(pin) == "table" and pin.sent) then return end
+  local live = GC.Sell._LiveLate()
+  live[#live + 1] = { pin = pin, at = time() }
+  GC.Sell._HoldLateInQueue()
+  paintQueueButton()
+end
+
+-- The oldest late answer for `itemID` (any item when the client could not say which), taken
+-- out of the window: one creation is one post.
+function GC.Sell._TakeLate(itemID)
+  local live = GC.Sell._LiveLate()
+  for i, late in ipairs(live) do
+    if not itemID or late.pin.itemID == itemID then
+      table.remove(live, i)
+      return late
+    end
+  end
+  return nil
+end
+
 local function schedulePostTimeout(row)
   if not (C_Timer and C_Timer.After) then return end
   postTimeoutToken = (postTimeoutToken or 0) + 1
@@ -2014,11 +2095,8 @@ local function schedulePostTimeout(row)
     local stage = row.postStage
     if token == postTimeoutToken and postingRow == row
         and (stage == "posting" or stage == "confirm" or stage == "confirming") then
-      -- Only when the confirm actually went to the server. A post still waiting for its own
-      -- first answer has nothing on the wire to arrive late.
-      if stage == "confirming" and postingPin then
-        postedGrace = { pin = postingPin, at = time() }
-      end
+      -- A post that was sent can still go up after this; keep listening for it.
+      GC.Sell._AwaitLate(postingPin)
       disarmPost()
       -- A Confirm nobody pressed asked the auction house nothing: it is the player's
       -- confirmation that lapsed, not a silence from the server.
@@ -2035,6 +2113,14 @@ local function onPostClick(row)
   -- passed SELL_QUOTE_ACTION_AGE, handing the row back as Post for the next press to post the
   -- same stack again.
   if postingRow == row and (row.postStage == "posting" or row.postStage == "confirming") then return end
+  -- Nor is a new post of an item whose last post the auction house may still be answering (see
+  -- GC.Sell._lateAnswers): the stack it would send is the one that post may be taking.
+  if row.postStage ~= "confirm" and row.position
+      and GC.Sell._LateFor(row.position.positionKey, row.position.scopeKey) then
+    GC.Sell._NotePost(GC.L["Still waiting for the auction house to answer the last post"], "fg",
+      GC.Sell.POST_NOTE_SECONDS.failed)
+    return
+  end
   local position = row.position
   local quote = freshQuote(position)
   if not quote then
@@ -2086,6 +2172,7 @@ local function onPostClick(row)
     -- time a player spent reading the confirmation came out of the time the server had to
     -- answer it -- see schedulePostTimeout.
     schedulePostTimeout(row)
+    pin.sent = true
     if pin.isCommodity then
       C_AuctionHouse.ConfirmPostCommodity(pin.location, pin.duration, pin.quantity, pin.unitPrice)
     else
@@ -2171,6 +2258,10 @@ local function onPostClick(row)
     row.postStage = "confirm"; row.action:Enable(); row.action:SetLabel(GC.L["Confirm"])
     if row.action.SetBusy then row.action:SetBusy(false) end
     GC.Sell._NotePost(GC.L["Click Confirm to post"])
+  else
+    -- No confirmation asked for: the post is on its way (Blizzard's own sell frame reads the
+    -- answer the same way), and anything that gives up on it from here listens for it late.
+    postingPin.sent = true
   end
   schedulePostTimeout(row)
 end
@@ -2391,20 +2482,32 @@ function GC.Sell._PostedText(pin)
   return GC.L["Posted"] .. " · " .. ("%s ×%d"):format(itemName(pin.itemID), pin.quantity or 0)
 end
 
-function GC.Sell.OnAuctionCreated()
+-- The item an AUCTION_HOUSE_AUCTION_CREATED is about, when the client can say: the event
+-- carries the new auction's id, and C_AuctionHouse.GetAuctionInfoByID answers with its
+-- ItemKey. Nil when it cannot -- then the post on the wire is taken to be it, as always.
+function GC.Sell._CreatedItemID(auctionID)
+  if type(auctionID) ~= "number" or not (C_AuctionHouse and C_AuctionHouse.GetAuctionInfoByID) then return nil end
+  local ok, info = pcall(C_AuctionHouse.GetAuctionInfoByID, auctionID)
+  local key = ok and type(info) == "table" and info.itemKey or nil
+  return type(key) == "table" and type(key.itemID) == "number" and key.itemID or nil
+end
+
+function GC.Sell.OnAuctionCreated(auctionID)
+  local createdItemID = GC.Sell._CreatedItemID(auctionID)
   local pin, row = postingPin, postingRow
-  if not pin or not row then
-    -- Nothing armed -- but a confirm the watchdog gave up on can still be answered a moment
-    -- later, and the auction it announces is a real one. Record it from the pin that was kept
-    -- for exactly this window and then forget it, so a second, unrelated creation cannot be
-    -- credited to it. No render-entry check is possible here: the row is gone.
-    local grace = postedGrace
-    postedGrace = nil
-    if not grace or time() - (grace.at or 0) > POST_TIMEOUT_SECONDS or not postPinSound(grace.pin) then return end
-    recordPostedPin(grace.pin)
-    if type(grace.pin.positionKey) == "string" then priceOverrides[grace.pin.positionKey] = nil end
-    -- The dock said the auction house did not answer. It did, late: say that instead.
-    GC.Sell._NotePost(GC.Sell._PostedText(grace.pin), "green", GC.Sell.POST_NOTE_SECONDS.posted)
+  if not pin or not row or (createdItemID and createdItemID ~= pin.itemID) then
+    -- Not the post on the wire, or none is out: a post we stopped waiting for, going up late
+    -- (GC.Sell._lateAnswers). Recorded from the pin kept for exactly this -- as an on-time one
+    -- is, less the render-entry check a row long gone cannot give -- and taken out of the
+    -- window, so a second creation is not the same post again. A creation the client names as
+    -- an item nothing of ours is waiting for is somebody else's: Blizzard's own Sell pane.
+    local late = GC.Sell._TakeLate(createdItemID)
+    if not late or not postPinSound(late.pin) then return end
+    recordPostedPin(late.pin)
+    if type(late.pin.positionKey) == "string" then priceOverrides[late.pin.positionKey] = nil end
+    -- The dock said the auction house did not answer, or named an error that was not this
+    -- post's. It did answer, late: say that instead.
+    GC.Sell._NotePost(GC.Sell._PostedText(late.pin), "green", GC.Sell.POST_NOTE_SECONDS.posted)
     GC.Sell.Refresh()
     return
   end
@@ -2416,7 +2519,6 @@ function GC.Sell.OnAuctionCreated()
   -- item at a number chosen against a book that has since moved -- which is the one real risk
   -- of letting the price be typed at all.
   if type(pin.positionKey) == "string" then priceOverrides[pin.positionKey] = nil end
-  postedGrace = nil
   disarmPost()
   -- Said for a moment, then the list moves on as it always has: the stack leaves the bags, the
   -- row goes or shrinks, and the dock's POST names the next item.
@@ -2452,6 +2554,9 @@ end
 function GC.Sell.OnAuctionHouseError(errorCode)
   local row = postingRow
   if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
+  -- The error names no request: if it was somebody else's, this post can still go up, and the
+  -- late answer corrects the line below to Posted.
+  GC.Sell._AwaitLate(postingPin)
   disarmPost()
   GC.Sell._NotePost(GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode)
     or GC.L["Posting failed"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
@@ -2464,6 +2569,7 @@ end
 function GC.Sell.OnThrottleQueued()
   local row = postingRow
   if not (row and (row.postStage == "posting" or row.postStage == "confirming")) then return end
+  if postingPin then postingPin.queued = true end
   GC.Sell._NotePost(GC.L["Waiting for the Auction House…"])
 end
 
@@ -5254,7 +5360,8 @@ function GC.Sell.Reset()
   refresh.waitingNoted = false
   for key in pairs(emptyAnswers) do emptyAnswers[key] = nil end
   for key in pairs(ownedAwaitingKind) do ownedAwaitingKind[key] = nil end
-  postedGrace = nil
+  -- Nothing is answered once the auction house has closed.
+  GC.Sell._lateAnswers = {}
   GC.QuoteCache.Clear(quotes)
   -- The SESSION cache goes, the persisted mirror STAYS. Reset's only caller is the auction
   -- house closing (UI/SniperFrame.lua), which is not the player asking to forget anything --

@@ -402,6 +402,8 @@ GC.Locales.ptBR = {
   ["Start scanning as soon as the auction house opens."] =
     "Começar a escanear assim que a Casa de Leilões abrir.",
   ["Status"] = "Estado",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Ainda esperando a casa de leilões responder ao último anúncio",
   ["Stop and open the buy window on your price"] = "Parar e abrir a janela de compra no seu preço",
   ["Stress exit unit"] = "Preço de saída sob pressão",
   ["Stress profit"] = "Lucro sob pressão",

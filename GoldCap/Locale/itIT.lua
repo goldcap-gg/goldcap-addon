@@ -402,6 +402,8 @@ GC.Locales.itIT = {
   ["Start scanning as soon as the auction house opens."] =
     "Inizia la scansione non appena si apre la casa d'aste.",
   ["Status"] = "Stato",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Ancora in attesa che la casa d'aste risponda all'ultima messa in vendita",
   ["Stop and open the buy window on your price"] = "Ferma e apri la finestra d'acquisto al tuo prezzo",
   ["Stress exit unit"] = "Prezzo d'uscita sotto stress",
   ["Stress profit"] = "Profitto sotto stress",

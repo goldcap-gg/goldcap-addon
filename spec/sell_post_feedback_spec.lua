@@ -10,7 +10,7 @@ local helper = require("spec.spec_helper")
 -- End to end through the real modules, the same shape spec/sell_post_queue_control_spec.lua
 -- uses: bags -> positions -> the row and the dock -> onPostClick -> the events that answer it.
 describe("Sell tab, a Post says what it is doing", function()
-  local GC, root, render, container, timers, posts, postReturn, onPost
+  local GC, root, render, container, timers, posts, postReturn, onPost, bags, postedSlots, auctions
 
   local function region(kind, parent)
     local v = { __frame = true, kind = kind, parent = parent, shown = true, points = {}, scripts = {}, children = {} }
@@ -57,7 +57,15 @@ describe("Sell tab, a Post says what it is doing", function()
       { itemID = 23427, stackCount = 46, itemName = "Eternium Ore" },
     },
   }
-  local ITEM_NAMES = { [23427] = "Eternium Ore" }
+  -- The ore and a second commodity, for what has to go on posting while the ore waits.
+  local TWO_ITEMS = {
+    [0] = {
+      { itemID = 23427, stackCount = 200, itemName = "Eternium Ore" },
+      { itemID = 23427, stackCount = 46, itemName = "Eternium Ore" },
+      { itemID = 210796, stackCount = 80, itemName = "Mycobloom" },
+    },
+  }
+  local ITEM_NAMES = { [23427] = "Eternium Ore", [210796] = "Mycobloom" }
   -- Enum.AuctionHouseError values the stub client has words for; anything else answers "",
   -- which is what Blizzard's own AuctionHouseUtil.GetErrorText does for a code it cannot name.
   local CLIENT_ERRORS = { [0] = "You don't have enough money." }
@@ -65,25 +73,31 @@ describe("Sell tab, a Post says what it is doing", function()
   local GREEN, RED, MUTED = { 0, 1, 0 }, { 1, 0, 0 }, { .72, .71, .69 }
 
   before_each(function()
-    timers, posts, postReturn, onPost = {}, 0, false, nil
+    timers, posts, postReturn, onPost, bags, postedSlots, auctions = {}, 0, false, nil, BAGS, {}, {}
     _G.time = function() return 1000 end
     _G.CreateFrame = function(kind, _, parent) return region(kind, parent) end
     _G.GetCoinTextureString = function(n) return tostring(n) end
     _G.C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
     _G.C_Container = {
-      GetContainerNumSlots = function(bag) return #(BAGS[bag] or {}) end,
-      GetContainerItemInfo = function(bag, slot) return (BAGS[bag] or {})[slot] end,
+      GetContainerNumSlots = function(bag) return #(bags[bag] or {}) end,
+      GetContainerItemInfo = function(bag, slot) return (bags[bag] or {})[slot] end,
       GetContainerItemLink = function() return nil end,
     }
     _G.C_AuctionHouse = {
       MakeItemKey = function(itemID) return { itemID = itemID } end,
       GetItemKeyInfo = function() return { isCommodity = true } end,
-      PostCommodity = function()
+      PostCommodity = function(location)
         posts = posts + 1
+        postedSlots[#postedSlots + 1] = location.slot
         if onPost then onPost() end
         return postReturn
       end,
       ConfirmPostCommodity = function() end,
+      -- What AUCTION_HOUSE_AUCTION_CREATED's auctionID names, when the client knows it.
+      GetAuctionInfoByID = function(auctionID)
+        local itemID = auctions[auctionID]
+        return itemID and { itemKey = { itemID = itemID } } or nil
+      end,
     }
     _G.AuctionHouseUtil = { GetErrorText = function(code) return CLIENT_ERRORS[code] or "" end }
     _G.C_Item = { GetItemNameByID = function(id) return ITEM_NAMES[id] end }
@@ -145,17 +159,29 @@ describe("Sell tab, a Post says what it is doing", function()
     render()
   end
 
-  local function oreRow()
+  local function rowOf(itemID)
     for _, row in ipairs(upvalue(render, "rows")) do
-      if row:IsShown() and row.kind == "position" and row.position.itemID == 23427 then return row end
+      if row:IsShown() and row.kind == "position" and row.position.itemID == itemID then return row end
     end
-    error("the ore's row is not on screen")
+    error(("item %d's row is not on screen"):format(itemID))
   end
 
-  local function pressRowPost()
-    local row = oreRow()
+  local function oreRow() return rowOf(23427) end
+
+  local function pressRowPost(itemID)
+    local row = rowOf(itemID or 23427)
     row.action.scripts.OnClick(row.action)
     return row
+  end
+
+  -- Every RecordPost the tab makes, through the real Acquisitions underneath.
+  local function recordedPosts()
+    local recorded, real = {}, GC.Acquisitions.RecordPost
+    GC.Acquisitions.RecordPost = function(...)
+      recorded[#recorded + 1] = { ... }
+      return real(...)
+    end
+    return recorded
   end
 
   -- What the pricing walk does every few seconds while a post is going up.
@@ -346,6 +372,121 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.QuoteCache.Set(quotes(), 23427, 184719, 1100)
       root.GoldCapPostNext()
       assert.equal(1, posts)
+    end)
+  end)
+
+  -- The 8 s watchdog gives up on the wire, not on the post: a slow or queued post can still be
+  -- created afterwards, and an unrelated auction house error (AUCTION_HOUSE_SHOW_ERROR names no
+  -- request) can free a row whose post then goes up anyway. Either way the auction exists.
+  describe("a late answer", function()
+    local function readyTwo()
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000)
+      GC.QuoteCache.Set(quotes(), 210796, 5000, 1000)
+      upvalue(GC.Sell.SellableCount, "composePositions")()
+      render()
+    end
+
+    it("is still the post's: recorded like one on time, and the dock says Posted over the timeout", function()
+      local recorded = recordedPosts()
+      ready()
+      pressRowPost()
+      assert.equal(1, fire(8))
+      assert.equal("The auction house did not answer -- try again", container.dockStatus.text)
+      assert.equal(0, #recorded)
+      _G.time = function() return 1030 end
+      GC.Sell.OnAuctionCreated()
+      assert.equal(1, #recorded)
+      assert.equal(23427, recorded[1][2])
+      assert.equal(246, recorded[1][6])
+      assert.matches("^Posted", container.dockStatus.text)
+      assert.matches("Eternium Ore ×246", container.dockStatus.text, 1, true)
+      assert.same(GREEN, { unpack(container.dockStatus.color, 1, 3) })
+      -- Once: a second creation is not the same post over again.
+      GC.Sell.OnAuctionCreated()
+      assert.equal(1, #recorded)
+    end)
+
+    it("corrects an unrelated auction house error that freed the row", function()
+      local recorded = recordedPosts()
+      ready()
+      pressRowPost()
+      GC.Sell.OnAuctionHouseError(0)
+      assert.equal("You don't have enough money.", container.dockStatus.text)
+      GC.Sell.OnAuctionCreated()
+      assert.equal(1, #recorded)
+      assert.matches("^Posted", container.dockStatus.text)
+    end)
+
+    it("holds another Post of the same item while its last post may still be answered", function()
+      ready()
+      pressRowPost()
+      fire(8)
+      pressRowPost()
+      assert.equal(1, posts)
+      assert.equal("Still waiting for the auction house to answer the last post", container.dockStatus.text)
+      -- The dock's POST does not offer it either: held back, with the reason in words.
+      assert.equal("NOTHING TO POST", container.queueButton.label)
+      assert.matches("1", container.queueHeldBack.text, 1, true)
+      root.GoldCapPostNext()
+      assert.equal(1, posts)
+    end)
+
+    it("goes on posting every other item meanwhile, from the dock's POST as from a row", function()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      assert.matches("Mycobloom", container.queueLabel.text, 1, true)
+      container.queueButton.scripts.OnClick(container.queueButton)
+      assert.equal(2, posts)
+      assert.equal(3, postedSlots[2]) -- Mycobloom's own slot
+    end)
+
+    it("tells the late answer from the post on the wire by the item the client names", function()
+      local recorded = recordedPosts()
+      bags = TWO_ITEMS
+      readyTwo()
+      pressRowPost(23427)
+      fire(8)
+      local myco = pressRowPost(210796)
+      auctions[501] = 23427
+      GC.Sell.OnAuctionCreated(501)
+      assert.equal(1, #recorded)
+      assert.equal(23427, recorded[1][2])
+      assert.equal("posting", myco.postStage) -- still waiting for its own answer
+      assert.is_true(myco.action.busy)
+      assert.matches("^Posted", container.dockStatus.text)
+      -- Its moment over, the dock is back on the post still out, not on the walk.
+      assert.equal(1, fire(1.5))
+      assert.equal("Posting…", container.dockStatus.text)
+      auctions[502] = 210796
+      GC.Sell.OnAuctionCreated(502)
+      assert.equal(2, #recorded)
+      assert.equal(210796, recorded[2][2])
+      assert.is_nil(myco.postStage)
+    end)
+
+    it("credits nobody with an auction the client names as some other item", function()
+      local recorded = recordedPosts()
+      ready()
+      local row = pressRowPost()
+      auctions[777] = 555
+      GC.Sell.OnAuctionCreated(777)
+      assert.equal(0, #recorded)
+      assert.equal("posting", row.postStage)
+    end)
+
+    it("stops listening, and lets the item post again, once its window has closed", function()
+      local recorded = recordedPosts()
+      ready()
+      pressRowPost()
+      fire(8)
+      _G.time = function() return 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1 end
+      GC.Sell.OnAuctionCreated()
+      assert.equal(0, #recorded)
+      GC.QuoteCache.Set(quotes(), 23427, 184719, 1000 + GC.Sell.LATE_ANSWER_SECONDS + 1)
+      pressRowPost()
+      assert.equal(2, posts)
     end)
   end)
 

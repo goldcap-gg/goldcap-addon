@@ -405,6 +405,8 @@ GC.Locales.esMX = {
   ["Start scanning as soon as the auction house opens."] =
     "Empezar a escanear en cuanto se abra la Casa de Subastas.",
   ["Status"] = "Estado",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Aún esperando a que la casa de subastas responda a la última publicación",
   ["Stop and open the buy window on your price"] = "Detener y abrir la ventana de compra a tu precio",
   ["Stress exit unit"] = "Precio de salida bajo presión",
   ["Stress profit"] = "Beneficio bajo presión",

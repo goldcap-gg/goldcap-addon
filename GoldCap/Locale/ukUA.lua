@@ -414,6 +414,8 @@ GC.Locales.ukUA = {
   ["Start scanning as soon as the auction house opens."] =
     "Починати сканування одразу після відкриття аукціонного дому.",
   ["Status"] = "Статус",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Чекаємо, поки аукціон відповість на попереднє виставлення",
   ["Stop and open the buy window on your price"] = "Зупинити й відкрити вікно купівлі за вашою ціною",
   ["Stress exit unit"] = "Ціна стрес-виходу",
   ["Stress profit"] = "Стрес-прибуток",

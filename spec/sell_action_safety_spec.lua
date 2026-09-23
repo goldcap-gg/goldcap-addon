@@ -763,7 +763,13 @@ describe("Sell protected action state", function()
     assert.equal(1, refreshes)
   end)
 
-  it("[C6] post timeout restores the exact row and prevents later activity", function()
+  -- The watchdog gives up on the wire, not on the post. PostCommodity answering false means the
+  -- post was SENT (Blizzard's own sell frame reads it the same way), so an
+  -- AUCTION_HOUSE_AUCTION_CREATED after the timeout is that post going up late. This test used to
+  -- pin the opposite ("prevents later activity"): the late auction was thrown away, never recorded
+  -- against its batch, and the price chosen for it never spent. It is now recorded once, exactly
+  -- as an on-time one would be; the row the timeout handed back stays handed back.
+  it("[C6] post timeout restores the exact row, and a late answer is still that post's", function()
     local calls, records, timers = 0, 0, {}
     _G.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
     _G.C_AuctionHouse = { PostCommodity = function() calls = calls + 1; return false end }
@@ -798,9 +804,15 @@ describe("Sell protected action state", function()
     assert.is_nil(row.postStage)
     assert.equal("Post", row.action.label)
     assert.is_true(row.action.enabled)
+    GC.Sell.Refresh = function() end
     GC.Sell.OnAuctionCreated()
     assert.equal(1, calls)
-    assert.equal(0, records)
+    assert.equal(1, records)
+    assert.is_nil(row.postStage)
+    assert.equal("Post", row.action.label)
+    -- Once: a second creation is not the same post again.
+    GC.Sell.OnAuctionCreated()
+    assert.equal(1, records)
   end)
 
   it("[C6] OnPostError restores Post and invalidates its timer and activity pin", function()

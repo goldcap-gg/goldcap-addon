@@ -139,6 +139,8 @@ GC.Locales.enUS = {
   ["Cap: %d%%"] = "Cap: %d%%",
   ["%d lines"] = "%d lines",
   ["Search"] = "Search",
+  ["Still waiting for the auction house to answer the last post"] =
+    "Still waiting for the auction house to answer the last post",
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",

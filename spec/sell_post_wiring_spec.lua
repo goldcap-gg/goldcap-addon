@@ -55,7 +55,7 @@ describe("Sell posting wiring", function()
   it("keeps CancelAuction inside onRepostClick and routes the cancel control through it", function()
     local text = source()
     local repostStart = assert(text:find("local function onRepostClick(row, auctionID)", 1, true))
-    local repostEnd = assert(text:find("function GC.Sell.OnAuctionCreated()", repostStart, true))
+    local repostEnd = assert(text:find("function GC.Sell.OnAuctionCreated(", repostStart, true))
     local before = text:sub(1, repostStart - 1)
     local body = text:sub(repostStart, repostEnd - 1)
     local after = text:sub(repostEnd)
@@ -113,6 +113,18 @@ describe("Sell posting wiring", function()
     assert.is_truthy(queued:find("GC.Sell.OnThrottleQueued()", 1, true))
   end)
 
+  -- AUCTION_HOUSE_AUCTION_CREATED carries the new auction's id. With a post that timed out still
+  -- able to go up late while the next one is on the wire, the id is how the tab asks the client
+  -- WHICH item went up (C_AuctionHouse.GetAuctionInfoByID), instead of crediting whichever post
+  -- happens to be pinned.
+  it("hands the created auction's id to the Sell tab", function()
+    local f = assert(io.open("GoldCap/Core/Init.lua", "r"))
+    local init = f:read("*a")
+    f:close()
+    local created = assert(init:match('event == "AUCTION_HOUSE_AUCTION_CREATED" then(.-)\n  elseif'))
+    assert.is_truthy(created:find("GC.Sell.OnAuctionCreated((...))", 1, true))
+  end)
+
   -- The addon-wide rule, restated at the module boundary this spec owns: no protected AH call
   -- anywhere in this file may sit inside a function whose own name suggests it runs off a
   -- timer or an event (helper.loadModule's own tests already cover the individual timers by
@@ -159,7 +171,7 @@ describe("a price the seller chose reaches the post intact", function()
   -- of the same item at a number chosen for a market that is gone.
   it("spends the chosen price when the auction it was chosen for is created", function()
     local text = source()
-    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(%)(.-)\nend"))
+    local created = assert(text:match("function GC%.Sell%.OnAuctionCreated%(auctionID%)(.-)\nend"))
     assert.is_truthy(created:find("priceOverrides[pin.positionKey] = nil", 1, true))
   end)
 
