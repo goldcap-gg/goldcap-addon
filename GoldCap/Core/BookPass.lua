@@ -54,9 +54,10 @@ function GC.BookPass.New(driver, opts)
 
   -- Lets go of every carried row Seen() can no longer answer with: past seenSeconds, or shadowed by
   -- this visit's book (Seen answers from the book first). An emptied table keeps the slots it grew
-  -- to, so an empty one is replaced -- a big realm's close carries tens of thousands of rows.
+  -- to, so an empty one is replaced -- a big realm's close carries tens of thousands of rows -- also
+  -- when Reset's own writes emptied it.
   local function prune()
-    if next(recent) == nil then return end
+    if next(recent) == nil then recent = {} return end
     local now = driver.now()
     local left = false
     for itemID, row in pairs(recent) do

@@ -583,6 +583,29 @@ describe("BookPass", function()
     assert.equal(650, bp:Seen(2).floor)   -- the book's row is untouched
   end)
 
+  -- An emptied table keeps the slots it grew to. Emptied by Reset's own writes -- every carried row
+  -- seen again this visit, and the visit longer than the window -- it is replaced all the same
+  -- (final re-review N3).
+  it("replaces the carried-over table once Reset has emptied it", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()                 -- seenAt 1000
+    bp:Reset()                            -- carries 1
+    local carried = recentOf(bp)
+    assert.equal(500, carried[1].floor)
+    now = 1100
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()                 -- seen again, at 1100
+    now = 1100 + 900
+    bp:Reset()                            -- too old to carry: Reset's own write empties the table
+    assert.is_nil(next(recentOf(bp)))
+    assert.is_false(rawequal(carried, recentOf(bp)))
+  end)
+
   -- The close path schedules this for LIVE_TOOLTIP_SECONDS after the close (UI/SniperFrame.lua): by
   -- then every row that close carried is past the window. A later close's rows are not, and the book
   -- of a visit open when it fires is never touched.
