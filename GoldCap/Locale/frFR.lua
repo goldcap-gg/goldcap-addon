@@ -630,6 +630,8 @@ GC.Locales.frFR = {
   ["placing bid..."] = "dépôt de l'enchère...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "achat de marchandise précédent réglé -- Refresh pour revérifier le prix",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "le prix a changé après la fermeture de la fenêtre d'achat -- rien n'a été acheté",
   ["price checked, sale speed unknown -- this one is your call"] =
     "prix vérifié, vitesse de vente inconnue -- à toi de décider",
   ["price confirmed -- click Buy to purchase"] = "prix confirmé -- cliquez sur Buy pour acheter",

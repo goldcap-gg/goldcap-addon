@@ -6806,6 +6806,37 @@ function GC.Sniper.OwnsAuctionPurchase(auctionID)
   return pendingAuction[auctionID] ~= nil
 end
 
+-- Fix round 1 (minor 1): a confirmed attempt the server has just re-quoted (see the "confirming"
+-- branch of OnCommodityPriceUpdated below: the price moved, nothing was bought, and the purchase
+-- waits for another Confirm), with no window left to confirm it from -- the player closed it with
+-- Escape, which works at "confirming", and is looking at another row or at the same row opened
+-- again. Left there, the attempt was un-confirmed and re-armed with no window: the next window
+-- stayed dark to its own expiry and then answered "finish the pending buy first" on a lit Buy;
+-- on the same row opened again (whose new Check moved the token on, so the re-quote was ignored)
+-- it stayed "confirmed" until the stranded release reported, for a purchase that never happened,
+-- "purchase total unavailable -- inspect mailbox". Nobody can click Confirm, so it is cancelled:
+-- drained into an unconfirmed tombstone that remembers it was once confirmed (a late success
+-- still lands on "inspect mailbox"), its own row let go if it still holds it, the player told in
+-- chat and on the status line, and whoever waited on it handed Refresh. A field, not a local: this
+-- chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._DropRequotedConfirm(pending)
+  local row = pending.row
+  local holdsRow = row.purchaseToken == pending.token and row.purchaseStage == "confirming"
+  local deal = pending.deal
+  pending.confirmed = nil
+  pending.wasConfirmed = true
+  pending.lastDeal = deal
+  pending.deal, pending.quote = nil, nil
+  C_AuctionHouse.CancelCommoditiesPurchase()
+  pending.cancelRequested = true
+  drainCommodityPurchase(row)
+  -- A row the same row's new Check has taken over is that Check's, and is not touched.
+  if holdsRow then resolvePurchase(row, false) end
+  reportDetachedCommodity({ token = pending.token, itemID = pending.itemID, deal = deal },
+    GC.L["price changed after you closed the buy window -- nothing was bought"])
+  GC.Sniper._HandOffSettled()
+end
+
 function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   if commodityDraining then
     -- Price updates are non-terminal. Keep draining through every one, and re-send Cancel for
@@ -6815,6 +6846,13 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
   local pending = commodityPurchase
   local row = pending and pending.row
+  -- The one purchase in flight is confirmed, so this update is its re-quote, whatever the row's
+  -- token now says -- and no window is showing that row at "confirming" to take it.
+  if pending and pending.confirmed and row and not (dialog and dialog.row == row
+      and row.purchaseStage == "confirming" and row.purchaseToken == pending.token) then
+    GC.Sniper._DropRequotedConfirm(pending)
+    return
+  end
   if not row or pending.itemID == nil or pending.token == nil
       or row.purchaseToken ~= pending.token then
     return -- a late event cannot take ownership of a newer row/token

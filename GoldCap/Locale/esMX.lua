@@ -634,6 +634,8 @@ GC.Locales.esMX = {
   ["placing bid..."] = "pujando...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "compra de mercancía anterior liquidada -- pulsa Refresh para volver a comprobar el precio",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "el precio cambió después de cerrar la ventana de compra -- no se compró nada",
   ["price checked, sale speed unknown -- this one is your call"] =
     "precio comprobado, velocidad de venta desconocida -- esta la decides tú",
   ["price confirmed -- click Buy to purchase"] = "precio confirmado -- pulsa Buy para comprar",

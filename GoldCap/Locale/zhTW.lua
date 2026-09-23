@@ -574,6 +574,8 @@ GC.Locales.zhTW = {
   ["placing bid..."] = "正在出價...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "前一筆商品購買已結算 -- 按 Refresh 重新檢查價格",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "關閉購買視窗後價格變了 -- 沒有買到任何東西",
   ["price checked, sale speed unknown -- this one is your call"] = "價格已核對，售出速度未知 -- 這一筆由你決定",
   ["price confirmed -- click Buy to purchase"] = "價格已確認 -- 按 Buy 購買",
   ["price rose %.1fx — still safe, confirm"] = "價格上漲 %.1f 倍 — 仍然安全，請確認",

@@ -630,6 +630,8 @@ GC.Locales.ptBR = {
   ["placing bid..."] = "dando o lance...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "compra de mercadoria anterior liquidada -- clique em Refresh para conferir o preço de novo",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "o preço mudou depois que você fechou a janela de compra -- nada foi comprado",
   ["price checked, sale speed unknown -- this one is your call"] =
     "preço conferido, velocidade de venda desconhecida -- essa é sua decisão",
   ["price confirmed -- click Buy to purchase"] = "preço confirmado -- clique em Buy para comprar",

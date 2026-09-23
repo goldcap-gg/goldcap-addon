@@ -592,6 +592,8 @@ GC.Locales.koKR = {
   ["placing bid..."] = "입찰 중...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "이전 상품 구매가 끝남 -- Refresh로 가격을 다시 확인하세요",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "구매 창을 닫은 뒤 가격이 바뀌었습니다 -- 아무것도 구매하지 않았습니다",
   ["price checked, sale speed unknown -- this one is your call"] =
     "가격은 확인했지만 판매 속도는 알 수 없습니다 -- 판단은 당신 몫입니다",
   ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",

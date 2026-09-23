@@ -631,6 +631,8 @@ GC.Locales.itIT = {
   ["placing bid..."] = "invio dell'offerta...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "acquisto di merce precedente chiuso -- premi Refresh per ricontrollare il prezzo",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "il prezzo è cambiato dopo che hai chiuso la finestra di acquisto -- non è stato comprato nulla",
   ["price checked, sale speed unknown -- this one is your call"] =
     "prezzo verificato, velocità di vendita ignota -- questa la decidi tu",
   ["price confirmed -- click Buy to purchase"] = "prezzo confermato -- clicca Buy per comprare",

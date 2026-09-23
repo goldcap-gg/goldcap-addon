@@ -628,6 +628,8 @@ GC.Locales.ruRU = {
   ["placing bid..."] = "делаем ставку...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "предыдущая покупка товара завершена -- Refresh, чтобы перепроверить цену",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "цена изменилась после закрытия окна покупки -- ничего не куплено",
   ["price checked, sale speed unknown -- this one is your call"] =
     "цена проверена, скорость продажи неизвестна -- решать вам",
   ["price confirmed -- click Buy to purchase"] = "цена подтверждена -- нажмите Buy, чтобы купить",

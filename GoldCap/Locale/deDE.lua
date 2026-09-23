@@ -632,6 +632,8 @@ GC.Locales.deDE = {
   ["placing bid..."] = "Gebot wird abgegeben...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "vorheriger Warenkauf abgeschlossen -- Refresh, um den Preis erneut zu prüfen",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "Preis hat sich geändert, nachdem du das Kauffenster geschlossen hast -- nichts wurde gekauft",
   ["price checked, sale speed unknown -- this one is your call"] =
     "Preis geprüft, Verkaufstempo unbekannt -- das entscheidest du",
   ["price confirmed -- click Buy to purchase"] = "Preis bestätigt -- Buy klicken zum Kaufen",

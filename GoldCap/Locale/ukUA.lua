@@ -645,6 +645,8 @@ GC.Locales.ukUA = {
   ["placing bid..."] = "робимо ставку...",
   ["previous commodity purchase settled -- Refresh to re-check the price"] =
     "попередню купівлю товару завершено -- Refresh, щоб перевірити ціну ще раз",
+  ["price changed after you closed the buy window -- nothing was bought"] =
+    "ціна змінилася після закриття вікна купівлі -- нічого не куплено",
   ["price checked, sale speed unknown -- this one is your call"] =
     "ціну перевірено, швидкість продажу невідома -- вирішувати вам",
   ["price confirmed -- click Buy to purchase"] =

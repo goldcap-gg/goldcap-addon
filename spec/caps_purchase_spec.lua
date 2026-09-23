@@ -1480,6 +1480,71 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.equal("requerying", realmRow.purchaseStage)
       end)
 
+      -- Fix round 1, minor 1: the server may answer a Confirm with a new quote -- the price moved
+      -- between the quote and the click, nothing was bought, and Blizzard's own dialog asks for
+      -- another click. After Escape there is no window to click it from. The attempt used to be
+      -- left un-confirmed and re-armed with no window: the next window stayed dark to its own
+      -- expiry and then answered "finish the pending buy first" on a lit Buy, and on the same row
+      -- reopened the attempt stayed "confirmed" until the stranded release reported a purchase
+      -- that never happened. It is cancelled now, and whoever waited on it is handed Refresh.
+      describe("when the server re-quotes a purchase whose window was closed", function()
+        local DROPPED = "price changed after you closed the buy window -- nothing was bought"
+
+        it("cancels it and hands the next window Refresh", function()
+          local GC, first, _, d, click, abort = armed()
+          confirmOn(GC, first, click)
+          d.row = nil -- Escape
+          abort(first, "purchase canceled")
+          local lot = { itemID = 42, isCommodity = true, cap = CAP, unitPrice = UNIT, qty = QTY }
+          local book = freshBook()
+          local second = { deal = lot, purchaseToken = 1 }
+          local d2 = armOnDialog(GC, second, lot, capLive(GC, 42, book).decision, book)
+          assert.is_false(d2.enabled)
+
+          GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY) -- still under the cap
+
+          assert.equal(1, cancels)
+          assert.equal(1, confirms) -- never confirmed again
+          assert.is_nil(first.purchaseStage) -- the closed window's row is let go
+          assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+          assert.is_false(GC.Sniper.HasStrandedConfirmed())
+          assert.equal(0, GC.Sniper.session.buys)
+          assert.equal(GC.L[DROPPED], GC.Sniper.detachedCommodityStatus[42].note)
+          assert.equal("expired", second.purchaseStage)
+          assert.is_true(d2.enabled)
+          click() -- Refresh: a Check
+          assert.equal(1, starts)
+          answer(GC)
+          click() -- Buy
+          assert.equal(2, starts)
+        end)
+
+        it("does not leave the same row, opened again, behind a purchase that never happened", function()
+          local GC, first, deal, d, click, abort = armed()
+          confirmOn(GC, first, click)
+          local pending = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase")
+          d.row = nil
+          abort(first, "purchase canceled")
+          reopened(GC, first, deal)
+          getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(first, deal)
+          answer(GC)
+          assert.equal("ready", first.purchaseStage)
+
+          GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY)
+
+          assert.equal(1, cancels)
+          assert.is_false(GC.Sniper.HasStrandedConfirmed())
+          assert.equal("expired", first.purchaseStage)
+          GC.Sniper._ReleaseStrandedConfirmed(pending) -- its 35-second timer, later
+          assert.equal(GC.L[DROPPED], GC.Sniper.detachedCommodityStatus[42].note)
+          assert.equal(0, GC.Sniper.session.buys)
+          click() -- Refresh: a Check
+          answer(GC)
+          click() -- Buy
+          assert.equal(2, starts)
+        end)
+      end)
+
       -- Fix round 1, minor 2: a window armed over a confirmed purchase still owed its answer said
       -- "price confirmed -- click Buy to purchase" on a lit, green Buy -- which the owner reads as
       -- ready -- and only the click turned it dark. It waits from the moment it arms.
