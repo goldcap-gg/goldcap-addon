@@ -400,7 +400,7 @@ GC.Locales.ukUA = {
   ["Sales are costed from your oldest units first"] =
     "Продажі списуються спершу з найстаріших одиниць",
   ["Search"] = "Пошук",
-  ["Sales certainty"] = "Певн. продажів",
+  ["Sales evidence"] = "Дані продажів",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продаж виставляє на одну сходинку вище найдешевшої пропозиції, якщо книга ордерів показує таку саму швидкість продажу.",
   ["Sell-through"] = "Викуповуваність",
@@ -579,7 +579,7 @@ GC.Locales.ukUA = {
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
   ["expires in %d s"] = "спливає за %d с",
-  ["fair"] = "середня",
+  ["fair"] = "прийнятні",
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
@@ -596,7 +596,7 @@ GC.Locales.ukUA = {
   ["full scan stopped -- press %s to run it again"] =
     "повне сканування зупинено -- натисніть %s, щоб запустити його знову",
   ["gone / price changed"] = "зникло / ціна змінилася",
-  ["high"] = "висока",
+  ["strong"] = "надійні",
   ["hold"] = "тримати",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не вдалося визначити (варіативний предмет -- ціна не рахується навмисно)",
@@ -628,7 +628,7 @@ GC.Locales.ukUA = {
   ["live safety confirmed -- click Buy to purchase"] =
     "безпеку підтверджено наживо -- натисніть Buy, щоб купити",
   ["live verification required"] = "потрібна жива перевірка",
-  ["low"] = "низька",
+  ["weak"] = "слабкі",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["market %s"] = "ринок %s",

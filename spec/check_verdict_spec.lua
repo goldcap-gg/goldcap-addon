@@ -416,8 +416,13 @@ describe("CheckVerdict", function()
   -- can't price this" (in game 2026-09-23), as if it were about the verdict or the price. Its
   -- label says what it measures, and is not "Sell-through", which another fact already is.
   it("names the sold-or-expired certainty for what it measures", function()
-    assert.equal("Sales certainty", GC.CheckVerdict.FACT_LABEL.confidence)
+    assert.equal("Sales evidence", GC.CheckVerdict.FACT_LABEL.confidence)
     assert.are_not.equal(GC.CheckVerdict.FACT_LABEL.sellThrough, GC.CheckVerdict.FACT_LABEL.confidence)
+  end)
+
+  -- Evidence is strong or weak, not high or low: the reading agrees with the label it sits beside.
+  it("reads the sales evidence as weak, fair or strong", function()
+    assert.same({ low = "weak", fair = "fair", high = "strong" }, GC.CheckVerdict.CONFIDENCE_WORD)
   end)
 
   it("survives a decision it cannot read rather than erroring on the buy path", function()

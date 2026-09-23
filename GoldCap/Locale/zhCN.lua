@@ -360,7 +360,7 @@ GC.Locales.zhCN = {
   ["SHOW DETAILS ▸"] = "显示详情 ▸",
   ["Sales are costed from your oldest units first"] = "销售成本从最旧的库存开始扣减",
   ["Search"] = "搜索",
-  ["Sales certainty"] = "销售可信度",
+  ["Sales evidence"] = "销售可信度",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "当挂单簿显示卖得一样快时，出售标签会挂在最低价上方一级。",
   ["Sell-through"] = "售罄率",
@@ -529,7 +529,7 @@ GC.Locales.zhCN = {
   ["full scan stalled -- retrying shortly"] = "完整扫描卡住了 -- 稍后重试",
   ["full scan stopped -- press %s to run it again"] = "完整扫描已停止 -- 按 %s 重新运行",
   ["gone / price changed"] = "已消失 / 价格已变",
-  ["high"] = "高",
+  ["strong"] = "高",
   ["hold"] = "持有",
   ["identity unresolved (variant item -- not priced by design)"] =
     "无法识别（变体物品 -- 按设计不计价）",
@@ -559,7 +559,7 @@ GC.Locales.zhCN = {
   ["listing gone -- bought out or repriced"] = "该拍卖已消失 — 被买走或改价",
   ["live safety confirmed -- click Buy to purchase"] = "已实时确认安全 -- 点击 Buy 购买",
   ["live verification required"] = "需要实时验证",
-  ["low"] = "低",
+  ["weak"] = "低",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "手动导入 -- Companion 会自动更新：/goldcap companion",
   ["market %s"] = "市场 %s",

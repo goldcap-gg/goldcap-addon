@@ -491,7 +491,7 @@ GC.Locales.enUS = {
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d BUYS",
   ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
-  ["Sales certainty"] = "Sales certainty",
+  ["Sales evidence"] = "Sales evidence",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Sell tab posts one rung above the cheapest ask when the book says it sells just as fast.",
   ["Sell-through"] = "Sell-through",
@@ -682,7 +682,7 @@ GC.Locales.enUS = {
   ["full scan stopped -- press %s to run it again"] =
     "full scan stopped -- press %s to run it again",
   ["gone / price changed"] = "gone / price changed",
-  ["high"] = "high",
+  ["strong"] = "strong",
   ["identity unresolved (variant item -- not priced by design)"] = "identity unresolved (variant item -- not priced by design)",
   ["if you buy all %d and sell them back at the price standing there now"] =
     "if you buy all %d and sell them back at the price standing there now",
@@ -718,7 +718,7 @@ GC.Locales.enUS = {
   ["listing gone -- bought out or repriced"] = "listing gone -- bought out or repriced",
   ["live safety confirmed -- click Buy to purchase"] = "live safety confirmed -- click Buy to purchase",
   ["live verification required"] = "live verification required",
-  ["low"] = "low",
+  ["weak"] = "weak",
   ["manual import"] = "manual import",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] = "manual import -- Companion keeps this fresh: /goldcap companion",
   ["needs a fresh price -- press Refresh"] = "needs a fresh price -- press Refresh",

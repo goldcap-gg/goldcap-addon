@@ -196,40 +196,46 @@ describe("row button labels fit the button", function()
   -- wrap (UI/SniperFrame.lua, createDialog). Measured at the default scale with the mono metric:
   -- exact for the bundled mono face ukUA and ruRU labels are drawn in away from a Russian client
   -- (Theme.RefreshFonts), an upper bound for a client's own face. The yardstick is the column's
-  -- own: in each language, the longest label already in it that fits. "Sales certainty" is new
-  -- there and must be no longer than that. English is the key itself and was ruled on its own;
-  -- spec/check_verdict_spec.lua pins it.
+  -- own: in each language, the longest label already in it that fits. "Sales evidence" is new
+  -- there and must be no longer than that, in English too, and whole words: a label cut to fit
+  -- ("Надёжн.") is not a wording. Its reading (weak/fair/strong) sits in the value cell beside it,
+  -- Theme.Num(factsBlock, 11) in DG.FACT_VALUE_W.
   local FACT_KEYS = { "Sellers", "Sold per day", "Sell-through", "Live ask", "Snapshot value",
     "You would pay", "You would get", "Gold tied up", "If it clears", "You pay", "Worst case back",
     "Your minimum", "Your price" }
   local sniper
-  local function factColumn()
+  local function sniperSource()
     if not sniper then
       local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
       sniper = file:read("*a")
       file:close()
     end
-    assert.is_truthy(sniper:find("rowFacts.label = Theme.Label(factsBlock, 11)", 1, true))
-    return tonumber(sniper:match("DG.FACT_LABEL_W = (%d+)"))
+    return sniper
   end
 
   for _, code in ipairs(helper.localeCodes()) do
-    if code ~= "enUS" then
-      it(("fits the %s Sales certainty label in the check pane's fact column"):format(code), function()
-        local GC = helper.loadModule("Locale/Core.lua")
-        helper.loadModule("Locale/" .. code .. ".lua", GC)
-        local translations = GC.Locales[code]
-        local budget = holds(factColumn(), 11, 1.0)
-        local yardstick = 0
-        for _, key in ipairs(FACT_KEYS) do
-          local width = displayWidth(assert(translations[key], code .. " is missing " .. key))
-          if width <= budget and width > yardstick then yardstick = width end
-        end
-        local label = assert(translations["Sales certainty"], code .. " is missing Sales certainty")
-        assert.is_true(displayWidth(label) <= yardstick, ("%s: %q is %d wide, the column's longest fitting label %d"):format(
-          code, label, displayWidth(label), yardstick))
-      end)
-    end
+    it(("fits the %s Sales evidence label and its readings in the check pane's facts"):format(code), function()
+      assert.is_truthy(sniperSource():find("rowFacts.label = Theme.Label(factsBlock, 11)", 1, true))
+      assert.is_truthy(sniperSource():find("rowFacts.value = Theme.Num(factsBlock, 11)", 1, true))
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      local budget = holds(tonumber(sniperSource():match("DG.FACT_LABEL_W = (%d+)")), 11, 1.0)
+      local yardstick = 0
+      for _, key in ipairs(FACT_KEYS) do
+        local width = displayWidth(translations[key] or key)
+        if width <= budget and width > yardstick then yardstick = width end
+      end
+      local label = assert(translations["Sales evidence"], code .. " is missing Sales evidence")
+      assert.is_true(displayWidth(label) <= yardstick, ("%s: %q is %d wide, the column's longest fitting label %d"):format(
+        code, label, displayWidth(label), yardstick))
+      assert.is_nil(label:find(".", 1, true), ("%s: %q is abbreviated"):format(code, label))
+      local valueBudget = holds(tonumber(sniperSource():match("DG.FACT_VALUE_W = (%d+)")), 11, 1.0)
+      for _, key in ipairs({ "weak", "fair", "strong" }) do
+        local word = assert(translations[key], code .. " is missing " .. key)
+        assert.is_true(displayWidth(word) <= valueBudget, ("%s: %q is %d wide"):format(code, word, displayWidth(word)))
+      end
+    end)
   end
 
   -- A deal only the wallet limit refused. Its verdict cell is the tier column's TierMark, mono-10

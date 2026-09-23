@@ -386,7 +386,7 @@ GC.Locales.ruRU = {
   ["Sales are costed from your oldest units first"] =
     "Продажи списываются сначала со старейших единиц",
   ["Search"] = "Поиск",
-  ["Sales certainty"] = "Надёжн. продаж",
+  ["Sales evidence"] = "Данные продаж",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Вкладка Продажа выставляет на одну ступень выше самой дешёвой заявки, если книга ордеров показывает такую же скорость продажи.",
   ["Sell-through"] = "Выкупаемость",
@@ -564,7 +564,7 @@ GC.Locales.ruRU = {
   ["data from goldcap.gg · synced %s ago"] = "данные с goldcap.gg · синхронизировано %s назад",
   ["due -- will be asked next pass"] = "очередь -- спросим следующим проходом",
   ["expires in %d s"] = "истекает через %d с",
-  ["fair"] = "средняя",
+  ["fair"] = "приемлемые",
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["first in line"] = "первый в очереди",
@@ -581,7 +581,7 @@ GC.Locales.ruRU = {
   ["full scan stopped -- press %s to run it again"] =
     "полное сканирование остановлено -- нажмите %s, чтобы запустить его снова",
   ["gone / price changed"] = "исчезло / цена изменилась",
-  ["high"] = "высокая",
+  ["strong"] = "надёжные",
   ["hold"] = "держать",
   ["identity unresolved (variant item -- not priced by design)"] =
     "не удалось определить (вариативный предмет -- цена не считается намеренно)",
@@ -613,7 +613,7 @@ GC.Locales.ruRU = {
   ["live safety confirmed -- click Buy to purchase"] =
     "безопасность подтверждена вживую -- нажмите Buy, чтобы купить",
   ["live verification required"] = "требуется живая проверка",
-  ["low"] = "низкая",
+  ["weak"] = "слабые",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
   ["market %s"] = "рынок %s",

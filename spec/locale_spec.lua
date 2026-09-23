@@ -134,12 +134,16 @@ describe("locale layer", function()
   -- The check pane's "Confidence" was renamed to what it measures (Core/CheckVerdict.lua's
   -- FACT_LABEL.confidence). Every language says it in its own words, and none keeps the old key
   -- behind: a stale translation of a word nothing asks for any more is a trap for the next edit.
-  it("names the sales certainty fact in every language, and drops the old Confidence", function()
+  it("names the sales evidence fact and its readings in every language, and drops the old words", function()
     for _, code in ipairs(helper.localeCodes()) do
       local loc = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", loc)
-      assert.is_string(loc.Locales[code]["Sales certainty"], code .. " is missing Sales certainty")
-      assert.is_nil(loc.Locales[code]["Confidence"], code .. " still carries Confidence")
+      for _, key in ipairs({ "Sales evidence", "weak", "fair", "strong" }) do
+        assert.is_string(loc.Locales[code][key], code .. " is missing " .. key)
+      end
+      for _, key in ipairs({ "Confidence", "Sales certainty", "low", "high" }) do
+        assert.is_nil(loc.Locales[code][key], code .. " still carries " .. key)
+      end
     end
   end)
 

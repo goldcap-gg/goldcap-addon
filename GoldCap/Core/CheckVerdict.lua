@@ -110,14 +110,14 @@ GC.CheckVerdict.RECONCILE_TEXT = {
 -- `confidence` is the sales tape's own certainty that listings which vanished were sold rather
 -- than left to expire -- the market's liquidityConfidence, nothing about the price or this
 -- verdict. Labelled "Confidence", it read "Confidence: high" beside "Won't buy -- can't price
--- this" (in game 2026-09-23). Its label names the sales it is certain about, and is not
+-- this" (in game 2026-09-23). Its label names the sales it is evidence of, and is not
 -- "Sell-through": that is `sellThrough`, a different figure.
 -- @localised-keys
 GC.CheckVerdict.FACT_LABEL = {
   sellers = "Sellers",
   soldPerDay = "Sold per day",
   sellThrough = "Sell-through",
-  confidence = "Sales certainty",
+  confidence = "Sales evidence",
   liveAsk = "Live ask",
   snapshotValue = "Snapshot value",
   youPay = "You would pay",
@@ -132,12 +132,14 @@ GC.CheckVerdict.FACT_LABEL = {
 
 -- A confidence score is 0-100 with no unit, so a bare "90" says nothing a player can act on.
 -- The meter beside it carries the precision; this carries the reading. MIN_CONFIDENCE is the
--- engine's own line, so "low" is exactly the band that refuses.
+-- engine's own line, so the `low` band is exactly the one that refuses. The words are evidence's
+-- own -- weak, fair, strong -- since they sit beside "Sales evidence", and each language words
+-- them to agree with its own label.
 -- @localised-keys
 GC.CheckVerdict.CONFIDENCE_WORD = {
-  low = "low",
+  low = "weak",
   fair = "fair",
-  high = "high",
+  high = "strong",
 }
 
 --- Which of CONFIDENCE_WORD's keys a score reads as. Here rather than in the panel because it

@@ -365,7 +365,7 @@ GC.Locales.koKR = {
   ["SHOW DETAILS ▸"] = "세부 정보 보기 ▸",
   ["Sales are costed from your oldest units first"] = "판매 원가는 가장 오래된 물량부터 차감됩니다",
   ["Search"] = "검색",
-  ["Sales certainty"] = "판매 신뢰도",
+  ["Sales evidence"] = "판매 신뢰도",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "매도 탭은 주문서가 같은 속도로 팔린다고 볼 때 최저가보다 한 단계 위에 등록합니다.",
   ["Sell-through"] = "판매 소진율",
@@ -544,7 +544,7 @@ GC.Locales.koKR = {
   ["full scan stalled -- retrying shortly"] = "전체 검색이 멈췄습니다 -- 곧 다시 시도합니다",
   ["full scan stopped -- press %s to run it again"] = "전체 검색이 중단됐습니다 -- %s 버튼을 눌러 다시 실행하세요",
   ["gone / price changed"] = "사라짐 / 가격 변경",
-  ["high"] = "높음",
+  ["strong"] = "높음",
   ["hold"] = "보류",
   ["identity unresolved (variant item -- not priced by design)"] =
     "식별 실패 (변형 아이템 -- 의도적으로 가격을 매기지 않음)",
@@ -575,7 +575,7 @@ GC.Locales.koKR = {
   ["listing gone -- bought out or repriced"] = "매물이 사라졌습니다 — 팔렸거나 가격이 바뀜",
   ["live safety confirmed -- click Buy to purchase"] = "실시간 안전 확인 완료 -- Buy를 눌러 구매하세요",
   ["live verification required"] = "실시간 확인이 필요합니다",
-  ["low"] = "낮음",
+  ["weak"] = "낮음",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "수동 가져오기 -- Companion이 자동 갱신합니다: /goldcap companion",
   ["market %s"] = "시세 %s",

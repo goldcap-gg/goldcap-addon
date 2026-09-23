@@ -388,7 +388,7 @@ GC.Locales.deDE = {
   ["Sales are costed from your oldest units first"] =
     "Verkäufe werden zuerst gegen deine ältesten Stück gerechnet",
   ["Search"] = "Suche",
-  ["Sales certainty"] = "Echt verkauft",
+  ["Sales evidence"] = "Verkaufsdaten",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Der Verkaufen-Tab bietet eine Stufe über dem günstigsten Gebot an, wenn das Orderbuch zeigt, dass es genauso schnell verkauft.",
   ["Sell-through"] = "Abverkaufsquote",
@@ -568,7 +568,7 @@ GC.Locales.deDE = {
   ["data from goldcap.gg · synced %s ago"] = "Daten von goldcap.gg · vor %s synchronisiert",
   ["due -- will be asked next pass"] = "fällig -- wird im nächsten Durchlauf abgefragt",
   ["expires in %d s"] = "läuft in %d s ab",
-  ["fair"] = "mittel",
+  ["fair"] = "brauchbar",
   ["far below market"] = "weit unter Markt",
   ["finish the pending buy first"] = "zuerst den laufenden Kauf abschließen",
   ["first in line"] = "als Erster dran",
@@ -585,7 +585,7 @@ GC.Locales.deDE = {
   ["full scan stopped -- press %s to run it again"] =
     "vollständiger Scan angehalten -- %s drücken, um ihn erneut zu starten",
   ["gone / price changed"] = "weg / Preis geändert",
-  ["high"] = "hoch",
+  ["strong"] = "solide",
   ["hold"] = "halten",
   ["identity unresolved (variant item -- not priced by design)"] =
     "nicht eindeutig (Variantengegenstand -- absichtlich ohne Preis)",
@@ -618,7 +618,7 @@ GC.Locales.deDE = {
   ["live safety confirmed -- click Buy to purchase"] =
     "Live-Sicherheit bestätigt -- Buy klicken zum Kaufen",
   ["live verification required"] = "Live-Prüfung erforderlich",
-  ["low"] = "niedrig",
+  ["weak"] = "dünn",
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "manueller Import -- Companion hält das aktuell: /goldcap companion",
   ["market %s"] = "Markt %s",
