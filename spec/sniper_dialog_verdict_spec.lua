@@ -441,6 +441,7 @@ describe("Sniper buy dialog verdict block", function()
 
   -- Almost no real figure is whole gold. The pane rounds the gold to hold UP, like the board's
   -- cell, so holding exactly the figure it prints is enough for the wallet limit to let it through.
+  -- The cost beside it is a price, and reads exactly as the "You would pay" fact under it does.
   it("rounds the gold to hold up, never down, and holding that much is enough", function()
     local GC, stamp = load()
     local d = capDialog()
@@ -453,8 +454,9 @@ describe("Sniper buy dialog verdict block", function()
     })
 
     assert.equal("5323g", d.verdictAmount.text)
-    assert.equal("Costs 267g. With your 5% per-buy limit you need 5323g on this character.",
-      d.verdictAmountNote.text)
+    assert.equal("Costs " .. GC.Util.FormatMoney(2661234)
+      .. ". With your 5% per-buy limit you need 5323g on this character.", d.verdictAmountNote.text)
+    assert.equal(GC.Util.FormatMoney(2661234), d.factRows[1].value.text) -- "You would pay"
     local limits = GC.SniperDecision.BuyLimits({ maxCapitalShare = 0.05, maxDailyDemandShare = 0.02,
       maxQuantity = 200, minimumProfitCopper = 50000, minimumRoi = 0.10 }, 5323 * 10000)
     assert.is_true(limits.budget >= 2661234)

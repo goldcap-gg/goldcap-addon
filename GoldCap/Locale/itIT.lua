@@ -743,6 +743,7 @@ GC.Locales.itIT = {
     "nel caso peggiore, rivendendo tutte e %d al prezzo esposto adesso",
   ["worth cancelling"] = "conviene annullare",
   ["would sell at a loss"] = "venderebbe in perdita",
+  ["you have enough gold for this now -- Check again"] = "ora hai oro a sufficienza -- clicca Check per ricontrollare",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "non hai ancora importato i prezzi del reame -- installa GoldCap Companion (/goldcap companion) o incolla una stringa da goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

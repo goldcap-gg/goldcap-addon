@@ -759,6 +759,7 @@ GC.Locales.ukUA = {
     "у найгіршому разі, якщо продати всі %d за ціною, що стоїть там зараз",
   ["worth cancelling"] = "варто скасувати",
   ["would sell at a loss"] = "продалося б у збиток",
+  ["you have enough gold for this now -- Check again"] = "тепер золота вистачає -- натисніть Check, щоб перевірити знову",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "ви ще не імпортували ціни реалму -- встановіть GoldCap Companion (/goldcap companion) або вставте рядок з goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

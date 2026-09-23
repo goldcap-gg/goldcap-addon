@@ -740,6 +740,7 @@ GC.Locales.ruRU = {
     "в худшем случае, если продать все %d по цене, которая стоит там сейчас",
   ["worth cancelling"] = "стоит отменить",
   ["would sell at a loss"] = "продалось бы в убыток",
+  ["you have enough gold for this now -- Check again"] = "теперь золота хватает -- нажмите Check, чтобы проверить снова",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "вы ещё не импортировали цены реалма -- установите GoldCap Companion (/goldcap companion) или вставьте строку с goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

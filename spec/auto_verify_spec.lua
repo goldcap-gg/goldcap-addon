@@ -1396,6 +1396,8 @@ describe("Deals background verification", function()
 
         assert.equal("Check", primary.label)
         assert.is_true(primary.enabled)
+        -- Not the wallet-limit refusal the answer carried: the gold is there now.
+        assert.equal("you have enough gold for this now -- Check again", status.text)
       end)
 
       -- Looting in a raid fires PLAYER_MONEY over and over; a window nobody is looking at does not

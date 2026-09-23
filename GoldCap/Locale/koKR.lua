@@ -695,6 +695,7 @@ GC.Locales.koKR = {
     "최악의 경우, %d개를 지금 걸려 있는 가격에 모두 되판다면",
   ["worth cancelling"] = "취소할 만함",
   ["would sell at a loss"] = "손해를 보고 팔게 됩니다",
+  ["you have enough gold for this now -- Check again"] = "이제 골드가 충분합니다 -- Check를 눌러 다시 확인하세요",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "아직 서버 시세를 가져오지 않았습니다 -- GoldCap Companion을 설치하거나(/goldcap companion) goldcap.gg의 문자열을 붙여넣으세요(/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =

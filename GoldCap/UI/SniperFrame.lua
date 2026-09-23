@@ -4191,11 +4191,13 @@ local function drawVerdict(deal, decision, market)
     caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
   elseif hero.kind == "needs" then
     -- A buy only the wallet limit refused: the gold the character must hold for it, unsigned --
-    -- a sum to have, not a gain -- and the caption says both that and what the buy costs. Both
-    -- rounded up (GC.Util.FormatGoldCeil), the same figure the board's cell prints.
+    -- a sum to have, not a gain -- rounded up (GC.Util.FormatGoldCeil), the same figure the
+    -- board's cell prints. The caption says both that and what the buy costs.
     figure = GC.Util.FormatGoldCeil(hero.copper)
     figureColor = Theme.color.gold
-    caption = (GC.L[CV.HERO_CAPTION.needs]):format(GC.Util.FormatGoldCeil(hero.cost or 0),
+    -- The cost is a price, formatted as the "You would pay" fact under it is; only the gold to
+    -- hold rounds up.
+    caption = (GC.L[CV.HERO_CAPTION.needs]):format(displayDecisionAmount(hero.cost),
       math.floor((hero.share or 0) * 100 + 0.5), GC.Util.FormatGoldCeil(hero.copper))
   else
     caption = GC.L[CV.HERO_CAPTION.unpriceable]
@@ -5477,11 +5479,19 @@ local function applyRequeryResult(row, itemID, live)
       local needs = decision.needsGold
       -- A pane can open on a pre-warm a few seconds old, from before gold arrived and after its
       -- PLAYER_MONEY had fired: then the gold already covers it, and the pane offers its Check
-      -- rather than a held Buy nothing would ask again (review M-3).
-      if needs and needs <= GetMoney() then needs = nil end
-      armCheck(row, deal, decision, needs
-        and (GC.L["not enough gold on this character -- you need %s"]):format(GC.Util.FormatGoldCeil(needs))
-        or GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
+      -- rather than a held Buy nothing would ask again (review M-3) -- saying so, not repeating
+      -- the wallet-limit refusal the old answer carried.
+      local covered = needs and needs <= GetMoney()
+      local note
+      if covered then
+        needs = nil
+        note = GC.L["you have enough gold for this now -- Check again"]
+      elseif needs then
+        note = (GC.L["not enough gold on this character -- you need %s"]):format(GC.Util.FormatGoldCeil(needs))
+      else
+        note = GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required")
+      end
+      armCheck(row, deal, decision, note, false)
       if needs and dialog and dialog.row == row then
         setPrimaryLabel("Buy")
         dialog.primaryBtn:Disable()

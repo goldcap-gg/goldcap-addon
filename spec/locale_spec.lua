@@ -163,6 +163,17 @@ describe("locale layer", function()
     end
   end)
 
+  -- The needs-gold cell names gold the character must HOLD, not a price being asked: es, mx and pt
+  -- say "exige", not the "pide"/"pede" a seller's asking price takes.
+  it("words the needs-gold cell as gold to hold in Spanish and Portuguese", function()
+    local expected = { esES = "exige %s", esMX = "exige %s", ptBR = "exige %s" }
+    for code, label in pairs(expected) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      assert.equal(label, loc.Locales[code]["needs %s"], code)
+    end
+  end)
+
   it("resolves the client locale on auto and the chosen one otherwise", function()
     assert.equal("deDE", GC.ResolveLocale("auto", "deDE"))
     assert.equal("enUS", GC.ResolveLocale("auto", nil))

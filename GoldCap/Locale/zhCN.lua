@@ -672,6 +672,7 @@ GC.Locales.zhCN = {
     "最坏情况下，把全部 %d 件按现在挂着的价格卖回去",
   ["worth cancelling"] = "值得取消",
   ["would sell at a loss"] = "卖出会亏损",
+  ["you have enough gold for this now -- Check again"] = "现在金币已足够 -- 点击 Check 重新检查",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "你还没有导入服务器价格 -- 请安装 GoldCap Companion（/goldcap companion）或粘贴 goldcap.gg 的字符串（/goldcap import）。",
   ["your game client has no font for this language — the text will show as empty boxes"] =

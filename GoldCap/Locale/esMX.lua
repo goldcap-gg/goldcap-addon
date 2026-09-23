@@ -623,7 +623,7 @@ GC.Locales.esMX = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "importación manual -- Companion lo mantiene al día: /goldcap companion",
   ["market %s"] = "mercado %s",
-  ["needs %s"] = "pide %s",
+  ["needs %s"] = "exige %s",
   ["needs a fresh price -- press Refresh"] = "necesita un precio nuevo -- pulsa Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "sin confirmación del servidor -- la compra puede haberse completado igualmente, revisa tu correo. Cerrar esto no la deshará.",
@@ -747,6 +747,7 @@ GC.Locales.esMX = {
     "en el peor caso, revendiendo las %d al precio que hay ahora mismo",
   ["worth cancelling"] = "conviene cancelar",
   ["would sell at a loss"] = "se vendería con pérdidas",
+  ["you have enough gold for this now -- Check again"] = "ya tienes oro suficiente -- pulsa Check para comprobar de nuevo",
   ["you haven't imported realm prices yet -- install GoldCap Companion (/goldcap companion) or paste a string from goldcap.gg (/goldcap import)."] =
     "aún no has importado los precios del reino -- instala GoldCap Companion (/goldcap companion) o pega una cadena de goldcap.gg (/goldcap import).",
   ["your game client has no font for this language — the text will show as empty boxes"] =
