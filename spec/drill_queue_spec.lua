@@ -400,10 +400,14 @@ describe("DrillQueue", function()
       q:Push({ itemID = 2, floor = 200, estProfit = 5 })
       now = now + 91
       assert.equal(0, q:Depth())
-      assert.equal(1, #lost)
-      assert.equal(1, lost[1].itemID)
-      assert.equal(100, lost[1].floor)
-      assert.is_true(lost[1].cap)
+      -- Both leave, and both are told now (whole-market coverage) -- the cap as a cap.
+      assert.equal(2, #lost)
+      local capLost
+      for _, entry in ipairs(lost) do
+        if entry.itemID == 1 then capLost = entry end
+      end
+      assert.equal(100, capLost.floor)
+      assert.is_true(capLost.cap)
     end)
 
     it("is reported when a better hit evicts it from the caps' full share", function()
@@ -441,14 +445,21 @@ describe("DrillQueue", function()
       assert.same({}, lost)
     end)
 
-    it("is not reported for an ordinary hit", function()
+    -- Whole-market coverage: an ordinary hit is reported too, as cap = false, so the book pass can
+    -- report its floor again later (Core/BookPass.lua's Lost) instead of forgetting it for good.
+    it("reports an ordinary hit as well, marked as no cap", function()
       local q = GC.DrillQueue.New(losingDriver())
       for i = 1, 200 do q:Push({ itemID = i, floor = 1, estProfit = 1000 + i }) end
       q:Push({ itemID = 9001, floor = 1, estProfit = 1 })    -- refused
       q:Push({ itemID = 9002, floor = 1, estProfit = 5000 }) -- evicts item 1
-      now = now + 91                                          -- the rest expire
+      assert.equal(2, #lost)
+      assert.equal(9001, lost[1].itemID)
+      assert.is_false(lost[1].cap)
+      assert.equal(1, lost[2].itemID)
+      now = now + 91                                          -- the 200 still queued expire
       q:Depth()
-      assert.same({}, lost)
+      assert.equal(202, #lost)
+      assert.equal(202, q:LostCount())
     end)
   end)
 
@@ -488,6 +499,45 @@ describe("DrillQueue", function()
       assert.is_nil(q:Peek())
       assert.is_false(q:Has(1))
       assert.is_true(q:Push({ itemID = 1, floor = 100, estProfit = 900 })) -- the key is free again
+    end)
+  end)
+
+  describe("expected value", function()
+    it("derives confidence from the item's own facts, 0.5 without them", function()
+      assert.equal(0.8, GC.DrillQueue.Confidence({ liquidityConfidence = 90, sellThroughBps = 8000 }))
+      assert.equal(0.6, GC.DrillQueue.Confidence({ liquidityConfidence = 60, sellThroughBps = 9500 }))
+      assert.equal(0.5, GC.DrillQueue.Confidence({ liquidityConfidence = 60 }))
+      assert.equal(0.5, GC.DrillQueue.Confidence(nil))
+      assert.equal(1, GC.DrillQueue.Confidence({ liquidityConfidence = 150, sellThroughBps = 20000 }))
+    end)
+
+    it("ranks ordinary hits by estProfit times confidence", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 1, estProfit = 1000, confidence = 0.2 }) -- 200
+      q:Push({ itemID = 2, floor = 1, estProfit = 500, confidence = 0.9 })  -- 450
+      q:Push({ itemID = 3, floor = 1, estProfit = 800 })                    -- 400 (0.5)
+      assert.equal(2, q:Pop().itemID)
+      assert.equal(3, q:Pop().itemID)
+      assert.equal(1, q:Pop().itemID)
+    end)
+
+    it("keeps a cap ahead of every ordinary hit, whatever their expected value", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 1, estProfit = 999999, confidence = 1 })
+      q:Push({ itemID = 2, floor = 1, estProfit = 1, priority = 1, cap = true })
+      assert.equal(2, q:Pop().itemID)
+    end)
+
+    it("hands confidence back, so a re-queued hit keeps its rank", function()
+      local q = GC.DrillQueue.New(fakeDriver())
+      q:Push({ itemID = 1, floor = 1, estProfit = 1000, confidence = 0.9 })
+      local head = q:Peek()
+      assert.equal(0.9, head.confidence)
+      local popped = q:Pop()
+      assert.equal(0.9, popped.confidence)
+      q:Push(popped)
+      q:Push({ itemID = 2, floor = 1, estProfit = 1000, confidence = 0.5 })
+      assert.equal(1, q:Pop().itemID)
     end)
   end)
 end)

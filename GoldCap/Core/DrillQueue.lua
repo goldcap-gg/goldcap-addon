@@ -3,10 +3,10 @@ local _, GC = ...
 -- Sniper fast loop, phase 1 (design doc §3 Drill-down): a bounded priority queue of
 -- Core/BookPass.lua hits waiting for a live SendSearchQuery. Pure and driver-injected
 -- (driver.now() only), like every other module in this batch. Push takes whatever the
--- caller hands it (itemID, floor, estProfit); Peek/Pop return the highest-estProfit entry
--- still queued, and Pop refuses once LIM.DRILL_PER_MINUTE sends have already gone out in the
--- trailing 60 seconds -- the budget this module enforces is SENDS, not pushes, so a busy
--- board never loses a hit for being unable to even queue it.
+-- caller hands it (itemID, floor, estProfit, confidence); Peek/Pop return the best-ranked
+-- entry still queued (see ranksBelow), and Pop refuses once LIM.DRILL_PER_MINUTE sends have
+-- already gone out in the trailing 60 seconds -- the budget this module enforces is SENDS,
+-- not pushes, so a busy board never loses a hit for being unable to even queue it.
 --
 -- Three operations, not one, because only ONE of them costs a send. Pop charges the budget
 -- and is therefore only correct once the caller knows the query will actually go out; Peek
@@ -35,11 +35,26 @@ local PRIORITY_RUN = 4
 local PRIORITY_SLOTS = 150
 GC.DrillQueue.PRIORITY_SLOTS = PRIORITY_SLOTS
 
+-- Whole-market coverage: how sure the item's own facts are that a buy resells -- the lower of its
+-- liquidity confidence (0-100) and its sell-through (basis points, taken as a percent), as a
+-- fraction. 0.5 when the item has no facts: a realm item, bundled data, anything judged by a
+-- reference alone. Ordinary hits rank by estProfit x this (the expected value of the drill).
+function GC.DrillQueue.Confidence(value)
+  local liquidity = type(value) == "table" and value.liquidityConfidence or nil
+  local sellThrough = type(value) == "table" and value.sellThroughBps or nil
+  if type(liquidity) ~= "number" or type(sellThrough) ~= "number" then return 0.5 end
+  local confidence = math.min(liquidity, sellThrough / 100) / 100
+  if confidence < 0 then return 0 end
+  if confidence > 1 then return 1 end
+  return confidence
+end
+
 function GC.DrillQueue.New(driver, opts)
   opts = opts or {}
   local perMinute = opts.perMinute or 60
   local obj = {}
-  local items = {}       -- array of { itemID, floor, estProfit, key, pushedAt }
+  -- array of { itemID, floor, estProfit, confidence, score, priority, cap, key, pushedAt }
+  local items = {}
   local queued = {}      -- "itemID:floor" -> true, cleared the moment an entry leaves
   local queuedItems = {} -- itemID -> how many entries carry it, so Has() costs nothing per row
   local sentAt = {}      -- sliding 60s window of driver.now() timestamps, one per successful Pop
@@ -52,15 +67,18 @@ function GC.DrillQueue.New(driver, opts)
 
   local function key(itemID, floor) return itemID .. ":" .. floor end
 
-  -- Caps fixes 4b: a cap hit that leaves without being drilled -- aged out, evicted from a full
-  -- queue, or refused by one -- is told to the caller. It came from a ratchet (Core/KeyPoll.lua's
-  -- Fold, GC.Caps.BookHits) that does not report an unchanged floor twice, so without a word here
-  -- the item was never looked at again until its price happened to move. The caller re-arms that
-  -- ratchet. An ordinary hit is not reported: the market's own leads were always best-effort.
-  -- A drilled (Pop), discarded (Drop) or session-cleared (Clear) entry is not lost.
+  -- A hit that leaves without being drilled -- aged out, evicted from a full queue, or refused by
+  -- one -- is told to the caller. A cap hit came from a ratchet (Core/KeyPoll.lua's Fold,
+  -- GC.Caps.BookHits) that does not report an unchanged floor twice, and the caller re-arms it
+  -- (caps fixes 4b). An ordinary hit is told too (whole-market coverage), marked cap = false: the
+  -- book pass then reports its floor again after LIM.REHIT_SECONDS instead of never. A drilled
+  -- (Pop), discarded (Drop) or session-cleared (Clear) entry is not lost.
+  local lostCount = 0
   local function lose(entry)
-    if entry.cap and driver.onLost then
-      driver.onLost({ itemID = entry.itemID, floor = entry.floor, priority = entry.priority, cap = true })
+    lostCount = lostCount + 1
+    if driver.onLost then
+      driver.onLost({ itemID = entry.itemID, floor = entry.floor, priority = entry.priority,
+        cap = entry.cap == true })
     end
   end
 
@@ -85,13 +103,14 @@ function GC.DrillQueue.New(driver, opts)
     end
   end
 
-  -- True when `a` ranks below `b`: lower priority first, estProfit desc breaks a tie. A cap
-  -- hit is the player's own rule; it is verified before any market-derived re-check, so it
-  -- outranks every priority-less (estProfit-only) hit regardless of how small its own
-  -- estProfit is -- up to PRIORITY_RUN pops in a row, see bestIndex.
+  -- True when `a` ranks below `b`: lower priority first, then the lower score. A priority entry's
+  -- score is its estProfit -- a cap hit is the player's own rule, verified before any
+  -- market-derived re-check, up to PRIORITY_RUN pops in a row (see bestIndex). An ordinary
+  -- entry's is estProfit x confidence (GC.DrillQueue.Confidence): the drill most likely to end in
+  -- a resale goes first, not merely the largest projected margin.
   local function ranksBelow(a, b)
     if a.priority ~= b.priority then return a.priority < b.priority end
-    return a.estProfit < b.estProfit
+    return a.score < b.score
   end
 
   -- The entry the next Pop takes, which is also the one Peek names. Ordinarily the best-ranked
@@ -134,6 +153,9 @@ function GC.DrillQueue.New(driver, opts)
     local estProfit = hit.estProfit or 0
     local priority = tonumber(hit.priority) or 0
     local cap = hit.cap == true
+    local confidence = tonumber(hit.confidence) or 0.5
+    if confidence < 0 then confidence = 0 elseif confidence > 1 then confidence = 1 end
+    local score = priority > 0 and estProfit or estProfit * confidence
     if queued[k] then
       -- The same item at the same floor, already queued -- but maybe reported by another source
       -- at a higher priority (the realm poll's ordinary hit, then the player's own cap). Still one
@@ -145,6 +167,7 @@ function GC.DrillQueue.New(driver, opts)
         if entry.key == k and priority > entry.priority then
           entry.priority = priority
           entry.estProfit = estProfit
+          entry.score = estProfit
           entry.cap = entry.cap or cap
         end
       end
@@ -161,7 +184,7 @@ function GC.DrillQueue.New(driver, opts)
         end
       end
       if held >= PRIORITY_SLOTS then
-        if not ranksBelow(items[worst], { priority = priority, estProfit = estProfit }) then
+        if not ranksBelow(items[worst], { priority = priority, score = score }) then
           lose({ itemID = hit.itemID, floor = hit.floor, priority = priority, cap = cap })
           return false
         end
@@ -177,7 +200,7 @@ function GC.DrillQueue.New(driver, opts)
       for i = 2, #items do
         if ranksBelow(items[i], items[worst]) then worst = i end
       end
-      if not ranksBelow(items[worst], { priority = priority, estProfit = estProfit }) then
+      if not ranksBelow(items[worst], { priority = priority, score = score }) then
         lose({ itemID = hit.itemID, floor = hit.floor, priority = priority, cap = cap })
         return false
       end
@@ -192,7 +215,8 @@ function GC.DrillQueue.New(driver, opts)
     -- re-queue bought the same undrillable item another ninety seconds at the front.
     local pushedAt = (type(hit.pushedAt) == "number" and hit.pushedAt < now) and hit.pushedAt or now
     items[#items + 1] = { itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
-      priority = priority, cap = cap, key = k, pushedAt = pushedAt }
+      confidence = confidence, score = score, priority = priority, cap = cap, key = k,
+      pushedAt = pushedAt }
     local expiresAt = pushedAt + ENTRY_TTL_SECONDS
     if expiresAt < nextExpiryAt then nextExpiryAt = expiresAt end
     return true
@@ -218,7 +242,8 @@ function GC.DrillQueue.New(driver, opts)
     -- reason: a re-queued cap hit that lost its priority on the way back in would fall to the
     -- back of the line behind ordinary estProfit hits.
     return { itemID = entry.itemID, floor = entry.floor, estProfit = entry.estProfit,
-      priority = entry.priority, cap = entry.cap, pushedAt = entry.pushedAt }
+      confidence = entry.confidence, priority = entry.priority, cap = entry.cap,
+      pushedAt = entry.pushedAt }
   end
 
   -- Discards one entry without charging the budget: the hit describes a floor the book has
@@ -255,7 +280,8 @@ function GC.DrillQueue.New(driver, opts)
       priorityRun = 0
     end
     return { itemID = chosen.itemID, floor = chosen.floor, estProfit = chosen.estProfit,
-      priority = chosen.priority, cap = chosen.cap, pushedAt = chosen.pushedAt }
+      confidence = chosen.confidence, priority = chosen.priority, cap = chosen.cap,
+      pushedAt = chosen.pushedAt }
   end
 
   -- Whether a live look at this item is already queued -- what a board row asks before it is
@@ -269,6 +295,9 @@ function GC.DrillQueue.New(driver, opts)
     pruneExpired(driver.now())
     return #items
   end
+
+  -- Every hit that left undrilled this session (lose above), for /gc board.
+  function obj:LostCount() return lostCount end
 
   -- Everything queued describes a live order book, and there is no live order book once the
   -- Auction House session is gone. The SENT window is deliberately left alone: that budget is

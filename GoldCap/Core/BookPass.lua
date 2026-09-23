@@ -17,12 +17,18 @@ GC.BookPass = {}
 function GC.BookPass.New(driver, opts)
   opts = opts or {}
   local widePassSeconds = opts.widePassSeconds or 300
+  -- Whole-market coverage: how soon an unchanged floor whose hit the drill queue let go of
+  -- undrilled (obj:Lost) may be reported again. A moved floor is reported at once, as always.
+  local rehitSeconds = opts.rehitSeconds or 120
   local classFilters = opts.itemClassFilters or {}
 
   local obj = {}
   local book = {}          -- itemID -> { floor, qty, seenAt, kind }; SURVIVES Abort() and every Start()
   local classesSeen = {}   -- itemID -> true, for any item EVER folded by a classes pass this
                             -- session (survives Abort()/Start(), cleared only by Reset())
+  local lost = {}          -- itemID -> true: its last hit left the drill queue undrilled (obj:Lost)
+  local reportedAt = {}    -- itemID -> driver.now() of its last hit
+  local rehits = 0         -- hits reported again after a loss, this session (/gc board)
   local kind = nil         -- nil | "classes" | "wide"
   local paging = false
   local pendingStart = false
@@ -45,6 +51,9 @@ function GC.BookPass.New(driver, opts)
   -- Hit = floor < trigger AND (floor changed since the previous pass OR qty grew). The first
   -- sighting of an item ever (prev == nil) counts as "changed": it seeds the book AND hits,
   -- per the design doc's "the first pass ... emits hits for everything below trigger".
+  -- Whole-market coverage: an unchanged floor is news again once the drill queue has let its last
+  -- hit go undrilled (obj:Lost) -- at most once per rehitSeconds, so a queue that keeps refusing an
+  -- item is not handed it on every 7-14 s pass.
   local function foldRow(row)
     local itemKey = row.itemKey
     local itemID = itemKey and itemKey.itemID
@@ -52,13 +61,19 @@ function GC.BookPass.New(driver, opts)
     if not itemID or not floor or floor <= 0 then return end
     local qty = row.totalQuantity
     local prev = book[itemID]
+    local now = driver.now()
     local trigger = driver.triggerFor(itemID)
-    local hit = trigger and floor < trigger
-      and (not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0))
-    book[itemID] = { floor = floor, qty = qty, seenAt = driver.now(), kind = kind }
+    local changed = not prev or prev.floor ~= floor or (qty or 0) > (prev.qty or 0)
+    local again = not changed and lost[itemID] == true
+      and (now - (reportedAt[itemID] or 0)) >= rehitSeconds
+    local hit = trigger and floor < trigger and (changed or again)
+    book[itemID] = { floor = floor, qty = qty, seenAt = now, kind = kind }
     if kind == "classes" then classesSeen[itemID] = true end
     if hit then
-      driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev })
+      lost[itemID] = nil
+      reportedAt[itemID] = now
+      if again then rehits = rehits + 1 end
+      driver.onHit({ itemID = itemID, floor = floor, qty = qty, prev = prev, rehit = again or nil })
     end
   end
 
@@ -148,6 +163,8 @@ function GC.BookPass.New(driver, opts)
   function obj:Reset()
     for itemID in pairs(book) do book[itemID] = nil end
     for itemID in pairs(classesSeen) do classesSeen[itemID] = nil end
+    for itemID in pairs(lost) do lost[itemID] = nil end
+    for itemID in pairs(reportedAt) do reportedAt[itemID] = nil end
     kind = nil
     paging = false
     pendingStart = false
@@ -170,6 +187,12 @@ function GC.BookPass.New(driver, opts)
   -- have a row for it right now" -- an item can leave the book (Reset) but classesSeen only
   -- clears with it.
   function obj:SeenByClasses(itemID) return classesSeen[itemID] == true end
+
+  -- The drill queue let this item's hit go undrilled (UI/SniperFrame.lua's _OnDrillLost): its
+  -- unchanged floor may be reported again, rehitSeconds after the last report.
+  function obj:Lost(itemID) lost[itemID] = true end
+
+  function obj:Rehits() return rehits end
 
   return obj
 end

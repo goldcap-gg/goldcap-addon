@@ -67,6 +67,10 @@
   check thousands more against their own sales. It is kept in memory only, so your saved
   variables do not grow. `/goldcap status` says how many commodities it covers and how old it
   is, or why it is not in use.
+- The sniper scans Miscellaneous items on every pass, alongside trade goods, consumables, gems
+  and enhancements. It checks first the deals most likely to sell, keeps paging the auction
+  house while it checks, and comes back to a deal it had no time to check two minutes later
+  instead of dropping it.
 
 ## 0.14.1 (unreleased)
 

@@ -706,6 +706,47 @@ describe("Search slot arbiter", function()
     assert.equal(1, GC.Sniper._drillQueue:Depth())
   end)
 
+  -- Whole-market coverage: with thousands of fact-bearing commodities the drill queue is never
+  -- empty, and drills went before pages every slot -- a 7-14 s pass stretched to minutes. While a
+  -- page waits too, drills take at most LIM.DRILL_SHARE slots in a row.
+  it("gives the book pass every third slot while drills and pages both wait", function()
+    local GC, watch = load()
+    watch.hungry = false
+    for i = 1, 9 do
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 40 + i }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 40 + i, floor = 900, estProfit = 100 - i })
+    end
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+    for _ = 1, 6 do
+      armPage(GC)
+      GC.Sniper.OnThrottleReady()
+    end
+    assert.same({ "drill", "drill", "page", "drill", "drill", "page" }, sent)
+    assert.equal(4, GC.Sniper._drillShare.drills)
+    assert.equal(2, GC.Sniper._drillShare.pages)
+  end)
+
+  it("lets drills take every slot when no page is waiting", function()
+    local GC, watch = load()
+    watch.hungry = false
+    GC.Sniper._bookPass:Abort()
+    for i = 1, 4 do
+      GC.Sniper._keyPoll:Fold({ { itemKey = { itemID = 40 + i }, minPrice = 900, totalQuantity = 1 } })
+      GC.Sniper._drillQueue:Push({ itemID = 40 + i, floor = 900, estProfit = 100 - i })
+    end
+    set(GC.Sniper.OnThrottleReady, "canDrillNow", function() return true end)
+    set(GC.Sniper.OnThrottleReady, "maybeStartPrewarm", function()
+      sent[#sent + 1] = "drill"
+      return true
+    end)
+    for _ = 1, 4 do GC.Sniper.OnThrottleReady() end
+    assert.same({ "drill", "drill", "drill", "drill" }, sent)
+  end)
+
   -- Same two gates the verify walk stands down for: with the Sell tab up nobody is reading
   -- what a drill answers, and while the player is working Blizzard's own panes their click
   -- outranks it. Both were taking slots from the Sell tab's pricing walk.

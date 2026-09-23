@@ -218,6 +218,11 @@ LIM.CAP_REOPEN_AFTER_CANCEL_SECONDS = 120
 -- per-minute SendSearchQuery budget. See Core/BookPass.lua / Core/DrillQueue.lua.
 LIM.WIDE_PASS_SECONDS = 300
 LIM.DRILL_PER_MINUTE = 60
+-- Whole-market coverage (2026-09-23). How soon the book pass may report again an unchanged floor
+-- whose hit the drill queue let go of undrilled (Core/BookPass.lua's Lost), and how many arbiter
+-- slots in a row drills may take while a book-pass page waits for one (the pass gets the next).
+LIM.REHIT_SECONDS = 120
+LIM.DRILL_SHARE = 2
 
 -- Sniper phase 2: how long a sent keys batch may go unanswered before the arbiter stops
 -- waiting for it. A batch answers in 200-400ms when it answers at all; this only exists so a
@@ -2858,20 +2863,41 @@ local function armScanWatchdog(token)
   end)
 end
 
-GC.Sniper._drillQueue = GC.DrillQueue.New({
-  now = time,
-  -- Caps fixes 4b: a cap hit the queue let go of without drilling it (aged out -- ninety seconds on
-  -- another tab, or behind a few hundred other caps -- or pushed out of a full queue). Both
-  -- ratchets that report cap hits (the book pass's, the caps' own poll's -- the realm poll no
-  -- longer reports any) are re-armed, so the next look at the same floor reports it again: they
-  -- never repeat an unchanged floor, and without this the lot sat there at the player's price for
-  -- the rest of the visit, unlooked at. Only the ratchets -- the ring's memory stays, since nothing
-  -- has been announced.
-  onLost = function(hit)
+-- A hit the drill queue let go of without drilling it (aged out -- ninety seconds on another tab,
+-- or behind a few hundred others -- pushed out of a full queue, or refused by one). A cap's (caps
+-- fixes 4b): both ratchets that report cap hits (the book pass's, the caps' own poll's -- the realm
+-- poll no longer reports any) are re-armed, so the next look at the same floor reports it again:
+-- they never repeat an unchanged floor, and without this the lot sat there at the player's price
+-- for the rest of the visit, unlooked at. Only the ratchets -- the ring's memory stays, since
+-- nothing has been announced. An ordinary hit's (whole-market coverage): the book pass may report
+-- its unchanged floor again after LIM.REHIT_SECONDS, where it used to stay silent until the floor
+-- happened to move.
+function GC.Sniper._OnDrillLost(hit)
+  if hit.cap then
     if GC.Caps then GC.Caps.Rearm(hit.itemID) end
     if GC.Sniper._capPoll then GC.Sniper._capPoll:Rearm(hit.itemID) end
-  end,
+    return
+  end
+  if GC.Sniper._bookPass then GC.Sniper._bookPass:Lost(hit.itemID) end
+end
+
+GC.Sniper._drillQueue = GC.DrillQueue.New({
+  now = time,
+  onLost = function(hit) GC.Sniper._OnDrillLost(hit) end,
 }, { perMinute = LIM.DRILL_PER_MINUTE })
+
+-- The arbiter's fair share (GC.Sniper.OnThrottleReady): drills served in a row while a page
+-- waited (`run`), and over the session how the contended slots went (`drills`, `pages`, for
+-- /gc board).
+GC.Sniper._drillShare = { run = 0, drills = 0, pages = 0 }
+
+-- A book-pass page the arbiter just granted: the drills' run is over, and when a drill was
+-- waiting for the same slot it counts toward /gc board's drillShare.
+function GC.Sniper._NotePassSlot(drillWaiting)
+  local share = GC.Sniper._drillShare
+  share.run = 0
+  if drillWaiting then share.pages = share.pages + 1 end
+end
 
 -- No isReady in this driver: the pass never decides for itself whether the throttled system
 -- is ready, because it never sends on its own initiative. Both of its sends happen inside
@@ -2923,7 +2949,8 @@ GC.Sniper._bookPass = GC.BookPass.New({
         GC.Data.GetItemValue(hit.itemID), GC.db.settings.sniper)
       if deal then estProfit = deal.estProfit end
     end
-    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit })
+    GC.Sniper._drillQueue:Push({ itemID = hit.itemID, floor = hit.floor, estProfit = estProfit,
+      confidence = GC.DrillQueue.Confidence(value) })
   end,
   -- Exactly today's streaming pipeline (evaluate the new tail, merge, refresh, ping, status),
   -- just triggered from BookPass's own tail instead of from a raw browse event handler.
@@ -2948,18 +2975,21 @@ GC.Sniper._bookPass = GC.BookPass.New({
       totalRawSeen, #scanDeals, screenedNote))
   end,
   onPassDone = function(info)
+    GC.Sniper._lastPass = info -- /gc board's lastPass
     applyFullScanResults(streamRows, info.items, info.kind)
   end,
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
-  -- Same Enum-with-numeric-fallback trick as the (unshipped) Spike.lua measurement spike:
-  -- an inline IIFE, not a named local -- this file is at its 200-local ceiling.
+  rehitSeconds = LIM.REHIT_SECONDS,
+  -- The classes pass: trade goods, consumables, gems, enhancements -- and Miscellaneous
+  -- (whole-market coverage: ~1,500 commodities a region, most of them reached before only by the
+  -- five-minute wide pass). Every other class stays on the wide pass. Each class falls back to its
+  -- own number where the client's Enum does not name it; an inline IIFE, not a named local --
+  -- this file is at its local ceiling.
   itemClassFilters = (function()
-    local ok, ids = pcall(function()
-      return { Enum.ItemClass.Tradegoods, Enum.ItemClass.Consumable,
-        Enum.ItemClass.Gem, Enum.ItemClass.ItemEnhancement }
-    end)
-    if not (ok and ids[1] and ids[2] and ids[3] and ids[4]) then ids = { 7, 0, 3, 8 } end
+    local E = (Enum and Enum.ItemClass) or {}
+    local ids = { E.Tradegoods or 7, E.Consumable or 0, E.Gem or 3, E.ItemEnhancement or 8,
+      E.Miscellaneous or 15 }
     local filters = {}
     for i = 1, #ids do filters[i] = { classID = ids[i] } end
     return filters
@@ -6612,9 +6642,21 @@ function GC.Sniper.OnThrottleReady()
   -- cannot be walked in one tick); or it is live and sendable, in which case Pop charges and a
   -- per-item decline inside maybeStartPrewarm (uncached item key, the drain fence, a fresh
   -- cached pre-warm) re-queues it for the next ready tick.
+  --
+  -- Fair share (whole-market coverage): with thousands of fact-bearing commodities the queue is
+  -- never empty, and drills going first every slot stretched a 7-14 s pass to minutes. While the
+  -- pass has a page waiting too, drills take at most LIM.DRILL_SHARE slots in a row; the pass
+  -- gets the next one (steps 4 and 5 below grant it and end the run through _NotePassSlot).
+  -- passWants is the same question step 4 asks; nothing between here and there sends and falls
+  -- through, so it cannot change on the way down.
+  local share = GC.Sniper._drillShare
+  local drillWaiting = GC.Sniper._drillQueue:Depth() > 0
+  local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
+    and not GC.Sniper._KeysOutstanding() and not GC.Sniper._BrowseOwned()
+  local drillsYield = passWants and share.run >= LIM.DRILL_SHARE
   for _ = 1, 2 do
     local hit = GC.Sniper._drillQueue:Peek()
-    if not hit or not canDrillNow() then break end
+    if not hit or drillsYield or not canDrillNow() then break end
     -- Any book may be the one that saw this floor: commodities come from the book pass, realm
     -- items from the key poll, caps from their own poll (caps fixes 4a -- the only one that ever
     -- sees a capped item nothing else lists), and none knows about the others' items. The hit is
@@ -6636,10 +6678,19 @@ function GC.Sniper.OnThrottleReady()
       -- it never removed stayed at the head of the queue to do the same again on the next
       -- ready tick. No answer means no send.
       if not GC.Sniper._drillQueue:Pop() then break end
-      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then return end
+      if maybeStartPrewarm({ itemID = hit.itemID, unitPrice = hit.floor }, true) then
+        if passWants then
+          share.run = share.run + 1
+          share.drills = share.drills + 1
+        else
+          share.run = 0
+        end
+        return
+      end
       -- Declined (an uncached item key, the drain fence, a fresh cached warm). Back in the
-      -- queue carrying its ORIGINAL age, so a hit that can never be sent still ages out
-      -- instead of sitting at the head for the rest of the session -- see Core/DrillQueue.lua.
+      -- queue carrying its ORIGINAL age and confidence, so a hit that can never be sent still
+      -- ages out instead of sitting at the head for the rest of the session -- see
+      -- Core/DrillQueue.lua.
       GC.Sniper._drillQueue:Push(hit)
       break
     end
@@ -6702,11 +6753,11 @@ function GC.Sniper.OnThrottleReady()
   -- folded into the poll instead of into the pass (_FoldKeysBatch runs first and returns) --
   -- the pass loses the page it was waiting for, and the fold, believing the page is the batch's
   -- own answer, deletes every realm row the batch had asked about. The batch is capped at
-  -- LIM.KEYS_TIMEOUT_SECONDS, so this can never hold the pass for long.
-  local passWants = GC.Sniper._bookPass:Wants() and not playerBusy
-    and not GC.Sniper._KeysOutstanding() and not GC.Sniper._BrowseOwned()
+  -- LIM.KEYS_TIMEOUT_SECONDS, so this can never hold the pass for long. (passWants itself is
+  -- asked above the drill step, which needs the same answer for its fair share.)
   if passWants and GC.Sniper._slotTurn ~= "tail" then
     if GC.Sniper._bookPass:OnThrottleReady() then
+      GC.Sniper._NotePassSlot(drillWaiting)
       GC.Sniper._slotTurn = "tail"
       return
     end
@@ -6757,6 +6808,7 @@ function GC.Sniper.OnThrottleReady()
   -- This is what keeps "alternate" from manufacturing idle slots: a tail with nothing to do
   -- never costs the scan a page.
   if passWants and GC.Sniper._bookPass:OnThrottleReady() then
+    GC.Sniper._NotePassSlot(drillWaiting)
     GC.Sniper._slotTurn = "tail"
     return
   end
@@ -11268,6 +11320,16 @@ function GC.Sniper.DebugBoard()
     s(GC.AuctionHouseTab and GC.AuctionHouseTab.PlayerIsBusy and GC.AuctionHouseTab.PlayerIsBusy()),
     s(prewarmAttempt ~= nil), s(GC.Sniper.IsPurchaseQuiet()),
     s(C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady and C_AuctionHouse.IsThrottledMessageSystemReady())))
+  -- Whole-market coverage: the sniper's supply chain -- how many items carry facts at all, how deep
+  -- the drill queue is, how many hits it let go undrilled and how many of those the book pass
+  -- reported again, how long the last pass took, and how the contended slots split.
+  local share, lastPass = GC.Sniper._drillShare, GC.Sniper._lastPass
+  GC.Print(("sniper: facts=%d queue=%d lost=%d rehits=%d lastPass=%s drillShare=%d/%d"):format(
+    data.FactItemIds and #data.FactItemIds() or 0,
+    GC.Sniper._drillQueue:Depth(), GC.Sniper._drillQueue:LostCount(), pass:Rehits(),
+    lastPass and ("%s %ds/%d pages"):format(tostring(lastPass.kind), math.floor(lastPass.seconds or 0),
+      lastPass.pages or 0) or "none",
+    share.drills, share.drills + share.pages))
   local reasons = {}
   for r in pairs(autoScan:PauseReasons()) do reasons[#reasons + 1] = r end
   GC.Print(("auto: state=%s reasons=[%s] pendingStart=%s busy: posting=%s buying=%s otherTab=%s searching=%s browsing=%s ownSearchShown=%s"):format(

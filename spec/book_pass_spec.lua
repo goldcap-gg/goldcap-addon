@@ -332,4 +332,65 @@ describe("BookPass", function()
     now = 1000 + 600
     assert.is_true(bp:IsWidePassDue()) -- due again after another 300s
   end)
+
+  describe("re-hits (whole-market coverage)", function()
+    local function passOf(rows, bp)
+      browseResults = rows
+      bp:Start("classes")
+      bp:OnThrottleReady()
+      bp:OnResultsUpdated()
+    end
+
+    it("reports an unchanged floor again once the queue lost it, no sooner than rehitSeconds after the last report", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(1, #hits)
+      bp:Lost(1)
+      now = 1000 + 60
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(1, #hits)            -- lost, but only 60 s since it was reported
+      now = 1000 + 120
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(2, #hits)            -- lost, and 120 s on: reported again
+      assert.is_true(hits[2].rehit)
+      assert.equal(1, bp:Rehits())
+      now = 1000 + 400
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(2, #hits)            -- not lost again since: silent, as before
+    end)
+
+    it("still reports a floor that moved at once, lost or not", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      bp:Lost(1)
+      now = 1000 + 5
+      passOf({ row(1, 490, 10) }, bp)
+      assert.equal(2, #hits)
+      assert.is_nil(hits[2].rehit)
+      assert.equal(0, bp:Rehits())
+    end)
+
+    it("never re-reports an unchanged floor nobody lost", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      now = 1000 + 600
+      passOf({ row(1, 500, 10) }, bp)
+      assert.equal(1, #hits)
+    end)
+
+    it("forgets what it lost when the auction house closes", function()
+      sent.triggers[1] = 1000
+      local bp = newPass({ rehitSeconds = 120 })
+      passOf({ row(1, 500, 10) }, bp)
+      bp:Lost(1)
+      bp:Reset()
+      now = 1000 + 5
+      passOf({ row(1, 500, 10) }, bp)  -- the first sighting after a reset reports, as always
+      assert.equal(2, #hits)
+      assert.is_nil(hits[2].rehit)
+    end)
+  end)
 end)

@@ -41,7 +41,7 @@ describe("Book pass wiring", function()
     return value
   end
 
-  local function loadSniper()
+  local function loadSniper(enum)
     browseSent, browseQueries, browseResults = 0, {}, {}
     _G.GetTime = function() return 100 end
     _G.time = function() return 1000 end
@@ -52,7 +52,8 @@ describe("Book pass wiring", function()
     _G.PlaySound = function() end
     _G.SOUNDKIT = { READY_CHECK = 8960, MAP_PING = 3175, RAID_WARNING = 1 }
     _G.C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
-    _G.Enum = { ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8 } }
+    _G.Enum = enum or { ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8,
+      Miscellaneous = 15 } }
     _G.C_AuctionHouse = {
       IsThrottledMessageSystemReady = function() return true end,
       SendBrowseQuery = function(query)
@@ -114,7 +115,9 @@ describe("Book pass wiring", function()
     autoScan:Input("toggleOn", 1000)
     autoScan:Tick(1000)
     assert.equal(1, browseSent)
-    assert.equal(4, #browseQueries[1].itemClassFilters)
+    local classes = {}
+    for i, filter in ipairs(browseQueries[1].itemClassFilters) do classes[i] = filter.classID end
+    assert.same({ 7, 0, 3, 8, 15 }, classes)
   end)
 
   it("grants a drill-down before a page even while a book pass is mid-paging", function()
@@ -358,5 +361,55 @@ describe("Book pass wiring", function()
     local refolded = dealFor(100)
     assert.equal(276100, refolded.unitPrice)  -- the board carries the new floor
     assert.is_nil(verdictFor(refolded))       -- and the old SAFE verdict no longer applies to it
+  end)
+
+  it("scans Miscellaneous even on a client whose Enum does not name it", function()
+    local GC = loadSniper({ ItemClass = { Tradegoods = 7, Consumable = 0, Gem = 3, ItemEnhancement = 8 } })
+    local feedAuto = upvalue(GC.Sniper.OnAuctionHouseShow, "feedAuto")
+    local autoScan = upvalue(feedAuto, "autoScan")
+    autoScan:Input("toggleOn", 1000)
+    autoScan:Tick(1000)
+    local classes = {}
+    for i, filter in ipairs(browseQueries[1].itemClassFilters) do classes[i] = filter.classID end
+    assert.same({ 7, 0, 3, 8, 15 }, classes)
+  end)
+
+  it("queues a hit with how likely it is to sell", function()
+    local GC = loadSniper()
+    browseResults = { browseRow(500, 100000) }
+    GC.Data.GetItemValue = function() return dealValue({ sellThroughBps = 8000, liquidityConfidence = 90 }) end
+    GC.Sniper._bookPass:Start("classes")
+    GC.Sniper._bookPass:OnResultsUpdated()
+    local head = GC.Sniper._drillQueue:Peek()
+    assert.equal(500, head.itemID)
+    assert.equal(0.8, head.confidence)
+  end)
+
+  it("hands an ordinary hit the drill queue lost back to the book pass, and a cap's to the caps", function()
+    local GC = loadSniper()
+    local lostToPass, rearmed = {}, {}
+    GC.Sniper._bookPass = { Lost = function(_, itemID) lostToPass[#lostToPass + 1] = itemID end }
+    GC.Caps = { Rearm = function(itemID) rearmed[#rearmed + 1] = itemID end }
+    GC.Sniper._OnDrillLost({ itemID = 5, floor = 100, priority = 0, cap = false })
+    GC.Sniper._OnDrillLost({ itemID = 6, floor = 100, priority = 1, cap = true })
+    assert.same({ 5 }, lostToPass)
+    assert.same({ 6 }, rearmed)
+  end)
+
+  it("prints the sniper's supply counters on /gc board", function()
+    local GC = loadSniper()
+    GC.Data.FactItemIds = function() return { 1, 2, 3 } end
+    GC.Sniper._drillQueue:Push({ itemID = 9, floor = 100, estProfit = 1 })
+    GC.Sniper._drillShare.drills, GC.Sniper._drillShare.pages = 4, 2
+    GC.Sniper._lastPass = { kind = "classes", seconds = 12, pages = 9, items = 900 }
+    local printed = {}
+    GC.Print = function(line) printed[#printed + 1] = line end
+    GC.Sniper.DebugBoard()
+    local line
+    for _, text in ipairs(printed) do
+      if text:find("^sniper:") then line = text end
+    end
+    assert.is_truthy(line)
+    assert.equal("sniper: facts=3 queue=1 lost=0 rehits=0 lastPass=classes 12s/9 pages drillShare=4/6", line)
   end)
 end)
