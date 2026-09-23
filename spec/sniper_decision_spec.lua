@@ -480,18 +480,39 @@ describe("SniperDecision", function()
       return input
     end
 
-    it("stays refused and names what the buy it would plan needs", function()
+    -- The least gold the character must hold for the per-buy wallet limit to let this buy
+    -- through: the same limit the decision itself applies (BuyLimits), so one copper less and
+    -- the wallet limit refuses it again.
+    local function assertLeastWallet(result, config)
+      assert.is_true(GC.SniperDecision.BuyLimits(config, result.needsGold).budget >= result.entryTotal)
+      assert.is_true(GC.SniperDecision.BuyLimits(config, result.needsGold - 1).budget < result.entryTotal)
+    end
+
+    it("stays refused and names the gold the character must hold for it", function()
       local funded = evaluate()
-      local result = evaluate(broke())
+      local input = broke()
+      local result = evaluate(input)
 
       assert.equal("AVOID", result.status)
       assert.is_false(result.buyable)
       assert.same({ "capital_limit" }, result.reasons)
-      assert.equal(funded.entryTotal, result.needsGold)
       -- The plan itself, so the panel can show what the buy costs and brings back.
       assert.equal(funded.quantity, result.quantity)
       assert.equal(funded.entryTotal, result.entryTotal)
       assert.equal(funded.stressProfit, result.stressProfit)
+      -- 20,000g of buy at the default 5% per-buy share: 400,000g on the character.
+      assert.equal(0.05, result.walletShare)
+      assert.equal(4000000000, result.needsGold)
+      assertLeastWallet(result, input.config)
+    end)
+
+    it("names the gold for the share the player set, not the default", function()
+      local input = broke()
+      input.config.maxCapitalShare = 0.20
+      local result = evaluate(input)
+      assert.equal(0.20, result.walletShare)
+      assert.equal(1000000000, result.needsGold) -- 20,000g at 20%: 100,000g
+      assertLeastWallet(result, input.config)
     end)
 
     it("names nothing when another gate refuses as well", function()

@@ -85,7 +85,7 @@ GC.CheckVerdict.HERO_CAPTION = {
   unpriceable = "any figure here would be invented out of the very number being refused",
   reference = "against the region's own price for this item, after the 5% cut — if it sells",
   cap = "a unit, at or under your price of %s",
-  needs = "for the %d this buy would take — more than your per-buy wallet limit allows",
+  needs = "Costs %s. With your %d%% per-buy limit you need %s on this character.",
 }
 
 -- The sentence under the hero on the verdicts that are not a refusal. A refusal already has
@@ -306,7 +306,10 @@ function GC.CheckVerdict.Build(decision, market, context)
     hero = number(decision.stressProfit) and { kind = "gold", copper = decision.stressProfit }
       or { kind = "unpriceable" }
   elseif tone == "gold" then
-    hero = { kind = "needs", copper = decision.needsGold }
+    -- The gold the character must hold leads; what the buy costs and the per-buy share that
+    -- turns one into the other ride along, for the caption that says both.
+    hero = { kind = "needs", copper = decision.needsGold, cost = decision.entryTotal,
+      share = decision.walletShare }
   elseif tone == "adjust" then
     hero = positive(decision.quantity) and { kind = "units", quantity = decision.quantity }
       or { kind = "unpriceable" }

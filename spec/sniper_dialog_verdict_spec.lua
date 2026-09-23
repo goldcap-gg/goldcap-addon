@@ -423,14 +423,18 @@ describe("Sniper buy dialog verdict block", function()
     setUpvalue(stamp, "dialog", d)
 
     stamp({ itemID = 42, isCommodity = true }, {
-      status = "AVOID", buyable = false, reasons = { "capital_limit" }, needsGold = 200000000,
-      quantity = 200, entryTotal = 200000000, entryUnitDisplay = 1000000, stressProfit = 370000000,
+      status = "AVOID", buyable = false, reasons = { "capital_limit" }, needsGold = 13300000,
+      walletShare = 0.20, quantity = 5, entryTotal = 2660000, entryUnitDisplay = 532000,
+      stressProfit = 370000,
     })
 
     assert.equal("Needs gold", d.verdictLabel.text)
-    assert.equal(GC.Util.FormatMoney(200000000), d.verdictAmount.text)
+    assert.equal(GC.Util.FormatMoney(13300000), d.verdictAmount.text)
     assert.is_true(d.verdictAmount.shown)
     assert.is_false(d.heroText.shown)
+    -- Both, in the player's words: what the buy costs, and what that means for this character.
+    assert.equal("Costs 266g. With your 20% per-buy limit you need 1330g on this character.",
+      d.verdictAmountNote.text)
     assert.equal(GC.CheckVerdict.TONE_SENTENCE.gold, d.verdictHead.text)
     assert.equal("You would pay", factLabels(d)[1])
   end)

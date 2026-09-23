@@ -768,7 +768,10 @@ function GC.SniperDecision.Evaluate(input)
   -- capital_limit, every row went to Hidden, and the market read as having no deals at all.
   -- So when capital_limit is the one reason that refused, the same question is asked again with
   -- the wallet out of the way, and if THAT answer is a buy, its plan rides along on the refusal:
-  -- `needsGold` is what that buy costs, and its figures fill the ones this attempt never got to.
+  -- its figures fill the ones this attempt never got to (entryTotal is what the buy costs), and
+  -- `needsGold` is the least gold the character must HOLD for this same wallet limit to let that
+  -- buy through -- worked out through limitsFor, the rule the gate above applied, never a second
+  -- copy of it. `walletShare` is that limit's share, for the panel to name.
   -- Nothing about the refusal changes -- status, reasons and buyable are this wallet's, and no
   -- purchase path reads `needsGold`. Any other reason, or a plan that would still be refused
   -- with the gold, names nothing and stays an ordinary refusal.
@@ -784,7 +787,14 @@ function GC.SniperDecision.Evaluate(input)
       local plan = GC.SniperDecision.Evaluate(funded)
       if plan.buyable then
         for _, field in ipairs(PLAN_FIELDS) do out[field] = plan[field] end
-        out.needsGold = plan.entryTotal
+        -- The quotient is the answer to within float rounding; limitsFor settles the copper.
+        local wallet = math.ceil(plan.entryTotal / config.maxCapitalShare)
+        while wallet > 0 and limitsFor(config, wallet - 1).budget >= plan.entryTotal do
+          wallet = wallet - 1
+        end
+        while limitsFor(config, wallet).budget < plan.entryTotal do wallet = wallet + 1 end
+        out.needsGold = wallet
+        out.walletShare = config.maxCapitalShare
       end
     end
   end

@@ -142,11 +142,17 @@ describe("BoardRows", function()
       assert.is_true(GC.BoardRows.Rank(needs) < GC.BoardRows.Rank({ buyable = false, status = "AVOID" }))
     end)
 
-    -- Rounded up, never down: 1,234g 56s 78c of buy is not covered by 1,234g.
-    it("says how much gold the buy needs, whole gold rounded up", function()
+    -- The gold the character must hold, rounded up, never down: 1,234g 56s 78c is not covered by
+    -- 1,234g. Eleven characters is the whole cell ("SAFE +9999g" was sized to it), so from 10,000g
+    -- it counts in thousands, the way players write gold.
+    it("says how much gold the character needs, rounded up, short enough for its cell", function()
       assert.equal("needs 1235g", GC.BoardRows.Label(needs))
+      assert.equal("needs 1330g", GC.BoardRows.Label({ needsGold = 13300000 }))
       assert.equal("needs 5g", GC.BoardRows.Label({ needsGold = 50000 }))
       assert.equal("needs 13s", GC.BoardRows.Label({ needsGold = 1201 }))
+      assert.equal("needs 400k", GC.BoardRows.Label({ needsGold = 4000000000 }))
+      assert.equal("needs 11k", GC.BoardRows.Label({ needsGold = 100000001 }))
+      assert.equal("needs 10k", GC.BoardRows.Label({ needsGold = 99995000 })) -- 9,999g 50s
     end)
   end)
 end)

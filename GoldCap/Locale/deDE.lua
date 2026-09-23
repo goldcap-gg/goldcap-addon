@@ -188,7 +188,7 @@ GC.Locales.deDE = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCaps Vorschlag für diesen Gegenstand und der Preis, den es nehmen würde.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
-  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: live geprüft -- ein gutes Angebot, aber der Kauf braucht %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: live geprüft -- ein gutes Angebot, aber du brauchst %s auf diesem Charakter",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: live geprüft -- Kauf ist sicher",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: noch nicht gegen das laufende Auktionshaus geprüft",
   ["Gone"] = "Weg",
@@ -572,7 +572,7 @@ GC.Locales.deDE = {
   ["far below market"] = "weit unter Markt",
   ["finish the pending buy first"] = "zuerst den laufenden Kauf abschließen",
   ["first in line"] = "als Erster dran",
-  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "für die %d dieses Kaufs — mehr, als dein Limit pro Kauf zulässt",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Kostet %s. Mit deinem Limit pro Kauf von %d%% brauchst du %s auf diesem Charakter.",
   ["fresh"] = "aktuell",
   ["full scan already in progress"] = "vollständiger Scan läuft bereits",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -644,7 +644,7 @@ GC.Locales.deDE = {
   ["none"] = "keine",
   ["not enough gold -- total %s, you have %s"] = "nicht genug Gold -- gesamt %s, du hast %s",
   ["not enough gold for this quote -- Cancel"] = "nicht genug Gold für diesen Kurs -- Cancel",
-  ["not enough gold on this character -- this buy needs %s"] = "nicht genug Gold auf diesem Charakter -- dieser Kauf braucht %s",
+  ["not enough gold on this character -- you need %s"] = "nicht genug Gold auf diesem Charakter -- du brauchst %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "nicht genug Einheiten für diese Menge übrig -- prüfe erneut, was noch da ist...",
   ["not priced — nothing on hand to sell"] = "kein Preis — nichts zum Verkaufen vorrätig",

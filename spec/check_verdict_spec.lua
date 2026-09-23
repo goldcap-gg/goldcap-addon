@@ -382,7 +382,7 @@ describe("CheckVerdict", function()
   -- "Won't buy", which a character with no gold read on every row of a market full of deals.
   describe("a deal that needs gold", function()
     local function needsGold()
-      return decision({ reasons = { "capital_limit" }, needsGold = 6220000,
+      return decision({ reasons = { "capital_limit" }, needsGold = 31100000, walletShare = 0.20,
         stressProfit = 1540000, requiredProfit = 622000 })
     end
 
@@ -393,9 +393,11 @@ describe("CheckVerdict", function()
       assert.is_false(v.reconcile)
     end)
 
-    it("leads with what the buy needs", function()
+    -- Both figures: the gold the character must hold leads, and what the buy costs and the share
+    -- that turns one into the other come with it.
+    it("leads with the gold the character needs, with the cost and the share beside it", function()
       local v = GC.CheckVerdict.Build(needsGold(), market())
-      assert.same({ kind = "needs", copper = 6220000 }, v.hero)
+      assert.same({ kind = "needs", copper = 31100000, cost = 6220000, share = 0.20 }, v.hero)
     end)
 
     it("shows what the buy would cost and bring back", function()

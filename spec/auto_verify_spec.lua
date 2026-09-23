@@ -1161,11 +1161,12 @@ describe("Deals background verification", function()
       local api = realEngine(PASSING, function() return 0 end)
       checkInBackground(api)
 
-      assert.equal(200000000, api.verdicts[1].needsGold)
+      -- 20,000g of buy at the default 5% per-buy share: the character needs 400,000g.
+      assert.equal(4000000000, api.verdicts[1].needsGold)
       assert.equal(1, #api.renderList())
       assert.equal(0, upvalue(api.renderList, "refusedCount"))
       api.refreshRows()
-      assert.equal("needs 20000g", api.rows[1].tierChip.label)
+      assert.equal("needs 400k", api.rows[1].tierChip.label)
       -- A deal it cannot buy is not news: no bell.
       assert.equal(0, #sounds)
     end)
@@ -1218,11 +1219,12 @@ describe("Deals background verification", function()
         banner = { Hide = function() end }, SetHeight = function() end })
 
       apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
-        reasons = { "capital_limit" }, needsGold = 200000000, quantity = 200, entryTotal = 200000000 } })
+        reasons = { "capital_limit" }, needsGold = 13300000, walletShare = 0.20, quantity = 5,
+        entryTotal = 2660000 } })
 
       assert.equal("Buy", primary.label)
       assert.is_false(primary.enabled)
-      assert.is_truthy(status.text:find(api.GC.Util.FormatMoney(200000000), 1, true))
+      assert.equal("not enough gold on this character -- you need 1330g", status.text)
     end)
 
     -- One line at the top of the board, for as long as the wallet cannot pay for one unit of the

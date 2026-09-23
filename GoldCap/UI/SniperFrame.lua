@@ -4174,11 +4174,12 @@ local function drawVerdict(deal, decision, market)
     figureColor = Theme.color.gold
     caption = (GC.L[CV.HERO_CAPTION.cap]):format(displayDecisionAmount(hero.cap))
   elseif hero.kind == "needs" then
-    -- A buy only the wallet limit refused: the gold the buy it would plan takes, unsigned -- a
-    -- cost, not a gain.
+    -- A buy only the wallet limit refused: the gold the character must hold for it, unsigned --
+    -- a sum to have, not a gain -- and the caption says both that and what the buy costs.
     figure = displayDecisionAmount(hero.copper)
     figureColor = Theme.color.gold
-    caption = (GC.L[CV.HERO_CAPTION.needs]):format(quantity)
+    caption = (GC.L[CV.HERO_CAPTION.needs]):format(displayDecisionAmount(hero.cost),
+      math.floor((hero.share or 0) * 100 + 0.5), displayDecisionAmount(hero.copper))
   else
     caption = GC.L[CV.HERO_CAPTION.unpriceable]
   end
@@ -5453,11 +5454,12 @@ local function applyRequeryResult(row, itemID, live)
       -- seen. The token itself is still on the reason line and in the diagnostic above it.
       --
       -- A buy only the wallet limit refused (decision.needsGold) is not asked again from here:
-      -- the pane offers Buy, held, with what the buy needs beside it. A Check would only come
-      -- back with the same answer until the gold is there.
+      -- the pane offers Buy, held, with the gold the character needs beside it. A Check would
+      -- only come back with the same answer until the gold is there, and when it is,
+      -- GC.Sniper.OnPlayerMoney asks it again.
       local needs = decision.needsGold
       armCheck(row, deal, decision, needs
-        and (GC.L["not enough gold on this character -- this buy needs %s"]):format(displayDecisionAmount(needs))
+        and (GC.L["not enough gold on this character -- you need %s"]):format(displayDecisionAmount(needs))
         or GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
       if needs and dialog and dialog.row == row then
         setPrimaryLabel("Buy")
@@ -9912,7 +9914,7 @@ createRow = function(parent, index)
       if verdict.buyable then
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)
       elseif verdict.needsGold then
-        GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but the buy needs %s"])
+        GameTooltip:AddLine((GC.L["GoldCap: checked live -- a deal, but you need %s on this character"])
           :format(GC.Util.FormatMoney(verdict.needsGold)), 0.83, 0.64, 0.22, true)
       else
         -- The cell above says only WATCH; this is where the sentence behind it lives.

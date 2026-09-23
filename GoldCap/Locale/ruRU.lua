@@ -188,7 +188,7 @@ GC.Locales.ruRU = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Что GoldCap советует по этому предмету и по какой цене.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
-  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: проверено вживую -- выгодно, но покупке нужно %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: проверено вживую -- выгодно, но на этом персонаже нужно %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: проверено вживую -- покупать безопасно",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ещё не проверено на живом аукционе",
   ["Gone"] = "Ушёл",
@@ -568,7 +568,7 @@ GC.Locales.ruRU = {
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["first in line"] = "первый в очереди",
-  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "за %d шт. этой покупки — больше, чем позволяет ваш лимит на одну покупку",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Стоит %s. При вашем лимите %d%% на одну покупку на этом персонаже нужно %s.",
   ["fresh"] = "свежая",
   ["full scan already in progress"] = "полное сканирование уже идёт",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -639,7 +639,7 @@ GC.Locales.ruRU = {
   ["none"] = "нет",
   ["not enough gold -- total %s, you have %s"] = "не хватает золота -- всего %s, у вас %s",
   ["not enough gold for this quote -- Cancel"] = "не хватает золота по этой цене -- Cancel",
-  ["not enough gold on this character -- this buy needs %s"] = "не хватает золота на этом персонаже -- покупке нужно %s",
+  ["not enough gold on this character -- you need %s"] = "не хватает золота на этом персонаже -- нужно %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такого количества единиц уже не хватает -- перепроверяем, что осталось...",
   ["not priced — nothing on hand to sell"] = "без цены — продавать нечего",

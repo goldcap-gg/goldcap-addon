@@ -181,7 +181,7 @@ GC.Locales.zhCN = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCap 对这件物品的建议，以及它会用的价格。",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
-  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap：已实时检查 -- 值得买，但这次购买需要 %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap：已实时检查 -- 值得买，但这个角色需要 %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap：已实时检查 -- 可安全购买",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap：尚未在实时拍卖行核对",
   ["Gone"] = "已消失",
@@ -519,7 +519,7 @@ GC.Locales.zhCN = {
   ["far below market"] = "远低于市场价",
   ["finish the pending buy first"] = "请先完成进行中的购买",
   ["first in line"] = "排在第一位",
-  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "这次购买 %d 件所需 — 超过你设定的单次购买上限",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "花费 %s。按你 %d%% 的单次购买上限，这个角色需要持有 %s。",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整扫描已在进行中",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -583,7 +583,7 @@ GC.Locales.zhCN = {
   ["none"] = "无",
   ["not enough gold -- total %s, you have %s"] = "金币不足 -- 共需 %s，你有 %s",
   ["not enough gold for this quote -- Cancel"] = "该报价所需金币不足 -- Cancel",
-  ["not enough gold on this character -- this buy needs %s"] = "此角色金币不足 -- 这次购买需要 %s",
+  ["not enough gold on this character -- you need %s"] = "此角色金币不足 -- 需要 %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "剩余数量不足以买这么多 -- 正在重新检查还剩多少...",
   ["not priced — nothing on hand to sell"] = "未定价 — 手头没有可卖的物品",

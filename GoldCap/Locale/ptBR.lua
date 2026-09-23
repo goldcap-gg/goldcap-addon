@@ -190,7 +190,7 @@ GC.Locales.ptBR = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "A sugestão do GoldCap para este item e o preço que ele usaria.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
-  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: verificado ao vivo -- é uma oferta, mas a compra precisa de %s",
+  ["GoldCap: checked live -- a deal, but you need %s on this character"] = "GoldCap: verificado ao vivo -- é uma oferta, mas você precisa de %s neste personagem",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: verificado ao vivo -- pode comprar",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ainda não verificado na casa de leilões ao vivo",
   ["Gone"] = "Sumiu",
@@ -571,7 +571,7 @@ GC.Locales.ptBR = {
   ["far below market"] = "bem abaixo do mercado",
   ["finish the pending buy first"] = "termine primeiro a compra pendente",
   ["first in line"] = "primeiro da fila",
-  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "pelas %d desta compra — mais do que o seu limite por compra permite",
+  ["Costs %s. With your %d%% per-buy limit you need %s on this character."] = "Custa %s. Com o seu limite por compra de %d%% você precisa de %s neste personagem.",
   ["fresh"] = "recente",
   ["full scan already in progress"] = "a varredura completa já está em andamento",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -642,7 +642,7 @@ GC.Locales.ptBR = {
   ["none"] = "nenhum",
   ["not enough gold -- total %s, you have %s"] = "ouro insuficiente -- total %s, você tem %s",
   ["not enough gold for this quote -- Cancel"] = "ouro insuficiente para esta cotação -- Cancel",
-  ["not enough gold on this character -- this buy needs %s"] = "ouro insuficiente neste personagem -- esta compra precisa de %s",
+  ["not enough gold on this character -- you need %s"] = "ouro insuficiente neste personagem -- você precisa de %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "não restam unidades suficientes para essa quantidade -- verificando de novo o que resta...",
   ["not priced — nothing on hand to sell"] = "sem preço — nada em mãos para vender",
