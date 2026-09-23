@@ -545,16 +545,43 @@ describe("BUY purchase", function()
     end
     after_each(function() if _G.C_AuctionHouse then _G.C_AuctionHouse.GetQuoteDurationRemaining = nil end end)
 
-    it("counts down its last ten seconds", function()
+    -- Fix round 5 (m1): beside the line's name, not on the button. The 72 px button holds
+    -- "CONFIRM" in every locale, and "CONFIRM (9)" clipped the digit in seven of them.
+    it("counts down its last ten seconds beside the line's name, leaving CONFIRM as it is", function()
       atConfirm()
       now = now + 9.5
       GC.Buy.TickCountdown()
-      assert.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+      local nine = GC.L["expires in %d s"]:format(9)
+      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find(GC.L["expires in %d s"]:format(10), 1, true))
 
       now = now + 1.5 -- 11 s after the quote: 9 left
       GC.Buy.TickCountdown()
-      assert.equal(GC.L["CONFIRM (%d)"]:format(9), rowWithText("Alpha Herb").action.label)
-      assert.is_true(rowWithText("Alpha Herb").action:IsEnabled())
+      local row = rowWithText("Alpha Herb")
+      assert.is_truthy(row.reagent:GetText():find(nine, 1, true))
+      assert.equal("CONFIRM", row.action.label)
+      assert.is_true(row.action:IsEnabled())
+    end)
+
+    it("repaints once a second while it counts, not on every tick", function()
+      atConfirm()
+      local repaints, repaint = 0, GC.Buy.RefreshIfShown
+      GC.Buy.RefreshIfShown = function(...) repaints = repaints + 1; return repaint(...) end
+      now = now + 11
+      GC.Buy.TickCountdown()
+      now = now + 0.25
+      GC.Buy.TickCountdown()
+      now = now + 0.25
+      GC.Buy.TickCountdown()
+      now = now + 0.25
+      GC.Buy.TickCountdown()
+      GC.Buy.RefreshIfShown = repaint
+      assert.equal(1, repaints)
+    end)
+
+    it("waits no longer than twenty seconds, whatever the client says", function()
+      _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 45 end
+      atConfirm()
+      assert.equal(20, timers[#timers].seconds)
     end)
 
     it("waits no longer than the server's own quote", function()

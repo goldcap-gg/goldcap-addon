@@ -1930,6 +1930,113 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.equal("expired", row.purchaseStage)
           end)
 
+          -- Fix round 5 (m3): the cap may only shorten the wait. A longer answer would hold the purchase
+          -- past its claim's life -- the very state round 3's M1 was; an answer of 0 or less would
+          -- cancel every fresh quote on the spot; and an API that throws must not take the price
+          -- update down with it.
+          it("never waits longer than twenty seconds, whatever the client says", function()
+            local GC, _, _, _, click = armed()
+            onTheClock(GC)
+            _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 45 end
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 121.9
+            runTimers()
+            assert.equal(0, cancels)
+            clock = 122
+            runTimers()
+            assert.equal(1, cancels)
+          end)
+
+          it("ignores an answer of no time left, rather than cancelling every quote at once", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 0 end
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            runTimers()
+            assert.equal(0, cancels)
+            assert.equal("confirm", row.purchaseStage)
+            clock = 122
+            runTimers()
+            assert.equal(1, cancels)
+          end)
+
+          it("keeps its twenty seconds when asking the client throws", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            _G.C_AuctionHouse.GetQuoteDurationRemaining = function() error("no quote") end
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            assert.equal("confirm", row.purchaseStage)
+            clock = 121.9
+            runTimers()
+            assert.equal(0, cancels)
+            clock = 122
+            runTimers()
+            assert.equal(1, cancels)
+          end)
+
+          -- Fix round 5 (m2): a warn requote writes the only line in the dialog that says the price
+          -- moved -- the banner is hidden for a warn -- and its countdown keeps that line, red, with
+          -- the seconds after it, rather than a gold "click Confirm to buy" under a red Confirm.
+          it("counts a requote down after the line that says the price moved", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            click()
+            clock = 102
+            books[42] = { { unitPrice = 10500, quantity = QTY } } -- dearer, still under the cap
+            GC.Sniper.OnCommodityPriceUpdated(10500, 10500 * QTY) -- about 6 % up: a warn requote
+            assert.equal("requote", row.purchaseStage)
+            assert.is_true(d.enabled)
+            local moved = d.written[#d.written]
+            assert.is_truthy(moved:find("per unit", 1, true))
+
+            clock = 113
+            GC.Sniper._TickConfirmCountdown()
+
+            local line = d.written[#d.written]
+            assert.equal(1, line:find(moved, 1, true)) -- the move line stays, first
+            assert.is_truthy(line:find(GC.L["expires in %d s"]:format(9), 1, true))
+            assert.is_nil(line:find("click Confirm to buy", 1, true))
+          end)
+
+          -- Fix round 5 (n1): the two branches nothing else reaches -- a quote that lands after the slot
+          -- has gone to another window, and a row no window shows when its stall finds the slot taken.
+          it("drops a quote that lands while the slot is another window's, confirming and cancelling nothing", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            click() -- Start at 100; its stall is never run here
+            clock = 131
+            assert.is_true(GC.PurchaseSlot.Claim("buy")) -- stale by now: BUY has it
+
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+
+            assert.equal(0, cancels)
+            assert.equal("buy", GC.PurchaseSlot.Owner())
+            assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+            assert.equal("expired", row.purchaseStage)
+            assert.equal(GC.L["another purchase took over -- nothing was confirmed"], d.written[#d.written])
+          end)
+
+          it("lets a row no window shows go back to the board, without a Cancel, when its slot is taken", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            click() -- Start at 100: the stall is due at 110
+            d.row = nil -- no window on the row any more
+            clock = 131
+            assert.is_true(GC.PurchaseSlot.Claim("buy"))
+            runTimers()
+
+            assert.equal(0, cancels)
+            assert.is_nil(row.purchaseStage)
+            assert.is_nil(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase"))
+            assert.equal("buy", GC.PurchaseSlot.Owner())
+          end)
+
           it("waits the full twenty seconds when the client cannot say how long its quote lasts", function()
             local GC, _, _, _, click = armed()
             onTheClock(GC)

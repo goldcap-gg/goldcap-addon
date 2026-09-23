@@ -89,7 +89,6 @@ GC.Locales.ukUA = {
   ["CANCEL LOT?"] = "СКАСУВАТИ ЛОТ?",
   ["CANCELLING…"] = "СКАСУВАННЯ…",
   ["CONFIRM"] = "ПІДТВЕРДИТИ",
-  ["CONFIRM (%d)"] = "ПІДТВЕРДИТИ (%d)",
   ["COST"] = "ЗАКУП",
   ["COST / UNIT"] = "СОБІВАРТІСТЬ / ШТ",
   ["Can't price this"] = "Ціну не оцінити",
@@ -564,6 +563,7 @@ GC.Locales.ukUA = {
   ["crafted %s"] = "скрафчено %s",
   ["data from goldcap.gg · synced %s ago"] = "дані з goldcap.gg · синхронізовано %s тому",
   ["due -- will be asked next pass"] = "черга -- запитаємо наступним проходом",
+  ["expires in %d s"] = "спливає за %d с",
   ["fair"] = "середня",
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
@@ -715,7 +715,7 @@ GC.Locales.ukUA = {
     "чекаємо, поки завершиться попередня купівля товару",
   ["waiting for previous search result to settle"] =
     "чекаємо, поки завершиться попередній пошук",
-  ["waiting..."] = "очікування...",
+  ["waiting..."] = "чекаю...",
   ["watching %s closely -- re-checked every few seconds"] =
     "пильно стежимо за %s -- перевірка кожні кілька секунд",
   ["worst case, selling all %d back into the price standing there now"] =

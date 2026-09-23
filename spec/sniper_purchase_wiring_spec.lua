@@ -3280,6 +3280,33 @@ describe("Sniper purchase wiring", function()
       assert.is_true(dialog.enabled)
     end)
 
+    -- Fix round 5 (m3): the countdown speaks only over a Confirm that can be clicked. A dark one
+    -- says why -- not enough gold -- and "click Confirm to buy" over it would be a lie.
+    it("never counts a dark Confirm down as one to click", function()
+      local GC = loadSniper()
+      local deal = { itemID = 42, isCommodity = true }
+      local row = { deal = deal, purchaseDeal = deal, purchaseStage = "buying", purchaseToken = 7,
+        decisionSnapshot = { version = 1, status = "SAFE", buyable = true, quantity = 1,
+          entryTotal = 1000 } }
+      local dialog = fakeDialog(row)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityPurchase",
+        { row = row, itemID = 42, token = 7 })
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dialog)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "evaluateLive", function()
+        return { version = 1, status = "SAFE", buyable = true, quantity = 1, reasons = {} }
+      end)
+      money = 900 -- under the quote: Confirm stays dark
+      GC.Sniper.OnCommodityPriceUpdated(1000, 1000) -- quoted at 100 s, 20 s to run
+      assert.equal("confirm", row.purchaseStage)
+      assert.is_false(dialog.enabled)
+      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+
+      _G.GetTime = function() return 111 end -- nine seconds left
+      GC.Sniper._TickConfirmCountdown()
+
+      assert.equal("not enough gold for this quote -- Cancel", dialog.written[#dialog.written])
+    end)
+
     -- Task 7: a cap is the player's own price, not a market read. A quote that breaks it must
     -- never slip through as a quiet "confirm" just because the rise from the entry total was
     -- too small to trip RequoteSeverity on its own.

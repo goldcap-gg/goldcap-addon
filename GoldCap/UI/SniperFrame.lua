@@ -150,7 +150,7 @@ LIM.QUIET_ZONE_MAX_SECONDS = 30
 -- next Buy. Commodity events carry no attempt identifier, so a cancelled or errored attempt
 -- owns a tombstone until a terminal event consumes it -- and CancelCommoditiesPurchase fires
 -- none of the three, an auction house error fires none of the three, so "until" can be never.
--- Longer than LIM.BUY_TIMEOUT_SECONDS so a real terminal event always lands first. Only ever
+-- Longer than LIM.START_STALL_SECONDS so a real terminal event always lands first. Only ever
 -- applied to an UNCONFIRMED attempt: no gold moved there, and the worst a misattributed late
 -- event can then do is cancel a fresh attempt, which is the fail-safe direction.
 LIM.DRAIN_TIMEOUT_SECONDS = 20
@@ -4702,6 +4702,16 @@ function GC.Sniper._TickConfirmCountdown()
   end
   local left = math.ceil(pending.stallEnds - GetTime())
   if left < 1 or left > LIM.CONFIRM_COUNTDOWN_SECONDS or left == pending.countdownShown then return end
+  -- A warn requote hides the banner, so its red "old -> new per unit" line is the only thing in the
+  -- dialog that says the price moved: it keeps it, and the seconds go after it (fix round 5, m2).
+  -- A requote whose line is something else (not enough gold) has a dark Confirm and never gets here.
+  if row.purchaseStage == "requote" then
+    if not pending.requoteDetail then return end
+    pending.countdownShown = left
+    setDialogStatus(("%s  ·  %s"):format(pending.requoteDetail, (GC.L["expires in %d s"]):format(left)),
+      1, 0.3, 0.3)
+    return
+  end
   pending.countdownShown = left
   setDialogStatus((GC.L["quote expires in %d s -- click Confirm to buy"]):format(left), 1, 0.82, 0)
 end
@@ -7166,6 +7176,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
 
   local market = marketForDecision(deal.itemID)
+  pending.requoteDetail = nil -- the countdown's price-move line, for a requote only (below)
   row.quoteSnapshot = {
     token = pending.token,
     itemID = deal.itemID,
@@ -7293,6 +7304,7 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     return
   end
   setDialogStatus(detail, 1, 0.3, 0.3)
+  pending.requoteDetail = detail -- kept by the countdown (GC.Sniper._TickConfirmCountdown)
   -- "still safe" is a claim the cap has just contradicted, so a breach says on the status line
   -- exactly what the banner says (M2).
   if frame then

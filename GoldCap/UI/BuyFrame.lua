@@ -795,6 +795,16 @@ local function recentQuote(line)
   return nil
 end
 
+-- The whole seconds the quote at CONFIRM has left, while BD.COUNTDOWN_SECONDS or fewer remain, or
+-- nil (fix round 4, m2). Shown beside the line's name (paintLine), not on the 72px button: in seven
+-- languages "CONFIRM (9)" lost its digit to the button's edge (fix round 5).
+local function quoteSecondsLeft(attempt)
+  if not (attempt and attempt.stage == "confirm" and attempt.stallEnds) then return nil end
+  local left = math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
+  if left < 1 or left > BD.COUNTDOWN_SECONDS then return nil end
+  return left
+end
+
 -- A purchase the OTHER window confirmed is still owed its answer: nothing here may start one (the
 -- click refuses, and the line's button waits).
 local function owedElsewhere()
@@ -874,15 +884,9 @@ local function actionLabel(line)
     return GC.L["nothing on offer"], false
   end
   if stage == "started" then return GC.L["buying..."], false end
-  if stage == "confirm" then
-    -- The seconds the quote has left, once BD.COUNTDOWN_SECONDS remain (GC.Buy.TickCountdown
-    -- repaints once a second): a click aimed at the last one is not a surprise.
-    local left = attempt.stallEnds and math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
-    if left and left >= 1 and left <= BD.COUNTDOWN_SECONDS then
-      return (GC.L["CONFIRM (%d)"]):format(left), true
-    end
-    return GC.L["CONFIRM"], true
-  end
+  -- The seconds the quote has left are counted beside the line's name (paintLine), not here: the
+  -- 72px button holds "CONFIRM" in every language at the default scale, and nothing longer.
+  if stage == "confirm" then return GC.L["CONFIRM"], true end
   if stage == "confirming" then return GC.L["confirming..."], false end
   if stage == "requote" then
     return (GC.L["price moved to %s"]):format(formatAmount(attempt.movedTotal)), true
@@ -954,9 +958,8 @@ end
 -- a second while a CONFIRM counts down its last BD.COUNTDOWN_SECONDS (fix round 4, m2).
 function GC.Buy.TickCountdown()
   local attempt = GC.Buy._attempt
-  if not (attempt and attempt.stage == "confirm" and attempt.stallEnds) then return end
-  local left = math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
-  if left < 1 or left > BD.COUNTDOWN_SECONDS or left == attempt.countdownShown then return end
+  local left = quoteSecondsLeft(attempt)
+  if not left or left == attempt.countdownShown then return end
   attempt.countdownShown = left
   GC.Buy.RefreshIfShown()
 end
@@ -1806,6 +1809,13 @@ local function paintLine(row, line)
   if line.realmName then
     decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
   end
+  -- The last seconds of this line's quote at CONFIRM (fix rounds 4-5): the name cell is the flex
+  -- column, the one with room; GC.Buy.TickCountdown repaints it once a second while they run.
+  local quoted = GC.Buy._attempt
+  local left = quoted and quoted.itemID == line.itemID and quoteSecondsLeft(quoted)
+  if left then
+    decorated = ("%s · %s"):format(decorated, (GC.L["expires in %d s"]):format(left))
+  end
   row.reagent:SetText(decorated)
   -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
   -- reads back, so it does not compete with the lines the player is actually here to buy.
@@ -1864,8 +1874,9 @@ local function paintLine(row, line)
     local attempt = GC.Buy._attempt
     -- Once this line has a quote (or a purchase under way) the cell shows THAT total -- what the
     -- next click spends, and after the server's price update, what the confirm click spends.
-    -- The button stays "BUY n" / "CONFIRM": a badge 80px wide has no room for a sum, and the
-    -- sum has a column of its own right beside it.
+    -- The button stays "BUY n" / "CONFIRM": a 72px badge has no room for a sum, and the sum has a
+    -- column of its own right beside it. (Nor for the quote's last seconds, which go beside the
+    -- line's name -- see paintLine.)
     local quotedTotal = attempt and attempt.itemID == line.itemID and not attempt.byHand
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
     -- A quote outlives the hover that asked for it: the cell keeps the real sum for as long as
@@ -2118,8 +2129,9 @@ createRow = function(parent)
   end
 
   -- One control with one look, shown only on a line that can actually be bought (paintLine).
-  -- 72 inside an 80px column, the same "sized to the longest English label" rule SellFrame's
-  -- 86px action button follows.
+  -- 72 inside an 80px column: it holds "CONFIRM" and "waiting..." in every language at the default
+  -- scale (spec/button_label_width_spec.lua). Anything longer -- the quote's countdown included --
+  -- goes in the line's name cell instead.
   row.action = Theme.Button(row, "ghost", "badge")
   row.action:SetSize(72, 18)
   row.action:SetPoint("CENTER", row.cells.action, "CENTER", 0, 0)

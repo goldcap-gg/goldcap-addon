@@ -88,7 +88,6 @@ GC.Locales.ptBR = {
   ["CANCEL LOT?"] = "CANCELAR O LOTE?",
   ["CANCELLING…"] = "CANCELANDO…",
   ["CONFIRM"] = "CONFIRMAR",
-  ["CONFIRM (%d)"] = "CONFIRMAR (%d)",
   ["COST"] = "CUSTO",
   ["COST / UNIT"] = "CUSTO / UNIDADE",
   ["Can't price this"] = "Sem preço confiável",
@@ -551,6 +550,7 @@ GC.Locales.ptBR = {
   ["crafted %s"] = "fabricado %s",
   ["data from goldcap.gg · synced %s ago"] = "dados do goldcap.gg · sincronizados há %s",
   ["due -- will be asked next pass"] = "pendente -- será consultado na próxima passagem",
+  ["expires in %d s"] = "expira em %d s",
   ["fair"] = "média",
   ["far below market"] = "bem abaixo do mercado",
   ["finish the pending buy first"] = "termine primeiro a compra pendente",
@@ -697,7 +697,7 @@ GC.Locales.ptBR = {
   ["waiting for previous commodity purchase to settle"] =
     "esperando a compra de mercadoria anterior ser liquidada",
   ["waiting for previous search result to settle"] = "esperando o resultado da busca anterior",
-  ["waiting..."] = "aguardando...",
+  ["waiting..."] = "aguarde...",
   ["watching %s closely -- re-checked every few seconds"] =
     "acompanhando %s de perto -- reconferido a cada poucos segundos",
   ["worst case, selling all %d back into the price standing there now"] =

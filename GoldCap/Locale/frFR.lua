@@ -87,7 +87,6 @@ GC.Locales.frFR = {
   ["CANCEL LOT?"] = "ANNULER LE LOT ?",
   ["CANCELLING…"] = "ANNULATION…",
   ["CONFIRM"] = "CONFIRMER",
-  ["CONFIRM (%d)"] = "CONFIRMER (%d)",
   ["COST"] = "COÛT",
   ["COST / UNIT"] = "COÛT / UNITÉ",
   ["Can't price this"] = "Prix non fiable",
@@ -550,6 +549,7 @@ GC.Locales.frFR = {
   ["crafted %s"] = "fabriqué %s",
   ["data from goldcap.gg · synced %s ago"] = "données de goldcap.gg · synchronisées il y a %s",
   ["due -- will be asked next pass"] = "à faire -- sera demandé au prochain passage",
+  ["expires in %d s"] = "expire dans %d s",
   ["fair"] = "moyenne",
   ["far below market"] = "bien sous le marché",
   ["finish the pending buy first"] = "terminez d'abord l'achat en cours",
@@ -698,7 +698,7 @@ GC.Locales.frFR = {
     "en attente du règlement de l'achat de marchandise précédent",
   ["waiting for previous search result to settle"] =
     "en attente du résultat de recherche précédent",
-  ["waiting..."] = "en attente...",
+  ["waiting..."] = "attente...",
   ["watching %s closely -- re-checked every few seconds"] =
     "%s surveillé de près -- revérifié toutes les quelques secondes",
   ["worst case, selling all %d back into the price standing there now"] =
