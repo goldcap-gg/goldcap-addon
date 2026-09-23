@@ -2089,27 +2089,6 @@ driver = {
     return levels
   end,
 
-  -- Items are one lot per purchase, so there is nothing to walk: the only thing worth
-  -- knowing is the cheapest OTHER lot, which is what a reseller has to undercut.
-  -- buyoutAmount is the lot TOTAL (see itemResult above), so divide down per unit.
-  itemCompetingUnit = function(itemID, excludeAuctionID)
-    local key = C_AuctionHouse.MakeItemKey(itemID)
-    local n = C_AuctionHouse.GetNumItemSearchResults(key)
-    if not n or n <= 0 then return nil end
-    if n > LIM.MAX_BOOK_LEVELS then n = LIM.MAX_BOOK_LEVELS end
-    local best
-    for i = 1, n do
-      local info = C_AuctionHouse.GetItemSearchResultInfo(key, i)
-      if info and info.auctionID ~= excludeAuctionID
-          and info.buyoutAmount and info.buyoutAmount > 0
-          and info.quantity and info.quantity > 0 then
-        local unit = math.floor(info.buyoutAmount / info.quantity)
-        if not best or unit < best then best = unit end
-      end
-    end
-    return best
-  end,
-
   -- Every lot currently listed for a realm item, from results the drill's own SendSearchQuery
   -- has already landed -- this never issues a query of its own, exactly like commodityBook.
   -- buyoutAmount is the whole lot's price (see itemResult above), and it is left that way:
