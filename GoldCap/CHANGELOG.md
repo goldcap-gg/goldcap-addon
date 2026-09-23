@@ -1,6 +1,6 @@
 # GoldCap
 
-## 0.15.1 (unreleased)
+## 0.15.1 (2026-09-24)
 
 - The Deals board leaves out finds worth less than your "Min profit per buy", and a refused row
   you checked yourself goes to Hidden once you close its buy window. Rows you watch stay.
