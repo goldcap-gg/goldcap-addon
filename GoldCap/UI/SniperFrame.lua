@@ -7217,13 +7217,13 @@ end
 -- resolved its row and cleared the slot, so there is nothing here for this to swallow.
 -- The wiki documents one payload argument, `error` (Enum.AuctionHouseError), and no public
 -- mapping to text. Blizzard_AuctionHouseUI carries its own table, so ask the client for the
--- sentence and fall back to our own rather than reimplementing 27 error strings.
+-- sentence and fall back to our own rather than reimplementing 27 error strings. The asking is
+-- Core/Util.lua's AuctionHouseErrorText -- AuctionHouseUtil.GetErrorText, the lookup the default
+-- UI prints with. This read `_G.AuctionHouseErrorMessages`, a table the client does not have,
+-- so every error said the generic sentence.
 function GC.Sniper.OnAuctionHouseError(errorCode)
-  local text = GC.L["the auction house reported an error"]
-  local messages = _G.AuctionHouseErrorMessages
-  if type(messages) == "table" and type(messages[errorCode]) == "string" then
-    text = messages[errorCode]
-  end
+  local text = (GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode))
+    or GC.L["the auction house reported an error"]
 
   local pending = commodityPurchase
   local row = pending and pending.row
