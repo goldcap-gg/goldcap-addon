@@ -27,6 +27,35 @@ local function readItems(body, into)
   return n
 end
 
+-- I, as GCM1 reads it: the same three token shapes the site writes (id=mv, id=mv=sold,
+-- id=mv=sold=trend), each token matched whole. readItems' pattern is unanchored, so on a digit
+-- run with no "=" it restarts at every position and backtracks through the rest of the run:
+-- quadratic, which Parse's 60,000-character cap keeps to seconds and the payload's 6,000,000
+-- would turn into hours of a frozen load. Here every pattern is anchored and no two adjacent
+-- captures can take the same characters, so a token costs one scan, and a malformed one drops
+-- itself -- and stays out of counts.items -- like a malformed V, Q, R or M token does. readItems
+-- itself stays as it is: GCS1 is frozen, and so is what Parse reads.
+local function readItemTokens(body, into)
+  local n = 0
+  for token in body:gmatch("[^,]+") do
+    local id, mv, tail = token:match("^(%d+)=(%d+)(.*)$")
+    local sold, trend
+    if id and tail ~= "" then
+      sold, trend = tail:match("^=([%d%.]+)=(%-?%d+)$")
+      if not sold then sold = tail:match("^=([%d%.]+)$") end
+      if not sold then id = nil end
+    end
+    if id then
+      local entry = { m = tonumber(mv) }
+      if sold then entry.s = tonumber(sold) end
+      if trend then entry.t = tonumber(trend) end
+      into[tonumber(id)] = entry
+      n = n + 1
+    end
+  end
+  return n
+end
+
 -- V: verification tokens are deliberately independent from I tokens. A malformed safety record
 -- must not hide its matching market value: it simply leaves that item unverified.
 local function readFacts(body, into)
@@ -180,8 +209,20 @@ end
 -- carries every commodity instead of the busiest 400. `counts` is what /goldcap status prints
 -- without walking the tables again.
 function GC.ImportString.ParseRegion(str)
-  if type(str) ~= "string" or #str == 0 then return nil, "empty" end
+  if type(str) ~= "string" then return nil, "empty" end
   if #str > GC.ImportString.REGION_MAX_LEN then return nil, "too_long" end
+  -- Trailing whitespace goes: every reader below is anchored per token, so a newline a producer
+  -- someday ends the payload with would otherwise cost the last section its last token, without
+  -- a word. Walked back byte by byte (space, \t \n \v \f \r -- %s in the C locale): a `%s+$`
+  -- gsub retries from every position of a whitespace run, quadratic on a long one.
+  local last = #str
+  while last > 0 do
+    local b = str:byte(last)
+    if b ~= 32 and (b < 9 or b > 13) then break end
+    last = last - 1
+  end
+  if last == 0 then return nil, "empty" end
+  if last < #str then str = str:sub(1, last) end
   local region, ts, rest = str:match("^GCM1;(%l%l);(%d+);(.*)$")
   if not region then return nil, "bad_header" end
   if not GC.ImportString.REGIONS[region] then return nil, "bad_region" end
@@ -194,7 +235,7 @@ function GC.ImportString.ParseRegion(str)
   for section in rest:gmatch("[^;]+") do
     local kind, body = section:match("^(%u):(.+)$")
     if kind == "I" then
-      result.counts.items = result.counts.items + readItems(body, result.items)
+      result.counts.items = result.counts.items + readItemTokens(body, result.items)
     elseif kind == "V" then
       result.counts.facts = result.counts.facts + readFacts(body, result.verification)
     elseif kind == "Q" then

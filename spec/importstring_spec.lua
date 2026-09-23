@@ -366,4 +366,46 @@ describe("ImportString.ParseRegion", function()
     assert.same({ items = 9500, facts = 5500, refs = 25000 }, r.counts)
     assert.equal(1789819200, r.ts)
   end)
+
+  it("reads every I token shape the site writes exactly as the import string does", function()
+    local tokens = "42=500,43=700=12.0=-8,44=1=0.0,45=99999999=99999.9=-100,46=5=3.5=12"
+    local region = GC.ImportString.ParseRegion("GCM1;eu;1;I:" .. tokens)
+    local import = GC.ImportString.Parse("GCS1;eu;silvermoon;1;I:" .. tokens)
+    assert.same(import.items, region.items)
+    assert.equal(5, region.counts.items)
+  end)
+
+  -- A corrupt or hand-edited regionString must not stall the load. The I reader Parse uses is
+  -- unanchored: on a digit run with no "=" it restarts at every position and backtracks through
+  -- the rest of the run, so a million digits would take hours. The payload's reader matches each
+  -- token whole instead, which also keeps a junk token out of counts.items.
+  it("reads a million-digit junk token at once, and counts no junk as an item", function()
+    local started = os.clock()
+    local r, err = GC.ImportString.ParseRegion("GCM1;eu;1;I:" .. string.rep("7", 1000000))
+    assert.is_nil(r)
+    assert.equal("no_items", err)
+    r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2=" .. string.rep("7", 1000000) .. "x,3=4,5=6x")
+    assert.same({ items = 1, facts = 0, refs = 0 }, r.counts)
+    assert.same({ m = 4 }, r.items[3])
+    assert.is_nil(r.items[1])
+    assert.is_nil(r.items[5])
+    local elapsed = os.clock() - started
+    assert.is_true(elapsed < 2, ("junk took %.2f s to read"):format(elapsed))
+  end)
+
+  -- Neither producer ends the payload with a newline today, but nothing enforces it, and every
+  -- reader here is anchored per token: a trailing "\n" would silently cost the last section its
+  -- last token.
+  it("keeps the last token of a payload that ends in whitespace", function()
+    for _, tail in ipairs({ "\n", "\r\n", " \t\n" }) do
+      local r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2,3=4;M:5=20000=3,6=20000=3" .. tail)
+      assert.same({ m = 20000, l = 3 }, r.refs[6])
+      assert.same({ items = 2, facts = 0, refs = 2 }, r.counts)
+      r = GC.ImportString.ParseRegion("GCM1;eu;1;I:1=2,3=4=1.5" .. tail)
+      assert.same({ m = 4, s = 1.5 }, r.items[3])
+    end
+    local r, err = GC.ImportString.ParseRegion(" \r\n")
+    assert.is_nil(r)
+    assert.equal("empty", err)
+  end)
 end)
