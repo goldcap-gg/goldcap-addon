@@ -8692,6 +8692,18 @@ local function createDialog()
   return d
 end
 
+-- Re-applies the player's SAVED Details preference to the window `d`, quietly: the fit guard may
+-- still close it for this window (applyDetailsState), but says nothing while it does. Run on
+-- every resize (createFrame's OnSizeChanged) and on every open (openDialog). A field, not a
+-- local: this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._ApplySavedDetails(d)
+  if not (d and d.applyDetailsState) then return end
+  local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
+  d.detailsQuiet = true
+  d.applyDetailsState(cfg and cfg.dialogDetailsOpen)
+  d.detailsQuiet = nil
+end
+
 -- Opens the dialog for `row`/`deal`: this is the row Buy button's entire OnClick job now, for
 -- BOTH item and commodity deals, stale or not. Numbers are populated from the snapshot deal
 -- immediately; a `.stale` full-scan deal then either consumes a fresh Task 8 pre-warm cache
@@ -8728,6 +8740,12 @@ local function openDialog(row, deal)
   setDialogHeader(deal, discovery)
   stampDialogFromDecision(deal, discovery)
   dialog:Show()
+  -- Follow-up 2: a quiet close is the window's own, not the next one's. A long Reason that stopped
+  -- the transcript fitting closed it for that window (layoutBlocks' fit guard) and kept the saved
+  -- preference -- but left the flag every later layout reads shut, so the next window opened with
+  -- Details closed however short its Reason, until SHOW DETAILS or a resize. Every open starts
+  -- from what the player chose, measured against this window's own Reason, stamped just above.
+  GC.Sniper._ApplySavedDetails(dialog)
   GC.Sniper.NotifyDialogOpened()
 
   local prewarm = deal.prewarm
@@ -10157,12 +10175,7 @@ local function createFrame()
     -- downsize closes the grid without eating the player's "open" and an upsize reopens it.
     -- detailsQuiet silences applyDetailsState's own F5 refusal status write (see that
     -- function's guard) so a drag-resize doesn't spam "Enlarge the window..." on every pixel.
-    if dialog and dialog.applyDetailsState then
-      local cfg = GC.db and GC.db.settings and GC.db.settings.sniper
-      dialog.detailsQuiet = true
-      dialog.applyDetailsState(cfg and cfg.dialogDetailsOpen)
-      dialog.detailsQuiet = nil
-    end
+    GC.Sniper._ApplySavedDetails(dialog)
   end)
 
   -- E.4 resize grip: a small BOTTOMRIGHT handle sized/positioned to sit in the scrollbar
