@@ -1301,7 +1301,7 @@ describe("Live price caps -- buying at the player's own price", function()
 
     -- Review M3: a confirmed attempt is owed its answer (or the stranded release, 35 s) and a Check
     -- cannot retire it -- but Buy sat lit and refused all that while. It goes dark and says why;
-    -- the quote's own expiry hands the player Refresh.
+    -- the purchase settling hands the player Refresh (follow-up P1, below).
     it("does not leave Buy lit while a confirmed purchase settles", function()
       local GC, row, _, d, click = armed()
       local confirmed = { itemID = 77, token = 1, confirmed = true, drainingAt = 100 }
@@ -1328,6 +1328,158 @@ describe("Live price caps -- buying at the player's own price", function()
 
       assert.equal("ready", row.purchaseStage)
       assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == confirmed)
+    end)
+
+    -- Follow-up P1 (the owner called the old version of this "a hang"): Buy went dark over a
+    -- confirmed purchase and stayed dark until the quote's own 30-second expiry, although the
+    -- purchase had settled within a second. The moment it settles the window offers the next
+    -- step -- and that step is a Check: a quote or decision taken before that purchase landed is
+    -- never spent (the gold, and for the same item the book, may have moved under it).
+    describe("once the confirmed purchase it waited on settles", function()
+      -- Buy and Confirm through the real click handler and the real quote event, on `row`.
+      local function confirmOn(GC, row, click)
+        click() -- Buy
+        GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+        assert.equal("confirm", row.purchaseStage)
+        click() -- Confirm
+        assert.equal(1, confirms)
+        assert.equal("confirming", row.purchaseStage)
+      end
+
+      it("offers Refresh at once, and Refresh runs a Check, never a purchase", function()
+        local GC, row, _, d, click = armed()
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+          { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+        click() -- Buy over the confirmed purchase: dark, waiting
+        assert.is_false(d.enabled)
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assert.equal("expired", row.purchaseStage)
+        assert.is_true(d.enabled)
+        assert.equal(GC.L["Refresh"], d.label)
+        assert.equal(GC.L["previous commodity purchase settled -- Refresh to re-check the price"],
+          d.written[#d.written])
+        local before = sends
+        click() -- Refresh
+        assert.equal(0, starts)
+        assert.equal("requerying", row.purchaseStage)
+        assert.equal(before + 1, sends)
+        answer(GC)
+        click() -- Buy, on the Check the player just ran
+        assert.equal(1, starts)
+      end)
+
+      it("does the same when the purchase fails", function()
+        local GC, row, _, d, click = armed()
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+          { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+        click()
+
+        GC.Sniper.OnCommodityPurchaseFailed()
+
+        assert.equal("expired", row.purchaseStage)
+        assert.is_true(d.enabled)
+        click()
+        assert.equal(0, starts)
+        assert.equal("requerying", row.purchaseStage)
+      end)
+
+      it("does the same when the stranded release gives up on it", function()
+        local GC, row, _, d, click = armed()
+        local confirmed = { itemID = 77, token = 1, confirmed = true, drainingAt = 100 }
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", confirmed)
+        click()
+
+        GC.Sniper._ReleaseStrandedConfirmed(confirmed)
+
+        assert.equal("expired", row.purchaseStage)
+        assert.is_true(d.enabled)
+      end)
+
+      -- The owner's sequence: Confirm, the window closed with Esc while the purchase is still
+      -- confirming (Cancel is disabled there, Escape is not), the next row's window opened and
+      -- armed. Its Buy used to say "finish the pending buy first" on a lit button -- and a realm
+      -- bid went straight through -- over a purchase that may already have taken the gold.
+      it("holds the next window over a purchase still confirming, then hands it Refresh", function()
+        local GC, first, _, d, click, abort = armed()
+        confirmOn(GC, first, click)
+        d.row = nil -- Escape: the window closes, the confirmed purchase stays owed
+        abort(first, "purchase canceled")
+
+        local lot = { itemID = 42, isCommodity = true, cap = CAP, unitPrice = UNIT, qty = QTY }
+        local book = freshBook()
+        local second = { deal = lot, purchaseToken = 1 }
+        local d2 = armOnDialog(GC, second, lot, capLive(GC, 42, book).decision, book)
+        assert.is_true(d2.enabled)
+        click()
+        assert.equal(1, starts)
+        assert.is_false(d2.enabled)
+        assert.equal(GC.L["waiting for previous commodity purchase to settle"], d2.written[#d2.written])
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assertRecordedCapBuy(GC, 42, QTY, UNIT * QTY) -- the first purchase, booked
+        assert.equal("expired", second.purchaseStage)
+        assert.is_true(d2.enabled)
+        assert.equal(GC.L["Refresh"], d2.label)
+        click()
+        assert.equal(1, starts)
+        assert.equal("requerying", second.purchaseStage)
+      end)
+
+      it("holds a realm lot's bid the same way, and its next click is a Check", function()
+        local GC, first, _, d, click, abort = armed()
+        confirmOn(GC, first, click)
+        d.row = nil
+        abort(first, "purchase canceled")
+        local bids = 0
+        _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+        local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+          { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+        local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+        local realmRow = { deal = lot, purchaseStage = "ready", purchaseToken = 3, decisionSnapshot = decision }
+        local d2 = reopened(GC, realmRow, lot)
+        d2.enabled = true
+        click()
+        assert.equal(0, bids)
+        assert.is_false(d2.enabled)
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+        assert.equal("expired", realmRow.purchaseStage)
+        assert.is_true(d2.enabled)
+        click()
+
+        assert.equal(0, bids)
+        assert.equal("requerying", realmRow.purchaseStage)
+      end)
+
+      -- Armed while the purchase was owed and not clicked yet: its decision predates the
+      -- purchase all the same, so it is not the one a Buy may spend.
+      it("turns a Buy armed before the purchase settled into Refresh, clicked or not", function()
+        local GC, row, _, d = armed()
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+          { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+        assert.is_true(d.enabled)
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assert.equal("expired", row.purchaseStage)
+        assert.equal(GC.L["Refresh"], d.label)
+      end)
+
+      it("leaves a window that is not armed exactly as it is", function()
+        local GC, row, deal, d = armed()
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+          { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+        getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(row, deal) -- a Check in flight
+        local label = d.label
+
+        GC.Sniper.OnCommodityPurchaseSucceeded()
+
+        assert.equal("requerying", row.purchaseStage)
+        assert.equal(label, d.label)
+      end)
     end)
 
     -- The tombstone guards the commodity events; a realm lot's bid answers on its own.

@@ -626,6 +626,8 @@ GC.Locales.ptBR = {
   ["over %d position%s"] = "em %d posições%s",
   ["paid sale unresolved"] = "venda paga não resolvida",
   ["placing bid..."] = "dando o lance...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "compra de mercadoria anterior liquidada -- clique em Refresh para conferir o preço de novo",
   ["price checked, sale speed unknown -- this one is your call"] =
     "preço conferido, velocidade de venda desconhecida -- essa é sua decisão",
   ["price confirmed -- click Buy to purchase"] = "preço confirmado -- clique em Buy para comprar",

@@ -624,6 +624,8 @@ GC.Locales.ruRU = {
   ["over %d position%s"] = "по %d позициям%s",
   ["paid sale unresolved"] = "оплаченная продажа не сопоставлена",
   ["placing bid..."] = "делаем ставку...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "предыдущая покупка товара завершена -- Refresh, чтобы перепроверить цену",
   ["price checked, sale speed unknown -- this one is your call"] =
     "цена проверена, скорость продажи неизвестна -- решать вам",
   ["price confirmed -- click Buy to purchase"] = "цена подтверждена -- нажмите Buy, чтобы купить",

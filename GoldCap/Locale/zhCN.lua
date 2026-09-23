@@ -570,6 +570,8 @@ GC.Locales.zhCN = {
   ["over %d position%s"] = "共 %d 个持仓%s",
   ["paid sale unresolved"] = "已到账的销售未匹配",
   ["placing bid..."] = "正在出价...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "上一笔商品购买已结算 -- 按 Refresh 重新检查价格",
   ["price checked, sale speed unknown -- this one is your call"] = "价格已核对，售出速度未知 -- 这一笔由你决定",
   ["price confirmed -- click Buy to purchase"] = "价格已确认 -- 点击 Buy 购买",
   ["price rose %.1fx — still safe, confirm"] = "价格上涨 %.1f 倍 — 仍然安全，请确认",

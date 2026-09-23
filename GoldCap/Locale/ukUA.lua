@@ -641,6 +641,8 @@ GC.Locales.ukUA = {
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
   ["placing bid..."] = "робимо ставку...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "попередню купівлю товару завершено -- Refresh, щоб перевірити ціну ще раз",
   ["price checked, sale speed unknown -- this one is your call"] =
     "ціну перевірено, швидкість продажу невідома -- вирішувати вам",
   ["price confirmed -- click Buy to purchase"] =

@@ -627,6 +627,8 @@ GC.Locales.itIT = {
   ["over %d position%s"] = "su %d posizioni%s",
   ["paid sale unresolved"] = "vendita incassata non risolta",
   ["placing bid..."] = "invio dell'offerta...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "acquisto di merce precedente chiuso -- premi Refresh per ricontrollare il prezzo",
   ["price checked, sale speed unknown -- this one is your call"] =
     "prezzo verificato, velocità di vendita ignota -- questa la decidi tu",
   ["price confirmed -- click Buy to purchase"] = "prezzo confermato -- clicca Buy per comprare",

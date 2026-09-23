@@ -705,6 +705,8 @@ GC.Locales.enUS = {
   ["placing bid..."] = "placing bid...",
   ["plan updated on goldcap.gg"] = "plan updated on goldcap.gg",
   ["plan updated on goldcap.gg · +%d −%d lines"] = "plan updated on goldcap.gg · +%d −%d lines",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "previous commodity purchase settled -- Refresh to re-check the price",
   ["price checked, sale speed unknown -- this one is your call"] =
     "price checked, sale speed unknown -- this one is your call",
   ["price confirmed -- click Buy to purchase"] = "price confirmed -- click Buy to purchase",

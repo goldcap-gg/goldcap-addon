@@ -417,6 +417,18 @@ function GC.Sniper._RetireFencedTombstone(attempt)
   end
 end
 
+-- The confirmed commodity purchase still owed its terminal event, or nil -- in flight
+-- (commodityPurchase: the window that confirmed it may have been closed with Escape, which a
+-- confirmed attempt survives) or carried across an auction house close as a tombstone
+-- (commodityDraining). Either way it may already have taken gold, and nothing else may be bought
+-- until it has answered (onDialogPrimaryClick). A field, not a local: this chunk sits near Lua's
+-- 200-local ceiling.
+function GC.Sniper._ConfirmedOwed()
+  if commodityDraining and commodityDraining.confirmed then return commodityDraining end
+  if commodityPurchase and commodityPurchase.confirmed then return commodityPurchase end
+  return nil
+end
+
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
 -- (a browse result is a per-itemKey aggregate across every seller, not a resolved auction,
 -- and it's a point-in-time snapshot besides), so the FIRST Buy click on one issues a fresh
@@ -4273,8 +4285,7 @@ end
 -- retired on a timer -- refused every later commodity Buy with "waiting for previous commodity
 -- purchase to settle" until /reload.
 function GC.Sniper.HasStrandedConfirmed()
-  if commodityDraining and commodityDraining.confirmed then return true end
-  if commodityPurchase and commodityPurchase.confirmed then return true end
+  if GC.Sniper._ConfirmedOwed() then return true end
   local now = GetTime()
   for _, record in pairs(GC.Sniper._strandedConfirmed) do
     if now - (record.at or 0) <= 600 then return true end
@@ -4332,6 +4343,10 @@ local function reportDetachedCommodity(pending, note)
 end
 
 local function settleDetachedConfirmed(pending, terminal)
+  -- A confirmed purchase has answered, or been given up on: whatever window was held behind it
+  -- gets its next step now (GC.Sniper._HandOffSettled), not at its own quote's expiry. Every
+  -- caller has already let go of the attempt's slot.
+  GC.Sniper._HandOffSettled()
   local deal = pending and pending.deal
   if terminal == "success" then
     local purchase = deal and purchaseFacts(deal, pending.quote)
@@ -4363,6 +4378,12 @@ local function confirmedAttemptOwnsRow(pending)
 end
 
 resolvePurchase = function(row, success, note, purchase, purchaseDeal)
+  -- A row still "confirming" is resolved only by its confirmed purchase's own terminal event
+  -- (nothing else may: abortRowPurchase, the quiet-zone release and the error path all leave a
+  -- confirmed attempt alone), so this is that purchase settling -- and a window held behind it
+  -- (the player closed this one with Escape and opened the next) gets its next step once the
+  -- row is resolved (GC.Sniper._HandOffSettled).
+  local settled = row.purchaseStage == "confirming"
   -- A confirmed commodity attempt can outlive its visible row across an AH close. Its deal is
   -- captured at the hardware Confirm click and must win over a row that was reset/repooled.
   local deal = purchaseDeal or row.purchaseDeal or row.deal
@@ -4407,6 +4428,7 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
         end
         if frame then frame.status:SetText(GC.L["purchase total unavailable — inspect mailbox"]) end
         refreshRows()
+        if settled then GC.Sniper._HandOffSettled() end
         return
       end
       if purchase then
@@ -4438,6 +4460,7 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
   end
   if frame and note then frame.status:SetText(note) end
   refreshRows()
+  if settled then GC.Sniper._HandOffSettled() end
 end
 
 -- Cancel button / Esc / a Buy click on a different row all fund into this: reset every bit of
@@ -4532,6 +4555,36 @@ local function showGoneState(row, message)
   end
 end
 
+-- The dialog's armed `row` ("ready") no longer holds the quote it was armed on: the button offers
+-- Refresh (stage "expired"), and its click is a Check -- a new decision from a new read, never a
+-- purchase on the old one. `text` says why on the status line, in r/g/b. Fields, not locals:
+-- this chunk sits near Lua's 200-local ceiling.
+function GC.Sniper._ExpireArm(row, text, r, g, b)
+  row.purchaseStage = "expired"
+  dialog.primaryBtn:Enable()
+  setPrimaryLabel(GC.L["Refresh"])
+  setDialogStatus(text, r, g, b)
+  if refreshQtyRow then refreshQtyRow() end -- Fix 2: "expired" is not "ready" -- box/quick-fill grey out until Refresh re-arms
+end
+
+-- Follow-up P1: a confirmed purchase has just settled -- succeeded, failed, answered unavailable,
+-- or been given up on by the stranded release. Buy on the window in front of the player was
+-- held behind it (dark, "waiting for previous commodity purchase to settle") and stayed dark until
+-- its own quote expired, thirty seconds on, although the purchase settled within a second: the
+-- owner called that a hang. The window gets its next step now. And that step is a Check, not Buy:
+-- the window was armed before the purchase landed, and the gold that purchase took -- or, for the
+-- same item, the units -- may be exactly what its decision counted on. That holds for a window the
+-- player had not clicked yet too, so any armed window is handed Refresh, clicked or not. Nothing
+-- is touched while another confirmed purchase is still owed, or on a window not armed: a Check in
+-- flight decides afresh when it lands.
+function GC.Sniper._HandOffSettled()
+  if GC.Sniper._ConfirmedOwed() then return end
+  local row = dialog and dialog.row
+  if not (row and row.purchaseStage == "ready") then return end
+  GC.Sniper._ExpireArm(row, GC.L["previous commodity purchase settled -- Refresh to re-check the price"],
+    1, 0.82, 0)
+end
+
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
@@ -4540,15 +4593,11 @@ local function scheduleArmTimeout(row, deal, decision)
   C_Timer.After(LIM.ARM_TIMEOUT_SECONDS, function()
     if row.purchaseStage == "ready" and row.deal == deal and row.decisionSnapshot == decision
         and dialog and dialog.row == row then
-      row.purchaseStage = "expired"
-      dialog.primaryBtn:Enable()
-      setPrimaryLabel(GC.L["Refresh"])
       -- Task 2 restyle: red, not amber (Theme.color.red's own literal values -- see
       -- setDialogStatus's own comment for why this file hardcodes rather than reads the live
       -- table). The Kit's status color rule is green on armReady's own Buy confirmation, red on
       -- refusal OR expiry, fgDim (setDialogStatus's own default) everywhere else.
-      setDialogStatus(GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
-      if refreshQtyRow then refreshQtyRow() end -- Fix 2: "expired" is not "ready" -- box/quick-fill grey out until Refresh re-arms
+      GC.Sniper._ExpireArm(row, GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
     end
   end)
 end
@@ -7412,23 +7461,24 @@ local function onDialogPrimaryClick()
       GC.L["live verification required"], false)
     return
   end
-  if commodityDraining and (deal.isCommodity or commodityDraining.confirmed) then
+  if GC.Sniper._ConfirmedOwed() then
+    -- A confirmed commodity purchase has not answered yet -- a tombstone carried across an
+    -- auction house close, or one still in flight whose window the player closed with Escape.
+    -- It may already have taken gold this buy's own checks still see, so nothing is bought over
+    -- it, commodity or realm lot (review M2). Dark, not lit and refusing (review M3): a Check
+    -- cannot retire it, only its answer or the stranded release can -- and the moment one does,
+    -- GC.Sniper._HandOffSettled hands this window Refresh (follow-up P1).
+    dialog.primaryBtn:Disable()
+    setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
+    if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
+    return
+  end
+  if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
     -- later commodity Buy until the player reloaded -- with the Buy button sitting enabled,
-    -- saying the purchase was possible. A CONFIRMED tombstone is never retired here; its late
-    -- success still has to land on the attempt that paid for it. A realm lot waits only for a
-    -- confirmed one: PlaceBid answers on its own event, but a confirmed purchase may already
-    -- have taken gold the bid's affordability check still sees (review M2).
-    if commodityDraining.confirmed then
-      -- Dark, not lit and refusing (review M3). A Check cannot retire a confirmed tombstone;
-      -- its answer or the stranded release does, and the quote's own expiry hands the player
-      -- Refresh meanwhile (scheduleArmTimeout).
-      dialog.primaryBtn:Disable()
-      setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
-      if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
-      return
-    end
+    -- saying the purchase was possible. Only an unconfirmed tombstone reaches here, and only
+    -- for a commodity: PlaceBid answers on its own event.
     if (GetTime() - (commodityDraining.drainingAt or 0)) <= LIM.DRAIN_TIMEOUT_SECONDS then
       -- Young and unconfirmed: this click becomes a Check (not a purchase call). Refusing it
       -- left a lit Buy that did nothing (in game 2026-09-23); the Check's answer is the proof

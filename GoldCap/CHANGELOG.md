@@ -32,7 +32,8 @@
 - The buy window's Reason line shows its whole sentence instead of cutting it off.
 - Clicking Buy right after a purchase was cancelled or sent back to a Check no longer sits on
   "waiting for previous commodity purchase to settle": the click checks the price again, and
-  the next Buy goes through.
+  the next Buy goes through. While a purchase you confirmed is still going through, the next
+  buy window waits for it and offers Refresh as soon as it is done.
 - The Auto button says what is holding it — "AUTO · PAUSED: MAILBOX OPEN", "BUY TAB", "WAITING
   FOR YOU" and so on — and its tooltip says what to do about it. A mailbox you left by walking
   straight to the auctioneer no longer keeps Auto paused.

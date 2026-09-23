@@ -628,6 +628,8 @@ GC.Locales.deDE = {
   ["over %d position%s"] = "über %d Positionen%s",
   ["paid sale unresolved"] = "bezahlter Verkauf ungeklärt",
   ["placing bid..."] = "Gebot wird abgegeben...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "vorheriger Warenkauf abgeschlossen -- Refresh, um den Preis erneut zu prüfen",
   ["price checked, sale speed unknown -- this one is your call"] =
     "Preis geprüft, Verkaufstempo unbekannt -- das entscheidest du",
   ["price confirmed -- click Buy to purchase"] = "Preis bestätigt -- Buy klicken zum Kaufen",

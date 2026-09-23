@@ -588,6 +588,8 @@ GC.Locales.koKR = {
   ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
   ["placing bid..."] = "입찰 중...",
+  ["previous commodity purchase settled -- Refresh to re-check the price"] =
+    "이전 상품 구매가 끝남 -- Refresh로 가격을 다시 확인하세요",
   ["price checked, sale speed unknown -- this one is your call"] =
     "가격은 확인했지만 판매 속도는 알 수 없습니다 -- 판단은 당신 몫입니다",
   ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",
