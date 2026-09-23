@@ -792,4 +792,12 @@ GC.Locales.ptBR = {
     "Espera: sua própria busca está na lista de compra da casa de leilões, e uma varredura a substituiria. Abra a aba do GoldCap na casa de leilões, ou feche a casa de leilões, e o Auto começa.",
   ["Market %s · unverified until a live Check"] =
     "Mercado %s · não verificado até uma checagem ao vivo",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "dados do mercado inteiro: %d mercadorias, %d com dados de venda, %d itens do reino (idade %s, %d KB)",
+  ["whole-market data not in use: %s"] = "dados do mercado inteiro fora de uso: %s",
+  ["it is %s old, and the prices you imported are newer"] =
+    "eles têm %s de idade e os preços que você importou são mais recentes",
+  ["it is for another region than the prices loaded"] = "eles são de outra região que não a dos preços carregados",
+  ["its date cannot be right -- check this computer's clock"] =
+    "a data deles não pode estar certa -- confira o relógio deste computador",
 }

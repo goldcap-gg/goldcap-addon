@@ -796,4 +796,12 @@ GC.Locales.esES = {
     "Espera: tu propia búsqueda está en la lista de compra de la casa de subastas y un escaneo la sustituiría. Abre la pestaña de GoldCap en la casa de subastas, o ciérrala, y Auto empieza.",
   ["Market %s · unverified until a live Check"] =
     "Mercado %s · sin verificar hasta una comprobación en vivo",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "datos de todo el mercado: %d materiales, %d con datos de ventas, %d objetos del reino (antigüedad %s, %d KB)",
+  ["whole-market data not in use: %s"] = "datos de todo el mercado sin usar: %s",
+  ["it is %s old, and the prices you imported are newer"] =
+    "tienen %s de antigüedad y los precios que importaste son más recientes",
+  ["it is for another region than the prices loaded"] = "son de otra región distinta a la de los precios cargados",
+  ["its date cannot be right -- check this computer's clock"] =
+    "su fecha no puede ser correcta -- revisa el reloj de este ordenador",
 }

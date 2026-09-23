@@ -794,4 +794,12 @@ GC.Locales.frFR = {
     "Attend : ta propre recherche est dans la liste d'achat de l'hôtel des ventes, et un scan la remplacerait. Ouvre l'onglet GoldCap de l'hôtel des ventes, ou ferme l'hôtel des ventes, et Auto démarre.",
   ["Market %s · unverified until a live Check"] =
     "Marché %s · non vérifié avant une vérification en direct",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "données du marché entier : %d marchandises, %d avec données de vente, %d objets de royaume (âge %s, %d Ko)",
+  ["whole-market data not in use: %s"] = "données du marché entier non utilisées : %s",
+  ["it is %s old, and the prices you imported are newer"] =
+    "elles ont %s et les prix que vous avez importés sont plus récents",
+  ["it is for another region than the prices loaded"] = "elles concernent une autre région que les prix chargés",
+  ["its date cannot be right -- check this computer's clock"] =
+    "leur date ne peut pas être juste -- vérifiez l'horloge de cet ordinateur",
 }

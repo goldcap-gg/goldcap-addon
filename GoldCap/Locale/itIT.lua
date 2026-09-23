@@ -794,4 +794,12 @@ GC.Locales.itIT = {
     "Attesa: la tua ricerca è nell'elenco d'acquisto della casa d'aste e una scansione la sostituirebbe. Apri la scheda GoldCap nella casa d'aste, o chiudi la casa d'aste, e Auto parte.",
   ["Market %s · unverified until a live Check"] =
     "Mercato %s · non verificato fino a un controllo dal vivo",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "dati dell'intero mercato: %d merci, %d con dati di vendita, %d oggetti del reame (età %s, %d KB)",
+  ["whole-market data not in use: %s"] = "dati dell'intero mercato non in uso: %s",
+  ["it is %s old, and the prices you imported are newer"] =
+    "sono vecchi di %s e i prezzi che hai importato sono più recenti",
+  ["it is for another region than the prices loaded"] = "sono di una regione diversa da quella dei prezzi caricati",
+  ["its date cannot be right -- check this computer's clock"] =
+    "la loro data non può essere giusta -- controlla l'orologio di questo computer",
 }

@@ -685,11 +685,15 @@ GC.Locales.enUS = {
   ["includes %d for crafting %s"] = "includes %d for crafting %s",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "is what this market absorbs — past that you are buying stock you will sit on",
+  ["it is %s old, and the prices you imported are newer"] = "it is %s old, and the prices you imported are newer",
+  ["it is for another region than the prices loaded"] = "it is for another region than the prices loaded",
   ["item %d"] = "item %d",
   ["item %d: %s"] = "item %d: %s",
   ["item level %d+"] = "item level %d+",
   ["item variant unresolved"] = "item variant unresolved",
   ["item=%d computed=%s public=%s buyable=%s reasons=%s"] = "item=%d computed=%s public=%s buyable=%s reasons=%s",
+  ["its date cannot be right -- check this computer's clock"] =
+    "its date cannot be right -- check this computer's clock",
   ["last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent"] = "last 24h — %d sales, %s gross, %s AH cut, %d buys, %s spent",
   ["listing gone -- already bought out or price changed"] = "listing gone -- already bought out or price changed",
   ["listing gone -- bought out or repriced"] = "listing gone -- bought out or repriced",
@@ -826,6 +830,9 @@ GC.Locales.enUS = {
     "wall %s at %s -- price under it to sell first",
   ["wall %s at %s above you"] = "wall %s at %s above you",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
+  ["whole-market data not in use: %s"] = "whole-market data not in use: %s",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)",
   ["window moved back to the middle of the screen at its default size"] =
     "window moved back to the middle of the screen at its default size",
   ["worst case, selling all %d back into the price standing there now"] =

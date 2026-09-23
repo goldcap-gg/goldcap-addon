@@ -718,4 +718,10 @@ GC.Locales.zhCN = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "等待：拍卖行的购买列表里是你自己的搜索，扫描会把它替换掉。打开拍卖行里的 GoldCap 标签页，或关闭拍卖行，自动就会开始。",
   ["Market %s · unverified until a live Check"] = "市场 %s · 实时核对前未经验证",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "全市场数据：%d 种商品，%d 种有销售数据，%d 件服务器物品（%s 前，%d KB）",
+  ["whole-market data not in use: %s"] = "未使用全市场数据：%s",
+  ["it is %s old, and the prices you imported are newer"] = "它是 %s 前的数据，你导入的价格更新",
+  ["it is for another region than the prices loaded"] = "它属于与已载入价格不同的地区",
+  ["its date cannot be right -- check this computer's clock"] = "其日期不可能正确 -- 请检查这台电脑的时钟",
 }

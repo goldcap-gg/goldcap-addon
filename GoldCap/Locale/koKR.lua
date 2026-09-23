@@ -743,4 +743,10 @@ GC.Locales.koKR = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "대기 중: 경매장 구매 목록에 내 검색 결과가 있고, 검색하면 그것을 덮어씁니다. 경매장의 GoldCap 탭을 열거나 경매장을 닫으면 자동이 시작합니다.",
   ["Market %s · unverified until a live Check"] = "시세 %s · 실시간 확인 전까지는 미검증",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "지역 전체 시세: 거래 물품 %d개, 판매 정보 %d개, 서버 아이템 %d개 (경과 %s, %d KB)",
+  ["whole-market data not in use: %s"] = "지역 전체 시세 사용 안 함: %s",
+  ["it is %s old, and the prices you imported are newer"] = "%s 지난 자료이며, 가져온 시세가 더 최신입니다",
+  ["it is for another region than the prices loaded"] = "불러온 시세와 다른 지역의 자료입니다",
+  ["its date cannot be right -- check this computer's clock"] = "날짜가 올바를 수 없습니다 -- 이 컴퓨터의 시계를 확인하세요",
 }

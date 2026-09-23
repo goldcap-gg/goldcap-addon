@@ -809,4 +809,11 @@ GC.Locales.ukUA = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Чекає: у списку купівлі аукціону ваш власний пошук, і скан замінив би його. Відкрийте вкладку GoldCap на аукціоні або закрийте аукціон — і Авто почне.",
   ["Market %s · unverified until a live Check"] = "Ринок %s · не перевірено до живої перевірки",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "дані всього ринку: товарів %d, з даними про продажі %d, предметів світу %d (вік %s, %d КБ)",
+  ["whole-market data not in use: %s"] = "дані всього ринку не використовуються: %s",
+  ["it is %s old, and the prices you imported are newer"] = "їхній вік %s, а імпортовані вами ціни новіші",
+  ["it is for another region than the prices loaded"] = "вони для іншого регіону, ніж завантажені ціни",
+  ["its date cannot be right -- check this computer's clock"] =
+    "їхня дата не може бути правильною -- перевірте годинник цього комп'ютера",
 }

@@ -789,4 +789,11 @@ GC.Locales.ruRU = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Ждёт: в списке покупки аукциона ваш собственный поиск, и скан заменил бы его. Откройте вкладку GoldCap на аукционе или закройте аукцион — и Авто начнёт.",
   ["Market %s · unverified until a live Check"] = "Рынок %s · не проверено до живой проверки",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "данные всего рынка: товаров %d, с данными о продажах %d, предметов мира %d (возраст %s, %d КБ)",
+  ["whole-market data not in use: %s"] = "данные всего рынка не используются: %s",
+  ["it is %s old, and the prices you imported are newer"] = "их возраст %s, а импортированные вами цены новее",
+  ["it is for another region than the prices loaded"] = "они для другого региона, чем загруженные цены",
+  ["its date cannot be right -- check this computer's clock"] =
+    "их дата не может быть верной -- проверьте часы этого компьютера",
 }

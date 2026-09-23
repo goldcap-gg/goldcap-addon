@@ -125,4 +125,78 @@ describe("ImportDialog", function()
     assert.is_true(dialog.shown)
     assert.is_truthy(dialog.status:GetText():find("the run string is not valid", 1, true))
   end)
+  local function statusLines()
+    local printed = {}
+    GC.Print = function(line) printed[#printed + 1] = line end
+    GC.slashHandlers.status()
+    return printed
+  end
+
+  local function lineWith(printed, text)
+    for _, line in ipairs(printed) do
+      if line:find(text, 1, true) then return line end
+    end
+    return nil
+  end
+
+  -- The memory figure is measured when asked (RegionPayloadMemoryKB): GetStatus never carries it
+  -- until something has, so the status line has to ask for it itself.
+  it("says what the whole-market payload carries on /goldcap status", function()
+    GC.Data.AppDataError = function() return nil end
+    GC.Data.GetStatus = function()
+      return { region = "eu", bundledCount = 0,
+        payload = { items = 9439, facts = 5494, refs = 25000, ts = time() - 7200 } }
+    end
+    GC.Data.RegionPayloadMemoryKB = function() return 4096 end
+    GC.Data.RegionPayloadStatus = function() return nil end
+    assert.equal("whole-market data: 9439 commodities, 5494 with sale facts, 25000 realm items (2h old, 4096 KB)",
+      lineWith(statusLines(), "whole-market data:"))
+  end)
+
+  it("says nothing about a payload that is not there", function()
+    GC.Data.AppDataError = function() return nil end
+    GC.Data.GetStatus = function() return { region = "eu", bundledCount = 0 } end
+    GC.Data.RegionPayloadStatus = function() return nil end
+    local printed = statusLines()
+    assert.is_nil(lineWith(printed, "whole-market data"))
+  end)
+
+  -- A payload the Companion wrote and this load could not use: the one place that says why.
+  describe("a whole-market payload that is not in use", function()
+    local function reasonLine(status)
+      GC.Data.AppDataError = function() return nil end
+      GC.Data.GetStatus = function() return { region = "eu", bundledCount = 0 } end
+      GC.Data.RegionPayloadStatus = function() return status end
+      return lineWith(statusLines(), "whole-market data not in use:")
+    end
+
+    it("says it is older than the prices imported, and how old", function()
+      assert.equal("whole-market data not in use: it is 5h old, and the prices you imported are newer",
+        reasonLine({ reason = "older_than_import", ts = time() - 5 * 3600 }))
+    end)
+
+    it("says it is for another region", function()
+      assert.equal("whole-market data not in use: it is for another region than the prices loaded",
+        reasonLine({ reason = "other_region", ts = time() - 600 }))
+    end)
+
+    -- A refused date can be 0, far ahead of the clock, or a digit run tonumber reads as inf: none
+    -- of it is formatted as an age.
+    it("points at the clock for a date that cannot be right, whatever the date", function()
+      for _, ts in ipairs({ 0, time() + 86400 * 365, math.huge }) do
+        assert.equal("whole-market data not in use: its date cannot be right -- check this computer's clock",
+          reasonLine({ reason = "bad_ts", ts = ts }))
+      end
+    end)
+
+    it("gives a parser refusal the import error's own sentence", function()
+      GC.Data.DescribeImportError = function(reason) return "sentence for " .. reason end
+      assert.equal("whole-market data not in use: sentence for too_long", reasonLine({ reason = "too_long" }))
+    end)
+
+    it("clamps an age it cannot trust rather than printing a negative or endless one", function()
+      assert.equal("whole-market data not in use: it is <1h old, and the prices you imported are newer",
+        reasonLine({ reason = "older_than_import", ts = math.huge }))
+    end)
+  end)
 end)

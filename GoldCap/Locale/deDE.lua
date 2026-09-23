@@ -794,4 +794,11 @@ GC.Locales.deDE = {
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Wartet: Deine eigene Suche steht in der Kaufliste des Auktionshauses, und ein Scan würde sie ersetzen. Öffne den GoldCap-Tab im Auktionshaus oder schließ das Auktionshaus, dann startet Auto.",
   ["Market %s · unverified until a live Check"] = "Markt %s · ungeprüft bis zu einer Live-Prüfung",
+  ["whole-market data: %d commodities, %d with sale facts, %d realm items (%s old, %d KB)"] =
+    "Marktdaten der Region: %d Handelswaren, %d mit Verkaufsdaten, %d Realm-Gegenstände (%s alt, %d KB)",
+  ["whole-market data not in use: %s"] = "Marktdaten der Region nicht in Verwendung: %s",
+  ["it is %s old, and the prices you imported are newer"] = "sie sind %s alt, und deine importierten Preise sind neuer",
+  ["it is for another region than the prices loaded"] = "sie gehören zu einer anderen Region als die geladenen Preise",
+  ["its date cannot be right -- check this computer's clock"] =
+    "ihr Datum kann nicht stimmen -- prüfe die Uhr dieses Computers",
 }
