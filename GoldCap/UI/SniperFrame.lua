@@ -3458,6 +3458,12 @@ local function showRequoteBanner(head, detail)
   dialog.banner:Show()
 end
 
+-- Forward declarations for the quantity controls. Their definitions are intentionally below
+-- the purchase state machine, but every authoritative decision stamp must refresh them -- and
+-- armLoudConfirm below releases a held Buy through updateBuyAffordance.
+local refreshQtyRow
+local updateBuyAffordance
+
 -- Refuses the confirming click for LIM.REQUOTE_ARM_SECONDS so a click already on its way when the
 -- alarm fired can't land on it. Red-and-disabled reads as deliberate on its own; there is no
 -- countdown number in the label (a dropped earlier version ticked on a 0.5s interval over a
@@ -3470,19 +3476,35 @@ end
 -- at "requote" -- the stage alone can't tell them apart); every OTHER path that moves the row
 -- off "requote" entirely (armReady back to "ready", a resolved purchase, an abort) is instead
 -- caught by the timer's own `row.purchaseStage ~= "requote"` check, no token bump required.
+--
+-- Final review M1/m3: the same hold for a Buy. The timer checks the stage the row was armed in
+-- when this was called ("requote" for Confirm, "ready" for Buy). `label` defaults to "Confirm";
+-- `calm` keeps the button's own colours -- a window stop-and-open opened is no alarm, it only must
+-- not take a click meant for the board. dialog.armHold marks the hold, so updateBuyAffordance
+-- does not enable the button inside it, and a held commodity Buy is released through
+-- updateBuyAffordance, which asks whether the gold is still there.
 local requoteArmToken = 0
-local function armLoudConfirm(row)
+local function armLoudConfirm(row, label, calm)
   requoteArmToken = requoteArmToken + 1
-  local token = requoteArmToken
+  local token, stage = requoteArmToken, row.purchaseStage
+  label = label or "Confirm"
+  local r, g, b = 1, 0.35, 0.35
+  if calm then r, g, b = nil, nil, nil end
 
+  dialog.armHold = token
   dialog.primaryBtn:Disable()
-  setPrimaryLabel("Confirm", 1, 0.35, 0.35)
+  setPrimaryLabel(label, r, g, b)
 
   C_Timer.After(LIM.REQUOTE_ARM_SECONDS, function()
     if token ~= requoteArmToken then return end
-    if not dialog or dialog.row ~= row or row.purchaseStage ~= "requote" then return end
-    dialog.primaryBtn:Enable()
-    setPrimaryLabel("Confirm", 1, 0.35, 0.35)
+    if not dialog or dialog.row ~= row or row.purchaseStage ~= stage then return end
+    dialog.armHold = nil
+    if stage == "ready" and row.deal and row.deal.isCommodity and updateBuyAffordance then
+      updateBuyAffordance()
+    else
+      dialog.primaryBtn:Enable()
+    end
+    setPrimaryLabel(label, r, g, b)
   end)
 end
 
@@ -3726,11 +3748,6 @@ local function resizeDialogDiagnostics()
   local bannerVisible = dialog.banner and dialog.banner:IsShown()
   dialog:SetHeight(dialog.baseHeight + (bannerVisible and LIM.REQUOTE_BANNER_HEIGHT or 0))
 end
-
--- Forward declarations for the quantity controls. Their definitions are intentionally below
--- the purchase state machine, but every authoritative decision stamp must refresh them.
-local refreshQtyRow
-local updateBuyAffordance
 
 -- Draws what Core/CheckVerdict.lua decided (check panel v3). Named drawVerdict, not
 -- stampVerdict: that name is already taken by the row-level recorder forward-declared far
@@ -4390,7 +4407,9 @@ end
 -- button reads "Buy" and is enabled, and the ARM_TIMEOUT clock starts. Shared by openDialog
 -- (non-stale deals arm immediately) and finishRequery (stale deals arm once the live requery
 -- resolves) so there is exactly one place that flips this stage on.
-local function armReady(row, deal, decision, levels)
+-- `hold` (final review m3): the first arm of a window stop-and-open opened waits
+-- LIM.REQUOTE_ARM_SECONDS before Buy takes a click (armLoudConfirm, calm).
+local function armReady(row, deal, decision, levels, hold)
   if not decision or not decision.buyable or decision.status ~= "SAFE" or not deal.isCommodity then
     return
   end
@@ -4416,9 +4435,15 @@ local function armReady(row, deal, decision, levels)
   -- deal's numbers -- over the row the player is actually looking at. The row's own arming
   -- above is unconditional; only the screen has to belong to it.
   if dialog and dialog.row == row then
-    dialog.primaryBtn:Enable()
     hideRequoteBanner()
-    setPrimaryLabel("Buy")
+    if hold then
+      armLoudConfirm(row, "Buy", true)
+    else
+      -- A hold still counting belongs to an arm this one replaces.
+      requoteArmToken = requoteArmToken + 1
+      dialog.primaryBtn:Enable()
+      setPrimaryLabel("Buy")
+    end
     dialog.bookLevels = levels
     setDialogHeader(deal, decision)
     stampDialogFromDecision(deal, decision)
@@ -4533,6 +4558,28 @@ function GC.Sniper._RowCap(row, deal)
   local armed = row and row.decisionSnapshot
   if not (armed and armed.cap and deal and deal.isCommodity) then return nil end
   return GC.Caps and GC.Caps.For(deal.itemID) or nil
+end
+
+-- Final review M1: what the player's own price says about the lot a realm verdict named for a
+-- YOUR PRICE row (`deal.cap`) -- nil when the item has no cap or the lot keeps to it. The unit is
+-- the lot's own (buyout over its size, the unit DecideRealm compares), and the item level the
+-- lot's own against the cap's `l`. Either or both, in the words the loud requote uses.
+function GC.Sniper._CapMiss(deal, decision)
+  local cap = deal and deal.cap and GC.Caps and GC.Caps.For(deal.itemID)
+  local candidate = decision and decision.candidate
+  if not (cap and candidate and candidate.buyout) then return nil end
+  local unit = math.floor(candidate.buyout / math.max(1, candidate.quantity or 1))
+  local level = candidate.itemLevel or 0
+  local parts = {}
+  if unit > cap.c then
+    parts[#parts + 1] = (GC.L["Above your price -- quoted %s, your price %s"]):format(
+      GC.Util.FormatMoney(unit), GC.Util.FormatMoney(cap.c))
+  end
+  if (cap.l or 0) > 0 and level < cap.l then
+    parts[#parts + 1] = (GC.L["Item level %d, below the %d your price is for"]):format(level, cap.l)
+  end
+  if #parts == 0 then return nil end
+  return table.concat(parts, " · ")
 end
 
 -- Caps fixes 3b: a commodity cap row goes on the board the player is looking at -- the store
@@ -4654,6 +4701,11 @@ end
 local function applyRequeryResult(row, itemID, live)
   local deal = row.deal
   if not deal or deal.itemID ~= itemID then return end
+  -- Final review m3: the first answer a window stop-and-open opened gets (openDialog marks it) is
+  -- the one whose arm waits. Taken here, whatever the answer is: a later arm follows a click of
+  -- the player's own.
+  local hold = dialog and dialog.row == row and dialog.holdFirstArm or nil
+  if dialog and dialog.row == row then dialog.holdFirstArm = nil end
   local decision = live and live.decision
   if decision then
     deal.isCommodity = live.isCommodity and true or false
@@ -4663,7 +4715,7 @@ local function applyRequeryResult(row, itemID, live)
       dialog.bookLevels = live.levels
     end
     if live.isCommodity and decision.buyable then
-      armReady(row, deal, decision, live.levels)
+      armReady(row, deal, decision, live.levels, hold)
       -- A cap decision is the player's own price, not the engine's safety verdict.
       if frame then
         frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
@@ -4679,7 +4731,16 @@ local function applyRequeryResult(row, itemID, live)
       -- and its judgement is also the player's -- but a judgement already made, as a price, on
       -- goldcap.gg. "Unverified" and "sale speed unknown" describe a lot measured against a
       -- region reference; a cap lot says what it is instead: at or under your price.
+      --
+      -- Final review M1: and a YOUR PRICE row can land here WITHOUT a cap decision -- the Check
+      -- found no lot at the player's price (bought between the ring and the click) and the region
+      -- verdict named another. Nothing then said that lot is above the player's price, or below
+      -- the item level it is for, and the next click placed the bid: a realm lot has no quote
+      -- step to catch it. So the window says so (GC.Sniper._CapMiss) and holds Buy the way a
+      -- loud requote holds Confirm.
       local capLot = decision.cap == true
+      local capMiss = not capLot and GC.Sniper._CapMiss(deal, decision) or nil
+      local label = capLot and "Buy" or GC.L["BUY — unverified"]
       row.purchaseStage = "ready"
       row.purchaseDeal = nil
       row.decisionSnapshot = decision
@@ -4687,19 +4748,34 @@ local function applyRequeryResult(row, itemID, live)
       activeItemID[deal.itemID] = true
       if dialog and dialog.row == row then
         hideRequoteBanner()
+        -- A hold still counting belongs to an arm this one replaces (armLoudConfirm).
+        requoteArmToken = requoteArmToken + 1
         -- The same bare "Buy" armReady puts on a commodity, which is the word every "click Buy"
         -- status line in every locale names.
-        setPrimaryLabel(capLot and "Buy" or GC.L["BUY — unverified"])
+        setPrimaryLabel(label)
         setDialogHeader(deal, decision)
         stampDialogFromDecision(deal, decision)
         -- Affordability, checked here rather than through updateBuyAffordance: that helper
         -- ends by writing "price confirmed -- click Buy to purchase" in green, which is a
-        -- promise this path is not allowed to make.
+        -- promise this path is not allowed to make. Final review m2: and, at the player's own
+        -- price, their own per-buy wallet limit -- the one a commodity at it already keeps to
+        -- (GC.Caps.DecideCommodity).
         local total = decision.candidate.buyout
+        local limits = capLot and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, GetMoney()) or nil
         if total > GetMoney() then
           dialog.primaryBtn:Disable()
           setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
             :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
+        elseif capLot and not (limits and total <= limits.budget) then
+          dialog.primaryBtn:Disable()
+          setDialogStatus(GC.L["Costs more than your per-buy wallet limit allows."], 1, 0.3, 0.3)
+        elseif capMiss then
+          armLoudConfirm(row, label)
+          setDialogStatus(capMiss, 1, 0.3, 0.3)
+        elseif hold then
+          armLoudConfirm(row, label, true)
+          setDialogStatus(capLot and GC.L["at or under your price -- click Buy to purchase"]
+            or GC.L["price checked, sale speed unknown -- this one is your call"])
         elseif capLot then
           dialog.primaryBtn:Enable()
           setDialogStatus(GC.L["at or under your price -- click Buy to purchase"], 0.25, 0.85, 0.25)
@@ -7159,7 +7235,9 @@ refreshQtyRow = function()
     dialog.qtyBox:Hide()
     dialog.qtyOfLabel:Hide()
     dialog.qtyLotText:Show()
-    dialog.qtyLotText:SetText((GC.L["%d (whole lot)"]):format(deal.qty))
+    -- The lot the Check found and Buy bids on (final review m4), not the board row's own lot.
+    local armed = dialog.row and dialog.row.decisionSnapshot
+    dialog.qtyLotText:SetText((GC.L["%d (whole lot)"]):format(armed and armed.quantity or deal.qty))
     for _, btn in pairs(dialog.quickFillBtns) do btn:Hide() end
   end
 
@@ -7193,7 +7271,8 @@ updateBuyAffordance = function()
     setDialogStatus((GC.L["not enough gold -- total %s, you have %s"])
       :format(GC.Util.FormatMoney(total), GC.Util.FormatMoney(GetMoney())), 1, 0.3, 0.3)
   else
-    dialog.primaryBtn:Enable()
+    -- Not inside a hold (armLoudConfirm): its own timer comes back here when it is over.
+    if dialog.armHold ~= requoteArmToken then dialog.primaryBtn:Enable() end
     setDialogStatus(GC.L["price confirmed -- click Buy to purchase"], 0.25, 0.85, 0.25)
   end
 end
@@ -8159,6 +8238,9 @@ local function openDialog(row, deal)
 
   dialog = dialog or createDialog()
   dialog.row = row
+  -- Final review m3: opened by stop-and-open (drainCapPings), not by the player -- its first arm
+  -- waits (applyRequeryResult). Every other open starts without the mark.
+  dialog.holdFirstArm = GC.Sniper._capOpening and true or nil
   dialog.cancelBtn:Enable()
   -- Fix 3: a prior visit may have left this relabeled "Close" (showGoneState) -- every fresh
   -- open is a normal purchase attempt again, never a "the thing you were looking at is gone"
@@ -8392,7 +8474,13 @@ drainCapPings = function(allowOpen)
   end
   pingNewHotDeals(ring)
   -- Last, once the queue is whole again: opening renders, and that render drains the queue too.
-  if openRow then onBuyClick(openRow) end
+  -- Marked as this drain's open for openDialog (final review m3): its first arm waits.
+  if openRow then
+    GC.Sniper._capOpening = true
+    local ok, err = pcall(onBuyClick, openRow)
+    GC.Sniper._capOpening = nil
+    if not ok then error(err, 0) end
+  end
 end
 
 -- The Auction House ticker's half of the drain: rings for rows that came on screen without a

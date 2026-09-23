@@ -535,6 +535,240 @@ describe("Live price caps -- buying at the player's own price", function()
 
       assert.equal("YOUR PRICE", d.decisionStatusText.text)
     end)
+
+    -- Final review m2: the one check this path ran was the gold in the bags. A commodity at the
+    -- player's price is held to their own "Max wallet per buy %" (GC.Caps.DecideCommodity); a
+    -- realm lot at it went through whatever it cost.
+    it("keeps to the player's wallet limit", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      money = 10000000 -- 1,000g: the 5% limit is 50g, under an 80g lot
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+
+      assert.is_false(d.enabled)
+      assert.equal("Costs more than your per-buy wallet limit allows.", d.written[#d.written])
+    end)
+
+    -- Final review m4: "(whole lot)" read the board row's own quantity -- the lot the scan saw --
+    -- not the lot the Check found and Buy would bid on.
+    it("names the size of the lot the Check found", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 4000000, itemLevel = 615, quantity = 5 } })
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 1,
+        auctionID = 3, stale = true }
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+
+      assert.equal("5 (whole lot)", d.qtyLotText.text)
+    end)
+  end)
+
+  -- Final review M1. A Check on a YOUR PRICE row that finds nothing at the player's price -- the
+  -- lot was bought between the ring and the click -- falls through to the region verdict, and
+  -- that armed "BUY — unverified" on whatever lot sat under the region reference: above the
+  -- player's price, or below their item level, with nothing on screen to say so and nothing
+  -- between that and PlaceBid on the next click. The window says what the player's price says
+  -- about the lot, and holds Buy the way a loud requote holds Confirm.
+  describe("a YOUR PRICE row whose Check finds no lot at the player's price", function()
+    local timers
+
+    local function checked(GC, candidate, capLevel)
+      adoptCap(GC, 42, 1000000, capLevel)
+      timers = {}
+      _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+      local unit = math.floor(candidate.buyout / candidate.quantity)
+      local decision = { status = "WATCH", reasons = { "realm_item_unverified" },
+        quantity = candidate.quantity, entryTotal = candidate.buyout, entryUnitDisplay = unit,
+        candidate = candidate }
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 1,
+        auctionID = 3, stale = true }
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+      return row, d
+    end
+
+    local function holdEnds(seconds)
+      for _, timer in ipairs(timers) do
+        if timer.seconds == seconds then timer.fn() end
+      end
+    end
+
+    it("names the player's price and holds Buy when the lot is above it", function()
+      local GC = loadSniper()
+      local row, d = checked(GC, { auctionID = 10, buyout = 1200000, quantity = 1, itemLevel = 615 })
+
+      assert.equal("ready", row.purchaseStage)
+      assert.is_false(d.enabled)
+      assert.equal(("Above your price -- quoted %s, your price %s"):format(
+        GC.Util.FormatMoney(1200000), GC.Util.FormatMoney(1000000)), d.written[#d.written])
+      holdEnds(1.5)
+      assert.is_true(d.enabled)
+    end)
+
+    it("says the lot is below the item level the price is for", function()
+      local GC = loadSniper()
+      local _, d = checked(GC, { auctionID = 10, buyout = 800000, quantity = 1, itemLevel = 590 }, 610)
+
+      assert.is_false(d.enabled)
+      assert.equal("Item level 590, below the 610 your price is for", d.written[#d.written])
+      holdEnds(1.5)
+      assert.is_true(d.enabled)
+    end)
+
+    it("says both when the lot misses the price and the item level", function()
+      local GC = loadSniper()
+      local _, d = checked(GC, { auctionID = 10, buyout = 1200000, quantity = 1, itemLevel = 590 }, 610)
+
+      local text = d.written[#d.written]
+      assert.is_truthy(text:find("Above your price", 1, true), text)
+      assert.is_truthy(text:find("Item level 590, below the 610 your price is for", 1, true), text)
+    end)
+
+    it("prices a stack by the unit, like the cap", function()
+      local GC = loadSniper()
+      local _, d = checked(GC, { auctionID = 10, buyout = 6000000, quantity = 5, itemLevel = 615 })
+
+      assert.equal(("Above your price -- quoted %s, your price %s"):format(
+        GC.Util.FormatMoney(1200000), GC.Util.FormatMoney(1000000)), d.written[#d.written])
+    end)
+
+    it("does not enable Buy early for a hold that was taken over", function()
+      local GC = loadSniper()
+      local row, d = checked(GC, { auctionID = 10, buyout = 1200000, quantity = 1, itemLevel = 615 })
+      row.purchaseStage = "check"
+      holdEnds(1.5)
+      assert.is_false(d.enabled)
+    end)
+  end)
+
+  -- Final review m3. A window stop-and-open put on screen arrived unasked, over the board's own
+  -- action column, and was armed the moment its Check landed: a click aimed at a row could land
+  -- on its Buy. Its first arm waits, as a loud requote's Confirm does -- in the calm colours.
+  describe("the first arm of a window stop-and-open opened", function()
+    local timers
+
+    local function realmLot(GC)
+      adoptCap(GC, 42, 1000000)
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 800000, itemLevel = 615, quantity = 1 } })
+      local deal = { itemID = 42, isCommodity = false, cap = 1000000, unitPrice = 800000, qty = 1,
+        auctionID = 9, stale = true }
+      return deal, decision
+    end
+
+    local function held(GC, arm)
+      timers = {}
+      _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+      return arm(GC)
+    end
+
+    local function holdEnds()
+      for _, timer in ipairs(timers) do
+        if timer.seconds == 1.5 then timer.fn() end
+      end
+    end
+
+    it("holds a commodity's Buy for a moment", function()
+      local GC = loadSniper()
+      adoptCap(GC, 42, 1000000)
+      local levels = { { unitPrice = 900000, quantity = 5 } }
+      local live = capLive(GC, 42, levels)
+      local deal = boardDeal(GC, 42)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = held(GC, function()
+        local dlg = fakeDialog(row, deal)
+        dlg.holdFirstArm = true
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dlg)
+        local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+        getUpvalue(finishRequery, "applyRequeryResult")(row, 42, live)
+        return dlg
+      end)
+
+      assert.equal("ready", row.purchaseStage)
+      assert.is_false(d.enabled)
+      holdEnds()
+      assert.is_true(d.enabled)
+      assert.equal("Buy", d.label)
+    end)
+
+    it("holds a realm lot's Buy for a moment, once", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      local apply = getUpvalue(finishRequery, "applyRequeryResult")
+      local d = held(GC, function()
+        local dlg = fakeDialog(row, deal)
+        dlg.holdFirstArm = true
+        setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", dlg)
+        apply(row, 42, { isCommodity = false, decision = decision })
+        return dlg
+      end)
+
+      assert.is_false(d.enabled)
+      holdEnds()
+      assert.is_true(d.enabled)
+      -- A Refresh later on is the player's own click: armed at once.
+      row.purchaseStage = "requerying"
+      apply(row, 42, { isCommodity = false, decision = decision })
+      assert.is_true(d.enabled)
+    end)
+
+    it("is not held on a window the player opened", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+      assert.is_true(d.enabled)
+    end)
+
+    -- The mark itself: openDialog carries it from the drain's open onto the dialog, and a window
+    -- the player opens by hand starts without it.
+    it("is marked on the dialog by the open stop-and-open makes, and only by it", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+      local createRow = getUpvalue(getUpvalue(clearDeals, "refreshRows"), "createRow")
+      local onBuyClick = getUpvalue(getUpvalue(createRow, "buildRowCell"), "onBuyClick")
+      local openDialog = getUpvalue(onBuyClick, "openDialog")
+      local row = { deal = deal }
+      local d = fakeDialog(row, deal)
+      d.Show = function() end
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      timers = {}
+      _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+      deal.prewarm = { at = 100, data = { isCommodity = false, decision = decision } }
+
+      GC.Sniper._capOpening = true
+      openDialog(row, deal)
+      GC.Sniper._capOpening = nil
+
+      assert.is_false(d.enabled)
+      holdEnds()
+      assert.is_true(d.enabled)
+
+      row.purchaseStage = nil
+      deal.prewarm = { at = 100, data = { isCommodity = false, decision = decision } }
+      openDialog(row, deal)
+      assert.is_true(d.enabled)
+    end)
   end)
 
   describe("a commodity cap row on the board", function()

@@ -273,6 +273,8 @@ GC.Locales.enUS = {
     "It will not invent a cost from the market price, so profit stays unknown until you enter one.",
   ["Item"] = "Item",
   ["Item %d"] = "Item %d",
+  ["Item level %d, below the %d your price is for"] =
+    "Item level %d, below the %d your price is for",
   ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
     "Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open.",
   ["LISTED"] = "LISTED",

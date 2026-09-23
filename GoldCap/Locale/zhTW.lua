@@ -205,6 +205,7 @@ GC.Locales.zhTW = {
     "它不會拿市場價當成本，所以在你填寫之前利潤始終顯示為未知。",
   ["Item"] = "道具",
   ["Item %d"] = "道具 %d",
+  ["Item level %d, below the %d your price is for"] = "物品等級 %d，低於你的價格所要求的 %d",
   ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
     "道具：裝備、寵物和配方依你匯入的區域參考價定價。售出速度從未被測量，因此它們永遠無法判定為安全 -- 是否購買由你決定，GoldCap 只在此面板開啟時才會檢查它們。",
   ["LISTED"] = "已上架",

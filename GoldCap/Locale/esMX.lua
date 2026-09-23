@@ -216,6 +216,8 @@ GC.Locales.esMX = {
     "No inventará un costo a partir del precio de mercado, así que la ganancia seguirá siendo desconocida hasta que ingreses uno.",
   ["Item"] = "Objeto",
   ["Item %d"] = "Objeto %d",
+  ["Item level %d, below the %d your price is for"] =
+    "Nivel de objeto %d, por debajo del %d para el que es tu precio",
   ["Items: gear, pets and recipes priced against the region reference from your import. Sale speed goes unmeasured, so these never clear SAFE -- the buy is your call, and GoldCap only checks them while this board is open."] =
     "Items: equipo, mascotas y recetas valorados frente a la referencia de región de tu importación. La velocidad de venta nunca se mide, así que nunca llegan a SEGURO -- esta la decides tú, y GoldCap solo los revisa mientras este tablero está abierto.",
   ["LISTED"] = "PUBLICADO",
