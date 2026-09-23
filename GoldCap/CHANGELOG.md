@@ -2,19 +2,12 @@
 
 ## 0.15.1 (unreleased)
 
-- The Deals board no longer lists finds whose buy would make less than your "Min profit per
-  buy". Rows you watch and rows at your own price always show. The count of hidden finds says
-  it includes these.
-- A deal held back only by your "Max wallet per buy %" now stays on the board instead of going
-  to Hidden, and says how much gold the character needs to hold for it; the buy window says what
-  the buy costs as well. When the character has too little gold to buy anything on the board, a
-  line at the top of the board says so. As soon as the gold arrives, those deals are checked
-  again first, and an open buy window checks its own.
-- A row you checked yourself and the check refused now leaves the board once you close its buy
-  window or open another row, like the refusals found in the background; a row you watch keeps
-  its verdict. Refused rows come back for a fresh check after 30 minutes.
-- In the buy window, "Confidence" is now "Sales evidence", read as weak, fair or strong: how sure
-  GoldCap is that listings which disappeared were really sold. It says nothing about the price.
+- The Deals board leaves out finds worth less than your "Min profit per buy", and a refused row
+  you checked yourself goes to Hidden once you close its buy window. Rows you watch stay.
+- A deal only your "Max wallet per buy %" holds back stays on the board, says how much gold the
+  character needs, and is checked again as soon as the gold arrives.
+- In the buy window, "Confidence" is now "Sales evidence": how sure GoldCap is that listings
+  which disappeared were really sold.
 
 ## 0.15.0 (2026-09-24)
 
