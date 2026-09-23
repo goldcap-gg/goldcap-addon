@@ -21,6 +21,7 @@ GC.Locales.enUS = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
+  ["%d ahead of you"] = "%d ahead of you",
   ["%d caps · %s"] = "%d caps · %s",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
@@ -159,6 +160,8 @@ GC.Locales.enUS = {
     "above the cheapest, inside the cheap quarter · %s units ahead of you",
   ["above the cheapest, within the day's reach · %s units ahead of you"] =
     "above the cheapest, within the day's reach · %s units ahead of you",
+  ["clears in ~%dd"] = "clears in ~%dd",
+  ["clears in ~%dh"] = "clears in ~%dh",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
@@ -779,8 +782,8 @@ GC.Locales.enUS = {
   ["that string is too long to import"] = "that string is too long to import",
   ["the Auction House has not answered for this item yet"] = "the Auction House has not answered for this item yet",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
-  ["the auction house has not described these yet"] =
-    "the auction house has not described these yet",
+  ["the auction house has not sent details for these yet"] =
+    "the auction house has not sent details for these yet",
   ["the auction house reported an error"] = "the auction house reported an error",
   ["the import failed (%s)"] = "the import failed (%s)",
   ["the last attempt is still settling -- checking the price again..."] =

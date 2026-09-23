@@ -16,6 +16,7 @@ GC.Locales.itIT = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — comandi: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (o /gc in breve)",
   ["%d (whole lot)"] = "%d (lotto intero)",
+  ["%d ahead of you"] = "%d davanti a te",
   ["%d caps · %s"] = "%d tetti · %s",
   ["%d days"] = "%d giorni",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -546,6 +547,8 @@ GC.Locales.itIT = {
   ["check the item level — buy by hand"] = "controlla il livello oggetto — compra a mano",
   ["checking live price..."] = "controllo del prezzo dal vivo...",
   ["checking live safety..."] = "controllo della sicurezza dal vivo...",
+  ["clears in ~%dd"] = "esaurito in ~%d g",
+  ["clears in ~%dh"] = "esaurito in ~%d h",
   ["commodity purchase failed"] = "acquisto della merce fallito",
   ["confirmed commodity purchase failed after AH close"] =
     "acquisto di merce confermato fallito dopo la chiusura della casa d'aste",
@@ -696,7 +699,8 @@ GC.Locales.itIT = {
   ["stopped watching %s"] = "ho smesso di sorvegliare %s",
   ["the Companion wrote prices this addon could not read --"] =
     "il Companion ha scritto prezzi che questo addon non è riuscito a leggere --",
-  ["the auction house has not described these yet"] = "la casa d'aste non li ha ancora descritti",
+  ["the auction house has not sent details for these yet"] =
+    "la casa d'aste non ha ancora inviato i dettagli",
   ["the import failed (%s)"] = "l'importazione è fallita (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

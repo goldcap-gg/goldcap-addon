@@ -19,6 +19,7 @@ GC.Locales.koKR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 명령어: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (짧게 /gc)",
   ["%d (whole lot)"] = "%d (전체 물량)",
+  ["%d ahead of you"] = "내 앞에 %d개",
   ["%d caps · %s"] = "가격 상한 %d개 · %s",
   ["%d days"] = "%d일",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -510,6 +511,8 @@ GC.Locales.koKR = {
   ["check the item level — buy by hand"] = "아이템 레벨 확인 — 직접 구매",
   ["checking live price..."] = "실시간 가격 확인 중...",
   ["checking live safety..."] = "실시간 안전성 확인 중...",
+  ["clears in ~%dd"] = "~%d일 후 소진",
+  ["clears in ~%dh"] = "~%d시간 후 소진",
   ["commodity purchase failed"] = "상품 구매에 실패했습니다",
   ["confirmed commodity purchase failed after AH close"] =
     "경매장 종료 후 확정된 상품 구매가 실패했습니다",
@@ -655,7 +658,7 @@ GC.Locales.koKR = {
   ["stopped watching %s"] = "%s 주시를 멈췄습니다",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion이 기록한 시세를 이 애드온이 읽지 못했습니다 --",
-  ["the auction house has not described these yet"] = "경매장이 아직 이 아이템들을 알려주지 않았습니다",
+  ["the auction house has not sent details for these yet"] = "경매장이 아직 이 아이템들의 정보를 보내지 않았습니다",
   ["the import failed (%s)"] = "가져오기에 실패했습니다 (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

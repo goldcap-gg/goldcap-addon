@@ -16,6 +16,7 @@ GC.Locales.deDE = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — Befehle: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (kurz /gc)",
   ["%d (whole lot)"] = "%d (ganzer Posten)",
+  ["%d ahead of you"] = "%d vor dir",
   ["%d caps · %s"] = "%d Preisdeckel · %s",
   ["%d days"] = "%d Tage",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -548,6 +549,8 @@ GC.Locales.deDE = {
   ["check the item level — buy by hand"] = "Gegenstandsstufe prüfen — von Hand kaufen",
   ["checking live price..."] = "Live-Preis wird geprüft...",
   ["checking live safety..."] = "Live-Sicherheit wird geprüft...",
+  ["clears in ~%dd"] = "weg in ~%d Tg.",
+  ["clears in ~%dh"] = "weg in ~%d Std.",
   ["commodity purchase failed"] = "Warenkauf fehlgeschlagen",
   ["confirmed commodity purchase failed after AH close"] =
     "bestätigter Warenkauf nach Schließen des Auktionshauses fehlgeschlagen",
@@ -615,8 +618,8 @@ GC.Locales.deDE = {
   ["no cost"] = "kein Einstand",
   ["no cost for %d"] = "kein Einstand für %d",
   ["no live price yet"] = "noch kein Live-Preis",
-  ["no market figure for this item level"] = "keine Marktzahl für diese Gegenstandsstufe",
-  ["no market figure for this pet"] = "keine Marktzahl für dieses Haustier",
+  ["no market figure for this item level"] = "keine Marktdaten für diese Gegenstandsstufe",
+  ["no market figure for this pet"] = "keine Marktdaten für dieses Haustier",
   ["no price"] = "kein Preis",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "noch keine Preise -- /goldcap companion oder /goldcap import",
@@ -700,8 +703,8 @@ GC.Locales.deDE = {
   ["stopped watching %s"] = "%s wird nicht mehr beobachtet",
   ["the Companion wrote prices this addon could not read --"] =
     "der Companion hat Preise geschrieben, die dieses Addon nicht lesen konnte --",
-  ["the auction house has not described these yet"] =
-    "das Auktionshaus hat diese noch nicht beschrieben",
+  ["the auction house has not sent details for these yet"] =
+    "das Auktionshaus hat dazu noch keine Details geschickt",
   ["the import failed (%s)"] = "der Import ist fehlgeschlagen (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",
@@ -729,7 +732,7 @@ GC.Locales.deDE = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "dein Import ist %d Stunden alt -- die Preise können abweichen. Füge eine frische Zeichenkette von goldcap.gg ein (/goldcap import).",
   ["yours"] = "deiner",
-  ["~%dd to reach you at today's pace"] = "~%d Tag(e) bis du dran bist, beim heutigen Tempo",
+  ["~%dd to reach you at today's pace"] = "~%d Tg. bis du dran bist, beim heutigen Tempo",
   ["~%dh to reach you at today's pace"] = "~%d Std. bis du dran bist, beim heutigen Tempo",
   ["» needs price"] = "» braucht Preis",
   ["×%d in bags"] = "×%d in Taschen",

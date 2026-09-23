@@ -131,6 +131,15 @@ local function onTooltip(tooltip, data)
     if shownLink then itemID = C_Item.GetItemInfoInstant(shownLink) end
   end
   if type(itemID) ~= "number" then return end
+  -- A Sell row standing for one item level or one pet is hovered (UI/SellFrame.lua): the figure
+  -- GetItemValue has is every item level's, or every pet's, and the row's panel says there is
+  -- none for this one -- so this says the same, rather than print the merged one under it.
+  local variant = tooltip == GameTooltip and GC.Sell and GC.Sell._hoverVariant or nil
+  if variant then
+    tooltip:AddLine(variant == "pet" and GC.L["no market figure for this pet"]
+      or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
+    return
+  end
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), time(), {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,

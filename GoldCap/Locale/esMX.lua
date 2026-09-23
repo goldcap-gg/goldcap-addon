@@ -19,6 +19,7 @@ GC.Locales.esMX = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (o /gc para abreviar)",
   ["%d (whole lot)"] = "%d (lote completo)",
+  ["%d ahead of you"] = "%d por delante de ti",
   ["%d caps · %s"] = "%d topes · %s",
   ["%d days"] = "%d días",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -549,6 +550,8 @@ GC.Locales.esMX = {
   ["check the item level — buy by hand"] = "revisa el nivel de objeto — compra a mano",
   ["checking live price..."] = "comprobando el precio en vivo...",
   ["checking live safety..."] = "comprobando la seguridad en vivo...",
+  ["clears in ~%dd"] = "se vacía en ~%d d",
+  ["clears in ~%dh"] = "se vacía en ~%d h",
   ["commodity purchase failed"] = "falló la compra de la mercancía",
   ["confirmed commodity purchase failed after AH close"] =
     "la compra confirmada de mercancía falló tras cerrar la casa de subastas",
@@ -701,7 +704,8 @@ GC.Locales.esMX = {
   ["stopped watching %s"] = "se dejó de vigilar %s",
   ["the Companion wrote prices this addon could not read --"] =
     "el Companion escribió precios que este addon no pudo leer --",
-  ["the auction house has not described these yet"] = "la casa de subastas aún no los ha descrito",
+  ["the auction house has not sent details for these yet"] =
+    "la casa de subastas aún no ha enviado sus detalles",
   ["the import failed (%s)"] = "la importación falló (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

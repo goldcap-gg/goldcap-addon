@@ -1952,7 +1952,11 @@ function GC.Sell._SlotKey(itemID, link, bag, slot)
   if not ok or type(itemKey) ~= "table" or itemKey.itemID ~= itemID then return nil, nil end
   local positionKey = GC.Acquisitions and GC.Acquisitions.PositionKey
     and GC.Acquisitions.PositionKey(itemID, itemKey, false) or nil
-  return positionKey, positionKey
+  -- An ItemKey with no level, suffix or species (bonus IDs on a non-gear item) is the bare key:
+  -- no variant, priced and valued as the item always was (review N8).
+  local plain = (itemKey.itemLevel or 0) == 0 and (itemKey.itemSuffix or 0) == 0
+    and (itemKey.battlePetSpeciesID or 0) == 0
+  return positionKey, not plain and positionKey or nil
 end
 
 -- Whether an item sells as a commodity decides its whole auction identity, and
@@ -1987,7 +1991,9 @@ local function classifyBagItem(itemID, link, bag, slot)
     if not positionKey and bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
         and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
       local ok, valid = pcall(function()
-        return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot))
+        -- displayError false, as Auctionator's own bag scan asks: with it on, every compose at the
+        -- auction house put the red "can't auction" error and its sound on screen (review N1).
+        return C_AuctionHouse.IsSellItemValid(ItemLocation:CreateFromBagAndSlot(bag, slot), false)
       end)
       if ok and valid == false then return nil, false, nil, true end
     end
@@ -3325,7 +3331,7 @@ do
     if entry.kind == "waitHead" then
       local open = GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
       return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count) .. "  " .. DIM_HEX
-        .. (open and GC.L["the auction house has not described these yet"]
+        .. (open and GC.L["the auction house has not sent details for these yet"]
           or GC.L["open the auction house once so GoldCap can tell how these sell"]) .. "|r"
     end
     return ("%s ×%d"):format(entry.name, entry.quantity or 0)
@@ -3853,6 +3859,10 @@ local function createRow(parent)
       Theme.ItemTooltipOutside(self, statusOwner)
       -- A variant is the stack itself -- its item level, its bonuses, its pet -- not the base item
       -- (for every caged pet, "Pet Cage"): the bag slot, else the lot's own link (review M9).
+      -- GoldCap's own block under this tooltip (UI/Tooltip.lua) reads the site's figure for the
+      -- item -- every item level at once, every pet at once: while a variant row is hovered it
+      -- says there is none for this one instead (review N7).
+      GC.Sell._hoverVariant = self.position.variantKind
       local stack = self.position.quoteKey and self.position.bagStacks and self.position.bagStacks[1]
       local lot = self.position.quoteKey and self.position.ownedLots and self.position.ownedLots[1]
       if stack and GameTooltip.SetBagItem then GameTooltip:SetBagItem(stack.bag, stack.slot)
@@ -3884,7 +3894,11 @@ local function createRow(parent)
   end)
   row:SetScript("OnLeave", function(self)
     self.highlight:Hide()
-    if GameTooltip then GameTooltip:Hide() end
+    GC.Sell._hoverVariant = nil
+    -- GameTooltip_Hide closes Blizzard's battle-pet card too, which a caged pet's bag slot or
+    -- link may open beside GameTooltip (review N5).
+    if _G.GameTooltip_Hide then _G.GameTooltip_Hide()
+    elseif GameTooltip then GameTooltip:Hide() end
   end)
 
   row.cells = {}
@@ -4597,7 +4611,10 @@ function INSP.paintHead(row, p, d)
   elseif d and type(d.quoteAge) == "number" then
     quote = (GC.L["quote %ss ago"]):format(d.quoteAge)
   end
-  if d and type(d.ahead) == "number" then facts[#facts + 1] = ("%d ahead of you"):format(d.ahead) end
+  -- A listed lot's own queue -- but not beside THE BOOK's marker, whose count and times are
+  -- about the post price: one count on the panel, not two (review N2).
+  local marker = book and book.commodity and book.yourUnit
+  if d and type(d.ahead) == "number" and not marker then facts[#facts + 1] = (GC.L["%d ahead of you"]):format(d.ahead) end
   if d and d.sold ~= nil then facts[#facts + 1] = (GC.L["sells %s/day"]):format(d.sold) end
   -- In hours under a day: rounded to whole days, anything that sells through by this
   -- evening read "clears in ~0d". A commodity priced in THE BOOK clears on the book's own pace
@@ -4605,12 +4622,12 @@ function INSP.paintHead(row, p, d)
   -- half of (SellViewModel's clearsHours). The listed-lot outlook left the queue out for bag
   -- stock and said ~1h beside ~6h (review I1).
   local days = d and type(d.days) == "number" and d.days or nil
-  if book and book.commodity and book.yourUnit then
+  if marker then
     days = type(book.clearsHours) == "number" and book.clearsHours / 24 or nil
   end
   if days then
-    facts[#facts + 1] = days < 1 and ("clears in ~%dh"):format(math.max(1, math.floor(days * 24 + 0.5)))
-      or ("clears in ~%dd"):format(math.floor(days + 0.5))
+    facts[#facts + 1] = days < 1 and (GC.L["clears in ~%dh"]):format(math.max(1, math.floor(days * 24 + 0.5)))
+      or (GC.L["clears in ~%dd"]):format(math.floor(days + 0.5))
   end
   -- The walls around the price last: the two lines may cut a wall -- the ladder still shows it,
   -- in red -- but not the pace every time on this panel is measured by (review M2).

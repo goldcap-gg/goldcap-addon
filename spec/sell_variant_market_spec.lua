@@ -112,4 +112,35 @@ describe("Sell tab, a variant's market is its own", function()
     assert.is_nil(lots[2].variant)
     assert.is_true(lots[3].variant)
   end)
+
+  -- A posted pet with nothing left in the bags is named from its lot's own link, not "Pet Cage"
+  -- (review N3).
+  it("names a lot-only pet from its lot's link", function()
+    local lots = GC.SellPositions.NormalizeOwnedLots({
+      { auctionID = 9, itemKey = { itemID = 82800, itemLevel = 25, battlePetSpeciesID = 1234 }, quantity = 1,
+        buyoutAmount = 150000, isCommodity = false,
+        itemLink = "|cff0070dd|Hbattlepet:1234:25:3:1500:300:300:0|h[Mechanical Squirrel]|h|r" },
+    }, 10)
+    local p = find(build({ ownedLots = lots }), lots[1].positionKey)
+    assert.equal("Mechanical Squirrel", p.itemName)
+  end)
+
+  -- Bonus IDs on a non-gear item (its ItemKey carries no item level) make no level variant: its
+  -- market data is the item's own, and stays (review N8).
+  it("keeps market data for a bonus-ID item with no item level", function()
+    local key = "item:5:0:0:0"
+    local p = find(build({
+      bagStock = { { positionKey = key, itemID = 5, quantity = 1, isCommodity = false, quoteKey = key,
+        stacks = { { bag = 0, slot = 1, quantity = 1 } } } },
+      quotes = { [key] = { unit = 500000, at = 1000 }, [5] = { unit = 500000, at = 1000 } },
+      statsByItemID = { [5] = { mv = 600000, sold = 50 } },
+    }), key)
+    assert.is_nil(p.variantKind)
+    assert.equal(600000, p.marketValue)
+    local lots = GC.SellPositions.NormalizeOwnedLots({
+      { auctionID = 4, itemKey = { itemID = 5 }, quantity = 1, buyoutAmount = 500, isCommodity = false,
+        itemLink = "|cffffffff|Hitem:5:0::0:0:0:0:0:0:0:0:0:1:1520|h[Trinket]|h|r" },
+    }, 10)
+    assert.is_nil(lots[1].variant)
+  end)
 end)

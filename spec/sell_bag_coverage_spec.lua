@@ -376,8 +376,18 @@ describe("Sell tab, every tradeable bag item gets a row", function()
       SetItemByID = function(_, id) shown.itemID = id end }
     GC.Theme.ItemTooltipOutside = function() end
     row.scripts.OnEnter(row)
-    _G.GameTooltip = nil
     assert.same({ bag = 0, slot = 1 }, shown)
+    -- While a variant row is hovered, GoldCap's own tooltip block knows the figure it has is
+    -- every item level's, not this one's (UI/Tooltip.lua) -- review N7.
+    assert.equal("level", GC.Sell._hoverVariant)
+    -- Leaving closes the whole tooltip, the pet card Blizzard may have opened for a cage too
+    -- (GameTooltip_Hide) -- review N5.
+    local hid = false
+    _G.GameTooltip_Hide = function() hid = true end
+    row.scripts.OnLeave(row)
+    _G.GameTooltip, _G.GameTooltip_Hide = nil, nil
+    assert.is_true(hid)
+    assert.is_nil(GC.Sell._hoverVariant)
   end)
 
   -- A read cut short -- more rows than the tab reads, or an answer the client does not hold in
@@ -417,7 +427,11 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     kinds[555] = false
     stack(1, 444, 1, BONUSED, { itemName = "Relic" })
     stack(2, 555, 1, BONUSED, { itemName = "Oddity" })
-    _G.C_AuctionHouse.IsSellItemValid = function(location) return location.slot == 2 end
+    local displayErrors = {}
+    _G.C_AuctionHouse.IsSellItemValid = function(location, displayError)
+      displayErrors[#displayErrors + 1] = displayError
+      return location.slot == 2
+    end
     compose()
     local head, items = nil, {}
     for _, row in ipairs(upvalue(render, "rows")) do
@@ -426,6 +440,10 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     end
     assert.equal(1, #items)
     assert.matches("Oddity", items[1], 1, true)
-    assert.matches("the auction house has not described these yet", head.sectionLabel.text, 1, true)
+    assert.matches("the auction house has not sent details for these yet", head.sectionLabel.text, 1, true)
+    -- Asked quietly: with its error display on, every compose at the auction house put the red
+    -- "can't auction" error and its sound on screen, once a second through a Sell walk (N1).
+    assert.is_true(#displayErrors > 0)
+    for _, displayError in ipairs(displayErrors) do assert.is_false(displayError) end
   end)
 end)

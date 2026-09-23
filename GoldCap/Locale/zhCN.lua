@@ -20,6 +20,7 @@ GC.Locales.zhCN = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — 命令：/goldcap import、/goldcap companion、/goldcap status、/goldcap sniper、/goldcap sales、/goldcap ledger、/goldcap reset（可简写 /gc）",
   ["%d (whole lot)"] = "%d（整批）",
+  ["%d ahead of you"] = "你前面有%d件",
   ["%d caps · %s"] = "%d 个价格上限 · %s",
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -495,6 +496,8 @@ GC.Locales.zhCN = {
   ["check the item level — buy by hand"] = "请核对物品等级 — 手动购买",
   ["checking live price..."] = "正在检查实时价格...",
   ["checking live safety..."] = "正在实时检查安全性...",
+  ["clears in ~%dd"] = "约%d天售罄",
+  ["clears in ~%dh"] = "约%d小时售罄",
   ["commodity purchase failed"] = "商品购买失败",
   ["confirmed commodity purchase failed after AH close"] = "拍卖行关闭后已确认的商品购买失败",
   ["confirming purchase..."] = "正在确认购买...",
@@ -631,7 +634,7 @@ GC.Locales.zhCN = {
   ["stopped watching %s"] = "已停止关注 %s",
   ["the Companion wrote prices this addon could not read --"] =
     "Companion 写入的价格，该插件读不懂 --",
-  ["the auction house has not described these yet"] = "拍卖行尚未提供这些物品的信息",
+  ["the auction house has not sent details for these yet"] = "拍卖行尚未发送这些物品的信息",
   ["the import failed (%s)"] = "导入失败（%s）",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

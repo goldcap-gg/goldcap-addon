@@ -325,5 +325,15 @@ describe("Sell order book", function()
         assert.is_nil(b.wallAbove)
       end
     end)
+
+    -- With sales unknown the single biggest level is named -- but never one of a few units: a
+    -- 3-unit level over 1-unit ones is no wall (review N4).
+    it("keeps the size floor for a wall when the day's sales are unknown", function()
+      local levels = ladder(6, function(i) return 1000 + i * 10 end, function() return 1 end)
+      levels[4].quantity = 3
+      local b = GC.SellViewModel.Expansion(position({ soldPerDay = "\0NONE", postRecommendation = { unit = 1035 },
+        levels = levels })).book
+      for _, row in ipairs(b.rows) do assert.is_falsy(row.wall) end
+    end)
   end)
 end)

@@ -1135,7 +1135,8 @@ describe("Sell widget geometry and manual cost", function()
       local render = upvalue(GC.Sell.Attach, "renderRows")
       set(render, "expanded", { ["commodity:42"] = true })
       GC.SellViewModel.Expansion = function()
-        return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book, sold = 9867, days = 0.03 }
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations", book = book, sold = 9867, days = 0.03,
+          ahead = 2321 }
       end
       local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
         coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 10, listedValue = 0, bagQty = 5,
@@ -1146,6 +1147,27 @@ describe("Sell widget geometry and manual cost", function()
       -- not the pace the time under the book is measured by (review M2).
       local facts = drawer.drawerFacts.text
       assert.is_true(facts:find("sells", 1, true) < facts:find("wall", 1, true), facts)
+      -- One count: with THE BOOK's marker drawn, the listed lot's own "N ahead of you" is not
+      -- said beside a time that is about the post price (review N2).
+      assert.is_nil(facts:find("ahead of you", 1, true), facts)
+    end)
+
+    -- "clears in" and a lot's "N ahead of you" go through the string layer like the rest of the
+    -- line: a German panel read "~6 Std. bis du dran bist" beside English (review N8).
+    it("says clears in in the panel's language", function()
+      local GC = load(620, { calls = {} })
+      local german = { ["clears in ~%dh"] = "weg in ~%d Std.", ["%d ahead of you"] = "%d vor dir" }
+      GC.L = setmetatable({}, { __index = function(_, key) return german[key] or key end })
+      local render = upvalue(GC.Sell.Attach, "renderRows")
+      set(render, "expanded", { ["commodity:42"] = true })
+      GC.SellViewModel.Expansion = function()
+        return { batches = {}, ownedLots = {}, note = "FIFO allocations", sold = 9867, days = 0.03, ahead = 12 }
+      end
+      local drawer = nth(topRows(GC, { { itemID = 42, itemName = "Ore", positionKey = "commodity:42",
+        coverage = "COMPLETE", exposureQty = 5, knownQty = 5, knownCost = 10, listedValue = 0, bagQty = 5,
+        listedQty = 0, sources = {} } }), "drawer")
+      assert.matches("weg in ~1 Std.", drawer.drawerFacts.text, 1, true)
+      assert.matches("12 vor dir", drawer.drawerFacts.text, 1, true)
     end)
 
     it("says a price past the levels read has at least that many ahead, and no time", function()

@@ -440,7 +440,8 @@ local function book(position)
       if sold then
         valid[i].wall = competing >= math.max(sold * WALL_SHARE, WALL_MIN_UNITS)
       else
-        valid[i].wall = i == biggestAt and not tied
+        -- ...and never one of a few units: a 3-unit level over 1-unit ones is no wall (review N4).
+        valid[i].wall = i == biggestAt and not tied and competing >= WALL_MIN_UNITS
       end
       if valid[i].wall then
         local wall = { unit = valid[i].unit, units = competing }

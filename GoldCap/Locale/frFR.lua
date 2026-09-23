@@ -16,6 +16,7 @@ GC.Locales.frFR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — commandes : /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (ou /gc en raccourci)",
   ["%d (whole lot)"] = "%d (lot entier)",
+  ["%d ahead of you"] = "%d devant vous",
   ["%d caps · %s"] = "%d plafonds · %s",
   ["%d days"] = "%d jours",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -546,6 +547,8 @@ GC.Locales.frFR = {
   ["check the item level — buy by hand"] = "vérifiez le niveau d'objet — achat manuel",
   ["checking live price..."] = "vérification du prix en direct...",
   ["checking live safety..."] = "vérification de la sécurité en direct...",
+  ["clears in ~%dd"] = "écoulé en ~%d j",
+  ["clears in ~%dh"] = "écoulé en ~%d h",
   ["commodity purchase failed"] = "échec de l'achat de la marchandise",
   ["confirmed commodity purchase failed after AH close"] =
     "achat de marchandise confirmé échoué après la fermeture de l'hôtel des ventes",
@@ -696,8 +699,8 @@ GC.Locales.frFR = {
   ["stopped watching %s"] = "surveillance de %s arrêtée",
   ["the Companion wrote prices this addon could not read --"] =
     "le Companion a écrit des prix que cet addon n'a pas pu lire --",
-  ["the auction house has not described these yet"] =
-    "l'hôtel des ventes ne les a pas encore décrits",
+  ["the auction house has not sent details for these yet"] =
+    "l'hôtel des ventes n'a pas encore envoyé leurs détails",
   ["the import failed (%s)"] = "l'import a échoué (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

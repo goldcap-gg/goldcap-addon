@@ -17,6 +17,7 @@ GC.Locales.ptBR = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — comandos: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (ou /gc para encurtar)",
   ["%d (whole lot)"] = "%d (lote inteiro)",
+  ["%d ahead of you"] = "%d à sua frente",
   ["%d caps · %s"] = "%d tetos · %s",
   ["%d days"] = "%d dias",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -547,6 +548,8 @@ GC.Locales.ptBR = {
   ["check the item level — buy by hand"] = "confira o nível do item — compre manualmente",
   ["checking live price..."] = "verificando o preço ao vivo...",
   ["checking live safety..."] = "verificando a segurança ao vivo...",
+  ["clears in ~%dd"] = "esgota em ~%d d",
+  ["clears in ~%dh"] = "esgota em ~%d h",
   ["commodity purchase failed"] = "a compra da mercadoria falhou",
   ["confirmed commodity purchase failed after AH close"] =
     "a compra confirmada de mercadoria falhou depois que a casa de leilões fechou",
@@ -696,7 +699,8 @@ GC.Locales.ptBR = {
   ["stopped watching %s"] = "parei de acompanhar %s",
   ["the Companion wrote prices this addon could not read --"] =
     "o Companion escreveu preços que este addon não conseguiu ler --",
-  ["the auction house has not described these yet"] = "a casa de leilões ainda não os descreveu",
+  ["the auction house has not sent details for these yet"] =
+    "a casa de leilões ainda não enviou os detalhes",
   ["the import failed (%s)"] = "a importação falhou (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

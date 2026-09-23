@@ -20,6 +20,7 @@ GC.Locales.ukUA = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — команди: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (або коротко /gc)",
   ["%d (whole lot)"] = "%d (увесь лот)",
+  ["%d ahead of you"] = "%d попереду вас",
   ["%d caps · %s"] = "%d стель · %s",
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
@@ -559,6 +560,8 @@ GC.Locales.ukUA = {
   ["check the item level — buy by hand"] = "перевірте рівень предмета — купіть вручну",
   ["checking live price..."] = "перевіряємо живу ціну...",
   ["checking live safety..."] = "перевіряємо безпеку наживо...",
+  ["clears in ~%dd"] = "розійдеться за ~%d дн.",
+  ["clears in ~%dh"] = "розійдеться за ~%d год",
   ["commodity purchase failed"] = "купівля товару не вдалася",
   ["confirmed commodity purchase failed after AH close"] =
     "підтверджена купівля товару не вдалася після закриття аукціону",
@@ -712,7 +715,8 @@ GC.Locales.ukUA = {
   ["the Companion wrote prices this addon could not read --"] =
     "Companion записав ціни, які аддон не зміг прочитати --",
   ["the Auction House has not answered for this item yet"] = "аукціон ще не відповів по цьому предмету",
-  ["the auction house has not described these yet"] = "аукціон ще не описав ці предмети",
+  ["the auction house has not sent details for these yet"] =
+    "аукціон ще не надіслав відомостей про ці предмети",
   ["the import failed (%s)"] = "імпорт не вдався (%s)",
   ["throttle ready=%s · sniper busy=%s · empty answers resting=%d"] =
     "throttle ready=%s · sniper busy=%s · empty answers resting=%d",

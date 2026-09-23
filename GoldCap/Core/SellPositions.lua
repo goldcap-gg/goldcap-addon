@@ -109,6 +109,9 @@ end
 local function lotIsVariant(auction)
   local key = auction.itemKey
   if type(key) == "table" and positive(key.battlePetSpeciesID) then return true end
+  -- Bonus IDs on an item whose key carries no item level (non-gear) make no level variant: its
+  -- key is the bare one, and so is its market (review N8).
+  if type(key) == "table" and not positive(key.itemLevel) then return false end
   local link = auction.itemLink
   if type(link) ~= "string" then return false end
   if link:find("battlepet:", 1, true) then return true end
@@ -344,8 +347,12 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- sales, no reach, no floor. Its price is its own live book's; a 15g pet was floored to 225g
   -- off the Pet Cage median (review I4). Items keyed as they always were keep their data.
   local petSpecies = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match(":(%d+)$")) or nil
-  position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or "level") or nil
-  local marketStats = not position.quoteKey and statsByItemID and statsByItemID[position.itemID] or nil
+  local keyLevel = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):")) or 0
+  -- A key with no level and no species is the bare one (bonus IDs on a non-gear item): no
+  -- variant, and its data is its own (review N8).
+  position.variantKind = position.quoteKey and ((petSpecies or 0) > 0 and "pet" or keyLevel > 0 and "level" or nil)
+    or nil
+  local marketStats = not position.variantKind and statsByItemID and statsByItemID[position.itemID] or nil
   position.trendPct = marketStats and marketStats.trend or nil
   position.marketValue = marketStats and marketStats.mv or nil
   position.soldPerDay = marketStats and marketStats.sold or nil
@@ -619,6 +626,11 @@ function GC.SellPositions.Build(args)
       -- A variant's lot keeps the position on its own market search once the bags are empty:
       -- the bare key answers with the item's cheapest variant, another item's price (review I3).
       if lot.variant then position.quoteKey = position.quoteKey or positionKey end
+      -- A caged pet's own name is in its battle-pet link; the item is "Pet Cage" for every one,
+      -- and a posted pet with nothing left in the bags read that way on MY LOTS (review N3).
+      if type(lot.itemLink) == "string" and lot.itemLink:find("battlepet:", 1, true) then
+        position.itemName = position.itemName or lot.itemLink:match("|h%[(.-)%]|h")
+      end
     end
   end
   -- Bag stock joins the same position table as purchases and listings, so an item that is
