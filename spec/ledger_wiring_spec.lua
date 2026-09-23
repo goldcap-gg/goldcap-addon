@@ -111,6 +111,22 @@ describe("Ledger event wiring", function()
     assert.is_table(_G.GoldCapDB.gold)
   end)
 
+  -- Client passport (spec 2026-09-24-wow-forever-design.md §0): nothing else checks that
+  -- ADDON_LOADED actually calls GC.Game.Passport() and writes the result into GoldCapDB.client
+  -- -- a typo in either global name would sit undetected until the companion silently stopped
+  -- sending the header.
+  it("stamps the client passport on ADDON_LOADED", function()
+    local realGetBuildInfo, realGetCurrentRegion = _G.GetBuildInfo, _G.GetCurrentRegion
+    _G.GetBuildInfo = function() return "1.60.1", "69977", "Sep 23 2026", 16001 end
+    _G.GetCurrentRegion = function() return 90 end
+
+    onEvent(nil, "ADDON_LOADED", "GoldCap")
+
+    assert.same({ interface = 16001, build = "1.60.1.69977", regionId = 90 }, _G.GoldCapDB.client)
+
+    _G.GetBuildInfo, _G.GetCurrentRegion = realGetBuildInfo, realGetCurrentRegion
+  end)
+
   it("migrates the old implicit 100g sniper floor to the new 5g default once", function()
     _G.GoldCapDB = { settings = { sniper = { minimumProfitCopper = 1000000 } } }
 
