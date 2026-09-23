@@ -446,7 +446,7 @@ function GC.SniperDecision.Evaluate(input)
   end
   local market, live = input.market, input.live
   if (market.kind ~= "region_commodity" and market.kind ~= "realm_item")
-      or (market.source ~= "import" and market.source ~= "bundled")
+      or (market.source ~= "import" and market.source ~= "bundled" and market.source ~= "region")
       or not isInteger(market.marketValue) or market.marketValue <= 0
       or not isInteger(live.itemID) or live.itemID <= 0 then
     return invalid()

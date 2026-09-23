@@ -167,6 +167,13 @@ describe("DealMath", function()
         local d = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "bundled" }, cfg)
         assert.equal("HOT", d.tier)
       end)
+
+      it("gates a region-payload value exactly like an imported one", function()
+        local quiet = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "region", sold = 0 }, cfg)
+        assert.equal("WATCH", quiet.tier)
+        local selling = GC.DealMath.Evaluate(live(100000000), { mv = 200000000, source = "region", sold = 3 }, cfg)
+        assert.equal("HOT", selling.tier)
+      end)
     end)
 
     describe("anti-dump gate (falling trend)", function()

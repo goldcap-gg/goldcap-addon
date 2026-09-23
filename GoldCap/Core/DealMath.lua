@@ -59,7 +59,9 @@ function GC.DealMath.Evaluate(live, value, cfg)
   -- carries meaning ("zero recorded sales in the realm's last 24h"); bundled data has
   -- no liquidity figure at all, so gating on it would zero out HOT/GOOD for anyone who
   -- hasn't imported yet -- skip the gate entirely for bundled (or sourceless) values.
-  local gated = value.source == "import"
+  -- A region-payload value (Core/Data.lua's GetItemValue, source "region") carries the same
+  -- measured sold/day an import does, so it is gated the same way.
+  local gated = value.source == "import" or value.source == "region"
   local sold = gated and (value.sold or 0) or nil
 
   -- Anti-dump gate (Sniper v2): a market actively crashing >= dumpTrendPct in

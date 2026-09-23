@@ -163,6 +163,16 @@ describe("SniperDecision", function()
     assertReason(evaluate(estimated), "market_value_estimated")
   end)
 
+  it("judges a region-payload commodity exactly as an imported one", function()
+    local imported = evaluate()
+    local fromRegion = validInput(); fromRegion.market.source = "region"
+    local result = evaluate(fromRegion)
+    assert.equal(imported.status, result.status)
+    assert.same(imported.reasons, result.reasons)
+    assertNoReason(result, "invalid_input")
+    assertNoReason(result, "bundled_data_unverified")
+  end)
+
   it("turns missing market facts into AVOID only once live levels exist", function()
     local beforeLive = validInput(); beforeLive.live.levels = nil; beforeLive.market.soldPerDay = nil
     assert.equal("WATCH", evaluate(beforeLive).status)
