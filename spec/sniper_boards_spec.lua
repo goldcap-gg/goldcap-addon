@@ -100,7 +100,8 @@ describe("Deals boards: commodities and items", function()
           PauseReasons = function() return {} end, Tick = function() end }
       end },
       Data = { GetItemValue = function() return nil end, GetWatchlist = function() return {} end,
-        OriginState = function() return "manual" end },
+        OriginState = function() return "manual" end,
+        FactItemIds = function() return { 10 } end },
       Scanner = { New = function() return { Start = function() end, Stop = function() end } end },
       Sell = { Refresh = function() end, Reset = function() end, Hide = function() end, Show = function() end },
       SniperDecision = { Evaluate = function() return {} end, MarketFromValue = function() return {} end,
@@ -118,7 +119,7 @@ describe("Deals boards: commodities and items", function()
       Trigger = { AnyArmed = function() return true end,
         RealmReference = function(value) return value and value.ref end },
       Print = function() end,
-      db = { imported = { verification = { [10] = {} } },
+      db = {
         settings = { sniper = { sound = false, showRefused = false, watchPins = {} } } },
     }
     helper.loadModule("Core/BookPass.lua", GC)
