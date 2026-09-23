@@ -401,6 +401,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if GC.Util then GC.Util.ApplyDefaults(GoldCapDB, GC.DEFAULTS) end
     if damagedAcquisitions ~= nil then GoldCapDB.acquisitions = damagedAcquisitions end
     GC.db = GoldCapDB
+    -- Rewritten on every load, never merged: the file belongs to whichever client wrote it
+    -- last, and that is the one the companion must be told about.
+    if GC.Game then GoldCapDB.client = GC.Game.Passport() end
     -- Before any frame is built: every widget reads its label through GC.L at construction,
     -- so the active language has to be settled first. After ApplyDefaults, because it reads
     -- settings.locale.
