@@ -48,9 +48,10 @@ GC.Locales.esMX = {
   ["%s after the AH cut"] = "%s tras la comisión de la CdS",
   ["%s ahead"] = "%s por delante",
   ["%s under you"] = "%s por debajo de ti",
-  ["%s units across %d prices"] = "%s unidades en %d precios",
+  ["%s units in %d prices"] = "%s uds. en %d precios",
   ["%s — %d unit%s without a cost"] = "%s — %d unidad%s sin costo",
   ["%s+ ahead"] = "%s+ por delante",
+  ["%s+, %d prices read"] = "%s+, %d precios leídos",
   [", %d hidden as unsellable"] = ", %d ocultos por no ser vendibles",
   ["1 lot, %s asked"] = "1 lote, se piden %s",
   ["24h trend"] = "Tendencia 24 h",
@@ -225,6 +226,7 @@ GC.Locales.esMX = {
   ["Language"] = "Idioma",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Idioma cambiado. Escribe /reload para aplicarlo en todas partes.",
+  ["Last post may still go up -- wait a minute"] = "Aún puede publicarse -- espera un minuto",
   ["Last result: %ds ago"] = "Último resultado: hace %ds",
   ["Last result: none yet this visit"] = "Último resultado: ninguno en esta visita",
   ["Listed"] = "Publicados",
@@ -258,8 +260,7 @@ GC.Locales.esMX = {
     "Necesita una verificación de precio en vivo antes de poder comprarse.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Nunca gastar más de esta parte de tu oro en una sola compra.",
-  ["No answer from the auction house yet -- still listening for a minute"] =
-    "Aún sin respuesta de la casa de subastas -- seguimos escuchando un minuto",
+  ["No answer yet -- listening for a minute"] = "Aún sin respuesta -- escuchando un minuto",
   ["No deals passed the safety checks right now."] =
     "Ahora mismo ninguna oportunidad pasa las comprobaciones de seguridad.",
   ["No deals to show -- and no realm prices yet."] =
@@ -459,8 +460,6 @@ GC.Locales.esMX = {
     "No se puede deshacer. El primer clic pide un segundo para confirmar.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Es un objeto de reino, y GoldCap solo verifica precios de mercancías.",
-  ["This item's last post may still go up -- wait a minute"] =
-    "La última publicación de este objeto aún puede salir -- espera un minuto",
   ["Too few sellers to read a real price."] = "Hay muy pocos vendedores para leer un precio real.",
   ["Too little of what is listed actually sells."] = "Se vende muy poco de lo que hay publicado.",
   ["Too little price history to trust the value."] =
@@ -626,8 +625,8 @@ GC.Locales.esMX = {
   ["no cost for %d"] = "sin costo para %d",
   ["no live price yet"] = "aún sin precio en vivo",
   ["no live quote yet — pricing…"] = "aún sin cotización en vivo — calculando el precio…",
+  ["no market figure for caged pets"] = "sin cifra de mercado para mascotas enjauladas",
   ["no market figure for this item level"] = "sin cifra de mercado para este nivel de objeto",
-  ["no market figure for this pet"] = "sin cifra de mercado para esta mascota",
   ["no price"] = "sin precio",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "todavía no hay precios -- /goldcap companion o /goldcap import",
@@ -657,8 +656,6 @@ GC.Locales.esMX = {
     "o pega una cadena de goldcap.gg con /goldcap import.",
   ["over %d position%s"] = "en %d posiciones%s",
   ["paid sale unresolved"] = "venta cobrada sin resolver",
-  ["past the first %d prices read (%s units)"] =
-    "más allá de los primeros %d precios leídos (%s unidades)",
   ["placing bid..."] = "pujando...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "compra de mercancía anterior liquidada -- pulsa %s para volver a comprobar el precio",
@@ -668,6 +665,7 @@ GC.Locales.esMX = {
     "precio comprobado, velocidad de venta desconocida -- esta la decides tú",
   ["price confirmed -- click Buy to purchase"] = "precio confirmado -- pulsa Buy para comprar",
   ["price rose %.1fx — still safe, confirm"] = "el precio subió %.1fx — sigue siendo seguro, confirma",
+  ["price stands %d of %d"] = "tu precio: %d de %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "los precios cargados son de %s (%s) pero juegas en %s — cada descuento y ganancia se mide contra otro mercado",
   ["purchase canceled"] = "compra cancelada",
@@ -749,8 +747,9 @@ GC.Locales.esMX = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "tu importación tiene %d horas -- los precios pueden estar desviados. Pega una cadena nueva de goldcap.gg (/goldcap import).",
   ["yours"] = "tuyo",
-  ["~%dd to reach you at today's pace"] = "~%d d hasta tu turno al ritmo de hoy",
-  ["~%dh to reach you at today's pace"] = "~%d h hasta tu turno al ritmo de hoy",
+  ["yours ×%s"] = "tuyo ×%s",
+  ["~%dd to reach you"] = "~%d d hasta tu turno",
+  ["~%dh to reach you"] = "~%d h hasta tu turno",
   ["» needs price"] = "» falta precio",
   ["×%d in bags"] = "×%d en bolsas",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

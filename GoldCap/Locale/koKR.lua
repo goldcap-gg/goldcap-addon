@@ -47,9 +47,10 @@ GC.Locales.koKR = {
   ["%s after the AH cut"] = "경매장 수수료 제외 %s",
   ["%s ahead"] = "앞에 %s",
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
-  ["%s units across %d prices"] = "%s개 · 가격대 %d개",
+  ["%s units in %d prices"] = "%s개 · 가격대 %d개",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   ["%s+ ahead"] = "앞에 %s+",
+  ["%s+, %d prices read"] = "%s+, 가격대 %d개 읽음",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
@@ -214,6 +215,7 @@ GC.Locales.koKR = {
   ["Language"] = "언어",
   ["Language changed. Type /reload to apply it everywhere."] =
     "언어를 바꿨습니다. 모든 곳에 적용하려면 /reload를 입력하세요.",
+  ["Last post may still go up -- wait a minute"] = "아직 등록될 수 있습니다 -- 1분 기다리세요",
   ["Last result: %ds ago"] = "마지막 결과: %d초 전",
   ["Last result: none yet this visit"] = "마지막 결과: 이번 방문에는 아직 없음",
   ["Listed"] = "등록 수량",
@@ -243,8 +245,7 @@ GC.Locales.koKR = {
   ["NOTHING TO POST"] = "등록할 것 없음",
   ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
   ["Never spend more than this share of your gold on one purchase."] = "한 번의 구매에 소지금의 이 비율을 넘게 쓰지 않습니다.",
-  ["No answer from the auction house yet -- still listening for a minute"] =
-    "경매장이 아직 응답하지 않았습니다 -- 1분 동안 계속 기다립니다",
+  ["No answer yet -- listening for a minute"] = "아직 응답 없음 -- 1분 더 기다립니다",
   ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
   ["No deals to show -- and no realm prices yet."] = "표시할 거래가 없습니다 -- 서버 시세도 아직 없습니다.",
   ["No deals yet."] = "아직 거래가 없습니다.",
@@ -426,8 +427,6 @@ GC.Locales.koKR = {
     "되돌릴 수 없습니다. 한 번 누르면 확인을 위해 한 번 더 눌러야 합니다.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "서버 전용 아이템이며, GoldCap은 상품(commodity) 시세만 검증합니다.",
-  ["This item's last post may still go up -- wait a minute"] =
-    "이 아이템의 마지막 등록이 아직 올라갈 수 있습니다 -- 1분만 기다리세요",
   ["Too few sellers to read a real price."] = "판매자가 너무 적어 실제 시세를 읽을 수 없습니다.",
   ["Too little of what is listed actually sells."] = "등록된 물량 중 실제로 팔리는 비율이 너무 낮습니다.",
   ["Too little price history to trust the value."] = "가격 기록이 너무 적어 이 값을 믿을 수 없습니다.",
@@ -582,8 +581,8 @@ GC.Locales.koKR = {
   ["no cost for %d"] = "%d개 원가 없음",
   ["no live price yet"] = "아직 실시간 가격 없음",
   ["no live quote yet — pricing…"] = "아직 실시간 시세가 없습니다 — 가격 확인 중…",
+  ["no market figure for caged pets"] = "우리에 든 애완동물은 시장 수치 없음",
   ["no market figure for this item level"] = "이 아이템 레벨의 시장 수치 없음",
-  ["no market figure for this pet"] = "이 애완동물의 시장 수치 없음",
   ["no price"] = "가격 없음",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "아직 시세가 없습니다 -- /goldcap companion 또는 /goldcap import",
@@ -612,7 +611,6 @@ GC.Locales.koKR = {
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
   ["over %d position%s"] = "%d개 보유 항목 기준%s",
   ["paid sale unresolved"] = "정산된 판매 미확정",
-  ["past the first %d prices read (%s units)"] = "읽은 가격대 %d개 이후 (%s개)",
   ["placing bid..."] = "입찰 중...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "이전 상품 구매가 끝남 -- %s 버튼으로 가격을 다시 확인하세요",
@@ -622,6 +620,7 @@ GC.Locales.koKR = {
     "가격은 확인했지만 판매 속도는 알 수 없습니다 -- 판단은 당신 몫입니다",
   ["price confirmed -- click Buy to purchase"] = "가격 확인됨 -- Buy를 눌러 구매하세요",
   ["price rose %.1fx — still safe, confirm"] = "가격이 %.1f배 올랐습니다 — 여전히 안전합니다, 확정하세요",
+  ["price stands %d of %d"] = "가격 순위 %d / %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "불러온 시세는 %s(%s)인데 접속 지역은 %s입니다 — 모든 할인율과 수익이 다른 시장 기준으로 계산됩니다",
   ["purchase canceled"] = "구매를 취소했습니다",
@@ -696,8 +695,9 @@ GC.Locales.koKR = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "가져온 자료가 %d시간 지났습니다 -- 시세가 어긋날 수 있습니다. goldcap.gg에서 새 문자열을 붙여넣으세요 (/goldcap import).",
   ["yours"] = "내 가격",
-  ["~%dd to reach you at today's pace"] = "오늘 속도로 내 차례까지 ~%d일",
-  ["~%dh to reach you at today's pace"] = "오늘 속도로 내 차례까지 ~%d시간",
+  ["yours ×%s"] = "내 것 ×%s",
+  ["~%dd to reach you"] = "내 차례까지 ~%d일",
+  ["~%dh to reach you"] = "내 차례까지 ~%d시간",
   ["» needs price"] = "» 가격 필요",
   ["×%d in bags"] = "가방에 ×%d",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

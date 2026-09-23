@@ -98,17 +98,94 @@ describe("row button labels fit the button", function()
   -- THE BOOK's marker note runs from the bar's start to the count's right edge: ~210px at mono-10,
   -- 7.8px a character at Theme.Scale() 1.3 -- 26 characters, the number included. The words
   -- "your price · … units ahead of you" were 36 in English and cut the NUMBER in Russian and
-  -- Ukrainian (review M1). Measured formatted, with a four-character count.
+  -- Ukrainian (review M1). Measured formatted, with a four-character count. The gap line is
+  -- drawn in the same place: "1.1k Stück auf 93 Preise verteilt" ran 33 (final review M3).
   for _, code in ipairs(helper.localeCodes()) do
     it(("keeps every %s marker note inside THE BOOK's line, the number first"):format(code), function()
       local GC = helper.loadModule("Locale/Core.lua")
       helper.loadModule("Locale/" .. code .. ".lua", GC)
       local translations = GC.Locales[code]
-      for _, key in ipairs({ "%s ahead", "%s+ ahead", "first in line" }) do
+      for _, key in ipairs({ "%s ahead", "%s+ ahead", "first in line", "%s units in %d prices" }) do
         local label = translations[key]
         assert.is_truthy(label, code .. " is missing " .. key)
-        local shown = label:gsub("%%s", "5.6k")
+        local shown = label:gsub("%%s", "5.6k"):gsub("%%d", "93")
         assert.is_true(displayWidth(shown) <= 26, ("%s: %q is %d wide"):format(code, shown, displayWidth(shown)))
+      end
+    end)
+  end
+
+  -- The addon's measured monospace metric: 0.6 em a character, an em of `size` x Theme.Scale()
+  -- pixels. A cell of `width` px in a mono-`size` face holds floor(width / (0.6 * size * scale)).
+  local function holds(width, size, scale) return math.floor(width / (0.6 * size * scale)) end
+
+  local source
+  local function sellSource()
+    if not source then
+      local file = assert(io.open("GoldCap/UI/SellFrame.lua", "r"))
+      source = file:read("*a")
+      file:close()
+    end
+    return source
+  end
+
+  -- The line under THE BOOK: 294px (the panel's 340, less its scroll gutter and edges), mono-10.
+  -- Two cells on it -- what the price's place means, then "yours ×N" in the blue of your own
+  -- levels, right-aligned -- and neither is ever cut: the longest of the words with the longest
+  -- key, formatted with the widest figures each can carry, fit side by side at 1.0 and at 1.3
+  -- (final review I1: "past the first 100 prices read (5.6k units)" plus "yours ×300" ran off the
+  -- line in every Latin and Cyrillic language, and the count was the part cut).
+  it("draws the line under THE BOOK in the mono-10 face both of its cells are budgeted in", function()
+    assert.is_truthy(sellSource():find("row.drawerStand = Theme.Num(row, 10)", 1, true))
+    assert.is_truthy(sellSource():find("row.drawerOwn = Theme.Num(row, 10)", 1, true))
+  end)
+
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps the %s line under THE BOOK whole, its count and yours ×N, at 1.0 and 1.3"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      local words = {
+        { "~%dh to reach you", "23" }, { "~%dd to reach you", "99" },
+        { "%s+, %d prices read", "5.6k", "100" }, { "price stands %d of %d", "8", "100" },
+      }
+      local own = assert(translations["yours ×%s"], code .. " is missing yours ×%s"):gsub("%%s", "5.6k")
+      for _, entry in ipairs(words) do
+        local label = assert(translations[entry[1]], code .. " is missing " .. entry[1])
+        local i = 1
+        local shown = label:gsub("%%[sd]", function() i = i + 1 return entry[i] end)
+        for _, scale in ipairs({ 1.0, 1.3 }) do
+          local width = displayWidth(shown) + 1 + displayWidth(own)
+          assert.is_true(width <= holds(294, 10, scale), ("%s at %.1f: %q + %q is %d, over %d"):format(
+            code, scale, shown, own, width, holds(294, 10, scale)))
+        end
+      end
+    end)
+  end
+
+  -- "wall" at the start of its level's bar, mono-9, in a tag of WALL_TAG_W pixels (less 2 for air)
+  -- when the client cannot measure it: every language's word fits at 1.3 (final review I2 --
+  -- "стена" was 35px in a 28px tag).
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("fits the %s wall word in its tag at 1.3"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local tagW = tonumber(sellSource():match("WALL_TAG_W = (%d+)"))
+      local word = assert(GC.Locales[code]["wall"], code .. " is missing wall")
+      assert.is_true(displayWidth(word) <= holds(tagW - 2, 9, 1.3), ("%s: %q in %dpx"):format(code, word, tagW))
+    end)
+  end
+
+  -- The dock's second line beside POST: ~254px of mono-9 at the default window, 47 characters
+  -- at 1.0. The late-answer notes were 54 and 68 in English and lost the "a minute" that is
+  -- their point in nearly every language (final review M2).
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps the %s late-answer notes on the dock's line"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      for _, key in ipairs({ "No answer yet -- listening for a minute", "Last post may still go up -- wait a minute" }) do
+        local label = assert(GC.Locales[code][key], code .. " is missing " .. key)
+        assert.is_true(displayWidth(label) <= holds(254, 9, 1.0), ("%s: %q is %d wide"):format(
+          code, label, displayWidth(label)))
       end
     end)
   end

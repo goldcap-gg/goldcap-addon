@@ -503,7 +503,7 @@ local QUEUE_SKIP_TEXT = {
   advised_hold = "relisting now would lock in a loss or a stall -- hold",
   -- Held by this tab, not by the queue module: the item's last post may still go up
   -- (GC.Sell._lateAnswers).
-  awaiting_answer = "This item's last post may still go up -- wait a minute",
+  awaiting_answer = "Last post may still go up -- wait a minute",
   no_advice = "cost basis incomplete -- set costs to get repost advice",
 }
 
@@ -1984,9 +1984,11 @@ local function classifyBagItem(itemID, link, bag, slot)
   if isCommodity == true then return ("commodity:%d"):format(itemID), true end
   if isCommodity == false then
     local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)
-    -- No key, and the auction house -- open, so its answer means something -- says it cannot
-    -- take this stack: not tradeable stock at all, so not "waiting" either (review M10).
-    if not positionKey and bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
+    -- The auction house -- open, so its answer means something -- says it cannot take this
+    -- stack: not tradeable stock at all, so neither a row nor "waiting" (review M10). Asked of a
+    -- keyed stack too: gear that is not bound yet cannot be auctioned -- Warbound until equipped
+    -- -- keys like any other and would take a row and a search every pass (final review I3).
+    if bag and slot and GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
         and C_AuctionHouse and C_AuctionHouse.IsSellItemValid and ItemLocation and ItemLocation.CreateFromBagAndSlot then
       local ok, valid = pcall(function()
         -- displayError false, as Auctionator's own bag scan asks: with it on, every compose at the
@@ -2252,7 +2254,7 @@ local function schedulePostTimeout(row)
       -- item held meanwhile, so "try again" there would be contradicted by the very next press
       -- (review I3). Only a post that never left -- its call raised -- is free to try again.
       GC.Sell._NotePost(stage == "confirm" and GC.L["Post confirmation expired"]
-        or sent and GC.L["No answer from the auction house yet -- still listening for a minute"]
+        or sent and GC.L["No answer yet -- listening for a minute"]
         or GC.L["The auction house did not answer -- try again"], "red", GC.Sell.POST_NOTE_SECONDS.failed)
     end
   end)
@@ -2275,7 +2277,7 @@ local function onPostClick(row)
   -- GC.Sell._lateAnswers): the stack it would send is the one that post may be taking.
   if row.postStage ~= "confirm" and row.position
       and GC.Sell._LateFor(row.position.positionKey, row.position.scopeKey) then
-    GC.Sell._NotePost(GC.L["This item's last post may still go up -- wait a minute"], "fg",
+    GC.Sell._NotePost(GC.L["Last post may still go up -- wait a minute"], "fg",
       GC.Sell.POST_NOTE_SECONDS.failed)
     return
   end
@@ -2643,7 +2645,10 @@ end
 -- "Posted · Eternium Ore ×246" -- which post went up, since the dock's label beside it has
 -- already moved on to the next item.
 function GC.Sell._PostedText(pin)
-  return GC.L["Posted"] .. " · " .. ("%s ×%d"):format(itemName(pin.itemID), pin.quantity or 0)
+  -- The position's own name: a caged pet's is the pet's, where the item's is "Pet Cage" for every
+  -- one of them (final review M4).
+  local name = type(pin.position) == "table" and pin.position.itemName or itemName(pin.itemID)
+  return GC.L["Posted"] .. " · " .. ("%s ×%d"):format(name, pin.quantity or 0)
 end
 
 -- The ItemKey an AUCTION_HOUSE_AUCTION_CREATED is about, when the client can say: the event
@@ -3307,17 +3312,27 @@ do
   -- row names its level -- a pet's, its pet level -- from its own key.
   function ROW.variantSuffix(position)
     local level = type(position.quoteKey) == "string" and tonumber(position.quoteKey:match("^item:%d+:(%d+):"))
+    if position.variantKind == "pet" then
+      -- A pet's level is the one its battle-pet link states. What the client's ItemKey carries in
+      -- its level field for a caged pet is not confirmed off the client (final review M5).
+      local stack = position.bagStacks and position.bagStacks[1]
+      local lot = position.ownedLots and position.ownedLots[1]
+      local link = stack and stack.link or lot and lot.itemLink
+      level = type(link) == "string" and tonumber(link:match("battlepet:%d+:(%d+)")) or nil
+    end
     if not level or level <= 0 then return "" end
     local words = position.variantKind == "pet" and (GC.L["level %d"]):format(level) or (GC.L["ilvl %d"]):format(level)
     return "  " .. DIM_HEX .. words .. "|r"
   end
 
+  -- The heading's title, and its aside for the heading's own hint cell (renderRows): run on in
+  -- the label, the aside went past the list's edge and was cut mid-word (final review M1).
   function ROW.waitText(entry)
     if entry.kind == "waitHead" then
       local open = GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()
-      return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count) .. "  " .. DIM_HEX
-        .. (open and GC.L["the auction house has not sent details for these yet"]
-          or GC.L["open the auction house once so GoldCap can tell how these sell"]) .. "|r"
+      return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count),
+        open and GC.L["the auction house has not sent details for these yet"]
+          or GC.L["open the auction house once so GoldCap can tell how these sell"]
     end
     return ("%s ×%d"):format(entry.name, entry.quantity or 0)
   end
@@ -3425,7 +3440,10 @@ local DR = {
   BAR_SLICE = 2,           -- bar.png's end caps; under half of BOOK_BAR_H, or the caps overlap and notch
   BAR_MIN = 5,             -- the narrowest fill that still holds both caps
   PRICE_W = 76, UNITS_W = 40, TAG_W = 40,
-  WALL_TAG_W = 28,         -- "wall", at the start of its own level's bar: the bar starts after it
+  -- "wall", at the start of its own level's bar: the bar starts after it. Measured where the client
+  -- can (INSP.paintLadder); this is the fallback, the widest language's word ("стена") in mono-9 at
+  -- Theme.Scale() 1.3 with air -- 28 cut it to "ст…" (final review I2).
+  WALL_TAG_W = 38,
   NO_REASON_SLOTS = 1,     -- what a postable head gives back when there is no reason to state
   NO_BOOK_SLOTS = 4,       -- what a head without a book gives back: 8 levels less two lines of text
 }
@@ -3524,8 +3542,8 @@ local function layoutDrawer(row)
     line.bar:SetPoint("RIGHT", line.qty, "LEFT", -Theme.pad.s, 0)
     -- "wall" at the start of its own level's bar, which then starts after the word: a column of
     -- its own for one level in eight cost the book its width twice before (see the paint).
+    -- Its width is the word's own, set where the word is (INSP.paintLadder).
     line.tag:ClearAllPoints()
-    line.tag:SetWidth(DR.WALL_TAG_W)
     line.tag:SetPoint("LEFT", line.bar, "LEFT", 0, 0)
     -- The marker's and the gap's words, where a level has its bar and its count.
     line.note:ClearAllPoints()
@@ -3545,7 +3563,14 @@ local function layoutDrawer(row)
   -- ever cut to "stands 1 o...": where the price stands; how deep the book is, with the quote's
   -- state at the right; how fast it sells and how long the queue is.
   row.drawerStand:SetPoint("TOPLEFT", row, "TOPLEFT", left, foot)
-  row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  -- "yours ×N" at the right end of the same line, the words ending where it begins.
+  row.drawerOwn:ClearAllPoints()
+  row.drawerOwn:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, foot)
+  if hasBook and row.drawerOwn:IsShown() then
+    row.drawerStand:SetPoint("RIGHT", row.drawerOwn, "LEFT", -8, 0)
+  else
+    row.drawerStand:SetPoint("RIGHT", row, "RIGHT", right, 0)
+  end
   row.drawerStand:SetWordWrap(not hasBook)
   row.drawerStand:SetMaxLines(hasBook and 1 or 2)
   if not hasBook then
@@ -3985,8 +4010,15 @@ local function createRow(parent)
   row.drawerBookHead = Theme.Num(row, 10, true)
   row.drawerHint = Theme.Num(row, 9)
   row.drawerHint:SetJustifyH("RIGHT")
-  row.drawerStand = Theme.Num(row, 11)
+  -- Mono-10, as the rest of the foot: the line and "yours ×N" beside it are budgeted in that face
+  -- (spec/button_label_width_spec.lua).
+  row.drawerStand = Theme.Num(row, 10)
   row.drawerStand:SetJustifyH("LEFT")
+  row.drawerOwn = Theme.Num(row, 10)
+  row.drawerOwn:SetJustifyH("RIGHT")
+  row.drawerOwn:SetWordWrap(false)
+  row.drawerOwn:SetMaxLines(1)
+  row.drawerOwn:Hide()
   row.drawerFacts = Theme.Num(row, 10)
   row.drawerFacts:SetJustifyH("LEFT")
   -- The right-hand ends of the two lines under the book: how deep it is, how old the quote is.
@@ -4357,7 +4389,7 @@ function INSP.paintLadder(row, book)
     elseif entry and entry.kind == "gap" then
       line.price:SetText("…"); setColor(line.price, Theme.color.fgDim)
       line.price:Show(); line.qty:Hide(); line.bar:Hide(); line.wash:Hide()
-      INSP.stamp(line.note, (GC.L["%s units across %d prices"]):format(count(entry.units), entry.prices or 0))
+      INSP.stamp(line.note, (GC.L["%s units in %d prices"]):format(count(entry.units), entry.prices or 0))
       setColor(line.note, Theme.color.fgDim)
     elseif entry then
       -- Colour carries the facts a single number cannot: gold is where GoldCap's price would
@@ -4374,7 +4406,14 @@ function INSP.paintLadder(row, book)
       -- A wall says so in a word at the start of its own bar, which then starts after it. A
       -- column for the word on every level held the bars and the figures off an edge of the
       -- panel for one level in eight (seen in game, twice); this costs only the wall's own bar.
-      local offset = entry.wall and DR.WALL_TAG_W or 0
+      -- The word first, then the bar after it: measured, so it holds in every language and scale.
+      local offset = 0
+      if entry.wall then
+        INSP.stamp(line.tag, GC.L["wall"]); setColor(line.tag, Theme.color.red)
+        local measured = line.tag.GetUnboundedStringWidth and line.tag:GetUnboundedStringWidth()
+        offset = type(measured) == "number" and measured > 0 and math.ceil(measured) + 3 or DR.WALL_TAG_W
+        line.tag:SetWidth(offset)
+      end
       local span = widest > 0 and (entry.units / widest) or 0
       line.bar.fill:ClearAllPoints()
       line.bar.fill:SetPoint("TOPLEFT", line.bar, "TOPLEFT", offset, 0)
@@ -4383,9 +4422,6 @@ function INSP.paintLadder(row, book)
       if tint then line.bar.fill:SetVertexColor(tint[1], tint[2], tint[3], 0.8)
       else line.bar.fill:SetVertexColor(1, 1, 1, 0.22) end
       line.price:Show(); line.qty:Show(); line.bar:Show()
-      if entry.wall then
-        INSP.stamp(line.tag, GC.L["wall"]); setColor(line.tag, Theme.color.red)
-      end
       if wash then
         line.wash:SetColorTexture(wash[1], wash[2], wash[3], 0.10)
         line.wash:Show()
@@ -4401,18 +4437,19 @@ end
 -- The line under a commodity's ladder: past the levels read, that the marker's count is a floor
 -- (the read stopped there; nothing past it is counted or guessed); otherwise how long the queue
 -- ahead of the price takes at today's pace -- the sells/day the panel shows, nothing when that
--- is unknown or nothing is ahead.
+-- is unknown or nothing is ahead. Count first and short, in its own cell beside "yours ×N": the
+-- long wording cut the count itself, and the key after it, in most languages (final review I1).
 function INSP.standWords(book)
   if book.pastRead then
     -- The marker's number, which leaves the player's own units out -- the book's total put a
     -- second figure beside it (review M4).
-    return (GC.L["past the first %d prices read (%s units)"]):format(book.levels or 0,
-      GC.Util.FormatCount(book.ahead or 0) or tostring(book.ahead or 0))
+    return (GC.L["%s+, %d prices read"]):format(GC.Util.FormatCount(book.ahead or 0) or tostring(book.ahead or 0),
+      book.levels or 0)
   end
   local hours = book.hoursToReach
   if type(hours) ~= "number" then return "" end
-  if hours < 24 then return (GC.L["~%dh to reach you at today's pace"]):format(math.max(1, math.floor(hours + 0.5))) end
-  return (GC.L["~%dd to reach you at today's pace"]):format(math.floor(hours / 24 + 0.5))
+  if hours < 24 then return (GC.L["~%dh to reach you"]):format(math.max(1, math.floor(hours + 0.5))) end
+  return (GC.L["~%dd to reach you"]):format(math.floor(hours / 24 + 0.5))
 end
 
 -- The walls around a commodity's price, for the facts line: the nearest at or under it and the
@@ -4557,19 +4594,26 @@ function INSP.paintHead(row, p, d)
     -- heading has room for the price to beat and nothing else.
     row.drawerDepth:SetText((GC.L["%d units · %d prices"]):format(book.totalUnits or 0, book.levels or 0))
     row.drawerDepth:Show()
-    -- What is already the seller's, in the blue its levels are drawn in -- the colour's key.
-    local ownUnits = 0
-    for i = 1, #(book.rows or {}) do ownUnits = ownUnits + (book.rows[i].ownerUnits or 0) end
-    local own = ownUnits > 0 and ("  " .. inlineColor(Theme.color.watch, GC.L["yours"] .. " ×" .. ownUnits)) or ""
+    -- What is already the seller's, in the blue its levels are drawn in -- the colour's key: every
+    -- unit of theirs the book read, drawn or not (final review M6). A cell of its own at the right
+    -- of the line, so the words beside it can never push it off (I1).
+    local ownUnits = type(book.ownUnits) == "number" and book.ownUnits or 0
+    local own = ownUnits > 0 and (book.yourRow or (book.commodity and book.yourUnit))
+    if own then
+      row.drawerOwn:SetText((GC.L["yours ×%s"]):format(GC.Util.FormatCount(ownUnits) or tostring(ownUnits)))
+      setColor(row.drawerOwn, Theme.color.watch)
+      row.drawerOwn:Show()
+    else
+      row.drawerOwn:SetText(""); row.drawerOwn:Hide()
+    end
     if book.commodity and book.yourUnit then
       -- Where the price stands is the marker's, in the ladder; this line says what it means:
       -- how long the queue ahead takes at today's pace, or -- past the levels read -- that the
       -- count is a floor, never a number made up for the rest.
-      row.drawerStand:SetText(INSP.standWords(book) .. own)
+      row.drawerStand:SetText(INSP.standWords(book))
       setColor(row.drawerStand, Theme.color.goldHi)
     elseif book.yourRow then
-      row.drawerStand:SetText((GC.L["your price stands %d of %d"]):format(
-        book.yourRow, book.levels or 0) .. own)
+      row.drawerStand:SetText((GC.L["price stands %d of %d"]):format(book.yourRow, book.levels or 0))
       setColor(row.drawerStand, Theme.color.goldHi)
     else
       row.drawerStand:SetText(GC.L["your price is above every level shown"])
@@ -4581,7 +4625,7 @@ function INSP.paintHead(row, p, d)
     for _, line in ipairs(row.bookLines) do
       line.price:Hide(); line.qty:Hide(); line.bar:Hide(); line.tag:Hide(); line.note:Hide(); line.wash:Hide()
     end
-    row.drawerDepth:Hide()
+    row.drawerDepth:Hide(); row.drawerOwn:Hide()
     row.drawerStand:SetText(GC.L["the Auction House has not answered for this item yet"])
     setColor(row.drawerStand, Theme.color.fgDim)
   end
@@ -5216,7 +5260,9 @@ renderRows = function()
         row.sectionLabel:SetText(ROW.sectionText(entry.section))
         row.action:Hide()
       elseif entry.kind == "waitHead" or entry.kind == "waitItem" then
-        row.sectionLabel:SetText(ROW.waitText(entry))
+        local title, aside = ROW.waitText(entry)
+        row.sectionLabel:SetText(title)
+        row.sectionHint:SetText(aside or "")
         row.action:Hide()
       elseif entry.kind == "group" then
         -- The hint rides IN the heading, not in the status cell. That cell is the first thing
@@ -5479,7 +5525,7 @@ renderRows = function()
       -- on top of whatever line it becomes next.
       if entry.kind ~= "drawer" then
         row.drawerPriceHead:Hide(); row.drawerBookHead:Hide()
-        row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide()
+        row.drawerHint:Hide(); row.drawerStand:Hide(); row.drawerFacts:Hide(); row.drawerOwn:Hide()
         row.priceNetHead:Hide(); row.priceNet:Hide(); row.priceNetNote:Hide()
         row.drawerDepth:Hide(); row.drawerQuote:Hide()
         for _, line in ipairs(row.bookLines) do
@@ -5532,6 +5578,17 @@ renderRows = function()
         setColor(row.sectionLabel, fgc)
         -- An item waiting for its key is a line under that heading, not a heading of its own.
         if entry.kind == "waitItem" then row.sectionRule:Hide() end
+        -- The waiting heading's aside, one line from its title to the list's edge, where the
+        -- rule would run.
+        if entry.kind == "waitHead" then
+          row.sectionRule:Hide()
+          row.sectionHint:ClearAllPoints()
+          row.sectionHint:SetPoint("LEFT", row.sectionLabel, "RIGHT", Theme.pad.m, 0)
+          row.sectionHint:SetPoint("RIGHT", row, "RIGHT", -Theme.pad.s, 0)
+          row.sectionHint:SetWordWrap(false)
+          row.sectionHint:SetMaxLines(1)
+          row.sectionHint:Show()
+        end
       else
         row.itemInset = 34
         row.icon:Hide()
@@ -6689,7 +6746,9 @@ GC.slashHandlers.sellstate = function()
         why = GC.L["due -- will be asked next pass"]
       end
       shown = shown + 1
-      GC.Print(("  %s (%d): %s"):format(tostring(position.itemName or "?"), position.itemID, why))
+      -- A variant by its exact key: two item levels of one piece read as one line by item ID.
+      GC.Print(("  %s (%s): %s"):format(tostring(position.itemName or "?"),
+        tostring(position.quoteKey or position.itemID), why))
     end
   end
 end
@@ -6703,6 +6762,18 @@ function GC.Sell.DebugPrint()
   -- OnAuctionCreated): whether the client names a just-created auction at all.
   GC.Print(GC.Sell._createdSeen or "sell: created -- none this session")
   local function call(fn, ...) if type(fn) == "function" then return tostring(fn(...)) end return "n/a" end
+  -- Why an item will not post, or a post was not booked (final review M7): the items a late
+  -- answer holds and for how long, how long an answer a guess ended may still be owed, whether a
+  -- post now would be certain, the stock waiting for the auction house, and the requests out.
+  local held, now = {}, time()
+  for _, late in ipairs(GC.Sell._LiveLate()) do
+    held[#held + 1] = ("%s %ds"):format(itemName(late.pin.itemID) or tostring(late.pin.itemID),
+      GC.Sell.LATE_ANSWER_SECONDS - (now - late.at))
+  end
+  GC.Print(("post: late=%d [%s] owed=%ds certain=%s waiting=%d requestOut=%s confirmOwed=%s"):format(
+    #held, table.concat(held, ", "), math.max(0, (GC.Sell._owedUntil or 0) - now), tostring(GC.Sell._Certain()),
+    #(GC.Sell._waitingStock or {}), call(sniper.RequestOut),
+    GC.PurchaseSlot and call(GC.PurchaseSlot.ConfirmOwed) or "n/a"))
   GC.Print(("sell walk: phase=%s index=%d/%d pending=%s awaiting=%s gen=%d progress=%ds ago waitingNoted=%s"):format(
     tostring(refresh.phase), refresh.index or 0, #(refresh.queue or {}),
     tostring(refresh.pending and refresh.pending.itemID), tostring(refresh.awaiting),

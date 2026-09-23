@@ -53,10 +53,11 @@ GC.Locales.enUS = {
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
   ["%s under you"] = "%s under you",
-  ["%s units across %d prices"] = "%s units across %d prices",
+  ["%s units in %d prices"] = "%s units in %d prices",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   ["%s+ ahead"] = "%s+ ahead",
+  ["%s+, %d prices read"] = "%s+, %d prices read",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
   ["1 lot, %s asked"] = "1 lot, %s asked",
   ["24h trend"] = "24h trend",
@@ -119,13 +120,13 @@ GC.Locales.enUS = {
   ["Cancel lot"] = "Cancel lot",
   ["GOLDCAP"] = "GOLDCAP",
   ["HOLDING %d"] = "HOLDING %d",
+  ["Last post may still go up -- wait a minute"] = "Last post may still go up -- wait a minute",
   ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
     "Listed at or under the price you set on goldcap.gg (group: %s)",
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
-  ["No answer from the auction house yet -- still listening for a minute"] =
-    "No answer from the auction house yet -- still listening for a minute",
+  ["No answer yet -- listening for a minute"] = "No answer yet -- listening for a minute",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
@@ -147,8 +148,6 @@ GC.Locales.enUS = {
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
-  ["This item's last post may still go up -- wait a minute"] =
-    "This item's last post may still go up -- wait a minute",
   ["UNDERCUT %d"] = "UNDERCUT %d",
   ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
@@ -176,14 +175,13 @@ GC.Locales.enUS = {
   ["no cost"] = "no cost",
   ["no cost for %d"] = "no cost for %d",
   ["no live quote yet — pricing…"] = "no live quote yet — pricing…",
+  ["no market figure for caged pets"] = "no market figure for caged pets",
   ["no market figure for this item level"] = "no market figure for this item level",
-  ["no market figure for this pet"] = "no market figure for this pet",
   ["no price"] = "no price",
   ["not priced — nothing on hand to sell"] = "not priced — nothing on hand to sell",
   ["oldest units sell first"] = "oldest units sell first",
   ["open the auction house once so GoldCap can tell how these sell"] =
     "open the auction house once so GoldCap can tell how these sell",
-  ["past the first %d prices read (%s units)"] = "past the first %d prices read (%s units)",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
   ["Remove this run"] = "Remove this run",
@@ -743,6 +741,7 @@ GC.Locales.enUS = {
   ["price confirmed -- click Buy to purchase"] = "price confirmed -- click Buy to purchase",
   ["price moved to %s"] = "price moved to %s",
   ["price rose %.1fx — still safe, confirm"] = "price rose %.1fx — still safe, confirm",
+  ["price stands %d of %d"] = "price stands %d of %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market",
   ["purchase canceled"] = "purchase canceled",
@@ -840,12 +839,12 @@ GC.Locales.enUS = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "your price is above every level shown",
-  ["your price stands %d of %d"] = "your price stands %d of %d",
   ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
     "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
   ["yours"] = "yours",
-  ["~%dd to reach you at today's pace"] = "~%dd to reach you at today's pace",
-  ["~%dh to reach you at today's pace"] = "~%dh to reach you at today's pace",
+  ["yours ×%s"] = "yours ×%s",
+  ["~%dd to reach you"] = "~%dd to reach you",
+  ["~%dh to reach you"] = "~%dh to reach you",
   ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",

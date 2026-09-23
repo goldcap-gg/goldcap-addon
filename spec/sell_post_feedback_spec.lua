@@ -327,7 +327,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       local row = pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("No answer from the auction house yet -- still listening for a minute", container.dockStatus.text)
+      assert.equal("No answer yet -- listening for a minute", container.dockStatus.text)
       assert.same(RED, { unpack(container.dockStatus.color, 1, 3) })
       assert.equal("Post", row.action.label)
       assert.is_true(row.action.enabled)
@@ -404,7 +404,7 @@ describe("Sell tab, a Post says what it is doing", function()
       ready()
       pressRowPost()
       assert.equal(1, fire(8))
-      assert.equal("No answer from the auction house yet -- still listening for a minute", container.dockStatus.text)
+      assert.equal("No answer yet -- listening for a minute", container.dockStatus.text)
       _G.time = function() return 1030 end
       GC.Sell.OnAuctionCreated()
       assert.matches("^Posted", container.dockStatus.text)
@@ -428,7 +428,7 @@ describe("Sell tab, a Post says what it is doing", function()
       -- still be taking it.
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
       GC.Sell.OnAuctionCreated()
       assert.matches("^Posted", container.dockStatus.text)
       assert.equal(0, #recorded) -- a guess: the owned list records it
@@ -448,7 +448,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.PurchaseSlot = nil
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
     end)
 
     it("holds another Post of the same item while its last post may still be answered", function()
@@ -457,7 +457,7 @@ describe("Sell tab, a Post says what it is doing", function()
       fire(8)
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
       -- The dock's POST does not offer it either: held back, with the reason in words.
       assert.equal("NOTHING TO POST", container.queueButton.label)
       assert.matches("1", container.queueHeldBack.text, 1, true)
@@ -732,7 +732,7 @@ describe("Sell tab, a Post says what it is doing", function()
       upvalue(GC.Sell.Refresh, "refresh").phase = "idle"
       pressRowPost()
       assert.equal(1, posts) -- held: that post may still go up
-      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
     end)
 
     -- The Sniper's own "busy" -- a pass paging, a purchase out -- counts too. A page still out
@@ -769,6 +769,25 @@ describe("Sell tab, a Post says what it is doing", function()
       pressRowPost(210796)
       assert.equal("Finish the pending post first", root.status.text)
       assert.equal(1, posts)
+    end)
+
+    -- /gc sell answers "why can't I post this?" and "why wasn't that post booked?" from a paste:
+    -- which items a late answer holds and for how long, whether an answer is still owed, whether
+    -- a post now would be certain, the stock waiting for the auction house, and whether the
+    -- Sniper or a purchase has a request out (final review M7).
+    it("prints the late window, the owed answer, certainty and requests out in /gc sell", function()
+      local printed = {}
+      GC.Print = function(line) printed[#printed + 1] = line end
+      GC.Sniper = { RequestOut = function() return true end }
+      GC.PurchaseSlot = { ConfirmOwed = function() return "buy" end }
+      ready()
+      pressRowPost()
+      fire(8)
+      _G.time = function() return 1020 end
+      GC.Sell.DebugPrint()
+      GC.Sniper, GC.PurchaseSlot = nil, nil
+      local text = table.concat(printed, "\n")
+      assert.matches("post: late=1 %[Eternium Ore 40s%] owed=0s certain=false waiting=0 requestOut=true confirmOwed=buy", text)
     end)
 
     -- What is written down, and when (review sell-fix3, design). The owned-auctions list is the
@@ -1223,7 +1242,7 @@ describe("Sell tab, a Post says what it is doing", function()
       GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughItems)
       pressRowPost()
       assert.equal(1, posts)
-      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+      assert.equal("Last post may still go up -- wait a minute", container.dockStatus.text)
     end)
 
     -- S9b: a plain Confirm, then its creation -- booked, and the row freed.

@@ -392,13 +392,14 @@ local function book(position)
   local levels = type(position.levels) == "table" and position.levels or nil
   if not levels or #levels == 0 then return nil end
 
-  local valid, totalUnits, running = {}, 0, 0
+  local valid, totalUnits, running, mineRead = {}, 0, 0, 0
   for i = 1, #levels do
     local level = levels[i]
     if type(level) == "table" and type(level.unitPrice) == "number" and level.unitPrice > 0 then
       local units = type(level.quantity) == "number" and level.quantity or 0
       local ownerUnits = ownUnits(level, units)
       totalUnits = totalUnits + units
+      mineRead = mineRead + ownerUnits
       running = running + units
       valid[#valid + 1] = { kind = "level", unit = level.unitPrice, units = units, ownerUnits = ownerUnits,
         mine = ownerUnits > 0, cumulative = running }
@@ -461,9 +462,16 @@ local function book(position)
       if outlook then return outlook.days * 24 end
       return queued / sold * 24
     end
+    -- The queue the post joins holds the player's own older lots at or under the price too: they
+    -- sell first. The marker's "N ahead" is what competes and leaves them out; the times cannot
+    -- (final review M6).
+    local mineAhead = 0
+    for i = 1, #valid do
+      if valid[i].unit <= yours then mineAhead = mineAhead + valid[i].ownerUnits end
+    end
     if sold and ahead and not pastRead then
-      if ahead > 0 then hoursToReach = hours(ahead) end
-      if postable > 0 then clearsHours = hours(ahead + postable) end
+      if ahead + mineAhead > 0 then hoursToReach = hours(ahead + mineAhead) end
+      if postable > 0 then clearsHours = hours(ahead + mineAhead + postable) end
     end
   else
     rows = {}
@@ -483,7 +491,7 @@ local function book(position)
     end
   end
   return {
-    rows = rows, levels = #valid, totalUnits = totalUnits, widest = widest,
+    rows = rows, levels = #valid, totalUnits = totalUnits, widest = widest, ownUnits = mineRead,
     truncated = #valid > shown, commodity = commodity,
     yourUnit = yours, yourRow = yourRow, ahead = ahead, pastRead = pastRead == true,
     wallBelow = wallBelow, wallAbove = wallAbove, hoursToReach = hoursToReach, clearsHours = clearsHours,
@@ -632,7 +640,7 @@ function GC.SellViewModel.Expansion(position)
   end
   -- A variant's market data is not its own (Core/SellPositions: the site merges item levels and
   -- pet species), so there is none -- said, rather than left to look merely missing.
-  if position.variantKind == "pet" then facts[#facts + 1] = GC.L["no market figure for this pet"]
+  if position.variantKind == "pet" then facts[#facts + 1] = GC.L["no market figure for caged pets"]
   elseif position.variantKind == "level" then facts[#facts + 1] = GC.L["no market figure for this item level"] end
   if position.facts and position.facts.soldPending then facts[#facts + 1] = GC.L["sale proceeds pending"] end
   if position.unresolvedKind == "paid_sale" then facts[#facts + 1] = GC.L["paid sale unresolved"] end

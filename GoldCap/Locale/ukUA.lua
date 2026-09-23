@@ -48,9 +48,10 @@ GC.Locales.ukUA = {
   ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
   ["%s under you"] = "%s дешевше за вас",
-  ["%s units across %d prices"] = "%s шт. за %d цінами",
+  ["%s units in %d prices"] = "%s шт. за %d цінами",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   ["%s+ ahead"] = "%s+ попереду",
+  ["%s+, %d prices read"] = "%s+, прочитано %d цін",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
   ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
@@ -227,6 +228,7 @@ GC.Locales.ukUA = {
   ["Language"] = "Мова",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Мову змінено. Введіть /reload, щоб застосувати її всюди.",
+  ["Last post may still go up -- wait a minute"] = "Ще може виставитися -- зачекайте хвилину",
   ["Last result: %ds ago"] = "Останній результат: %dс тому",
   ["Last result: none yet this visit"] = "Останній результат: ще не було цього візиту",
   ["Listed"] = "Виставлено",
@@ -262,8 +264,7 @@ GC.Locales.ukUA = {
     "Перед покупкою потрібна жива перевірка ціни.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Ніколи не витрачати на одну покупку більше цієї частки вашого золота.",
-  ["No answer from the auction house yet -- still listening for a minute"] =
-    "Аукціон ще не відповів -- чекаємо ще хвилину",
+  ["No answer yet -- listening for a minute"] = "Аукціон ще не відповів -- чекаємо ще хвилину",
   ["No deals passed the safety checks right now."] =
     "Зараз жодна угода не пройшла перевірок безпеки.",
   ["No deals to show -- and no realm prices yet."] =
@@ -468,8 +469,6 @@ GC.Locales.ukUA = {
     "Скасувати не можна. Перший клік просить другий для підтвердження.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Це предмет реалму, а GoldCap перевіряє лише ціни товарів.",
-  ["This item's last post may still go up -- wait a minute"] =
-    "Попереднє виставлення цього предмета ще може пройти -- зачекайте хвилину",
   ["Too few sellers to read a real price."] = "Замало продавців, щоб прочитати справжню ціну.",
   ["Too little of what is listed actually sells."] =
     "Із виставленого реально продається надто мало.",
@@ -635,8 +634,8 @@ GC.Locales.ukUA = {
   ["no cost for %d"] = "немає собівартості у %d",
   ["no live price yet"] = "живої ціни ще немає",
   ["no live quote yet — pricing…"] = "живого котирування ще немає — оцінюємо ціну…",
+  ["no market figure for caged pets"] = "немає ринкових даних для вихованців у клітці",
   ["no market figure for this item level"] = "немає ринкових даних для цього рівня предмета",
-  ["no market figure for this pet"] = "немає ринкових даних для цього вихованця",
   ["no price"] = "немає ціни",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цін ще немає -- /goldcap companion або /goldcap import",
@@ -667,7 +666,6 @@ GC.Locales.ukUA = {
   ["over %d position%s"] = "по %d позиціях%s",
   ["paid %s each"] = "по %s",
   ["paid sale unresolved"] = "оплачений продаж не зіставлено",
-  ["past the first %d prices read (%s units)"] = "далі перших %d прочитаних цін (%s шт.)",
   ["placing bid..."] = "робимо ставку...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "попередню купівлю товару завершено -- %s, щоб перевірити ціну ще раз",
@@ -678,6 +676,7 @@ GC.Locales.ukUA = {
   ["price confirmed -- click Buy to purchase"] =
     "ціну підтверджено -- натисніть Buy, щоб купити",
   ["price rose %.1fx — still safe, confirm"] = "ціна зросла в %.1fx — усе ще безпечно, підтвердіть",
+  ["price stands %d of %d"] = "ваша ціна: %d з %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "завантажено ціни %s (%s), а граєте ви в %s — усі знижки й прибуток рахуються за чужим ринком",
   ["purchase canceled"] = "купівлю скасовано",
@@ -760,10 +759,10 @@ GC.Locales.ukUA = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашому імпорту %d годин -- ціни можуть бути хибними. Вставте свіжий рядок з goldcap.gg (/goldcap import).",
   ["your price is above every level shown"] = "твоя ціна вища за всі показані рівні",
-  ["your price stands %d of %d"] = "твоя ціна стане %d з %d",
   ["yours"] = "ваша",
-  ["~%dd to reach you at today's pace"] = "~%d дн. до вас за сьогоднішнього темпу",
-  ["~%dh to reach you at today's pace"] = "~%d год до вас за сьогоднішнього темпу",
+  ["yours ×%s"] = "ваші ×%s",
+  ["~%dd to reach you"] = "~%d дн. до вас",
+  ["~%dh to reach you"] = "~%d год до вас",
   ["» needs price"] = "» потрібна ціна",
   ["×%d in bags"] = "×%d у сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

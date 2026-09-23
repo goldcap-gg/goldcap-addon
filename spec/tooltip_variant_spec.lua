@@ -42,7 +42,7 @@ describe("Tooltip under a Sell variant row", function()
   it("says so for a pet too", function()
     owner = { goldcapVariant = "pet" }
     postCall(_G.GameTooltip, { id = 82800 })
-    assert.matches("no market figure for this pet", table.concat(lines, " | "), 1, true)
+    assert.matches("no market figure for caged pets", table.concat(lines, " | "), 1, true)
   end)
 
   it("keeps the block everywhere else", function()

@@ -936,7 +936,7 @@ describe("Sell widget geometry and manual cost", function()
     end
 
     local BOOK = {
-      levels = 4, totalUnits = 1062, truncated = false, widest = 620,
+      levels = 4, totalUnits = 1062, truncated = false, widest = 620, ownUnits = 90,
       cheapestCompeting = 418800, yourUnit = 420400, yourRow = 2,
       rows = {
         { unit = 418800, units = 12, ownerUnits = 0, mine = false, cumulative = 12 },
@@ -996,7 +996,11 @@ describe("Sell widget geometry and manual cost", function()
       assert.is_true(drawer.bookLines[3].wash.shown)
       assert.is_false(drawer.bookLines[1].wash.shown)
       assert.is_false(drawer.bookLines[2].tag.shown)
-      assert.matches("yours ×", drawer.drawerStand.text, 1, true)
+      -- The key to the blue: "yours ×N" in a cell of its own at the right of the line, so the
+      -- words beside it can never push it off (final review I1).
+      assert.equal("yours ×90", drawer.drawerOwn.text)
+      assert.is_true(drawer.drawerOwn.shown)
+      assert.is_nil(drawer.drawerStand.text:find("yours", 1, true))
     end)
 
     -- The depth bars are pills, as drawn: a sliced bar.png, track and fill. A sliced region is
@@ -1100,7 +1104,7 @@ describe("Sell widget geometry and manual cost", function()
       local GC = load(620, { calls = {} })
       local gap = nth(bookRows(GC, LADDER), "drawer").bookLines[3]
       assert.equal("…", gap.price.text)
-      assert.equal("1.1k units across 11 prices", gap.note.text)
+      assert.equal("1.1k units in 11 prices", gap.note.text)
       assert.is_false(gap.qty.shown)
       assert.is_false(gap.bar.shown)
     end)
@@ -1122,7 +1126,43 @@ describe("Sell widget geometry and manual cost", function()
     it("says how long the queue ahead of your price takes at today's pace", function()
       local GC = load(620, { calls = {} })
       local drawer = nth(bookRows(GC, LADDER), "drawer")
-      assert.matches("~6h to reach you at today's pace", drawer.drawerStand.text, 1, true)
+      assert.equal("~6h to reach you", drawer.drawerStand.text)
+      -- Nothing of the player's in the book: no key to draw, and the words have the line.
+      assert.is_false(drawer.drawerOwn.shown)
+      assert.equal(drawer.drawerStand.points[2].relative, drawer)
+    end)
+
+    -- Two cells, the words first and "yours ×N" at the right edge, the words ending where the key
+    -- begins: at 1.3 in German the one run-on line lost the count and the key (final review I1).
+    -- The count is every unit of the player's the book read, not only the levels drawn (M6).
+    it("keeps yours ×N in its own cell beside the words, counting every level read", function()
+      local GC = load(620, { calls = {} })
+      local book = {}
+      for k, v in pairs(LADDER) do book[k] = v end
+      book.ownUnits = 3000
+      local drawer = nth(bookRows(GC, book), "drawer")
+      assert.equal("~6h to reach you", drawer.drawerStand.text)
+      assert.equal("yours ×3.0k", drawer.drawerOwn.text)
+      assert.is_true(drawer.drawerOwn.shown)
+      assert.equal(1, drawer.drawerOwn.maxLines)
+      assert.equal(drawer.drawerOwn, drawer.drawerStand.points[2].relative)
+      local WATCH = GC.Theme.color.watch
+      assert.same({ WATCH[1], WATCH[2], WATCH[3], 1 }, drawer.drawerOwn.color)
+    end)
+
+    -- The word is measured where the client can: its tag, and the bar after it, are as wide as
+    -- the word drawn, in any language at any scale (final review I2).
+    it("sizes a wall's word to the word itself", function()
+      local GC = load(620, { calls = {} })
+      local drawer = nth(bookRows(GC, LADDER), "drawer")
+      for _, line in ipairs(drawer.bookLines) do
+        function line.tag:GetUnboundedStringWidth() return #(self.text or "") * 9.2 end
+      end
+      upvalue(GC.Sell.Attach, "renderRows")()
+      drawer = nth(upvalue(upvalue(GC.Sell.Attach, "renderRows"), "rows"), "drawer")
+      local wall = drawer.bookLines[5]
+      assert.equal(40, wall.tag.width) -- ceil(36.8) + 3 of air
+      assert.equal(40, wall.bar.fill.points[1].x)
     end)
 
     -- "clears in" is your own units after the queue ahead, from the book's same pace -- never the
@@ -1221,7 +1261,7 @@ describe("Sell widget geometry and manual cost", function()
       local drawer = nth(bookRows(GC, past), "drawer")
       assert.equal("5.1k+ ahead", drawer.bookLines[2].note.text)
       -- One number: the marker's, which leaves the player's own units out (review M4).
-      assert.matches("past the first 100 prices read (5.1k units)", drawer.drawerStand.text, 1, true)
+      assert.equal("5.1k+, 100 prices read", drawer.drawerStand.text)
       assert.is_nil(drawer.drawerStand.text:find("to reach you", 1, true))
     end)
 

@@ -139,7 +139,7 @@ local function onTooltip(tooltip, data)
   local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
   local variant = type(owner) == "table" and owner.goldcapVariant or nil
   if variant then
-    tooltip:AddLine(variant == "pet" and GC.L["no market figure for this pet"]
+    tooltip:AddLine(variant == "pet" and GC.L["no market figure for caged pets"]
       or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
     return
   end

@@ -44,9 +44,10 @@ GC.Locales.ruRU = {
   ["%s after the AH cut"] = "%s после комиссии",
   ["%s ahead"] = "%s впереди",
   ["%s under you"] = "%s дешевле вас",
-  ["%s units across %d prices"] = "%s шт. по %d ценам",
+  ["%s units in %d prices"] = "%s шт. по %d ценам",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   ["%s+ ahead"] = "%s+ впереди",
+  ["%s+, %d prices read"] = "%s+, прочитано %d цен",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
   ["1 lot, %s asked"] = "1 лот, просят %s",
   ["24h trend"] = "Тренд за 24ч",
@@ -220,6 +221,7 @@ GC.Locales.ruRU = {
   ["Language"] = "Язык",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Язык изменён. Введите /reload, чтобы применить его везде.",
+  ["Last post may still go up -- wait a minute"] = "Ещё может выставиться -- подождите минуту",
   ["Last result: %ds ago"] = "Последний результат: %dс назад",
   ["Last result: none yet this visit"] = "Последний результат: пока не было в этот визит",
   ["Listed"] = "Выставлено",
@@ -253,8 +255,7 @@ GC.Locales.ruRU = {
     "Перед покупкой нужна живая проверка цены.",
   ["Never spend more than this share of your gold on one purchase."] =
     "Никогда не тратить на одну покупку больше этой доли вашего золота.",
-  ["No answer from the auction house yet -- still listening for a minute"] =
-    "Аукцион пока не ответил -- ждём ещё минуту",
+  ["No answer yet -- listening for a minute"] = "Аукцион пока не ответил -- ждём ещё минуту",
   ["No deals passed the safety checks right now."] =
     "Сейчас ни одна сделка не прошла проверок безопасности.",
   ["No deals to show -- and no realm prices yet."] = "Сделок нет -- и цен реалма пока тоже.",
@@ -453,8 +454,6 @@ GC.Locales.ruRU = {
     "Отменить нельзя. Первый клик просит второй для подтверждения.",
   ["This is a realm item, and GoldCap only verifies commodity prices."] =
     "Это предмет реалма, а GoldCap проверяет только цены товаров.",
-  ["This item's last post may still go up -- wait a minute"] =
-    "Прошлое выставление этого предмета ещё может пройти -- подождите минуту",
   ["Too few sellers to read a real price."] =
     "Слишком мало продавцов, чтобы прочитать настоящую цену.",
   ["Too little of what is listed actually sells."] =
@@ -620,8 +619,8 @@ GC.Locales.ruRU = {
   ["no cost for %d"] = "нет себестоимости у %d",
   ["no live price yet"] = "живой цены пока нет",
   ["no live quote yet — pricing…"] = "живой котировки пока нет — оцениваем цену…",
+  ["no market figure for caged pets"] = "нет рыночных данных для питомцев в клетке",
   ["no market figure for this item level"] = "нет рыночных данных для этого уровня предмета",
-  ["no market figure for this pet"] = "нет рыночных данных для этого питомца",
   ["no price"] = "нет цены",
   ["no prices yet -- /goldcap companion or /goldcap import"] =
     "цен пока нет -- /goldcap companion или /goldcap import",
@@ -650,7 +649,6 @@ GC.Locales.ruRU = {
     "или вставьте строку с goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позициям%s",
   ["paid sale unresolved"] = "оплаченная продажа не сопоставлена",
-  ["past the first %d prices read (%s units)"] = "дальше первых %d прочитанных цен (%s шт.)",
   ["placing bid..."] = "делаем ставку...",
   ["previous commodity purchase settled -- %s to re-check the price"] =
     "предыдущая покупка товара завершена -- %s, чтобы перепроверить цену",
@@ -661,6 +659,7 @@ GC.Locales.ruRU = {
   ["price confirmed -- click Buy to purchase"] = "цена подтверждена -- нажмите Buy, чтобы купить",
   ["price rose %.1fx — still safe, confirm"] =
     "цена выросла в %.1fx — всё ещё безопасно, подтвердите",
+  ["price stands %d of %d"] = "ваша цена: %d из %d",
   ["prices loaded are %s (%s) but you are playing in %s — every discount and profit figure is measured against another market"] =
     "загружены цены %s (%s), а играете вы в %s — все скидки и прибыль считаются по чужому рынку",
   ["purchase canceled"] = "покупка отменена",
@@ -741,8 +740,9 @@ GC.Locales.ruRU = {
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "вашему импорту %d часов -- цены могут быть неверными. Вставьте свежую строку с goldcap.gg (/goldcap import).",
   ["yours"] = "ваша",
-  ["~%dd to reach you at today's pace"] = "~%d дн. до вас при сегодняшнем темпе",
-  ["~%dh to reach you at today's pace"] = "~%d ч до вас при сегодняшнем темпе",
+  ["yours ×%s"] = "ваши ×%s",
+  ["~%dd to reach you"] = "~%d дн. до вас",
+  ["~%dh to reach you"] = "~%d ч до вас",
   ["» needs price"] = "» нужна цена",
   ["×%d in bags"] = "×%d в сумках",
   ["×%d in your bags · Post lists %d of them, the largest stack"] =

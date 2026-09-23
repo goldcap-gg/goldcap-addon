@@ -291,6 +291,22 @@ describe("Sell order book", function()
       assert.is_true(slow.clearsHours > slow.hoursToReach)
     end)
 
+    -- Your own older lots at or under the price sell before the new post: the times count them
+    -- in the queue, though the marker's "N ahead" -- what competes with you -- does not. And
+    -- "yours ×N" is every unit of yours the book read, not only the levels drawn (final review M6).
+    it("times the queue with your own older lots in it, and counts all of yours", function()
+      local levels = { { unitPrice = 1000, quantity = 2321 }, { unitPrice = 1050, quantity = 1000, ownerQty = 1000 },
+        { unitPrice = 1200, quantity = 500, ownerQty = 200 } }
+      for i = 1, 12 do levels[#levels + 1] = { unitPrice = 1200 + i * 10, quantity = 10 } end
+      levels[#levels + 1] = { unitPrice = 5000, quantity = 30, ownerQty = 30 }
+      local b = GC.SellViewModel.Expansion(position({ soldPerDay = 9867, bagQty = 300, postableQty = 300,
+        levels = levels, postRecommendation = { unit = 1100 } })).book
+      assert.equal(2321, b.ahead) -- what competes: the marker's
+      assert.equal(8, math.floor(b.hoursToReach + 0.5)) -- 3,321 ahead of the post at 9,867/day
+      assert.equal(9, math.floor(b.clearsHours + 0.5))
+      assert.equal(1230, b.ownUnits) -- the 30 at 50g too, though no line draws it
+    end)
+
     -- A price the seller chose is not GoldCap's: the reason for GoldCap's price, and its count at
     -- GoldCap's price, would stand under the box as a second "units ahead" (review I2).
     it("gives a chosen price no reason and no second count", function()

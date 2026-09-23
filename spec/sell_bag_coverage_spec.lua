@@ -196,6 +196,73 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     assert.is_truthy(positionOf("item:82800:25:0:1234"))
   end)
 
+  -- A pet's level on its row is the one its battle-pet link states. What the client's ItemKey
+  -- carries in its level field for a pet is not confirmed off the client (final review M5), so
+  -- the row never reads it as the pet's level.
+  it("names a pet's level from its own link, never from the ItemKey", function()
+    kinds[82800] = false
+    stack(1, 82800, 1, nil, { hyperlink = "|Hbattlepet:1234:17:3:900:200:200:0|h[Anubisath Idol]|h" })
+    slotKeys["0:1"] = key(82800, 1, 0, 1234)
+    compose()
+    local row
+    for _, candidate in ipairs(upvalue(render, "rows")) do
+      if candidate:IsShown() and candidate.kind == "position" then row = candidate end
+    end
+    assert.matches("level 17", row.cells.item.text, 1, true)
+    assert.is_nil(row.cells.item.text:find("level 1|", 1, true))
+  end)
+
+  -- The footer names the pet that went up, as the dock did a second before -- not "Pet Cage",
+  -- the item every caged pet shares (final review M4).
+  it("says Posted with the pet's own name", function()
+    kinds[82800] = false
+    stack(1, 82800, 1, nil, { hyperlink = "|Hbattlepet:1234:25:3:1500:300:300:0|h[Anubisath Idol]|h" })
+    slotKeys["0:1"] = key(82800, 25, 0, 1234)
+    local quotes = upvalue(upvalue(GC.Sell.SellableCount, "composePositions"), "quotes")
+    GC.QuoteCache.Set(quotes, "item:82800:25:0:1234", 90000, 1000)
+    compose()
+    for _, row in ipairs(upvalue(render, "rows")) do
+      if row:IsShown() and row.kind == "position" then row.action.scripts.OnClick(row.action) end
+    end
+    assert.equal(1, #posted)
+    GC.Sell.OnAuctionCreated(880)
+    assert.matches("Posted · Anubisath Idol ×1", container.dockStatus.text, 1, true)
+  end)
+
+  -- Keyed gear the auction house will not take -- Warbound until equipped, and anything else not
+  -- bound yet not auctionable -- is asked about too, while the auction house is open: no TO POST
+  -- row, and no search spent on it (final review I3).
+  it("asks the auction house about a keyed stack too, and leaves out one it refuses", function()
+    GC.Sniper.IsAHOpen = function() return true end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { itemName = "Warbound Helm" })
+    stack(2, 222, 1, BONUSED, { itemName = "Tradeable Helm" })
+    slotKeys["0:1"] = key(222, 619)
+    slotKeys["0:2"] = key(222, 626)
+    _G.C_AuctionHouse.IsSellItemValid = function(location) return location.slot ~= 1 end
+    compose()
+    assert.is_nil(positionOf("item:222:619:0:0"))
+    assert.is_truthy(positionOf("item:222:626:0:0"))
+    for _, row in ipairs(upvalue(render, "rows")) do
+      assert.is_false(row:IsShown() and row.kind == "waitItem")
+    end
+    local walk = upvalue(upvalue(GC.Sell.Refresh, "beginQuoteWalk"), "uniqueQuoteItemIDs")()
+    for _, id in ipairs(walk) do assert.are_not.equal("item:222:619:0:0", id) end
+  end)
+
+  -- /gc sellstate names a variant by its exact key: two item levels of one piece read as the same
+  -- line by item ID alone (final review M7).
+  it("names an unpriced variant by its exact key in /gc sellstate", function()
+    local printed = {}
+    GC.Print = function(line) printed[#printed + 1] = line end
+    kinds[222] = false
+    stack(1, 222, 1, BONUSED, { itemName = "Foo Helm" })
+    slotKeys["0:1"] = key(222, 619)
+    compose()
+    GC.slashHandlers.sellstate()
+    assert.matches("Foo Helm (item:222:619:0:0)", table.concat(printed, "\n"), 1, true)
+  end)
+
   it("still leaves soulbound stock out: the auction house refuses it", function()
     kinds[222] = false
     stack(1, 222, 1, BONUSED, { isBound = true })
@@ -220,7 +287,12 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     end
     assert.is_truthy(head, "no heading for the stock the tab cannot key yet")
     assert.matches("WAITING FOR THE AUCTION HOUSE 1", head.sectionLabel.text, 1, true)
-    assert.matches("open the auction house once", head.sectionLabel.text, 1, true)
+    -- The heading's aside is in the heading's own hint cell, one line to the row's right edge --
+    -- as long as the rest of the heading, it ran on past the list and was cut mid-word (M1).
+    assert.is_nil(head.sectionLabel.text:find("open the auction house", 1, true))
+    assert.matches("open the auction house once", head.sectionHint.text, 1, true)
+    assert.is_true(head.sectionHint.shown)
+    assert.equal(1, head.sectionHint.maxLines)
     assert.is_truthy(item)
     assert.matches("Jeb's Underwear ×1", item.sectionLabel.text, 1, true)
     assert.is_nil(positionOf("item:333:100:7:0"))
@@ -518,7 +590,7 @@ describe("Sell tab, every tradeable bag item gets a row", function()
     end
     assert.equal(1, #items)
     assert.matches("Oddity", items[1], 1, true)
-    assert.matches("the auction house has not sent details for these yet", head.sectionLabel.text, 1, true)
+    assert.matches("the auction house has not sent details for these yet", head.sectionHint.text, 1, true)
     -- Asked quietly: with its error display on, every compose at the auction house put the red
     -- "can't auction" error and its sound on screen, once a second through a Sell walk (N1).
     assert.is_true(#displayErrors > 0)
