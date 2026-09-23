@@ -2846,6 +2846,9 @@ function GC.Sell._OtherRequestOut()
   if GC.Sniper and GC.Sniper.IsBusy and GC.Sniper.IsBusy() then return true end
   if repostingRow and repostingRow.repostStage == "cancelling" then return true end
   if GC.PurchaseSlot and GC.PurchaseSlot.IsBusy and GC.PurchaseSlot.IsBusy() then return true end
+  -- A purchase either window confirmed is out until it is answered, which can be after its claim
+  -- has gone stale and IsBusy has stopped saying so (GC.PurchaseSlot.ConfirmOwed).
+  if GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed and GC.PurchaseSlot.ConfirmOwed() then return true end
   if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return true end
   return false
 end

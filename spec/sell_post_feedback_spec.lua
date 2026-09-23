@@ -434,6 +434,23 @@ describe("Sell tab, a Post says what it is doing", function()
       assert.equal(0, #recorded) -- a guess: the owned list records it
     end)
 
+    -- A purchase either window CONFIRMED is out until it is answered, and that can run past the
+    -- slot's MAX_SECONDS, where IsBusy stops saying so (GC.PurchaseSlot.ConfirmOwed): its error is
+    -- no more the post's than one from a purchase still inside its claim.
+    it("counts a confirmed purchase still owed its answer after its claim has gone stale", function()
+      ready()
+      pressRowPost()
+      GC.PurchaseSlot = {
+        IsBusy = function() return false end,
+        ConfirmOwed = function() return "sniper" end,
+      }
+      GC.Sell.OnAuctionHouseError(AH_ERROR.NotEnoughMoney)
+      GC.PurchaseSlot = nil
+      pressRowPost()
+      assert.equal(1, posts)
+      assert.equal("This item's last post may still go up -- wait a minute", container.dockStatus.text)
+    end)
+
     it("holds another Post of the same item while its last post may still be answered", function()
       ready()
       pressRowPost()
