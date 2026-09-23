@@ -17,9 +17,29 @@ describe("Sniper purchase wiring", function()
     return text:sub(from, to - 1)
   end
 
+  -- onDialogPrimaryClick and nothing else: from its header to its own closing `end`, the first
+  -- line-start `end` after it (every line of its body is indented). The next section marker in the
+  -- file sits two hundred lines further on, past the quantity helpers the dialog's Quantity row
+  -- uses -- a slice that ran to it let a protected call in applyChosenQty or refreshQtyRow pass as
+  -- the click handler's own (caps fixes 5, review round 1). Returns the slice, where it starts and
+  -- the first position after it.
+  local CLICK = "local function onDialogPrimaryClick()"
+  local function clickHandler(text)
+    local from = assert(text:find(CLICK, 1, true), CLICK)
+    local _, stop = assert(text:find("\nend\n", from, true))
+    return text:sub(from, stop), from, stop + 1
+  end
+
+  it("slices the click handler alone", function()
+    local click = clickHandler(source())
+    assert.is_nil(click:find("\nlocal function ", 1, true))
+    assert.is_nil(click:find("\nfunction ", 1, true))
+    assert.is_truthy(click:find("C_AuctionHouse.PlaceBid", 1, true)) -- and all of it
+  end)
+
   it("keeps purchase calls in the hardware-click handler and starts exact decision quantity", function()
     local text = source()
-    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(text)
 
     assert.is_truthy(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
     assert.is_truthy(click:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
@@ -31,8 +51,8 @@ describe("Sniper purchase wiring", function()
     assert.is_truthy(click:find("quoteSnapshot.decision.status ~= \"SAFE\"", 1, true))
     assert.is_truthy(click:find("commodityDraining", 1, true))
 
-    local before = text:sub(1, assert(text:find("local function onDialogPrimaryClick()", 1, true)) - 1)
-    local after = text:sub(assert(text:find("-- Sniper v3 dialog layout constants", 1, true)))
+    local _, from, to = clickHandler(text)
+    local before, after = text:sub(1, from - 1), text:sub(to)
     assert.is_nil(before:find("C_AuctionHouse.StartCommoditiesPurchase", 1, true))
     assert.is_nil(before:find("C_AuctionHouse.ConfirmCommoditiesPurchase", 1, true))
     assert.is_nil(before:find("C_AuctionHouse.PlaceBid", 1, true))
@@ -113,8 +133,7 @@ describe("Sniper purchase wiring", function()
     -- path -> function(text, pos, name) -> whether this mention is an allowed site.
     local function allowedSites()
       local sniper = read("GoldCap/UI/SniperFrame.lua")
-      local dialogFrom, dialogTo = span(sniper, "local function onDialogPrimaryClick()",
-        "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+      local _, dialogFrom, dialogTo = clickHandler(sniper)
       local buy = read("GoldCap/UI/BuyFrame.lua")
       local buyFrom, buyTo = span(buy, "local function onBuyClick",
         "-- ---------------------------------------------------------------------------\n-- Rows")
@@ -213,7 +232,7 @@ describe("Sniper purchase wiring", function()
 
   it("the dialog claims the slot before it starts a purchase", function()
     local text = source()
-    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(text)
 
     local claim = assert(click:find("GC.PurchaseSlot.Claim(\"sniper\"", 1, true))
     local start = assert(click:find("C_AuctionHouse.StartCommoditiesPurchase(deal.itemID, decision.quantity)", 1, true))
@@ -224,7 +243,7 @@ describe("Sniper purchase wiring", function()
   it("keeps a shadowed SAFE decision on the Check path", function()
     local text = source()
     local arm = section(text, "local function armReady", "local function armCheck")
-    local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(text)
 
     -- A shadow result is public WATCH/buyable=false; only that public contract can arm or
     -- reach a protected WoW call. `computedStatus` is display evidence, never an arm key.
@@ -2402,7 +2421,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(2, #printed)
 
     -- Armed by the hardware Confirm click itself, right where the attempt becomes confirmed.
-    local click = section(source(), "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(source())
     local confirmAt = assert(click:find("pending.confirmed = true", 1, true))
     local releaseAt = assert(click:find("_ReleaseStrandedConfirmed", 1, true))
     assert.is_true(confirmAt < releaseAt)
@@ -2521,7 +2540,7 @@ describe("Sniper purchase wiring", function()
     assert.equal(1, #bids)
 
     -- And the bid is placed from the candidate itself, inside the click handler, nowhere else.
-    local click = section(source(), "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+    local click = clickHandler(source())
     assert.is_truthy(click:find("C_AuctionHouse.PlaceBid(candidate.auctionID, candidate.buyout)", 1, true))
     local _, placeBidCount = source():gsub("C_AuctionHouse%.PlaceBid", "")
     assert.equal(1, placeBidCount)
