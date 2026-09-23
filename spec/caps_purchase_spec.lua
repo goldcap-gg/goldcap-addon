@@ -1557,6 +1557,18 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.equal("requerying", row.purchaseStage)
         end)
 
+        -- The hand-off above rides the auction house's 0.25 s ticker: BUY's terminal paths hand
+        -- nothing to this window. Pinned at the source, as caps_stop_and_open_spec pins its drain.
+        it("is handed off by the auction house ticker", function()
+          local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+          local src = f:read("*a")
+          f:close()
+          local start = src:find("autoScanTicker = autoScanTicker or C_Timer.NewTicker(", 1, true)
+          assert.is_number(start)
+          local body = src:sub(start, src:find("\n  end)\n", start, true))
+          assert.is_truthy(body:find("GC.Sniper._TickOwedHold()", 1, true))
+        end)
+
         it("re-stamps its slot claim at Confirm, so the claim lives as long as the wait", function()
           local GC, row, _, _, click = armed()
           helper.loadModule("Core/PurchaseSlot.lua", GC)
