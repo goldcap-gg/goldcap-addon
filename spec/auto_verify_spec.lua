@@ -1381,6 +1381,64 @@ describe("Deals background verification", function()
     end)
   end)
 
+  -- Each board's own rule for what the gold can buy, the one its buy is held to (review I-3). A
+  -- commodity is held to the per-buy share of the wallet (SniperDecision's capital gate); a realm
+  -- lot only to the wallet itself (the realm arm and PlaceBid), unless it is a YOUR PRICE lot,
+  -- which keeps to the share as well. The line said "not enough gold" over an 80g lot a 1,000g
+  -- character could buy.
+  describe("the not-enough-gold line, board by board", function()
+    local function load(wallet)
+      local api = loadSniper(safe)
+      local GC = api.GC
+      helper.loadModule("Core/Book.lua", GC)
+      helper.loadModule("Core/SniperDecision.lua", GC)
+      _G.GetMoney = function() return wallet end
+      local sniper = GC.db.settings.sniper
+      sniper.maxCapitalShare, sniper.maxDailyDemandShare, sniper.maxQuantity = 0.05, 0.02, 200
+      sniper.minimumProfitCopper, sniper.minimumRoi = 50000, 0.10
+      local line = { shown = false }
+      function line:SetText(t) self.text = t end
+      function line:Show() self.shown = true end
+      function line:Hide() self.shown = false end
+      upvalue(GC.Sniper.OnAuctionHouseShow, "frame").goldLine = line
+      return api, line
+    end
+
+    local function items(api, lot)
+      api.GC.db.settings.sniper.board = "items"
+      api.GC.Sniper._realmDeals = { [7] = lot }
+      api.refreshRows()
+    end
+
+    it("stays off the Items board while the wallet covers a lot, whatever the per-buy share", function()
+      local api, line = load(10000000) -- 1,000g: its 5% share is 50g
+      items(api, deal(7, 800000)) -- an 80g lot
+      assert.is_false(line.shown)
+    end)
+
+    it("shows on the Items board when no lot fits in the wallet", function()
+      local api, line = load(10000000)
+      items(api, deal(7, 12000000)) -- 1,200g
+      assert.is_true(line.shown)
+    end)
+
+    it("holds a YOUR PRICE lot to the per-buy share as well, as its buy is", function()
+      local api, line = load(10000000)
+      local lot = deal(7, 800000)
+      lot.cap = 900000
+      items(api, lot)
+      assert.is_true(line.shown)
+    end)
+
+    it("holds the Commodities board to the per-buy share", function()
+      local api, line = load(10000000)
+      board(api, { deal(1, 800000) }) -- one unit at 80g, over the 50g share
+      assert.is_true(line.shown)
+      board(api, { deal(1, 400000) }) -- 40g fits
+      assert.is_false(line.shown)
+    end)
+  end)
+
   it("buys nothing: the verify path holds no purchase call and no click handler", function()
     local file = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
     local text = file:read("*a")

@@ -1845,10 +1845,18 @@ local function anyItemArmed()
 end
 
 -- One line at the top of the board while the character cannot pay for anything on it: no gold at
--- all, or less than one unit of the cheapest row costs at the player's own per-buy wallet limit
--- (GC.SniperDecision.BuyLimits -- the budget Check holds every buy to). Owner report 2026-09-24:
--- a character with no gold watched the board for an hour and concluded the market had no deals.
--- The rows say what each buy needs (GC.BoardRows' "needs"); this says why none of them can go.
+-- all, or no row on the board its gold can buy by the rule that board's buy is held to. Owner
+-- report 2026-09-24: a character with no gold watched the board for an hour and concluded the
+-- market had no deals. The rows say what each buy needs (GC.BoardRows' "needs"); this says why
+-- none of them can go.
+--
+-- The rule is each board's own, not an approximation of it (review I-3). A commodity is held to
+-- the per-buy share of the wallet (GC.SniperDecision.BuyLimits -- the capital gate a Check
+-- applies to its smallest buy, one unit at the row's price). A realm lot on the Items board is
+-- held to the wallet itself -- the realm arm's `total > GetMoney()` and PlaceBid, nothing else --
+-- and a YOUR PRICE lot to the share as well, as the realm arm holds `capLot`. The lot's total is
+-- the row's own Total column.
+--
 -- Painted from the render it describes (refreshRows) and again on PLAYER_MONEY
 -- (GC.Sniper.OnPlayerMoney), since gold arriving changes it with nothing on the board moving.
 -- Fields, not locals: this chunk sits near its 200-local ceiling.
@@ -1861,13 +1869,24 @@ function GC.Sniper._PaintGoldLine(list)
   if not wallet then line:Hide() return end
   local short = wallet <= 0
   if not short then
-    local cheapest
+    local limits = GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
+    local items = GC.Sniper._Board() == "items"
+    local candidates, buyable = 0, false
     for i = 1, #list do
-      local unit = not list[i].pinPlaceholder and list[i].unitPrice or 0
-      if unit > 0 and (not cheapest or unit < cheapest) then cheapest = unit end
+      local deal = list[i]
+      if not deal.pinPlaceholder and (deal.unitPrice or 0) > 0 then
+        candidates = candidates + 1
+        local fits
+        if items then
+          local total = deal.capTotal or deal.unitPrice * (deal.qty or 1)
+          fits = total <= wallet and (not deal.cap or (limits ~= nil and total <= limits.budget))
+        else
+          fits = limits ~= nil and deal.unitPrice <= limits.budget
+        end
+        if fits then buyable = true; break end
+      end
     end
-    local limits = cheapest and GC.SniperDecision.BuyLimits(GC.db.settings.sniper, wallet)
-    short = limits ~= nil and limits.budget < cheapest
+    short = candidates > 0 and not buyable
   end
   if short then
     line:SetText(GC.L["Not enough gold on this character to buy what GoldCap finds"])
