@@ -161,6 +161,7 @@ GC.Locales.itIT = {
   ["Entry price (avg fill)"] = "Prezzo d'ingresso (esecuzione media)",
   ["Entry total"] = "Totale d'ingresso",
   ["Est. profit"] = "Profitto stim.",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "Tutto il resto torna. Con più oro su questo personaggio, sarebbe un acquisto.",
   ["FIFO allocations"] = "Allocazioni FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Sto recuperando un prezzo aggiornato per questo oggetto — ripremi Post tra un istante",
@@ -188,6 +189,7 @@ GC.Locales.itIT = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Il suggerimento di GoldCap per questo oggetto e il prezzo che userebbe.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: controllato dal vivo -- un affare, ma l'acquisto richiede %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: controllato dal vivo -- acquisto sicuro",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: non ancora verificato sulla casa d'aste dal vivo",
   ["Gone"] = "Sparito",
@@ -253,6 +255,7 @@ GC.Locales.itIT = {
   ["NOTHING TO POST"] = "NIENTE DA METTERE IN VENDITA",
   ["Needs a live price check before it can be bought."] =
     "Serve un controllo del prezzo dal vivo prima di poterlo comprare.",
+  ["Needs gold"] = "Serve oro",
   ["Never spend more than this share of your gold on one purchase."] =
     "Non spendere mai più di questa quota del tuo oro in un solo acquisto.",
   ["No answer yet -- listening for a minute"] = "Nessuna risposta -- ascolto ancora un minuto",
@@ -273,6 +276,7 @@ GC.Locales.itIT = {
   ["No sales data for this item."] = "Nessun dato di vendita per questo oggetto.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Ancora nessuna vendita registrata -- apri la cassetta postale con GoldCap caricato",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Poco oro su questo personaggio per comprare le offerte",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Non ci sono abbastanza unità alla casa d'aste per quella quantità.",
   ["Not in your bags or listed — mail or bank?"] =
@@ -566,6 +570,7 @@ GC.Locales.itIT = {
   ["far below market"] = "molto sotto mercato",
   ["finish the pending buy first"] = "completa prima l'acquisto in corso",
   ["first in line"] = "primo della fila",
+  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "per le %d di questo acquisto — più di quanto consenta il tuo limite per acquisto",
   ["fresh"] = "recente",
   ["full scan already in progress"] = "scansione completa già in corso",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -615,6 +620,7 @@ GC.Locales.itIT = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "importazione manuale -- Companion lo tiene aggiornato: /goldcap companion",
   ["market %s"] = "mercato %s",
+  ["needs %s"] = "serve %s",
   ["needs a fresh price -- press Refresh"] = "serve un prezzo aggiornato -- premi Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "nessuna conferma dal server -- l'acquisto potrebbe essere andato a buon fine lo stesso, controlla la posta. Chiudere questa finestra non lo annulla.",
@@ -636,6 +642,7 @@ GC.Locales.itIT = {
   ["none"] = "nessuno",
   ["not enough gold -- total %s, you have %s"] = "oro insufficiente -- totale %s, tu hai %s",
   ["not enough gold for this quote -- Cancel"] = "oro insufficiente per questa quotazione -- Cancel",
+  ["not enough gold on this character -- this buy needs %s"] = "oro insufficiente su questo personaggio -- questo acquisto richiede %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "non restano abbastanza unità per quella quantità -- ricontrollo di ciò che resta...",
   ["not priced — nothing on hand to sell"] = "nessun prezzo — niente da vendere a disposizione",

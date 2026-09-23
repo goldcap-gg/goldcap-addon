@@ -231,4 +231,24 @@ describe("row button labels fit the button", function()
       end)
     end
   end
+
+  -- A deal only the wallet limit refused. Its verdict cell is the tier column's TierMark, mono-10
+  -- bold: 80px less the 11px its dot and gap take (COLUMNS in UI/SniperFrame.lua), the same
+  -- eleven characters "SAFE +9999g" was sized to -- measured with the same four-figure amount.
+  -- Its line at the top of the board is Theme.Label(10) between the ITEMS chip and the window's
+  -- right gutter: at the default 720px window, 688 - 332 = 356px.
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("fits the %s needs-gold cell and the not-enough-gold line"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      local needs = assert(translations["needs %s"], code .. " is missing needs %s"):gsub("%%s", "9999g")
+      assert.is_true(displayWidth(needs) <= holds(69, 10, 1.0), ("%s: %q is %d wide"):format(
+        code, needs, displayWidth(needs)))
+      local key = "Not enough gold on this character to buy what GoldCap finds"
+      local line = assert(translations[key], code .. " is missing " .. key)
+      assert.is_true(displayWidth(line) <= holds(356, 10, 1.0), ("%s: %q is %d wide"):format(
+        code, line, displayWidth(line)))
+    end)
+  end
 end)

@@ -161,6 +161,7 @@ GC.Locales.frFR = {
   ["Entry price (avg fill)"] = "Prix d'entrée (exécution moy.)",
   ["Entry total"] = "Total à l'entrée",
   ["Est. profit"] = "Bénéfice est.",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "Tout le reste est bon. Avec plus d'or sur ce personnage, ce serait un achat.",
   ["FIFO allocations"] = "Affectations FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Récupération d'un prix frais pour cet objet — réappuie sur Post dans un instant",
@@ -188,6 +189,7 @@ GC.Locales.frFR = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "La suggestion de GoldCap pour cet objet, et le prix qu'il utiliserait.",
   ["GoldCap: %s -- %s"] = "GoldCap : %s -- %s",
+  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap : vérifié en direct -- une affaire, mais l'achat demande %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap : vérifié en direct -- achat sûr",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap : pas encore vérifié auprès de l'hôtel des ventes en direct",
   ["Gone"] = "Parti",
@@ -253,6 +255,7 @@ GC.Locales.frFR = {
   ["NOTHING TO POST"] = "RIEN À METTRE EN VENTE",
   ["Needs a live price check before it can be bought."] =
     "Nécessite une vérification du prix en direct avant tout achat.",
+  ["Needs gold"] = "Il faut de l'or",
   ["Never spend more than this share of your gold on one purchase."] =
     "Ne jamais dépenser plus que cette part de votre or pour un seul achat.",
   ["No answer yet -- listening for a minute"] = "Pas de réponse -- on écoute encore une minute",
@@ -272,6 +275,7 @@ GC.Locales.frFR = {
   ["No sales data for this item."] = "Aucune donnée de vente pour cet objet.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Aucune vente enregistrée -- ouvrez votre boîte aux lettres avec GoldCap chargé",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Pas assez d'or sur ce personnage pour acheter ces affaires",
   ["Not enough units on the Auction House to fill that quantity."] =
     "Pas assez d'unités à l'hôtel des ventes pour cette quantité.",
   ["Not in your bags or listed — mail or bank?"] =
@@ -566,6 +570,7 @@ GC.Locales.frFR = {
   ["far below market"] = "bien sous le marché",
   ["finish the pending buy first"] = "terminez d'abord l'achat en cours",
   ["first in line"] = "premier de la file",
+  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "pour les %d de cet achat — plus que ne l'autorise votre limite par achat",
   ["fresh"] = "à jour",
   ["full scan already in progress"] = "scan complet déjà en cours",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -615,6 +620,7 @@ GC.Locales.frFR = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "import manuel -- Companion garde ça à jour : /goldcap companion",
   ["market %s"] = "marché %s",
+  ["needs %s"] = "exige %s",
   ["needs a fresh price -- press Refresh"] = "besoin d'un prix frais -- appuie sur Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "pas de confirmation du serveur -- l'achat a pu aboutir quand même, vérifiez votre courrier. Fermer cette fenêtre ne l'annulera pas.",
@@ -636,6 +642,7 @@ GC.Locales.frFR = {
   ["none"] = "aucun",
   ["not enough gold -- total %s, you have %s"] = "pas assez d'or -- total %s, vous avez %s",
   ["not enough gold for this quote -- Cancel"] = "pas assez d'or pour cette cotation -- Cancel",
+  ["not enough gold on this character -- this buy needs %s"] = "pas assez d'or sur ce personnage -- cet achat demande %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "pas assez d'unités restantes pour cette quantité -- nouvelle vérification de ce qui reste...",
   ["not priced — nothing on hand to sell"] = "pas de prix — rien à vendre sous la main",

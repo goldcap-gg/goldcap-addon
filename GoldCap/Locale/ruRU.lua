@@ -159,6 +159,7 @@ GC.Locales.ruRU = {
   ["Entry price (avg fill)"] = "Цена входа (среднее исполнение)",
   ["Entry total"] = "Всего на входе",
   ["Est. profit"] = "Ориент. прибыль",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "Всё остальное в порядке. Будь на этом персонаже больше золота — это была бы покупка.",
   ["FIFO allocations"] = "Распределение FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Получаем свежую цену для предмета — нажмите Post ещё раз через мгновение",
@@ -187,6 +188,7 @@ GC.Locales.ruRU = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Что GoldCap советует по этому предмету и по какой цене.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: проверено вживую -- выгодно, но покупке нужно %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: проверено вживую -- покупать безопасно",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ещё не проверено на живом аукционе",
   ["Gone"] = "Ушёл",
@@ -252,6 +254,7 @@ GC.Locales.ruRU = {
   ["NOTHING TO POST"] = "НЕЧЕГО ВЫСТАВЛЯТЬ",
   ["Needs a live price check before it can be bought."] =
     "Перед покупкой нужна живая проверка цены.",
+  ["Needs gold"] = "Нужно золото",
   ["Never spend more than this share of your gold on one purchase."] =
     "Никогда не тратить на одну покупку больше этой доли вашего золота.",
   ["No answer yet -- listening for a minute"] = "Аукцион пока не ответил -- ждём ещё минуту",
@@ -271,6 +274,7 @@ GC.Locales.ruRU = {
   ["No sales data for this item."] = "Нет данных о продажах этого предмета.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Продаж ещё не записано -- откройте почту с включённым GoldCap",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Не хватает золота на этом персонаже, чтобы купить находки",
   ["Not enough units on the Auction House to fill that quantity."] =
     "На аукционе не хватает единиц, чтобы набрать это количество.",
   ["Not in your bags or listed — mail or bank?"] =
@@ -564,6 +568,7 @@ GC.Locales.ruRU = {
   ["far below market"] = "сильно ниже рынка",
   ["finish the pending buy first"] = "сначала завершите текущую покупку",
   ["first in line"] = "первый в очереди",
+  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "за %d шт. этой покупки — больше, чем позволяет ваш лимит на одну покупку",
   ["fresh"] = "свежая",
   ["full scan already in progress"] = "полное сканирование уже идёт",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -612,6 +617,7 @@ GC.Locales.ruRU = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручной импорт -- Companion обновляет это сам: /goldcap companion",
   ["market %s"] = "рынок %s",
+  ["needs %s"] = "нужно %s",
   ["needs a fresh price -- press Refresh"] = "нужна свежая цена -- нажмите Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не подтвердил -- покупка всё равно могла пройти, проверьте почту. Закрытие этого окна её не отменит.",
@@ -633,6 +639,7 @@ GC.Locales.ruRU = {
   ["none"] = "нет",
   ["not enough gold -- total %s, you have %s"] = "не хватает золота -- всего %s, у вас %s",
   ["not enough gold for this quote -- Cancel"] = "не хватает золота по этой цене -- Cancel",
+  ["not enough gold on this character -- this buy needs %s"] = "не хватает золота на этом персонаже -- покупке нужно %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такого количества единиц уже не хватает -- перепроверяем, что осталось...",
   ["not priced — nothing on hand to sell"] = "без цены — продавать нечего",

@@ -157,6 +157,7 @@ GC.Locales.zhTW = {
   ["Entry price (avg fill)"] = "進場價（平均成交）",
   ["Entry total"] = "進場總額",
   ["Est. profit"] = "預估利潤",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "其他條件都符合。這個角色金幣再多一些，就可以買入。",
   ["FIFO allocations"] = "先進先出分配",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "正在取得這個道具的最新價格 — 稍後再按 Post",
@@ -181,6 +182,7 @@ GC.Locales.zhTW = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "GoldCap 對這件物品的建議，以及它會用的價格。",
   ["GoldCap: %s -- %s"] = "GoldCap：%s -- %s",
+  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap：已即時檢查 -- 值得買，但這次購買需要 %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap：已即時檢查 -- 可安全購買",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap：尚未在即時拍賣場核對",
   ["Gone"] = "已消失",
@@ -242,6 +244,7 @@ GC.Locales.zhTW = {
   ["NOTHING TO CANCEL"] = "沒有可取消的",
   ["NOTHING TO POST"] = "沒有可上架的",
   ["Needs a live price check before it can be bought."] = "需要先做一次即時價格檢查才能購買。",
+  ["Needs gold"] = "需要金幣",
   ["Never spend more than this share of your gold on one purchase."] = "單次購買花費的金幣，永遠不超過你金幣總量的這個比例。",
   ["No answer yet -- listening for a minute"] = "拍賣場尚未回應 -- 再等待一分鐘",
   ["No deals passed the safety checks right now."] = "目前沒有交易通過安全檢查。",
@@ -257,6 +260,7 @@ GC.Locales.zhTW = {
   ["No sales data for this item."] = "該物品沒有成交資料。",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "尚未記錄任何販售 -- 請在載入 GoldCap 的情況下打開信箱",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "此角色金幣不足，買不起 GoldCap 找到的交易",
   ["Not enough units on the Auction House to fill that quantity."] = "拍賣場上的數量不足以湊齊這個量。",
   ["Not in your bags or listed — mail or bank?"] = "不在背包也未上架 — 在信箱或銀行嗎？",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
@@ -516,6 +520,7 @@ GC.Locales.zhTW = {
   ["far below market"] = "遠低於市價",
   ["finish the pending buy first"] = "請先完成進行中的購買",
   ["first in line"] = "排在第一位",
+  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "這次購買 %d 件所需 — 超過你設定的單次購買上限",
   ["fresh"] = "最新",
   ["full scan already in progress"] = "完整掃描已在進行中",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -559,6 +564,7 @@ GC.Locales.zhTW = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "手動匯入 -- Companion 會自動更新：/goldcap companion",
   ["market %s"] = "市場 %s",
+  ["needs %s"] = "需要 %s",
   ["needs a fresh price -- press Refresh"] = "需要最新價格 -- 請按 Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "伺服器沒有回覆確認 -- 購買仍可能已完成，請檢查信箱。關閉此視窗不會取消它。",
@@ -578,6 +584,7 @@ GC.Locales.zhTW = {
   ["none"] = "無",
   ["not enough gold -- total %s, you have %s"] = "金幣不足 -- 共需 %s，你有 %s",
   ["not enough gold for this quote -- Cancel"] = "這個報價的金幣不足 -- Cancel",
+  ["not enough gold on this character -- this buy needs %s"] = "此角色金幣不足 -- 這次購買需要 %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "剩餘數量不足以買這麼多 -- 正在重新檢查還剩多少...",
   ["not priced — nothing on hand to sell"] = "未定價 — 手頭沒有可賣的物品",

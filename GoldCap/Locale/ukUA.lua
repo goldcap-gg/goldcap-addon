@@ -163,6 +163,7 @@ GC.Locales.ukUA = {
   ["Entry total"] = "Разом на вході",
   ["Est. profit"] = "Орієнт. прибуток",
   ["Every position in your bags already has a cost on record"] = "У всього, що в сумках, собівартість уже відома",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "Усе інше гаразд. Було б на цьому персонажі більше золота — це була б купівля.",
   ["FIFO allocations"] = "Розподіл FIFO",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "Отримуємо свіжу ціну для цього предмета — натисніть Post ще раз за мить",
@@ -191,6 +192,7 @@ GC.Locales.ukUA = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "Що GoldCap радить щодо цього предмета і за якою ціною.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: перевірено наживо -- вигідно, але купівлі потрібно %s",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: перевірено наживо -- безпечно купувати",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: ще не перевірено на живому аукціоні",
   ["Gone"] = "Зник",
@@ -261,6 +263,7 @@ GC.Locales.ukUA = {
   ["NOTHING TO POST"] = "НЕМА ЩО ВИСТАВЛЯТИ",
   ["Needs a live price check before it can be bought."] =
     "Перед покупкою потрібна жива перевірка ціни.",
+  ["Needs gold"] = "Потрібне золото",
   ["Never spend more than this share of your gold on one purchase."] =
     "Ніколи не витрачати на одну покупку більше цієї частки вашого золота.",
   ["No answer yet -- listening for a minute"] = "Аукціон ще не відповів -- чекаємо ще хвилину",
@@ -281,6 +284,7 @@ GC.Locales.ukUA = {
   ["No sales data for this item."] = "Немає даних про продажі цього предмета.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "Продажів ще не записано -- відкрийте пошту з увімкненим GoldCap",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "Бракує золота на цьому персонажі, щоб купити знахідки",
   ["Not enough units on the Auction House to fill that quantity."] =
     "На аукціоні не вистачає одиниць, щоб набрати цю кількість.",
   ["Not in your bags or listed — mail or bank?"] =
@@ -579,6 +583,7 @@ GC.Locales.ukUA = {
   ["far below market"] = "значно нижче ринку",
   ["finish the pending buy first"] = "спершу завершіть купівлю, що триває",
   ["first in line"] = "перший у черзі",
+  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "за %d шт. цієї купівлі — більше, ніж дозволяє ваш ліміт на одну купівлю",
   ["fresh"] = "свіже",
   ["full scan already in progress"] = "повне сканування вже триває",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -627,6 +632,7 @@ GC.Locales.ukUA = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "ручний імпорт -- Companion оновлює це сам: /goldcap companion",
   ["market %s"] = "ринок %s",
+  ["needs %s"] = "треба %s",
   ["needs a fresh price -- press Refresh"] = "потрібна свіжа ціна -- натисніть Refresh",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "сервер не підтвердив -- купівля все одно могла пройти, перевірте пошту. Закриття цього вікна її не скасує.",
@@ -648,6 +654,7 @@ GC.Locales.ukUA = {
   ["none"] = "немає",
   ["not enough gold -- total %s, you have %s"] = "недостатньо золота -- разом %s, у вас %s",
   ["not enough gold for this quote -- Cancel"] = "недостатньо золота за цією ціною -- Cancel",
+  ["not enough gold on this character -- this buy needs %s"] = "недостатньо золота на цьому персонажі -- купівлі потрібно %s",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "для такої кількості одиниць уже не вистачає -- перевіряємо ще раз, що лишилося...",
   ["not priced — nothing on hand to sell"] = "без ціни — продавати нічого",

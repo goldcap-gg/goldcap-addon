@@ -157,6 +157,7 @@ GC.Locales.koKR = {
   ["Entry price (avg fill)"] = "진입가 (평균 체결)",
   ["Entry total"] = "진입 총액",
   ["Est. profit"] = "예상 수익",
+  ["Everything else checks out. With more gold on this character, this is a buy."] = "나머지는 모두 통과했습니다. 이 캐릭터에 골드가 더 있으면 살 만한 매물입니다.",
   ["FIFO allocations"] = "선입선출 배분",
   ["Fetching a fresh price for this item — press Post again in a moment"] =
     "이 아이템의 최신 가격을 가져오는 중 — 잠시 후 Post를 다시 누르세요",
@@ -182,6 +183,7 @@ GC.Locales.koKR = {
   ["GoldCap's suggestion for this item, and the price it would use."] =
     "이 아이템에 대한 GoldCap의 제안과, 그때 쓸 가격.",
   ["GoldCap: %s -- %s"] = "GoldCap: %s -- %s",
+  ["GoldCap: checked live -- a deal, but the buy needs %s"] = "GoldCap: 실시간 확인 완료 -- 좋은 매물이지만 구매에 %s 필요",
   ["GoldCap: checked live -- safe to buy"] = "GoldCap: 실시간 확인 완료 -- 구매해도 안전합니다",
   ["GoldCap: not checked against the live auction house yet"] = "GoldCap: 아직 실시간 경매장에서 확인하지 않음",
   ["Gone"] = "사라짐",
@@ -243,6 +245,7 @@ GC.Locales.koKR = {
   ["NOTHING TO CANCEL"] = "취소할 것 없음",
   ["NOTHING TO POST"] = "등록할 것 없음",
   ["Needs a live price check before it can be bought."] = "구매하려면 먼저 실시간 시세 확인이 필요합니다.",
+  ["Needs gold"] = "골드 필요",
   ["Never spend more than this share of your gold on one purchase."] = "한 번의 구매에 소지금의 이 비율을 넘게 쓰지 않습니다.",
   ["No answer yet -- listening for a minute"] = "아직 응답 없음 -- 1분 더 기다립니다",
   ["No deals passed the safety checks right now."] = "지금은 안전 확인을 통과한 거래가 없습니다.",
@@ -258,6 +261,7 @@ GC.Locales.koKR = {
   ["No sales data for this item."] = "이 아이템의 판매 데이터가 없습니다.",
   ["No sales recorded yet -- open your mailbox with GoldCap loaded"] =
     "기록된 판매가 없습니다 -- GoldCap을 켠 채 우편함을 여세요",
+  ["Not enough gold on this character to buy what GoldCap finds"] = "이 캐릭터의 골드로는 GoldCap이 찾은 매물을 살 수 없음",
   ["Not enough units on the Auction House to fill that quantity."] = "경매장에 그 수량을 채울 만큼의 물량이 없습니다.",
   ["Not in your bags or listed — mail or bank?"] = "가방에도 없고 등록도 안 됨 — 우편함이나 은행인가요?",
   ["Not on hand — the stock is in the mail, the bank, or on another character"] =
@@ -529,6 +533,7 @@ GC.Locales.koKR = {
   ["far below market"] = "시세보다 훨씬 낮음",
   ["finish the pending buy first"] = "진행 중인 구매를 먼저 끝내세요",
   ["first in line"] = "맨 앞 순서",
+  ["for the %d this buy would take — more than your per-buy wallet limit allows"] = "이번 구매 %d개에 드는 금액 — 1회 구매 한도를 넘습니다",
   ["fresh"] = "최신",
   ["full scan already in progress"] = "전체 검색이 이미 진행 중입니다",
   ["full scan complete: %d deal%s from %d item group%s%s"] =
@@ -574,6 +579,7 @@ GC.Locales.koKR = {
   ["manual import -- Companion keeps this fresh: /goldcap companion"] =
     "수동 가져오기 -- Companion이 자동 갱신합니다: /goldcap companion",
   ["market %s"] = "시세 %s",
+  ["needs %s"] = "%s 필요",
   ["needs a fresh price -- press Refresh"] = "최신 가격이 필요합니다 -- Refresh를 누르세요",
   ["no confirmation from the server -- the buy may still have gone through, check your mail. Closing this will not undo it."] =
     "서버 확인이 없습니다 -- 구매는 성사되었을 수 있으니 우편함을 확인하세요. 이 창을 닫아도 취소되지 않습니다.",
@@ -595,6 +601,7 @@ GC.Locales.koKR = {
   ["none"] = "없음",
   ["not enough gold -- total %s, you have %s"] = "골드가 부족합니다 -- 총 %s, 보유 %s",
   ["not enough gold for this quote -- Cancel"] = "이 가격에 필요한 골드가 부족합니다 -- Cancel",
+  ["not enough gold on this character -- this buy needs %s"] = "이 캐릭터의 골드가 부족합니다 -- 이 구매에 %s 필요",
   ["not enough units left for that quantity -- re-checking what remains..."] =
     "해당 수량만큼 남아 있지 않습니다 -- 남은 물량을 다시 확인하는 중...",
   ["not priced — nothing on hand to sell"] = "가격 없음 — 판매할 물건이 없습니다",
