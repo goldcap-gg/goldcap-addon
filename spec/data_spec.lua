@@ -655,4 +655,56 @@ describe("Data", function()
       assert.same({ reason = "other_region", ts = 3000 }, GC.Data.RegionPayloadStatus())
     end)
   end)
+  describe("FactItemIds", function()
+    local FACT = { sourceAt = 1, stressUnit = 5000, sellThroughBps = 7000, liquidityConfidence = 70,
+      currentQty = 1, listings = 3, observations = 12, madBps = 0, flags = 0 }
+
+    it("lists the import's facts when there is no payload", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [42] = { m = 1 }, [7] = { m = 1 } }, verification = { [42] = FACT, [7] = FACT }, watchlist = {} })
+      assert.same({ 7, 42 }, GC.Data.FactItemIds())
+    end)
+
+    it("lists the payload's facts, plus the import's for items the payload does not price", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [42] = { m = 1 }, [7] = { m = 1 } }, verification = { [42] = FACT, [7] = FACT }, watchlist = {} })
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:42=4100=6.0,50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      -- 42 is priced by the payload with no fact of its own: the import's fact for it is not used.
+      assert.same({ 7, 50 }, GC.Data.FactItemIds())
+    end)
+
+    it("hands back the same table while nothing changed, and a new one when a source did", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 2000,
+        items = { [7] = { m = 1 } }, verification = { [7] = FACT }, watchlist = {} })
+      local first = GC.Data.FactItemIds()
+      assert.equal(first, GC.Data.FactItemIds())
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      assert.not_equal(first, GC.Data.FactItemIds())
+    end)
+
+    -- The payload stops answering the moment another region's prices load: its facts go with it.
+    it("drops the payload's facts once the payload no longer answers", function()
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900;V:50=2990=800=8000=85=40=4=12=90=0")
+      assert.same({ 50 }, GC.Data.FactItemIds())
+      GC.Data.SetImported({ region = "us", realm = "area-52", ts = 5000,
+        items = { [7] = { m = 1 } }, verification = { [7] = FACT }, watchlist = {} })
+      assert.same({ 7 }, GC.Data.FactItemIds())
+    end)
+
+    -- GetStatus never measures memory -- that is a full collection, and the ledger falls back to
+    -- GetStatus -- so the figure is there only once the status command has asked for it.
+    it("reports the active payload on GetStatus", function()
+      assert.is_nil(GC.Data.GetStatus().payload)
+      GC.Data.AdoptRegionPayload("GCM1;eu;3000;I:50=900,51=1;V:50=2990=800=8000=85=40=4=12=90=0;M:9=20000=2")
+      local status = GC.Data.GetStatus().payload
+      assert.equal(2, status.items)
+      assert.equal(1, status.facts)
+      assert.equal(1, status.refs)
+      assert.equal(3000, status.ts)
+      assert.is_nil(status.memoryKB)
+      local kb = GC.Data.RegionPayloadMemoryKB()
+      assert.is_true(kb >= 0)
+      assert.equal(kb, GC.Data.GetStatus().payload.memoryKB)
+    end)
+  end)
 end)

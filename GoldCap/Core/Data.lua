@@ -382,6 +382,31 @@ function GC.Data.Facts(itemID)
   return imp and imp.verification and imp.verification[itemID] or nil
 end
 
+-- The ids anything holds facts for, ascending -- exactly the items Facts answers for: the payload's,
+-- plus the import's for items the payload does not price. Memoized on the identity of both sources
+-- -- the sniper's empty state asks four times a second, and each source is replaced wholesale, never
+-- edited in place -- so an unchanged answer is the SAME table, which is what the caller's own memo
+-- keys on. Shared, so a caller reads it and never edits it.
+local factIds
+function GC.Data.FactItemIds()
+  local p = activePayload()
+  local imp = db and db.imported
+  local imported = imp and imp.verification or nil
+  if factIds and factIds.payload == p and factIds.imported == imported then return factIds.ids end
+  local ids = {}
+  if p then
+    for id in pairs(p.verification) do ids[#ids + 1] = id end
+  end
+  if imported then
+    for id in pairs(imported) do
+      if not (p and p.items[id]) then ids[#ids + 1] = id end
+    end
+  end
+  table.sort(ids)
+  factIds = { payload = p, imported = imported, ids = ids }
+  return ids
+end
+
 -- Companion sync (companion-v1 plan, Task A): a separate `GoldCap_AppData` addon --
 -- see the .toc's OptionalDeps, which loads it before this one when present -- sets
 -- `GoldCap_AppData = { importString = "GCS1;...", writtenAt = <unix ts> }` (a current Companion
@@ -527,6 +552,7 @@ end
 
 function GC.Data.GetStatus()
   local imp = db and db.imported
+  local p = activePayload()
   return {
     region = region,
     bundledTs = bundled and bundled.ts or nil,
@@ -535,6 +561,10 @@ function GC.Data.GetStatus()
     importedRealm = imp and imp.realm or nil,
     importedCount = countItems(imp and imp.items),
     importedOrigin = imp and imp.origin or nil,
+    -- The whole-market payload while one answers. memoryKB only once RegionPayloadMemoryKB has
+    -- measured it: that is a full collection, and the ledger falls back to this function.
+    payload = p and { items = p.counts.items, facts = p.counts.facts, refs = p.counts.refs,
+      ts = p.ts, memoryKB = p.memoryKB } or nil,
   }
 end
 
