@@ -585,7 +585,25 @@ describe("Auction House tab", function()
       GC.Sniper._OnPlayerBrowse = function() told = told + 1 end
       -- Blizzard's two player-only ways into SearchForFavorites (follow-up 1, below).
       ah.SearchBar = { StartFavoritesSearch = function() _G.C_AuctionHouse.SearchForFavorites({}) end }
-      ah.SetBrowseSortOrder = function() end
+      -- A sort, as far as it reaches the list (Blizzard_AuctionHouseFrame.lua's SetBrowseSortOrder
+      -- -> GetBrowseSearchContext -> SetSortOrder, read verbatim): it re-sends the search the list
+      -- holds for its context -- SearchForFavorites for the favourites, SendBrowseQuery for a
+      -- category or a text search -- and sends nothing at all when the list holds none.
+      -- Blizzard never clears activeSearches; the favourites one is written by the open itself.
+      ah.activeSearches = {}
+      ah.isDisplayingFavorites = false
+      ah.GetBrowseSearchContext = function(self)
+        return self.isDisplayingFavorites and "favourites" or "category"
+      end
+      ah.SetBrowseSortOrder = function(self)
+        local context = self.isDisplayingFavorites and "favourites" or "category"
+        if not self.activeSearches[context] then return end
+        if context == "favourites" then
+          _G.C_AuctionHouse.SearchForFavorites({})
+        else
+          _G.C_AuctionHouse.SendBrowseQuery({})
+        end
+      end
       GC.AuctionHouseTab.Install()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
       GC.Sniper.shown = true -- floating over the pane, the default visit
@@ -656,8 +674,38 @@ describe("Auction House tab", function()
       GC.AuctionHouseTab.OnAuctionHouseClosed()
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.CommoditiesSell)
       ah:SetDisplayMode(_G.AuctionHouseFrameDisplayMode.Buy)
+      -- The auction house opens on the favourites (OnShow -> QueryAll): not the player's...
+      ah.activeSearches.favourites, ah.isDisplayingFavorites = { "favourites" }, true
+      _G.C_AuctionHouse.SearchForFavorites({})
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      -- ...but a sort they click on that list re-sends it.
       ah:SetBrowseSortOrder(1)
       assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Follow-up 2 (P2): a column click on a list with no search behind it -- nothing searched, no
+    -- favourites -- sends no query at all (SetSortOrder returns first), yet it counted as the
+    -- player's browse, and Auto stood down behind the Buy tab for nothing.
+    it("does not count a sort that sends nothing", function()
+      ah:SetBrowseSortOrder(1)
+      assert.equal(0, sent)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+      assert.equal(0, told)
+    end)
+
+    it("counts a sort that re-sends the search on the list", function()
+      ah.activeSearches.category = { "category", "ore" }
+      ah:SetBrowseSortOrder(1)
+      assert.equal(1, sent)
+      assert.is_true(GC.AuctionHouseTab.PlayerOwnsBrowseList())
+    end)
+
+    -- Every detector fails open: a sort on a list this cannot read never stands the addon down.
+    it("does not count a sort on a list it cannot read", function()
+      ah.activeSearches.favourites, ah.isDisplayingFavorites = { "favourites" }, true
+      ah.GetBrowseSearchContext = nil -- a client that no longer answers the question
+      ah:SetBrowseSortOrder(1)
+      assert.is_false(GC.AuctionHouseTab.PlayerOwnsBrowseList())
     end)
 
     it("hooks the query once however many times the auction house opens", function()

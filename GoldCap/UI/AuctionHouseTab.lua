@@ -321,8 +321,21 @@ local function installFavouritesHooks(ah)
   local barHooked = pcall(hooksecurefunc, bar, "StartFavoritesSearch", function()
     GC.AuctionHouseTab.NotePlayerBrowse()
   end)
-  local sortHooked = pcall(hooksecurefunc, ah, "SetBrowseSortOrder", function()
-    GC.AuctionHouseTab.NotePlayerBrowse()
+  -- Follow-up 2: only a sort that sent something counts. SetSortOrder re-sends the search the list
+  -- holds for its context (`activeSearches[GetBrowseSearchContext()]`) and returns without any
+  -- query when it holds none -- a column click on a list nothing was ever searched into. That click
+  -- counted as the player's browse, and Auto stood down behind the Buy tab for nothing. A flag for
+  -- the SendBrowseQuery hook to consume cannot tell the two apart: this is a post-hook, so any query
+  -- the click made has already gone out when it runs, and a favourites re-sort goes through
+  -- SearchForFavorites, which that hook does not see. So the list is asked, after the fact -- a sort
+  -- neither adds nor removes the entry read here. A read that fails does not count: every detector
+  -- fails open.
+  local sortHooked = pcall(hooksecurefunc, ah, "SetBrowseSortOrder", function(frame)
+    local ok, sent = pcall(function()
+      local searches = frame.activeSearches
+      return type(searches) == "table" and searches[frame:GetBrowseSearchContext()] ~= nil
+    end)
+    if ok and sent then GC.AuctionHouseTab.NotePlayerBrowse() end
   end)
   favouritesHooked = barHooked or sortHooked
 end
