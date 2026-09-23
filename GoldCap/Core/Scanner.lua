@@ -118,8 +118,11 @@ function GC.Scanner.New(driver, dealCfg)
     end
   end
 
-  function obj:OnItemResults(itemID)
+  -- `itemKey`, when the event carries one, is the key it answers: an answer to another key of
+  -- the same item is somebody else's search, and ours is still to come (driver.answersSearch).
+  function obj:OnItemResults(itemID, itemKey)
     if itemID ~= pending then return end
+    if itemKey and driver.answersSearch and not driver.answersSearch(itemID, itemKey) then return end
     pending = nil
     local res = driver.itemResult(itemID)
     local deal

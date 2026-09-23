@@ -217,4 +217,76 @@ describe("Variant drill", function()
     assert.equal(66, searched[1].itemLevel)
     assert.is_nil(GC.Caps.DecideRealm(GC.Caps.For(159840), driver.itemLots(159840)))
   end)
+  -- Caps fixes 5b. ITEM_SEARCH_RESULTS_UPDATED names the key it answers, and Core/Init.lua
+  -- handed it on by itemID alone -- so the Sell tab's bare-key search of an item answered the
+  -- drill of one of its variants: the drill read its own key's slot, still empty, and a Check
+  -- came back "gone" while the lot sat there. The client answers the key a query was sent
+  -- with, byte for byte (Auctionator matches an answer on all four fields for the same reason).
+  describe("an answer for another key of the same item", function()
+    local function setUpvalue(fn, wanted, value)
+      for i = 1, 200 do
+        local name = debug.getupvalue(fn, i)
+        if not name then break end
+        if name == wanted then debug.setupvalue(fn, i, value); return end
+      end
+      error("missing upvalue " .. wanted)
+    end
+
+    local BARE = { itemID = 159840, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 }
+    local SIXTY_SIX = { itemID = 159840, itemLevel = 66, itemSuffix = 0, battlePetSpeciesID = 0 }
+
+    it("is not the variant drill's answer", function()
+      local GC = loadSniper()
+      foldTeebus(GC)
+      driverOf(GC).sendSearch(159840)
+      local resolved = {}
+      setUpvalue(GC.Sniper.OnItemSearchResults, "prewarmAttempt", { itemID = 159840, token = 1, deal = {} })
+      setUpvalue(GC.Sniper.OnItemSearchResults, "resolvePrewarm",
+        function(itemID) resolved[#resolved + 1] = itemID end)
+
+      GC.Sniper.OnItemSearchResults(159840, BARE)
+      assert.same({}, resolved)
+
+      GC.Sniper.OnItemSearchResults(159840, SIXTY_SIX)
+      assert.same({ 159840 }, resolved)
+    end)
+
+    it("does not settle a drained search of the variant either", function()
+      local GC = loadSniper()
+      foldTeebus(GC)
+      driverOf(GC).sendSearch(159840)
+      local draining = upvalue(GC.Sniper.OnItemSearchResults, "requeryDraining")
+      local finished = {}
+      GC.Sniper._FinishDrainWait = function(itemID) finished[#finished + 1] = itemID end
+      draining[159840] = { itemID = 159840 }
+
+      GC.Sniper.OnItemSearchResults(159840, BARE)
+      assert.same({}, finished)
+      GC.Sniper.OnItemSearchResults(159840, SIXTY_SIX)
+      assert.same({ 159840 }, finished)
+    end)
+
+    it("is not the watch loop's answer", function()
+      local GC = loadSniper()
+      helper.loadModule("Core/Scanner.lua", GC)
+      foldTeebus(GC)
+      local driver = driverOf(GC)
+      local observed = {}
+      local scanner = GC.Scanner.New(setmetatable({
+        onStatus = function() end,
+        getValue = function() return nil end,
+        mayScan = function() return true end, -- the arbiter's grant, which this spec is not about
+        onObservation = function(itemID) observed[#observed + 1] = itemID end,
+      }, { __index = driver }), GC.db.settings.sniper)
+      scanner:Start({ 159840 })
+      assert.equal(66, searched[1].itemLevel)
+
+      scanner:OnItemResults(159840, BARE)
+      assert.same({}, observed)
+      assert.is_true(scanner:Awaiting())
+
+      scanner:OnItemResults(159840, SIXTY_SIX)
+      assert.same({ 159840 }, observed)
+    end)
+  end)
 end)

@@ -91,6 +91,21 @@ describe("Ledger event wiring", function()
     assert.is_true(pcall(onEvent, nil, "ITEM_SEARCH_RESULTS_UPDATED", {}))
   end)
 
+  -- Caps fixes 5b: a drill of one item-level variant is answered for that variant's key alone,
+  -- and routed by itemID the Sniper took an answer to another key of the same item as its own.
+  it("hands the Sniper's waiters the key a search result answers, not only its item", function()
+    local calls = {}
+    GC.Sniper.scanner = { OnItemResults = function(_, itemID, key) calls[#calls + 1] = { "scan", itemID, key } end }
+    GC.Sniper.OnItemSearchResults = function(itemID, key) calls[#calls + 1] = { "sniper", itemID, key } end
+    GC.Sell.OnItemSearchResults = function() end
+    GC.PurchaseCapture.OnItemSearchResults = function() end
+    local key = { itemID = 159840, itemLevel = 66, itemSuffix = 0, battlePetSpeciesID = 0 }
+
+    onEvent(nil, "ITEM_SEARCH_RESULTS_UPDATED", key)
+
+    assert.same({ { "scan", 159840, key }, { "sniper", 159840, key } }, calls)
+  end)
+
   it("initialises the ledger tables on ADDON_LOADED", function()
     assert.is_table(_G.GoldCapDB.ledger)
     assert.is_table(_G.GoldCapDB.gold)

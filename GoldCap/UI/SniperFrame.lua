@@ -2001,6 +2001,22 @@ driver = {
     end
   end,
 
+  -- Whether an ITEM_SEARCH_RESULTS_UPDATED carrying `itemKey` answers the search sendSearch last
+  -- sent for this item. The event names the key it answers, all four fields of it -- the key the
+  -- query went out with, which is the only key the client then answers reads for -- and another
+  -- key of the same item is somebody else's search: the Sell tab's bare key while a drill asked
+  -- for the (66), or the other way round. Taken as ours, the reads below looked in our key's slot
+  -- before its answer had landed, and a Check came back "gone" for a lot that was there (caps
+  -- fixes 5b). An event with no key to compare, or an item nothing of ours has searched, is
+  -- let through as before.
+  answersSearch = function(itemID, itemKey)
+    local sent = driver.lastSearchKey[itemID]
+    if not (sent and type(itemKey) == "table") then return true end
+    return (sent.itemLevel or 0) == (itemKey.itemLevel or 0)
+      and (sent.itemSuffix or 0) == (itemKey.itemSuffix or 0)
+      and (sent.battlePetSpeciesID or 0) == (itemKey.battlePetSpeciesID or 0)
+  end,
+
   -- The probe evaluateLiveItemDeal gates on, so it reads with the key sendSearch actually sent
   -- for this item -- a read on any other key is the client's silence about a query nobody made,
   -- which this path would report as "no results" for an item that has plenty.
@@ -6112,7 +6128,13 @@ end
 -- starts a real purchase flow for it (see openDialog below), so in practice the two rarely
 -- overlap -- but nothing here depends on that; each branch is a no-op when its own slot
 -- doesn't match, regardless of what the other one does.
-function GC.Sniper.OnItemSearchResults(itemID)
+--
+-- `itemKey` is the key the event says it answers (Core/Init.lua passes it on). Every waiter here
+-- -- a drain, a Check, a pre-warm or drill -- is waiting for the search driver.sendSearch sent, so
+-- an answer to another key of the same item is none of theirs (driver.answersSearch, caps fixes
+-- 5b): not even a drain's, whose own answer is still on its way.
+function GC.Sniper.OnItemSearchResults(itemID, itemKey)
+  if not driver.answersSearch(itemID, itemKey) then return end
   if requeryDraining[itemID] then
     local draining = requeryDraining[itemID]
     requeryDraining[itemID] = nil

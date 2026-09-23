@@ -699,11 +699,14 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- down with an index-a-nil error -- taking mail scanning, the ledger and the auction
     -- house tab with it, because they all share this one handler.
     if type(itemKey) ~= "table" or not itemKey.itemID then return end
+    -- The whole key goes on to the Sniper's waiters, not only its item: a drill of one item-level
+    -- variant is answered for that variant's key alone, and an answer to another key of the same
+    -- item (the Sell tab's bare key, BUY's search) is not the drill's (caps fixes 5b).
     if GC.Sniper.scanner then
-      GC.Sniper.scanner:OnItemResults(itemKey.itemID)
+      GC.Sniper.scanner:OnItemResults(itemKey.itemID, itemKey)
     end
     if GC.Sniper.OnItemSearchResults then
-      GC.Sniper.OnItemSearchResults(itemKey.itemID)
+      GC.Sniper.OnItemSearchResults(itemKey.itemID, itemKey)
     end
     -- D: GC.Sell's own handler only reacts when itemKey.itemID matches its own pending quote
     -- slot -- see SellFrame.lua's OnItemSearchResults -- so this adds zero crosstalk with the
