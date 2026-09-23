@@ -167,4 +167,102 @@ describe("Theme.Button real-widget label contract", function()
     assert.equal("POST", btn.text.rawText)
     assert.equal("Post", btn.label)
   end)
+
+  -- The Sell tab's Post (and the dock's POST) go busy while a post is out: the owner could not
+  -- tell a pressed button from a dead one. The indicator is the client's own spinner --
+  -- Blizzard_SharedXML's SpinnerTemplate, the ring its dialogs turn while a request is out
+  -- (SpinnerMixin plays it on show and stops it on hide) -- not an animation drawn here.
+  describe("SetBusy", function()
+    local created
+
+    before_each(function()
+      created = {}
+      _G.CreateFrame = function(_, _, parent, template)
+        local frame = stubFrame()
+        frame.parent, frame.template = parent, template
+        if template == "SpinnerTemplate" then
+          -- As the client makes it: a frame from Lua starts SHOWN, and SpinnerMixin plays its
+          -- ring only from OnShow -- which fires on a hidden-to-shown change and never else.
+          frame.shown, frame.restarts = true, 0
+          function frame:Show()
+            if not self.shown then self.restarts = self.restarts + 1 end
+            self.shown = true
+          end
+        end
+        created[#created + 1] = frame
+        return frame
+      end
+      GC = {}
+      helper.loadModule("UI/Theme.lua", GC)
+    end)
+
+    local function spinnerOf(btn)
+      for _, frame in ipairs(created) do
+        if frame.template == "SpinnerTemplate" and frame.parent == btn then return frame end
+      end
+      return nil
+    end
+
+    local function anchor(fs, side)
+      for _, point in ipairs(fs.points) do
+        if point[1] == side then return point end
+      end
+      return nil
+    end
+
+    it("turns the client's spinner inside the button and moves the label clear of it", function()
+      local btn = GC.Theme.Button(stubFrame(), "ghost")
+      assert.is_nil(spinnerOf(btn)) -- built on first use, not for every button in every list
+      btn:SetBusy(true)
+      local spinner = spinnerOf(btn)
+      assert.is_truthy(spinner)
+      assert.is_true(spinner.shown)
+      assert.equal(btn, anchor(spinner, "LEFT")[2])
+      local left = anchor(btn.text, "LEFT")
+      assert.equal(spinner, left[2])
+      assert.equal("RIGHT", left[3])
+      assert.equal(btn, anchor(btn.text, "RIGHT")[2])
+    end)
+
+    -- Created shown, the spinner's first Show was no change at all: no OnShow, so the ring sat
+    -- still beside "Posting…" on every button's first post of a session (review I1).
+    it("turns from the very first post: the ring's first Show is a real one", function()
+      local btn = GC.Theme.Button(stubFrame(), "ghost")
+      btn:SetBusy(true)
+      assert.equal(1, spinnerOf(btn).restarts)
+      btn:SetBusy(false)
+      btn:SetBusy(true)
+      assert.equal(2, spinnerOf(btn).restarts)
+    end)
+
+    it("hides the spinner and gives the label the whole button back", function()
+      local btn = GC.Theme.Button(stubFrame(), "ghost")
+      btn:SetBusy(true)
+      btn:SetBusy(false)
+      assert.is_false(spinnerOf(btn).shown)
+      local left = anchor(btn.text, "LEFT")
+      assert.equal(btn, left[2])
+      assert.equal("LEFT", left[3])
+      assert.equal(0, left[4])
+      -- One spinner per button, however often it goes busy.
+      btn:SetBusy(true)
+      local count = 0
+      for _, frame in ipairs(created) do if frame.template == "SpinnerTemplate" then count = count + 1 end end
+      assert.equal(1, count)
+    end)
+
+    it("fails open to the label alone when the client has no such template", function()
+      _G.CreateFrame = function(_, _, _, template)
+        if template then error("Couldn't find inherited node \"" .. template .. "\"") end
+        return stubFrame()
+      end
+      GC = {}
+      helper.loadModule("UI/Theme.lua", GC)
+      local btn = GC.Theme.Button(stubFrame(), "primary")
+      assert.has_no.errors(function() btn:SetBusy(true) end)
+      btn:SetLabel("POSTING…")
+      assert.equal("POSTING…", btn.text.rawText)
+      assert.equal(btn, anchor(btn.text, "LEFT")[2])
+    end)
+  end)
 end)

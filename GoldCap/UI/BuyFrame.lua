@@ -1321,7 +1321,11 @@ local function quote(line, clicked)
   -- search be. With none known it is the bare key, and the button says the level is unchecked.
   local variant = line.minIlvl and GC.Sniper and GC.Sniper.VariantKeyAtLeast
     and GC.Sniper.VariantKeyAtLeast(line.itemID, line.minIlvl) or nil
-  C_AuctionHouse.SendSearchQuery(variant or C_AuctionHouse.MakeItemKey(line.itemID), {}, false)
+  local key = variant or C_AuctionHouse.MakeItemKey(line.itemID)
+  C_AuctionHouse.SendSearchQuery(key, {}, false)
+  -- Out until its answer lands, in the book the Sell tab reads: a "busy" it draws must not be
+  -- taken for a post's refusal there (GC.Sniper.RequestOut; review sell-fix4 M3).
+  if GC.Sniper and GC.Sniper._NoteSearchSent then GC.Sniper._NoteSearchSent(key) end
   -- Blizzard's own pane may open this item's buy page in answer; that page is ours, not a buy.
   if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
   attemptSeq = attemptSeq + 1

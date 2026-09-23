@@ -21,6 +21,12 @@ describe("row button labels fit the button", function()
   -- each budget derived the same way: width divided by ~7.8px per character.
   --   row.action:SetSize(86, 18)          -- UI/SellFrame.lua, showRowAction
   --   COLUMNS { key = "buy", w = 64 }     -- UI/SniperFrame.lua, setRowDeal
+  --
+  -- A button that is posting shares its width with the client's spinner (Theme.Button's
+  -- SetBusy: a 12px ring 2px in from the edge, the label 1px after it), so its label has 15px
+  -- less to live in:
+  --   row.action (86px)                    -- the row's Post while its post is out
+  --   queueButton:SetSize(136, 26)         -- the dock's POST while a post is out
   local BUTTONS = {
     { what = "the 86px Sell action button", budget = 11,
       keys = { "Set cost", "Post", "Cancel lot", "Cancel lot?", "Remove", "Remove?" } },
@@ -34,6 +40,10 @@ describe("row button labels fit the button", function()
     -- the line's name cell, because "CONFIRM (9)" did not fit (fix round 5).
     { what = "the 72px BUY action button", budget = 11,
       keys = { "CONFIRM", "waiting..." } },
+    { what = "the 86px Sell action button beside its spinner", budget = 9,
+      keys = { "Posting…" } },
+    { what = "the 136px dock POST button beside its spinner", budget = 15,
+      keys = { "POSTING…" } },
   }
 
   -- Codepoints, not bytes: string.len on UTF-8 counts bytes, so "Витрати" would score 14 and
@@ -81,6 +91,24 @@ describe("row button labels fit the button", function()
         -- Every locale carries every one of these; a locale that suddenly measures none has
         -- been renamed or gutted, and a spec that quietly checks nothing is worse than none.
         assert.equal(#button.keys, seen, code .. " is missing labels for " .. button.what)
+      end
+    end)
+  end
+
+  -- THE BOOK's marker note runs from the bar's start to the count's right edge: ~210px at mono-10,
+  -- 7.8px a character at Theme.Scale() 1.3 -- 26 characters, the number included. The words
+  -- "your price · … units ahead of you" were 36 in English and cut the NUMBER in Russian and
+  -- Ukrainian (review M1). Measured formatted, with a four-character count.
+  for _, code in ipairs(helper.localeCodes()) do
+    it(("keeps every %s marker note inside THE BOOK's line, the number first"):format(code), function()
+      local GC = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", GC)
+      local translations = GC.Locales[code]
+      for _, key in ipairs({ "%s ahead", "%s+ ahead", "first in line" }) do
+        local label = translations[key]
+        assert.is_truthy(label, code .. " is missing " .. key)
+        local shown = label:gsub("%%s", "5.6k")
+        assert.is_true(displayWidth(shown) <= 26, ("%s: %q is %d wide"):format(code, shown, displayWidth(shown)))
       end
     end)
   end

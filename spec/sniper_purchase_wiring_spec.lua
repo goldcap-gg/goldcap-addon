@@ -2843,7 +2843,7 @@ describe("Sniper purchase wiring", function()
 
     after_each(function()
       _G.time, _G.GetTime, _G.GetMoney, _G.C_Timer = os.time, nil, nil, nil
-      _G.C_AuctionHouse, _G.GetCoinTextureString = nil, nil
+      _G.C_AuctionHouse, _G.GetCoinTextureString, _G.AuctionHouseUtil = nil, nil, nil
     end)
 
     it("is registered and routed to the Sniper", function()
@@ -2900,6 +2900,22 @@ describe("Sniper purchase wiring", function()
       -- authoritative Check can exist.
       assert.is_true(getUpvalue(GC.Sniper.OnCommoditySearchResults, "requeryDraining")[42] == attempt)
       assert.is_false(GC.Sniper.IsPurchaseQuiet())
+    end)
+
+    -- The words came from `_G.AuctionHouseErrorMessages`, a table the client does not have: the
+    -- default UI's own lookup is AuctionHouseUtil.GetErrorText (Blizzard_AuctionHouseUtil.lua),
+    -- so every error read "the auction house reported an error" whatever it was.
+    it("says the error in the client's own words", function()
+      local GC = loadSniper()
+      helper.loadModule("Core/Util.lua", GC)
+      _G.AuctionHouseUtil = { GetErrorText = function(code) return code == 3 and "The Auction House is busy." or "" end }
+      local said
+      setUpvalue(GC.Sniper.OnAuctionHouseError, "setStatus", function(text) said = text end)
+
+      GC.Sniper.OnAuctionHouseError(3)
+      assert.equal("The Auction House is busy.", said)
+      GC.Sniper.OnAuctionHouseError(99)
+      assert.equal("the auction house reported an error", said)
     end)
   end)
 

@@ -103,7 +103,7 @@ describe("Sell view model", function()
     local d = GC.SellViewModel.Expansion(position)
     assert.is_string(d.factsText)
     assert.is_truthy(d.factsText:find(
-      "above the cheapest, within the day's reach · 700 units queued below", 1, true))
+      "above the cheapest, within the day's reach · 700 units ahead of you", 1, true))
   end)
 
   it("explains an overcut recommendation bound by the cheap quarter", function()
@@ -111,7 +111,7 @@ describe("Sell view model", function()
       postRecommendation = { unit = 11000, mode = "overcut", ahead = 700, capBy = "quarter" } }
     local d = GC.SellViewModel.Expansion(position)
     assert.is_truthy(d.factsText:find(
-      "above the cheapest, inside the cheap quarter · 700 units queued below", 1, true))
+      "above the cheapest, inside the cheap quarter · 700 units ahead of you", 1, true))
   end)
 
   -- An import that predates the R section leaves capBy nil on a quarter-bound climb from an
@@ -121,14 +121,14 @@ describe("Sell view model", function()
       postRecommendation = { unit = 11000, mode = "overcut", ahead = 700 } }
     local d = GC.SellViewModel.Expansion(position)
     assert.is_truthy(d.factsText:find(
-      "above the cheapest, inside the cheap quarter · 700 units queued below", 1, true))
+      "above the cheapest, inside the cheap quarter · 700 units ahead of you", 1, true))
   end)
 
   it("reads the overcut reason from a listed lot's nested repost advice too", function()
     local position = { coverage = "COMPLETE", positionKey = "commodity:42",
       recommendation = { action = "repost", rec = { unit = 11000, mode = "overcut", ahead = 12 } } }
     local d = GC.SellViewModel.Expansion(position)
-    assert.is_truthy(d.factsText:find("· 12 units queued below", 1, true))
+    assert.is_truthy(d.factsText:find("· 12 units ahead of you", 1, true))
   end)
 
   it("says nothing about overcut when the mode did not fire", function()

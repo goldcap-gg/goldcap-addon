@@ -131,6 +131,18 @@ local function onTooltip(tooltip, data)
     if shownLink then itemID = C_Item.GetItemInfoInstant(shownLink) end
   end
   if type(itemID) ~= "number" then return end
+  -- The tooltip of a Sell row standing for one item level or one pet (UI/SellFrame.lua): the
+  -- figure GetItemValue has is every item level's, or every pet's, and the row's panel says there
+  -- is none for this one -- so this says the same, rather than print the merged one under it.
+  -- Read off the tooltip's own owner, the row, and nothing else: a flag the Sell tab kept
+  -- outlived a row hidden under the cursor, and every item tooltip after it lost its value.
+  local owner = tooltip == GameTooltip and tooltip.GetOwner and tooltip:GetOwner() or nil
+  local variant = type(owner) == "table" and owner.goldcapVariant or nil
+  if variant then
+    tooltip:AddLine(variant == "pet" and GC.L["no market figure for this pet"]
+      or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
+    return
+  end
   local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), time(), {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,

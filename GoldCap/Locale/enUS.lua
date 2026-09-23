@@ -21,6 +21,7 @@ GC.Locales.enUS = {
   [" — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)"] =
     " — commands: /goldcap import, /goldcap companion, /goldcap status, /goldcap sniper, /goldcap sales, /goldcap ledger, /goldcap reset (or /gc for short)",
   ["%d (whole lot)"] = "%d (whole lot)",
+  ["%d ahead of you"] = "%d ahead of you",
   ["%d caps · %s"] = "%d caps · %s",
   ["%d days"] = "%d days",
   ["%d deals from your last scan -- Full Scan to refresh"] = "%d deals from your last scan -- Full Scan to refresh",
@@ -52,8 +53,10 @@ GC.Locales.enUS = {
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
   ["%s under you"] = "%s under you",
+  ["%s units across %d prices"] = "%s units across %d prices",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
+  ["%s+ ahead"] = "%s+ ahead",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
   ["1 lot, %s asked"] = "1 lot, %s asked",
   ["24h trend"] = "24h trend",
@@ -121,6 +124,8 @@ GC.Locales.enUS = {
   ["Market %s · unverified until a live Check"] = "Market %s · unverified until a live Check",
   ["Max units per buy"] = "Max units per buy",
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
+  ["No answer from the auction house yet -- still listening for a minute"] =
+    "No answer from the auction house yet -- still listening for a minute",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
   ["PRICED TOO LOW %d"] = "PRICED TOO LOW %d",
   ["Paused while a buy window is open. Buy or close it and Auto carries on."] =
@@ -142,22 +147,43 @@ GC.Locales.enUS = {
   ["The cancel did not go through — the lot is still listed"] = "The cancel did not go through — the lot is still listed",
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
+  ["This item's last post may still go up -- wait a minute"] =
+    "This item's last post may still go up -- wait a minute",
   ["UNDERCUT %d"] = "UNDERCUT %d",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
     "Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts.",
   ["YOUR LOTS"] = "YOUR LOTS",
+  ["above the cheapest, inside the cheap quarter · %s units ahead of you"] =
+    "above the cheapest, inside the cheap quarter · %s units ahead of you",
+  ["above the cheapest, within the day's reach · %s units ahead of you"] =
+    "above the cheapest, within the day's reach · %s units ahead of you",
+  ["age %ss"] = "age %ss",
+  ["clears in ~%dd"] = "clears in ~%dd",
+  ["clears in ~%dh"] = "clears in ~%dh",
   ["crafted %s"] = "crafted %s",
   ["far below market"] = "far below market",
   ["first in line"] = "first in line",
+  ["fresh"] = "fresh",
   ["hold"] = "hold",
+  ["ilvl %d"] = "ilvl %d",
   ["in the mail, the bank or on another character"] = "in the mail, the bank or on another character",
   ["leave these alone"] = "leave these alone",
+  ["level %d"] = "level %d",
+  ["market %s"] = "market %s",
   ["no cost"] = "no cost",
   ["no cost for %d"] = "no cost for %d",
+  ["no live quote yet — pricing…"] = "no live quote yet — pricing…",
+  ["no market figure for this item level"] = "no market figure for this item level",
+  ["no market figure for this pet"] = "no market figure for this pet",
   ["no price"] = "no price",
+  ["not priced — nothing on hand to sell"] = "not priced — nothing on hand to sell",
   ["oldest units sell first"] = "oldest units sell first",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "open the auction house once so GoldCap can tell how these sell",
+  ["past the first %d prices read (%s units)"] = "past the first %d prices read (%s units)",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",
   ["Remove this run"] = "Remove this run",
@@ -399,8 +425,8 @@ GC.Locales.enUS = {
   ["Post above the cheapest"] = "Post above the cheapest",
   ["Post confirmation expired"] = "Post confirmation expired",
   ["Post the next queued item"] = "Post the next queued item",
+  ["Posted"] = "Posted",
   ["Posting failed"] = "Posting failed",
-  ["Posting timed out"] = "Posting timed out",
   ["Posting unavailable"] = "Posting unavailable",
   ["Posting…"] = "Posting…",
   ["Press Full Scan to find deals."] = "Press Full Scan to find deals.",
@@ -495,6 +521,8 @@ GC.Locales.enUS = {
   ["The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest."] =
     "The BUY tab never pays more than this share of the usual price for a line; it buys what fits and leaves the rest.",
   ["The Companion is syncing, but this addon could not read what it wrote:"] = "The Companion is syncing, but this addon could not read what it wrote:",
+  ["The auction house did not answer -- try again"] =
+    "The auction house did not answer -- try again",
   ["The board tiered this off the imported snapshot. The live book does not back it."] =
     "The board tiered this off the imported snapshot. The live book does not back it.",
   ["The button waits a moment before it can be pressed, so this is never an accidental double-click."] =
@@ -591,10 +619,6 @@ GC.Locales.enUS = {
   ["a purchase landed that GoldCap could not attribute"] = "a purchase landed that GoldCap could not attribute",
   ["a purchase landed that GoldCap could not price"] = "a purchase landed that GoldCap could not price",
   ["a unit, at or under your price of %s"] = "a unit, at or under your price of %s",
-  ["above the cheapest, inside the cheap quarter · %d units queued below"] =
-    "above the cheapest, inside the cheap quarter · %d units queued below",
-  ["above the cheapest, within the day's reach · %d units queued below"] =
-    "above the cheapest, within the day's reach · %d units queued below",
   ["against the region's own price for this item, after the 5% cut — if it sells"] =
     "against the region's own price for this item, after the 5% cut — if it sells",
   ["alert group · %d hits"] = "alert group · %d hits",
@@ -760,6 +784,7 @@ GC.Locales.enUS = {
   ["sniped for "] = "sniped for ",
   ["spent %s · left ~%s"] = "spent %s · left ~%s",
   ["stack not identified"] = "stack not identified",
+  ["stale"] = "stale",
   ["starting full scan..."] = "starting full scan...",
   ["stopped watching %s"] = "stopped watching %s",
   ["that does not look like a GoldCap import string"] = "that does not look like a GoldCap import string",
@@ -770,6 +795,8 @@ GC.Locales.enUS = {
   ["that string is too long to import"] = "that string is too long to import",
   ["the Auction House has not answered for this item yet"] = "the Auction House has not answered for this item yet",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
+  ["the auction house has not sent details for these yet"] =
+    "the auction house has not sent details for these yet",
   ["the auction house reported an error"] = "the auction house reported an error",
   ["the import failed (%s)"] = "the import failed (%s)",
   ["the last attempt is still settling -- checking the price again..."] =
@@ -783,6 +810,7 @@ GC.Locales.enUS = {
   ["to clear %d units at %s sold a day, with %s tied up the whole time"] =
     "to clear %d units at %s sold a day, with %s tied up the whole time",
   ["took too long — try again"] = "took too long — try again",
+  ["unavailable"] = "unavailable",
   ["under GoldCap's own floor of %s"] = "under GoldCap's own floor of %s",
   ["unknown evidence"] = "unknown evidence",
   ["usually cheapest around %s · %d%%"] = "usually cheapest around %s · %d%%",
@@ -794,6 +822,10 @@ GC.Locales.enUS = {
   ["waiting for previous commodity purchase to settle"] = "waiting for previous commodity purchase to settle",
   ["waiting for previous search result to settle"] = "waiting for previous search result to settle",
   ["waiting..."] = "waiting...",
+  ["wall"] = "wall",
+  ["wall %s at %s -- price under it to sell first"] =
+    "wall %s at %s -- price under it to sell first",
+  ["wall %s at %s above you"] = "wall %s at %s above you",
   ["watching %s closely -- re-checked every few seconds"] = "watching %s closely -- re-checked every few seconds",
   ["window moved back to the middle of the screen at its default size"] =
     "window moved back to the middle of the screen at its default size",
@@ -812,6 +844,8 @@ GC.Locales.enUS = {
   ["your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running"] =
     "your saved purchase records are damaged -- cost tracking is off, the rest of GoldCap is running",
   ["yours"] = "yours",
+  ["~%dd to reach you at today's pace"] = "~%dd to reach you at today's pace",
+  ["~%dh to reach you at today's pace"] = "~%dh to reach you at today's pace",
   ["» needs price"] = "» needs price",
   ["×%d in bags"] = "×%d in bags",
   ["×%d in your bags · Post lists %d of them, the largest stack"] = "×%d in your bags · Post lists %d of them, the largest stack",

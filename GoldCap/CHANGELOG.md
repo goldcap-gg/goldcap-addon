@@ -47,6 +47,20 @@
 - A scan you started yourself that stops because you left the Deals tab, searched the auction
   house yourself or closed it now says so, instead of reading "scanning auction house..." until
   the next scan.
+- Post on the Sell tab shows that it is posting — the button spins and says so, and pressing it
+  again does nothing meanwhile — then says Posted, or what went wrong in the auction house's own
+  words. A post the auction house answers late still counts as posted; while GoldCap waits for
+  that answer, up to a minute, the same item cannot be posted again.
+- The Deals tab names an auction house error in the game's own words instead of a generic one.
+- THE BOOK on the Sell tab is drawn around your price: the cheapest prices, the ones just under
+  yours, your price with how many units are ahead of you — the ones already at your exact price
+  count, they sell first — and the ones above it. Walls, the big stacks worth pricing under, are
+  marked and named, with how long the queue ahead of you takes at today's pace. A row's
+  "N ahead" counts the same way.
+- The Sell tab lists gear and caged battle pets from your bags, each row naming its item level.
+  Gear is priced from the live auction house for its exact item level and a pet for itself —
+  never from a market figure for other item levels or other pets. An item the auction house has
+  not told GoldCap about yet is listed under its own heading instead of being left out.
 
 ## 0.14.1 (unreleased)
 
