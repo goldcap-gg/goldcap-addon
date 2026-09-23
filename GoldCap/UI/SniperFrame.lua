@@ -3662,7 +3662,7 @@ local function armLoudConfirm(row, label, calm)
     dialog.armHold = nil
     if stage == "ready" and row.deal and row.deal.isCommodity and updateBuyAffordance then
       updateBuyAffordance()
-    else
+    elseif not (stage == "ready" and GC.Sniper._HoldWhileOwed(row)) then
       dialog.primaryBtn:Enable()
     end
     setPrimaryLabel(label, r, g, b)
@@ -4597,6 +4597,24 @@ function GC.Sniper._HandOffSettled()
     1, 0.82, 0)
 end
 
+-- Fix round 1 (minor 2): a window armed while a confirmed purchase is still owed its answer says
+-- so from the moment it arms -- Buy dark, the waiting line on both status lines -- the same state
+-- the Buy gate in onDialogPrimaryClick shows on a click. Armed lit and green instead ("price
+-- confirmed -- click Buy to purchase"), it told the player "ready" twice -- at the arm and after
+-- every quantity change -- over a Buy the click then refused. Returns true when it held the
+-- window, so an arm path writes nothing after it. Only the armed window ("ready") the dialog is
+-- showing; the settle hands it Refresh (GC.Sniper._HandOffSettled).
+function GC.Sniper._HoldWhileOwed(row)
+  if not (GC.Sniper._ConfirmedOwed() and dialog and row and dialog.row == row
+      and row.purchaseStage == "ready") then
+    return false
+  end
+  dialog.primaryBtn:Disable()
+  setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
+  if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
+  return true
+end
+
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
 -- player: the primary button flips to "Refresh" (stage "expired"), whose click re-runs the
 -- live requery for fresh numbers. Refresh is NOT a purchase call, so looping through
@@ -4985,6 +5003,9 @@ local function applyRequeryResult(row, itemID, live)
         frame.status:SetText(decision.cap and GC.L["at or under your price -- click Buy to purchase"]
           or GC.L["live safety confirmed -- click Buy to purchase"])
       end
+      -- ...unless a confirmed purchase is still owed its answer: armReady already holds the
+      -- window, and the window's own line must not be the only one telling the truth.
+      GC.Sniper._HoldWhileOwed(row)
     elseif not live.isCommodity and decision.status == "WATCH" and decision.candidate then
       -- Sniper phase 2: a realm lot, checked live and found under its region reference. The
       -- decision is deliberately not `buyable` -- nothing here measured how fast this item
@@ -5047,6 +5068,9 @@ local function applyRequeryResult(row, itemID, live)
           dialog.primaryBtn:Enable()
           setDialogStatus(GC.L["price checked, sale speed unknown -- this one is your call"], 1, 0.82, 0)
         end
+        -- Last word: a bid waits over a confirmed commodity purchase still owed its answer (the
+        -- Buy gate, review M2), and says so now rather than on the click (fix round 1).
+        GC.Sniper._HoldWhileOwed(row)
       end
       scheduleArmTimeout(row, deal, decision)
     else
@@ -7716,6 +7740,8 @@ updateBuyAffordance = function()
   if not dialog or not dialog.row then return end
   local row = dialog.row
   if row.purchaseStage ~= "ready" then return end
+  -- A confirmed purchase still owed its answer holds Buy whatever the gold says (fix round 1).
+  if GC.Sniper._HoldWhileOwed(row) then return end
   local total = dialog.stampedTotal
   if not total then return end
   if total > GetMoney() then

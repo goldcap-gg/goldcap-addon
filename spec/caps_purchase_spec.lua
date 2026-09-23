@@ -1336,6 +1336,8 @@ describe("Live price caps -- buying at the player's own price", function()
     -- step -- and that step is a Check: a quote or decision taken before that purchase landed is
     -- never spent (the gold, and for the same item the book, may have moved under it).
     describe("once the confirmed purchase it waited on settles", function()
+      local WAITING = "waiting for previous commodity purchase to settle"
+
       -- Buy and Confirm through the real click handler and the real quote event, on `row`.
       local function confirmOn(GC, row, click)
         click() -- Buy
@@ -1399,8 +1401,8 @@ describe("Live price caps -- buying at the player's own price", function()
 
       -- The owner's sequence: Confirm, the window closed with Esc while the purchase is still
       -- confirming (Cancel is disabled there, Escape is not), the next row's window opened and
-      -- armed. Its Buy used to say "finish the pending buy first" on a lit button -- and a realm
-      -- bid went straight through -- over a purchase that may already have taken the gold.
+      -- armed. Its Buy -- and a realm lot's bid alike -- used to answer "finish the pending buy
+      -- first" on a lit button, over a purchase that may already have taken the gold.
       it("holds the next window over a purchase still confirming, then hands it Refresh", function()
         local GC, first, _, d, click, abort = armed()
         confirmOn(GC, first, click)
@@ -1411,11 +1413,14 @@ describe("Live price caps -- buying at the player's own price", function()
         local book = freshBook()
         local second = { deal = lot, purchaseToken = 1 }
         local d2 = armOnDialog(GC, second, lot, capLive(GC, 42, book).decision, book)
-        assert.is_true(d2.enabled)
+        -- Waiting from the moment it arms (fix round 1, minor 2), not a lit "click Buy".
+        assert.equal("ready", second.purchaseStage)
+        assert.is_false(d2.enabled)
+        assert.equal(WAITING, d2.written[#d2.written])
         click()
         assert.equal(1, starts)
         assert.is_false(d2.enabled)
-        assert.equal(GC.L["waiting for previous commodity purchase to settle"], d2.written[#d2.written])
+        assert.equal(WAITING, d2.written[#d2.written])
 
         GC.Sniper.OnCommodityPurchaseSucceeded()
 
@@ -1473,6 +1478,103 @@ describe("Live price caps -- buying at the player's own price", function()
 
         assert.equal(0, bids)
         assert.equal("requerying", realmRow.purchaseStage)
+      end)
+
+      -- Fix round 1, minor 2: a window armed over a confirmed purchase still owed its answer said
+      -- "price confirmed -- click Buy to purchase" on a lit, green Buy -- which the owner reads as
+      -- ready -- and only the click turned it dark. It waits from the moment it arms.
+      describe("a window armed while that purchase is still owed", function()
+        local function owed(GC)
+          setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+            { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+        end
+
+        it("waits up front, and says so, rather than offering a Buy the click refuses", function()
+          local GC = loadSniper({ maxQuantity = QTY })
+          adoptCap(GC, 42, CAP)
+          owed(GC)
+          local book = freshBook()
+          local live = capLive(GC, 42, book)
+          local deal = boardDeal(GC, 42)
+          local row = { deal = deal, purchaseToken = 1 }
+
+          local d = armOnDialog(GC, row, deal, live.decision, book)
+
+          assert.equal("ready", row.purchaseStage)
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+        end)
+
+        it("keeps waiting after the player picks another quantity", function()
+          local GC = loadSniper({ maxQuantity = QTY })
+          adoptCap(GC, 42, CAP)
+          owed(GC)
+          local book = freshBook()
+          local live = capLive(GC, 42, book)
+          local deal = boardDeal(GC, 42)
+          local row = { deal = deal, purchaseToken = 1 }
+          local d = armOnDialog(GC, row, deal, live.decision, book)
+          local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+          local createRow = getUpvalue(getUpvalue(clearDeals, "refreshRows"), "createRow")
+          local onBuyClick = getUpvalue(getUpvalue(createRow, "buildRowCell"), "onBuyClick")
+          local createDialog = getUpvalue(getUpvalue(onBuyClick, "openDialog"), "createDialog")
+          local applyQuickFillQty = getUpvalue(createDialog, "applyQuickFillQty")
+
+          getUpvalue(applyQuickFillQty, "applyChosenQty")(row, 100) -- typed
+          assert.equal(100, row.decisionSnapshot.quantity)
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+
+          applyQuickFillQty(50) -- a quick-fill button
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+        end)
+
+        it("waits for a realm lot at the player's price the same way", function()
+          local GC = loadSniper()
+          adoptCap(GC, 42, CAP)
+          owed(GC)
+          local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+            { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = fakeDialog(realmRow, lot)
+          setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+
+          assert.equal("ready", realmRow.purchaseStage)
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+        end)
+
+        it("does not light a held Buy when its hold ends", function()
+          local GC = loadSniper()
+          adoptCap(GC, 42, CAP)
+          owed(GC)
+          local timers = {}
+          _G.C_Timer.After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end
+          -- A YOUR PRICE row whose Check found only a lot above the price: Buy is held a moment.
+          local candidate = { auctionID = 10, buyout = CAP * 2, quantity = 1, itemLevel = 615 }
+          local decision = { status = "WATCH", reasons = { "realm_item_unverified" }, quantity = 1,
+            entryTotal = CAP * 2, entryUnitDisplay = CAP * 2, candidate = candidate }
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1,
+            auctionID = 3, stale = true }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = fakeDialog(realmRow, lot)
+          setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+
+          for _, timer in ipairs(timers) do
+            if timer.seconds == 1.5 then timer.fn() end
+          end
+
+          assert.equal("ready", realmRow.purchaseStage)
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+        end)
       end)
 
       -- Armed while the purchase was owed and not clicked yet: its decision predates the
