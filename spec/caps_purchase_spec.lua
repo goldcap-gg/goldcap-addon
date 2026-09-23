@@ -519,6 +519,22 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_true(d.enabled)
       assert.equal("at or under your price -- click Buy to purchase", d.written[#d.written])
     end)
+
+    -- Caps fixes 5g: the diagnostic Status row read WATCH -- the shape a realm purchase is carried
+    -- in (onDialogPrimaryClick buys a realm lot on status WATCH plus a candidate), not what
+    -- decided it. It names the player's own price, as the board's own chip does.
+    it("says on the Status row that the player's own price decided it", function()
+      local GC = loadSniper()
+      local deal, decision = realmLot(GC)
+      local row = { deal = deal, purchaseStage = "requerying" }
+      local d = fakeDialog(row, deal)
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "dialog", d)
+      local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+
+      getUpvalue(finishRequery, "applyRequeryResult")(row, 42, { isCommodity = false, decision = decision })
+
+      assert.equal("YOUR PRICE", d.decisionStatusText.text)
+    end)
   end)
 
   describe("a commodity cap row on the board", function()
@@ -615,6 +631,12 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_true(d.enabled)
     end)
 
+    it("says on the Status row that the player's own price decided it", function()
+      local GC = loadSniper()
+      local _, _, d = armLadder(GC)
+      assert.equal("YOUR PRICE", d.decisionStatusText.text)
+    end)
+
     it("fills to what the cap allows, not to the whole book", function()
       local GC = loadSniper()
       local row, deal, d, applyQuickFillQty = armLadder(GC)
@@ -649,6 +671,55 @@ describe("Live price caps -- buying at the player's own price", function()
 
       assert.equal("10", d.qtyBox.editBox.text)
       assert.equal("of 10", d.qtyOfLabel.text)
+    end)
+
+    -- Caps fixes 5g: the ceiling held at the armed ten after the wallet dropped (the test above),
+    -- so 100% asked the cap rule for ten units it now refuses and the dialog disarmed with the
+    -- generic "live_verification_required". A quick-fill offers what the rule allows now -- and
+    -- a hand-typed number above that is brought down to it -- while "of N" still never reads
+    -- below the box.
+    describe("after the wallet dropped", function()
+      local function armTenThenDrop(GC)
+        adoptCap(GC, 42, 2000000)
+        local levels = { { unitPrice = 1000000, quantity = 10 } }
+        local live = capLive(GC, 42, levels)
+        local deal = boardDeal(GC, 42)
+        local row = { deal = deal }
+        local d = armOnDialog(GC, row, deal, live.decision, levels)
+        assert.equal("10", d.qtyBox.editBox.text)
+        money = 30000000 -- 3,000g now: 5% of it pays for one unit at 100g
+        local clearDeals = getUpvalue(GC.Sniper.OnAuctionHouseClosed, "clearDeals")
+        local createRow = getUpvalue(getUpvalue(clearDeals, "refreshRows"), "createRow")
+        local onBuyClick = getUpvalue(getUpvalue(createRow, "buildRowCell"), "onBuyClick")
+        local createDialog = getUpvalue(getUpvalue(onBuyClick, "openDialog"), "createDialog")
+        return row, d, getUpvalue(createDialog, "applyQuickFillQty")
+      end
+
+      it("quick-fills to the units the cap rule allows now", function()
+        local GC = loadSniper()
+        local row, d, applyQuickFillQty = armTenThenDrop(GC)
+
+        applyQuickFillQty(100)
+
+        assert.equal("ready", row.purchaseStage)
+        assert.equal(1, row.decisionSnapshot.quantity)
+        assert.equal("1", d.qtyBox.editBox.text)
+        assert.equal("of 1", d.qtyOfLabel.text)
+        assert.is_true(d.enabled)
+      end)
+
+      -- The typed box clamps to the same ceiling (qtyBox.onCommit, built by createDialog) -- the
+      -- one number both controls read, while "of N" keeps its own floor at the box.
+      it("gives the typed box the same ceiling, and keeps 'of N' at the box", function()
+        local GC = loadSniper()
+        local row, d, applyQuickFillQty = armTenThenDrop(GC)
+        local qtyMaxAvailable = getUpvalue(applyQuickFillQty, "qtyMaxAvailable")
+
+        assert.equal(1, qtyMaxAvailable(row.deal))
+        getUpvalue(getUpvalue(armReadyFn(GC), "stampDialogFromDecision"), "refreshQtyRow")()
+        assert.equal("10", d.qtyBox.editBox.text)
+        assert.equal("of 10", d.qtyOfLabel.text)
+      end)
     end)
 
     it("will not arm units above the cap, even where the market would", function()

@@ -3906,7 +3906,12 @@ local function stampDialogFromDecision(deal, decision)
   local publicStatus = decision.status or "WATCH"
   local computedStatus = decision.computedStatus or publicStatus
   local diagnosticReasons = table.concat(decision.reasons or {}, ", ")
-  if decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
+  if decision.cap then
+    -- The player's own price decided this, not the market engine: a realm lot is carried as
+    -- WATCH plus a candidate (the shape onDialogPrimaryClick buys a lot on) and a commodity as
+    -- SAFE, and neither word says why the Buy is offered. The board's chip says YOUR PRICE.
+    dialog.decisionStatusText:SetText(GC.L["YOUR PRICE"])
+  elseif decision.computedStatus == "SAFE" and publicStatus == "WATCH" then
     dialog.decisionStatusText:SetText(GC.L["WATCH (computed SAFE)"])
   else
     dialog.decisionStatusText:SetText(publicStatus)
@@ -4218,12 +4223,15 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
       if purchase then
         recordPurchaseFacts(deal, purchase)
       else
-        -- A realm lot, bought at its buyout. An item auction has no server quote step at all
-        -- -- PlaceBid pays exactly the price the dialog showed -- so there is nothing unknown
-        -- to freeze the row over. It is not written to the ledger either: a sniper buy's cost
-        -- basis there is anchored to the SAFE decision that permitted it, and this purchase
-        -- deliberately never had one. What it must still do is stop the board advertising a
-        -- listing that is now gone.
+        -- A realm lot, bought at its buyout, that arrived with no purchase facts. An item auction
+        -- has no server quote step at all -- PlaceBid pays exactly the price the dialog showed
+        -- -- so there is nothing unknown to freeze the row over. A buy on the player's own price
+        -- and an unverified realm buy both come with facts (OnPurchaseCompleted builds them off
+        -- the candidate, purchaseFacts) and are recorded like any sniper buy in the branch
+        -- above; only a lot whose facts could not be built lands here -- no candidate with a
+        -- buyout, or a realm verdict with no reference to anchor a cost basis to -- and nothing
+        -- trustworthy is left to record it from. What it must still do is stop the board
+        -- advertising a listing that is now gone.
         consumePurchasedDeal(deal)
       end
     end
@@ -7035,16 +7043,16 @@ end
 -- a degenerate 0 can never make the controls unusable.
 local function qtyMaxAvailable(deal)
   -- Live price caps (caps fixes 2f): on a row armed by the player's own price the ceiling is what
-  -- that price allows on this book -- never the whole book, whose dearer units the cap rule would
-  -- refuse. But never below the quantity already armed either: the box shows exactly that
-  -- number, Buy starts exactly that purchase, and "of N" beside it must not contradict it. When
-  -- the wallet has dropped since the Check and the rule now allows fewer, the armed quantity is
-  -- judged again where it can actually be refused -- at the quote, against the gold in the bags
-  -- then (GC.Caps.QuoteOk) -- and a smaller number typed here is re-decided by the rule as usual.
+  -- that price allows on this book NOW, inside the player's own limits -- never the whole book,
+  -- whose dearer units the cap rule would refuse. Now, not at the Check: after the wallet drops
+  -- the rule allows fewer, and a ceiling held at the armed quantity had 100% ask the rule for
+  -- units it refuses, disarming the dialog with no reason worth reading (caps fixes 5g). "of N"
+  -- keeps its own floor at the box -- see refreshQtyRow -- and the armed quantity itself is
+  -- judged again at the quote, against the gold in the bags then (GC.Caps.QuoteOk).
   local cap = dialog and GC.Sniper._RowCap(dialog.row, deal)
   if cap then
     local most = dialog.bookLevels and GC.Sniper._DecideCap(cap, dialog.bookLevels)
-    return math.max(most and most.quantity or 1, dialog.row.decisionSnapshot.quantity or 1)
+    return most and most.quantity or 1
   end
   local maxQty
   if dialog and dialog.bookLevels then
@@ -7077,8 +7085,13 @@ refreshQtyRow = function()
       local bookTotal = sumLevelQty(dialog.bookLevels)
       if bookTotal > 0 then known = bookTotal end
     end
-    -- A cap row's "of N" is the ceiling its box clamps to (qtyMaxAvailable), not the whole book.
-    if GC.Sniper._RowCap(dialog.row, deal) then known = qtyMaxAvailable(deal) end
+    -- A cap row's "of N" is the ceiling its box clamps to (qtyMaxAvailable), not the whole book --
+    -- but never below the quantity the box is showing, which is exactly what Buy starts: after
+    -- the wallet drops the rule's ceiling can sit under the armed number until the player picks
+    -- a new one.
+    if GC.Sniper._RowCap(dialog.row, deal) then
+      known = math.max(qtyMaxAvailable(deal), dialog.row.decisionSnapshot.quantity or 1)
+    end
     if known then
       dialog.qtyOfLabel:SetText((GC.L["of %d"]):format(known))
       dialog.qtyOfLabel:Show()
