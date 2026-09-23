@@ -1837,6 +1837,55 @@ describe("Live price caps -- buying at the player's own price", function()
               assert.is_nil(GC.PurchaseSlot.Owner())
             end)
 
+            -- Load-bearing round (I-1): the player's own ways out -- Cancel or Escape on "buying",
+            -- closing the "no answer" window after the stall -- went through abortRowPurchase, whose
+            -- resolvePurchase released the slot the drain had just kept.
+            it("keeps the slot when the player cancels a Start before any answer", function()
+              local GC, row, _, _, click, abort = armed()
+              onTheClock(GC)
+              click() -- Start at 100
+              clock = 103
+              abort(row, "purchase canceled") -- Cancel / Escape while "buying commodity..."
+              assert.is_nil(row.purchaseStage)
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+              assert.is_false(GC.PurchaseSlot.Claim("buy"))
+              clock = 104
+              GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY) -- the late quote, drained here
+              assert.is_nil(GC.PurchaseSlot.Owner())
+            end)
+
+            it("keeps the slot when the player closes the no-answer window after the stall", function()
+              local GC, row, _, _, click, abort = armed()
+              onTheClock(GC)
+              click()
+              clock = 110
+              runTimers() -- "no answer from the auction house"
+              clock = 111
+              abort(row, "purchase canceled") -- the window closed
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+              assert.is_false(GC.PurchaseSlot.Claim("buy"))
+              clock = 130
+              runTimers() -- the drain's bound
+              assert.is_nil(GC.PurchaseSlot.Owner())
+            end)
+
+            -- Load-bearing round (M-2): an error a purchase and a post share, landing while the Start
+            -- has had no answer, may not be its answer: the Start is cancelled and drained, not
+            -- settled with the slot let go.
+            it("cancels and drains an unanswered Start on an error it may not own", function()
+              local GC, row, _, _, click = armed()
+              onTheClock(GC)
+              GC.Sell = { _ErrorKind = function() return "shared" end }
+              click() -- Start at 100: buying
+              clock = 102
+              GC.Sniper.OnAuctionHouseError(5)
+              GC.Sell = nil
+              assert.equal(1, cancels)
+              assert.is_nil(row.purchaseStage)
+              assert.equal("sniper", GC.PurchaseSlot.Owner())
+              assert.is_false(GC.PurchaseSlot.Claim("buy"))
+            end)
+
             it("releases at once a Start whose quote had already come", function()
               local GC, row, _, _, click = armed()
               onTheClock(GC)

@@ -454,6 +454,44 @@ describe("BUY purchase", function()
     assert.is_false(row.action:IsEnabled())
   end)
 
+  -- Load-bearing round (M-1): and reads BUY again the moment the Sniper lets go, from the auction
+  -- house ticker -- not on this tab's next refresh, up to twenty seconds later.
+  it("reads BUY again as soon as the sniper lets go of the slot", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    GC.PurchaseSlot.Claim("sniper", now)
+    GC.Buy.RefreshIfShown()
+    GC.Buy.TickCountdown() -- the ticker sees the wait
+    assert.equal("waiting...", rowWithText("Alpha Herb").action.label)
+
+    GC.PurchaseSlot.Release("sniper")
+    GC.Buy.TickCountdown()
+
+    assert.equal("BUY 10", rowWithText("Alpha Herb").action.label)
+  end)
+
+  -- Load-bearing round (M-3): its own confirm the close hit holds this tab too, and the line keeps
+  -- saying what it said, while the units may still come by mail -- not a fresh BUY at reopen.
+  it("holds its own Starts, and the line's warning, on a confirm the auction house closed on", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb")) -- confirm at 2000: owed until 2020
+    now = now + 5
+    GC.Buy.OnAuctionHouseClosed()
+    GC.Buy.OnAuctionHouseShow()
+    GC.Buy.RefreshIfShown()
+    assert.equal("unknown", GC.Buy._attempt.stage)
+    assert.equal(GC.L["no answer — check your mail"], rowWithText("Alpha Herb").action.label)
+
+    local before = #started
+    hover(rowWithText("Charlie Dust"))
+    GC.Buy.OnCommodityResults(103)
+    click(rowWithText("Charlie Dust"))
+    assert.equal(before, #started)
+  end)
+
   -- Final money review M3: a confirm the auction house closed on is owed its answer across the
   -- reopen, for as long as BUY would have waited for it -- as a Sniper confirm carried across a close
   -- holds BUY. It went to "unknown" and stopped counting at once, and the Sniper could start while

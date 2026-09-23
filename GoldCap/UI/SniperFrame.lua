@@ -4476,7 +4476,13 @@ resolvePurchase = function(row, success, note, purchase, purchaseDeal)
       -- themselves before calling in here, so this attempt's own claim would otherwise survive
       -- past its terminal event. Release() is a no-op unless "sniper" is still the owner, so
       -- calling it here for every commodity resolution is always safe.
-      if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+      -- ...unless a drain holds it for a Start cancelled before its answer came (load-bearing
+      -- round, I-1): abortRowPurchase drains, then resolves here, and releasing it anyway gave the
+      -- slot back at once -- the late quote then lit the BUY tab's CONFIRM. GC.Sniper._EndDrainHold
+      -- ends that hold.
+      if GC.PurchaseSlot and not (commodityDraining and commodityDraining.holdsSlot) then
+        GC.PurchaseSlot.Release("sniper")
+      end
     elseif deal.auctionID then
       pendingAuction[deal.auctionID] = nil
     end
@@ -7600,6 +7606,12 @@ function GC.Sniper.OnAuctionHouseError(errorCode)
         dialog.cancelBtn:Enable()
         setDialogStatus(text, 1, 0.3, 0.3)
       end
+    elseif row.purchaseStage == "buying" and not pending.priceReceived then
+      -- Load-bearing round (M-2): a code a purchase shares with a post or a search, landing while
+      -- the Start has had no answer, may be somebody else's -- and the Start's own answer is then
+      -- still coming. Cancelled and drained, the slot held for it (drainCommodityPurchase), never
+      -- settled with the slot let go: the late quote would reach whichever window started next.
+      abortRowPurchase(row, text)
     else
       commodityPurchase = nil
       if commodityDraining and not commodityDraining.confirmed then

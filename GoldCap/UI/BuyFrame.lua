@@ -819,6 +819,9 @@ end
 -- would read it as its own.
 local function owedElsewhere()
   if GC.Buy._drain then return true end
+  -- Load-bearing round (M-3): this tab's own confirm the auction house closed on, still owed its
+  -- answer (GC.Buy._owedUntil): nothing else starts here over it, as nothing starts in the Sniper.
+  if GC.Buy._owedUntil and GC.Buy.ConfirmOwed() then return true end
   local slot = GC.PurchaseSlot
   if not slot then return false end
   local owed = slot.ConfirmOwed and slot.ConfirmOwed()
@@ -1005,6 +1008,12 @@ end
 -- The auction house ticker's call (UI/SniperFrame.lua, four times a second): repaints the tab once
 -- a second while a CONFIRM counts down its last BD.COUNTDOWN_SECONDS (fix round 4, m2).
 function GC.Buy.TickCountdown()
+  -- Load-bearing round (M-1): the moment whatever this tab waited on lets go -- the Sniper's slot,
+  -- a confirm owed its answer, its own drain -- the lines read BUY again, not on the next refresh up
+  -- to twenty seconds later. The mirror of the Sniper's own edge (GC.Sniper._TickOwedHold).
+  local waiting = owedElsewhere()
+  if GC.Buy._lastWaiting and not waiting then GC.Buy.RefreshIfShown() end
+  GC.Buy._lastWaiting = waiting
   local attempt = GC.Buy._attempt
   local left = quoteSecondsLeft(attempt)
   if not left or left == attempt.countdownShown then return end
@@ -1701,6 +1710,9 @@ function GC.Buy.OnAuctionHouseShow()
   sessionToken = sessionToken + 1
   GC.Buy._stranded = {}
   local attempt = GC.Buy._attempt
+  -- ...except a confirm the close hit while it is still owed its answer (load-bearing round, M-3):
+  -- its units may still come by mail, and the line keeps saying so instead of offering BUY again.
+  if attempt and attempt.stage == "unknown" and GC.Buy.ConfirmOwed() then return end
   if attempt and not inFlight(attempt) then GC.Buy._attempt = nil end
 end
 
