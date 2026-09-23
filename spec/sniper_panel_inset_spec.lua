@@ -473,6 +473,26 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       assert.equal(d.fixedHeightOpen, d.fixedHeight)
     end)
 
+    -- Review M1: the fit guard ran on a toggle, a resize and the dialog's creation -- not when a
+    -- longer Reason was stamped, so a three- or four-line one pushed the open transcript down
+    -- into the status line and the Buy button of a docked drawer that has no room to grow.
+    it("closes the transcript quietly when a longer Reason stops it fitting the window", function()
+      local d = realDialog(true)
+      local rec = watchAll(d)
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+      local fits = d.fixedHeightOpen
+      d.GetHeight = function() return fits + 5 end -- the docked drawer: five pixels to spare
+
+      d.reasonText.GetStringHeight = function() return 60 end
+      d.layoutBlocks({ reconcile = false, actionable = true })
+
+      assert.is_false(d.detailsOpen)
+      assert.is_false(rec.grid.shown)
+      assert.is_true(rec.facts.shown)
+      assert.equal(d.fixedHeightClosed, d.fixedHeight)
+    end)
+
     it("swaps the facts for the transcript rather than stacking both", function()
       local d = realDialog(false)
       local rec = watchAll(d)

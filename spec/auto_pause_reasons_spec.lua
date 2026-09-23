@@ -82,6 +82,26 @@ describe("Auto says why it is not scanning", function()
     assert.equal("AUTO · WAITING: YOUR LIST", autoButtonText(autoScan:State(), autoScan:PauseReasons()))
   end)
 
+  -- Review I1: Theme.Button bounds its label to the button, one line, no wrap -- so the client's
+  -- GetStringWidth answers with the width it has already cut the label to, and a button sized
+  -- off that never grew past "AUTO · PAUSED: MAILB...". The stub tells the two widths apart.
+  it("grows the button to the label's whole width, not the width the button cut it to", function()
+    local _, feedAuto = loadSniper()
+    local refreshAutoButton = upvalue(feedAuto, "refreshAutoButton")
+    local text = {}
+    function text:GetStringWidth() return 124 end          -- bounded: what fits in the button
+    function text:GetUnboundedStringWidth() return 171 end -- the label's own width
+    local btn = { text = text, SetVariant = function() end,
+      SetLabel = function(self, t) self.label = t end, SetWidth = function(self, w) self.width = w end }
+    feedAuto("toggleOn")
+    feedAuto("pause:mail")
+
+    refreshAutoButton({ autoBtn = btn })
+
+    assert.equal("AUTO · PAUSED: MAILBOX OPEN", btn.label)
+    assert.equal(171 + 2 * 8, btn.width) -- the label plus Theme.pad.m either side
+  end)
+
   -- The mailbox and the auction house are one interaction at a time, so at an auction house
   -- open the mailbox is shut -- whether or not a MAIL_CLOSED said so.
   it("lets go of a mailbox pause the auction house has already closed", function()

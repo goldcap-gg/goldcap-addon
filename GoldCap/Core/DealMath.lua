@@ -7,15 +7,18 @@ GC.DealMath = {}
 local EPS = 1e-9
 
 -- The two figures every board row shows against the market: how far under it the unit sits
--- (`discount`, a fraction) and what reselling `qty` at it would make after the 5% cut
--- (`profit`). nil when there is no market to measure against -- no value, or a realm item with
--- no region reference (see Evaluate below for why its own median is no yardstick). Evaluate
--- uses it for a deal; the Sniper's watched rows use it for an item that is not one (in game
--- 2026-09-23 a pinned row showed its unit price and nothing else).
-function GC.DealMath.Measure(unitPrice, qty, value)
+-- (`discount`, a fraction) and what reselling `qty` at it would make after the 5% cut, against
+-- what they cost (`profit`; `cost` defaults to unitPrice * qty -- a YOUR PRICE row passes the
+-- exact sum over the levels it buys). nil when there is no market to measure against -- no
+-- value, or a realm item with no region reference (see Evaluate below for why its own median is
+-- no yardstick). Evaluate uses it for a deal; the Sniper's watched and YOUR PRICE rows use it
+-- for items that are not one (in game 2026-09-23 a pinned row showed its unit price and nothing
+-- else).
+function GC.DealMath.Measure(unitPrice, qty, value, cost)
   if not value or not value.mv or value.mv <= 0 then return nil end
   if value.kind == "realm_item" and not value.ref then return nil end
-  return { discount = 1 - (unitPrice / value.mv), profit = (math.floor(value.mv * 0.95) - unitPrice) * qty }
+  return { discount = 1 - (unitPrice / value.mv),
+    profit = math.floor(value.mv * 0.95) * qty - (cost or unitPrice * qty) }
 end
 
 function GC.DealMath.Evaluate(live, value, cfg)

@@ -907,6 +907,39 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.is_truthy(row.nameText.text:find("x20", 1, true)) -- the quantity stays
       end)
 
+      -- Review M6: decided once at the stamp, the group stayed cut after the window narrowed and
+      -- never came back after it widened -- a row whose deal did not move skips its repaint. The
+      -- row's own size change asks again (createRow's OnSizeChanged).
+      it("re-decides the group whenever the row's width changes", function()
+        local GC = loadSniper()
+        grouped(GC)
+        local row = fakeRow()
+        local narrow = true
+        function row.nameText:IsTruncated() return narrow and self.text:find("Test caps", 1, true) ~= nil end
+        getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+        assert.is_nil(row.nameText.text:find("Test caps", 1, true))
+
+        narrow = false -- the window widened
+        GC.Sniper._FitRowName(row)
+        assert.is_truthy(row.nameText.text:find("Test caps", 1, true))
+
+        narrow = true -- and narrowed again
+        GC.Sniper._FitRowName(row)
+        assert.is_nil(row.nameText.text:find("Test caps", 1, true))
+
+        local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+        local text = f:read("*a")
+        f:close()
+        assert.is_truthy(text:find('row:SetScript("OnSizeChanged", function(self) GC.Sniper._FitRowName(self) end)', 1, true))
+        -- And the tooltip names the group for any cap row, with or without a fresh verdict: the
+        -- note is its own branch, never gated on a cap verdict.
+        local enterAt = assert(text:find('row:SetScript("OnEnter", function(self)', 1, true))
+        local enter = text:sub(enterAt)
+        local note = assert(enter:find("local capNote = GC.Sniper._CapNote(self.deal)", 1, true))
+        assert.is_truthy(enter:find("    if capNote then\n", note, true))
+        assert.is_nil(enter:find("verdict.cap and capNote", 1, true))
+      end)
+
       it("says in the row's tooltip what YOUR PRICE means, group included", function()
         local GC = loadSniper()
         grouped(GC)
@@ -935,6 +968,23 @@ describe("Live price caps -- buying at the player's own price", function()
 
       -- 20 units: 20 x floor(110g x 0.95) = 2090g back, against the 2900g they cost.
       assert.equal(GC.Util.FormatMoney(20 * 1045000 - 29000000), row.profitText.text)
+    end)
+
+    -- Review M5: the yardstick is the one every row uses (GC.DealMath.Measure). A realm item with
+    -- no region reference has none -- its own realm median is noise -- so its PROFIT says nothing.
+    it("says nothing under PROFIT for a realm cap lot with no region reference", function()
+      local GC = loadSniper()
+      GC.Data.GetItemValue = function() return { mv = 900000, kind = "realm_item" } end
+      adoptCap(GC, 42, 1000000)
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 800000, itemLevel = 615, quantity = 1 } })
+      local evaluate = getUpvalue(GC.Sniper.OnCommoditySearchResults, "evaluateLiveCommodityDeal")
+      local capDeal = getUpvalue(evaluate, "buildCapDeal")(42, false, decision, GC.Caps.For(42))
+      local row = fakeRow()
+
+      getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, capDeal)
+
+      assert.equal("—", row.profitText.text)
     end)
 
     it("sorts by that same total", function()
@@ -1225,6 +1275,59 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.is_true(d.enabled)
       click() -- Buy
       assert.equal(2, starts)
+    end)
+
+    -- Review M2: over a CONFIRMED commodity attempt, though, a bid still waits. That purchase
+    -- may already have taken the gold the bid's own affordability check can still see.
+    it("holds a realm lot's bid while a confirmed commodity purchase is still owed its answer", function()
+      local GC, _, _, _, click = armed()
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining",
+        { itemID = 77, token = 1, confirmed = true, drainingAt = 100 })
+      local bids = 0
+      _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+      local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+        { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+      local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+      local realmRow = { deal = lot, purchaseStage = "ready", purchaseToken = 3, decisionSnapshot = decision }
+      local d = reopened(GC, realmRow, lot)
+      d.enabled = true
+
+      click()
+
+      assert.equal(0, bids)
+      assert.equal("ready", realmRow.purchaseStage)
+      assert.is_false(d.enabled)
+    end)
+
+    -- Review M3: a confirmed attempt is owed its answer (or the stranded release, 35 s) and a Check
+    -- cannot retire it -- but Buy sat lit and refused all that while. It goes dark and says why;
+    -- the quote's own expiry hands the player Refresh.
+    it("does not leave Buy lit while a confirmed purchase settles", function()
+      local GC, row, _, d, click = armed()
+      local confirmed = { itemID = 77, token = 1, confirmed = true, drainingAt = 100 }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", confirmed)
+      assert.is_true(d.enabled)
+
+      click()
+
+      assert.equal(0, starts)
+      assert.equal("ready", row.purchaseStage)
+      assert.is_false(d.enabled)
+      assert.equal(GC.L["waiting for previous commodity purchase to settle"], d.written[#d.written])
+    end)
+
+    -- Review M4: a Check started while a CONFIRMED tombstone is down answers and leaves it there --
+    -- its late success still has to land on the attempt that paid.
+    it("never retires a confirmed tombstone on a Check's answer", function()
+      local GC, row, deal = armed()
+      local confirmed = { itemID = 42, token = 1, confirmed = true, drainingAt = 100 }
+      setUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining", confirmed)
+
+      getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "startRequery")(row, deal)
+      answer(GC)
+
+      assert.equal("ready", row.purchaseStage)
+      assert.is_true(getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "commodityDraining") == confirmed)
     end)
 
     -- The tombstone guards the commodity events; a realm lot's bid answers on its own.

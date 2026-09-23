@@ -1348,11 +1348,8 @@ local function setRowDeal(row, deal)
   -- row's tooltip names either way (GC.Sniper._CapNote).
   local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
   local function stampName(named)
-    local base = named .. qtySuffix(deal)
-    row.nameText:SetText(base .. capSuffix .. watchSuffix)
-    if capSuffix ~= "" and row.nameText.IsTruncated and row.nameText:IsTruncated() then
-      row.nameText:SetText(base .. watchSuffix)
-    end
+    row._nameParts = { named .. qtySuffix(deal), capSuffix, watchSuffix }
+    GC.Sniper._FitRowName(row)
   end
   local cached = nameIconCache[deal.itemID]
   if cached then
@@ -3473,8 +3470,11 @@ refreshAutoButton = function(targetFrame)
     f.autoBtn.lastText = text
     -- "AUTO · PAUSED: MAILBOX OPEN" is wider than the button's own 132: it grows to its label
     -- rather than cutting it, and the status line anchored to its right edge moves with it.
+    -- Unbounded: Theme.Button pins its label to the button's edges, one line, so GetStringWidth
+    -- answers with the width the button has already cut it to (review I1).
     local label = f.autoBtn.text
-    local width = label and label.GetStringWidth and label:GetStringWidth()
+    local width = label and (label.GetUnboundedStringWidth and label:GetUnboundedStringWidth()
+      or label.GetStringWidth and label:GetStringWidth())
     if type(width) == "number" and f.autoBtn.SetWidth then
       f.autoBtn:SetWidth(math.max(132, math.ceil(width) + 2 * Theme.pad.m))
     end
@@ -4664,14 +4664,17 @@ end
 local function buildCapDeal(itemID, isCommodity, decision, cap)
   local unit = decision.unit
   local value = GC.Data.GetItemValue(itemID)
-  local mv = value and value.mv or nil
   -- What reselling the units this row buys at the market would make after the cut, against what
   -- they cost -- the whole buy, as every other row's PROFIT is. It was one unit's resale against
   -- the cheapest level: "-5s 37c" beside a x400 row's 400g total (in game 2026-09-23), and the
   -- wrong sign outright for a buy that spans dearer levels. Kept on the row, not dropped: it is
-  -- the one place the board says what the player's own price is worth to the market. The row
-  -- shows a dash when there is no market at all (setRowDeal).
-  local estProfit = (mv and math.floor(mv * 0.95) or 0) * decision.quantity - decision.entryTotal
+  -- the one place the board says what the player's own price is worth to the market. Measured
+  -- by the yardstick every row uses (GC.DealMath.Measure, review M5): no market, or a realm item
+  -- with no region reference, is no yardstick -- `mv` stays nil and the row shows a dash
+  -- (setRowDeal).
+  local measured = GC.DealMath and GC.DealMath.Measure(unit, decision.quantity, value, decision.entryTotal)
+  local mv = measured and value.mv or nil
+  local estProfit = measured and measured.profit or -decision.entryTotal
   return {
     itemID = itemID,
     isCommodity = isCommodity,
@@ -4748,6 +4751,21 @@ function GC.Sniper._CapNote(deal)
     return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
   end
   return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+end
+
+-- Writes a row's item cell from the parts setRowDeal left on it (`_nameParts`: the name with its
+-- quantity, the cap row's group suffix, the watching suffix), leaving the group out when the cell
+-- has no room for it. Asked again by the row's own OnSizeChanged (createRow): decided once at
+-- the stamp, the group stayed cut after the window narrowed and never came back after it
+-- widened, because a row whose deal did not move skips its repaint (review M6).
+function GC.Sniper._FitRowName(row)
+  local parts = row and row._nameParts
+  if not parts then return end
+  local text = row.nameText
+  text:SetText(parts[1] .. parts[2] .. parts[3])
+  if parts[2] ~= "" and text.IsTruncated and text:IsTruncated() then
+    text:SetText(parts[1] .. parts[3])
+  end
 end
 
 -- A watched row's market reference, for its tooltip: the figures on the row are measured
@@ -7394,14 +7412,19 @@ local function onDialogPrimaryClick()
       GC.L["live verification required"], false)
     return
   end
-  if commodityDraining and deal.isCommodity then
+  if commodityDraining and (deal.isCommodity or commodityDraining.confirmed) then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
     -- later commodity Buy until the player reloaded -- with the Buy button sitting enabled,
     -- saying the purchase was possible. A CONFIRMED tombstone is never retired here; its late
-    -- success still has to land on the attempt that paid for it. A realm lot is not gated:
-    -- PlaceBid answers on its own event, never on the commodity ones the tombstone guards.
+    -- success still has to land on the attempt that paid for it. A realm lot waits only for a
+    -- confirmed one: PlaceBid answers on its own event, but a confirmed purchase may already
+    -- have taken gold the bid's affordability check still sees (review M2).
     if commodityDraining.confirmed then
+      -- Dark, not lit and refusing (review M3). A Check cannot retire a confirmed tombstone;
+      -- its answer or the stranded release does, and the quote's own expiry hands the player
+      -- Refresh meanwhile (scheduleArmTimeout).
+      dialog.primaryBtn:Disable()
       setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
       if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
       return
@@ -8311,12 +8334,25 @@ local function createDialog()
 
     local above = DG.HEADER_H + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
       + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
+    local openBefore = d.fixedHeightOpen
     d.fixedHeightClosed = above + DG.FACTS_H
     d.fixedHeightOpen = above + gridH
     -- Kept in step here too, not only in applyDetailsState: a verdict can drop the quantity
     -- block without the Details state changing at all, and resizeDialogDiagnostics measures
     -- the flowing block below off this number.
     d.fixedHeight = d.detailsOpen and d.fixedHeightOpen or d.fixedHeightClosed
+    -- A longer Reason grows the open transcript, and the fit guard ran only on a toggle, a
+    -- resize and construction (review M1): a three- or four-line Reason pushed an open grid into
+    -- the status line and Buy of a docked drawer that cannot grow. Re-run the same guard,
+    -- quietly, whenever this layout needs more than the last one did. The preference it
+    -- persists is the one already standing (open), and the guard closes only this session's
+    -- view; the layout it ends in is not a growth, so this does not recurse.
+    if d.detailsOpen and openBefore and d.fixedHeightOpen > openBefore and d.applyDetailsState then
+      local quiet = d.detailsQuiet
+      d.detailsQuiet = true
+      d.applyDetailsState(true)
+      d.detailsQuiet = quiet
+    end
   end
   d.layoutBlocks = layoutBlocks
 
@@ -9122,6 +9158,8 @@ createRow = function(parent, index)
   -- anything, the result is still cached on the deal for whichever row/dialog eventually reads
   -- it.
   row:EnableMouse(true)
+  -- The item cell's room follows the row's width; a cap row's group is re-decided with it.
+  row:SetScript("OnSizeChanged", function(self) GC.Sniper._FitRowName(self) end)
   row:SetScript("OnEnter", function(self)
     self.highlight:Show()
     self.rail:Show()
@@ -9135,10 +9173,12 @@ createRow = function(parent, index)
     -- What the background check found, in words. A refused row that the toolbar toggle has
     -- brought back into view is otherwise a status code and nothing else.
     local verdict = verdictFor(self.deal)
+    -- A cap row says what YOUR PRICE means and which group it came from, fresh verdict or not
+    -- (review M6: it waited on a cap verdict, and a verdict goes stale in two minutes). In place
+    -- of the verdict lines: "checked live -- safe to buy" is the market engine's word, and no
+    -- safety was judged here -- the player's own price was.
     local capNote = GC.Sniper._CapNote(self.deal)
-    if verdict and verdict.cap and capNote then
-      -- "checked live -- safe to buy" is the market engine's word, and no safety was judged
-      -- here: the player's own price was. The group it came from is named here too.
+    if capNote then
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
     elseif verdict then
