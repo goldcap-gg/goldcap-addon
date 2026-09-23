@@ -14,8 +14,9 @@
 - New option: stop scanning and open the buy window as soon as one of your prices is met (off
   by default). It never takes over a buy window you already have open: it waits until you
   close it.
-- The BUY tab shows the item level an alert group's gear price is set for ("item level 625+"),
-  and the auction house search it opens starts at that level when the sniper has seen it there.
+- The BUY tab shows the item level an alert group's gear price is set for ("item level 625+").
+  When the sniper has already seen the item at that level or higher, the auction house search it
+  opens shows the cheapest such version rather than whichever one the auction house picks.
 - A realm item listed in several item-level variants is now checked and bought at its cheapest
   variant, not whichever one the auction house answered first.
 
