@@ -223,6 +223,9 @@ LIM.DRILL_PER_MINUTE = 60
 -- slots in a row drills may take while a book-pass page waits for one (the pass gets the next).
 LIM.REHIT_SECONDS = 120
 LIM.DRILL_SHARE = 2
+-- How long an item's floor from this session's own browsing is worth telling in its tooltip
+-- (GC.Sniper.LiveFloor -> UI/Tooltip.lua's "On the AH now" line).
+LIM.LIVE_TOOLTIP_SECONDS = 900
 
 -- Sniper phase 2: how long a sent keys batch may go unanswered before the arbiter stops
 -- waiting for it. A batch answers in 200-400ms when it answers at all; this only exists so a
@@ -2905,6 +2908,21 @@ function GC.Sniper._NotePassSlot(drillStoodAside)
   if drillStoodAside then share.pages = share.pages + 1 end
 end
 
+-- What this session's own browsing last saw of an item, for its tooltip: the book pass's floor and
+-- quantity and how many seconds ago, while that is within LIM.LIVE_TOOLTIP_SECONDS -- including the
+-- minutes after the auction house closed (Core/BookPass.lua's Seen). nil otherwise, and nil for an
+-- item the browse list returned as more than one variant (gear by item level, caged pets by
+-- species): its row is one of them, not the item's floor.
+function GC.Sniper.LiveFloor(itemID, now)
+  local row = GC.Sniper._bookPass and GC.Sniper._bookPass:Seen(itemID)
+  if not row or row.variants or type(row.floor) ~= "number" or type(row.seenAt) ~= "number" then
+    return nil
+  end
+  local age = (now or time()) - row.seenAt
+  if age < 0 or age > LIM.LIVE_TOOLTIP_SECONDS then return nil end
+  return { floor = row.floor, qty = row.qty, age = age }
+end
+
 -- No isReady in this driver: the pass never decides for itself whether the throttled system
 -- is ready, because it never sends on its own initiative. Both of its sends happen inside
 -- GC.Sniper.OnThrottleReady, where readiness is the event's own premise.
@@ -2987,6 +3005,7 @@ GC.Sniper._bookPass = GC.BookPass.New({
 }, {
   widePassSeconds = LIM.WIDE_PASS_SECONDS,
   rehitSeconds = LIM.REHIT_SECONDS,
+  seenSeconds = LIM.LIVE_TOOLTIP_SECONDS,
   -- The classes pass: trade goods, consumables, gems, enhancements -- and Miscellaneous
   -- (whole-market coverage: ~1,500 commodities a region, most of them reached before only by the
   -- five-minute wide pass). Every other class stays on the wide pass. Each class falls back to its

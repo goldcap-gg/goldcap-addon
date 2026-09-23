@@ -10,12 +10,27 @@ GC.Tooltip = {}
 local STALE_YELLOW_SECONDS = 6 * 3600
 local STALE_RED_SECONDS = 24 * 3600
 
--- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...> }.
--- Both come from the caller rather than from `v` because neither belongs to the market
--- value: one is the player's own ledger, the other is which bundled table answered.
+-- opts.live (optional): { floor, qty, age } -- what this session's own auction house browsing last
+-- saw of the item (GC.Sniper.LiveFloor), inside LIM.LIVE_TOOLTIP_SECONDS. Its own line kind: the
+-- floor is drawn as coins by onTooltip, which owns GetCoinTextureString, and the rest is text.
+-- The age is clamped at zero: a clock that stepped back says "just now", never a negative minute.
+local function liveLine(live)
+  if type(live) ~= "table" or type(live.floor) ~= "number" or live.floor <= 0 then return nil end
+  local qty = type(live.qty) == "number" and live.qty or 0
+  local minutes = math.floor(math.max(0, tonumber(live.age) or 0) / 60)
+  local detail = minutes < 1 and (GC.L["%d listed · just now"]):format(qty)
+    or (GC.L["%d listed · %d min ago"]):format(qty, minutes)
+  return { kind = "live", left = GC.L["On the AH now"], copper = live.floor, detail = detail }
+end
+
+-- opts (optional): { unitCost = <copper per unit still held>, region = <"eu"|"kr"|...>,
+-- origin = <GC.Data.OriginState()>, live = <see liveLine> }. They come from the caller rather
+-- than from `v` because none belongs to the market value: the player's own ledger, which bundled
+-- table answered, where the save's prices came from, and what the auction house showed this session.
 function GC.Tooltip.BuildLines(v, now, opts)
-  if not v then return nil end
   opts = opts or {}
+  local live = liveLine(opts.live)
+  if not v then return live and { live } or nil end
   local lines = {}
   -- An IMPORTED realm item's `mv` is this one realm's own median, and that is not a price:
   -- a realm item can sit at two listings for days, so a median of two is whatever the odd
@@ -48,11 +63,11 @@ function GC.Tooltip.BuildLines(v, now, opts)
       -- the price the rest of the addon would trade on. Nothing else about the item is
       -- printed below: a median of two listings has no sale speed or depth to report, and a
       -- second number beside it would lend the first one authority it has not got.
-      if not v.mv then return nil end
+      if not v.mv then return live and { live } or nil end
       lines[1] = { kind = "money", label = GC.L["GoldCap realm median (unverified)"], copper = v.mv }
     end
   else
-    if not v.mv then return nil end
+    if not v.mv then return live and { live } or nil end
     lines[1] = { kind = "money", label = GC.L["GoldCap value"], copper = v.mv }
   end
   -- Trend, sale speed and depth belong to a REGION-wide measurement: the trend and sold
@@ -85,10 +100,13 @@ function GC.Tooltip.BuildLines(v, now, opts)
       lines[#lines + 1] = { kind = "text", left = GC.L["Listings"], right = tostring(v.listings) }
     end
   end
+  if live then lines[#lines + 1] = live end
   if opts.unitCost then
     lines[#lines + 1] = { kind = "money", label = GC.L["You paid"], copper = opts.unitCost }
   end
-  local age = now - (v.ts or 0)
+  -- Clamped like the live line's: data stamped ahead of this client's clock is new, not
+  -- negatively old.
+  local age = math.max(0, now - (v.ts or 0))
   if v.source == "bundled" then
     -- Bundled data is stale by construction -- it was baked into the release -- and it is
     -- region-wide, not this realm's. Saying so is not optional.
@@ -143,16 +161,20 @@ local function onTooltip(tooltip, data)
       or GC.L["no market figure for this item level"], 0.55, 0.55, 0.55, true)
     return
   end
-  local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), time(), {
+  local now = time()
+  local lines = GC.Tooltip.BuildLines(GC.Data.GetItemValue(itemID), now, {
     unitCost = GC.Acquisitions and GC.Acquisitions.UnitCostFor
       and GC.Acquisitions.UnitCostFor(itemID) or nil,
     region = GC.Data.Region and GC.Data.Region() or nil,
     origin = GC.Data.OriginState and GC.Data.OriginState() or nil,
+    live = GC.Sniper and GC.Sniper.LiveFloor and GC.Sniper.LiveFloor(itemID, now) or nil,
   })
   if not lines then return end
   for _, ln in ipairs(lines) do
     if ln.kind == "money" then
       tooltip:AddDoubleLine(ln.label, GetCoinTextureString(ln.copper), 0.65, 0.82, 1, 1, 1, 1)
+    elseif ln.kind == "live" then
+      tooltip:AddDoubleLine(ln.left, GetCoinTextureString(ln.copper) .. " · " .. ln.detail, 0.65, 0.82, 1, 1, 1, 1)
     elseif ln.kind == "hint" then
       tooltip:AddLine(ln.text, 0.55, 0.55, 0.55, true)
     else

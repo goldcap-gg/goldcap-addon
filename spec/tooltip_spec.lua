@@ -277,4 +277,82 @@ describe("Tooltip.BuildLines", function()
     assert.is_truthy(text:find("tooltip:GetItem()", 1, true))
   end)
 
+  describe("the live line", function()
+    local LIVE = { floor = 11500, qty = 40, age = 150 }
+
+    it("says what the auction house showed this session, before what you paid", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 12400, sold = 86, ts = 1000, source = "region" }, 2000,
+        { live = LIVE, unitCost = 640 })
+      local live, paid
+      for i, ln in ipairs(lines) do
+        if ln.kind == "live" then live = i end
+        if ln.label == "You paid" then paid = i end
+      end
+      assert.is_truthy(live)
+      assert.equal("On the AH now", lines[live].left)
+      assert.equal(11500, lines[live].copper)
+      assert.equal("40 listed · 2 min ago", lines[live].detail)
+      assert.is_true(live < paid)
+    end)
+
+    it("says just now under a minute", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 12400, ts = 1000 }, 2000,
+        { live = { floor = 11500, qty = 3, age = 59 } })
+      assert.equal("3 listed · just now", lines[#lines].detail)
+    end)
+
+    it("stands alone for an item nothing else prices", function()
+      local lines = GC.Tooltip.BuildLines(nil, 2000, { live = LIVE })
+      assert.equal(1, #lines)
+      assert.equal("live", lines[1].kind)
+      assert.is_nil(GC.Tooltip.BuildLines(nil, 2000))
+    end)
+
+    it("stands alone beside a realm figure too thin to print", function()
+      local lines = GC.Tooltip.BuildLines({ source = "import", kind = "realm_item", ts = 1000 }, 2000,
+        { live = LIVE })
+      assert.equal(1, #lines)
+      assert.equal("live", lines[1].kind)
+    end)
+
+    it("never prints an age below zero", function()
+      local lines = GC.Tooltip.BuildLines(nil, 2000, { live = { floor = 11500, qty = 3, age = -600 } })
+      assert.equal("3 listed · just now", lines[1].detail)
+    end)
+
+    it("is drawn with the coin string, from what the Sniper's book saw", function()
+      local text = assert(io.open("GoldCap/UI/Tooltip.lua")):read("*a")
+      assert.is_truthy(text:find("GC.Sniper.LiveFloor(itemID, now)", 1, true))
+      assert.is_truthy(text:find('ln.kind == "live"', 1, true))
+      assert.is_truthy(text:find('GetCoinTextureString(ln.copper) .. " · " .. ln.detail', 1, true))
+    end)
+  end)
+
+  describe("a region-payload price", function()
+    it("prints as the GoldCap value with its sales and depth", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 12400, sold = 86, currentQty = 4210, listings = 68,
+        ts = 1000, source = "region", kind = "region_commodity" }, 2000)
+      assert.equal("GoldCap value", lines[1].label)
+      assert.equal("Sold per day", lines[2].left)
+      assert.equal("Listed", lines[3].left)
+    end)
+
+    it("is dated by the payload once it is six hours old, and not before", function()
+      local fresh = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "region" }, 6 * 3600 - 1)
+      for _, ln in ipairs(fresh) do assert.not_equal("GoldCap data age", ln.left) end
+      local old = GC.Tooltip.BuildLines({ mv = 100, ts = 0, source = "region" }, 7 * 3600)
+      assert.equal("GoldCap data age", old[#old].left)
+      assert.equal("7h", old[#old].right)
+    end)
+
+    it("prints a realm item's region reference like the bundled one, fresh", function()
+      local lines = GC.Tooltip.BuildLines({ mv = 720, listings = 11, ts = 1000, source = "region",
+        kind = "realm_item" }, 2000)
+      assert.equal("GoldCap value", lines[1].label)
+      assert.equal(720, lines[1].copper)
+      assert.equal("Listings", lines[2].left)
+      assert.equal(2, #lines)
+    end)
+  end)
+
 end)

@@ -804,4 +804,7 @@ GC.Locales.deDE = {
     "ihr Datum kann nicht stimmen -- prüfe die Uhr dieses Computers",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "sie wurden zurückgestellt, als in dieser Sitzung andere Preise geladen wurden -- /reload, um sie wieder zu nutzen",
+  ["On the AH now"] = "Gerade im AH",
+  ["%d listed · %d min ago"] = "%d eingestellt · vor %d Min.",
+  ["%d listed · just now"] = "%d eingestellt · gerade eben",
 }

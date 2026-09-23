@@ -35,6 +35,8 @@ GC.Locales.enUS = {
   ["%d lines · %d to buy · %d at the vendor"] = "%d lines · %d to buy · %d at the vendor",
   ["%d lines · %d to buy · %d to craft · %d at the vendor"] =
     "%d lines · %d to buy · %d to craft · %d at the vendor",
+  ["%d listed · %d min ago"] = "%d listed · %d min ago",
+  ["%d listed · just now"] = "%d listed · just now",
   ["%d lots, %s asked"] = "%d lots, %s asked",
   ["%d missing"] = "%d missing",
   ["%d partial"] = "%d partial",
@@ -398,6 +400,7 @@ GC.Locales.enUS = {
   ["ON GOLDCAP.GG — LAST %d DAYS"] = "ON GOLDCAP.GG — LAST %d DAYS",
   ["ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d"] = "ON GOLDCAP.GG — LAST %d DAYS, LATEST %d OF %d",
   ["ON THE AUCTION HOUSE"] = "ON THE AUCTION HOUSE",
+  ["On the AH now"] = "On the AH now",
   ["One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime."] =
     "One-shot scan of the entire Auction House via paged browse queries. Takes roughly 15-60 seconds on busy realms. No cooldown -- rescan anytime.",
   ["Open the Auction House first."] = "Open the Auction House first.",

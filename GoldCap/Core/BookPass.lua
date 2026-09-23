@@ -20,15 +20,21 @@ function GC.BookPass.New(driver, opts)
   -- Whole-market coverage: how soon an unchanged floor whose hit the drill queue let go of
   -- undrilled (obj:Lost) may be reported again. A moved floor is reported at once, as always.
   local rehitSeconds = opts.rehitSeconds or 120
+  -- How long a row stays readable through Seen() after Reset() -- the tooltip's live line
+  -- (UI/SniperFrame.lua's LiveFloor). 0 keeps nothing, as before.
+  local seenSeconds = opts.seenSeconds or 0
   local classFilters = opts.itemClassFilters or {}
 
   local obj = {}
-  local book = {}          -- itemID -> { floor, qty, seenAt, kind }; SURVIVES Abort() and every Start()
+  local book = {}          -- itemID -> { floor, qty, seenAt, kind, variants }; SURVIVES Abort() and
+                            -- every Start(). `variants` (true or nil): see foldRow.
   local classesSeen = {}   -- itemID -> true, for any item EVER folded by a classes pass this
                             -- session (survives Abort()/Start(), cleared only by Reset())
   local lost = {}          -- itemID -> true: its last hit left the drill queue undrilled (obj:Lost)
   local reportedAt = {}    -- itemID -> driver.now() of its last hit
   local rehits = 0         -- hits reported again after a loss, since /reload (/gc board; Reset leaves it)
+  local recent = {}        -- itemID -> book row carried over Reset() while younger than seenSeconds
+  local passKeys = {}      -- itemID -> the variant key of its first row THIS pass (see foldRow)
   local kind = nil         -- nil | "classes" | "wide"
   local paging = false
   local pendingStart = false
@@ -67,7 +73,18 @@ function GC.BookPass.New(driver, opts)
     local again = not changed and lost[itemID] == true
       and (now - (reportedAt[itemID] or 0)) >= rehitSeconds
     local hit = trigger and floor < trigger and (changed or again)
-    book[itemID] = { floor = floor, qty = qty, seenAt = now, kind = kind }
+    -- The book is keyed by item, the browse list by item KEY: gear comes back as one row per item
+    -- level, and every caged pet as item 82800 with its own species. The row kept is the last one
+    -- folded, which says nothing about the item as a whole -- so an item seen as two variants in one
+    -- pass is marked, for the rest of the session and past Reset() with it, and Seen()'s reader
+    -- (UI/SniperFrame.lua's LiveFloor) does not print it as the item's price.
+    local variantKey = (itemKey.itemLevel or 0) .. ":" .. (itemKey.itemSuffix or 0) .. ":"
+      .. (itemKey.battlePetSpeciesID or 0)
+    local carried = recent[itemID]
+    local variants = (prev and prev.variants) or (carried and carried.variants)
+      or (passKeys[itemID] ~= nil and passKeys[itemID] ~= variantKey) or nil
+    passKeys[itemID] = passKeys[itemID] or variantKey
+    book[itemID] = { floor = floor, qty = qty, seenAt = now, kind = kind, variants = variants }
     if kind == "classes" then classesSeen[itemID] = true end
     if hit then
       lost[itemID] = nil
@@ -117,6 +134,7 @@ function GC.BookPass.New(driver, opts)
     rawWatermark = 0
     pagesThisPass = 0
     passStartedAt = driver.now()
+    for itemID in pairs(passKeys) do passKeys[itemID] = nil end
   end
 
   function obj:OnResultsUpdated() handleResults() end
@@ -161,7 +179,15 @@ function GC.BookPass.New(driver, opts)
   -- reset: it paces an expensive unfiltered pass against wall time, and reopening the AH does
   -- not make one more urgent.
   function obj:Reset()
+    -- The book itself must not survive (see above), but what it saw may still be told: the
+    -- rows younger than seenSeconds move to `recent`, and anything older there is let go.
+    local now = driver.now()
+    for itemID, row in pairs(book) do recent[itemID] = row end
+    for itemID, row in pairs(recent) do
+      if now - (row.seenAt or 0) >= seenSeconds then recent[itemID] = nil end
+    end
     for itemID in pairs(book) do book[itemID] = nil end
+    for itemID in pairs(passKeys) do passKeys[itemID] = nil end
     for itemID in pairs(classesSeen) do classesSeen[itemID] = nil end
     for itemID in pairs(lost) do lost[itemID] = nil end
     for itemID in pairs(reportedAt) do reportedAt[itemID] = nil end
@@ -181,6 +207,10 @@ function GC.BookPass.New(driver, opts)
   end
 
   function obj:Book() return book end
+
+  -- What the book last saw of an item: this session's row, or the one carried over the last
+  -- Reset() while it is younger than seenSeconds. The caller applies its own window.
+  function obj:Seen(itemID) return book[itemID] or recent[itemID] end
 
   -- True once an itemID has ever been folded by a CLASSES pass this session (i.e. it is
   -- in-class), regardless of what pass folded it most recently. Distinct from "does the book

@@ -727,4 +727,7 @@ GC.Locales.zhCN = {
   ["its date cannot be right -- check this computer's clock"] = "其日期不可能正确 -- 请检查这台电脑的时钟",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "本次载入其他价格时已被搁置 -- 输入 /reload 可重新使用",
+  ["On the AH now"] = "拍卖行当前",
+  ["%d listed · %d min ago"] = "在售 %d · %d 分钟前",
+  ["%d listed · just now"] = "在售 %d · 刚刚",
 }

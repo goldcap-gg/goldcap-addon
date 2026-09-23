@@ -429,4 +429,26 @@ describe("Book pass wiring", function()
     assert.is_truthy(line)
     assert.equal("sniper: facts=3 queue=1 lost=0 rehits=0 lastPass=classes 12s/9 pages drillShare=4/6", line)
   end)
+
+  it("tells the tooltip what the book saw, for fifteen minutes", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 120 }
+    assert.same({ floor = 12345, qty = 40, age = 120 }, GC.Sniper.LiveFloor(777, 1000))
+    assert.same({ floor = 12345, qty = 40, age = 900 }, GC.Sniper.LiveFloor(777, 1000 + 780))
+    assert.is_nil(GC.Sniper.LiveFloor(777, 1000 + 781))
+    assert.is_nil(GC.Sniper.LiveFloor(778, 1000))
+  end)
+
+  it("tells the tooltip nothing for an item whose book row is one of its variants", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 120, variants = true }
+    assert.is_nil(GC.Sniper.LiveFloor(777, 1000))
+  end)
+
+  it("hands the book pass the tooltip's window, so the line outlives closing the auction house", function()
+    local GC = loadSniper()
+    GC.Sniper._bookPass:Book()[777] = { floor = 12345, qty = 40, seenAt = 1000 - 60 }
+    GC.Sniper._bookPass:Reset()
+    assert.same({ floor = 12345, qty = 40, age = 60 }, GC.Sniper.LiveFloor(777, 1000))
+  end)
 end)

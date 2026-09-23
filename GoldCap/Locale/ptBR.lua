@@ -803,4 +803,7 @@ GC.Locales.ptBR = {
     "a data deles não pode estar certa -- confira o relógio deste computador",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "eles foram deixados de lado quando outros preços foram carregados nesta sessão -- /reload para usá-los de novo",
+  ["On the AH now"] = "Na casa de leilões agora",
+  ["%d listed · %d min ago"] = "%d anunciados · há %d min",
+  ["%d listed · just now"] = "%d anunciados · agora mesmo",
 }

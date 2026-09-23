@@ -805,4 +805,7 @@ GC.Locales.itIT = {
     "la loro data non può essere giusta -- controlla l'orologio di questo computer",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "sono stati messi da parte quando in questa sessione sono stati caricati altri prezzi -- /reload per usarli di nuovo",
+  ["On the AH now"] = "All'asta adesso",
+  ["%d listed · %d min ago"] = "%d in vendita · %d min fa",
+  ["%d listed · just now"] = "%d in vendita · proprio ora",
 }

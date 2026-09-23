@@ -805,4 +805,7 @@ GC.Locales.frFR = {
     "leur date ne peut pas être juste -- vérifiez l'horloge de cet ordinateur",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "elles ont été mises de côté quand d'autres prix ont été chargés pendant cette session -- /reload pour les réutiliser",
+  ["On the AH now"] = "À l'HV maintenant",
+  ["%d listed · %d min ago"] = "%d en vente · il y a %d min",
+  ["%d listed · just now"] = "%d en vente · à l'instant",
 }

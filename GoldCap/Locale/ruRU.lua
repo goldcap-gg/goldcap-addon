@@ -799,4 +799,7 @@ GC.Locales.ruRU = {
     "их дата не может быть верной -- проверьте часы этого компьютера",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "они были отложены, когда в этой сессии загрузили другие цены -- /reload, чтобы снова их использовать",
+  ["On the AH now"] = "На аукционе сейчас",
+  ["%d listed · %d min ago"] = "выставлено %d · %d мин назад",
+  ["%d listed · just now"] = "выставлено %d · только что",
 }

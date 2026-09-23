@@ -728,4 +728,7 @@ GC.Locales.zhTW = {
   ["its date cannot be right -- check this computer's clock"] = "其日期不可能正確 -- 請檢查這台電腦的時鐘",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "本次載入其他價格時已被擱置 -- 輸入 /reload 可重新使用",
+  ["On the AH now"] = "拍賣場目前",
+  ["%d listed · %d min ago"] = "在售 %d · %d 分鐘前",
+  ["%d listed · just now"] = "在售 %d · 剛剛",
 }

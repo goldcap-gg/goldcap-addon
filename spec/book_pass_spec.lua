@@ -440,4 +440,71 @@ describe("BookPass", function()
       assert.is_nil(next(reportedAt))
     end)
   end)
+
+  it("keeps what it saw in the last seenSeconds readable across Reset, for the tooltip", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()            -- folded at now = 1000
+    now = 1500
+    bp:Reset()
+    assert.is_nil(bp:Book()[1])
+    assert.same({ floor = 500, qty = 7, seenAt = 1000, kind = "classes" }, bp:Seen(1))
+    now = 1000 + 900
+    bp:Reset()
+    assert.is_nil(bp:Seen(1))
+  end)
+
+  it("keeps nothing across Reset by default", function()
+    local bp = newPass()
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()
+    assert.equal(500, bp:Seen(1).floor)
+    bp:Reset()
+    assert.is_nil(bp:Seen(1))
+  end)
+
+  it("answers Seen from this session's book before anything carried over Reset", function()
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 500, 7) }
+    bp:OnResultsUpdated()
+    now = 1100
+    bp:Reset()
+    bp:Start("classes")
+    bp:OnThrottleReady()
+    browseResults = { row(1, 450, 9) }
+    bp:OnResultsUpdated()
+    assert.same({ floor = 450, qty = 9, seenAt = 1100, kind = "classes" }, bp:Seen(1))
+  end)
+
+  -- The book is keyed by item, the browse list by item KEY: a piece of gear comes back as one row
+  -- per item level, and every caged pet as item 82800 with its own species. The book row is
+  -- whichever of them was folded last, so it is marked, and the tooltip does not print it as the
+  -- item's price (UI/SniperFrame.lua's LiveFloor).
+  it("marks an item that came back as more than one variant, and keeps the mark", function()
+    local function variantRow(itemID, minPrice, qty, itemLevel)
+      return { itemKey = { itemID = itemID, itemLevel = itemLevel }, minPrice = minPrice, totalQuantity = qty }
+    end
+    local bp = newPass({ seenSeconds = 900 })
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { variantRow(5, 900, 1, 606), variantRow(6, 300, 2, 600), variantRow(5, 70000, 1, 623) }
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Seen(5).variants)
+    assert.is_nil(bp:Seen(6).variants)
+    -- The next pass's first row of the item does not make it a single-variant item again.
+    bp:Start("wide")
+    bp:OnThrottleReady()
+    browseResults = { variantRow(5, 900, 1, 606) }
+    bp:OnResultsUpdated()
+    assert.is_true(bp:Seen(5).variants)
+    now = 1100
+    bp:Reset()
+    assert.is_true(bp:Seen(5).variants)
+  end)
 end)

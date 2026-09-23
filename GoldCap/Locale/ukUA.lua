@@ -818,4 +818,7 @@ GC.Locales.ukUA = {
     "їхня дата не може бути правильною -- перевірте годинник цього комп'ютера",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "їх відклали, коли в цій сесії завантажили інші ціни -- /reload, щоб знову їх використати",
+  ["On the AH now"] = "На аукціоні зараз",
+  ["%d listed · %d min ago"] = "виставлено %d · %d хв тому",
+  ["%d listed · just now"] = "виставлено %d · щойно",
 }

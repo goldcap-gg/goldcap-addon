@@ -752,4 +752,7 @@ GC.Locales.koKR = {
   ["its date cannot be right -- check this computer's clock"] = "날짜가 올바를 수 없습니다 -- 이 컴퓨터의 시계를 확인하세요",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "이번 세션에서 다른 시세를 불러오면서 보류되었습니다 -- 다시 쓰려면 /reload",
+  ["On the AH now"] = "지금 경매장",
+  ["%d listed · %d min ago"] = "%d개 등록 · %d분 전",
+  ["%d listed · just now"] = "%d개 등록 · 방금",
 }
