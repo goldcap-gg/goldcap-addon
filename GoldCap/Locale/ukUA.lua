@@ -25,7 +25,7 @@ GC.Locales.ukUA = {
   ["%d days"] = "%d дн.",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d угод з останнього сканування -- Full Scan, щоб оновити",
-  ["%d filtered out as hard to resell"] = "%d відсіяно як важкі для перепродажу",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d відсіяно: важко перепродати або нижче твого мінімального прибутку з купівлі",
   ["%d held back"] = "%d притримано",
   ["%d held back from posting"] = "%d притримано від виставлення",
   ["%d hidden -- the live check refused them"] = "%d приховано -- жива перевірка їх відхилила",
@@ -52,7 +52,7 @@ GC.Locales.ukUA = {
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   ["%s+ ahead"] = "%s+ попереду",
   ["%s+, %d prices read"] = "%s+, прочитано %d цін",
-  [", %d hidden as unsellable"] = ", приховано %d як непродавані",
+  [", %d hidden: hard to resell or under your min profit"] = ", приховано %d: важко перепродати або нижче твого мінімального прибутку",
   ["1 lot, %s asked"] = "1 лот, просять %s",
   ["24h trend"] = "Тренд за 24г",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =

@@ -24,7 +24,7 @@ GC.Locales.koKR = {
   ["%d days"] = "%d일",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "지난 검색의 거래 %d건 -- 갱신하려면 Full Scan",
-  ["%d filtered out as hard to resell"] = "재판매가 어려워 %d건 제외",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "재판매가 어렵거나 1회 구매 최소 수익 미만이라 %d건 제외",
   ["%d held back"] = "%d건 보류",
   ["%d held back from posting"] = "등록에서 %d건 보류",
   ["%d hidden -- the live check refused them"] = "%d개 숨김 -- 실시간 확인에서 거부됨",
@@ -51,7 +51,7 @@ GC.Locales.koKR = {
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   ["%s+ ahead"] = "앞에 %s+",
   ["%s+, %d prices read"] = "%s+, 가격 %d개 읽음",
-  [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
+  [", %d hidden: hard to resell or under your min profit"] = ", 재판매가 어렵거나 최소 수익 미만이라 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
   ["24h trend"] = "24시간 추세",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =

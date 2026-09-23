@@ -26,7 +26,7 @@ GC.Locales.zhTW = {
   ["%d days"] = "%d 天",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "上次掃描的 %d 筆交易 -- 按 Full Scan 更新",
-  ["%d filtered out as hard to resell"] = "%d 筆因難以轉售而濾除",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d 筆因難以轉售或低於單次購買最低利潤而濾除",
   ["%d held back"] = "%d 筆保留",
   ["%d held back from posting"] = "%d 筆未上架",
   ["%d hidden -- the live check refused them"] = "已隱藏 %d 項 -- 即時核對已拒絕",
@@ -53,7 +53,7 @@ GC.Locales.zhTW = {
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",
   ["%s+ ahead"] = "前面有 %s+",
   ["%s+, %d prices read"] = "%s+，已讀 %d 個價位",
-  [", %d hidden as unsellable"] = "，%d 件因無法出售已隱藏",
+  [", %d hidden: hard to resell or under your min profit"] = "，%d 件因難以轉售或低於你的最低利潤已隱藏",
   ["1 lot, %s asked"] = "1 批，要價 %s",
   ["24h trend"] = "24小時走勢",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =

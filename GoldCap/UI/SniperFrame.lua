@@ -1896,7 +1896,7 @@ function GC.Sniper._UpdateEmptyState(shownCount)
   elseif refusedCount > 0 or screened > 0 then
     local parts = {}
     if screened > 0 then
-      parts[#parts + 1] = GC.L["%d filtered out as hard to resell"]:format(screened)
+      parts[#parts + 1] = GC.L["%d filtered out: hard to resell, or under your Min profit per buy"]:format(screened)
     end
     if refusedCount > 0 then
       parts[#parts + 1] = (GC.L["%d refused by live checks -- press \"HIDDEN %d\" above to review them"]):format(
@@ -2654,9 +2654,10 @@ local function applyFullScanResults(rowsList, groupCount, kind)
   if frame then
     -- Name the rows the pre-screen removed rather than presenting a shorter list as if it were
     -- the whole market: a player who cannot see the number cannot tell a quiet market from a
-    -- strict filter.
+    -- strict filter. The count takes the rows under the player's Min profit per buy too
+    -- (Core/FullScan.lua), so the sentence names both reasons.
     local hidden = (GC.Sniper._screenedCount or 0) > 0
-      and (GC.L[", %d hidden as unsellable"]):format(GC.Sniper._screenedCount) or ""
+      and (GC.L[", %d hidden: hard to resell or under your min profit"]):format(GC.Sniper._screenedCount) or ""
     -- Sniper phase 2: what the realm-item poll asked about during the cycle that just ended,
     -- appended to the SAME trailing slot the hidden count uses. Both sentences below already
     -- end in a "%s" for it, and adding a second specifier would reword the key -- which

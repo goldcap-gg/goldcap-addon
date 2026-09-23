@@ -143,6 +143,22 @@ describe("locale layer", function()
     end
   end)
 
+  -- The scan's hidden count takes rows under the player's Min profit per buy as well as the ones
+  -- that are hard to resell (Core/FullScan.lua), and both of its sentences say so in every
+  -- language; the old keys, which named only the second reason, are gone.
+  it("says what the scan's hidden count counts, in every language", function()
+    for _, code in ipairs(helper.localeCodes()) do
+      local loc = helper.loadModule("Locale/Core.lua")
+      helper.loadModule("Locale/" .. code .. ".lua", loc)
+      for _, key in ipairs({ ", %d hidden: hard to resell or under your min profit",
+          "%d filtered out: hard to resell, or under your Min profit per buy" }) do
+        assert.is_string(loc.Locales[code][key], code .. " is missing " .. key)
+      end
+      assert.is_nil(loc.Locales[code][", %d hidden as unsellable"], code .. " keeps the old status key")
+      assert.is_nil(loc.Locales[code]["%d filtered out as hard to resell"], code .. " keeps the old empty-state key")
+    end
+  end)
+
   it("resolves the client locale on auto and the chosen one otherwise", function()
     assert.equal("deDE", GC.ResolveLocale("auto", "deDE"))
     assert.equal("enUS", GC.ResolveLocale("auto", nil))

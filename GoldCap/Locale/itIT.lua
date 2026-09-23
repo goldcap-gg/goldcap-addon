@@ -21,7 +21,7 @@ GC.Locales.itIT = {
   ["%d days"] = "%d giorni",
   ["%d deals from your last scan -- Full Scan to refresh"] =
     "%d occasioni dall'ultima scansione -- Full Scan per aggiornare",
-  ["%d filtered out as hard to resell"] = "%d scartate perché difficili da rivendere",
+  ["%d filtered out: hard to resell, or under your Min profit per buy"] = "%d scartate: difficili da rivendere o sotto il tuo profitto min. per acquisto",
   ["%d held back"] = "%d trattenute",
   ["%d held back from posting"] = "%d non messe in vendita",
   ["%d hidden -- the live check refused them"] = "%d nascoste -- la verifica dal vivo le ha rifiutate",
@@ -49,7 +49,7 @@ GC.Locales.itIT = {
   ["%s — %d unit%s without a cost"] = "%s — %d unità%s senza costo",
   ["%s+ ahead"] = "%s+ davanti",
   ["%s+, %d prices read"] = "%s+, %d prezzi letti",
-  [", %d hidden as unsellable"] = ", %d nascosti perché invendibili",
+  [", %d hidden: hard to resell or under your min profit"] = ", %d nascosti: difficili da rivendere o sotto il tuo profitto minimo",
   ["1 lot, %s asked"] = "1 lotto, richiesti %s",
   ["24h trend"] = "Andamento 24h",
   ["A dash means GoldCap does not know the cost of every unit yet -- it will never guess one from the market price."] =
