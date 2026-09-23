@@ -812,4 +812,15 @@ GC.Locales.esMX = {
   ["On the AH now"] = "En subasta",
   ["%d listed · %d min ago"] = "%d publicados · hace %d min",
   ["%d listed · just now"] = "%d publicados · justo ahora",
+  ["it could not be read (%s)"] = "no se pudieron leer (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "son de una región que esta versión de GoldCap no conoce -- actualiza el addon",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "tienen un formato que esta versión de GoldCap no puede leer -- actualiza el addon",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "son más grandes de lo que esta versión de GoldCap puede leer -- actualiza el addon",
+  ["the Companion wrote it empty -- let it sync again"] =
+    "el Companion los escribió vacíos -- deja que vuelva a sincronizar",
+  ["the Companion wrote it with no prices -- let it sync again"] =
+    "el Companion los escribió sin precios -- deja que vuelva a sincronizar",
 }

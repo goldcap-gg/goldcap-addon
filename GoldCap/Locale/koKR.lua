@@ -755,4 +755,13 @@ GC.Locales.koKR = {
   ["On the AH now"] = "지금 경매장",
   ["%d listed · %d min ago"] = "%d개 등록 · %d분 전",
   ["%d listed · just now"] = "%d개 등록 · 방금",
+  ["it could not be read (%s)"] = "읽을 수 없었습니다 (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "이 GoldCap 버전이 모르는 지역의 자료입니다 -- 애드온을 업데이트하세요",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "이 GoldCap 버전이 읽을 수 없는 형식입니다 -- 애드온을 업데이트하세요",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "이 GoldCap 버전이 읽을 수 있는 크기보다 큽니다 -- 애드온을 업데이트하세요",
+  ["the Companion wrote it empty -- let it sync again"] = "Companion이 빈 자료를 기록했습니다 -- 다시 동기화하도록 두세요",
+  ["the Companion wrote it with no prices -- let it sync again"] = "Companion이 시세 없이 기록했습니다 -- 다시 동기화하도록 두세요",
 }

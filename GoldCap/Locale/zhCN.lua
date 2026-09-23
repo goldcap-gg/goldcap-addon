@@ -730,4 +730,12 @@ GC.Locales.zhCN = {
   ["On the AH now"] = "拍卖行当前",
   ["%d listed · %d min ago"] = "在售 %d · %d 分钟前",
   ["%d listed · just now"] = "在售 %d · 刚刚",
+  ["it could not be read (%s)"] = "无法读取（%s）",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "它属于这个版本的 GoldCap 不认识的地区 -- 请更新插件",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "它的格式这个版本的 GoldCap 读不懂 -- 请更新插件",
+  ["it is larger than this build of GoldCap reads -- update the addon"] = "它超出了这个版本的 GoldCap 能读取的大小 -- 请更新插件",
+  ["the Companion wrote it empty -- let it sync again"] = "Companion 写入的是空数据 -- 请让它再同步一次",
+  ["the Companion wrote it with no prices -- let it sync again"] = "Companion 写入时没有任何价格 -- 请让它再同步一次",
 }

@@ -807,4 +807,15 @@ GC.Locales.deDE = {
   ["On the AH now"] = "Gerade im AH",
   ["%d listed · %d min ago"] = "%d eingestellt · vor %d Min.",
   ["%d listed · just now"] = "%d eingestellt · gerade eben",
+  ["it could not be read (%s)"] = "sie ließen sich nicht lesen (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "sie gehören zu einer Region, die diese GoldCap-Version nicht kennt -- aktualisiere das Addon",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "sie liegen in einer Form vor, die diese GoldCap-Version nicht lesen kann -- aktualisiere das Addon",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "sie sind größer, als diese GoldCap-Version lesen kann -- aktualisiere das Addon",
+  ["the Companion wrote it empty -- let it sync again"] =
+    "der Companion hat sie leer geschrieben -- lass ihn noch einmal synchronisieren",
+  ["the Companion wrote it with no prices -- let it sync again"] =
+    "der Companion hat sie ohne Preise geschrieben -- lass ihn noch einmal synchronisieren",
 }

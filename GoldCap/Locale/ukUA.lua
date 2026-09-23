@@ -821,4 +821,15 @@ GC.Locales.ukUA = {
   ["On the AH now"] = "На аукціоні зараз",
   ["%d listed · %d min ago"] = "виставлено %d · %d хв тому",
   ["%d listed · just now"] = "виставлено %d · щойно",
+  ["it could not be read (%s)"] = "їх не вдалося прочитати (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "вони для регіону, якого ця версія GoldCap не знає -- оновіть аддон",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "вони у форматі, який ця версія GoldCap не вміє читати -- оновіть аддон",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "вони більші, ніж може прочитати ця версія GoldCap -- оновіть аддон",
+  ["the Companion wrote it empty -- let it sync again"] =
+    "Companion записав їх порожніми -- дайте йому синхронізуватися ще раз",
+  ["the Companion wrote it with no prices -- let it sync again"] =
+    "Companion записав їх без цін -- дайте йому синхронізуватися ще раз",
 }

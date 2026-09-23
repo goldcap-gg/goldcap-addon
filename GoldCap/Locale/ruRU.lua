@@ -802,4 +802,15 @@ GC.Locales.ruRU = {
   ["On the AH now"] = "На аукционе сейчас",
   ["%d listed · %d min ago"] = "выставлено %d · %d мин назад",
   ["%d listed · just now"] = "выставлено %d · только что",
+  ["it could not be read (%s)"] = "их не удалось прочитать (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "они для региона, которого эта версия GoldCap не знает -- обновите аддон",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "они в формате, который эта версия GoldCap не умеет читать -- обновите аддон",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "они больше, чем может прочитать эта версия GoldCap -- обновите аддон",
+  ["the Companion wrote it empty -- let it sync again"] =
+    "Companion записал их пустыми -- дайте ему синхронизироваться ещё раз",
+  ["the Companion wrote it with no prices -- let it sync again"] =
+    "Companion записал их без цен -- дайте ему синхронизироваться ещё раз",
 }

@@ -194,9 +194,25 @@ describe("ImportDialog", function()
         .. " -- /reload to use it again", reasonLine({ reason = "set_aside", ts = time() - 600 }))
     end)
 
-    it("gives a parser refusal the import error's own sentence", function()
-      GC.Data.DescribeImportError = function(reason) return "sentence for " .. reason end
-      assert.equal("whole-market data not in use: sentence for too_long", reasonLine({ reason = "too_long" }))
+    -- Final review M6: the manual import's sentences answer a player who pasted something ("that
+    -- does not look like a GoldCap import string"). Nobody pasted this; the Companion wrote it.
+    it("gives each parser refusal a sentence of its own, not the manual import's", function()
+      GC.Data.DescribeImportError = function(reason) return "import sentence for " .. reason end
+      local expected = {
+        empty = "the Companion wrote it empty -- let it sync again",
+        no_items = "the Companion wrote it with no prices -- let it sync again",
+        bad_header = "it is in a form this build of GoldCap cannot read -- update the addon",
+        bad_region = "it is for a region this build of GoldCap does not know -- update the addon",
+        too_long = "it is larger than this build of GoldCap reads -- update the addon",
+      }
+      for reason, sentence in pairs(expected) do
+        assert.equal("whole-market data not in use: " .. sentence, reasonLine({ reason = reason }))
+      end
+    end)
+
+    it("names a refusal it has no sentence for", function()
+      assert.equal("whole-market data not in use: it could not be read (bad_tail)",
+        reasonLine({ reason = "bad_tail" }))
     end)
 
     it("clamps an age it cannot trust rather than printing a negative or endless one", function()

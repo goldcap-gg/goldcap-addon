@@ -808,4 +808,15 @@ GC.Locales.frFR = {
   ["On the AH now"] = "À l'HV maintenant",
   ["%d listed · %d min ago"] = "%d en vente · il y a %d min",
   ["%d listed · just now"] = "%d en vente · à l'instant",
+  ["it could not be read (%s)"] = "elles n'ont pas pu être lues (%s)",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "elles concernent une région que cette version de GoldCap ne connaît pas -- mettez à jour l'addon",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "elles sont dans une forme que cette version de GoldCap ne sait pas lire -- mettez à jour l'addon",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "elles sont plus volumineuses que ce que cette version de GoldCap peut lire -- mettez à jour l'addon",
+  ["the Companion wrote it empty -- let it sync again"] =
+    "le Companion les a écrites vides -- laissez-le synchroniser à nouveau",
+  ["the Companion wrote it with no prices -- let it sync again"] =
+    "le Companion les a écrites sans aucun prix -- laissez-le synchroniser à nouveau",
 }

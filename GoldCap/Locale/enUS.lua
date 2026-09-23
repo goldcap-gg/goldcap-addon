@@ -688,8 +688,15 @@ GC.Locales.enUS = {
   ["includes %d for crafting %s"] = "includes %d for crafting %s",
   ["is what this market absorbs — past that you are buying stock you will sit on"] =
     "is what this market absorbs — past that you are buying stock you will sit on",
+  ["it could not be read (%s)"] = "it could not be read (%s)",
   ["it is %s old, and the prices you imported are newer"] = "it is %s old, and the prices you imported are newer",
+  ["it is for a region this build of GoldCap does not know -- update the addon"] =
+    "it is for a region this build of GoldCap does not know -- update the addon",
   ["it is for another region than the prices loaded"] = "it is for another region than the prices loaded",
+  ["it is in a form this build of GoldCap cannot read -- update the addon"] =
+    "it is in a form this build of GoldCap cannot read -- update the addon",
+  ["it is larger than this build of GoldCap reads -- update the addon"] =
+    "it is larger than this build of GoldCap reads -- update the addon",
   ["it was set aside when other prices were loaded this session -- /reload to use it again"] =
     "it was set aside when other prices were loaded this session -- /reload to use it again",
   ["item %d"] = "item %d",
@@ -802,6 +809,9 @@ GC.Locales.enUS = {
   ["that string does not name a realm"] = "that string does not name a realm",
   ["that string is too long to import"] = "that string is too long to import",
   ["the Auction House has not answered for this item yet"] = "the Auction House has not answered for this item yet",
+  ["the Companion wrote it empty -- let it sync again"] = "the Companion wrote it empty -- let it sync again",
+  ["the Companion wrote it with no prices -- let it sync again"] =
+    "the Companion wrote it with no prices -- let it sync again",
   ["the Companion wrote prices this addon could not read --"] = "the Companion wrote prices this addon could not read --",
   ["the auction house has not sent details for these yet"] =
     "the auction house has not sent details for these yet",
