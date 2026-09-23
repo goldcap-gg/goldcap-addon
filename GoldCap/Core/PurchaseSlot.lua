@@ -42,6 +42,18 @@ function GC.PurchaseSlot.Owner()
   return owner
 end
 
+-- How long a quote may wait at Confirm: `seconds`, each window's own bound inside MAX_SECONDS, or
+-- less when the client says its quote runs out sooner -- C_AuctionHouse.GetQuoteDurationRemaining,
+-- the figure Blizzard's own buy dialog counts down. A missing, failing or empty answer changes
+-- nothing. Both windows ask it when a quote lands (fix round 4, m2).
+function GC.PurchaseSlot.QuoteSeconds(seconds)
+  local api = C_AuctionHouse and C_AuctionHouse.GetQuoteDurationRemaining
+  if type(api) ~= "function" then return seconds end
+  local ok, left = pcall(api)
+  if ok and type(left) == "number" and left > 0 and left < seconds then return left end
+  return seconds
+end
+
 -- The one rule both Start sites keep (the Sniper's onDialogPrimaryClick, the BUY tab's
 -- onBuyClick): no commodity purchase starts while a purchase either window CONFIRMED is still owed
 -- its answer -- the claim above is not enough on its own. It goes stale after MAX_SECONDS, and a

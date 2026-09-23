@@ -89,6 +89,7 @@ GC.Locales.ukUA = {
   ["CANCEL LOT?"] = "СКАСУВАТИ ЛОТ?",
   ["CANCELLING…"] = "СКАСУВАННЯ…",
   ["CONFIRM"] = "ПІДТВЕРДИТИ",
+  ["CONFIRM (%d)"] = "ПІДТВЕРДИТИ (%d)",
   ["COST"] = "ЗАКУП",
   ["COST / UNIT"] = "СОБІВАРТІСТЬ / ШТ",
   ["Can't price this"] = "Ціну не оцінити",
@@ -666,6 +667,8 @@ GC.Locales.ukUA = {
   ["quote %ss ago"] = "котирування %sс тому",
   ["quote expired -- Refresh to re-check the price"] =
     "котирування протерміновано -- Refresh, щоб перевірити ціну ще раз",
+  ["quote expires in %d s -- click Confirm to buy"] =
+    "котирування спливає за %d с -- натисніть Confirm, щоб купити",
   ["re-checking what remains at a safe price..."] =
     "перевіряємо ще раз, що лишилося за безпечною ціною...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =

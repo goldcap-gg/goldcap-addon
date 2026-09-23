@@ -62,6 +62,9 @@ local BD = {
   -- click at t+19 would be watched until t+39 against a claim stamped at t. armStall re-stamps
   -- the claim on every arming, which is what actually holds the two together.
   CONFIRM_SECONDS = 20,
+  -- The last seconds of a quote the CONFIRM button counts down (fix round 4): Blizzard's own buy
+  -- dialog shows them from ten (REMAINING_QUOTE_DURATION_THRESHOLD).
+  COUNTDOWN_SECONDS = 10,
   -- Deep commodity books run to thousands of price levels and a purchase only ever walks as far
   -- as the cap lets it; the same bound UI/SniperFrame.lua's commodityBook uses.
   MAX_LEVELS = 60,
@@ -872,6 +875,12 @@ local function actionLabel(line)
   end
   if stage == "started" then return GC.L["buying..."], false end
   if stage == "confirm" then
+    -- The seconds the quote has left, once BD.COUNTDOWN_SECONDS remain (GC.Buy.TickCountdown
+    -- repaints once a second): a click aimed at the last one is not a surprise.
+    local left = attempt.stallEnds and math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
+    if left and left >= 1 and left <= BD.COUNTDOWN_SECONDS then
+      return (GC.L["CONFIRM (%d)"]):format(left), true
+    end
     return GC.L["CONFIRM"], true
   end
   if stage == "confirming" then return GC.L["confirming..."], false end
@@ -941,6 +950,17 @@ function GC.Buy.ConfirmOwed()
   return attempt ~= nil and attempt.stage == "confirming"
 end
 
+-- The auction house ticker's call (UI/SniperFrame.lua, four times a second): repaints the tab once
+-- a second while a CONFIRM counts down its last BD.COUNTDOWN_SECONDS (fix round 4, m2).
+function GC.Buy.TickCountdown()
+  local attempt = GC.Buy._attempt
+  if not (attempt and attempt.stage == "confirm" and attempt.stallEnds) then return end
+  local left = math.ceil(attempt.stallEnds - (GetTime and GetTime() or time()))
+  if left < 1 or left > BD.COUNTDOWN_SECONDS or left == attempt.countdownShown then return end
+  attempt.countdownShown = left
+  GC.Buy.RefreshIfShown()
+end
+
 -- The one record a terminal event can honestly be attributed to, consumed. A commodity event
 -- carries no attempt id, so with two of them live attribution is a guess: they are ALL dropped and
 -- nothing is recorded -- the same fail-closed answer the Sniper gives, and a better one than an
@@ -968,9 +988,10 @@ end
 -- left it RELEASED the slot on its way out, so an event gated on ownership alone could never
 -- reach the branch that books it. What a stranded record may never do is take an event from
 -- somebody who is holding the slot -- that purchase owns its own terminals. ANY claim of theirs,
--- not only one IsBusy still reports: the Sniper claims once at its buy click and never re-stamps,
--- so its own success can land past GC.PurchaseSlot.MAX_SECONDS with the claim still in place, and
--- a stranded record here would have taken it.
+-- not only one IsBusy still reports: the Sniper re-stamps its claim at every stage it holds a
+-- purchase in and at Confirm (GC.Sniper._ArmStall), but a confirmed purchase's success can still
+-- land past GC.PurchaseSlot.MAX_SECONDS after the last stamp, with the claim still in place, and a
+-- stranded record here would have taken it.
 --
 -- Nor may it take one when the Sniper holds a stranded confirm of its own. A commodity event
 -- carries nothing that could say which window's it is, so with a record on both sides the answer
@@ -1112,6 +1133,9 @@ armStall = function(attempt, seconds)
   -- the slot out from under a purchase this tab is still holding. Re-claiming by the current
   -- owner always succeeds and re-stamps (Core/PurchaseSlot.lua).
   if GC.PurchaseSlot then GC.PurchaseSlot.Claim("buy") end
+  -- When this wait runs out, for the CONFIRM countdown (actionLabel, GC.Buy.TickCountdown).
+  attempt.stallEnds = (GetTime and GetTime() or time()) + seconds
+  attempt.countdownShown = nil
   if not (C_Timer and C_Timer.After) then return end
   attempt.stall = (attempt.stall or 0) + 1
   local token, stall = attempt.token, attempt.stall
@@ -1407,7 +1431,9 @@ function GC.Buy.OnCommodityPriceUpdated(unitPrice, totalPrice)
     -- Back to `confirm` even from `confirming`: no gold moved, and the price on the button is a
     -- new one, so it needs the player's agreement again exactly as the first one did.
     attempt.stage = "confirm"
-    armStall(attempt, BD.CONFIRM_SECONDS)
+    -- Never past the server's own quote, when the client can say when it runs out (fix round 4).
+    armStall(attempt, GC.PurchaseSlot and GC.PurchaseSlot.QuoteSeconds
+      and GC.PurchaseSlot.QuoteSeconds(BD.CONFIRM_SECONDS) or BD.CONFIRM_SECONDS)
   else
     attempt.movedTotal = total
     attempt.stage = "requote"

@@ -1624,6 +1624,33 @@ describe("Live price caps -- buying at the player's own price", function()
           assert.equal("requerying", realmRow.purchaseStage)
         end)
 
+        -- Fix round 4 (n2): the hand-off is the ticker's, a quarter of a second apart. A click in that
+        -- gap -- BUY's purchase has just landed, the ticker has not looked yet -- bid on the decision
+        -- the spend had overtaken (probe RP6). The click asks first.
+        it("never bids in the moment between BUY letting go and the ticker noticing", function()
+          local GC, _, _, _, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          GC.Buy = { ConfirmOwed = function() return false end, RefreshIfShown = function() end }
+          local decision = GC.Caps.DecideRealm(GC.Caps.For(42),
+            { { auctionID = 9, buyout = 8000, itemLevel = 615, quantity = 1 } })
+          local lot = { itemID = 42, isCommodity = false, cap = CAP, unitPrice = 8000, qty = 1, auctionID = 9 }
+          local realmRow = { deal = lot, purchaseStage = "requerying", purchaseToken = 3 }
+          local d = reopened(GC, realmRow, lot)
+          local finishRequery = getUpvalue(GC.Sniper.OnCommoditySearchResults, "finishRequery")
+          getUpvalue(finishRequery, "applyRequeryResult")(realmRow, 42, { isCommodity = false, decision = decision })
+          assert.is_true(d.enabled)
+          GC.PurchaseSlot.Claim("buy")
+          GC.Sniper._TickOwedHold() -- the ticker sees BUY's purchase in flight
+          GC.PurchaseSlot.Release("buy") -- it lands; the ticker has not run since
+          local bids = 0
+          _G.C_AuctionHouse.PlaceBid = function() bids = bids + 1 end
+
+          click()
+
+          assert.equal(0, bids)
+          assert.equal("expired", realmRow.purchaseStage)
+        end)
+
         -- Fix round 3 (review n2): a BUY purchase started and not yet confirmed holds the shared slot.
         -- The Sniper's Buy met it lit and refusing ("finish the pending buy first"); it waits, dark.
         it("waits, dark, while the BUY tab holds a purchase it started", function()
@@ -1706,17 +1733,226 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.equal("requerying", row.purchaseStage)
           end)
 
-          it("retires a Start the server never quoted", function()
+          -- Fix round 4 (n3): ten seconds, like BUY's watchdog, and the line says what happened -- no
+          -- answer came -- rather than that a quote nobody saw has expired.
+          it("retires a Start the server never quoted, after ten seconds and in those words", function()
             local GC, row, _, d, click = armed()
             onTheClock(GC)
             click() -- Buy: Start at 100, and nothing comes back
-            clock = 115
+            clock = 109.9
+            runTimers()
+            assert.equal(0, cancels)
+            assert.equal("buying", row.purchaseStage)
+
+            clock = 110
             runTimers()
 
             assert.equal(1, cancels)
             assert.is_nil(GC.PurchaseSlot.Owner())
             assert.equal("expired", row.purchaseStage)
             assert.is_true(d.enabled)
+            assert.equal(GC.L["no answer from the auction house"], d.written[#d.written])
+          end)
+
+          -- Fix round 4 (m1): every guard the stall's Cancel stands on, pinned. RP1: Confirm and the
+          -- stall due within a frame of each other -- Confirm first. The stall must stand down for a
+          -- confirmed purchase, which is owed its answer, and the answer is booked once.
+          it("stands down for a purchase confirmed just before it is due, which is then booked once", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            click() -- Buy
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 121.9
+            click() -- Confirm, a tenth of a second before the stall
+            clock = 122
+            runTimers()
+
+            assert.equal(0, cancels)
+            assert.equal("confirming", row.purchaseStage)
+            assert.equal("sniper", GC.PurchaseSlot.Owner())
+            clock = 122.1
+            GC.Sniper.OnCommodityPurchaseSucceeded()
+            assertRecordedCapBuy(GC, 42, QTY, UNIT * QTY)
+            assert.is_nil(GC.PurchaseSlot.Owner())
+          end)
+
+          -- RP2: that confirm is then re-quoted. The re-quote is a new wait at Confirm with a stall of
+          -- its own; the old one is spent, and the new one runs its full course.
+          it("gives a re-quote after Confirm a stall of its own", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 121.9
+            click() -- Confirm
+            clock = 122
+            runTimers()
+            clock = 122.1
+            GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY) -- the server re-quotes
+            assert.equal("confirm", row.purchaseStage)
+
+            clock = 142
+            runTimers()
+            assert.equal(0, cancels)
+            assert.equal("confirm", row.purchaseStage)
+            clock = 142.1
+            runTimers()
+            assert.equal(1, cancels)
+            assert.equal("expired", row.purchaseStage)
+          end)
+
+          -- RP2b: a re-quote that lands before the old stall is due kills that stall.
+          it("does not let a stall outlive a re-quote that landed before it was due", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 121.95
+            GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY)
+            clock = 122
+            runTimers()
+
+            assert.equal(0, cancels)
+            assert.equal("confirm", row.purchaseStage)
+          end)
+
+          -- RP7: an attempt's stall is that attempt's. The first purchase on this row failed; the
+          -- player bought again on the same row; the first attempt's stall comes due while the
+          -- second waits at Confirm -- and must not cancel it.
+          it("never lets an earlier attempt's stall cancel the next attempt on the same row", function()
+            local GC, row, deal, _, click = armed()
+            onTheClock(GC)
+            click() -- attempt 1: Start at 100
+            clock = 101
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY) -- its stall is due at 121
+            clock = 102
+            GC.Sniper.OnCommodityPurchaseFailed() -- the server fails it
+            assert.is_nil(row.purchaseStage)
+
+            clock = 103
+            reopened(GC, row, deal)
+            local book = freshBook()
+            armReadyFn(GC)(row, deal, capLive(GC, 42, book).decision, book)
+            click() -- attempt 2 on the same row
+            assert.equal(2, starts)
+            clock = 104
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 121
+            runTimers()
+
+            assert.equal(0, cancels)
+            assert.equal("confirm", row.purchaseStage)
+          end)
+
+          -- RP8: every price update re-stamps the claim, not only the first. With a second update at
+          -- 120, the claim stamped at 101 would be stale at 131 -- BUY could take the slot and start
+          -- its own purchase, and the stall's Cancel at 140 would reach it.
+          it("re-stamps the claim at every price update, so BUY never gets the slot under it", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            click() -- Start at 100
+            clock = 101
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 120
+            GC.Sniper.OnCommodityPriceUpdated(UNIT - 10, (UNIT - 10) * QTY)
+            clock = 131
+            runTimers()
+            assert.is_false(GC.PurchaseSlot.Claim("buy"))
+
+            clock = 140
+            runTimers()
+            assert.equal(1, cancels) -- its own, the slot still its own
+            assert.is_nil(GC.PurchaseSlot.Owner())
+            assert.equal("expired", row.purchaseStage)
+          end)
+
+          -- Fix round 4 (n1): and the stall's Cancel is sent only into a slot that is the Sniper's.
+          -- Unreachable while the re-stamps hold (RP8); here the slot is handed to BUY by force.
+          it("never sends its Cancel into a slot that is not the Sniper's", function()
+            local GC, row, _, d, click = armed()
+            onTheClock(GC)
+            click()
+            clock = 101
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY) -- stall due at 121, not run on time
+            clock = 132
+            assert.is_true(GC.PurchaseSlot.Claim("buy")) -- stale by now: BUY has it
+            runTimers()
+
+            assert.equal(0, cancels)
+            assert.equal("buy", GC.PurchaseSlot.Owner())
+            assert.equal("expired", row.purchaseStage)
+            assert.equal(GC.L["another purchase took over -- nothing was confirmed"], d.written[#d.written])
+          end)
+
+          -- Fix round 4 (m2): Blizzard's own buy dialog shows the seconds a quote has left once ten
+          -- remain; so does this one, from the auction house ticker, so a Confirm aimed at the last
+          -- second is not a surprise Refresh.
+          it("counts down the last ten seconds of a quote on the status line", function()
+            local GC, _, _, d, click = armed()
+            onTheClock(GC)
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY) -- 20 s: until 122
+            local quoted = d.written[#d.written]
+            clock = 111.9
+            GC.Sniper._TickConfirmCountdown()
+            assert.equal(quoted, d.written[#d.written]) -- eleven seconds left: nothing yet
+
+            clock = 113
+            GC.Sniper._TickConfirmCountdown()
+            local nine = GC.L["quote expires in %d s -- click Confirm to buy"]:format(9)
+            assert.equal(nine, d.written[#d.written])
+            local count = #d.written
+            clock = 113.5
+            GC.Sniper._TickConfirmCountdown()
+            assert.equal(count, #d.written) -- written once a second, not four times
+            clock = 117.2
+            GC.Sniper._TickConfirmCountdown()
+            assert.equal(GC.L["quote expires in %d s -- click Confirm to buy"]:format(5), d.written[#d.written])
+          end)
+
+          it("waits at Confirm no longer than the server's own quote lasts", function()
+            local GC, row, _, _, click = armed()
+            onTheClock(GC)
+            _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 12 end
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 113.9
+            runTimers()
+            assert.equal(0, cancels)
+            clock = 114
+            runTimers()
+            assert.equal(1, cancels)
+            assert.equal("expired", row.purchaseStage)
+          end)
+
+          it("waits the full twenty seconds when the client cannot say how long its quote lasts", function()
+            local GC, _, _, _, click = armed()
+            onTheClock(GC)
+            _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return nil end
+            click()
+            clock = 102
+            GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+            clock = 121.9
+            runTimers()
+            assert.equal(0, cancels)
+            clock = 122
+            runTimers()
+            assert.equal(1, cancels)
+          end)
+
+          it("is counted down by the auction house ticker, in both windows", function()
+            local f = assert(io.open("GoldCap/UI/SniperFrame.lua", "r"))
+            local src = f:read("*a")
+            f:close()
+            local start = src:find("autoScanTicker = autoScanTicker or C_Timer.NewTicker(", 1, true)
+            local body = src:sub(start, src:find("\n  end)\n", start, true))
+            assert.is_truthy(body:find("GC.Sniper._TickConfirmCountdown()", 1, true))
+            assert.is_truthy(body:find("GC.Buy.TickCountdown()", 1, true))
           end)
 
           it("never confirms a purchase whose slot another window has taken", function()

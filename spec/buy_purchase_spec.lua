@@ -532,6 +532,44 @@ describe("BUY purchase", function()
     assert.equal("confirming", GC.Buy._attempt.stage)
   end)
 
+  -- Fix round 4 (m2): the CONFIRM a quote leaves waits twenty seconds -- no longer than the
+  -- server's own quote when the client can say how long that is -- and shows the seconds left once
+  -- ten remain, as Blizzard's own buy dialog does, from the auction house ticker.
+  describe("the CONFIRM a quote leaves", function()
+    local function atConfirm()
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      click(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+      assert.equal("confirm", GC.Buy._attempt.stage)
+    end
+    after_each(function() if _G.C_AuctionHouse then _G.C_AuctionHouse.GetQuoteDurationRemaining = nil end end)
+
+    it("counts down its last ten seconds", function()
+      atConfirm()
+      now = now + 9.5
+      GC.Buy.TickCountdown()
+      assert.equal("CONFIRM", rowWithText("Alpha Herb").action.label)
+
+      now = now + 1.5 -- 11 s after the quote: 9 left
+      GC.Buy.TickCountdown()
+      assert.equal(GC.L["CONFIRM (%d)"]:format(9), rowWithText("Alpha Herb").action.label)
+      assert.is_true(rowWithText("Alpha Herb").action:IsEnabled())
+    end)
+
+    it("waits no longer than the server's own quote", function()
+      _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return 12 end
+      atConfirm()
+      assert.equal(12, timers[#timers].seconds)
+    end)
+
+    it("waits its twenty seconds when the client cannot say", function()
+      _G.C_AuctionHouse.GetQuoteDurationRemaining = function() return nil end
+      atConfirm()
+      assert.equal(20, timers[#timers].seconds)
+    end)
+  end)
+
   it("confirms a price above the quote as long as the unit is under the cap", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)

@@ -87,6 +87,7 @@ GC.Locales.frFR = {
   ["CANCEL LOT?"] = "ANNULER LE LOT ?",
   ["CANCELLING…"] = "ANNULATION…",
   ["CONFIRM"] = "CONFIRMER",
+  ["CONFIRM (%d)"] = "CONFIRMER (%d)",
   ["COST"] = "COÛT",
   ["COST / UNIT"] = "COÛT / UNITÉ",
   ["Can't price this"] = "Prix non fiable",
@@ -650,6 +651,8 @@ GC.Locales.frFR = {
   ["quote %ss ago"] = "cotation il y a %ss",
   ["quote expired -- Refresh to re-check the price"] =
     "cotation expirée -- Refresh pour revérifier le prix",
+  ["quote expires in %d s -- click Confirm to buy"] =
+    "la cotation expire dans %d s -- cliquez sur Confirm pour acheter",
   ["re-checking what remains at a safe price..."] =
     "nouvelle vérification de ce qui reste à un prix sûr...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =

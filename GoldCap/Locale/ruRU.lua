@@ -85,6 +85,7 @@ GC.Locales.ruRU = {
   ["CANCEL LOT?"] = "ОТМЕНИТЬ ЛОТ?",
   ["CANCELLING…"] = "ОТМЕНА…",
   ["CONFIRM"] = "ПОДТВЕРДИТЬ",
+  ["CONFIRM (%d)"] = "ПОДТВЕРДИТЬ (%d)",
   ["COST"] = "ЗАКУП",
   ["COST / UNIT"] = "СЕБЕСТ. / ШТ",
   ["Can't price this"] = "Цену не оценить",
@@ -649,6 +650,8 @@ GC.Locales.ruRU = {
   ["quote %ss ago"] = "котировка %sс назад",
   ["quote expired -- Refresh to re-check the price"] =
     "котировка просрочена -- Refresh, чтобы перепроверить цену",
+  ["quote expires in %d s -- click Confirm to buy"] =
+    "котировка истекает через %d с -- нажмите Confirm, чтобы купить",
   ["re-checking what remains at a safe price..."] =
     "перепроверяем, что осталось по безопасной цене...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =

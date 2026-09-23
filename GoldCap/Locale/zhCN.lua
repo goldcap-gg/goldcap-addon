@@ -89,6 +89,7 @@ GC.Locales.zhCN = {
   ["CANCEL LOT?"] = "取消该批？",
   ["CANCELLING…"] = "取消中…",
   ["CONFIRM"] = "确认",
+  ["CONFIRM (%d)"] = "确认 (%d)",
   ["COST"] = "成本",
   ["COST / UNIT"] = "成本 / 件",
   ["Can't price this"] = "无法给出价格",
@@ -588,6 +589,7 @@ GC.Locales.zhCN = {
   ["quote %s -- click Confirm to buy"] = "报价 %s -- 点击 Confirm 购买",
   ["quote %ss ago"] = "报价 %s 秒前",
   ["quote expired -- Refresh to re-check the price"] = "报价已过期 -- 按 Refresh 重新检查价格",
+  ["quote expires in %d s -- click Confirm to buy"] = "报价将在 %d 秒后过期 -- 按 Confirm 购买",
   ["re-checking what remains at a safe price..."] = "正在重新检查安全价位还剩多少...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "服务器物品 — 售出速度未验证 · 区域参考价 %s（物品等级 %d）",

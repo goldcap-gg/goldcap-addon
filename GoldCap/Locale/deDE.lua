@@ -86,6 +86,7 @@ GC.Locales.deDE = {
   ["CANCEL LOT?"] = "POSTEN ABBRECHEN?",
   ["CANCELLING…"] = "WIRD ABGEBROCHEN…",
   ["CONFIRM"] = "BESTÄTIGEN",
+  ["CONFIRM (%d)"] = "BESTÄTIGEN (%d)",
   ["COST"] = "EINSTAND",
   ["COST / UNIT"] = "KOSTEN / STÜCK",
   ["Can't price this"] = "Kein belastbarer Preis",
@@ -653,6 +654,8 @@ GC.Locales.deDE = {
   ["quote %ss ago"] = "Kurs vor %ss",
   ["quote expired -- Refresh to re-check the price"] =
     "Kurs abgelaufen -- Refresh, um den Preis erneut zu prüfen",
+  ["quote expires in %d s -- click Confirm to buy"] =
+    "Kurs läuft in %d s ab -- Confirm klicken, um zu kaufen",
   ["re-checking what remains at a safe price..."] =
     "prüfe erneut, was zu einem sicheren Preis übrig ist...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =

@@ -88,6 +88,7 @@ GC.Locales.koKR = {
   ["CANCEL LOT?"] = "물량 취소?",
   ["CANCELLING…"] = "취소 중…",
   ["CONFIRM"] = "확인",
+  ["CONFIRM (%d)"] = "확인 (%d)",
   ["COST"] = "원가",
   ["COST / UNIT"] = "원가 / 개",
   ["Can't price this"] = "가격을 낼 수 없음",
@@ -609,6 +610,7 @@ GC.Locales.koKR = {
   ["quote %ss ago"] = "시세 %s초 전",
   ["quote expired -- Refresh to re-check the price"] =
     "시세가 만료됨 -- Refresh로 가격을 다시 확인하세요",
+  ["quote expires in %d s -- click Confirm to buy"] = "시세가 %d초 후 만료됨 -- Confirm을 눌러 구매하세요",
   ["re-checking what remains at a safe price..."] = "안전한 가격에 남은 물량을 다시 확인하는 중...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
     "서버 아이템 — 판매 속도 미검증 · 지역 기준가 %s (아이템 레벨 %d)",

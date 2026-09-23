@@ -131,6 +131,13 @@ LIM.BUY_TIMEOUT_SECONDS = 8
 -- round 3): the BUY tab's CONFIRM_SECONDS, and like it well inside GC.PurchaseSlot.MAX_SECONDS --
 -- the claim is re-stamped when the quote lands, and the stage has to be over before it goes stale.
 LIM.CONFIRM_STALL_SECONDS = 20
+-- How long a Start waits for the server's quote before the purchase is handed back (fix round 4,
+-- n3): BUY's WATCHDOG_SECONDS. The old eight froze the window; handing back at eight cancelled a
+-- quote a slow auction house was still going to deliver.
+LIM.START_STALL_SECONDS = 10
+-- The last seconds of a quote the buy window counts down on its status line (fix round 4, m2):
+-- Blizzard's own buy dialog shows them from ten (REMAINING_QUOTE_DURATION_THRESHOLD).
+LIM.CONFIRM_COUNTDOWN_SECONDS = 10
 LIM.REQUERY_TIMEOUT_SECONDS = 8
 -- How long the quiet zone (GC.Sniper.IsPurchaseQuiet) may veto every search sender before it
 -- is released. The zone is what stops a scan page or a watch poll from replacing the client's
@@ -4627,17 +4634,41 @@ end
 -- claim's life; a timer that finds its stage still current hands the purchase back (Cancel, which
 -- is only ever ours to send here, because the slot is still ours) and offers Refresh -- a Check,
 -- never the old quote. A confirmed attempt is not this timer's: it is owed its answer.
+--
+-- Returns false, with the attempt dropped (GC.Sniper._LostSlot), when the claim cannot be
+-- re-stamped -- the slot is somebody else's -- so a caller never arms a wait for a purchase that is
+-- no longer its own (fix round 4, n1). `pending.stallEnds` is when this wait runs out, for the
+-- countdown (GC.Sniper._TickConfirmCountdown).
 function GC.Sniper._ArmStall(pending, seconds)
-  if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
+  if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("sniper") then
+    GC.Sniper._LostSlot(pending.row, pending)
+    return false
+  end
   pending.stall = (pending.stall or 0) + 1
+  pending.stallEnds = GetTime() + seconds
+  pending.countdownShown = nil
   local stall = pending.stall
-  if not (C_Timer and C_Timer.After) then return end
-  C_Timer.After(seconds, function() GC.Sniper._RetireStall(pending, stall) end)
+  if C_Timer and C_Timer.After then
+    C_Timer.After(seconds, function() GC.Sniper._RetireStall(pending, stall) end)
+  end
+  return true
 end
 
 function GC.Sniper._RetireStall(pending, stall)
+  -- Three guards, each pinned by a spec (fix round 4, m1): another attempt's timer never touches
+  -- this one; a confirmed purchase is owed its answer and never cancelled; and a re-armed wait
+  -- (a new quote) has its own timer, so this one is spent.
   if commodityPurchase ~= pending or pending.confirmed or pending.stall ~= stall then return end
   local row = pending.row
+  -- And the Cancel only ever goes into a slot that is this window's (fix round 4, n1): otherwise
+  -- the client's one purchase is somebody else's, and it would be theirs that went back.
+  if GC.PurchaseSlot and GC.PurchaseSlot.Owner() ~= "sniper" then
+    GC.Sniper._LostSlot(row, pending)
+    return
+  end
+  -- A Start the server never answered is not a quote that expired (fix round 4, n3).
+  local text = pending.priceReceived and GC.L["quote expired -- Refresh to re-check the price"]
+    or GC.L["no answer from the auction house"]
   if dialog and dialog.row == row then
     if not pending.cancelRequested then
       C_AuctionHouse.CancelCommoditiesPurchase()
@@ -4648,13 +4679,31 @@ function GC.Sniper._RetireStall(pending, stall)
     row.quoteSnapshot = nil
     requoteArmToken = requoteArmToken + 1 -- a loud hold still counting belonged to this quote
     hideRequoteBanner()
-    GC.Sniper._ExpireArm(row, GC.L["quote expired -- Refresh to re-check the price"], 0.898, 0.283, 0.302)
-    if frame then frame.status:SetText(GC.L["quote expired -- Refresh to re-check the price"]) end
+    GC.Sniper._ExpireArm(row, text, 0.898, 0.283, 0.302)
+    if frame then frame.status:SetText(text) end
   else
     -- No window shows it (its OnHide would already have aborted it): let the row go the way a
     -- Cancel does.
-    abortRowPurchase(row, GC.L["quote expired -- Refresh to re-check the price"])
+    abortRowPurchase(row, text)
   end
+end
+
+-- The seconds a quote has left, on the buy window's status line once LIM.CONFIRM_COUNTDOWN_SECONDS
+-- remain, rewritten once a second by the auction house ticker (fix round 4, m2) -- as Blizzard's
+-- own buy dialog shows them, so a Confirm aimed at the last second is not a surprise Refresh. Only
+-- while Confirm can be clicked: a line that says why it cannot (not enough gold, a loud hold) stays.
+function GC.Sniper._TickConfirmCountdown()
+  local pending = commodityPurchase
+  local row = pending and pending.row
+  if not (row and not pending.confirmed and pending.stallEnds and dialog and dialog.row == row
+      and (row.purchaseStage == "confirm" or row.purchaseStage == "requote")
+      and dialog.primaryBtn:IsEnabled()) then
+    return
+  end
+  local left = math.ceil(pending.stallEnds - GetTime())
+  if left < 1 or left > LIM.CONFIRM_COUNTDOWN_SECONDS or left == pending.countdownShown then return end
+  pending.countdownShown = left
+  setDialogStatus((GC.L["quote expires in %d s -- click Confirm to buy"]):format(left), 1, 0.82, 0)
 end
 
 -- The other half (review M1): Confirm finds the shared slot is not this window's. However it
@@ -4665,6 +4714,11 @@ end
 -- the other window's purchase is in flight.
 function GC.Sniper._LostSlot(row, pending)
   if commodityPurchase == pending then commodityPurchase = nil end
+  if not (dialog and dialog.row == row) then
+    -- No window on it: the row goes back to the board, still without a Cancel.
+    resolvePurchase(row, false, GC.L["another purchase took over -- nothing was confirmed"])
+    return
+  end
   row.purchaseDeal = nil
   row.quoteSnapshot = nil
   hideRequoteBanner()
@@ -5231,13 +5285,14 @@ end
 --
 -- A commodity no longer freezes (review M1, fix round 3): Start went out and no quote came back,
 -- and the purchase and the slot claim are this window's until somebody hands them back. The
--- stage is under the same stall as "confirm" and "requote" (GC.Sniper._ArmStall): handed back,
--- Refresh offered, inside the claim's life. A realm bid keeps the freeze -- PlaceBid claims no slot,
--- and its completion may still land.
+-- stage is under the same stall as "confirm" and "requote" (GC.Sniper._ArmStall), for
+-- LIM.START_STALL_SECONDS rather than this timeout's eight (fix round 4): handed back, Refresh
+-- offered, inside the claim's life. A realm bid keeps the freeze -- PlaceBid claims no slot, and
+-- its completion may still land.
 local function scheduleBuyTimeout(row, deal, token)
   local pending = commodityPurchase
   if deal.isCommodity and pending and pending.row == row and pending.token == token then
-    GC.Sniper._ArmStall(pending, LIM.BUY_TIMEOUT_SECONDS)
+    GC.Sniper._ArmStall(pending, LIM.START_STALL_SECONDS)
     return
   end
   C_Timer.After(LIM.BUY_TIMEOUT_SECONDS, function()
@@ -7120,8 +7175,12 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     market = { sourceAt = market.sourceAt },
   }
   -- The quote waits at Confirm (or a loud requote) for the player, and the purchase with it: the
-  -- claim is re-stamped now and the wait bounded well inside the claim's life (review M1).
-  GC.Sniper._ArmStall(pending, LIM.CONFIRM_STALL_SECONDS)
+  -- claim is re-stamped now and the wait bounded well inside the claim's life (review M1) -- and
+  -- never past the server's own quote, when the client can say when that runs out (fix round 4,
+  -- m2). A slot that is no longer this window's ends it here (GC.Sniper._LostSlot).
+  local window = GC.PurchaseSlot and GC.PurchaseSlot.QuoteSeconds
+    and GC.PurchaseSlot.QuoteSeconds(LIM.CONFIRM_STALL_SECONDS) or LIM.CONFIRM_STALL_SECONDS
+  if not GC.Sniper._ArmStall(pending, window) then return end
   if dialog and dialog.row == row then
     dialog.bookLevels = levels
     stampDialogFromDecision(deal, finalDecision)
@@ -7705,6 +7764,11 @@ local function onDialogPrimaryClick()
   -- cannot retire it, only its answer or the stranded release can -- and the moment one does, this
   -- window is handed Refresh (GC.Sniper._HandOffSettled, follow-up P1; GC.Sniper._TickOwedHold for
   -- the BUY tab's).
+  -- The ticker's hand-off, asked now rather than up to a quarter of a second from now (fix round 4,
+  -- n2): a click that lands just after the BUY tab let go of a purchase must not buy on a decision
+  -- that purchase has overtaken. The hand-off turns this window into Refresh; the click is spent.
+  GC.Sniper._TickOwedHold()
+  if row.purchaseStage ~= "ready" then return end
   if GC.Sniper._HoldWhileOwed(row) then return end
   if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
@@ -10789,9 +10853,13 @@ function GC.Sniper.OnAuctionHouseShow()
     -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
     -- notice, and every stop-and-open comes from here.
     GC.Sniper._TickCapPings()
-    -- And a window held behind a purchase the BUY tab confirmed, once that purchase has its
-    -- answer (fix round 2): BUY's terminal paths hand nothing to this window.
+    -- And the edge where the BUY tab lets go of a purchase -- its confirm answered, its purchase
+    -- landed, failed or given up (fix rounds 2-3): BUY's terminal paths hand nothing to this
+    -- window, so every armed window is handed Refresh from here.
     GC.Sniper._TickOwedHold()
+    -- The last seconds of a quote waiting at Confirm, in both windows (fix round 4, m2).
+    GC.Sniper._TickConfirmCountdown()
+    if GC.Buy and GC.Buy.TickCountdown then GC.Buy.TickCountdown() end
   end)
   feedAuto("ahOpened")
   GC.Sniper._ClearStaleMailPause()

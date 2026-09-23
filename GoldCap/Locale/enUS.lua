@@ -113,6 +113,7 @@ GC.Locales.enUS = {
   ["CANCELLING…"] = "CANCELLING…",
   ["COMMODITIES"] = "COMMODITIES",
   ["CONFIRM"] = "CONFIRM",
+  ["CONFIRM (%d)"] = "CONFIRM (%d)",
   ["Cancel lot"] = "Cancel lot",
   ["GOLDCAP"] = "GOLDCAP",
   ["HOLDING %d"] = "HOLDING %d",
@@ -729,6 +730,8 @@ GC.Locales.enUS = {
   ["quote %s -- click Confirm to buy"] = "quote %s -- click Confirm to buy",
   ["quote %ss ago"] = "quote %ss ago",
   ["quote expired -- Refresh to re-check the price"] = "quote expired -- Refresh to re-check the price",
+  ["quote expires in %d s -- click Confirm to buy"] =
+    "quote expires in %d s -- click Confirm to buy",
   ["..."] = "...",
   ["re-checking what remains at a safe price..."] = "re-checking what remains at a safe price...",
   ["realm item — sale speed unverified · region reference %s (ilvl %d)"] =
