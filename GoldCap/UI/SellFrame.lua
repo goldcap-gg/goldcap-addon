@@ -754,13 +754,27 @@ local function itemName(itemID)
   return (GC.L["Item %d"]):format(itemID or 0)
 end
 
+-- What the pricing walk searches for. A quote id is an itemID -- a commodity, or an item priced
+-- by its bare key as the tab always has -- or, for an item-level variant keyed from its bag
+-- slot's own ItemKey (GC.Sell._SlotKey), that variant's position key "item:id:level:suffix:pet":
+-- its market is its own, and the bare key answers with the item's cheapest variant, which is
+-- another item's price. Returns the itemID and the ItemKey to search and read by.
+function GC.Sell._QuoteItemKey(id)
+  if type(id) == "number" then return id, C_AuctionHouse.MakeItemKey(id) end
+  local itemID, level, suffix, pet = tostring(id):match("^item:(%d+):(%d+):(%d+):(%d+)$")
+  itemID = tonumber(itemID)
+  if not itemID then return nil, nil end
+  return itemID, C_AuctionHouse.MakeItemKey(itemID, tonumber(level), tonumber(suffix), tonumber(pet))
+end
+
 local function quoteDriver()
   local function boundedLevels(itemID, commodity)
+    local _, itemKey = GC.Sell._QuoteItemKey(itemID)
     local levels, count = {}, commodity and C_AuctionHouse.GetNumCommoditySearchResults(itemID)
-      or C_AuctionHouse.GetNumItemSearchResults(C_AuctionHouse.MakeItemKey(itemID))
+      or C_AuctionHouse.GetNumItemSearchResults(itemKey)
     for i = 1, math.min(count or 0, GC.SellViewModel and GC.SellViewModel.BOOK_READ_MAX or 100) do
       local info = commodity and C_AuctionHouse.GetCommoditySearchResultInfo(itemID, i)
-        or C_AuctionHouse.GetItemSearchResultInfo(C_AuctionHouse.MakeItemKey(itemID), i)
+        or C_AuctionHouse.GetItemSearchResultInfo(itemKey, i)
       local unit = info and (commodity and info.unitPrice
         or (info.buyoutAmount and info.quantity and info.quantity > 0 and math.floor(info.buyoutAmount / info.quantity)))
       if unit and unit > 0 then
@@ -797,10 +811,12 @@ local function quoteDriver()
       return true
     end,
     keyInfo = function(itemID)
-      return C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.GetItemKeyInfo(C_AuctionHouse.MakeItemKey(itemID))
+      if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return nil end
+      local _, itemKey = GC.Sell._QuoteItemKey(itemID)
+      return itemKey and C_AuctionHouse.GetItemKeyInfo(itemKey)
     end,
     send = function(itemID)
-      local key = C_AuctionHouse.MakeItemKey(itemID)
+      local _, key = GC.Sell._QuoteItemKey(itemID)
       local info = C_AuctionHouse.GetItemKeyInfo(key)
       -- Blizzard's pane may open this item's buy page in answer; that page is ours, not a buy.
       if GC.AuctionHouseTab and GC.AuctionHouseTab.NoteAddonSearch then GC.AuctionHouseTab.NoteAddonSearch() end
@@ -841,7 +857,8 @@ local function quoteDriver()
         return C_AuctionHouse.HasFullCommoditySearchResults(itemID) == true
       end
       if not (C_AuctionHouse.HasFullItemSearchResults and C_AuctionHouse.MakeItemKey) then return true end
-      return C_AuctionHouse.HasFullItemSearchResults(C_AuctionHouse.MakeItemKey(itemID)) == true
+      local _, itemKey = GC.Sell._QuoteItemKey(itemID)
+      return C_AuctionHouse.HasFullItemSearchResults(itemKey) == true
     end,
   }
 end
@@ -1099,7 +1116,8 @@ local function uniqueQuoteItemIDs()
     -- listed" answer counts as fresh too (EMPTY_ANSWER_AGE above).
     -- Resting, whether the rest was earned by an answer or by silence: both cost the same
     -- throttled round trip to repeat. Only the DISPLAY distinguishes them (see renderRows).
-    local restingSince = restedAt(position.itemID)
+    local quoteID = position.quoteKey or position.itemID
+    local restingSince = restedAt(quoteID)
     local answeredEmpty = restingSince ~= nil and (time() - restingSince) <= EMPTY_ANSWER_AGE
     -- A PRESS of Refresh is served by the bulk fill (GC.Sell.TrySendBulk): one message
     -- re-prices every commodity on the tab, which is what a press asks for. The walk does not
@@ -1108,7 +1126,7 @@ local function uniqueQuoteItemIDs()
     -- still owed a real quote: rows never priced, rows gone stale, rows holding a bulk price.
     -- A bulk price is a placeholder the walk still owes a real answer: it has no book under
     -- it and may not back a post (see freshQuote), however young it is.
-    local held = quotes[position.itemID]
+    local held = quotes[quoteID]
     local due = (type(held) == "table" and (held.bulk == true or held.bookless == true))
       or ((position.displayMarketUnit == nil or type(position.quoteAge) ~= "number"
       or position.quoteAge > QUOTE_REWALK_AGE) and not answeredEmpty)
@@ -1158,8 +1176,9 @@ local function uniqueQuoteItemIDs()
   end)
   local seen, result = {}, {}
   for _, position in ipairs(actionable) do
-    if not seen[position.itemID] then
-      seen[position.itemID], result[#result + 1] = true, position.itemID
+    local quoteID = position.quoteKey or position.itemID
+    if not seen[quoteID] then
+      seen[quoteID], result[#result + 1] = true, quoteID
       if #result >= QUOTE_WALK_CAP then break end
     end
   end
@@ -1765,7 +1784,17 @@ function GC.Sell.OnItemKeyInfo(itemID)
       renderRows()
     end
   end
-  if refresh.phase == "waiting_key" and refresh.awaiting == itemID then advanceQuote() end
+  -- Stock the tab could not key without this answer is scanned again: it can be filed now.
+  for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
+    if waiting.itemID == itemID then
+      composePositions()
+      renderRows()
+      break
+    end
+  end
+  local awaiting = refresh.awaiting
+  if type(awaiting) == "string" then awaiting = GC.Sell._QuoteItemKey(awaiting) end
+  if refresh.phase == "waiting_key" and awaiting == itemID then advanceQuote() end
 end
 
 local function quoteResolved(kind, itemID, unit, levels)
@@ -1823,7 +1852,8 @@ local function quoteResolved(kind, itemID, unit, levels)
   -- price and must not masquerade as the book minimum. Guarded like every
   -- other cross-module call in this file: specs load only the modules a
   -- given test needs, so GC.Book/GC.Data may be absent outside the client.
-  local summary = GC.Book and GC.Book.Summarize(levels)
+  -- An item's own floor only: a variant's answer is one variant's, not the item's.
+  local summary = type(itemID) == "number" and GC.Book and GC.Book.Summarize(levels)
   if summary and GC.Data and GC.Data.RecordLiveObservation then
     local scope = context()
     GC.Data.RecordLiveObservation(GC.db, { itemID = itemID,
@@ -1836,11 +1866,22 @@ local function quoteResolved(kind, itemID, unit, levels)
   advanceQuote()
 end
 
-function GC.Sell.OnItemSearchResults(itemID) quoteResolved("item", itemID, driver.item(itemID), driver.itemLevels(itemID)) end
+-- `itemKey` is the key the answer is for (Core/Init.lua hands it on). An answer for an item-level
+-- variant this walk asked about -- or is still draining -- is that variant's, filed under its
+-- quote id; anything else goes by itemID, exactly as before.
+function GC.Sell.OnItemSearchResults(itemID, itemKey)
+  local id = itemID
+  local variant = type(itemKey) == "table" and GC.Acquisitions and GC.Acquisitions.PositionKey
+    and GC.Acquisitions.PositionKey(itemID, itemKey, false) or nil
+  if variant and ((refresh.pending and refresh.pending.itemID == variant) or refresh.drain["item:" .. variant]) then
+    id = variant
+  end
+  quoteResolved("item", id, driver.item(id), driver.itemLevels(id))
+end
 function GC.Sell.OnCommoditySearchResults(itemID) quoteResolved("commodity", itemID, driver.commodity(itemID), driver.commodityLevels(itemID)) end
 
 local function freshQuote(position)
-  local quote = GC.QuoteCache.Fresh(quotes, position.itemID, time(), SELL_QUOTE_ACTION_AGE)
+  local quote = GC.QuoteCache.Fresh(quotes, position.quoteKey or position.itemID, time(), SELL_QUOTE_ACTION_AGE)
   if type(quote) ~= "table" or not exact(quote.unit) or quote.unit <= 0 or not exact(quote.at) then return nil end
   -- A price from the bulk fill (GC.Sell.FoldBulk) is the realm's cheapest unit with nobody
   -- subtracted from it -- good enough to show, never good enough to spend on. Post and Repost
@@ -1869,6 +1910,28 @@ local function normalizedPositionKey(itemID, link)
   return ("item:%d:%d:%d:%d"):format(itemID, math.floor(level), suffix, 0)
 end
 
+-- The auction identity of a non-commodity bag stack, and the quote id it is priced by (nil for
+-- the itemID). A link the parse above can read keeps exactly the key it always had: ledgers,
+-- typed prices and listings are filed under it. The rest -- bonus IDs, which is nearly all modern
+-- gear, and caged battle pets -- the parse gives up on, and used to be left out of the tab
+-- altogether (in game: a bag of gear, none of it on TO POST). The client knows them exactly:
+-- C_AuctionHouse.GetItemKeyFromItem answers, for this one bag slot, the ItemKey the auction house
+-- itself files the stack under (item level, suffix, pet species), and PostItem posts by this
+-- same slot. Nothing is guessed: no answer, no key.
+function GC.Sell._SlotKey(itemID, link, bag, slot)
+  local parsed = normalizedPositionKey(itemID, link)
+  if parsed then return parsed, nil end
+  if not (bag and slot and C_AuctionHouse and C_AuctionHouse.GetItemKeyFromItem
+      and ItemLocation and ItemLocation.CreateFromBagAndSlot) then return nil, nil end
+  local ok, itemKey = pcall(function()
+    return C_AuctionHouse.GetItemKeyFromItem(ItemLocation:CreateFromBagAndSlot(bag, slot))
+  end)
+  if not ok or type(itemKey) ~= "table" or itemKey.itemID ~= itemID then return nil, nil end
+  local positionKey = GC.Acquisitions and GC.Acquisitions.PositionKey
+    and GC.Acquisitions.PositionKey(itemID, itemKey, false) or nil
+  return positionKey, positionKey
+end
+
 -- Whether an item sells as a commodity decides its whole auction identity, and
 -- GetItemKeyInfo is the only authority on it -- but it is only reachable while
 -- the auction house is open, and the Sell tab is useful standing anywhere. So
@@ -1883,7 +1946,7 @@ commodityKindCache = function()
   return sessionCommodityKind
 end
 
-local function classifyBagItem(itemID, link)
+local function classifyBagItem(itemID, link, bag, slot)
   local cache = commodityKindCache()
   local isCommodity = cache[itemID]
   if isCommodity == nil and C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo and C_AuctionHouse.MakeItemKey then
@@ -1894,13 +1957,18 @@ local function classifyBagItem(itemID, link)
     end
   end
   if isCommodity == true then return ("commodity:%d"):format(itemID), true end
-  if isCommodity == false then return normalizedPositionKey(itemID, link), false end
+  if isCommodity == false then
+    local positionKey, quoteKey = GC.Sell._SlotKey(itemID, link, bag, slot)
+    return positionKey, false, quoteKey
+  end
   return nil, nil
 end
 
 scanBagStock = function()
-  if not GC.BagStock then bagStock = {} return end
-  bagStock = GC.BagStock.Scan({
+  if not GC.BagStock then bagStock, GC.Sell._waitingStock = {}, {} return end
+  -- The second list is the stock nothing could key yet (the client has not said whether the item
+  -- is a commodity, or cannot give its ItemKey): shown under its own heading, never dropped.
+  bagStock, GC.Sell._waitingStock = GC.BagStock.Scan({
     numSlots = function(bag)
       return C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag) or 0
     end,
@@ -1954,7 +2022,9 @@ local function liveBagState(position, requiredQty)
           if not matchedBag then matchedBag, matchedSlot, matchedStack = bag, slot, qty end
         else
           local link = C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(bag, slot)
-          if exact(qty) and qty > 0 and normalizedPositionKey(position.itemID, link) == position.positionKey then
+          -- Keyed exactly as the scan keyed it (GC.Sell._SlotKey), so Post pins the very stack
+          -- the row stands for: for a variant, the slot whose own ItemKey is that variant's.
+          if exact(qty) and qty > 0 and GC.Sell._SlotKey(position.itemID, link, bag, slot) == position.positionKey then
             if qty > total then total = qty end
             if (requiredQty and qty >= requiredQty and not matchedBag) or (not requiredQty and qty >= (matchedStack or 0)) then
               matchedBag, matchedSlot, matchedStack = bag, slot, qty
@@ -1978,7 +2048,7 @@ end
 -- One item, one query. If a walk is already running the item is spliced in as
 -- its next step rather than restarting anything.
 local function startQuoteRefreshFor(position)
-  local itemID = type(position) == "table" and position.itemID or nil
+  local itemID = type(position) == "table" and (position.quoteKey or position.itemID) or nil
   if not itemID then return GC.Sell.Refresh() end
   if not (GC.Sniper and GC.Sniper.IsAHOpen and GC.Sniper.IsAHOpen()) then
     setStatus(GC.L["Auction House is not open"])
@@ -2975,6 +3045,34 @@ do
     local asked = formatCell(position.listedValue)
     if lots == 1 then return (GC.L["1 lot, %s asked"]):format(asked) end
     return (GC.L["%d lots, %s asked"]):format(lots, asked)
+  end
+
+  -- The TO POST deck's last section: stock in the bags the tab cannot key yet (the client has
+  -- not said whether it is a commodity, or cannot give its ItemKey -- GC.Sell._waitingStock).
+  -- It used to be left out without a word. A heading and a line per item; nothing to post from
+  -- until the client answers, and then the rescan files it (GC.Sell.OnItemKeyInfo). The search
+  -- narrows it like every other row.
+  function ROW.pushWaiting(entries)
+    local shown = {}
+    for _, waiting in ipairs(GC.Sell._waitingStock or {}) do
+      local name = type(waiting.itemName) == "string" and waiting.itemName ~= "" and waiting.itemName
+        or itemName(waiting.itemID)
+      if not chips.search or name:lower():find(chips.search, 1, true) then
+        shown[#shown + 1] = { kind = "waitItem", name = name, quantity = waiting.quantity,
+          position = { itemID = waiting.itemID, itemName = name } }
+      end
+    end
+    if #shown == 0 then return end
+    entries[#entries + 1] = { kind = "waitHead", count = #shown, position = { itemID = 0 } }
+    for _, entry in ipairs(shown) do entries[#entries + 1] = entry end
+  end
+
+  function ROW.waitText(entry)
+    if entry.kind == "waitHead" then
+      return (GC.L["WAITING FOR THE AUCTION HOUSE %d"]):format(entry.count) .. "  " .. DIM_HEX
+        .. GC.L["open the auction house once so GoldCap can tell how these sell"] .. "|r"
+    end
+    return ("%s ×%d"):format(entry.name, entry.quantity or 0)
   end
 
   -- The first of this position's lots the cancel queue holds, or nil: the queue is the one
@@ -4478,6 +4576,7 @@ renderRows = function()
       for _, position in ipairs(folded) do pushPosition(position) end
     end
   end
+  if filterMode == "post" then ROW.pushWaiting(entries) end
   if #entries == 0 then
     -- M7: sentence case, not shouted -- this is a native-font (Theme.Label) empty state, like
     -- Deals', and reads like the rest of that font's copy rather than a toolbar label.
@@ -4625,9 +4724,11 @@ renderRows = function()
         -- back to the dash and "Waiting for a live price", which is what it is. The re-query
         -- guard keeps its job -- holding the last KNOWN-EMPTY answer on screen while the walk
         -- re-asks -- but it cannot invent one for an item that has never answered.
-        local answeredEmpty = restedEmptyFresh(p.itemID, time())
-        local requeryingThis = refresh.pending and refresh.pending.itemID == p.itemID
-        local rest = emptyAnswers[p.itemID]
+        -- By quote id: an item-level variant's answers are its own (GC.Sell._QuoteItemKey).
+        local quoteID = p.quoteKey or p.itemID
+        local answeredEmpty = restedEmptyFresh(quoteID, time())
+        local requeryingThis = refresh.pending and refresh.pending.itemID == quoteID
+        local rest = emptyAnswers[quoteID]
         local emptyKnown = answeredEmpty
           or (requeryingThis and type(rest) == "table" and rest.answered == true) or false
         local marketFallback = p.displayMarketUnit == nil and type(p.marketValue) == "number"
@@ -4831,6 +4932,9 @@ renderRows = function()
         row.action:Hide()
       elseif entry.kind == "section" then
         row.sectionLabel:SetText(ROW.sectionText(entry.section))
+        row.action:Hide()
+      elseif entry.kind == "waitHead" or entry.kind == "waitItem" then
+        row.sectionLabel:SetText(ROW.waitText(entry))
         row.action:Hide()
       elseif entry.kind == "group" then
         -- The hint rides IN the heading, not in the status cell. That cell is the first thing
@@ -5128,7 +5232,8 @@ renderRows = function()
         -- resolvable icon.
         row.itemInset = icon and (ROW.ICON + 10) or 0
         if icon then row.icon:SetTexture(icon); row.icon:Show() else row.icon:Hide() end
-      elseif entry.kind == "fold" or entry.kind == "section" then
+      elseif entry.kind == "fold" or entry.kind == "section" or entry.kind == "waitHead"
+          or entry.kind == "waitItem" then
         -- A heading in the list's own column, not a child of the row above it: no spine, no
         -- well, and the label starts where the item names do.
         row.itemInset = 2
@@ -5143,6 +5248,8 @@ renderRows = function()
         local fgc = entry.kind == "fold" and Theme.color.gold or Theme.color.fgMuted
         row.sectionRule:SetColorTexture(fgc[1], fgc[2], fgc[3], entry.kind == "fold" and 0.25 or 0.12)
         setColor(row.sectionLabel, fgc)
+        -- An item waiting for its key is a line under that heading, not a heading of its own.
+        if entry.kind == "waitItem" then row.sectionRule:Hide() end
       else
         row.itemInset = 34
         row.icon:Hide()
@@ -6278,14 +6385,14 @@ GC.slashHandlers.sellstate = function()
       local listed = type(position.listedQty) == "number" and position.listedQty > 0
       local commodity = type(position.positionKey) == "string"
         and position.positionKey:find("commodity:", 1, true) == 1
-      local restingAt = restedAt(position.itemID)
+      local restingAt = restedAt(position.quoteKey or position.itemID)
       local resting = restingAt ~= nil and (time() - restingAt) <= EMPTY_ANSWER_AGE
       local why
       if position.unresolved and not commodity then
         why = GC.L["identity unresolved (variant item -- not priced by design)"]
       elseif not (inBags or listed) then
         why = GC.L["no stock in bags or listed -- nothing to price for"]
-      elseif resting and restedEmptyFresh(position.itemID, time()) then
+      elseif resting and restedEmptyFresh(position.quoteKey or position.itemID, time()) then
         why = (GC.L["AH answered empty %ds ago"]):format(time() - restingAt)
       elseif resting then
         -- Rested but never ANSWERED. Printing the line above here is what made a wedged walk

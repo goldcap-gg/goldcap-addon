@@ -471,6 +471,7 @@ GC.Locales.itIT = {
     "Ignoto significa che il lato costi è incompleto: completalo con Imposta costo.",
   ["VERDICT"] = "VERDETTO",
   ["Verdict"] = "Verdetto",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "IN ATTESA DELLA CASA D'ASTE %d",
   ["WATCH"] = "OSSERVA",
   ["WATCH (computed SAFE)"] = "WATCH (calcolato SICURO)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -628,6 +629,8 @@ GC.Locales.itIT = {
   ["off"] = "disattivo",
   ["oldest units sell first"] = "le unità più vecchie si vendono per prime",
   ["on"] = "attivo",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "apri la casa d'aste una volta perché GoldCap sappia come si vendono",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "oppure incolla una stringa da goldcap.gg con /goldcap import.",
   ["over %d position%s"] = "su %d posizioni%s",

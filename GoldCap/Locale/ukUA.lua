@@ -484,6 +484,7 @@ GC.Locales.ukUA = {
     "«Невідомо» означає, що собівартість заповнена не вся — допишіть її через «Вказати ціну».",
   ["VERDICT"] = "ВЕРДИКТ",
   ["Verdict"] = "Вердикт",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "ЧЕКАЄМО НА АУКЦІОН %d",
   ["WATCH"] = "СТЕЖИТИ",
   ["WATCH (computed SAFE)"] = "WATCH (розраховано БЕЗПЕЧНО)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -641,6 +642,8 @@ GC.Locales.ukUA = {
   ["off"] = "вимк",
   ["oldest units sell first"] = "спершу продаються старші",
   ["on"] = "увімк",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "відкрийте аукціон один раз, щоб GoldCap дізнався, як вони продаються",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "або вставте рядок з goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позиціях%s",

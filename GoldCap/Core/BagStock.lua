@@ -31,20 +31,29 @@ end
 --- driver = {
 --   numSlots(bag) -> number,
 --   itemInfo(bag, slot) -> { itemID, stackCount, isBound, hasNoValue, hyperlink, itemName } | nil,
---   classify(itemID, link) -> positionKey | nil, isCommodity | nil,
+--   classify(itemID, link, bag, slot) -> positionKey | nil, isCommodity | nil, quoteKey | nil,
 -- }
+--
+-- `bag`/`slot` are handed to `classify` because the exact auction identity of a non-commodity
+-- stack is a property of that stack, not of its item: the client answers it for one ItemLocation
+-- (C_AuctionHouse.GetItemKeyFromItem). `quoteKey` is what the market search for the position
+-- is keyed by when that differs from the itemID (an item-level variant): carried to the
+-- position unchanged.
 --
 -- `bags` is the list of container ids to walk (the caller owns which bags count as sellable
 -- storage -- a reagent bank slot is not a bag the auction house can post from).
 --
--- Returns an array of { positionKey, itemID, itemName, quantity, isCommodity, stacks } sorted by
--- positionKey, so a render built from it is stable across scans.
+-- Returns an array of { positionKey, itemID, itemName, quantity, isCommodity, quoteKey, stacks }
+-- sorted by positionKey, so a render built from it is stable across scans -- and, second, the
+-- tradeable stock `classify` could not key yet, as { itemID, itemName, quantity } per item in
+-- item order: an item the client has not said is a commodity or not, or whose identity it cannot
+-- give. It used to be dropped here without a word; the tab shows it under its own heading.
 --
 -- Skipped, and why:
 --   isBound        -- soulbound; the auction house will refuse it, so offering it is a lie.
---   classify = nil -- an item whose exact auction identity cannot be derived (a bonus-id bearing
---                     link). Posting one under a guessed key is how the split-position bug
---                     happened; leaving it out is the honest failure.
+--   classify = nil -- an item whose exact auction identity cannot be derived yet. Posting one
+--                     under a guessed key is how the split-position bug happened, so it gets no
+--                     position -- but it is returned in the second list, never lost.
 --
 -- `hasNoValue` is deliberately NOT one of them, though it used to be. That flag means the
 -- VENDOR will not buy the item, which says nothing about the auction house -- and a great many
@@ -59,7 +68,7 @@ function GC.BagStock.Scan(driver, bags)
       or type(driver.itemInfo) ~= "function" or type(driver.classify) ~= "function" then
     return {}
   end
-  local byKey, order = {}, {}
+  local byKey, order, waitingByItem, waitingOrder = {}, {}, {}, {}
   for _, bag in ipairs(bags or {}) do
     local slots = driver.numSlots(bag) or 0
     for slot = 1, slots do
@@ -67,12 +76,19 @@ function GC.BagStock.Scan(driver, bags)
       local quantity = info and info.stackCount or nil
       if info and exactPositive(info.itemID) and exactPositive(quantity)
           and info.isBound ~= true then
-        local positionKey, isCommodity = driver.classify(info.itemID, info.hyperlink)
-        if type(positionKey) == "string" and positionKey ~= "" then
+        local positionKey, isCommodity, quoteKey = driver.classify(info.itemID, info.hyperlink, bag, slot)
+        if type(positionKey) ~= "string" or positionKey == "" then
+          local waiting = waitingByItem[info.itemID]
+          if not waiting then
+            waiting = { itemID = info.itemID, itemName = info.itemName, quantity = 0 }
+            waitingByItem[info.itemID], waitingOrder[#waitingOrder + 1] = waiting, info.itemID
+          end
+          waiting.quantity = add(waiting.quantity, quantity) or waiting.quantity
+        else
           local entry = byKey[positionKey]
           if not entry then
             entry = { positionKey = positionKey, itemID = info.itemID, itemName = info.itemName,
-              quantity = 0, isCommodity = isCommodity == true, stacks = {} }
+              quantity = 0, isCommodity = isCommodity == true, quoteKey = quoteKey, stacks = {} }
             byKey[positionKey], order[#order + 1] = entry, positionKey
           end
           entry.itemName = entry.itemName or info.itemName
@@ -95,7 +111,10 @@ function GC.BagStock.Scan(driver, bags)
     local entry = byKey[positionKey]
     if not entry.overflow then result[#result + 1] = entry end
   end
-  return result
+  local waiting = {}
+  table.sort(waitingOrder)
+  for _, itemID in ipairs(waitingOrder) do waiting[#waiting + 1] = waitingByItem[itemID] end
+  return result, waiting
 end
 
 --- The single largest stack of a position, which is what a non-commodity post is limited to:

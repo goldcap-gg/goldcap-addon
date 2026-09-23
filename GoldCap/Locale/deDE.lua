@@ -473,6 +473,7 @@ GC.Locales.deDE = {
     "Unbekannt heißt, die Kostenseite ist unvollständig — trage sie mit „Kosten eintragen“ nach.",
   ["VERDICT"] = "URTEIL",
   ["Verdict"] = "Urteil",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "WARTET AUFS AUKTIONSHAUS %d",
   ["WATCH"] = "BEOBACHTEN",
   ["WATCH (computed SAFE)"] = "WATCH (berechnet SICHER)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -630,6 +631,8 @@ GC.Locales.deDE = {
   ["off"] = "aus",
   ["oldest units sell first"] = "die ältesten Einheiten verkaufen sich zuerst",
   ["on"] = "ein",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "öffne das Auktionshaus einmal, damit GoldCap weiß, wie sich diese verkaufen",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "oder füge mit /goldcap import eine Zeichenkette von goldcap.gg ein.",
   ["over %d position%s"] = "über %d Positionen%s",

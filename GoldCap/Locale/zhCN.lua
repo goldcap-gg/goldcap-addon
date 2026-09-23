@@ -426,6 +426,7 @@ GC.Locales.zhCN = {
     "显示为未知说明成本侧不完整 — 用“填写成本”补上。",
   ["VERDICT"] = "判定",
   ["Verdict"] = "判定",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍卖行 %d",
   ["WATCH"] = "观察",
   ["WATCH (computed SAFE)"] = "WATCH（计算结果为安全）",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -569,6 +570,8 @@ GC.Locales.zhCN = {
   ["off"] = "关",
   ["oldest units sell first"] = "最早的货先卖出",
   ["on"] = "开",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "打开一次拍卖行，GoldCap 才能知道这些物品的出售方式",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "或用 /goldcap import 粘贴 goldcap.gg 的字符串。",
   ["over %d position%s"] = "共 %d 个持仓%s",

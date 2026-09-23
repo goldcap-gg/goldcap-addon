@@ -717,7 +717,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
     -- slot -- see SellFrame.lua's OnItemSearchResults -- so this adds zero crosstalk with the
     -- scanner's or the buy-requery's unrelated in-flight searches.
     if GC.Sell.OnItemSearchResults then
-      GC.Sell.OnItemSearchResults(itemKey.itemID)
+      -- With the key: an item-level variant the Sell tab priced by its own key reads its answer
+      -- from that key (GC.Sell._QuoteItemKey).
+      GC.Sell.OnItemSearchResults(itemKey.itemID, itemKey)
     end
     if GC.PurchaseCapture then GC.PurchaseCapture.OnItemSearchResults(itemKey) end
   elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then

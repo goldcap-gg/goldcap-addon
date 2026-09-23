@@ -472,6 +472,7 @@ GC.Locales.ptBR = {
     "Desconhecido significa que falta parte do custo — complete com Definir custo.",
   ["VERDICT"] = "VEREDITO",
   ["Verdict"] = "Veredito",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "AGUARDANDO A CASA DE LEILÕES %d",
   ["WATCH"] = "OBSERVAR",
   ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -628,6 +629,8 @@ GC.Locales.ptBR = {
   ["off"] = "desativado",
   ["oldest units sell first"] = "as unidades mais antigas vendem primeiro",
   ["on"] = "ativado",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "abra a casa de leilões uma vez para o GoldCap saber como estes vendem",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "ou cole uma string do goldcap.gg com /goldcap import.",
   ["over %d position%s"] = "em %d posições%s",

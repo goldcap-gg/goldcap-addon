@@ -427,6 +427,7 @@ GC.Locales.zhTW = {
     "顯示為未知說明成本側不完整 — 用「填寫成本」補上。",
   ["VERDICT"] = "判定",
   ["Verdict"] = "判定",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "等待拍賣場 %d",
   ["WATCH"] = "觀察",
   ["WATCH (computed SAFE)"] = "WATCH（計算結果為安全）",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -570,6 +571,8 @@ GC.Locales.zhTW = {
   ["off"] = "關",
   ["oldest units sell first"] = "最早的貨先賣出",
   ["on"] = "開",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "打開一次拍賣場，GoldCap 才能知道這些物品的出售方式",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "或用 /goldcap import 貼上 goldcap.gg 的字串。",
   ["over %d position%s"] = "共 %d 個持倉%s",

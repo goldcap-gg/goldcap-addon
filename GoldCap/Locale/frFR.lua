@@ -471,6 +471,7 @@ GC.Locales.frFR = {
     "Inconnu signifie que le coût est incomplet — complétez-le avec Définir le coût.",
   ["VERDICT"] = "VERDICT",
   ["Verdict"] = "Verdict",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "EN ATTENTE DE L'HÔTEL DES VENTES %d",
   ["WATCH"] = "SURVEILLER",
   ["WATCH (computed SAFE)"] = "WATCH (calculé SÛR)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -628,6 +629,8 @@ GC.Locales.frFR = {
   ["off"] = "désactivé",
   ["oldest units sell first"] = "les unités les plus anciennes se vendent d'abord",
   ["on"] = "activé",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "ouvre l'hôtel des ventes une fois pour que GoldCap sache comment ils se vendent",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "ou collez une chaîne depuis goldcap.gg avec /goldcap import.",
   ["over %d position%s"] = "sur %d positions%s",

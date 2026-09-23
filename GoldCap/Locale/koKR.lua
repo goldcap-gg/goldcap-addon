@@ -439,6 +439,7 @@ GC.Locales.koKR = {
     "알 수 없음은 매입가가 다 채워지지 않았다는 뜻입니다 — 매입가 입력으로 채우세요.",
   ["VERDICT"] = "판정",
   ["Verdict"] = "판정",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "경매장 대기 중 %d",
   ["WATCH"] = "관찰",
   ["WATCH (computed SAFE)"] = "WATCH (계산상 안전)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -588,6 +589,8 @@ GC.Locales.koKR = {
   ["off"] = "꺼짐",
   ["oldest units sell first"] = "오래된 것부터 먼저 팔립니다",
   ["on"] = "켜짐",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "경매장을 한 번 열면 GoldCap이 판매 방식을 알 수 있습니다",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "또는 /goldcap import로 goldcap.gg의 문자열을 붙여넣으세요.",
   ["over %d position%s"] = "%d개 보유 항목 기준%s",

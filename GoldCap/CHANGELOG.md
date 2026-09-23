@@ -51,6 +51,9 @@
   count, they sell first — and the ones above it. Walls, the big stacks worth pricing under, are
   marked and named, with how long the queue ahead of you takes at today's pace. A row's
   "N ahead" counts the same way.
+- The Sell tab lists gear and caged battle pets from your bags, priced for their exact item level.
+  An item the auction house has not told GoldCap about yet is listed under its own heading
+  instead of being left out.
 
 ## 0.14.1 (unreleased)
 

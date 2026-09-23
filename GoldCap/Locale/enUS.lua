@@ -146,6 +146,7 @@ GC.Locales.enUS = {
   ["The most units one purchase may take. How fast the item sells can still make it fewer."] =
     "The most units one purchase may take. How fast the item sells can still make it fewer.",
   ["UNDERCUT %d"] = "UNDERCUT %d",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "WAITING FOR THE AUCTION HOUSE %d",
   ["Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop."] =
     "Waiting while you post, buy or browse on the auction house's own panes. It starts as soon as you stop.",
   ["Waiting: your own search is on the auction house's Buy list, and a scan would replace it. Open GoldCap's auction house tab, or close the auction house, and Auto starts."] =
@@ -165,6 +166,8 @@ GC.Locales.enUS = {
   ["no cost for %d"] = "no cost for %d",
   ["no price"] = "no price",
   ["oldest units sell first"] = "oldest units sell first",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "open the auction house once so GoldCap can tell how these sell",
   ["past the first %d prices read (%s units)"] = "past the first %d prices read (%s units)",
   ["pasted"] = "pasted",
   ["Archive this run"] = "Archive this run",

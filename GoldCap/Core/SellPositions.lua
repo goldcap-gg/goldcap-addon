@@ -251,7 +251,10 @@ end
 
 local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAge, chosenUnits)
   table.sort(position.ownedLots, stableLotOrder)
-  local fresh, display, age = quoteInfo(quotes, position.itemID, now, quoteMaxAge)
+  -- An item-level variant is priced from a search for its own ItemKey, filed under its own
+  -- `quoteKey` (UI/SellFrame.lua); anything else under its itemID, as ever.
+  local quoteID = position.quoteKey or position.itemID
+  local fresh, display, age = quoteInfo(quotes, quoteID, now, quoteMaxAge)
   position.freshMarketUnit, position.displayMarketUnit, position.quoteAge = fresh, display, age
   if position.invalid then
     position.exposureQty, position.allocations, position.knownQty, position.knownCost = nil, {}, 0, 0
@@ -309,7 +312,7 @@ local function decoratePosition(position, quotes, statsByItemID, now, quoteMaxAg
   -- the same number Post actually uses (see the projected block's own comment), and the
   -- queue-at-exit recommendation does not exist yet at this point in the walk.
 
-  local levels = type(quotes and quotes[position.itemID]) == "table" and quotes[position.itemID].levels or nil
+  local levels = type(quotes and quotes[quoteID]) == "table" and quotes[quoteID].levels or nil
   -- Kept on the position, not just used and dropped. Every price decision below already reads
   -- the live book -- the floor, the recommendation, the depth ahead of your own lot -- and the
   -- one thing the seller could never see was the book itself. The Sell tab shows a price it
@@ -600,6 +603,8 @@ function GC.SellPositions.Build(args)
         position.bagQty = bagQty
         position.bagStacks = stock.stacks or position.bagStacks
         position.bagIsCommodity = stock.isCommodity == true
+        -- An item-level variant's market search is its own (see decoratePosition).
+        position.quoteKey = stock.quoteKey or position.quoteKey
         -- What ONE Post click can actually list, which is not the same number as what is in the
         -- bags: PostItem pins a single ItemLocation, so a normal item posts its largest stack
         -- and no more, while a commodity aggregates the whole pool (GC.BagStock.PostableQuantity

@@ -470,6 +470,7 @@ GC.Locales.ruRU = {
     "«Неизвестно» значит, что себестоимость заполнена не вся — допишите её через «Указать цену».",
   ["VERDICT"] = "ВЕРДИКТ",
   ["Verdict"] = "Вердикт",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "ЖДЁМ АУКЦИОН %d",
   ["WATCH"] = "СЛЕДИТЬ",
   ["WATCH (computed SAFE)"] = "WATCH (расчёт БЕЗОПАСНО)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -625,6 +626,8 @@ GC.Locales.ruRU = {
   ["off"] = "выкл",
   ["oldest units sell first"] = "сначала продаются старые",
   ["on"] = "вкл",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "откройте аукцион один раз, чтобы GoldCap узнал, как они продаются",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "или вставьте строку с goldcap.gg через /goldcap import.",
   ["over %d position%s"] = "по %d позициям%s",

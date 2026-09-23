@@ -474,6 +474,7 @@ GC.Locales.esMX = {
     "Desconocido significa que falta parte del costo: complétalo con Fijar costo.",
   ["VERDICT"] = "VEREDICTO",
   ["Verdict"] = "Veredicto",
+  ["WAITING FOR THE AUCTION HOUSE %d"] = "ESPERANDO A LA CASA DE SUBASTAS %d",
   ["WATCH"] = "VIGILAR",
   ["WATCH (computed SAFE)"] = "WATCH (calculado SEGURO)",
   ["WATCH = the live check refused it -- hover the row for the reason"] =
@@ -632,6 +633,8 @@ GC.Locales.esMX = {
   ["off"] = "desactivado",
   ["oldest units sell first"] = "las unidades más antiguas se venden primero",
   ["on"] = "activado",
+  ["open the auction house once so GoldCap can tell how these sell"] =
+    "abre la casa de subastas una vez para que GoldCap sepa cómo se venden",
   ["or paste a string from goldcap.gg with /goldcap import."] =
     "o pega una cadena de goldcap.gg con /goldcap import.",
   ["over %d position%s"] = "en %d posiciones%s",
