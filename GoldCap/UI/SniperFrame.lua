@@ -905,12 +905,15 @@ verdictFor = function(deal)
   return v
 end
 
--- A refusal past LIM.REFUSAL_TTL_SECONDS. A refusal is what the refused-rows filter below prunes:
--- not buyable, not a realm lot the check found (`unverified`), not the player's own price
--- (`cap`), not a deal only the wallet limit refused (`needsGold`). A field, not a local: this
--- chunk sits near its 200-local ceiling.
+-- A refusal past LIM.REFUSAL_TTL_SECONDS: not buyable, not a realm lot the check found
+-- (`unverified`), not the player's own price (`cap`). A deal only the wallet limit refused
+-- (`needsGold`) is one too -- it stays on the board, but a "needs" figure half an hour old falls
+-- back to an unchecked row rather than standing for the whole visit (review M-2). Not while the
+-- player is still reading the Check (`manual`, until GC.Sniper._LeavePane): its verdict is not
+-- forgotten under them (review M-1). A field, not a local: this chunk sits near its 200-local
+-- ceiling.
 function GC.Sniper._RefusalLapsed(v, now)
-  return not v.buyable and not v.unverified and not v.cap and not v.needsGold
+  return not v.buyable and not v.unverified and not v.cap and not v.manual
     and (now - v.at) > LIM.REFUSAL_TTL_SECONDS
 end
 
@@ -5472,6 +5475,10 @@ local function applyRequeryResult(row, itemID, live)
       -- only come back with the same answer until the gold is there, and when it is,
       -- GC.Sniper.OnPlayerMoney asks it again.
       local needs = decision.needsGold
+      -- A pane can open on a pre-warm a few seconds old, from before gold arrived and after its
+      -- PLAYER_MONEY had fired: then the gold already covers it, and the pane offers its Check
+      -- rather than a held Buy nothing would ask again (review M-3).
+      if needs and needs <= GetMoney() then needs = nil end
       armCheck(row, deal, decision, needs
         and (GC.L["not enough gold on this character -- you need %s"]):format(GC.Util.FormatGoldCeil(needs))
         or GC.SniperDecision.ReasonText(decision.reasons[1] or "live_verification_required"), false)
@@ -6182,7 +6189,9 @@ end
 --     stays in onDialogPrimaryClick.
 -- A field, not a local: this chunk sits near its 200-local ceiling.
 function GC.Sniper.OnPlayerMoney()
-  if not frame then return end
+  -- Nothing visible for a window nobody is looking at (review M-4): looting fires this over and
+  -- over. The next render reads the gold when the window is shown, and so does the walk.
+  if not (frame and frame:IsShown()) then return end
   local wallet = GetMoney()
   local row = dialog and dialog.row
   local held = row and row.purchaseStage == "check" and row.decisionSnapshot or nil

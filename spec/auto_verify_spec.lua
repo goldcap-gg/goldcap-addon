@@ -788,6 +788,31 @@ describe("Deals background verification", function()
     assert.is_table(api.verdicts[2])
   end)
 
+  -- The player's own Check is not forgotten under them: the half hour runs only once they have
+  -- left its pane (review M-1). A needs-gold verdict lapses like any refusal, so a stale "needs"
+  -- falls back to an unchecked row rather than standing for the whole visit (review M-2).
+  it("keeps a refusal whose pane is still open past the half hour, and lapses a needs-gold one", function()
+    local api = loadSniper(avoid)
+    local d, g = deal(1, 100, 2000), deal(2, 200, 1000)
+    board(api, { d, g })
+    local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+    local stamp = upvalue(upvalue(finish, "applyRequeryResult"), "stampVerdict")
+    _G.GetMoney = function() return 0 end
+    stamp(d, { isCommodity = true, levels = {},
+      decision = { status = "AVOID", buyable = false, reasons = { "demand_limit" } } }, true)
+    stamp(g, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+      reasons = { "capital_limit" }, needsGold = 20000000 } })
+
+    clock = clock + 1801
+    api.renderList()
+    assert.is_table(api.verdicts[1])
+    assert.is_nil(api.verdicts[2])
+
+    api.GC.Sniper._LeavePane(d)
+    api.renderList()
+    assert.is_nil(api.verdicts[1])
+  end)
+
   -- A SAFE verdict keeps its own two-minute rule, and a realm lot the check found is not a
   -- refusal at all: neither is touched by the half hour.
   it("lapses only refusals, not a realm lot the check found", function()
@@ -1201,6 +1226,7 @@ describe("Deals background verification", function()
     -- would only come back with the same answer.
     it("holds the pane's Buy and says what the buy needs", function()
       local api = loadSniper(safe)
+      _G.GetMoney = function() return 0 end
       local d = deal(1, 100)
       board(api, { d })
       local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
@@ -1340,6 +1366,56 @@ describe("Deals background verification", function()
         assert.equal("requerying", row.purchaseStage)
         assert.is_false(primary.enabled)
         assert.equal("checking live safety...", status.text)
+      end)
+
+      -- A pane can open on a pre-warm a few seconds old, from before the gold arrived and after
+      -- its PLAYER_MONEY had already fired. It offers the Check rather than a held Buy with
+      -- nothing to ask it again (review M-3).
+      it("offers the Check, not a held Buy, when the gold already covers what the answer said", function()
+        local api = loadSniper(safe)
+        wallet = 13300000
+        _G.GetMoney = function() return wallet end
+        local finish = upvalue(api.GC.Sniper.OnItemSearchResults, "finishRequery")
+        local apply = upvalue(finish, "applyRequeryResult")
+        local armCheck = upvalue(apply, "armCheck")
+        set(armCheck, "setDialogHeader", function() end)
+        set(armCheck, "stampDialogFromDecision", function() end)
+        local primary = { enabled = false, text = { SetTextColor = function() end } }
+        function primary:Enable() self.enabled = true end
+        function primary:Disable() self.enabled = false end
+        function primary:IsEnabled() return self.enabled end
+        function primary:SetLabel(t) self.label = t end
+        local status = { SetText = function(self, t) self.text = t end, SetTextColor = function() end }
+        local row = { deal = deal(1, 100) }
+        set(apply, "dialog", { row = row, primaryBtn = primary, status = status,
+          banner = { Hide = function() end }, SetHeight = function() end })
+
+        apply(row, 1, { isCommodity = true, levels = {}, decision = { status = "AVOID", buyable = false,
+          reasons = { "capital_limit" }, needsGold = 13300000, walletShare = 0.20, quantity = 5,
+          entryTotal = 2660000 } })
+
+        assert.equal("Check", primary.label)
+        assert.is_true(primary.enabled)
+      end)
+
+      -- Looting in a raid fires PLAYER_MONEY over and over; a window nobody is looking at does not
+      -- re-sort its board for it (review M-4). The next render, when it is shown, reads the gold.
+      it("does nothing visible while the window is hidden", function()
+        local api = loadSniper(safe)
+        wallet = 0
+        _G.GetMoney = function() return wallet end
+        local frame = upvalue(api.GC.Sniper.OnAuctionHouseShow, "frame")
+        local renders = 0
+        local real = api.refreshRows
+        set(api.GC.Sniper.OnPlayerMoney, "refreshRows", function() renders = renders + 1 end)
+        frame.IsShown = function() return false end
+        wallet = 20000000
+        api.GC.Sniper.OnPlayerMoney()
+        assert.equal(0, renders)
+        frame.IsShown = function() return true end
+        api.GC.Sniper.OnPlayerMoney()
+        assert.equal(1, renders)
+        set(api.GC.Sniper.OnPlayerMoney, "refreshRows", real)
       end)
 
       it("leaves the pane's Buy held while the gold is still short", function()
