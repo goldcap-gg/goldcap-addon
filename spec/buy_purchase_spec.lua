@@ -1436,6 +1436,22 @@ describe("BUY purchase", function()
     assert.equal("nothing on offer", rowWithText("Echo Salt").action.label)
   end)
 
+  -- Review round 1: a line whose quote is still fresh keeps its clickable "BUY n" while a batch is
+  -- out -- only a line with no fresh quote is waiting on one.
+  it("keeps a freshly quoted line's own label while a keys batch is out", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    GC.Sniper._KeysOutstanding = function() return true end
+
+    hover(rowWithText("Alpha Herb"))
+
+    local row = rowWithText("Alpha Herb")
+    assert.equal("BUY 10", row.action.label)
+    assert.is_true(row.action:IsEnabled())
+  end)
+
   -- Caps fixes 5i: a quote owed across the end of the session was asked for in the next one, of
   -- a line the player had long since stopped pointing at.
   it("forgets a quote it owed when the auction house closes", function()

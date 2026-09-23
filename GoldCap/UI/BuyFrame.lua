@@ -778,6 +778,18 @@ local function quotePending(attempt)
     and (time() - (attempt.askedAt or 0)) < BD.QUOTE_SECONDS
 end
 
+-- The last quote this line got, while it is still one the next click could spend -- for the
+-- line's whole remaining quantity, inside BD.QUOTE_SECONDS -- or nil. A quote outlives the hover
+-- that asked for it: the COST cell keeps its sum, and the button keeps its "BUY n".
+local function recentQuote(line)
+  local recent = quotes[line.itemID]
+  if recent and recent.qty == line.buy and recent.qty > 0
+      and (time() - (recent.at or 0)) <= BD.QUOTE_SECONDS then
+    return recent
+  end
+  return nil
+end
+
 -- What the line's own button says right now, whether it is clickable, and -- for the one state
 -- that needs a look of its own -- which Theme variant to wear. One function so the render, the
 -- Enter key and the attempt log can never disagree about what state a line is in.
@@ -792,8 +804,13 @@ local function actionLabel(line)
   if strandedFor(line) then return GC.L["no answer — check your mail"], false end
   -- A quote held back for an unanswered keys batch (quote): the ask is taken and will go the moment
   -- the batch is gone. Said like a question already on the wire, not as a resting "BUY n" whose
-  -- click could do nothing yet (caps fixes 5i).
-  if GC.Buy._quoteOwed == line.itemID and not inFlight(attempt) then return GC.L["..."], false end
+  -- click could do nothing yet (caps fixes 5i) -- for a line with no fresh quote only: one that has
+  -- one keeps its own label, as it did before the batch went out.
+  if GC.Buy._quoteOwed == line.itemID and not inFlight(attempt)
+      and not (attempt and attempt.itemID == line.itemID and quoteFresh(attempt))
+      and not recentQuote(line) then
+    return GC.L["..."], false
+  end
   if not attempt or attempt.itemID ~= line.itemID then
     -- Some other line is mid-purchase. A click here cannot start a second one (onBuyClick and
     -- quote both refuse while the client holds a purchase of ours), so the button says so
@@ -1785,11 +1802,8 @@ local function paintLine(row, line)
       and (attempt.stage == "quoted" or inFlight(attempt)) and (attempt.serverTotal or attempt.total) or nil
     -- A quote outlives the hover that asked for it: the cell keeps the real sum for as long as
     -- the quote is one the next click would spend, and only then falls back to the estimate.
-    local recent = quotes[line.itemID]
-    if not quotedTotal and recent and recent.qty == line.buy and recent.qty > 0
-        and (time() - (recent.at or 0)) <= BD.QUOTE_SECONDS then
-      quotedTotal = recent.total
-    end
+    local recent = recentQuote(line)
+    if not quotedTotal and recent then quotedTotal = recent.total end
     if quotedTotal and quotedTotal > 0 then
       row.cells.cost:SetText(formatAmount(quotedTotal))
       setColor(row.cells.cost, (attempt and attempt.itemID == line.itemID and attempt.stage == "confirm")
