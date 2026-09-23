@@ -692,6 +692,7 @@ GC.Locales.ptBR = {
   ["waiting for previous commodity purchase to settle"] =
     "esperando a compra de mercadoria anterior ser liquidada",
   ["waiting for previous search result to settle"] = "esperando o resultado da busca anterior",
+  ["waiting…"] = "aguardando…",
   ["watching %s closely -- re-checked every few seconds"] =
     "acompanhando %s de perto -- reconferido a cada poucos segundos",
   ["worst case, selling all %d back into the price standing there now"] =

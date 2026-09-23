@@ -429,6 +429,15 @@ function GC.Sniper._ConfirmedOwed()
   return nil
 end
 
+-- Fix round 2: the rule this window starts by is the addon's, not its own --
+-- GC.PurchaseSlot.ConfirmOwed: nothing starts while a purchase EITHER window confirmed (this one,
+-- or the BUY tab) is still owed its answer. Returns which window owes it, or nil. Without the
+-- shared slot loaded (a spec that leaves it out) only this window's own confirm is asked.
+function GC.Sniper._PurchaseOwed()
+  if GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed then return GC.PurchaseSlot.ConfirmOwed() end
+  return GC.Sniper._ConfirmedOwed() and "sniper" or nil
+end
+
 -- Task-3 buy-after-scan requery. A full-scan deal's snapshot price/auction can be stale
 -- (a browse result is a per-itemKey aggregate across every seller, not a resolved auction,
 -- and it's a point-in-time snapshot besides), so the FIRST Buy click on one issues a fresh
@@ -4597,7 +4606,11 @@ end
 -- is touched while another confirmed purchase is still owed, or on a window not armed: a Check in
 -- flight decides afresh when it lands.
 function GC.Sniper._HandOffSettled()
-  if GC.Sniper._ConfirmedOwed() then return end
+  if GC.Sniper._PurchaseOwed() then return end
+  -- Fix round 2: the BUY tab's button waits over a confirm of this window's too (its
+  -- owedElsewhere); it reads BUY again now rather than on its next repaint.
+  if GC.Buy and GC.Buy.RefreshIfShown then GC.Buy.RefreshIfShown() end
+  if dialog then dialog.owedHeldRow = nil end
   local row = dialog and dialog.row
   if not (row and row.purchaseStage == "ready") then return end
   -- The button named as it reads: the Refresh label, drawn upper-case (Theme.Button's
@@ -4614,14 +4627,31 @@ end
 -- window, so an arm path writes nothing after it. Only the armed window ("ready") the dialog is
 -- showing; the settle hands it Refresh (GC.Sniper._HandOffSettled).
 function GC.Sniper._HoldWhileOwed(row)
-  if not (GC.Sniper._ConfirmedOwed() and dialog and row and dialog.row == row
+  if not (GC.Sniper._PurchaseOwed() and dialog and row and dialog.row == row
       and row.purchaseStage == "ready") then
     return false
   end
+  -- Remembered for GC.Sniper._TickOwedHold: a confirm the BUY tab owes settles in BUY's own code,
+  -- which hands nothing here, so the ticker notices it instead (fix round 2).
+  dialog.owedHeldRow = row
   dialog.primaryBtn:Disable()
   setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
   if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
   return true
+end
+
+-- The auction house ticker's half of the hand-off (fix round 2). A window held behind a purchase
+-- the BUY tab confirmed is handed Refresh once that purchase has its answer: BUY's own terminal
+-- paths hand nothing to this window, so the ticker notices within a quarter of a second. Only the
+-- window that was held -- one the player has since moved on from is left as it is.
+function GC.Sniper._TickOwedHold()
+  local held = dialog and dialog.owedHeldRow
+  if not held or GC.Sniper._PurchaseOwed() then return end
+  if dialog.row == held then
+    GC.Sniper._HandOffSettled()
+  else
+    dialog.owedHeldRow = nil
+  end
 end
 
 -- Expires a quote nobody clicked within LIM.ARM_TIMEOUT_SECONDS -- but never dead-ends the
@@ -7475,6 +7505,11 @@ local function onDialogPrimaryClick()
     pending.confirmed = true
     pending.deal = row.purchaseDeal
     pending.quote = quoteSnapshot
+    -- Re-stamped at Confirm, not only taken at Start (fix round 2): a claim goes stale
+    -- GC.PurchaseSlot.MAX_SECONDS after it was stamped, and a player who read the quote for half a
+    -- minute left a claim the BUY tab could take over while this purchase was owed its answer. The
+    -- same owner re-claiming always succeeds (Core/PurchaseSlot.lua), as BUY's armStall relies on.
+    if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
     row.purchaseStage = "confirming"
     dialog.primaryBtn:Disable()
     dialog.cancelBtn:Disable()
@@ -7563,18 +7598,15 @@ local function onDialogPrimaryClick()
       GC.L["live verification required"], false)
     return
   end
-  if GC.Sniper._ConfirmedOwed() then
-    -- A confirmed commodity purchase has not answered yet -- a tombstone carried across an
-    -- auction house close, or one still in flight whose window the player closed with Escape.
-    -- It may already have taken gold this buy's own checks still see, so nothing is bought over
-    -- it, commodity or realm lot (review M2). Dark, not lit and refusing (review M3): a Check
-    -- cannot retire it, only its answer or the stranded release can -- and the moment one does,
-    -- GC.Sniper._HandOffSettled hands this window Refresh (follow-up P1).
-    dialog.primaryBtn:Disable()
-    setDialogStatus(GC.L["waiting for previous commodity purchase to settle"], 1, 0.82, 0)
-    if frame then frame.status:SetText(GC.L["waiting for previous commodity purchase to settle"]) end
-    return
-  end
+  -- A confirmed commodity purchase has not answered yet -- this window's (a tombstone carried
+  -- across an auction house close, or one still in flight whose window the player closed with
+  -- Escape) or the BUY tab's (fix round 2: GC.PurchaseSlot.ConfirmOwed, the one rule both windows
+  -- start by). It may already have taken gold this buy's own checks still see, so nothing is bought
+  -- over it, commodity or realm lot (review M2). Dark, not lit and refusing (review M3): a Check
+  -- cannot retire it, only its answer or the stranded release can -- and the moment one does, this
+  -- window is handed Refresh (GC.Sniper._HandOffSettled, follow-up P1; GC.Sniper._TickOwedHold for
+  -- the BUY tab's).
+  if GC.Sniper._HoldWhileOwed(row) then return end
   if commodityDraining and deal.isCommodity then
     -- Fail closed while the tombstone is young, but not forever: an attempt whose terminal
     -- event never arrives (a cancel, an auction house error) would otherwise refuse every
@@ -8818,6 +8850,7 @@ local function openDialog(row, deal)
 
   dialog = dialog or createDialog()
   dialog.row = row
+  dialog.owedHeldRow = nil -- a hold belongs to the window it was put on (GC.Sniper._TickOwedHold)
   -- Final review m3: opened by stop-and-open (drainCapPings), not by the player -- its first arm
   -- waits (applyRequeryResult). Every other open starts without the mark.
   dialog.holdFirstArm = GC.Sniper._capOpening and true or nil
@@ -10657,6 +10690,9 @@ function GC.Sniper.OnAuctionHouseShow()
     -- on screen, a dialog close or the player stop using Blizzard's panes with no render to
     -- notice, and every stop-and-open comes from here.
     GC.Sniper._TickCapPings()
+    -- And a window held behind a purchase the BUY tab confirmed, once that purchase has its
+    -- answer (fix round 2): BUY's terminal paths hand nothing to this window.
+    GC.Sniper._TickOwedHold()
   end)
   feedAuto("ahOpened")
   GC.Sniper._ClearStaleMailPause()

@@ -1527,6 +1527,62 @@ describe("Live price caps -- buying at the player's own price", function()
         assert.equal("requerying", realmRow.purchaseStage)
       end)
 
+      -- Fix round 2: one rule for both windows that can start a commodity purchase -- nothing
+      -- starts while a purchase either of them confirmed is still owed its answer
+      -- (GC.PurchaseSlot.ConfirmOwed). The Sniper's side of it, and the two things it tells the
+      -- BUY tab: its claim is re-stamped at Confirm, and its settle repaints the tab.
+      describe("across the BUY tab", function()
+        it("holds a window over a purchase the BUY tab confirmed, then hands it Refresh", function()
+          local GC, row, deal, d, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          local buyOwed = true
+          GC.Buy = { ConfirmOwed = function() return buyOwed end, RefreshIfShown = function() end }
+          GC.PurchaseSlot.Claim("buy")
+          local book = freshBook()
+          armReadyFn(GC)(row, deal, capLive(GC, 42, book).decision, book) -- a Check lands now
+
+          assert.is_false(d.enabled)
+          assert.equal(WAITING, d.written[#d.written])
+          click()
+          assert.equal(0, starts)
+          assert.is_false(d.enabled)
+
+          buyOwed = false -- BUY's purchase has its answer
+          GC.PurchaseSlot.Release("buy")
+          GC.Sniper._TickOwedHold()
+          assert.equal("expired", row.purchaseStage)
+          assert.is_true(d.enabled)
+          click() -- Refresh: a Check
+          assert.equal(0, starts)
+          assert.equal("requerying", row.purchaseStage)
+        end)
+
+        it("re-stamps its slot claim at Confirm, so the claim lives as long as the wait", function()
+          local GC, row, _, _, click = armed()
+          helper.loadModule("Core/PurchaseSlot.lua", GC)
+          local clock = 100
+          _G.GetTime = function() return clock end
+          click() -- Buy: claimed at 100
+          assert.equal("sniper", GC.PurchaseSlot.Owner())
+          GC.Sniper.OnCommodityPriceUpdated(UNIT, UNIT * QTY)
+          clock = 125
+          click() -- Confirm
+          assert.equal("confirming", row.purchaseStage)
+          assert.is_true(GC.PurchaseSlot.IsBusy(150)) -- 25 s after Confirm, 50 s after Start
+        end)
+
+        it("repaints the BUY tab when its confirmed purchase is answered", function()
+          local GC, row, _, _, click = armed()
+          local refreshed = 0
+          GC.Buy = { RefreshIfShown = function() refreshed = refreshed + 1 end }
+          confirmOn(GC, row, click)
+
+          GC.Sniper.OnCommodityPurchaseSucceeded()
+
+          assert.is_true(refreshed > 0)
+        end)
+      end)
+
       -- Fix round 1, minor 1: the server may answer a Confirm with a new quote -- the price moved
       -- between the quote and the click, nothing was bought, and Blizzard's own dialog asks for
       -- another click. After Escape there is no window to click it from. The attempt used to be

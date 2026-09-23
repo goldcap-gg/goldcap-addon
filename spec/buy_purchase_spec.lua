@@ -442,6 +442,57 @@ describe("BUY purchase", function()
     assert.equal("sniper", GC.PurchaseSlot.Owner())
   end)
 
+  -- Fix round 2: a slot claim goes stale after GC.PurchaseSlot.MAX_SECONDS, but a purchase the
+  -- Sniper confirmed can stay owed its answer longer than that (its stranded release waits 35 s,
+  -- and one carried across an auction house close keeps the claim it had). BUY took the stale
+  -- claim over and started a purchase of its own on top of one that may already have taken gold.
+  describe("while a purchase the sniper confirmed is still owed its answer", function()
+    local owed
+    before_each(function()
+      owed = { confirmed = true }
+      GC.Sniper._ConfirmedOwed = function() return owed end
+      hover(rowWithText("Alpha Herb"))
+      GC.Buy.OnCommodityResults(101)
+      GC.PurchaseSlot.Claim("sniper", now - 31) -- claimed at its Start, 31 s ago: stale
+    end)
+
+    it("does not start, even over the sniper's stale claim", function()
+      click(rowWithText("Alpha Herb"))
+      assert.same({}, started)
+      assert.equal("sniper", GC.PurchaseSlot.Owner())
+    end)
+
+    it("says it is waiting on the button that would start, not BUY", function()
+      GC.Buy.RefreshIfShown()
+      local row = rowWithText("Alpha Herb")
+      assert.equal(GC.L["waiting…"], row.action.label)
+      assert.is_false(row.action:IsEnabled())
+    end)
+
+    it("starts once that purchase has its answer", function()
+      owed = nil
+      GC.Buy.RefreshIfShown()
+      local row = rowWithText("Alpha Herb")
+      assert.equal("BUY 10", row.action.label)
+      click(row)
+      assert.same({ { itemID = 101, quantity = 10 } }, started)
+    end)
+  end)
+
+  -- The other direction of the same rule: the sniper asks too (GC.PurchaseSlot.ConfirmOwed).
+  it("says its own confirmed purchase is owed its answer, and only while it is", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    click(rowWithText("Alpha Herb"))
+    assert.is_false(GC.Buy.ConfirmOwed()) -- started, not confirmed
+    GC.Buy.OnCommodityPriceUpdated(1020, 10200)
+    click(rowWithText("Alpha Herb")) -- confirm
+    assert.is_true(GC.Buy.ConfirmOwed())
+    assert.equal("buy", GC.PurchaseSlot.ConfirmOwed())
+    GC.Buy.OnCommodityPurchaseSucceeded()
+    assert.is_false(GC.Buy.ConfirmOwed())
+  end)
+
   it("ignores a second click while a purchase is already started", function()
     hover(rowWithText("Alpha Herb"))
     GC.Buy.OnCommodityResults(101)

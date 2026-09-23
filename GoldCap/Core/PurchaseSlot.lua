@@ -42,6 +42,20 @@ function GC.PurchaseSlot.Owner()
   return owner
 end
 
+-- The one rule both Start sites keep (the Sniper's onDialogPrimaryClick, the BUY tab's
+-- onBuyClick): no commodity purchase starts while a purchase either window CONFIRMED is still owed
+-- its answer -- the claim above is not enough on its own. It goes stale after MAX_SECONDS, and a
+-- confirmed purchase can be owed longer than that (the Sniper's stranded release waits 35 s, and a
+-- confirm carried across an auction house close keeps the claim it had), so the other window took
+-- the stale claim over and started a purchase on top of one that may already have taken gold.
+-- Returns the window whose confirm is owed ("sniper" or "buy"), or nil. Each window answers for
+-- itself: GC.Sniper._ConfirmedOwed and GC.Buy.ConfirmOwed; a window not loaded owes nothing.
+function GC.PurchaseSlot.ConfirmOwed()
+  if GC.Sniper and GC.Sniper._ConfirmedOwed and GC.Sniper._ConfirmedOwed() then return "sniper" end
+  if GC.Buy and GC.Buy.ConfirmOwed and GC.Buy.ConfirmOwed() then return "buy" end
+  return nil
+end
+
 -- Same staleness bound as Claim: a claim nobody released within MAX_SECONDS is no longer
 -- reported busy, exactly as it is no longer protected from being taken over.
 function GC.PurchaseSlot.IsBusy(now)

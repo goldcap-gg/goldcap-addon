@@ -792,6 +792,13 @@ local function recentQuote(line)
   return nil
 end
 
+-- A purchase the OTHER window confirmed is still owed its answer: nothing here may start one (the
+-- click refuses, and the line's button waits).
+local function owedElsewhere()
+  local owed = GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed and GC.PurchaseSlot.ConfirmOwed()
+  return owed ~= nil and owed ~= "buy"
+end
+
 -- What the line's own button says right now, whether it is clickable, and -- for the one state
 -- that needs a look of its own -- which Theme variant to wear. One function so the render, the
 -- Enter key and the attempt log can never disagree about what state a line is in.
@@ -842,6 +849,11 @@ local function actionLabel(line)
       return GC.L["not a commodity — buy by hand"], false
     end
     if (attempt.qty or 0) > 0 then
+      -- Fix round 2: a click here would start a purchase, and one the Sniper confirmed is still
+      -- owed its answer (GC.PurchaseSlot.ConfirmOwed): the button waits, as the Sniper's own Buy
+      -- does over it, and reads BUY again once that purchase has its answer (the Sniper repaints
+      -- this tab when it settles).
+      if owedElsewhere() then return GC.L["waiting…"], false end
       -- A partial fill: the cap stopped the ladder part-way, so what is on the button is real
       -- but it is not the whole line. The label stays short enough for the 72px badge and the
       -- button wears the over-cap look; how far over the rest sits is on the log line
@@ -920,6 +932,14 @@ end
 -- one. Asking never consumes a record; liveStranded does prune records that have expired or
 -- belong to an earlier session, which is the same ageing the Sniper's mirror applies.
 function GC.Buy.HasStranded() return (liveStranded()) > 0 end
+
+-- Whether a purchase this tab confirmed is still owed its answer: Confirm reached the server and
+-- neither a terminal event, a re-quote nor the confirming timeout (retireStalled) has spoken since.
+-- Half of GC.PurchaseSlot.ConfirmOwed, the rule both windows start by.
+function GC.Buy.ConfirmOwed()
+  local attempt = GC.Buy._attempt
+  return attempt ~= nil and attempt.stage == "confirming"
+end
 
 -- The one record a terminal event can honestly be attributed to, consumed. A commodity event
 -- carries no attempt id, so with two of them live attribution is a guess: they are ALL dropped and
@@ -1622,6 +1642,15 @@ local function onBuyClick(line)
     return
   end
 
+  -- The one rule (GC.PurchaseSlot.ConfirmOwed): never start over a purchase the Sniper confirmed
+  -- that is still owed its answer, whatever the claim below says -- that claim goes stale long
+  -- before such a purchase has to have answered. Said the way the Sniper says it.
+  if owedElsewhere() then
+    logAttempt(line, GC.L["waiting for previous commodity purchase to settle"])
+    if GC.Print then GC.Print(GC.L["waiting for previous commodity purchase to settle"]) end
+    GC.Buy.RefreshIfShown()
+    return
+  end
   if GC.PurchaseSlot and not GC.PurchaseSlot.Claim("buy") then
     if GC.Print then GC.Print(GC.L["another purchase is in flight"]) end
     return
