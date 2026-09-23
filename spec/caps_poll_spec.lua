@@ -345,8 +345,6 @@ describe("Caps polling", function()
     end
   end)
 
-  -- Round 2, the safety net: a Check that came back empty for any reason ("listing gone") on a
-  -- capped item re-arms the cap ratchets, so a false gone heals within the next round.
   -- Caps fixes 5d: `/gc board` says how many of the player's prices the file carried that could
   -- not be read, and how many it holds that the poll is not asking about.
   it("prints the dropped and unpolled caps on /gc board", function()
@@ -366,6 +364,8 @@ describe("Caps polling", function()
     assert.is_truthy(line:find("held=1 dropped=1 repeated=1 unpolled=1", 1, true), line)
   end)
 
+  -- Round 2, the safety net: a Check that came back empty for any reason ("listing gone") on a
+  -- capped item re-arms the cap ratchets, so a false gone heals within the next round.
   describe("a gone on a capped item", function()
     local function gone(GC, itemID)
       local apply = upvalue(upvalue(GC.Sniper.OnItemKeyInfo, "finishRequery"), "applyRequeryResult")
