@@ -234,8 +234,9 @@ describe("Sniper purchase wiring", function()
     -- it is defined and where the engine's hardware wiring hands it the click or the key -- never
     -- called from anywhere else -- and nothing in the addon clicks a button, or runs a button's
     -- script, from code.
-    local PROGRAMMATIC = { "[:%.]Click%s*%(", "GetScript%s*%(%s*[\"']OnClick", "GetScript%s*%(%s*[\"']OnKeyDown",
-      "ExecuteFrameScript" }
+    -- Follow-up 3: the bracket spelling too -- `btn["Click"](btn)`, `btn['Click'](btn)`.
+    local PROGRAMMATIC = { "[:%.]Click%s*%(", "%[%s*[\"']Click[\"']%s*%]",
+      "GetScript%s*%(%s*[\"']OnClick", "GetScript%s*%(%s*[\"']OnKeyDown", "ExecuteFrameScript" }
 
     -- Every line of `text` (comments blanked) naming `name`, trimmed, with the position of the name.
     local function namedAt(text, name)
@@ -308,9 +309,12 @@ describe("Sniper purchase wiring", function()
         "-- onDialogPrimaryClick() in a comment",
         "C_Timer.After(1, onDialogPrimaryClick)",
         "  dialog.primaryBtn:Click()",
+        "  dialog.primaryBtn['Click'](dialog.primaryBtn)",
       }, "\n"))
-      assert.same({ "test/sniper [:%.]Click%s*%(", "test/sniper C_Timer.After(1, onDialogPrimaryClick)" },
-        handlerViolations("test/sniper", sniper))
+      assert.same({ "test/sniper [:%.]Click%s*%(", "test/sniper %[%s*[\"']Click[\"']%s*%]",
+        "test/sniper C_Timer.After(1, onDialogPrimaryClick)" }, handlerViolations("test/sniper", sniper))
+      assert.same({ "test/other %[%s*[\"']Click[\"']%s*%]" },
+        handlerViolations("test/other", blankComments('local b = f; b["Click"](b)\n-- b["Click"](b)')))
       local buy = blankComments(table.concat({
         "local function onBuyClick(line)",
         "end",
