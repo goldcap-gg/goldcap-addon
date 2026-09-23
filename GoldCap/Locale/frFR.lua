@@ -222,7 +222,7 @@ GC.Locales.frFR = {
   ["Language"] = "Langue",
   ["Language changed. Type /reload to apply it everywhere."] =
     "Langue changée. Tapez /reload pour l'appliquer partout.",
-  ["Last post may still go up -- wait a minute"] = "Peut encore passer -- attends une minute",
+  ["Last post may still go up -- wait a minute"] = "Le dépôt peut aboutir -- attends une minute",
   ["Last result: %ds ago"] = "Dernier résultat : il y a %ds",
   ["Last result: none yet this visit"] = "Dernier résultat : aucun pour cette visite",
   ["Listed"] = "En vente",
@@ -742,6 +742,7 @@ GC.Locales.frFR = {
     "votre client de jeu n'a pas de police pour cette langue — le texte s'affichera en carrés vides",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "votre import date de %d heures -- les prix peuvent être faux. Collez une chaîne fraîche depuis goldcap.gg (/goldcap import).",
+  ["your price is above every level shown"] = "ton prix dépasse tous les niveaux",
   ["yours"] = "le tien",
   ["yours ×%s"] = "à toi ×%s",
   ["~%dd to reach you"] = "~%d j avant ton tour",

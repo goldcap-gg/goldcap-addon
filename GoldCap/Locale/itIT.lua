@@ -742,6 +742,7 @@ GC.Locales.itIT = {
     "il tuo client di gioco non ha un font per questa lingua — il testo apparirà come quadrati vuoti",
   ["your import is %d hours old -- prices may be off. Paste a fresh string from goldcap.gg (/goldcap import)."] =
     "la tua importazione ha %d ore -- i prezzi possono essere sbagliati. Incolla una stringa fresca da goldcap.gg (/goldcap import).",
+  ["your price is above every level shown"] = "il tuo prezzo supera ogni livello",
   ["yours"] = "il tuo",
   ["yours ×%s"] = "tuoi ×%s",
   ["~%dd to reach you"] = "~%d g al tuo turno",
