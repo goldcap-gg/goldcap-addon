@@ -41,6 +41,176 @@ describe("Sniper purchase wiring", function()
     assert.is_nil(after:find("C_AuctionHouse.PlaceBid", 1, true))
   end)
 
+  -- Caps fixes 5e. The test above reads one file for three exact call strings, so a protected
+  -- call written anywhere else passed it: in another file, under an alias
+  -- (`local buy = C_AuctionHouse.PlaceBid`), or indexed by a string (`C_AuctionHouse["PlaceBid"]`).
+  -- So every Lua file under GoldCap/ is read with its comments blanked out, and every mention of
+  -- the three names -- a call, a field, a string, whatever -- has to be one of the allowed sites:
+  -- the Sniper dialog's hardware click (all three), the BUY tab's own button handler (the two
+  -- commodity calls), and Core/PurchaseCapture.lua's passive post-hooks, which observe a call and
+  -- cannot make one.
+  describe("across every file", function()
+    local PROTECTED = { "PlaceBid", "StartCommoditiesPurchase", "ConfirmCommoditiesPurchase" }
+
+    local function read(path)
+      local f = assert(io.open(path, "r"))
+      local text = f:read("*a")
+      f:close()
+      return text
+    end
+
+    -- Comments become spaces (newlines kept), so every offset and line number still matches the
+    -- file; strings are kept, because a name inside a string is exactly how an indexed call is
+    -- spelled.
+    local function blankComments(text)
+      local out, i, n = {}, 1, #text
+      while i <= n do
+        local s = text:find("[%-%[\"']", i)
+        if not s then out[#out + 1] = text:sub(i); break end
+        out[#out + 1] = text:sub(i, s - 1)
+        local c = text:sub(s, s)
+        if c == "-" and text:sub(s, s + 1) == "--" then
+          local eq = text:match("^%[(=*)%[", s + 2)
+          local stop
+          if eq then
+            local _, e = text:find("]" .. eq .. "]", s + 2, true)
+            stop = e or n
+          else
+            stop = (text:find("\n", s, true) or (n + 1)) - 1
+          end
+          out[#out + 1] = (text:sub(s, stop):gsub("[^\n]", " "))
+          i = stop + 1
+        elseif c == "[" and text:match("^%[=*%[", s) then
+          local eq = text:match("^%[(=*)%[", s)
+          local _, e = text:find("]" .. eq .. "]", s, true)
+          e = e or n
+          out[#out + 1] = text:sub(s, e)
+          i = e + 1
+        elseif c == "\"" or c == "'" then
+          local j = s + 1
+          while j <= n do
+            local ch = text:sub(j, j)
+            if ch == "\\" then j = j + 2
+            elseif ch == c or ch == "\n" then break
+            else j = j + 1 end
+          end
+          out[#out + 1] = text:sub(s, j)
+          i = j + 1
+        else
+          out[#out + 1] = c
+          i = s + 1
+        end
+      end
+      return table.concat(out)
+    end
+
+    local function span(text, first, last)
+      local from = assert(text:find(first, 1, true), first)
+      local to = assert(text:find(last, from + #first, true), last)
+      return from, to
+    end
+
+    -- path -> function(text, pos, name) -> whether this mention is an allowed site.
+    local function allowedSites()
+      local sniper = read("GoldCap/UI/SniperFrame.lua")
+      local dialogFrom, dialogTo = span(sniper, "local function onDialogPrimaryClick()",
+        "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
+      local buy = read("GoldCap/UI/BuyFrame.lua")
+      local buyFrom, buyTo = span(buy, "local function onBuyClick",
+        "-- ---------------------------------------------------------------------------\n-- Rows")
+      local function calledAt(text, pos, name, from, to)
+        local prefix = "C_AuctionHouse."
+        return pos > from and pos < to
+          and text:sub(pos - #prefix, pos + #name) == prefix .. name .. "("
+      end
+      return {
+        ["GoldCap/UI/SniperFrame.lua"] = function(text, pos, name)
+          return calledAt(text, pos, name, dialogFrom, dialogTo)
+        end,
+        ["GoldCap/UI/BuyFrame.lua"] = function(text, pos, name)
+          return name ~= "PlaceBid" and calledAt(text, pos, name, buyFrom, buyTo)
+        end,
+        ["GoldCap/Core/PurchaseCapture.lua"] = function(text, pos, name)
+          local hook = 'hooksecurefunc(C_AuctionHouse, "'
+          return text:sub(pos - #hook, pos + #name + 1) == hook .. name .. '",'
+        end,
+      }
+    end
+
+    local function mentions(path)
+      local text = blankComments(read(path))
+      local found = {}
+      for _, name in ipairs(PROTECTED) do
+        local from = 1
+        while true do
+          local s, e = text:find("%f[%w_]" .. name .. "%f[^%w_]", from)
+          if not s then break end
+          local _, newlines = text:sub(1, s):gsub("\n", "")
+          found[#found + 1] = { pos = s, name = name, line = newlines + 1, text = text }
+          from = e + 1
+        end
+      end
+      return found
+    end
+
+    local function luaFiles()
+      local files = {}
+      local listing = assert(io.popen('find GoldCap -name "*.lua"'))
+      for path in listing:lines() do files[#files + 1] = path end
+      listing:close()
+      table.sort(files)
+      return files
+    end
+
+    local function audit()
+      local allowed, violations, sites = allowedSites(), {}, {}
+      for _, path in ipairs(luaFiles()) do
+        for _, m in ipairs(mentions(path)) do
+          local ok = allowed[path]
+          if ok and ok(m.text, m.pos, m.name) then
+            sites[#sites + 1] = path .. " " .. m.name
+          else
+            violations[#violations + 1] = ("%s:%d %s"):format(path, m.line, m.name)
+          end
+        end
+      end
+      table.sort(sites)
+      return violations, sites
+    end
+
+    it("finds every protected name only at an allowed site", function()
+      local violations, sites = audit()
+      assert.same({}, violations)
+      -- A scan that found nothing would pass the line above in silence.
+      assert.same({
+        "GoldCap/Core/PurchaseCapture.lua ConfirmCommoditiesPurchase",
+        "GoldCap/Core/PurchaseCapture.lua PlaceBid",
+        "GoldCap/Core/PurchaseCapture.lua StartCommoditiesPurchase",
+        "GoldCap/UI/BuyFrame.lua ConfirmCommoditiesPurchase",
+        "GoldCap/UI/BuyFrame.lua StartCommoditiesPurchase",
+        "GoldCap/UI/SniperFrame.lua ConfirmCommoditiesPurchase",
+        "GoldCap/UI/SniperFrame.lua PlaceBid",
+        "GoldCap/UI/SniperFrame.lua StartCommoditiesPurchase",
+      }, sites)
+    end)
+
+    it("sees an alias, a string index and a call in another file, and not a comment", function()
+      local text = blankComments(table.concat({
+        "-- C_AuctionHouse.PlaceBid(1, 2) is only a comment",
+        "--[[ C_AuctionHouse.StartCommoditiesPurchase(1, 2) ]]",
+        "local buy = C_AuctionHouse.PlaceBid",
+        'local confirm = C_AuctionHouse["ConfirmCommoditiesPurchase"]',
+        "local s = '-- not a comment'; C_AuctionHouse.StartCommoditiesPurchase(1, 2)",
+      }, "\n"))
+      local seen = {}
+      for _, name in ipairs(PROTECTED) do
+        for _ in text:gmatch("%f[%w_]" .. name .. "%f[^%w_]") do seen[#seen + 1] = name end
+      end
+      table.sort(seen)
+      assert.same({ "ConfirmCommoditiesPurchase", "PlaceBid", "StartCommoditiesPurchase" }, seen)
+    end)
+  end)
+
   it("the dialog claims the slot before it starts a purchase", function()
     local text = source()
     local click = section(text, "local function onDialogPrimaryClick()", "-- ---------------------------------------------------------------------------\n-- Sniper v3 dialog layout constants")
