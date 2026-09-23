@@ -213,4 +213,45 @@ describe("Sniper dialog reason humanization", function()
       "GC.SniperDecision.ReasonText((decision and decision.reasons and decision.reasons[1])",
       1, true))
   end)
+
+  -- In game 2026-09-23: a YOUR PRICE window read "Needs a live price check befor..." on its
+  -- Reason row, over a Buy the live check had just armed. A cap decision carries no reasons --
+  -- nothing refused it -- so the fallback token was all there was to show.
+  it("says the player's own price decided a cap decision, not that it needs a check", function()
+    local GC = baseGC()
+    helper.loadModule("Core/Util.lua", GC) -- the cap headline formats its figure through it
+    _G.GetCoinTextureString = function(value) return tostring(value) end
+    finally(function() _G.GetCoinTextureString = nil end)
+    loadSniper(GC)
+    local reasonText = fakeTextRegion()
+    local dialog = fakeDialog(reasonText, fakeDiagnostic())
+    local stamp = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "stampDialogFromDecision")
+    setUpvalue(stamp, "dialog", dialog)
+    setUpvalue(stamp, "marketForDecision", function() return {} end)
+
+    stamp({ itemID = 42, isCommodity = true, cap = 11000 }, { status = "SAFE", buyable = true,
+      cap = true, quantity = 400, entryTotal = 3975200, entryUnitDisplay = 9938, unit = 9938 })
+
+    assert.equal(GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."],
+      reasonText.text)
+  end)
+
+  -- The Reason row wraps now, and the transcript's height is measured off it -- so the sentence
+  -- has to be on the row before the blocks are laid out, not after.
+  it("writes the Reason before the dialog's blocks are laid out", function()
+    local GC = baseGC()
+    loadSniper(GC)
+    local reasonText = fakeTextRegion()
+    local dialog = fakeDialog(reasonText, fakeDiagnostic())
+    local seen
+    dialog.layoutBlocks = function() seen = reasonText.text end
+    local stamp = getUpvalue(GC.Sniper.OnCommodityPriceUpdated, "stampDialogFromDecision")
+    setUpvalue(stamp, "dialog", dialog)
+    setUpvalue(stamp, "marketForDecision", function() return {} end)
+
+    stamp({ itemID = 42 }, { computedStatus = "WATCH", status = "WATCH", buyable = false,
+      quantity = 1, reasons = { "stress_profit_below_buffer" } })
+
+    assert.equal(GC.SniperDecision.ReasonText("stress_profit_below_buffer"), seen)
+  end)
 end)

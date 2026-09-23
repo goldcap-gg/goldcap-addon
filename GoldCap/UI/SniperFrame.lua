@@ -1310,20 +1310,26 @@ local function setRowDeal(row, deal)
   -- well after this call returns.
   local watchSuffix = deal.pinPlaceholder
     and ("|cff8c8a85%s|r"):format(GC.L[" · watching"]) or ""
-  -- Live price caps, addon task 6: a cap row belongs to an alert group -- say so, and say the
-  -- price it rang for, the same dim suffix pattern watchSuffix uses (own color code, so it
-  -- never inherits the quality-colored name). Only for a named group; a manual (ungrouped) cap
-  -- has nothing extra to say here that the CAP tier chip does not already.
-  local capSuffix = deal.capGroup
-    and ("|cff8c8a85 %s|r"):format((GC.L["%s · your price %s"]):format(
-      deal.capGroup, GC.Util.FormatGoldFloor(deal.cap)))
-    or ""
+  -- Live price caps, addon task 6: a cap row belongs to an alert group -- say so, in the same dim
+  -- suffix pattern watchSuffix uses (own color code, so it never inherits the quality-colored
+  -- name). Only the group: the VERDICT column already says YOUR PRICE, and "· your price 1g10s"
+  -- beside it ran the cell out of room -- "x400 Test caps · yo..." (in game 2026-09-23). Only
+  -- when the cell has room for it, too: a name the client had to cut drops the group, which the
+  -- row's tooltip names either way (GC.Sniper._CapNote).
+  local capSuffix = deal.capGroup and ("|cff8c8a85 · %s|r"):format(deal.capGroup) or ""
+  local function stampName(named)
+    local base = named .. qtySuffix(deal)
+    row.nameText:SetText(base .. capSuffix .. watchSuffix)
+    if capSuffix ~= "" and row.nameText.IsTruncated and row.nameText:IsTruncated() then
+      row.nameText:SetText(base .. watchSuffix)
+    end
+  end
   local cached = nameIconCache[deal.itemID]
   if cached then
     row.icon:SetTexture(cached.icon)
-    row.nameText:SetText(cached.named .. qtySuffix(deal) .. capSuffix .. watchSuffix)
+    stampName(cached.named)
   else
-    row.nameText:SetText((GC.L["item %d"]):format(deal.itemID) .. qtySuffix(deal) .. capSuffix .. watchSuffix)
+    stampName((GC.L["item %d"]):format(deal.itemID))
     row.icon:SetTexture(nil)
 
     local item = Item:CreateFromItemID(deal.itemID)
@@ -1344,7 +1350,7 @@ local function setRowDeal(row, deal)
       end
       nameIconCache[deal.itemID] = { icon = icon, named = named }
       row.icon:SetTexture(icon)
-      row.nameText:SetText(named .. qtySuffix(deal) .. capSuffix .. watchSuffix)
+      stampName(named)
     end)
   end
 
@@ -3972,6 +3978,13 @@ local function stampDialogFromDecision(deal, decision)
     end
   end
   firstReason = firstReason or (decision.reasons and decision.reasons[1]) or "live_verification_required"
+  -- Written before drawVerdict, whose layoutBlocks sizes the transcript off this row: it wraps
+  -- (createDialog), and a sentence stamped after the layout was measured at the old one's size.
+  -- A cap decision carries no reasons -- nothing refused it -- and the fallback token read "Needs
+  -- a live price check" over a Buy the live check had just armed (in game 2026-09-23).
+  dialog.reasonText:SetText(decision.cap
+    and GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
+    or GC.SniperDecision.ReasonText(firstReason))
 
   -- The verdict block is drawn by drawVerdict (above), off Core/CheckVerdict.lua. The item's
   -- own name is not repeated here -- the header carries it, and "Buy 3 × Argentleaf for 453g"
@@ -4016,7 +4029,6 @@ local function stampDialogFromDecision(deal, decision)
   dialog.sellThroughText:SetText(market.sellThroughBps
     and ("%d%%"):format(math.floor(market.sellThroughBps / 100 + 0.5)) or "—")
   dialog.sourceAgeText:SetText(sourceAge and GC.Util.FormatElapsed(sourceAge) or "—")
-  dialog.reasonText:SetText(GC.SniperDecision.ReasonText(firstReason))
   if decision.status == "SAFE" then
     dialog.profitText:SetTextColor(0.25, 0.85, 0.25)
   else
@@ -4625,6 +4637,17 @@ function GC.Sniper._CapMiss(deal, decision)
   end
   if #parts == 0 then return nil end
   return table.concat(parts, " · ")
+end
+
+-- What YOUR PRICE means on a cap row, for its tooltip (the row's OnEnter, which the verdict chip
+-- sits inside): the player's own price decided it, and the alert group that price came from --
+-- the name the item cell leaves out when it has no room for it. nil for a row that is not a cap.
+function GC.Sniper._CapNote(deal)
+  if not (deal and deal.cap) then return nil end
+  if deal.capGroup then
+    return (GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format(deal.capGroup)
+  end
+  return GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."]
 end
 
 -- Caps fixes 3b: a commodity cap row goes on the board the player is looking at -- the store
@@ -8051,6 +8074,10 @@ local function createDialog()
   -- underneath it.
   local gridBlock = CreateFrame("Frame", nil, d)
   d.gridBlock = gridBlock
+  -- Anchored from the start, not only once layoutBlocks first places it: the wrapped Reason
+  -- below is measured off the grid's width, and a grid closed at construction had none.
+  gridBlock:SetPoint("TOPLEFT", d, "TOPLEFT", 0, -DG.HEADER_H)
+  gridBlock:SetPoint("TOPRIGHT", d, "TOPRIGHT", 0, -DG.HEADER_H)
   local function gridRow(index, label)
     local y = -(Theme.pad.s + (index - 1) * DG.GRID_ROW_H)
     local labelFS = Theme.Label(gridBlock, 11)
@@ -8089,7 +8116,22 @@ local function createDialog()
   local soldText = evidenceRow(7, GC.L["Sold/day"])
   local sellThroughText = evidenceRow(8, GC.L["Sell-through"])
   local sourceAgeText = evidenceRow(9, GC.L["Source age"])
-  local reasonText = evidenceRow(10, GC.L["Reason"])
+  -- The Reason is a sentence, and one line of this grid cut it to "The profit does not clear
+  -- your..." (in game 2026-09-23). So it wraps under itself, left-justified, in the label face.
+  -- The rulebook's text trap applies: a wrapping FontString held to a fixed height draws
+  -- nothing, and gridRow's LEFT anchor (vertically centred on the label) plus a TOPRIGHT would
+  -- fix one. Both anchors sit on its top edge and it is never given a height -- the client sizes
+  -- it to its lines, and layoutBlocks grows the transcript by what it measures.
+  local reasonY = -(Theme.pad.s + (DG.GRID_ROWS - 1) * DG.GRID_ROW_H)
+  local reasonLabel = Theme.Label(gridBlock, 11)
+  reasonLabel:SetPoint("TOPLEFT", Theme.pad.m, reasonY)
+  reasonLabel:SetText(GC.L["Reason"])
+  local reasonText = Theme.Label(gridBlock, 12)
+  reasonText:SetPoint("TOPLEFT", reasonLabel, "TOPRIGHT", Theme.pad.s, 0)
+  reasonText:SetPoint("TOPRIGHT", -Theme.pad.m, reasonY)
+  reasonText:SetJustifyH("LEFT")
+  reasonText:SetWordWrap(true)
+  d.evidenceRows[#d.evidenceRows + 1] = { label = reasonLabel, value = reasonText }
   d.decisionStatusText = decisionStatusText
   d.unitPriceText, d.totalCostText, d.exitUnitText = unitPriceText, totalCostText, exitUnitText
   d.profitText, d.mvText, d.soldText = profitText, mvText, soldText
@@ -8125,7 +8167,11 @@ local function createDialog()
     place(reconcileBlock, DG.RECONCILE_H, reconcile)
     place(qtyBlock, DG.QTY_BLOCK_H, actionable)
     place(factsBlock, DG.FACTS_H, not d.detailsOpen)
-    place(gridBlock, DG.GRID_H, d.detailsOpen and true or false)
+    -- The wrapped Reason (above) runs past its own row by whatever its sentence needs; the
+    -- transcript takes that much more, and so does every budget measured below.
+    local reasonH = d.reasonText:GetStringHeight()
+    local gridH = DG.GRID_H + math.max(0, math.ceil((type(reasonH) == "number" and reasonH or 0) - DG.GRID_ROW_H))
+    place(gridBlock, gridH, d.detailsOpen and true or false)
 
     y = y - Theme.pad.xs
     detailsToggle:ClearAllPoints()
@@ -8142,7 +8188,7 @@ local function createDialog()
     local above = DG.HEADER_H + DG.HERO_H + (reconcile and DG.RECONCILE_H or 0)
       + (actionable and DG.QTY_BLOCK_H or 0) + DG.TOGGLE_BLOCK_H + DG.STATUS_H + DG.CONTROLS_H
     d.fixedHeightClosed = above + DG.FACTS_H
-    d.fixedHeightOpen = above + DG.GRID_H
+    d.fixedHeightOpen = above + gridH
     -- Kept in step here too, not only in applyDetailsState: a verdict can drop the quantity
     -- block without the Details state changing at all, and resizeDialogDiagnostics measures
     -- the flowing block below off this number.
@@ -8965,7 +9011,13 @@ createRow = function(parent, index)
     -- What the background check found, in words. A refused row that the toolbar toggle has
     -- brought back into view is otherwise a status code and nothing else.
     local verdict = verdictFor(self.deal)
-    if verdict then
+    local capNote = GC.Sniper._CapNote(self.deal)
+    if verdict and verdict.cap and capNote then
+      -- "checked live -- safe to buy" is the market engine's word, and no safety was judged
+      -- here: the player's own price was. The group it came from is named here too.
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(capNote, 0.25, 0.85, 0.25, true)
+    elseif verdict then
       GameTooltip:AddLine(" ")
       if verdict.buyable then
         GameTooltip:AddLine(GC.L["GoldCap: checked live -- safe to buy"], 0.25, 0.85, 0.25)

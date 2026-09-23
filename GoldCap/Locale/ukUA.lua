@@ -47,7 +47,6 @@ GC.Locales.ukUA = {
   ["%s after the AH cut"] = "%s після комісії",
   ["%s ahead"] = "%s попереду",
   ["%s under you"] = "%s дешевше за вас",
-  ["%s · your price %s"] = "%s · ваша ціна %s",
   ["%s — %d unit%s without a cost"] = "%s — %d одиниц%s без собівартості",
   [", %d hidden as unsellable"] = ", приховано %d як непродавані",
   ["1 lot, %s asked"] = "1 лот, просять %s",
@@ -740,4 +739,6 @@ GC.Locales.ukUA = {
   ["no answer %ds ago -- resting"] = "немає відповіді %dс тому -- пауза",
   ["the last attempt is still settling -- checking the price again..."] =
     "попередня спроба ще не завершилася -- перевіряємо ціну знову...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "Виставлено за ціною, яку ви задали на goldcap.gg, або дешевше (група: %s)",
 }

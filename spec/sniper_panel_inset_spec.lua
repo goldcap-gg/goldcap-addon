@@ -79,6 +79,8 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       GetVerticalScrollRange = function() return 0 end,
       SetWordWrap = function() end,
       SetMaxLines = function() end,
+      -- The dialog's Reason row wraps, and layoutBlocks sizes the transcript off its height.
+      GetStringHeight = function() return 0 end,
       SetSpacing = function() end,
       Enable = function() end,
       Disable = function() end,
@@ -450,6 +452,25 @@ describe("Sniper check panel inset (applyPanelInset)", function()
       assert.equal(rec.reconcile.top - rec.reconcile.height, rec.facts.top)
       -- A refusal is the SHORTER shape, which is what let the toggle open in the docked drawer.
       assert.is_true(d.fixedHeightOpen < 550)
+    end)
+
+    -- In game 2026-09-23 the Reason ended in "...": it wraps now, and whatever its sentence
+    -- takes past its own row is the transcript's -- and the fit guard's -- to pay for.
+    it("grows the transcript by what the wrapped Reason needs past its own row", function()
+      local d = realDialog(false)
+      local rec = watchAll(d)
+      d.GetHeight = function() return 10000 end
+      d.applyDetailsState(true)
+      local oneLine, openOneLine = rec.grid.height, d.fixedHeightOpen
+
+      d.reasonText.GetStringHeight = function() return 43.5 end -- three lines' worth
+      d.layoutBlocks({ reconcile = false, actionable = true })
+
+      local DG = getUpvalue(getUpvalue(d.applyDetailsState, "layoutBlocks"), "DG")
+      assert.equal(DG.GRID_H, oneLine) -- one line fits its own row: nothing added
+      assert.equal(DG.GRID_H + 44 - DG.GRID_ROW_H, rec.grid.height)
+      assert.equal(openOneLine + 44 - DG.GRID_ROW_H, d.fixedHeightOpen)
+      assert.equal(d.fixedHeightOpen, d.fixedHeight)
     end)
 
     it("swaps the facts for the transcript rather than stacking both", function()

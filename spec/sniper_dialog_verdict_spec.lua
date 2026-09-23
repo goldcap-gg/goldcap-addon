@@ -640,6 +640,25 @@ describe("Sniper buy dialog verdict block", function()
 
     -- The dialog exposes applyDetailsState so createFrame's OnSizeChanged can drive it directly
     -- (the only handle the rest of the file gets on this closure), same idiom as f.applyPanelInset.
+    -- In game 2026-09-23: "The profit does not clear your...", "Needs a live price check
+    -- befor..." -- the Reason row was one line wide and the sentence ended in dots. It wraps
+    -- now, and the rulebook's text trap applies: a wrapping FontString held to a fixed height
+    -- draws nothing, so it is anchored on its top edge only and never given a height, and the
+    -- transcript grows by what it measures -- the fit guard included.
+    it("wraps the Reason under itself and grows the transcript to fit it", function()
+      local text = source()
+      local build = section(text, "local reasonLabel = Theme.Label(gridBlock", "local function layoutBlocks(shape)")
+      assert.is_truthy(build:find("reasonText:SetWordWrap(true)", 1, true))
+      assert.is_nil(build:find("reasonText:SetMaxLines(1)", 1, true))
+      assert.is_nil(build:find("reasonText:SetHeight(", 1, true))
+      assert.is_truthy(build:find('reasonText:SetPoint("TOPLEFT", reasonLabel, "TOPRIGHT"', 1, true))
+      assert.is_truthy(build:find('reasonText:SetPoint("TOPRIGHT"', 1, true))
+      local layout = section(text, "local function layoutBlocks(shape)", "d.layoutBlocks = layoutBlocks")
+      assert.is_truthy(layout:find("d.reasonText:GetStringHeight()", 1, true))
+      assert.is_truthy(layout:find("place(gridBlock, gridH,", 1, true))
+      assert.is_truthy(layout:find("d.fixedHeightOpen = above + gridH", 1, true))
+    end)
+
     it("exposes applyDetailsState on the dialog table for the resize hook to call", function()
       local text = source()
       assert.is_truthy(text:find("d.applyDetailsState = applyDetailsState", 1, true))

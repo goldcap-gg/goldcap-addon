@@ -878,6 +878,48 @@ describe("Live price caps -- buying at the player's own price", function()
       assert.equal(GC.Util.FormatMoney(29000000), row.priceText.text)
     end)
 
+    -- In game 2026-09-23: "Void-Tempered Scales x400 Test caps · yo..." -- the VERDICT column
+    -- already says YOUR PRICE, and the name cell ran out of room saying it again.
+    describe("its item cell", function()
+      local function grouped(GC)
+        _G.GoldCap_AppRuns = { v = 3, generatedAt = 1, runs = {}, groups = { "Test caps" },
+          caps = { { i = 42, c = 2000000, g = 1 } } }
+        GC.Caps.Adopt()
+        capLive(GC, 42, TWO_LEVELS)
+      end
+
+      it("names the group and does not repeat the price", function()
+        local GC = loadSniper()
+        grouped(GC)
+        local row = fakeRow()
+        getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+        assert.is_truthy(row.nameText.text:find("Test caps", 1, true))
+        assert.is_nil(row.nameText.text:find("your price", 1, true))
+      end)
+
+      it("leaves the group to the tooltip when the cell has no room for it", function()
+        local GC = loadSniper()
+        grouped(GC)
+        local row = fakeRow()
+        function row.nameText:IsTruncated() return self.text:find("Test caps", 1, true) ~= nil end
+        getUpvalue(refreshRowsOf(GC), "setRowDeal")(row, boardDeal(GC, 42))
+        assert.is_nil(row.nameText.text:find("Test caps", 1, true))
+        assert.is_truthy(row.nameText.text:find("x20", 1, true)) -- the quantity stays
+      end)
+
+      it("says in the row's tooltip what YOUR PRICE means, group included", function()
+        local GC = loadSniper()
+        grouped(GC)
+        assert.equal((GC.L["Listed at or under the price you set on goldcap.gg (group: %s)"]):format("Test caps"),
+          GC.Sniper._CapNote(boardDeal(GC, 42)))
+        adoptCap(GC, 42, 2000000) -- a price typed for the item alone: no group to name
+        capLive(GC, 42, TWO_LEVELS)
+        assert.equal(GC.L["Listed at or under the price you set on goldcap.gg. Whether it resells is yours to judge."],
+          GC.Sniper._CapNote(boardDeal(GC, 42)))
+        assert.is_nil(GC.Sniper._CapNote({ itemID = 7, isCommodity = true, unitPrice = 1 }))
+      end)
+    end)
+
     it("sorts by that same total", function()
       local GC = loadSniper()
       adoptCap(GC, 42, 2000000)

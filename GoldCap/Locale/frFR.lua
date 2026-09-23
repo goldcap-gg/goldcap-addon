@@ -44,7 +44,6 @@ GC.Locales.frFR = {
   ["%s after the AH cut"] = "%s après la commission de l'HV",
   ["%s ahead"] = "%s devant",
   ["%s under you"] = "%s sous votre prix",
-  ["%s · your price %s"] = "%s · ton prix %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unité%s sans prix d'achat",
   [", %d hidden as unsellable"] = ", %d masqués car invendables",
   ["1 lot, %s asked"] = "1 lot, %s demandés",
@@ -722,4 +721,6 @@ GC.Locales.frFR = {
   ["no answer %ds ago -- resting"] = "aucune réponse il y a %ds -- en pause",
   ["the last attempt is still settling -- checking the price again..."] =
     "la dernière tentative n'est pas encore réglée -- nouvelle vérification du prix...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "Mis en vente à ton prix fixé sur goldcap.gg ou en dessous (groupe : %s)",
 }

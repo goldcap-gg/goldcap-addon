@@ -43,7 +43,6 @@ GC.Locales.ruRU = {
   ["%s after the AH cut"] = "%s после комиссии",
   ["%s ahead"] = "%s впереди",
   ["%s under you"] = "%s дешевле вас",
-  ["%s · your price %s"] = "%s · ваша цена %s",
   ["%s — %d unit%s without a cost"] = "%s — %d единиц%s без себестоимости",
   [", %d hidden as unsellable"] = ", скрыто %d как непродаваемые",
   ["1 lot, %s asked"] = "1 лот, просят %s",
@@ -719,4 +718,6 @@ GC.Locales.ruRU = {
   ["no answer %ds ago -- resting"] = "нет ответа %dс назад -- пауза",
   ["the last attempt is still settling -- checking the price again..."] =
     "предыдущая попытка ещё не завершилась -- проверяем цену заново...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "Выставлено по цене, заданной вами на goldcap.gg, или дешевле (группа: %s)",
 }

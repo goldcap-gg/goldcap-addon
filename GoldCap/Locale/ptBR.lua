@@ -45,7 +45,6 @@ GC.Locales.ptBR = {
   ["%s after the AH cut"] = "%s após a taxa da CdL",
   ["%s ahead"] = "%s à frente",
   ["%s under you"] = "%s abaixo de você",
-  ["%s · your price %s"] = "%s · seu preço %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unidade%s sem custo",
   [", %d hidden as unsellable"] = ", %d ocultos por não serem vendáveis",
   ["1 lot, %s asked"] = "1 lote, pedindo %s",
@@ -720,4 +719,6 @@ GC.Locales.ptBR = {
   ["no answer %ds ago -- resting"] = "sem resposta há %ds -- em pausa",
   ["the last attempt is still settling -- checking the price again..."] =
     "a última tentativa ainda está sendo concluída -- verificando o preço de novo...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "Anunciado no preço que você definiu no goldcap.gg ou abaixo (grupo: %s)",
 }

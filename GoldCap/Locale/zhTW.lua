@@ -48,7 +48,6 @@ GC.Locales.zhTW = {
   ["%s after the AH cut"] = "扣除拍賣場手續費後 %s",
   ["%s ahead"] = "前面有 %s",
   ["%s under you"] = "%s 低於你的價格",
-  ["%s · your price %s"] = "%s · 你的價格 %s",
   ["%s — %d unit%s without a cost"] = "%s — %d 件%s沒有成本",
   [", %d hidden as unsellable"] = "，%d 件因無法出售已隱藏",
   ["1 lot, %s asked"] = "1 批，要價 %s",
@@ -656,4 +655,6 @@ GC.Locales.zhTW = {
   ["no answer %ds ago -- resting"] = "%d 秒前無回應 -- 暫歇",
   ["the last attempt is still settling -- checking the price again..."] =
     "上一次嘗試仍在結算 -- 正在重新核對價格...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "掛單價不高於你在 goldcap.gg 設定的價格（分組：%s）",
 }

@@ -46,7 +46,6 @@ GC.Locales.koKR = {
   ["%s after the AH cut"] = "경매장 수수료 제외 %s",
   ["%s ahead"] = "앞에 %s",
   ["%s under you"] = "내 가격보다 낮은 매물 %s",
-  ["%s · your price %s"] = "%s · 내 가격 %s",
   ["%s — %d unit%s without a cost"] = "%s — 원가 없는 %d개%s",
   [", %d hidden as unsellable"] = ", 판매 불가로 %d개 숨김",
   ["1 lot, %s asked"] = "물량 1건, 요청가 %s",
@@ -678,4 +677,6 @@ GC.Locales.koKR = {
   ["no answer %ds ago -- resting"] = "%d초 전 응답 없음 -- 대기 중",
   ["the last attempt is still settling -- checking the price again..."] =
     "이전 시도가 아직 정리되는 중 -- 가격을 다시 확인하는 중...",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "goldcap.gg에서 정한 내 가격 이하로 등록됨 (그룹: %s)",
 }

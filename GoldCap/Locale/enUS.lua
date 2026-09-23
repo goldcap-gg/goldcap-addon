@@ -52,7 +52,6 @@ GC.Locales.enUS = {
   ["%s after the AH cut"] = "%s after the AH cut",
   ["%s ahead"] = "%s ahead",
   ["%s under you"] = "%s under you",
-  ["%s · your price %s"] = "%s · your price %s",
   ["%s — %d unit%s without a cost"] = "%s — %d unit%s without a cost",
   ["%s → craft %d× (%d per craft)"] = "%s → craft %d× (%d per craft)",
   [", %d hidden as unsellable"] = ", %d hidden as unsellable",
@@ -110,6 +109,8 @@ GC.Locales.enUS = {
   ["Cancel lot"] = "Cancel lot",
   ["GOLDCAP"] = "GOLDCAP",
   ["HOLDING %d"] = "HOLDING %d",
+  ["Listed at or under the price you set on goldcap.gg (group: %s)"] =
+    "Listed at or under the price you set on goldcap.gg (group: %s)",
   ["Max units per buy"] = "Max units per buy",
   ["NOT ON HAND %d"] = "NOT ON HAND %d",
   ["Nothing on this deck matches that search"] = "Nothing on this deck matches that search",
