@@ -2854,6 +2854,10 @@ function GC.Sell._OtherRequestOut()
   -- A purchase either window confirmed is out until it is answered, which can be after its claim
   -- has gone stale and IsBusy has stopped saying so (GC.PurchaseSlot.ConfirmOwed).
   if GC.PurchaseSlot and GC.PurchaseSlot.ConfirmOwed and GC.PurchaseSlot.ConfirmOwed() then return true end
+  -- Final money review M2: and one either window stopped waiting on -- BUY's "unknown", the
+  -- Sniper's released confirm -- which can still answer for as long as its record is kept.
+  if GC.Buy and GC.Buy.HasStranded and GC.Buy.HasStranded() then return true end
+  if GC.Sniper and GC.Sniper.HasStrandedConfirmed and GC.Sniper.HasStrandedConfirmed() then return true end
   if GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then return true end
   return false
 end

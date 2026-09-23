@@ -370,7 +370,20 @@ local function drainCommodityPurchase(row)
   local pending = commodityPurchase
   if pending and pending.row == row then
     commodityPurchase = nil
-    if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+    -- Final money review I1: a Start cancelled before the server answered it still has that
+    -- answer coming, and it names no attempt. Released here, the slot let the BUY tab start in the
+    -- gap, Core/Init.lua offered the late quote to BUY first, and BUY's CONFIRM lit at a total it
+    -- never quoted. So the slot stays this window's -- claim re-stamped, well past the drain's
+    -- bound -- until that drain is over (GC.Sniper._EndDrainHold): the late quote consumed here,
+    -- a terminal event, a Check of our own that proves nothing more is coming
+    -- (GC.Sniper._RetireFencedTombstone), or the timer below. A purchase whose quote had come --
+    -- confirmed or not -- has nothing left in flight, and lets go at once as before.
+    if pending.priceReceived or pending.confirmed or pending.wasConfirmed then
+      if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+    else
+      pending.holdsSlot = true
+      if GC.PurchaseSlot then GC.PurchaseSlot.Claim("sniper") end
+    end
     commodityDraining = pending
     -- No event token can prove a terminal belongs to this attempt. Stay fail-closed until a
     -- terminal event arrives or the Auction House session resets, even after a price update.
@@ -393,6 +406,7 @@ local function drainCommodityPurchase(row)
         if commodityDraining == pending and not pending.confirmed then
           commodityDraining = nil
         end
+        GC.Sniper._EndDrainHold(pending) -- the drain's own bound (I1); a no-op once let go
       end)
     end
     return pending
@@ -425,7 +439,17 @@ function GC.Sniper._RetireFencedTombstone(attempt)
   if (tombstone.fenceRow == attempt.row and tombstone.fenceToken == attempt.token)
       or attempt.afterTombstone == tombstone then
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(tombstone)
   end
+end
+
+-- The end of a drain that held the shared slot (final money review I1, drainCommodityPurchase):
+-- the slot goes back, unless a purchase of this window's own has claimed it since -- the claim is
+-- that purchase's then, and not the drain's to give away.
+function GC.Sniper._EndDrainHold(tombstone)
+  if not (tombstone and tombstone.holdsSlot) then return end
+  tombstone.holdsSlot = nil
+  if GC.PurchaseSlot and not commodityPurchase then GC.PurchaseSlot.Release("sniper") end
 end
 
 -- The confirmed commodity purchase still owed its terminal event, or nil -- in flight
@@ -6829,7 +6853,10 @@ function GC.Sniper._ReleaseQuietZone()
     end
     commodityPurchase = nil
   end
-  if commodityDraining and not commodityDraining.confirmed then commodityDraining = nil end
+  if commodityDraining and not commodityDraining.confirmed then
+    GC.Sniper._EndDrainHold(commodityDraining)
+    commodityDraining = nil
+  end
   refreshRows()
 end
 
@@ -7099,6 +7126,9 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     -- Price updates are non-terminal. Keep draining through every one, and re-send Cancel for
     -- a cancelled server session. A confirmed tombstone must never be cancelled after Confirm.
     if not commodityDraining.confirmed then C_AuctionHouse.CancelCommoditiesPurchase() end
+    -- A Start cancelled unanswered has had its answer now: its drain is over, and the slot it
+    -- held for it goes back (final money review I1).
+    GC.Sniper._EndDrainHold(commodityDraining)
     return
   end
   local pending = commodityPurchase
@@ -7379,6 +7409,7 @@ function GC.Sniper.OnCommodityPriceUnavailable()
   if commodityDraining then
     local pending = commodityDraining
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(pending) -- a terminal event: the drain is over (I1)
     if pending.confirmed then
       -- This tombstone survived AH close. Its row may already be repooled, so freeze/report
       -- only detached item facts; never estimate a total or mutate an unrelated new Check.
@@ -7444,6 +7475,7 @@ function GC.Sniper.OnCommodityPurchaseSucceeded()
   if commodityDraining then
     local pending = commodityDraining
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(pending) -- a terminal event: the drain is over (I1)
     if not pending.confirmed then
       -- An attempt the server re-quoted after Confirm is unconfirmed again (no gold moves on a
       -- re-quote) and this one was then cancelled -- but Confirm HAD reached Blizzard once, so
@@ -7500,6 +7532,7 @@ function GC.Sniper.OnCommodityPurchaseFailed()
   if commodityDraining then
     local pending = commodityDraining
     commodityDraining = nil
+    GC.Sniper._EndDrainHold(pending) -- a terminal event: the drain is over (I1)
     if pending.confirmed then settleDetachedConfirmed(pending, "failed") end
     return -- terminal event for the cancelled/closed attempt, never the next one
   end
@@ -7551,6 +7584,11 @@ end
 -- UI prints with. This read `_G.AuctionHouseErrorMessages`, a table the client does not have,
 -- so every error said the generic sentence.
 function GC.Sniper.OnAuctionHouseError(errorCode)
+  -- Final money review M1: an error only a Sell post can raise is that post's answer, and none of
+  -- this window's -- a Buy window can stay open over the Sell tab. Read as the purchase's own, it
+  -- settled an unconfirmed purchase and let the slot go with the Start's answer still coming. The
+  -- mirror of the Sell tab ignoring the codes only a bid can raise (GC.Sell._ErrorKind).
+  if GC.Sell and GC.Sell._ErrorKind and GC.Sell._ErrorKind(errorCode) == "post" then return end
   local text = (GC.Util and GC.Util.AuctionHouseErrorText and GC.Util.AuctionHouseErrorText(errorCode))
     or GC.L["the auction house reported an error"]
 
@@ -7564,7 +7602,10 @@ function GC.Sniper.OnAuctionHouseError(errorCode)
       end
     else
       commodityPurchase = nil
-      if commodityDraining and not commodityDraining.confirmed then commodityDraining = nil end
+      if commodityDraining and not commodityDraining.confirmed then
+        GC.Sniper._EndDrainHold(commodityDraining)
+        commodityDraining = nil
+      end
       resolvePurchase(row, false, text)
     end
   end
@@ -9396,6 +9437,9 @@ local function resetAllPurchases()
   if not (commodityDraining and commodityDraining.confirmed) then
     commodityPurchase = nil
     if GC.PurchaseSlot then GC.PurchaseSlot.Release("sniper") end
+    -- The slot is given back here with the session; the drain that held it (final money review
+    -- I1) is over, and its timer must not later free a slot a drain of the next visit holds.
+    if commodityDraining then commodityDraining.holdsSlot = nil end
     commodityDraining = nil
   end
   -- T6: a programmatic Hide() (this runs on AH close) doesn't reliably fire the row's own

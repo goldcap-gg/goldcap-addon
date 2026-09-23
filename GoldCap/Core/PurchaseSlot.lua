@@ -57,8 +57,9 @@ end
 -- The one rule both Start sites keep (the Sniper's onDialogPrimaryClick, the BUY tab's
 -- onBuyClick): no commodity purchase starts while a purchase either window CONFIRMED is still owed
 -- its answer -- the claim above is not enough on its own. It goes stale after MAX_SECONDS, and a
--- confirmed purchase can be owed longer than that (the Sniper's stranded release waits 35 s, and a
--- confirm carried across an auction house close keeps the claim it had), so the other window took
+-- confirmed purchase can be owed longer than that (the Sniper's stranded release waits 35 s, a
+-- Sniper confirm carried across an auction house close keeps the claim it had, and a BUY confirm
+-- the close hit stays owed until BUY's own wait for it would have ended), so the other window took
 -- the stale claim over and started a purchase on top of one that may already have taken gold.
 -- Returns the window whose confirm is owed ("sniper" or "buy"), or nil. Each window answers for
 -- itself: GC.Sniper._ConfirmedOwed and GC.Buy.ConfirmOwed; a window not loaded owes nothing.
