@@ -101,12 +101,18 @@ GC.CheckVerdict.RECONCILE_TEXT = {
 }
 
 -- One label per fact id. The ids are stable; the wording is not.
+--
+-- `confidence` is the sales tape's own certainty that listings which vanished were sold rather
+-- than left to expire -- the market's liquidityConfidence, nothing about the price or this
+-- verdict. Labelled "Confidence", it read "Confidence: high" beside "Won't buy -- can't price
+-- this" (in game 2026-09-23). Its label names the sales it is certain about, and is not
+-- "Sell-through": that is `sellThrough`, a different figure.
 -- @localised-keys
 GC.CheckVerdict.FACT_LABEL = {
   sellers = "Sellers",
   soldPerDay = "Sold per day",
   sellThrough = "Sell-through",
-  confidence = "Confidence",
+  confidence = "Sales certainty",
   liveAsk = "Live ask",
   snapshotValue = "Snapshot value",
   youPay = "You would pay",

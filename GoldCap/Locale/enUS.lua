@@ -230,7 +230,6 @@ GC.Locales.enUS = {
   ["Companion keeps prices fresh — /goldcap companion"] =
     "Companion keeps prices fresh — /goldcap companion",
   ["Companion sync rejected:"] = "Companion sync rejected:",
-  ["Confidence"] = "Confidence",
   ["Confirm"] = "Confirm",
   ["Confirm the cancel"] = "Confirm the cancel",
   ["Confirm the removal"] = "Confirm the removal",
@@ -485,6 +484,7 @@ GC.Locales.enUS = {
   ["SESSION %s%s · %d BUYS"] = "SESSION %s%s · %d BUYS",
   ["SHOW DETAILS ▸"] = "SHOW DETAILS ▸",
   ["Sales are costed from your oldest units first"] = "Sales are costed from your oldest units first",
+  ["Sales certainty"] = "Sales certainty",
   ["Sell tab posts one rung above the cheapest ask when the book says it sells just as fast."] =
     "Sell tab posts one rung above the cheapest ask when the book says it sells just as fast.",
   ["Sell-through"] = "Sell-through",
