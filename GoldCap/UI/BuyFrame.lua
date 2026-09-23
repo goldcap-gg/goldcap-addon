@@ -778,9 +778,11 @@ local function quotePending(attempt)
     and (time() - (attempt.askedAt or 0)) < BD.QUOTE_SECONDS
 end
 
--- The last quote this line got, while it is still one the next click could spend -- for the
--- line's whole remaining quantity, inside BD.QUOTE_SECONDS -- or nil. A quote outlives the hover
--- that asked for it: the COST cell keeps its sum, and the button keeps its "BUY n".
+-- The last quote this line got, for the line's whole remaining quantity, while it is inside
+-- BD.QUOTE_SECONDS -- or nil. A quote outlives the hover that asked for it: the COST cell keeps its
+-- sum, and the button keeps its "BUY n". It is what the line SHOWS, not what a click spends: a
+-- click buys only on the line's own attempt holding a fresh quote (onBuyClick), and otherwise asks
+-- the auction house again -- which waits while a keys batch is out (quote, GC.Buy._owedByClick).
 local function recentQuote(line)
   local recent = quotes[line.itemID]
   if recent and recent.qty == line.buy and recent.qty > 0
@@ -806,9 +808,13 @@ local function actionLabel(line)
   -- the batch is gone. Said like a question already on the wire, not as a resting "BUY n" whose
   -- click could do nothing yet (caps fixes 5i) -- for a line with no fresh quote only: one that has
   -- one keeps its own label, as it did before the batch went out.
+  --
+  -- Final review m10: and a line that has one, after a click on it: the click asked again (a quote
+  -- shown is not one a click spends -- recentQuote) and the ask is waiting too, so the button says
+  -- so instead of reading "BUY n", enabled, as if the click had done nothing.
   if GC.Buy._quoteOwed == line.itemID and not inFlight(attempt)
       and not (attempt and attempt.itemID == line.itemID and quoteFresh(attempt))
-      and not recentQuote(line) then
+      and (not recentQuote(line) or GC.Buy._owedByClick == line.itemID) then
     return GC.L["..."], false
   end
   if not attempt or attempt.itemID ~= line.itemID then
@@ -1225,7 +1231,8 @@ end
 -- throttle claim, and only when there is nothing better already in hand: a quote younger than
 -- BD.QUOTE_SECONDS for this same line is what the next click will spend, and a purchase in
 -- flight owns the buffer until it is done.
-local function quote(line)
+-- `clicked`: the ask is the player's click, not a hover (final review m10, actionLabel).
+local function quote(line, clicked)
   if not buyable(line) then return end
   local attempt = GC.Buy._attempt
   if inFlight(attempt) then return end
@@ -1246,6 +1253,12 @@ local function quote(line)
   -- again once the batch is gone, if it still has the focus (GC.Buy.Tick).
   if GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding() then
     GC.Buy._quoteOwed = line.itemID
+    -- A hover over the line a click is waiting on keeps the click's word (the button's "...").
+    if clicked then
+      GC.Buy._owedByClick = line.itemID
+    elseif GC.Buy._owedByClick ~= line.itemID then
+      GC.Buy._owedByClick = nil
+    end
     GC.Buy.RefreshIfShown() -- the button says it is waiting (actionLabel)
     return
   end
@@ -1532,7 +1545,7 @@ function GC.Buy.OnAuctionHouseClosed()
   GC.Buy._stranded = {}
   -- A quote owed to this session is not the next one's to ask: the line it was for has long lost
   -- the pointer by then, and the button would read "..." until something asked (caps fixes 5i).
-  GC.Buy._quoteOwed = nil
+  GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
   local attempt = GC.Buy._attempt
   if not attempt then return end
   local stage = attempt.stage
@@ -1605,7 +1618,7 @@ local function onBuyClick(line)
     -- Focus does not move onto a line a click cannot act on while another line's purchase is in
     -- the client's hands: Enter has to keep pointing at the line waiting for its confirm.
     if not inFlight(attempt) then GC.Buy._focus = line.itemID end
-    quote(line)
+    quote(line, true)
     return
   end
 
@@ -2552,7 +2565,7 @@ function GC.Buy.Tick()
   -- of the refresh, which would otherwise take the moment with a batch of its own.
   local owed = GC.Buy._quoteOwed
   if owed and not (GC.Sniper and GC.Sniper._KeysOutstanding and GC.Sniper._KeysOutstanding()) then
-    GC.Buy._quoteOwed = nil
+    GC.Buy._quoteOwed, GC.Buy._owedByClick = nil, nil
     local line = lineFor(owed)
     if line and GC.Buy._focus == owed and container and container:IsShown() then quote(line) end
     -- The waiting look goes with the debt, whether or not the ask above went out.

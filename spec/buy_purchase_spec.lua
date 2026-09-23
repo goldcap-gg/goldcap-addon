@@ -1452,6 +1452,30 @@ describe("BUY purchase", function()
     assert.is_true(row.action:IsEnabled())
   end)
 
+  -- Final review m10: a click on that line then asks again -- the quote it shows is not the
+  -- attempt a click spends -- and the ask is held for the batch. The button stayed "BUY 10",
+  -- enabled, as if the click had done nothing. It says it is waiting until the ask goes.
+  it("says it is waiting after a click that has to wait for a keys batch", function()
+    hover(rowWithText("Alpha Herb"))
+    GC.Buy.OnCommodityResults(101)
+    hover(rowWithText("Echo Salt"))
+    GC.Buy.OnCommodityResults(105)
+    local out = true
+    GC.Sniper._KeysOutstanding = function() return out end
+    hover(rowWithText("Alpha Herb"))
+    local asked = #searches
+
+    click(rowWithText("Alpha Herb"))
+
+    local row = rowWithText("Alpha Herb")
+    assert.equal("...", row.action.label)
+    assert.is_false(row.action:IsEnabled())
+    out = false
+    GC.Buy.Tick()
+    assert.equal(asked + 1, #searches)
+    assert.equal(101, searches[#searches])
+  end)
+
   -- Final review m9: the Sniper asks this before it sends any keys batch -- a hover quote left on
   -- the wire by a switch to Deals is one a cap batch would take the answer of.
   it("says a quote is waiting for its answer until it lands", function()
