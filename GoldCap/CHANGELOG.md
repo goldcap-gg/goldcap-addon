@@ -8,7 +8,9 @@
   open at the auction house, and wait while you use the Sell and BUY tabs; each find shows up on
   its own board. Needs the current Companion release; the group's minimum item level is
   honoured for gear. When you buy part of what is listed at your price, the rest comes back as
-  a row.
+  a row. The row names its alert group when there is room for it; hover it for the group and
+  what YOUR PRICE means. Its PROFIT is what reselling the whole buy at the market would make
+  after the cut, like every other row's.
 - A commodity at your price is bought cheapest first and no more than your "Max units per buy"
   and your wallet limit allow; gear at your price keeps to your wallet limit too. The sniper
   never plans a unit above your price, and warns you loudly before any quote that could include
@@ -27,9 +29,6 @@
   opens shows the cheapest such version rather than whichever one the auction house picks.
 - A realm item listed in several item-level variants is now checked and bought at its cheapest
   variant, not whichever one the auction house answered first.
-- A YOUR PRICE row names its alert group only when there is room for it; hover the row for the
-  group and what YOUR PRICE means. Its PROFIT is what reselling the whole buy at the market
-  would make after the cut, like every other row's.
 - The buy window's Reason line shows its whole sentence instead of cutting it off.
 - Clicking Buy right after a purchase was cancelled or sent back to a Check no longer sits on
   "waiting for previous commodity purchase to settle": the click checks the price again, and
