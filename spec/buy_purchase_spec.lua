@@ -545,21 +545,42 @@ describe("BUY purchase", function()
     end
     after_each(function() if _G.C_AuctionHouse then _G.C_AuctionHouse.GetQuoteDurationRemaining = nil end end)
 
-    -- Fix round 5 (m1): beside the line's name, not on the button. The 72 px button holds
-    -- "CONFIRM" in every locale, and "CONFIRM (9)" clipped the digit in seven of them.
-    it("counts down its last ten seconds beside the line's name, leaving CONFIRM as it is", function()
+    -- Fix round 5 (m1): in the line's name cell, not on the button. The 72 px button holds
+    -- "CONFIRM" in every locale, and "CONFIRM (9)" clipped the digit in seven of them. Final micro
+    -- round: AHEAD of the name -- the cell is one line cut at its right edge, and trailing the
+    -- name the digit was the part a normal reagent name pushed out of it.
+    it("counts down its last ten seconds ahead of the line's name, leaving CONFIRM as it is", function()
       atConfirm()
-      now = now + 9.5
+      now = now + 8 -- 12 s left: nothing yet
       GC.Buy.TickCountdown()
-      local nine = GC.L["expires in %d s"]:format(9)
-      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find(GC.L["expires in %d s"]:format(10), 1, true))
+      GC.Buy.RefreshIfShown()
+      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("expires in", 1, true))
 
-      now = now + 1.5 -- 11 s after the quote: 9 left
+      now = now + 3 -- 11 s after the quote: 9 left
       GC.Buy.TickCountdown()
       local row = rowWithText("Alpha Herb")
-      assert.is_truthy(row.reagent:GetText():find(nine, 1, true))
+      assert.equal(1, row.reagent:GetText():find(GC.L["expires in %d s"]:format(9), 1, true))
       assert.equal("CONFIRM", row.action.label)
       assert.is_true(row.action:IsEnabled())
+    end)
+
+    -- Final micro round (nit 2): only the line whose quote it is, and only while it waits at
+    -- CONFIRM -- after the click the wait is the server's, and no seconds are the player's to beat.
+    it("counts on the quoted line only", function()
+      atConfirm()
+      now = now + 11
+      GC.Buy.TickCountdown()
+      assert.is_nil(rowWithText("Charlie Dust").reagent:GetText():find("expires in", 1, true))
+    end)
+
+    it("stops counting once CONFIRM has been clicked", function()
+      atConfirm()
+      click(rowWithText("Alpha Herb")) -- confirm: the stage is the server's now
+      assert.equal("confirming", GC.Buy._attempt.stage)
+      now = now + 11
+      GC.Buy.TickCountdown()
+      GC.Buy.RefreshIfShown()
+      assert.is_nil(rowWithText("Alpha Herb").reagent:GetText():find("expires in", 1, true))
     end)
 
     it("repaints once a second while it counts, not on every tick", function()

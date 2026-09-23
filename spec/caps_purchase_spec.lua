@@ -1983,7 +1983,11 @@ describe("Live price caps -- buying at the player's own price", function()
           -- Fix round 5 (m2): a warn requote writes the only line in the dialog that says the price
           -- moved -- the banner is hidden for a warn -- and its countdown keeps that line, red, with
           -- the seconds after it, rather than a gold "click Confirm to buy" under a red Confirm.
-          it("counts a requote down after the line that says the price moved", function()
+          -- Final micro round (nit 5): the move line is two lines of figures already, and with the
+          -- seconds after it a third line rose into the Details toggle at scale 1.3. The line stays
+          -- exactly as it was written; the seconds go on the full-width Confirm button, which has
+          -- room for "Confirm (9)" at every scale.
+          it("counts a requote down on its Confirm button, leaving the price-move line as it is", function()
             local GC, row, _, d, click = armed()
             onTheClock(GC)
             click()
@@ -1994,14 +1998,21 @@ describe("Live price caps -- buying at the player's own price", function()
             assert.is_true(d.enabled)
             local moved = d.written[#d.written]
             assert.is_truthy(moved:find("per unit", 1, true))
+            local count = #d.written
 
             clock = 113
             GC.Sniper._TickConfirmCountdown()
 
-            local line = d.written[#d.written]
-            assert.equal(1, line:find(moved, 1, true)) -- the move line stays, first
-            assert.is_truthy(line:find(GC.L["expires in %d s"]:format(9), 1, true))
-            assert.is_nil(line:find("click Confirm to buy", 1, true))
+            assert.equal(count, #d.written) -- nothing written over the move line
+            assert.equal(moved, d.written[#d.written])
+            assert.equal("Confirm (9)", d.label)
+            assert.is_true(d.enabled)
+
+            clock = 113.9
+            click() -- Confirm: the wait is the server's now, and so is the button's label
+            assert.equal("confirming", row.purchaseStage)
+            GC.Sniper._TickConfirmCountdown()
+            assert.equal("Confirm", d.label)
           end)
 
           -- Fix round 5 (n1): the two branches nothing else reaches -- a quote that lands after the slot

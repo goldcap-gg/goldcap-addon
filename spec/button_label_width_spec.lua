@@ -27,11 +27,12 @@ describe("row button labels fit the button", function()
     { what = "the 64px Deals buy button", budget = 8,
       keys = { "Buy", "Check", "Avoid" } },
     -- UI/BuyFrame.lua: row.action:SetSize(72, 18). Measured at the DEFAULT scale (1.0, 6.0px per
-    -- character, so 12), not at 1.3 like the two above: at 1.3 the 72px badge holds 9, and the
-    -- German and Russian/Ukrainian "CONFIRM" (10 and 11) clip there already -- that is recorded,
-    -- not fixed here. What this pins is the label a player sees at the default scale: the
-    -- countdown lives beside the line's name, because "CONFIRM (9)" did not fit (fix round 5).
-    { what = "the 72px BUY action button", budget = 12,
+    -- character), not at 1.3 like the two above: at 1.3 the 72px badge holds 9, and the German and
+    -- Russian/Ukrainian "CONFIRM" (10 and 11) clip there already -- that is recorded, not fixed
+    -- here. 11, not the 12 that fill it exactly: the Sell precedent's >=2px of clearance (66px of
+    -- 72). What this pins is the label a player sees at the default scale: the countdown lives in
+    -- the line's name cell, because "CONFIRM (9)" did not fit (fix round 5).
+    { what = "the 72px BUY action button", budget = 11,
       keys = { "CONFIRM", "waiting..." } },
   }
 

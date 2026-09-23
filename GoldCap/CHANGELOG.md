@@ -37,8 +37,8 @@
   it too — in either direction, one purchase never starts on top of another you confirmed.
 - A price the auction house quotes in the buy window, left unconfirmed for 20 seconds — or
   until the auction house's own quote runs out, if that is sooner — turns into Refresh, the way
-  an unclicked Buy already does. The last ten seconds count down, in the buy window and beside
-  the line waiting for its CONFIRM on the BUY tab.
+  an unclicked Buy already does. The last ten seconds count down, in the buy window and at the
+  start of the line waiting for its CONFIRM on the BUY tab.
 - The Auto button says what is holding it — "AUTO · PAUSED: MAILBOX OPEN", "BUY TAB", "WAITING
   FOR YOU" and so on — and its tooltip says what to do about it. A mailbox you left by walking
   straight to the auctioneer no longer keeps Auto paused.

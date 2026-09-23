@@ -4693,6 +4693,14 @@ end
 -- own buy dialog shows them, so a Confirm aimed at the last second is not a surprise Refresh. Only
 -- while Confirm can be clicked: a line that says why it cannot (not enough gold, a loud hold) stays.
 function GC.Sniper._TickConfirmCountdown()
+  -- A requote's countdown is on the Confirm button (below). Once the row has left "requote" -- the
+  -- player clicked Confirm, and the button is dark on "confirming" -- the digit goes with it; every
+  -- other way out of "requote" labels the button itself.
+  if dialog and dialog.countdownOnButton
+      and not (dialog.row and dialog.row.purchaseStage == "requote") then
+    dialog.countdownOnButton = nil
+    if dialog.row and dialog.row.purchaseStage == "confirming" then setPrimaryLabel("Confirm") end
+  end
   local pending = commodityPurchase
   local row = pending and pending.row
   if not (row and not pending.confirmed and pending.stallEnds and dialog and dialog.row == row
@@ -4703,13 +4711,15 @@ function GC.Sniper._TickConfirmCountdown()
   local left = math.ceil(pending.stallEnds - GetTime())
   if left < 1 or left > LIM.CONFIRM_COUNTDOWN_SECONDS or left == pending.countdownShown then return end
   -- A warn requote hides the banner, so its red "old -> new per unit" line is the only thing in the
-  -- dialog that says the price moved: it keeps it, and the seconds go after it (fix round 5, m2).
-  -- A requote whose line is something else (not enough gold) has a dark Confirm and never gets here.
+  -- dialog that says the price moved: it is never written over (fix round 5, m2). Nor added to:
+  -- that line is two lines of figures already, and at scale 1.3 the seconds after it wrapped to a
+  -- third that rose into the Details toggle (final micro round). The seconds go on the full-width
+  -- Confirm button instead, red like the rest of the requote, which has room for "Confirm (9)" at
+  -- every scale.
   if row.purchaseStage == "requote" then
-    if not pending.requoteDetail then return end
     pending.countdownShown = left
-    setDialogStatus(("%s  ·  %s"):format(pending.requoteDetail, (GC.L["expires in %d s"]):format(left)),
-      1, 0.3, 0.3)
+    dialog.countdownOnButton = true
+    setPrimaryLabel(("%s (%d)"):format("Confirm", left), 1, 0.35, 0.35)
     return
   end
   pending.countdownShown = left
@@ -7176,7 +7186,6 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
   end
 
   local market = marketForDecision(deal.itemID)
-  pending.requoteDetail = nil -- the countdown's price-move line, for a requote only (below)
   row.quoteSnapshot = {
     token = pending.token,
     itemID = deal.itemID,
@@ -7304,7 +7313,6 @@ function GC.Sniper.OnCommodityPriceUpdated(unitPrice, totalPrice)
     return
   end
   setDialogStatus(detail, 1, 0.3, 0.3)
-  pending.requoteDetail = detail -- kept by the countdown (GC.Sniper._TickConfirmCountdown)
   -- "still safe" is a claim the cap has just contradicted, so a breach says on the status line
   -- exactly what the banner says (M2).
   if frame then

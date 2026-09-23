@@ -1810,11 +1810,13 @@ local function paintLine(row, line)
     decorated = ("%s %s"):format(decorated, (GC.L["on %s"]):format(line.realmName))
   end
   -- The last seconds of this line's quote at CONFIRM (fix rounds 4-5): the name cell is the flex
-  -- column, the one with room; GC.Buy.TickCountdown repaints it once a second while they run.
+  -- column, the one with room; GC.Buy.TickCountdown repaints it once a second while they run. They
+  -- LEAD the name: the cell is one line cut at its right edge, and trailing a normal reagent name
+  -- at the default window width the digit was the part cut off (Russian and Ukrainian: always).
   local quoted = GC.Buy._attempt
   local left = quoted and quoted.itemID == line.itemID and quoteSecondsLeft(quoted)
   if left then
-    decorated = ("%s · %s"):format(decorated, (GC.L["expires in %d s"]):format(left))
+    decorated = ("%s · %s"):format((GC.L["expires in %d s"]):format(left), decorated)
   end
   row.reagent:SetText(decorated)
   -- Neither a vendor stop nor a craft line is something this tab can act on -- the whole row
