@@ -601,6 +601,32 @@ describe("Data", function()
       assert.is_nil(GC.Data.RegionPayload())
       assert.equal("import", GC.Data.GetItemValue(42).source)
       assert.equal(9, GC.Data.GetItemValue(42).mv)
+      assert.same({ reason = "other_region", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    -- A Companion that stopped syncing leaves its last payload on disk, adopted again on every
+    -- load; a fresher import of the same region -- a manual paste -- has to win over it, facts and
+    -- all, or every tooltip and Check reads days-old prices until the AppData folder is deleted.
+    it("yields to an import of its region more than 3 h newer than it", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 4 * 3600,
+        items = { [42] = { m = 9999, s = 5 } }, verification = { [42] = FACT }, watchlist = {} })
+      assert.is_nil(GC.Data.RegionPayload())
+      local v = GC.Data.GetItemValue(42)
+      assert.equal("import", v.source)
+      assert.equal(9999, v.mv)
+      assert.equal(5000, GC.Data.Facts(42).stressUnit)
+      assert.equal(700, GC.Data.GetItemValue(43).mv) -- bundled again, not the payload's M
+      assert.same({ reason = "older_than_import", ts = 3000 }, GC.Data.RegionPayloadStatus())
+    end)
+
+    -- The site dates an import string by its newest snapshot, commodity or realm, and the payload
+    -- by its commodity snapshot, so within one sync the import is legitimately up to an hour newer.
+    it("keeps answering while an import of its region is at most 3 h newer", function()
+      GC.Data.SetImported({ region = "eu", realm = "silvermoon", ts = 3000 + 3 * 3600,
+        items = { [42] = { m = 9999, s = 5 } }, verification = { [42] = FACT }, watchlist = {} })
+      assert.is_truthy(GC.Data.RegionPayload())
+      assert.equal("region", GC.Data.GetItemValue(42).source)
+      assert.is_nil(GC.Data.RegionPayloadStatus())
     end)
   end)
 end)

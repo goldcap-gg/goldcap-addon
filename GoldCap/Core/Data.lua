@@ -13,6 +13,12 @@ local payload
 -- How far ahead of this machine's clock a payload may be dated: clock skew between the player and
 -- the site, and nothing more (see AdoptRegionPayload).
 local PAYLOAD_FUTURE_SLACK_SECONDS = 3600
+-- How much newer than the payload an import of its region may be before the payload yields to it
+-- (see inactiveReason). The Companion's own freshness window for the payload.
+local PAYLOAD_IMPORT_LAG_SECONDS = 3 * 3600
+-- { reason, ts } for the last payload offered that could not be used, or nil; read through
+-- RegionPayloadStatus. In memory only, like the payload.
+local payloadFailure
 
 local function countItems(t)
   local n = 0
@@ -254,10 +260,25 @@ local function recordAppDataError(reason, writtenAt)
   end
 end
 
--- The payload, while its region is the one prices are loaded for. Checked on every read, so an
--- import of another region mid-session (SetImported -> adoptRegion) takes it out of play at once.
+-- Why a payload would not answer, or nil when it would. Checked on every read, so an import
+-- mid-session (SetImported -> adoptRegion) takes the payload out of play at once when it is:
+--   "other_region"      -- for another region than the one prices are loaded for;
+--   "older_than_import" -- more than PAYLOAD_IMPORT_LAG_SECONDS older than the loaded import of its
+--                          region. A Companion that stopped syncing leaves its last payload on disk
+--                          and it is adopted again on every load; without this a fresher manual
+--                          paste would lose to it, facts and all, until the AppData folder went. Not
+--                          a strict "older": the site dates an import string by its newest snapshot,
+--                          commodity or realm, and the payload by its commodity snapshot, so within
+--                          one sync the import is legitimately up to an hour newer.
+local function inactiveReason(p)
+  if p.region ~= region then return "other_region" end
+  local imp = db and db.imported
+  if imp and imp.ts and imp.ts - p.ts > PAYLOAD_IMPORT_LAG_SECONDS then return "older_than_import" end
+  return nil
+end
+
 local function activePayload()
-  if payload and payload.region == region then return payload end
+  if payload and not inactiveReason(payload) then return payload end
   return nil
 end
 
@@ -265,19 +286,46 @@ function GC.Data.RegionPayload()
   return activePayload()
 end
 
---- Parses the Companion's GCM1 payload into memory, replacing whatever was held. A string that does
--- not parse leaves nothing held -- the import string and the bundled table then answer exactly as
--- they did before the payload existed. Returns the payload, or nil and the reason: the parser's,
--- or "bad_ts" for a payload dated 0 or more than PAYLOAD_FUTURE_SLACK_SECONDS ahead of the clock.
+--- Why there is no whole-market data, for /goldcap status: { reason, ts } -- the reason the last
+-- payload offered could not be used (a parser code, "bad_ts", or one of inactiveReason's), and its
+-- date when it got as far as having one -- or nil when a payload is answering or none was offered.
+function GC.Data.RegionPayloadStatus()
+  local reason, ts
+  if payload then
+    reason, ts = inactiveReason(payload), payload.ts
+  elseif payloadFailure then
+    reason, ts = payloadFailure.reason, payloadFailure.ts
+  end
+  if not reason then return nil end
+  return { reason = reason, ts = ts }
+end
+
+local function refusePayload(reason, ts)
+  payloadFailure = { reason = reason, ts = ts }
+  return nil, reason
+end
+
+--- Parses the Companion's GCM1 payload into memory, replacing whatever was held. A payload that
+-- cannot be used leaves nothing held -- the import string and the bundled table then answer
+-- exactly as they did before the payload existed -- and its reason is kept for
+-- RegionPayloadStatus. Returns the payload, or nil and that reason.
 function GC.Data.AdoptRegionPayload(str)
-  payload = nil
-  if type(str) ~= "string" then return nil, "empty" end
+  payload, payloadFailure = nil, nil
+  if type(str) ~= "string" then return refusePayload("empty") end
   local parsed, reason = GC.ImportString.ParseRegion(str)
-  if not parsed then return nil, reason end
+  if not parsed then return refusePayload(reason) end
   -- An item the payload prices without a fact takes the payload's date as its own (GetItemValue),
   -- so a date of 0, or one ahead of the clock by more than skew, would make those items look fresh
   -- for as long as the payload stays loaded.
-  if parsed.ts <= 0 or parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then return nil, "bad_ts" end
+  if parsed.ts <= 0 or parsed.ts > time() + PAYLOAD_FUTURE_SLACK_SECONDS then
+    return refusePayload("bad_ts", parsed.ts)
+  end
+  -- One that would not answer now is not held either: megabytes kept all session for nothing, and
+  -- another region's would quietly come back into play if the player later pasted that region's
+  -- prices by hand. The import string is adopted first (AdoptAppData), so this is judged against
+  -- the region and the import this load settled on.
+  local idle = inactiveReason(parsed)
+  if idle then return refusePayload(idle, parsed.ts) end
   payload = parsed
   return parsed
 end

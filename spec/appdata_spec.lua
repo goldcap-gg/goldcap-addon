@@ -309,6 +309,49 @@ describe("Data.AdoptAppData", function()
     assert(ok, err)
   end)
 
+  it("lets a newer import answer over a payload a Companion that stopped syncing left behind", function()
+    local fresh = 2000 + 3 * 86400
+    GC.Data.SetImported(GC.ImportString.Parse("GCS1;eu;silvermoon;" .. fresh
+      .. ";I:190396=9999=5.0;V:190396=" .. fresh .. "=9000=8000=85=400=6=12=90=0"))
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = REGION_2000 }
+    GC.Data.AdoptAppData()
+    assert.equal(fresh, db.imported.ts)
+    assert.is_nil(GC.Data.RegionPayload())
+    local v = GC.Data.GetItemValue(190396)
+    assert.equal("import", v.source)
+    assert.equal(9999, v.mv)
+    assert.equal(9000, v.stressUnit)
+    assert.same({ reason = "older_than_import", ts = 2000 }, GC.Data.RegionPayloadStatus())
+    assert.is_nil(_G.GoldCap_AppData.regionString)
+  end)
+
+  -- Held, it would be megabytes kept all session for a region nothing is priced in -- and would
+  -- quietly come back into play if the player later pasted that region's prices by hand.
+  it("drops another region's payload at load, so a later import of that region does not revive it", function()
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000,
+      regionString = "GCM1;us;2000;I:190396=5=1.0" }
+    GC.Data.AdoptAppData()
+    assert.same({ reason = "other_region", ts = 2000 }, GC.Data.RegionPayloadStatus())
+    GC.Data.SetImported({ region = "us", realm = "area-52", ts = 2500,
+      items = { [1] = { m = 1 } }, watchlist = {} })
+    assert.is_nil(GC.Data.RegionPayload())
+    assert.is_nil(GC.Data.GetItemValue(190396))
+    assert.same({ reason = "other_region", ts = 2000 }, GC.Data.RegionPayloadStatus())
+  end)
+
+  -- What /goldcap status says when there is no whole-market data: why the last payload offered
+  -- could not be used, and its date when it got as far as having one.
+  it("keeps why the last payload could not be used, until one can", function()
+    assert.is_nil(GC.Data.RegionPayloadStatus())
+    _G.GoldCap_AppData = { writtenAt = 2000, importString = FIXTURE_TS2000, regionString = "garbage" }
+    GC.Data.AdoptAppData()
+    assert.same({ reason = "bad_header" }, GC.Data.RegionPayloadStatus())
+    GC.Data.AdoptRegionPayload("GCM1;eu;0;I:190396=5=1.0")
+    assert.same({ reason = "bad_ts", ts = 0 }, GC.Data.RegionPayloadStatus())
+    assert.is_truthy(GC.Data.AdoptRegionPayload(REGION_2000))
+    assert.is_nil(GC.Data.RegionPayloadStatus())
+  end)
+
   -- Counts every collectgarbage call `fn` makes, by option ("collect", "count", ...).
   local function countingCollects(fn)
     local real, calls = _G.collectgarbage, {}
